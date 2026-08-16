@@ -23,6 +23,7 @@ from signals.domain.events import (
     PublicEvent,
     SourceSystem,
 )
+from signals.domain.evidence import DERIVED, Evidence, SourceKind
 from signals.domain.values import (
     CanonicalModel,
     CpvCode,
@@ -37,6 +38,7 @@ from signals.domain.values import (
 )
 
 __all__ = [
+    "DERIVED",
     "Awardee",
     "AwardeeParty",
     "AwardeeRole",
@@ -48,6 +50,7 @@ __all__ = [
     "DurationUnit",
     "EventRef",
     "EventType",
+    "Evidence",
     "Location",
     "LotRef",
     "Money",
@@ -57,6 +60,7 @@ __all__ = [
     "PublicEvent",
     "PublicationInstant",
     "SourceIdentity",
+    "SourceKind",
     "SourceSystem",
     "SubdivisionScheme",
     "VatCategory",

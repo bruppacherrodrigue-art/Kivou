@@ -17,6 +17,7 @@ un moteur séparé.
 **SPEC-002** — connecteur TED (Search API v3 + eForms).
 **SPEC-003** — connecteur SIMAP (API publique simap.ch v1.5.1).
 **SPEC-004** — Winner Resolution : mentions publiées → entités entreprises.
+**SPEC-005** — Contract Understanding + Evidence : ce que l'avis permet de comprendre, et pourquoi.
 
 Pas encore de persistance : tout est en mémoire, testable sans base ni Docker.
 
@@ -31,6 +32,8 @@ Pas encore de persistance : tout est en mémoire, testable sans base ni Docker.
 | Déterministe | dates, montants, devises, CPV normalisés sans LLM ; `Money` refuse le flottant |
 | Groupement explicite | `AwardeeParty` : plusieurs titulaires indépendants ne deviennent jamais un consortium |
 | Certitude ≠ heuristique | `source_identity()` = ce que la source identifie (ou `None`) ; `dedupe_fingerprint()` = piste de rapprochement, jamais une clé d'unicité |
+| Fait ≠ interprétation | `ContractUnderstanding` est une couche dérivée ; l'award reste le fait brut |
+| Rien sans preuve | une affirmation `high`/`medium` sans `Evidence` est refusée par le modèle |
 | Précision > rappel | une mention ambiguë devient `review_required`, jamais une entreprise vérifiée |
 | Précision préservée | `published_at` reste une `date` ou un `datetime` selon ce que la source publie — ni minuit inventé, ni heure tronquée |
 
@@ -62,6 +65,7 @@ src/signals/domain/            le modèle canonique — ignore que TED existe
   events.py   PublicEvent, Provenance, EventRef
   awards.py   ContractAward, AwardeeParty, Awardee, LotRef, SourceIdentity
   companies.py  Company — l'entité résolue, à CÔTÉ de la mention source
+  evidence.py   Evidence — d'où vient une information (champ, texte, registre, document)
 src/signals/connectors/ted/    traduit eForms VERS le canonique, jamais l'inverse
   client.py   HTTP : Search API v3 + XML des notices (seul module réseau)
   parser.py   XML eForms → graphe TED (hors ligne)
@@ -79,6 +83,11 @@ src/signals/resolution/         mention publiée → entité juridique
   resolver.py    moteur déterministe et traçable, aucune fusion par le nom
   registries.py  VIES (public) et Zefix (AUTH REQUIRED)
   live_smoke.py
+src/signals/understanding/    ce que l'avis permet de comprendre du contrat
+  cpv.py       CPV → type de contrat / secteur (déterministe, testé)
+  text.py      HTML publié → texte lisible, sans perte
+  model.py     ContractUnderstanding, Claim (fait source vs affirmation dérivée)
+  engine.py    moteur déterministe ; protocole ouvert à un moteur linguistique
 tests/
   test_spec001_scenarios.py   les 8 scénarios obligatoires de SPEC-001
   test_model_invariants.py    ce que le modèle refuse
@@ -92,5 +101,10 @@ tests/
   test_winner100_benchmark.py     100 mentions réelles + vérité terrain indépendante
   fixtures/simap/             réponses simap.ch réelles, octets bruts
   fixtures/vies/              réponses VIES réelles
+  test_evidence.py            la preuve canonique
+  test_contract_understanding.py  tables CPV, texte, modèle, moteur
+  test_understanding_adversarial.py  pièges à sur-interprétation
+  test_contract100_benchmark.py      100 contrats réels
   fixtures/winner100/         benchmark Winner-100 + gold labels
+  fixtures/contract100/       benchmark Contract-100
 ```
