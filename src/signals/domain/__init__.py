@@ -14,6 +14,7 @@ from signals.domain.awards import (
     SourceIdentity,
     WinnerStatus,
 )
+from signals.domain.companies import Company
 from signals.domain.events import (
     EventRef,
     EventType,
@@ -40,6 +41,7 @@ __all__ = [
     "AwardeeParty",
     "AwardeeRole",
     "CanonicalModel",
+    "Company",
     "ContractAward",
     "CpvCode",
     "Duration",

@@ -1,0 +1,1702 @@
+[
+ {
+  "source": "simap",
+  "notice": "22917-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Glaux Group AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "6e2af0b6-7225-4256-9bff-b82d2c52038e"
+    }
+   ],
+   "country": "CH",
+   "address": "Steigerhubelstrasse 3, 3008, Bern",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "28066-04",
+  "party_name": null,
+  "organization": {
+   "legal_name": "bb trading werbeartikel ag",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "d322015f-1761-48df-9221-5340004cc5e0"
+    }
+   ],
+   "country": "CH",
+   "address": "Bernstrasse 90, 8953, Dietikon",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "29997-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Vebego AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "7ddb5c5e-8731-49d2-8d0f-b23fe29472dd"
+    }
+   ],
+   "country": "CH",
+   "address": "Albisriederstrasse 253, 8047, Zürich",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "30468-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Steinmann Ingenieure und Planer AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "fd203d90-e9cf-43f1-8f97-fada7fc093c6"
+    }
+   ],
+   "country": "CH",
+   "address": "Aarauerstrasse 69, 5200, Brugg AG",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "32011-03",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Siemens Schweiz AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "eca974bf-f6af-4603-bc60-4b958d0589a0"
+    }
+   ],
+   "country": "CH",
+   "address": "Freilagerstrasse 40, 8047, Zürich",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "32305-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Lhomme et Simos Associés (LESA) Ingénieurs Conseils Sàrl",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "be62d436-3c47-448c-a166-9c015a22fb38"
+    }
+   ],
+   "country": "CH",
+   "address": "Chemin de Cyrano 1, 1009, Pully",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "32779-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "EHR Fahrzeugtechnik GMBH",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "977d51cb-5018-488e-b94c-3fbccd3647e7"
+    }
+   ],
+   "country": "AT",
+   "address": "Römergrund 21, 6830, Rankweil",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "32892-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Metalcostruzioni Jelmini SA",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "a87f5fce-638c-48af-a892-e3525dbcd160"
+    }
+   ],
+   "country": "CH",
+   "address": "Via Maestri Comacini 16, 6500, Bellinzona",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "32923-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Eredi fu Costantino Chiesa",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "9f74fd02-779d-46d5-be74-e0e07d7c7d92"
+    }
+   ],
+   "country": "CH",
+   "address": "corso San Gottardo 52, 6830, Chiasso",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "33112-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Egli Gartenbau AG Sursee",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "6ada7011-89a5-43ea-b2f2-abcb09004ce1"
+    }
+   ],
+   "country": "CH",
+   "address": "Schlottermilch 18, 6210, Sursee",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "33351-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "XAL Schweiz GmbH",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "afb93609-0b24-4ae2-bd08-b479cb7fc850"
+    }
+   ],
+   "country": "CH",
+   "address": "Hohlstrasse 517, 8048, Zürich",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "33666-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Equans Switzerland AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "775c03c1-1069-45d6-b5b5-365adddb3b02"
+    }
+   ],
+   "country": "CH",
+   "address": "Route des Flumeaux 45, 1008, Prilly",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "33885-03",
+  "party_name": null,
+  "organization": {
+   "legal_name": "APEXA GmbH",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "2a2ae7b4-d4ac-4d30-8cb5-9044ea8f91a4"
+    }
+   ],
+   "country": "CH",
+   "address": "Rütistrasse 10+12, 5400, Baden",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "33885-03",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Detecon (Schweiz) AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "8ca1d3a8-1332-4526-b73f-9e74c60144a5"
+    }
+   ],
+   "country": "CH",
+   "address": "Löwenstrasse 1, 8001, Zürich",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "33885-03",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Digizone GmbH",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "a0414505-b511-46d4-8fa6-7c8d893c6982"
+    }
+   ],
+   "country": "CH",
+   "address": "Hauflandweg 9m, 8605, Gutenswil",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "34284-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "GESTE Engineering SA",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "4b69b72d-5102-42a4-96b0-7e97bbea5b30"
+    }
+   ],
+   "country": "CH",
+   "address": "Rue de la Gare de Triage 5, 1020, Renens VD",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "34284-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "K-Tec Kummer Technologies AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "06e662dd-8f0a-4d1c-b732-41c244a9bd18"
+    }
+   ],
+   "country": "CH",
+   "address": "Moosstrasse 3, 8903, Birmensdorf ZH",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "34284-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Proplan Consulting GmbH",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "8047c27a-45c6-4476-a2ca-423e276790c0"
+    }
+   ],
+   "country": "CH",
+   "address": "Oberer Strassackerweg 35, 3067, Boll",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "34537-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Groupe Egli AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "6a7a7986-1404-477d-be39-80e0a91658f6"
+    }
+   ],
+   "country": "CH",
+   "address": "Längfeldweg 115, 2504, Biel/Bienne",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "34630-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Marti Construction SA, succursale de Meyrin",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "a8213676-60e7-42d5-a0ed-2ad28309eadb"
+    }
+   ],
+   "country": "CH",
+   "address": "Chemin du Vieux-Bureau 83, 1217, Meyrin",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "34781-03",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Implenia Schweiz AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "3ae8c342-9ad2-4a68-bcc3-3403055e152d"
+    }
+   ],
+   "country": "CH",
+   "address": "Thurgauerstrasse 101a, 8152, Glattpark (Opfikon)",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "34794-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Globe Limo SA",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "eed89edc-1d71-4555-8f06-c1be6c53cd56"
+    }
+   ],
+   "country": "CH",
+   "address": "route du Bois-des-Frères 81, 1219, Le Lignon",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "34794-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "INTERTOURS ME SARL",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "d999a80c-f7d3-441e-8904-8cfcd9a1e5ba"
+    }
+   ],
+   "country": "CH",
+   "address": "Route de l'Industrie 80, 1564, Domdidier",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "35053-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Campana & Schott Switzerland AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "bb010cac-0c31-4467-897b-c3b7ca58716c"
+    }
+   ],
+   "country": "CH",
+   "address": "Förrlibuckstrasse 72, 8005, Zürich",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "35112-03",
+  "party_name": null,
+  "organization": {
+   "legal_name": "NOSOTECH inc.",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "01d2fff8-41a2-4bf0-ab62-6b45d7eb1c3e"
+    }
+   ],
+   "country": "CA",
+   "address": "110 St-Germain est, G5L1A6, Rimouski",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "35239-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Röösli AG Rothenburg",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "42205f56-fbe7-424f-9e88-de61f5134b66"
+    }
+   ],
+   "country": "CH",
+   "address": "Buzibachstrasse 20, 6023, Rothenburg",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "35443-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Urbanités SA",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "747a9745-cd76-4c81-8d19-bfa62e887b81"
+    }
+   ],
+   "country": "CH",
+   "address": "Boulevard de Saint-Georges 36, 1205, Genève",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "35696-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "AFRY Schweiz AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "3760ffe0-fdbf-4fc0-8555-2ebcd487805d"
+    }
+   ],
+   "country": "CH",
+   "address": "Herostrasse 12, 8048, Zürich",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "35763-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "record Türautomation AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "5a63860b-2449-48de-b068-621b169d0172"
+    }
+   ],
+   "country": "CH",
+   "address": "Allmendstrasse 24, 8320, Fehraltorf",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "36185-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Kompogas Bioriko AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "7d544072-f22c-49d3-b44c-0a2b7f173f09"
+    }
+   ],
+   "country": "CH",
+   "address": "Zelgli 10a, 5313, Klingnau",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "36185-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Obrist Transport + Recycling AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "726271c0-db06-474f-81da-4246a0e9796b"
+    }
+   ],
+   "country": "CH",
+   "address": "Industriestrasse 13, 5432, Neuenhof",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "36191-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "KINNARPS Suisse SA, Zweigniederlassung Schlieren",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "4d01b604-d871-4314-bab3-b72f56f802eb"
+    }
+   ],
+   "country": "CH",
+   "address": "Ifangstrasse 1, 8952, Schlieren",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "36385-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Egli AG Basel, Allschwil",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "d31fd163-a20f-4564-9cdc-304489373024"
+    }
+   ],
+   "country": "CH",
+   "address": "Binningerstrasse 86, 4123, Allschwil",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "36386-03",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Ringeisen AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "77045f65-b2d9-4951-aa6d-0667c67a211e"
+    }
+   ],
+   "country": "CH",
+   "address": "Freiburgstrasse 792, 3173, Oberwangen b. Bern",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "36682-03",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Atelier Oppliger Sàrl",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "7c724885-c63b-443f-afcc-3810779eeac2"
+    }
+   ],
+   "country": "CH",
+   "address": "Rue Comble-Emine 1, 2053, Cernier",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "36851-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Mosimann Holzbau AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "9eb6c2d1-32ab-40de-b366-d00533292804"
+    }
+   ],
+   "country": "CH",
+   "address": "Freiburgstrasse 792, 3173, Oberwangen b. Bern",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "37505-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "KOCH Group AG St. Gallen",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "9b320baa-ef4d-4466-801c-fb6aa32d0bec"
+    }
+   ],
+   "country": "CH",
+   "address": "Bionstrasse 7, 9015, St. Gallen",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "37611-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "WL Bau AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "1d2656d3-0635-450f-b836-bd9d03701825"
+    }
+   ],
+   "country": "CH",
+   "address": "Stampfiweg 29, 6045, Meggen",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "37722-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Gruner AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "302c5f86-ffe2-47c5-8bcc-bd9a41824ffc"
+    }
+   ],
+   "country": "CH",
+   "address": "St.Jakobs-Str. 199, 4052, Basel",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "38147-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Burkhalter Technics AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "f5019482-bbce-4a1c-8a58-efaadd9c2047"
+    }
+   ],
+   "country": "CH",
+   "address": "Hohlstrasse 475, 8048, Zürich",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "38184-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "SUTTER, Ingenieur- und Planungsbüro AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "2a2e0094-733e-4201-a474-dfca70da293e"
+    }
+   ],
+   "country": "CH",
+   "address": "Hooland 10, 4424, Arboldswil",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "38632-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "bbp geomatik ag",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "134596d4-90b6-46bd-904d-557f608d52eb"
+    }
+   ],
+   "country": "CH",
+   "address": "Worbstrasse 164, 3073, Gümligen",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "38754-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Koller Metallbautechnik GmbH",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "f41dbd90-ed2a-4da6-92cb-cbc30e98024c"
+    }
+   ],
+   "country": "CH",
+   "address": "Unterdorfstrasse 21, 8114, Dänikon ZH",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "38884-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Marti AG Bern, Moosseedorf",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "ac70f5bb-9be2-4060-9c91-4bdd1fd82263"
+    }
+   ],
+   "country": "CH",
+   "address": "Bernstrasse 13, 3302, Moosseedorf",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "38918-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Heierli Partner Haustechnik AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "805db1c0-5574-44dc-9bde-283bfea7152c"
+    }
+   ],
+   "country": "CH",
+   "address": "In Huebwiesen 9, 8600, Dübendorf",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "39419-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "SKYNIGHT SA",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "e578c200-9574-43cd-8e4b-a5c621b2b317"
+    }
+   ],
+   "country": "CH",
+   "address": "Rue des Sablières 14, 1242, Satigny",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "39604-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "S & Bau AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "cf790c7a-2a12-4a4a-bdb1-f14d53875604"
+    }
+   ],
+   "country": "CH",
+   "address": "Dorfstrasse 9, 6035, Perlen",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "39619-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Hüppi AG Zweigniederlassung Kreuzlingen",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "e5cd422d-751f-48f4-9b1f-b85f05b44b52"
+    }
+   ],
+   "country": "CH",
+   "address": "Bottighoferstrasse 1, 8280, Kreuzlingen",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "39778-02",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Inno Montage AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "517fd330-6303-4116-9a7b-ddfba3dc1335"
+    }
+   ],
+   "country": "CH",
+   "address": "Konstanzerstrasse 19, 8274, Tägerwilen",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "41098-01",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Dr. Baumgärtner GmbH",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "c00f52d5-4e6c-4f65-9753-0c0433752698"
+    }
+   ],
+   "country": "DE",
+   "address": "Etterschlager Straße 7, 82237, Wörthsee",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "41605-01",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Groupement Etudes Lacustres (GEL)",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "1fa5bb9f-3d86-4d87-8b56-900e773d5056"
+    }
+   ],
+   "country": "CH",
+   "address": "Avenue de la Gare 24, 1870, Monthey",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "42189-01",
+  "party_name": null,
+  "organization": {
+   "legal_name": "MR HT-SYSTEM GmbH",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "594a0fbe-91b6-4e86-bfef-7d17da59439f"
+    }
+   ],
+   "country": "CH",
+   "address": "Surenweidpark 11, 6208, Oberkirch",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "42329-01",
+  "party_name": null,
+  "organization": {
+   "legal_name": "VOUTAZ FELLAY SA",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "5aa2b030-4538-4d51-aee6-7f9dbe6987a0"
+    }
+   ],
+   "country": "CH",
+   "address": "Route du Grand-Saint-Bernard 20, 1933, Sembrancher",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "42413-01",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Terumo Deutschland GmbH, Eschborn, Zweigniederlassung Spreitenbach",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "5892d537-fd80-4513-a0c1-4beff3a0eaf7"
+    }
+   ],
+   "country": "CH",
+   "address": "Bodenäckerstrasse 3, 8957, Spreitenbach",
+   "website": null
+  }
+ },
+ {
+  "source": "simap",
+  "notice": "42486-01",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Hans Reich AG",
+   "identifiers": [
+    {
+     "scheme": "SIMAP-VENDOR-ID",
+     "value": "49830555-3b05-41f7-abe3-3a1f011a3d64"
+    }
+   ],
+   "country": "CH",
+   "address": "Im Wasenboden 49, 4056, Basel",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566122-2026",
+  "party_name": "MC-Computadores, S.A.",
+  "organization": {
+   "legal_name": "MC‐Computadores, S.A.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "511021380"
+    }
+   ],
+   "country": "PT",
+   "address": "Rua Tenente Coronel Sarmento, n.º 27, 9000‐020, Funchal, Funchal",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566007-2026",
+  "party_name": "Б. БРАУН МЕДИКАЛ ЕООД",
+  "organization": {
+   "legal_name": "Б. БРАУН МЕДИКАЛ ЕООД",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "175016820"
+    }
+   ],
+   "country": "BG",
+   "address": "бул. Христофор Колумб №64 бл. А2, офис 111, 1592, гр. София",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566096-2026",
+  "party_name": "СИНЕРГОН ЕНЕРДЖИ ООД",
+  "organization": {
+   "legal_name": "СИНЕРГОН ЕНЕРДЖИ ООД",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "202668908"
+    }
+   ],
+   "country": "BG",
+   "address": "ул. Бачо Киро № 23, 1000, гр. София",
+   "website": "https://synergonenergy.bg/"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566107-2026",
+  "party_name": "MEDACTA ESPAÑA SLU",
+  "organization": {
+   "legal_name": "MEDACTA ESPAÑA S.L.U",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "B98566698"
+    }
+   ],
+   "country": "ES",
+   "address": "CALLE VELLUTERS, 1, NAVE 3, 46980, PATERNA",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566119-2026",
+  "party_name": "Konsorcjum firm: \"Agencja Ochrony Osób i Mienia ZUBRZYCKI” Sp. z o.o. - Lider konsorcjum, ZUBRZYCKI OCHRONA Sp. z o.o. - Partner konsorcjum, SOLID SECURITY Sp. z o.o. - Partner konsorcjum, SOLID Sp. z o.o. - Partner konsorcjum.",
+  "organization": {
+   "legal_name": "SOLID SECURITY Sp. z o. o.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "5211008627"
+    }
+   ],
+   "country": "PL",
+   "address": "ul. Postępu 17, 02-676, Warszawa",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566107-2026",
+  "party_name": "WALDEMAR LINK ESPAÑA SAU",
+  "organization": {
+   "legal_name": "WALDEMAR LINK ESPAÑA, S.A.U.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "A60946696"
+    }
+   ],
+   "country": "ES",
+   "address": "Fontsanta 46,, 08970, Sant Joan Despí",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566119-2026",
+  "party_name": "Konsorcjum firm: \"Agencja Ochrony Osób i Mienia ZUBRZYCKI” Sp. z o.o. - Lider konsorcjum, ZUBRZYCKI OCHRONA Sp. z o.o. - Partner konsorcjum, SOLID SECURITY Sp. z o.o. - Partner konsorcjum, SOLID Sp. z o.o. - Partner konsorcjum.",
+  "organization": {
+   "legal_name": "Agencja Ochrony Osób i Mienia Zubrzycki Sp. z o. o.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "5272557222"
+    }
+   ],
+   "country": "PL",
+   "address": "00-845, 00-845, Warszawa",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "565393-2026",
+  "party_name": "Breccia Konsult AB",
+  "organization": {
+   "legal_name": "Breccia Konsult AB",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "5590425988"
+    }
+   ],
+   "country": "SE",
+   "address": "21767, Mamö",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566130-2026",
+  "party_name": "RTI SOCIOCULTURALE - CSSA",
+  "organization": {
+   "legal_name": "Cooperativa Sociale Servizi Associati C.S.S.A. Soc. coop. a r.l.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "01898930274"
+    }
+   ],
+   "country": "IT",
+   "address": "Via del Commercio n. 4, 30038, Spinea (VE)",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566139-2026",
+  "party_name": "Ambulâncias 111",
+  "organization": {
+   "legal_name": "Imprensa Nacional-Casa da Moeda, S. A. (INCM)",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "500792887"
+    }
+   ],
+   "country": "PT",
+   "address": "Avenida António José de Almeida, 1000-042, Lisboa",
+   "website": "https://diariodarepublica.pt"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566139-2026",
+  "party_name": "2Light",
+  "organization": {
+   "legal_name": "Imprensa Nacional-Casa da Moeda, S. A. (INCM)",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "500792887"
+    }
+   ],
+   "country": "PT",
+   "address": "Avenida António José de Almeida, 1000-042, Lisboa",
+   "website": "https://diariodarepublica.pt"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566139-2026",
+  "party_name": "2Light",
+  "organization": {
+   "legal_name": "Imprensa Nacional-Casa da Moeda, S. A. (INCM)",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "500792887"
+    }
+   ],
+   "country": "PT",
+   "address": "Avenida António José de Almeida, 1000-042, Lisboa",
+   "website": "https://diariodarepublica.pt"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566107-2026",
+  "party_name": "JOHNSON AND JOHNSON SA",
+  "organization": {
+   "legal_name": "JOHNSON AND JOHNSON, S.A.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "A-28218675"
+    }
+   ],
+   "country": "ES",
+   "address": "Paseo Club Deportivo 1. Edificio 16 Parque empresarial La Finca, 28223, Pozuelo de Alarcón",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566156-2026",
+  "party_name": "KLS LOGISTIC SYSTEMS",
+  "organization": {
+   "legal_name": "KLS LOGISTIC SYSTEMS",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "3398529800003"
+    }
+   ],
+   "country": "FR",
+   "address": "15 Chemin du vieux chêne, 38240, MEYLAN",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566058-2026",
+  "party_name": "LIBRAZIONE SOCIETA' COOPERATIVA SOCIALE",
+  "organization": {
+   "legal_name": "LIBRAZIONE SOCIETA' COOPERATIVA SOCIALE",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "00950160390"
+    }
+   ],
+   "country": "IT",
+   "address": "Via Mazzini n. 61, 48121, Ravenna (RA)",
+   "website": "https://librazione.org"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566107-2026",
+  "party_name": "MEDCOMTECH SA",
+  "organization": {
+   "legal_name": "MEDCOMTECH, S.A.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "A83015370"
+    }
+   ],
+   "country": "ES",
+   "address": "Calle Antonio Machado, número 78-80 Edificio Australia en Viladecans Business Park,, 08840, Viladecans",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566115-2026",
+  "party_name": "ORDENACIÓN TERRITORIAL, INFRAESTRUCTURAS E MEDIO AMBIENTE, SL",
+  "organization": {
+   "legal_name": "ORDENACIÓN TERRITORIAL, INFRAESTRUCTURAS E MEDIO AMBIENTE, SL",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "B27841535"
+    }
+   ],
+   "country": "ES",
+   "address": "36203, Vigo",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566115-2026",
+  "party_name": "PROYFE, SL",
+  "organization": {
+   "legal_name": "PROYFE, SL",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "B15077233"
+    }
+   ],
+   "country": "ES",
+   "address": "15570, Narón",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566114-2026",
+  "party_name": "PRZEDSIĘBIORSTWO WIELOBRANŻOWE \"MADA\" KOSIEC I WSPÓLNICY SPÓŁKA KOMANDYTOWA",
+  "organization": {
+   "legal_name": "PRZEDSIĘBIORSTWO WIELOBRANŻOWE \"MADA\" KOSIEC I WSPÓLNICY SPÓŁKA KOMANDYTOWA",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "1181625269"
+    }
+   ],
+   "country": "PL",
+   "address": "ul. Słowicza 17, 02-170, Warszawa",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566107-2026",
+  "party_name": "SMITH AND NEPHEW,SAU",
+  "organization": {
+   "legal_name": "SMITH AND NEPHEW,S.A.U.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "A28123297"
+    }
+   ],
+   "country": "ES",
+   "address": "Avda. Baix Llobregat num.30 Planta 3ª-08950, 08950-, Esplugues de Llobregat",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566119-2026",
+  "party_name": "Konsorcjum firm: \"Agencja Ochrony Osób i Mienia ZUBRZYCKI” Sp. z o.o. - Lider konsorcjum, ZUBRZYCKI OCHRONA Sp. z o.o. - Partner konsorcjum, SOLID SECURITY Sp. z o.o. - Partner konsorcjum, SOLID Sp. z o.o. - Partner konsorcjum.",
+  "organization": {
+   "legal_name": "SOLID Sp. z o. o.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "6760104375"
+    }
+   ],
+   "country": "PL",
+   "address": "ul. Walerego Sławka 3, 30-633, Kraków",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566107-2026",
+  "party_name": "STRYKER IBERIA SL",
+  "organization": {
+   "legal_name": "STRYKER IBERIA, SL",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "B82173451"
+    }
+   ],
+   "country": "ES",
+   "address": "C/Sepulveda, 17, 28010, MADRID",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566130-2026",
+  "party_name": "RTI SOCIOCULTURALE - CSSA",
+  "organization": {
+   "legal_name": "Società Socioculturale Cooperativa Sociale",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "02079350274"
+    }
+   ],
+   "country": "IT",
+   "address": "Via Mare Mediterraneo n. 28, 30034, MIRA (VE)",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "565966-2026",
+  "party_name": "WISAG",
+  "organization": {
+   "legal_name": "Wisag Cleaning Service Sàrl",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "LU26538172"
+    }
+   ],
+   "country": "LU",
+   "address": "1259, Senningerberg",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566107-2026",
+  "party_name": "ZIMMER BIOMET SPAIN SLU",
+  "organization": {
+   "legal_name": "ZIMMER BIOMET SPAIN, S.L.U.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "B29060381"
+    }
+   ],
+   "country": "ES",
+   "address": "C/ Metalurgia N.º 32-34, 1ª planta, 08038, BARCELONA",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566119-2026",
+  "party_name": "Konsorcjum firm: \"Agencja Ochrony Osób i Mienia ZUBRZYCKI” Sp. z o.o. - Lider konsorcjum, ZUBRZYCKI OCHRONA Sp. z o.o. - Partner konsorcjum, SOLID SECURITY Sp. z o.o. - Partner konsorcjum, SOLID Sp. z o.o. - Partner konsorcjum.",
+  "organization": {
+   "legal_name": "Zubrzycki Ochrona Sp. z o. o.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "5272952556"
+    }
+   ],
+   "country": "PL",
+   "address": "ul. Łucka 18 lok. 1701A, 00-845, Warszawa",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566094-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Compass Group Finland Oy",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "0873697-9"
+    }
+   ],
+   "country": "FI",
+   "address": "Mannerheimintie 117, 00280, Helsinki",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "550374-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "One Security and Safety Services",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "819 891 078 00035"
+    }
+   ],
+   "country": "FR",
+   "address": "13700, Marignane",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "565958-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "\"Pro Familia\" Egészségügyi Betéti Társaság",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "21250695205"
+    }
+   ],
+   "country": "HU",
+   "address": "Bencések Útja 42/B, 3519, Miskolc",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566153-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "ANTISEL RO",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "RO 27040635"
+    }
+   ],
+   "country": "RO",
+   "address": "Strada Dudeşti-Pantelimon, Nr. 42, Sector: 3, 033094, Bucuresti",
+   "website": "https://www.antisel.ro"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "565982-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "ARBA PLUS proizvodnja, trgovina in storitve, d.o.o.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "5605610000"
+    }
+   ],
+   "country": "SI",
+   "address": "Špruha  19, 1236, Trzin",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566104-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "ATALIAN",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "0453203301_eff5c3ca-b95a-4d6b-b200-f94dffed91c0"
+    }
+   ],
+   "country": "BE",
+   "address": "Boulevard International 55-F, 1070, Anderlecht",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566131-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Ab Rafael",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "3154055-2"
+    }
+   ],
+   "country": "AX",
+   "address": "Norrbygatan 266, 22130, Gottby",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566131-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Ab Rafael",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "3154055-2"
+    }
+   ],
+   "country": "AX",
+   "address": "Norrbygatan 266, 22130, Gottby",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566131-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Ab Rafael",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "3154055-2"
+    }
+   ],
+   "country": "AX",
+   "address": "Norrbygatan 266, 22130, Gottby",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566035-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Admidex B.V. h.o.d.n. HANOS Nederland B.V.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "09066018"
+    }
+   ],
+   "country": "NL",
+   "address": "Laan van de Leeuw 4, 7324 BD, APELDOORN",
+   "website": "http://www.hanos.nl"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566101-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "AeroCopter OÜ",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "12632656"
+    }
+   ],
+   "country": "EE",
+   "address": "Suur-Mere tn 20-7, 90502, Haapsalu linn",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566075-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "BBook Bed and Breakfast SRL",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "RO 30394080"
+    }
+   ],
+   "country": "RO",
+   "address": "Strada Gorki Maxim, Nr. 2, Sector: 1, 011952, Bucuresti",
+   "website": "https://www.bbook.ro"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566075-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "BBook Bed and Breakfast SRL",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "RO 30394080"
+    }
+   ],
+   "country": "RO",
+   "address": "Strada Gorki Maxim, Nr. 2, Sector: 1, 011952, Bucuresti",
+   "website": "https://www.bbook.ro"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566091-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Beckman Coulter d.o.o.",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "46191202403"
+    }
+   ],
+   "country": "HR",
+   "address": "Avenija Većeslava Holjevca 40, 10000, Grad Zagreb",
+   "website": "https://www.beckmancoulter.com/"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566060-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Bracegrade Limited",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "6559622"
+    }
+   ],
+   "country": "IE",
+   "address": "Taney Hall, Eglinton Terrace, Dundrum, D14, D14C7F7, Dublin",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566111-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Carl Stahl GmbH",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "132576s"
+    }
+   ],
+   "country": "AT",
+   "address": "Gewerbestraße 1, 4622, Eggendorf",
+   "website": null
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "565942-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Circle K Norge AS",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "914766451"
+    }
+   ],
+   "country": "NO",
+   "address": "Schweigaards gate 16A, 0191, Oslo",
+   "website": "https://www.circlek.no"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "565942-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Circle K Norge AS",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "914766451"
+    }
+   ],
+   "country": "NO",
+   "address": "Schweigaards gate 16A, 0191, Oslo",
+   "website": "https://www.circlek.no"
+  }
+ },
+ {
+  "source": "ted",
+  "notice": "566075-2026",
+  "party_name": null,
+  "organization": {
+   "legal_name": "Compania Nationala de Transporturi Aeriene Romane TAROM",
+   "identifiers": [
+    {
+     "scheme": "TED-BT-501",
+     "value": "RO 477647"
+    }
+   ],
+   "country": "RO",
+   "address": "Strada Calea Bucurestilor, Nr. 224F, 075100, Otopeni",
+   "website": "http://www.tarom.ro"
+  }
+ }
+]

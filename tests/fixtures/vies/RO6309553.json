@@ -1,0 +1,22 @@
+{
+  "isValid" : true,
+  "requestDate" : "2026-08-16T14:48:56.139Z",
+  "userError" : "VALID",
+  "name" : "WECO T.M.C. SRL",
+  "address" : "MUNICIPIUL  BUCUREŞTI, SECTOR 2 00000 STR. ZAMBILELOR Nr. 96 Et. 2",
+  "requestIdentifier" : "",
+  "originalVatNumber" : "6309553",
+  "vatNumber" : "6309553",
+  "viesApproximate" : {
+    "name" : "---",
+    "street" : "---",
+    "postalCode" : "---",
+    "city" : "---",
+    "companyType" : "---",
+    "matchName" : 3,
+    "matchStreet" : 3,
+    "matchPostalCode" : 3,
+    "matchCity" : 3,
+    "matchCompanyType" : 3
+  }
+}

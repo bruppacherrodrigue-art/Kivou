@@ -16,6 +16,7 @@ un moteur séparé.
 **SPEC-001** — modèle canonique `PublicEvent` / `ContractAward`.
 **SPEC-002** — connecteur TED (Search API v3 + eForms).
 **SPEC-003** — connecteur SIMAP (API publique simap.ch v1.5.1).
+**SPEC-004** — Winner Resolution : mentions publiées → entités entreprises.
 
 Pas encore de persistance : tout est en mémoire, testable sans base ni Docker.
 
@@ -30,6 +31,7 @@ Pas encore de persistance : tout est en mémoire, testable sans base ni Docker.
 | Déterministe | dates, montants, devises, CPV normalisés sans LLM ; `Money` refuse le flottant |
 | Groupement explicite | `AwardeeParty` : plusieurs titulaires indépendants ne deviennent jamais un consortium |
 | Certitude ≠ heuristique | `source_identity()` = ce que la source identifie (ou `None`) ; `dedupe_fingerprint()` = piste de rapprochement, jamais une clé d'unicité |
+| Précision > rappel | une mention ambiguë devient `review_required`, jamais une entreprise vérifiée |
 | Précision préservée | `published_at` reste une `date` ou un `datetime` selon ce que la source publie — ni minuit inventé, ni heure tronquée |
 
 ## Développement local (uv)
@@ -45,6 +47,8 @@ uv run ruff check .
 ```bash
 uv run python -m signals.connectors.ted.live_smoke --days 10 --limit 25
 uv run python -m signals.connectors.simap.live_smoke --limit 40 --since 2026-07-01 --link
+uv run python -m signals.resolution.live_smoke --benchmark
+uv run python -m signals.resolution.live_smoke --zefix
 ```
 
 Appelle l'API publique TED, télécharge les XML, les traduit et imprime les
@@ -57,6 +61,7 @@ src/signals/domain/            le modèle canonique — ignore que TED existe
   values.py   objets-valeur : Money, CpvCode, Location, Duration, OrganizationRef
   events.py   PublicEvent, Provenance, EventRef
   awards.py   ContractAward, AwardeeParty, Awardee, LotRef, SourceIdentity
+  companies.py  Company — l'entité résolue, à CÔTÉ de la mention source
 src/signals/connectors/ted/    traduit eForms VERS le canonique, jamais l'inverse
   client.py   HTTP : Search API v3 + XML des notices (seul module réseau)
   parser.py   XML eForms → graphe TED (hors ligne)
@@ -68,6 +73,12 @@ src/signals/connectors/simap/   traduit le modèle SIMAP VERS le canonique
   parser.py   JSON SIMAP → modèle SIMAP (hors ligne, montants en Decimal exact)
   mapping.py  modèle SIMAP → PublicEvent + ContractAward[]
   live_smoke.py
+src/signals/resolution/         mention publiée → entité juridique
+  normalize.py   formes de comparaison (noms, adresses) — jamais d'affichage
+  identifiers.py force d'un identifiant : officiel / local à la source / non attribué
+  resolver.py    moteur déterministe et traçable, aucune fusion par le nom
+  registries.py  VIES (public) et Zefix (AUTH REQUIRED)
+  live_smoke.py
 tests/
   test_spec001_scenarios.py   les 8 scénarios obligatoires de SPEC-001
   test_model_invariants.py    ce que le modèle refuse
@@ -76,5 +87,10 @@ tests/
   test_simap_connector.py     vraies publications simap.ch, hors ligne
   test_simap_client.py        contrat HTTP, transport simulé
   fixtures/ted/               notices TED réelles + 1 fixture synthétique signalée
+  test_resolution.py          moteur de résolution, hors ligne
+  test_resolution_adversarial.py  pièges à fusion abusive
+  test_winner100_benchmark.py     100 mentions réelles + vérité terrain indépendante
   fixtures/simap/             réponses simap.ch réelles, octets bruts
+  fixtures/vies/              réponses VIES réelles
+  fixtures/winner100/         benchmark Winner-100 + gold labels
 ```
