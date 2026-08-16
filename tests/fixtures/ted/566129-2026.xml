@@ -1,0 +1,735 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><ContractAwardNotice xmlns="urn:oasis:names:specification:ubl:schema:xsd:ContractAwardNotice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:efac="http://data.europa.eu/p27/eforms-ubl-extension-aggregate-components/1" xmlns:efbc="http://data.europa.eu/p27/eforms-ubl-extension-basic-components/1" xmlns:efext="http://data.europa.eu/p27/eforms-ubl-extensions/1" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:xsi="http://www.w3.org/2001/XMLSchema">
+  <ext:UBLExtensions>
+    <ext:UBLExtension>
+      <ext:ExtensionContent>
+        <efext:EformsExtension>
+          <efbc:TransmissionDate>2026-08-10+02:00</efbc:TransmissionDate>
+          <efbc:TransmissionTime>13:06:22+02:00</efbc:TransmissionTime>
+          <efac:NoticeResult>
+            <cbc:TotalAmount currencyID="HUF">95000000.00</cbc:TotalAmount>
+            <efac:LotResult>
+              <cbc:ID schemeName="result">RES-0001</cbc:ID>
+              <cbc:TenderResultCode listName="winner-selection-status">selec-w</cbc:TenderResultCode>
+              <efac:AppealRequestsStatistics>
+                <efbc:StatisticsCode listName="review-type">complainants</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>0</efbc:StatisticsNumeric>
+              </efac:AppealRequestsStatistics>
+              <efac:AppealRequestsStatistics>
+                <efbc:StatisticsNumeric>0</efbc:StatisticsNumeric>
+              </efac:AppealRequestsStatistics>
+              <efac:LotTender>
+                <cbc:ID schemeName="tender">TEN-1883</cbc:ID>
+              </efac:LotTender>
+              <efac:LotTender>
+                <cbc:ID schemeName="tender">TEN-1891</cbc:ID>
+              </efac:LotTender>
+              <efac:LotTender>
+                <cbc:ID schemeName="tender">TEN-1907</cbc:ID>
+              </efac:LotTender>
+              <efac:LotTender>
+                <cbc:ID schemeName="tender">TEN-1995</cbc:ID>
+              </efac:LotTender>
+              <efac:LotTender>
+                <cbc:ID schemeName="tender">TEN-2003</cbc:ID>
+              </efac:LotTender>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">part-req</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>0</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">tenders</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>5</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">t-esubm</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>5</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">t-micro</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>1</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">t-small</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>3</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">t-med</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>1</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">t-sme</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>5</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">t-oth-eea</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>0</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">t-no-eea</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>0</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">t-verif-inad</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>0</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">t-verif-inad-low</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>0</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:ReceivedSubmissionsStatistics>
+                <efbc:StatisticsCode listName="received-submission-type">t-no-verif</efbc:StatisticsCode>
+                <efbc:StatisticsNumeric>2</efbc:StatisticsNumeric>
+              </efac:ReceivedSubmissionsStatistics>
+              <efac:SettledContract>
+                <cbc:ID schemeName="contract">CON-0001</cbc:ID>
+              </efac:SettledContract>
+              <efac:TenderLot>
+                <cbc:ID schemeName="Lot">LOT-0001</cbc:ID>
+              </efac:TenderLot>
+            </efac:LotResult>
+            <efac:LotTender>
+              <cbc:ID schemeName="tender">TEN-1883</cbc:ID>
+              <cac:LegalMonetaryTotal>
+                <cbc:PayableAmount currencyID="HUF">7128432.16</cbc:PayableAmount>
+              </cac:LegalMonetaryTotal>
+              <efac:SubcontractingTerm>
+                <efbc:TermCode listName="applicability">no</efbc:TermCode>
+              </efac:SubcontractingTerm>
+              <efac:TenderingParty>
+                <cbc:ID schemeName="tendering-party">TPA-0001</cbc:ID>
+              </efac:TenderingParty>
+              <efac:TenderLot>
+                <cbc:ID schemeName="Lot">LOT-0001</cbc:ID>
+              </efac:TenderLot>
+              <efac:TenderReference>
+                <cbc:ID>EKR000679082026/1883</cbc:ID>
+              </efac:TenderReference>
+            </efac:LotTender>
+            <efac:LotTender>
+              <cbc:ID schemeName="tender">TEN-1891</cbc:ID>
+              <cbc:RankCode>3</cbc:RankCode>
+              <efbc:TenderRankedIndicator>true</efbc:TenderRankedIndicator>
+              <cac:LegalMonetaryTotal>
+                <cbc:PayableAmount currencyID="HUF">4608410.74</cbc:PayableAmount>
+              </cac:LegalMonetaryTotal>
+              <efac:SubcontractingTerm>
+                <efbc:TermCode listName="applicability">no</efbc:TermCode>
+              </efac:SubcontractingTerm>
+              <efac:TenderingParty>
+                <cbc:ID schemeName="tendering-party">TPA-0002</cbc:ID>
+              </efac:TenderingParty>
+              <efac:TenderLot>
+                <cbc:ID schemeName="Lot">LOT-0001</cbc:ID>
+              </efac:TenderLot>
+              <efac:TenderReference>
+                <cbc:ID>EKR000679082026/1891</cbc:ID>
+              </efac:TenderReference>
+            </efac:LotTender>
+            <efac:LotTender>
+              <cbc:ID schemeName="tender">TEN-1907</cbc:ID>
+              <cbc:RankCode>2</cbc:RankCode>
+              <efbc:TenderRankedIndicator>true</efbc:TenderRankedIndicator>
+              <cac:LegalMonetaryTotal>
+                <cbc:PayableAmount currencyID="HUF">4588577.35</cbc:PayableAmount>
+              </cac:LegalMonetaryTotal>
+              <efac:SubcontractingTerm>
+                <efbc:TermCode listName="applicability">no</efbc:TermCode>
+              </efac:SubcontractingTerm>
+              <efac:TenderingParty>
+                <cbc:ID schemeName="tendering-party">TPA-0003</cbc:ID>
+              </efac:TenderingParty>
+              <efac:TenderLot>
+                <cbc:ID schemeName="Lot">LOT-0001</cbc:ID>
+              </efac:TenderLot>
+              <efac:TenderReference>
+                <cbc:ID>EKR000679082026/1907</cbc:ID>
+              </efac:TenderReference>
+            </efac:LotTender>
+            <efac:LotTender>
+              <cbc:ID schemeName="tender">TEN-1995</cbc:ID>
+              <cbc:RankCode>1</cbc:RankCode>
+              <efbc:TenderRankedIndicator>true</efbc:TenderRankedIndicator>
+              <cac:LegalMonetaryTotal>
+                <cbc:PayableAmount currencyID="HUF">95000000.00</cbc:PayableAmount>
+              </cac:LegalMonetaryTotal>
+              <efac:SubcontractingTerm>
+                <efbc:TermCode listName="applicability">no</efbc:TermCode>
+              </efac:SubcontractingTerm>
+              <efac:TenderingParty>
+                <cbc:ID schemeName="tendering-party">TPA-0004</cbc:ID>
+              </efac:TenderingParty>
+              <efac:TenderLot>
+                <cbc:ID schemeName="Lot">LOT-0001</cbc:ID>
+              </efac:TenderLot>
+              <efac:TenderReference>
+                <cbc:ID>EKR000679082026/1995</cbc:ID>
+              </efac:TenderReference>
+            </efac:LotTender>
+            <efac:LotTender>
+              <cbc:ID schemeName="tender">TEN-2003</cbc:ID>
+              <cac:LegalMonetaryTotal>
+                <cbc:PayableAmount currencyID="HUF">5933537.23</cbc:PayableAmount>
+              </cac:LegalMonetaryTotal>
+              <efac:SubcontractingTerm>
+                <efbc:TermCode listName="applicability">no</efbc:TermCode>
+              </efac:SubcontractingTerm>
+              <efac:TenderingParty>
+                <cbc:ID schemeName="tendering-party">TPA-0005</cbc:ID>
+              </efac:TenderingParty>
+              <efac:TenderLot>
+                <cbc:ID schemeName="Lot">LOT-0001</cbc:ID>
+              </efac:TenderLot>
+              <efac:TenderReference>
+                <cbc:ID>EKR000679082026/2003</cbc:ID>
+              </efac:TenderReference>
+            </efac:LotTender>
+            <efac:SettledContract>
+              <cbc:ID schemeName="contract">CON-0001</cbc:ID>
+              <cbc:AwardDate>2026-07-20+02:00</cbc:AwardDate>
+              <cbc:IssueDate>2026-08-07+02:00</cbc:IssueDate>
+              <cbc:URI>https://ekr.gov.hu/ekr-szerzodestar/hu/szerzodesLista?eljarasAzon=EKR000679082026</cbc:URI>
+              <efac:ContractReference>
+                <cbc:ID>1169/8-2/2026/1011</cbc:ID>
+              </efac:ContractReference>
+              <efac:LotTender>
+                <cbc:ID schemeName="tender">TEN-1995</cbc:ID>
+              </efac:LotTender>
+            </efac:SettledContract>
+            <efac:TenderingParty>
+              <cbc:ID schemeName="tendering-party">TPA-0001</cbc:ID>
+              <efac:Tenderer>
+                <cbc:ID schemeName="organization">ORG-0004</cbc:ID>
+              </efac:Tenderer>
+            </efac:TenderingParty>
+            <efac:TenderingParty>
+              <cbc:ID schemeName="tendering-party">TPA-0002</cbc:ID>
+              <efac:Tenderer>
+                <cbc:ID schemeName="organization">ORG-0005</cbc:ID>
+              </efac:Tenderer>
+            </efac:TenderingParty>
+            <efac:TenderingParty>
+              <cbc:ID schemeName="tendering-party">TPA-0003</cbc:ID>
+              <efac:Tenderer>
+                <cbc:ID schemeName="organization">ORG-0006</cbc:ID>
+                <efbc:GroupLeadIndicator>true</efbc:GroupLeadIndicator>
+              </efac:Tenderer>
+              <efac:Tenderer>
+                <cbc:ID schemeName="organization">ORG-0007</cbc:ID>
+                <efbc:GroupLeadIndicator>false</efbc:GroupLeadIndicator>
+              </efac:Tenderer>
+            </efac:TenderingParty>
+            <efac:TenderingParty>
+              <cbc:ID schemeName="tendering-party">TPA-0004</cbc:ID>
+              <efac:Tenderer>
+                <cbc:ID schemeName="organization">ORG-0008</cbc:ID>
+              </efac:Tenderer>
+            </efac:TenderingParty>
+            <efac:TenderingParty>
+              <cbc:ID schemeName="tendering-party">TPA-0005</cbc:ID>
+              <efac:Tenderer>
+                <cbc:ID schemeName="organization">ORG-0009</cbc:ID>
+              </efac:Tenderer>
+            </efac:TenderingParty>
+          </efac:NoticeResult>
+          <efac:NoticeSubType>
+            <cbc:SubTypeCode listName="notice-subtype">29</cbc:SubTypeCode>
+          </efac:NoticeSubType>
+          <efac:Organizations>
+            <efac:Organization>
+              <efbc:AcquiringCPBIndicator>false</efbc:AcquiringCPBIndicator>
+              <efbc:AwardingCPBIndicator>false</efbc:AwardingCPBIndicator>
+              <efac:Company>
+                <cbc:WebsiteURI>https://bkk.hu/</cbc:WebsiteURI>
+                <cac:PartyIdentification>
+                  <cbc:ID schemeName="organization">ORG-0001</cbc:ID>
+                </cac:PartyIdentification>
+                <cac:PartyName>
+                  <cbc:Name languageID="HUN">BKK Budapesti Közlekedési Központ Zártkörűen Működő Részvénytársaság</cbc:Name>
+                </cac:PartyName>
+                <cac:PostalAddress>
+                  <cbc:StreetName>Rumbach Sebestyén Utca 19-21.</cbc:StreetName>
+                  <cbc:CityName>Budapest</cbc:CityName>
+                  <cbc:PostalZone>1075</cbc:PostalZone>
+                  <cbc:CountrySubentityCode listName="nuts">HU110</cbc:CountrySubentityCode>
+                  <cac:Country>
+                    <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+                  </cac:Country>
+                </cac:PostalAddress>
+                <cac:PartyLegalEntity>
+                  <cbc:CompanyID>23028966444</cbc:CompanyID>
+                </cac:PartyLegalEntity>
+                <cac:Contact>
+                  <cbc:Name>Dr. Fekete Tímea</cbc:Name>
+                  <cbc:Telephone>+36 307741256</cbc:Telephone>
+                  <cbc:Telefax>+36 12351044</cbc:Telefax>
+                  <cbc:ElectronicMail>kozbeszerzes@bkk.hu</cbc:ElectronicMail>
+                </cac:Contact>
+              </efac:Company>
+            </efac:Organization>
+            <efac:Organization>
+              <efac:Company>
+                <cac:PartyIdentification>
+                  <cbc:ID schemeName="organization">ORG-0004</cbc:ID>
+                </cac:PartyIdentification>
+                <cac:PartyName>
+                  <cbc:Name languageID="HUN">Redboxcom Kereskedelmi és Szolgáltató Korlátolt Felelősségű Társaság</cbc:Name>
+                </cac:PartyName>
+                <cac:PostalAddress>
+                  <cbc:StreetName>Boncsok Utca 23 Boncsok utca 23</cbc:StreetName>
+                  <cbc:CityName>Pécel</cbc:CityName>
+                  <cbc:PostalZone>2119</cbc:PostalZone>
+                  <cbc:CountrySubentityCode listName="nuts">HU120</cbc:CountrySubentityCode>
+                  <cac:Country>
+                    <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+                  </cac:Country>
+                </cac:PostalAddress>
+                <cac:PartyLegalEntity>
+                  <cbc:CompanyID>25826409213</cbc:CompanyID>
+                </cac:PartyLegalEntity>
+                <cac:Contact>
+                  <cbc:Telephone>+36 302104838</cbc:Telephone>
+                  <cbc:ElectronicMail>szoke.tamas76@gmail.com</cbc:ElectronicMail>
+                </cac:Contact>
+              </efac:Company>
+            </efac:Organization>
+            <efac:Organization>
+              <efac:Company>
+                <cbc:WebsiteURI>https://www.grafitpencil.hu</cbc:WebsiteURI>
+                <cac:PartyIdentification>
+                  <cbc:ID schemeName="organization">ORG-0005</cbc:ID>
+                </cac:PartyIdentification>
+                <cac:PartyName>
+                  <cbc:Name languageID="HUN">Grafit Pencil Nyomda Szolgáltató és Kommunikációs Korlátolt Felelősségű Társaság</cbc:Name>
+                </cac:PartyName>
+                <cac:PostalAddress>
+                  <cbc:StreetName>KLAUZÁL UTCA 9</cbc:StreetName>
+                  <cbc:CityName>BUDAPEST</cbc:CityName>
+                  <cbc:PostalZone>1046</cbc:PostalZone>
+                  <cbc:CountrySubentityCode listName="nuts">HU110</cbc:CountrySubentityCode>
+                  <cac:Country>
+                    <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+                  </cac:Country>
+                </cac:PostalAddress>
+                <cac:PartyLegalEntity>
+                  <cbc:CompanyID>11939278241</cbc:CompanyID>
+                </cac:PartyLegalEntity>
+                <cac:Contact>
+                  <cbc:Telephone>+36 304380403</cbc:Telephone>
+                  <cbc:ElectronicMail>handras@graftpencil.hu</cbc:ElectronicMail>
+                </cac:Contact>
+              </efac:Company>
+            </efac:Organization>
+            <efac:Organization>
+              <efac:Company>
+                <cbc:WebsiteURI>https://www.htsart.hu</cbc:WebsiteURI>
+                <cac:PartyIdentification>
+                  <cbc:ID schemeName="organization">ORG-0006</cbc:ID>
+                </cac:PartyIdentification>
+                <cac:PartyName>
+                  <cbc:Name languageID="HUN">HTS-ART Nyomdaipari és Szolgáltató Korlátolt Felelősségű Társaság</cbc:Name>
+                </cac:PartyName>
+                <cac:PostalAddress>
+                  <cbc:StreetName>Cziráki Út 26-32..</cbc:StreetName>
+                  <cbc:CityName>Budapest</cbc:CityName>
+                  <cbc:PostalZone>1163</cbc:PostalZone>
+                  <cbc:CountrySubentityCode listName="nuts">HU110</cbc:CountrySubentityCode>
+                  <cac:Country>
+                    <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+                  </cac:Country>
+                </cac:PostalAddress>
+                <cac:PartyLegalEntity>
+                  <cbc:CompanyID>12109450242</cbc:CompanyID>
+                </cac:PartyLegalEntity>
+                <cac:Contact>
+                  <cbc:Telephone>+36 209342242</cbc:Telephone>
+                  <cbc:Telefax>+36 14034437</cbc:Telefax>
+                  <cbc:ElectronicMail>info@htsart.hu</cbc:ElectronicMail>
+                </cac:Contact>
+              </efac:Company>
+            </efac:Organization>
+            <efac:Organization>
+              <efac:Company>
+                <cbc:WebsiteURI>https://www.kiwiprint.hu</cbc:WebsiteURI>
+                <cac:PartyIdentification>
+                  <cbc:ID schemeName="organization">ORG-0007</cbc:ID>
+                </cac:PartyIdentification>
+                <cac:PartyName>
+                  <cbc:Name languageID="HUN">Kiwi Print Hungary Korlátolt Felelősségű Társaság</cbc:Name>
+                </cac:PartyName>
+                <cac:PostalAddress>
+                  <cbc:StreetName>Cziráki Utca 26-32.</cbc:StreetName>
+                  <cbc:CityName>Budapest</cbc:CityName>
+                  <cbc:PostalZone>1163</cbc:PostalZone>
+                  <cbc:CountrySubentityCode listName="nuts">HU110</cbc:CountrySubentityCode>
+                  <cac:Country>
+                    <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+                  </cac:Country>
+                </cac:PostalAddress>
+                <cac:PartyLegalEntity>
+                  <cbc:CompanyID>14328471242</cbc:CompanyID>
+                </cac:PartyLegalEntity>
+                <cac:Contact>
+                  <cbc:Telephone>+36 209316897</cbc:Telephone>
+                  <cbc:ElectronicMail>armate@kiwiprint.hu</cbc:ElectronicMail>
+                </cac:Contact>
+              </efac:Company>
+            </efac:Organization>
+            <efac:Organization>
+              <efbc:ListedOnRegulatedMarketIndicator>false</efbc:ListedOnRegulatedMarketIndicator>
+              <efac:UltimateBeneficialOwner>
+                <cbc:ID schemeName="ubo">UBO-0008</cbc:ID>
+              </efac:UltimateBeneficialOwner>
+              <efac:Company>
+                <cbc:WebsiteURI>https://www.europrinting.hu</cbc:WebsiteURI>
+                <efbc:CompanySizeCode listName="economic-operator-size">small</efbc:CompanySizeCode>
+                <cac:PartyIdentification>
+                  <cbc:ID schemeName="organization">ORG-0008</cbc:ID>
+                </cac:PartyIdentification>
+                <cac:PartyName>
+                  <cbc:Name languageID="HUN">Europrinting Kft</cbc:Name>
+                </cac:PartyName>
+                <cac:PostalAddress>
+                  <cbc:StreetName>Vágóhíd Utca 55</cbc:StreetName>
+                  <cbc:CityName>Budapest</cbc:CityName>
+                  <cbc:PostalZone>1201</cbc:PostalZone>
+                  <cbc:CountrySubentityCode listName="nuts">HU110</cbc:CountrySubentityCode>
+                  <cac:Country>
+                    <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+                  </cac:Country>
+                </cac:PostalAddress>
+                <cac:PartyLegalEntity>
+                  <cbc:CompanyID>12628706243</cbc:CompanyID>
+                </cac:PartyLegalEntity>
+                <cac:Contact>
+                  <cbc:Telephone>+36 703818240</cbc:Telephone>
+                  <cbc:ElectronicMail>endzsel.erno@europrinting.hu</cbc:ElectronicMail>
+                </cac:Contact>
+              </efac:Company>
+            </efac:Organization>
+            <efac:Organization>
+              <efac:Company>
+                <cbc:WebsiteURI>https://www.bigprint.hu</cbc:WebsiteURI>
+                <cac:PartyIdentification>
+                  <cbc:ID schemeName="organization">ORG-0009</cbc:ID>
+                </cac:PartyIdentification>
+                <cac:PartyName>
+                  <cbc:Name languageID="HUN">BIGPRINT HUNGARY Nyomdai Kereskedelmi és Szolgáltató Kft.</cbc:Name>
+                </cac:PartyName>
+                <cac:PostalAddress>
+                  <cbc:StreetName>Hídépítő Utca 8-10.</cbc:StreetName>
+                  <cbc:CityName>Budapest</cbc:CityName>
+                  <cbc:PostalZone>1095</cbc:PostalZone>
+                  <cbc:CountrySubentityCode listName="nuts">HU110</cbc:CountrySubentityCode>
+                  <cac:Country>
+                    <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+                  </cac:Country>
+                </cac:PostalAddress>
+                <cac:PartyLegalEntity>
+                  <cbc:CompanyID>11787332243</cbc:CompanyID>
+                </cac:PartyLegalEntity>
+                <cac:Contact>
+                  <cbc:Telephone>+36 14640800</cbc:Telephone>
+                  <cbc:Telefax>+36 14640809</cbc:Telefax>
+                  <cbc:ElectronicMail>bigprinthungary@bigprint.eu</cbc:ElectronicMail>
+                </cac:Contact>
+              </efac:Company>
+            </efac:Organization>
+            <efac:Organization>
+              <efac:Company>
+                <cbc:WebsiteURI>https://kozbeszerzes.hu</cbc:WebsiteURI>
+                <cac:PartyIdentification>
+                  <cbc:ID schemeName="organization">ORG-0003</cbc:ID>
+                </cac:PartyIdentification>
+                <cac:PartyName>
+                  <cbc:Name languageID="HUN">Közbeszerzési Hatóság Közbeszerzési Döntőbizottság</cbc:Name>
+                </cac:PartyName>
+                <cac:PostalAddress>
+                  <cbc:StreetName>Riadó u. 5</cbc:StreetName>
+                  <cbc:CityName>Budapest</cbc:CityName>
+                  <cbc:PostalZone>1026</cbc:PostalZone>
+                  <cbc:CountrySubentityCode listName="nuts">HU110</cbc:CountrySubentityCode>
+                  <cac:Country>
+                    <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+                  </cac:Country>
+                </cac:PostalAddress>
+                <cac:PartyLegalEntity>
+                  <cbc:CompanyID>EKRSZ_40664534_2</cbc:CompanyID>
+                </cac:PartyLegalEntity>
+                <cac:Contact>
+                  <cbc:Telephone>+36 18828592</cbc:Telephone>
+                  <cbc:Telefax>+36 18828593</cbc:Telefax>
+                  <cbc:ElectronicMail>dontobizottsag@kt.hu</cbc:ElectronicMail>
+                </cac:Contact>
+              </efac:Company>
+            </efac:Organization>
+            <efac:Organization>
+              <efac:Company>
+                <cbc:WebsiteURI>https://kozbeszerzes.hu</cbc:WebsiteURI>
+                <cac:PartyIdentification>
+                  <cbc:ID schemeName="organization">ORG-0010</cbc:ID>
+                </cac:PartyIdentification>
+                <cac:PartyName>
+                  <cbc:Name languageID="HUN">Közbeszerzési Hatóság Közbeszerzési Döntőbizottság</cbc:Name>
+                </cac:PartyName>
+                <cac:PostalAddress>
+                  <cbc:StreetName>Riadó u. 5</cbc:StreetName>
+                  <cbc:CityName>Budapest</cbc:CityName>
+                  <cbc:PostalZone>1026</cbc:PostalZone>
+                  <cbc:CountrySubentityCode listName="nuts">HU110</cbc:CountrySubentityCode>
+                  <cac:Country>
+                    <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+                  </cac:Country>
+                </cac:PostalAddress>
+                <cac:PartyLegalEntity>
+                  <cbc:CompanyID>EKRSZ_40664534_3</cbc:CompanyID>
+                </cac:PartyLegalEntity>
+                <cac:Contact>
+                  <cbc:Telephone>+36 18828592</cbc:Telephone>
+                  <cbc:Telefax>+36 18828593</cbc:Telefax>
+                  <cbc:ElectronicMail>dontobizottsag@kt.hu</cbc:ElectronicMail>
+                </cac:Contact>
+              </efac:Company>
+            </efac:Organization>
+            <efac:Organization>
+              <efac:Company>
+                <cbc:WebsiteURI>https://kozbeszerzes.hu</cbc:WebsiteURI>
+                <cac:PartyIdentification>
+                  <cbc:ID schemeName="organization">ORG-0002</cbc:ID>
+                </cac:PartyIdentification>
+                <cac:PartyName>
+                  <cbc:Name languageID="HUN">Közbeszerzési Hatóság</cbc:Name>
+                </cac:PartyName>
+                <cac:PostalAddress>
+                  <cbc:StreetName>Riadó utca 5.</cbc:StreetName>
+                  <cbc:CityName>Budapest</cbc:CityName>
+                  <cbc:PostalZone>1026</cbc:PostalZone>
+                  <cbc:CountrySubentityCode listName="nuts">HU110</cbc:CountrySubentityCode>
+                  <cac:Country>
+                    <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+                  </cac:Country>
+                </cac:PostalAddress>
+                <cac:PartyLegalEntity>
+                  <cbc:CompanyID>EKRSZ_40664534</cbc:CompanyID>
+                </cac:PartyLegalEntity>
+                <cac:Contact>
+                  <cbc:Telephone>+36 18828635</cbc:Telephone>
+                  <cbc:ElectronicMail>hirdetmeny@kt.hu</cbc:ElectronicMail>
+                </cac:Contact>
+              </efac:Company>
+            </efac:Organization>
+            <efac:UltimateBeneficialOwner>
+              <cbc:ID schemeName="ubo">UBO-0008</cbc:ID>
+              <efac:Nationality>
+                <cbc:NationalityID>HUN</cbc:NationalityID>
+              </efac:Nationality>
+            </efac:UltimateBeneficialOwner>
+          </efac:Organizations>
+        <efac:Publication><efbc:NoticePublicationID schemeName="ojs-notice-id">00566129-2026</efbc:NoticePublicationID><efbc:GazetteID schemeName="ojs-id">156/2026</efbc:GazetteID><efbc:PublicationDate>2026-08-14+02:00</efbc:PublicationDate></efac:Publication></efext:EformsExtension>
+      </ext:ExtensionContent>
+    </ext:UBLExtension>
+  </ext:UBLExtensions>
+  <cbc:UBLVersionID>2.3</cbc:UBLVersionID>
+  <cbc:CustomizationID>eforms-sdk-1.13</cbc:CustomizationID>
+  <cbc:ID schemeName="notice-id">7861104b-4016-43a1-bc32-0d2b911d0afa</cbc:ID>
+  <cbc:ContractFolderID>10a70508-cb43-4200-8ed4-e68807137078</cbc:ContractFolderID>
+  <cbc:IssueDate>2026-08-13+02:00</cbc:IssueDate>
+  <cbc:IssueTime>14:44:36+02:00</cbc:IssueTime>
+  <cbc:VersionID>01</cbc:VersionID>
+  <cbc:RegulatoryDomain>32014L0024</cbc:RegulatoryDomain>
+  <cbc:NoticeTypeCode listName="result">can-standard</cbc:NoticeTypeCode>
+  <cbc:NoticeLanguageCode>HUN</cbc:NoticeLanguageCode>
+  <cac:ContractingParty>
+    <cbc:BuyerProfileURI>https://bkk.hu/</cbc:BuyerProfileURI>
+    <cac:ContractingPartyType>
+      <cbc:PartyTypeCode listName="buyer-legal-type">body-pl</cbc:PartyTypeCode>
+    </cac:ContractingPartyType>
+    <cac:ContractingActivity>
+      <cbc:ActivityTypeCode listName="authority-activity">gen-pub</cbc:ActivityTypeCode>
+    </cac:ContractingActivity>
+    <cac:Party>
+      <cac:PartyIdentification>
+        <cbc:ID schemeName="organization">ORG-0001</cbc:ID>
+      </cac:PartyIdentification>
+      <cac:ServiceProviderParty>
+        <cbc:ServiceTypeCode listName="organisation-role">ted-esen</cbc:ServiceTypeCode>
+        <cac:Party>
+          <cac:PartyIdentification>
+            <cbc:ID schemeName="organization">ORG-0002</cbc:ID>
+          </cac:PartyIdentification>
+        </cac:Party>
+      </cac:ServiceProviderParty>
+    </cac:Party>
+  </cac:ContractingParty>
+  <cac:TenderingProcess>
+    <cbc:ProcedureCode listName="procurement-procedure-type">open</cbc:ProcedureCode>
+    <cac:NoticeDocumentReference>
+      <cbc:ID schemeName="ojs-notice-id">256804-2026</cbc:ID>
+    </cac:NoticeDocumentReference>
+    <cac:ProcessJustification>
+      <cbc:ProcessReasonCode listName="accelerated-procedure">false</cbc:ProcessReasonCode>
+    </cac:ProcessJustification>
+  </cac:TenderingProcess>
+  <cac:ProcurementProject>
+    <cbc:ID schemeName="InternalID">EKR000679082026</cbc:ID>
+    <cbc:Name languageID="HUN">Nyomdai és járműdekorációs feladatok ellátása</cbc:Name>
+    <cbc:Description languageID="HUN">Nyomdai és járműdekorációs feladatok ellátása_2026-2027</cbc:Description>
+    <cbc:ProcurementTypeCode listName="contract-nature">services</cbc:ProcurementTypeCode>
+    <cbc:Note languageID="HUN">A közbeszerzés tárgyához tartozó nyomdai szolgáltatások – pl. egy kampányhoz tartozó plakátok, kiadványok gyártása, különböző felületek, járművek fóliázása – szorosan összefüggenek, ezért a feladatokat ugyanazon Vállalkozónak kell végeznie az egységes minőség, kivitelezés, megfelelő ütemezés, logisztika miatt. A feladatok jellegéből adódóan a gyártási, szállítási és kivitelezési feladatok egymásra épülnek, így azok minőségi és időbeli összehangolása egyetlen gazdasági szereplő felelősségi körében biztosítható megfelelően. A részajánlattétel lehetővé tétele jelentős kockázatot hordozna az időzítés, a felelősségvállalás és az egységes minőségi színvonal érvényesítésében. A részajánlattétel lehetővé tétele továbbá aránytalan többlet terhet róna Ajánlatkérőre a teljesítés szervezése, ellenőrzése, továbbá a beszerzés tárgyát képező szolgáltatások eredményének egységes arculati, minőségi követelményeknek kell megfelelnie. Mindezekre tekintettel a közbeszerzés tárgyának funkcionális, műszaki és gazdasági egysége indokolja a részajánlattétel kizárását. 1. A Közbeszerzési Dokumentáció (a továbbiakban: KD) az EKR rendszerében érhető el. Ajánlatkérő (AK) azt tekinti érdeklődő gazdasági szereplőnek, aki az EKR-ben az eljárás iránti érdeklődését jelezte. 2. Az ajánlatok az EKR rendszerben az ajánlattételi határidő (AT hat.idő) lejártáig nyújthatók be elektronikus úton. Az ajánlatok benyújtásának formai követelményeit a KD tartalmazza. 3. Az ajánlatban benyújtott dokumentumokkal, nyilatkozatokkal kapcsolatban irányadó a Kbt. 41/A. § és 57. § (1) bek. b) pontja, 69. § (11a) bek. 4. AK nem teszi lehetővé többváltozatú (alternatív) ajánlat tételét. 5. AK nem teszi lehetővé gazdálkodó szervezet (projekttársaság) létrehozását, azt kifejezetten kizárja. 6. Valamennyi határidő közép-európai (CET) idő szerint értendő. 7. Az eljárás és az ajánlattétel nyelve a magyar, az eljárás során kommunikáció semmilyen más nyelven nem fogadható el. Fordítás Kbt. 47. § (2) bek. 8. Közös ajánlattétel esetén irányadó a Kbt. 35. §. 9. AK biztosítja a Kbt. 56.§ szerinti kiegészítő tájékoztatás kérés lehetőségét a közbeszerzési dokumentumokban foglalt szabályok szerint. AK konzultációt nem tart. 10. AK a hiánypótlásra a Kbt. 71. § szerint teljes körben lehetőséget biztosít. 11. AK nem alkalmazza a Kbt. 75. § (2) bek. e) pontját. AK előzetes piaci konzultációt folytatott le az EKR000492872026 azonosító számon. 12. AK alkalmazza a Kbt. 81. § (4)-(5) bekezdését. 13. AT-nek (közös AT-knek) az ajánlatában nyilatkoznia kell a Kbt. 66. § (6) bek. a) és b) pontjaira vonatkozóan. A nyilatkozatot nemleges tartalom esetén is meg kell tenni. 14. Ajánlatban be kell nyújtani (bővebben: KD):  Elektronikus űrlapok: o Felolvasólap (Kbt. 66. § (5) bek.) o Nyilatkozat a Kbt. 66. § (2) bek. szerint o Nyilatkozat a Kbt. 67. § (4) bekezdés alapján o Nyilatkozat folyamatban levő változásbejegyzési eljárásról (nemleges tartalommal is) o Nyilatkozat Kbt. 66. § (6) bek. (Alvállalkozók bevonásáról szóló nyilatkozat) o Nyilatkozat Kbt. 65. § (7) bek. o Nyilatkozat bemutatott szakemberről o Nyilatkozat üzleti titokról o Nyilatkozat fordításról (adott esetben) o Egységes Európai Közbeszerzési Dokumentum (EEKD) o Nyilatkozat az ukrajnai helyzetet destabilizáló orosz intézkedések miatt hozott korlátozó intézkedésekről szóló 833/2014/EU tanácsi rendelet 5k. cikk (1) bekezdése szerinti tilalomról  Az ajánlatban benyújtandó egyéb dokumentumok: o 1. értékelési szemponthoz kapcsolódó szakember szakmai önéletrajza, a képzettséget és/vagy végzettség igazoló dokumentumok, rendelkezési állási nyilatkozat; o Ártáblázat (xls és pdf formátumban), szakmai ajánlat o Aláírási címpéldány, aláírás minta o nem Magyarországon letelepedett gazdasági szereplőnek a hatályos adatait tartalmazó, a gazdasági szereplő letelepedése szerinti ország jogrendszere szerinti cégjegyzék adatok másolata (adott esetben) o Folyamatban lévő változásbejegyzés esetén a változásbejegyzési kérelem és az érkeztetésről kiállított igazolás (adott esetben) o Meghatalmazás (adott esetben) o Kapacitásnyújtó szervezet igénybevétele esetén kötelezettségvállalást tartalmazó okirat (adott esetben) o Üzleti titok indokolása (adott esetben) o Közös ajánlattételről szóló megállapodás (adott esetben) 15. Az ajánlathoz csatolni kell az ajánlatban szereplő dokumentumokat aláíró, az AT és az alkalmasság igazolásában résztvevő gazdasági szereplő esetében az aláírási címpéldányt vagy ügyvéd vagy kamarai jogtanácsos által ellenjegyzett aláírás-mintát vagy meghatalmazást, amennyiben nem az írásbeli képviseletre jogosult írja alá az ajánlatot. 16. AK rögzíti, hogy az 1. értékelési szempont tekintetében megajánlott, a szerződés teljesítésében részt vevő szakember neve szakmai ajánlatnak minősül. Amennyiben a benyújtott ajánlat nem tartalmazza a szakember nevét, akkor a Kbt. 71. § (8) bekezdése szerint az nem hiánypótolható hibának minősül, így az ajánlat érvénytelenségét vonja maga után. 17. Ha a közbeszerzés tárgyának egyértelmű és közérthető meghatározása szükségessé tesz meghatározott gyártmányú, eredetű, típusú dologra, eljárásra, tevékenységre, személyre, szabadalomra vagy védjegyre való hivatkozást, a megnevezés csak a tárgy jellegének egyértelmű meghatározása érdekében történt, és a megnevezés mellett a „vagy azzal egyenértékű” kifejezést kell érteni a 321/2015. (X.30.) Korm. rendelet 46. § (3) bekezdésének megfelelően. 18. AT köteles megfelelni a körny.véd., szoc. és munkajogi követelményeknek, amelyeket a jogszabályok vagy kötelezően alkalmazandó kollektív szerződés, illetve a Kbt. 4. mellékletben felsorolt körny.véd., szoc. és munkajogi rendelkezések írnak elő. 19. AK a KD-ban tájékoztatásként megjelölte azoknak a szervezeteknek (hatóságoknak) a nevét és címét (elérhetőségét), amelyektől AT megfelelő tájékozódást kaphat. (Kbt. 73. § (3) bek.) 20. Nyertes Ajánlattevőnek a szerződés hatálybalépésének időpontjától kezdődően a szerződés hatálya alatt a szerződésben és a műszaki leírásban meghatározott gépekkel rendelkeznie kell a feladatok teljesítéséhez. 21. A jelen felhívásban nem szabályozott esetekben a Kbt., a végrehajtási rendeletek és a Ptk. szabályai irányadóak. 22. Az EKR használatával kapcsolatban bővebb információ a rendszerbe belépve, a https://ekr.gov.hu/portal/tamogatas oldalon, valamint az üzemeltető elérhetőségein érhető el, AK a rendszer működésével, használatával kapcsolatban nem nyújt tájékoztatást. 23. FAKSZ neve, lajstromszáma: dr. Fekete Tímea (01122), dr. Bódis Rita Gabriella (01164) 24. Ajánlatkérő felhívja ajánlattevők figyelmét, hogy a Közbeszerzési Hatóság „bronz” fokozatú minősítéséhez képest a felhívás III.4.1) pontjában meghatározott gazdasági és pénzügyi (P1), valamint műszaki, illetve szakmai (M1; M2) alkalmassági feltételeket és igazolását a minősített ajánlattevők hivatalos jegyzékbe történő felvételt képező minősítési szempontokhoz képest tárgyában és mértékében szigorúbban határozta meg.</cbc:Note>
+    <cac:MainCommodityClassification>
+      <cbc:ItemClassificationCode listName="cpv">79821000</cbc:ItemClassificationCode>
+    </cac:MainCommodityClassification>
+    <cac:RealizedLocation>
+      <cbc:Description languageID="HUN">BT-5141 mező: A teljesítés helye: Ajánlatkérő székhelye (1075 Budapest, Rumbach Sebestyén utca 19-21.), továbbá az adott Megrendelésben megjelölt teljesítési hely.</cbc:Description>
+      <cac:Address>
+        <cbc:StreetName>Rumbach Sebestyén</cbc:StreetName>
+        <cbc:AdditionalStreetName>utca</cbc:AdditionalStreetName>
+        <cbc:CityName>Budapest</cbc:CityName>
+        <cbc:PostalZone>1075</cbc:PostalZone>
+        <cbc:CountrySubentityCode listName="nuts">HU110</cbc:CountrySubentityCode>
+        <cac:AddressLine>
+          <cbc:Line>19-21.</cbc:Line>
+        </cac:AddressLine>
+        <cac:Country>
+          <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+        </cac:Country>
+      </cac:Address>
+    </cac:RealizedLocation>
+  </cac:ProcurementProject>
+  <cac:ProcurementProjectLot>
+    <cbc:ID schemeName="Lot">LOT-0001</cbc:ID>
+    <cac:TenderingTerms>
+      <ext:UBLExtensions>
+        <ext:UBLExtension>
+          <ext:ExtensionContent>
+            <efext:EformsExtension>
+              <efac:StrategicProcurement>
+                <efbc:ApplicableLegalBasis listName="ipi-scope">false</efbc:ApplicableLegalBasis>
+              </efac:StrategicProcurement>
+              <efac:StrategicProcurement>
+                <efbc:ApplicableLegalBasis listName="cvd-scope">false</efbc:ApplicableLegalBasis>
+              </efac:StrategicProcurement>
+              <efac:StrategicProcurement>
+                <efbc:ApplicableLegalBasis listName="eed-scope">false</efbc:ApplicableLegalBasis>
+              </efac:StrategicProcurement>
+            </efext:EformsExtension>
+          </ext:ExtensionContent>
+        </ext:UBLExtension>
+      </ext:UBLExtensions>
+      <cbc:FundingProgramCode listName="eu-funded">no-eu-funds</cbc:FundingProgramCode>
+      <cac:AwardingTerms>
+        <cac:AwardingCriterion>
+          <cac:SubordinateAwardingCriterion>
+            <ext:UBLExtensions>
+              <ext:UBLExtension>
+                <ext:ExtensionContent>
+                  <efext:EformsExtension>
+                    <efac:AwardCriterionParameter>
+                      <efbc:ParameterCode listName="number-weight">poi-exa</efbc:ParameterCode>
+                      <efbc:ParameterNumeric>10</efbc:ParameterNumeric>
+                    </efac:AwardCriterionParameter>
+                  </efext:EformsExtension>
+                </ext:ExtensionContent>
+              </ext:UBLExtension>
+            </ext:UBLExtensions>
+            <cbc:AwardingCriterionTypeCode listName="award-criterion-type">quality</cbc:AwardingCriterionTypeCode>
+            <cbc:Description languageID="HUN">1. Az M2. pontban bemutatott szakembernek az alkalmassági követelményben foglaltak feletti szakmai többlettapasztalata (hónap) (min.0, max. 24 hónap)</cbc:Description>
+          </cac:SubordinateAwardingCriterion>
+          <cac:SubordinateAwardingCriterion>
+            <ext:UBLExtensions>
+              <ext:UBLExtension>
+                <ext:ExtensionContent>
+                  <efext:EformsExtension>
+                    <efac:AwardCriterionParameter>
+                      <efbc:ParameterCode listName="number-weight">poi-exa</efbc:ParameterCode>
+                      <efbc:ParameterNumeric>90</efbc:ParameterNumeric>
+                    </efac:AwardCriterionParameter>
+                  </efext:EformsExtension>
+                </ext:ExtensionContent>
+              </ext:UBLExtension>
+            </ext:UBLExtensions>
+            <cbc:AwardingCriterionTypeCode listName="award-criterion-type">price</cbc:AwardingCriterionTypeCode>
+            <cbc:Description languageID="HUN">2. Egyösszegű nettó ajánlati ár (Ft)</cbc:Description>
+          </cac:SubordinateAwardingCriterion>
+        </cac:AwardingCriterion>
+      </cac:AwardingTerms>
+      <cac:AdditionalInformationParty>
+        <cac:PartyIdentification>
+          <cbc:ID schemeName="organization">ORG-0001</cbc:ID>
+        </cac:PartyIdentification>
+      </cac:AdditionalInformationParty>
+      <cac:AppealTerms>
+        <cac:PresentationPeriod>
+          <cbc:Description languageID="HUN">A Kbt. 148. § szerint.</cbc:Description>
+        </cac:PresentationPeriod>
+        <cac:AppealInformationParty>
+          <cac:PartyIdentification>
+            <cbc:ID schemeName="organization">ORG-0010</cbc:ID>
+          </cac:PartyIdentification>
+        </cac:AppealInformationParty>
+        <cac:AppealReceiverParty>
+          <cac:PartyIdentification>
+            <cbc:ID schemeName="organization">ORG-0003</cbc:ID>
+          </cac:PartyIdentification>
+        </cac:AppealReceiverParty>
+      </cac:AppealTerms>
+    </cac:TenderingTerms>
+    <cac:TenderingProcess>
+      <cbc:GovernmentAgreementConstraintIndicator>true</cbc:GovernmentAgreementConstraintIndicator>
+      <cac:AuctionTerms>
+        <cbc:AuctionConstraintIndicator>false</cbc:AuctionConstraintIndicator>
+      </cac:AuctionTerms>
+      <cac:ContractingSystem>
+        <cbc:ContractingSystemTypeCode listName="framework-agreement">none</cbc:ContractingSystemTypeCode>
+      </cac:ContractingSystem>
+      <cac:ContractingSystem>
+        <cbc:ContractingSystemTypeCode listName="dps-usage">none</cbc:ContractingSystemTypeCode>
+      </cac:ContractingSystem>
+    </cac:TenderingProcess>
+    <cac:ProcurementProject>
+      <cbc:ID schemeName="InternalID">EKR000679082026/1</cbc:ID>
+      <cbc:Name languageID="HUN">Nyomdai és járműdekorációs feladatok ellátása</cbc:Name>
+      <cbc:Description languageID="HUN">A Vállalkozó feladata a BKK Zrt. folyamatos kommunikációjához kapcsolódó, a beszerzés tárgya szerinti, az alábbiakban, a Műszaki leírásban és az Ártáblázatban (a továbbiakban: „Ártáblázat”) részletesen specifikált nyomdai kivitelezési feladatok magas színvonalú ellátása nettó 95.000.000,- Ft keretösszeg erejéig a kiadott megrendelések alapján. Ajánlatkérő a keretösszeg 70-%-ra vállal lehívási kötelezettséget. A termékcsoportok keretösszegen belüli becsült megrendelési mennyisége/értéke az alábbi: 1. szórólapok, kis formátumú plakátok nyomtatása: szórólap kb. 60 000 db, kis formátumú plakát kb. 30 000 db (10 féle szórólap, 9 féle plakát, 2 féle plakát laminálása) 2. nagyméretű plakátok nyomtatása: kb. 3500 db (7 féle plakát) 3. kiadványok, egyéb termékek nyomtatása: kb. 42 000 db (19 féle kiadvány, dosszié, matricás füzet, oklevél, karton, perforált karton jegy, papírmatrica, papírtáska, névjegy, ügyfélkártya) 4. vinyl és egyéb anyagok nyomtatása, kihelyezése és eltávolítása: (öntapadós vinyl, öntapadós vinyl laminálással, öntapadós vinyl antigraffiti laminálással, oneway vision fólia, fényvisszaverő fólia, kétoldalas vinyl, 2D víztiszta fólia, alátétfólia, visszaszedhető vinyl, járműfólia, padlómatrica, habosított pvc stb.): kb. 2500 nm, illetve 42 000 db, kihelyezés, eltávolítás: kb. 800 nm, plottervágás: kb. 3000 cm 5. Molinó, backlight film és más hordozók nyomtatása:(backlight film, épületháló, kültéri molinó, beltéri molinó, plexi nyomás, dibond lemez, rollup film,): kb. 500 nm 6. hajtogatott térképek nyomtatása: kb. 130 000 db (6 féle hajtogatott térkép) 7. járműdekorációs feladatok ellátása (3D járműfólia, 2D járműfólia): gyártás kb. 650 nm, kihelyezés: kb. 650 nm, eltávolítás kb. 350 nm 8. Szállítás, kiszállítás: kb. 280 db A fentiekben megadott mennyiségek tájékoztató jellegű, tervezett adatok. Ajánlatkérő fenntartja a jogot, hogy a megadott mennyiségekhez képest eltérő mennyiségben adjon ki egyedi megrendeléseket a keretszerződés hatálya alatt. Tervezett költés (szállítással, kiszállással együtt): 1, 2, 3, 6-os tételcsoportokra: 43 400 000 Ft; 4, 5, 7 tételcsoportokra: 51 600 000 Ft. A szolgáltatáshoz kapcsolódó Ajánlatkérői elvárások: - dedikált kapcsolattartó biztosítása, szabadsága vagy betegsége esetén dedikált helyettes; - állandó és folyamatos rendelkezésre állás, munkanapokon 8-16 óra között (hétvégén alkalomszerűen) személyesen, e-mailben és telefonon egyaránt; - folyamatos konzultáció a Megrendelővel; - együttműködő hozzáállás; - fenntartható, környezetbarát technológia alkalmazása; - rendszeres beszámoló készítése a Megrendelő felé a feladatok tételes elvégzéséről, aktuális állásáról; - a feladatokhoz kapcsolódó egyeztetések a Megrendelővel (pl. ütemezés); - a számlázás részét képező teljesítést alátámasztó dokumentumok elkészítése és átadása a Megrendelő részére (beszkennelt, olvasható szállítólevelek, a dekorációs munka teljesítését bizonyító fotók, egyéb igazolások); - együttműködés a Megrendelő által kötelezően használt számlázási, teljesítésigazolási folyamatokban; - a különböző nyomdai eljárásokkal előállított nyomdai anyagok kiviteli állományaihoz szükséges nyomdatechnológiai paraméterek, információk megadása (pl. színtér, kifutó mérete, felbontás, preferált fájltípus stb.); - nyomdai gyártás előkészítése; - a Megrendelőtől kapott nyomdakész kreatív anyag ellenőrzése, az esetleges minőségi hibák előzetes kiszűrése (pl. nem megfelelő felbontású képek, színek, kifutók); - a gyártás megkezdése előtt igény esetén proof vagy próbanyomat megküldése jóváhagyásra a Megrendelőnek (B1-es méretű plakátnál nagyobb plakátok esetén a Megrendelő A3-as proofot igényelhet, amelynek költségét a megindítani kívánt közbeszerzési eljárás részeként kiadott Ártáblázat „2 nagyplakát” munkalapján szükséges beárazni); - a Megrendelőtől kapott nyomdakész kreatív gyártása a megjelölt mennyiségben; - szortírozás; - javaslattétel a csomagolásra; - Megrendelő kérésére javaslattétel a kivitelezésre (papír, lakkozás, hajtás, tartósság, laminálás, alapanyag stb.) az optimális minőség, költséghatékony kivitelezés érdekében; - a Megrendelő által megadott cím(ek)re történő szállítás; - öntapadós kreatív anyagok kihelyezése vagy más, az Ártáblázatban felsorolt eszközök szerelése esetén közreműködés az egyeztetésekben, a kihelyezéssel/eltávolítással kapcsolatos koordináció a Megrendelővel és a Megrendelő kérésére a kihelyezés helyszínét üzemeltető vagy felügyelő partnerekkel; - éjszakai, hétvégi és ünnepnapi munkavégzésre alkalmas csapat vagy alvállalkozók megléte kihelyezéseknél és szerelések esetén (ha a kijelölt feladat munkanap nem elvégezhető); - valamint az itt fel nem sorolt, nyomdai és kivitelezéssel kapcsolatos feladatok elvégzése során felmerülő szakmai feladatok, - szaktanácsadás. A részletes műszaki leírást az EKR rendszerben a Közbeszerzési Dokumentum között érhető el.</cbc:Description>
+      <cbc:ProcurementTypeCode listName="contract-nature">services</cbc:ProcurementTypeCode>
+      <cbc:Note languageID="HUN">BT-540 mező: Kbt. 76. § (2) bek. c) pont szerint. Az ajánlatok értékelési szempontok szerinti tartalmi elemeinek értékelése során adható pontszám alsó és felső határa 0-10. Értékelési szempont - Súlyszám - Értékelési módszer: 1. Az M2. pontban bemutatott szakembernek az alkalmassági követelményben foglaltak feletti szakmai többlettapasztalata (hónap) (min.0, max. 24 hónap) – 10 – Egyenes arányosítás 2. Egyösszegű nettó ajánlati ár (Ft) – 90 – Fordított arányosítás Ajánlatkérő az 1. értékelési szempont tekintetében rögzíti, hogy a szakember tekintetében az alkalmassági követelményben előírtakkal megegyező szakterületen szerzett szakmai többlet gyakorlat időt kívánja értékelni. BT-36 mező: A keretszerződést a Felek mindkét Fél általi aláírásának napjától számított tizennyolc (18) hónap határozott időtartamra kötik.</cbc:Note>
+      <cac:ProcurementAdditionalType>
+        <cbc:ProcurementTypeCode listName="gpp-criteria">none</cbc:ProcurementTypeCode>
+      </cac:ProcurementAdditionalType>
+      <cac:MainCommodityClassification>
+        <cbc:ItemClassificationCode listName="cpv">79821000</cbc:ItemClassificationCode>
+      </cac:MainCommodityClassification>
+      <cac:AdditionalCommodityClassification>
+        <cbc:ItemClassificationCode listName="cpv">45451000</cbc:ItemClassificationCode>
+      </cac:AdditionalCommodityClassification>
+      <cac:RealizedLocation>
+        <cbc:Description languageID="HUN">BT-5141 mező: A teljesítés helye: Ajánlatkérő székhelye (1075 Budapest, Rumbach Sebestyén utca 19-21.), továbbá az adott Megrendelésben megjelölt teljesítési hely.</cbc:Description>
+        <cac:Address>
+          <cbc:StreetName>Rumbach Sebestyén</cbc:StreetName>
+          <cbc:AdditionalStreetName>utca</cbc:AdditionalStreetName>
+          <cbc:CityName>Budapest</cbc:CityName>
+          <cbc:PostalZone>1075</cbc:PostalZone>
+          <cbc:CountrySubentityCode listName="nuts">HU110</cbc:CountrySubentityCode>
+          <cac:AddressLine>
+            <cbc:Line>19-21.</cbc:Line>
+          </cac:AddressLine>
+          <cac:Country>
+            <cbc:IdentificationCode listName="country">HUN</cbc:IdentificationCode>
+          </cac:Country>
+        </cac:Address>
+      </cac:RealizedLocation>
+      <cac:PlannedPeriod>
+        <cbc:DurationMeasure unitCode="MONTH">18</cbc:DurationMeasure>
+      </cac:PlannedPeriod>
+      <cac:ContractExtension>
+        <cbc:MaximumNumberNumeric>1</cbc:MaximumNumberNumeric>
+        <cac:Renewal>
+          <cac:Period>
+            <cbc:Description languageID="HUN">Ajánlatkérő egyoldalú jognyilatkozatával jogosult a 18 hónap határozott szerződéses időtartamot a határozott időtartam lejártát megelőzően bármikor, de legkésőbb a határozott időtartam lejárta napját megelőző harmincadik (30.) naptári napig, egy alkalommal további egybefüggő legfeljebb hat (6) hónappal, de legfeljebb a keretösszeg erejéig meghosszabbítani, amennyiben a keretösszegből még rendelkezésre áll addig fel nem használt összeg. Meghosszabbítás esetén a keretösszeg nem emelkedik, csak a szerződés időtartama hosszabbodik meg.</cbc:Description>
+          </cac:Period>
+        </cac:Renewal>
+      </cac:ContractExtension>
+    </cac:ProcurementProject>
+  </cac:ProcurementProjectLot>
+  <cac:TenderResult>
+    <cbc:AwardDate>2000-01-01Z</cbc:AwardDate>
+  </cac:TenderResult>
+</ContractAwardNotice>

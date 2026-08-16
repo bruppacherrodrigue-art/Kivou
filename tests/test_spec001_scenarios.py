@@ -13,6 +13,7 @@ import pytest
 
 from signals.domain import (
     Awardee,
+    AwardeeParty,
     ContractAward,
     Duration,
     Location,
@@ -24,6 +25,26 @@ from signals.domain import (
     PublicEvent,
     SourceIdentity,
 )
+
+
+def sole(name: str, **kwargs) -> AwardeeParty:
+    """Un soumissionnaire retenu seul — le cas courant."""
+    return AwardeeParty(members=(Awardee(organization=OrganizationRef(legal_name=name, **kwargs)),))
+
+
+def group(*names: str, lead: str | None = None, party_name: str | None = None) -> AwardeeParty:
+    """Un groupement : plusieurs organisations, UN soumissionnaire."""
+    return AwardeeParty(
+        members=tuple(
+            Awardee(
+                organization=OrganizationRef(legal_name=n),
+                role="consortium_lead" if n == lead else "consortium_member",
+            )
+            for n in names
+        ),
+        name=party_name,
+    )
+
 
 # ─── Fixtures de forme SIMAP ────────────────────────────────────────────────────
 
@@ -49,6 +70,7 @@ def simap_event() -> PublicEvent:
         event_type="award_notice",
         published_at=dt.date(2026, 3, 10),
         event_date=dt.date(2026, 2, 24),
+        procedure_buyers=(ETAT_DU_VALAIS,),
     )
 
 
@@ -84,16 +106,12 @@ def test_1_award_suisse_simple():
         title="Rénovation énergétique — installations CVC",
         cpv_main="45331000-6",
         value=Money(amount=Decimal("1240000.00"), currency="CHF"),
-        buyer=ETAT_DU_VALAIS,
-        awardees=(
-            Awardee(
-                organization=OrganizationRef(
-                    legal_name="Thermalp Installations SA",
-                    identifiers=(
-                        OrganizationIdentifier(scheme="CHE-UID", value="CHE-987.654.321"),
-                    ),
-                    country="CH",
-                ),
+        contract_signatories=(ETAT_DU_VALAIS,),
+        awardee_parties=(
+            sole(
+                "Thermalp Installations SA",
+                identifiers=(OrganizationIdentifier(scheme="CHE-UID", value="CHE-987.654.321"),),
+                country="CH",
             ),
         ),
         place_of_performance=Location(
@@ -103,11 +121,15 @@ def test_1_award_suisse_simple():
     )
 
     assert award.belongs_to(event.ref())
+    # l'acheteur de la procédure vit sur l'événement, le signataire sur le contrat
+    assert [b.legal_name for b in event.procedure_buyers] == [ETAT_DU_VALAIS.legal_name]
+    assert [s.legal_name for s in award.contract_signatories] == [ETAT_DU_VALAIS.legal_name]
     assert award.value.currency == "CHF"
     assert str(award.cpv_main) == "45331000-6"
     assert award.cpv_main.code == "45331000"
     assert award.winner_status == "identified"
-    assert len(award.awardees) == 1
+    assert len(award.awardee_parties) == 1
+    assert award.awardee_parties[0].members[0].role == "sole"
 
 
 # ─── TEST 2 — Award TED simple ──────────────────────────────────────────────────
@@ -121,18 +143,18 @@ def test_2_award_ted_simple():
         title="Fourniture de matériel réseau",
         cpv_main="32420000-3",
         value=Money(amount=Decimal("2750000"), currency="EUR"),
-        buyer=OrganizationRef(
-            legal_name="Région Auvergne-Rhône-Alpes",
-            identifiers=(OrganizationIdentifier(scheme="EU-VAT", value="FR12345678901"),),
-            country="FR",
+        contract_signatories=(
+            OrganizationRef(
+                legal_name="Région Auvergne-Rhône-Alpes",
+                identifiers=(OrganizationIdentifier(scheme="EU-VAT", value="FR12345678901"),),
+                country="FR",
+            ),
         ),
-        awardees=(
-            Awardee(
-                organization=OrganizationRef(
-                    legal_name="Réseaux & Systèmes SAS",
-                    identifiers=(OrganizationIdentifier(scheme="EU-VAT", value="FR98765432109"),),
-                    country="FR",
-                ),
+        awardee_parties=(
+            sole(
+                "Réseaux & Systèmes SAS",
+                identifiers=(OrganizationIdentifier(scheme="EU-VAT", value="FR98765432109"),),
+                country="FR",
             ),
         ),
         place_of_performance=Location(
@@ -163,7 +185,7 @@ def test_3_montant_absent_ne_fait_pas_echouer_import():
         event_ref=simap_event().ref(),
         lot=LotRef(identifier="2"),
         title="Prestations d'architecte",
-        awardees=(Awardee(organization=OrganizationRef(legal_name="Atelier Rhône Sàrl")),),
+        awardee_parties=(sole("Atelier Rhône Sàrl"),),
     )
     assert award.value is None
 
@@ -189,7 +211,7 @@ def test_4_plusieurs_lots_sans_collision():
             event_ref=event.ref(),
             lot=LotRef(identifier=identifier, title=titre),
             value=Money(amount=Decimal(montant), currency="CHF"),
-            awardees=(Awardee(organization=OrganizationRef(legal_name=gagnant)),),
+            awardee_parties=(sole(gagnant),),
             award_date=dt.date(2026, 2, 24),
         )
         for identifier, titre, montant, gagnant in lots
@@ -210,23 +232,20 @@ def test_5_consortium_plusieurs_organisations_un_seul_contrat():
         event_ref=ted_event().ref(),
         lot=LotRef(identifier="LOT-2"),
         value=Money(amount=Decimal("8400000"), currency="EUR"),
-        awardees=(
-            Awardee(
-                organization=OrganizationRef(legal_name="Génie Civil Alpes SA", country="FR"),
-                role="consortium_lead",
-            ),
-            Awardee(
-                organization=OrganizationRef(legal_name="Tunnels & Ouvrages SAS", country="FR"),
-                role="consortium_member",
-            ),
-            Awardee(
-                organization=OrganizationRef(legal_name="Bau Consult GmbH", country="DE"),
-                role="consortium_member",
+        awardee_parties=(
+            group(
+                "Génie Civil Alpes SA",
+                "Tunnels & Ouvrages SAS",
+                "Bau Consult GmbH",
+                lead="Génie Civil Alpes SA",
             ),
         ),
     )
-    assert len(award.awardees) == 3
-    assert sum(a.role == "consortium_lead" for a in award.awardees) == 1
+    # UN soumissionnaire, trois organisations — pas trois soumissionnaires
+    assert len(award.awardee_parties) == 1
+    assert award.awardee_parties[0].is_group
+    assert len(award.awardee_parties[0].members) == 3
+    assert sum(m.role == "consortium_lead" for m in award.awardee_parties[0].members) == 1
 
 
 def test_5b_accord_cadre_meme_lot_plusieurs_attributaires_distincts():
@@ -238,13 +257,13 @@ def test_5b_accord_cadre_meme_lot_plusieurs_attributaires_distincts():
             event_ref=event.ref(),
             lot=LotRef(identifier="LOT-1"),
             source_award_id=f"CTR-{index}",
-            awardees=(Awardee(organization=OrganizationRef(legal_name=nom)),),
+            awardee_parties=(sole(nom),),
         )
         for index, nom in enumerate(titulaires, start=1)
     )
     # trois contrats indépendants, jamais agrégés en un consortium
     assert len({a.source_identity() for a in awards}) == 3
-    assert all(a.awardees[0].role == "sole" for a in awards)
+    assert all(a.awardee_parties[0].members[0].role == "sole" for a in awards)
 
 
 def test_5e_consortium_et_multi_attributaires_ne_se_confondent_pas():
@@ -255,14 +274,7 @@ def test_5e_consortium_et_multi_attributaires_ne_se_confondent_pas():
         event_ref=event.ref(),
         lot=LotRef(identifier="LOT-3"),
         source_award_id="CTR-A",
-        awardees=(
-            Awardee(
-                organization=OrganizationRef(legal_name="Entreprise A"), role="consortium_lead"
-            ),
-            Awardee(
-                organization=OrganizationRef(legal_name="Entreprise B"), role="consortium_member"
-            ),
-        ),
+        awardee_parties=(group("Entreprise A", "Entreprise B", lead="Entreprise A"),),
     )
 
     independants = tuple(
@@ -270,20 +282,27 @@ def test_5e_consortium_et_multi_attributaires_ne_se_confondent_pas():
             event_ref=event.ref(),
             lot=LotRef(identifier="LOT-4"),
             source_award_id=f"CTR-{suffixe}",
-            awardees=(Awardee(organization=OrganizationRef(legal_name=nom)),),
+            awardee_parties=(sole(nom),),
         )
         for suffixe, nom in (("B1", "Entreprise A"), ("B2", "Entreprise B"), ("B3", "Entreprise C"))
     )
 
-    # A : UN contrat, plusieurs organisations, rôles de consortium
-    assert len(consortium.awardees) == 2
-    assert {a.role for a in consortium.awardees} == {"consortium_lead", "consortium_member"}
+    # A : UN contrat, UN soumissionnaire, deux organisations groupées
+    assert len(consortium.awardee_parties) == 1
+    assert {m.role for m in consortium.awardee_parties[0].members} == {
+        "consortium_lead",
+        "consortium_member",
+    }
 
-    # B : TROIS contrats, un titulaire seul chacun — aucun rôle de consortium nulle part
+    # B : TROIS contrats, un soumissionnaire seul chacun — aucun rôle de groupement
     assert len(independants) == 3
-    assert all(len(a.awardees) == 1 for a in independants)
+    assert all(len(a.awardee_parties) == 1 for a in independants)
+    assert all(len(a.awardee_parties[0].members) == 1 for a in independants)
     assert not any(
-        a.role.startswith("consortium") for award in independants for a in award.awardees
+        m.role.startswith("consortium")
+        for award in independants
+        for party in award.awardee_parties
+        for m in party.members
     )
     assert len({a.source_identity() for a in independants}) == 3
 
@@ -294,20 +313,14 @@ def test_5c_le_modele_n_impose_pas_de_gagnant_quand_la_source_n_en_publie_pas():
         lot=LotRef(identifier="4"),
         winner_status="undisclosed",
     )
-    assert award.awardees == ()
+    assert award.awardee_parties == ()
 
 
 def test_5d_gagnant_ambigu_signalable():
     award = ContractAward(
         event_ref=simap_event().ref(),
         winner_status="ambiguous",
-        awardees=(
-            Awardee(organization=OrganizationRef(legal_name="Müller AG"), role="consortium_member"),
-            Awardee(
-                organization=OrganizationRef(legal_name="Mueller AG, Zürich"),
-                role="consortium_member",
-            ),
-        ),
+        awardee_parties=(sole("Müller AG"), sole("Mueller AG, Zürich")),
     )
     assert award.winner_status == "ambiguous"
 
@@ -329,7 +342,7 @@ def test_6_dates_distinctes():
         contract_start_date=dt.date(2026, 4, 1),
         contract_end_date=dt.date(2028, 3, 31),
         duration=Duration(value=24, unit="month"),
-        awardees=(Awardee(organization=OrganizationRef(legal_name="Thermalp Installations SA")),),
+        awardee_parties=(sole("Thermalp Installations SA"),),
     )
 
     assert event.published_at != event.event_date
@@ -340,7 +353,7 @@ def test_6_dates_distinctes():
 def test_6b_dates_absentes_supportees():
     award = ContractAward(
         event_ref=simap_event().ref(),
-        awardees=(Awardee(organization=OrganizationRef(legal_name="Atelier Rhône Sàrl")),),
+        awardee_parties=(sole("Atelier Rhône Sàrl"),),
     )
     assert award.award_date is None
     assert award.contract_start_date is None
@@ -365,7 +378,7 @@ def test_7_provenance_retrouvable_depuis_l_award():
     event = ted_event()
     award = ContractAward(
         event_ref=event.ref(),
-        awardees=(Awardee(organization=OrganizationRef(legal_name="Réseaux & Systèmes SAS")),),
+        awardee_parties=(sole("Réseaux & Systèmes SAS"),),
     )
 
     # depuis le contrat : système source + identifiant de notice
@@ -398,7 +411,7 @@ def test_8_identite_source_quand_la_source_la_publie():
         event_ref=ted_event().ref(),
         lot=LotRef(identifier="LOT-1"),
         source_award_id="CTR-2026-0041",
-        awardees=(Awardee(organization=OrganizationRef(legal_name="Réseaux & Systèmes SAS")),),
+        awardee_parties=(sole("Réseaux & Systèmes SAS"),),
     )
     assert award.source_identity() == SourceIdentity(
         source_system="ted",
@@ -414,7 +427,7 @@ def test_8b_aucune_identite_certaine_sans_identifiant_publie():
     award = ContractAward(
         event_ref=simap_event().ref(),
         lot=LotRef(identifier="1"),
-        awardees=(Awardee(organization=OrganizationRef(legal_name="Thermalp Installations SA")),),
+        awardee_parties=(sole("Thermalp Installations SA"),),
     )
     assert award.source_identity() is None
     # ...mais l'absence d'identité n'empêche pas de rapprocher
@@ -432,7 +445,7 @@ def test_8c_deux_contrats_indiscernables_par_le_contenu_restent_distincts():
         "lot": LotRef(identifier="LOT-7"),
         "value": Money(amount=Decimal("450000"), currency="EUR"),
         "award_date": dt.date(2026, 2, 18),
-        "awardees": (Awardee(organization=OrganizationRef(legal_name="Conseil Nord SAS")),),
+        "awardee_parties": (sole("Conseil Nord SAS"),),
     }
     premier = ContractAward(**commun, source_award_id="CTR-A")
     second = ContractAward(**commun, source_award_id="CTR-B")
@@ -451,9 +464,7 @@ def test_8d_sans_identifiant_le_domaine_n_affirme_rien():
         "lot": LotRef(identifier="1"),
         "value": Money(amount=Decimal("1240000"), currency="CHF"),
         "award_date": dt.date(2026, 2, 24),
-        "awardees": (
-            Awardee(organization=OrganizationRef(legal_name="Thermalp Installations SA")),
-        ),
+        "awardee_parties": (sole("Thermalp Installations SA"),),
     }
     premier = ContractAward(**commun)
     second = ContractAward(**commun)
@@ -471,14 +482,14 @@ def test_8e_empreinte_stable_malgre_les_variations_de_forme():
         event_ref=simap_event().ref(),
         lot=LotRef(identifier="1"),
         value=Money(amount=Decimal("1240000"), currency="CHF"),
-        awardees=(Awardee(organization=OrganizationRef(legal_name="Thermalp Installations SA")),),
+        awardee_parties=(sole("Thermalp Installations SA"),),
         award_date=dt.date(2026, 2, 24),
     )
     variante = ContractAward(
         event_ref=simap_event().ref(),
         lot=LotRef(identifier="1", title="Installations CVC"),
         value=Money(amount=Decimal("1240000.00"), currency="chf"),
-        awardees=(Awardee(organization=OrganizationRef(legal_name="THERMALP  INSTALLATIONS SA")),),
+        awardee_parties=(sole("THERMALP  INSTALLATIONS SA"),),
         award_date=dt.date(2026, 2, 24),
     )
     assert base.dedupe_fingerprint() == variante.dedupe_fingerprint()
@@ -505,20 +516,20 @@ def test_8g_empreinte_distincte_des_qu_un_fait_distingue_les_contrats():
     }
     gagnant_a = ContractAward(
         **commun,
-        awardees=(Awardee(organization=OrganizationRef(legal_name="Thermalp Installations SA")),),
+        awardee_parties=(sole("Thermalp Installations SA"),),
     )
     gagnant_b = ContractAward(
         **commun,
-        awardees=(Awardee(organization=OrganizationRef(legal_name="Chauffage Sion SA")),),
+        awardee_parties=(sole("Chauffage Sion SA"),),
     )
     montant_different = ContractAward(
         **commun,
         value=Money(amount=Decimal("1240000"), currency="CHF"),
-        awardees=(Awardee(organization=OrganizationRef(legal_name="Thermalp Installations SA")),),
+        awardee_parties=(sole("Thermalp Installations SA"),),
     )
     autre_lot = ContractAward(
         **{**commun, "lot": LotRef(identifier="2")},
-        awardees=(Awardee(organization=OrganizationRef(legal_name="Thermalp Installations SA")),),
+        awardee_parties=(sole("Thermalp Installations SA"),),
     )
 
     empreintes = {
@@ -536,7 +547,7 @@ def test_8h_l_empreinte_ignore_l_evenement_pour_permettre_le_rapprochement():
         "lot": LotRef(identifier="LOT-1"),
         "value": Money(amount=Decimal("2750000"), currency="EUR"),
         "award_date": dt.date(2026, 2, 18),
-        "awardees": (Awardee(organization=OrganizationRef(legal_name="Réseaux & Systèmes SAS")),),
+        "awardee_parties": (sole("Réseaux & Systèmes SAS"),),
     }
     original = ContractAward(event_ref=ted_event().ref(), **commun)
     republication = ContractAward(
@@ -552,7 +563,7 @@ def test_8i_deux_portails_au_contenu_identique_ne_sont_pas_declares_identiques()
     commun = {
         "lot": LotRef(identifier="1"),
         "value": Money(amount=Decimal("100000"), currency="EUR"),
-        "awardees": (Awardee(organization=OrganizationRef(legal_name="Homonyme SA")),),
+        "awardee_parties": (sole("Homonyme SA"),),
         "source_award_id": "1",
     }
     ch = ContractAward(event_ref=simap_event().ref(), **commun)

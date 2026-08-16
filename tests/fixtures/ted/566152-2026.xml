@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?><ContractAwardNotice xmlns="urn:oasis:names:specification:ubl:schema:xsd:ContractAwardNotice-2" xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2" xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2" xmlns:efac="http://data.europa.eu/p27/eforms-ubl-extension-aggregate-components/1" xmlns:efbc="http://data.europa.eu/p27/eforms-ubl-extension-basic-components/1" xmlns:efext="http://data.europa.eu/p27/eforms-ubl-extensions/1" xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+					<ext:UBLExtensions>
+						<ext:UBLExtension>
+							<ext:ExtensionContent>
+								<efext:EformsExtension>
+
+								<efac:NoticeResult><efac:LotResult><cbc:ID schemeName="result">RES-0001</cbc:ID><cbc:TenderResultCode listName="winner-selection-status">clos-nw</cbc:TenderResultCode><efac:DecisionReason><efbc:DecisionReasonCode listName="non-award-justification">other</efbc:DecisionReasonCode></efac:DecisionReason><efac:ReceivedSubmissionsStatistics><efbc:StatisticsCode listName="received-submission-type">tenders</efbc:StatisticsCode><efbc:StatisticsNumeric>4</efbc:StatisticsNumeric></efac:ReceivedSubmissionsStatistics><efac:TenderLot><cbc:ID schemeName="Lot">LOT-0000</cbc:ID></efac:TenderLot></efac:LotResult></efac:NoticeResult><efac:NoticeSubType><cbc:SubTypeCode listName="notice-subtype">29</cbc:SubTypeCode></efac:NoticeSubType><efac:Organizations><efac:Organization>
+                    
+                    
+                <efac:Company>
+                        
+                        
+                        
+                        
+                         
+                            
+                        
+                    <cac:PartyIdentification>
+                            
+                        <cbc:ID schemeName="organization">ORG-0001</cbc:ID></cac:PartyIdentification><cac:PartyName>
+                            
+                        <cbc:Name languageID="FRA">Avenue-Web Systèmes</cbc:Name></cac:PartyName><cac:PostalAddress>
+                               
+                        <cbc:CityName>Seyssinet-Pariset</cbc:CityName><cbc:PostalZone>38170</cbc:PostalZone><cbc:CountrySubentityCode listName="nuts">FRK24</cbc:CountrySubentityCode><cac:Country><cbc:IdentificationCode listName="country">FRA</cbc:IdentificationCode></cac:Country></cac:PostalAddress><cac:PartyLegalEntity><cbc:CompanyID schemeName="eu">C7E0D912-C47A-85D1-3D251B27C58B5B1A</cbc:CompanyID></cac:PartyLegalEntity><cac:Contact>
+                                
+                            <cbc:Telephone>+33480041260</cbc:Telephone><cbc:ElectronicMail>publications-joue@aws-france.com</cbc:ElectronicMail></cac:Contact></efac:Company></efac:Organization><efac:Organization>
+                    
+                    
+                <efac:Company>
+                         
+                        
+                        
+                        
+                         
+                            
+                        
+                    <cbc:WebsiteURI>http://www.icfhabitat.fr</cbc:WebsiteURI><cac:PartyIdentification>
+                            
+                        <cbc:ID schemeName="organization">ORG-0002</cbc:ID></cac:PartyIdentification><cac:PartyName>
+                            
+                        <cbc:Name languageID="FRA">ICF La Sablière S.A. HLM</cbc:Name></cac:PartyName><cac:PostalAddress>
+                                
+                        <cbc:StreetName>24 rue de Paradis</cbc:StreetName><cbc:CityName>Paris</cbc:CityName><cbc:PostalZone>75490</cbc:PostalZone><cbc:CountrySubentityCode listName="nuts">FR101</cbc:CountrySubentityCode><cac:Country><cbc:IdentificationCode listName="country">FRA</cbc:IdentificationCode></cac:Country></cac:PostalAddress><cac:PartyLegalEntity><cbc:CompanyID schemeName="eu">14827</cbc:CompanyID></cac:PartyLegalEntity><cac:Contact>
+                                
+                            <cbc:Name>Direction des Achats</cbc:Name><cbc:Telephone>0155339600</cbc:Telephone><cbc:Telefax>0155339629</cbc:Telefax><cbc:ElectronicMail>directionachats@icfhabitat.fr</cbc:ElectronicMail></cac:Contact></efac:Company></efac:Organization><efac:Organization>
+                    
+                    
+                <efac:Company>
+                        
+                        
+                        
+                        
+                         
+                            
+                        
+                    <cac:PartyIdentification>
+                            
+                        <cbc:ID schemeName="organization">ORG-0003</cbc:ID></cac:PartyIdentification><cac:PartyName>
+                            
+                        <cbc:Name languageID="FRA">Tribunal judiciaire de Paris</cbc:Name></cac:PartyName><cac:PostalAddress>
+                                
+                        <cbc:StreetName>29-45 Avenue de la Porte de Clichy</cbc:StreetName><cbc:CityName>Paris</cbc:CityName><cbc:PostalZone>75017</cbc:PostalZone><cbc:CountrySubentityCode listName="nuts">FR101</cbc:CountrySubentityCode><cac:Country><cbc:IdentificationCode listName="country">FRA</cbc:IdentificationCode></cac:Country></cac:PostalAddress><cac:PartyLegalEntity><cbc:CompanyID schemeName="eu">C7E0D949-B1CD-EF0A-491CF10137BB0FFE</cbc:CompanyID></cac:PartyLegalEntity><cac:Contact>
+                                
+                            <cbc:Telephone>0144325151</cbc:Telephone><cbc:ElectronicMail>tj-paris@justice.fr</cbc:ElectronicMail></cac:Contact></efac:Company></efac:Organization></efac:Organizations><efac:Publication><efbc:NoticePublicationID schemeName="ojs-notice-id">00566152-2026</efbc:NoticePublicationID><efbc:GazetteID schemeName="ojs-id">156/2026</efbc:GazetteID><efbc:PublicationDate>2026-08-14+02:00</efbc:PublicationDate></efac:Publication></efext:EformsExtension>
+							</ext:ExtensionContent>
+						</ext:UBLExtension>
+					</ext:UBLExtensions>
+					<cbc:UBLVersionID>2.3</cbc:UBLVersionID>
+					<cbc:CustomizationID>eforms-sdk-1.12</cbc:CustomizationID>
+				<cbc:ID schemeName="notice-id">d3b4dcfe-da80-4d25-aafb-04d38e49691a</cbc:ID><cbc:ContractFolderID>cc8baa79-de8a-40ab-9403-eb2454a9a5a4</cbc:ContractFolderID><cbc:IssueDate>2026-08-13+02:00</cbc:IssueDate><cbc:IssueTime>11:10:38+02:00</cbc:IssueTime><cbc:VersionID>01</cbc:VersionID><cbc:RegulatoryDomain>32014L0024</cbc:RegulatoryDomain><cbc:NoticeTypeCode listName="result">can-standard</cbc:NoticeTypeCode><cbc:NoticeLanguageCode>FRA</cbc:NoticeLanguageCode><cac:ContractingParty><cbc:BuyerProfileURI>http://www.appelsdoffres.icfhabitat.fr</cbc:BuyerProfileURI><cac:ContractingPartyType><cbc:PartyTypeCode listName="buyer-legal-type">body-pl</cbc:PartyTypeCode></cac:ContractingPartyType><cac:ContractingActivity><cbc:ActivityTypeCode listName="authority-activity">hc-am</cbc:ActivityTypeCode></cac:ContractingActivity><cac:Party><cac:PartyIdentification>
+						
+					<cbc:ID schemeName="organization">ORG-0002</cbc:ID></cac:PartyIdentification><cac:ServiceProviderParty>
+				
+				
+			<cbc:ServiceTypeCode listName="organisation-role">ted-esen</cbc:ServiceTypeCode><cac:Party>
+					
+				<cac:PartyIdentification>
+						
+					<cbc:ID schemeName="organization">ORG-0001</cbc:ID></cac:PartyIdentification></cac:Party></cac:ServiceProviderParty></cac:Party></cac:ContractingParty><cac:TenderingProcess><cbc:ProcedureCode languageID="FRA" listName="procurement-procedure-type">neg-w-call</cbc:ProcedureCode><cac:ProcessJustification>
+						 
+					<cbc:ProcessReasonCode listName="accelerated-procedure">false</cbc:ProcessReasonCode></cac:ProcessJustification></cac:TenderingProcess><cac:ProcurementProject><cbc:ID>SICF-2024_00126</cbc:ID><cbc:Name languageID="FRA">MOE pour la densification du square Jules César à ERMONT</cbc:Name><cbc:Description languageID="FRA">MOE pour la densification du square Jules César à ERMONT</cbc:Description><cbc:ProcurementTypeCode listName="contract-nature">services</cbc:ProcurementTypeCode><cac:MainCommodityClassification><cbc:ItemClassificationCode listName="cpv">79311100</cbc:ItemClassificationCode></cac:MainCommodityClassification><cac:AdditionalCommodityClassification><cbc:ItemClassificationCode listName="cpv">79311100</cbc:ItemClassificationCode></cac:AdditionalCommodityClassification></cac:ProcurementProject><cac:ProcurementProjectLot><cbc:ID schemeName="Lot">LOT-0000</cbc:ID><cac:TenderingTerms><cbc:FundingProgramCode listName="eu-funded">no-eu-funds</cbc:FundingProgramCode><cac:AwardingTerms><cac:AwardingCriterion>
+                                
+                            
+                                
+                            
+                                
+                            <cac:SubordinateAwardingCriterion>
+                                    
+                                    
+                                    
+                                <ext:UBLExtensions>
+                                        
+                                    <ext:UBLExtension>
+                                            
+                                        <ext:ExtensionContent>
+                                                
+                                            <efext:EformsExtension>
+                                                    
+                                                <efac:AwardCriterionParameter>
+                                                        
+                                                            
+                                                        
+                                                    <efbc:ParameterCode listName="number-weight">per-exa</efbc:ParameterCode><efbc:ParameterNumeric>20</efbc:ParameterNumeric></efac:AwardCriterionParameter></efext:EformsExtension></ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions><cbc:AwardingCriterionTypeCode listName="award-criterion-type">quality</cbc:AwardingCriterionTypeCode><cbc:Description languageID="FRA">Composition de l'équipe avec l'effectif moyen annuel et les qualifications des membres du groupement ainsi que la capacité économique au regard de l'opération</cbc:Description></cac:SubordinateAwardingCriterion><cac:SubordinateAwardingCriterion>
+                                    
+                                    
+                                    
+                                <ext:UBLExtensions>
+                                        
+                                    <ext:UBLExtension>
+                                            
+                                        <ext:ExtensionContent>
+                                                
+                                            <efext:EformsExtension>
+                                                    
+                                                <efac:AwardCriterionParameter>
+                                                        
+                                                            
+                                                        
+                                                    <efbc:ParameterCode listName="number-weight">per-exa</efbc:ParameterCode><efbc:ParameterNumeric>20</efbc:ParameterNumeric></efac:AwardCriterionParameter></efext:EformsExtension></ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions><cbc:AwardingCriterionTypeCode listName="award-criterion-type">quality</cbc:AwardingCriterionTypeCode><cbc:Description languageID="FRA">Note de présentation du groupement précisant l'organigramme, le fonctionnement du groupement, permettant d'examiner les moyens humains par rapport aux compétences et missions demandées ainsi que les intentions architecturales</cbc:Description></cac:SubordinateAwardingCriterion><cac:SubordinateAwardingCriterion>
+                                    
+                                    
+                                    
+                                <ext:UBLExtensions>
+                                        
+                                    <ext:UBLExtension>
+                                            
+                                        <ext:ExtensionContent>
+                                                
+                                            <efext:EformsExtension>
+                                                    
+                                                <efac:AwardCriterionParameter>
+                                                        
+                                                            
+                                                        
+                                                    <efbc:ParameterCode listName="number-weight">per-exa</efbc:ParameterCode><efbc:ParameterNumeric>60</efbc:ParameterNumeric></efac:AwardCriterionParameter></efext:EformsExtension></ext:ExtensionContent></ext:UBLExtension></ext:UBLExtensions><cbc:AwardingCriterionTypeCode listName="award-criterion-type">cost</cbc:AwardingCriterionTypeCode><cbc:Description languageID="FRA">Références sur des opération de même nature et ayant des contraintes similaires à l'objet du marché pour chaque membre du groupement. Indiquer les références communes</cbc:Description></cac:SubordinateAwardingCriterion></cac:AwardingCriterion></cac:AwardingTerms><cac:AppealTerms><cac:PresentationPeriod><cbc:Description languageID="FRA">Cf. le Greffe du Tribunal à l'adresse ci-dessus</cbc:Description></cac:PresentationPeriod><cac:AppealReceiverParty><cac:PartyIdentification>
+						
+					<cbc:ID schemeName="organization">ORG-0003</cbc:ID></cac:PartyIdentification></cac:AppealReceiverParty></cac:AppealTerms></cac:TenderingTerms><cac:TenderingProcess><cbc:GovernmentAgreementConstraintIndicator>true</cbc:GovernmentAgreementConstraintIndicator><cac:AuctionTerms>
+				
+			<cbc:AuctionConstraintIndicator>false</cbc:AuctionConstraintIndicator></cac:AuctionTerms><cac:ContractingSystem>
+						
+					<cbc:ContractingSystemTypeCode listName="framework-agreement">none</cbc:ContractingSystemTypeCode></cac:ContractingSystem><cac:ContractingSystem>
+                
+            <cbc:ContractingSystemTypeCode listName="dps-usage">none</cbc:ContractingSystemTypeCode></cac:ContractingSystem></cac:TenderingProcess><cac:ProcurementProject><cbc:ID schemeName="InternalID">S-PF-1574433</cbc:ID><cbc:Name languageID="FRA">MOE pour la densification du square Jules César à ERMONT</cbc:Name><cbc:Description languageID="FRA">MOE pour la densification du square Jules César à ERMONT</cbc:Description><cbc:ProcurementTypeCode listName="contract-nature">services</cbc:ProcurementTypeCode><cac:MainCommodityClassification><cbc:ItemClassificationCode listName="cpv">79311100</cbc:ItemClassificationCode></cac:MainCommodityClassification><cac:AdditionalCommodityClassification><cbc:ItemClassificationCode listName="cpv">79311100</cbc:ItemClassificationCode></cac:AdditionalCommodityClassification><cac:PlannedPeriod>
+						  
+					<cbc:StartDate>2025-04-01+02:00</cbc:StartDate><cbc:DurationMeasure unitCode="MONTH">16</cbc:DurationMeasure></cac:PlannedPeriod></cac:ProcurementProject></cac:ProcurementProjectLot><cac:TenderResult><cbc:AwardDate>2000-01-01Z</cbc:AwardDate></cac:TenderResult></ContractAwardNotice>

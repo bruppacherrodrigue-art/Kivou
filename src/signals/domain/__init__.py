@@ -7,6 +7,7 @@ mélangera pas.
 
 from signals.domain.awards import (
     Awardee,
+    AwardeeParty,
     AwardeeRole,
     ContractAward,
     LotRef,
@@ -35,6 +36,7 @@ from signals.domain.values import (
 
 __all__ = [
     "Awardee",
+    "AwardeeParty",
     "AwardeeRole",
     "CanonicalModel",
     "ContractAward",

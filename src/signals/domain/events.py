@@ -17,7 +17,12 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BeforeValidator, Field, model_validator
 
-from signals.domain.values import CanonicalModel, CountryCode, NonEmptyStr
+from signals.domain.values import (
+    CanonicalModel,
+    CountryCode,
+    NonEmptyStr,
+    OrganizationRef,
+)
 
 _DATE_ONLY = re.compile(r"\d{4}-\d{2}-\d{2}")
 
@@ -92,6 +97,12 @@ class Provenance(CanonicalModel):
     source_country: CountryCode
     source_notice_id: NonEmptyStr
     notice_version: NonEmptyStr | None = None
+    # La PROCÉDURE dont cet avis rend compte — distincte de l'avis lui-même.
+    # Plusieurs avis (appel d'offres, adjudication, corrections) partagent cette
+    # valeur ; elle n'entre donc pas dans l'identité de l'événement. C'est par
+    # elle que se rattacheront plus tard l'appel d'offres d'origine et ses
+    # documents.
+    source_procedure_id: NonEmptyStr | None = None
     source_url: NonEmptyStr | None = None
     retrieved_at: dt.datetime | None = None
 
@@ -111,6 +122,10 @@ class PublicEvent(CanonicalModel):
     peut relater une décision de janvier. Les confondre fausserait toute
     chronologie commerciale construite plus tard dessus.
 
+    Il porte aussi les acheteurs de la procédure : la source les publie une fois
+    par avis, pas contrat par contrat. Les recopier sur chaque contrat
+    affirmerait une portée que la source ne donne pas.
+
     `published_at` conserve la précision publiée — date seule ou instant horodaté.
     La fraîcheur d'un signal se mesure en heures ; arrondir à la journée dès
     l'ingestion détruirait une information qu'aucun traitement ultérieur ne peut
@@ -124,6 +139,12 @@ class PublicEvent(CanonicalModel):
     published_at: PublicationInstant | None = None
     event_date: dt.date | None = None
     corrects: EventRef | None = None
+    # Les acheteurs de la PROCÉDURE, publiés une fois pour tout l'avis et partagés
+    # par tous ses contrats. Distincts des signataires d'un contrat donné
+    # (`ContractAward.contract_signatories`) : une centrale d'achat peut mener la
+    # procédure sans signer le contrat. Les confondre effacerait qui achète
+    # réellement.
+    procedure_buyers: tuple[OrganizationRef, ...] = ()
 
     def ref(self) -> EventRef:
         return self.provenance.ref()

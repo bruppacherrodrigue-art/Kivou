@@ -9,9 +9,12 @@ Ce choix vient des faits, pas de l'esthétique :
 - un accord-cadre peut attribuer un même lot à plusieurs fournisseurs distincts
   (donc `1 lot = 1 contrat` est faux aussi) ;
 - un consortium est UN attributaire composé de plusieurs organisations (donc
-  `plusieurs organisations = plusieurs contrats` est faux également).
+  `plusieurs organisations = plusieurs contrats` est faux également) ;
+- un même contrat peut être conclu avec plusieurs soumissionnaires retenus
+  INDÉPENDANTS, sans qu'ils forment un groupement (donc `plusieurs organisations
+  = un consortium` est faux aussi).
 
-D'où : `PublicEvent` 1..N `ContractAward`, et `ContractAward` 1..N `Awardee`.
+D'où : `PublicEvent` 1..N `ContractAward` 1..N `AwardeeParty` 1..N `Awardee`.
 """
 
 from __future__ import annotations
@@ -20,7 +23,7 @@ import datetime as dt
 import hashlib
 from typing import Literal
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 
 from signals.domain.events import EventRef, SourceSystem
 from signals.domain.values import (
@@ -34,6 +37,11 @@ from signals.domain.values import (
 )
 
 AwardeeRole = Literal["sole", "consortium_lead", "consortium_member"]
+"""Rôle d'une organisation À L'INTÉRIEUR d'un soumissionnaire retenu.
+
+Il ne décrit jamais la relation entre deux soumissionnaires distincts : c'est
+`AwardeeParty` qui porte le regroupement.
+"""
 
 WinnerStatus = Literal["identified", "ambiguous", "undisclosed"]
 """État de connaissance du gagnant — jamais une supposition.
@@ -47,10 +55,48 @@ WinnerStatus = Literal["identified", "ambiguous", "undisclosed"]
 
 
 class Awardee(CanonicalModel):
-    """Une organisation partie prenante de l'attribution, avec son rôle."""
+    """Une organisation membre d'un soumissionnaire retenu."""
 
     organization: OrganizationRef
     role: AwardeeRole = "sole"
+
+
+class AwardeeParty(CanonicalModel):
+    """Un soumissionnaire retenu : une entreprise seule, ou un groupement.
+
+    C'est le niveau qui manquait. Une liste plate d'organisations ne peut pas
+    distinguer « trois entreprises groupées » de « trois entreprises retenues
+    indépendamment » : elle force à qualifier de membres de consortium des
+    opérateurs qui ne le sont pas.
+
+    Le regroupement est donc **structurel** — une party = un soumissionnaire —
+    et le rôle ne qualifie plus que la position à l'intérieur du groupement.
+    Un contrat portant plusieurs parties n'affirme aucun lien entre elles.
+
+    Notion source-agnostique : le groupement d'opérateurs existe dans tous les
+    régimes de marchés publics, suisse comme européen, sous des noms différents.
+    """
+
+    members: tuple[Awardee, ...] = Field(min_length=1)
+    # Nom du groupement quand la source le publie — jamais reconstitué à partir
+    # des noms des membres.
+    name: NonEmptyStr | None = None
+
+    @property
+    def is_group(self) -> bool:
+        return len(self.members) > 1
+
+    @model_validator(mode="after")
+    def _membres_coherents(self) -> AwardeeParty:
+        if len(self.members) == 1:
+            if self.members[0].role != "sole":
+                raise ValueError("un soumissionnaire à un seul membre porte le rôle 'sole'")
+            return self
+        if any(member.role == "sole" for member in self.members):
+            raise ValueError("un groupement n'admet pas le rôle 'sole'")
+        if sum(member.role == "consortium_lead" for member in self.members) > 1:
+            raise ValueError("un groupement n'admet qu'un seul 'consortium_lead'")
+        return self
 
 
 class LotRef(CanonicalModel):
@@ -106,6 +152,11 @@ class ContractAward(CanonicalModel):
     # Identité — telle que publiée, jamais fabriquée
     source_award_id: NonEmptyStr | None = None
     lot: LotRef | None = None
+    # Référence MÉTIER du contrat, telle que l'acheteur la publie (n° de marché).
+    # Ce n'est pas une identité : elle est libre, parfois égale à la référence de
+    # l'offre ou du projet. Elle n'entre ni dans `source_identity()` ni dans
+    # `dedupe_fingerprint()`.
+    contract_reference: NonEmptyStr | None = None
 
     # Objet du contrat
     title: NonEmptyStr | None = None
@@ -117,9 +168,14 @@ class ContractAward(CanonicalModel):
     value: Money | None = None
 
     # Parties
-    buyer: OrganizationRef | None = None
+    # Les organisations qui signent CE contrat du côté acheteur, quand la source
+    # les désigne. Ce n'est pas la même chose que les acheteurs de la procédure,
+    # qui vivent sur `PublicEvent.procedure_buyers` : une centrale d'achat mène
+    # la procédure, l'entité bénéficiaire signe. Aucun des deux ensembles n'est
+    # déduit de l'autre.
+    contract_signatories: tuple[OrganizationRef, ...] = ()
     winner_status: WinnerStatus = "identified"
-    awardees: tuple[Awardee, ...] = ()
+    awardee_parties: tuple[AwardeeParty, ...] = ()
 
     # Où
     place_of_performance: Location | None = None
@@ -133,24 +189,32 @@ class ContractAward(CanonicalModel):
 
     @model_validator(mode="after")
     def _gagnants_coherents(self) -> ContractAward:
+        """La cohérence INTERNE d'un soumissionnaire est vérifiée par `AwardeeParty`.
+
+        Ici, seule compte la relation entre le statut et la présence de
+        soumissionnaires : plusieurs parties retenues est un état parfaitement
+        normal, qui n'a plus besoin d'être signalé comme ambigu.
+        """
         if self.winner_status == "undisclosed":
-            if self.awardees:
+            if self.awardee_parties:
                 raise ValueError("winner_status='undisclosed' n'admet aucun attributaire")
             return self
-        if not self.awardees:
+        if not self.awardee_parties:
             raise ValueError(
                 f"winner_status='{self.winner_status}' exige au moins un attributaire ; "
                 "utiliser 'undisclosed' quand la source n'en publie pas"
             )
-        if len(self.awardees) == 1:
-            if self.awardees[0].role != "sole":
-                raise ValueError("un attributaire unique porte le rôle 'sole'")
-            return self
-        if any(a.role == "sole" for a in self.awardees):
-            raise ValueError("un consortium n'admet pas le rôle 'sole'")
-        if sum(a.role == "consortium_lead" for a in self.awardees) > 1:
-            raise ValueError("un consortium n'admet qu'un seul 'consortium_lead'")
         return self
+
+    def awardee_organizations(self) -> tuple[OrganizationRef, ...]:
+        """Toutes les organisations retenues, tous soumissionnaires confondus.
+
+        Vue de commodité : elle aplatit, donc elle perd le regroupement. Ne pas
+        l'utiliser pour raisonner sur qui est associé à qui.
+        """
+        return tuple(
+            member.organization for party in self.awardee_parties for member in party.members
+        )
 
     @model_validator(mode="after")
     def _dates_coherentes(self) -> ContractAward:
@@ -205,7 +269,7 @@ class ContractAward(CanonicalModel):
         L'événement source est volontairement exclu de l'empreinte : deux avis
         distincts décrivant le même contrat doivent pouvoir se rapprocher.
         """
-        winners = sorted(_normalise_name(a.organization.legal_name) for a in self.awardees)
+        winners = sorted(_normalise_name(o.legal_name) for o in self.awardee_organizations())
         parts = (
             self.lot.identifier if self.lot else "",
             "|".join(winners),

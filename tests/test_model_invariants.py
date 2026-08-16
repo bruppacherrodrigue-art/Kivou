@@ -13,6 +13,7 @@ from pydantic import ValidationError
 
 from signals.domain import (
     Awardee,
+    AwardeeParty,
     ContractAward,
     CpvCode,
     Duration,
@@ -30,14 +31,18 @@ from signals.domain import awards as awards_module
 
 EVENT_REF = EventRef(source_system="simap", source_notice_id="1483221")
 PROVENANCE = Provenance(source_system="simap", source_country="CH", source_notice_id="1483221")
-GAGNANT = (Awardee(organization=OrganizationRef(legal_name="Thermalp Installations SA")),)
+GAGNANT = (
+    AwardeeParty(
+        members=(Awardee(organization=OrganizationRef(legal_name="Thermalp Installations SA")),)
+    ),
+)
 
 
 # ─── Immuabilité & fermeture ────────────────────────────────────────────────────
 
 
 def test_un_fait_publie_est_immuable():
-    award = ContractAward(event_ref=EVENT_REF, awardees=GAGNANT)
+    award = ContractAward(event_ref=EVENT_REF, awardee_parties=GAGNANT)
     with pytest.raises(ValidationError):
         award.award_date = dt.date(2026, 2, 24)
 
@@ -45,7 +50,7 @@ def test_un_fait_publie_est_immuable():
 def test_un_champ_propre_a_une_source_est_refuse():
     """Le modèle canonique ne se laisse pas contaminer par le vocabulaire d'un portail."""
     with pytest.raises(ValidationError):
-        ContractAward(event_ref=EVENT_REF, awardees=GAGNANT, simap_projekt_id="42")
+        ContractAward(event_ref=EVENT_REF, awardee_parties=GAGNANT, simap_projekt_id="42")
 
 
 # ─── Argent ─────────────────────────────────────────────────────────────────────
@@ -146,7 +151,7 @@ def test_identifiant_par_referentiel():
 
 def test_undisclosed_avec_attributaire_refuse():
     with pytest.raises(ValidationError, match="undisclosed"):
-        ContractAward(event_ref=EVENT_REF, winner_status="undisclosed", awardees=GAGNANT)
+        ContractAward(event_ref=EVENT_REF, winner_status="undisclosed", awardee_parties=GAGNANT)
 
 
 def test_identified_sans_attributaire_refuse():
@@ -156,49 +161,46 @@ def test_identified_sans_attributaire_refuse():
 
 def test_attributaire_unique_avec_role_de_consortium_refuse():
     with pytest.raises(ValidationError, match="'sole'"):
-        ContractAward(
-            event_ref=EVENT_REF,
-            awardees=(
+        AwardeeParty(
+            members=(
                 Awardee(
                     organization=OrganizationRef(legal_name="Thermalp Installations SA"),
                     role="consortium_lead",
                 ),
-            ),
+            )
         )
 
 
 def test_consortium_avec_role_sole_refuse():
     with pytest.raises(ValidationError, match="n'admet pas le rôle"):
-        ContractAward(
-            event_ref=EVENT_REF,
-            awardees=(
+        AwardeeParty(
+            members=(
                 Awardee(organization=OrganizationRef(legal_name="A SA"), role="sole"),
                 Awardee(organization=OrganizationRef(legal_name="B SA"), role="consortium_member"),
-            ),
+            )
         )
 
 
 def test_consortium_a_deux_chefs_de_file_refuse():
     with pytest.raises(ValidationError, match="un seul"):
-        ContractAward(
-            event_ref=EVENT_REF,
-            awardees=(
+        AwardeeParty(
+            members=(
                 Awardee(organization=OrganizationRef(legal_name="A SA"), role="consortium_lead"),
                 Awardee(organization=OrganizationRef(legal_name="B SA"), role="consortium_lead"),
-            ),
+            )
         )
 
 
 def test_consortium_sans_chef_de_file_accepte():
     """Beaucoup d'avis ne désignent pas de chef de file : ne pas en inventer un."""
-    award = ContractAward(
-        event_ref=EVENT_REF,
-        awardees=(
+    party = AwardeeParty(
+        members=(
             Awardee(organization=OrganizationRef(legal_name="A SA"), role="consortium_member"),
             Awardee(organization=OrganizationRef(legal_name="B SA"), role="consortium_member"),
-        ),
+        )
     )
-    assert len(award.awardees) == 2
+    assert len(party.members) == 2
+    assert party.is_group
 
 
 # ─── Dates & durée ──────────────────────────────────────────────────────────────
@@ -208,7 +210,7 @@ def test_fin_de_contrat_anterieure_au_debut_refusee():
     with pytest.raises(ValidationError, match="antérieure"):
         ContractAward(
             event_ref=EVENT_REF,
-            awardees=GAGNANT,
+            awardee_parties=GAGNANT,
             contract_start_date=dt.date(2026, 4, 1),
             contract_end_date=dt.date(2026, 3, 1),
         )
@@ -272,11 +274,11 @@ def test_un_evenement_ne_se_corrige_pas_lui_meme():
 def test_l_ancien_champ_d_identite_calculee_n_existe_plus():
     """Garde-fou : `award_identifier` conflait identité source et discriminant calculé."""
     with pytest.raises(ValidationError):
-        ContractAward(event_ref=EVENT_REF, awardees=GAGNANT, award_identifier="CTR-1")
+        ContractAward(event_ref=EVENT_REF, awardee_parties=GAGNANT, award_identifier="CTR-1")
 
 
 def test_le_domaine_n_expose_aucune_identite_calculee():
-    award = ContractAward(event_ref=EVENT_REF, awardees=GAGNANT)
+    award = ContractAward(event_ref=EVENT_REF, awardee_parties=GAGNANT)
     assert not hasattr(award, "identity")
     assert not hasattr(award, "content_fingerprint")
 
