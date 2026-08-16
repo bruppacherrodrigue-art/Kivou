@@ -26,6 +26,7 @@ from signals.domain import (
     PublicEvent,
     SourceIdentity,
     SourceSystem,
+    VatCategory,
 )
 from signals.domain import awards as awards_module
 
@@ -329,3 +330,34 @@ def test_ajouter_un_portail_ne_touche_pas_contract_award():
     source = inspect.getsource(awards_module)
     for portail in get_args(SourceSystem):
         assert not re.search(rf"\b{portail}\b", source, flags=re.IGNORECASE), portail
+
+
+# ─── Régime de TVA du montant ───────────────────────────────────────────────────
+
+
+def test_money_sans_regime_de_tva_par_defaut():
+    """`None` = la source ne le publie pas. Jamais un défaut implicite."""
+    assert Money(amount=Decimal("1"), currency="CHF").vat_category is None
+
+
+def test_regime_de_tva_hors_du_schema_refuse():
+    with pytest.raises(ValidationError):
+        Money(amount=Decimal("1"), currency="CHF", vat_category="TTC")
+
+
+def test_le_regime_de_tva_n_entre_pas_dans_l_empreinte():
+    """Il qualifie le montant, il n'en fait pas partie."""
+    sans = Money(amount=Decimal("1000"), currency="CHF")
+    avec = Money(amount=Decimal("1000"), currency="CHF", vat_category="standard")
+    assert sans.canonical_amount() == avec.canonical_amount()
+
+    award = ContractAward(event_ref=EVENT_REF, awardee_parties=GAGNANT, value=sans)
+    requalifie = award.model_copy(update={"value": avec})
+    assert award.dedupe_fingerprint() == requalifie.dedupe_fingerprint()
+
+
+def test_aucun_taux_numerique_dans_le_domaine():
+    """Le domaine porte une catégorie, jamais un pourcentage."""
+    assert set(get_args(VatCategory)) == {"none", "standard", "special", "reduced", "foreign"}
+    assert "rate" not in Money.model_fields
+    assert "percent" not in Money.model_fields

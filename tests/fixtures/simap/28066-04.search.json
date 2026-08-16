@@ -1,0 +1,84 @@
+{
+ "id": "11d690da-91aa-4023-867e-088f2992d0f6",
+ "title": {
+  "de": "Marketingartikel",
+  "en": null,
+  "fr": "Articles de marketing",
+  "it": null
+ },
+ "projectNumber": "28066",
+ "projectType": "tender",
+ "projectSubType": "supply",
+ "processType": "open",
+ "lotsType": "with",
+ "publicationId": "ebadc6da-a432-419c-bab1-b51359aec800",
+ "publicationDate": "2026-08-14",
+ "publicationNumber": "28066-04",
+ "pubType": "award",
+ "corrected": false,
+ "procOfficeName": {
+  "de": "Kantonspolizei Bern",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "lots": [
+  {
+   "publicationId": "ebadc6da-a432-419c-bab1-b51359aec800",
+   "publicationDate": "2026-08-14",
+   "publicationNumber": "28066-04",
+   "pubType": "award",
+   "corrected": false,
+   "lotId": "0235f958-aea1-407c-b007-65d51bf503ec",
+   "lotNumber": 1,
+   "lotTitle": {
+    "de": "Streuartikel (Give-Aways) - Marketingartikel des tieferen Preissegments",
+    "en": null,
+    "fr": null,
+    "it": null
+   },
+   "orderAddressOnlyDescription": "no",
+   "orderAddress": {
+    "countryId": "CH",
+    "cantonId": "BE",
+    "postalCode": "3011",
+    "city": {
+     "de": "Bern",
+     "en": null,
+     "fr": null,
+     "it": null
+    }
+   }
+  },
+  {
+   "publicationId": "56cfd075-6a01-4eed-b559-7ed00d29c087",
+   "publicationDate": "2026-08-14",
+   "publicationNumber": "28066-05",
+   "pubType": "award",
+   "corrected": false,
+   "lotId": "79110fa4-3a9f-43be-a423-e592f59ec6d8",
+   "lotNumber": 2,
+   "lotTitle": {
+    "de": "Geschenkartikel - Marketingartikel des höheren Preissegments",
+    "en": null,
+    "fr": null,
+    "it": null
+   },
+   "orderAddressOnlyDescription": "no",
+   "orderAddress": {
+    "countryId": "CH",
+    "cantonId": "BE",
+    "postalCode": "3011",
+    "city": {
+     "de": "Bern",
+     "en": null,
+     "fr": null,
+     "it": null
+    }
+   }
+  }
+ ],
+ "orderAddressOnlyDescription": null,
+ "orderAddress": null,
+ "_filter": "award_tender"
+}

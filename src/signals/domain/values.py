@@ -83,11 +83,28 @@ class CpvCode(CanonicalModel):
         return self.code if self.check_digit is None else f"{self.code}-{self.check_digit}"
 
 
+VatCategory = Literal["none", "standard", "special", "reduced", "foreign"]
+"""Régime de TVA sous lequel un montant est publié, quand la source le dit.
+
+Une **catégorie**, jamais un taux : le domaine ne connaît aucun pourcentage et
+n'en déduit aucun. Il ne conclut pas davantage « TTC » ou « HT » — une source
+qui distingue cinq régimes ne dit pas par là si la taxe est comprise dans le
+chiffre ; l'affirmer serait une interprétation, pas un fait.
+
+`None` signifie exactement une chose : la source ne publie pas cette
+information. Ce n'est ni « pas de TVA » (`none`) ni un défaut implicite.
+"""
+
+
 class Money(CanonicalModel):
     """Un montant EST un couple valeur+devise. CHF et EUR ne se comparent pas."""
 
     amount: Decimal = Field(ge=0)
     currency: CurrencyCode
+    # Qualificatif fiscal publié avec le montant. Deux montants de catégories
+    # différentes ne décrivent pas la même chose ; les comparer sans le savoir
+    # produirait des écarts silencieux entre sources.
+    vat_category: VatCategory | None = None
 
     @model_validator(mode="before")
     @classmethod
@@ -102,7 +119,12 @@ class Money(CanonicalModel):
         return data
 
     def canonical_amount(self) -> str:
-        """`1000`, `1000.00` et `1E+3` donnent la même chaîne — base d'une comparaison stable."""
+        """`1000`, `1000.00` et `1E+3` donnent la même chaîne — base d'une comparaison stable.
+
+        Le régime de TVA n'y entre pas : il qualifie le montant, il n'en fait pas
+        partie. L'inclure changerait l'empreinte de rapprochement d'un contrat
+        dont seul le qualificatif serait publié plus tard.
+        """
         return format(self.amount.normalize(), "f")
 
 

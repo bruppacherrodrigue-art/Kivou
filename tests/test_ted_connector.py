@@ -675,3 +675,15 @@ def test_r2_g_comptage_des_procedures_sur_deux_avis_du_meme_marche():
     # la paire ne compte que pour UNE procédure
     procedures = {autre_procedure, award_notice.provenance.source_procedure_id}
     assert len(procedures) == 1
+
+
+def test_ted_ne_publie_aucun_regime_de_tva():
+    """Non-régression SPEC-003R : eForms ne publie pas ce qualificatif.
+
+    Tous les montants TED restent donc `vat_category=None` — l'ajout du champ au
+    domaine n'a rien changé côté européen.
+    """
+    for publication in ("550374-2026", "566075-2026", "566119-2026", "565942-2026"):
+        for award in extract(load(publication)).awards:
+            if award.value is not None:
+                assert award.value.vat_category is None

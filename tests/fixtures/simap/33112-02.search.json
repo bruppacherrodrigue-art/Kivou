@@ -1,0 +1,39 @@
+{
+ "id": "0d2599e8-c839-4d7d-9277-63144b4750b0",
+ "title": {
+  "de": "Neubau Schule Dorf Root: BKP 421 Gärtenerarbeiten",
+  "en": null,
+  "fr": "Construction d'une nouvelle école dans le village de Root : BKP 421 Travaux de jardinage",
+  "it": null
+ },
+ "projectNumber": "33112",
+ "projectType": "tender",
+ "projectSubType": "construction",
+ "processType": "open",
+ "lotsType": "without",
+ "publicationId": "223ceb19-b3d4-4556-a417-84c1d5f7a3a9",
+ "publicationDate": "2026-08-15",
+ "publicationNumber": "33112-02",
+ "pubType": "award",
+ "corrected": false,
+ "procOfficeName": {
+  "de": "Gemeinde Root",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "lots": [],
+ "orderAddressOnlyDescription": "no",
+ "orderAddress": {
+  "countryId": "CH",
+  "cantonId": "LU",
+  "postalCode": "6037",
+  "city": {
+   "de": "Root",
+   "en": null,
+   "fr": null,
+   "it": null
+  }
+ },
+ "_filter": "award_tender"
+}

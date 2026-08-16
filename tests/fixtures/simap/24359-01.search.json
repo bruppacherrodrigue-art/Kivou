@@ -1,0 +1,34 @@
+{
+ "id": "5fbeb3f0-3bf0-4ed6-83e0-e841e005194b",
+ "title": {
+  "de": "Pädagogisches Zentrum Hofachern Spiez - Einstufiger Studienauftrag im selektiven Verfahren SIA 143",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "projectNumber": "24359",
+ "projectType": "study_contract",
+ "projectSubType": "project_study",
+ "processType": "selective",
+ "lotsType": "without",
+ "publicationId": "19538125-ed42-4467-b73a-92daf29360a2",
+ "publicationDate": "2026-07-06",
+ "publicationNumber": "24359-01",
+ "pubType": "direct_award",
+ "corrected": false,
+ "procOfficeName": {
+  "de": "Gemeinde Spiez (Panorama AG)",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "lots": [],
+ "orderAddressOnlyDescription": null,
+ "orderAddress": {
+  "countryId": null,
+  "cantonId": null,
+  "postalCode": null,
+  "city": null
+ },
+ "_filter": "award_study_contract"
+}

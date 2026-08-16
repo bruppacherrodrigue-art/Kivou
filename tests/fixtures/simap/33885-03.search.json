@@ -1,0 +1,184 @@
+{
+ "id": "fd42a0d2-a38f-4595-a1e8-99f24bf071b3",
+ "title": {
+  "de": "Ausschreibung Preferred Supplier Modell",
+  "en": "Tender for Preferred Supplier Model",
+  "fr": null,
+  "it": null
+ },
+ "projectNumber": "33885",
+ "projectType": "tender",
+ "projectSubType": "service",
+ "processType": "open",
+ "lotsType": "with",
+ "publicationId": "17081ee0-79a4-4c7d-b700-564cb4c7fce4",
+ "publicationDate": "2026-08-14",
+ "publicationNumber": "33885-03",
+ "pubType": "award",
+ "corrected": false,
+ "procOfficeName": {
+  "de": "Sihltal Zürich Uetliberg Bahn SZU AG",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "lots": [
+  {
+   "publicationId": "fae8b431-1d73-4e2a-96c9-1a816a04dc0a",
+   "publicationDate": "2026-05-15",
+   "publicationNumber": "33885-02",
+   "pubType": "tender",
+   "corrected": true,
+   "lotId": "8ba8d4af-39f8-4271-82b6-32b85157eaf3",
+   "lotNumber": 1,
+   "lotTitle": {
+    "de": "Business Consultant / Management Berater:in",
+    "en": null,
+    "fr": null,
+    "it": null
+   },
+   "orderAddressOnlyDescription": "yes",
+   "orderAddress": {
+    "countryId": "CH",
+    "cantonId": null,
+    "postalCode": null,
+    "city": null
+   }
+  },
+  {
+   "publicationId": "17081ee0-79a4-4c7d-b700-564cb4c7fce4",
+   "publicationDate": "2026-08-14",
+   "publicationNumber": "33885-03",
+   "pubType": "award",
+   "corrected": false,
+   "lotId": "5830fb05-e995-45be-85ff-1a6adecd675d",
+   "lotNumber": 2,
+   "lotTitle": {
+    "de": "Projekt- und Teilprojektleiter:in",
+    "en": null,
+    "fr": null,
+    "it": null
+   },
+   "orderAddressOnlyDescription": "yes",
+   "orderAddress": {
+    "countryId": "CH",
+    "cantonId": null,
+    "postalCode": null,
+    "city": null
+   }
+  },
+  {
+   "publicationId": "0548f274-5cb8-4996-84a9-0f6f3a4b4023",
+   "publicationDate": "2026-08-14",
+   "publicationNumber": "33885-04",
+   "pubType": "award",
+   "corrected": false,
+   "lotId": "df344cf2-ebc4-4c0a-93d3-6f110883a300",
+   "lotNumber": 3,
+   "lotTitle": {
+    "de": "ICT Projektleiter:in",
+    "en": null,
+    "fr": null,
+    "it": null
+   },
+   "orderAddressOnlyDescription": "yes",
+   "orderAddress": {
+    "countryId": "CH",
+    "cantonId": null,
+    "postalCode": null,
+    "city": null
+   }
+  },
+  {
+   "publicationId": "fae8b431-1d73-4e2a-96c9-1a816a04dc0a",
+   "publicationDate": "2026-05-15",
+   "publicationNumber": "33885-02",
+   "pubType": "tender",
+   "corrected": true,
+   "lotId": "cf0b8160-920c-45a1-8fb9-8efea9b9bdf5",
+   "lotNumber": 4,
+   "lotTitle": {
+    "de": "Enterprise Architekt:in",
+    "en": null,
+    "fr": null,
+    "it": null
+   },
+   "orderAddressOnlyDescription": "yes",
+   "orderAddress": {
+    "countryId": "CH",
+    "cantonId": null,
+    "postalCode": null,
+    "city": null
+   }
+  },
+  {
+   "publicationId": "2b2401b6-0aa7-4336-9938-c95e052be0d3",
+   "publicationDate": "2026-08-14",
+   "publicationNumber": "33885-05",
+   "pubType": "award",
+   "corrected": false,
+   "lotId": "fe4eb347-46f5-420a-9acf-63700b806fa1",
+   "lotNumber": 5,
+   "lotTitle": {
+    "de": "Business- und Prozessanalyst:in",
+    "en": null,
+    "fr": null,
+    "it": null
+   },
+   "orderAddressOnlyDescription": "yes",
+   "orderAddress": {
+    "countryId": "CH",
+    "cantonId": null,
+    "postalCode": null,
+    "city": null
+   }
+  },
+  {
+   "publicationId": "ed6bc86b-09c9-4dca-b967-b28297afe038",
+   "publicationDate": "2026-08-14",
+   "publicationNumber": "33885-06",
+   "pubType": "award",
+   "corrected": false,
+   "lotId": "e18ff015-0691-4ae1-91fe-620dc147e5bc",
+   "lotNumber": 6,
+   "lotTitle": {
+    "de": "ICT System Engineer",
+    "en": null,
+    "fr": null,
+    "it": null
+   },
+   "orderAddressOnlyDescription": "yes",
+   "orderAddress": {
+    "countryId": "CH",
+    "cantonId": null,
+    "postalCode": null,
+    "city": null
+   }
+  },
+  {
+   "publicationId": "fae8b431-1d73-4e2a-96c9-1a816a04dc0a",
+   "publicationDate": "2026-05-15",
+   "publicationNumber": "33885-02",
+   "pubType": "tender",
+   "corrected": true,
+   "lotId": "2d8fc566-bb01-40db-8644-17f244544e2d",
+   "lotNumber": 7,
+   "lotTitle": {
+    "de": "CISO",
+    "en": null,
+    "fr": null,
+    "it": null
+   },
+   "orderAddressOnlyDescription": "yes",
+   "orderAddress": {
+    "countryId": "CH",
+    "cantonId": null,
+    "postalCode": null,
+    "city": null
+   }
+  }
+ ],
+ "orderAddressOnlyDescription": null,
+ "orderAddress": null,
+ "_filter": "award_tender"
+}

@@ -1,0 +1,39 @@
+{
+ "id": "bc5df87f-7bd3-4dea-937f-59cc9276d231",
+ "title": {
+  "de": null,
+  "en": null,
+  "fr": "Nettoyages standards et annuels de la prison de la Croisée, Orbe / 2026-2031",
+  "it": null
+ },
+ "projectNumber": "29997",
+ "projectType": "tender",
+ "projectSubType": "service",
+ "processType": "open",
+ "lotsType": "without",
+ "publicationId": "2120468f-1c42-4c6b-895a-fb5c4540aa31",
+ "publicationDate": "2026-08-14",
+ "publicationNumber": "29997-02",
+ "pubType": "award",
+ "corrected": false,
+ "procOfficeName": {
+  "de": null,
+  "en": null,
+  "fr": "Service pénitentiaire",
+  "it": null
+ },
+ "lots": [],
+ "orderAddressOnlyDescription": "no",
+ "orderAddress": {
+  "countryId": "CH",
+  "cantonId": "VD",
+  "postalCode": "1350",
+  "city": {
+   "de": null,
+   "en": null,
+   "fr": "Orbe",
+   "it": null
+  }
+ },
+ "_filter": "award_tender"
+}

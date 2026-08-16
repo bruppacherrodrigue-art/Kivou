@@ -1,0 +1,34 @@
+{
+ "id": "4e179c5d-eb4d-4cae-bfbc-b83ab3afab1a",
+ "title": {
+  "de": "45789.10 / 250 Sanitär, Staatsarchiv, Gesamtinstandsetzung Gebäudetechnik, Winterthurerstrasse 170, 8057 Zürich",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "projectNumber": "38918",
+ "projectType": "tender",
+ "projectSubType": "construction",
+ "processType": "invitation",
+ "lotsType": "without",
+ "publicationId": "17d27fb4-a686-45bb-a272-f6086e5e3bd6",
+ "publicationDate": "2026-08-14",
+ "publicationNumber": "38918-02",
+ "pubType": "award",
+ "corrected": false,
+ "procOfficeName": {
+  "de": "Hochbauamt Baubereich A",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "lots": [],
+ "orderAddressOnlyDescription": "yes",
+ "orderAddress": {
+  "countryId": "CH",
+  "cantonId": null,
+  "postalCode": null,
+  "city": null
+ },
+ "_filter": "award_tender"
+}

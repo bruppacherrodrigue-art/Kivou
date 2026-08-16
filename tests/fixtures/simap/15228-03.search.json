@@ -1,0 +1,39 @@
+{
+ "id": "ee1e6b61-571c-45e9-81cc-48fa51862673",
+ "title": {
+  "de": "offener Projektwettbewerb Weiherhof Adligenswil für Generalplanende",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "projectNumber": "15228",
+ "projectType": "competition",
+ "projectSubType": "project_competition",
+ "processType": "open",
+ "lotsType": "without",
+ "publicationId": "b1515ba1-07cb-4c43-b877-01525497c356",
+ "publicationDate": "2026-07-01",
+ "publicationNumber": "15228-03",
+ "pubType": "award",
+ "corrected": false,
+ "procOfficeName": {
+  "de": "ZEITRAUM Planungen AG",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "lots": [],
+ "orderAddressOnlyDescription": "no",
+ "orderAddress": {
+  "countryId": "CH",
+  "cantonId": "LU",
+  "postalCode": "6043",
+  "city": {
+   "de": "Adligenswil",
+   "en": null,
+   "fr": null,
+   "it": null
+  }
+ },
+ "_filter": "award_competition"
+}

@@ -1,7 +1,10 @@
-# Award & Sales Signals
+# Kivou
 
-Exploitation des **adjudications publiques** (Suisse via SIMAP, Union européenne via
-TED) pour produire des signaux commerciaux actionnables.
+**Kivou** exploite les **adjudications publiques** (Suisse via SIMAP, Union
+européenne via TED) pour produire des signaux commerciaux actionnables.
+
+Le paquet Python reste `signals` : le nom de code du produit a changé, pas
+l'espace de noms du code.
 
 Ce dépôt contient le **modèle canonique des faits publics** : ce qu'une adjudication
 affirme, et d'où l'information vient. Il ne contient volontairement ni inférence
@@ -12,6 +15,7 @@ un moteur séparé.
 
 **SPEC-001** — modèle canonique `PublicEvent` / `ContractAward`.
 **SPEC-002** — connecteur TED (Search API v3 + eForms).
+**SPEC-003** — connecteur SIMAP (API publique simap.ch v1.5.1).
 
 Pas encore de persistance : tout est en mémoire, testable sans base ni Docker.
 
@@ -40,6 +44,7 @@ uv run ruff check .
 
 ```bash
 uv run python -m signals.connectors.ted.live_smoke --days 10 --limit 25
+uv run python -m signals.connectors.simap.live_smoke --limit 40 --since 2026-07-01 --link
 ```
 
 Appelle l'API publique TED, télécharge les XML, les traduit et imprime les
@@ -58,10 +63,18 @@ src/signals/connectors/ted/    traduit eForms VERS le canonique, jamais l'invers
   mapping.py  graphe TED → PublicEvent + ContractAward[]
   codes.py    tables de codes (pays alpha-3 → alpha-2)
   live_smoke.py
+src/signals/connectors/simap/   traduit le modèle SIMAP VERS le canonique
+  client.py   HTTP : project-search + publication-details (seul module réseau)
+  parser.py   JSON SIMAP → modèle SIMAP (hors ligne, montants en Decimal exact)
+  mapping.py  modèle SIMAP → PublicEvent + ContractAward[]
+  live_smoke.py
 tests/
   test_spec001_scenarios.py   les 8 scénarios obligatoires de SPEC-001
   test_model_invariants.py    ce que le modèle refuse
   test_ted_connector.py       vraies notices TED, hors ligne
   test_ted_client.py          contrat HTTP, transport simulé
+  test_simap_connector.py     vraies publications simap.ch, hors ligne
+  test_simap_client.py        contrat HTTP, transport simulé
   fixtures/ted/               notices TED réelles + 1 fixture synthétique signalée
+  fixtures/simap/             réponses simap.ch réelles, octets bruts
 ```

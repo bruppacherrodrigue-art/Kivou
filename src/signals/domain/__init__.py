@@ -32,6 +32,7 @@ from signals.domain.values import (
     OrganizationIdentifier,
     OrganizationRef,
     SubdivisionScheme,
+    VatCategory,
 )
 
 __all__ = [
@@ -56,5 +57,6 @@ __all__ = [
     "SourceIdentity",
     "SourceSystem",
     "SubdivisionScheme",
+    "VatCategory",
     "WinnerStatus",
 ]

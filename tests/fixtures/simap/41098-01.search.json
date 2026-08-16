@@ -1,0 +1,34 @@
+{
+ "id": "60088f85-857d-47ab-9634-56005602d355",
+ "title": {
+  "de": "Kostencontrolling-Software nach RUBA",
+  "en": null,
+  "fr": "Kostencontrolling-Software nach RUBA",
+  "it": null
+ },
+ "projectNumber": "41098",
+ "projectType": "tender",
+ "projectSubType": "service",
+ "processType": "direct",
+ "lotsType": "without",
+ "publicationId": "dbaa644e-9dca-44d5-8326-377ca6eb9f91",
+ "publicationDate": "2026-08-14",
+ "publicationNumber": "41098-01",
+ "pubType": "direct_award",
+ "corrected": false,
+ "procOfficeName": {
+  "de": "BLS AG - Finance & SCM - Strategische Beschaffung",
+  "en": null,
+  "fr": "BLS AG - Finance & SCM - Strategische Beschaffung",
+  "it": null
+ },
+ "lots": [],
+ "orderAddressOnlyDescription": null,
+ "orderAddress": {
+  "countryId": null,
+  "cantonId": null,
+  "postalCode": null,
+  "city": null
+ },
+ "_filter": "direct_award"
+}

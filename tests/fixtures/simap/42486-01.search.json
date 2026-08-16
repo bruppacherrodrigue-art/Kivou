@@ -1,0 +1,34 @@
+{
+ "id": "f5fba859-017d-4af2-baa5-2ffbca4e0065",
+ "title": {
+  "de": "IWB-Platz, Solothurnerstrasse 18-22, Basel, Erstellung Grünanlage",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "projectNumber": "42486",
+ "projectType": "tender",
+ "projectSubType": "construction",
+ "processType": "invitation",
+ "lotsType": "without",
+ "publicationId": "67606d6b-926c-4a0a-ac00-d5ff00530af3",
+ "publicationDate": "2026-08-14",
+ "publicationNumber": "42486-01",
+ "pubType": "direct_award",
+ "corrected": false,
+ "procOfficeName": {
+  "de": "Bau- und Verkehrsdepartement des Kantons Basel-Stadt, Kantonale Fachstelle für öffentliche Beschaffungen",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "lots": [],
+ "orderAddressOnlyDescription": null,
+ "orderAddress": {
+  "countryId": null,
+  "cantonId": null,
+  "postalCode": null,
+  "city": null
+ },
+ "_filter": "award_tender"
+}

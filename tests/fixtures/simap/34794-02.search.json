@@ -1,0 +1,74 @@
+{
+ "id": "26b91696-605d-4ba9-9830-5ca311ccf2ff",
+ "title": {
+  "de": null,
+  "en": null,
+  "fr": "MP 2026.01.821 - Location de bus sur la période 2026 - 2031",
+  "it": null
+ },
+ "projectNumber": "34794",
+ "projectType": "tender",
+ "projectSubType": "service",
+ "processType": "open",
+ "lotsType": "with",
+ "publicationId": "abe13357-b7df-4a2f-a565-edf1ca417679",
+ "publicationDate": "2026-08-13",
+ "publicationNumber": "34794-02",
+ "pubType": "award",
+ "corrected": false,
+ "procOfficeName": {
+  "de": null,
+  "en": null,
+  "fr": "Transports publics de la région lausannoise sa",
+  "it": null
+ },
+ "lots": [
+  {
+   "publicationId": "abe13357-b7df-4a2f-a565-edf1ca417679",
+   "publicationDate": "2026-08-13",
+   "publicationNumber": "34794-02",
+   "pubType": "award",
+   "corrected": false,
+   "lotId": "7d295f6e-2f62-47a7-b231-9dc9b21cf227",
+   "lotNumber": 1,
+   "lotTitle": {
+    "de": null,
+    "en": null,
+    "fr": "Location d’autobus articulés et d’autobus solo",
+    "it": null
+   },
+   "orderAddressOnlyDescription": "yes",
+   "orderAddress": {
+    "countryId": "CH",
+    "cantonId": null,
+    "postalCode": null,
+    "city": null
+   }
+  },
+  {
+   "publicationId": "bdb7e930-8ca3-48d9-8054-623e0440f3d7",
+   "publicationDate": "2026-08-13",
+   "publicationNumber": "34794-03",
+   "pubType": "award",
+   "corrected": false,
+   "lotId": "1915cbee-6483-431c-9e3b-4215b60a88f5",
+   "lotNumber": 2,
+   "lotTitle": {
+    "de": null,
+    "en": null,
+    "fr": "Location de minibus",
+    "it": null
+   },
+   "orderAddressOnlyDescription": "yes",
+   "orderAddress": {
+    "countryId": "CH",
+    "cantonId": null,
+    "postalCode": null,
+    "city": null
+   }
+  }
+ ],
+ "orderAddressOnlyDescription": null,
+ "orderAddress": null,
+ "_filter": "award_tender"
+}

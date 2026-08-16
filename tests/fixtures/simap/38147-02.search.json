@@ -1,0 +1,39 @@
+{
+ "id": "74613140-78bf-446d-9534-348d8f17c229",
+ "title": {
+  "de": "00857-I Y42 NA Umbau Labor und Büro, Winterthurerstrasse 190, 8057 Zürich",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "projectNumber": "38147",
+ "projectType": "tender",
+ "projectSubType": "construction",
+ "processType": "open",
+ "lotsType": "without",
+ "publicationId": "0a002f85-11a4-455b-bd36-985c42c961a2",
+ "publicationDate": "2026-08-14",
+ "publicationNumber": "38147-02",
+ "pubType": "award",
+ "corrected": false,
+ "procOfficeName": {
+  "de": "Universität Zürich - Bauprojektmanagement",
+  "en": null,
+  "fr": null,
+  "it": null
+ },
+ "lots": [],
+ "orderAddressOnlyDescription": "no",
+ "orderAddress": {
+  "countryId": "CH",
+  "cantonId": "ZH",
+  "postalCode": "8057",
+  "city": {
+   "de": "Zürich",
+   "en": null,
+   "fr": null,
+   "it": null
+  }
+ },
+ "_filter": "award_tender"
+}
