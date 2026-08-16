@@ -1,0 +1,35 @@
+[project]
+name = "signals"
+version = "0.1.0"
+description = "Award & Sales Signals — modèle canonique des adjudications publiques (CH + UE)"
+requires-python = "==3.12.*"
+readme = "README.md"
+dependencies = [
+    "pydantic>=2.9",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/signals"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+# Domaine monétaire : `Decimal("1240000")` est la forme enseignée par le modèle
+# (un float perd des centimes). La forme littérale reste volontaire, y compris
+# quand le montant est entier — sinon les tests montreraient deux écritures.
+ignore = ["FURB157"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
