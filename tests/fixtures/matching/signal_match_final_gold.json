@@ -1,0 +1,5489 @@
+{
+ "corpus": "m_final",
+ "rubric_version": "icp-match-rubric-v1",
+ "adjudicator": "Claude Fable 5 (claude-fable-5) — sous-agents general-purpose sans override de modèle, donc héritant du modèle de session ; PASS A et PASS B indépendantes puis arbitrage individuel, AVANT tout run du moteur de matching",
+ "agreement": {
+  "pairs": 680,
+  "agreed": 680,
+  "agreement": 1.0,
+  "disagreements": 0,
+  "confusion": {
+   "A=no_match|B=no_match": 556,
+   "A=strong_match|B=strong_match": 57,
+   "A=plausible_match|B=plausible_match": 50,
+   "A=insufficient_data|B=insufficient_data": 17
+  },
+  "grade_distribution_a": {
+   "no_match": 556,
+   "strong_match": 57,
+   "plausible_match": 50,
+   "insufficient_data": 17
+  },
+  "grade_distribution_b": {
+   "no_match": 556,
+   "strong_match": 57,
+   "plausible_match": 50,
+   "insufficient_data": 17
+  },
+  "disagreement_detail": []
+ },
+ "arbitrations": [],
+ "composition": {
+  "no_match": 556,
+  "strong_match": 57,
+  "plausible_match": 50,
+  "insufficient_data": 17
+ },
+ "rows": [
+  {
+   "case_id": 0,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 0,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 0,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 0,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 0,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 0,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 0,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 0,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 1,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : ni materials_or_components ni equipment_or_rental ne figurent dans les besoins."
+  },
+  {
+   "case_id": 1,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity mais lieu RO hors de la zone preferee et montant en RON sans seuil correspondant : aucun appui economique."
+  },
+  {
+   "case_id": 1,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : ni equipment_or_rental ni logistics_and_transport ne figurent dans les besoins."
+  },
+  {
+   "case_id": 1,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, le lieu RO est hors de la zone CH preferee et le montant en RON n'est couvert par aucun seuil CHF."
+  },
+  {
+   "case_id": 1,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : l'ICP ne cible que specialist_subcontracting, absent des besoins."
+  },
+  {
+   "case_id": 1,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity mais lieu d'execution RO connu et hors de la zone CH requise."
+  },
+  {
+   "case_id": 1,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, le lieu RO est hors de la zone preferee et le montant en RON n'est couvert par aucun seuil."
+  },
+  {
+   "case_id": 1,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : l'ICP ne cible que waste_and_environment, absent des besoins."
+  },
+  {
+   "case_id": 2,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : ni materials_or_components ni equipment_or_rental ne figurent dans les besoins."
+  },
+  {
+   "case_id": 2,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity mais lieu RO hors de la zone preferee et montant en RON sans seuil correspondant : aucun appui economique."
+  },
+  {
+   "case_id": 2,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : ni equipment_or_rental ni logistics_and_transport ne figurent dans les besoins."
+  },
+  {
+   "case_id": 2,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, le lieu RO est hors de la zone CH preferee et le montant en RON n'est couvert par aucun seuil CHF."
+  },
+  {
+   "case_id": 2,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : l'ICP ne cible que specialist_subcontracting, absent des besoins."
+  },
+  {
+   "case_id": 2,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity mais lieu d'execution RO connu et hors de la zone CH requise."
+  },
+  {
+   "case_id": 2,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, le lieu RO est hors de la zone preferee et le montant en RON n'est couvert par aucun seuil."
+  },
+  {
+   "case_id": 2,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : l'ICP ne cible que waste_and_environment, absent des besoins."
+  },
+  {
+   "case_id": 3,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 3,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 3,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 3,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 3,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 3,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 3,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 3,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 4,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 4,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 4,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 4,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 4,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 4,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 4,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 4,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 5,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : ni materials_or_components ni equipment_or_rental ne figurent dans les besoins."
+  },
+  {
+   "case_id": 5,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution IT dans la zone preferee et 100892448 EUR tres au-dessus du seuil EUR de 100000."
+  },
+  {
+   "case_id": 5,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : ni equipment_or_rental ni logistics_and_transport ne figurent dans les besoins."
+  },
+  {
+   "case_id": 5,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, le lieu IT est hors de la zone CH preferee et le montant en EUR n'est couvert par aucun seuil CHF."
+  },
+  {
+   "case_id": 5,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : l'ICP ne cible que specialist_subcontracting, absent des besoins."
+  },
+  {
+   "case_id": 5,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity mais lieu d'execution IT connu et hors de la zone CH requise."
+  },
+  {
+   "case_id": 5,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond et le lieu IT est hors de la zone preferee, malgre un montant EUR tres au-dessus du seuil de 500000."
+  },
+  {
+   "case_id": 5,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : l'ICP ne cible que waste_and_environment, absent des besoins."
+  },
+  {
+   "case_id": 6,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 6,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 6,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 6,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 6,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 6,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 6,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 6,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 7,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 7,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 7,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 7,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 7,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 7,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 7,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 7,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 8,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Besoin primaire materials_or_components et lieu DE conformes, mais 137289.00 EUR reste sous le seuil EUR de 200000."
+  },
+  {
+   "case_id": 8,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoins primaires workforce_capacity et materials_or_components, lieu DE dans la zone preferee et 137289.00 EUR au-dessus du seuil EUR de 100000."
+  },
+  {
+   "case_id": 8,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "signal_age",
+   "source": "consensus",
+   "note": "Le besoin equipment_or_rental correspond mais le signal publie le 2026-05-29 a 83 jours, au-dela du plafond de 60 jours."
+  },
+  {
+   "case_id": 8,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, le lieu DE est hors de la zone CH preferee et le montant en EUR n'est couvert par aucun seuil CHF."
+  },
+  {
+   "case_id": 8,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : l'ICP ne cible que specialist_subcontracting, absent des besoins."
+  },
+  {
+   "case_id": 8,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity mais lieu d'execution DE connu et hors de la zone CH requise."
+  },
+  {
+   "case_id": 8,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Besoin secondaire workforce_capacity et lieu DE conformes, mais 137289.00 EUR reste sous le seuil EUR de 500000."
+  },
+  {
+   "case_id": 8,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : l'ICP ne cible que waste_and_environment, absent des besoins."
+  },
+  {
+   "case_id": 9,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 9,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 9,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 9,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 9,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 9,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 9,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 9,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 10,
+   "icp_id": "icp-materials-eu",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire materials_or_components, lieu d'execution DE dans la zone requise et 461182.00 EUR au-dessus du seuil EUR de 200000."
+  },
+  {
+   "case_id": 10,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoins primaires workforce_capacity et materials_or_components, lieu DE dans la zone preferee et 461182.00 EUR au-dessus du seuil EUR de 100000."
+  },
+  {
+   "case_id": 10,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : ni equipment_or_rental ni logistics_and_transport ne figurent dans les besoins."
+  },
+  {
+   "case_id": 10,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, le lieu DE est hors de la zone CH preferee et le montant en EUR n'est couvert par aucun seuil CHF."
+  },
+  {
+   "case_id": 10,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant 461182.00 EUR connu et non derisoire sans aucun seuil dans l'ICP."
+  },
+  {
+   "case_id": 10,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity mais lieu d'execution DE connu et hors de la zone CH requise."
+  },
+  {
+   "case_id": 10,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting et lieu DE conformes, mais 461182.00 EUR reste sous le seuil EUR de 500000."
+  },
+  {
+   "case_id": 10,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : l'ICP ne cible que waste_and_environment, absent des besoins."
+  },
+  {
+   "case_id": 11,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 11,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 11,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 11,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 11,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 11,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 11,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 11,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 12,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 12,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 12,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 12,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 12,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 12,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 12,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 12,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 13,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 13,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 13,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 13,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 13,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 13,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 13,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 13,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 14,
+   "icp_id": "icp-materials-eu",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire materials_or_components mais aucun lieu d'execution publie : la geographie requise est inevaluable, le pays de l'acheteur ne la remplace pas."
+  },
+  {
+   "case_id": 14,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoins primaires presents et montant EUR au-dessus du seuil, mais aucune localisation publiee sous geographie preferee : plafond plausible."
+  },
+  {
+   "case_id": 14,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "signal_age",
+   "source": "consensus",
+   "note": "Le besoin equipment_or_rental correspond mais le signal publie le 2026-05-29 a 83 jours, au-dela du plafond de 60 jours."
+  },
+  {
+   "case_id": 14,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, le lieu d'execution est inconnu sous geographie preferee et le montant en EUR n'est couvert par aucun seuil CHF."
+  },
+  {
+   "case_id": 14,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : l'ICP ne cible que specialist_subcontracting, absent des besoins."
+  },
+  {
+   "case_id": 14,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity mais aucun lieu d'execution publie : la geographie requise CH est inevaluable, le pays de l'acheteur ne la remplace pas."
+  },
+  {
+   "case_id": 14,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond et le lieu d'execution est inconnu sous geographie preferee, malgre 1097441.34 EUR au-dessus du seuil."
+  },
+  {
+   "case_id": 14,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie commune : l'ICP ne cible que waste_and_environment, absent des besoins."
+  },
+  {
+   "case_id": 15,
+   "icp_id": "icp-materials-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire materials_or_components et lieu d'execution DE dans la zone, mais montant absent sous allow_with_penalty prive d'appui economique."
+  },
+  {
+   "case_id": 15,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoins primaires workforce_capacity et materials_or_components avec lieu DE dans la zone, mais montant absent sous allow_neutral."
+  },
+  {
+   "case_id": 15,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie equipment_or_rental ni logistics_and_transport parmi les besoins produits."
+  },
+  {
+   "case_id": 15,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond et le lieu DE est hors zone preferee CH."
+  },
+  {
+   "case_id": 15,
+   "icp_id": "icp-remote-specialist",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting et geographie ignoree, mais montant absent donc pas d'echelle economique connue."
+  },
+  {
+   "case_id": 15,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity present mais lieu d'execution DE connu et hors territoire CH requis."
+  },
+  {
+   "case_id": 15,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting et lieu DE dans la zone preferee, mais montant absent donc aucun appui economique."
+  },
+  {
+   "case_id": 15,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie waste_and_environment parmi les besoins produits."
+  },
+  {
+   "case_id": 16,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 16,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 16,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 16,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 16,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 16,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 16,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 16,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 17,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 17,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 17,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 17,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 17,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 17,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 17,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 17,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 18,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 18,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 18,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 18,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 18,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 18,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 18,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 18,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 19,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le seul besoin produit workforce_capacity ne figure ni en primaire ni en secondaire."
+  },
+  {
+   "case_id": 19,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity present mais lieu RO hors zone preferee et montant en RON sans seuil comparable."
+  },
+  {
+   "case_id": 19,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le seul besoin produit workforce_capacity ne figure ni en primaire ni en secondaire."
+  },
+  {
+   "case_id": 19,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, lieu RO hors zone preferee et devise RON sans seuil dans l'ICP."
+  },
+  {
+   "case_id": 19,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le seul besoin produit workforce_capacity ne figure pas dans les categories primaires specialist_subcontracting."
+  },
+  {
+   "case_id": 19,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity present mais lieu d'execution RO connu et hors territoire CH requis."
+  },
+  {
+   "case_id": 19,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, lieu RO hors zone preferee et devise RON non couverte par un seuil."
+  },
+  {
+   "case_id": 19,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie waste_and_environment parmi les besoins produits."
+  },
+  {
+   "case_id": 20,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 20,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 20,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 20,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 20,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 20,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 20,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 20,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 21,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 21,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 21,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 21,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 21,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 21,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 21,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 21,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 22,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 22,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 22,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 22,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 22,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 22,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 22,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 22,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 23,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 23,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 23,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 23,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 23,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 23,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 23,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 23,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 24,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 24,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 24,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 24,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 24,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 24,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 24,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 24,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 25,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 25,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 25,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 25,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 25,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 25,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 25,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 25,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 26,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 26,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 26,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 26,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 26,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 26,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 26,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 26,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 27,
+   "icp_id": "icp-materials-eu",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire materials_or_components present mais geographie requise inevaluable faute de lieu d'execution publie."
+  },
+  {
+   "case_id": 27,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoins primaires et montant EUR au-dessus du seuil, mais aucune localisation connue sous base either donc geographie inconnue."
+  },
+  {
+   "case_id": 27,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie equipment_or_rental ni logistics_and_transport parmi les besoins produits."
+  },
+  {
+   "case_id": 27,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, lieu d'execution inconnu et montant en EUR sans seuil dans cet ICP."
+  },
+  {
+   "case_id": 27,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant connu de 5.5 M EUR non derisoire sans seuil bloquant."
+  },
+  {
+   "case_id": 27,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Geographie requise inevaluable : aucun lieu d'execution publie, le pays acheteur AT ne peut pas s'y substituer."
+  },
+  {
+   "case_id": 27,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting et montant EUR au-dessus du seuil, mais lieu d'execution inconnu sous geographie preferee."
+  },
+  {
+   "case_id": 27,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie waste_and_environment parmi les besoins produits."
+  },
+  {
+   "case_id": 28,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 28,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 28,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 28,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 28,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 28,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 28,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 28,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le filtre de recouvrement de besoin echoue d'emblee."
+  },
+  {
+   "case_id": 29,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le seul besoin produit workforce_capacity ne figure ni en primaire ni en secondaire."
+  },
+  {
+   "case_id": 29,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution FR dans la zone et montant de 600000 EUR au-dessus du seuil EUR."
+  },
+  {
+   "case_id": 29,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le seul besoin produit workforce_capacity ne figure ni en primaire ni en secondaire."
+  },
+  {
+   "case_id": 29,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond, lieu FR hors zone preferee CH et montant EUR sans seuil dans cet ICP."
+  },
+  {
+   "case_id": 29,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le seul besoin produit workforce_capacity ne figure pas dans les categories primaires specialist_subcontracting."
+  },
+  {
+   "case_id": 29,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity present mais lieu d'execution FR connu et hors territoire CH requis."
+  },
+  {
+   "case_id": 29,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Lieu FR dans la zone et montant EUR au-dessus du seuil, mais seul le besoin secondaire workforce_capacity correspond."
+  },
+  {
+   "case_id": 29,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie waste_and_environment parmi les besoins produits."
+  },
+  {
+   "case_id": 30,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire materials_or_components present mais le lieu d'execution CH est connu et hors des territoires requis FR/DE/ES/IT/PT/BE/NL."
+  },
+  {
+   "case_id": 30,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Deux besoins primaires (workforce_capacity et materials_or_components), lieu d'execution CH dans la zone preferee et 290951.60 CHF au-dessus du seuil CHF 100000."
+  },
+  {
+   "case_id": 30,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "signal_age",
+   "source": "consensus",
+   "note": "Besoin primaire equipment_or_rental present mais le signal publie le 2026-05-29 a 83 jours depasse le plafond de 60 jours."
+  },
+  {
+   "case_id": 30,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond (safety_and_ppe absent), malgre une geographie CH conforme et 290951.60 CHF au-dessus du seuil CHF 100000."
+  },
+  {
+   "case_id": 30,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le seul besoin primaire specialist_subcontracting n'est pas produit et l'ICP n'a aucune categorie secondaire."
+  },
+  {
+   "case_id": 30,
+   "icp_id": "icp-staffing-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH dans la zone requise, 83 j sous le plafond de 90 j et 290951.60 CHF au-dessus du seuil CHF 250000."
+  },
+  {
+   "case_id": 30,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Besoin secondaire workforce_capacity et geographie CH conformes, mais le montant connu 290951.60 CHF est sous le seuil CHF 500000."
+  },
+  {
+   "case_id": 30,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit ne correspond a waste_and_environment et l'ICP n'a aucune categorie secondaire."
+  },
+  {
+   "case_id": 31,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 31,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 31,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 31,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 31,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 31,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 31,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 31,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 32,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 32,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 32,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 32,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 32,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 32,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 32,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 32,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 33,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 33,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 33,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 33,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 33,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 33,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 33,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 33,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 34,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 34,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 34,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 34,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 34,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 34,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 34,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 34,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 35,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 35,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 35,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 35,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 35,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 35,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 35,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 35,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 36,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 36,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 36,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 36,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 36,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 36,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 36,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 36,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 37,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 37,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 37,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 37,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 37,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 37,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 37,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 37,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 38,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 38,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 38,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 38,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 38,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 38,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 38,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 38,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 39,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Ni materials_or_components ni equipment_or_rental ne figurent parmi les besoins produits."
+  },
+  {
+   "case_id": 39,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity present mais aucune localisation dans la zone preferee (SE hors zone, gagnant non localise) et montant absent sous politique allow_neutral."
+  },
+  {
+   "case_id": 39,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Ni equipment_or_rental ni logistics_and_transport ne figurent parmi les besoins produits."
+  },
+  {
+   "case_id": 39,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe present mais geographie preferee non satisfaite (SE hors zone CH) et montant absent sous politique allow_neutral, sans appui economique."
+  },
+  {
+   "case_id": 39,
+   "icp_id": "icp-remote-specialist",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting et geographie ignoree, mais l'ICP est sans seuil et le montant est absent : aucun appui economique pour un strong_match."
+  },
+  {
+   "case_id": 39,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity present mais le lieu d'execution SE est connu et hors du territoire requis CH."
+  },
+  {
+   "case_id": 39,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting present mais lieu d'execution SE hors de la zone preferee FR/DE/CH/BE/AT et montant absent sous politique allow_with_penalty."
+  },
+  {
+   "case_id": 39,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit ne correspond a waste_and_environment et l'ICP n'a aucune categorie secondaire."
+  },
+  {
+   "case_id": 40,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 40,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 40,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 40,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 40,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 40,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 40,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 40,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 41,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 41,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 41,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 41,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 41,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 41,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 41,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 41,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 42,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 42,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 42,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 42,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 42,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 42,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 42,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 42,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 43,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 43,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 43,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 43,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 43,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 43,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 43,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 43,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 44,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 44,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 44,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 44,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 44,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 44,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 44,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 44,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin n'est produit pour ce lot (needs vide), donc le recouvrement exact de categorie est impossible."
+  },
+  {
+   "case_id": 45,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 45,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 45,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 45,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 45,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 45,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 45,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 45,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 46,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 46,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 46,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 46,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 46,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 46,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 46,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 46,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 47,
+   "icp_id": "icp-materials-eu",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire materials_or_components present, mais geographie required zone euro non evaluable faute de lieu d'execution publie."
+  },
+  {
+   "case_id": 47,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Deux besoins primaires (workforce_capacity et materials_or_components) et montant CHF au-dessus du seuil, mais geographie preferred sans pays connu : plafond plausible."
+  },
+  {
+   "case_id": 47,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire equipment_or_rental present et signal de 9 jours, mais geographie required sans pays de lieu d'execution."
+  },
+  {
+   "case_id": 47,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond et la geographie preferred reste inconnue, malgre un montant CHF tres au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 47,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite n'egale specialist_subcontracting, seule categorie primaire de cet ICP sans categorie secondaire."
+  },
+  {
+   "case_id": 47,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity present et type construction admis, mais geographie required sans lieu d'execution publie (le pays acheteur ne le remplace pas)."
+  },
+  {
+   "case_id": 47,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity correspond et la geographie preferred est inconnue, bien que le montant CHF depasse le seuil de 500000."
+  },
+  {
+   "case_id": 47,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune des categories produites n'egale waste_and_environment, seule categorie primaire de cet ICP sans categorie secondaire."
+  },
+  {
+   "case_id": 48,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 48,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne figure dans aucune categorie primaire ni secondaire de cet ICP."
+  },
+  {
+   "case_id": 48,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 48,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni safety_and_ppe ni workforce_capacity."
+  },
+  {
+   "case_id": 48,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignored, type engineering_architecture non exclu et montant CHF connu non derisoire."
+  },
+  {
+   "case_id": 48,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Recouvrement sur le besoin secondaire specialist_subcontracting et type non exclu, mais geographie required sans lieu d'execution publie."
+  },
+  {
+   "case_id": 48,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Besoin primaire present, mais le montant connu de 431930.44 CHF est sous le seuil CHF de 500000 : rejet evaluable au filtre de valeur."
+  },
+  {
+   "case_id": 48,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale pas waste_and_environment, seule categorie de cet ICP."
+  },
+  {
+   "case_id": 49,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 49,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 49,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 49,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 49,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 49,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 49,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 49,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 50,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 50,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 50,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 50,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 50,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 50,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 50,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 50,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 51,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 51,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne figure dans aucune categorie primaire ni secondaire de cet ICP."
+  },
+  {
+   "case_id": 51,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 51,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni safety_and_ppe ni workforce_capacity."
+  },
+  {
+   "case_id": 51,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie ignored, type non exclu et montant CHF connu non derisoire."
+  },
+  {
+   "case_id": 51,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Recouvrement sur le besoin secondaire specialist_subcontracting, mais geographie required non evaluable faute de lieu d'execution publie."
+  },
+  {
+   "case_id": 51,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire et montant CHF de 810750 au-dessus du seuil de 500000, mais geographie preferred sans pays connu : plafond plausible."
+  },
+  {
+   "case_id": 51,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale pas waste_and_environment, seule categorie de cet ICP."
+  },
+  {
+   "case_id": 52,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 52,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 52,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 52,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 52,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 52,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 52,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 52,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 53,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 53,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 53,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 53,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 53,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 53,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 53,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 53,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 54,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 54,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne figure dans aucune categorie primaire ni secondaire de cet ICP."
+  },
+  {
+   "case_id": 54,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 54,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni safety_and_ppe ni workforce_capacity."
+  },
+  {
+   "case_id": 54,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie ignored, type non exclu et montant CHF connu non derisoire."
+  },
+  {
+   "case_id": 54,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Recouvrement sur le besoin secondaire specialist_subcontracting, mais geographie required sans lieu d'execution publie."
+  },
+  {
+   "case_id": 54,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire et montant CHF de 682621.70 au-dessus du seuil de 500000, mais geographie preferred sans pays connu : plafond plausible."
+  },
+  {
+   "case_id": 54,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale pas waste_and_environment, seule categorie de cet ICP."
+  },
+  {
+   "case_id": 55,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 55,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne figure dans aucune categorie primaire ni secondaire de cet ICP."
+  },
+  {
+   "case_id": 55,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni equipment_or_rental ni logistics_and_transport : le filtre 2 decide avant l'exclusion it_digital."
+  },
+  {
+   "case_id": 55,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni safety_and_ppe ni workforce_capacity."
+  },
+  {
+   "case_id": 55,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, it_digital hors des types exclus, geographie ignored et montant CHF connu non derisoire."
+  },
+  {
+   "case_id": 55,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "contract_type",
+   "source": "consensus",
+   "note": "Le recouvrement secondaire passe mais le type it_digital figure dans excluded_contract_types de cet ICP."
+  },
+  {
+   "case_id": 55,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire, aucun type exclu et montant CHF de 1414726 au-dessus du seuil de 500000, mais geographie preferred sans pays connu."
+  },
+  {
+   "case_id": 55,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale pas waste_and_environment, seule categorie de cet ICP."
+  },
+  {
+   "case_id": 56,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 56,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne figure dans aucune categorie primaire ni secondaire de cet ICP."
+  },
+  {
+   "case_id": 56,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni equipment_or_rental ni logistics_and_transport : le filtre 2 decide avant l'exclusion it_digital."
+  },
+  {
+   "case_id": 56,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale ni safety_and_ppe ni workforce_capacity."
+  },
+  {
+   "case_id": 56,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, it_digital hors des types exclus, geographie ignored et montant CHF connu non derisoire."
+  },
+  {
+   "case_id": 56,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "contract_type",
+   "source": "consensus",
+   "note": "Le recouvrement secondaire passe mais le type it_digital figure dans excluded_contract_types de cet ICP."
+  },
+  {
+   "case_id": 56,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire, aucun type exclu et montant CHF de 864800 au-dessus du seuil de 500000, mais geographie preferred sans pays connu."
+  },
+  {
+   "case_id": 56,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'egale pas waste_and_environment, seule categorie de cet ICP."
+  },
+  {
+   "case_id": 57,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 57,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 57,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 57,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 57,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 57,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 57,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 57,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 58,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 58,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 58,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 58,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 58,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 58,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 58,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 58,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 59,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 59,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 59,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 59,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 59,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 59,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 59,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 59,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit pour ce lot : le recouvrement de besoin (filtre 2) echoue avant tout autre filtre."
+  },
+  {
+   "case_id": 60,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 60,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 60,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 60,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 60,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 60,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 60,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 60,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 61,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 61,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 61,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 61,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 61,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 61,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 61,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 61,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement de besoin est impossible."
+  },
+  {
+   "case_id": 62,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 62,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 62,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 62,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 62,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 62,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 118910.00 CHF sous le seuil CHF de 250000 de icp-staffing-ch."
+  },
+  {
+   "case_id": 62,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 118910.00 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 62,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 63,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 63,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 63,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 63,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 63,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 63,
+   "icp_id": "icp-staffing-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH conforme et montant CHF connu au-dessus du seuil de 250000."
+  },
+  {
+   "case_id": 63,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 432400.00 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 63,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 64,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 64,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 64,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 64,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 64,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 64,
+   "icp_id": "icp-staffing-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH conforme et montant CHF connu au-dessus du seuil de 250000."
+  },
+  {
+   "case_id": 64,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 370397.10 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 64,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 65,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 65,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 65,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 65,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 65,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 65,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 205208.30 CHF sous le seuil CHF de 250000 de icp-staffing-ch."
+  },
+  {
+   "case_id": 65,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 205208.30 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 65,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 66,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 66,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 66,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 66,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 66,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 66,
+   "icp_id": "icp-staffing-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH conforme et montant CHF connu au-dessus du seuil de 250000."
+  },
+  {
+   "case_id": 66,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 390039.70 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 66,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 67,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 67,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 67,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 67,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 67,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 67,
+   "icp_id": "icp-staffing-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH conforme et montant CHF connu au-dessus du seuil de 250000."
+  },
+  {
+   "case_id": 67,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 416681.85 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 67,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 68,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 68,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 81531.59 CHF sous le seuil CHF de 100000 de icp-national-supplier."
+  },
+  {
+   "case_id": 68,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 68,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 81531.59 CHF sous le seuil CHF de 100000 de icp-ppe-safety-ch."
+  },
+  {
+   "case_id": 68,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 68,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 81531.59 CHF sous le seuil CHF de 250000 de icp-staffing-ch."
+  },
+  {
+   "case_id": 68,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 81531.59 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 68,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 69,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 69,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 69,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 69,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 69,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 69,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 143167.60 CHF sous le seuil CHF de 250000 de icp-staffing-ch."
+  },
+  {
+   "case_id": 69,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 143167.60 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 69,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 70,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 70,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 70,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 70,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 70,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 70,
+   "icp_id": "icp-staffing-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH conforme et montant CHF connu au-dessus du seuil de 250000."
+  },
+  {
+   "case_id": 70,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 467579.95 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 70,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 71,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 71,
+   "icp_id": "icp-national-supplier",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 71,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 71,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe, lieu d'execution CH dans la zone preferee et montant CHF au-dessus du seuil de 100000."
+  },
+  {
+   "case_id": 71,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 71,
+   "icp_id": "icp-staffing-ch",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity, lieu d'execution CH conforme et montant CHF connu au-dessus du seuil de 250000."
+  },
+  {
+   "case_id": 71,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 410152.00 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 71,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 72,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 72,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe workforce_capacity, materials_or_components, equipment_or_rental ni safety_and_ppe."
+  },
+  {
+   "case_id": 72,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 72,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe safety_and_ppe ni workforce_capacity."
+  },
+  {
+   "case_id": 72,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 72,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Recouvrement secondaire specialist_subcontracting acquis mais la geographie requise ne peut etre evaluee : aucun lieu d'execution publie, le pays de l'acheteur ne le remplace pas."
+  },
+  {
+   "case_id": 72,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 267868.00 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 72,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 73,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 73,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity et montant CHF au-dessus du seuil de 100000, mais aucune localisation connue sous geographie preferred : plafond plausible_match."
+  },
+  {
+   "case_id": 73,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 73,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe et montant CHF au-dessus du seuil de 100000, mais geographie preferred sans lieu d'execution connu : plafond plausible_match."
+  },
+  {
+   "case_id": 73,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, geographie explicitement ignoree et montant CHF connu non derisoire alors que l'ICP n'a aucun seuil."
+  },
+  {
+   "case_id": 73,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity acquis mais la geographie requise ne peut etre evaluee : aucun lieu d'execution publie, le pays de l'acheteur ne le remplace pas."
+  },
+  {
+   "case_id": 73,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Montant connu de 452922.03 CHF sous le seuil CHF de 500000 de icp-subcontracting-eu."
+  },
+  {
+   "case_id": 73,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 74,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 74,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe workforce_capacity, materials_or_components, equipment_or_rental ni safety_and_ppe."
+  },
+  {
+   "case_id": 74,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 74,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe safety_and_ppe ni workforce_capacity."
+  },
+  {
+   "case_id": 74,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, type it_digital non exclu par cet ICP, geographie ignoree et montant CHF connu non derisoire."
+  },
+  {
+   "case_id": 74,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "contract_type",
+   "source": "consensus",
+   "note": "Le recouvrement secondaire specialist_subcontracting est acquis mais le type de contrat it_digital figure dans excluded_contract_types."
+  },
+  {
+   "case_id": 74,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting et montant CHF au-dessus du seuil de 500000, mais geographie preferred sans lieu d'execution connu : plafond plausible_match."
+  },
+  {
+   "case_id": 74,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucune categorie produite ne recoupe waste_and_environment."
+  },
+  {
+   "case_id": 75,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, donc pas d'égalité exacte avec materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 75,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, donc aucun recouvrement avec les catégories primaires ou secondaires."
+  },
+  {
+   "case_id": 75,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Liste de besoins vide : aucune catégorie ne peut égaler equipment_or_rental ou logistics_and_transport."
+  },
+  {
+   "case_id": 75,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Besoins vides : ni safety_and_ppe ni workforce_capacity ne sont produits."
+  },
+  {
+   "case_id": 75,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Besoins vides : specialist_subcontracting n'est pas produit pour ce lot."
+  },
+  {
+   "case_id": 75,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, donc aucun recouvrement possible avec workforce_capacity ni specialist_subcontracting."
+  },
+  {
+   "case_id": 75,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Liste de besoins vide : specialist_subcontracting et workforce_capacity sont absents."
+  },
+  {
+   "case_id": 75,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, waste_and_environment est absent."
+  },
+  {
+   "case_id": 76,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, donc pas de recouvrement avec materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 76,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, donc aucun recouvrement avec workforce_capacity ou materials_or_components."
+  },
+  {
+   "case_id": 76,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Liste de besoins vide : equipment_or_rental et logistics_and_transport sont absents."
+  },
+  {
+   "case_id": 76,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Besoins vides : ni safety_and_ppe ni workforce_capacity ne sont produits."
+  },
+  {
+   "case_id": 76,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Besoins vides : specialist_subcontracting n'est pas produit pour ce lot."
+  },
+  {
+   "case_id": 76,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le filtre de recouvrement échoue avant tout examen du type de contrat."
+  },
+  {
+   "case_id": 76,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Liste de besoins vide : specialist_subcontracting et workforce_capacity sont absents."
+  },
+  {
+   "case_id": 76,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, waste_and_environment est absent."
+  },
+  {
+   "case_id": 77,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne figure ni dans materials_or_components ni dans equipment_or_rental."
+  },
+  {
+   "case_id": 77,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne figure dans aucune catégorie primaire ou secondaire de cet ICP."
+  },
+  {
+   "case_id": 77,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'égale ni equipment_or_rental ni logistics_and_transport, aucune synonymie admise."
+  },
+  {
+   "case_id": 77,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'égale ni safety_and_ppe ni workforce_capacity."
+  },
+  {
+   "case_id": 77,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, géographie explicitement ignorée, it_digital non exclu et montant connu de 221925.00 CHF non dérisoire sans seuil ICP."
+  },
+  {
+   "case_id": 77,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "contract_type",
+   "source": "consensus",
+   "note": "Le besoin secondaire specialist_subcontracting recouvre, mais le type it_digital figure dans excluded_contract_types."
+  },
+  {
+   "case_id": 77,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Besoin primaire recouvert, mais le montant connu de 221925.00 CHF est sous le seuil CHF de 500000."
+  },
+  {
+   "case_id": 77,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne correspond pas à waste_and_environment, seule catégorie de l'ICP."
+  },
+  {
+   "case_id": 78,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun des besoins produits n'égale materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 78,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity et montant au-dessus du seuil CHF, mais aucune localisation évaluable sous géographie preferred : plafond plausible."
+  },
+  {
+   "case_id": 78,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun des besoins produits n'égale equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 78,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe et montant de 1496587.94 CHF au-dessus du seuil, mais géographie preferred avec lieu d'exécution inconnu : plafond plausible."
+  },
+  {
+   "case_id": 78,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, géographie ignorée, construction non exclu et montant connu de 1496587.94 CHF sans seuil ICP."
+  },
+  {
+   "case_id": 78,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity et type construction admis, mais la géographie required sur le lieu d'exécution est inévaluable faute de place_country."
+  },
+  {
+   "case_id": 78,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting et 1496587.94 CHF au-dessus du seuil CHF, mais géographie preferred avec pays d'exécution absent : plafond plausible."
+  },
+  {
+   "case_id": 78,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "waste_and_environment n'est pas produit pour ce lot."
+  },
+  {
+   "case_id": 79,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne figure ni dans materials_or_components ni dans equipment_or_rental."
+  },
+  {
+   "case_id": 79,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne figure dans aucune catégorie primaire ou secondaire de cet ICP."
+  },
+  {
+   "case_id": 79,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'égale ni equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 79,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'égale ni safety_and_ppe ni workforce_capacity."
+  },
+  {
+   "case_id": 79,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, géographie ignorée, engineering_architecture non exclu et montant connu de 340885.60 CHF sans seuil ICP."
+  },
+  {
+   "case_id": 79,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Recouvrement secondaire specialist_subcontracting et type engineering_architecture admis, mais la géographie required reste inévaluable faute de lieu d'exécution."
+  },
+  {
+   "case_id": 79,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Besoin primaire recouvert, mais le montant connu de 340885.60 CHF est sous le seuil CHF de 500000."
+  },
+  {
+   "case_id": 79,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne correspond pas à waste_and_environment."
+  },
+  {
+   "case_id": 80,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, donc pas de recouvrement avec materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 80,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, donc aucun recouvrement avec les catégories de l'ICP."
+  },
+  {
+   "case_id": 80,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Liste de besoins vide : equipment_or_rental et logistics_and_transport sont absents."
+  },
+  {
+   "case_id": 80,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Besoins vides : ni safety_and_ppe ni workforce_capacity ne sont produits."
+  },
+  {
+   "case_id": 80,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Besoins vides : specialist_subcontracting n'est pas produit pour ce lot."
+  },
+  {
+   "case_id": 80,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, aucun recouvrement n'est possible."
+  },
+  {
+   "case_id": 80,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Liste de besoins vide : specialist_subcontracting et workforce_capacity sont absents."
+  },
+  {
+   "case_id": 80,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, waste_and_environment est absent."
+  },
+  {
+   "case_id": 81,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun des besoins produits n'égale materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 81,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity et montant au-dessus du seuil CHF, mais aucune localisation évaluable sous géographie preferred : plafond plausible."
+  },
+  {
+   "case_id": 81,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun des besoins produits n'égale equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 81,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire safety_and_ppe et 348649.36 CHF au-dessus du seuil de 100000, mais géographie preferred avec lieu d'exécution inconnu : plafond plausible."
+  },
+  {
+   "case_id": 81,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, géographie ignorée, construction non exclu et montant connu de 348649.36 CHF sans seuil ICP."
+  },
+  {
+   "case_id": 81,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity et type construction admis, mais la géographie required est inévaluable faute de place_country publié."
+  },
+  {
+   "case_id": 81,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "value_threshold",
+   "source": "consensus",
+   "note": "Besoin primaire recouvert, mais le montant connu de 348649.36 CHF est sous le seuil CHF de 500000."
+  },
+  {
+   "case_id": 81,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "waste_and_environment n'est pas produit pour ce lot."
+  },
+  {
+   "case_id": 82,
+   "icp_id": "icp-materials-eu",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire materials_or_components recouvert, mais la géographie required sur zone euro est inévaluable faute de place_country."
+  },
+  {
+   "case_id": 82,
+   "icp_id": "icp-national-supplier",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Deux besoins primaires recouverts et montant au-dessus du seuil CHF, mais aucune localisation évaluable sous géographie preferred : plafond plausible."
+  },
+  {
+   "case_id": 82,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun des besoins produits n'égale equipment_or_rental ni logistics_and_transport."
+  },
+  {
+   "case_id": 82,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Seul le besoin secondaire workforce_capacity recouvre, et la géographie preferred reste inconnue : plafond plausible."
+  },
+  {
+   "case_id": 82,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, géographie ignorée, construction non exclu et montant connu de 1906959.70 CHF sans seuil ICP."
+  },
+  {
+   "case_id": 82,
+   "icp_id": "icp-staffing-ch",
+   "grade": "insufficient_data",
+   "failed_filter": "geography",
+   "source": "consensus",
+   "note": "Besoin primaire workforce_capacity et type construction admis, mais la géographie required est inévaluable faute de lieu d'exécution publié."
+  },
+  {
+   "case_id": 82,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting et 1906959.70 CHF au-dessus du seuil CHF, mais géographie preferred avec pays d'exécution absent : plafond plausible."
+  },
+  {
+   "case_id": 82,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "waste_and_environment n'est pas produit pour ce lot."
+  },
+  {
+   "case_id": 83,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, donc pas de recouvrement avec materials_or_components ni equipment_or_rental."
+  },
+  {
+   "case_id": 83,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, donc aucun recouvrement avec les catégories de l'ICP."
+  },
+  {
+   "case_id": 83,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Liste de besoins vide : equipment_or_rental et logistics_and_transport sont absents."
+  },
+  {
+   "case_id": 83,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Besoins vides : ni safety_and_ppe ni workforce_capacity ne sont produits."
+  },
+  {
+   "case_id": 83,
+   "icp_id": "icp-remote-specialist",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Besoins vides : specialist_subcontracting n'est pas produit pour ce lot."
+  },
+  {
+   "case_id": 83,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Le lot ne produit aucun besoin, le recouvrement échoue avant toute question de montant absent."
+  },
+  {
+   "case_id": 83,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Liste de besoins vide : specialist_subcontracting et workforce_capacity sont absents."
+  },
+  {
+   "case_id": 83,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "Aucun besoin produit, waste_and_environment est absent."
+  },
+  {
+   "case_id": 84,
+   "icp_id": "icp-materials-eu",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne figure ni dans materials_or_components ni dans equipment_or_rental."
+  },
+  {
+   "case_id": 84,
+   "icp_id": "icp-national-supplier",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne figure dans aucune catégorie primaire ou secondaire de cet ICP."
+  },
+  {
+   "case_id": 84,
+   "icp_id": "icp-plant-hire-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'égale ni equipment_or_rental ni logistics_and_transport, le recouvrement échoue avant l'exclusion it_digital."
+  },
+  {
+   "case_id": 84,
+   "icp_id": "icp-ppe-safety-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting n'égale ni safety_and_ppe ni workforce_capacity."
+  },
+  {
+   "case_id": 84,
+   "icp_id": "icp-remote-specialist",
+   "grade": "strong_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire specialist_subcontracting, géographie ignorée, it_digital non exclu et montant connu de 4642246.40 CHF sans seuil ICP."
+  },
+  {
+   "case_id": 84,
+   "icp_id": "icp-staffing-ch",
+   "grade": "no_match",
+   "failed_filter": "contract_type",
+   "source": "consensus",
+   "note": "Le besoin secondaire specialist_subcontracting recouvre, mais le type it_digital figure dans excluded_contract_types."
+  },
+  {
+   "case_id": 84,
+   "icp_id": "icp-subcontracting-eu",
+   "grade": "plausible_match",
+   "failed_filter": "none",
+   "source": "consensus",
+   "note": "Besoin primaire recouvert, it_digital non exclu et 4642246.40 CHF au-dessus du seuil CHF, mais géographie preferred avec pays d'exécution absent : plafond plausible."
+  },
+  {
+   "case_id": 84,
+   "icp_id": "icp-waste-ch",
+   "grade": "no_match",
+   "failed_filter": "need_overlap",
+   "source": "consensus",
+   "note": "specialist_subcontracting ne correspond pas à waste_and_environment."
+  }
+ ],
+ "frozen": {
+  "corpus_sha256": "441f0d10614ea1ad05d5948b530a9dab22f9fba7d25143b14aa66435cf62c006",
+  "reference_icp_sha256": "698cb112eaa6478eb4680e8513cf036dc22d7651437a356f0637967361400fb2",
+  "match_rubric_version": "icp-match-rubric-v1",
+  "match_policy_version": "icp-match-v0.1",
+  "score_policy_version": "signal-score-v0.1",
+  "reference_icp_library_version": "reference-icps-v0.1",
+  "frozen_at": "2026-08-17",
+  "note": "CORPUS IMMUTABLE — GOLD IMMUTABLE — ICPS IMMUTABLE — WEIGHTS IMMUTABLE — THRESHOLDS IMMUTABLE — POLICY IMMUTABLE"
+ }
+}
