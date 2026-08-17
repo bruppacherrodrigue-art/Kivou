@@ -1,0 +1,627 @@
+{
+ "corpus": "NEED-100-HELDOUT",
+ "built_at": "2026-08-17",
+ "derived_from": "tests/fixtures/contract100/awards.json",
+ "split": "held-out (40 lignes / 29 notices) ; DEV = 60 lignes / 46 notices, aucune notice commune",
+ "split_rule": "tri déterministe par sha256(award_ref.key()) — toutes les lignes d'une même notice tombent du même côté",
+ "note": "Les contrats sont identifiés par row_index dans awards.json : le corpus porte des LOTS distincts partageant une clé de notice.",
+ "rows": [
+  {
+   "row_index": 16,
+   "key": "simap:d48b31d4-d45e-4902-b103-24e0f25c43d9:",
+   "source": "simap",
+   "contract_type": "construction",
+   "sector": "unknown",
+   "object_summary": "Marché « 110 kV Mettlen – Rathausen 3: Tiefbauarbeiten Kabelrohrblock und Unterstossungen, Mettlen-Perlen II », Acheteurs publiés : CKW AG, CKW AG, à S & Bau AG, pour 298925.25 CHF, décision du 2026-08-12. Objet publié :",
+   "amount": "298925.25 CHF",
+   "characteristics": [
+    "several_lots"
+   ],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 28,
+   "key": "ted:cddfc836-3629-4f10-a4b2-d9015d5d1671:01",
+   "source": "ted",
+   "contract_type": "medical_supply",
+   "sector": "healthcare",
+   "object_summary": "Marché « Доставка на лекарствен продукт с международно непатентно наименование /INN/ Naloxone включен в Списъка по чл.266а, ал.2 от Закона за лекарствените продукти в хуманната медицина », Acheteur publié : УНИВЕРСИТЕТСК",
+   "amount": "26.00 EUR",
+   "characteristics": [
+    "several_lots",
+    "defined_contract_period"
+   ],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": "2026-08-11",
+   "buyer_country": "BG"
+  },
+  {
+   "row_index": 70,
+   "key": "simap:73021ae4-b524-48e3-8dfc-33a1783014cb:",
+   "source": "simap",
+   "contract_type": "construction",
+   "sector": "unknown",
+   "object_summary": "Marché « Rénovation, transformation et agrandissement du site de l'épicentre à Collonge-Bellerive / Marché n° 1 », Acheteur publié : Commune de Collonge-Bellerive / Service des bâtiments / Projet EPICENTRE, à Marti Const",
+   "amount": "410039.25 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 10,
+   "key": "simap:c506ab8b-44e6-402e-b380-d1e301b31a6d:",
+   "source": "simap",
+   "contract_type": "facility_services",
+   "sector": "environment",
+   "object_summary": "Marché « Contrôles de fonctionnement des  grands séparateurs à hydrocarbures _ Contrat 2027 - 2030 », Acheteur publié : Genève Aéroport, à Implenia Schweiz AG, pour 202622.24 CHF, à CH, décision du 2026-08-13. Objet publ",
+   "amount": "202622.24 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-13",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 93,
+   "key": "simap:c9f2ebb6-4743-435e-8e75-c1e1b25d9cdd:",
+   "source": "simap",
+   "contract_type": "engineering_architecture",
+   "sector": "unknown",
+   "object_summary": "Marché « Etudes stabilisation quais de Rivaz à Saint-Gingolph », Acheteurs publiés : Etat du Valais, Département de la Mobilité, du Territoire et de l'Environnement (DMTE), Service des dangers naturels / Dienststelle Nat",
+   "amount": "37438.9 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 76,
+   "key": "simap:112a472d-c87b-43fd-be88-4210920aedde:",
+   "source": "simap",
+   "contract_type": "facility_services",
+   "sector": "environment",
+   "object_summary": "Marché « Submission Sammlung & Verwertung Grüngut von Haushalten in der Gemeinde Obersiggenthal », Acheteur publié : Gemeinde Obersiggenthal (Swiss Recycle), à Kompogas Bioriko AG, pour 671620.0 CHF, à Nussbaumen, CH-AG,",
+   "amount": "671620.0 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 77,
+   "key": "simap:112a472d-c87b-43fd-be88-4210920aedde:",
+   "source": "simap",
+   "contract_type": "facility_services",
+   "sector": "environment",
+   "object_summary": "Marché « Submission Sammlung & Verwertung Grüngut von Haushalten in der Gemeinde Obersiggenthal », Acheteur publié : Gemeinde Obersiggenthal (Swiss Recycle), à Obrist Transport + Recycling AG, pour 1039438.0 CHF, à Nussb",
+   "amount": "1039438.0 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 24,
+   "key": "ted:32c89610-a301-4d64-afab-96046f7ddafc:01",
+   "source": "ted",
+   "contract_type": "it_digital",
+   "sector": "unknown",
+   "object_summary": "Marché « Encrypted DNS — Kotlin Multiplatform mobiilirakenduse arendus », Acheteur publié : Riigi Infosüsteemi Amet, à FOB Solutions OÜ, pour 14140.00 EUR, à EE001. Objet publié : Tellija eesmärk on tellida Kotlin Multip",
+   "amount": "14140.00 EUR",
+   "characteristics": [
+    "several_lots"
+   ],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "EE"
+  },
+  {
+   "row_index": 78,
+   "key": "simap:bbd065f2-9e04-4539-ba03-0c0f0d558a57:",
+   "source": "simap",
+   "contract_type": "equipment_supply",
+   "sector": "unknown",
+   "object_summary": "Marché « Contrat-cadre Acquisition de mobilier pour bureaux et espaces partagés :  Fourniture, livraison, montage, installation et service après-vente  (entretien/dépannage) », Acheteur publié : HOSPICE GENERAL - SERVICE",
+   "amount": "229960.0 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 65,
+   "key": "simap:61d6c039-e13e-4f06-8afb-f2f8a81fa0de:",
+   "source": "simap",
+   "contract_type": "equipment_supply",
+   "sector": "transport",
+   "object_summary": "Marché « Ersatzanschaffung Strassenkehrmaschine SI Oberland Nord », Acheteur publié : Tiefbauamt des Kantons Bern, à EHR Fahrzeugtechnik GMBH, pour 685354.0 CHF, à Uetendorf, CH-BE, décision du 2026-08-13. Objet publié :",
+   "amount": "685354.0 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 83,
+   "key": "simap:a5eca0c9-2bcb-4e01-9651-f0a311af2972:",
+   "source": "simap",
+   "contract_type": "construction",
+   "sector": "unknown",
+   "object_summary": "Marché « Schulraumprovisorium Wohlen - Paket 2 Containerprovisorien », Acheteurs publiés : Gemeinde Wohlen Bereich Planung, Bau und Umwelt (avo ag), Gemeinde Wohlen - Bereich Planung, Bau und Umwelt, à WL Bau AG, pour 16",
+   "amount": "1686397.5 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-15",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 25,
+   "key": "simap:17081ee0-79a4-4c7d-b700-564cb4c7fce4:",
+   "source": "simap",
+   "contract_type": "it_digital",
+   "sector": "unknown",
+   "object_summary": "Marché « Ausschreibung Preferred Supplier Modell », Acheteur publié : Sihltal Zürich Uetliberg Bahn SZU AG, à APEXA GmbH, pour 3513552.65 CHF, décision du 2026-08-13. Objet publié : Leitung und Koordination von Transform",
+   "amount": "3513552.65 CHF",
+   "characteristics": [
+    "several_lots"
+   ],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 26,
+   "key": "simap:17081ee0-79a4-4c7d-b700-564cb4c7fce4:",
+   "source": "simap",
+   "contract_type": "it_digital",
+   "sector": "unknown",
+   "object_summary": "Marché « Ausschreibung Preferred Supplier Modell », Acheteur publié : Sihltal Zürich Uetliberg Bahn SZU AG, à Detecon (Schweiz) AG, pour 3553030.8 CHF, décision du 2026-08-13. Objet publié : Leitung und Koordination von ",
+   "amount": "3553030.8 CHF",
+   "characteristics": [
+    "several_lots"
+   ],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 27,
+   "key": "simap:17081ee0-79a4-4c7d-b700-564cb4c7fce4:",
+   "source": "simap",
+   "contract_type": "it_digital",
+   "sector": "unknown",
+   "object_summary": "Marché « Ausschreibung Preferred Supplier Modell », Acheteur publié : Sihltal Zürich Uetliberg Bahn SZU AG, à Digizone GmbH, pour 3170093.05 CHF, décision du 2026-08-13. Objet publié : Leitung und Koordination von Transf",
+   "amount": "3170093.05 CHF",
+   "characteristics": [
+    "several_lots"
+   ],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 84,
+   "key": "simap:7d6c8b1d-55a5-4d5c-aa0a-09a962913b5b:",
+   "source": "simap",
+   "contract_type": "engineering_architecture",
+   "sector": "unknown",
+   "object_summary": "Marché « MP 3063 Rufacher-, Bündner- und Schönenbuchstr., Ingenieurleistungen », Acheteurs publiés : Bau- und Verkehrsdepartement des Kantons Basel-Stadt, Kantonale Fachstelle für öffentliche Beschaffungen (KFöB), Bau- u",
+   "amount": "648257.86 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 94,
+   "key": "simap:de07f9e1-3fab-43c0-9db2-5541d8466e1d:",
+   "source": "simap",
+   "contract_type": "construction",
+   "sector": "unknown",
+   "object_summary": "Marché « Ertüchtigung von Antennenmasten », Acheteurs publiés : SBB CFF FFS Einkauf Bauprojekte Standort Bern, SBB Infrastruktur Telecom -Anlagenmanagement-, à MR HT-SYSTEM GmbH, pour 16215000.0 CHF, décision du 2026-08-",
+   "amount": "16215000.0 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-15",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 6,
+   "key": "ted:87b51ccf-baa9-499c-bec1-0d2a11b6c1fc:01",
+   "source": "ted",
+   "contract_type": "facility_services",
+   "sector": "environment",
+   "object_summary": "Marché « ISB-2025-05-04bis - 1 », Acheteur publié : VZW IGNATIUS SCHOLEN IN BEWEGING, à ATALIAN, pour 408130.19 EUR, à BE100. Objet publié : De vzw Ignatius Scholen in Beweging plant een raamovereenkomst voor de schoonma",
+   "amount": "408130.19 EUR",
+   "characteristics": [
+    "several_lots",
+    "long_duration"
+   ],
+   "duration": "6 year",
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "BE"
+  },
+  {
+   "row_index": 7,
+   "key": "ted:87b51ccf-baa9-499c-bec1-0d2a11b6c1fc:01",
+   "source": "ted",
+   "contract_type": "facility_services",
+   "sector": "environment",
+   "object_summary": "Marché « ISB-2025-05-04bis - 2 », Acheteur publié : VZW IGNATIUS SCHOLEN IN BEWEGING, à KOSE CLEANING, pour 239426.72 EUR, à BE100. Objet publié : De vzw Ignatius Scholen in Beweging plant een raamovereenkomst voor de sc",
+   "amount": "239426.72 EUR",
+   "characteristics": [
+    "several_lots",
+    "long_duration"
+   ],
+   "duration": "6 year",
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "BE"
+  },
+  {
+   "row_index": 35,
+   "key": "ted:9a25846d-ab79-46f0-926c-ef70db1be88d:01",
+   "source": "ted",
+   "contract_type": "social_health_services",
+   "sector": "healthcare",
+   "object_summary": "Marché « Lote 1 », Acheteur publié : Unidade Local de Saúde do Médio Tejo, EPE, à Imprensa Nacional-Casa da Moeda, S. A. (INCM), pour 185083.74 EUR, à Santarém, PT1D2. Objet publié : Lote 1",
+   "amount": "185083.74 EUR",
+   "characteristics": [
+    "several_lots",
+    "defined_contract_period"
+   ],
+   "duration": "6 month",
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "PT"
+  },
+  {
+   "row_index": 36,
+   "key": "ted:9a25846d-ab79-46f0-926c-ef70db1be88d:01",
+   "source": "ted",
+   "contract_type": "social_health_services",
+   "sector": "healthcare",
+   "object_summary": "Marché « Lote 2 », Acheteur publié : Unidade Local de Saúde do Médio Tejo, EPE, Signataire du contrat publié : Unidade Local de Saúde do Médio Tejo, EPE, à Imprensa Nacional-Casa da Moeda, S. A. (INCM), pour 40363.75 EUR",
+   "amount": "40363.75 EUR",
+   "characteristics": [
+    "several_lots",
+    "defined_contract_period"
+   ],
+   "duration": "6 month",
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "PT"
+  },
+  {
+   "row_index": 37,
+   "key": "ted:9a25846d-ab79-46f0-926c-ef70db1be88d:01",
+   "source": "ted",
+   "contract_type": "social_health_services",
+   "sector": "healthcare",
+   "object_summary": "Marché « Lote 3 », Acheteur publié : Unidade Local de Saúde do Médio Tejo, EPE, Signataire du contrat publié : Unidade Local de Saúde do Médio Tejo, EPE, à Imprensa Nacional-Casa da Moeda, S. A. (INCM), pour 22428.51 EUR",
+   "amount": "22428.51 EUR",
+   "characteristics": [
+    "several_lots",
+    "defined_contract_period"
+   ],
+   "duration": "6 month",
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "PT"
+  },
+  {
+   "row_index": 38,
+   "key": "ted:9a25846d-ab79-46f0-926c-ef70db1be88d:01",
+   "source": "ted",
+   "contract_type": "social_health_services",
+   "sector": "healthcare",
+   "object_summary": "Marché « Lote 4 », Acheteur publié : Unidade Local de Saúde do Médio Tejo, EPE, Signataire du contrat publié : Unidade Local de Saúde do Médio Tejo, EPE, à Imprensa Nacional-Casa da Moeda, S. A. (INCM), pour 45666.32 EUR",
+   "amount": "45666.32 EUR",
+   "characteristics": [
+    "several_lots",
+    "defined_contract_period"
+   ],
+   "duration": "6 month",
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "PT"
+  },
+  {
+   "row_index": 39,
+   "key": "ted:9a25846d-ab79-46f0-926c-ef70db1be88d:01",
+   "source": "ted",
+   "contract_type": "social_health_services",
+   "sector": "healthcare",
+   "object_summary": "Marché « Lote 5 », Acheteur publié : Unidade Local de Saúde do Médio Tejo, EPE, Signataire du contrat publié : Unidade Local de Saúde do Médio Tejo, EPE, à Imprensa Nacional-Casa da Moeda, S. A. (INCM), pour 38131.08 EUR",
+   "amount": "38131.08 EUR",
+   "characteristics": [
+    "several_lots",
+    "defined_contract_period"
+   ],
+   "duration": "6 month",
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "PT"
+  },
+  {
+   "row_index": 68,
+   "key": "simap:223ceb19-b3d4-4556-a417-84c1d5f7a3a9:",
+   "source": "simap",
+   "contract_type": "construction",
+   "sector": "education",
+   "object_summary": "Marché « Neubau Schule Dorf Root: BKP 421 Gärtenerarbeiten », Acheteur publié : Gemeinde Root, à Egli Gartenbau AG Sursee, pour 934877.5 CHF, à Root, CH-LU, décision du 2026-05-19. Objet publié : Die Gemeinde Root realis",
+   "amount": "934877.5 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-15",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 9,
+   "key": "simap:2120468f-1c42-4c6b-895a-fb5c4540aa31:",
+   "source": "simap",
+   "contract_type": "facility_services",
+   "sector": "environment",
+   "object_summary": "Marché « Nettoyages standards et annuels de la prison de la Croisée, Orbe / 2026-2031 », Acheteur publié : Service pénitentiaire, à Vebego AG, pour 379992.45 CHF, à Orbe, CH-VD, décision du 2026-06-22. Objet publié : Le ",
+   "amount": "379992.45 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 53,
+   "key": "ted:45348624-48c0-41d2-84e8-949cd611bc96:01",
+   "source": "ted",
+   "contract_type": "engineering_architecture",
+   "sector": "unknown",
+   "object_summary": "Marché « Lote 1: SR25-G-GALIGAL-PIA2-1: Servizo de redacción de PIA, proxecto de expropiación e apoio técnico e proxecto de parcelamento no Concello do Porriño », Acheteur publié : Instituto Gallego de la Vivienda y Suel",
+   "amount": "145407.07 EUR",
+   "characteristics": [
+    "several_lots",
+    "defined_contract_period"
+   ],
+   "duration": "15 month",
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "ES"
+  },
+  {
+   "row_index": 46,
+   "key": "ted:53e94d3e-20ca-414c-913e-37ca8ff4e9b1:01",
+   "source": "ted",
+   "contract_type": "business_services",
+   "sector": "unknown",
+   "object_summary": "Marché « Request for Tenders to establish a Multi-Supplier Framework Agreement for the provision of Graphic Design services for An Coimisiún Toghcháin, Ireland’s Electoral Commission », Acheteur publié : An Coimisiún Tog",
+   "amount": null,
+   "characteristics": [
+    "several_lots",
+    "long_duration"
+   ],
+   "duration": "48 month",
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "IE"
+  },
+  {
+   "row_index": 88,
+   "key": "simap:8ceaff6f-ec22-4008-b479-a00be28d673c:",
+   "source": "simap",
+   "contract_type": "construction",
+   "sector": "unknown",
+   "object_summary": "Marché « Site contaminé « Fradec SA » - Assainissement - Travaux généraux », Acheteurs publiés : Office des eaux et des déchets du canton de Berne (OED), Office des eaux et des déchets du canton de Berne, à Marti AG Bern",
+   "amount": "3464943.7 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 74,
+   "key": "simap:8aaed0d9-5a39-44e8-b12c-c78a9de66e33:",
+   "source": "simap",
+   "contract_type": "engineering_architecture",
+   "sector": "unknown",
+   "object_summary": "Marché « N18.61 MP-190080 - NEB Upn.Delémont-Soyhières - APR-DLT GC Secteur 1 (ID 11823) », Acheteur publié : Office fédéral des routes OFROU, Division Infrastructure routière Ouest, filiale Estavayer-le-Lac, à AFRY Schw",
+   "amount": "927565.55 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-13",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 79,
+   "key": "simap:03f8b8b8-6df3-4059-9571-bffcf6334c6c:",
+   "source": "simap",
+   "contract_type": "construction",
+   "sector": "unknown",
+   "object_summary": "Marché « Kaserne Oberer Rossstall / Reithalle, BKP 271 Gipserarbeiten », Acheteurs publiés : Bau- und Verkehrsdepartement des Kantons Basel-Stadt, Kantonale Fachstelle für öffentliche Beschaffungen (KFöB), Bau- und Verke",
+   "amount": "120752.89 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-15",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 11,
+   "key": "ted:029313d2-5ae7-49c8-b670-a59b1d86f9e3:01",
+   "source": "ted",
+   "contract_type": "equipment_supply",
+   "sector": "unknown",
+   "object_summary": "Marché « Reihen », Acheteur publié : Paris Lodron Universität Salzburg, Zentrale Wirtschaftsdienste, à Fa. Missing Link Versand buchhandLung eG, à Salzburg, AT323. Objet publié : Gegenstand dieses Rahmenvertrags, der sic",
+   "amount": null,
+   "characteristics": [
+    "several_lots",
+    "defined_contract_period"
+   ],
+   "duration": "12 month",
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "AT"
+  },
+  {
+   "row_index": 13,
+   "key": "ted:029313d2-5ae7-49c8-b670-a59b1d86f9e3:01",
+   "source": "ted",
+   "contract_type": "equipment_supply",
+   "sector": "unknown",
+   "object_summary": "Marché « Zeitschriften », Acheteur publié : Paris Lodron Universität Salzburg, Zentrale Wirtschaftsdienste, à SUWECO CZ, s.r.o., à Salzburg, AT323. Objet publié : Gegenstand dieses Rahmenvertrags, der sich auf die Aussch",
+   "amount": null,
+   "characteristics": [
+    "several_lots",
+    "defined_contract_period"
+   ],
+   "duration": "12 month",
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "AT"
+  },
+  {
+   "row_index": 23,
+   "key": "ted:87793466-cfae-44df-b2f2-c72497e55d3c:01",
+   "source": "ted",
+   "contract_type": "it_digital",
+   "sector": "unknown",
+   "object_summary": "Marché « Maintenance de la solution « HOSPILOG » et prestations associées à destination du CHU Caen Normandie », Acheteur publié : CENTRE HOSPITALIER UNIVERSITAIRE CAEN NORMANDIE, Signataire du contrat publié : CENTRE HO",
+   "amount": null,
+   "characteristics": [
+    "several_lots",
+    "defined_contract_period"
+   ],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": "2026-08-01",
+   "buyer_country": "FR"
+  },
+  {
+   "row_index": 71,
+   "key": "simap:ada42005-3b2c-4f28-8176-45659991ebf9:",
+   "source": "simap",
+   "contract_type": "it_digital",
+   "sector": "unknown",
+   "object_summary": "Marché « Applikation \"Einzelprojekt- und Portfoliomanagement\" für Kanton Zürich », Acheteur publié : Generalsekretariat, P+I, à Campana & Schott Switzerland AG, pour 620000.0 CHF, à Zürich, CH-ZH, décision du 2026-08-11.",
+   "amount": "620000.0 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-13",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 57,
+   "key": "simap:ebadc6da-a432-419c-bab1-b51359aec800:",
+   "source": "simap",
+   "contract_type": "equipment_supply",
+   "sector": "unknown",
+   "object_summary": "Marché « Marketingartikel », Acheteur publié : Kantonspolizei Bern, à bb trading werbeartikel ag, pour 153163.65 CHF, décision du 2026-08-13. Objet publié : Dieses Los umfasst die Beschaffung von Marketing- und Werbearti",
+   "amount": "153163.65 CHF",
+   "characteristics": [
+    "several_lots"
+   ],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 49,
+   "key": "simap:f40b8b92-6be2-4d3d-8acc-bdce383e5535:",
+   "source": "simap",
+   "contract_type": "engineering_architecture",
+   "sector": "unknown",
+   "object_summary": "Marché « Rahmenvertrag Fachleistungen Bahnbetrieb », Acheteur publié : Sihltal Zürich Uetliberg Bahn SZU AG, à GESTE Engineering SA, pour 5716234.0 CHF, décision du 2026-08-13. Objet publié : Dieses Los umfasst fachliche",
+   "amount": "5716234.0 CHF",
+   "characteristics": [
+    "several_lots"
+   ],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 50,
+   "key": "simap:f40b8b92-6be2-4d3d-8acc-bdce383e5535:",
+   "source": "simap",
+   "contract_type": "engineering_architecture",
+   "sector": "unknown",
+   "object_summary": "Marché « Rahmenvertrag Fachleistungen Bahnbetrieb », Acheteur publié : Sihltal Zürich Uetliberg Bahn SZU AG, à K-Tec Kummer Technologies AG, pour 5699654.0 CHF, décision du 2026-08-13. Objet publié : Dieses Los umfasst f",
+   "amount": "5699654.0 CHF",
+   "characteristics": [
+    "several_lots"
+   ],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 51,
+   "key": "simap:f40b8b92-6be2-4d3d-8acc-bdce383e5535:",
+   "source": "simap",
+   "contract_type": "engineering_architecture",
+   "sector": "unknown",
+   "object_summary": "Marché « Rahmenvertrag Fachleistungen Bahnbetrieb », Acheteur publié : Sihltal Zürich Uetliberg Bahn SZU AG, à Proplan Consulting GmbH, pour 5900005.0 CHF, décision du 2026-08-13. Objet publié : Dieses Los umfasst fachli",
+   "amount": "5900005.0 CHF",
+   "characteristics": [
+    "several_lots"
+   ],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 69,
+   "key": "simap:731d28d2-36cf-4362-be0c-ec7504d93f0e:",
+   "source": "simap",
+   "contract_type": "construction",
+   "sector": "unknown",
+   "object_summary": "Marché « Agrandissement du Musée gruérien et de la Bibliothèque de Bulle / CFC 271 - 281 - 283 - 285  Travaux de plâtrerie peinture », Acheteurs publiés : Consortium Sergison Bates architekten / Jaccaud + Associés, Ville",
+   "amount": "287253.59 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-14",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  },
+  {
+   "row_index": 56,
+   "key": "simap:21c822cc-2a92-409a-b4ae-d64d94ed6b1a:",
+   "source": "simap",
+   "contract_type": "equipment_supply",
+   "sector": "unknown",
+   "object_summary": "Marché « Fachhochschulzentrum Graubünden (FHZGR), Chur / BKP 233.14 – Spots Lieferung », Acheteur publié : Hochbauamt Graubünden, à XAL Schweiz GmbH, pour 298117.85 CHF, à Chur, CH-GR, décision du 2026-08-10. Objet publi",
+   "amount": "298117.85 CHF",
+   "characteristics": [],
+   "duration": null,
+   "published_at": "2026-08-13",
+   "contract_start_date": null,
+   "buyer_country": "CH"
+  }
+ ]
+}

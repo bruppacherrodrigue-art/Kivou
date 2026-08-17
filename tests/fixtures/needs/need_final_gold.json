@@ -1,0 +1,1598 @@
+{
+ "corpus": "NEED-FINAL",
+ "rubric_version": "need-support-rubric-v1",
+ "adjudicator": "Claude (Fable 5) — PASS A et PASS B indépendantes puis arbitrage individuel, AVANT tout run du moteur",
+ "agreement": {
+  "award_lots": 100,
+  "pairs_total": 700,
+  "pairs_agreed": 697,
+  "agreement": 0.9957,
+  "nontrivial_pairs": 167,
+  "nontrivial_agreement": 0.982,
+  "disagreements": 3,
+  "confusion": {
+   "A=forbidden|B=forbidden": 533,
+   "A=supported|B=supported": 150,
+   "A=plausible_but_weak|B=plausible_but_weak": 14,
+   "A=supported|B=plausible_but_weak": 2,
+   "A=forbidden|B=plausible_but_weak": 1
+  },
+  "disagreement_by_category": {
+   "workforce_capacity": 2,
+   "specialist_subcontracting": 1
+  },
+  "disagreement_detail": [
+   {
+    "case_id": 7,
+    "category": "workforce_capacity",
+    "pass_a": "supported",
+    "pass_b": "plausible_but_weak"
+   },
+   {
+    "case_id": 9,
+    "category": "specialist_subcontracting",
+    "pass_a": "supported",
+    "pass_b": "plausible_but_weak"
+   },
+   {
+    "case_id": 67,
+    "category": "workforce_capacity",
+    "pass_a": "forbidden",
+    "pass_b": "plausible_but_weak"
+   }
+  ]
+ },
+ "arbitrations": [
+  {
+   "case_id": 7,
+   "category": "workforce_capacity",
+   "pass_a": "supported",
+   "pass_b": "plausible_but_weak",
+   "arbitrated": "forbidden"
+  },
+  {
+   "case_id": 9,
+   "category": "specialist_subcontracting",
+   "pass_a": "supported",
+   "pass_b": "plausible_but_weak",
+   "arbitrated": "forbidden"
+  },
+  {
+   "case_id": 67,
+   "category": "workforce_capacity",
+   "pass_a": "forbidden",
+   "pass_b": "plausible_but_weak",
+   "arbitrated": "forbidden"
+  }
+ ],
+ "composition": {
+  "award_lots": 100,
+  "eligible_award_lots": 50,
+  "supported_by_category": {
+   "specialist_subcontracting": 44,
+   "workforce_capacity": 33,
+   "safety_and_ppe": 27,
+   "equipment_or_rental": 16,
+   "materials_or_components": 16,
+   "waste_and_environment": 14
+  },
+  "plausible_but_weak_by_category": {
+   "workforce_capacity": 5,
+   "materials_or_components": 2,
+   "specialist_subcontracting": 2,
+   "safety_and_ppe": 2,
+   "waste_and_environment": 2,
+   "equipment_or_rental": 1
+  }
+ },
+ "rows": [
+  {
+   "case_id": 0,
+   "notice": "543715-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 1,
+   "notice": "543714-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 2,
+   "notice": "543712-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 3,
+   "notice": "543712-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 4,
+   "notice": "543711-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 5,
+   "notice": "543709-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "near_term"
+  },
+  {
+   "case_id": 6,
+   "notice": "543707-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 7,
+   "notice": "543695-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "near_term"
+  },
+  {
+   "case_id": 8,
+   "notice": "543694-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "plausible_but_weak",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 9,
+   "notice": "543693-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 10,
+   "notice": "543692-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 11,
+   "notice": "543690-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 12,
+   "notice": "543689-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 13,
+   "notice": "543688-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 14,
+   "notice": "543686-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "plausible_but_weak",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 15,
+   "notice": "543680-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 16,
+   "notice": "543675-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 17,
+   "notice": "543673-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 18,
+   "notice": "543670-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 19,
+   "notice": "543664-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 20,
+   "notice": "543662-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 21,
+   "notice": "543661-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 22,
+   "notice": "543660-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 23,
+   "notice": "543660-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 24,
+   "notice": "543659-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 25,
+   "notice": "543657-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 26,
+   "notice": "543656-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 27,
+   "notice": "543655-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "recurring"
+  },
+  {
+   "case_id": 28,
+   "notice": "543654-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 29,
+   "notice": "543652-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 30,
+   "notice": "543650-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 31,
+   "notice": "543650-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 32,
+   "notice": "543647-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 33,
+   "notice": "543646-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "plausible_but_weak",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "plausible_but_weak",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "plausible_but_weak",
+    "safety_and_ppe": "plausible_but_weak",
+    "waste_and_environment": "plausible_but_weak"
+   },
+   "gold_timing": "near_term"
+  },
+  {
+   "case_id": 34,
+   "notice": "543645-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 35,
+   "notice": "543644-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 36,
+   "notice": "543643-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 37,
+   "notice": "543638-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "plausible_but_weak",
+    "equipment_or_rental": "plausible_but_weak",
+    "materials_or_components": "plausible_but_weak",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "plausible_but_weak",
+    "safety_and_ppe": "plausible_but_weak",
+    "waste_and_environment": "plausible_but_weak"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 38,
+   "notice": "543636-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "plausible_but_weak",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 39,
+   "notice": "543635-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 40,
+   "notice": "543632-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 41,
+   "notice": "543630-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 42,
+   "notice": "543628-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 43,
+   "notice": "543627-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 44,
+   "notice": "543625-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 45,
+   "notice": "543625-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 46,
+   "notice": "543624-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 47,
+   "notice": "543624-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 48,
+   "notice": "543623-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 49,
+   "notice": "543619-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 50,
+   "notice": "543618-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 51,
+   "notice": "543618-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 52,
+   "notice": "543617-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 53,
+   "notice": "543617-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 54,
+   "notice": "543616-2026",
+   "source": "ted",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "immediate"
+  },
+  {
+   "case_id": 55,
+   "notice": "c68e3690-d37c-4590-8cf0-07a57653c06e/fbdd05e6-a5e9-405e-9c38-9b80744447ca",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 56,
+   "notice": "b85e7866-b4ed-47f7-a384-dbf5b52a265e/a827a2b0-d8a5-4581-a7e0-5984eaa7fde7",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 57,
+   "notice": "a86204c2-8f36-4a0d-81be-3f9745abd670/29020700-a9ba-4ea0-a328-7fd52f02cbde",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 58,
+   "notice": "6f477e90-035f-42dd-b997-6b3f92950e6c/b902695e-8587-4590-9fa2-4b654a45459a",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 59,
+   "notice": "fbbf60e7-e0c2-4879-94df-6e75df90ba2b/f251c0e7-815b-4e6e-8377-3c1efa24d414",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 60,
+   "notice": "d5bf8b5f-b0cd-4df4-aaed-3e3303ea0644/3bd442a0-5bf0-49a9-a2bf-3c9ebcb93a8e",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 61,
+   "notice": "8eb5b64f-3cc4-4788-8901-d0865fe1f361/f97da32b-7c6b-41fd-9c66-e45a3680f36c",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 62,
+   "notice": "48d4be56-ab61-4425-9154-1af249539685/0684b2c6-e2d1-4c72-b973-9c0a0a6149e2",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 63,
+   "notice": "3834b378-0df1-4c24-975f-f8cc2ec1bad7/2b95d64a-bccf-4142-9a1f-6af296bd6844",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 64,
+   "notice": "4821d66c-56ea-4871-b38b-222f8d927183/d01ecd88-abd6-4307-a592-5fbff5c5ddb4",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 65,
+   "notice": "107d6b05-2d13-4f87-a2e2-443bcbde508e/6cbbd42f-3622-44a2-b8d3-a23fe640ed02",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 66,
+   "notice": "65be74cc-33de-4145-9bee-c9b2c85481a9/a1dd1e2c-0923-40f6-addc-7f6e830045a7",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 67,
+   "notice": "938c3dc0-d6ec-4457-8dd9-fa6f7f783016/fd9a539c-78a8-4187-b246-3eb8283d1025",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 68,
+   "notice": "bad49bc3-5dd9-4837-a253-eec0984b93fa/c16d4218-e183-46b6-b9fe-9ac936f1991e",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 69,
+   "notice": "efaaa300-8368-4448-9853-391ed3736447/1c2f1e85-0efc-4fc9-b6b6-b258f8611eea",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 70,
+   "notice": "70471a17-a905-430c-b134-60a968698d48/5b13bbde-b968-4609-a970-18dd1ff8d161",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 71,
+   "notice": "6a569f81-5e02-4e1f-88b3-2f431874f4fc/6154a458-906f-4add-af96-73767ba07f4b",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 72,
+   "notice": "17964eb1-073a-4afc-8d38-b1518ea25491/d2eace23-a136-4a2d-ac7d-4c2588a612e5",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 73,
+   "notice": "e45c0b0f-6249-4411-bb7c-3b34f4ebcbcb/2099a53a-410b-4cda-b56a-a09dbd2d7c09",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 74,
+   "notice": "692c48e2-4810-415e-9086-aef22bf16733/8aa17e81-a6d4-4549-8868-9c8f8b827255",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 75,
+   "notice": "a66f27ec-a9bd-4d72-a5a8-f01c80366b78/2b5ea8c4-9dbc-475f-bcc8-93de3c692973",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 76,
+   "notice": "03e5f304-e322-4ba7-b3c4-7ca6ac9260c6/d0b45ae3-3c61-4f8c-a078-c324241b7d48",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 77,
+   "notice": "14b3d0d9-1e55-45b2-a849-09ba2741a9a7/e47b2fd7-fb10-4dd1-83d0-0152d003f3db",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 78,
+   "notice": "789fab76-ae12-4e5f-a449-aab87033349e/b2a27666-1e6d-4ade-a6a6-aaf531449cb7",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 79,
+   "notice": "66e7d640-97ed-41b1-9072-d76cad046559/a8151554-c973-4367-a7a5-5c0f93b8891f",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 80,
+   "notice": "ff65fff9-7bdf-4a87-91bc-77c10ec9550c/8001a868-ad00-456f-b0b5-417ce4eb86a2",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 81,
+   "notice": "a3c1b904-a054-4a8d-9ea7-f85fd7da39a6/6219f44e-3ae1-4a65-8d4b-ec07af39039f",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 82,
+   "notice": "a2522919-7154-49f1-8c12-a86580d3a1d8/05a3c21e-16a5-44eb-85eb-89f527e18d50",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 83,
+   "notice": "90bad2cb-604f-478b-86cc-a932ab52b588/d7104c02-c852-45ee-86a8-b53d524a42eb",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 84,
+   "notice": "1088310a-5165-4a31-8c06-435550a42e3c/20abd3ad-2616-41b7-a96f-19bd449b7566",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 85,
+   "notice": "855e9861-1f5a-4d50-b9c3-951f37bde9fe/2fa046de-241f-4d71-83f4-6712d53f7639",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 86,
+   "notice": "203ce1f0-9277-4914-9f27-4812b6d696ea/3d0c22f9-3b94-4e9d-a6a0-ff5bb30c3939",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 87,
+   "notice": "d17debb7-81f4-4a5d-bf76-3d497e1d1475/40f7b660-3a3a-4738-bd77-46620fe31e87",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 88,
+   "notice": "19a19afb-b870-4c88-852c-e4545841e0ac/fcbf136e-cb19-424a-87f1-c7c6ac630621",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 89,
+   "notice": "47dd2de9-d325-47e4-9ff1-991ecf60079b/e8a78435-6e0f-4e5e-ad59-b6f1cfa7f1a4",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "supported",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "supported"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 90,
+   "notice": "40be4406-356a-4da8-becb-9f930acef28b/aeecae4f-7179-4989-938b-c46ae3a30a39",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 91,
+   "notice": "4aa1218f-3467-4374-8173-0861657057f1/491dadae-4fc6-4400-9536-200b42f55fdb",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 92,
+   "notice": "5a6fbfc7-cced-46c9-8e8f-cb22855e3647/31abe6d5-accc-4a6d-b9b0-c83692a984a0",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 93,
+   "notice": "4afbadb4-b54f-47c9-a703-6288cb334d16/5d1a9f7a-ca24-406c-a29c-904be94c4d8f",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 94,
+   "notice": "0f28c040-887e-417e-9125-776004edc96c/e9b86d39-c033-4d09-a09b-3a0b448d51b2",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 95,
+   "notice": "f7b6ad88-fad1-4db2-8c11-2cda8b343d01/c719d429-2349-4beb-abce-2549312bf19b",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 96,
+   "notice": "ef0767cc-79b1-4ee8-82e9-46e78b8dfaec/6cd28776-c3b2-49ea-94bf-7dac992a4a7d",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "supported",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "supported",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "supported",
+    "safety_and_ppe": "supported",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 97,
+   "notice": "2410677e-5ed4-4fc6-82a4-7a5cda0feba2/85020d58-3b08-4a00-871f-027a6a22a3d6",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 98,
+   "notice": "ef1b3053-19a0-4774-bfd5-c90f7d071760/6e38e062-cc7d-42f6-bd18-9f0de8679821",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  },
+  {
+   "case_id": 99,
+   "notice": "0de6d042-d0a8-4eec-b1f4-50982aa1798e/220ac225-90f7-4a9f-a404-547d6954e813",
+   "source": "simap",
+   "verdicts": {
+    "workforce_capacity": "forbidden",
+    "equipment_or_rental": "forbidden",
+    "materials_or_components": "forbidden",
+    "logistics_and_transport": "forbidden",
+    "specialist_subcontracting": "forbidden",
+    "safety_and_ppe": "forbidden",
+    "waste_and_environment": "forbidden"
+   },
+   "gold_timing": "unknown"
+  }
+ ],
+ "frozen": {
+  "corpus_sha256": "666050002f7b386a6ac8e1f818a33c6caf38d14573f9b54134cfac9f87b4072e",
+  "rubric_version": "need-support-rubric-v1",
+  "rule_library_version": "need-rules-v0.4",
+  "engine_version": "need-graph-v0.1",
+  "frozen_at": "2026-08-17",
+  "note": "CORPUS IMMUTABLE — GOLD IMMUTABLE — RULES IMMUTABLE — POLICY IMMUTABLE"
+ }
+}

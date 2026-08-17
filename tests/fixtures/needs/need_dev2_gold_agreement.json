@@ -1,0 +1,82 @@
+{
+ "award_lots": 100,
+ "pairs_total": 700,
+ "pairs_agreed": 690,
+ "agreement": 0.9857,
+ "nontrivial_pairs": 182,
+ "nontrivial_agreed": 172,
+ "nontrivial_agreement": 0.9451,
+ "disagreements": 10,
+ "confusion": {
+  "A=forbidden|B=forbidden": 518,
+  "A=supported|B=supported": 156,
+  "A=plausible_but_weak|B=plausible_but_weak": 16,
+  "A=plausible_but_weak|B=supported": 10
+ },
+ "disagreement_by_category": {
+  "workforce_capacity": 5,
+  "equipment_or_rental": 5
+ },
+ "disagreement_detail": [
+  {
+   "case_id": 41,
+   "category": "workforce_capacity",
+   "pass_a": "plausible_but_weak",
+   "pass_b": "supported"
+  },
+  {
+   "case_id": 41,
+   "category": "equipment_or_rental",
+   "pass_a": "plausible_but_weak",
+   "pass_b": "supported"
+  },
+  {
+   "case_id": 42,
+   "category": "workforce_capacity",
+   "pass_a": "plausible_but_weak",
+   "pass_b": "supported"
+  },
+  {
+   "case_id": 42,
+   "category": "equipment_or_rental",
+   "pass_a": "plausible_but_weak",
+   "pass_b": "supported"
+  },
+  {
+   "case_id": 43,
+   "category": "workforce_capacity",
+   "pass_a": "plausible_but_weak",
+   "pass_b": "supported"
+  },
+  {
+   "case_id": 43,
+   "category": "equipment_or_rental",
+   "pass_a": "plausible_but_weak",
+   "pass_b": "supported"
+  },
+  {
+   "case_id": 44,
+   "category": "workforce_capacity",
+   "pass_a": "plausible_but_weak",
+   "pass_b": "supported"
+  },
+  {
+   "case_id": 44,
+   "category": "equipment_or_rental",
+   "pass_a": "plausible_but_weak",
+   "pass_b": "supported"
+  },
+  {
+   "case_id": 45,
+   "category": "workforce_capacity",
+   "pass_a": "plausible_but_weak",
+   "pass_b": "supported"
+  },
+  {
+   "case_id": 45,
+   "category": "equipment_or_rental",
+   "pass_a": "plausible_but_weak",
+   "pass_b": "supported"
+  }
+ ]
+}

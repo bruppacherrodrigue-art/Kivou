@@ -1,0 +1,1001 @@
+{
+ "corpus": "NEED-100-HELDOUT",
+ "adjudicator": "Claude (Fable 5) — PASS A (10 lots) puis PASS B en aveugle (47 cas éligibles), AVANT toute exécution du moteur",
+ "consolidation_rule": "supported = consensus A∩B (une catégorie contestée n'est pas soutenue) ; forbidden = prudence A∪B ; timing = §19 recalculé déterministement sur les faits canoniques",
+ "independence_caveat": "L'adjudicateur est le même modèle que celui qui a écrit les règles ; les deux passes sont indépendantes l'une de l'autre, et le gold a été figé avant tout run du moteur.",
+ "review_changes": [
+  {
+   "row_index": 6,
+   "field": "supported",
+   "pass_a": [
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "pass_b": [
+    "workforce_capacity"
+   ],
+   "final": [
+    "workforce_capacity"
+   ],
+   "rule": "consensus A∩B — une catégorie contestée n'est pas soutenue"
+  },
+  {
+   "row_index": 7,
+   "field": "supported",
+   "pass_a": [
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "pass_b": [
+    "workforce_capacity"
+   ],
+   "final": [
+    "workforce_capacity"
+   ],
+   "rule": "consensus A∩B — une catégorie contestée n'est pas soutenue"
+  },
+  {
+   "row_index": 9,
+   "field": "supported",
+   "pass_a": [
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "pass_b": [
+    "workforce_capacity"
+   ],
+   "final": [
+    "workforce_capacity"
+   ],
+   "rule": "consensus A∩B — une catégorie contestée n'est pas soutenue"
+  },
+  {
+   "row_index": 9,
+   "field": "timing",
+   "pass_a": "recurring",
+   "pass_b": "recurring",
+   "final": "unknown",
+   "rule": "§19 recalculé déterministement sur les faits canoniques"
+  },
+  {
+   "row_index": 10,
+   "field": "supported",
+   "pass_a": [
+    "workforce_capacity"
+   ],
+   "pass_b": [],
+   "final": [],
+   "rule": "consensus A∩B — une catégorie contestée n'est pas soutenue"
+  },
+  {
+   "row_index": 10,
+   "field": "forbidden",
+   "pass_a": [],
+   "pass_b": [
+    "waste_and_environment"
+   ],
+   "final": [
+    "waste_and_environment"
+   ],
+   "rule": "prudence A∪B — toute faute grave signalée compte"
+  },
+  {
+   "row_index": 10,
+   "field": "timing",
+   "pass_a": "recurring",
+   "pass_b": "recurring",
+   "final": "unknown",
+   "rule": "§19 recalculé déterministement sur les faits canoniques"
+  },
+  {
+   "row_index": 11,
+   "field": "supported",
+   "pass_a": [
+    "logistics_and_transport"
+   ],
+   "pass_b": [],
+   "final": [],
+   "rule": "consensus A∩B — une catégorie contestée n'est pas soutenue"
+  },
+  {
+   "row_index": 16,
+   "field": "supported",
+   "pass_a": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "pass_b": [
+    "equipment_or_rental",
+    "workforce_capacity"
+   ],
+   "final": [
+    "equipment_or_rental",
+    "workforce_capacity"
+   ],
+   "rule": "consensus A∩B — une catégorie contestée n'est pas soutenue"
+  },
+  {
+   "row_index": 27,
+   "field": "forbidden",
+   "pass_a": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe",
+    "waste_and_environment"
+   ],
+   "pass_b": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "final": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe",
+    "waste_and_environment",
+    "workforce_capacity"
+   ],
+   "rule": "prudence A∪B — toute faute grave signalée compte"
+  },
+  {
+   "row_index": 49,
+   "field": "forbidden",
+   "pass_a": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "pass_b": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "final": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "rule": "prudence A∪B — toute faute grave signalée compte"
+  },
+  {
+   "row_index": 50,
+   "field": "forbidden",
+   "pass_a": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "pass_b": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "final": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "rule": "prudence A∪B — toute faute grave signalée compte"
+  },
+  {
+   "row_index": 51,
+   "field": "forbidden",
+   "pass_a": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "pass_b": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "final": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "rule": "prudence A∪B — toute faute grave signalée compte"
+  },
+  {
+   "row_index": 77,
+   "field": "supported",
+   "pass_a": [
+    "equipment_or_rental",
+    "safety_and_ppe",
+    "workforce_capacity"
+   ],
+   "pass_b": [
+    "equipment_or_rental",
+    "workforce_capacity"
+   ],
+   "final": [
+    "equipment_or_rental",
+    "workforce_capacity"
+   ],
+   "rule": "consensus A∩B — une catégorie contestée n'est pas soutenue"
+  },
+  {
+   "row_index": 77,
+   "field": "forbidden",
+   "pass_a": [
+    "logistics_and_transport",
+    "waste_and_environment"
+   ],
+   "pass_b": [
+    "logistics_and_transport",
+    "specialist_subcontracting",
+    "waste_and_environment"
+   ],
+   "final": [
+    "logistics_and_transport",
+    "specialist_subcontracting",
+    "waste_and_environment"
+   ],
+   "rule": "prudence A∪B — toute faute grave signalée compte"
+  },
+  {
+   "row_index": 83,
+   "field": "supported",
+   "pass_a": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe",
+    "waste_and_environment",
+    "workforce_capacity"
+   ],
+   "pass_b": [
+    "logistics_and_transport",
+    "workforce_capacity"
+   ],
+   "final": [
+    "workforce_capacity"
+   ],
+   "rule": "consensus A∩B — une catégorie contestée n'est pas soutenue"
+  },
+  {
+   "row_index": 83,
+   "field": "forbidden",
+   "pass_a": [],
+   "pass_b": [
+    "equipment_or_rental",
+    "specialist_subcontracting"
+   ],
+   "final": [
+    "equipment_or_rental",
+    "specialist_subcontracting"
+   ],
+   "rule": "prudence A∪B — toute faute grave signalée compte"
+  },
+  {
+   "row_index": 88,
+   "field": "supported",
+   "pass_a": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe",
+    "waste_and_environment",
+    "workforce_capacity"
+   ],
+   "pass_b": [
+    "equipment_or_rental",
+    "safety_and_ppe",
+    "waste_and_environment",
+    "workforce_capacity"
+   ],
+   "final": [
+    "equipment_or_rental",
+    "safety_and_ppe",
+    "waste_and_environment",
+    "workforce_capacity"
+   ],
+   "rule": "consensus A∩B — une catégorie contestée n'est pas soutenue"
+  },
+  {
+   "row_index": 88,
+   "field": "forbidden",
+   "pass_a": [],
+   "pass_b": [
+    "specialist_subcontracting"
+   ],
+   "final": [
+    "specialist_subcontracting"
+   ],
+   "rule": "prudence A∪B — toute faute grave signalée compte"
+  },
+  {
+   "row_index": 94,
+   "field": "supported",
+   "pass_a": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe",
+    "waste_and_environment",
+    "workforce_capacity"
+   ],
+   "pass_b": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe",
+    "workforce_capacity"
+   ],
+   "final": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe",
+    "workforce_capacity"
+   ],
+   "rule": "consensus A∩B — une catégorie contestée n'est pas soutenue"
+  },
+  {
+   "row_index": 94,
+   "field": "forbidden",
+   "pass_a": [],
+   "pass_b": [
+    "specialist_subcontracting"
+   ],
+   "final": [
+    "specialist_subcontracting"
+   ],
+   "rule": "prudence A∪B — toute faute grave signalée compte"
+  }
+ ],
+ "rows": [
+  {
+   "row_index": 6,
+   "key": "ted:87b51ccf-baa9-499c-bec1-0d2a11b6c1fc:01",
+   "gold_supported": [
+    "workforce_capacity"
+   ],
+   "gold_forbidden": [],
+   "gold_eligible": true,
+   "gold_timing": "recurring",
+   "gold_external_forbidden": [
+    "specialist_subcontracting",
+    "equipment_or_rental",
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Accord-cadre de nettoyage scolaire (facility, CPV 90919300) sur 6 ans, multi-lots, 408 130 EUR : type à intensité humaine + longue durée soutiennent le personnel et les consommables d'entretien. Service récurrent avec durée publiée ≥ 12 mois → recurring ; montant < 1M EUR, donc pas de fait d'échelle."
+  },
+  {
+   "row_index": 7,
+   "key": "ted:87b51ccf-baa9-499c-bec1-0d2a11b6c1fc:01",
+   "gold_supported": [
+    "workforce_capacity"
+   ],
+   "gold_forbidden": [],
+   "gold_eligible": true,
+   "gold_timing": "recurring",
+   "gold_external_forbidden": [
+    "specialist_subcontracting",
+    "equipment_or_rental",
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Lot 2 du même accord-cadre de nettoyage (KOSE CLEANING, 239 427 EUR, 6 ans, multi-lots) : facility à intensité humaine + longue durée soutiennent personnel et consommables. Durée récurrente ≥ 12 mois → recurring ; montant < 1M EUR, échelle non soutenue."
+  },
+  {
+   "row_index": 9,
+   "key": "simap:2120468f-1c42-4c6b-895a-fb5c4540aa31:",
+   "gold_supported": [
+    "workforce_capacity"
+   ],
+   "gold_forbidden": [],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "equipment_or_rental",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Service de nettoyage (facility, forte intensité humaine) avec période publiée 2026-2031 dans l'intitulé (≥ 12 mois) → recurring ; type + longue durée soutiennent le personnel et les consommables de nettoyage comme intrants réels. Montant modeste (379 992 CHF sur ~5 ans) sans lots ni groupement : affirmer l'externalisation d'équipement ou de sous-traitance serait excessif."
+  },
+  {
+   "row_index": 10,
+   "key": "simap:c506ab8b-44e6-402e-b380-d1e301b31a6d:",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "waste_and_environment"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Service de facility récurrent (contrôles de séparateurs à hydrocarbures) avec durée publiée dans l'objet « Contrat 2027 - 2030 » (≥ 12 mois) → recurring, et type à intensité humaine + longue durée = deux faits soutenant la capacité de personnel. Montant modeste (202 622 CHF sur 4 ans) et gagnant de grande taille (Implenia) : affirmer l'externalisation (intérim, sous-traitance) serait excessif."
+  },
+  {
+   "row_index": 11,
+   "key": "ted:029313d2-5ae7-49c8-b670-a59b1d86f9e3:01",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [],
+   "gold_reasoning": "Accord-cadre de fourniture de livres sur 12 mois en plusieurs lots : la distribution récurrente est un intrant défendable (type fourniture + durée définie + multi-lots). Montant absent (échelle inconnue) ; équipements/composants répéteraient le deliverable du libraire ; aucune date de début et type non récurrent → unknown."
+  },
+  {
+   "row_index": 13,
+   "key": "ted:029313d2-5ae7-49c8-b670-a59b1d86f9e3:01",
+   "gold_supported": [
+    "logistics_and_transport"
+   ],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [],
+   "gold_reasoning": "Accord-cadre de fourniture de périodiques sur 12 mois multi-lots : livraisons récurrentes → la distribution est un intrant défendable (type + durée + lots). Montant non publié, donc pas d'échelle ; les périodiques eux-mêmes sont le deliverable (composants/équipements = CRITICAL) ; pas de date de début → unknown."
+  },
+  {
+   "row_index": 16,
+   "key": "simap:d48b31d4-d45e-4902-b103-24e0f25c43d9:",
+   "gold_supported": [
+    "equipment_or_rental",
+    "workforce_capacity"
+   ],
+   "gold_forbidden": [],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "equipment_or_rental",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Travaux de génie civil (Tiefbau, CPV 45230000) + several_lots = deux faits indépendants soutenant personnel, engins et matériaux consommés ; le montant (298 925 CHF) reste sous 1M donc pas de fait d'échelle, ce qui interdit d'affirmer l'externalisation (intérim, location, sous-traitance) et exclut EPI/déchets du supported. Aucune date de début publiée → timing unknown."
+  },
+  {
+   "row_index": 23,
+   "key": "ted:87793466-cfae-44df-b2f2-c72497e55d3c:01",
+   "gold_supported": [
+    "workforce_capacity"
+   ],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "logistics_and_transport",
+    "materials_or_components",
+    "safety_and_ppe",
+    "waste_and_environment"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "immediate",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Maintenance logicielle pluriannuelle (2026-08-01 → 2030-07-30) multi-lots : service de maintenance de longue durée → capacité de personnel défendable sur type + durée + lots. Pur logiciel : toute catégorie physique (y compris transport malgré le nom KLS Logistic Systems) serait un CRITICAL false need ; start publié 13 j avant la publication → immediate ; montant absent → externalisation suraffirmée."
+  },
+  {
+   "row_index": 24,
+   "key": "ted:32c89610-a301-4d64-afab-96046f7ddafc:01",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Développement logiciel pur (app Kotlin, 14 140 EUR) : équipement, matériaux et EPI sont des absurdités commerciales critiques pour une prestation purement numérique ; several_lots sans aucune échelle ni autre indice ne soutient rien. Pas de dates → unknown."
+  },
+  {
+   "row_index": 25,
+   "key": "simap:17081ee0-79a4-4c7d-b700-564cb4c7fce4:",
+   "gold_supported": [
+    "specialist_subcontracting"
+   ],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe",
+    "waste_and_environment"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Prestation intellectuelle it_digital (Leitung und Koordination de transformation) : équipement, matériaux, EPI et déchets seraient des false needs critiques. Grande échelle (3,51M CHF ≥ 1M) + multi-lots soutiennent la sous-traitance de spécialités ; workforce non soutenu (type hors liste à intensité humaine) ; pas de date de début → unknown."
+  },
+  {
+   "row_index": 26,
+   "key": "simap:17081ee0-79a4-4c7d-b700-564cb4c7fce4:",
+   "gold_supported": [
+    "specialist_subcontracting"
+   ],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe",
+    "waste_and_environment"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Même marché SZU attribué à Detecon (3,55M CHF ≥ 1M, multi-lots) : coordination de transformation = prestation intellectuelle, donc équipement/matériaux/EPI/déchets sont des false needs critiques ; échelle + lots soutiennent la seule sous-traitance de spécialités. Pas de date de début → unknown."
+  },
+  {
+   "row_index": 27,
+   "key": "simap:17081ee0-79a4-4c7d-b700-564cb4c7fce4:",
+   "gold_supported": [
+    "specialist_subcontracting"
+   ],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe",
+    "waste_and_environment",
+    "workforce_capacity"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Même marché SZU attribué à Digizone (3,17M CHF ≥ 1M, multi-lots) : prestation intellectuelle it_digital → équipement, matériaux, EPI et déchets interdits comme false needs critiques ; grande échelle + multi-lots soutiennent la sous-traitance de spécialités. Aucune date de début → unknown."
+  },
+  {
+   "row_index": 28,
+   "key": "ted:cddfc836-3629-4f10-a4b2-d9015d5d1671:01",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "materials_or_components"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "immediate",
+   "gold_external_forbidden": [
+    "logistics_and_transport",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "gold_reasoning": "Fourniture médicale (Naloxone) de 26 EUR sur un mois : montant dérisoire et lot unique attribué → aucun besoin défendable sur deux faits ; « composants » pour un fournisseur médical = répétition critique du deliverable. Start 2026-08-11 vs publication 2026-08-14 (écart ≤ 30 j) → immediate."
+  },
+  {
+   "row_index": 35,
+   "key": "ted:9a25846d-ab79-46f0-926c-ef70db1be88d:01",
+   "gold_supported": [],
+   "gold_forbidden": [],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting",
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Objet opaque (« Lote 1 »), 185 084 EUR (< 1M), durée 6 mois (< 12) et gagnant (Imprensa Nacional-Casa da Moeda) incohérent avec le CPV 85143000 : aucun besoin défendable sur deux faits convergents → 0 besoin, résultat normal. Pas de date de début → unknown."
+  },
+  {
+   "row_index": 36,
+   "key": "ted:9a25846d-ab79-46f0-926c-ef70db1be88d:01",
+   "gold_supported": [],
+   "gold_forbidden": [],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting",
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Lot 2 du même marché opaque (« Lote 2 », 40 364 EUR, 6 mois) : montant très faible, objet non décrit et gagnant imprimerie nationale contradictoire avec le CPV santé — aucun intrant défendable → 0 besoin. Durée < 12 mois et pas de date de début → unknown."
+  },
+  {
+   "row_index": 37,
+   "key": "ted:9a25846d-ab79-46f0-926c-ef70db1be88d:01",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "logistics_and_transport"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Lot de 22 428,51 EUR sur 6 mois : échelle minime et durée < 12 mois — aucun besoin défendable sur deux faits, le multi-lots ne compense pas l'échelle infime. CPV 85143000 (services d'ambulance) : le transport est le deliverable, donc logistics_and_transport serait un CRITICAL false need ; aucune date de début publiée → unknown."
+  },
+  {
+   "row_index": 38,
+   "key": "ted:9a25846d-ab79-46f0-926c-ef70db1be88d:01",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "logistics_and_transport"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Lot de 45 666,32 EUR sur 6 mois : même avis que le lot 3, échelle minime et durée < 12 mois — aucun besoin défendable malgré le type social-santé à intensité humaine. Le CPV ambulances fait de logistics_and_transport une répétition du deliverable ; pas de début publié → unknown."
+  },
+  {
+   "row_index": 39,
+   "key": "ted:9a25846d-ab79-46f0-926c-ef70db1be88d:01",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "logistics_and_transport"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Lot de 38 131,08 EUR sur 6 mois : échelle minime, durée < 12 mois → ni recurring ni aucun besoin soutenu par deux faits indépendants. Transport = deliverable (CPV ambulances) donc logistics_and_transport interdit ; aucune date de début → unknown."
+  },
+  {
+   "row_index": 46,
+   "key": "ted:53e94d3e-20ca-414c-913e-37ca8ff4e9b1:01",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Accord-cadre multi-fournisseurs de design graphique sans montant publié : échelle inconnue et prestation intellectuelle/créative → équipement et matériaux seraient des faux besoins critiques, rien de supported. Durée de 48 mois mais type business_services hors liste des services récurrents et aucun début publié → unknown."
+  },
+  {
+   "row_index": 49,
+   "key": "simap:f40b8b92-6be2-4d3d-8acc-bdce383e5535:",
+   "gold_supported": [
+    "specialist_subcontracting"
+   ],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity"
+   ],
+   "gold_reasoning": "Accord-cadre de prestations spécialisées ferroviaires à 5 716 234 CHF (grande échelle ≥ 1M CHF) en plusieurs lots : sous-traitance de spécialités distinctes défendable sur échelle + lots + cadre. Type ingénierie (intellectuel) → équipements et matériaux seraient des CRITICAL false needs ; pas dans la liste des types à intensité humaine → workforce non soutenu ; aucune date/durée → unknown."
+  },
+  {
+   "row_index": 50,
+   "key": "simap:f40b8b92-6be2-4d3d-8acc-bdce383e5535:",
+   "gold_supported": [
+    "specialist_subcontracting"
+   ],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity"
+   ],
+   "gold_reasoning": "Même accord-cadre Bahnbetrieb, lot K-Tec à 5 699 654 CHF : grande échelle (≥ 1M CHF) + multi-lots soutiennent la sous-traitance de spécialités. Prestation d'ingénierie → équipements/matériaux interdits (règle 3) ; ni début ni durée publiés → unknown."
+  },
+  {
+   "row_index": 51,
+   "key": "simap:f40b8b92-6be2-4d3d-8acc-bdce383e5535:",
+   "gold_supported": [
+    "specialist_subcontracting"
+   ],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "workforce_capacity"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity"
+   ],
+   "gold_reasoning": "Même accord-cadre Bahnbetrieb, lot Proplan à 5 900 005 CHF : échelle ≥ 1M CHF + plusieurs lots = indices multiples pour la sous-traitance de spécialités distinctes. Type ingénierie intellectuel → pas d'équipement ni de matériaux ; aucune date de début ni durée → unknown."
+  },
+  {
+   "row_index": 53,
+   "key": "ted:45348624-48c0-41d2-84e8-949cd611bc96:01",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Prestation intellectuelle (rédaction de PIA/urbanisme, 145 407 EUR, 15 mois) : équipement et matériaux seraient des faux besoins critiques pour un bureau d'études, et aucun intrant n'est défendable sur deux faits (type non listé à intensité humaine, montant < 1 M EUR). Pas de date de début et type non récurrent → unknown."
+  },
+  {
+   "row_index": 56,
+   "key": "simap:21c822cc-2a92-409a-b4ae-d64d94ed6b1a:",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Fourniture de luminaires (spots) à 298 117 CHF, sans lots, durée ni dates : les luminaires sont le deliverable du fournisseur (équipements/composants = répétition CRITICAL) et la livraison unique ne tient que sur le seul type → aucun besoin sur deux faits. La décision du 2026-08-10 n'est pas un début → unknown."
+  },
+  {
+   "row_index": 57,
+   "key": "simap:ebadc6da-a432-419c-bab1-b51359aec800:",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Fourniture ponctuelle d'articles publicitaires à 153 163 CHF, sans durée ni dates : les articles sont le deliverable du négociant (matériaux/équipements = répétition CRITICAL) et la distribution ne repose que sur le type, avec une échelle faible qui infirme un besoin commercialisable. Aucune date de début → unknown."
+  },
+  {
+   "row_index": 65,
+   "key": "simap:61d6c039-e13e-4f06-8afb-f2f8a81fa0de:",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "logistics_and_transport",
+    "workforce_capacity"
+   ],
+   "gold_reasoning": "Fourniture d'une balayeuse de voirie (685 354 CHF, sous 1M) : équipement et composants pour un fournisseur d'équipements = répétitions critiques du deliverable ; un seul fait opposable (type equipment_supply), et la date de décision du 2026-08-13 est un award, jamais un début → timing unknown."
+  },
+  {
+   "row_index": 68,
+   "key": "simap:223ceb19-b3d4-4556-a417-84c1d5f7a3a9:",
+   "gold_supported": [],
+   "gold_forbidden": [],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Chantier de jardinage à 934 877,50 CHF, sous le seuil déterministe de 1 M CHF : la grande échelle n'est pas établie et il ne reste qu'un seul fait exploitable (type construction) — aucun besoin sur deux faits. Ni durée ni date de début publiées (la décision du 2026-05-19 est un award, jamais un début) → unknown."
+  },
+  {
+   "row_index": 69,
+   "key": "simap:731d28d2-36cf-4362-be0c-ec7504d93f0e:",
+   "gold_supported": [],
+   "gold_forbidden": [],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Travaux de plâtrerie-peinture à 287 253 CHF : construction mais sous le seuil de grande échelle (< 1M CHF), sans lots, durée ni dates — chaque catégorie (matériaux, personnel, EPI, déchets) ne repose que sur le seul type → rien de supported, 0 besoin normal. Aucune incompatibilité manifeste non plus pour un chantier → forbidden vide ; pas de dates → unknown."
+  },
+  {
+   "row_index": 70,
+   "key": "simap:73021ae4-b524-48e3-8dfc-33a1783014cb:",
+   "gold_supported": [],
+   "gold_forbidden": [],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "equipment_or_rental",
+    "materials_or_components",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Rénovation/agrandissement à 410 039 CHF : type construction est le SEUL fait opposable (pas de lots, pas de durée, pas de dates, montant sous 1M) — un seul indice = rien de supported, sans qu'aucune catégorie soit une absurdité critique pour un chantier. Aucune date → unknown."
+  },
+  {
+   "row_index": 71,
+   "key": "simap:ada42005-3b2c-4f28-8176-45659991ebf9:",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "logistics_and_transport",
+    "materials_or_components",
+    "safety_and_ppe",
+    "waste_and_environment"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Application logicielle à 620 000 CHF (< 1M, pas de grande échelle), sans lots, durée ni dates de contrat : aucun besoin ne tient sur deux faits indépendants — 0 besoin est le verdict normal. Prestation logicielle/intellectuelle → catégories physiques = CRITICAL false needs ; la date de décision 2026-08-11 n'est pas un début → unknown."
+  },
+  {
+   "row_index": 74,
+   "key": "simap:8aaed0d9-5a39-44e8-b12c-c78a9de66e33:",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Prestations d'ingénierie routière (APR-DLT, 927 565,55 CHF) : prestation intellectuelle → équipement et matériaux seraient des faux besoins critiques ; type hors liste à intensité humaine et montant sous 1 M CHF, donc aucun besoin défendable sur deux faits. Aucune date de début publiée → unknown."
+  },
+  {
+   "row_index": 76,
+   "key": "simap:112a472d-c87b-43fd-be88-4210920aedde:",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "logistics_and_transport",
+    "waste_and_environment"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "equipment_or_rental"
+   ],
+   "gold_reasoning": "Lot Kompogas Bioriko AG (671 620 CHF) : le deliverable EST la collecte et la valorisation de déchets verts → déchets et transport seraient des répétitions critiques du deliverable ; montant sous 1M et aucune durée/date publiée = un seul fait (type), donc rien de supported et timing unknown."
+  },
+  {
+   "row_index": 77,
+   "key": "simap:112a472d-c87b-43fd-be88-4210920aedde:",
+   "gold_supported": [
+    "equipment_or_rental",
+    "workforce_capacity"
+   ],
+   "gold_forbidden": [
+    "logistics_and_transport",
+    "specialist_subcontracting",
+    "waste_and_environment"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Lot Obrist Transport + Recycling AG à 1 039 438 CHF : service de collecte à intensité humaine + échelle ≥ 1M CHF = deux faits soutenant personnel, véhicules/bennes en complément et EPI pour les équipes de collecte ; déchets et transport restent des répétitions critiques du deliverable (collecte/valorisation). Aucune durée ni date publiée → unknown, et rien n'autorise à suraffirmer une sous-traitance."
+  },
+  {
+   "row_index": 78,
+   "key": "simap:bbd065f2-9e04-4539-ba03-0c0f0d558a57:",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "logistics_and_transport",
+    "workforce_capacity"
+   ],
+   "gold_reasoning": "Fournisseur de mobilier (contrat-cadre 229 960 CHF) : « équipements » et « composants » répéteraient le deliverable → forbidden critiques ; la distribution est un intrant légitime mais repose sur le seul fait du type (pas d'échelle ≥ 1M, pas de lots, pas de dates), donc ni supported ni externalisation affirmable. Timing unknown."
+  },
+  {
+   "row_index": 79,
+   "key": "simap:03f8b8b8-6df3-4059-9571-bffcf6334c6c:",
+   "gold_supported": [],
+   "gold_forbidden": [],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "specialist_subcontracting",
+    "workforce_capacity"
+   ],
+   "gold_reasoning": "Gipserarbeiten à 120 752,89 CHF : un seul fait exploitable (type construction), échelle très inférieure au seuil de 1 M CHF, aucune caractéristique ni durée — le plâtre serait un intrant réel mais un seul indice ne suffit pas. Pas de dates publiées → unknown."
+  },
+  {
+   "row_index": 83,
+   "key": "simap:a5eca0c9-2bcb-4e01-9651-f0a311af2972:",
+   "gold_supported": [
+    "workforce_capacity"
+   ],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "specialist_subcontracting"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "specialist_subcontracting",
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Chantier de provisoires en conteneurs à 1 686 397 CHF (≥ 1M CHF) : type construction + grande échelle soutiennent personnel, engins, matériaux, EPI et évacuation de déchets. Aucune date de début ni durée publiée → unknown ; sous-traitance non soutenue (pas de lots ni groupement)."
+  },
+  {
+   "row_index": 84,
+   "key": "simap:7d6c8b1d-55a5-4d5c-aa0a-09a962913b5b:",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "waste_and_environment"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting",
+    "safety_and_ppe"
+   ],
+   "gold_reasoning": "Ingénierie (prestation intellectuelle, CPV 71300000) à 648 258 CHF (< 1M), sans lots, durée ni dates : aucun intrant défendable sur deux faits indépendants → 0 besoin, résultat normal. Équipement, matériaux et déchets seraient manifestement incompatibles ; timing unknown faute de dates."
+  },
+  {
+   "row_index": 88,
+   "key": "simap:8ceaff6f-ec22-4008-b479-a00be28d673c:",
+   "gold_supported": [
+    "equipment_or_rental",
+    "safety_and_ppe",
+    "waste_and_environment",
+    "workforce_capacity"
+   ],
+   "gold_forbidden": [
+    "specialist_subcontracting"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "specialist_subcontracting",
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Chantier d'assainissement de site contaminé à 3 464 943,70 CHF : type construction + grande échelle (≥ 1 M CHF) soutiennent personnel, engins, matériaux, EPI et l'évacuation/traitement des matériaux pollués — intrant réel du chantier « travaux généraux », pas le deliverable lui-même. Pas de lots ni groupement de gagnants → affirmer la sous-traitance ou une logistique externalisée serait excessif ; aucune date de début publiée → unknown."
+  },
+  {
+   "row_index": 93,
+   "key": "simap:c9f2ebb6-4743-435e-8e75-c1e1b25d9cdd:",
+   "gold_supported": [],
+   "gold_forbidden": [
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "gold_eligible": false,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "workforce_capacity",
+    "specialist_subcontracting"
+   ],
+   "gold_reasoning": "Études d'ingénierie (CPV 71300000) à 37 439 CHF : prestation intellectuelle → équipement et matériaux seraient des false needs critiques ; le seul indice de groupement (GEL) sans grande échelle ne soutient ni sous-traitance ni personnel. Aucune date publiée → unknown."
+  },
+  {
+   "row_index": 94,
+   "key": "simap:de07f9e1-3fab-43c0-9db2-5541d8466e1d:",
+   "gold_supported": [
+    "equipment_or_rental",
+    "materials_or_components",
+    "safety_and_ppe",
+    "workforce_capacity"
+   ],
+   "gold_forbidden": [
+    "specialist_subcontracting"
+   ],
+   "gold_eligible": true,
+   "gold_timing": "unknown",
+   "gold_external_forbidden": [
+    "specialist_subcontracting",
+    "logistics_and_transport"
+   ],
+   "gold_reasoning": "Renforcement de mâts d'antennes SBB à 16,215M CHF (≥ 1M) : construction + très grande échelle soutiennent personnel, engins de levage, matériaux, EPI (travail en hauteur) et déchets. Sous-traitance non soutenue (échelle seule, ni lots ni groupement) ; aucune date de début → unknown."
+  }
+ ]
+}
