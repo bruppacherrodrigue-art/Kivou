@@ -1,0 +1,1085 @@
+{
+ "headline": {
+  "signals_evaluated": 100,
+  "A_actionable": 5,
+  "B_useful": 47,
+  "C_weak": 38,
+  "D_false_or_misleading": 10,
+  "actionable_rate": 5.0,
+  "useful_precision": 52.0,
+  "weak_rate": 38.0,
+  "false_rate": 10.0,
+  "dimensions": {
+   "factual_integrity": {
+    "pass": 100
+   },
+   "need": {
+    "credible": 60,
+    "plausible_but_weak": 33,
+    "unsupported": 5,
+    "contradicted": 2
+   },
+   "icp_fit": {
+    "strong_fit": 16,
+    "plausible_fit": 40,
+    "weak_fit": 38,
+    "no_fit": 6
+   },
+   "actionability": {
+    "worth_investigating": 50,
+    "actionable": 5,
+    "too_weak": 36,
+    "misleading": 9
+   },
+   "specificity": {
+    "acceptable": 73,
+    "specific": 5,
+    "generic": 22
+   },
+   "timing": {
+    "clear": 12,
+    "unknown": 5,
+    "acceptable": 79,
+    "wrong": 4
+   },
+   "proof": {
+    "adequate": 94,
+    "strong": 6
+   }
+  }
+ },
+ "agreement": {
+  "signals": 100,
+  "exact_agreement": 73,
+  "exact_agreement_rate": 73.0,
+  "agreement_within_one_grade": 98,
+  "agreement_within_one_grade_rate": 98.0,
+  "disagreements": 27,
+  "distance_histogram": {
+   "0": 73,
+   "1": 25,
+   "2": 2
+  },
+  "arbitrations": 14,
+  "distribution_a": {
+   "A": 15,
+   "B": 43,
+   "C": 30,
+   "D": 12
+  },
+  "distribution_b": {
+   "B": 50,
+   "A": 6,
+   "C": 34,
+   "D": 10
+  },
+  "distribution_final": {
+   "B": 47,
+   "A": 5,
+   "C": 38,
+   "D": 10
+  }
+ },
+ "safety": {
+  "critical_false_signals": 9,
+  "factual_integrity_failures": 0,
+  "factual_integrity_rate": 100.0,
+  "timing_errors": 4,
+  "proof_failures": 0,
+  "proof_coverage": 100.0,
+  "critical_overclaiming": 0,
+  "need_credibility_failures": 7,
+  "icp_fit_failures": 6,
+  "generic_signals": 22
+ },
+ "top20": {
+  "signals": 20,
+  "useful_precision": 65.0,
+  "critical_false": 1,
+  "distribution": {
+   "B": 11,
+   "A": 2,
+   "C": 6,
+   "D": 1
+  },
+  "score_range": [
+   93,
+   100
+  ]
+ },
+ "bottom_third": {
+  "signals": 33,
+  "useful_precision": 48.48,
+  "diagnostic_threshold": 80.0,
+  "diagnostic_met": false,
+  "blocking": false,
+  "distribution": {
+   "C": 13,
+   "B": 16,
+   "D": 4
+  }
+ },
+ "calibration": {
+  "per_verdict": {
+   "A": {
+    "count": 5,
+    "median": 93,
+    "p25": 90.0,
+    "p75": 95.5,
+    "min": 87,
+    "max": 98
+   },
+   "B": {
+    "count": 47,
+    "median": 87,
+    "p25": 84.0,
+    "p75": 93.0,
+    "min": 84,
+    "max": 100
+   },
+   "C": {
+    "count": 38,
+    "median": 87.0,
+    "p25": 84.0,
+    "p75": 93.0,
+    "min": 84,
+    "max": 95
+   },
+   "D": {
+    "count": 10,
+    "median": 87.0,
+    "p25": 84.0,
+    "p75": 93.0,
+    "min": 84,
+    "max": 93
+   }
+  },
+  "per_tercile": {
+   "bottom": {
+    "count": 33,
+    "actionable_rate": 0.0,
+    "useful_precision": 48.48,
+    "median_score": 84
+   },
+   "middle": {
+    "count": 34,
+    "actionable_rate": 2.94,
+    "useful_precision": 52.94,
+    "median_score": 87.0
+   },
+   "top": {
+    "count": 33,
+    "actionable_rate": 12.12,
+    "useful_precision": 54.55,
+    "median_score": 93
+   }
+  },
+  "median_order_holds": true,
+  "median_order_observed": {
+   "A": 93,
+   "B": 87,
+   "C": 87.0,
+   "D": 87.0
+  }
+ },
+ "distributions": {
+  "source": {
+   "simap": {
+    "signals": 55,
+    "A": 3,
+    "B": 31,
+    "C": 16,
+    "D": 5,
+    "useful_precision": 61.82,
+    "median_score": 87
+   },
+   "ted": {
+    "signals": 45,
+    "A": 2,
+    "B": 16,
+    "C": 22,
+    "D": 5,
+    "useful_precision": 40.0,
+    "median_score": 87
+   }
+  },
+  "icp": {
+   "icp-materials-eu": {
+    "signals": 7,
+    "A": 2,
+    "B": 4,
+    "C": 1,
+    "D": 0,
+    "useful_precision": 85.71,
+    "median_score": 95
+   },
+   "icp-national-supplier": {
+    "signals": 37,
+    "A": 1,
+    "B": 18,
+    "C": 14,
+    "D": 4,
+    "useful_precision": 51.35,
+    "median_score": 87
+   },
+   "icp-remote-specialist": {
+    "signals": 36,
+    "A": 0,
+    "B": 17,
+    "C": 15,
+    "D": 4,
+    "useful_precision": 47.22,
+    "median_score": 84.0
+   },
+   "icp-subcontracting-eu": {
+    "signals": 20,
+    "A": 2,
+    "B": 8,
+    "C": 8,
+    "D": 2,
+    "useful_precision": 50.0,
+    "median_score": 93.0
+   }
+  },
+  "need_category": {
+   "equipment_or_rental": {
+    "signals": 20,
+    "A": 2,
+    "B": 11,
+    "C": 5,
+    "D": 2,
+    "useful_precision": 65.0,
+    "median_score": 87.0
+   },
+   "materials_or_components": {
+    "signals": 20,
+    "A": 3,
+    "B": 12,
+    "C": 4,
+    "D": 1,
+    "useful_precision": 75.0,
+    "median_score": 87.0
+   },
+   "safety_and_ppe": {
+    "signals": 12,
+    "A": 0,
+    "B": 10,
+    "C": 2,
+    "D": 0,
+    "useful_precision": 83.33,
+    "median_score": 93.0
+   },
+   "specialist_subcontracting": {
+    "signals": 56,
+    "A": 2,
+    "B": 25,
+    "C": 23,
+    "D": 6,
+    "useful_precision": 48.21,
+    "median_score": 84.0
+   },
+   "workforce_capacity": {
+    "signals": 38,
+    "A": 1,
+    "B": 19,
+    "C": 14,
+    "D": 4,
+    "useful_precision": 52.63,
+    "median_score": 87.0
+   }
+  },
+  "contract_type": {
+   "construction": {
+    "signals": 35,
+    "A": 3,
+    "B": 23,
+    "C": 7,
+    "D": 2,
+    "useful_precision": 74.29,
+    "median_score": 87
+   },
+   "engineering_architecture": {
+    "signals": 30,
+    "A": 2,
+    "B": 18,
+    "C": 9,
+    "D": 1,
+    "useful_precision": 66.67,
+    "median_score": 84.0
+   },
+   "facility_services": {
+    "signals": 5,
+    "A": 0,
+    "B": 0,
+    "C": 4,
+    "D": 1,
+    "useful_precision": 0.0,
+    "median_score": 87
+   },
+   "it_digital": {
+    "signals": 24,
+    "A": 0,
+    "B": 6,
+    "C": 13,
+    "D": 5,
+    "useful_precision": 25.0,
+    "median_score": 86.0
+   },
+   "maintenance_repair": {
+    "signals": 3,
+    "A": 0,
+    "B": 0,
+    "C": 3,
+    "D": 0,
+    "useful_precision": 0.0,
+    "median_score": 87
+   },
+   "social_health_services": {
+    "signals": 1,
+    "A": 0,
+    "B": 0,
+    "C": 0,
+    "D": 1,
+    "useful_precision": 0.0,
+    "median_score": 93
+   },
+   "transport_logistics": {
+    "signals": 2,
+    "A": 0,
+    "B": 0,
+    "C": 2,
+    "D": 0,
+    "useful_precision": 0.0,
+    "median_score": 93.0
+   }
+  }
+ },
+ "source_gate": {
+  "simap": {
+   "signals": 55,
+   "useful_precision": 61.82,
+   "gate_applies": true,
+   "gate_passed": false
+  },
+  "ted": {
+   "signals": 45,
+   "useful_precision": 40.0,
+   "gate_applies": true,
+   "gate_passed": false
+  }
+ },
+ "failure_attribution": {
+  "failing_signals": 48,
+  "primary_failure_layer": {
+   "need graph": 17,
+   "matching": 13,
+   "contract understanding": 8,
+   "ICP configuration": 6,
+   "timing": 3,
+   "source data": 1
+  },
+  "secondary_failure_layers": {
+   "matching": 24,
+   "need graph": 20,
+   "ICP configuration": 12,
+   "contract understanding": 6,
+   "timing": 2,
+   "score threshold": 1
+  },
+  "cases": [
+   {
+    "signal_id": "19d9fab760da89bb6d8f40d2f6148e6f0891c90ab136afad9d49ddb4e35063da",
+    "verdict": "C",
+    "icp_id": "icp-materials-eu",
+    "source": "ted",
+    "normalized_score": 95,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "contract understanding"
+    ],
+    "why": "Faits publics exacts mais objet d'une seule ligne, aucune date d'execution et signature remontant au 11/03/2026 ; surtout l'adjudicataire est un Totaluebernehmer (societe de services, de promotion et de financement) qui attribue des lots au lieu d'acheter des materiaux, si bien que la correspondance avec un negoce reste nominale."
+   },
+   {
+    "signal_id": "7a26330cbb6da97c7e484ac69b836830e66c6d96f15ce601445134f63079706e",
+    "verdict": "C",
+    "icp_id": "icp-subcontracting-eu",
+    "source": "ted",
+    "normalized_score": 95,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "why": "The subcontracting need is genuinely credible on a 24.5 MEUR five-year IT managed-services contract split into six technical sub-lots, but an ICP selling specialist construction and engineering lots has almost nothing to sell into infogerance and cybersecurity - the category matched, the market did not."
+   },
+   {
+    "signal_id": "a65144e007201940fd5bc8c7d447ee5bf9229000825ab39165ce27d8ffd6fd0c",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "ted",
+    "normalized_score": 95,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "why": "A 22.7 MEUR five-year municipal street-cleaning and waste-collection concession does need operatives, but selling 'site inputs for construction' to a waste concessionaire is a category coincidence, not a commercial reason - and with no locality, no start date and a one-line object there is nothing concrete for a rep to open with."
+   },
+   {
+    "signal_id": "cb8cbc85dbfa8157581e187bc8c61b12b1c54d60dbbfe986a8b6dd9cfbe1e4b4",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "ted",
+    "normalized_score": 95,
+    "primary_failure_layer": "ICP configuration",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "why": "Faits publics exacts et coherents (adjudication et signature du 07/07/2026, demarrage au 01/10/2026 soit 86 jours, tranches et PSE detaillees) et besoin de capacite credible pour une exploitation-maintenance de douze ans, mais un fournisseur d'intrants de chantier n'adresse pas un besoin de techniciens d'exploitation : le fit reste nominal."
+   },
+   {
+    "signal_id": "30ff26ae65929449fb57a53703d3d14fcee285a839f83b9bec57c27fb7d409ae",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "ted",
+    "normalized_score": 93,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "need graph",
+     "matching"
+    ],
+    "why": "A five-year hospital portering and grounds-maintenance contract in Messina is read as a transport market needing extra rolling stock, and while the labour-capacity angle is genuinely strong for a service that is almost pure headcount, a supplier of construction-site inputs has little to sell here so the lead does not earn feed space."
+   },
+   {
+    "signal_id": "389dafd9e46956b7fc65205eff4ea0572dc82fd99410c36d74b188ce4a9910fd",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "simap",
+    "normalized_score": 93,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching",
+     "contract understanding"
+    ],
+    "why": "Generic building-site labour and PPE needs fired off a CPV 45000000 code when the published object is servers, cameras, radar, lidar and intercom hardware installed by certified technicians, so a supplier of construction-site inputs is chasing a security-systems integrator that buys almost none of what it sells."
+   },
+   {
+    "signal_id": "474c52d491a8892dfbf46126afe9a204a610a57c53a220cec4b275554c62feba",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "ted",
+    "normalized_score": 93,
+    "primary_failure_layer": "ICP configuration",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "why": "Drivers and fleet are genuine inputs for a 2 MEUR non-medical passenger transport contract in Badajoz, but an ICP whose offer is explicitly construction site inputs has no real commercial angle on a Spanish transport operator, so the match is nominal on the category label only."
+   },
+   {
+    "signal_id": "5ac2398ea9cdf60c8ca5a3c1e0b11d9f2ef0624794198fa143b357f9308ce69a",
+    "verdict": "C",
+    "icp_id": "icp-subcontracting-eu",
+    "source": "ted",
+    "normalized_score": 93,
+    "primary_failure_layer": "ICP configuration",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "why": "A 30-month SAP S/4HANA migration awarded to a two-company consortium genuinely invites specialist subcontracting, but an ICP selling specialised technical lots in construction, engineering and building systems is out of domain for enterprise software work and would treat this as feed noise."
+   },
+   {
+    "signal_id": "d5f033027ba2e05fc2edf6790afde27bfc77b134744caf9939762c92257272e1",
+    "verdict": "C",
+    "icp_id": "icp-subcontracting-eu",
+    "source": "simap",
+    "normalized_score": 93,
+    "primary_failure_layer": "ICP configuration",
+    "secondary_failure_layers": [
+     "matching",
+     "need graph"
+    ],
+    "why": "A 1.12 MCHF five-year SaaS platform delivered by a single Swiss software vendor is the least separable contract in the batch for a subcontracting hypothesis, and a construction and engineering technical-lots ICP has no coherent reason to prospect a St. Gallen childcare subsidy system."
+   },
+   {
+    "signal_id": "d658437d668285ea816936411797e92474f2b224eeeaae6c448c6ac0608de936",
+    "verdict": "C",
+    "icp_id": "icp-subcontracting-eu",
+    "source": "ted",
+    "normalized_score": 93,
+    "primary_failure_layer": "ICP configuration",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "why": "The notice itself enumerates four separable technical sub-lots over five years and 5 MEUR, so the subcontracting hypothesis is unusually well supported, yet print and reprographics outsourcing sits outside an ICP whose offer is technical lots in construction, engineering and building systems."
+   },
+   {
+    "signal_id": "ede97964f2a0879fed694397ce6b63385e754813b6ae55b209ac79ca546b9054",
+    "verdict": "C",
+    "icp_id": "icp-subcontracting-eu",
+    "source": "ted",
+    "normalized_score": 93,
+    "primary_failure_layer": "ICP configuration",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "why": "The subcontracting inference is genuinely well carried here (the notice itself imposes an on/nearshore model and mandatory nCino advisory routed through the contractor), but an ICP selling specialised technical lots in construction, engineering and jobsite systems has only a nominal category match with a 6.7M EUR core-banking nCino implementation won by PwC."
+   },
+   {
+    "signal_id": "eef45bee69b3151173c1af3831e7998a49cf81eb890db476ce6c27e142ece4dc",
+    "verdict": "C",
+    "icp_id": "icp-subcontracting-eu",
+    "source": "simap",
+    "normalized_score": 93,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "need graph",
+     "matching"
+    ],
+    "why": "This is a reseller framework where most of the 2.59M CHF is Elastic licence pass-through, so the reasoning that the market 'reunit des specialites techniquement separables' with an 'ampleur' justifying subcontracting misreads the economics: the only subcontractable slice is an undefined and probably small Elastic/DevOps consulting portion, which is not what a construction-and-engineering-lots ICP sells."
+   },
+   {
+    "signal_id": "1add371ffc5562a2338059a2abd3963d9ee1cf99898adfd118281397d6a180c4",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "ted",
+    "normalized_score": 87,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "why": "The workforce need is genuinely credible - 120,000 m2/month of office cleaning over 12 months is as labour-intensive as it gets - but routing an office facility-cleaning contractor in Berlin to an ICP that sells 'intrants de chantier' is a bare category-name collision on workforce_capacity: a construction-inputs group has no coherent offer for a cleaning firm's staffing."
+   },
+   {
+    "signal_id": "281bae724b8298da401fe078ac8e61c0cac26fc2dbaa1d850b4f1fdf5273183c",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "simap",
+    "normalized_score": 87,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "score threshold"
+    ],
+    "why": "At 118k CHF for roughly 240 t of asphalt and 200 t of milling on a mountain road, this is a few days' routine work, and the needs are derived from contract_type and amount alone - the description is not even in the evidence set - so the signal reduces to 'a road contractor won a small job, therefore people and PPE', which is exactly the generic case that does not earn a feed slot."
+   },
+   {
+    "signal_id": "3191e47537e4486dfea27ccadb6ed7032116153a32604858a26a26246909c3c4",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "simap",
+    "normalized_score": 87,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "contract understanding"
+    ],
+    "why": "A locking-systems supply-and-install lot won by a building-hardware specialist generates only boilerplate workforce, machinery and bulk-materials hypotheses whose anchoring points away from the actual object, so the match with a construction-inputs supplier is nominal rather than commercial."
+   },
+   {
+    "signal_id": "3de789b11dfc9c987d49409055aa5b427f775addb422a60ce91ca1cdb280e61c",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "simap",
+    "normalized_score": 87,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "need graph",
+     "matching"
+    ],
+    "why": "The published object is a building-cleaning services lot (rough, pre-commissioning and final cleaning of 33'126 m2), not construction works: staffing pressure is genuinely plausible at that surface area, but the equipment need is justified by earthworks that do not exist here and a construction-materials need is unsupported for a cleaner, and cleaning before commissioning signals a site whose construction-input demand is ending rather than starting."
+   },
+   {
+    "signal_id": "553a0c2b0b15ea383607ad3c3e5095f999504179dc218142e638531b005af820",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "ted",
+    "normalized_score": 87,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "why": "A 120k EUR job installing one gym dividing curtain and three ball-stop nets is a niche sports-equipment purchase, not construction inputs, and is far too small to strain a fit-out firm's headcount, so the category match is nominal and gives my team nothing to sell."
+   },
+   {
+    "signal_id": "6d98f7e8378ce0f956e2df5a770ad6bac08c9f379bb6f539a94485747af3d5d7",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "simap",
+    "normalized_score": 87,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "why": "A 987k CHF airport sprinkler maintenance contract with 24/7 call-out does imply a staffing roster, but the workforce required is certified fire-protection technicians with airside access, and a construction-site-inputs group has no realistic line to sell into a facilities-maintenance mandate."
+   },
+   {
+    "signal_id": "73261f9126b98101a1864ff11a08deb0248941af5307384fc0e02ceda0dce8af",
+    "verdict": "C",
+    "icp_id": "icp-subcontracting-eu",
+    "source": "simap",
+    "normalized_score": 87,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "matching",
+     "need graph"
+    ],
+    "why": "A SAP S/4HANA EDM software replacement read as an engineering/architecture contract, which routed a construction-and-engineering subcontracting ICP onto an IT programme at Swisscom awarded three months earlier - subcontracting is plausible in the abstract but there is no realistic entry for this supplier."
+   },
+   {
+    "signal_id": "76c63c8214bb733c91c32144bdcd0e8bcb7933022d128b19112d5d9b58d7fc8c",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "simap",
+    "normalized_score": 87,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "why": "Operating a vehicle recovery dispatch service does involve staffing, so the need is defensible but boilerplate at 513k CHF for an operator that already runs this nationally, and the workforce_capacity category matches only nominally against an ICP whose offer is construction site inputs."
+   },
+   {
+    "signal_id": "78c08ee09b80c0b9c0de422c300350548b5cb6280274378c8453d5086dda8e47",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "ted",
+    "normalized_score": 87,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "why": "The workforce need is the most credible in the batch - a three-year Madrid building-cleaning contract starting 01.09.2026 is pure labour - but a construction-site-inputs group has nothing to sell to a sheltered-employment cleaning company, so the match is nominal rather than commercial."
+   },
+   {
+    "signal_id": "82961d12249aae9fadcb8fa5bf3658dfff5715bfd1463e1192b7b83f3099012b",
+    "verdict": "C",
+    "icp_id": "icp-national-supplier",
+    "source": "ted",
+    "normalized_score": 87,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph",
+     "ICP configuration"
+    ],
+    "why": "Facts are clean and the workforce hypothesis is hedged correctly, but a supplier of construction-site inputs has no real commercial entry into a 685k EUR / 4-year hospital parking operation contract at roughly 171k EUR per year, so the workforce_capacity category matches on paper only."
+   },
+   {
+    "signal_id": "f40a03b2b622b8b8241e7d3be5408ecfdfb55a12d83202efacd3cf19b1797ae1",
+    "verdict": "C",
+    "icp_id": "icp-subcontracting-eu",
+    "source": "ted",
+    "normalized_score": 87,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "need graph"
+    ],
+    "why": "An SAP HCM S/4 HANA upgrade for a municipal IT provider is routed to an ICP selling construction, engineering and systems subcontracting lots, and with the description reduced to 'Details siehe Leistungsbeschreibung' there is nothing a rep from that ICP could act on."
+   },
+   {
+    "signal_id": "17565768498dca67c13dd4366b6c1c2d1e6bac25f5a525f1d0d56c12d466a0e3",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "simap",
+    "normalized_score": 86,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "why": "Un mandat pluriannuel de 2,44 MCHF d'exploitation et de Weiterentwicklung d'un logiciel proprietaire rend une capacite technique externe defendable, mais l'attribution de gre a gre au proprietaire du systeme joue contre l'externalisation et l'enonce du besoin reste un modele generique sans ancrage : legitime mais trop faible pour le feed principal."
+   },
+   {
+    "signal_id": "1e2e191f44a90140057c09f36818df9ca08e997c2a11f707a3e6421eee16c711",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "simap",
+    "normalized_score": 86,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph",
+     "ICP configuration"
+    ],
+    "why": "A maintenance and support extension of an existing bespoke application for police special units leaves some room for specialist work, but a remote generic expertise practice has no realistic entry into a security-cleared law-enforcement application, so the fit is nominal."
+   },
+   {
+    "signal_id": "13b76b8824160effff97e2a7c377899f0107d67f3f02c825314777c060fc1428",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "ted",
+    "normalized_score": 84,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching",
+     "ICP configuration"
+    ],
+    "why": "The need rests explicitly on scale ('une ampleur qui rend plausible') but the contract is only 124,580 EUR with no published scope at all, so the stated justification is undercut by the signal's own facts and there is no subcontracting budget worth prospecting."
+   },
+   {
+    "signal_id": "1d5ca781eab2b44b8100f3781e1b304e008a160df35c984df96ca5523ed4ffa4",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "simap",
+    "normalized_score": 84,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "contract understanding"
+    ],
+    "why": "A 54k CHF single-speciality top-up ('complement aux prestations initiales') for Rhone flow validation, won by a hydrology specialist, leaves nothing meaningful to subcontract, and the stated rationale invokes an 'ampleur' and 'specialites separables' that this contract simply does not have."
+   },
+   {
+    "signal_id": "2436b3eaecdc82602658ac238ac4f56e14a41fba6561d70a1981dbe52d537ded",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "ted",
+    "normalized_score": 84,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "why": "The subcontractable work here is intrinsically on-site (in-person training and physical evacuation drills in three Madrid buildings) whereas this ICP sells expertise delivered remotely, and the winner is a large prevention-services group whose core business is exactly the awarded scope, so the category match does not survive contact with commercial reality."
+   },
+   {
+    "signal_id": "33d2f1ef475510ea5c5cd88ef8af8c38ffdfd738bbfcfb75310ea113aff5f2e4",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "simap",
+    "normalized_score": 84,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph",
+     "timing"
+    ],
+    "why": "The notice itself states Swisscom is the incumbent already hosting this platform, so an 804k CHF continuation creates no new execution ramp-up, and pointing a small remote consultancy at a tier-1 operator's own core hosting business is a scale and role mismatch; the explicit 1.1.2027 start in the text was also not surfaced as a why-now."
+   },
+   {
+    "signal_id": "49675adfa04c418d29d469493cb67bb9b2580983a3e443b99da94be96000d52c",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "ted",
+    "normalized_score": 84,
+    "primary_failure_layer": "source data",
+    "secondary_failure_layers": [
+     "need graph",
+     "matching"
+    ],
+    "why": "The published object is literally 'Lot n 2 - secteur Nord-Est' with no description, so the signal only says a company won a lot; topographical network survey is moreover single-discipline on-site field work, the opposite of what this remote-delivery ICP sells."
+   },
+   {
+    "signal_id": "563b2d16fa72e3f2771b0cefbfb6912411244280b0e9d7395ccd9f80084bd731",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "ted",
+    "normalized_score": 84,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "why": "The stated reasoning about separable specialities and scale does not hold for a single-discipline statutory appliance-inspection framework worth EUR 60k over 48 months, and the work is by law performed on site, so a remote-only specialist has only a nominal category match."
+   },
+   {
+    "signal_id": "5daf6137cf3e7815c5a5cf935a0cc8ff24667c5ed3a7ad61d8595650ab6021da",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "ted",
+    "normalized_score": 84,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "contract understanding"
+    ],
+    "why": "The winner took a single CHF 82k building-automation lot, not the renovation project the displayed description narrates, and a small single-trade lot won by a subsidiary of a large integrated utility leaves almost no room for specialist subcontracting."
+   },
+   {
+    "signal_id": "5e36eedc5de2151dc85d6592ba3e0b532f831fd888af1109649367cd6e927cbb",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "ted",
+    "normalized_score": 84,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "why": "Same weakness as the sister lot: EUR 70k over 48 months for one regulated electrical-inspection discipline gives neither the separable specialities nor the scale the reasoning claims, and the service cannot be delivered remotely."
+   },
+   {
+    "signal_id": "68ee46ab9825f19ef92144aed558f78262c7dd22158959553b37c97dab43b736",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "ted",
+    "normalized_score": 84,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "why": "Licence support for one defence-ministry resource system at roughly EUR 42k per year is a monolithic service held by a sizeable incumbent, and clearance and data constraints on a defence system make remote subcontracting a nominal rather than a real commercial opening."
+   },
+   {
+    "signal_id": "6fcda08a6362f3448087c632c7f9a2ef101e8a506c8466873e63f856e5a0d36c",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "ted",
+    "normalized_score": 84,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "why": "Winner, buyer, object and the 800k EUR value are correctly represented, but the inferred specialist subcontracting is the winner's own core trade (AC Environnement is a national diagnostics specialist) and the separable work is inherently on-site sampling, which an explicitly remote-delivery ICP cannot serve."
+   },
+   {
+    "signal_id": "785953dd275cbe38cc44c50ae879b7fcc33ab5093406ec0d16984551bf93fbb0",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "simap",
+    "normalized_score": 84,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [],
+    "why": "Campagne de mesure instrumentee sur voie ferree alpine en exploitation 2026-2027, remportee par une universite autrichienne sur un chantier suisse : le besoin d'appuis specialises externes tient vraiment, mais l'enonce boilerplate ne nomme aucune specialite et l'ICP a distance ne couvre que la part analyse, d'ou un signal a verifier plutot qu'un signal de feed."
+   },
+   {
+    "signal_id": "812701d0f641c31a9be4199061ecf022891edb2861071e1661cb0956cb068b67",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "simap",
+    "normalized_score": 84,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "why": "The match is nominal: the winner is itself a well-known HVAC and energy engineering specialist and a 168k CHF full mission leaves almost no budget to subcontract, so selling remote technical expertise into it is commercially thin."
+   },
+   {
+    "signal_id": "8392ebbaed174960841e95b04fe12d2b587d12c3abf50520a23d3164deef0676",
+    "verdict": "C",
+    "icp_id": "icp-remote-specialist",
+    "source": "simap",
+    "normalized_score": 84,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "why": "Facts including the older 2026-05-27 award date are honestly represented, but the object is lifecycle and security maintenance of Abraxas's own proprietary tax product by its incumbent vendor, so the asserted technically separable specialties do not hold and an outside specialist has no realistic entry point."
+   },
+   {
+    "signal_id": "109437d378dd5fc2dfd1b5a5ddca4a5456b2cc9ea34ef6db297057061a9dd041",
+    "verdict": "D",
+    "icp_id": "icp-subcontracting-eu",
+    "source": "ted",
+    "normalized_score": 93,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "why": "A licence lot for the vendor's own managed SaaS platform contains no technically separable specialities, so the claimed subcontracting need is unsupported, and an ICP selling specialised construction/engineering/systems lots has no coherent reason to approach a banking-software publisher."
+   },
+   {
+    "signal_id": "5e4ab59d2a8cc04f778f4f98dc5d61c65dd23059df80d377949a149616c5717c",
+    "verdict": "D",
+    "icp_id": "icp-national-supplier",
+    "source": "ted",
+    "normalized_score": 93,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching",
+     "timing"
+    ],
+    "why": "The contract object is the supply of OSS care personnel, so qualified workforce is the deliverable itself rather than a downstream need; a supplier of construction site inputs has no coherent reason to approach a hospital staffing cooperative, and the 2025-07-23 award is 390 days old against the ICP's 180-day policy."
+   },
+   {
+    "signal_id": "b0e70ef448e14e3eaca91ccc95a06e82bd718281de6d440aa418faa35d1840ab",
+    "verdict": "D",
+    "icp_id": "icp-national-supplier",
+    "source": "ted",
+    "normalized_score": 93,
+    "primary_failure_layer": "timing",
+    "secondary_failure_layers": [],
+    "why": "Labour-intensive fire decontamination would credibly have created a workforce need, but the contract was concluded 189 days ago (beyond the ICP's 180-day policy) and ends on 2026-08-28, so labelling the need 'immediate' contradicts the signal's own published contract period and would send a rep to pitch surge capacity on a job finishing in eleven days."
+   },
+   {
+    "signal_id": "2210d48c4401830c854d85a2d8439d106db24e6a24eacf986def7ec2f929b756",
+    "verdict": "D",
+    "icp_id": "icp-national-supplier",
+    "source": "simap",
+    "normalized_score": 87,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "contract understanding",
+     "matching"
+    ],
+    "why": "The award is precisely for designing and erecting temporary site container facilities, so 'temporary site equipment or plant capacity' is the winner's own deliverable rather than a downstream need, and the supporting rationale invents earthworks and civil engineering works that the published object excludes."
+   },
+   {
+    "signal_id": "2b534b339bfab31b6c9bcdfe429e93b5ec43c21d3eca5114a333ef2ad32452db",
+    "verdict": "D",
+    "icp_id": "icp-national-supplier",
+    "source": "simap",
+    "normalized_score": 87,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "need graph",
+     "matching"
+    ],
+    "why": "The published object is a 120k CHF 'BKP 339 Kassensystem' lot, i.e. a point-of-sale and access system, yet the pool-construction CPV of the parent project drove three unsupported needs including earthworks plant and bulk materials, leaving a construction site-inputs supplier with no coherent reason to approach a systems integrator."
+   },
+   {
+    "signal_id": "ab66cc11cb437df93b5d7daa6bc5e15d48dc79ab5a8b64c24740fe89f4917d10",
+    "verdict": "D",
+    "icp_id": "icp-subcontracting-eu",
+    "source": "ted",
+    "normalized_score": 87,
+    "primary_failure_layer": "timing",
+    "secondary_failure_layers": [
+     "matching",
+     "need graph"
+    ],
+    "why": "Le besoin est tagué timing=immediate sur la base d'un contract_start_date du 2025-09-01, soit 351 jours avant aujourd'hui et très au-delà des 90 jours de recence exigés par l'ICP : lecture de date incorrecte, aggravée par un ICP construction/ingenierie confronte a une implementation d'intranet SharePoint et par un besoin formule en pur boilerplate (le site web affiche du gagnant, celui d'un tribunal administratif, est en outre une anomalie de source)."
+   },
+   {
+    "signal_id": "43de1c3d6dbf274f31c448436f33635dfe06b358427225c54c216eaa4d815b33",
+    "verdict": "D",
+    "icp_id": "icp-remote-specialist",
+    "source": "ted",
+    "normalized_score": 84,
+    "primary_failure_layer": "timing",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "why": "L'attribution date du 2024-06-17 et la signature du 2024-07-17, soit 792 jours avant aujourd'hui pour un ICP dont maximum_signal_age_days vaut 365 : signal perime qui aurait du etre exclu, et qui enverrait un commercial prospecter une mission de planification de 104 kEUR dont les phases sont depuis longtemps executees."
+   },
+   {
+    "signal_id": "595e4deffc3fcf7f9c2b850789decbc01db65c825731c6bfb06dd80500d3d5ca",
+    "verdict": "D",
+    "icp_id": "icp-remote-specialist",
+    "source": "simap",
+    "normalized_score": 84,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "need graph",
+     "matching"
+    ],
+    "why": "Un achat de licences SAP LeanIX aupres de l'editeur lui-meme ne cree aucun chantier d'execution : le motif affiche (des specialites techniquement separables) est faux pour ce marche, et prospecter SAP (Schweiz) AG en sous-traitance specialisee sur cette base est commercialement absurde."
+   },
+   {
+    "signal_id": "6b0a5d44ae08733723afed7f239404e7a24f3ab29588c28f9ab66b6cfcaad0eb",
+    "verdict": "D",
+    "icp_id": "icp-remote-specialist",
+    "source": "simap",
+    "normalized_score": 84,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "need graph",
+     "matching"
+    ],
+    "why": "Location d'une presse d'impression avec maintenance et consommables chez Canon : marche de fourniture d'equipement classe it_digital, ce qui contourne l'exclusion equipment_supply de l'ICP, et le besoin de sous-traitance specialisee n'est porte par aucun fait publie, le gagnant fournissant et entretenant son propre materiel."
+   },
+   {
+    "signal_id": "7b250870f7b0fa7f83d6935efd35c54083b7d468d676e5a362da0638cedbbdc5",
+    "verdict": "D",
+    "icp_id": "icp-remote-specialist",
+    "source": "simap",
+    "normalized_score": 84,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "need graph",
+     "matching"
+    ],
+    "why": "Fourniture de PDU, EPDU, onduleurs et accessoires par leur propre fabricant Eaton : marche d'equipement classe it_digital, ce qui neutralise l'exclusion equipment_supply de l'ICP, et rien dans un accord-cadre de fourniture ne soutient un besoin de sous-traitance specialisee chez le fabricant."
+   }
+  ]
+ },
+ "gates": {
+  "gates": {
+   "useful_precision": {
+    "observed": 52.0,
+    "requirement": ">= 90.0",
+    "spec": "§34",
+    "passed": false
+   },
+   "actionable_rate": {
+    "observed": 5.0,
+    "requirement": ">= 60.0",
+    "spec": "§35",
+    "passed": false
+   },
+   "weak_rate": {
+    "observed": 38.0,
+    "requirement": "<= 10.0",
+    "spec": "§37",
+    "passed": false
+   },
+   "false_rate": {
+    "observed": 10.0,
+    "requirement": "<= 2.0",
+    "spec": "§36",
+    "passed": false
+   },
+   "critical_false_signals": {
+    "observed": 9,
+    "requirement": "<= 0",
+    "spec": "§36",
+    "passed": false
+   },
+   "factual_integrity_rate": {
+    "observed": 100.0,
+    "requirement": ">= 99.0",
+    "spec": "§36",
+    "passed": true
+   },
+   "timing_errors": {
+    "observed": 4,
+    "requirement": "<= 0",
+    "spec": "§36",
+    "passed": false
+   },
+   "proof_coverage": {
+    "observed": 100.0,
+    "requirement": ">= 100.0",
+    "spec": "§36",
+    "passed": true
+   },
+   "critical_overclaiming": {
+    "observed": 0,
+    "requirement": "<= 0",
+    "spec": "§36",
+    "passed": true
+   },
+   "top20_useful_precision": {
+    "observed": 65.0,
+    "requirement": ">= 95.0",
+    "spec": "§39",
+    "passed": false
+   },
+   "top20_critical_false": {
+    "observed": 1,
+    "requirement": "<= 0",
+    "spec": "§39",
+    "passed": false
+   },
+   "rubric_agreement_within_one": {
+    "observed": 98.0,
+    "requirement": ">= 90.0",
+    "spec": "§31",
+    "passed": true
+   },
+   "source_useful_precision[simap]": {
+    "observed": 61.82,
+    "requirement": ">= 85.0",
+    "spec": "§42",
+    "passed": false
+   },
+   "source_useful_precision[ted]": {
+    "observed": 40.0,
+    "requirement": ">= 85.0",
+    "spec": "§42",
+    "passed": false
+   }
+  },
+  "failed_gates": [
+   "actionable_rate",
+   "critical_false_signals",
+   "false_rate",
+   "source_useful_precision[simap]",
+   "source_useful_precision[ted]",
+   "timing_errors",
+   "top20_critical_false",
+   "top20_useful_precision",
+   "useful_precision",
+   "weak_rate"
+  ],
+  "signal_count_is_100": true,
+  "verdict": "SPEC-009 NOT DONE"
+ }
+}

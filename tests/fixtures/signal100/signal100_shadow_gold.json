@@ -1,0 +1,524 @@
+{
+ "control": "shadow-negative",
+ "note": "hors gates SPEC-009 (§47, §48)",
+ "summary": {
+  "borderline": {
+   "n": 50,
+   "should_have_been_show": 13,
+   "maybe": 15,
+   "correctly_not_show": 22
+  },
+  "exclude": {
+   "n": 50,
+   "should_have_been_show": 0,
+   "maybe": 4,
+   "correctly_not_show": 46
+  }
+ },
+ "grades": {
+  "borderline": [
+   {
+    "signal_id": "00c8fadcd5ad701eefbf51e50f61eb84b475588a9232f08168288e62d8a04c1f",
+    "grade": "maybe",
+    "note": "Niche pool-technology installer at 1.95M CHF in-territory construction, but only a generic workforce need bridges to the PPE offer."
+   },
+   {
+    "signal_id": "006db6a01de51bd97bffde51d367ea3a19df4994da84ca32f7b7e53d4ad28d6a",
+    "grade": "should_have_been_show",
+    "note": "Spezialtiefbau/Rohbau package of 1.0M EUR in-territory with a tight 122-day window starting in two weeks is a concrete subcontracting opening."
+   },
+   {
+    "signal_id": "015b8c0f8a446f24a18457c4799e985b12d58d520a39d79c746806e3be6b0a3b",
+    "grade": "correctly_not_show",
+    "note": "Small 233k CHF heating-distribution lot with a boilerplate workforce need offers a Swiss PPE seller almost no purchase."
+   },
+   {
+    "signal_id": "01a3c34c2214aff4e1de8aa1252d88c5fdda80e80ee21a863eed79cfad636fd9",
+    "grade": "should_have_been_show",
+    "note": "3.56M EUR paving/lighting/street-furniture works just signed inside a required ES territory is a real materials lead despite the equipment-worded need."
+   },
+   {
+    "signal_id": "0327380ce1208be07cb82997d2ac9df98b281739c507f9fe12371ca68ca26612",
+    "grade": "correctly_not_show",
+    "note": "Single-vendor maintenance of its own standard software supports no separable-specialities claim and does not fit a construction/engineering subcontractor."
+   },
+   {
+    "signal_id": "01e8b60ad1b84594f6718f0fbc43d4b82bb52548ef24331753967bf4fe1d8003",
+    "grade": "should_have_been_show",
+    "note": "11.1M CHF five-year Geneva Airport electrical framework starting 2027-01-01 is a sustained, in-territory PPE and collective-protection opportunity."
+   },
+   {
+    "signal_id": "06de5ab188dac750d2dba63614d712133150a5d1a1dd9d174ee8c6d0391a3456",
+    "grade": "should_have_been_show",
+    "note": "48M CHF design-build fit-out in Bern matching both ICP primary categories is the clearest missed lead in the batch."
+   },
+   {
+    "signal_id": "01ea5f99822f57beffad91a32614469381d2ef1c70d5ef297a011706c4ebb427",
+    "grade": "correctly_not_show",
+    "note": "Danish guarding-services contract sits outside the ICP territories and outside any site-inputs offer; hard geographic mismatch."
+   },
+   {
+    "signal_id": "07a3c9e4503f338d9762410f6766c3e37801cce37541c104aace234e6355c08e",
+    "grade": "should_have_been_show",
+    "note": "Flat-roof and sheet-metal works at 400k CHF in-territory is a textbook fall-protection and edge-protection case for this exact ICP."
+   },
+   {
+    "signal_id": "08b0c0e83210608deef15047dde2359106714c38a6f52c1bd88ae27c5d83cc5d",
+    "grade": "correctly_not_show",
+    "note": "Small groundwater-remediation O&M with no published value and no construction-site input consumption."
+   },
+   {
+    "signal_id": "0a1f5ae03baa745066efec76184bb9f085838392feff2548aaa5a6d566722311",
+    "grade": "should_have_been_show",
+    "note": "868k CHF cantonal road resurfacing with phased night work in-territory is a direct hi-vis and traffic-protection hook."
+   },
+   {
+    "signal_id": "09ccec07a935b260cd0490ca617929fe9cb0f827b37a376096984619824e7be6",
+    "grade": "correctly_not_show",
+    "note": "Bulgarian residential energy renovation lies outside the ICP's six declared territories; delivery of site inputs there is unrealistic."
+   },
+   {
+    "signal_id": "0a9660e4806120ae20e0e9d82b5526b728cd42f5183c5764bb093eac1bb9e01c",
+    "grade": "correctly_not_show",
+    "note": "Maintenance contract type falls outside the ICP's construction-only scope, and the need is purely boilerplate."
+   },
+   {
+    "signal_id": "0aa49ea9127b93733588c9ddc0cddb669a5dad8df0f7dfc48ca7d26db841b051",
+    "grade": "correctly_not_show",
+    "note": "Romanian rolling-stock wheelset replacement is off-territory, off-offer, and priced in an uncovered currency."
+   },
+   {
+    "signal_id": "0aedd99cc2f2017042e1e05bb436b17f4bc8a3bf7a4d2b6385a4bd923b6228af",
+    "grade": "correctly_not_show",
+    "note": "Tax-software development barely clears the threshold and nothing in the facts supports separable specialities for a construction/engineering subcontractor."
+   },
+   {
+    "signal_id": "0ac37b3bc4067b5f9588ba0bc174ef95c93a0e7dc28e3e2322ba1a7557f214c2",
+    "grade": "should_have_been_show",
+    "note": "13.1M EUR twelve-year FM contract naming separable electrical, energy-management and air-quality packages with an October start is a strong in-territory subcontracting lead."
+   },
+   {
+    "signal_id": "10caf1f227c91f4d2c343a7e59ae3546879d3035d2b53b96d7dc521d56972400",
+    "grade": "correctly_not_show",
+    "note": "Deliverable mistaken for a downstream need: the winner was awarded a substrate supply contract, so pitching it materials is contradicted."
+   },
+   {
+    "signal_id": "0bc026ab31dfb407bf5352a4dda2399822d72b17b08f4d20626de43c4f0d5b18",
+    "grade": "correctly_not_show",
+    "note": "Irish SaaS HRIS award is off-territory and a global software vendor subcontracting construction lots is commercially absurd."
+   },
+   {
+    "signal_id": "12f6031a685078d2bc94106b9c7684baddec921ee9c235b0a50ce5adcd46541b",
+    "grade": "maybe",
+    "note": "1.37M CHF fresh in-territory sanitary works matching an ICP primary, but the trade hook stays thin for a generalist supplier."
+   },
+   {
+    "signal_id": "105b61465cf67b9d718e08e4b0de62a76025926dec3685fe196f702928a00379",
+    "grade": "maybe",
+    "note": "630k EUR screed lot just over threshold with a good December start, yet the winner is already the trade specialist being sold specialist subcontracting."
+   },
+   {
+    "signal_id": "13ae2cbf2edabafc654e677a683d76c811697fa35bb0d40a3892887c903f1b9b",
+    "grade": "maybe",
+    "note": "924k CHF in-territory joinery package is respectable in size but interior door fitting is a low-PPE-intensity trade."
+   },
+   {
+    "signal_id": "10d9c6b082739c6a40b8082a422678d60b307b71861c64226213da370eebaa60",
+    "grade": "maybe",
+    "note": "4M EUR four-year road-marking framework matches both ICP primaries, though marking consumables are specialised and annual volumes modest."
+   },
+   {
+    "signal_id": "1573e534034dc58a42dac136b9de51ebf7dfedc0cf06045ceeb5173e934564c4",
+    "grade": "should_have_been_show",
+    "note": "3.0M CHF Baumeister role on N13 motorway works in-territory maximises workforce, PPE and traffic-safety consumption for a broad site-inputs supplier."
+   },
+   {
+    "signal_id": "142c29d964d5cebf89ff25940fb73bb6c8ccfcb6e9ca664a1edb934db343e6e2",
+    "grade": "correctly_not_show",
+    "note": "Norwegian electrician-services framework is off-territory with no published value and no site-inputs angle."
+   },
+   {
+    "signal_id": "18240d582ef5e2b21bd07d8b824b5faaf8dcc3466e80b6888c32f1186c65b3bb",
+    "grade": "correctly_not_show",
+    "note": "120k CHF POS-system installation is neither labour-intensive nor PPE-relevant; the derived need is contradicted by the object."
+   },
+   {
+    "signal_id": "179798744d7229a1088db5d8f4442299bdd374bc93c393c4f679a60ffa7a5e4e",
+    "grade": "maybe",
+    "note": "Large CZ building contract with credible workforce/PPE needs, but Czechia sits outside the ICP's six declared countries — defensible drop under a merely preferred geography."
+   },
+   {
+    "signal_id": "1aea75e7ac0b4407e7d5459e6a6d129bd6860ff98f957a02c64bd80dc188c702",
+    "grade": "maybe",
+    "note": "CH engineering mandate above threshold and in territory, but a large multidisciplinary planner like Emch+Berger typically covers SIA phases 41-53 in-house, so the subcontracting need is only generically supported."
+   },
+   {
+    "signal_id": "1d1bd1be57fef51a480ef581753662347639d7613941f276c90aacf0cf51c294",
+    "grade": "correctly_not_show",
+    "note": "Italian security-guard consortium: the workforce category matches nominally, but a supplier of construction site inputs has no coherent reason to call four vigilanza firms."
+   },
+   {
+    "signal_id": "1b1e3265a3f18843f02cc19c4276f962eca49c68cfd3778d881f362aea009408",
+    "grade": "maybe",
+    "note": "Swiss civil works in territory and above threshold, but it is a 707k supplementary order to a very large contractor and only the secondary PPE category is added to a generic workforce need."
+   },
+   {
+    "signal_id": "1d8451c53eaaca5408082ffe6bbe1532e7147b714264425c1c0e50eb1cc9953f",
+    "grade": "correctly_not_show",
+    "note": "GE HealthCare servicing its own ultrasound fleet in Finland: outside the ICP territories and no plausible construction-input need at a device OEM."
+   },
+   {
+    "signal_id": "1bc1a6b5d47739c83f83320426645f8a4870afbe626f2992d6f8d1a2caf7aaa5",
+    "grade": "should_have_been_show",
+    "note": "4.1M CHF Swiss pipeline job with a concrete 3.9 km scope hitting both ICP primaries plus equipment — a construction-inputs supplier would clearly want this."
+   },
+   {
+    "signal_id": "2066b5ba3a034a3282e9727028aca992b0a6f13e67d410d3dea8a4309a4b7304",
+    "grade": "correctly_not_show",
+    "note": "Norwegian electrician framework with no published value: outside territory, threshold unverifiable, and no construction-input need."
+   },
+   {
+    "signal_id": "1c46f22bd9d44175c05463f83d7dfb39cb4f61c6d2d06dcb86752ea5058fd522",
+    "grade": "correctly_not_show",
+    "note": "Supercomputer maintenance awarded to HP Switzerland — right country, but no coherent construction-inputs opportunity at a global IT OEM."
+   },
+   {
+    "signal_id": "20c31a61091a563e9d397685cd745005b848d2f5b4f3886ac54c992579d92df3",
+    "grade": "correctly_not_show",
+    "note": "Cypriot coach operator moving national guard troops: outside the ICP territories and unrelated to construction inputs."
+   },
+   {
+    "signal_id": "1f332d2367b87628d8a6e446051ce7f07d224e518f45e4e46e81ab6dcae5ae4c",
+    "grade": "maybe",
+    "note": "Swiss plastering/drywall package of the right size and type for a PPE supplier, but the signal only carries a generic workforce need and never derives the PPE need this ICP actually sells."
+   },
+   {
+    "signal_id": "2148499633138a5a70856d437a294246d38729185519b7e493d1263e4e175b8d",
+    "grade": "correctly_not_show",
+    "note": "Czech architectural design mandate: place of performance CZ falls outside an ICP whose name and territory list are explicitly Western Europe."
+   },
+   {
+    "signal_id": "253e274fabded3b756d22c83d3242430dc37b40a1a88ebf64b1ce9b23d5bfb59",
+    "grade": "maybe",
+    "note": "Multi-year Swiss geomatics mandate with field monitoring could interest a BTP staffing agency, but the derived need is the secondary subcontracting category with unknown timing."
+   },
+   {
+    "signal_id": "22c80f701a711a81f9399635b01d5069295a6a688e5bd262e29fbac252a47a2b",
+    "grade": "correctly_not_show",
+    "note": "Underwater lake cleaning in Greece by a sole operator: outside territory and no construction-inputs fit."
+   },
+   {
+    "signal_id": "2601929c2832073ded2f1d83cd97980603fe401d835026c95bac139f37f7447d",
+    "grade": "should_have_been_show",
+    "note": "16.6M CHF Generalplaner mandate for ASTRA is the textbook specialist-subcontracting lead — right country, well above threshold, recent, and the need follows directly from the contract form."
+   },
+   {
+    "signal_id": "2303d3c18678d95f532604b4793fcae8fdff06504955f50776126905d97806ff",
+    "grade": "should_have_been_show",
+    "note": "4.9M EUR French job laying 7.6 km of DN600 pipe with execution already started: concrete, in territory, and hits both ICP primaries plus equipment."
+   },
+   {
+    "signal_id": "29242d350351e7e89283de4517c2ad1fe99dddd56de38df929202f3cfc6f5013",
+    "grade": "maybe",
+    "note": "Large Swiss engineering mandate in exact territory, but AP/DP design phases generate office rather than site labour, so the fit for a BTP staffing agency is uncertain."
+   },
+   {
+    "signal_id": "240cbd797ed33a8de2910396e0a488be2e2bd560c5e1328c294a0211ca553e36",
+    "grade": "correctly_not_show",
+    "note": "Green-space maintenance in Treviso: place of performance IT is outside the ICP's territories and grounds upkeep is not a specialist technical construction lot."
+   },
+   {
+    "signal_id": "298e22ad1ffff42dc2bd44223d9d7e4fc2ebdab3ccf1a1eebb2a0002f6c0eae2",
+    "grade": "maybe",
+    "note": "Swiss HVAC installation package of the right type and size, but Equans is a large group with central procurement and the PPE need itself was never derived."
+   },
+   {
+    "signal_id": "27309d19d46b0700470d340726cc597e7a86a6e9efe2793960c792ff241c7bc0",
+    "grade": "should_have_been_show",
+    "note": "11.4M EUR turnkey school extension won by a developer/service company in Germany — a Totalübernehmer subcontracts nearly every trade, which is exactly this ICP's business."
+   },
+   {
+    "signal_id": "2c900ba1404a338e03f48e31fc04e362ab68c8e8ce54daec599eced788318e57",
+    "grade": "maybe",
+    "note": "Swiss cable-duct lot near 1M CHF touches both ICP primaries, but it is a supplementary order on work already under way, weakening the why-now."
+   },
+   {
+    "signal_id": "2a5555c0b5bd6b5fd545897b3c5af1979637ae5381075eb1d818241763ffc08e",
+    "grade": "correctly_not_show",
+    "note": "Danish guard services with no published value: outside territory and unrelated to construction inputs."
+   },
+   {
+    "signal_id": "2ea32829bdaabc0c06fd5e2712d0cd1bf3035c0fab40b843462a070733b65377",
+    "grade": "maybe",
+    "note": "1.5M CHF Swiss metalwork package in territory with a plausible workforce need, but the obvious materials angle was never derived and the fabricator sources its own components."
+   },
+   {
+    "signal_id": "2b46dfcc4098a92a1a351135d6f0e28187dfc103905d9243b84618462c84493b",
+    "grade": "should_have_been_show",
+    "note": "3-year Orsted billing platform implementation with an immediate start, matching a remote specialist ICP that has no geographic or value constraint — a clear subcontracting lead."
+   },
+   {
+    "signal_id": "2fc7fb6ee53eeb2d4fcd805a2fe462ac05bece611f27e39168dc489f97c7c821",
+    "grade": "maybe",
+    "note": "3M CHF Swiss timber/facade package is a natural PPE prospect, but the signal presents only a generic workforce need rather than the safety need this ICP sells."
+   },
+   {
+    "signal_id": "33936883ae098234fcc73e64074bb8820523589eda098e57e56636afe8ab91d1",
+    "grade": "correctly_not_show",
+    "note": "Swedish groundworks framework: outside the ICP territories, no published value, and the framework started nearly a year before publication."
+   }
+  ],
+  "exclude": [
+   {
+    "signal_id": "00664d3510603346aebaa8c1a786e1092ed43e0d842149ee18bfed60ec3db84b",
+    "grade": "correctly_not_show",
+    "note": "Credible sanitary-installation materials need, but place of performance is CH while this ICP declares FR/DE/ES/IT/PT/BE/NL with geography required — hard territorial mismatch."
+   },
+   {
+    "signal_id": "0094b31dd61ab2a1d88f5c958b34a66b8fa532b639e0b4858c5dc7a9ae1e9371",
+    "grade": "correctly_not_show",
+    "note": "Swedish waste-vacuum O&M service contract: outside the ICP's required territories, wrong contract type (services, not construction), and no derived need at all."
+   },
+   {
+    "signal_id": "00aacf69057a9b1661b1ab89955d23d48f9a18a8498fa2803e7935235fb34ff8",
+    "grade": "correctly_not_show",
+    "note": "Annual software adaptation of a cantonal tax application creates no plausible demand for construction inputs, workforce or PPE."
+   },
+   {
+    "signal_id": "00eddfb5bdf0822b61ffc1cad49b87228bc148fa51342f179b22377aa922d0de",
+    "grade": "correctly_not_show",
+    "note": "Lab mass-spectrometer supply by Thermo Fisher: the equipment is the deliverable, not a downstream need, and the ICP covers construction materials only."
+   },
+   {
+    "signal_id": "06cf599c8648fc048d148576b48d1c338c9ebd5df89fec4eb79e016041cab071",
+    "grade": "correctly_not_show",
+    "note": "Factory-produced rail switch components delivered to build a spare-parts stock; no site execution and no plausible demand for chantier inputs at a steel manufacturer."
+   },
+   {
+    "signal_id": "017ad15dbb78617ff5168c7a015f8b1c1a13f8b64d30089d38038f3fd045d938",
+    "grade": "correctly_not_show",
+    "note": "Czech road-signage lot at roughly EUR 13k: outside the ICP's required territories and an order of magnitude below its EUR 200k floor."
+   },
+   {
+    "signal_id": "06e288ad5512707806ab265c30fee93185be14853cd35a0ae26f7546eaae7398",
+    "grade": "correctly_not_show",
+    "note": "Pure SIA planning mandate won by an engineering consultancy — a planner specifies materials but never buys chantier inputs."
+   },
+   {
+    "signal_id": "019dfd2467b259629bb6ef5816298419ca7ca93e1118b0edd4976d8fbdc41f67",
+    "grade": "correctly_not_show",
+    "note": "Swedish housing contractor against a Switzerland-only PPE supplier, with an unpublished value and a boilerplate 'see procurement documents' description; the workforce need is generic."
+   },
+   {
+    "signal_id": "07c764c35cc658319edca38cd676ba0e86834508ea729dc7988c576b8fbcd99c",
+    "grade": "correctly_not_show",
+    "note": "Commercially attractive CHF 6.25M facade package, but the ICP declares euro-zone territories with geography required and no need was derived — the territorial exclusion is the customer's own rule."
+   },
+   {
+    "signal_id": "01a4865773b938a4279f0c93ed67606a22addea9c9c09263f5faace647f84dad",
+    "grade": "correctly_not_show",
+    "note": "Empty record: no title, no CPV, no value, no dates and no derived need — nothing a salesperson could act on."
+   },
+   {
+    "signal_id": "086e02f1a0d90ecd704dd3c09b3111a1680e892231a53ab2f59a54eb90cca45a",
+    "grade": "maybe",
+    "note": "Largest and best-aligned pairing in the batch — CHF 11.76M multi-year HPC maintenance against a geography-free specialist-subcontracting ICP — but no need was articulated and HP is a tier-1 integrator with deep in-house capacity."
+   },
+   {
+    "signal_id": "01bdcb78de2d339c75731fb03c219fc543cc0b206255c0b966bae9d35166c155",
+    "grade": "correctly_not_show",
+    "note": "Supported self-rehabilitation animation mission: a social-support mandate, not construction, with unpublished value and an award roughly six months past the ICP's 120-day window."
+   },
+   {
+    "signal_id": "08f8cc40e640d6dccf6eb65a906c64fb39871e6eff058fb568671231aac03b89",
+    "grade": "correctly_not_show",
+    "note": "Police application security upgrade and software maintenance — no connection to construction inputs, workforce or PPE."
+   },
+   {
+    "signal_id": "01c165ecd9c68ea920b6c49c2625f01197b67764214f6e9e49bc2fbbd5f07585",
+    "grade": "correctly_not_show",
+    "note": "Scientific dilution refrigerator delivered in Austria: outside the ICP's required territories, wrong contract type, and the instrument is the deliverable."
+   },
+   {
+    "signal_id": "0ac9b5cc072dd52661f1560e0ed1f980d55fc3736d9ec93138b9414515352b09",
+    "grade": "maybe",
+    "note": "Roughly CHF 941k general-planner mandate covering ventilation upgrade and a central cooling plant under a broad CH-inclusive ICP with the value threshold met — defensible either way, though the winner is a planner and not a buyer of chantier inputs."
+   },
+   {
+    "signal_id": "01c917bde7ad64d82b96523acf800371af1f72ac88d3be3a3085dd511390785f",
+    "grade": "correctly_not_show",
+    "note": "Finnish cleaning-services mini-competition at EUR 60k judged against a Swiss construction-site safety supplier: wrong country, wrong contract type, below threshold."
+   },
+   {
+    "signal_id": "0cf77ba63c29079512523ae3fab9ccff4402883641b97259c2a010b109094889",
+    "grade": "correctly_not_show",
+    "note": "Research collaboration awarded to a university institute; academic data analysis is performed in-house and is a poor prospect for commercial specialist subcontracting."
+   },
+   {
+    "signal_id": "0230620b23e611215b7fc362744e97b0e91001be036b69b54420323dfc50825a",
+    "grade": "correctly_not_show",
+    "note": "Swedish municipal waste-treatment qualification with a content-free description, evaluated against a Switzerland-only PPE ICP restricted to construction."
+   },
+   {
+    "signal_id": "0e35cd3640725303c56b92c7459c9e8a59f5f56d038e44a7096e23e6dccdf8a3",
+    "grade": "correctly_not_show",
+    "note": "CHF 30.5k scaffolding lot, far below the ICP's CHF 100k floor, and scaffolding is the winner's deliverable rather than a downstream need."
+   },
+   {
+    "signal_id": "02bfdc33afb8fed8cc83505eff52a9b03019ab8288058bc62982ecd92790b0c4",
+    "grade": "correctly_not_show",
+    "note": "Neurosurgical instrument set in Poland: outside the ICP's required territories, medical supply rather than construction, and below the EUR 200k floor."
+   },
+   {
+    "signal_id": "0ed5963c85628b1719eda7eec3db3d4a85f9f3fb6352f60842005761feb93b82",
+    "grade": "correctly_not_show",
+    "note": "Swiss traffic-management control-system replacement — outside the ICP's required territories, and the work is system migration with little construction-materials content."
+   },
+   {
+    "signal_id": "02ee585effa68f9a6e5f1ab18ceadd554cdfdedde44c0b0d65e94806698bc74d",
+    "grade": "correctly_not_show",
+    "note": "Polish medical supply lot at roughly EUR 47k: territorial mismatch, wrong contract type, and below the value floor."
+   },
+   {
+    "signal_id": "0fded3bd153a29c0190c2fe3db58c7c8e7f721dd306f7c63ae302f01eb15c14e",
+    "grade": "correctly_not_show",
+    "note": "Software licence maintenance and support; nothing in the contract creates demand for construction inputs."
+   },
+   {
+    "signal_id": "04c6821608d6688e9bc14c39c986ecfd027f067cc1512a627ee7b98edd459304",
+    "grade": "correctly_not_show",
+    "note": "Romanian building-services maintenance at roughly EUR 63k against a Switzerland-only construction PPE ICP: wrong country, wrong contract type, below threshold."
+   },
+   {
+    "signal_id": "1235e136122431fffb4a3942e142a93f1300def6d7dd1013251de6260a833cbb",
+    "grade": "correctly_not_show",
+    "note": "Building-cleaning package in CH against a euro-zone materials ICP with geography required; the derived equipment need also mis-describes the work as earthworks/civil engineering."
+   },
+   {
+    "signal_id": "0520d6893c631467bf73ef6125fb5c28a499893e8cd3d602a6499c02948755dc",
+    "grade": "maybe",
+    "note": "Genuine 14-month bridge/rail construction site starting in 8 days would credibly need site safety, and the CH PPE ICP marks geography only as preferred, but a north-German site 800 km away with no published value is not clearly wanted."
+   },
+   {
+    "signal_id": "13198cf0a44e56b0f6354a1a3b475afd6bf150a3503a43d6a5e923e200e81217",
+    "grade": "correctly_not_show",
+    "note": "Swiss cooling-plant works against a eurozone materials trader whose territory list is required and excludes CH: hard geographic mismatch."
+   },
+   {
+    "signal_id": "06a1fafd99188d5c2db8c5570dfad2af717734a57c5b3df28080013bcf213c8d",
+    "grade": "correctly_not_show",
+    "note": "Interior blind installation worth 51k EUR, far below the ICP's CHF 100k floor and in Berlin rather than Switzerland, with only a generic workforce need."
+   },
+   {
+    "signal_id": "156d49d200df53da7420fe0b9adf5c71ada02437a0791c7a5829d4f445b8e6a7",
+    "grade": "correctly_not_show",
+    "note": "A cloud backup software subscription resale creates no demand for construction site inputs; no need was derived and none is plausible."
+   },
+   {
+    "signal_id": "06b602a09fb2a8e26948df9af5a75934ccbe86bdf0c8b4bd029fce1787ba7126",
+    "grade": "correctly_not_show",
+    "note": "Pure equipment supply of electrical transducers to rail warehouses, outside the ICP's construction-only scope and with no building-materials need at the winner."
+   },
+   {
+    "signal_id": "1694345a6e5a68d7023eae9cb1d5e12aada16bb7243cdafbd7e6984c458b42e5",
+    "grade": "correctly_not_show",
+    "note": "Canon leasing a print press to a cantonal tax office has no connection to construction workforce or materials."
+   },
+   {
+    "signal_id": "074429252de3ea9ad42efbe371664aff6336a02c948793bdf46ccc824c1e63e2",
+    "grade": "correctly_not_show",
+    "note": "Liquid nitrogen supply to CNRS laboratories is Air Liquide's own deliverable, not a downstream construction-materials need."
+   },
+   {
+    "signal_id": "177db8b4f9c794459a36abaded6f8545f2f048593d2b73735ae7be43578009ef",
+    "grade": "correctly_not_show",
+    "note": "The extra resources described are past telecom-engineering effort already compensated by this supplement, not a forward need for site inputs."
+   },
+   {
+    "signal_id": "07d16dceeac7cc4a89d35555783874eebdb008f2b13d26f0717a8972841fcd56",
+    "grade": "correctly_not_show",
+    "note": "Waste-centre operation in the Yvelines is facility services outside the ICP's construction-only scope and out of reach of a Switzerland-only PPE supplier."
+   },
+   {
+    "signal_id": "1794badd9368208756009e38ae6e4b83816d2d0c698e881368b3866ecdc4e5b2",
+    "grade": "maybe",
+    "note": "The remote-specialist ICP has no geographic or type filter and a CHF 774k munitions-clearance programme is technically demanding enough to interest a specialist subcontractor, but the signal carries no derived need at all."
+   },
+   {
+    "signal_id": "088af588525948802d9d95d0a3b46782ee06e903cd4be4f3874d498e11552811",
+    "grade": "correctly_not_show",
+    "note": "Foaming chemicals for Romanian gas wells, signed in 2024, outside both the required territory and any construction-materials relevance."
+   },
+   {
+    "signal_id": "186bcf646687e38c82d285b0e7c3dd273d0fc425ae7273b8e68295af1361c754",
+    "grade": "correctly_not_show",
+    "note": "A general-planner fee supplement makes AFRY a buyer of engineering hours, not of the site inputs this ICP sells."
+   },
+   {
+    "signal_id": "08b590ac31749909dbc8d2e4d284e392029c89b3d91628e0a0010715dbe257a9",
+    "grade": "correctly_not_show",
+    "note": "Spices and salts for a Liege hospital at 24k EUR has no coherent link to a construction materials trader."
+   },
+   {
+    "signal_id": "19665d61477286744616612751d769888a1f75fd2e45af26cdbde5cc51e6066e",
+    "grade": "correctly_not_show",
+    "note": "Credible materials need on a CHF 520k metal-door package, but the ICP requires performance in the eurozone list and this is in Switzerland."
+   },
+   {
+    "signal_id": "0bc77c66932d7094bcaaaf9cca2819612793fb8244497cc10e1cc27d0c33ea56",
+    "grade": "correctly_not_show",
+    "note": "Rail securing services with a published value of 0 EUR, outside the construction scope and below any usable threshold for a materials trader."
+   },
+   {
+    "signal_id": "1bee6001a177475915d872231ed316765830321bbe128d21116637d4b071ecef",
+    "grade": "correctly_not_show",
+    "note": "ICT governance consulting for the canton of Zurich generates no demand for construction capacity or materials."
+   },
+   {
+    "signal_id": "0cffdfc5b914cd04ac978b00b8bd6cb973b3ccbfe68c516d183a8e595f58f1b6",
+    "grade": "correctly_not_show",
+    "note": "Czech pharmaceutical wholesale of a cytostatic drug: wrong country, wrong sector, no plausible need."
+   },
+   {
+    "signal_id": "1cea572191a5f818992a6ccd8c7bda0994bec6f3e577e11ff58ee82308e225fb",
+    "grade": "correctly_not_show",
+    "note": "A university institute doing track measurement research is not a buyer of construction workforce or materials."
+   },
+   {
+    "signal_id": "0d781414f121070aa917a7f161c98912a30df215ea5b85626de737c8d85c62db",
+    "grade": "correctly_not_show",
+    "note": "Right country and right contract type, but a 15k EUR joinery job of trim strips and a kitchenette is an order of magnitude below the ICP's 200k floor."
+   },
+   {
+    "signal_id": "1d3a63a6126d2c449882f7b0fba863285d24bbc3ae3f52c20668f313df1f9b21",
+    "grade": "correctly_not_show",
+    "note": "Screed flooring work carries a real materials need, but the performance site is Swiss and this ICP's territory filter is required, not preferred."
+   },
+   {
+    "signal_id": "0e719efaae53f5df2aec6fbc432aae21380e4981adce6fd0a1371ea89f9a66e1",
+    "grade": "correctly_not_show",
+    "note": "Empty record with no title, description, CPV, value or contract type: nothing a salesperson could act on."
+   },
+   {
+    "signal_id": "1dc647baccb1ad488cf790f5e05e047a5e6797510c18d3c70c939d7e7548b6ad",
+    "grade": "correctly_not_show",
+    "note": "Swiss lift installation against a eurozone-required ICP, and Schindler installs its own manufactured product rather than buying materials."
+   },
+   {
+    "signal_id": "0ea4931791c41781c1c51968779c410574bbaf90413e37d3358d19f19fd470cf",
+    "grade": "correctly_not_show",
+    "note": "In-territory and above threshold, but the winner is a planning office delivering HOAI design phases; the civil-works materials go to a different contractor."
+   },
+   {
+    "signal_id": "1ddd04c63f3dfbc60644ef9b7bb7f4b4a23a6a86dcf14db47b5f4cbbfc3579b6",
+    "grade": "correctly_not_show",
+    "note": "Strongest materials need in the batch on a CHF 1.2M concrete reservoir build, but Gadmen is in Switzerland and this ICP hard-requires a eurozone place of performance."
+   },
+   {
+    "signal_id": "0fb5cead4ee17b52dcd69146c5a0d16ee19b8d054a3bf75bcab5f093f517952c",
+    "grade": "correctly_not_show",
+    "note": "Swedish switch prefabrication is outside the required territory, is the winner's own deliverable, and publishes no value."
+   }
+  ]
+ }
+}

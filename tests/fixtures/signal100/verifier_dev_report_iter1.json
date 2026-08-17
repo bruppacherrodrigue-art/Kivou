@@ -1,0 +1,466 @@
+{
+ "headline": {
+  "candidates": 150,
+  "gold_A": 11,
+  "gold_B": 68,
+  "gold_C": 54,
+  "gold_D": 17,
+  "final_shows": 16,
+  "final_show_rate": 10.67,
+  "true_useful_final_shows": 10,
+  "weak_final_shows": 6,
+  "false_final_shows": 0,
+  "final_show_useful_precision": 62.5,
+  "final_show_actionable_rate": 18.75,
+  "weak_final_show_rate": 37.5,
+  "false_final_show_rate": 0.0,
+  "critical_false_final_shows": 0,
+  "useful_recall": 12.66,
+  "A_recall": 27.27,
+  "B_recall": 10.29,
+  "shown_distribution": {
+   "A": 3,
+   "B": 7,
+   "C": 6
+  }
+ },
+ "origin": {
+  "show": {
+   "candidates": 100,
+   "retained": 14,
+   "hidden": 86,
+   "useful_precision_after_verifier": 57.14,
+   "useful_precision_before_verifier": 52.0,
+   "useful_recall": 15.38,
+   "useful_opportunities_recovered": null
+  },
+  "borderline": {
+   "candidates": 50,
+   "promoted": 2,
+   "hidden": 48,
+   "useful_precision_after_verifier": 100.0,
+   "useful_precision_before_verifier": 54.0,
+   "useful_recall": 7.41,
+   "useful_opportunities_recovered": 2
+  }
+ },
+ "integrity": {
+  "answered": 149,
+  "fact_reference_errors": 0,
+  "fact_reference_validity": 100.0,
+  "forbidden_wording": 0,
+  "validation_failures": 31,
+  "schema_failures": 1,
+  "api_failures": 0,
+  "unsupported_language": 0,
+  "hide_reasons": {
+   "verdict=downgrade": 74,
+   "validation_failure": 31,
+   "verdict=reject": 21,
+   "winner_already_provides_need=possible": 7,
+   "schema_failure": 1
+  }
+ },
+ "top20": {
+  "final_shows": 16,
+  "useful_precision": 62.5,
+  "critical_false": 0,
+  "distribution": {
+   "A": 3,
+   "B": 7,
+   "C": 6
+  }
+ },
+ "shadow_diagnostics": {
+  "useful_candidates_hidden": 69,
+  "actionable_candidates_hidden": 8,
+  "false_candidates_correctly_blocked": 17,
+  "weak_candidates_correctly_blocked": 48,
+  "hidden_total": 134,
+  "hidden_distribution": {
+   "B": 61,
+   "C": 48,
+   "D": 17,
+   "A": 8
+  }
+ },
+ "distributions": {
+  "source": {
+   "simap": {
+    "candidates": 80,
+    "final_shows": 5,
+    "useful_precision": 80.0,
+    "useful_recall": 8.0
+   },
+   "ted": {
+    "candidates": 70,
+    "final_shows": 11,
+    "useful_precision": 54.55,
+    "useful_recall": 20.69
+   }
+  },
+  "icp": {
+   "icp-materials-eu": {
+    "candidates": 8,
+    "final_shows": 5,
+    "useful_precision": 100.0,
+    "useful_recall": 71.43
+   },
+   "icp-national-supplier": {
+    "candidates": 61,
+    "final_shows": 8,
+    "useful_precision": 50.0,
+    "useful_recall": 13.79
+   },
+   "icp-ppe-safety-ch": {
+    "candidates": 11,
+    "final_shows": 0,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "icp-remote-specialist": {
+    "candidates": 37,
+    "final_shows": 1,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "icp-staffing-ch": {
+    "candidates": 2,
+    "final_shows": 0,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "icp-subcontracting-eu": {
+    "candidates": 31,
+    "final_shows": 2,
+    "useful_precision": 50.0,
+    "useful_recall": 5.88
+   }
+  },
+  "contract_type": {
+   "construction": {
+    "candidates": 62,
+    "final_shows": 10,
+    "useful_precision": 90.0,
+    "useful_recall": 18.75
+   },
+   "engineering_architecture": {
+    "candidates": 35,
+    "final_shows": 2,
+    "useful_precision": 50.0,
+    "useful_recall": 4.35
+   },
+   "facility_services": {
+    "candidates": 8,
+    "final_shows": 1,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "it_digital": {
+    "candidates": 28,
+    "final_shows": 1,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "maintenance_repair": {
+    "candidates": 11,
+    "final_shows": 0,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "security_services": {
+    "candidates": 2,
+    "final_shows": 0,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "social_health_services": {
+    "candidates": 1,
+    "final_shows": 0,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "transport_logistics": {
+    "candidates": 3,
+    "final_shows": 2,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   }
+  },
+  "need_category": {
+   "equipment_or_rental": {
+    "candidates": 30,
+    "final_shows": 9,
+    "useful_precision": 77.78,
+    "useful_recall": 35.0
+   },
+   "materials_or_components": {
+    "candidates": 27,
+    "final_shows": 10,
+    "useful_precision": 90.0,
+    "useful_recall": 42.86
+   },
+   "safety_and_ppe": {
+    "candidates": 17,
+    "final_shows": 0,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "specialist_subcontracting": {
+    "candidates": 65,
+    "final_shows": 3,
+    "useful_precision": 33.33,
+    "useful_recall": 3.23
+   },
+   "workforce_capacity": {
+    "candidates": 78,
+    "final_shows": 8,
+    "useful_precision": 50.0,
+    "useful_recall": 9.52
+   }
+  }
+ },
+ "source_gate": {
+  "simap": {
+   "final_shows": 5,
+   "useful_precision": 80.0,
+   "gate_applies": false,
+   "gate_passed": null
+  },
+  "ted": {
+   "final_shows": 11,
+   "useful_precision": 54.55,
+   "gate_applies": false,
+   "gate_passed": null
+  }
+ },
+ "failure_analysis": {
+  "false_final_shows": 6,
+  "by_gold_verdict": {
+   "C": 6
+  },
+  "by_gold_failure_layer": {
+   "matching": 4,
+   "contract understanding": 1,
+   "ICP configuration": 1
+  },
+  "cases": [
+   {
+    "candidate_id": "7a26330cbb6da97c7e484ac69b836830e66c6d96f15ce601445134f63079706e",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-subcontracting-eu",
+    "contract_type": "it_digital",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "specific",
+    "verifier_timing": "unknown",
+    "verifier_reason": "SPIE ICS pourrait recourir à des sous-traitants spécialisés pour exécuter ce contrat d'infogérance de 24,5 millions d'euros.",
+    "gold_note": "The subcontracting need is genuinely credible on a 24.5 MEUR five-year IT managed-services contract split into six technical sub-lots, but an ICP selling specialist construction and engineering lots has almost nothing to sell into infogerance and cybersecurity - the category matched, the market did not."
+   },
+   {
+    "candidate_id": "30ff26ae65929449fb57a53703d3d14fcee285a839f83b9bec57c27fb7d409ae",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "transport_logistics",
+    "need_categories": [
+     "workforce_capacity",
+     "equipment_or_rental"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "contract understanding",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "specific",
+    "verifier_timing": "current",
+    "verifier_reason": "SAF Srl a remporté un contrat de facchinage et entretien d'espaces verts à Messina pour 4,6M EUR ; elle pourrait avoir besoin de renfort en personnel et en équipement pour exécuter ce marché pluriannuel.",
+    "gold_note": "A five-year hospital portering and grounds-maintenance contract in Messina is read as a transport market needing extra rolling stock, and while the labour-capacity angle is genuinely strong for a service that is almost pure headcount, a supplier of construction-site inputs has little to sell here so the lead does not earn feed space."
+   },
+   {
+    "candidate_id": "474c52d491a8892dfbf46126afe9a204a610a57c53a220cec4b275554c62feba",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "transport_logistics",
+    "need_categories": [
+     "workforce_capacity",
+     "equipment_or_rental"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "ICP configuration",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Celering Travel S.L. remporte un contrat de transport non sanitaire de 2 M EUR en Espagne, un renfort de personnel et de flotte est plausible, ce qui correspond aux catégories workforce_capacity et equipment_or_rental de l'ICP.",
+    "gold_note": "Drivers and fleet are genuine inputs for a 2 MEUR non-medical passenger transport contract in Badajoz, but an ICP whose offer is explicitly construction site inputs has no real commercial angle on a Spanish transport operator, so the match is nominal on the category label only."
+   },
+   {
+    "candidate_id": "553a0c2b0b15ea383607ad3c3e5095f999504179dc218142e638531b005af820",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "construction",
+    "need_categories": [
+     "workforce_capacity",
+     "materials_or_components"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "specific",
+    "verifier_timing": "current",
+    "verifier_reason": "Diaplan Innenausbau pourrait nécessiter un renfort de personnel et un approvisionnement en matériaux pour réaliser l'installation de cloisons et de filets de sport à Kempten, en Allemagne.",
+    "gold_note": "A 120k EUR job installing one gym dividing curtain and three ball-stop nets is a niche sports-equipment purchase, not construction inputs, and is far too small to strain a fit-out firm's headcount, so the category match is nominal and gives my team nothing to sell."
+   },
+   {
+    "candidate_id": "78c08ee09b80c0b9c0de422c300350548b5cb6280274378c8453d5086dda8e47",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "facility_services",
+    "need_categories": [
+     "workforce_capacity"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "current",
+    "verifier_reason": "Le gagnant, prestataire de nettoyage, pourrait nécessiter un renfort en personnel pour exécuter ce contrat, ce qui correspond au besoin de capacité de main-d'oeuvre couvert par le client.",
+    "gold_note": "The workforce need is the most credible in the batch - a three-year Madrid building-cleaning contract starting 01.09.2026 is pure labour - but a construction-site-inputs group has nothing to sell to a sheltered-employment cleaning company, so the match is nominal rather than commercial."
+   },
+   {
+    "candidate_id": "812701d0f641c31a9be4199061ecf022891edb2861071e1661cb0956cb068b67",
+    "origin": "show",
+    "source": "simap",
+    "icp_id": "icp-remote-specialist",
+    "contract_type": "engineering_architecture",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Planair SA, attributaire d'un marché d'ingénierie CVC à l'EPFL, pourrait avoir recours à des sous-traitants spécialisés pour certaines composantes de la rénovation.",
+    "gold_note": "The match is nominal: the winner is itself a well-known HVAC and energy engineering specialist and a 168k CHF full mission leaves almost no budget to subcontract, so selling remote technical expertise into it is commercially thin."
+   }
+  ]
+ },
+ "cost_and_latency": {
+  "MEASURED": {
+   "requests": 149,
+   "cache_hits": 0,
+   "schema_retries": 12,
+   "api_failures": 32,
+   "input_tokens": 891618,
+   "output_tokens": 427883,
+   "cost_usd": 0.105058,
+   "candidates": 150,
+   "final_shows": 16,
+   "latency_ms": {
+    "p50": 26818.3,
+    "p95": 57070.8,
+    "max": 74161.8
+   },
+   "total_wall_time_ms": 4270078.6
+  },
+  "PROJECTED": {
+   "cost_per_100_candidates": 0.07,
+   "cost_per_100_final_shows": 0.6566,
+   "cost_per_1000_deterministic_candidates": 0.7004,
+   "wall_time_100_candidates_s": 2846.7,
+   "wall_time_1000_candidates_s": 28467.2
+  }
+ },
+ "gates": {
+  "gates": {
+   "final_show_useful_precision": {
+    "observed": 62.5,
+    "requirement": ">= 95.0",
+    "spec": "§32",
+    "passed": false
+   },
+   "critical_false_final_shows": {
+    "observed": 0,
+    "requirement": "<= 0",
+    "spec": "§32",
+    "passed": true
+   },
+   "false_final_show_rate": {
+    "observed": 0.0,
+    "requirement": "<= 2.0",
+    "spec": "§32",
+    "passed": true
+   },
+   "weak_final_show_rate": {
+    "observed": 37.5,
+    "requirement": "<= 8.0",
+    "spec": "§32",
+    "passed": false
+   },
+   "useful_recall": {
+    "observed": 12.66,
+    "requirement": ">= 60.0",
+    "spec": "§32",
+    "passed": false
+   },
+   "final_show_rate": {
+    "observed": 10.67,
+    "requirement": ">= 30.0",
+    "spec": "§32",
+    "passed": false
+   },
+   "fact_reference_validity": {
+    "observed": 100.0,
+    "requirement": ">= 100.0",
+    "spec": "§32",
+    "passed": true
+   },
+   "forbidden_wording": {
+    "observed": 0,
+    "requirement": "<= 0",
+    "spec": "§32",
+    "passed": true
+   },
+   "top20_final_show_useful_precision": {
+    "observed": 62.5,
+    "requirement": ">= 95.0",
+    "spec": "§32",
+    "passed": false
+   }
+  },
+  "failed_gates": [
+   "final_show_rate",
+   "final_show_useful_precision",
+   "top20_final_show_useful_precision",
+   "useful_recall",
+   "weak_final_show_rate"
+  ],
+  "passed": false
+ },
+ "versions": {
+  "prompt": "commercial-verifier-prompt-v0.1",
+  "schema": "commercial-verifier-schema-v0.1",
+  "policy": "commercial-verifier-policy-v0.1",
+  "model_id": "deepseek/deepseek-v4-flash"
+ },
+ "run_at": "2026-08-17T17:44:43+00:00"
+}

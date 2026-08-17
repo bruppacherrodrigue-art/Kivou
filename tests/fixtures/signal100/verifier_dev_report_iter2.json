@@ -1,0 +1,835 @@
+{
+ "headline": {
+  "candidates": 150,
+  "gold_A": 11,
+  "gold_B": 68,
+  "gold_C": 54,
+  "gold_D": 17,
+  "final_shows": 80,
+  "final_show_rate": 53.33,
+  "true_useful_final_shows": 55,
+  "weak_final_shows": 23,
+  "false_final_shows": 2,
+  "final_show_useful_precision": 68.75,
+  "final_show_actionable_rate": 11.25,
+  "weak_final_show_rate": 28.75,
+  "false_final_show_rate": 2.5,
+  "critical_false_final_shows": 1,
+  "useful_recall": 69.62,
+  "A_recall": 81.82,
+  "B_recall": 67.65,
+  "shown_distribution": {
+   "B": 46,
+   "A": 9,
+   "C": 23,
+   "D": 2
+  }
+ },
+ "origin": {
+  "show": {
+   "candidates": 100,
+   "retained": 59,
+   "hidden": 41,
+   "useful_precision_after_verifier": 62.71,
+   "useful_precision_before_verifier": 52.0,
+   "useful_recall": 71.15,
+   "useful_opportunities_recovered": null
+  },
+  "borderline": {
+   "candidates": 50,
+   "promoted": 21,
+   "hidden": 29,
+   "useful_precision_after_verifier": 85.71,
+   "useful_precision_before_verifier": 54.0,
+   "useful_recall": 66.67,
+   "useful_opportunities_recovered": 18
+  }
+ },
+ "integrity": {
+  "answered": 150,
+  "fact_reference_errors": 0,
+  "fact_reference_validity": 100.0,
+  "forbidden_wording": 0,
+  "validation_failures": 0,
+  "schema_failures": 0,
+  "api_failures": 0,
+  "unsupported_language": 0,
+  "hide_reasons": {
+   "verdict=downgrade": 50,
+   "verdict=reject": 18,
+   "winner_already_provides_need=possible": 2
+  }
+ },
+ "top20": {
+  "final_shows": 20,
+  "useful_precision": 70.0,
+  "critical_false": 0,
+  "distribution": {
+   "B": 10,
+   "A": 4,
+   "C": 6
+  }
+ },
+ "shadow_diagnostics": {
+  "useful_candidates_hidden": 24,
+  "actionable_candidates_hidden": 2,
+  "false_candidates_correctly_blocked": 15,
+  "weak_candidates_correctly_blocked": 31,
+  "hidden_total": 70,
+  "hidden_distribution": {
+   "C": 31,
+   "B": 22,
+   "D": 15,
+   "A": 2
+  }
+ },
+ "distributions": {
+  "source": {
+   "simap": {
+    "candidates": 80,
+    "final_shows": 42,
+    "useful_precision": 76.19,
+    "useful_recall": 64.0
+   },
+   "ted": {
+    "candidates": 70,
+    "final_shows": 38,
+    "useful_precision": 60.53,
+    "useful_recall": 79.31
+   }
+  },
+  "icp": {
+   "icp-materials-eu": {
+    "candidates": 8,
+    "final_shows": 8,
+    "useful_precision": 87.5,
+    "useful_recall": 100.0
+   },
+   "icp-national-supplier": {
+    "candidates": 61,
+    "final_shows": 32,
+    "useful_precision": 62.5,
+    "useful_recall": 68.97
+   },
+   "icp-ppe-safety-ch": {
+    "candidates": 11,
+    "final_shows": 3,
+    "useful_precision": 100.0,
+    "useful_recall": 37.5
+   },
+   "icp-remote-specialist": {
+    "candidates": 37,
+    "final_shows": 19,
+    "useful_precision": 57.89,
+    "useful_recall": 61.11
+   },
+   "icp-staffing-ch": {
+    "candidates": 2,
+    "final_shows": 1,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "icp-subcontracting-eu": {
+    "candidates": 31,
+    "final_shows": 17,
+    "useful_precision": 82.35,
+    "useful_recall": 82.35
+   }
+  },
+  "contract_type": {
+   "construction": {
+    "candidates": 62,
+    "final_shows": 40,
+    "useful_precision": 82.5,
+    "useful_recall": 68.75
+   },
+   "engineering_architecture": {
+    "candidates": 35,
+    "final_shows": 24,
+    "useful_precision": 75.0,
+    "useful_recall": 78.26
+   },
+   "facility_services": {
+    "candidates": 8,
+    "final_shows": 3,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "it_digital": {
+    "candidates": 28,
+    "final_shows": 8,
+    "useful_precision": 37.5,
+    "useful_recall": 42.86
+   },
+   "maintenance_repair": {
+    "candidates": 11,
+    "final_shows": 3,
+    "useful_precision": 33.33,
+    "useful_recall": 100.0
+   },
+   "security_services": {
+    "candidates": 2,
+    "final_shows": 0,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "social_health_services": {
+    "candidates": 1,
+    "final_shows": 0,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   },
+   "transport_logistics": {
+    "candidates": 3,
+    "final_shows": 2,
+    "useful_precision": 0.0,
+    "useful_recall": 0.0
+   }
+  },
+  "need_category": {
+   "equipment_or_rental": {
+    "candidates": 30,
+    "final_shows": 19,
+    "useful_precision": 73.68,
+    "useful_recall": 70.0
+   },
+   "materials_or_components": {
+    "candidates": 27,
+    "final_shows": 18,
+    "useful_precision": 83.33,
+    "useful_recall": 71.43
+   },
+   "safety_and_ppe": {
+    "candidates": 17,
+    "final_shows": 13,
+    "useful_precision": 84.62,
+    "useful_recall": 78.57
+   },
+   "specialist_subcontracting": {
+    "candidates": 65,
+    "final_shows": 34,
+    "useful_precision": 64.71,
+    "useful_recall": 70.97
+   },
+   "workforce_capacity": {
+    "candidates": 78,
+    "final_shows": 39,
+    "useful_precision": 69.23,
+    "useful_recall": 64.29
+   }
+  }
+ },
+ "source_gate": {
+  "simap": {
+   "final_shows": 42,
+   "useful_precision": 76.19,
+   "gate_applies": true,
+   "gate_passed": false
+  },
+  "ted": {
+   "final_shows": 38,
+   "useful_precision": 60.53,
+   "gate_applies": true,
+   "gate_passed": false
+  }
+ },
+ "failure_analysis": {
+  "false_final_shows": 25,
+  "by_gold_verdict": {
+   "C": 23,
+   "D": 2
+  },
+  "by_gold_failure_layer": {
+   "need graph": 10,
+   "matching": 9,
+   "ICP configuration": 4,
+   "contract understanding": 1,
+   "timing": 1
+  },
+  "cases": [
+   {
+    "candidate_id": "19d9fab760da89bb6d8f40d2f6148e6f0891c90ab136afad9d49ddb4e35063da",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-materials-eu",
+    "contract_type": "construction",
+    "need_categories": [
+     "materials_or_components",
+     "equipment_or_rental"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "need graph",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Ce marché de construction pour l'extension d'une école en Allemagne pourrait générer des besoins en matériaux et en équipement de chantier.",
+    "gold_note": "Faits publics exacts mais objet d'une seule ligne, aucune date d'execution et signature remontant au 11/03/2026 ; surtout l'adjudicataire est un Totaluebernehmer (societe de services, de promotion et de financement) qui attribue des lots au lieu d'acheter des materiaux, si bien que la correspondance avec un negoce reste nominale."
+   },
+   {
+    "candidate_id": "cb8cbc85dbfa8157581e187bc8c61b12b1c54d60dbbfe986a8b6dd9cfbe1e4b4",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "maintenance_repair",
+    "need_categories": [
+     "workforce_capacity"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "ICP configuration",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "current",
+    "verifier_reason": "CRAM pourrait avoir besoin de renforts en personnel pour assurer l'exploitation-maintenance des installations de l'IDEFHI, un contrat de 13M EUR démarrant en octobre 2026.",
+    "gold_note": "Faits publics exacts et coherents (adjudication et signature du 07/07/2026, demarrage au 01/10/2026 soit 86 jours, tranches et PSE detaillees) et besoin de capacite credible pour une exploitation-maintenance de douze ans, mais un fournisseur d'intrants de chantier n'adresse pas un besoin de techniciens d'exploitation : le fit reste nominal."
+   },
+   {
+    "candidate_id": "30ff26ae65929449fb57a53703d3d14fcee285a839f83b9bec57c27fb7d409ae",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "transport_logistics",
+    "need_categories": [
+     "workforce_capacity",
+     "equipment_or_rental"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "contract understanding",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "SAF Srl pourrait avoir besoin de renfort en personnel ou en matériel pour exécuter ce contrat de services de manutention et d'entretien d'espaces verts à Messina.",
+    "gold_note": "A five-year hospital portering and grounds-maintenance contract in Messina is read as a transport market needing extra rolling stock, and while the labour-capacity angle is genuinely strong for a service that is almost pure headcount, a supplier of construction-site inputs has little to sell here so the lead does not earn feed space."
+   },
+   {
+    "candidate_id": "389dafd9e46956b7fc65205eff4ea0572dc82fd99410c36d74b188ce4a9910fd",
+    "origin": "show",
+    "source": "simap",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "construction",
+    "need_categories": [
+     "workforce_capacity",
+     "safety_and_ppe"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "need graph",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "current",
+    "verifier_reason": "PKE Electronics AG a remporté un marché de construction d'une prison à Flumenthal (2,2 M CHF) : un besoin en personnel supplémentaire et en équipements de protection est plausible pour exécuter ce chantier.",
+    "gold_note": "Generic building-site labour and PPE needs fired off a CPV 45000000 code when the published object is servers, cameras, radar, lidar and intercom hardware installed by certified technicians, so a supplier of construction-site inputs is chasing a security-systems integrator that buys almost none of what it sells."
+   },
+   {
+    "candidate_id": "474c52d491a8892dfbf46126afe9a204a610a57c53a220cec4b275554c62feba",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "transport_logistics",
+    "need_categories": [
+     "workforce_capacity",
+     "equipment_or_rental"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "ICP configuration",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "current",
+    "verifier_reason": "Le montant élevé du contrat (2M EUR) rend plausible un besoin de renfort en personnel et en flotte chez Celering Travel, que notre offre de capacité pourrait adresser.",
+    "gold_note": "Drivers and fleet are genuine inputs for a 2 MEUR non-medical passenger transport contract in Badajoz, but an ICP whose offer is explicitly construction site inputs has no real commercial angle on a Spanish transport operator, so the match is nominal on the category label only."
+   },
+   {
+    "candidate_id": "5ac2398ea9cdf60c8ca5a3c1e0b11d9f2ef0624794198fa143b357f9308ce69a",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-subcontracting-eu",
+    "contract_type": "it_digital",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "ICP configuration",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Le gagnant, un consortium de conseil IT, pourrait avoir besoin de sous-traitants spécialisés pour certaines composantes de la migration SAP S/4HANA à Köln.",
+    "gold_note": "A 30-month SAP S/4HANA migration awarded to a two-company consortium genuinely invites specialist subcontracting, but an ICP selling specialised technical lots in construction, engineering and building systems is out of domain for enterprise software work and would treat this as feed noise."
+   },
+   {
+    "candidate_id": "d5f033027ba2e05fc2edf6790afde27bfc77b134744caf9939762c92257272e1",
+    "origin": "show",
+    "source": "simap",
+    "icp_id": "icp-subcontracting-eu",
+    "contract_type": "it_digital",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "ICP configuration",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "current",
+    "verifier_reason": "Comitas AG pourrait avoir besoin de sous-traitants spécialisés pour exécuter ce marché IT complexe de 1,1 M CHF.",
+    "gold_note": "A 1.12 MCHF five-year SaaS platform delivered by a single Swiss software vendor is the least separable contract in the batch for a subcontracting hypothesis, and a construction and engineering technical-lots ICP has no coherent reason to prospect a St. Gallen childcare subsidy system."
+   },
+   {
+    "candidate_id": "1add371ffc5562a2338059a2abd3963d9ee1cf99898adfd118281397d6a180c4",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "facility_services",
+    "need_categories": [
+     "workforce_capacity"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Ce gagnant pourrait avoir besoin d'une capacite de personnel supplementaire pour executer le contrat de nettoyage de 12000 m2 a Berlin.",
+    "gold_note": "The workforce need is genuinely credible - 120,000 m2/month of office cleaning over 12 months is as labour-intensive as it gets - but routing an office facility-cleaning contractor in Berlin to an ICP that sells 'intrants de chantier' is a bare category-name collision on workforce_capacity: a construction-inputs group has no coherent offer for a cleaning firm's staffing."
+   },
+   {
+    "candidate_id": "281bae724b8298da401fe078ac8e61c0cac26fc2dbaa1d850b4f1fdf5273183c",
+    "origin": "show",
+    "source": "simap",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "construction",
+    "need_categories": [
+     "workforce_capacity",
+     "safety_and_ppe"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "need graph",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "specific",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Giudicetti SA, attributaire d'un marché de construction routière en Suisse, pourrait avoir besoin de personnel supplémentaire et d'EPI pour exécuter le chantier.",
+    "gold_note": "At 118k CHF for roughly 240 t of asphalt and 200 t of milling on a mountain road, this is a few days' routine work, and the needs are derived from contract_type and amount alone - the description is not even in the evidence set - so the signal reduces to 'a road contractor won a small job, therefore people and PPE', which is exactly the generic case that does not earn a feed slot."
+   },
+   {
+    "candidate_id": "3191e47537e4486dfea27ccadb6ed7032116153a32604858a26a26246909c3c4",
+    "origin": "show",
+    "source": "simap",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "construction",
+    "need_categories": [
+     "workforce_capacity",
+     "materials_or_components",
+     "equipment_or_rental"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "need graph",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "current",
+    "verifier_reason": "KOCH Group vient de remporter un marché de construction d'école en Suisse; il pourrait avoir besoin de capacité de personnel, de matériaux et d'équipement supplémentaires pour l'exécution.",
+    "gold_note": "A locking-systems supply-and-install lot won by a building-hardware specialist generates only boilerplate workforce, machinery and bulk-materials hypotheses whose anchoring points away from the actual object, so the match with a construction-inputs supplier is nominal rather than commercial."
+   },
+   {
+    "candidate_id": "553a0c2b0b15ea383607ad3c3e5095f999504179dc218142e638531b005af820",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "construction",
+    "need_categories": [
+     "workforce_capacity",
+     "materials_or_components"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "specific",
+    "verifier_timing": "current",
+    "verifier_reason": "L'entreprise a remporté un marché de travaux d'installation de cloisons et filets de protection pour un gymnase à Kempten, ce qui pourrait nécessiter un renfort de main-d'oeuvre et des matériaux, deux besoins que couvre notre offre.",
+    "gold_note": "A 120k EUR job installing one gym dividing curtain and three ball-stop nets is a niche sports-equipment purchase, not construction inputs, and is far too small to strain a fit-out firm's headcount, so the category match is nominal and gives my team nothing to sell."
+   },
+   {
+    "candidate_id": "78c08ee09b80c0b9c0de422c300350548b5cb6280274378c8453d5086dda8e47",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "facility_services",
+    "need_categories": [
+     "workforce_capacity"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "specific",
+    "verifier_timing": "current",
+    "verifier_reason": "Mitie Centro Especial de Empleo S.L. a remporté un contrat de nettoyage à Madrid de 666k EUR sur 3 ans, ce qui pourrait nécessiter un renfort de personnel ; notre offre de capacité de main-d'oeuvre pourrait être pertinente.",
+    "gold_note": "The workforce need is the most credible in the batch - a three-year Madrid building-cleaning contract starting 01.09.2026 is pure labour - but a construction-site-inputs group has nothing to sell to a sheltered-employment cleaning company, so the match is nominal rather than commercial."
+   },
+   {
+    "candidate_id": "1e2e191f44a90140057c09f36818df9ca08e997c2a11f707a3e6421eee16c711",
+    "origin": "show",
+    "source": "simap",
+    "icp_id": "icp-remote-specialist",
+    "contract_type": "it_digital",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "current",
+    "verifier_reason": "Neoos GmbH a remporté un marché de maintenance et support d'une application de sécurité pour la police, ce qui pourrait nécessiter le recours à des sous-traitants spécialisés sur certaines composantes, créant une opportunité pour un cabinet d'expertise technique à distance.",
+    "gold_note": "A maintenance and support extension of an existing bespoke application for police special units leaves some room for specialist work, but a remote generic expertise practice has no realistic entry into a security-cleared law-enforcement application, so the fit is nominal."
+   },
+   {
+    "candidate_id": "13b76b8824160effff97e2a7c377899f0107d67f3f02c825314777c060fc1428",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-remote-specialist",
+    "contract_type": "it_digital",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "need graph",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "specific",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Global Rosetta S.L.U, ayant remporté un marché d'assistance technique et maintenance d'applications scientifiques pour le CSIC, pourrait recourir à des sous-traitants spécialisés.",
+    "gold_note": "The need rests explicitly on scale ('une ampleur qui rend plausible') but the contract is only 124,580 EUR with no published scope at all, so the stated justification is undercut by the signal's own facts and there is no subcontracting budget worth prospecting."
+   },
+   {
+    "candidate_id": "1d5ca781eab2b44b8100f3781e1b304e008a160df35c984df96ca5523ed4ffa4",
+    "origin": "show",
+    "source": "simap",
+    "icp_id": "icp-remote-specialist",
+    "contract_type": "engineering_architecture",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "need graph",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "current",
+    "verifier_reason": "Le recours à des sous-traitants spécialisés en ingénierie est plausible pour l'exécution de ce marché d'accompagnement technique.",
+    "gold_note": "A 54k CHF single-speciality top-up ('complement aux prestations initiales') for Rhone flow validation, won by a hydrology specialist, leaves nothing meaningful to subcontract, and the stated rationale invokes an 'ampleur' and 'specialites separables' that this contract simply does not have."
+   },
+   {
+    "candidate_id": "2436b3eaecdc82602658ac238ac4f56e14a41fba6561d70a1981dbe52d537ded",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-remote-specialist",
+    "contract_type": "engineering_architecture",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "specific",
+    "verifier_timing": "current",
+    "verifier_reason": "Le gagnant, OCA GLOBAL PREVENTION SERVICES, pourrait sous-traiter des prestations spécialisées pour les plans d'autoprotection, ce que notre client peut fournir à distance.",
+    "gold_note": "The subcontractable work here is intrinsically on-site (in-person training and physical evacuation drills in three Madrid buildings) whereas this ICP sells expertise delivered remotely, and the winner is a large prevention-services group whose core business is exactly the awarded scope, so the category match does not survive contact with commercial reality."
+   },
+   {
+    "candidate_id": "563b2d16fa72e3f2771b0cefbfb6912411244280b0e9d7395ccd9f80084bd731",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-remote-specialist",
+    "contract_type": "engineering_architecture",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "need graph",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "specific",
+    "verifier_timing": "unknown",
+    "verifier_reason": "OPAlight.SK s.r.o. a remporté un marché de révisions d'appareils électriques pour l'administration fiscale slovaque ; un besoin de sous-traitance spécialisée pour certaines composantes pourrait devenir pertinent.",
+    "gold_note": "The stated reasoning about separable specialities and scale does not hold for a single-discipline statutory appliance-inspection framework worth EUR 60k over 48 months, and the work is by law performed on site, so a remote-only specialist has only a nominal category match."
+   },
+   {
+    "candidate_id": "5daf6137cf3e7815c5a5cf935a0cc8ff24667c5ed3a7ad61d8595650ab6021da",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-remote-specialist",
+    "contract_type": "construction",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "need graph",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Ayant remporté un marché d'automatismes du bâtiment en Suisse, Romande Energie Services pourrait recourir à des sous-traitants spécialisés pour certaines composantes, ce qui mérite vérification.",
+    "gold_note": "The winner took a single CHF 82k building-automation lot, not the renovation project the displayed description narrates, and a small single-trade lot won by a subsidiary of a large integrated utility leaves almost no room for specialist subcontracting."
+   },
+   {
+    "candidate_id": "6fcda08a6362f3448087c632c7f9a2ef101e8a506c8466873e63f856e5a0d36c",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-remote-specialist",
+    "contract_type": "engineering_architecture",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "need graph",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "AC ENVIRONNEMENT a remporté un marché de diagnostics obligatoires à Annecy pour 800k EUR, ce qui pourrait nécessiter le recours à des sous-traitants spécialisés, domaine couvert par l'ICP.",
+    "gold_note": "Winner, buyer, object and the 800k EUR value are correctly represented, but the inferred specialist subcontracting is the winner's own core trade (AC Environnement is a national diagnostics specialist) and the separable work is inherently on-site sampling, which an explicitly remote-delivery ICP cannot serve."
+   },
+   {
+    "candidate_id": "812701d0f641c31a9be4199061ecf022891edb2861071e1661cb0956cb068b67",
+    "origin": "show",
+    "source": "simap",
+    "icp_id": "icp-remote-specialist",
+    "contract_type": "engineering_architecture",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Planair SA, attributaire d'un marché d'ingénierie CVC à Lausanne, pourrait recourir à des sous-traitants spécialisés pour la réalisation des travaux de rénovation.",
+    "gold_note": "The match is nominal: the winner is itself a well-known HVAC and energy engineering specialist and a 168k CHF full mission leaves almost no budget to subcontract, so selling remote technical expertise into it is commercially thin."
+   },
+   {
+    "candidate_id": "08b0c0e83210608deef15047dde2359106714c38a6f52c1bd88ae27c5d83cc5d",
+    "origin": "borderline",
+    "source": "ted",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "facility_services",
+    "need_categories": [
+     "workforce_capacity"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "current",
+    "verifier_reason": "triplan Umwelttechnik remporte un contrat d'exploitation et de maintenance d'une installation de dépollution des eaux souterraines sur 3 ans, ce qui pourrait créer un besoin de personnel supplémentaire.",
+    "gold_note": "Three years of operating and maintaining a groundwater remediation plant is a small specialist technical crew with no published value, so a supplier of construction-site inputs has a nominal category match but nothing to size or prioritise the opportunity with."
+   },
+   {
+    "candidate_id": "1c46f22bd9d44175c05463f83d7dfb39cb4f61c6d2d06dcb86752ea5058fd522",
+    "origin": "borderline",
+    "source": "simap",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "maintenance_repair",
+    "need_categories": [
+     "workforce_capacity"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Hewlett-Packard (Schweiz) GmbH a remporté un contrat de maintenance de 11.6 millions CHF pour l'infrastructure de recherche Alps, ce qui pourrait nécessiter un renfort de personnel pour l'exécution.",
+    "gold_note": "Faits simap exacts et marche de 11,76 MCHF situe dans un territoire declare (CH), mais l'enonce du besoin est un gabarit sans ancrage applique a la maintenance d'un supercalculateur confiee a HP, et un fournisseur d'intrants de chantier n'a qu'un lien nominal avec ce contrat."
+   },
+   {
+    "candidate_id": "29242d350351e7e89283de4517c2ad1fe99dddd56de38df929202f3cfc6f5013",
+    "origin": "borderline",
+    "source": "simap",
+    "icp_id": "icp-staffing-ch",
+    "contract_type": "engineering_architecture",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "C",
+    "gold_primary_failure_layer": "matching",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Le gagnant de ce marché d'ingénierie autoroutière pourrait avoir besoin de sous-traiter des spécialités techniques, une offre que l'ICP peut couvrir.",
+    "gold_note": "Facts are clean and fresh, but a BTP temp-staffing agency selling site labour has almost nothing to sell to an engineering consortium executing AP/DP design phases in an office, so the match is nominal rather than commercial."
+   },
+   {
+    "candidate_id": "2210d48c4401830c854d85a2d8439d106db24e6a24eacf986def7ec2f929b756",
+    "origin": "show",
+    "source": "simap",
+    "icp_id": "icp-national-supplier",
+    "contract_type": "construction",
+    "need_categories": [
+     "workforce_capacity",
+     "equipment_or_rental"
+    ],
+    "gold_verdict": "D",
+    "gold_primary_failure_layer": "need graph",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "plausible",
+    "verifier_specificity": "acceptable",
+    "verifier_timing": "unknown",
+    "verifier_reason": "Le marché de conteneurs provisoires remporté par Condecta AG à Wallisellen pourrait nécessiter un renfort de personnel et d'équipement, ce qui rend plausible un besoin de capacité et de matériel de chantier.",
+    "gold_note": "The award is precisely for designing and erecting temporary site container facilities, so 'temporary site equipment or plant capacity' is the winner's own deliverable rather than a downstream need, and the supporting rationale invents earthworks and civil engineering works that the published object excludes."
+   },
+   {
+    "candidate_id": "ab66cc11cb437df93b5d7daa6bc5e15d48dc79ab5a8b64c24740fe89f4917d10",
+    "origin": "show",
+    "source": "ted",
+    "icp_id": "icp-subcontracting-eu",
+    "contract_type": "it_digital",
+    "need_categories": [
+     "specialist_subcontracting"
+    ],
+    "gold_verdict": "D",
+    "gold_primary_failure_layer": "timing",
+    "verifier_verdict": "approve",
+    "verifier_need_credibility": "credible",
+    "verifier_icp_fit": "strong",
+    "verifier_specificity": "specific",
+    "verifier_timing": "current",
+    "verifier_reason": "Le gagnant, Hirschtec Austria GmbH, a remporté un marché d'implémentation intranet SharePoint à 642500 EUR en Autriche, ce qui rend plausible un besoin de sous-traitants spécialisés pour des composantes techniques.",
+    "gold_note": "Le besoin est tagué timing=immediate sur la base d'un contract_start_date du 2025-09-01, soit 351 jours avant aujourd'hui et très au-delà des 90 jours de recence exigés par l'ICP : lecture de date incorrecte, aggravée par un ICP construction/ingenierie confronte a une implementation d'intranet SharePoint et par un besoin formule en pur boilerplate (le site web affiche du gagnant, celui d'un tribunal administratif, est en outre une anomalie de source)."
+   }
+  ]
+ },
+ "cost_and_latency": {
+  "MEASURED": {
+   "requests": 150,
+   "cache_hits": 0,
+   "schema_retries": 6,
+   "api_failures": 0,
+   "input_tokens": 1016912,
+   "output_tokens": 378938,
+   "cost_usd": 0.115377,
+   "candidates": 150,
+   "final_shows": 80,
+   "latency_ms": {
+    "p50": 20429.6,
+    "p95": 33962.8,
+    "max": 69431.7
+   },
+   "total_wall_time_ms": 3359196.6
+  },
+  "PROJECTED": {
+   "cost_per_100_candidates": 0.0769,
+   "cost_per_100_final_shows": 0.1442,
+   "cost_per_1000_deterministic_candidates": 0.7692,
+   "wall_time_100_candidates_s": 2239.5,
+   "wall_time_1000_candidates_s": 22394.6
+  }
+ },
+ "gates": {
+  "gates": {
+   "final_show_useful_precision": {
+    "observed": 68.75,
+    "requirement": ">= 95.0",
+    "spec": "§32",
+    "passed": false
+   },
+   "critical_false_final_shows": {
+    "observed": 1,
+    "requirement": "<= 0",
+    "spec": "§32",
+    "passed": false
+   },
+   "false_final_show_rate": {
+    "observed": 2.5,
+    "requirement": "<= 2.0",
+    "spec": "§32",
+    "passed": false
+   },
+   "weak_final_show_rate": {
+    "observed": 28.75,
+    "requirement": "<= 8.0",
+    "spec": "§32",
+    "passed": false
+   },
+   "useful_recall": {
+    "observed": 69.62,
+    "requirement": ">= 60.0",
+    "spec": "§32",
+    "passed": true
+   },
+   "final_show_rate": {
+    "observed": 53.33,
+    "requirement": ">= 30.0",
+    "spec": "§32",
+    "passed": true
+   },
+   "fact_reference_validity": {
+    "observed": 100.0,
+    "requirement": ">= 100.0",
+    "spec": "§32",
+    "passed": true
+   },
+   "forbidden_wording": {
+    "observed": 0,
+    "requirement": "<= 0",
+    "spec": "§32",
+    "passed": true
+   },
+   "top20_final_show_useful_precision": {
+    "observed": 70.0,
+    "requirement": ">= 95.0",
+    "spec": "§32",
+    "passed": false
+   }
+  },
+  "failed_gates": [
+   "critical_false_final_shows",
+   "false_final_show_rate",
+   "final_show_useful_precision",
+   "top20_final_show_useful_precision",
+   "weak_final_show_rate"
+  ],
+  "passed": false
+ },
+ "versions": {
+  "prompt": "commercial-verifier-prompt-v0.2",
+  "schema": "commercial-verifier-schema-v0.1",
+  "policy": "commercial-verifier-policy-v0.1",
+  "model_id": "deepseek/deepseek-v4-flash"
+ },
+ "run_at": "2026-08-17T17:56:56+00:00"
+}

@@ -1,0 +1,192 @@
+{
+ "as_of": "2026-08-17",
+ "disjointness": {
+  "publication": {
+   "fresh_identities": 686,
+   "prior_identities": 248,
+   "intersection": []
+  },
+  "notice": {
+   "fresh_identities": 686,
+   "prior_identities": 248,
+   "intersection": []
+  },
+  "procedure": {
+   "fresh_identities": 684,
+   "prior_identities": 248,
+   "intersection": []
+  },
+  "award identity": {
+   "fresh_identities": 799,
+   "prior_identities": 279,
+   "intersection": []
+  }
+ },
+ "funnel": {
+  "award_lots": 800,
+  "award_lots_with_identified_winner": 800,
+  "award_lots_with_at_least_one_need": 415,
+  "pairs_evaluated": 6400,
+  "decisions": {
+   "exclude": 4198,
+   "insufficient_data": 1221,
+   "borderline": 428,
+   "show": 553
+  },
+  "source_mode": [
+   "metadata_fallback"
+  ]
+ },
+ "pool": {
+  "show_pairs": 553,
+  "show_pairs_dropped_without_identified_winner": 0,
+  "unique_show_signals": 283,
+  "minimum_required": 120,
+  "sufficient": true,
+  "score_distribution": {
+   "69": 6,
+   "79": 20,
+   "84": 72,
+   "86": 10,
+   "87": 87,
+   "89": 1,
+   "91": 22,
+   "92": 4,
+   "93": 51,
+   "94": 1,
+   "95": 6,
+   "98": 2,
+   "100": 1
+  }
+ },
+ "selection": {
+  "selected": 100,
+  "per_tercile": {
+   "middle": 34,
+   "top": 33,
+   "bottom": 33
+  },
+  "tercile_quotas": {
+   "top": 33,
+   "middle": 34,
+   "bottom": 33
+  },
+  "per_source": {
+   "simap": 55,
+   "ted": 45
+  },
+  "pool_per_source": {
+   "ted": 123,
+   "simap": 160
+  },
+  "distinct_notices": 96,
+  "pool_distinct_notices": 270,
+  "countries": [
+   "AT",
+   "CH",
+   "DE",
+   "ES",
+   "FR",
+   "IT",
+   "LT",
+   "SK"
+  ],
+  "pool_countries": 18,
+  "contract_types": [
+   "construction",
+   "engineering_architecture",
+   "facility_services",
+   "it_digital",
+   "maintenance_repair",
+   "social_health_services",
+   "transport_logistics"
+  ],
+  "pool_contract_types": 8,
+  "need_categories": [
+   "equipment_or_rental",
+   "materials_or_components",
+   "safety_and_ppe",
+   "specialist_subcontracting",
+   "workforce_capacity"
+  ],
+  "pool_need_categories": 5,
+  "max_per_icp_observed": 37,
+  "max_per_contract_type_observed": 35,
+  "max_per_notice_observed": 2,
+  "per_icp": {
+   "icp-national-supplier": 37,
+   "icp-subcontracting-eu": 20,
+   "icp-remote-specialist": 36,
+   "icp-materials-eu": 7
+  },
+  "targets": {
+   "size": 100,
+   "min_per_source": {
+    "ted": 35,
+    "simap": 35
+   },
+   "min_distinct_notices": 75,
+   "min_countries": 5,
+   "min_contract_types": 5,
+   "min_need_categories": 5,
+   "max_per_icp": 25,
+   "max_per_contract_type": 35,
+   "max_per_notice": 2
+  },
+  "caps_applied": {
+   "max_per_icp": 37,
+   "max_per_contract_type": 35,
+   "max_per_notice": 2
+  },
+  "relaxations": [
+   {
+    "cap": "max_per_icp",
+    "raised_to": 26
+   },
+   {
+    "cap": "max_per_icp",
+    "raised_to": 27
+   },
+   {
+    "cap": "max_per_icp",
+    "raised_to": 28
+   },
+   {
+    "cap": "max_per_icp",
+    "raised_to": 29
+   },
+   {
+    "cap": "max_per_icp",
+    "raised_to": 30
+   },
+   {
+    "cap": "max_per_icp",
+    "raised_to": 31
+   },
+   {
+    "cap": "max_per_icp",
+    "raised_to": 32
+   },
+   {
+    "cap": "max_per_icp",
+    "raised_to": 33
+   },
+   {
+    "cap": "max_per_icp",
+    "raised_to": 34
+   },
+   {
+    "cap": "max_per_icp",
+    "raised_to": 35
+   },
+   {
+    "cap": "max_per_icp",
+    "raised_to": 36
+   },
+   {
+    "cap": "max_per_icp",
+    "raised_to": 37
+   }
+  ]
+ }
+}

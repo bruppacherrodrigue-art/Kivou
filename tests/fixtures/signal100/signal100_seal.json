@@ -1,0 +1,14 @@
+{
+ "frozen": true,
+ "signal100_corpus_sha256": "7996beae4a7c1c609f2db1e7eea647f32beb4c06eb3349071e613aceb224aebf",
+ "signal100_gold_sha256": "21be11fc89d27eb8a229b22213454073b0a02cfd2d23bc6b0b6833aaf1d3e5af",
+ "commercial_rubric_version": "commercial-signal-rubric-v1",
+ "engine_version_set": {
+  "understanding_engine": "contract-understanding-v0.1",
+  "need_engine": "need-graph-v0.1",
+  "match_policy": "icp-match-v0.1",
+  "score_policy": "signal-score-v0.2",
+  "reference_icp_library": "reference-icps-v0.1"
+ },
+ "icp_library_sha256": "698cb112eaa6478eb4680e8513cf036dc22d7651437a356f0637967361400fb2"
+}

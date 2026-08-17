@@ -1,0 +1,3529 @@
+{
+ "gold": "VERIFIER-DEV-BORDERLINE-GOLD",
+ "rubric": "commercial-signal-rubric-v1",
+ "size": 50,
+ "composition": {
+  "B": 21,
+  "A": 6,
+  "C": 16,
+  "D": 7
+ },
+ "agreement": {
+  "signals": 50,
+  "exact_agreement_rate": 80.0,
+  "agreement_within_one_grade_rate": 100.0,
+  "arbitrations": 19,
+  "distance_histogram": {
+   "0": 40,
+   "1": 10
+  }
+ },
+ "records": [
+  {
+   "signal_id": "00c8fadcd5ad701eefbf51e50f61eb84b475588a9232f08168288e62d8a04c1f",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-ppe-safety-ch",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "00c8fadcd5ad701eefbf51e50f61eb84b475588a9232f08168288e62d8a04c1f",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "strong",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A CHF 1.95M pool-water-technology lot in Zurich canton awarded 11 days ago is a legitimate Swiss site lead for a PPE and collective-protection seller, but the derived need is boilerplate workforce capacity rather than a safety need, so a rep should verify crew size and site start before calling."
+   },
+   "review_b": {
+    "signal_id": "00c8fadcd5ad701eefbf51e50f61eb84b475588a9232f08168288e62d8a04c1f",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Winner, object (BKP 359 pool water technology), 1.95 MCHF and Embrach ZH are all traceable to the cited SIMAP notice and the award is 11 days old, but the derived need is a boilerplate staffing hypothesis matched to a PPE seller only through its secondary category, so it warrants a check rather than a direct pitch."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "strong"
+   },
+   "final_source": "most_severe",
+   "final_note": "A CHF 1.95M pool-water-technology lot in Zurich canton awarded 11 days ago is a legitimate Swiss site lead for a PPE and collective-protection seller, but the derived need is boilerplate workforce capacity rather than a safety need, so a rep should verify crew size and site start before calling.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "006db6a01de51bd97bffde51d367ea3a19df4994da84ca32f7b7e53d4ad28d6a",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-subcontracting-eu",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "006db6a01de51bd97bffde51d367ea3a19df4994da84ca32f7b7e53d4ad28d6a",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "strong",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "EUR 1.02M of earthworks, special foundations and shell construction compressed into a defined 31 Aug to 31 Dec window in Aalen gives a specialist technical subcontractor in Germany a named target, a realistic lot to offer and an obvious deadline to call before."
+   },
+   "review_b": {
+    "signal_id": "006db6a01de51bd97bffde51d367ea3a19df4994da84ca32f7b7e53d4ad28d6a",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Earthworks, special foundations and shell construction worth 1.02 MEUR to be executed between 2026-08-31 and 2026-12-31 make added capacity or a specialist lot a genuinely credible execution hypothesis, and a specialist subcontracting ICP covering DE above a 500k floor has a clear, verifiable and well-timed reason to call now."
+   },
+   "arbitration": null,
+   "final_verdict": "A",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "strong"
+   },
+   "final_source": "most_severe",
+   "final_note": "EUR 1.02M of earthworks, special foundations and shell construction compressed into a defined 31 Aug to 31 Dec window in Aalen gives a specialist technical subcontractor in Germany a named target, a realistic lot to offer and an obvious deadline to call before.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "015b8c0f8a446f24a18457c4799e985b12d58d520a39d79c746806e3be6b0a3b",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-ppe-safety-ch",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "015b8c0f8a446f24a18457c4799e985b12d58d520a39d79c746806e3be6b0a3b",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "strong",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "A CHF 233k heat-distribution lot means a handful of fitters for a few weeks, so the generic workforce need matched onto a PPE seller's secondary category carries no real commercial substance and would be feed noise next to the larger lots of the same project."
+   },
+   "review_b": {
+    "signal_id": "015b8c0f8a446f24a18457c4799e985b12d58d520a39d79c746806e3be6b0a3b",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "The facts are honest but a 232k CHF heat-distribution lot is far too small to carry the template claim that the workload may exceed existing staff, and a PPE and collective-protection seller gains nothing commercially usable from a staffing hypothesis on this scale."
+   },
+   "arbitration": null,
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "strong"
+   },
+   "final_source": "most_severe",
+   "final_note": "A CHF 233k heat-distribution lot means a handful of fitters for a few weeks, so the generic workforce need matched onto a PPE seller's secondary category carries no real commercial substance and would be feed noise next to the larger lots of the same project.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "need graph"
+   ]
+  },
+  {
+   "signal_id": "01a3c34c2214aff4e1de8aa1252d88c5fdda80e80ee21a863eed79cfad636fd9",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-materials-eu",
+   "contract_type": "construction",
+   "matched_needs": [
+    "equipment_or_rental"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "01a3c34c2214aff4e1de8aa1252d88c5fdda80e80ee21a863eed79cfad636fd9",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A EUR 3.56M greenway and road-connection job in Albacete plausibly pulls in plant hire and a lot of materials, and Spain is inside the ICP's required territory, but the signal points at machinery while this customer primarily sells materials, so the angle needs checking before contact."
+   },
+   "review_b": {
+    "signal_id": "01a3c34c2214aff4e1de8aa1252d88c5fdda80e80ee21a863eed79cfad636fd9",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 3.56 MEUR earthmoving and road-works contract in Albacete signed four days ago genuinely supports a plant or rental hypothesis, but the ICP is a materials trader and the need shown is machinery, so the specialty axis needs one verification before contact."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A EUR 3.56M greenway and road-connection job in Albacete plausibly pulls in plant hire and a lot of materials, and Spain is inside the ICP's required territory, but the signal points at machinery while this customer primarily sells materials, so the angle needs checking before contact.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "0327380ce1208be07cb82997d2ac9df98b281739c507f9fe12371ca68ca26612",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-subcontracting-eu",
+   "contract_type": "it_digital",
+   "matched_needs": [
+    "specialist_subcontracting"
+   ],
+   "normalized_score": 63,
+   "review_a": {
+    "signal_id": "0327380ce1208be07cb82997d2ac9df98b281739c507f9fe12371ca68ca26612",
+    "factual_integrity": "pass",
+    "need": "unsupported",
+    "icp_fit": "weak_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching",
+     "ICP configuration"
+    ],
+    "note": "Maintenance and support of a single standard software licence for the prison service supports nothing like the claimed technically separable specialities, and pointing a construction, engineering and systems subcontractor at it would send reps after work that does not exist."
+   },
+   "review_b": {
+    "signal_id": "0327380ce1208be07cb82997d2ac9df98b281739c507f9fe12371ca68ca26612",
+    "factual_integrity": "pass",
+    "need": "unsupported",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "unknown",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching",
+     "ICP configuration"
+    ],
+    "note": "The object is maintenance and support of the winner's own GINA Web software licence, a single-product IT support contract with no technically separable specialities, so the claim of specialist subcontracting need is unsupported and pointing a construction and engineering subcontracting ICP at a software publisher would send a sales rep in the wrong direction."
+   },
+   "arbitration": {
+    "signal_id": "0327380ce1208be07cb82997d2ac9df98b281739c507f9fe12371ca68ca26612",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "Faits publics exacts et geographie suisse coherente, mais le besoin de sous-traitance specialisee est un texte generique pose sur un contrat de maintenance logicielle, et un ICP de lots techniques construction/ingenierie n'y trouve qu'une coincidence de categorie."
+   },
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Faits publics exacts et geographie suisse coherente, mais le besoin de sous-traitance specialisee est un texte generique pose sur un contrat de maintenance logicielle, et un ICP de lots techniques construction/ingenierie n'y trouve qu'une coincidence de categorie.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "need graph"
+   ]
+  },
+  {
+   "signal_id": "01e8b60ad1b84594f6718f0fbc43d4b82bb52548ef24331753967bf4fe1d8003",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-ppe-safety-ch",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 75,
+   "review_a": {
+    "signal_id": "01e8b60ad1b84594f6718f0fbc43d4b82bb52548ef24331753967bf4fe1d8003",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "strong",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A CHF 11.1M five-year electrical framework at Geneva Airport starting 1 January is a top-of-feed Swiss account for a PPE and collective-protection supplier, with large crews, height and electrical risk and months of lead time; the only blemish is the mangled winner string FR_Equans Switzerland AG, which still resolves unambiguously via the Prilly address."
+   },
+   "review_b": {
+    "signal_id": "01e8b60ad1b84594f6718f0fbc43d4b82bb52548ef24331753967bf4fe1d8003",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "The 11.1 MCHF five-year electrical framework at Geneva Airport is correctly dated (start 2027-01-01, span 1825 days) and geographically in scope, but the winner name carries a spurious FR_ prefix and the staffing hypothesis is thin against a group of Equans' size, so this is a lead to qualify rather than a confirmed opening."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "The 11.1 MCHF five-year electrical framework at Geneva Airport is correctly dated (start 2027-01-01, span 1825 days) and geographically in scope, but the winner name carries a spurious FR_ prefix and the staffing hypothesis is thin against a group of Equans' size, so this is a lead to qualify rather than a confirmed opening.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "06de5ab188dac750d2dba63614d712133150a5d1a1dd9d174ee8c6d0391a3456",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "normalized_score": 71,
+   "review_a": {
+    "signal_id": "06de5ab188dac750d2dba63614d712133150a5d1a1dd9d174ee8c6d0391a3456",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "strong",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A CHF 48M design-and-build school fit-out in Bern is exactly what a multiregional supplier of site inputs wants named in its feed, with workforce and materials needs that stand on their own; only the third need's earthworks justification is misanchored for an interior fit-out."
+   },
+   "review_b": {
+    "signal_id": "06de5ab188dac750d2dba63614d712133150a5d1a1dd9d174ee8c6d0391a3456",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 48 MCHF design-and-build fit-out won by a total-services contractor plausibly drives both materials and capacity purchasing and the ICP sells exactly that in CH, but the award is 129 days old with no operational dates and the equipment rationale wrongly invokes earthworks for an interior fit-out, so schedule and phase must be verified first."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A 48 MCHF design-and-build fit-out won by a total-services contractor plausibly drives both materials and capacity purchasing and the ICP sells exactly that in CH, but the award is 129 days old with no operational dates and the equipment rationale wrongly invokes earthworks for an interior fit-out, so schedule and phase must be verified first.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "01ea5f99822f57beffad91a32614469381d2ef1c70d5ef297a011706c4ebb427",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "security_services",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 55,
+   "review_a": {
+    "signal_id": "01ea5f99822f57beffad91a32614469381d2ef1c70d5ef297a011706c4ebb427",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Denmark is outside the ICP's six declared countries and a municipal guarding framework has nothing to do with construction-site inputs, so this is a hard geographic and sector mismatch that would waste a rep's time regardless of how the workforce need reads."
+   },
+   "review_b": {
+    "signal_id": "01ea5f99822f57beffad91a32614469381d2ef1c70d5ef297a011706c4ebb427",
+    "factual_integrity": "pass",
+    "need": "contradicted",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph",
+     "ICP configuration"
+    ],
+    "note": "Manned guarding is precisely what G4S sells, so staffed capacity is the deliverable and not a downstream need, and a supplier of construction-site inputs operating in CH, FR, DE, IT, ES and PL has no way to serve a municipal guarding framework performed in Denmark."
+   },
+   "arbitration": {
+    "signal_id": "01ea5f99822f57beffad91a32614469381d2ef1c70d5ef297a011706c4ebb427",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Le besoin de personnel sur un accord-cadre de gardiennage de 4 ans est credible, mais un fournisseur d'intrants de chantier couvrant CH/FR/DE/IT/ES/PL n'a aucune raison commerciale coherente face a un marche de vigiles a Aarhus, hors de ses territoires declares."
+   },
+   "final_verdict": "D",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Le besoin de personnel sur un accord-cadre de gardiennage de 4 ans est credible, mais un fournisseur d'intrants de chantier couvrant CH/FR/DE/IT/ES/PL n'a aucune raison commerciale coherente face a un marche de vigiles a Aarhus, hors de ses territoires declares.",
+   "critical_false_signal": true,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "ICP configuration"
+   ]
+  },
+  {
+   "signal_id": "07a3c9e4503f338d9762410f6766c3e37801cce37541c104aace234e6355c08e",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-ppe-safety-ch",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "07a3c9e4503f338d9762410f6766c3e37801cce37541c104aace234e6355c08e",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "strong",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Sheet-metal and flat-roof works worth CHF 400k in Zurich canton is prime territory for fall protection and collective safety kit, but a routine-sized roofing lot does not by itself make extra workforce credible, so this deserves a quick check rather than an immediate pitch."
+   },
+   "review_b": {
+    "signal_id": "07a3c9e4503f338d9762410f6766c3e37801cce37541c104aace234e6355c08e",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Facts are clean and recent, and roofing and flat-roof work worth 400k CHF in canton Zurich is a real fall-protection context for this ICP, but the signal derives a staffing need rather than the safety need that would actually justify the approach."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "strong"
+   },
+   "final_source": "most_severe",
+   "final_note": "Sheet-metal and flat-roof works worth CHF 400k in Zurich canton is prime territory for fall protection and collective safety kit, but a routine-sized roofing lot does not by itself make extra workforce credible, so this deserves a quick check rather than an immediate pitch.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "08b0c0e83210608deef15047dde2359106714c38a6f52c1bd88ae27c5d83cc5d",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "facility_services",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 75,
+   "review_a": {
+    "signal_id": "08b0c0e83210608deef15047dde2359106714c38a6f52c1bd88ae27c5d83cc5d",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "Three years of operating and maintaining a groundwater remediation plant is a small specialist technical crew with no published value, so a supplier of construction-site inputs has a nominal category match but nothing to size or prioritise the opportunity with."
+   },
+   "review_b": {
+    "signal_id": "08b0c0e83210608deef15047dde2359106714c38a6f52c1bd88ae27c5d83cc5d",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "note": "The absent value is honestly reported and the dates are coherent, but with no published amount the claim that the workload may exceed existing staff has no anchor at all, and routine operation of a single groundwater remediation plant is not a construction site an inputs supplier can serve."
+   },
+   "arbitration": null,
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "Three years of operating and maintaining a groundwater remediation plant is a small specialist technical crew with no published value, so a supplier of construction-site inputs has a nominal category match but nothing to size or prioritise the opportunity with.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "need graph"
+   ]
+  },
+  {
+   "signal_id": "0a1f5ae03baa745066efec76184bb9f085838392feff2548aaa5a6d566722311",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-ppe-safety-ch",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "0a1f5ae03baa745066efec76184bb9f085838392feff2548aaa5a6d566722311",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Swiss Ticino contractor with a fresh 868k CHF night/day road-resurfacing award is a coherent target for a Swiss site-safety supplier, but the only derived need is workforce capacity, which is not what this ICP sells, so a short check is needed before contact."
+   },
+   "review_b": {
+    "signal_id": "0a1f5ae03baa745066efec76184bb9f085838392feff2548aaa5a6d566722311",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Facts (Franco Rossi SA, 868'105.55 CHF, cantonal road P407 resurfacing in staged day and night shifts, CH) are coherent and traceable, and staged night paving reasonably supports a staffing-capacity hypothesis, but the ICP sells PPE rather than manpower so the fit rests on a secondary category and needs a check before contact."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "Swiss Ticino contractor with a fresh 868k CHF night/day road-resurfacing award is a coherent target for a Swiss site-safety supplier, but the only derived need is workforce capacity, which is not what this ICP sells, so a short check is needed before contact.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "09ccec07a935b260cd0490ca617929fe9cb0f827b37a376096984619824e7be6",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "09ccec07a935b260cd0490ca617929fe9cb0f827b37a376096984619824e7be6",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "need graph"
+    ],
+    "note": "Hard geographic mismatch: the works and the winner are in Bulgaria while the ICP declares only CH/FR/DE/IT/ES/PL, so no rep in this organisation can serve the account, and the equipment rationale also miscasts a facade energy renovation as earthworks."
+   },
+   "review_b": {
+    "signal_id": "09ccec07a935b260cd0490ca617929fe9cb0f827b37a376096984619824e7be6",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "The design-build energy renovation in Targovishte genuinely supports materials and workforce hypotheses, but buyer and place of performance are both BG while the ICP's declared territories are CH/FR/DE/IT/ES/PL — a hard geographic mismatch that would point a rep at a country this supplier does not cover."
+   },
+   "arbitration": {
+    "signal_id": "09ccec07a935b260cd0490ca617929fe9cb0f827b37a376096984619824e7be6",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Renovation energetique d'un immeuble a 1,22 MEUR sur 360 jours : main-d'oeuvre, engins et materiaux sont credibles et la categorie colle, mais le lieu d'execution bulgare est hors des six territoires declares de l'ICP, ce qui reduit le fit a nominal."
+   },
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Renovation energetique d'un immeuble a 1,22 MEUR sur 360 jours : main-d'oeuvre, engins et materiaux sont credibles et la categorie colle, mais le lieu d'execution bulgare est hors des six territoires declares de l'ICP, ce qui reduit le fit a nominal.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "ICP configuration"
+   ]
+  },
+  {
+   "signal_id": "0a9660e4806120ae20e0e9d82b5526b728cd42f5183c5764bb093eac1bb9e01c",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-ppe-safety-ch",
+   "contract_type": "maintenance_repair",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "0a9660e4806120ae20e0e9d82b5526b728cd42f5183c5764bb093eac1bb9e01c",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "A recurring sprinkler-maintenance renewal at Geneva Airport is not a construction site and the derived workforce need is not what a site-PPE supplier sells, so the link is nominal rather than commercially real."
+   },
+   "review_b": {
+    "signal_id": "0a9660e4806120ae20e0e9d82b5526b728cd42f5183c5764bb093eac1bb9e01c",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Facts are accurate and very fresh, but a recurring sprinkler-maintenance contract executed by an incumbent's standing technician team is outside the ICP's declared construction-only scope and the derived workforce need is not something a PPE supplier can serve — nominal category overlap only."
+   },
+   "arbitration": null,
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A recurring sprinkler-maintenance renewal at Geneva Airport is not a construction site and the derived workforce need is not what a site-PPE supplier sells, so the link is nominal rather than commercially real.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "need graph"
+   ]
+  },
+  {
+   "signal_id": "0aa49ea9127b93733588c9ddc0cddb669a5dad8df0f7dfc48ca7d26db841b051",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "maintenance_repair",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 55,
+   "review_a": {
+    "signal_id": "0aa49ea9127b93733588c9ddc0cddb669a5dad8df0f7dfc48ca7d26db841b051",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Hard geographic mismatch (Romania is outside the ICP's six declared territories) compounded by a sector mismatch, since a rolling-stock wheelset repair workshop buys nothing from a supplier of construction inputs."
+   },
+   "review_b": {
+    "signal_id": "0aa49ea9127b93733588c9ddc0cddb669a5dad8df0f7dfc48ca7d26db841b051",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "need graph"
+    ],
+    "note": "Amount and currency are honestly reported as 800600 RON, but the contract is workshop replacement of monobloc wheels and axles on rail coaches in Romania — outside the ICP's territories and unrelated to construction-site inputs — and the workforce need rests on nothing but the CPV code."
+   },
+   "arbitration": {
+    "signal_id": "0aa49ea9127b93733588c9ddc0cddb669a5dad8df0f7dfc48ca7d26db841b051",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "Remplacement de roues et essieux de wagons en Roumanie pour 800 600 RON sur 23 mois : ni le secteur (reparation ferroviaire, coeur de metier du gagnant) ni le pays n'entrent dans le perimetre d'un fournisseur d'intrants de chantier, et le besoin de personnel n'est qu'un texte generique."
+   },
+   "final_verdict": "D",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Remplacement de roues et essieux de wagons en Roumanie pour 800 600 RON sur 23 mois : ni le secteur (reparation ferroviaire, coeur de metier du gagnant) ni le pays n'entrent dans le perimetre d'un fournisseur d'intrants de chantier, et le besoin de personnel n'est qu'un texte generique.",
+   "critical_false_signal": true,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "need graph"
+   ]
+  },
+  {
+   "signal_id": "0aedd99cc2f2017042e1e05bb436b17f4bc8a3bf7a4d2b6385a4bd923b6228af",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-subcontracting-eu",
+   "contract_type": "it_digital",
+   "matched_needs": [
+    "specialist_subcontracting"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "0aedd99cc2f2017042e1e05bb436b17f4bc8a3bf7a4d2b6385a4bd923b6228af",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "unknown",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "A construction/engineering specialist subcontractor has no credible lot to offer on a 561k CHF evolution of Abraxas' own tax-assessment software, and the subcontracting need names no separable component to pitch."
+   },
+   "review_b": {
+    "signal_id": "0aedd99cc2f2017042e1e05bb436b17f4bc8a3bf7a4d2b6385a4bd923b6228af",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "Facts and freshness hold (561'311 CHF, award 2026-05-27, within the ICP's 90-day policy), but the object is the continued in-house evolution of Abraxas's own tax-assessment product, so 'technically separable specialities' is asserted rather than evidenced and an ICP selling construction/engineering lots has only a nominal claim on it."
+   },
+   "arbitration": null,
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "unknown",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A construction/engineering specialist subcontractor has no credible lot to offer on a 561k CHF evolution of Abraxas' own tax-assessment software, and the subcontracting need names no separable component to pitch.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "need graph"
+   ]
+  },
+  {
+   "signal_id": "0ac37b3bc4067b5f9588ba0bc174ef95c93a0e7dc28e3e2322ba1a7557f214c2",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-subcontracting-eu",
+   "contract_type": "maintenance_repair",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 75,
+   "review_a": {
+    "signal_id": "0ac37b3bc4067b5f9588ba0bc174ef95c93a0e7dc28e3e2322ba1a7557f214c2",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "strong",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 13.1M EUR twelve-year multi-technical operation-maintenance contract in Normandy starting 1 October 2026, with separable optional lots (HV substations, energy management system, CO2 sensors), is exactly the mobilisation window a French specialist technical subcontractor should be calling about now."
+   },
+   "review_b": {
+    "signal_id": "0ac37b3bc4067b5f9588ba0bc174ef95c93a0e7dc28e3e2322ba1a7557f214c2",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "strong",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Every displayed fact is traceable and internally coherent (signature 2026-07-07, start 2026-10-01, 86 days apart, 13.14 MEUR over 12 years in FRD22), and a multi-technical operation-maintenance contract with separable electrical, energy-management and CO2-sensor scopes starting in six weeks gives a Western-European specialist subcontractor a clear, dated reason to approach CRAM now."
+   },
+   "arbitration": null,
+   "final_verdict": "A",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "strong"
+   },
+   "final_source": "most_severe",
+   "final_note": "A 13.1M EUR twelve-year multi-technical operation-maintenance contract in Normandy starting 1 October 2026, with separable optional lots (HV substations, energy management system, CO2 sensors), is exactly the mobilisation window a French specialist technical subcontractor should be calling about now.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "10caf1f227c91f4d2c343a7e59ae3546879d3035d2b53b96d7dc521d56972400",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "equipment_or_rental"
+   ],
+   "normalized_score": 63,
+   "review_a": {
+    "signal_id": "10caf1f227c91f4d2c343a7e59ae3546879d3035d2b53b96d7dc521d56972400",
+    "factual_integrity": "pass",
+    "need": "unsupported",
+    "icp_fit": "weak_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "need graph",
+     "matching"
+    ],
+    "note": "The award is a pure material delivery (Lieferung von Rasentragschichtsubstrat) yet it is read as labour-intensive earthworks needing extra crews and civil-engineering plant, which would send a rep in with the wrong pitch to what is itself a materials-supply firm."
+   },
+   "review_b": {
+    "signal_id": "10caf1f227c91f4d2c343a7e59ae3546879d3035d2b53b96d7dc521d56972400",
+    "factual_integrity": "pass",
+    "need": "unsupported",
+    "icp_fit": "weak_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "need graph",
+     "matching"
+    ],
+    "note": "The published object is a pure supply lot — 'Lieferung von Rasentragschichtsubstrat' for 129'358.10 CHF — yet it is read as construction works, producing a labour-intensity claim and an earthworks/civil-engineering machinery claim that the notice does not support at all."
+   },
+   "arbitration": {
+    "signal_id": "10caf1f227c91f4d2c343a7e59ae3546879d3035d2b53b96d7dc521d56972400",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "Le marche est une simple livraison de substrat pour 129 kCHF, mais le raisonnement affiche le presente comme des travaux de terrassement ou de genie civil mobilisant des engins : le fit geographique suisse ne compense pas cette lecture erronee et un ticket aussi mince chez un fournisseur de materiaux."
+   },
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Le marche est une simple livraison de substrat pour 129 kCHF, mais le raisonnement affiche le presente comme des travaux de terrassement ou de genie civil mobilisant des engins : le fit geographique suisse ne compense pas cette lecture erronee et un ticket aussi mince chez un fournisseur de materiaux.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "contract understanding",
+   "secondary_failure_layers": [
+    "need graph"
+   ]
+  },
+  {
+   "signal_id": "0bc026ab31dfb407bf5352a4dda2399822d72b17b08f4d20626de43c4f0d5b18",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-subcontracting-eu",
+   "contract_type": "it_digital",
+   "matched_needs": [
+    "specialist_subcontracting"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "0bc026ab31dfb407bf5352a4dda2399822d72b17b08f4d20626de43c4f0d5b18",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Hard geographic mismatch (Ireland is outside the ICP's FR/DE/CH/BE/AT territories) plus a total sector mismatch: a construction and engineering subcontractor has no offer for a global SaaS vendor's HRIS licence contract."
+   },
+   "review_b": {
+    "signal_id": "0bc026ab31dfb407bf5352a4dda2399822d72b17b08f4d20626de43c4f0d5b18",
+    "factual_integrity": "pass",
+    "need": "unsupported",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "contract understanding",
+     "need graph",
+     "winner resolution"
+    ],
+    "note": "A SaaS HRIS licence delivered by its own publisher in Dublin (IE061, outside the ICP's FR/DE/CH/BE/AT territories, winner carried with placeholder identifier and address '0000') gives a construction and engineering subcontracting firm no coherent reason to prospect, and the separable-lots subcontracting premise is not carried by the object."
+   },
+   "arbitration": {
+    "signal_id": "0bc026ab31dfb407bf5352a4dda2399822d72b17b08f4d20626de43c4f0d5b18",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "Un abonnement SIRH SaaS de 4 MEUR attribue a l'editeur lui-meme, execute a Dublin, hors des territoires declares (FR/DE/CH/BE/AT) sur une base lieu d'execution : un vendeur de lots techniques construction/ingenierie n'a aucune raison coherente de prospecter Workday."
+   },
+   "final_verdict": "D",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Un abonnement SIRH SaaS de 4 MEUR attribue a l'editeur lui-meme, execute a Dublin, hors des territoires declares (FR/DE/CH/BE/AT) sur une base lieu d'execution : un vendeur de lots techniques construction/ingenierie n'a aucune raison coherente de prospecter Workday.",
+   "critical_false_signal": true,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "need graph"
+   ]
+  },
+  {
+   "signal_id": "12f6031a685078d2bc94106b9c7684baddec921ee9c235b0a50ce5adcd46541b",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "safety_and_ppe"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "12f6031a685078d2bc94106b9c7684baddec921ee9c235b0a50ce5adcd46541b",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A Geneva sanitary contractor awarded a 1.37M CHF school installation package three weeks ago is a textbook target for a construction-inputs supplier, and both derived needs (crew capacity, site PPE) are categories this ICP actually sells."
+   },
+   "review_b": {
+    "signal_id": "12f6031a685078d2bc94106b9c7684baddec921ee9c235b0a50ce5adcd46541b",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 1'368'963.01 CHF direct award for sanitary installation works on a Geneva school, decided three weeks ago, plausibly carries site PPE and staffing pressure for a specialist trade firm in the ICP's territory, but the one-line object gives no schedule or crew scale, so a short verification is needed before contact."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A 1'368'963.01 CHF direct award for sanitary installation works on a Geneva school, decided three weeks ago, plausibly carries site PPE and staffing pressure for a specialist trade firm in the ICP's territory, but the one-line object gives no schedule or crew scale, so a short verification is needed before contact.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "105b61465cf67b9d718e08e4b0de62a76025926dec3685fe196f702928a00379",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-subcontracting-eu",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 72,
+   "review_a": {
+    "signal_id": "105b61465cf67b9d718e08e4b0de62a76025926dec3685fe196f702928a00379",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 630k EUR screed package in Ludwigsburg running December 2026 to November 2027, won by a firm based 400 km away, makes a labour-capacity approach plausible and well timed, but whether a trade specialist buys from another specialist subcontractor still needs verifying."
+   },
+   "review_b": {
+    "signal_id": "105b61465cf67b9d718e08e4b0de62a76025926dec3685fe196f702928a00379",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "strong",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Dates are coherent and operationally useful (signed 2026-08-11, execution 2026-12-07 to 2027-11-26, 354 days) and a 629'733 EUR screed lot in Ludwigsburg reasonably supports a capacity hypothesis, but the winner is itself a screed specialist, so the ICP would be a second-tier subcontractor and that relationship needs checking first."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A 630k EUR screed package in Ludwigsburg running December 2026 to November 2027, won by a firm based 400 km away, makes a labour-capacity approach plausible and well timed, but whether a trade specialist buys from another specialist subcontractor still needs verifying.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "13ae2cbf2edabafc654e677a683d76c811697fa35bb0d40a3892887c903f1b9b",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-ppe-safety-ch",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "13ae2cbf2edabafc654e677a683d76c811697fa35bb0d40a3892887c903f1b9b",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A Swiss joinery contractor winning a CHF 924k school fit-out in Vaud is a legitimate in-territory prospect for a PPE supplier, but the only need surfaced is generic workforce capacity rather than the ICP's own PPE offer, so a rep would verify before calling."
+   },
+   "review_b": {
+    "signal_id": "13ae2cbf2edabafc654e677a683d76c811697fa35bb0d40a3892887c903f1b9b",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Award facts (G. Risse SA, 923'551.30 CHF, 94 fire-rated doors and EI30 glazed partitions at Blonay VD, decision 2026-06-23) are accurately transcribed and traceable, and a labour-capacity hypothesis on a ~0.9 MCHF joinery installation lot is defensible, though the PPE-supplier ICP only reaches it through its secondary workforce category, so verification is needed before contact."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A Swiss joinery contractor winning a CHF 924k school fit-out in Vaud is a legitimate in-territory prospect for a PPE supplier, but the only need surfaced is generic workforce capacity rather than the ICP's own PPE offer, so a rep would verify before calling.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "10d9c6b082739c6a40b8082a422678d60b307b71861c64226213da370eebaa60",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "10d9c6b082739c6a40b8082a422678d60b307b71861c64226213da370eebaa60",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A EUR 4M four-year road-marking framework for the Val-d'Oise signed three weeks ago, in-territory and well above threshold, genuinely consumes materials, marking equipment and crews, giving a construction-inputs group a clear reason to call AGILIS now."
+   },
+   "review_b": {
+    "signal_id": "10d9c6b082739c6a40b8082a422678d60b307b71861c64226213da370eebaa60",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "The published facts are honest (AGILIS, 4 MEUR framework ceiling for Lot 2 road-marking on the Val-d'Oise network, signed 2026-07-27) and a materials and capacity hypothesis is defensible for a four-year bons-de-commande framework, but two of the three rationales misdescribe the works as earthworks or building finishing, which weakens the inference without falsifying any displayed fact."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "The published facts are honest (AGILIS, 4 MEUR framework ceiling for Lot 2 road-marking on the Val-d'Oise network, signed 2026-07-27) and a materials and capacity hypothesis is defensible for a four-year bons-de-commande framework, but two of the three rationales misdescribe the works as earthworks or building finishing, which weakens the inference without falsifying any displayed fact.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "1573e534034dc58a42dac136b9de51ebf7dfedc0cf06045ceeb5173e934564c4",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "safety_and_ppe"
+   ],
+   "normalized_score": 69,
+   "review_a": {
+    "signal_id": "1573e534034dc58a42dac136b9de51ebf7dfedc0cf06045ceeb5173e934564c4",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Kaeppeli Bau winning a CHF 3.0M Baumeister package on the N13 for the federal roads office five weeks ago is a textbook in-territory construction lead where crew capacity and site PPE are both plausible and directly in the ICP's offer."
+   },
+   "review_b": {
+    "signal_id": "1573e534034dc58a42dac136b9de51ebf7dfedc0cf06045ceeb5173e934564c4",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 3.02 MCHF Baumeister package awarded by ASTRA on the N13 to Käppeli Bau AG genuinely supports workforce and PPE hypotheses for a site-inputs supplier covering Switzerland, but the published object is a single line ('Baumeister VOMA') with no place of performance or schedule, so a short verification remains necessary."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A 3.02 MCHF Baumeister package awarded by ASTRA on the N13 to Käppeli Bau AG genuinely supports workforce and PPE hypotheses for a site-inputs supplier covering Switzerland, but the published object is a single line ('Baumeister VOMA') with no place of performance or schedule, so a short verification remains necessary.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "142c29d964d5cebf89ff25940fb73bb6c8ccfcb6e9ca664a1edb934db343e6e2",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "maintenance_repair",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 55,
+   "review_a": {
+    "signal_id": "142c29d964d5cebf89ff25940fb73bb6c8ccfcb6e9ca664a1edb934db343e6e2",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Hard geographic mismatch: the award is a Norwegian electrician-services framework in Moss while the ICP declares CH, FR, DE, IT, ES and PL only, and with no published value the workforce claim reduces to 'won a framework, will need people'."
+   },
+   "review_b": {
+    "signal_id": "142c29d964d5cebf89ff25940fb73bb6c8ccfcb6e9ca664a1edb934db343e6e2",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "need graph"
+    ],
+    "note": "The contract is performed in Moss, Norway, by a Norwegian electrical contractor, while the ICP declares only CH, FR, DE, IT, ES and PL with no Nordic presence — a hard geographic mismatch — and the derived workforce need is in any case the winner's own trade labour, which is what the electrician-services framework sells."
+   },
+   "arbitration": {
+    "signal_id": "142c29d964d5cebf89ff25940fb73bb6c8ccfcb6e9ca664a1edb934db343e6e2",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Accord-cadre d'electricite de deux ans : besoin de personnel credible et secteur compatible avec des intrants de chantier, mais Moss en Norvege se situe hors des territoires declares de l'ICP, ce qui ramene la correspondance a du nominal."
+   },
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Accord-cadre d'electricite de deux ans : besoin de personnel credible et secteur compatible avec des intrants de chantier, mais Moss en Norvege se situe hors des territoires declares de l'ICP, ce qui ramene la correspondance a du nominal.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "ICP configuration"
+   ]
+  },
+  {
+   "signal_id": "18240d582ef5e2b21bd07d8b824b5faaf8dcc3466e80b6888c32f1186c65b3bb",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-ppe-safety-ch",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "18240d582ef5e2b21bd07d8b824b5faaf8dcc3466e80b6888c32f1186c65b3bb",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "matching"
+    ],
+    "note": "The object is a CHF 120k cash-register system (BKP 339) supplied by an IT systems integrator, read as a construction job only because of the pool-building CPV, so a PPE and site-protection supplier gets a nominal category match with almost no commercial reality behind it."
+   },
+   "review_b": {
+    "signal_id": "18240d582ef5e2b21bd07d8b824b5faaf8dcc3466e80b6888c32f1186c65b3bb",
+    "factual_integrity": "pass",
+    "need": "unsupported",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "need graph",
+     "matching"
+    ],
+    "note": "The award is a 120'306.50 CHF BKP 339 cash-and-access-system lot supplied and installed by a POS systems vendor, so the claim that it is 'labour-intensive work of a scale that could exceed existing staff' is carried by nothing in the public facts, and it gives a PPE and site-safety supplier no meaningful reason to prospect."
+   },
+   "arbitration": {
+    "signal_id": "18240d582ef5e2b21bd07d8b824b5faaf8dcc3466e80b6888c32f1186c65b3bb",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "contract understanding",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "note": "Le lot BKP 339 est un systeme de caisse de 120 kCHF classe construction via le CPV de piscine du projet : la these d'un travail a forte intensite de main-d'oeuvre n'est pas ancree, et un fournisseur d'EPI suisse n'y trouve qu'une correspondance nominale via une categorie secondaire."
+   },
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Le lot BKP 339 est un systeme de caisse de 120 kCHF classe construction via le CPV de piscine du projet : la these d'un travail a forte intensite de main-d'oeuvre n'est pas ancree, et un fournisseur d'EPI suisse n'y trouve qu'une correspondance nominale via une categorie secondaire.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "contract understanding",
+   "secondary_failure_layers": [
+    "matching"
+   ]
+  },
+  {
+   "signal_id": "179798744d7229a1088db5d8f4442299bdd374bc93c393c4f679a60ffa7a5e4e",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "safety_and_ppe"
+   ],
+   "normalized_score": 55,
+   "review_a": {
+    "signal_id": "179798744d7229a1088db5d8f4442299bdd374bc93c393c4f679a60ffa7a5e4e",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "timing"
+    ],
+    "note": "The underlying build is real and labour-intensive, but Zelenec is in the Czech Republic and the ICP sells only in CH, FR, DE, IT, ES and PL, a hard territorial mismatch; the start date also precedes the award by 33 days, which weakens the 'immediate' framing."
+   },
+   "review_b": {
+    "signal_id": "179798744d7229a1088db5d8f4442299bdd374bc93c393c4f679a60ffa7a5e4e",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "timing"
+    ],
+    "note": "A 76.1 MCZK new multifunctional building over 18 months genuinely supports workforce and PPE hypotheses, but the Czech Republic is absent from the ICP's declared six territories (a soft rather than hard gap, CZ bordering DE and PL), no CZK value threshold exists for this ICP, and the published start date of 2026-04-30 precedes both the award and the signature yet is used to label the need 'immediate'."
+   },
+   "arbitration": {
+    "signal_id": "179798744d7229a1088db5d8f4442299bdd374bc93c393c4f679a60ffa7a5e4e",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "source data"
+    ],
+    "note": "Construction d'un batiment multifonctionnel a 76,1 MCZK sur 18 mois : besoins de personnel et d'EPI parfaitement credibles et proches du perimetre DE/PL, mais la Tchequie reste hors des territoires declares et la date de debut publiee precede l'adjudication de 33 jours."
+   },
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Construction d'un batiment multifonctionnel a 76,1 MCZK sur 18 mois : besoins de personnel et d'EPI parfaitement credibles et proches du perimetre DE/PL, mais la Tchequie reste hors des territoires declares et la date de debut publiee precede l'adjudication de 33 jours.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "ICP configuration",
+    "source data"
+   ]
+  },
+  {
+   "signal_id": "1aea75e7ac0b4407e7d5459e6a6d129bd6860ff98f957a02c64bd80dc188c702",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-subcontracting-eu",
+   "contract_type": "engineering_architecture",
+   "matched_needs": [
+    "specialist_subcontracting"
+   ],
+   "normalized_score": 63,
+   "review_a": {
+    "signal_id": "1aea75e7ac0b4407e7d5459e6a6d129bd6860ff98f957a02c64bd80dc188c702",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A CHF 935k SIA 103 phases 41-53 mandate for sewers and a stormwater basin in Saanen is in-territory, above the ICP's CHF 500k floor and inside its tight 90-day freshness window, and sub-planner involvement is normal practice, though which disciplines get outsourced needs a check before contact."
+   },
+   "review_b": {
+    "signal_id": "1aea75e7ac0b4407e7d5459e6a6d129bd6860ff98f957a02c64bd80dc188c702",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 935'281.20 CHF SIA 103 phases 41-53 engineering mandate for sewers and a stormwater basin at Saanen makes specialist sub-consultancy defensible and sits within the ICP's 90-day freshness window and 500k threshold, but the winner is itself a multidisciplinary engineering firm and, as planner rather than builder, will not subcontract the construction lots, so the specialty overlap needs checking."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A CHF 935k SIA 103 phases 41-53 mandate for sewers and a stormwater basin in Saanen is in-territory, above the ICP's CHF 500k floor and inside its tight 90-day freshness window, and sub-planner involvement is normal practice, though which disciplines get outsourced needs a check before contact.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "1d1bd1be57fef51a480ef581753662347639d7613941f276c90aacf0cf51c294",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "facility_services",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 75,
+   "review_a": {
+    "signal_id": "1d1bd1be57fef51a480ef581753662347639d7613941f276c90aacf0cf51c294",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "strong",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "ICP configuration",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "note": "A EUR 19.2M four-year licensed security-guarding contract in Liguria genuinely needs headcount, but the ICP sells construction site inputs and its empty contract-type filter let a facility-services award through, so the workforce category matches on paper only."
+   },
+   "review_b": {
+    "signal_id": "1d1bd1be57fef51a480ef581753662347639d7613941f276c90aacf0cf51c294",
+    "factual_integrity": "pass",
+    "need": "contradicted",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "contract understanding",
+     "matching",
+     "ICP configuration"
+    ],
+    "note": "The 19.2 MEUR 48-month contract is for guarding and concierge services, i.e. the supply of security personnel, won by a consortium of security firms and a staffing cooperative, so deriving a workforce-capacity need at the winner mistakes the deliverable for a downstream need, and a supplier of construction site inputs has no coherent commercial reason to approach them."
+   },
+   "arbitration": {
+    "signal_id": "1d1bd1be57fef51a480ef581753662347639d7613941f276c90aacf0cf51c294",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Le besoin d'effectifs sur 19,2 MEUR de gardiennage sur 48 mois est credible et l'Italie est bien un territoire declare, mais des services de vigilance reglementes ne sont pas des intrants de chantier : le fournisseur decrit par cet ICP n'a rien a vendre a ce consortium."
+   },
+   "final_verdict": "D",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Le besoin d'effectifs sur 19,2 MEUR de gardiennage sur 48 mois est credible et l'Italie est bien un territoire declare, mais des services de vigilance reglementes ne sont pas des intrants de chantier : le fournisseur decrit par cet ICP n'a rien a vendre a ce consortium.",
+   "critical_false_signal": true,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "ICP configuration"
+   ]
+  },
+  {
+   "signal_id": "1b1e3265a3f18843f02cc19c4276f962eca49c68cfd3778d881f362aea009408",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "safety_and_ppe"
+   ],
+   "normalized_score": 63,
+   "review_a": {
+    "signal_id": "1b1e3265a3f18843f02cc19c4276f962eca49c68cfd3778d881f362aea009408",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A CHF 707k Nachtrag 02 adding outlet structure, drainage and an SBB underpass on the N4 Axenstrasse is real added scope for PORR Suisse in-territory, but it is an increment on an already-staffed site for a major group, and the buyer is displayed twice."
+   },
+   "review_b": {
+    "signal_id": "1b1e3265a3f18843f02cc19c4276f962eca49c68cfd3778d881f362aea009408",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Facts on the 707'014.60 CHF PORR Suisse award for the N4 Neue Axenstrasse outlet structure and SBB underpass are correctly transcribed and fresh, but the title says 'Nachtrag 02' — a variation order on an already mobilised lot — so the 'montée en charge du chantier' framing overstates a ramp-up, and the single buyer is displayed twice as if there were two."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A CHF 707k Nachtrag 02 adding outlet structure, drainage and an SBB underpass on the N4 Axenstrasse is real added scope for PORR Suisse in-territory, but it is an increment on an already-staffed site for a major group, and the buyer is displayed twice.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "1d8451c53eaaca5408082ffe6bbe1532e7147b714264425c1c0e50eb1cc9953f",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "maintenance_repair",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "1d8451c53eaaca5408082ffe6bbe1532e7147b714264425c1c0e50eb1cc9953f",
+    "factual_integrity": "pass",
+    "need": "unsupported",
+    "icp_fit": "no_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "need graph",
+     "contract understanding"
+    ],
+    "note": "Finland is outside the ICP's six declared territories, and the award is a sole-source OEM maintenance retainer that the notice justifies on technical exclusivity, so inferring an externalisable workforce need for GE HealthCare from a construction-inputs supplier's viewpoint has no public basis."
+   },
+   "review_b": {
+    "signal_id": "1d8451c53eaaca5408082ffe6bbe1532e7147b714264425c1c0e50eb1cc9953f",
+    "factual_integrity": "pass",
+    "need": "contradicted",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching",
+     "contract understanding",
+     "ICP configuration"
+    ],
+    "note": "The notice is a 367'111 EUR direct award to GE HealthCare Finland for servicing its own ultrasound fleet, expressly justified because for technical reasons only the manufacturer can perform it, which excludes any externalisable workforce need; the performance is in Finland, absent from the ICP's six declared territories, and a construction-inputs group has nothing to sell a medical-device OEM."
+   },
+   "arbitration": {
+    "signal_id": "1d8451c53eaaca5408082ffe6bbe1532e7147b714264425c1c0e50eb1cc9953f",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "Faits TED exacts et fraicheur reelle (signature 2026-08-13, debut 2026-10-01), mais le besoin de main-d'oeuvre est un gabarit generique plaque sur une maintenance OEM reservee au fabricant, et l'ICP intrants de chantier (CH/FR/DE/IT/ES/PL) n'a aucune raison commerciale coherente d'approcher une filiale medtech finlandaise a Turku."
+   },
+   "final_verdict": "D",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "clear",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Faits TED exacts et fraicheur reelle (signature 2026-08-13, debut 2026-10-01), mais le besoin de main-d'oeuvre est un gabarit generique plaque sur une maintenance OEM reservee au fabricant, et l'ICP intrants de chantier (CH/FR/DE/IT/ES/PL) n'a aucune raison commerciale coherente d'approcher une filiale medtech finlandaise a Turku.",
+   "critical_false_signal": true,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "need graph"
+   ]
+  },
+  {
+   "signal_id": "1bc1a6b5d47739c83f83320426645f8a4870afbe626f2992d6f8d1a2caf7aaa5",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "1bc1a6b5d47739c83f83320426645f8a4870afbe626f2992d6f8d1a2caf7aaa5",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A named Swiss civil-works contractor won a 4.08M CHF, 3.9 km pressure-pipeline lot three weeks ago in a territory the ICP covers, and labour, plant and pipe materials are exactly what this construction-inputs supplier sells."
+   },
+   "review_b": {
+    "signal_id": "1bc1a6b5d47739c83f83320426645f8a4870afbe626f2992d6f8d1a2caf7aaa5",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 4.08 MCHF Swiss civil-works lot for ~3.9 km of pressure sewer and utility mains genuinely creates upstream labour, plant and pipe-material purchasing at the winning contractor, the works are not the winner's own supply of those inputs, and every displayed fact (winner, CPV 45231300, amount, award date) is traceable to the cited SIMAP notice."
+   },
+   "arbitration": null,
+   "final_verdict": "A",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A named Swiss civil-works contractor won a 4.08M CHF, 3.9 km pressure-pipeline lot three weeks ago in a territory the ICP covers, and labour, plant and pipe materials are exactly what this construction-inputs supplier sells.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "2066b5ba3a034a3282e9727028aca992b0a6f13e67d410d3dea8a4309a4b7304",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "maintenance_repair",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 55,
+   "review_a": {
+    "signal_id": "2066b5ba3a034a3282e9727028aca992b0a6f13e67d410d3dea8a4309a4b7304",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Hard geographic mismatch: winner and place of performance are both in Norway, a country absent from the ICP's declared territories (CH/FR/DE/IT/ES/PL), and no contract value is published to size the framework."
+   },
+   "review_b": {
+    "signal_id": "2066b5ba3a034a3282e9727028aca992b0a6f13e67d410d3dea8a4309a4b7304",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Facts are honestly published (value legitimately absent rather than fabricated), but the place of performance and the buyer are both Norway while the ICP declares only CH/FR/DE/IT/ES/PL — a hard geographic mismatch that points a construction-inputs group at a prospect it cannot serve, and the workforce inference on a no-value parallel framework is thin on its own."
+   },
+   "arbitration": {
+    "signal_id": "2066b5ba3a034a3282e9727028aca992b0a6f13e67d410d3dea8a4309a4b7304",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [],
+    "note": "Attribution et objet exacts et besoin de capacite en electriciens credible sur un accord-cadre de 2 ans, mais la Norvege est hors des six territoires declares et aucun montant n'est publie face au seuil de 100 kEUR : la correspondance reste nominale."
+   },
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Attribution et objet exacts et besoin de capacite en electriciens credible sur un accord-cadre de 2 ans, mais la Norvege est hors des six territoires declares et aucun montant n'est publie face au seuil de 100 kEUR : la correspondance reste nominale.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "1c46f22bd9d44175c05463f83d7dfb39cb4f61c6d2d06dcb86752ea5058fd522",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "maintenance_repair",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 75,
+   "review_a": {
+    "signal_id": "1c46f22bd9d44175c05463f83d7dfb39cb4f61c6d2d06dcb86752ea5058fd522",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph",
+     "ICP configuration"
+    ],
+    "note": "A supplier of construction-site inputs has no coherent play on Hewlett-Packard Switzerland maintaining an HPC research installation; only the workforce_capacity label coincides, and the need reduces to 'won a contract, will need resources'."
+   },
+   "review_b": {
+    "signal_id": "1c46f22bd9d44175c05463f83d7dfb39cb4f61c6d2d06dcb86752ea5058fd522",
+    "factual_integrity": "pass",
+    "need": "unsupported",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "need graph",
+    "secondary_failure_layers": [
+     "matching",
+     "ICP configuration"
+    ],
+    "note": "CPV 50312600 maintenance of the CSCS Alps supercomputer by the hardware vendor's own Swiss entity carries no support for the asserted 'labour-intensive work exceeding in-house headcount', and a supplier of construction site inputs has no coherent commercial reason to approach Hewlett-Packard (Schweiz) GmbH about servicing a research computer."
+   },
+   "arbitration": {
+    "signal_id": "1c46f22bd9d44175c05463f83d7dfb39cb4f61c6d2d06dcb86752ea5058fd522",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "Faits simap exacts et marche de 11,76 MCHF situe dans un territoire declare (CH), mais l'enonce du besoin est un gabarit sans ancrage applique a la maintenance d'un supercalculateur confiee a HP, et un fournisseur d'intrants de chantier n'a qu'un lien nominal avec ce contrat."
+   },
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "generic",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Faits simap exacts et marche de 11,76 MCHF situe dans un territoire declare (CH), mais l'enonce du besoin est un gabarit sans ancrage applique a la maintenance d'un supercalculateur confiee a HP, et un fournisseur d'intrants de chantier n'a qu'un lien nominal avec ce contrat.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "need graph"
+   ]
+  },
+  {
+   "signal_id": "20c31a61091a563e9d397685cd745005b848d2f5b4f3886ac54c992579d92df3",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "transport_logistics",
+   "matched_needs": [
+    "workforce_capacity",
+    "equipment_or_rental"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "20c31a61091a563e9d397685cd745005b848d2f5b4f3886ac54c992579d92df3",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Hard geographic mismatch on Cyprus, outside the ICP's territories, compounded by a sector mismatch (coach transport for conscripts vs a construction-inputs supplier) and a small 206k EUR envelope spread over 24 months already under way."
+   },
+   "review_b": {
+    "signal_id": "20c31a61091a563e9d397685cd745005b848d2f5b4f3886ac54c992579d92df3",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "need graph"
+    ],
+    "note": "Dates and amount are coherent (signature 2026-06-11 just before the stated 13-06-2026 start), but Cyprus is outside the ICP's six declared territories and a 206 kEUR coach contract for conscript transport has nothing to do with construction inputs — a hard geographic and commercial mismatch."
+   },
+   "arbitration": {
+    "signal_id": "20c31a61091a563e9d397685cd745005b848d2f5b4f3886ac54c992579d92df3",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [],
+    "note": "Faits exacts, mais un groupe d'intrants de chantier CH/FR/DE/IT/ES/PL n'a aucune raison commerciale coherente de demarcher un autocariste chypriote sur un transport militaire de 206 kEUR reparti sur 24 mois, et le besoin de renfort de flotte y est de surcroit disproportionne a l'echelle du marche."
+   },
+   "final_verdict": "D",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Faits exacts, mais un groupe d'intrants de chantier CH/FR/DE/IT/ES/PL n'a aucune raison commerciale coherente de demarcher un autocariste chypriote sur un transport militaire de 206 kEUR reparti sur 24 mois, et le besoin de renfort de flotte y est de surcroit disproportionne a l'echelle du marche.",
+   "critical_false_signal": true,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "1f332d2367b87628d8a6e446051ce7f07d224e518f45e4e46e81ab6dcae5ae4c",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-ppe-safety-ch",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "1f332d2367b87628d8a6e446051ce7f07d224e518f45e4e46e81ab6dcae5ae4c",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Fresh 366k CHF plastering and drywall lot in Zollikon (ZH) matches this Swiss PPE supplier's territory and contract type, but the derived need is workforce capacity rather than protective equipment, so a rep should verify the site before pitching."
+   },
+   "review_b": {
+    "signal_id": "1f332d2367b87628d8a6e446051ce7f07d224e518f45e4e46e81ab6dcae5ae4c",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 366 kCHF plastering and drywall lot in Zollikon is real, recent and inside the PPE supplier's Swiss construction perimeter, but the match runs through the ICP's secondary workforce category rather than the PPE it actually sells, and the scale argument for extra headcount on a finishing lot is thin — worth a short check, not a direct pitch."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "Fresh 366k CHF plastering and drywall lot in Zollikon (ZH) matches this Swiss PPE supplier's territory and contract type, but the derived need is workforce capacity rather than protective equipment, so a rep should verify the site before pitching.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "2148499633138a5a70856d437a294246d38729185519b7e493d1263e4e175b8d",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-subcontracting-eu",
+   "contract_type": "engineering_architecture",
+   "matched_needs": [
+    "specialist_subcontracting"
+   ],
+   "normalized_score": 55,
+   "review_a": {
+    "signal_id": "2148499633138a5a70856d437a294246d38729185519b7e493d1263e4e175b8d",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "wrong",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "timing",
+     "ICP configuration"
+    ],
+    "note": "Place of performance is CZ042, outside the ICP's FR/DE/CH/BE/AT footprint, and the 'immediate' urgency rests on a start date 41 days earlier than the award itself on a decision already 130 days old against a 90-day freshness policy."
+   },
+   "review_b": {
+    "signal_id": "2148499633138a5a70856d437a294246d38729185519b7e493d1263e4e175b8d",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "wrong",
+    "proof": "insufficient",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "timing",
+     "source data",
+     "ICP configuration"
+    ],
+    "note": "Subcontracting of surveys and specialist disciplines on a design mandate is a sound inference, but the works are in CZ042 while the ICP covers only FR/DE/CH/BE/AT, the 2026-04-09 award is 130 days old against a 90-day policy, and the unreferenced start date of 2026-02-27 precedes the award by 41 days yet still drives an 'immediate' timing label."
+   },
+   "arbitration": {
+    "signal_id": "2148499633138a5a70856d437a294246d38729185519b7e493d1263e4e175b8d",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Consortium, montant (48 MCZK) et objet correctement representes ; la sous-traitance specialisee sur des releves, une documentation de projet complete et une supervision sur 60 mois est credible et recoupe directement l'offre de l'ICP, seule la geographie (CZ hors FR/DE/CH/BE/AT, politique preferred, mais frontalier DE/AT) demandant verification avant contact."
+   },
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Consortium, montant (48 MCZK) et objet correctement representes ; la sous-traitance specialisee sur des releves, une documentation de projet complete et une supervision sur 60 mois est credible et recoupe directement l'offre de l'ICP, seule la geographie (CZ hors FR/DE/CH/BE/AT, politique preferred, mais frontalier DE/AT) demandant verification avant contact.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "253e274fabded3b756d22c83d3242430dc37b40a1a88ebf64b1ce9b23d5bfb59",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-staffing-ch",
+   "contract_type": "engineering_architecture",
+   "matched_needs": [
+    "specialist_subcontracting"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "253e274fabded3b756d22c83d3242430dc37b40a1a88ebf64b1ce9b23d5bfb59",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 595k CHF multi-year geomatics mandate on the FLP Lugano-Ponte Tresa line involves recurring on-site field and monitoring work in Switzerland, which a Swiss construction staffing agency can plausibly serve, though the winner is a specialist firm doing the core work itself."
+   },
+   "review_b": {
+    "signal_id": "253e274fabded3b756d22c83d3242430dc37b40a1a88ebf64b1ce9b23d5bfb59",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "need graph"
+    ],
+    "note": "The facts are sound and Swiss, but a homogeneous 595 kCHF geomatics mandate awarded precisely because the winner is the specialist gives little basis for splitting off subcontracted lots, and a BTP temporary-staffing agency supplying site labour has only a nominal reason to call a Ticino surveying office."
+   },
+   "arbitration": null,
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "The facts are sound and Swiss, but a homogeneous 595 kCHF geomatics mandate awarded precisely because the winner is the specialist gives little basis for splitting off subcontracted lots, and a BTP temporary-staffing agency supplying site labour has only a nominal reason to call a Ticino surveying office.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "need graph"
+   ]
+  },
+  {
+   "signal_id": "22c80f701a711a81f9399635b01d5069295a6a688e5bd262e29fbac252a47a2b",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "facility_services",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "22c80f701a711a81f9399635b01d5069295a6a688e5bd262e29fbac252a47a2b",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "proof presentation"
+    ],
+    "note": "Hard geographic mismatch on Greece, outside the ICP's territories, for underwater lake-cleaning divers that a construction-inputs supplier cannot serve, and the displayed contract title is the placeholder 'LOT-0001'."
+   },
+   "review_b": {
+    "signal_id": "22c80f701a711a81f9399635b01d5069295a6a688e5bd262e29fbac252a47a2b",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "A 600 kEUR twelve-month underwater lake clean-up won by a sole trader plausibly needs diving crew reinforcement, but Greece is outside the ICP's six declared territories and construction site inputs answer none of that need; the placeholder title 'LOT-0001' and the 'long_duration' supporting fact absent from the derived characteristics further weaken the presentation."
+   },
+   "arbitration": {
+    "signal_id": "22c80f701a711a81f9399635b01d5069295a6a688e5bd262e29fbac252a47a2b",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "source data"
+    ],
+    "note": "Faits exacts et besoin de main-d'oeuvre credible pour un nettoyage subaquatique de 600 kEUR sur 12 mois, mais le titre affiche se reduit a LOT-0001 et l'ICP intrants de chantier, hors territoire, n'a qu'un lien nominal avec des plongeurs professionnels en Epire."
+   },
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Faits exacts et besoin de main-d'oeuvre credible pour un nettoyage subaquatique de 600 kEUR sur 12 mois, mais le titre affiche se reduit a LOT-0001 et l'ICP intrants de chantier, hors territoire, n'a qu'un lien nominal avec des plongeurs professionnels en Epire.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "source data"
+   ]
+  },
+  {
+   "signal_id": "2601929c2832073ded2f1d83cd97980603fe401d835026c95bac139f37f7447d",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-subcontracting-eu",
+   "contract_type": "engineering_architecture",
+   "matched_needs": [
+    "specialist_subcontracting"
+   ],
+   "normalized_score": 71,
+   "review_a": {
+    "signal_id": "2601929c2832073ded2f1d83cd97980603fe401d835026c95bac139f37f7447d",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A sole architecture practice just won a 16.6M CHF general-planner mandate for the ASTRA Gesigen depot renewal in canton Bern, a textbook case where specialist engineering sub-mandates are bought by the winner, in-territory and well above the value floor."
+   },
+   "review_b": {
+    "signal_id": "2601929c2832073ded2f1d83cd97980603fe401d835026c95bac139f37f7447d",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 16.6 MCHF Generalplaner mandate for the ASTRA Gesigen depot renewal is by construction a multidisciplinary team assignment won by an architecture office, so specialist technical partners are a self-evident need for a practitioner, the works are Swiss and inside the ICP's territory, and the award is 38 days old against a 90-day policy."
+   },
+   "arbitration": null,
+   "final_verdict": "A",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A sole architecture practice just won a 16.6M CHF general-planner mandate for the ASTRA Gesigen depot renewal in canton Bern, a textbook case where specialist engineering sub-mandates are bought by the winner, in-territory and well above the value floor.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "2303d3c18678d95f532604b4793fcae8fdff06504955f50776126905d97806ff",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "2303d3c18678d95f532604b4793fcae8fdff06504955f50776126905d97806ff",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 4.93M EUR French job laying 7.6 km of DN600 main from the Figari dam started on 2026-07-01 for 17 months, giving a construction-inputs supplier a dated, in-territory reason to approach the winner about pipe, plant and crews now."
+   },
+   "review_b": {
+    "signal_id": "2303d3c18678d95f532604b4793fcae8fdff06504955f50776126905d97806ff",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Laying 7.6 km of DN600 main for 4.93 MEUR under a French buyer, signed 2026-06-15 and started 2026-07-01 for 17 months, gives a coherent and dated reason to approach the winner now on crew, earthmoving plant and pipe supply, with the award amount, currency and CPV 45231110 all traceable and the missing award date honestly left null."
+   },
+   "arbitration": null,
+   "final_verdict": "A",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A 4.93M EUR French job laying 7.6 km of DN600 main from the Figari dam started on 2026-07-01 for 17 months, giving a construction-inputs supplier a dated, in-territory reason to approach the winner about pipe, plant and crews now.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "29242d350351e7e89283de4517c2ad1fe99dddd56de38df929202f3cfc6f5013",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-staffing-ch",
+   "contract_type": "engineering_architecture",
+   "matched_needs": [
+    "specialist_subcontracting"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "29242d350351e7e89283de4517c2ad1fe99dddd56de38df929202f3cfc6f5013",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Facts are clean and fresh, but a BTP temp-staffing agency selling site labour has almost nothing to sell to an engineering consortium executing AP/DP design phases in an office, so the match is nominal rather than commercial."
+   },
+   "review_b": {
+    "signal_id": "29242d350351e7e89283de4517c2ad1fe99dddd56de38df929202f3cfc6f5013",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "ICP configuration",
+    "secondary_failure_layers": [
+     "matching"
+    ],
+    "note": "Facts are accurate and Swiss, but the object is an AP/DP engineering design mandate with no construction site, so a BTP temp-staffing ICP selling site personnel has only a nominal category coincidence via its secondary subcontracting need."
+   },
+   "arbitration": null,
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "Facts are clean and fresh, but a BTP temp-staffing agency selling site labour has almost nothing to sell to an engineering consortium executing AP/DP design phases in an office, so the match is nominal rather than commercial.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "ICP configuration"
+   ]
+  },
+  {
+   "signal_id": "240cbd797ed33a8de2910396e0a488be2e2bd560c5e1328c294a0211ca553e36",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-subcontracting-eu",
+   "contract_type": "maintenance_repair",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 47,
+   "review_a": {
+    "signal_id": "240cbd797ed33a8de2910396e0a488be2e2bd560c5e1328c294a0211ca553e36",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Hard geographic mismatch: performance is in Treviso (IT) while the ICP declares only FR/DE/CH/BE/AT, and grass-and-hedge maintenance for a social cooperative is not a specialised technical construction lot either."
+   },
+   "review_b": {
+    "signal_id": "240cbd797ed33a8de2910396e0a488be2e2bd560c5e1328c294a0211ca553e36",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Double mismatch: a specialised technical construction/engineering subcontracting ICP restricted to FR/DE/CH/BE/AT is pointed at an Italian social cooperative performing municipal green-space maintenance in Treviso, a place of performance outside its declared territories."
+   },
+   "arbitration": {
+    "signal_id": "240cbd797ed33a8de2910396e0a488be2e2bd560c5e1328c294a0211ca553e36",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "C",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "timing",
+     "proof presentation"
+    ],
+    "note": "Faits exacts et besoin de main-d'oeuvre credible sur 48 mois d'entretien d'espaces verts, mais l'ICP lots techniques specialises n'a qu'une correspondance nominale avec une cooperative sociale de jardinage municipal a Trevise, hors de ses cinq territoires, avec une signature de 152 jours face a une politique de 90 jours et un montant affiche a quatre decimales."
+   },
+   "final_verdict": "C",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "weak_fit",
+    "actionability": "too_weak",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Faits exacts et besoin de main-d'oeuvre credible sur 48 mois d'entretien d'espaces verts, mais l'ICP lots techniques specialises n'a qu'une correspondance nominale avec une cooperative sociale de jardinage municipal a Trevise, hors de ses cinq territoires, avec une signature de 152 jours face a une politique de 90 jours et un montant affiche a quatre decimales.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": [
+    "timing",
+    "proof presentation"
+   ]
+  },
+  {
+   "signal_id": "298e22ad1ffff42dc2bd44223d9d7e4fc2ebdab3ccf1a1eebb2a0002f6c0eae2",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-ppe-safety-ch",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "298e22ad1ffff42dc2bd44223d9d7e4fc2ebdab3ccf1a1eebb2a0002f6c0eae2",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A fresh CHF 3.2M technical-installation job on a Swiss site with declared safety constraints is worth a call for a CH safety supplier, but the surfaced need is workforce rather than protection, so a short qualification is required first."
+   },
+   "review_b": {
+    "signal_id": "298e22ad1ffff42dc2bd44223d9d7e4fc2ebdab3ccf1a1eebb2a0002f6c0eae2",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Accurately reported 3.2 MCHF Swiss HVAC installation lot on a safety-sensitive federal building site is a legitimate lead for a CH PPE supplier, but the displayed need is workforce rather than PPE and Equans' size makes incumbency verification necessary."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A fresh CHF 3.2M technical-installation job on a Swiss site with declared safety constraints is worth a call for a CH safety supplier, but the surfaced need is workforce rather than protection, so a short qualification is required first.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "27309d19d46b0700470d340726cc597e7a86a6e9efe2793960c792ff241c7bc0",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-subcontracting-eu",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 75,
+   "review_a": {
+    "signal_id": "27309d19d46b0700470d340726cc597e7a86a6e9efe2793960c792ff241c7bc0",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "An EUR 11.4M turnkey school extension in Germany is exactly the profile a specialist subcontractor should chase, but the contract was signed five months before publication so package availability must be checked before contact."
+   },
+   "review_b": {
+    "signal_id": "27309d19d46b0700470d340726cc597e7a86a6e9efe2793960c792ff241c7bc0",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A Totalübernehmer award of 11.4 MEUR for a German school extension inherently implies external capacity and technical lots, matching the ICP directly, but the contract was signed five months before publication so subcontracting availability must be checked before contact."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "An EUR 11.4M turnkey school extension in Germany is exactly the profile a specialist subcontractor should chase, but the contract was signed five months before publication so package availability must be checked before contact.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "2c900ba1404a338e03f48e31fc04e362ab68c8e8ce54daec599eced788318e57",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "normalized_score": 67,
+   "review_a": {
+    "signal_id": "2c900ba1404a338e03f48e31fc04e362ab68c8e8ce54daec599eced788318e57",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Cable-duct and suspension works worth CHF 0.96M in Switzerland genuinely consume labour, plant and components that this broad supplier sells, but being a supplementary order on a running lot means supply lines may already be set."
+   },
+   "review_b": {
+    "signal_id": "2c900ba1404a338e03f48e31fc04e362ab68c8e8ce54daec599eced788318e57",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Recent 960 kCHF supplementary national-road lot for cable ducts and suspensions genuinely consumes components and civil-works capacity, and the unpublished place of performance is honestly left blank rather than invented."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "Cable-duct and suspension works worth CHF 0.96M in Switzerland genuinely consume labour, plant and components that this broad supplier sells, but being a supplementary order on a running lot means supply lines may already be set.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "2a5555c0b5bd6b5fd545897b3c5af1979637ae5381075eb1d818241763ffc08e",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "security_services",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 55,
+   "review_a": {
+    "signal_id": "2a5555c0b5bd6b5fd545897b3c5af1979637ae5381075eb1d818241763ffc08e",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "need graph"
+    ],
+    "note": "Guarding services for a concert hall in Aarhus (DK) sit outside both the ICP's declared territories and its construction-inputs offer, and the derived workforce need merely restates what this security firm itself sells."
+   },
+   "review_b": {
+    "signal_id": "2a5555c0b5bd6b5fd545897b3c5af1979637ae5381075eb1d818241763ffc08e",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration"
+    ],
+    "note": "Dates and the honestly absent amount are clean, but a supplier of construction-site inputs covering CH/FR/DE/IT/ES/PL is pointed at a Danish guarding contract whose only workforce is licensed security staff the winner itself sells."
+   },
+   "arbitration": {
+    "signal_id": "2a5555c0b5bd6b5fd545897b3c5af1979637ae5381075eb1d818241763ffc08e",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [],
+    "note": "Faits exacts et besoin de personnel reellement credible pour un marche de gardiennage de 4 ans demarrant le 2026-11-01, mais un fournisseur d'intrants de chantier CH/FR/DE/IT/ES/PL ne peut fournir ni agents de securite agrees au Danemark ni aucun autre intrant consomme par ce contrat."
+   },
+   "final_verdict": "D",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Faits exacts et besoin de personnel reellement credible pour un marche de gardiennage de 4 ans demarrant le 2026-11-01, mais un fournisseur d'intrants de chantier CH/FR/DE/IT/ES/PL ne peut fournir ni agents de securite agrees au Danemark ni aucun autre intrant consomme par ce contrat.",
+   "critical_false_signal": true,
+   "critical_overclaiming": false,
+   "primary_failure_layer": "matching",
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "2ea32829bdaabc0c06fd5e2712d0cd1bf3035c0fab40b843462a070733b65377",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "safety_and_ppe"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "2ea32829bdaabc0c06fd5e2712d0cd1bf3035c0fab40b843462a070733b65377",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A CHF 1.47M metal interior-door package on a Swiss hospital build is a legitimate lead for a broad site-inputs supplier, though the fabrication-heavy nature of the work makes the labour and PPE uplift smaller than the headline amount suggests."
+   },
+   "review_b": {
+    "signal_id": "2ea32829bdaabc0c06fd5e2712d0cd1bf3035c0fab40b843462a070733b65377",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Fresh 1.47 MCHF metal interior-door lot on a Swiss hospital project supports generic but defensible workforce and PPE inferences, and correctly avoids claiming a materials need at a firm that fabricates its own metalwork."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A CHF 1.47M metal interior-door package on a Swiss hospital build is a legitimate lead for a broad site-inputs supplier, though the fabrication-heavy nature of the work makes the labour and PPE uplift smaller than the headline amount suggests.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "2b46dfcc4098a92a1a351135d6f0e28187dfc103905d9243b84618462c84493b",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-remote-specialist",
+   "contract_type": "it_digital",
+   "matched_needs": [
+    "specialist_subcontracting"
+   ],
+   "normalized_score": 69,
+   "review_a": {
+    "signal_id": "2b46dfcc4098a92a1a351135d6f0e28187dfc103905d9243b84618462c84493b",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A three-year enterprise billing platform for Orsted that started five days ago, with scale figures published, is a textbook moment to offer remote implementation specialists to an ICP that ignores geography entirely."
+   },
+   "review_b": {
+    "signal_id": "2b46dfcc4098a92a1a351135d6f0e28187dfc103905d9243b84618462c84493b",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "acceptable",
+    "timing": "clear",
+    "proof": "adequate",
+    "verdict": "A",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A three-year enterprise billing and settlement implementation that started five days ago plausibly needs separable specialist resources, dates are internally coherent, and the ICP explicitly delivers remotely so the Danish place of performance raises no barrier."
+   },
+   "arbitration": null,
+   "final_verdict": "A",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "strong_fit",
+    "actionability": "actionable",
+    "specificity": "specific",
+    "timing": "clear",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A three-year enterprise billing platform for Orsted that started five days ago, with scale figures published, is a textbook moment to offer remote implementation specialists to an ICP that ignores geography entirely.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "2fc7fb6ee53eeb2d4fcd805a2fe462ac05bece611f27e39168dc489f97c7c821",
+   "origin_decision": "borderline",
+   "source": "simap",
+   "icp_id": "icp-ppe-safety-ch",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity"
+   ],
+   "normalized_score": 73,
+   "review_a": {
+    "signal_id": "2fc7fb6ee53eeb2d4fcd805a2fe462ac05bece611f27e39168dc489f97c7c821",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A CHF 3.07M timber-assembly and facade package in Olten won by a small regional carpentry firm is a sensible target for a Swiss safety supplier, but the surfaced need is staffing rather than protection so it needs qualifying."
+   },
+   "review_b": {
+    "signal_id": "2fc7fb6ee53eeb2d4fcd805a2fe462ac05bece611f27e39168dc489f97c7c821",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "A 3.07 MCHF timber assembly, facade and window lot executed at Olten by a Grindelwald carpentry firm is a credible capacity and fall-protection situation for a Swiss PPE supplier, though the displayed need is workforce rather than the PPE the ICP sells."
+   },
+   "arbitration": null,
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "most_severe",
+   "final_note": "A CHF 3.07M timber-assembly and facade package in Olten won by a small regional carpentry firm is a sensible target for a Swiss safety supplier, but the surfaced need is staffing rather than protection so it needs qualifying.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  },
+  {
+   "signal_id": "33936883ae098234fcc73e64074bb8820523589eda098e57e56636afe8ab91d1",
+   "origin_decision": "borderline",
+   "source": "ted",
+   "icp_id": "icp-national-supplier",
+   "contract_type": "construction",
+   "matched_needs": [
+    "workforce_capacity",
+    "equipment_or_rental",
+    "materials_or_components"
+   ],
+   "normalized_score": 55,
+   "review_a": {
+    "signal_id": "33936883ae098234fcc73e64074bb8820523589eda098e57e56636afe8ab91d1",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "wrong",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "ICP configuration",
+     "timing"
+    ],
+    "note": "Stockholm (SE) is outside the ICP's declared territories, and the needs are framed as immediate on the strength of a start date that precedes the award by 284 days, so the why-now is simply false."
+   },
+   "review_b": {
+    "signal_id": "33936883ae098234fcc73e64074bb8820523589eda098e57e56636afe8ab91d1",
+    "factual_integrity": "pass",
+    "need": "plausible_but_weak",
+    "icp_fit": "no_fit",
+    "actionability": "misleading",
+    "specificity": "acceptable",
+    "timing": "wrong",
+    "proof": "adequate",
+    "verdict": "D",
+    "critical_false_signal": true,
+    "critical_overclaiming": false,
+    "primary_failure_layer": "matching",
+    "secondary_failure_layers": [
+     "timing",
+     "ICP configuration"
+    ],
+    "note": "All three needs are labelled immediate on the basis of a contract start date of 2025-09-01 that precedes the award by 284 days and lies almost a year in the past on a framework already half elapsed, and Sweden is outside the ICP's declared CH/FR/DE/IT/ES/PL footprint for locally sourced site inputs."
+   },
+   "arbitration": {
+    "signal_id": "33936883ae098234fcc73e64074bb8820523589eda098e57e56636afe8ab91d1",
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate",
+    "verdict": "B",
+    "critical_false_signal": false,
+    "critical_overclaiming": false,
+    "primary_failure_layer": null,
+    "secondary_failure_layers": [],
+    "note": "Faits exacts et aucun montant invente, et un accord-cadre de terrassement et d'amenagement pour SISAB porte crediblement main-d'oeuvre, engins et materiaux, ce qui recoupe directement l'offre de l'ICP ; seules la Suede, hors des six territoires declares, et l'absence de montant publie appellent une verification avant contact."
+   },
+   "final_verdict": "B",
+   "final_dimensions": {
+    "factual_integrity": "pass",
+    "need": "credible",
+    "icp_fit": "plausible_fit",
+    "actionability": "worth_investigating",
+    "specificity": "acceptable",
+    "timing": "acceptable",
+    "proof": "adequate"
+   },
+   "final_source": "arbitration",
+   "final_note": "Faits exacts et aucun montant invente, et un accord-cadre de terrassement et d'amenagement pour SISAB porte crediblement main-d'oeuvre, engins et materiaux, ce qui recoupe directement l'offre de l'ICP ; seules la Suede, hors des six territoires declares, et l'absence de montant publie appellent une verification avant contact.",
+   "critical_false_signal": false,
+   "critical_overclaiming": false,
+   "primary_failure_layer": null,
+   "secondary_failure_layers": []
+  }
+ ]
+}
