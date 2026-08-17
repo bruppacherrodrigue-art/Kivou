@@ -1,0 +1,1655 @@
+{
+ "source": "TED api.ted.europa.eu v3",
+ "collected_at": "2026-08-16",
+ "query": "form-type=result AND publication-date>=today(-25) SORT BY publication-number DESC",
+ "records": [
+  {
+   "award": "566165-2026",
+   "country": "DE",
+   "procedure_id": "79353898-d862-4624-b48e-a1ecafacee65",
+   "tender_notice": "129200-2026",
+   "document_urls": [
+    "https://www.dtvp.de/Satellite/notice/CXP4YL6MEVF/documents"
+   ],
+   "documents": [
+    {
+     "url": "https://www.dtvp.de/Satellite/notice/CXP4YL6MEVF/documents",
+     "status": "not_found",
+     "media_type": null,
+     "bytes": null,
+     "content_hash": null
+    }
+   ],
+   "coverage": "not_found"
+  },
+  {
+   "award": "566157-2026",
+   "country": "EE",
+   "procedure_id": "e7828340-89f1-4343-8e94-1fc2b2952e63",
+   "tender_notice": "207179-2026",
+   "document_urls": [
+    "https://riigihanked.riik.ee/rhr-web/#/procurement/4706862/general-info"
+   ],
+   "documents": [
+    {
+     "url": "https://riigihanked.riik.ee/rhr-web/#/procurement/4706862/general-info",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 2606,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566156-2026",
+   "country": "FR",
+   "procedure_id": "912e55b2-4b48-4520-908d-e9c54f0d92e9",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566153-2026",
+   "country": "RO",
+   "procedure_id": "bf3c63b9-ab75-40be-94bc-6f80ea4f3810",
+   "tender_notice": "133070-2026",
+   "document_urls": [
+    "https://e-licitatie.ro/pub/notices/c-notice/v2/view/100205218"
+   ],
+   "documents": [
+    {
+     "url": "https://e-licitatie.ro/pub/notices/c-notice/v2/view/100205218",
+     "status": "download_failed",
+     "media_type": null,
+     "bytes": null,
+     "content_hash": null
+    }
+   ],
+   "coverage": "download_failed"
+  },
+  {
+   "award": "566152-2026",
+   "country": "FR",
+   "procedure_id": "cc8baa79-de8a-40ab-9403-eb2454a9a5a4",
+   "tender_notice": "773142-2024",
+   "document_urls": [
+    "https://www.marches-publics.info/mpiaws/index.cfm?fuseaction=dematEnt.login&amp;type=DCE&amp;IDM=1574433"
+   ],
+   "documents": [
+    {
+     "url": "https://www.marches-publics.info/mpiaws/index.cfm?fuseaction=dematEnt.login&amp;type=DCE&amp;IDM=1574433",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 8196,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566150-2026",
+   "country": "FR",
+   "procedure_id": "41210470-184e-4c07-aa7f-36dae97e7a2c",
+   "tender_notice": "284862-2026",
+   "document_urls": [
+    "https://www.marches-publics.info/mpiaws/index.cfm?fuseaction=dematEnt.login&amp;type=DCE&amp;IDM=1812007"
+   ],
+   "documents": [
+    {
+     "url": "https://www.marches-publics.info/mpiaws/index.cfm?fuseaction=dematEnt.login&amp;type=DCE&amp;IDM=1812007",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 8218,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566141-2026",
+   "country": "DE",
+   "procedure_id": "450d68bc-eac1-434f-ab2b-87f7560845b0",
+   "tender_notice": "117579-2026",
+   "document_urls": [
+    "https://www.tender24.de/NetServer/TenderingProcedureDetails?function=_Details&TenderOID=54321-Tender-19c55895591-325b995b24179771"
+   ],
+   "documents": [
+    {
+     "url": "https://www.tender24.de/NetServer/TenderingProcedureDetails?function=_Details&TenderOID=54321-Tender-19c55895591-325b995b24179771",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 19141,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566139-2026",
+   "country": "PT",
+   "procedure_id": "4dba42a3-4da2-4da6-9b34-01b4ae229765",
+   "tender_notice": "158944-2026",
+   "document_urls": [
+    "https://community.vortal.biz/Public/public-tender-documents/TnUvakZFRjN3akpRaFUwa1lKUUszanJjUkJidDRRdWpodmkrVDJLdFJJbk9TdEoyTlJRK2o4OVdrSDFXdUcycHhSczJQT3VVUGhmZHZDQjRBaTd1SEE9PTFfWTcj"
+   ],
+   "documents": [
+    {
+     "url": "https://community.vortal.biz/Public/public-tender-documents/TnUvakZFRjN3akpRaFUwa1lKUUszanJjUkJidDRRdWpodmkrVDJLdFJJbk9TdEoyTlJRK2o4OVdrSDFXdUcycHhSczJQT3VVUGhmZHZDQjRBaTd1SEE9PTFfWTcj",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 686,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566136-2026",
+   "country": "CZ",
+   "procedure_id": "58ab9147-1979-4a19-9257-4351d60ba888",
+   "tender_notice": "129504-2024",
+   "document_urls": [
+    "https://tenderarena.cz/dodavatel/zakazka/663774"
+   ],
+   "documents": [
+    {
+     "url": "https://tenderarena.cz/dodavatel/zakazka/663774",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 1486,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566134-2026",
+   "country": "DE",
+   "procedure_id": "b1000000-c0de-4000-a000-00d461732754",
+   "tender_notice": "374351-2026",
+   "document_urls": [
+    "https://bi-medien.de/ausschreibungsdienste/ausschreibungen/D461732754"
+   ],
+   "documents": [
+    {
+     "url": "https://bi-medien.de/ausschreibungsdienste/ausschreibungen/D461732754",
+     "status": "not_found",
+     "media_type": null,
+     "bytes": null,
+     "content_hash": null
+    }
+   ],
+   "coverage": "not_found"
+  },
+  {
+   "award": "566132-2026",
+   "country": "CH",
+   "procedure_id": "fd5230f6-a73c-4f69-94fc-976fd8f73035",
+   "tender_notice": "248472-2026",
+   "document_urls": [
+    "https://www.simap.ch/de/redirect?context=eyJwYWdlIjoicHJvamVjdCIsInJvbGUiOm51bGwsIm9yZ0lkIjpudWxsLCJwcm9qZWN0SWQiOiJmZDUyMzBmNi1hNzNjLTRmNjktOTRmYy05NzZmZDhmNzMwMzUiLCJsb3RJZCI6bnVsbCwic3Vic2NyaXB0aW9uSWQiOm51bGx9"
+   ],
+   "documents": [
+    {
+     "url": "https://www.simap.ch/de/redirect?context=eyJwYWdlIjoicHJvamVjdCIsInJvbGUiOm51bGwsIm9yZ0lkIjpudWxsLCJwcm9qZWN0SWQiOiJmZDUyMzBmNi1hNzNjLTRmNjktOTRmYy05NzZmZDhmNzMwMzUiLCJsb3RJZCI6bnVsbCwic3Vic2NyaXB0aW9uSWQiOm51bGx9",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 20846,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566131-2026",
+   "country": "FI",
+   "procedure_id": "e0de4046-b16c-4bf6-b316-67ba82643df2",
+   "tender_notice": "251683-2026",
+   "document_urls": [
+    "https://www.e-avrop.com/rax/e-Upphandling/NoticeLink.aspx?id=118110"
+   ],
+   "documents": [
+    {
+     "url": "https://www.e-avrop.com/rax/e-Upphandling/NoticeLink.aspx?id=118110",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 52108,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566130-2026",
+   "country": "IT",
+   "procedure_id": "022a625b-8b43-4778-84cc-129a5230d4c2",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566129-2026",
+   "country": "HU",
+   "procedure_id": "10a70508-cb43-4200-8ed4-e68807137078",
+   "tender_notice": "256804-2026",
+   "document_urls": [
+    "https://ekr.gov.hu/eljarastar/eljaras/EKR000679082026"
+   ],
+   "documents": [
+    {
+     "url": "https://ekr.gov.hu/eljarastar/eljaras/EKR000679082026",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 392644,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566126-2026",
+   "country": "CZ",
+   "procedure_id": "094b92c0-8ce3-4a37-92f7-e2009194fd61",
+   "tender_notice": "410456-2024",
+   "document_urls": [
+    "https://dns.kivs.cz"
+   ],
+   "documents": [
+    {
+     "url": "https://dns.kivs.cz",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 24261,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566122-2026",
+   "country": "PT",
+   "procedure_id": "91face86-456c-4e1f-9be2-c13098c08187",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566119-2026",
+   "country": "PL",
+   "procedure_id": "a3f921b2-d5ae-45a4-96b0-fe7f52148d1a",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566118-2026",
+   "country": "ES",
+   "procedure_id": "d5999ec1-f1c7-431b-b103-9c23b9ab745a",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566117-2026",
+   "country": "DE",
+   "procedure_id": "e5f9ee38-3244-456b-90c4-7ae2af515453",
+   "tender_notice": "308803-2026",
+   "document_urls": [
+    "https://www.tender24.de/NetServer/TenderingProcedureDetails?function=_Details&TenderOID=54321-Tender-19df2ba7029-676f2bbe3c93d071"
+   ],
+   "documents": [
+    {
+     "url": "https://www.tender24.de/NetServer/TenderingProcedureDetails?function=_Details&TenderOID=54321-Tender-19df2ba7029-676f2bbe3c93d071",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 19120,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566116-2026",
+   "country": "DE",
+   "procedure_id": "8b399ecd-2cca-4ab8-b567-088fc305cba8",
+   "tender_notice": "203651-2026",
+   "document_urls": [
+    "https://www.meinauftrag.rib.de/public/DetailsByPlatformIdAndTenderId/platformId/2/tenderId/203827"
+   ],
+   "documents": [
+    {
+     "url": "https://www.meinauftrag.rib.de/public/DetailsByPlatformIdAndTenderId/platformId/2/tenderId/203827",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 18179,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566115-2026",
+   "country": "ES",
+   "procedure_id": "c02153c8-3f30-4f3d-bafa-9cfda43d5e39",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566114-2026",
+   "country": "PL",
+   "procedure_id": "2174ea13-38c9-4335-a44b-02a81e0db05a",
+   "tender_notice": "296886-2026",
+   "document_urls": [
+    "https://platformazakupowa.pl/transakcja/1303163"
+   ],
+   "documents": [
+    {
+     "url": "https://platformazakupowa.pl/transakcja/1303163",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 640403,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566113-2026",
+   "country": "FR",
+   "procedure_id": "3a2e0b50-aef6-42d8-9e00-c64e39efb233",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566111-2026",
+   "country": "AT",
+   "procedure_id": "624d37a3-3a50-4553-a9f5-43744486fd8e",
+   "tender_notice": "9509-2026",
+   "document_urls": [
+    "https://tiwag.vemap.com"
+   ],
+   "documents": [
+    {
+     "url": "https://tiwag.vemap.com",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 9396,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566107-2026",
+   "country": "ES",
+   "procedure_id": "302d237f-d68e-496e-afb3-6c1d47bacd9e",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566105-2026",
+   "country": "ES",
+   "procedure_id": "d1c291ea-a8c1-4b0f-8334-ee489be09618",
+   "tender_notice": "8926-2026",
+   "document_urls": [
+    "https://contratos-publicos.comunidad.madrid"
+   ],
+   "documents": [
+    {
+     "url": "https://contratos-publicos.comunidad.madrid",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 40921,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566104-2026",
+   "country": "BE",
+   "procedure_id": "91bab958-8014-4d91-8a52-d0162a978ee9",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566101-2026",
+   "country": "EE",
+   "procedure_id": "c44d35cc-be4c-49d7-bf78-4f81fef5c68d",
+   "tender_notice": "313600-2026",
+   "document_urls": [
+    "https://riigihanked.riik.ee/rhr-web/#/procurement/10260764/documents?group=B"
+   ],
+   "documents": [
+    {
+     "url": "https://riigihanked.riik.ee/rhr-web/#/procurement/10260764/documents?group=B",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 2606,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566099-2026",
+   "country": "DE",
+   "procedure_id": "243f9c13-df51-41b2-b652-699163e3b98d",
+   "tender_notice": "427931-2026",
+   "document_urls": [
+    "https://www.dtvp.de/Satellite/notice/CXP4DAHMJVU/documents"
+   ],
+   "documents": [
+    {
+     "url": "https://www.dtvp.de/Satellite/notice/CXP4DAHMJVU/documents",
+     "status": "not_found",
+     "media_type": null,
+     "bytes": null,
+     "content_hash": null
+    }
+   ],
+   "coverage": "not_found"
+  },
+  {
+   "award": "566096-2026",
+   "country": "BG",
+   "procedure_id": "a288e3b7-8a68-4ed1-9f27-411e7a91b2b8",
+   "tender_notice": "340669-2026",
+   "document_urls": [
+    "https://app.eop.bg/today/585259"
+   ],
+   "documents": [
+    {
+     "url": "https://app.eop.bg/today/585259",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 5941,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566094-2026",
+   "country": "FI",
+   "procedure_id": "dbb5909f-3f05-4363-bc6e-c451d78411ca",
+   "tender_notice": "125109-2026",
+   "document_urls": [
+    "https://tarjouspalvelu.fi/ouka?id=597459&tpk=e1529e54-badf-4003-bb2a-83ebde4b2c65"
+   ],
+   "documents": [
+    {
+     "url": "https://tarjouspalvelu.fi/ouka?id=597459&tpk=e1529e54-badf-4003-bb2a-83ebde4b2c65",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 58355,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566091-2026",
+   "country": "HR",
+   "procedure_id": "a6f52c04-950b-4c7b-a81b-04f9a954f5bc",
+   "tender_notice": "327358-2026",
+   "document_urls": [
+    "https://eojn.hr/tender-eo/83840"
+   ],
+   "documents": [
+    {
+     "url": "https://eojn.hr/tender-eo/83840",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 212266,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566085-2026",
+   "country": "PT",
+   "procedure_id": "e6fd2677-5b7f-424f-85e7-6c834ad78e39",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566084-2026",
+   "country": "FR",
+   "procedure_id": "cbcaff33-d589-45bb-a843-74cbba6f4765",
+   "tender_notice": "393165-2025",
+   "document_urls": [
+    "https://www.marches-publics.info/mpiaws/index.cfm?fuseaction=dematEnt.login&amp;type=DCE&amp;IDM=1657054"
+   ],
+   "documents": [
+    {
+     "url": "https://www.marches-publics.info/mpiaws/index.cfm?fuseaction=dematEnt.login&amp;type=DCE&amp;IDM=1657054",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 8482,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566080-2026",
+   "country": "ES",
+   "procedure_id": "b600a75d-6e91-4ad7-ab90-f2a7bb7d571f",
+   "tender_notice": "252093-2026",
+   "document_urls": [
+    "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=DM16Ws1RPlzVGIpKDxgsAQ%3D%3D"
+   ],
+   "documents": [
+    {
+     "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=DM16Ws1RPlzVGIpKDxgsAQ%3D%3D",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 114150,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566079-2026",
+   "country": "IE",
+   "procedure_id": "4616ce46-8336-44b4-9f1e-6897c7fdce79",
+   "tender_notice": "110553-2026",
+   "document_urls": [
+    "https://www.etenders.gov.ie/epps/cft/listContractDocuments.do?resourceId=7515439"
+   ],
+   "documents": [
+    {
+     "url": "https://www.etenders.gov.ie/epps/cft/listContractDocuments.do?resourceId=7515439",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 31250,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566075-2026",
+   "country": "RO",
+   "procedure_id": "d9247a11-4527-43e9-ab65-42643e2f1819",
+   "tender_notice": "116225-2026",
+   "document_urls": [
+    "https://e-licitatie.ro/pub/notices/c-notice/v2/view/100204983"
+   ],
+   "documents": [
+    {
+     "url": "https://e-licitatie.ro/pub/notices/c-notice/v2/view/100204983",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 18967,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566073-2026",
+   "country": "FI",
+   "procedure_id": "0b867546-3c63-409e-9f90-d9ebc1b1a4ec",
+   "tender_notice": "673402-2025",
+   "document_urls": [
+    "https://www.hankintailmoitukset.fi/fi/public/procedure/20892/enotice/31305"
+   ],
+   "documents": [
+    {
+     "url": "https://www.hankintailmoitukset.fi/fi/public/procedure/20892/enotice/31305",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 9684,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566070-2026",
+   "country": "CZ",
+   "procedure_id": "f96c11ad-20d2-499a-814c-528131de9bee",
+   "tender_notice": "411076-2026",
+   "document_urls": [
+    "https://www.egordion.cz/nabidkaGORDION/profilFakultninemocniceOstrava"
+   ],
+   "documents": [
+    {
+     "url": "https://www.egordion.cz/nabidkaGORDION/profilFakultninemocniceOstrava",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 1486,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566069-2026",
+   "country": "PL",
+   "procedure_id": "9e853d5a-779c-4836-9875-0ad14f3cb4fa",
+   "tender_notice": "317298-2026",
+   "document_urls": [
+    "https://platformazakupowa.pl/pn/bydgoszcz"
+   ],
+   "documents": [
+    {
+     "url": "https://platformazakupowa.pl/pn/bydgoszcz",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 16542,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566067-2026",
+   "country": "ES",
+   "procedure_id": "8a8d6f0c-a8d0-40da-9beb-38e7bc39b20b",
+   "tender_notice": "95537-2026",
+   "document_urls": [
+    "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=fSh8REEc1kK9Hd5zqvq9cg%3D%3D"
+   ],
+   "documents": [
+    {
+     "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=fSh8REEc1kK9Hd5zqvq9cg%3D%3D",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 117995,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566060-2026",
+   "country": "IE",
+   "procedure_id": "57c920b3-0d1e-497a-8355-a1f44115802f",
+   "tender_notice": "409901-2025",
+   "document_urls": [
+    "https://www.etenders.gov.ie/epps/cft/listContractDocuments.do?resourceId=5947321"
+   ],
+   "documents": [
+    {
+     "url": "https://www.etenders.gov.ie/epps/cft/listContractDocuments.do?resourceId=5947321",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 26932,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566058-2026",
+   "country": "IT",
+   "procedure_id": "5cee85f9-6335-480d-bd54-a5b864425498",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566056-2026",
+   "country": "ES",
+   "procedure_id": "02e916cf-8b15-4f1d-827c-3fb778ee7426",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566055-2026",
+   "country": "NL",
+   "procedure_id": "9953972c-5d57-4f95-93dd-cc46952b9add",
+   "tender_notice": "336841-2026",
+   "document_urls": [
+    "https://www.tenderned.nl/aankondigingen/overzicht/425241"
+   ],
+   "documents": [
+    {
+     "url": "https://www.tenderned.nl/aankondigingen/overzicht/425241",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 72303,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566054-2026",
+   "country": "PL",
+   "procedure_id": "268be6a0-616d-4d75-9c39-c75f419329ad",
+   "tender_notice": "332903-2026",
+   "document_urls": [
+    "https://platformazakupowa.pl/transakcja/1309887",
+    "https://platformazakupowa.pl/pn/usk2_lodz"
+   ],
+   "documents": [
+    {
+     "url": "https://platformazakupowa.pl/transakcja/1309887",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 681819,
+     "content_hash": null
+    },
+    {
+     "url": "https://platformazakupowa.pl/pn/usk2_lodz",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 17025,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566050-2026",
+   "country": "PL",
+   "procedure_id": "82a6f78a-3230-42ba-af5d-2ddeed290433",
+   "tender_notice": "286903-2026",
+   "document_urls": [
+    "https://ezamowienia.gov.pl"
+   ],
+   "documents": [
+    {
+     "url": "https://ezamowienia.gov.pl",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 46464,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566048-2026",
+   "country": "PL",
+   "procedure_id": "c834200f-e0b9-476a-9385-ed65145067d3",
+   "tender_notice": "346169-2026",
+   "document_urls": [
+    "https://malopolskapsp.ezamawiajacy.pl"
+   ],
+   "documents": [
+    {
+     "url": "https://malopolskapsp.ezamawiajacy.pl",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 179,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566047-2026",
+   "country": "IT",
+   "procedure_id": "5f6a7e49-00b4-48d5-89aa-98c5723babbd",
+   "tender_notice": "148607-2026",
+   "document_urls": [
+    "https://app.albofornitori.it/alboeproc/albo_apsholding"
+   ],
+   "documents": [
+    {
+     "url": "https://app.albofornitori.it/alboeproc/albo_apsholding",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 1624,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566043-2026",
+   "country": "DE",
+   "procedure_id": "0c5ce489-9e0d-41bd-ae8e-3521fe4de2f2",
+   "tender_notice": "433259-2026",
+   "document_urls": [
+    "https://bieterportal.noncd.db.de/evergabe.bieter/api/supplier/external/deeplink/subproject/a82944a8-7c5e-4796-89cb-b415f79081b9"
+   ],
+   "documents": [
+    {
+     "url": "https://bieterportal.noncd.db.de/evergabe.bieter/api/supplier/external/deeplink/subproject/a82944a8-7c5e-4796-89cb-b415f79081b9",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 4057,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566042-2026",
+   "country": "ES",
+   "procedure_id": "d0cc56be-4bb8-45f8-83a5-d6d878e7362f",
+   "tender_notice": "689891-2025",
+   "document_urls": [
+    "https://contrataciondelestado.es:443/wps/poc?uri=deeplink:detalle_licitacion&idEvl=fxlIy5NvVbPgL1BHd3qjQA%3D%3D"
+   ],
+   "documents": [
+    {
+     "url": "https://contrataciondelestado.es:443/wps/poc?uri=deeplink:detalle_licitacion&idEvl=fxlIy5NvVbPgL1BHd3qjQA%3D%3D",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 117595,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566041-2026",
+   "country": "FR",
+   "procedure_id": "35082127-d12e-4b01-b4d6-aa2090e96d08",
+   "tender_notice": "262417-2026",
+   "document_urls": [
+    "https://www.marches-publics.info/mpiaws/index.cfm?fuseaction=dematEnt.login&amp;type=DCE&amp;IDM=1793074"
+   ],
+   "documents": [
+    {
+     "url": "https://www.marches-publics.info/mpiaws/index.cfm?fuseaction=dematEnt.login&amp;type=DCE&amp;IDM=1793074",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 8275,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566039-2026",
+   "country": "DE",
+   "procedure_id": "c4006d3f-aab1-4cef-ac41-fa047f2ac114",
+   "tender_notice": "242133-2026",
+   "document_urls": [
+    "http://www.deutsche-evergabe.de/dashboards/dashboard_off/c4006d3f-aab1-4cef-ac41-fa047f2ac114"
+   ],
+   "documents": [
+    {
+     "url": "http://www.deutsche-evergabe.de/dashboards/dashboard_off/c4006d3f-aab1-4cef-ac41-fa047f2ac114",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 99439,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566037-2026",
+   "country": "AT",
+   "procedure_id": "66d07eef-e431-44e0-82a7-dfc792ca4fdc",
+   "tender_notice": "336929-2026",
+   "document_urls": [
+    "https://evergabe.at/NetServer/TenderingProcedureDetails?function=_Details&TenderOID=54321-Tender-19e200af97f-6e53efd1382cc80f"
+   ],
+   "documents": [
+    {
+     "url": "https://evergabe.at/NetServer/TenderingProcedureDetails?function=_Details&TenderOID=54321-Tender-19e200af97f-6e53efd1382cc80f",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 17388,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566035-2026",
+   "country": "NL",
+   "procedure_id": "4d601792-9cfa-4491-81c1-c34e6d7edfd9",
+   "tender_notice": "246557-2026",
+   "document_urls": [
+    "https://www.tenderned.nl/aankondigingen/overzicht/419355"
+   ],
+   "documents": [
+    {
+     "url": "https://www.tenderned.nl/aankondigingen/overzicht/419355",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 72303,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566034-2026",
+   "country": "CZ",
+   "procedure_id": "81c54999-ac57-46bc-b403-c44d5fe80dde",
+   "tender_notice": "139249-2026",
+   "document_urls": [
+    "https://zakazky.pmdp.cz/"
+   ],
+   "documents": [
+    {
+     "url": "https://zakazky.pmdp.cz/",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 33642,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566033-2026",
+   "country": "DE",
+   "procedure_id": "946de43b-cde0-4cb2-82b9-eb33227a0705",
+   "tender_notice": "812384-2025",
+   "document_urls": [
+    "https://www.subreport.de/E23115889"
+   ],
+   "documents": [
+    {
+     "url": "https://www.subreport.de/E23115889",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 982,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566032-2026",
+   "country": "SE",
+   "procedure_id": "41cea739-8539-4512-b93d-6da4cd2b5d41",
+   "tender_notice": "531753-2025",
+   "document_urls": [
+    "https://tendsign.com/doc.aspx?MeFormsNoticeId=64829"
+   ],
+   "documents": [
+    {
+     "url": "https://tendsign.com/doc.aspx?MeFormsNoticeId=64829",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 17009,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566029-2026",
+   "country": "NL",
+   "procedure_id": "294adf58-4d9a-4f0e-811e-726533464601",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566023-2026",
+   "country": "CZ",
+   "procedure_id": "094b92c0-8ce3-4a37-92f7-e2009194fd61",
+   "tender_notice": "410456-2024",
+   "document_urls": [
+    "https://dns.kivs.cz"
+   ],
+   "documents": [
+    {
+     "url": "https://dns.kivs.cz",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 24261,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566021-2026",
+   "country": "CH",
+   "procedure_id": "6df80fe0-da62-40f2-b5c6-24578f41f86f",
+   "tender_notice": "368608-2026",
+   "document_urls": [
+    "https://www.simap.ch/de/redirect?context=eyJwYWdlIjoicHJvamVjdCIsInJvbGUiOm51bGwsIm9yZ0lkIjpudWxsLCJwcm9qZWN0SWQiOiI2ZGY4MGZlMC1kYTYyLTQwZjItYjVjNi0yNDU3OGY0MWY4NmYiLCJsb3RJZCI6bnVsbCwic3Vic2NyaXB0aW9uSWQiOm51bGx9"
+   ],
+   "documents": [
+    {
+     "url": "https://www.simap.ch/de/redirect?context=eyJwYWdlIjoicHJvamVjdCIsInJvbGUiOm51bGwsIm9yZ0lkIjpudWxsLCJwcm9qZWN0SWQiOiI2ZGY4MGZlMC1kYTYyLTQwZjItYjVjNi0yNDU3OGY0MWY4NmYiLCJsb3RJZCI6bnVsbCwic3Vic2NyaXB0aW9uSWQiOm51bGx9",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 20846,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566019-2026",
+   "country": "IT",
+   "procedure_id": "bfa09a0f-7af6-49e2-b643-04f80a6b1333",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566014-2026",
+   "country": "PL",
+   "procedure_id": "91689fa7-79f9-4399-b5ce-b3c888d3f22a",
+   "tender_notice": "402801-2026",
+   "document_urls": [
+    "https://ezamowienia.gov.pl/pl"
+   ],
+   "documents": [
+    {
+     "url": "https://ezamowienia.gov.pl/pl",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 46464,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566013-2026",
+   "country": "FR",
+   "procedure_id": "b6c07fa5-a0fa-4f75-bcb3-5ef29bd64c3f",
+   "tender_notice": "110023-2026",
+   "document_urls": [
+    "https://3f.achatpublic.com/sdm/ent2/gen/ficheCsl.action?PCSLID=CSL_2026_EbN1WGx3mD"
+   ],
+   "documents": [
+    {
+     "url": "https://3f.achatpublic.com/sdm/ent2/gen/ficheCsl.action?PCSLID=CSL_2026_EbN1WGx3mD",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 158321,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566012-2026",
+   "country": "RO",
+   "procedure_id": "4cb8d67d-2ee9-4fae-a593-ea797778772e",
+   "tender_notice": "676025-2024",
+   "document_urls": [
+    "https://e-licitatie.ro/pub/notices/c-notice/v2/view/100186558"
+   ],
+   "documents": [
+    {
+     "url": "https://e-licitatie.ro/pub/notices/c-notice/v2/view/100186558",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 18967,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "566008-2026",
+   "country": "ES",
+   "procedure_id": "d32e89f7-7837-4b06-a443-fc3acb13b007",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566007-2026",
+   "country": "BG",
+   "procedure_id": "b810d7ad-a34f-4675-90af-fc040f65d111",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "566006-2026",
+   "country": "IE",
+   "procedure_id": "6434196a-31ed-40b5-a89f-d7a94ee3cfb7",
+   "tender_notice": "697511-2024",
+   "document_urls": [
+    "https://www.etenders.gov.ie/epps/cft/listContractDocuments.do?resourceId=4685729"
+   ],
+   "documents": [
+    {
+     "url": "https://www.etenders.gov.ie/epps/cft/listContractDocuments.do?resourceId=4685729",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 28604,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565998-2026",
+   "country": "PT",
+   "procedure_id": "af3fa837-fb0f-47ff-8aef-9643d5d9c012",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "565997-2026",
+   "country": "ES",
+   "procedure_id": "32ecbe75-2084-476c-aace-25da5103c334",
+   "tender_notice": "154448-2026",
+   "document_urls": [
+    "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=Ya%2F5xyRszZprhBlEHQFSKA%3D%3D"
+   ],
+   "documents": [
+    {
+     "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=Ya%2F5xyRszZprhBlEHQFSKA%3D%3D",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 125426,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565994-2026",
+   "country": "BE",
+   "procedure_id": "0a44220d-25b2-4612-83a2-e837e5308040",
+   "tender_notice": "793092-2024",
+   "document_urls": [
+    "https://www.belgiantrain.be/nl/3rd-party-services/supplier/procurement"
+   ],
+   "documents": [
+    {
+     "url": "https://www.belgiantrain.be/nl/3rd-party-services/supplier/procurement",
+     "status": "auth_required",
+     "media_type": null,
+     "bytes": null,
+     "content_hash": null
+    }
+   ],
+   "coverage": "auth_required"
+  },
+  {
+   "award": "565993-2026",
+   "country": "PT",
+   "procedure_id": "c34a98e3-fce6-4380-9c27-a9779efc3dc8",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "565992-2026",
+   "country": "PL",
+   "procedure_id": "8eab9417-0427-4a19-ae8c-21376b1f415e",
+   "tender_notice": "767570-2025",
+   "document_urls": [
+    "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/tender-details/8eab9417-0427-4a19-ae8c-21376b1f415e-CN?#anchorDocuments"
+   ],
+   "documents": [
+    {
+     "url": "https://ec.europa.eu/info/funding-tenders/opportunities/portal/screen/opportunities/tender-details/8eab9417-0427-4a19-ae8c-21376b1f415e-CN?#anchorDocuments",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 59984,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565990-2026",
+   "country": "DE",
+   "procedure_id": "ce75d760-f2da-4f27-827e-9669a9933f83",
+   "tender_notice": "435654-2026",
+   "document_urls": [
+    "https://ausschreibungen.landbw.de/Satellite/notice/CXR6YD0Y4HA/documents"
+   ],
+   "documents": [
+    {
+     "url": "https://ausschreibungen.landbw.de/Satellite/notice/CXR6YD0Y4HA/documents",
+     "status": "not_found",
+     "media_type": null,
+     "bytes": null,
+     "content_hash": null
+    }
+   ],
+   "coverage": "not_found"
+  },
+  {
+   "award": "565989-2026",
+   "country": "FR",
+   "procedure_id": "05ca1e8b-64bb-42c3-a199-79e8f24ba614",
+   "tender_notice": "426397-2025",
+   "document_urls": [
+    "https://www.achatpublic.com/sdm/ent2/gen/ficheCsl.action?PCSLID=CSL_2025_94JfA4BwDD"
+   ],
+   "documents": [
+    {
+     "url": "https://www.achatpublic.com/sdm/ent2/gen/ficheCsl.action?PCSLID=CSL_2025_94JfA4BwDD",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 174976,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565986-2026",
+   "country": "LT",
+   "procedure_id": "bfb83fb5-c86e-4fb7-97ad-a8d0778a1f95",
+   "tender_notice": "380785-2026",
+   "document_urls": [
+    "https://viesiejipirkimai.lt/epps/cft/listContractDocuments.do?resourceId=8003089"
+   ],
+   "documents": [
+    {
+     "url": "https://viesiejipirkimai.lt/epps/cft/listContractDocuments.do?resourceId=8003089",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 30407,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565982-2026",
+   "country": "SI",
+   "procedure_id": "2d7009b9-8dff-4337-86e8-02ad346c0386",
+   "tender_notice": "388147-2026",
+   "document_urls": [
+    "https://www.enarocanje.si/api/datoteka/get?id=NTUzNjU3O0Rva3VtZW50YWNpamEuemlw"
+   ],
+   "documents": [
+    {
+     "url": "https://www.enarocanje.si/api/datoteka/get?id=NTUzNjU3O0Rva3VtZW50YWNpamEuemlw",
+     "status": "available",
+     "media_type": "application/octet-stream",
+     "bytes": 15677828,
+     "content_hash": "9b454a3546722b3599a9e158349674f10dd7b4c3bd665e4e7db9cc92b74ec9ce"
+    }
+   ],
+   "coverage": "available"
+  },
+  {
+   "award": "565980-2026",
+   "country": "ES",
+   "procedure_id": "7aae5316-88d2-4f8a-9c50-2c4db12b46db",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "565978-2026",
+   "country": "CZ",
+   "procedure_id": "b6f8f395-76d3-4330-ab49-30126c16299e",
+   "tender_notice": "184048-2026",
+   "document_urls": [
+    "https://zakazky.vsb.cz/"
+   ],
+   "documents": [
+    {
+     "url": "https://zakazky.vsb.cz/",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 34801,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565977-2026",
+   "country": "HU",
+   "procedure_id": "14d49c06-fa79-4b57-aa5b-426724e7b3fe",
+   "tender_notice": "198004-2026",
+   "document_urls": [
+    "https://ekr.gov.hu/eljarastar/eljaras/EKR000427782026"
+   ],
+   "documents": [
+    {
+     "url": "https://ekr.gov.hu/eljarastar/eljaras/EKR000427782026",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 392644,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565976-2026",
+   "country": "ES",
+   "procedure_id": "cd711efa-d86f-4e8a-bc6a-112faa633a80",
+   "tender_notice": "227520-2026",
+   "document_urls": [
+    "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=9xCt9l5oHaxrhBlEHQFSKA%3D%3D"
+   ],
+   "documents": [
+    {
+     "url": "https://contrataciondelestado.es/wps/poc?uri=deeplink:detalle_licitacion&idEvl=9xCt9l5oHaxrhBlEHQFSKA%3D%3D",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 114336,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565975-2026",
+   "country": "FR",
+   "procedure_id": "06aba1f1-2737-4f0b-a390-e7433afe1290",
+   "tender_notice": "109971-2026",
+   "document_urls": [
+    "https://consultations-asf.omnikles.com"
+   ],
+   "documents": [
+    {
+     "url": "https://consultations-asf.omnikles.com",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 25646,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565973-2026",
+   "country": "FR",
+   "procedure_id": "4f076988-41f5-40c9-9883-601d0daf9104",
+   "tender_notice": "83703-2026",
+   "document_urls": [
+    "https://www.marches-publics.info/mpiaws/index.cfm?fuseaction=dematEnt.login&amp;type=DCE&amp;IDM=1775010"
+   ],
+   "documents": [
+    {
+     "url": "https://www.marches-publics.info/mpiaws/index.cfm?fuseaction=dematEnt.login&amp;type=DCE&amp;IDM=1775010",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 8250,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565969-2026",
+   "country": "IT",
+   "procedure_id": "0e762e5b-70b4-40c4-b965-6a5e606556d4",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "565967-2026",
+   "country": "PL",
+   "procedure_id": "21da587c-ae0f-421b-955c-5d7b38f43748",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "565966-2026",
+   "country": "LU",
+   "procedure_id": "52e4c50b-a2ce-4f10-b8fd-52ab116541e2",
+   "tender_notice": "374712-2026",
+   "document_urls": [
+    "https://pmp.b2g.etat.lu/entreprise/consultation/542854?orgAcronyme=t5y"
+   ],
+   "documents": [
+    {
+     "url": "https://pmp.b2g.etat.lu/entreprise/consultation/542854?orgAcronyme=t5y",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 138648,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565965-2026",
+   "country": "BG",
+   "procedure_id": "1c01ca04-bdb2-42dd-8efe-861750788637",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "565963-2026",
+   "country": "NL",
+   "procedure_id": "9a35b0c1-d1c1-4432-81a4-26ae534148b5",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "565962-2026",
+   "country": "CZ",
+   "procedure_id": "d9e87884-1f01-49c8-a236-4033fcbbac42",
+   "tender_notice": "220422-2026",
+   "document_urls": [
+    "https://tenderarena.cz/dodavatel/seznam-profilu-zadavatelu/detail/Z0000715"
+   ],
+   "documents": [
+    {
+     "url": "https://tenderarena.cz/dodavatel/seznam-profilu-zadavatelu/detail/Z0000715",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 1486,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565961-2026",
+   "country": "ES",
+   "procedure_id": "b89eac79-4842-4aa7-8625-ef66d4ed65a2",
+   "tender_notice": "271758-2026",
+   "document_urls": [
+    "https://www.ceh.junta-andalucia.es/haciendayadministracionpublica/apl/pdc-front-publico/perfiles-licitaciones/perfiles-contratante"
+   ],
+   "documents": [
+    {
+     "url": "https://www.ceh.junta-andalucia.es/haciendayadministracionpublica/apl/pdc-front-publico/perfiles-licitaciones/perfiles-contratante",
+     "status": "download_failed",
+     "media_type": null,
+     "bytes": null,
+     "content_hash": null
+    }
+   ],
+   "coverage": "download_failed"
+  },
+  {
+   "award": "565958-2026",
+   "country": "HU",
+   "procedure_id": "cc075c10-a079-49a6-b50d-0311e36ce7de",
+   "tender_notice": "348008-2026",
+   "document_urls": [
+    "https://ekr.gov.hu/eljarastar/eljaras/EKR000393812026"
+   ],
+   "documents": [
+    {
+     "url": "https://ekr.gov.hu/eljarastar/eljaras/EKR000393812026",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 392646,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565955-2026",
+   "country": "PL",
+   "procedure_id": "ae8b406b-c650-4843-a6ba-9f3403a16bb2",
+   "tender_notice": "353660-2026",
+   "document_urls": [
+    "https://platformazakupowa.pl/transakcja/1314769"
+   ],
+   "documents": [
+    {
+     "url": "https://platformazakupowa.pl/transakcja/1314769",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 630248,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565949-2026",
+   "country": "PT",
+   "procedure_id": "4a9ec6f1-5cf2-47ba-a533-d28040b9e366",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "565947-2026",
+   "country": "PT",
+   "procedure_id": "37387217-ab9d-48c0-bd4a-0327740b09f0",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  },
+  {
+   "award": "565946-2026",
+   "country": "IT",
+   "procedure_id": "f7c562f7-bc98-4fa8-bcc0-582992fa90b9",
+   "tender_notice": "315950-2026",
+   "document_urls": [
+    "https://www.ariaspa.it/wps/portal/Aria/Home"
+   ],
+   "documents": [
+    {
+     "url": "https://www.ariaspa.it/wps/portal/Aria/Home",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 178375,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565944-2026",
+   "country": "RO",
+   "procedure_id": "ce5b533f-bc82-47b4-a962-3a9fa28959c2",
+   "tender_notice": "207055-2026",
+   "document_urls": [
+    "https://e-licitatie.ro/pub/notices/c-notice/v2/view/100206281"
+   ],
+   "documents": [
+    {
+     "url": "https://e-licitatie.ro/pub/notices/c-notice/v2/view/100206281",
+     "status": "download_failed",
+     "media_type": null,
+     "bytes": null,
+     "content_hash": null
+    }
+   ],
+   "coverage": "download_failed"
+  },
+  {
+   "award": "565943-2026",
+   "country": "AT",
+   "procedure_id": "d5e80403-865c-49a8-88b0-6f14d5260b89",
+   "tender_notice": "128978-2024",
+   "document_urls": [
+    "https://gv.vergabeportal.at/Detail/175390"
+   ],
+   "documents": [
+    {
+     "url": "https://gv.vergabeportal.at/Detail/175390",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 3966,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565942-2026",
+   "country": "NO",
+   "procedure_id": "ad4be90b-8aca-42e1-b249-311fa6ae8a81",
+   "tender_notice": "367626-2026",
+   "document_urls": [
+    "https://app.artifik.no/procurements/5767"
+   ],
+   "documents": [
+    {
+     "url": "https://app.artifik.no/procurements/5767",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 1246009,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565941-2026",
+   "country": "DE",
+   "procedure_id": "5b5fb829-bc50-487f-be08-711ac2154956",
+   "tender_notice": "301116-2026",
+   "document_urls": [
+    "https://www.meinauftrag.rib.de/public/DetailsByPlatformIdAndTenderId/platformId/7/tenderId/121015490"
+   ],
+   "documents": [
+    {
+     "url": "https://www.meinauftrag.rib.de/public/DetailsByPlatformIdAndTenderId/platformId/7/tenderId/121015490",
+     "status": "external",
+     "media_type": "text/html",
+     "bytes": 18179,
+     "content_hash": null
+    }
+   ],
+   "coverage": "external"
+  },
+  {
+   "award": "565939-2026",
+   "country": "CZ",
+   "procedure_id": "bb7e84c2-d73f-405a-99ad-852fa31aa1b6",
+   "tender_notice": null,
+   "document_urls": [],
+   "documents": [],
+   "coverage": "no_tender_notice"
+  }
+ ]
+}

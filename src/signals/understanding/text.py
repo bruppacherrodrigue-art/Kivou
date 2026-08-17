@@ -24,6 +24,11 @@ _BLOCK_BREAK = re.compile(
     r"</\s*(p|div|li|tr|h[1-6]|blockquote)\s*>|<\s*(br|hr)\s*/?>|<\s*li\s*>", re.IGNORECASE
 )
 _TAG = re.compile(r"<[^>]+>")
+# Le corps d'un `<script>` ou d'un `<style>` n'est jamais du texte de document :
+# le garder ferait passer « alert(1) » ou « p{color:red} » pour une phrase.
+_SCRIPT_STYLE = re.compile(
+    r"<\s*(script|style)\b[^>]*>.*?<\s*/\s*\1\s*>", re.IGNORECASE | re.DOTALL
+)
 _WHITESPACE = re.compile(r"[ \t ]+")
 _BLANK_LINES = re.compile(r"\n{3,}")
 
@@ -40,7 +45,7 @@ def plain_text(text: str | None) -> str | None:
         return _tidy(html.unescape(text))
 
     # Les ruptures de bloc d'abord, sinon `</p><p>` collerait deux phrases.
-    broken = _BLOCK_BREAK.sub("\n", text)
+    broken = _BLOCK_BREAK.sub("\n", _SCRIPT_STYLE.sub(" ", text))
     stripped = _TAG.sub("", broken)
     # Une seule passe de décodage : `&amp;amp;` → `&amp;`, et on s'arrête là.
     return _tidy(html.unescape(stripped))

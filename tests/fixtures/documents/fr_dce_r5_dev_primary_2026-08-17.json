@@ -1,0 +1,5613 @@
+{
+ "usage": {
+  "calls": 400,
+  "input_tokens": 897741,
+  "output_tokens": 261768,
+  "retries": 0,
+  "failure_kinds": {},
+  "cost_usd": 0.1453,
+  "wall_s": 553.0
+ },
+ "rows": [
+  {
+   "candidate_id": 1,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Toutes les références aux marques sont données à titre indicatif.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.652
+  },
+  {
+   "candidate_id": 2,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "La durée pendant laquelle ces nouveaux marchés pourront être conclus ne peut dépasser trois",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.58
+  },
+  {
+   "candidate_id": 3,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire s'engage à :",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.428
+  },
+  {
+   "candidate_id": 4,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le périmètre d'étude et la liste des parcelles ci -dessus sont établis à titre indicatif, à la date de",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.038
+  },
+  {
+   "candidate_id": 5,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Les marchés subséquents pourront prendre diverses formes qui seront définies lors de l’établissement de ces",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 12.325
+  },
+  {
+   "candidate_id": 6,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Les fournitures et matériaux mis en œuvre doivent être conformes aux normes françaises en vigueur",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 2.589
+  },
+  {
+   "candidate_id": 7,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "- les délais laissés le cas échéant aux titulaires pour formuler leurs observations",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 12.189
+  },
+  {
+   "candidate_id": 8,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "fragment",
+    "source_excerpt": "En cas de sous-traitance, le titulaire devra faire accepter le sous-traitant et agréer ses conditions de",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 8.851
+  },
+  {
+   "candidate_id": 9,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Code de la commande publique, elles peuvent proposer certaines mises au point du programme et suggérer",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 11.408
+  },
+  {
+   "candidate_id": 10,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "D'autres personnes physiques peuvent être habilitées par l'acheteur en",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 7.229
+  },
+  {
+   "candidate_id": 11,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "environmental_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Les entreprises devront prendre en compte dans leurs propositions l’ensemble des contraintes réglementaires actuelles -reprises notamment dans l’arrêté du 8 janvier 1998 et l’arrêté d’autorisation joint au présent dossier- et futures.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.257
+  },
+  {
+   "candidate_id": 12,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Les machines proposées devront être d’une fiabilité maximale, présenter un design soigné et offrir une",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.045
+  },
+  {
+   "candidate_id": 13,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "en consommables présentent un caractère interdépendant et doivent être assurées de manière coordonnée afin",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.325
+  },
+  {
+   "candidate_id": 14,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "opérationnelles, fixée à titre indicatif au  16 février 2027 , est consacrée à la préparation de la mise en",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 12.583
+  },
+  {
+   "candidate_id": 15,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "1 Informations données à titre indicatif :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.828
+  },
+  {
+   "candidate_id": 16,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Les prix indiqués sont des prix incluant l’ensemble des frais afférents à la réalisation de la prestation y compris les frais de déplacement qui ne pourront être facturés en sus.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 11.597
+  },
+  {
+   "candidate_id": 17,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "security_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Ce document et son contenu sont la propriété de la CNBF et ne peuvent être utilisés / communiqués sans son accord préalable.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 19.417
+  },
+  {
+   "candidate_id": 18,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Ces données peuvent comprendre notamment :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.14
+  },
+  {
+   "candidate_id": 19,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "security_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Aucun transfert, réplication, accès d'administration à distance, opération de support, de maintenance ou de supervision depuis un territoire situé hors de France ne peut intervenir sans accord écrit et préalable de la CNBF.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.095
+  },
+  {
+   "candidate_id": 20,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "En cas d’évolution des lois et décrets liés aux différents services fournis, le titulaire devra mettre",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 3.7
+  },
+  {
+   "candidate_id": 21,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "staffing_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Système de Sécurité Incendie (SSI) / Les intervenants doivent disposer des compétences définies dans la norme NF S 61-931 (niveau d’accès).",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.411
+  },
+  {
+   "candidate_id": 22,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Changement des lampes et le cas échéant fusibles.",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 9.616
+  },
+  {
+   "candidate_id": 23,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le montant annuel cumulé des pénalités appliquées au titre des audits contradictoires négatifs ne pourra excéder 5 % du montant annuel HT du marché.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.94
+  },
+  {
+   "candidate_id": 24,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "2.4.5 - Sous-traitance (le cas échéant).........................................................................................",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.797
+  },
+  {
+   "candidate_id": 25,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "optional",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "La réponse pourra être présentée, soit par un assureur directement ou par le biais d’un intermédiaire.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.379
+  },
+  {
+   "candidate_id": 26,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Lesdits titulaires doivent déposer une offre à chaque remise en concurrence préalable dans les conditions",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.268
+  },
+  {
+   "candidate_id": 27,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Dans son offre l’entreprise devra impérativement fournir les fiches techniques et de sécurité",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.443
+  },
+  {
+   "candidate_id": 28,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Les végétaux doivent être produits dans une région aux conditions climatiques compatibles",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.735
+  },
+  {
+   "candidate_id": 29,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "La conclusion des marchés passés sur le fondement du présent accord -cadre ne peut se",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.613
+  },
+  {
+   "candidate_id": 30,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "en état de fonctionnement, le titulaire du présent marché s'engage à donner la",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.511
+  },
+  {
+   "candidate_id": 31,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "fragment",
+    "source_excerpt": "fonctionnement, le titulaire du présent marché s'engage à donner la priorité aux interventions",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.283
+  },
+  {
+   "candidate_id": 32,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "conséquence, le titulaire du présent marché  devra impérativement disposer  au moment de la",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 14.86
+  },
+  {
+   "candidate_id": 33,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Ils doivent permettre l'accès à l'ensemble du réseau",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.324
+  },
+  {
+   "candidate_id": 34,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Ils doivent permettre l'accès à l'ensemble du réseau d’approvisionnement",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.837
+  },
+  {
+   "candidate_id": 35,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "optional",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Les candidats peuvent proposer des fournitures équivalentes.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.07
+  },
+  {
+   "candidate_id": 36,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "sufficient",
+    "source_excerpt": "En cas de sous-traitance, le titulaire devra faire accepter le sous-traitant et agréer ses conditions",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.663
+  },
+  {
+   "candidate_id": 37,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "En outre, si le titulaire est tenu de procéder à un",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.078
+  },
+  {
+   "candidate_id": 38,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "pour la présente étude peut différer des parcelles visées au certificat d'insalubrité.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.734
+  },
+  {
+   "candidate_id": 39,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "L'attribution de chaque marché subséquent pourra donner lieu à négociation sous réserve du respect des",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.748
+  },
+  {
+   "candidate_id": 40,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Les matériels proposés et chiffrés au bordereau des prix concernant les luminaires devront répondre",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 13.269
+  },
+  {
+   "candidate_id": 41,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "schedule_deadline",
+    "context_status": "fragment",
+    "source_excerpt": "- les dates ou délais d’exécution le cas échéant",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 8.944
+  },
+  {
+   "candidate_id": 42,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "plus, ces derniers devront fournir, à défaut d’avoir obtenu du maître de l’ouvrage un accord sur une",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.099
+  },
+  {
+   "candidate_id": 43,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "peuvent être demandés en plus des études d'esquisse.",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 8.129
+  },
+  {
+   "candidate_id": 44,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "L'acheteur peut passer avec le titulaire des marché s sans mise en concurrence pour des prestations",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 5.086
+  },
+  {
+   "candidate_id": 45,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Des contrôles inopinés pourront être exercés par les Organismes Publics nommés afin de vérifier le bon",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.704
+  },
+  {
+   "candidate_id": 46,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Elles devront en outre dispo ser d’une interface de commande simple et intuitive,",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.022
+  },
+  {
+   "candidate_id": 47,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Il pourra être reconduit tacitement pour 3 période de 12 mois chacune.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 10.878
+  },
+  {
+   "candidate_id": 48,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Elle est fixée par le pouvoir adjudicateur et ne peut avoir pour effet de prolonger la durée",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.981
+  },
+  {
+   "candidate_id": 49,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "security_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Les prestations attendues doivent permettre d’assurer la sécurité et la sûreté des biens et des personnes,",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.139
+  },
+  {
+   "candidate_id": 50,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "staffing_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Le Titulaire doit être en capacité de fournir l'effectif nécessaire aux missions 365 jours par an, 24 heures sur 24.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.201
+  },
+  {
+   "candidate_id": 51,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "· dépendance à des fournisseurs, à des applications ou des technologies jeunes, mouvantes dont la réversibilité peut être mal maîtrisée ;",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 10.634
+  },
+  {
+   "candidate_id": 52,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Certaines pièces peuvent, à titre accessoire ou incident, contenir des catégories particulières de données au sens du RGPD, ainsi que des données relatives à des procédures, contentieux, infractions ou mesures sociales ;",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.128
+  },
+  {
+   "candidate_id": 53,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Tout changement affectant l’hébergement, la localisation, les modalités d’administration ou les sous-traitants techniques est notifié préalablement à la CNBF, qui peut s’y opposer lorsqu’il dégrade le niveau de sécurité ou la maîtrise du risque.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.844
+  },
+  {
+   "candidate_id": 54,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "maintenance_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "À ce titre, elle doit en assurer l’entretien courant, incluant notamment",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 10.649
+  },
+  {
+   "candidate_id": 55,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "maintenance_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Robinets d'Incendie Armés (RIA) - Les opérations doivent correspondre aux normes NF S 62-201, NF EN 671-3 et aux préconisations de la règle R5 de l’APSAD.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.077
+  },
+  {
+   "candidate_id": 56,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "staffing_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Les intervenants doivent disposer des compétences définies dans la norme NF S 61-931 (niveau d’accès).",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 9.621
+  },
+  {
+   "candidate_id": 57,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "À ce titre, le Prestataire devra notamment assurer les missions suivantes :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.614
+  },
+  {
+   "candidate_id": 58,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "optional",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "sufficient",
+    "source_excerpt": "Elle pourra aussi être proposée par un groupement conjoint d’assureurs.",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 16.4
+  },
+  {
+   "candidate_id": 59,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "En cas d'absence de nouvelle offre, chaque titulaire doit justifier par écrit de son impossibilité de répondre.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.827
+  },
+  {
+   "candidate_id": 60,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire ne peut pas refuser la décision de reconduction du contrat.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 9.774
+  },
+  {
+   "candidate_id": 61,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "operating_hours",
+    "context_status": "sufficient",
+    "source_excerpt": "Les livraisons ne pourront avoir lieu que lors de l'ouverture des stations d'épuration :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.831
+  },
+  {
+   "candidate_id": 62,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire du marché devra tenir compte de l’évolution de la",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.824
+  },
+  {
+   "candidate_id": 63,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "buyer",
+    "modality": "prohibited",
+    "requirement_type": "schedule_deadline",
+    "context_status": "sufficient",
+    "source_excerpt": "La date de remise des offres ne pourra être inférieure à 5 jours calendaires",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.115
+  },
+  {
+   "candidate_id": 64,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "site_location",
+    "context_status": "fragment",
+    "source_excerpt": "dans le présent CCTP, devront se réaliser sur place dans les dépôts, sur la voie",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 8.807
+  },
+  {
+   "candidate_id": 65,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "En conséquence, le titulaire du présent marché  devra impérativement",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.232
+  },
+  {
+   "candidate_id": 66,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire devra disposer en",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 8.446
+  },
+  {
+   "candidate_id": 67,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le CERIB, lorsqu’il estime que des prestations ne peuvent être admises que moyennant certaines mises au point, peut",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.956
+  },
+  {
+   "candidate_id": 68,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "La solution proposée devra permettre l'accès à un réseau étendu d’infrastructure d’approvisionnement et de service",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 9.414
+  },
+  {
+   "candidate_id": 69,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "third_party",
+    "modality": "mandatory",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "fragment",
+    "source_excerpt": "rang 1 et plus, ces derniers devront fournir, à défaut d’avoir obtenu de l'acheteur un accord sur",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 11.693
+  },
+  {
+   "candidate_id": 70,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "droit de l’Union ou du droit de l’Etat membre auquel il est soumis, il doit informer le",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 5.141
+  },
+  {
+   "candidate_id": 71,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le prestataire pourra également conseiller la maîtrise d’ouvrage quant à la comitologie à mettre en",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 4.589
+  },
+  {
+   "candidate_id": 72,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire doit déposer une offre à chaque consultation dans les conditions suivantes :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.026
+  },
+  {
+   "candidate_id": 73,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Les équipements type balisage sont de plusieurs types, il peut de s’agir de projecteurs, de lanterne",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.171
+  },
+  {
+   "candidate_id": 74,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Seules les commandes notifiées par le représentant du pouvoir adjudicateur pourront",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 10.084
+  },
+  {
+   "candidate_id": 75,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "En outre le maître d'ouvrage pourra confier au maître d’œuvre des éléments de missions complémentaires",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.01
+  },
+  {
+   "candidate_id": 76,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Chaque espace du plan doit obligatoirement être renseigné",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 19.487
+  },
+  {
+   "candidate_id": 77,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "unknown",
+    "modality": "optional",
+    "requirement_type": "payment_terms",
+    "context_status": "fragment",
+    "source_excerpt": "En cours d'exécution, les prix figurant au contrat peuvent temporairement évoluer à la baisse dans le",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.96
+  },
+  {
+   "candidate_id": 78,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "site_location",
+    "context_status": "sufficient",
+    "source_excerpt": "Le descriptif des ouvrages est donné à titre indicatif, l’Entreprise doit se rendre sur les  sites afin de",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.834
+  },
+  {
+   "candidate_id": 79,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Afin de garantir une utilisation fluide tout au long de la journée, les machines devront également être",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 9.477
+  },
+  {
+   "candidate_id": 80,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "l’acheteur peut, à titre ponctuel, passer commande sur la base du catalogue du titulaire en vigueur à la date",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.636
+  },
+  {
+   "candidate_id": 81,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire ne peut s’opposer à cette reconduction.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.89
+  },
+  {
+   "candidate_id": 82,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire est réputé avoir une parfaite connaissance des lieux dont il doit assurer la surveillance et le",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 20.431
+  },
+  {
+   "candidate_id": 83,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "si celles-ci sont de mauvaise qualité ou non intègres, le traitement ne sera pas en cohérence, voire porter atteinte à la stratégie business de l’entreprise ;",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.452
+  },
+  {
+   "candidate_id": 84,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "sufficient",
+    "source_excerpt": "Les traitements relevant de la sous-traitance sont autorisés pour la seule durée du marché et, le cas échéant, pendant la période strictement nécessaire aux opérations de réversibilité, sans préjudice des obligations légales de conservation dûment justifiées par le titulaire.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.971
+  },
+  {
+   "candidate_id": 85,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "security_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "La CNBF peut demander à tout moment les éléments de preuve raisonnablement nécessaires à l’appréciation du niveau de sécurité du service, y compris les attestations, rapports ou synthèses d’audit disponibles, sans préjudice du secret des affaires dûment justifié.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 13.399
+  },
+  {
+   "candidate_id": 86,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "unknown",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Des prestations ponctuelles peuvent également être réalisées, à la demande expresse du",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.224
+  },
+  {
+   "candidate_id": 87,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Si la surface totale de fuite mesurée a augmenté par rapport à celle mesurée lors de la vérification de conformité, la performance du système peut être affectée :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.894
+  },
+  {
+   "candidate_id": 88,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Les opérations doivent correspondre aux normes NF S 62-201, NF EN 671-3 et aux préconisations de la règle R5 de l’APSAD.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.85
+  },
+  {
+   "candidate_id": 89,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "En complément des documents contractuels énumérés dans le CCAP , le Titulaire est tenu de",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 14.496
+  },
+  {
+   "candidate_id": 90,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "En cas de coassurance, elle devra être formée dès la remise des offres (une offre ne couvrant pas",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 5.863
+  },
+  {
+   "candidate_id": 91,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Toutefois, ces prix pourront être modifiés lors de chaque remise en concurrence.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 11.499
+  },
+  {
+   "candidate_id": 92,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "La formule de variation devra être proposée par le candidat pour la prestation suivante :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.569
+  },
+  {
+   "candidate_id": 93,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "fragment",
+    "source_excerpt": "Avant chaque livraison sur les stations d’épuration Toul et de Sangatte, l’entreprise devra",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.279
+  },
+  {
+   "candidate_id": 94,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "et les prescriptions à respecter pour leur utilisation devront être en langue française.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 10.026
+  },
+  {
+   "candidate_id": 95,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Certains marchés subséquents pourront ne pas donner lieu à remise en concurrence",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.304
+  },
+  {
+   "candidate_id": 96,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "titulaire du présent marché devra impérativement disposer au moment de la",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 8.425
+  },
+  {
+   "candidate_id": 97,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire devra disposer",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 7.19
+  },
+  {
+   "candidate_id": 98,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "maintenance_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "- le titulaire se doit d'effectuer des visites mensuelles de contrôle de l'état de pneumatiques sur l’ensemble",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.99
+  },
+  {
+   "candidate_id": 99,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "schedule_deadline",
+    "context_status": "fragment",
+    "source_excerpt": "Le Titulaire doit faire connaître son acceptation dans un délai de dix jours (10) à compter de la notification de la",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 8.086
+  },
+  {
+   "candidate_id": 100,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "La solution devra reposer sur un dispositif multimarque, multi-énergies sécurisée par un code PIN unique, commun à",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 4.861
+  },
+  {
+   "candidate_id": 101,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire, ou chaque cotraitant en cas de groupement, s'engage au respect des lois et",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 10.073
+  },
+  {
+   "candidate_id": 102,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire doit répondre, au nom et pour le compte du pouvoir adjudicateur et dans les",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.876
+  },
+  {
+   "candidate_id": 103,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "sufficient",
+    "source_excerpt": "La conception, l'impression et la distribution des supports d'information sont à la charge du titulaire",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.539
+  },
+  {
+   "candidate_id": 104,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "site_location",
+    "context_status": "fragment",
+    "source_excerpt": "Le GPMD pourra, occasionnellement, demander au titulaire de se déplacer sur site, dans le cadre d’une",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 5.912
+  },
+  {
+   "candidate_id": 105,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Certains points lumineux pourront être rétrocédés à des tiers, supprimés",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.537
+  },
+  {
+   "candidate_id": 106,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "buyer",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le pouvoir adjudicateur peut faire face à des situations particulières (mise en danger,",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 3.969
+  },
+  {
+   "candidate_id": 107,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "buyer",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "La durée pendant laquelle ces nouveaux marchés pourront être conclus ne peut dépasser trois ans à compter",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 15.12
+  },
+  {
+   "candidate_id": 108,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Outre les obligations règlementaires, le titulaire  devra intégrer :",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 7.034
+  },
+  {
+   "candidate_id": 109,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "unknown",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "s'engage à informer l'acheteur par tout moyen de ces offres promotionnelles, lui permettant de donner",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 8.494
+  },
+  {
+   "candidate_id": 110,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "D’autres boues non chaulées peuvent être produites à certaines périodes lors de pannes de l’unité",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.26
+  },
+  {
+   "candidate_id": 111,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Leur niveau sonore devra, par conséquent, être adapté à leur emplacement.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.163
+  },
+  {
+   "candidate_id": 112,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Seuls peuvent être commandés dans ce cadre des articles présentant un lien direct avec l’objet du marché.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 13.542
+  },
+  {
+   "candidate_id": 113,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "prohibited",
+    "requirement_type": "schedule_deadline",
+    "context_status": "fragment",
+    "source_excerpt": "maximum avant le terme d’une période, aucun bon de commande supplémentaire ne peut être émis au",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 8.202
+  },
+  {
+   "candidate_id": 114,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Il ne pourra, par la suite, invoquer une méconnaissance des lieux pour modifier",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.785
+  },
+  {
+   "candidate_id": 115,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "security_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Outre le respect de la réglementation en vigueur( notamment le RGPD et l'arrêté du 18 septembre 2018 portant approbation du cahier des clauses simplifiées de cybersécurité applicable au marché), le titulaire s'engage à respecter les standards de sécurité en vigueur (ISO27001, PCIDSS, etc.).",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.721
+  },
+  {
+   "candidate_id": 116,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "maintenance_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "La maîtrise de la conservation, de l’archivage technique, des sauvegardes et de la suppression des données déposées par la CNBF jusqu’au terme du marché puis, le cas échéant, jusqu’à l’achèvement des opérations de réversibilité.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.48
+  },
+  {
+   "candidate_id": 117,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "security_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Aucune suppression automatique de données, aucune désactivation standard d’accès, aucune purge ni aucun changement unilatéral des conditions techniques d’accès ne peuvent être appliqués lorsqu’ils compromettent la continuité du service, la preuve, l’auditabilité ou les droits de la CNBF.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.372
+  },
+  {
+   "candidate_id": 118,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "schedule_deadline",
+    "context_status": "sufficient",
+    "source_excerpt": "La CNBF peut prendre par écrit la décision de ne pas reconduire le marché deux mois minimum",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 13.27
+  },
+  {
+   "candidate_id": 119,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "maintenance_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "La maintenance de ces installations doit être également conforme à la norme NF EN 12845.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 2.89
+  },
+  {
+   "candidate_id": 120,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le Titulaire ne pourra en aucun cas se prévaloir, dans l’exercice de ses missions, d’une",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 15.312
+  },
+  {
+   "candidate_id": 121,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "L’offre devra présenter le mandataire (apériteur) et les engagements respectifs pris par l’apériteur et",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 5.052
+  },
+  {
+   "candidate_id": 122,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Une avance pourra être accordée au titulaire dans les conditions définies par chaque marché subséquent.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.462
+  },
+  {
+   "candidate_id": 123,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Cependant, le Po devra obligatoirement inclure la contribution CO2.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 9.42
+  },
+  {
+   "candidate_id": 124,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "sufficient",
+    "source_excerpt": "La livraison ou le dépotage ne pourront se faire qu'en présence d'un agent de Grand Calais",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.532
+  },
+  {
+   "candidate_id": 125,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "environmental_constraint",
+    "context_status": "fragment",
+    "source_excerpt": "Le fournisseur est tenu de se conformer à toutes les réglementations environnementales en",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 13.666
+  },
+  {
+   "candidate_id": 126,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "lorsqu’il apparaît que, pour des raisons techniques, ces marchés ne peuvent être confiés",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 12.409
+  },
+  {
+   "candidate_id": 127,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "devra disposer en propre d’une machine à vulcaniser les pneus à chaud et garantir",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.613
+  },
+  {
+   "candidate_id": 128,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "a) Le titulaire s'engage à faciliter au maximum la réception des véhicules dans l'atelier chargé d'effectuer les interventions.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.206
+  },
+  {
+   "candidate_id": 129,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Les rapports de contrôle issus de la visite mensuelle doivent être",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 9.66
+  },
+  {
+   "candidate_id": 130,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Lorsque le CERIB estime que des prestations, sans être entièrement conformes aux stipulations du marché, peuvent",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 7.662
+  },
+  {
+   "candidate_id": 131,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire devra mettre à disposition un outil de gestion et de suivi permettant notamment :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.081
+  },
+  {
+   "candidate_id": 132,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "insufficient",
+    "source_excerpt": "Dans le cadre de l'exécution du contrat, le titulaire s'engage ainsi à réaliser son propre diagnostic",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 31.038
+  },
+  {
+   "candidate_id": 133,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "La formulation et le format de l’information doit être convenue avec le pouvoir",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 3.637
+  },
+  {
+   "candidate_id": 134,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "À ce titre, des visites sur site devront être réalisées auprès de chaque ménage et de chaque logement",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.943
+  },
+  {
+   "candidate_id": 135,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "du dossier ou de la demande de devis) ou suivants la visite liée à l’intervention le cas échéant",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.517
+  },
+  {
+   "candidate_id": 136,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "ou de nouveaux points lumineux pourront être pris en compte dans le présent accord-cadre.",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 11.94
+  },
+  {
+   "candidate_id": 137,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Des devis pourront être demandés pour :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 18.754
+  },
+  {
+   "candidate_id": 138,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "unknown",
+    "modality": "optional",
+    "requirement_type": "staffing_constraint",
+    "context_status": "fragment",
+    "source_excerpt": "D’autres personnes physiques peuvent être habilitée s par le titulaire et le maître de l'ouvrage en cou rs",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 11.857
+  },
+  {
+   "candidate_id": 139,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "schedule_deadline",
+    "context_status": "fragment",
+    "source_excerpt": "3° De proposer, le cas échéant, une décomposition en phases de réalisation et de préciser la durée de cette",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 16.204
+  },
+  {
+   "candidate_id": 140,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "En aucun cas les offres promotionnelles ne doivent entraîner une diminution de la qualité des produits ou",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.176
+  },
+  {
+   "candidate_id": 141,
+   "classification": {
+    "phase": "contract_formation",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "En cas de groupement d’opérateurs économiques mais dans lequel le mandataire n’est pas habilité à signer les pièces contractuelles au nom et pour le compte des autres, le mandataire n’a qu’un pouvoir de représentation et de coordination des prestations, tous les membres du groupement doivent dans ce cas signer toutes les pièces contractuelles.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.939
+  },
+  {
+   "candidate_id": 142,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Il pourra être reconduit de manière anticipée à compter de la date à laquelle le montant",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 14.675
+  },
+  {
+   "candidate_id": 143,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "part vis-à-vis du pouvoir adjudicateur qui pourra, par conséquent, exiger à tout moment de la part du titulaire",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 8.715
+  },
+  {
+   "candidate_id": 144,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "sufficient",
+    "source_excerpt": "disfonctionnement de l'arrosage devra être immédiatement signalé à la direction des Parcs et Jardins.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.956
+  },
+  {
+   "candidate_id": 145,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "pourra être reconduit 3 fois un an, de façon expresse avec accusé de réception, sans pouvoir",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 7.714
+  },
+  {
+   "candidate_id": 146,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "devront alors répondre sur la base du dossier modifié sans pouvoir élever aucune réclamation à",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 7.457
+  },
+  {
+   "candidate_id": 147,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "fragment",
+    "source_excerpt": "❏  s'engage en tant que mandataire du groupement solidaire ;",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 13.698
+  },
+  {
+   "candidate_id": 148,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "installations, comportant un nombre important de points lumineux, peuvent nécessiter une remise en état",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.639
+  },
+  {
+   "candidate_id": 149,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "pour objet de se prononcer, à leur demande, sur la qualification et, le cas échéant, sur la classification et",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.336
+  },
+  {
+   "candidate_id": 150,
+   "classification": {
+    "phase": "qualification",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "certification",
+    "context_status": "fragment",
+    "source_excerpt": "Afin d’être qualifiée, le demandeur  doit répondre à l’ensemble des exigences définies dans le présent",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 8.369
+  },
+  {
+   "candidate_id": 151,
+   "classification": {
+    "phase": "qualification",
+    "obligated_actor": "bidder",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Ces indices ne peuvent être cumulés.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 10.695
+  },
+  {
+   "candidate_id": 152,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "S'engage, au nom des membres du groupement dont les autres membres sont désignés ci-dessous, sur la base de l'offre du groupement, à exécuter les prestations demandées dans les conditions définies ci-après ;",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.804
+  },
+  {
+   "candidate_id": 153,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "- la livraison sur site, le déchargement, la manutention, le transport et, le cas échéant, le stockage sur site",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 9.058
+  },
+  {
+   "candidate_id": 154,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "le luminaire fourni devra respecter les normes et spécificités tel que décrit dans le CCTP",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.501
+  },
+  {
+   "candidate_id": 155,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "sufficient",
+    "source_excerpt": "Cette procédure devra détailler l’ensemble des étapes nécessaires et notamment la méthodologie utilisée permettant une intervention en toute sécurité, depuis le diagnostic de la panne jusqu’au remplacement du luminaire, en précisant les moyens humains et matériels requis et les qualifications des intervenants :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.811
+  },
+  {
+   "candidate_id": 156,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Elle devra détailler les phases d’étude, préparation, intervention sur site, les moyens d’accès adaptés, les consignes de sécurité à respecter, ainsi que les ressources humaines qualifiées et les matériels nécessaires à la réalisation des travaux dans le respect des normes techniques et réglementaires en vigueur :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 9.712
+  },
+  {
+   "candidate_id": 157,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "E07/10/21MAJ GPMD/EOOALLENTINK.E CE DOCUMENT EST LA PROPRIETE EXCLUSIVE DU PORT AUTONOME DE DUNKERQUE_ IL NE DOIT ETRE NI REPRODUIT, NI COMMUNIQUE ADES TIERS SANS AUTORISATION ECRITE (Article 1382 du code civil)_ THIS DOCUMENT IS THE SOLE PROPERTY OF PORT OF DUNKERQUE AUTHORITY_ IT MUST NOT BE EITHER COPIED OR GIVEN TO ANYBODY WITHOUT WRITTEN PERMISSION (Article 1382 of the code civil)",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 17.65
+  },
+  {
+   "candidate_id": 158,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Nombre de lots pour lesquels les candidats peuvent soumettre une offre :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.008
+  },
+  {
+   "candidate_id": 159,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Au titre de ce contrat, le titulaire doit optimiser les performances techniques des équipements qui lui sont",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 7.285
+  },
+  {
+   "candidate_id": 160,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le formulaire NOTI6 est un modèle de certificat de cessibilité de créance(s) qui peut être utilisé par l’acheteur dans le cadre d’un marché public.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 12.371
+  },
+  {
+   "candidate_id": 161,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "insufficient",
+    "source_excerpt": "Le formulaire DC2 peut être utilisé dans le cadre de toute procédure passée en application du code de la",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 3.753
+  },
+  {
+   "candidate_id": 162,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "unknown",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le formulaire DC4 peut être utilisé dans le cadre de toute procédure passée en applicatio n du code de la commande publique",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 10.831
+  },
+  {
+   "candidate_id": 163,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le formulaire DC4 est un modèle de déclaration de sous-traitance qui peut être utilisé par les soumissionnaires ou titulaires de marchés publics pour présenter un sous-traitant.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.392
+  },
+  {
+   "candidate_id": 164,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "si en présence _ doit être listée",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.479
+  },
+  {
+   "candidate_id": 165,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le marché ne sera pas reconduit.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.606
+  },
+  {
+   "candidate_id": 166,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Toutes les entreprises intervenant sur le chantier (sous-traitants, intérimaires, etc.) s'engagent à respecter la",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 12.918
+  },
+  {
+   "candidate_id": 167,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "fragment",
+    "source_excerpt": "- Liste les données de la Déclaration préalable, qui devront être",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 29.321
+  },
+  {
+   "candidate_id": 168,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Les cessions de créances doivent être notifiées ou les nantissements signifiés à l’organisme désigné ci-dessus.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 9.439
+  },
+  {
+   "candidate_id": 169,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "deliverable",
+    "context_status": "fragment",
+    "source_excerpt": "Détail quantitatif Estimatif ajusté le cas échéant par rapport à l’AVP et décomposé par corps d’état correspondant à un allotissement maximal permettant d’arrêter un coût définitif des travaux",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 12.45
+  },
+  {
+   "candidate_id": 170,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "d’engagement ainsi que dans le CC(A)P et ne peuvent en aucun cas être",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 13.753
+  },
+  {
+   "candidate_id": 171,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Liste des antennes régionales et nombre de collaborateurs donnés à titre indicatif et pouvant faire l'objet de modifications pendant toute la période d'éxécution du marché, périodes de reconduction incluses.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.349
+  },
+  {
+   "candidate_id": 172,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Une attention particulière devra être apportée aux renseignements indiqués au sein de cette trame de réponse, notamment en ce qui constitue la proposition technique du candidat :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.649
+  },
+  {
+   "candidate_id": 173,
+   "classification": {
+    "phase": "contract_formation",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le formulaire ATTRI1 est un modèle d’acte d’engagement qui peut être utilisé par l’acheteur, s’il le souhaite, pour conclure un marché public avec le titulaire pressenti.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.625
+  },
+  {
+   "candidate_id": 174,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Les offres des candidats et tous les documents annexes devront être rédigés en langue française.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.534
+  },
+  {
+   "candidate_id": 175,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Ce document décrit le déroulement de la procédure et explique au candidat comment il doit y répondre.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 9.06
+  },
+  {
+   "candidate_id": 176,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Ces deux versions doivent être strictement identiques dans leur contenu.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.602
+  },
+  {
+   "candidate_id": 177,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Les candidats devront obligatoirement procéder à une visite sur site",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 10.523
+  },
+  {
+   "candidate_id": 178,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "site_location",
+    "context_status": "sufficient",
+    "source_excerpt": "Des prestations ponctuelles peuvent également être réalisées, à la demande expresse du Bénéficiaire, sur les sites suivants :",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 16.873
+  },
+  {
+   "candidate_id": 179,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Une attention toute particulière devra être apportée quant à ce public, tant pour l'organisation",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 51.438
+  },
+  {
+   "candidate_id": 180,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Une attention toute particulière devra être apportée quant à ce public, tant pour l'organisation des",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 9.411
+  },
+  {
+   "candidate_id": 181,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "position statutaire, qui sont reprises dans leur intégralité ci -après mais il devra également intégrer les",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 14.337
+  },
+  {
+   "candidate_id": 182,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "La couverture des obligations statutaires devra s’appliquer dans le respect du statut de la fonction",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.992
+  },
+  {
+   "candidate_id": 183,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "L’offre, qu’elle soit présentée par une seule entreprise ou par un groupement, devra indiquer tous",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 9.851
+  },
+  {
+   "candidate_id": 184,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Cette consultation est relancée car le précédent contrat a atteint son montant maximum alors que la fin",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.391
+  },
+  {
+   "candidate_id": 185,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "tant que la Ville de MONS EN BAROEUL ne sera pas équipée elle-",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 3.791
+  },
+  {
+   "candidate_id": 186,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "warranty_liability",
+    "context_status": "fragment",
+    "source_excerpt": "mandataire du groupement conjoint devra être solidaire, pour l’exécution du marché public, de",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 8.732
+  },
+  {
+   "candidate_id": 187,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "prohibited",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "le cadre de mémoire technique remis par le candidat ne doit pas excéder 15 pages (Arial caractère 11).",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.58
+  },
+  {
+   "candidate_id": 188,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "connexion, le chargement peut prendre très longtemps.",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 5.377
+  },
+  {
+   "candidate_id": 189,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Les prix unitaires doivent impérativement correspondre aux prix unitaires du BPU (bordereau des prix unitaires) remis avec l'offre.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.304
+  },
+  {
+   "candidate_id": 190,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "informational",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Le cas échéant, adresse internet à laquelle les documents justificatifs et moyens de preuve sont accessibles directement et gratuitement, ainsi que l’ensemble des renseignements nécessaires pour y accéder :",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 14.479
+  },
+  {
+   "candidate_id": 191,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le mandataire devra être dûment",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 3.5
+  },
+  {
+   "candidate_id": 192,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Des fournitures hors bordereau de prix unitaires peuvent accessoirement être commandées sur la base des prix du(es) catalogue(s) du FABRICANT sur lequel celui-ci consent un pourcentage de réduction de :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 16.436
+  },
+  {
+   "candidate_id": 193,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Des fournitures hors bordereau de prix unitaires peuvent accessoirement être commandées sur la base des prix du(es) catalogue(s) du (es) fabricant sur lequel celui-ci consent un pourcentage de réduction de :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 13.54
+  },
+  {
+   "candidate_id": 194,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Des fournitures hors bordereau de prix unitaires peuvent accessoirement être commandées sur la base des prix du(es) catalogue(s) du (es) FABRICANT titulaire sur lequel celui-ci consent un pourcentage de réduction de :",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 15.465
+  },
+  {
+   "candidate_id": 195,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "buyer",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "insufficient",
+    "source_excerpt": "Le pouvoir adjudicateur doit se prononcer par",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.939
+  },
+  {
+   "candidate_id": 196,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "insufficient",
+    "source_excerpt": "dernier ne pourra s'en prévaloir d'une quelconque manière, en particulier à l'appui d'une quelconque forme de",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.621
+  },
+  {
+   "candidate_id": 197,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "service_level",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire du marché pourra être sollicité pour intervenir de façon régulière ou ponctuelle sur",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.718
+  },
+  {
+   "candidate_id": 198,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Un même opérateur économique ne peut présenter qu'une seule offre en qualité de candidat",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.185
+  },
+  {
+   "candidate_id": 199,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "fragment",
+    "source_excerpt": "s'engage en tant que mandataire solidaire du groupement conjoint ;",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 10.826
+  },
+  {
+   "candidate_id": 200,
+   "classification": {
+    "phase": "contract_formation",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "La forme juridique que devra revêtir le groupement d’entreprises, en cas d’attribution de l’accord-cadre,",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 7.967
+  },
+  {
+   "candidate_id": 201,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "- Le formalisme des fiches doit être respecté.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.093
+  },
+  {
+   "candidate_id": 202,
+   "classification": {
+    "phase": "qualification",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Les candidats doivent démontrer leur capacité à intégrer les principes de la RSE dans leurs activités, en mettant en avant des actions concrètes liées à leur offre, telles que :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.828
+  },
+  {
+   "candidate_id": 203,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le Titulaire ne pourra pas refuser une éventuelle reconduction.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.529
+  },
+  {
+   "candidate_id": 204,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Ces nouveaux processus doivent être déclinés",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.009
+  },
+  {
+   "candidate_id": 205,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire devra respecter les exigences techniques, organisationnelles et réglementaires définies dans le présent CCTP, et garantir une traçabilité complète des prestations réalisées.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.223
+  },
+  {
+   "candidate_id": 206,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "L’eau est un élément essentiel au fonctionnement des établissements de santé, mais elle peut constituer",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.574
+  },
+  {
+   "candidate_id": 207,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Le présent cadre de réponses du mémoire technique doit être obligatoirement rempli par les candidats (sous peine de voir leur offre jugée irrégulière).",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.133
+  },
+  {
+   "candidate_id": 208,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Celles-ci sont données à titre purement indicatif, en conséquence le Titulaire du marché objet des présentes ne peut se prévaloir d’une quelconque erreur de numérotation ou de l’omission d’une telle mention pour rendre la dérogation ou le complément inopposables.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.753
+  },
+  {
+   "candidate_id": 209,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "titulaire classé deuxième, puis, le cas échéant, au troisième.",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 3.314
+  },
+  {
+   "candidate_id": 210,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "programmation ou l'AMO d'une opération déterminée ne peut être candidat au marché de maîtrise d'œuvre,",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 18.053
+  },
+  {
+   "candidate_id": 211,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Les temps passés ne sont donnés qu’à titre indicatif dans le cadre d’un prix global et forfaitaire ;",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.948
+  },
+  {
+   "candidate_id": 212,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le prestataire devra au cours du marché :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.814
+  },
+  {
+   "candidate_id": 213,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Ce détail ne pourra faire valoir un poste de prix dans les devis établis dans le cadre du marché à bons de commande, sauf à la demande expresse de la maîtrise d’ouvrage dans des cas très particuliers.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 14.828
+  },
+  {
+   "candidate_id": 214,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Les soumissionnaires peuvent répondre à un, ou à l’ensemble des lots.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.882
+  },
+  {
+   "candidate_id": 215,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "maintenance_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Les opérations d’entretien des installations et leurs conditions d’exécution doivent tenir compte des",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.257
+  },
+  {
+   "candidate_id": 216,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Ce détail ne pourra faire valoir un poste de prix dans les devis établis dans le cadre du marché à bons de commande, sauf à la demande expresse de la maitrise d’ouvrage dans des cas très particuliers.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.978
+  },
+  {
+   "candidate_id": 217,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Les données à caractère personnel traitées peuvent être :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.382
+  },
+  {
+   "candidate_id": 218,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "sufficient",
+    "source_excerpt": "L'entreprise sous-traitante devra obligatoirement être acceptée et ses conditions de paiement agréées",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 15.28
+  },
+  {
+   "candidate_id": 219,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le patrimoine pourra évoluer selon les constructions, réhabilitations, acquisitions ou ventes.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 11.628
+  },
+  {
+   "candidate_id": 220,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "L’Atelier de relooking et d’estime de soi devra :",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 12.483
+  },
+  {
+   "candidate_id": 221,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "fragment",
+    "source_excerpt": "Le Diagnostic social devra faire ressortir pour chaque participant :",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.356
+  },
+  {
+   "candidate_id": 222,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Ces apprentissages devront se faire principalement autour d’actes de la vie quotidienne (recherche",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.513
+  },
+  {
+   "candidate_id": 223,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire peut sous-traiter l'exécution d'une partie des prestations du contrat après acceptation du",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 3.38
+  },
+  {
+   "candidate_id": 224,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "fragment",
+    "source_excerpt": "A l’issue, les ateliers de bilans de compétences devront permettre à chaque participant de :",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 7.952
+  },
+  {
+   "candidate_id": 225,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "s'engagent à répondre à toutes sollicitations de ce dernier.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.82
+  },
+  {
+   "candidate_id": 226,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "L’atelier de conseil en économie sociale pour une inclusion active doit permettre à chaque participant",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.178
+  },
+  {
+   "candidate_id": 227,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Cette demande pourra être complétée d’autres pièces le cas échéant (notamment en matière de",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 8.28
+  },
+  {
+   "candidate_id": 228,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire du marché devra assurer les prestations suivantes :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.573
+  },
+  {
+   "candidate_id": 229,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "buyer",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "En complément des prestations forfaitaires principales, le pouvoir adjudicateur pourra être amené à",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.309
+  },
+  {
+   "candidate_id": 230,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "environmental_constraint",
+    "context_status": "fragment",
+    "source_excerpt": "Aucune dégradation supplémentaire n’est toutefois tolérée, et toutes les actions possibles doivent être engagées puisque le bon état est",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.991
+  },
+  {
+   "candidate_id": 231,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Les candidats devront détailler les remises accordées selon les familles de produits, le cas échéant.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.222
+  },
+  {
+   "candidate_id": 232,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Les commandes ne peuvent être adressées que par les responsables du service restauration.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.96
+  },
+  {
+   "candidate_id": 233,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Toutes les unités de conditionnement devront porter une date limite de consommation.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.528
+  },
+  {
+   "candidate_id": 234,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "D’une manière générale, les fournitures devront répondre aux conditions, normes et spécifications",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.486
+  },
+  {
+   "candidate_id": 235,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Il est admis que les alcools doivent être classés par pays, régions et terroirs.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.149
+  },
+  {
+   "candidate_id": 236,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Les denrées livrées doivent être de qualité saine, loyale et marchande.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.153
+  },
+  {
+   "candidate_id": 237,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Ils seront exempts de germes pathogènes et devront satisfaire aux conditions microbiologiques",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.381
+  },
+  {
+   "candidate_id": 238,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire devra être à même de fournir l’ensemble des fruits et légumes d e saison disponibles sur",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.445
+  },
+  {
+   "candidate_id": 239,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "- Toutes les cases doivent être complétées.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.544
+  },
+  {
+   "candidate_id": 240,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Les bons de commande pourront être émis jusqu’au dernier jour de validité de l’accord -cadre et pourront",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 13.137
+  },
+  {
+   "candidate_id": 241,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "d’audit et de contrôle des réseaux de partenaires doit être construite et mise en œuvre dès lors que des",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.426
+  },
+  {
+   "candidate_id": 242,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "Les prestations attendues doivent permettre de garantir la sécurité des patients, des professionnels de santé et des usagers, tout en assurant une traçabilité rigoureuse des opérations et une restitution fiable des résultats.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.978
+  },
+  {
+   "candidate_id": 243,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Les principaux risques sanitaires liés à l’utilisation de l’eau dans les établissements de santé doivent donc",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 10.944
+  },
+  {
+   "candidate_id": 244,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "optional",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Ils pourront bien sûr être complétés par les candidats s’ils le souhaitent dans des documents joints en annexes de ces cadres de réponses (Fiches techniques, CV....).",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.946
+  },
+  {
+   "candidate_id": 245,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire s'engage à exécuter les prestations conformément aux termes du contrat, en respectant les délais, les spécifications techniques et les exigences de qualité définies.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.088
+  },
+  {
+   "candidate_id": 246,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "pondération peut être adaptée par la consultation subséquente dans le respect des critères annoncés à l'accord-",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.711
+  },
+  {
+   "candidate_id": 247,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "accessibilité (Ad'AP), sécurité incendie, amiante / plomb le cas échéant ;",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 10.093
+  },
+  {
+   "candidate_id": 248,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "unknown",
+    "modality": "prohibited",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Le prix forfaitaire et global sur 4 ans figurant à l'acte d'engagement ne peut pas être modifié en cas de contradiction avec la DPGF.",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 12.205
+  },
+  {
+   "candidate_id": 249,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "La méthode de valorisation proposée par le candidat devra ré pondre en tous points aux exigences",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.437
+  },
+  {
+   "candidate_id": 250,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "unknown",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "La durée pendant laquelle peuvent s’exécuter les bons de commande pourra se prolonger au-delà",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 13.217
+  },
+  {
+   "candidate_id": 251,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "maintenance_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire devra procéder au remplacement des pièces défectueuses dans un délai de deux jours",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.87
+  },
+  {
+   "candidate_id": 252,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Pour l’exécution des services ou travaux objets du présent contrat, le resp onsable de traitement peut",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 9.832
+  },
+  {
+   "candidate_id": 253,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "fragment",
+    "source_excerpt": "Pour chaque sous-traitant présenté pendant l'exécution du marché, le titulaire devra joindre, en sus",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 3.485
+  },
+  {
+   "candidate_id": 254,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "utilisés devront être conformes aux normes en vigueur et disposer de f iches de données de",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 7.538
+  },
+  {
+   "candidate_id": 255,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "L’Atelier de relooking et d’estime de soi pourra se dérouler à la fois dans des regroupements collectifs",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.194
+  },
+  {
+   "candidate_id": 256,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "• Les difficultés majeures auxquelles il doit faire face notamment les difficultés personnelles",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.107
+  },
+  {
+   "candidate_id": 257,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "unknown",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "fragment",
+    "source_excerpt": "Les ateliers numériques pour une inclusion active doivent permettre à chaque participant de :",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 9.801
+  },
+  {
+   "candidate_id": 258,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Il pourra être reconduit 1 fois.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.257
+  },
+  {
+   "candidate_id": 259,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Les Ateliers de bilans de compétences pourront se dérouler à la fois dans des regroupements collectifs",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 11.25
+  },
+  {
+   "candidate_id": 260,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "Ces temps de travail devront permettre d'instaurer un lien régulier entre l'équipe d'animation du PLIE",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.056
+  },
+  {
+   "candidate_id": 261,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "L’Atelier de conseil en économie sociale pourra se dérouler à la fois dans des regroupements collectifs",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 9.233
+  },
+  {
+   "candidate_id": 262,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Pour chaque sous-traitant présenté pendant l’exécution du marché, le titulaire devra joindre, en sus du",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.341
+  },
+  {
+   "candidate_id": 263,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "schedule_deadline",
+    "context_status": "fragment",
+    "source_excerpt": "Les entretiens devront obligatoirement intervenir entre le 1er février et le 30 juin de chaque année et",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.176
+  },
+  {
+   "candidate_id": 264,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Les candidats doivent dès lors renseigner une décomposition du prix global et forfaitaire (DPGF), et un",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.534
+  },
+  {
+   "candidate_id": 265,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "A ces 143 bassins peut être ajouté un plan d’eau qui n’assure pas de fonction d’assainissement, à savoir le",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.568
+  },
+  {
+   "candidate_id": 266,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "passée par un autre agent au nom de la commune doit être refusée par les fournisseurs et ne fera pas l’objet",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 4.794
+  },
+  {
+   "candidate_id": 267,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Les denrées doivent être conformes :",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 3.897
+  },
+  {
+   "candidate_id": 268,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Les emballages destinés au conditionnement des eaux doivent répondre aux dispositions",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 8.909
+  },
+  {
+   "candidate_id": 269,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Elle doit être produite à base de baies de cassis macérées dans l’alcool surfin, auxquelles on rajoute",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 7.645
+  },
+  {
+   "candidate_id": 270,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Les fruits et légumes surgelés devront être frais, sains, entiers, propres et triés.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.166
+  },
+  {
+   "candidate_id": 271,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Il devra pour chaque type de produit présenter plusieurs variétés.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.787
+  },
+  {
+   "candidate_id": 272,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "produire leurs effets au-delà de cette durée de validité pour une durée qui ne pourra excéder six mois.",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.498
+  },
+  {
+   "candidate_id": 273,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire devra assurer les missions suivantes :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.801
+  },
+  {
+   "candidate_id": 274,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire devra également contribuer à l’amélioration continue des pratiques des établissements, en fournissant des conseils techniques et des recommandations adaptées.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.547
+  },
+  {
+   "candidate_id": 275,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "nosocomiale doit être pris en compte afin de protéger les patients, en particulier les plus fragiles.",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.725
+  },
+  {
+   "candidate_id": 276,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "informational",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "§ L’attention des candidats est attirée sur le fait qu’une réponse incomplète ou une absence de réponse à l’un des éléments demandés dans l'onglet technique, peut conduire à l’impossibilité d’évaluer un ou plusieurs sous critères ci-dessus, et donc à le noter 0 point.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.264
+  },
+  {
+   "candidate_id": 277,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "mandatory",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Le pouvoir adjudicateur, de son côté, s'engage à fournir les informations nécessaires à la bonne exécution des prestations et à respecter les modalités de paiement convenues.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.914
+  },
+  {
+   "candidate_id": 278,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Lors de la remise en concurrence des marchés subséquents, les titulaires peuvent proposer des prix améliorés,",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.306
+  },
+  {
+   "candidate_id": 279,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "est proposée au deuxième, puis, le cas échéant, au troisième.",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 7.309
+  },
+  {
+   "candidate_id": 280,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Ces estimations sont données à titre indicatif et ne pourra servir de base contractuelle.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.939
+  },
+  {
+   "candidate_id": 281,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Les propositions doivent être rédigées en langue française.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.346
+  },
+  {
+   "candidate_id": 282,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "devra en informer immédiatement la ville de Corbeil -Essonnes par téléphone et par courrier",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.729
+  },
+  {
+   "candidate_id": 283,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le sous-traitant s'engage à :",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.64
+  },
+  {
+   "candidate_id": 284,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "informational",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "sufficient",
+    "source_excerpt": "Toute sous-traitance occulte pourra être sanctionnée par la résiliation du marché aux frais et risques",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.392
+  },
+  {
+   "candidate_id": 285,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "(Liste non exhaustive – le Prestataire est tenu de se conformer à tout texte en vigueur applicable aux installations de VMC, même s’il n’est pas explicitement cité ci-dessus.)",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.939
+  },
+  {
+   "candidate_id": 286,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "site_location",
+    "context_status": "fragment",
+    "source_excerpt": "L’Atelier pourra également se déployer lors de manifestations regroupant des participants du PLIE (ex",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.196
+  },
+  {
+   "candidate_id": 287,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Les Ateliers de diagnostic social pourront se dérouler à la fois dans des regroupements collectifs et",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 4.866
+  },
+  {
+   "candidate_id": 288,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "fragment",
+    "source_excerpt": "Les ateliers devront comprendre des temps d’initiation et des temps de travaux pratiques pour",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 7.481
+  },
+  {
+   "candidate_id": 289,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "certification",
+    "context_status": "sufficient",
+    "source_excerpt": "Un prestataire assujetti aux impôts sur les sociétés devra fournir une attestation de non récupération",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 11.967
+  },
+  {
+   "candidate_id": 290,
+   "classification": {
+    "phase": "qualification",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "staffing_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Le prestataire devra justifier d’une expérience significative dans le champ d’intervention de la mission.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 11.286
+  },
+  {
+   "candidate_id": 291,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "fragment",
+    "source_excerpt": "La prestation devra prendre la forme de séance individuelles et d’animations collectives afin",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 10.559
+  },
+  {
+   "candidate_id": 292,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "L’étude de cas devra être privilégié.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.167
+  },
+  {
+   "candidate_id": 293,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "payment_terms",
+    "context_status": "fragment",
+    "source_excerpt": " Lorsque le sous-traitant doit être payé directement, le titulaire est tenu, lors de la demande",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 3.261
+  },
+  {
+   "candidate_id": 294,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "service_level",
+    "context_status": "fragment",
+    "source_excerpt": "Le Centre Hospitalier de Calais pourra demander une intervention par téléphone ou par mail et ce",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.704
+  },
+  {
+   "candidate_id": 295,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Les prix indiqués dans la décomposition du prix global et forfaitaire peuvent servir de base de",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 9.241
+  },
+  {
+   "candidate_id": 296,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "maintenance_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire est tenu de réaliser l’ensemble des actions suivantes à chaque passage effectué conformément",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 5.959
+  },
+  {
+   "candidate_id": 297,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "schedule_deadline",
+    "context_status": "fragment",
+    "source_excerpt": "délai de 24h à compter de la date de réception de la commande pour émettre, le cas échéant, des réserves.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.603
+  },
+  {
+   "candidate_id": 298,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Chaque produit d’épicerie doit répondre aux spécifications techniques fixées ou approuvées par le",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 5.228
+  },
+  {
+   "candidate_id": 299,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "contrôles portent sur le chlorure de vinyle monomère (CVM) dont le taux ne doit pas dépasser les",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.998
+  },
+  {
+   "candidate_id": 300,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "insufficient",
+    "source_excerpt": "Tous les emballages doivent satisfaire aux exigences de la réglementation concernant les matériaux",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 31.023
+  },
+  {
+   "candidate_id": 301,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Les produits livrés devront d’une part, être de première fraîcheur et de qualité irréprochable et",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.672
+  },
+  {
+   "candidate_id": 302,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "suffisamment blanchis et pourront être précuits ou cuits.",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.669
+  },
+  {
+   "candidate_id": 303,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Les fruits doivent satisfaire à la réglementation générale de la CGPEM/DA ainsi qu’aux dispositions",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 4.934
+  },
+  {
+   "candidate_id": 304,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Un même titulaire peut être amené à exécuter plusieurs bons de commande simultanément.",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 10.984
+  },
+  {
+   "candidate_id": 305,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "staffing_constraint",
+    "context_status": "fragment",
+    "source_excerpt": "La personne qui réalisera les audits ne pourra pas intervenir sur",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 6.895
+  },
+  {
+   "candidate_id": 306,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire devra mettre en œuvre tous les moyens nécessaires pour atteindre ces objectifs, en respectant les exigences définies dans le présent CCTP et en garantissant une exécution conforme aux normes en vigueur.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.524
+  },
+  {
+   "candidate_id": 307,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "insufficient",
+    "source_excerpt": "Ces recommandations doivent permettre",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.385
+  },
+  {
+   "candidate_id": 308,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "De manière exceptionnelle, les prestations objet du présent marché pourront être choisies sur le catalogue du fournisseur.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.447
+  },
+  {
+   "candidate_id": 309,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "warranty_liability",
+    "context_status": "fragment",
+    "source_excerpt": "Compte tenu de la nature intellectuelle des prestations, il n'est pas exigé de retenue de garantie ni de garantie à",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 18.011
+  },
+  {
+   "candidate_id": 310,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": " Phase 3 — Diagnostics réglementaires (accessibilité, sécurité incendie, amiante / plomb le cas échéant)",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 9.283
+  },
+  {
+   "candidate_id": 311,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "En cas de nécessité d’évacuations supplémentaires, le candidat devra être en mesure d’effectuer des",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 14.017
+  },
+  {
+   "candidate_id": 312,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Les pièces et produits utilisés dans le cadre du marché devront répondre aux normes françaises et",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 4.003
+  },
+  {
+   "candidate_id": 313,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "outre, si le sous -traitant est tenu de procéder à un transfert de données vers un pays tiers ou à u ne",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 9.998
+  },
+  {
+   "candidate_id": 314,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "prohibited",
+    "requirement_type": "schedule_deadline",
+    "context_status": "sufficient",
+    "source_excerpt": "L’émission des bons de commandes ne pourra intervenir que pendant la durée de validité du marché.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.105
+  },
+  {
+   "candidate_id": 315,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Le planning devra obligatoirement comporter les éléments suivants :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.637
+  },
+  {
+   "candidate_id": 316,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "Les mises en situation devront être privilégiées.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.232
+  },
+  {
+   "candidate_id": 317,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "L’offre devra proposer un programme d’intervention qui facilite des acquisitions et l’envie de",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 8.954
+  },
+  {
+   "candidate_id": 318,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "payment_terms",
+    "context_status": "fragment",
+    "source_excerpt": "En cas de rejet d’une partie des paiements déjà effectués, le titulaire est tenu de rembourser les",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 4.17
+  },
+  {
+   "candidate_id": 319,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "staffing_constraint",
+    "context_status": "fragment",
+    "source_excerpt": "Il devra mettre en place les moyens humains qui permettent d’assurer une bonne réalisation de la",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 10.323
+  },
+  {
+   "candidate_id": 320,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "La prestation devra s’appuyer sur la méthode ADVP (Activation du développement Vocationnel et",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 4.247
+  },
+  {
+   "candidate_id": 321,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "fragment",
+    "source_excerpt": "La prestation devra être dispensée au travers de rencontres planifiées et dans des lieux facilement",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 5.519
+  },
+  {
+   "candidate_id": 322,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "En outre, le titulaire du marché est tenu de respecter toute la réglementation en vigueur concernant son domaine d’intervention.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.717
+  },
+  {
+   "candidate_id": 323,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Néanmoins le prestataire devra, au titre du contrat et quand cela est possible, mettre en",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 11.337
+  },
+  {
+   "candidate_id": 324,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Il doit être en mesure d'en justifier, en cours d'exécution du marché et pendant la période de garantie",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.107
+  },
+  {
+   "candidate_id": 325,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "unknown",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Des interventions complémentaires peuvent être réalisées si",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 9.078
+  },
+  {
+   "candidate_id": 326,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "peut pas refuser la reconduction.",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.621
+  },
+  {
+   "candidate_id": 327,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Les emballages doivent être adaptés à chaque type de produits, conformément aux normes",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.57
+  },
+  {
+   "candidate_id": 328,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Les matériaux utilisés pour le conditionnement des eaux doivent être inertes et leurs composants",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.952
+  },
+  {
+   "candidate_id": 329,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Toutes les mentions doivent être rédigées en langue française et peuvent être répétées dans une",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.941
+  },
+  {
+   "candidate_id": 330,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Ainsi, pour tous les produits laitiers ou dérivés, la capsule imprimée et/ou l’emballage devra laisser",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 10.826
+  },
+  {
+   "candidate_id": 331,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "sufficient",
+    "source_excerpt": "Ils devront être de coloration caractéristique de la variété et être exempts de saveurs, odeurs",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.918
+  },
+  {
+   "candidate_id": 332,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "technical_characteristic",
+    "context_status": "fragment",
+    "source_excerpt": "Tous les produits livrés doivent répondre aux caractéristiques des catégories EXTRA (Qualité",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.619
+  },
+  {
+   "candidate_id": 333,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le Titulaire s'engage, au titre du présent marché à :",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.017
+  },
+  {
+   "candidate_id": 334,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Des trames de documents pourront être transmises au prestataire au cours de la",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 26.526
+  },
+  {
+   "candidate_id": 335,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire devra respecter les normes, référentiels et textes réglementaires applicables, et garantir une traçabilité complète des prélèvements et des analyses, incluant l’enregistrement des données relatives aux échantillons, aux conditions de prélèvement et de transport, ainsi qu’aux résultats obtenus.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 7.437
+  },
+  {
+   "candidate_id": 336,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "maintenance_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "En effet, les interventions à conduire sur les installations de distribution de l’eau doivent tendre à maîtriser",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 7.634
+  },
+  {
+   "candidate_id": 337,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Le soumissionnaire appliquera sur ses offres la remise minimum qu'il pourra consentir sur son tarif clientèle.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.588
+  },
+  {
+   "candidate_id": 338,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Les titulaires sont tenus à une obligation de conseil, d'alerte et de moyens renforcés, et mettent en œuvre l'équipe",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 11.158
+  },
+  {
+   "candidate_id": 339,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Pour le transport des déchets de plâtre, le candidat devra mettre à disposition les moyens de transport",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 18.798
+  },
+  {
+   "candidate_id": 340,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "unilatéraux de sa part vis-à-vis de l’acheteur qui pourra, par conséquent, exiger à tout moment de",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 3.885
+  },
+  {
+   "candidate_id": 341,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Elle devra s’articuler autour des rubriques demandées, en mettant en lumière son adéquation avec les attentes du CCTP, sa méthodologie et les ressources mises en œuvre ainsi l’équipe proposée pour répondre aux besoins des commanditaires.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.944
+  },
+  {
+   "candidate_id": 342,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Les offres des candidats et tous les documents annexes devront être rédigés en langue française, sous peine",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 4.853
+  },
+  {
+   "candidate_id": 343,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le Titulaire est tenu à une obligation de moyens pour l’ensemble des prestations réalisées et s’engage",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 5.265
+  },
+  {
+   "candidate_id": 344,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "site_location",
+    "context_status": "sufficient",
+    "source_excerpt": "Pour organiser ces visites, les candidats doivent contacter :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.693
+  },
+  {
+   "candidate_id": 345,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "warranty_liability",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire ne pourra prétendre à une quelconque indemnité.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.228
+  },
+  {
+   "candidate_id": 346,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "mandatory",
+    "requirement_type": "site_location",
+    "context_status": "fragment",
+    "source_excerpt": "Pour assurer l’accessibilité de la structure aux parents, la structure devra être s ituée sur la ville d’Athis -",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 10.917
+  },
+  {
+   "candidate_id": 347,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Le titulaire ne pourra prétendre à une quelconque",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 5.75
+  },
+  {
+   "candidate_id": 348,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "En cas d'urgence, le pouvoir adjudicateur pourra contacter les personnes désignées ci-après qui devront être en mesure de répondre et de satisfaire à leur demande :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.637
+  },
+  {
+   "candidate_id": 349,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire devra également contribuer à l’amélioration continue des pratiques en fournissant des recommandations adaptées.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.536
+  },
+  {
+   "candidate_id": 350,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire ne peut s'opposer à la reconduction.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.92
+  },
+  {
+   "candidate_id": 351,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "S'engage, au nom des membres du groupement 1, sur la base de l'offre du groupement, à exécuter les prestations demandées dans les conditions définies ci-après ;",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.47
+  },
+  {
+   "candidate_id": 352,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "optional",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "sufficient",
+    "source_excerpt": "Le Titulaire peut sous-traiter l’exécution de certaines parties de l’accord-cadre, sous réserve de l’acceptation expresse de chaque sous-traitant par la S.E.T.E et de l’agrément par elle des conditions de paiement de chaque contrat de sous-traitance.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.462
+  },
+  {
+   "candidate_id": 353,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "La SETE pourra dénoncer le marché au plus tard 3 mois avant la date d’expiration de",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 11.873
+  },
+  {
+   "candidate_id": 354,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Chaque entreprise extérieure devra participer à une Visite d’Inspection Commune",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 10.333
+  },
+  {
+   "candidate_id": 355,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "fragment",
+    "source_excerpt": "Les groupements momentanés d'entreprises sont autorisés et devront prendre la forme de",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 10.053
+  },
+  {
+   "candidate_id": 356,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "contractor",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "- les délais laissés le cas échéant aux titulaires pour formuler leurs observations.",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.508
+  },
+  {
+   "candidate_id": 357,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "environmental_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Chaque titulaire concerné devra mettre en œuvre tous les moyens dont il dispose pour respecter ces",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 5.385
+  },
+  {
+   "candidate_id": 358,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "S'engage, au nom des membres du groupement 1, sur la base de l'offre du groupement,",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 12.918
+  },
+  {
+   "candidate_id": 359,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Le candidat devra répondre impérativement sur le présent fichier WORD :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.786
+  },
+  {
+   "candidate_id": 360,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Les candidats devront alors répondre sur la base du dossier modifié sans pouvoir élever aucune",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 9.748
+  },
+  {
+   "candidate_id": 361,
+   "classification": {
+    "phase": "qualification",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "sa convenance, chaque candidat devra justifier de ses aptitudes en produisant des références.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.059
+  },
+  {
+   "candidate_id": 362,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "buyer",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Aucun pli papier ne pourra être pris en compte pour ces consultations, seul le pli dématérialisé sera",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 8.872
+  },
+  {
+   "candidate_id": 363,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire ne peut pas refuser la reconduction.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 19.669
+  },
+  {
+   "candidate_id": 364,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "L’acquisition de titres restaurant faisant l’objet de l’accord-cadre doit être conforme :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.858
+  },
+  {
+   "candidate_id": 365,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Les candidats devront alors répondre sur la base",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.318
+  },
+  {
+   "candidate_id": 366,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "staffing_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Pour assurer la mise en œuvre de l'action d'insertion, il s'engage à réserver, dans l'exécution et sur la durée de l'accord-cadre, un nombre d'heures d'insertion au moins égal à celui figurant dans le Cahier des clauses administratives particulières.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.433
+  },
+  {
+   "candidate_id": 367,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "service_level",
+    "context_status": "sufficient",
+    "source_excerpt": "Chaque titulaire concerné devra mettre en œuvre tous les moyens dont il dispose pour respecter ces objectifs",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.556
+  },
+  {
+   "candidate_id": 368,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Seuls les bons de commande signés par le représentant du pouvoir adjudicateur peuvent être honorés par le",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.189
+  },
+  {
+   "candidate_id": 369,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Le candidat respectera la présentation proposée et pourra moduler le volume des cadres en fonction de la longueur des réponses apportées.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.44
+  },
+  {
+   "candidate_id": 370,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "au CCP, ils doivent le préciser à l'acte d'engagement.",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 21.536
+  },
+  {
+   "candidate_id": 371,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "optional",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Cette description pourra être illustrée d’exemples et adopter la structure suivante :",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.604
+  },
+  {
+   "candidate_id": 372,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "En conséquence, la liste des installations mentionnée au présent marché est fournie à titre indicatif et",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.652
+  },
+  {
+   "candidate_id": 373,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "site_location",
+    "context_status": "fragment",
+    "source_excerpt": "Les candidats doivent prendre directement contact avec le gardien ou la",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 7.596
+  },
+  {
+   "candidate_id": 374,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Les bons de commande pourront être émis au plus tard jusqu'au dernier jour de validité de l’accord -cadre.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.26
+  },
+  {
+   "candidate_id": 375,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "buyer",
+    "modality": "prohibited",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "2143-3 du code de la commande publique, le marché ne pourra être attribué",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 7.283
+  },
+  {
+   "candidate_id": 376,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "deliverable",
+    "context_status": "sufficient",
+    "source_excerpt": "Le titulaire devra respecter les normes réglementaires applicables, garantir la traçabilité des prélèvements et analyses, et fournir des rapports détaillés incluant des alertes en cas de non-conformité.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.885
+  },
+  {
+   "candidate_id": 377,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "peut être candidat, directement ou indirectement, au marché de maîtrise d'œuvre, de conception-réalisation,",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.232
+  },
+  {
+   "candidate_id": 378,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "prohibited",
+    "requirement_type": "payment_terms",
+    "context_status": "sufficient",
+    "source_excerpt": "Lors de la remise en concurrence des marchés subséquents, ces prix peuvent être améliorés mais ne peuvent dépasser ceux du BPU issu de l'accord-cadre.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 12.792
+  },
+  {
+   "candidate_id": 379,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "sufficient",
+    "source_excerpt": "Si le sous-traitant est présenté en cours d’exécution du contrat, le titulaire devra obtenir de la S.E.T.E l’accord express de l’acceptation du sous-traitant et agrément des conditions de paiement.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 4.518
+  },
+  {
+   "candidate_id": 380,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "prohibited",
+    "requirement_type": "schedule_deadline",
+    "context_status": "sufficient",
+    "source_excerpt": "La durée totale ne pourra excéder 48 mois à compter de la date de notification,",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.656
+  },
+  {
+   "candidate_id": 381,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "La VIC doit se tenir sur les lieux des travaux et ne peut pas",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 4.962
+  },
+  {
+   "candidate_id": 382,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "prohibited",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "Un même candidat ne pourra présenter plusieurs offres en agissant en qualité de candidat",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.641
+  },
+  {
+   "candidate_id": 383,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "Seuls les bons de commande s ignés par le représentant du pouvoir adjudicateur peuvent être honorés par",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 9.675
+  },
+  {
+   "candidate_id": 384,
+   "classification": {
+    "phase": "contract_formation",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "au CCAP, ils doivent le préciser à l'acte d'engagement.",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 17.31
+  },
+  {
+   "candidate_id": 385,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Des commandes peuvent être passées pour des prestations ne figurant pas au Bordereau des Prix (B.P.) mais relevant de l’objet du marché.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 10.141
+  },
+  {
+   "candidate_id": 386,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Aucune variante-PSE (ancienne Prestation Supplémentaire Eventuelle) n’est prévue.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.951
+  },
+  {
+   "candidate_id": 387,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "« CADRE DE REPONSES - MEMOIRE TECHNIQUE », transmis dans le DCE et ne pas modifier la forme du document (le candidat doit répondre en taille A4, police 11).",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.755
+  },
+  {
+   "candidate_id": 388,
+   "classification": {
+    "phase": "contract_formation",
+    "obligated_actor": "contractor",
+    "modality": "mandatory",
+    "requirement_type": "subcontracting_rule",
+    "context_status": "fragment",
+    "source_excerpt": "groupement d'opérateurs économiques, il devra adopter à l’attribution la forme d’un groupement",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 20.93
+  },
+  {
+   "candidate_id": 389,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "prohibited",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "Il ne pourra en aucun cas être remis sur support papier ou sur support physique",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 13.672
+  },
+  {
+   "candidate_id": 390,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "candidats peuvent répondre seuls ou en groupement d’entreprises.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 6.415
+  },
+  {
+   "candidate_id": 391,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "La délivrance d’un certificat de signature par un organisme certifié peut nécessiter entre",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 4.588
+  },
+  {
+   "candidate_id": 392,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "prohibited",
+    "requirement_type": "schedule_deadline",
+    "context_status": "sufficient",
+    "source_excerpt": "Des bons de commande pourront être émis jusqu’au terme du présent accord-cadre, leur durée ne devra pas avoir pour effet de soustraire le pouvoir adjudicateur à son obligation de remise en concurrence.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 15.421
+  },
+  {
+   "candidate_id": 393,
+   "classification": {
+    "phase": "unknown",
+    "obligated_actor": "unknown",
+    "modality": "unknown",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "soit général, soit le cas échéant, spécifique de chaque produit ;",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 6.424
+  },
+  {
+   "candidate_id": 394,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "schedule_deadline",
+    "context_status": "sufficient",
+    "source_excerpt": "Les offres doivent être déposé es avant les dates et heures limites indiquées en page de garde, de",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 3.95
+  },
+  {
+   "candidate_id": 395,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "documentation_obligation",
+    "context_status": "fragment",
+    "source_excerpt": "CCAP, ils doivent le préciser à l'acte d'engagement.",
+    "confidence": "medium"
+   },
+   "failure": null,
+   "latency_s": 7.782
+  },
+  {
+   "candidate_id": 396,
+   "classification": {
+    "phase": "execution",
+    "obligated_actor": "buyer",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Les bons de commande pourront être émis jusqu’au dernier jour de validité de l’accord cadre.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.793
+  },
+  {
+   "candidate_id": 397,
+   "classification": {
+    "phase": "background",
+    "obligated_actor": "unknown",
+    "modality": "informational",
+    "requirement_type": "other",
+    "context_status": "sufficient",
+    "source_excerpt": "Peut-on trouver sur votre site une indication du stock disponible en temps réel ?",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 7.745
+  },
+  {
+   "candidate_id": 398,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "mandatory",
+    "requirement_type": "security_constraint",
+    "context_status": "sufficient",
+    "source_excerpt": "Les candidats doivent respecter l'obligation de co nfidentialité et les mesures particulières de sécurité",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 8.564
+  },
+  {
+   "candidate_id": 399,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "optional",
+    "requirement_type": "documentation_obligation",
+    "context_status": "sufficient",
+    "source_excerpt": "À travers ce cas d’étude portant sur le périmètre de l’Opco Atlas, le candidat pourra démontrer sa méthodologie en l’illustrant par des exemples tangibles.",
+    "confidence": "high"
+   },
+   "failure": null,
+   "latency_s": 5.419
+  },
+  {
+   "candidate_id": 400,
+   "classification": {
+    "phase": "procurement",
+    "obligated_actor": "bidder",
+    "modality": "optional",
+    "requirement_type": "other",
+    "context_status": "fragment",
+    "source_excerpt": "concernés pourront être invités à modifier la composition de leur groupement concernant le",
+    "confidence": "low"
+   },
+   "failure": null,
+   "latency_s": 20.506
+  }
+ ]
+}

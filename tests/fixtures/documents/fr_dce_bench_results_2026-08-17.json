@@ -1,0 +1,7873 @@
+[
+ {
+  "model": "deepseek/deepseek-v4-flash",
+  "true_auto_accepts": 36,
+  "false_auto_accepts": 42,
+  "false_rejects": 8,
+  "review_required": 2,
+  "rejected": 320,
+  "precision": 0.4615,
+  "auto_accept_recall": 0.8182,
+  "candidate_recall": 0.8182,
+  "high_confidence_false_accepts": 42,
+  "schema_failures": 0,
+  "evidence_coverage": 1.0,
+  "invented_excerpts": 2,
+  "input_tokens": 894053,
+  "output_tokens": 76647,
+  "cost_usd": 0.0612,
+  "retries": 0,
+  "latency_p50": 7.28,
+  "latency_p95": 21.27,
+  "latency_max": 47.76,
+  "wall_s": 571.1,
+  "rows": [
+   {
+    "candidate_id": 1,
+    "latency_s": 2.351685951987747,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 2,
+    "latency_s": 6.539317126997048,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 3,
+    "latency_s": 5.7680589980009245,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 4,
+    "latency_s": 7.278306047999649,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 5,
+    "latency_s": 10.23527558799833,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 6,
+    "latency_s": 2.4044986439985223,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 7,
+    "latency_s": 9.246212106008898,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 8,
+    "latency_s": 5.282162132003577,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 9,
+    "latency_s": 29.79072216100758,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 10,
+    "latency_s": 23.210551744996337,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 11,
+    "latency_s": 14.204621390992543,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 12,
+    "latency_s": 27.320829660005984,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 13,
+    "latency_s": 7.363313900990761,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 14,
+    "latency_s": 2.1890940430021146,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 15,
+    "latency_s": 1.574740126990946,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 16,
+    "latency_s": 2.4145255269977497,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 17,
+    "latency_s": 10.899240162994829,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 18,
+    "latency_s": 1.637230718988576,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 19,
+    "latency_s": 4.954499850005959,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "excerpt_not_found",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 20,
+    "latency_s": 13.343186747006257,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 21,
+    "latency_s": 2.067538281000452,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 22,
+    "latency_s": 1.5681550789886387,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 23,
+    "latency_s": 1.810407265991671,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 24,
+    "latency_s": 7.509055171001819,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 25,
+    "latency_s": 25.401359198003775,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 26,
+    "latency_s": 2.170173557999078,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 27,
+    "latency_s": 1.703956597004435,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 28,
+    "latency_s": 2.708654602000024,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 29,
+    "latency_s": 9.721824787004152,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 30,
+    "latency_s": 9.31208589101152,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 31,
+    "latency_s": 1.550566580001032,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 32,
+    "latency_s": 16.027563798998017,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 33,
+    "latency_s": 1.425397550992784,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 34,
+    "latency_s": 1.9235065179964295,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 35,
+    "latency_s": 1.5415987049927935,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 36,
+    "latency_s": 2.017691064000246,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 37,
+    "latency_s": 1.7031874420063104,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 38,
+    "latency_s": 2.179957223997917,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 39,
+    "latency_s": 2.265825359005248,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 40,
+    "latency_s": 11.755632197993691,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 41,
+    "latency_s": 1.4785656679887325,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 42,
+    "latency_s": 8.220540643000277,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 43,
+    "latency_s": 7.113606661994709,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 44,
+    "latency_s": 2.012177051001345,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 45,
+    "latency_s": 2.2735367830027826,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 46,
+    "latency_s": 2.033496179996291,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 47,
+    "latency_s": 1.5067892929946538,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 48,
+    "latency_s": 4.6817578249902,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 49,
+    "latency_s": 8.447981204997632,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 50,
+    "latency_s": 7.875257613006397,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 51,
+    "latency_s": 2.010098849001224,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 52,
+    "latency_s": 1.7303960860008374,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 53,
+    "latency_s": 1.9748343570099678,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 54,
+    "latency_s": 9.170278093995876,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 55,
+    "latency_s": 11.274116608998156,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 56,
+    "latency_s": 2.192189135996159,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 57,
+    "latency_s": 1.777635613005259,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 58,
+    "latency_s": 1.86665005699615,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 59,
+    "latency_s": 1.7103054859908298,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 60,
+    "latency_s": 6.773446445004083,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 61,
+    "latency_s": 1.3067796690011164,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 62,
+    "latency_s": 1.199085236992687,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 63,
+    "latency_s": 11.354543958004797,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 64,
+    "latency_s": 2.313479787000688,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 65,
+    "latency_s": 2.1438083620014368,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 66,
+    "latency_s": 1.4243323050031904,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 67,
+    "latency_s": 1.443266450005467,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 68,
+    "latency_s": 9.101170156995067,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 69,
+    "latency_s": 1.7961095619975822,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 70,
+    "latency_s": 1.8918729489960242,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 71,
+    "latency_s": 1.9503256979951402,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 72,
+    "latency_s": 15.273758030001773,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 73,
+    "latency_s": 1.8415855439961888,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 74,
+    "latency_s": 16.11488030498731,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 75,
+    "latency_s": 1.7618859829963185,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 76,
+    "latency_s": 1.643242681006086,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 77,
+    "latency_s": 3.5595839910092764,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 78,
+    "latency_s": 4.018385274001048,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 79,
+    "latency_s": 13.82362932099204,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 80,
+    "latency_s": 14.347063061999506,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 81,
+    "latency_s": 4.125682828002027,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_insufficient",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 82,
+    "latency_s": 3.732412203011336,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 83,
+    "latency_s": 22.666110211008345,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 84,
+    "latency_s": 3.953539140013163,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 85,
+    "latency_s": 8.114269800993497,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 86,
+    "latency_s": 1.4003912340122042,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 87,
+    "latency_s": 7.3373990610125475,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 88,
+    "latency_s": 1.7316873730014777,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 89,
+    "latency_s": 17.434086205001222,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 90,
+    "latency_s": 11.22226727999805,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 91,
+    "latency_s": 12.651469332995475,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 92,
+    "latency_s": 10.330677488003857,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 93,
+    "latency_s": 10.960043318991666,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 94,
+    "latency_s": 10.456546166999033,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 95,
+    "latency_s": 13.83547682700737,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 96,
+    "latency_s": 4.498686279999674,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 97,
+    "latency_s": 3.1334907580021536,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 98,
+    "latency_s": 4.147418337001,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 99,
+    "latency_s": 1.2506676799966954,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 100,
+    "latency_s": 1.8640614389878465,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 101,
+    "latency_s": 1.1338034049986163,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 102,
+    "latency_s": 13.220728145999601,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 103,
+    "latency_s": 1.1214182560070185,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 104,
+    "latency_s": 16.54101817800256,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 105,
+    "latency_s": 13.246839393992559,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 106,
+    "latency_s": 12.091160650990787,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 107,
+    "latency_s": 21.269658492004965,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 108,
+    "latency_s": 10.446035473010852,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 109,
+    "latency_s": 6.323577889997978,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 110,
+    "latency_s": 15.310516658995766,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 111,
+    "latency_s": 6.547528330003843,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 112,
+    "latency_s": 13.161295825004345,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 113,
+    "latency_s": 8.215558754003723,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 114,
+    "latency_s": 5.577198213999509,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 115,
+    "latency_s": 13.004006270988612,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 116,
+    "latency_s": 31.751831678004237,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 117,
+    "latency_s": 14.262564802003908,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 118,
+    "latency_s": 13.707762803998776,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 119,
+    "latency_s": 1.854235886989045,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 120,
+    "latency_s": 12.637940568005433,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 121,
+    "latency_s": 14.884834640994086,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 122,
+    "latency_s": 6.461043687988422,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 123,
+    "latency_s": 7.443213912003557,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 124,
+    "latency_s": 7.649508689995855,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 125,
+    "latency_s": 10.618207954001264,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 126,
+    "latency_s": 1.7328037719998974,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 127,
+    "latency_s": 4.3696932080056285,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 128,
+    "latency_s": 1.6430654759897152,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 129,
+    "latency_s": 8.591854077007156,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 130,
+    "latency_s": 1.817169208006817,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "modality_informational",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 131,
+    "latency_s": 10.220641683001304,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_insufficient",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 132,
+    "latency_s": 4.498500054003671,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 133,
+    "latency_s": 4.185159949993249,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 134,
+    "latency_s": 16.019732934000785,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 135,
+    "latency_s": 12.94732503600244,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 136,
+    "latency_s": 1.9635841270064702,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 137,
+    "latency_s": 21.611561751007685,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 138,
+    "latency_s": 11.404870086000301,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 139,
+    "latency_s": 7.219116786000086,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 140,
+    "latency_s": 4.865356269991025,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 141,
+    "latency_s": 11.079941844000132,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 142,
+    "latency_s": 16.000048643996706,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 143,
+    "latency_s": 2.634037738011102,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 144,
+    "latency_s": 2.2217496340017533,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 145,
+    "latency_s": 28.60280292799871,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 146,
+    "latency_s": 12.335595822994947,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 147,
+    "latency_s": 12.335173429004499,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 148,
+    "latency_s": 7.729756358996383,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 149,
+    "latency_s": 7.350650151012815,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 150,
+    "latency_s": 5.254242973998771,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_qualification",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 151,
+    "latency_s": 2.6926680040050996,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 152,
+    "latency_s": 2.7346068259939784,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 153,
+    "latency_s": 7.311428024011548,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 154,
+    "latency_s": 12.669656120997388,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 155,
+    "latency_s": 12.73338905700075,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 156,
+    "latency_s": 18.019772284998908,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 157,
+    "latency_s": 19.458438969988492,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 158,
+    "latency_s": 8.113710421006544,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 159,
+    "latency_s": 9.622633524995763,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 160,
+    "latency_s": 1.7051956229988718,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 161,
+    "latency_s": 8.171673563003424,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 162,
+    "latency_s": 17.934302341993316,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 163,
+    "latency_s": 1.3208117479953216,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 164,
+    "latency_s": 1.4833271560055437,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 165,
+    "latency_s": 1.457730904003256,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 166,
+    "latency_s": 2.2675313600047957,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 167,
+    "latency_s": 1.7919287380063906,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 168,
+    "latency_s": 11.191801588007365,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 169,
+    "latency_s": 18.60482708599011,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 170,
+    "latency_s": 14.477794027989148,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 171,
+    "latency_s": 11.332102166998084,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 172,
+    "latency_s": 12.904044331997284,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 173,
+    "latency_s": 10.47839421100798,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 174,
+    "latency_s": 8.382758981009829,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 175,
+    "latency_s": 9.164041337004164,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 176,
+    "latency_s": 1.6605428059992846,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 177,
+    "latency_s": 10.979457403009292,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 178,
+    "latency_s": 2.1953141879930627,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 179,
+    "latency_s": 1.9066433799889637,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 180,
+    "latency_s": 1.5812603309896076,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 181,
+    "latency_s": 4.7775995139963925,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 182,
+    "latency_s": 1.2822108239925,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 183,
+    "latency_s": 1.679133807992912,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 184,
+    "latency_s": 5.217538844997762,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 185,
+    "latency_s": 7.0438551109982654,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 186,
+    "latency_s": 1.4576806179975392,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 187,
+    "latency_s": 1.5536010319920024,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 188,
+    "latency_s": 1.5123474830033956,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 189,
+    "latency_s": 2.047159312001895,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 190,
+    "latency_s": 7.7354113519977545,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 191,
+    "latency_s": 2.2657223050046014,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 192,
+    "latency_s": 1.7393882559990743,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 193,
+    "latency_s": 12.366469395012246,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 194,
+    "latency_s": 7.067827961000148,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 195,
+    "latency_s": 1.4632466410112102,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 196,
+    "latency_s": 1.6634105760022067,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 197,
+    "latency_s": 11.849273040992557,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 198,
+    "latency_s": 13.187300768011482,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 199,
+    "latency_s": 14.441952327993931,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 200,
+    "latency_s": 4.484834112008684,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 201,
+    "latency_s": 5.941264813998714,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 202,
+    "latency_s": 9.185722249007085,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_qualification",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 203,
+    "latency_s": 30.035230180001236,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 204,
+    "latency_s": 6.7591297080070945,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 205,
+    "latency_s": 13.851335943007143,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 206,
+    "latency_s": 6.104899337995448,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 207,
+    "latency_s": 1.6964601060026325,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 208,
+    "latency_s": 10.628625112993177,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 209,
+    "latency_s": 1.3394556860002922,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 210,
+    "latency_s": 7.060068383987527,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 211,
+    "latency_s": 2.298255829999107,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 212,
+    "latency_s": 1.6080749469983857,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 213,
+    "latency_s": 3.6102697489986895,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 214,
+    "latency_s": 3.9988435709965415,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 215,
+    "latency_s": 1.8338365800009342,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 216,
+    "latency_s": 10.350495660997694,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 217,
+    "latency_s": 1.2592726119910367,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 218,
+    "latency_s": 15.763582535990281,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 219,
+    "latency_s": 1.8370768910099287,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 220,
+    "latency_s": 1.8378338490001624,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 221,
+    "latency_s": 4.816367325998726,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 222,
+    "latency_s": 1.4720609239884652,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 223,
+    "latency_s": 1.3061084679939086,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 224,
+    "latency_s": 18.893300383992027,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 225,
+    "latency_s": 16.3242465229996,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 226,
+    "latency_s": 9.49219506199006,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 227,
+    "latency_s": 7.739888598007383,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 228,
+    "latency_s": 8.850535096993553,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 229,
+    "latency_s": 11.295477886000299,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 230,
+    "latency_s": 7.562167821000912,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 231,
+    "latency_s": 9.26613049399748,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 232,
+    "latency_s": 6.731537799001671,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 233,
+    "latency_s": 4.193928118998883,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 234,
+    "latency_s": 8.552757376994123,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 235,
+    "latency_s": 14.339934895993792,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 236,
+    "latency_s": 12.033123442000942,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 237,
+    "latency_s": 15.916163027999573,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 238,
+    "latency_s": 16.06603572999302,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 239,
+    "latency_s": 8.274593055990408,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 240,
+    "latency_s": 9.62620163000247,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 241,
+    "latency_s": 12.602480543006095,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 242,
+    "latency_s": 8.556989823991898,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 243,
+    "latency_s": 5.0840635469940025,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 244,
+    "latency_s": 7.625540688008186,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 245,
+    "latency_s": 1.862936470992281,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 246,
+    "latency_s": 11.806018736999249,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 247,
+    "latency_s": 11.598243052998441,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 248,
+    "latency_s": 3.9266838500043377,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 249,
+    "latency_s": 9.801419800001895,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 250,
+    "latency_s": 8.665834357001586,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 251,
+    "latency_s": 1.5250935560034122,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 252,
+    "latency_s": 10.038831831989228,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 253,
+    "latency_s": 1.7713410520082107,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 254,
+    "latency_s": 1.690422515006503,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 255,
+    "latency_s": 1.5149311749992194,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 256,
+    "latency_s": 5.209278643000289,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 257,
+    "latency_s": 1.1223887300002389,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 258,
+    "latency_s": 4.215606413999922,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 259,
+    "latency_s": 1.2028433069936,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 260,
+    "latency_s": 6.421456404001219,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 261,
+    "latency_s": 7.17484721900837,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 262,
+    "latency_s": 1.8376780199905625,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 263,
+    "latency_s": 8.808041119002155,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 264,
+    "latency_s": 1.4031188990047667,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 265,
+    "latency_s": 11.048781926001539,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 266,
+    "latency_s": 10.957642770998063,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 267,
+    "latency_s": 1.287586997001199,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 268,
+    "latency_s": 16.853218731004745,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 269,
+    "latency_s": 10.672253183991415,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 270,
+    "latency_s": 8.235966302992892,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 271,
+    "latency_s": 8.358221218994004,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 272,
+    "latency_s": 4.28935708499921,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 273,
+    "latency_s": 3.8204270919959527,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 274,
+    "latency_s": 8.559089161004522,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 275,
+    "latency_s": 5.894287545001134,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 276,
+    "latency_s": 15.414375855005346,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 277,
+    "latency_s": 10.901466139999684,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 278,
+    "latency_s": 40.16706101899035,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 279,
+    "latency_s": 1.9081095669971546,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 280,
+    "latency_s": 11.65570151800057,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 281,
+    "latency_s": 7.5387272689986276,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 282,
+    "latency_s": 1.4102635169983841,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 283,
+    "latency_s": 1.4994703759875847,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 284,
+    "latency_s": 1.7850329510110896,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 285,
+    "latency_s": 17.531973652003217,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 286,
+    "latency_s": 5.779769751999993,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 287,
+    "latency_s": 11.442857920992537,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 288,
+    "latency_s": 5.614746028004447,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 289,
+    "latency_s": 9.79276465199655,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 290,
+    "latency_s": 6.5795786660019075,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_qualification",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 291,
+    "latency_s": 12.586831687003723,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 292,
+    "latency_s": 10.702625482997973,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 293,
+    "latency_s": 6.278400633993442,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 294,
+    "latency_s": 8.581521065993002,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 295,
+    "latency_s": 15.375098331001936,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 296,
+    "latency_s": 10.889654414000688,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 297,
+    "latency_s": 8.159782839997206,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 298,
+    "latency_s": 6.304498779994901,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_insufficient",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 299,
+    "latency_s": 7.369802000001073,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 300,
+    "latency_s": 5.503784654007177,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 301,
+    "latency_s": 8.08203258800495,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 302,
+    "latency_s": 3.0667247800010955,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 303,
+    "latency_s": 8.991513877001125,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 304,
+    "latency_s": 7.316526656999486,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 305,
+    "latency_s": 13.668145232993993,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 306,
+    "latency_s": 17.345173876994522,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 307,
+    "latency_s": 14.3793105599907,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 308,
+    "latency_s": 12.857455284989555,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 309,
+    "latency_s": 47.75800409799558,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 310,
+    "latency_s": 47.3651693300053,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 311,
+    "latency_s": 3.3993002450006315,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 312,
+    "latency_s": 14.199593525991077,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 313,
+    "latency_s": 3.568131188992993,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 314,
+    "latency_s": 14.363708885997767,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 315,
+    "latency_s": 13.781661141008954,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_insufficient",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 316,
+    "latency_s": 1.8780717459885636,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 317,
+    "latency_s": 1.7072530779987574,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 318,
+    "latency_s": 2.536786183001823,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 319,
+    "latency_s": 1.541557497010217,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 320,
+    "latency_s": 1.829008493994479,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 321,
+    "latency_s": 1.6823899429873563,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 322,
+    "latency_s": 6.840521149992128,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 323,
+    "latency_s": 15.886070690001361,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 324,
+    "latency_s": 7.06102719399496,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 325,
+    "latency_s": 5.396662549988832,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 326,
+    "latency_s": 3.612766566002392,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 327,
+    "latency_s": 4.500019192011678,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 328,
+    "latency_s": 4.904379619998508,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 329,
+    "latency_s": 5.828423103012028,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 330,
+    "latency_s": 5.440872003004188,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 331,
+    "latency_s": 8.037855925009353,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 332,
+    "latency_s": 19.295251959003508,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 333,
+    "latency_s": 9.91913221401046,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 334,
+    "latency_s": 20.612217604997568,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 335,
+    "latency_s": 25.123464531992795,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 336,
+    "latency_s": 24.41583869799797,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 337,
+    "latency_s": 8.450462982000317,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 338,
+    "latency_s": 5.360213036008645,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 339,
+    "latency_s": 1.324000847991556,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 340,
+    "latency_s": 10.480749220994767,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 341,
+    "latency_s": 2.9787966829899233,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 342,
+    "latency_s": 14.251824389997637,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 343,
+    "latency_s": 2.5817896730004577,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 344,
+    "latency_s": 16.34973188499862,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 345,
+    "latency_s": 11.459058079009992,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 346,
+    "latency_s": 20.683694888997707,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 347,
+    "latency_s": 11.534501064990764,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 348,
+    "latency_s": 7.874685907998355,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 349,
+    "latency_s": 9.168426580989035,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 350,
+    "latency_s": 1.5379850739991525,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 351,
+    "latency_s": 12.358958080003504,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 352,
+    "latency_s": 6.066254284000024,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 353,
+    "latency_s": 27.86126120798872,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 354,
+    "latency_s": 3.747556876987801,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 355,
+    "latency_s": 3.2408143770007882,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 356,
+    "latency_s": 5.931261901001562,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 357,
+    "latency_s": 13.315330638011801,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 358,
+    "latency_s": 13.554033872991567,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 359,
+    "latency_s": 7.993328090000432,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 360,
+    "latency_s": 6.010183530001086,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 361,
+    "latency_s": 12.411307507005404,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_qualification",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 362,
+    "latency_s": 2.3266261710086837,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 363,
+    "latency_s": 8.348049852997065,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 364,
+    "latency_s": 4.156926716008456,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 365,
+    "latency_s": 6.874350262994994,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 366,
+    "latency_s": 10.094672223989619,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 367,
+    "latency_s": 1.4164953299914487,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_insufficient",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 368,
+    "latency_s": 1.368117821009946,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 369,
+    "latency_s": 7.435968197998591,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 370,
+    "latency_s": 1.1393297600006917,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 371,
+    "latency_s": 20.52854515600484,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 372,
+    "latency_s": 5.38896030500473,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 373,
+    "latency_s": 3.950786291999975,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 374,
+    "latency_s": 13.083553137999843,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 375,
+    "latency_s": 7.7000149929954205,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 376,
+    "latency_s": 10.203318713000044,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 377,
+    "latency_s": 8.490570536989253,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 378,
+    "latency_s": 9.044367224996677,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 379,
+    "latency_s": 13.084603619005065,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 380,
+    "latency_s": 7.116198907009675,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 381,
+    "latency_s": 8.858547017996898,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 382,
+    "latency_s": 9.364399568003137,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 383,
+    "latency_s": 8.700755177007522,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "excerpt_not_found",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 384,
+    "latency_s": 16.69129345100373,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 385,
+    "latency_s": 14.571294589011814,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 386,
+    "latency_s": 12.256865649993415,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 387,
+    "latency_s": 4.240544332002173,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 388,
+    "latency_s": 21.33993172099872,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 389,
+    "latency_s": 10.16858372700517,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 390,
+    "latency_s": 5.151695952998125,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 391,
+    "latency_s": 5.8045180839981185,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 392,
+    "latency_s": 31.649363655000343,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 393,
+    "latency_s": 23.85408106999239,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 394,
+    "latency_s": 27.62691838599858,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 395,
+    "latency_s": 16.079957267997088,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 396,
+    "latency_s": 1.399006259001908,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 397,
+    "latency_s": 1.1402842410025187,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 398,
+    "latency_s": 1.3900311309989775,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 399,
+    "latency_s": 6.9851148769957945,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 400,
+    "latency_s": 31.473569781999686,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   }
+  ]
+ },
+ {
+  "model": "moonshotai/kimi-k3",
+  "true_auto_accepts": 38,
+  "false_auto_accepts": 29,
+  "false_rejects": 6,
+  "review_required": 22,
+  "rejected": 311,
+  "precision": 0.5672,
+  "auto_accept_recall": 0.8636,
+  "candidate_recall": 0.8636,
+  "high_confidence_false_accepts": 19,
+  "schema_failures": 10,
+  "evidence_coverage": 1.0,
+  "invented_excerpts": 12,
+  "input_tokens": 1169685,
+  "output_tokens": 196202,
+  "cost_usd": 4.9918,
+  "retries": 0,
+  "latency_p50": 7.3,
+  "latency_p95": 39.31,
+  "latency_max": 239.55,
+  "wall_s": 937.5,
+  "rows": [
+   {
+    "candidate_id": 1,
+    "latency_s": 9.957356214988977,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 2,
+    "latency_s": 11.702346813995973,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 3,
+    "latency_s": 14.53848635299073,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 4,
+    "latency_s": 8.505043946002843,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 5,
+    "latency_s": 10.213721316002193,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 6,
+    "latency_s": 3.2575468519935384,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 7,
+    "latency_s": 11.615498109997134,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 8,
+    "latency_s": 7.107321522998973,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 9,
+    "latency_s": 9.312035144001129,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 10,
+    "latency_s": 7.195736038003815,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 11,
+    "latency_s": 10.092209891998209,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 12,
+    "latency_s": 14.385320863992092,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 13,
+    "latency_s": 31.071186422996107,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 14,
+    "latency_s": 27.501302657998167,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 15,
+    "latency_s": 29.876301629003137,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 16,
+    "latency_s": 26.53894036199199,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 17,
+    "latency_s": 9.827923823002493,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 18,
+    "latency_s": 2.5065727780020097,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 19,
+    "latency_s": 5.120446023996919,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 20,
+    "latency_s": 7.929912823994528,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 21,
+    "latency_s": 8.949310515003162,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 22,
+    "latency_s": 12.55933883500984,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "modality_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 23,
+    "latency_s": 13.590640523005277,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 24,
+    "latency_s": 2.600765360999503,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 25,
+    "latency_s": 4.094661989991437,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 26,
+    "latency_s": 15.762144419990364,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 27,
+    "latency_s": 2.6932971330097644,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 28,
+    "latency_s": 7.301136807000148,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 29,
+    "latency_s": 5.684726329011028,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 30,
+    "latency_s": 7.337627139000688,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 31,
+    "latency_s": 2.9000370700086933,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 32,
+    "latency_s": 13.993978551006876,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 33,
+    "latency_s": 24.17528340400895,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 34,
+    "latency_s": 30.214712367000175,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 35,
+    "latency_s": 32.505109941994306,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 36,
+    "latency_s": 68.05122563200712,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 37,
+    "latency_s": 15.499508648004849,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "modality_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 38,
+    "latency_s": 5.97840772899508,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 39,
+    "latency_s": 8.46133274200838,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 40,
+    "latency_s": 7.1296938589948695,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 41,
+    "latency_s": 6.0243860140035395,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 42,
+    "latency_s": 3.012936366008944,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 43,
+    "latency_s": 15.57183771400014,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 44,
+    "latency_s": 9.083717610003077,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 45,
+    "latency_s": 9.63211324599979,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_third_party",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 46,
+    "latency_s": 9.922036320000188,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 47,
+    "latency_s": 12.015882580992184,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 48,
+    "latency_s": 17.920915814000182,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 49,
+    "latency_s": 21.524934207991464,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 50,
+    "latency_s": 4.029148269997677,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 51,
+    "latency_s": 18.208406215999275,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 52,
+    "latency_s": 6.511323384998832,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 53,
+    "latency_s": 7.243561032999423,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 54,
+    "latency_s": 8.421074733996647,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 55,
+    "latency_s": 9.526723902003141,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 56,
+    "latency_s": 25.904642402994796,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 57,
+    "latency_s": 3.709660961991176,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 58,
+    "latency_s": 9.773985406005522,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 59,
+    "latency_s": 10.525958275000448,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 60,
+    "latency_s": 5.0047429200058104,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 61,
+    "latency_s": 15.176852333999705,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 62,
+    "latency_s": 11.305648677996942,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 63,
+    "latency_s": 7.109231725989957,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 64,
+    "latency_s": 6.037361869995948,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 65,
+    "latency_s": 4.4124012629908975,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 66,
+    "latency_s": 11.101640092994785,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 67,
+    "latency_s": 7.186170080996817,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 68,
+    "latency_s": 12.507143967988668,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 69,
+    "latency_s": 4.481560911008273,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_third_party",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 70,
+    "latency_s": 9.271480659997906,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 71,
+    "latency_s": 8.168475203012349,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 72,
+    "latency_s": 2.9839741260075243,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 73,
+    "latency_s": 5.234114358012448,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 74,
+    "latency_s": 9.059492145999684,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 75,
+    "latency_s": 21.83100163299241,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 76,
+    "latency_s": 8.363368064994575,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 77,
+    "latency_s": 8.440729883994209,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 78,
+    "latency_s": 43.68822052600444,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 79,
+    "latency_s": 12.340086513999267,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 80,
+    "latency_s": 8.829112711988273,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 81,
+    "latency_s": 7.252353922987822,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 82,
+    "latency_s": 8.393752898991806,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 83,
+    "latency_s": 9.998696748996736,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "modality_informational",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 84,
+    "latency_s": 30.23219358699862,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 85,
+    "latency_s": 7.886533268989297,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 86,
+    "latency_s": 7.087243287009187,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 87,
+    "latency_s": 8.435199365005246,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 88,
+    "latency_s": 3.589297495986102,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 89,
+    "latency_s": 14.176552192991949,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 90,
+    "latency_s": 5.714650147012435,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 91,
+    "latency_s": 10.267151414009277,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 92,
+    "latency_s": 6.007340248004766,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 93,
+    "latency_s": 6.173109743001987,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 94,
+    "latency_s": 11.224988297006348,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 95,
+    "latency_s": 9.62499827099964,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 96,
+    "latency_s": 11.410009464991163,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 97,
+    "latency_s": 17.624632464998285,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 98,
+    "latency_s": 14.922587496999768,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "excerpt_not_found",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 99,
+    "latency_s": 17.72865851499955,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 100,
+    "latency_s": 16.09111330199812,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 101,
+    "latency_s": 14.322251554011018,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 102,
+    "latency_s": 5.7643176919955295,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 103,
+    "latency_s": 3.6415201210038504,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 104,
+    "latency_s": 10.999213044997305,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 105,
+    "latency_s": 41.57756367500406,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 106,
+    "latency_s": 12.862782241994864,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 107,
+    "latency_s": 9.901335831993492,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 108,
+    "latency_s": 23.9742935430113,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 109,
+    "latency_s": 6.578614527999889,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 110,
+    "latency_s": 3.283645481002168,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 111,
+    "latency_s": 12.963371534991893,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 112,
+    "latency_s": 4.985776337998686,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 113,
+    "latency_s": 6.398865410999861,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 114,
+    "latency_s": 22.84052786200482,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 115,
+    "latency_s": 2.302115889993729,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 116,
+    "latency_s": 200.54010541799653,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 117,
+    "latency_s": 2.711729816001025,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 118,
+    "latency_s": 3.119519373998628,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 119,
+    "latency_s": 1.891106295006466,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 120,
+    "latency_s": 2.669570547994226,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 121,
+    "latency_s": 7.27239080099389,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 122,
+    "latency_s": 2.794436971002142,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 123,
+    "latency_s": 4.1331526529975235,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 124,
+    "latency_s": 8.450737436010968,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 125,
+    "latency_s": 2.9264159340091283,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 126,
+    "latency_s": 4.968711228008033,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 127,
+    "latency_s": 3.718452878005337,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 128,
+    "latency_s": 39.3055780769937,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 129,
+    "latency_s": 4.076668485009577,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 130,
+    "latency_s": 2.3652429959911387,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 131,
+    "latency_s": 24.16282461999799,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 132,
+    "latency_s": 5.49858314699668,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 133,
+    "latency_s": 2.8590961110021453,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 134,
+    "latency_s": 12.082774747002986,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 135,
+    "latency_s": 2.2879806980054127,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 136,
+    "latency_s": 94.54774645699945,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 137,
+    "latency_s": 2.827262139006052,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 138,
+    "latency_s": 8.369378775998484,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 139,
+    "latency_s": 8.40524516699952,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 140,
+    "latency_s": 5.407908328998019,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 141,
+    "latency_s": 7.430265350005357,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 142,
+    "latency_s": 5.672214897000231,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 143,
+    "latency_s": 239.5465830660105,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 144,
+    "latency_s": 13.822547067000414,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 145,
+    "latency_s": 5.2052603060001275,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 146,
+    "latency_s": 4.008604395989096,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 147,
+    "latency_s": 24.959798085998045,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 148,
+    "latency_s": 5.696770705995732,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 149,
+    "latency_s": 10.556308589002583,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 150,
+    "latency_s": 96.60702885800856,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_qualification",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 151,
+    "latency_s": 99.59493120899424,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_qualification",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 152,
+    "latency_s": 35.42254826799035,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 153,
+    "latency_s": 26.162874140005442,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 154,
+    "latency_s": 5.059702673999709,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 155,
+    "latency_s": 3.703618258005008,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 156,
+    "latency_s": 4.194727462992887,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 157,
+    "latency_s": 8.301056833995972,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 158,
+    "latency_s": 6.474623850997887,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 159,
+    "latency_s": 29.698642250994453,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 160,
+    "latency_s": 7.3851578180037905,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 161,
+    "latency_s": 3.587097174997325,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 162,
+    "latency_s": 9.375756191002438,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 163,
+    "latency_s": 38.35593879700173,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 164,
+    "latency_s": 6.385513078988879,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 165,
+    "latency_s": 22.23462991999986,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 166,
+    "latency_s": 24.371088365995092,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 167,
+    "latency_s": 7.928967913001543,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 168,
+    "latency_s": 6.644351598006324,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 169,
+    "latency_s": 11.33321313498891,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 170,
+    "latency_s": 39.03085336899676,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 171,
+    "latency_s": 23.911878197992337,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 172,
+    "latency_s": 15.59583673599991,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 173,
+    "latency_s": 6.073379077002755,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_contract_formation",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 174,
+    "latency_s": 3.2696088010125095,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 175,
+    "latency_s": 4.732682879010099,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 176,
+    "latency_s": 17.3932069609873,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 177,
+    "latency_s": 5.120475894000265,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 178,
+    "latency_s": 3.1345810429920675,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 179,
+    "latency_s": 24.633071068004938,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 180,
+    "latency_s": 2.158553290006239,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 181,
+    "latency_s": 5.295307558000786,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 182,
+    "latency_s": 78.1085372959933,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 183,
+    "latency_s": 3.189920192991849,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 184,
+    "latency_s": 1.9321088459983002,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 185,
+    "latency_s": 23.87306777300546,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 186,
+    "latency_s": 7.317701630992815,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 187,
+    "latency_s": 35.288989635999314,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 188,
+    "latency_s": 5.6693767579999985,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 189,
+    "latency_s": 2.8144924429943785,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 190,
+    "latency_s": 64.26280405900616,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 191,
+    "latency_s": 9.769676625990542,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 192,
+    "latency_s": 22.906649602999096,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 193,
+    "latency_s": 3.537559445001534,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 194,
+    "latency_s": 4.300477526005125,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 195,
+    "latency_s": 3.382542438004748,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 196,
+    "latency_s": 2.161564512993209,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 197,
+    "latency_s": 6.592323417993612,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 198,
+    "latency_s": 26.896789965001517,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 199,
+    "latency_s": 8.891625980002573,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 200,
+    "latency_s": 34.59582726699591,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 201,
+    "latency_s": 3.005211424009758,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 202,
+    "latency_s": 29.65834149500006,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_qualification",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 203,
+    "latency_s": 3.679297750000842,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 204,
+    "latency_s": 19.788393972004997,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 205,
+    "latency_s": 25.531493308997597,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 206,
+    "latency_s": 17.25240539999504,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 207,
+    "latency_s": 2.6357722929969896,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 208,
+    "latency_s": 10.028238893006346,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 209,
+    "latency_s": 2.4602464549971046,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 210,
+    "latency_s": 45.196033784988686,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 211,
+    "latency_s": 8.532286813002429,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 212,
+    "latency_s": 8.467424707996543,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 213,
+    "latency_s": 45.07619290599541,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 214,
+    "latency_s": 1.707146508997539,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 215,
+    "latency_s": 3.3670690700091654,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 216,
+    "latency_s": 31.67519945699314,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 217,
+    "latency_s": 3.8832486559986137,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 218,
+    "latency_s": 49.81457926900475,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 219,
+    "latency_s": 10.921903666996513,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 220,
+    "latency_s": 6.0136243640008615,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 221,
+    "latency_s": 40.23001005900733,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 222,
+    "latency_s": 12.01693098800024,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 223,
+    "latency_s": 6.472731450005085,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 224,
+    "latency_s": 20.273001517998637,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 225,
+    "latency_s": 10.019934337004088,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 226,
+    "latency_s": 5.422081693002838,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 227,
+    "latency_s": 9.592100220004795,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 228,
+    "latency_s": 6.749656076004612,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 229,
+    "latency_s": 35.7341215750057,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 230,
+    "latency_s": 8.754832984996028,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 231,
+    "latency_s": 4.251796567987185,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 232,
+    "latency_s": 6.604838546001702,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 233,
+    "latency_s": 23.115873482005554,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 234,
+    "latency_s": 34.07790550899517,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 235,
+    "latency_s": 2.7328524370095693,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 236,
+    "latency_s": 3.5172101970092626,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 237,
+    "latency_s": 9.074875845995848,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 238,
+    "latency_s": 7.794155145005789,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 239,
+    "latency_s": 4.65050440900086,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 240,
+    "latency_s": 10.096178599007544,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 241,
+    "latency_s": 8.031125034001889,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 242,
+    "latency_s": 4.26403616501193,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 243,
+    "latency_s": 7.702456244995119,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 244,
+    "latency_s": 7.077504654997028,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 245,
+    "latency_s": 5.141891695006052,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 246,
+    "latency_s": 32.127155434005545,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 247,
+    "latency_s": 55.82394033699529,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "modality_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 248,
+    "latency_s": 9.529497063005692,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 249,
+    "latency_s": 5.327084447999368,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 250,
+    "latency_s": 25.90909629900125,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 251,
+    "latency_s": 6.535778176999884,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 252,
+    "latency_s": 77.3966244750045,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 253,
+    "latency_s": 4.732127164999838,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 254,
+    "latency_s": 5.033125440997537,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 255,
+    "latency_s": 10.874603938995278,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 256,
+    "latency_s": 7.243989545007935,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 257,
+    "latency_s": 5.344212709009298,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 258,
+    "latency_s": 3.651271041002474,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 259,
+    "latency_s": 10.353765060004662,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 260,
+    "latency_s": 21.12595484999474,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 261,
+    "latency_s": 22.500113029993372,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 262,
+    "latency_s": 2.5207276530127274,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 263,
+    "latency_s": 4.61735089198919,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 264,
+    "latency_s": 6.619154633997823,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 265,
+    "latency_s": 2.3754717639967566,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 266,
+    "latency_s": 5.106691815002705,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 267,
+    "latency_s": 8.405212419995223,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 268,
+    "latency_s": 3.8749946930038277,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 269,
+    "latency_s": 20.43161220299953,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 270,
+    "latency_s": 3.3598553240008187,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 271,
+    "latency_s": 6.605380776993115,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 272,
+    "latency_s": 5.954105778990197,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 273,
+    "latency_s": 30.3820269429998,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 274,
+    "latency_s": 14.481956124989665,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 275,
+    "latency_s": 5.109792135990574,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 276,
+    "latency_s": 5.450869603009778,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 277,
+    "latency_s": 3.5123808619973715,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 278,
+    "latency_s": 9.332168266002554,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 279,
+    "latency_s": 3.0377069969981676,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 280,
+    "latency_s": 23.324641860992415,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 281,
+    "latency_s": 4.491495334004867,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 282,
+    "latency_s": 18.868464895000216,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 283,
+    "latency_s": 5.165147261999664,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 284,
+    "latency_s": 9.504476780988625,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 285,
+    "latency_s": 19.33506421999482,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 286,
+    "latency_s": 6.691247572001885,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 287,
+    "latency_s": 9.961385237009381,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 288,
+    "latency_s": 16.764459579993854,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 289,
+    "latency_s": 28.029727330998867,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 290,
+    "latency_s": 6.373063678998733,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_qualification",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 291,
+    "latency_s": 45.77110695799638,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 292,
+    "latency_s": 3.9627391260000877,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 293,
+    "latency_s": 2.90106946999731,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 294,
+    "latency_s": 7.788117151008919,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 295,
+    "latency_s": 8.401802596999914,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 296,
+    "latency_s": 2.620510259002913,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 297,
+    "latency_s": 29.861771180003416,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 298,
+    "latency_s": 3.413512482002261,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 299,
+    "latency_s": 4.9738302110054065,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 300,
+    "latency_s": 4.674149986996781,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 301,
+    "latency_s": 3.338172090006992,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 302,
+    "latency_s": 5.0568617149983766,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "modality_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 303,
+    "latency_s": 3.1681707740062848,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 304,
+    "latency_s": 2.718897986007505,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 305,
+    "latency_s": 7.854333529001451,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 306,
+    "latency_s": 1.9191314079944277,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 307,
+    "latency_s": 2.40399130199512,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 308,
+    "latency_s": 2.390875106008025,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 309,
+    "latency_s": 10.099627433999558,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "modality_informational",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 310,
+    "latency_s": 15.737630310992245,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 311,
+    "latency_s": 9.61771813199448,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 312,
+    "latency_s": 1.8836149490089156,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 313,
+    "latency_s": 3.954586809006287,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "modality_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 314,
+    "latency_s": 6.315582301001996,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 315,
+    "latency_s": 4.089835275008227,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 316,
+    "latency_s": 6.43503673801024,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 317,
+    "latency_s": 5.105085193994455,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 318,
+    "latency_s": 34.56075194499863,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 319,
+    "latency_s": 7.678200754002319,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 320,
+    "latency_s": 8.607228558001225,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 321,
+    "latency_s": 7.305330013012281,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 322,
+    "latency_s": 8.4490040489909,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 323,
+    "latency_s": 34.993426834989805,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 324,
+    "latency_s": 12.410802899001283,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 325,
+    "latency_s": 4.187616081995657,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 326,
+    "latency_s": 5.667139116994804,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 327,
+    "latency_s": 6.58321157800674,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 328,
+    "latency_s": 5.887987434995011,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 329,
+    "latency_s": 12.18744216900086,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 330,
+    "latency_s": 4.2713071670004865,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 331,
+    "latency_s": 2.647734642989235,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 332,
+    "latency_s": 5.792075498000486,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 333,
+    "latency_s": 3.492381882999325,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 334,
+    "latency_s": 3.854673023990472,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "actor_buyer",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 335,
+    "latency_s": 1.9014840120071312,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 336,
+    "latency_s": 29.89451747199928,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 337,
+    "latency_s": 3.498960080993129,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 338,
+    "latency_s": 9.538099821991636,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 339,
+    "latency_s": 10.833324070990784,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 340,
+    "latency_s": 5.264937332001864,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 341,
+    "latency_s": 12.440368501993362,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 342,
+    "latency_s": 4.949203527998179,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 343,
+    "latency_s": 4.438542335992679,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 344,
+    "latency_s": 5.845896796992747,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 345,
+    "latency_s": 15.320660067998688,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 346,
+    "latency_s": 22.66436729299312,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 347,
+    "latency_s": 39.629960798993125,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 348,
+    "latency_s": 4.421865804004483,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 349,
+    "latency_s": 18.52057212899672,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 350,
+    "latency_s": 4.485878485997091,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 351,
+    "latency_s": 9.193899246005458,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 352,
+    "latency_s": 2.7688644979934907,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 353,
+    "latency_s": 12.574741625998286,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 354,
+    "latency_s": 4.733319111997844,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 355,
+    "latency_s": 7.0044694259995595,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 356,
+    "latency_s": 2.626533417002065,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 357,
+    "latency_s": 7.020463307009777,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 358,
+    "latency_s": 38.313085323999985,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 359,
+    "latency_s": 4.518905759992776,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 360,
+    "latency_s": 22.116786831989884,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 361,
+    "latency_s": 6.462762120005209,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_qualification",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 362,
+    "latency_s": 4.478107856004499,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 363,
+    "latency_s": 3.024030364002101,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 364,
+    "latency_s": 8.920470221011783,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 365,
+    "latency_s": 5.014203694998287,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 366,
+    "latency_s": 6.856691437991685,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 367,
+    "latency_s": 6.610062070001732,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_insufficient",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 368,
+    "latency_s": 103.51802138600033,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": true,
+    "outcome": "review_required",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 369,
+    "latency_s": 6.652447417000076,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 370,
+    "latency_s": 6.2789465810055844,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 371,
+    "latency_s": 2.8427909309975803,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": false
+   },
+   {
+    "candidate_id": 372,
+    "latency_s": 5.1253894660039805,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 373,
+    "latency_s": 3.1562992600083817,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 374,
+    "latency_s": 3.998205694995704,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 375,
+    "latency_s": 16.452430223012925,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 376,
+    "latency_s": 2.6886114700027974,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 377,
+    "latency_s": 3.1135413119918667,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_unknown",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 378,
+    "latency_s": 5.389198403994669,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 379,
+    "latency_s": 2.459597359993495,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "auto_accepted",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 380,
+    "latency_s": 10.52534645498963,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 381,
+    "latency_s": 5.9773016899998765,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 382,
+    "latency_s": 6.761669016996166,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 383,
+    "latency_s": 47.19232979899971,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "context_fragment",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 384,
+    "latency_s": 10.54396950599039,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 385,
+    "latency_s": 3.9573306209931616,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_background",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 386,
+    "latency_s": 8.924782833986683,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 387,
+    "latency_s": 7.753289660002338,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 388,
+    "latency_s": 4.58976438800164,
+    "schema_failure": false,
+    "confidence": "medium",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 389,
+    "latency_s": 4.124505241998122,
+    "schema_failure": false,
+    "confidence": "low",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 390,
+    "latency_s": 3.8065833339933306,
+    "schema_failure": false,
+    "confidence": "high",
+    "invented": false,
+    "outcome": "rejected",
+    "reason": "phase_procurement",
+    "evidence_exact": true
+   },
+   {
+    "candidate_id": 391,
+    "latency_s": 0.21376630599843338,
+    "schema_failure": true,
+    "outcome": "review_required",
+    "confidence": null,
+    "invented": false
+   },
+   {
+    "candidate_id": 392,
+    "latency_s": 0.057945360997109674,
+    "schema_failure": true,
+    "outcome": "review_required",
+    "confidence": null,
+    "invented": false
+   },
+   {
+    "candidate_id": 393,
+    "latency_s": 0.05255305700120516,
+    "schema_failure": true,
+    "outcome": "review_required",
+    "confidence": null,
+    "invented": false
+   },
+   {
+    "candidate_id": 394,
+    "latency_s": 0.0554417000093963,
+    "schema_failure": true,
+    "outcome": "review_required",
+    "confidence": null,
+    "invented": false
+   },
+   {
+    "candidate_id": 395,
+    "latency_s": 0.06609908000973519,
+    "schema_failure": true,
+    "outcome": "review_required",
+    "confidence": null,
+    "invented": false
+   },
+   {
+    "candidate_id": 396,
+    "latency_s": 0.061055682992446236,
+    "schema_failure": true,
+    "outcome": "review_required",
+    "confidence": null,
+    "invented": false
+   },
+   {
+    "candidate_id": 397,
+    "latency_s": 0.06031210800574627,
+    "schema_failure": true,
+    "outcome": "review_required",
+    "confidence": null,
+    "invented": false
+   },
+   {
+    "candidate_id": 398,
+    "latency_s": 0.05723782299901359,
+    "schema_failure": true,
+    "outcome": "review_required",
+    "confidence": null,
+    "invented": false
+   },
+   {
+    "candidate_id": 399,
+    "latency_s": 0.059754008005256765,
+    "schema_failure": true,
+    "outcome": "review_required",
+    "confidence": null,
+    "invented": false
+   },
+   {
+    "candidate_id": 400,
+    "latency_s": 0.053606563989887945,
+    "schema_failure": true,
+    "outcome": "review_required",
+    "confidence": null,
+    "invented": false
+   }
+  ]
+ }
+]

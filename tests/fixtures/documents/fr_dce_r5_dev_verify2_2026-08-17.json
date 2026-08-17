@@ -1,0 +1,3300 @@
+{
+ "report": {
+  "iteration": 2,
+  "model": "deepseek/deepseek-v4-flash",
+  "final_auto_accepted": 17,
+  "true_auto_accepted": 16,
+  "false_auto_accepted": 1,
+  "false_accept_ids": [
+   351
+  ],
+  "missed_gold_ids": [
+   6,
+   16,
+   19,
+   21,
+   53,
+   56,
+   88,
+   103,
+   115,
+   119,
+   154,
+   203,
+   233,
+   236,
+   242,
+   274,
+   306,
+   316,
+   349,
+   350,
+   352,
+   363,
+   367,
+   376
+  ],
+  "precision": 0.9412,
+  "auto_recall": 0.4,
+  "high_confidence_false_accepts": 1,
+  "raw_excerpt_failures": 1,
+  "final_evidence_failures": 0,
+  "final_invented_excerpts": 0,
+  "final_evidence_coverage": 1.0,
+  "verifier": {
+   "calls": 86,
+   "confirm": 17,
+   "block": 68,
+   "uncertain": 0,
+   "failures": {
+    "schema_failure": 1
+   },
+   "cost_usd": 0.0192,
+   "wall_s": 231.0,
+   "latency_p50": 12.43,
+   "latency_p95": 37.85,
+   "latency_max": 70.11
+  },
+  "primary_latency": {
+   "p50": 6.74,
+   "p95": 16.4,
+   "max": 51.44
+  },
+  "spent_usd_total": 0.1795,
+  "gates": {
+   "precision >= 0.97": false,
+   "high_conf_false_accepts == 0": false,
+   "evidence_coverage == 1.0": true,
+   "invented == 0": true,
+   "auto_recall >= 0.60": false
+  },
+  "gate_verdict": "FAIL"
+ },
+ "details": {
+  "1": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "2": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "3": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "4": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "5": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "6": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Les fournitures et matériaux mis en œuvre doivent être conformes aux normes françaises en vigueur",
+    "confidence": "high"
+   }
+  },
+  "7": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "8": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "9": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "10": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "11": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "12": {
+   "final": "ignored",
+   "reason": "informational",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "informational",
+    "supporting_excerpt": "Les machines proposées devront être d’une fiabilité maximale, présenter un design soigné et offrir une",
+    "confidence": "high"
+   }
+  },
+  "13": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "14": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "15": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "16": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": null
+  },
+  "17": {
+   "final": "ignored",
+   "reason": "verifier_failure",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "18": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "19": {
+   "final": "ignored",
+   "reason": "raw_excerpt_failure",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": null
+  },
+  "20": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "21": {
+   "final": "ignored",
+   "reason": "qualification",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "qualification",
+    "supporting_excerpt": "Les intervenants doivent disposer des compétences définies dans la norme NF S 61-931 (niveau d’accès).",
+    "confidence": "high"
+   }
+  },
+  "22": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "23": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "24": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "25": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "26": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "27": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "28": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Les végétaux doivent être produits dans une région aux conditions climatiques  compatibles",
+    "confidence": "high"
+   }
+  },
+  "29": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "30": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "31": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "32": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "33": {
+   "final": "ignored",
+   "reason": "insufficient_context",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "insufficient_context",
+    "supporting_excerpt": "« Ils doivent permettre l'accès à l'ensemble du réseau d’approvisionnement énergétique nécessaires à l'exploitation des véhicules, notamment : [...] »",
+    "confidence": "high"
+   }
+  },
+  "34": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Ils doivent permettre l'accès à l'ensemble du réseau d’approvisionnement",
+    "confidence": "high"
+   }
+  },
+  "35": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "36": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "En cas de sous-traitance, le titulaire devra faire accepter le sous-traitant et agréer ses conditions",
+    "confidence": "high"
+   }
+  },
+  "37": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "38": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "39": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "40": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "41": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "42": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "43": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "44": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "45": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "46": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Elles devront en outre dispo ser d’une interface de commande simple et intuitive,",
+    "confidence": "high"
+   }
+  },
+  "47": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "48": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "49": {
+   "final": "ignored",
+   "reason": "buyer_obligation",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "buyer_obligation",
+    "supporting_excerpt": "Les prestations attendues doivent permettre d’assurer la sécurité et la sûreté des biens et des personnes,",
+    "confidence": "high"
+   }
+  },
+  "50": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Le Titulaire doit être en capacité de fournir l'effectif nécessaire aux missions 365 jours par an, 24 heures sur 24.",
+    "confidence": "high"
+   }
+  },
+  "51": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "52": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "53": {
+   "final": "ignored",
+   "reason": "buyer_obligation",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "buyer_obligation",
+    "supporting_excerpt": "Tout changement affectant l’hébergement, la localisation, les modalités d’administration ou les sous-traitants techniques est notifié préalablement à la CNBF, qui peut s’y opposer lorsqu’il dégrade le niveau de sécurité ou la maîtrise du risque.",
+    "confidence": "high"
+   }
+  },
+  "54": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "55": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Robinets d'Incendie Armés (RIA) - Les opérations doivent correspondre aux normes NF S 62-201, NF EN 671-3 et aux préconisations de la règle R5 de l’APSAD.",
+    "confidence": "high"
+   }
+  },
+  "56": {
+   "final": "ignored",
+   "reason": "procurement",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "procurement",
+    "supporting_excerpt": "Les intervenants doivent disposer des compétences définies dans la norme NF S 61-931 (niveau d’accès).",
+    "confidence": "high"
+   }
+  },
+  "57": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "À ce titre, le Prestataire devra notamment assurer les missions suivantes :",
+    "confidence": "high"
+   }
+  },
+  "58": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "59": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "60": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Le titulaire ne peut pas refuser la décision de reconduction du contrat.",
+    "confidence": "high"
+   }
+  },
+  "61": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Les livraisons ne pourront avoir lieu que lors de l'ouverture des stations d'épuration :",
+    "confidence": "high"
+   }
+  },
+  "62": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "63": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "64": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "65": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "66": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "67": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "68": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "La solution proposée devra permettre l'accès à un réseau étendu d’infrastructure d’approvisionnement et de service",
+    "confidence": "high"
+   }
+  },
+  "69": {
+   "final": "ignored",
+   "reason": "actor_third_party",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "70": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "71": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "72": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "73": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "74": {
+   "final": "ignored",
+   "reason": "actor_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "75": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "76": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "77": {
+   "final": "ignored",
+   "reason": "actor_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "78": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Le descriptif des ouvrages est donné à titre indicatif, l’Entreprise doit se rendre sur les  sites afin de",
+    "confidence": "high"
+   }
+  },
+  "79": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "80": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "81": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Le titulaire ne peut s’opposer à cette reconduction.",
+    "confidence": "high"
+   }
+  },
+  "82": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "83": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "84": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Les traitements relevant de la sous-traitance sont autorisés pour la seule durée du marché et, le cas échéant, pendant la période strictement nécessaire aux opérations de réversibilité, sans préjudice des obligations légales de conservation dûment justifiées par le titulaire.",
+    "confidence": "high"
+   }
+  },
+  "85": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "86": {
+   "final": "ignored",
+   "reason": "actor_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "87": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "88": {
+   "final": "ignored",
+   "reason": "buyer_obligation",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "buyer_obligation",
+    "supporting_excerpt": "Les opérations doivent correspondre aux normes NF S 62-201, NF EN 671-3 et aux préconisations de la règle R5 de l’APSAD.",
+    "confidence": "high"
+   }
+  },
+  "89": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "90": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "91": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "92": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "93": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "94": {
+   "final": "ignored",
+   "reason": "insufficient_context",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "insufficient_context",
+    "supporting_excerpt": "et les prescriptions à respecter pour leur utilisation devront être en langue française.",
+    "confidence": "high"
+   }
+  },
+  "95": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "96": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "97": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "98": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "99": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "100": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "101": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "102": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "103": {
+   "final": "ignored",
+   "reason": "informational",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "informational",
+    "supporting_excerpt": "La conception, l'impression et la distribution des supports d'information sont à la charge du titulaire",
+    "confidence": "high"
+   }
+  },
+  "104": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "105": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "106": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "107": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "108": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "109": {
+   "final": "ignored",
+   "reason": "actor_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "110": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "111": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Leur niveau sonore devra, par conséquent, être adapté à leur emplacement.",
+    "confidence": "high"
+   }
+  },
+  "112": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "113": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "114": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "115": {
+   "final": "ignored",
+   "reason": "informational",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "informational",
+    "supporting_excerpt": "le titulaire s'engage à respecter les standards de sécurité en vigueur (ISO27001, PCIDSS, etc.)",
+    "confidence": "high"
+   }
+  },
+  "116": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "La maîtrise de la conservation, de l’archivage technique, des sauvegardes et de la suppression des données déposées par la CNBF jusqu’au terme du marché puis, le cas échéant, jusqu’à l’achèvement des opérations de réversibilité.",
+    "confidence": "high"
+   }
+  },
+  "117": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Aucune suppression automatique de données, aucune désactivation standard d’accès, aucune purge ni aucun changement unilatéral des conditions techniques d’accès ne peuvent être appliqués lorsqu’ils compromettent la continuité du service, la preuve, l’auditabilité ou les droits de la CNBF.",
+    "confidence": "high"
+   }
+  },
+  "118": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "119": {
+   "final": "ignored",
+   "reason": "buyer_obligation",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "buyer_obligation",
+    "supporting_excerpt": "La maintenance de ces installations doit être également conforme à la norme NF EN 12845.",
+    "confidence": "high"
+   }
+  },
+  "120": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "121": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "122": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "123": {
+   "final": "ignored",
+   "reason": "procurement",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "procurement",
+    "supporting_excerpt": "Cependant, le Po devra obligatoirement inclure la contribution CO2.",
+    "confidence": "high"
+   }
+  },
+  "124": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "La livraison ou le dépotage ne pourront se faire qu'en présence d'un agent de Grand Calais",
+    "confidence": "high"
+   }
+  },
+  "125": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "126": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "127": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "128": {
+   "final": "ignored",
+   "reason": "contract_formation",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "contract_formation",
+    "supporting_excerpt": "a) Le titulaire s'engage à faciliter au maximum la réception des véhicules dans l'atelier chargé",
+    "confidence": "high"
+   }
+  },
+  "129": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "130": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "131": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Le titulaire devra mettre à disposition un outil de gestion et de suivi permettant notamment :",
+    "confidence": "high"
+   }
+  },
+  "132": {
+   "final": "ignored",
+   "reason": "context_insufficient",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "133": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "134": {
+   "final": "ignored",
+   "reason": "insufficient_context",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "insufficient_context",
+    "supporting_excerpt": "À ce titre, des visites sur site devront être réalisées auprès de chaque ménage et de chaque logement",
+    "confidence": "high"
+   }
+  },
+  "135": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "136": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "137": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "138": {
+   "final": "ignored",
+   "reason": "actor_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "139": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "140": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "141": {
+   "final": "ignored",
+   "reason": "phase_contract_formation",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "142": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "143": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "144": {
+   "final": "ignored",
+   "reason": "insufficient_context",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "insufficient_context",
+    "supporting_excerpt": "disfonctionnement de l'arrosage devra être immédiatement signalé à la direction des Parcs et Jardins.",
+    "confidence": "high"
+   }
+  },
+  "145": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "146": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "147": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "148": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "149": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "150": {
+   "final": "ignored",
+   "reason": "phase_qualification",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "151": {
+   "final": "ignored",
+   "reason": "phase_qualification",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "152": {
+   "final": "ignored",
+   "reason": "contract_formation",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "contract_formation",
+    "supporting_excerpt": "S'engage, au nom des membres du groupement dont les autres membres sont désignés ci-dessous, sur la base de l'offre du groupement, à exécuter les prestations demandées dans les conditions définies ci-après ;",
+    "confidence": "high"
+   }
+  },
+  "153": {
+   "final": "ignored",
+   "reason": "modality_informational",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "154": {
+   "final": "ignored",
+   "reason": "contract_formation",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "contract_formation",
+    "supporting_excerpt": "le luminaire fourni devra respecter les normes et spécificités tel que décrit dans le CCTP",
+    "confidence": "high"
+   }
+  },
+  "155": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "156": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "157": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "158": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "159": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "160": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "161": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "162": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "163": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "164": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "165": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "166": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "167": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "168": {
+   "final": "ignored",
+   "reason": "buyer_obligation",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "buyer_obligation",
+    "supporting_excerpt": "Les cessions de créances doivent être notifiées ou les nantissements signifiés à l’organisme désigné ci-dessus.",
+    "confidence": "high"
+   }
+  },
+  "169": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "170": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "171": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "172": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "173": {
+   "final": "ignored",
+   "reason": "phase_contract_formation",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "174": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "175": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "176": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "177": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "178": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Des prestations ponctuelles peuvent également être réalisées, à la demande expresse du Bénéficiaire, sur les sites suivants :",
+    "confidence": "high"
+   }
+  },
+  "179": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "180": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "181": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "182": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "La couverture des obligations statutaires devra s’appliquer dans le respect du statut de la fonction",
+    "confidence": "high"
+   }
+  },
+  "183": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "184": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "185": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "186": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "187": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "188": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "189": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "190": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "191": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "192": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "193": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "194": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "195": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "196": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "197": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "198": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "199": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "200": {
+   "final": "ignored",
+   "reason": "phase_contract_formation",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "201": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "202": {
+   "final": "ignored",
+   "reason": "phase_qualification",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "203": {
+   "final": "ignored",
+   "reason": "contract_formation",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "contract_formation",
+    "supporting_excerpt": "Le titulaire ne pourra pas refuser une éventuelle reconduction.",
+    "confidence": "high"
+   }
+  },
+  "204": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "205": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Le titulaire devra respecter les exigences techniques, organisationnelles et réglementaires définies dans le présent CCTP, et garantir une traçabilité complète des prestations réalisées.",
+    "confidence": "high"
+   }
+  },
+  "206": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "207": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "208": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "209": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "210": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "211": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "212": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "213": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "214": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "215": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "216": {
+   "final": "ignored",
+   "reason": "procurement",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "procurement",
+    "supporting_excerpt": "Ce détail ne pourra faire valoir un poste de prix dans les devis établis dans le cadre du marché à bons de commande, sauf à la demande expresse de la maitrise d’ouvrage dans des cas très particuliers.",
+    "confidence": "high"
+   }
+  },
+  "217": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "218": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "L'entreprise sous-traitante devra obligatoirement être acceptée et ses conditions de paiement agréées",
+    "confidence": "high"
+   }
+  },
+  "219": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "220": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "221": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "222": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "223": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "224": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "225": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "s'engagent à répondre à toutes sollicitations de ce dernier.",
+    "confidence": "high"
+   }
+  },
+  "226": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "227": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "228": {
+   "final": "ignored",
+   "reason": "contract_formation",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "contract_formation",
+    "supporting_excerpt": "Le titulaire du marché devra assurer les prestations suivantes :",
+    "confidence": "high"
+   }
+  },
+  "229": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "230": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "231": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "232": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "233": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Toutes les unités de conditionnement devront porter une date limite de consommation.",
+    "confidence": "high"
+   }
+  },
+  "234": {
+   "final": "ignored",
+   "reason": "informational",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "informational",
+    "supporting_excerpt": "D'une manière générale, les fournitures devront répondre aux conditions, normes et spécifications fixées par la réglementation en vigueur, et en particulier :",
+    "confidence": "high"
+   }
+  },
+  "235": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "236": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Les denrées livrées doivent être de qualité saine, loyale et marchande.",
+    "confidence": "high"
+   }
+  },
+  "237": {
+   "final": "ignored",
+   "reason": "insufficient_context",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "insufficient_context",
+    "supporting_excerpt": "Ils seront exempts de germes pathogènes et devront satisfaire aux conditions microbiologiques",
+    "confidence": "high"
+   }
+  },
+  "238": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "239": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "240": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "241": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "242": {
+   "final": "ignored",
+   "reason": "informational",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "informational",
+    "supporting_excerpt": "Les prestations attendues doivent permettre de garantir la sécurité des patients, des professionnels de santé et des usagers, tout en assurant une traçabilité rigoureuse des opérations et une restitution fiable des résultats.",
+    "confidence": "high"
+   }
+  },
+  "243": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "244": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "245": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Le titulaire s'engage à exécuter les prestations conformément aux termes du contrat, en respectant les délais, les spécifications techniques et les exigences de qualité définies.",
+    "confidence": "high"
+   }
+  },
+  "246": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "247": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "248": {
+   "final": "ignored",
+   "reason": "actor_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "249": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "250": {
+   "final": "ignored",
+   "reason": "actor_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "251": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Le titulaire devra procéder au remplacement des pièces défectueuses dans un délai de deux jours",
+    "confidence": "high"
+   }
+  },
+  "252": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "253": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "254": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "255": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "L’Atelier de relooking et d’estime de soi pourra se dérouler à la fois dans des regroupements collectifs",
+    "confidence": "high"
+   }
+  },
+  "256": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "257": {
+   "final": "ignored",
+   "reason": "actor_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "258": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "259": {
+   "final": "ignored",
+   "reason": "procurement",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "procurement",
+    "supporting_excerpt": "Les Ateliers de bilans de compétences pourront se dérouler à la fois dans des regroupements collectifs",
+    "confidence": "high"
+   }
+  },
+  "260": {
+   "final": "ignored",
+   "reason": "buyer_obligation",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "buyer_obligation",
+    "supporting_excerpt": "Ces temps de travail devront permettre d'instaurer un lien régulier entre l'équipe d'animation du PLIE",
+    "confidence": "high"
+   }
+  },
+  "261": {
+   "final": "ignored",
+   "reason": "buyer_obligation",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "buyer_obligation",
+    "supporting_excerpt": "l’Atelier de conseil en économie sociale pourra se dérouler à la fois dans des regroupements collectifs",
+    "confidence": "high"
+   }
+  },
+  "262": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "263": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "264": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "265": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "266": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "267": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "268": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "269": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "270": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Les fruits et légumes surgelés devront être frais, sains, entiers, propres et triés.",
+    "confidence": "high"
+   }
+  },
+  "271": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Il devra pour chaque type de produit présenter plusieurs",
+    "confidence": "high"
+   }
+  },
+  "272": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "273": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "274": {
+   "final": "ignored",
+   "reason": "procurement",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "procurement",
+    "supporting_excerpt": "Le titulaire devra également contribuer à l’amélioration continue des pratiques des établissements, en fournissant des conseils techniques et des recommandations adaptées.",
+    "confidence": "high"
+   }
+  },
+  "275": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "276": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "277": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "278": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "279": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "280": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "281": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "282": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "283": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "284": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "285": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "(Liste non exhaustive – le Prestataire est tenu de se conformer à tout texte en vigueur",
+    "confidence": "high"
+   }
+  },
+  "286": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "287": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "288": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "289": {
+   "final": "ignored",
+   "reason": "insufficient_context",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "insufficient_context",
+    "supporting_excerpt": "Un prestataire assujetti aux impôts sur les sociétés devra fournir une attestation de non récupération",
+    "confidence": "high"
+   }
+  },
+  "290": {
+   "final": "ignored",
+   "reason": "phase_qualification",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "291": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "292": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "L’étude de cas devra être privilégié.",
+    "confidence": "high"
+   }
+  },
+  "293": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "294": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "295": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "296": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "297": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "298": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "299": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "300": {
+   "final": "ignored",
+   "reason": "context_insufficient",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "301": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "302": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "303": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "304": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "305": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "306": {
+   "final": "ignored",
+   "reason": "procurement",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "procurement",
+    "supporting_excerpt": "Le titulaire devra mettre en œuvre tous les moyens nécessaires pour atteindre ces objectifs, en respectant les exigences définies dans le présent CCTP et en garantissant une exécution conforme aux normes en vigueur.",
+    "confidence": "high"
+   }
+  },
+  "307": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "308": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "309": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "310": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "311": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "312": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "313": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "314": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "315": {
+   "final": "ignored",
+   "reason": "insufficient_context",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "insufficient_context",
+    "supporting_excerpt": "Le planning devra obligatoirement comporter les éléments suivants :",
+    "confidence": "high"
+   }
+  },
+  "316": {
+   "final": "ignored",
+   "reason": "informational",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "informational",
+    "supporting_excerpt": "Les mises en situation devront être privilégiées.",
+    "confidence": "high"
+   }
+  },
+  "317": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "318": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "319": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "320": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "321": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "322": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "En outre, le titulaire du marché est tenu de respecter toute la réglementation en vigueur concernant son",
+    "confidence": "high"
+   }
+  },
+  "323": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "324": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Il doit être en mesure d'en justifier, en cours d'exécution du marché et pendant la période de garantie",
+    "confidence": "high"
+   }
+  },
+  "325": {
+   "final": "ignored",
+   "reason": "actor_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "326": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "327": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Les emballages doivent être adaptés à chaque type de produits, conformément aux normes",
+    "confidence": "high"
+   }
+  },
+  "328": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "329": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "330": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "331": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Ils devront être de coloration caractéristique de la variété et être exempts de saveurs, odeurs",
+    "confidence": "high"
+   }
+  },
+  "332": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "333": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "334": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "335": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Le titulaire devra respecter les normes, référentiels et textes réglementaires applicables, et garantir une traçabilité complète des prélèvements et des analyses, incluant l’enregistrement des données relatives aux échantillons, aux conditions de prélèvement et de transport, ainsi qu’aux résultats obtenus.",
+    "confidence": "high"
+   }
+  },
+  "336": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "337": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "338": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "339": {
+   "final": "ignored",
+   "reason": "actor_bidder",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "340": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "341": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "342": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "343": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "344": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "345": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Le titulaire ne pourra prétendre à une quelconque indemnité.",
+    "confidence": "high"
+   }
+  },
+  "346": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "347": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "348": {
+   "final": "ignored",
+   "reason": "buyer_obligation",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "buyer_obligation",
+    "supporting_excerpt": "En cas d'urgence, le pouvoir adjudicateur pourra contacter les personnes désignées ci-après qui devront être en mesure de répondre et de satisfaire à leur demande :",
+    "confidence": "high"
+   }
+  },
+  "349": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Le titulaire devra également contribuer à l'amélioration continue des pratiques en fournissant des recommandations adaptées.",
+    "confidence": "high"
+   }
+  },
+  "350": {
+   "final": "ignored",
+   "reason": "qualification",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "qualification",
+    "supporting_excerpt": "Le titulaire ne peut s'opposer à la reconduction.",
+    "confidence": "high"
+   }
+  },
+  "351": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "reject",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "S'engage, au nom des membres du groupement 1, sur la base de l'offre du groupement, à exécuter les prestations demandées dans les conditions définies ci-après ;",
+    "confidence": "high"
+   }
+  },
+  "352": {
+   "final": "ignored",
+   "reason": "third_party_obligation",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "third_party_obligation",
+    "supporting_excerpt": "Le Titulaire peut sous-traiter l’exécution de certaines parties de l’accord-cadre, sous réserve de l’acceptation expresse de chaque sous-traitant par la S.E.T.E et de l’agrément par elle des conditions de paiement de chaque contrat de sous-traitance.",
+    "confidence": "high"
+   }
+  },
+  "353": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "354": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Chaque entreprise extérieure devra participer à une Visite d’Inspection Commune",
+    "confidence": "high"
+   }
+  },
+  "355": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "356": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "357": {
+   "final": "ignored",
+   "reason": "procurement",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "procurement",
+    "supporting_excerpt": "Chaque titulaire concerné devra mettre en œuvre tous les moyens dont il dispose pour respecter ces objectifs de développement durable dans le cadre de l'exécution des prestations.",
+    "confidence": "high"
+   }
+  },
+  "358": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "359": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "360": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "361": {
+   "final": "ignored",
+   "reason": "phase_qualification",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "362": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "363": {
+   "final": "ignored",
+   "reason": "buyer_obligation",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "buyer_obligation",
+    "supporting_excerpt": "Le titulaire ne peut pas refuser la reconduction.",
+    "confidence": "high"
+   }
+  },
+  "364": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "365": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "366": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Pour assurer la mise en œuvre de l'action d'insertion, il s'engage à réserver, dans l'exécution et sur la durée de l'accord-cadre, un nombre d'heures d'insertion au moins égal à celui figurant dans le Cahier des clauses administratives particulières.",
+    "confidence": "high"
+   }
+  },
+  "367": {
+   "final": "ignored",
+   "reason": "fragment",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "fragment",
+    "supporting_excerpt": "Chaque titulaire concerné devra mettre en œuvre tous les moyens dont il dispose pour respecter ces objectifs",
+    "confidence": "high"
+   }
+  },
+  "368": {
+   "final": "ignored",
+   "reason": "contract_formation",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "contract_formation",
+    "supporting_excerpt": "Seuls les bons de commande signés par le représentant du pouvoir adjudicateur peuvent être honorés par le ou les titulaires.",
+    "confidence": "high"
+   }
+  },
+  "369": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "370": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "371": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "372": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "373": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "374": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "375": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "376": {
+   "final": "ignored",
+   "reason": "informational",
+   "confidence": "low",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "informational",
+    "supporting_excerpt": "Le titulaire devra respecter les normes réglementaires applicables, garantir la traçabilité des prélèvements et analyses, et fournir des rapports détaillés incluant des alertes en cas de non-conformité.",
+    "confidence": "high"
+   }
+  },
+  "377": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "378": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "379": {
+   "final": "auto_accepted",
+   "reason": null,
+   "confidence": "high",
+   "gold": "auto_acceptable",
+   "verifier": {
+    "verdict": "confirm",
+    "blocker": "none",
+    "supporting_excerpt": "Si le sous-traitant est présenté en cours d’exécution du contrat, le titulaire devra obtenir de la S.E.T.E l’accord express de l’acceptation du sous-traitant et agrément des conditions de paiement.",
+    "confidence": "high"
+   }
+  },
+  "380": {
+   "final": "ignored",
+   "reason": "informational",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": {
+    "verdict": "block",
+    "blocker": "informational",
+    "supporting_excerpt": "La durée totale ne pourra excéder 48 mois à compter de la date de notification,",
+    "confidence": "high"
+   }
+  },
+  "381": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "382": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "383": {
+   "final": "ignored",
+   "reason": "context_fragment",
+   "confidence": "low",
+   "gold": "review_expected",
+   "verifier": null
+  },
+  "384": {
+   "final": "ignored",
+   "reason": "phase_contract_formation",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "385": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "386": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "387": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "388": {
+   "final": "ignored",
+   "reason": "phase_contract_formation",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "389": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "390": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "391": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "392": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "393": {
+   "final": "ignored",
+   "reason": "phase_unknown",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "394": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "395": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "396": {
+   "final": "ignored",
+   "reason": "actor_buyer",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "397": {
+   "final": "ignored",
+   "reason": "phase_background",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "398": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "399": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  },
+  "400": {
+   "final": "ignored",
+   "reason": "phase_procurement",
+   "confidence": "low",
+   "gold": "reject",
+   "verifier": null
+  }
+ }
+}

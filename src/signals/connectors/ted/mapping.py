@@ -209,7 +209,7 @@ def _award(
         contract_signatories=_signatories(notice, contract, warnings),
         winner_status=winner_status,
         awardee_parties=awardee_parties,
-        place_of_performance=_place(lot_data),
+        place_of_performance=_place(lot_data, warnings),
         award_date=_date(contract.award_date),  # BT-1451 décision d'attribution
         contract_signature_date=_date(contract.issue_date),  # BT-145 conclusion
         contract_start_date=_date(lot_data.start_date) if lot_data else None,  # BT-536
@@ -470,11 +470,24 @@ def _organization(organization: TedOrganization) -> OrganizationRef | None:
     )
 
 
-def _place(lot: TedLot | None) -> Location | None:
-    if lot is None or not any((lot.country, lot.nuts, lot.city, lot.postal_zone)):
+def _place(lot: TedLot | None, warnings: list[MappingWarning]) -> Location | None:
+    """Le lieu d'exécution, ou rien — jamais une notice perdue pour un code inconnu.
+
+    La table de conversion couvre l'espace européen. Un marché exécuté ailleurs
+    (`CRI` pour le Costa Rica, rencontré sur la notice 565997-2026) n'a donc pas
+    de pays convertible : si rien d'autre ne subsiste, le lieu vaut `None` et
+    l'écart est signalé. Faire échouer l'attribution pour cela reviendrait à
+    perdre des faits publiés à cause d'un champ accessoire.
+    """
+    if lot is None:
+        return None
+    country = alpha2(lot.country)
+    if lot.country and not country:
+        warnings.append(MappingWarning("unknown-country-code", lot.country))
+    if not any((country, lot.nuts, lot.city, lot.postal_zone)):
         return None
     return Location(
-        country=alpha2(lot.country),
+        country=country,
         subdivision_code=lot.nuts,
         subdivision_scheme="NUTS" if lot.nuts else None,
         locality=lot.city,

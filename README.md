@@ -18,6 +18,8 @@ un moteur séparé.
 **SPEC-003** — connecteur SIMAP (API publique simap.ch v1.5.1).
 **SPEC-004** — Winner Resolution : mentions publiées → entités entreprises.
 **SPEC-005** — Contract Understanding + Evidence : ce que l'avis permet de comprendre, et pourquoi.
+**SPEC-006** — Tender Document Intelligence : du dossier de marché aux exigences d'exécution prouvées.
+**SPEC-006R** — Semantic Requirement Filter : un modèle de langue dit ce qu'une phrase *est*, la politique déterministe décide.
 
 Pas encore de persistance : tout est en mémoire, testable sans base ni Docker.
 
@@ -35,6 +37,13 @@ Pas encore de persistance : tout est en mémoire, testable sans base ni Docker.
 | Fait ≠ interprétation | `ContractUnderstanding` est une couche dérivée ; l'award reste le fait brut |
 | Rien sans preuve | une affirmation `high`/`medium` sans `Evidence` est refusée par le modèle |
 | Précision > rappel | une mention ambiguë devient `review_required`, jamais une entreprise vérifiée |
+| Accès ≠ absence | `auth_required`, `external`, `not_found` : aucun ne veut dire « ce marché n'a pas de documents » |
+| Pas d'extrait, pas d'exigence | le validateur exige de retrouver le passage dans le texte source, aux espaces près |
+| Entrée hostile | archives bornées (traversée, bombe, profondeur), exécutables jamais ouverts, seuls `http(s)` suivis |
+| Le modèle juge, il ne rédige pas | il classe un candidat déjà extrait ; l'énoncé final reste l'extrait source nettoyé |
+| Exécution seule | `phase=execution` + `actor=contractor` + modalité normative — dépôt d'offre et qualification sont écartés, motif conservé |
+| Frontière fournisseur | le domaine ne connaît que `RequirementClassifier` ; un seul adaptateur, aucune clé en dur |
+| Document non fiable | tout texte transmis à un modèle est encadré `UNTRUSTED SOURCE TEXT` ; aucune consigne qu'il contient n'est exécutable |
 | Précision préservée | `published_at` reste une `date` ou un `datetime` selon ce que la source publie — ni minuit inventé, ni heure tronquée |
 
 ## Développement local (uv)
@@ -52,6 +61,7 @@ uv run python -m signals.connectors.ted.live_smoke --days 10 --limit 25
 uv run python -m signals.connectors.simap.live_smoke --limit 40 --since 2026-07-01 --link
 uv run python -m signals.resolution.live_smoke --benchmark
 uv run python -m signals.resolution.live_smoke --zefix
+uv run python -m signals.documents.live_smoke --limit 25 --json rapport.json
 ```
 
 Appelle l'API publique TED, télécharge les XML, les traduit et imprime les
@@ -88,6 +98,19 @@ src/signals/understanding/    ce que l'avis permet de comprendre du contrat
   text.py      HTML publié → texte lisible, sans perte
   model.py     ContractUnderstanding, Claim (fait source vs affirmation dérivée)
   engine.py    moteur déterministe ; protocole ouvert à un moteur linguistique
+src/signals/documents/        du dossier de marché aux exigences d'exécution
+  model.py      TenderDocument, DocumentAccessStatus, CoverageStatus
+  discovery.py  award → procédure → avis d'appel d'offres → URL documentaires (BT-15)
+  fetch.py      téléchargement borné ; un refus produit un état, pas une exception
+  archive.py    ZIP en entrée hostile : traversée, bombe, profondeur, exécutables
+  extract.py    PDF/DOCX/XLSX/HTML/XML → blocs de texte LOCALISÉS (page, paragraphe, cellule)
+  triage.py     nature du document, ordre de lecture, langue
+  language.py   primitives linguistiques déterministes (modalité, sujet, type, quantité)
+  classification.py  contrat sémantique confié au modèle + politique d'acceptation
+  providers.py  le SEUL module qui nomme un fournisseur de modèles
+  requirements.py  ExecutionRequirement — pas d'extrait, pas d'exigence
+  intelligence.py  extracteur déterministe + protocole modèle + VALIDATEUR
+  live_smoke.py
 tests/
   test_spec001_scenarios.py   les 8 scénarios obligatoires de SPEC-001
   test_model_invariants.py    ce que le modèle refuse
@@ -107,4 +130,13 @@ tests/
   test_contract100_benchmark.py      100 contrats réels
   fixtures/winner100/         benchmark Winner-100 + gold labels
   fixtures/contract100/       benchmark Contract-100
+  test_document_model.py         document et exigence : ce qu'ils refusent
+  test_document_extraction.py    extraction sur pièces réelles (PT, SI)
+  test_document_triage.py        nature, priorité de lecture, langue
+  test_document_intelligence.py  pipeline et validateur
+  test_document_adversarial.py   12 cas adverses (A–L)
+  test_document_classification.py  contrat sémantique, politique, injection, gate held-out
+  test_document100_benchmark.py  100 attributions réelles suivies jusqu'aux documents
+  fixtures/documents/            5 pièces réelles, Document-100, gold exigences,
+                                 classification held-out (60 candidats relus)
 ```

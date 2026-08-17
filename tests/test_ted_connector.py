@@ -687,3 +687,21 @@ def test_ted_ne_publie_aucun_regime_de_tva():
         for award in extract(load(publication)).awards:
             if award.value is not None:
                 assert award.value.vat_category is None
+
+
+def test_pays_hors_europe_ne_fait_pas_echouer_la_notice():
+    """Non-régression : un lieu d'exécution hors table de codes n'est pas une panne.
+
+    Trouvé sur données réelles pendant SPEC-006 : la notice 565997-2026 exécute
+    son lot 2 au Costa Rica (`CRI`). La table de conversion ne couvre que
+    l'espace européen, donc le code ne se convertit pas — et le lieu se
+    retrouvait vide, ce qui faisait échouer la notice **entière**.
+
+    Un lieu inconnu vaut `None` et se signale ; il ne coûte pas l'attribution.
+    """
+    extraction = extract(load("565997-2026"))
+
+    assert extraction.awards, "la notice doit produire ses contrats malgré le lot hors table"
+    hors_table = [a for a in extraction.awards if a.place_of_performance is None]
+    assert hors_table, "le lot au Costa Rica n'a pas de lieu exploitable"
+    assert any(w.code == "unknown-country-code" for w in extraction.warnings)

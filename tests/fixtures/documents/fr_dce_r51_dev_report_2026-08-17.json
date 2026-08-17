@@ -1,0 +1,49 @@
+{
+ "phase_guard": {
+  "blocked": 4,
+  "detail": {
+   "345": "phase_guard_engagement_document",
+   "351": "phase_guard_engagement_document",
+   "366": "phase_guard_engagement_document",
+   "379": "phase_guard_engagement_document"
+  },
+  "candidate_351": "ignored / phase_guard_engagement_document"
+ },
+ "final_auto_accepted": 13,
+ "true_auto_accepted": 13,
+ "false_auto_accepted": 0,
+ "false_accept_ids": [],
+ "precision": 1.0,
+ "high_confidence_false_accepts": 0,
+ "requirement_recall_diagnostic": 0.325,
+ "documented_case_coverage": 0.5333,
+ "covered_cases": 8,
+ "eligible_cases": 15,
+ "true_auto_requirements_per_covered_case": {
+  "mean": 1.62,
+  "median": 1.0,
+  "p25": 1.0,
+  "p75": 2.75,
+  "distribution": [
+   1,
+   1,
+   1,
+   1,
+   1,
+   2,
+   3,
+   3
+  ]
+ },
+ "final_evidence_coverage": 1.0,
+ "final_invented_excerpts": 0,
+ "gates": {
+  "precision >= 0.98": true,
+  "false_auto_accepts == 0": true,
+  "high_conf_false_accepts == 0": true,
+  "documented_case_coverage >= 0.70": false,
+  "final_evidence == 1.0": true,
+  "final_invented == 0": true
+ },
+ "gate_verdict": "FAIL"
+}

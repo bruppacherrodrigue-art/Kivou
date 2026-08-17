@@ -1,0 +1,285 @@
+{
+ "batches": [
+  {
+   "batch": "fa1",
+   "kind": "false_accept",
+   "verdicts": [
+    {
+     "candidate_id": 23,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"Le montant annuel cumulé des pénalités … ne pourra excéder 5 %\" caps the penalties the buyer may apply — a constraint on the acheteur protecting the titulaire, not a contractor obligation, so reject (actor_buyer) is right.",
+     "judgeB_reason": "\"Le montant annuel cumulé des pénalités ... ne pourra excéder 5 %\" caps the penalties the acheteur may apply — a constraint on the buyer's penalty regime protecting the titulaire, not a contractor obligation, so reject (actor_buyer) stands and deepseek's auto-accept is wrong.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 34,
+     "gold_verdict": "incorrect",
+     "better_disposition": "review_expected",
+     "reason": "The excerpt is cut mid-phrase but the block completes it as a genuine mandatory requirement (\"Ils doivent permettre l'accès à l'ensemble du réseau d'approvisionnement énergétique…\") whose actor is the pronoun \"Ils\" (the devices); a plausible requirement with fragmentary excerpt and ambiguous actor is the rubric's definition of review_expected, and context insufficiency is not among the enumerated reject grounds.",
+     "agreement": "borderline-split",
+     "other_view": "The excerpt is cut mid-sentence (\"réseau d’approvisionnement\" missing \"énergétique nécessaires à l'exploitation des véhicules, notamment...\"), so auto-accept rightly fails on exact evidence, but within the block it resolves to a plausible mandatory technical requirement (\"Ils doivent permettre l'accès...\") on the supplied devices — exactly the rubric's fragmentary-but-plausible review_expected case rather than a clear reject."
+    },
+    {
+     "candidate_id": 52,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "The candidate clause \"Certaines pièces peuvent … contenir des catégories particulières de données\" is purely descriptive of possible data content; the obligation (\"le titulaire applique alors des mesures de protection renforcées\") sits outside the excerpt, so reject (modality_informational) is right.",
+     "judgeB_reason": "The classified sentence is descriptive (\"Certaines pièces peuvent ... contenir des catégories particulières de données\") — the normative clause (\"le titulaire applique alors des mesures de protection renforcées\") lies outside the excerpt after the semicolon, so modality is informational and reject is correct.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 59,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"En cas d'absence de nouvelle offre, chaque titulaire doit justifier par écrit\" governs the offer-submission stage of the marchés subséquents (the block lists offer receipt, \"Analyse de l'offre\", award criteria), which the rubric assigns to procurement-phase reject even though it binds a titulaire.",
+     "judgeB_reason": "\"En cas d'absence de nouvelle offre, chaque titulaire doit justifier ... de son impossibilité de répondre\" governs offer submission in the marché-subséquent consultation (block continues with \"critères retenus pour l'attribution ... pondérés\"), which is procurement/award-phase content the rubric explicitly rejects despite the contractor actor.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 75,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"le maître d'ouvrage pourra confier au maître d'œuvre des éléments de missions complémentaires\" is a buyer option (pourra), not an obligation on the maître d'œuvre, and the excerpt is truncated besides — reject (actor_buyer) is right.",
+     "judgeB_reason": "\"le maître d'ouvrage pourra confier au maître d’œuvre des éléments de missions complémentaires\" grants a faculty to the buyer, not an obligation on the contractor (and the excerpt is truncated before \"décrites à l'article 3.2\"), so reject (actor_buyer) is correct.",
+     "agreement": "unanimous"
+    }
+   ],
+   "tiebroken": []
+  },
+  {
+   "batch": "fa2",
+   "kind": "false_accept",
+   "verdicts": [
+    {
+     "candidate_id": 152,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"S'engage… à exécuter les prestations demandées dans les conditions définies ci-après\" is the Acte d'Engagement signature clause — an engagement to execute upon award, which the rubric explicitly places under reject as a contract-formation clause, not an execution-phase obligation.",
+     "judgeB_reason": "\"S'engage, au nom des membres du groupement… à exécuter les prestations demandées\" is the standard Acte d'Engagement signature clause — an engagement to execute upon award, which the rubric explicitly assigns to reject as contract-formation, so deepseek's auto-accept is the error.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 157,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "The excerpt is a drawing-cartouche property stamp (\"NE DOIT ETRE NI REPRODUIT, NI COMMUNIQUE A DES TIERS SANS AUTORISATION ECRITE\") wrapped in OCR revision-table debris — a prohibition on any document holder (third party), pure title-block boilerplate rather than a titulaire execution obligation, so reject stands.",
+     "judgeB_reason": "\"CE DOCUMENT… NE DOIT ETRE NI REPRODUIT, NI COMMUNIQUE A DES TIERS SANS AUTORISATION ECRITE\" is a boilerplate ownership notice inside a drawing title-block (cartouche with folio list, revision indices), binding any document holder rather than the titulaire in execution — non-contractual background, correctly rejected.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 168,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"Les cessions de créances doivent être notifiées ou les nantissements signifiés à l'organisme désigné ci-dessus\" is the standard AE payment-formality clause obligating the cession/nantissement beneficiary (a bank, i.e. a third party) to notify the comptable assignataire — an administrative financing formality, not a contractor performance requirement, so reject is right.",
+     "judgeB_reason": "\"Les cessions de créances doivent être notifiées ou les nantissements signifiés à l'organisme désigné ci-dessus\" is administrative boilerplate in the AE's designation block (immediately after \"Comptable assignataire\"), and the notifying/signifying party is the assignee or creditor — a third party, not the contractor performing the prestations — so reject on actor grounds is right despite both models auto-accepting.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 178,
+     "gold_verdict": "borderline",
+     "better_disposition": "review_expected",
+     "reason": "\"peuvent également être réalisées, à la demande expresse du Bénéficiaire, sur les sites suivants :\" is a colon-truncated fragment whose site list is absent from the block; reject-as-scope-description is defensible, but the rubric's review_expected exemplar (plausible requirement, fragmentary context) fits equally — the performer is the contractor, gold's actor_buyer reason is shaky, and gold itself marks context_status fragment.",
+     "judgeB_reason": "The block is one truncated sentence ending in a colon (\"…sur les sites suivants :\") with the site list missing, and \"peuvent également être réalisées, à la demande expresse du Bénéficiaire\" reads as buyer-optioned scope description — reject is defensible, but it is equally a plausible contractor duty (perform ad-hoc services on demand) with page-fragmentary context, the rubric's exact review_expected profile; auto-accept is clearly wrong either way.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 213,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"Ce détail ne pourra faire valoir un poste de prix dans les devis établis dans le cadre du marché à bons de commande\" is a real prohibition operating at execution (devis under bons de commande), but its subject is impersonal and the obligated actor is only inferable from the preceding sentence — precisely the actor-ambiguous middle case the rubric assigns to review_expected.",
+     "judgeB_reason": "\"Ce détail ne pourra faire valoir un poste de prix dans les devis établis dans le cadre du marché à bons de commande\" is a normative prohibition operating in execution (refuting deepseek's phase_procurement reject), but its impersonal subject leaves the bound actor ambiguous between the entreprise drafting devis and the maîtrise d'ouvrage accepting them, so the explicit contractor-actor requirement for auto_acceptable fails and review_expected is the right in-between call.",
+     "agreement": "unanimous"
+    }
+   ],
+   "tiebroken": []
+  },
+  {
+   "batch": "fa3",
+   "kind": "false_accept",
+   "verdicts": [
+    {
+     "candidate_id": 216,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "The prohibition \"Ce détail ne pourra faire valoir un poste de prix dans les devis établis dans le cadre du marché à bons de commande\" is normative and plausibly execution-phase (devis issued under the order-based contract) but is grammatically impersonal — \"l'entreprise\" is never named as the obligated actor — so the actor-ambiguous middle disposition review_expected is exactly right.",
+     "judgeB_reason": "\"Ce détail ne pourra faire valoir un poste de prix dans les devis établis dans le cadre du marché à bons de commande\" is a normative prohibition anchored to execution-phase devis but grammatically impersonal (subject is \"Ce détail\", no titulaire/entreprise bound in the sentence), so kimi's auto-accept fails the explicit-contractor-actor condition and the actor-ambiguous middle ground review_expected is exactly right.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 225,
+     "gold_verdict": "borderline",
+     "better_disposition": "review_expected",
+     "reason": "The excerpt \"s'engagent à répondre à toutes sollicitations de ce dernier\" is a subjectless fragment whose actor (\"les prestataires\") and execution setting (\"3. Modalités et conditions d'exécution\") are recoverable only from the block's buyer-centric host sentence — the rubric's own review_expected paradigm (plausible requirement, fragmentary evidence) — though reject for a non-self-contained excerpt remains defensible.",
+     "judgeB_reason": "The span \"s'engagent à répondre à toutes sollicitations de ce dernier\" is a subject-less relative-clause tail (auto-accept clearly wrong: no actor, dangling \"ce dernier\"), but the block fully resolves it as \"les prestataires qui s'engagent à répondre\" to the chargé de mission during \"le suivi de la mission\" — a plausible contractor execution obligation with fragmentary segmentation, which the rubric assigns to review_expected as defensibly as gold's reject-for-context_insufficient.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 248,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"Le prix forfaitaire ... ne peut pas être modifié en cas de contradiction avec la DPGF\" is a normative but impersonal price-fixity rule wedged between bidder-addressed text (\"Il appartient au soumissionnaire de vérifier\") and execution-anchored fixity (\"pendant l'exécution ... aucune réévaluation du prix\"), so with no obligated actor and a genuinely disputed phase, review_expected is the correct disposition.",
+     "judgeB_reason": "\"ne peut pas être modifié en cas de contradiction avec la DPGF\" is a normative price-fixity prohibition with no explicit obligated actor, flanked by a bidder-addressed check (\"Il appartient au soumissionnaire de vérifier\") and an execution-phase no-revision rule (\"pendant l'exécution ... aucune réévaluation du prix\"), so both actor and phase are genuinely contested and review_expected is the right in-between disposition against deepseek's auto-accept.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 284,
+     "gold_verdict": "borderline",
+     "better_disposition": "review_expected",
+     "reason": "\"Toute sous-traitance occulte pourra être sanctionnée par la résiliation du marché\" literally expresses the buyer's discretionary sanction power (supporting gold's reject) yet functionally prohibits the titulaire's occult subcontracting during execution — with the truncated excerpt completed by the block (\"de l'entreprise titulaire du marché\") — so an implicit-contractor-prohibition reading warranting review is equally defensible.",
+     "judgeB_reason": "The operative modality is the buyer's discretionary sanction (\"pourra être sanctionnée par la résiliation\") and the span truncates before \"de l'entreprise titulaire\", so the auto-accepts are wrong and gold's actor_buyer reject is defensible, but the clause entails an execution-phase prohibition of \"sous-traitance occulte\" binding the titulaire, making review_expected equally defensible.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 289,
+     "gold_verdict": "incorrect",
+     "better_disposition": "review_expected",
+     "reason": "Gold's phase_qualification misreads CCAP section \"4.4 TVA\" on invoicing FSE-funded work: \"Un prestataire ... devra fournir une attestation de non récupération de la TVA sur la prestation concernée\" is a mandatory contractor obligation tied to payment during execution, and only the excerpt's mid-sentence truncation (cut before \"de la TVA...\") plus the generic \"Un prestataire\" bar auto-acceptance — which per the rubric yields review_expected, not reject.",
+     "judgeB_reason": "Gold's phase_qualification misreads CCAP §4.4 TVA: \"Un prestataire assujetti aux impôts sur les sociétés devra fournir une attestation de non récupération de la TVA sur la prestation concernée\" is an invoicing-time obligation of the contract holder tied to FSE-funded billing (execution, mandatory, contractor), so reject is wrong; only the span's mid-phrase truncation (cut before \"de la TVA\") bars auto-accept, leaving review_expected as the clearly right disposition.",
+     "agreement": "unanimous"
+    }
+   ],
+   "tiebroken": []
+  },
+  {
+   "batch": "fa4",
+   "kind": "false_accept",
+   "verdicts": [
+    {
+     "candidate_id": 304,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"Un même titulaire peut être amené à exécuter plusieurs bons de commande simultanément\" is a descriptive statement of how the accord-cadre operates (section 1.4 'Forme du marché'), with no normative verb imposing anything on the titulaire — 'peut être amené à' states a possibility, not a requirement — so modality is informational and reject is right; kimi's auto_accept is the error.",
+     "judgeB_reason": "\"Un même titulaire peut être amené à exécuter plusieurs bons de commande simultanément\" merely describes the accord-cadre's operating mechanics (section 1.4 Forme du marché) with the possibility phrasing \"peut être amené à\" — no imperative on the titulaire — so the modality is informational/descriptive and reject is right; kimi's auto-accept fails the mandatory-modality test.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 348,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "The sentence mixes a buyer permission ('le pouvoir adjudicateur pourra contacter') with an obligation on 'les personnes désignées ci-après qui devront être en mesure de répondre', and it ends in a colon pointing to a designation list absent from the block, so the obligated actor is ambiguous (named persons, not clearly the titulaire) and the requirement depends on missing text — a genuine in-between case, so review_expected is right and both models' auto_accept is the error.",
+     "judgeB_reason": "The obligation \"devront être en mesure de répondre et de satisfaire à leur demande\" falls on \"les personnes désignées ci-après\", but the block ends at the colon with that list absent, so the obligated actor (contractor staff vs. third parties, amid the buyer subject \"le pouvoir adjudicateur pourra contacter\") and the requirement's completeness hinge on missing text — a genuine in-between case, so review_expected is right and both auto-accepts are wrong.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 351,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"S'engage, au nom des membres du groupement… à exécuter les prestations demandées\" is the signature clause of an Acte d'engagement — a contract-formation engagement to execute upon award, which the rubric explicitly lists under reject — so reject is right and deepseek's auto_accept is the error.",
+     "judgeB_reason": "\"S'engage, au nom des membres du groupement 1 ... à exécuter les prestations demandées\" is the bidder's signature commitment in an Acte d'engagement — the rubric's explicit reject category of contract-formation clauses (engagement to execute upon award), not an execution-phase obligation — so reject is right and deepseek's auto-accept is the error.",
+     "agreement": "unanimous"
+    }
+   ],
+   "tiebroken": []
+  },
+  {
+   "batch": "fr1",
+   "kind": "false_reject",
+   "verdicts": [
+    {
+     "candidate_id": 16,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "The clause \"les frais de déplacement qui ne pourront être facturés en sus\" is an explicit prohibition on the contractor billing travel costs beyond the contractual all-inclusive prices — invoicing is an execution-phase act, so kimi's phase_procurement rejection wrongly imputes the separate \"date de remise de l'offre\" sentence to this excerpt.",
+     "judgeB_reason": "The clause \"les frais de déplacement qui ne pourront être facturés en sus\" is an explicit prohibition on extra invoicing that operates during contract execution by the contractor (the invoicing party), so kimi's phase_procurement rejection misreads a normative billing prohibition as offer-phase price description.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 19,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"Aucun transfert... ne peut intervenir sans accord écrit et préalable de la CNBF\" is a self-contained execution-phase prohibition on the maintenance titulaire's operations from outside France (block equals sentence, context sufficient); deepseek's \"excerpt_not_found\" is a retrieval artifact, not a substantive ground.",
+     "judgeB_reason": "\"Aucun transfert... ne peut intervenir sans accord écrit et préalable de la CNBF\" is a self-contained execution-phase prohibition binding the provider performing hosting/support/maintenance; deepseek's \"excerpt_not_found\" is a retrieval failure with no textual basis.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 76,
+     "gold_verdict": "borderline",
+     "better_disposition": "review_expected",
+     "reason": "The excerpt cuts mid-sentence — the block completes it as \"renseigné avec l'intitulé et le code de l'espace\" within a titulaire deliverable list (\"documents remis par le titulaire\", \"doit obligatoirement\"), so a mandatory execution obligation is clearly present, but the rubric's \"not a truncated fragment\" condition makes auto_acceptable defensibly contestable in favor of review_expected.",
+     "judgeB_reason": "The requirement is real (\"doit obligatoirement être renseigné\", titulaire deliverable in the ESQ mission), but the excerpt is truncated mid-sentence — the block continues \"renseigné avec l'intitulé et le code de l'espace\" and \"du plan\" depends on the preceding bullet — so the rubric's \"not a truncated fragment\" / exact-evidence conditions make deepseek's context_fragment objection defensible.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 81,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"Le titulaire ne peut s'opposer à cette reconduction\" is a prohibited-modality constraint on the contractor operative during the life of the accord-cadre (reconduction \"sur décision expresse du pouvoir adjudicateur\", not award or formation), and the anaphor \"cette reconduction\" is resolved by the immediately preceding sentence, so context is sufficient contra deepseek.",
+     "judgeB_reason": "\"Le titulaire ne peut s'opposer à cette reconduction\" is a prohibition on the named contractor during the contract's life, and the anaphor \"cette reconduction\" is resolved within the block by \"L'accord-cadre est reconductible deux (2) fois... sur décision expresse du pouvoir adjudicateur\", defeating deepseek's context_insufficient rejection.",
+     "agreement": "unanimous"
+    }
+   ],
+   "tiebroken": []
+  },
+  {
+   "batch": "fr2",
+   "kind": "false_reject",
+   "verdicts": [
+    {
+     "candidate_id": 111,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "Under the block header 'Article 4 – Conditions d'exécution' the sentence 'Leur niveau sonore devra ... être adapté à leur emplacement' is a mandatory contractor-borne technical requirement on the delivered machines, with 'Leur' and the emplacement context ('salles de réunion ... espaces cuisines') fully resolved within the block, satisfying every auto_acceptable prong.",
+     "judgeB_reason": "The block sits under \"Article 4 – Conditions d'exécution\" and resolves every anaphor: machines implanted \"soit dans des salles de réunion, soit dans des espaces cuisines/convivialité\" must have \"leur niveau sonore ... adapté à leur emplacement\" — a mandatory (\"devra\"), execution-phase technical requirement on the contractor's supplied machines, self-contained within the block.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 155,
+     "gold_verdict": "incorrect",
+     "better_disposition": "reject",
+     "reason": "The document is a 'Cadre Mémoire technique' (bid-submission template) and the block opens with the evaluation-criterion phrasing '1 – Qualité de la procédure technique mise en œuvre...', so 'Cette procédure devra détailler l'ensemble des étapes...' obliges the bidder to describe content in its offer memo — procurement-phase offer-submission material the rubric explicitly assigns to reject.",
+     "judgeB_reason": "The source is a \"Cadre Mémoire technique\" (offer-stage template) and the block is an evaluation-criterion header — \"1 – Qualité de la procédure technique mise en œuvre pour le dépannage...\" ending in a colon awaiting the bidder's answer — so \"Cette procédure devra détailler...\" obligates the content of the tender submission, which the rubric classifies as procurement-phase offer/evaluation material, hence reject.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 156,
+     "gold_verdict": "incorrect",
+     "better_disposition": "reject",
+     "reason": "Identical structure to 155 in the LOT2 'Cadre Mémoire technique': 'Elle devra détailler les phases d'étude, préparation, intervention sur site...' specifies what the bidder's technical memorandum must describe under an evaluation criterion ('Qualité de la procédure technique'), which is offer-submission/evaluation content, not an execution-phase obligation.",
+     "judgeB_reason": "Same offer-stage \"Cadre Mémoire technique\" template (LOT2): the block is the judgment-criterion header \"1 – Qualité de la procédure technique mise en œuvre pour la rénovation...\" followed by \"Elle devra détailler...\" specifying what the bidder must write in the mémoire, ending with a colon for the response — procurement-phase offer content per the rubric, not an execution obligation, hence reject.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 208,
+     "gold_verdict": "incorrect",
+     "better_disposition": "review_expected",
+     "reason": "The block is this single sentence, so \"Celles-ci sont données à titre purement indicatif\" and \"une telle mention\" have no referent in the block (the missing list of CCAG derogation numberings), breaking the context=sufficient condition; the clause is a plausible prohibitive stipulation on the Titulaire (\"ne peut se prévaloir\") but is an interpretive/opposability clause with fragmentary context — the rubric's review_expected case.",
+     "agreement": "borderline-split",
+     "other_view": "'le Titulaire ... ne peut se prévaloir d'une quelconque erreur de numérotation' is formally a contractor prohibition, but the block is the lone sentence with the anaphor 'Celles-ci' unresolved and the clause is an interpretive opposability provision about derogation numbering rather than an obligation explicitly applicable during execution, failing the context-sufficiency prong for auto_acceptable while remaining too normative for a clean reject."
+    }
+   ],
+   "tiebroken": []
+  },
+  {
+   "batch": "fr3",
+   "kind": "false_reject",
+   "verdicts": [
+    {
+     "candidate_id": 316,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "Complete mandatory sentence (\"devront être privilégiées\") inside \"3. Modalités et conditions d'exécution\" governing how the atelier is delivered; the passive actor resolves in-block to the prestataire/opérateur, so execution phase, contractor actor, mandatory modality and sufficient context all hold — deepseek's context_fragment claim fails since the sentence is self-contained within its block.",
+     "judgeB_reason": "Under the heading \"3. Modalités et conditions d'exécution\", \"Les mises en situation devront être privilégiées\" is a mandatory execution-phase delivery requirement whose implicit actor is the prestataire (\"L'opérateur est responsable de la mise en œuvre de l'opération\" in the same block), so deepseek's context_fragment rejection is refuted and auto_acceptable is right.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 345,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "\"Le titulaire ne pourra prétendre à une quelconque indemnité\" is a deontic prohibition on the titulaire (denial of any indemnity claim) triggered by non-renewal at the contract anniversary — an execution-lifecycle event, not background or contract formation — and the conditioning trigger (\"Si la ville ne souhaite pas reconduire l'accord cadre\") is supplied in the same block, making context sufficient.",
+     "judgeB_reason": "\"Le titulaire ne pourra prétendre à une quelconque indemnité\" is an operative prohibition on the contractor whose trigger (\"Si la ville ne souhaite pas reconduire l'accord cadre\") is stated in the same block and applies during the contract's life at non-renewal, so it is neither background nor a formation clause and auto_acceptable holds against kimi's phase_background rejection.",
+     "agreement": "unanimous"
+    },
+    {
+     "candidate_id": 367,
+     "gold_verdict": "correct",
+     "better_disposition": "n/a",
+     "reason": "The block completes the sentence — \"...pour respecter ces objectifs de développement durable dans le cadre de l'exécution des prestations\" — making phase explicitly execution, actor the titulaire, modality mandatory (\"devra\"), and resolving \"ces objectifs\" to the section-2.4 social/environmental conditions, so both models' context_insufficient rejections fail under the read-within-block rule.",
+     "agreement": "borderline-split",
+     "other_view": "The excerpt truncates mid-sentence at \"pour respecter ces objectifs\", omitting \"de développement durable dans le cadre de l'exécution des prestations\" — the fragment's exact evidence neither resolves \"ces objectifs\" nor establishes execution applicability, matching the rubric's truncated-fragment trigger for review_expected, though the block completes the sentence and the full clause (titulaire, \"devra\", explicit execution) plainly meets every auto_acceptable criterion."
+    }
+   ],
+   "tiebroken": []
+  }
+ ]
+}

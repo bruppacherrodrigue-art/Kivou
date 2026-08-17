@@ -1,0 +1,6409 @@
+{
+ "source": "TED api.ted.europa.eu v3",
+ "collected_at": "2026-08-16",
+ "population": "800 avis d'attribution : 400 publiés dans les 25 derniers jours, 400 publiés 45 à 90 jours plus tôt",
+ "method": "recherche par procedure-identifier (BT-04), aucun rapprochement approximatif",
+ "manual_review": "20 liens relus : identifiant de procédure, codes CPV et acheteur vérifiés présents dans les deux avis",
+ "rows": [
+  {
+   "award": "566156-2026",
+   "procedure_id": "912e55b2-4b48-4520-908d-e9c54f0d92e9",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566130-2026",
+   "procedure_id": "022a625b-8b43-4778-84cc-129a5230d4c2",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566122-2026",
+   "procedure_id": "91face86-456c-4e1f-9be2-c13098c08187",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566119-2026",
+   "procedure_id": "a3f921b2-d5ae-45a4-96b0-fe7f52148d1a",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566118-2026",
+   "procedure_id": "d5999ec1-f1c7-431b-b103-9c23b9ab745a",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566115-2026",
+   "procedure_id": "c02153c8-3f30-4f3d-bafa-9cfda43d5e39",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566113-2026",
+   "procedure_id": "3a2e0b50-aef6-42d8-9e00-c64e39efb233",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566107-2026",
+   "procedure_id": "302d237f-d68e-496e-afb3-6c1d47bacd9e",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566104-2026",
+   "procedure_id": "91bab958-8014-4d91-8a52-d0162a978ee9",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566085-2026",
+   "procedure_id": "e6fd2677-5b7f-424f-85e7-6c834ad78e39",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566058-2026",
+   "procedure_id": "5cee85f9-6335-480d-bd54-a5b864425498",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566056-2026",
+   "procedure_id": "02e916cf-8b15-4f1d-827c-3fb778ee7426",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566029-2026",
+   "procedure_id": "294adf58-4d9a-4f0e-811e-726533464601",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566019-2026",
+   "procedure_id": "bfa09a0f-7af6-49e2-b643-04f80a6b1333",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566008-2026",
+   "procedure_id": "d32e89f7-7837-4b06-a443-fc3acb13b007",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566007-2026",
+   "procedure_id": "b810d7ad-a34f-4675-90af-fc040f65d111",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565998-2026",
+   "procedure_id": "af3fa837-fb0f-47ff-8aef-9643d5d9c012",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565993-2026",
+   "procedure_id": "c34a98e3-fce6-4380-9c27-a9779efc3dc8",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565980-2026",
+   "procedure_id": "7aae5316-88d2-4f8a-9c50-2c4db12b46db",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565969-2026",
+   "procedure_id": "0e762e5b-70b4-40c4-b965-6a5e606556d4",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565967-2026",
+   "procedure_id": "21da587c-ae0f-421b-955c-5d7b38f43748",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565965-2026",
+   "procedure_id": "1c01ca04-bdb2-42dd-8efe-861750788637",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565963-2026",
+   "procedure_id": "9a35b0c1-d1c1-4432-81a4-26ae534148b5",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565949-2026",
+   "procedure_id": "4a9ec6f1-5cf2-47ba-a533-d28040b9e366",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565947-2026",
+   "procedure_id": "37387217-ab9d-48c0-bd4a-0327740b09f0",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565939-2026",
+   "procedure_id": "bb7e84c2-d73f-405a-99ad-852fa31aa1b6",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 31,
+   "verified": null
+  },
+  {
+   "award": "565931-2026",
+   "procedure_id": "4860afa4-a610-4b39-9c64-49324c9e9d18",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 173,
+   "verified": null
+  },
+  {
+   "award": "565921-2026",
+   "procedure_id": "991d21c0-a363-4df1-b5af-462e699fde34",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565916-2026",
+   "procedure_id": "f3c0a6e3-7c55-459f-a8f3-482033f15547",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565915-2026",
+   "procedure_id": "852f89f5-4c17-4a18-a62a-72b829412a36",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565906-2026",
+   "procedure_id": "faab8f90-0ff1-45ac-8333-c4f5ac009bea",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "565904-2026",
+   "procedure_id": "fc170d24-f5c0-4c6f-9357-cb21cb12dbbd",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565903-2026",
+   "procedure_id": "90028475-3fe7-4bd1-85c6-f4aa3c0512d3",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565900-2026",
+   "procedure_id": "d38f51b1-af10-40b9-a29e-fede12ac85da",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565893-2026",
+   "procedure_id": "36f97ae5-b133-46de-b9c5-4f479303653c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565875-2026",
+   "procedure_id": "1b6c0bbc-6f6b-44fe-83b2-feac6137f44c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565874-2026",
+   "procedure_id": "7ab6e264-9591-44c2-8b2e-8ff448d627a4",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565871-2026",
+   "procedure_id": "32ecdc77-e06a-4039-b6d0-85203b67c44f",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "565865-2026",
+   "procedure_id": "fb976bfa-c48d-4f4e-9509-952f987e587b",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565859-2026",
+   "procedure_id": "86519bcb-7751-4b36-be57-33e51e2b5aed",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565858-2026",
+   "procedure_id": "ad6ebd85-5067-4e43-957f-4e6936f7b862",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565843-2026",
+   "procedure_id": "0a3b559f-7345-47a1-a62f-dd3cf7e05ccb",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565824-2026",
+   "procedure_id": "9abdd306-d7fa-49e8-a154-660ccaa1c5fe",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565823-2026",
+   "procedure_id": "c9a15da6-d884-45d6-acd2-7e3dcee170e3",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 194,
+   "verified": null
+  },
+  {
+   "award": "565799-2026",
+   "procedure_id": "3e604ae2-8a2b-4c25-bb89-fd9b72407589",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 8,
+   "verified": null
+  },
+  {
+   "award": "565724-2026",
+   "procedure_id": "20e87c7c-9140-4ec8-ba39-d3f16e9d4af5",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565713-2026",
+   "procedure_id": "e73affae-4333-4015-9bd8-246ea2ff656b",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565708-2026",
+   "procedure_id": "115cecd8-1bb8-462d-bda5-12d2a374870f",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565698-2026",
+   "procedure_id": "44fd02c3-6479-4844-9ddd-5760f0bd2289",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565688-2026",
+   "procedure_id": "5dcfe7ea-fbbd-43da-87bd-4de86c0766a0",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "565678-2026",
+   "procedure_id": "d310c0fa-c194-4bd7-a2c8-7137499d5265",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565645-2026",
+   "procedure_id": "940123c9-bfac-4a3e-acfe-eb77d796fb9d",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565635-2026",
+   "procedure_id": "338f213c-da5d-49c9-acb7-cfcce1d0ebcb",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565613-2026",
+   "procedure_id": "f6dce2d4-d020-483e-877a-0c664655d76d",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565605-2026",
+   "procedure_id": "34b7d554-23fc-4f1f-aa8d-87d001527744",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "565592-2026",
+   "procedure_id": "cc86a323-7c30-4237-9860-d0db7d11d8d2",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565586-2026",
+   "procedure_id": "8280bc00-b0a8-48ff-9958-2804aff041d2",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565585-2026",
+   "procedure_id": "7ddf9fe4-0ef1-481e-8432-f4f5c8b58b61",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565580-2026",
+   "procedure_id": "8e0f1308-de87-4e5d-aa36-8808527e7825",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565579-2026",
+   "procedure_id": "a3f6d9fc-a578-4de7-8839-ecf21bbbefe3",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 28,
+   "verified": null
+  },
+  {
+   "award": "565576-2026",
+   "procedure_id": "1282b5d0-9c14-452e-9c98-5b3c029ca3b2",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565557-2026",
+   "procedure_id": "da630718-1b95-4e8c-8bc8-b3cb4b780d2f",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565548-2026",
+   "procedure_id": "842eb241-17ef-4552-b1de-c7d3711b4e56",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565541-2026",
+   "procedure_id": "08b0c16c-7ea2-4c1a-ba1f-59f63dde85b9",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565523-2026",
+   "procedure_id": "484b8e0d-289c-4a3d-930c-beeb2b98a8f6",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565520-2026",
+   "procedure_id": "d02e26a3-d60f-4afb-a843-14908c4da632",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565497-2026",
+   "procedure_id": "234b15b7-8f9b-4fdc-bd84-d74fe9c40c96",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565490-2026",
+   "procedure_id": "7379af82-0ca0-487b-97ea-99d569511d05",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565471-2026",
+   "procedure_id": "70b5fc48-68d5-42d2-a1c9-514d532249f4",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565469-2026",
+   "procedure_id": "952ccd23-a97c-431e-a3f6-ed432443abf7",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565440-2026",
+   "procedure_id": "15559055-48ca-41bc-9b89-3e475a86ffb7",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565434-2026",
+   "procedure_id": "7c3a716a-7d25-447d-aa24-2366022d25f0",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565430-2026",
+   "procedure_id": "8bbb6ad5-2b47-47a7-9f39-ebce19c1ca69",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565398-2026",
+   "procedure_id": "f936c0ee-a044-4f83-b925-0ea2c5822c63",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565393-2026",
+   "procedure_id": "a1d6cbfa-ffbb-4d10-8384-0bc98a024bcc",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565366-2026",
+   "procedure_id": "d9b37b97-1ebe-489c-98c3-dcd4081551e8",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565357-2026",
+   "procedure_id": "dd089ab7-0e19-48f8-ac27-1f76682ad5be",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565346-2026",
+   "procedure_id": "85da7e49-a1d1-44c2-b50a-dd34bc110d89",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565324-2026",
+   "procedure_id": "d9140890-f806-4c49-8db3-07852ddf8632",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565286-2026",
+   "procedure_id": "5c09f01a-e9f5-48a2-a2fb-9c8a14c9547f",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565278-2026",
+   "procedure_id": "6ca8df24-feb8-448b-8a11-6225ce98974c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565276-2026",
+   "procedure_id": "eaf0d27f-0388-4ab3-a4d6-894bc122652c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 130,
+   "verified": null
+  },
+  {
+   "award": "565250-2026",
+   "procedure_id": "81e873b1-939f-4cfc-98e8-8033962a311e",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "565243-2026",
+   "procedure_id": "64996b34-689b-43e7-81fd-0ee33725e649",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "565242-2026",
+   "procedure_id": "085b5934-283b-4cd5-a8cc-bc2bcbae73e9",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565235-2026",
+   "procedure_id": "946ed4c0-a113-43a8-b40e-5d3f2649ddee",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565228-2026",
+   "procedure_id": "911b19a5-9c08-46a6-846d-8c4c319b16d0",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565219-2026",
+   "procedure_id": "c5172cc5-722c-4b77-8b38-c300e12a2c29",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565218-2026",
+   "procedure_id": "9c88dffb-c293-4c89-8f7e-984952267c20",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565215-2026",
+   "procedure_id": "e52ae948-53e1-40e9-9ae1-af134a9c74f5",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565200-2026",
+   "procedure_id": "eb86898f-d234-4bb9-bb03-456da0661b7b",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565173-2026",
+   "procedure_id": "315f5f01-f760-494b-a0c3-42a5907750a0",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565165-2026",
+   "procedure_id": "81fc0b18-9f71-4791-a323-c8e707809e48",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "565157-2026",
+   "procedure_id": "72488bd3-0642-4f61-9600-502617ffa166",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "565150-2026",
+   "procedure_id": "8e13c4af-41ab-450d-aaf3-6348c660d9b4",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452768-2026",
+   "procedure_id": "a4288a74-03ed-4157-a1ab-0fd2de190f2e",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452765-2026",
+   "procedure_id": "f69f4231-2147-4e0c-a698-1df00d6a7cc7",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452757-2026",
+   "procedure_id": "626b9ad2-b908-4c17-ae7f-e9586f9f893c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452747-2026",
+   "procedure_id": "0451cc51-2c38-4f31-ab4a-6fedce592d93",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452744-2026",
+   "procedure_id": "e776c1d8-d1b6-45a9-8487-72b1c51a7976",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452731-2026",
+   "procedure_id": "749c63a1-45b5-44b5-8731-6a82b263e12e",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452721-2026",
+   "procedure_id": "20930512-5ada-470f-9a65-a28dc7293e2c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452714-2026",
+   "procedure_id": "4e8944cf-4b8a-4606-bb6a-c2584a686c6c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452713-2026",
+   "procedure_id": "a1a543bd-95ac-4330-b4e9-72fdb1d91256",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452710-2026",
+   "procedure_id": "c287c086-a5e7-4cc3-b57b-f5d92297b37b",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452706-2026",
+   "procedure_id": "235c4f7a-6f63-4d7b-8637-58f084ba7a12",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452702-2026",
+   "procedure_id": "2a9dd452-ca2a-4b7e-9e93-ec13fbb6b11f",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452688-2026",
+   "procedure_id": "6f6af757-d6bf-48c3-b8bc-ccda76091b7b",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452669-2026",
+   "procedure_id": "c06f68d7-356b-404d-bd97-5153bbe45ae3",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452661-2026",
+   "procedure_id": "85b973af-d0f5-42e3-bb36-80fd5af929a8",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452626-2026",
+   "procedure_id": "3968dca0-1d01-45ca-b6b9-f10af897fb39",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452611-2026",
+   "procedure_id": "b59d263d-6336-41fe-9eb3-2c70a1082210",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452602-2026",
+   "procedure_id": "c0791569-f0ed-49bb-bf19-039d9c5863fe",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452600-2026",
+   "procedure_id": "b27b2c4a-4a8d-421e-b7ec-074505a9f9b0",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452592-2026",
+   "procedure_id": "2bdb6e13-6cae-4070-b758-36cfbb689a0d",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452590-2026",
+   "procedure_id": "ce70c66f-0e00-42e9-b452-37c593e9531c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 28,
+   "verified": null
+  },
+  {
+   "award": "452580-2026",
+   "procedure_id": "0628d0cf-4e18-4cc4-a641-0e662df5aa40",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 3,
+   "verified": null
+  },
+  {
+   "award": "452566-2026",
+   "procedure_id": "26432c61-4d80-4019-b145-dc40009b84f3",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452535-2026",
+   "procedure_id": "8952ea12-1c8c-497b-a62c-561ba4aef76f",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452533-2026",
+   "procedure_id": "7781f9de-db9a-40b0-9220-bd3f98c36816",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452528-2026",
+   "procedure_id": "b9431ceb-ffe4-4f1c-9f2f-e0332421c56c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452517-2026",
+   "procedure_id": "7d206d47-e456-4cd1-a290-d7b71a834f31",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452493-2026",
+   "procedure_id": "150fa98c-dd3f-4b16-be42-c3ac6887a08a",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452481-2026",
+   "procedure_id": "0a4ff2c3-a143-43e6-8bc6-0364f7de45b2",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452480-2026",
+   "procedure_id": "223a6340-15f4-4130-b595-e5c9db4eb170",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452476-2026",
+   "procedure_id": "3d7b231f-03c5-4a4a-9d12-dea5c9cf3210",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "452438-2026",
+   "procedure_id": "6efcc34a-544a-4962-a116-69058c98f967",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452429-2026",
+   "procedure_id": "8802cbe5-e8d1-4434-b404-e4f1d9b5c83b",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452421-2026",
+   "procedure_id": "3c432229-7e10-494e-bda7-5c091812cfa4",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452416-2026",
+   "procedure_id": "b2ca9fa8-feb1-41c0-84e2-c132e6c46041",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452407-2026",
+   "procedure_id": "e1d4be8a-b770-4b01-9829-a6c1aeb0a655",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452396-2026",
+   "procedure_id": "35f1df8a-dcb9-453f-8348-94c23f041796",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452370-2026",
+   "procedure_id": "bf9f40f5-b59b-4346-b1e9-8cadc38197a9",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452361-2026",
+   "procedure_id": "c4876818-2396-45f4-aabd-aa480c582507",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "452356-2026",
+   "procedure_id": "dc702867-85ea-492c-9cee-9e9fca652e5b",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452344-2026",
+   "procedure_id": "8396901d-685e-40a2-b76d-458d1ed963ee",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452342-2026",
+   "procedure_id": "09793ca6-e6bf-4654-bde2-f01c133399fe",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452340-2026",
+   "procedure_id": "a043960c-9a29-4efc-9e6d-aba3ea433eba",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "452334-2026",
+   "procedure_id": "792f5685-6527-40e1-b3fe-37a4353ee273",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452325-2026",
+   "procedure_id": "ce70c66f-0e00-42e9-b452-37c593e9531c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 28,
+   "verified": null
+  },
+  {
+   "award": "452321-2026",
+   "procedure_id": "76350591-50e1-4a2a-83f9-f530c4cb8b59",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452305-2026",
+   "procedure_id": "3dba7429-1711-4837-aced-0a0353137767",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452301-2026",
+   "procedure_id": "fc028a13-fc42-4939-905d-7698e0783b42",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452286-2026",
+   "procedure_id": "262da2f8-aa39-42e8-bcb5-8f5a823225b8",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452284-2026",
+   "procedure_id": "51c82e21-5ff4-4138-9b2c-b9d7171f27ab",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452283-2026",
+   "procedure_id": "62f6d440-3914-472d-988a-fc8628e1e3ef",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452273-2026",
+   "procedure_id": "a0a6204b-8c97-4ce3-97c9-9e3b5b0a36b0",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452252-2026",
+   "procedure_id": "12c0b18f-a3d3-4106-9e85-374ed2ea8548",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452248-2026",
+   "procedure_id": "eb88ae7c-88e3-4ee8-8e59-7e684261bfa3",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "452224-2026",
+   "procedure_id": "d528a351-9695-492b-ace1-a215556e6bd3",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452203-2026",
+   "procedure_id": "082368bd-6ac2-40af-a04b-e4152b600cc9",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452191-2026",
+   "procedure_id": "64cf0f3c-8304-41fb-a72d-db32239754c8",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "452188-2026",
+   "procedure_id": "02a63e01-bca6-459d-bddd-ad46b2d79d97",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452186-2026",
+   "procedure_id": "6269ffdb-2bbf-43af-974c-4f0b31af6477",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452154-2026",
+   "procedure_id": "54739b95-6f9d-4de7-a91f-bc5cc55ca85f",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452141-2026",
+   "procedure_id": "fbaa8a84-29f4-4f04-92ea-024387dfb7f2",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452139-2026",
+   "procedure_id": "9c29b383-7604-4ea8-b4ea-ff508ba547f6",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452136-2026",
+   "procedure_id": "039d38a2-530d-41d7-a01e-549a9a9ded4a",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "452129-2026",
+   "procedure_id": "ce70c66f-0e00-42e9-b452-37c593e9531c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 28,
+   "verified": null
+  },
+  {
+   "award": "452124-2026",
+   "procedure_id": "d3967d28-e58d-41b0-aeba-0df9543ab5e3",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452111-2026",
+   "procedure_id": "e4fdbdda-7b0c-4fb3-a0a6-2d24214c4a59",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452103-2026",
+   "procedure_id": "aef65bd9-7f51-4b65-950e-aecd792aa334",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452073-2026",
+   "procedure_id": "644bbafd-9087-4143-b797-2fdb9b452f95",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452037-2026",
+   "procedure_id": "ec4d8496-2c51-4e4f-8e19-5daa1a733573",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452030-2026",
+   "procedure_id": "e80c281f-ddd7-4439-a673-a16499867922",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "452020-2026",
+   "procedure_id": "77c42b58-a2ec-49ec-a040-de2a0b708192",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "452004-2026",
+   "procedure_id": "7437d822-f1f7-4ce8-b3af-1ec4ee607ff5",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "451992-2026",
+   "procedure_id": "8447814e-7aa1-4366-a5b2-5da453799aa6",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "451965-2026",
+   "procedure_id": "230346d7-721d-4123-b839-f14769996de8",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "451951-2026",
+   "procedure_id": "d89c1bc5-45cf-4ba9-895f-35dcc838d10c",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 2,
+   "verified": null
+  },
+  {
+   "award": "451935-2026",
+   "procedure_id": "7472a2a9-18a2-4a14-9660-e690f3131b0b",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "451899-2026",
+   "procedure_id": "9f836f1f-3063-4ba8-b054-caa9458650b5",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "451896-2026",
+   "procedure_id": "062727b1-bb13-44ff-8178-54cafe0708f9",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "451891-2026",
+   "procedure_id": "7b0d119a-97ff-46d2-b3a9-547d8509740f",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "451876-2026",
+   "procedure_id": "e17f3614-4ada-4f36-a191-a3227473e332",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 5,
+   "verified": null
+  },
+  {
+   "award": "451844-2026",
+   "procedure_id": "fd6509b8-2325-4164-b978-2ab8db2d9952",
+   "tender_notice_id": null,
+   "status": "tender_not_publicly_resolvable",
+   "notices_sharing_identifier": 1,
+   "verified": null
+  },
+  {
+   "award": "566165-2026",
+   "procedure_id": "79353898-d862-4624-b48e-a1ecafacee65",
+   "tender_notice_id": "129200-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566157-2026",
+   "procedure_id": "e7828340-89f1-4343-8e94-1fc2b2952e63",
+   "tender_notice_id": "207179-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566153-2026",
+   "procedure_id": "bf3c63b9-ab75-40be-94bc-6f80ea4f3810",
+   "tender_notice_id": "133070-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566152-2026",
+   "procedure_id": "cc8baa79-de8a-40ab-9403-eb2454a9a5a4",
+   "tender_notice_id": "773142-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566150-2026",
+   "procedure_id": "41210470-184e-4c07-aa7f-36dae97e7a2c",
+   "tender_notice_id": "284862-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566141-2026",
+   "procedure_id": "450d68bc-eac1-434f-ab2b-87f7560845b0",
+   "tender_notice_id": "117579-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566139-2026",
+   "procedure_id": "4dba42a3-4da2-4da6-9b34-01b4ae229765",
+   "tender_notice_id": "158944-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566136-2026",
+   "procedure_id": "58ab9147-1979-4a19-9257-4351d60ba888",
+   "tender_notice_id": "129504-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566134-2026",
+   "procedure_id": "b1000000-c0de-4000-a000-00d461732754",
+   "tender_notice_id": "374351-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566132-2026",
+   "procedure_id": "fd5230f6-a73c-4f69-94fc-976fd8f73035",
+   "tender_notice_id": "248472-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566131-2026",
+   "procedure_id": "e0de4046-b16c-4bf6-b316-67ba82643df2",
+   "tender_notice_id": "251683-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566129-2026",
+   "procedure_id": "10a70508-cb43-4200-8ed4-e68807137078",
+   "tender_notice_id": "256804-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566126-2026",
+   "procedure_id": "094b92c0-8ce3-4a37-92f7-e2009194fd61",
+   "tender_notice_id": "410456-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566117-2026",
+   "procedure_id": "e5f9ee38-3244-456b-90c4-7ae2af515453",
+   "tender_notice_id": "308803-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566116-2026",
+   "procedure_id": "8b399ecd-2cca-4ab8-b567-088fc305cba8",
+   "tender_notice_id": "203651-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566114-2026",
+   "procedure_id": "2174ea13-38c9-4335-a44b-02a81e0db05a",
+   "tender_notice_id": "296886-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566111-2026",
+   "procedure_id": "624d37a3-3a50-4553-a9f5-43744486fd8e",
+   "tender_notice_id": "9509-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566105-2026",
+   "procedure_id": "d1c291ea-a8c1-4b0f-8334-ee489be09618",
+   "tender_notice_id": "8926-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566101-2026",
+   "procedure_id": "c44d35cc-be4c-49d7-bf78-4f81fef5c68d",
+   "tender_notice_id": "313600-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566099-2026",
+   "procedure_id": "243f9c13-df51-41b2-b652-699163e3b98d",
+   "tender_notice_id": "427931-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "566096-2026",
+   "procedure_id": "a288e3b7-8a68-4ed1-9f27-411e7a91b2b8",
+   "tender_notice_id": "340669-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566094-2026",
+   "procedure_id": "dbb5909f-3f05-4363-bc6e-c451d78411ca",
+   "tender_notice_id": "125109-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566091-2026",
+   "procedure_id": "a6f52c04-950b-4c7b-a81b-04f9a954f5bc",
+   "tender_notice_id": "327358-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566084-2026",
+   "procedure_id": "cbcaff33-d589-45bb-a843-74cbba6f4765",
+   "tender_notice_id": "393165-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566080-2026",
+   "procedure_id": "b600a75d-6e91-4ad7-ab90-f2a7bb7d571f",
+   "tender_notice_id": "252093-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566079-2026",
+   "procedure_id": "4616ce46-8336-44b4-9f1e-6897c7fdce79",
+   "tender_notice_id": "110553-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566075-2026",
+   "procedure_id": "d9247a11-4527-43e9-ab65-42643e2f1819",
+   "tender_notice_id": "116225-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566073-2026",
+   "procedure_id": "0b867546-3c63-409e-9f90-d9ebc1b1a4ec",
+   "tender_notice_id": "673402-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566070-2026",
+   "procedure_id": "f96c11ad-20d2-499a-814c-528131de9bee",
+   "tender_notice_id": "411076-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566069-2026",
+   "procedure_id": "9e853d5a-779c-4836-9875-0ad14f3cb4fa",
+   "tender_notice_id": "317298-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566067-2026",
+   "procedure_id": "8a8d6f0c-a8d0-40da-9beb-38e7bc39b20b",
+   "tender_notice_id": "95537-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566060-2026",
+   "procedure_id": "57c920b3-0d1e-497a-8355-a1f44115802f",
+   "tender_notice_id": "409901-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566055-2026",
+   "procedure_id": "9953972c-5d57-4f95-93dd-cc46952b9add",
+   "tender_notice_id": "336841-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566054-2026",
+   "procedure_id": "268be6a0-616d-4d75-9c39-c75f419329ad",
+   "tender_notice_id": "332903-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566050-2026",
+   "procedure_id": "82a6f78a-3230-42ba-af5d-2ddeed290433",
+   "tender_notice_id": "286903-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566048-2026",
+   "procedure_id": "c834200f-e0b9-476a-9385-ed65145067d3",
+   "tender_notice_id": "346169-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566047-2026",
+   "procedure_id": "5f6a7e49-00b4-48d5-89aa-98c5723babbd",
+   "tender_notice_id": "148607-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566043-2026",
+   "procedure_id": "0c5ce489-9e0d-41bd-ae8e-3521fe4de2f2",
+   "tender_notice_id": "433259-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566042-2026",
+   "procedure_id": "d0cc56be-4bb8-45f8-83a5-d6d878e7362f",
+   "tender_notice_id": "689891-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566041-2026",
+   "procedure_id": "35082127-d12e-4b01-b4d6-aa2090e96d08",
+   "tender_notice_id": "262417-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566039-2026",
+   "procedure_id": "c4006d3f-aab1-4cef-ac41-fa047f2ac114",
+   "tender_notice_id": "242133-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566037-2026",
+   "procedure_id": "66d07eef-e431-44e0-82a7-dfc792ca4fdc",
+   "tender_notice_id": "336929-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566035-2026",
+   "procedure_id": "4d601792-9cfa-4491-81c1-c34e6d7edfd9",
+   "tender_notice_id": "246557-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566034-2026",
+   "procedure_id": "81c54999-ac57-46bc-b403-c44d5fe80dde",
+   "tender_notice_id": "139249-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566033-2026",
+   "procedure_id": "946de43b-cde0-4cb2-82b9-eb33227a0705",
+   "tender_notice_id": "812384-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566032-2026",
+   "procedure_id": "41cea739-8539-4512-b93d-6da4cd2b5d41",
+   "tender_notice_id": "531753-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566023-2026",
+   "procedure_id": "094b92c0-8ce3-4a37-92f7-e2009194fd61",
+   "tender_notice_id": "410456-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566021-2026",
+   "procedure_id": "6df80fe0-da62-40f2-b5c6-24578f41f86f",
+   "tender_notice_id": "368608-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566014-2026",
+   "procedure_id": "91689fa7-79f9-4399-b5ce-b3c888d3f22a",
+   "tender_notice_id": "402801-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566013-2026",
+   "procedure_id": "b6c07fa5-a0fa-4f75-bcb3-5ef29bd64c3f",
+   "tender_notice_id": "110023-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566012-2026",
+   "procedure_id": "4cb8d67d-2ee9-4fae-a593-ea797778772e",
+   "tender_notice_id": "676025-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "566006-2026",
+   "procedure_id": "6434196a-31ed-40b5-a89f-d7a94ee3cfb7",
+   "tender_notice_id": "697511-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565997-2026",
+   "procedure_id": "32ecbe75-2084-476c-aace-25da5103c334",
+   "tender_notice_id": "154448-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565994-2026",
+   "procedure_id": "0a44220d-25b2-4612-83a2-e837e5308040",
+   "tender_notice_id": "793092-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565992-2026",
+   "procedure_id": "8eab9417-0427-4a19-ae8c-21376b1f415e",
+   "tender_notice_id": "767570-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565990-2026",
+   "procedure_id": "ce75d760-f2da-4f27-827e-9669a9933f83",
+   "tender_notice_id": "435654-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565989-2026",
+   "procedure_id": "05ca1e8b-64bb-42c3-a199-79e8f24ba614",
+   "tender_notice_id": "426397-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565986-2026",
+   "procedure_id": "bfb83fb5-c86e-4fb7-97ad-a8d0778a1f95",
+   "tender_notice_id": "380785-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "565982-2026",
+   "procedure_id": "2d7009b9-8dff-4337-86e8-02ad346c0386",
+   "tender_notice_id": "388147-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565978-2026",
+   "procedure_id": "b6f8f395-76d3-4330-ab49-30126c16299e",
+   "tender_notice_id": "184048-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565977-2026",
+   "procedure_id": "14d49c06-fa79-4b57-aa5b-426724e7b3fe",
+   "tender_notice_id": "198004-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565976-2026",
+   "procedure_id": "cd711efa-d86f-4e8a-bc6a-112faa633a80",
+   "tender_notice_id": "227520-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565975-2026",
+   "procedure_id": "06aba1f1-2737-4f0b-a390-e7433afe1290",
+   "tender_notice_id": "109971-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565973-2026",
+   "procedure_id": "4f076988-41f5-40c9-9883-601d0daf9104",
+   "tender_notice_id": "83703-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565966-2026",
+   "procedure_id": "52e4c50b-a2ce-4f10-b8fd-52ab116541e2",
+   "tender_notice_id": "374712-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565962-2026",
+   "procedure_id": "d9e87884-1f01-49c8-a236-4033fcbbac42",
+   "tender_notice_id": "220422-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565961-2026",
+   "procedure_id": "b89eac79-4842-4aa7-8625-ef66d4ed65a2",
+   "tender_notice_id": "271758-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565958-2026",
+   "procedure_id": "cc075c10-a079-49a6-b50d-0311e36ce7de",
+   "tender_notice_id": "348008-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565955-2026",
+   "procedure_id": "ae8b406b-c650-4843-a6ba-9f3403a16bb2",
+   "tender_notice_id": "353660-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565946-2026",
+   "procedure_id": "f7c562f7-bc98-4fa8-bcc0-582992fa90b9",
+   "tender_notice_id": "315950-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565944-2026",
+   "procedure_id": "ce5b533f-bc82-47b4-a962-3a9fa28959c2",
+   "tender_notice_id": "207055-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565943-2026",
+   "procedure_id": "d5e80403-865c-49a8-88b0-6f14d5260b89",
+   "tender_notice_id": "128978-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565942-2026",
+   "procedure_id": "ad4be90b-8aca-42e1-b249-311fa6ae8a81",
+   "tender_notice_id": "367626-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565941-2026",
+   "procedure_id": "5b5fb829-bc50-487f-be08-711ac2154956",
+   "tender_notice_id": "301116-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565932-2026",
+   "procedure_id": "44d84a21-4133-4b67-b183-f593e4209bf6",
+   "tender_notice_id": "303149-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565926-2026",
+   "procedure_id": "af154465-6bab-476f-95b1-95a59a235be4",
+   "tender_notice_id": "374223-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565920-2026",
+   "procedure_id": "de64f466-2707-4484-8d66-880a44716b13",
+   "tender_notice_id": "336489-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565918-2026",
+   "procedure_id": "3d87fdd6-5a67-4efe-ade1-767ce86d46f0",
+   "tender_notice_id": "122732-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565914-2026",
+   "procedure_id": "04d48e43-5e5e-40cb-bdeb-5416746417d9",
+   "tender_notice_id": "132888-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565905-2026",
+   "procedure_id": "4fb1e7ed-dd3b-4882-b00a-b31e612d4162",
+   "tender_notice_id": "850798-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565901-2026",
+   "procedure_id": "4687dfa2-5b00-4066-ab33-def6a6c8b655",
+   "tender_notice_id": "198904-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565896-2026",
+   "procedure_id": "4178d018-fc3c-4d6c-9a3b-12ef76b0c20c",
+   "tender_notice_id": "378211-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565890-2026",
+   "procedure_id": "67484982-dd78-470e-b527-c8f7cc4236f9",
+   "tender_notice_id": "774503-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565889-2026",
+   "procedure_id": "aabf8dc5-575e-4967-86dc-449d78c27f08",
+   "tender_notice_id": "384995-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565887-2026",
+   "procedure_id": "6b7f4bb8-ae2f-48ab-a8c1-07616d8737aa",
+   "tender_notice_id": "162323-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565882-2026",
+   "procedure_id": "858eef70-a454-484d-861d-3f7ad5d8127b",
+   "tender_notice_id": "720742-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565879-2026",
+   "procedure_id": "b0a55e69-d3ee-44de-acc6-c2b6df17ac55",
+   "tender_notice_id": "707200-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565870-2026",
+   "procedure_id": "b99ee302-aec4-4451-b7c2-e8173dfd8ae0",
+   "tender_notice_id": "381438-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565868-2026",
+   "procedure_id": "2e892e57-68b7-4ca9-9e36-67e4a4f3bc3b",
+   "tender_notice_id": "217685-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565866-2026",
+   "procedure_id": "f14e9fd8-4a06-4e94-8dcc-f2ce4b4d92c9",
+   "tender_notice_id": "39806-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565863-2026",
+   "procedure_id": "be61f5c0-cf7c-48a4-a058-21c891fd7849",
+   "tender_notice_id": "215938-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565862-2026",
+   "procedure_id": "1d2cdb5a-60b2-4a87-890e-d49a3be91015",
+   "tender_notice_id": "326446-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565856-2026",
+   "procedure_id": "d2d7ec90-39e8-489e-a0df-d68fbe186dee",
+   "tender_notice_id": "414279-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565850-2026",
+   "procedure_id": "e4c0e444-0945-455d-a912-feffcaa8d573",
+   "tender_notice_id": "99373-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "565846-2026",
+   "procedure_id": "3089d5d6-66b6-443d-b1cb-0bdb22dda7dc",
+   "tender_notice_id": "711097-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565839-2026",
+   "procedure_id": "730db525-83ac-4dda-a049-056f35894bbe",
+   "tender_notice_id": "86527-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565838-2026",
+   "procedure_id": "c7be834a-1c90-431a-9016-ce72f4362ed4",
+   "tender_notice_id": "550027-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565836-2026",
+   "procedure_id": "fa9b0401-a560-4af4-b78e-7d9c4537db41",
+   "tender_notice_id": "189326-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565834-2026",
+   "procedure_id": "3c706f19-1449-466f-b7fd-59a4554e366e",
+   "tender_notice_id": "302739-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565832-2026",
+   "procedure_id": "a0147ba3-9723-46a8-8829-66c580cbaeec",
+   "tender_notice_id": "528326-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "565829-2026",
+   "procedure_id": "e21b71f8-1839-4d46-b6cb-89d2631b69df",
+   "tender_notice_id": "471441-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565820-2026",
+   "procedure_id": "1ea25e07-f032-46a7-a843-71f56ede3d87",
+   "tender_notice_id": "220571-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565817-2026",
+   "procedure_id": "f7b48a5d-f08e-4761-b51b-729344b0fb59",
+   "tender_notice_id": "314931-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565812-2026",
+   "procedure_id": "59f4dbc1-6596-4c79-9f89-782836d04e58",
+   "tender_notice_id": "349780-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565808-2026",
+   "procedure_id": "0e5b6225-20dc-4900-b69e-1fd7098bed25",
+   "tender_notice_id": "309457-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565806-2026",
+   "procedure_id": "d931b49f-557f-4c56-9a24-10ee58ed5c84",
+   "tender_notice_id": "303530-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565803-2026",
+   "procedure_id": "b4353fd5-b67a-438f-9ab0-e41c23b655a5",
+   "tender_notice_id": "214308-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565794-2026",
+   "procedure_id": "5a9e1450-8245-4f6b-ad8d-d6e451f484a2",
+   "tender_notice_id": "364253-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565792-2026",
+   "procedure_id": "3ecb172a-e3c1-4fe8-b948-7dfaddf91675",
+   "tender_notice_id": "147271-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565790-2026",
+   "procedure_id": "9c56ef4c-ab00-40e3-9b11-ac9d88efe18b",
+   "tender_notice_id": "393539-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565789-2026",
+   "procedure_id": "b300af62-34cf-405e-aa5b-f8045cf3f8c6",
+   "tender_notice_id": "682874-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565788-2026",
+   "procedure_id": "cf717d3d-f0d3-45c7-9408-c43ff8e7db4e",
+   "tender_notice_id": "822123-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565787-2026",
+   "procedure_id": "190333ca-b060-450e-94b8-b8b04530731c",
+   "tender_notice_id": "78998-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565778-2026",
+   "procedure_id": "cfba954f-28ef-45d3-b0df-607d84293c90",
+   "tender_notice_id": "469380-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565766-2026",
+   "procedure_id": "83843d7f-6aeb-4930-ac30-b793fd264ab7",
+   "tender_notice_id": "171391-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565762-2026",
+   "procedure_id": "6d221a4b-c25e-4f20-8186-d21b6656b7bf",
+   "tender_notice_id": "304938-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565761-2026",
+   "procedure_id": "a8c38ba5-2262-49d8-9017-d7087c412042",
+   "tender_notice_id": "355053-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565760-2026",
+   "procedure_id": "f598ddb5-d2e0-46e7-b80f-25690664ab07",
+   "tender_notice_id": "617804-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565755-2026",
+   "procedure_id": "3afdc167-2817-41fc-a254-894963a52657",
+   "tender_notice_id": "281033-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565750-2026",
+   "procedure_id": "d6b3cd6f-fae2-4ea9-8261-603731328df5",
+   "tender_notice_id": "301439-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565749-2026",
+   "procedure_id": "ed0140da-acd2-4a41-8258-a265b2b18efe",
+   "tender_notice_id": "91092-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565747-2026",
+   "procedure_id": "9bf180f7-7f07-43e5-92d8-21ddb10d2ea5",
+   "tender_notice_id": "716017-2023",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565745-2026",
+   "procedure_id": "8597a067-ad51-4089-bfc6-b0a3878fa289",
+   "tender_notice_id": "358596-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565741-2026",
+   "procedure_id": "bc6ad204-b1fd-4c61-a75e-f269c2d41d87",
+   "tender_notice_id": "842457-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565740-2026",
+   "procedure_id": "fe186fb1-b7b8-437e-9e45-2110e72b9efd",
+   "tender_notice_id": "194122-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565737-2026",
+   "procedure_id": "7006ce6a-5ab1-49ac-9e8d-9992fefb324d",
+   "tender_notice_id": "267169-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565736-2026",
+   "procedure_id": "0d530162-7a2e-4663-97c9-dc8e665355a3",
+   "tender_notice_id": "335967-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565735-2026",
+   "procedure_id": "50e000cb-f5fd-4655-8199-1c955081dd25",
+   "tender_notice_id": "217214-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565734-2026",
+   "procedure_id": "381e1a0f-60c3-4039-886f-c8d0cb8a36ce",
+   "tender_notice_id": "388391-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565729-2026",
+   "procedure_id": "a459dc51-051a-44fa-b86e-f5900061886f",
+   "tender_notice_id": "321391-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565718-2026",
+   "procedure_id": "3aaf572d-a733-4033-ba14-b2cff23dae5d",
+   "tender_notice_id": "363026-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565717-2026",
+   "procedure_id": "5107cfaf-4071-43fb-b266-1fab3267343d",
+   "tender_notice_id": "289689-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565710-2026",
+   "procedure_id": "cdaacd0d-1098-4f34-a125-d2064beacda6",
+   "tender_notice_id": "309099-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565709-2026",
+   "procedure_id": "67e58b6f-8ecf-485c-b59c-8c1ad919ae72",
+   "tender_notice_id": "236206-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565697-2026",
+   "procedure_id": "51176320-09a6-4160-a4b7-29447b392042",
+   "tender_notice_id": "136996-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565696-2026",
+   "procedure_id": "82acd929-32b7-4eee-bbc8-bb16ccd22142",
+   "tender_notice_id": "406715-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565694-2026",
+   "procedure_id": "666a0ac3-f650-48ed-aeb5-630a7a951eaa",
+   "tender_notice_id": "284968-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "565691-2026",
+   "procedure_id": "7b1d1a34-91d7-4663-925e-d68b770da54d",
+   "tender_notice_id": "454412-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565689-2026",
+   "procedure_id": "cc05cffd-66f8-4784-8884-6a381c98d19a",
+   "tender_notice_id": "332571-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565682-2026",
+   "procedure_id": "c2b654f3-232b-4b0d-a535-39939e207a67",
+   "tender_notice_id": "294452-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565679-2026",
+   "procedure_id": "a91c0e1e-7bac-4191-b108-1ccdbddeb28a",
+   "tender_notice_id": "208329-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565677-2026",
+   "procedure_id": "2705c5d4-60a8-4546-8b38-37c7f41b671a",
+   "tender_notice_id": "383426-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565674-2026",
+   "procedure_id": "97572cc7-622f-485e-b6a9-a5599c85611f",
+   "tender_notice_id": "341747-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565670-2026",
+   "procedure_id": "85bdbd2d-6e2d-467e-8e8e-266ed9d9b67d",
+   "tender_notice_id": "157184-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565669-2026",
+   "procedure_id": "78733c0f-87f9-412d-96ca-691a01bb920f",
+   "tender_notice_id": "421421-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565668-2026",
+   "procedure_id": "a9215a4c-2911-4e31-976a-f66ab973c206",
+   "tender_notice_id": "462441-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565665-2026",
+   "procedure_id": "040be362-6700-4740-b554-3f4fb8a3be09",
+   "tender_notice_id": "380450-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565662-2026",
+   "procedure_id": "63918a46-1560-41e3-b737-ad6a49ac7ad9",
+   "tender_notice_id": "376779-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565656-2026",
+   "procedure_id": "019e0268-4c0e-4c5f-81ba-fe97e90e2bdf",
+   "tender_notice_id": "320176-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565655-2026",
+   "procedure_id": "0fd84240-ee6b-4c8e-837d-01c2ac168174",
+   "tender_notice_id": "266811-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565654-2026",
+   "procedure_id": "2743be96-b6b4-4cd6-b142-02c8443017d2",
+   "tender_notice_id": "393981-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565651-2026",
+   "procedure_id": "d6f9bcb6-e4e5-43b2-95d0-396f8f97afab",
+   "tender_notice_id": "301067-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565648-2026",
+   "procedure_id": "30883a76-fac5-4673-9d8a-0e804c7c4947",
+   "tender_notice_id": "469347-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565646-2026",
+   "procedure_id": "cb91fa80-6b3f-445d-8895-4bd4ed437ec5",
+   "tender_notice_id": "416860-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565642-2026",
+   "procedure_id": "0cc860a6-be2e-4b42-a6e3-674bdb15652d",
+   "tender_notice_id": "360888-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565639-2026",
+   "procedure_id": "4c5f5631-e264-4394-844c-9e5699b6fd1d",
+   "tender_notice_id": "356131-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565638-2026",
+   "procedure_id": "cb5f81ff-f56a-4498-b19f-103da2b48d0c",
+   "tender_notice_id": "378989-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565637-2026",
+   "procedure_id": "e92b88d3-7d5e-460a-b458-fc8454727e09",
+   "tender_notice_id": "142358-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565636-2026",
+   "procedure_id": "677a1f85-dcdb-4d1d-8153-6a65a632b184",
+   "tender_notice_id": "380710-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565631-2026",
+   "procedure_id": "c52e4a70-5f62-45b4-b0fa-e9fcefaa57fd",
+   "tender_notice_id": "725354-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565629-2026",
+   "procedure_id": "189e1aee-b8ea-4c07-a109-afd357a993c1",
+   "tender_notice_id": "391248-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565628-2026",
+   "procedure_id": "d768fbb6-fe1f-4f85-b2e5-2a9072c5cf4c",
+   "tender_notice_id": "108211-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565620-2026",
+   "procedure_id": "092d7489-f1c4-4c3a-8f2b-429644441505",
+   "tender_notice_id": "634557-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565614-2026",
+   "procedure_id": "cd81f7f0-83cd-45ef-892a-b9630dd4ea19",
+   "tender_notice_id": "369904-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565611-2026",
+   "procedure_id": "81c704b6-daa5-4a39-a86e-7ddee6ce8c29",
+   "tender_notice_id": "170490-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565610-2026",
+   "procedure_id": "9cab5b14-6e7e-47ff-834a-8e45b176f129",
+   "tender_notice_id": "461367-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565606-2026",
+   "procedure_id": "d127cb46-1057-4332-bf56-e1476153a8c7",
+   "tender_notice_id": "375494-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565602-2026",
+   "procedure_id": "8676fa79-dcea-427e-8302-9af89de4cc38",
+   "tender_notice_id": "333464-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "565601-2026",
+   "procedure_id": "8ac20ef7-99fe-416f-8c1d-82b61e519a02",
+   "tender_notice_id": "290148-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565598-2026",
+   "procedure_id": "eec4ee85-c623-46ae-9c7f-b06e97bcb94f",
+   "tender_notice_id": "132120-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565594-2026",
+   "procedure_id": "e5d865cf-6aa7-47a2-b587-2f40322c2a9b",
+   "tender_notice_id": "562908-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565591-2026",
+   "procedure_id": "c274f1bf-8479-4e8d-a420-5e56531d095c",
+   "tender_notice_id": "461147-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565588-2026",
+   "procedure_id": "37b45875-3630-4f00-a17e-af0200595638",
+   "tender_notice_id": "854040-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565584-2026",
+   "procedure_id": "34141a56-aeb5-4bd3-a5fb-b1932c32450e",
+   "tender_notice_id": "334373-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565582-2026",
+   "procedure_id": "52b634d1-0844-422b-89b5-e0c09736bc23",
+   "tender_notice_id": "156791-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565581-2026",
+   "procedure_id": "41714fc7-44dd-4cf9-b8ba-09cc923efb20",
+   "tender_notice_id": "304410-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565566-2026",
+   "procedure_id": "664ebedf-d980-41ab-8292-7b98db822b3e",
+   "tender_notice_id": "438771-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565563-2026",
+   "procedure_id": "eaea834b-272a-41a4-8410-f409ddcb05d6",
+   "tender_notice_id": "96887-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565559-2026",
+   "procedure_id": "64f56f35-dde5-44e5-a897-360938b325e9",
+   "tender_notice_id": "308346-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565558-2026",
+   "procedure_id": "7b94e8ba-97bf-4a60-8428-d7a97aa8e1a1",
+   "tender_notice_id": "54436-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565556-2026",
+   "procedure_id": "003ed2f2-e607-4ce6-a569-9865794fbf1c",
+   "tender_notice_id": "301114-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565546-2026",
+   "procedure_id": "37fe6a90-1f7d-477b-b14c-3a789c014b85",
+   "tender_notice_id": "232046-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565545-2026",
+   "procedure_id": "f9b6d4f8-df5a-4c43-89c2-8cbb1812d4d1",
+   "tender_notice_id": "716159-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565543-2026",
+   "procedure_id": "efce9db2-b481-4599-966c-ffe1734a15e0",
+   "tender_notice_id": "354319-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565542-2026",
+   "procedure_id": "7a93385b-b539-43cf-b6ab-a95b0bde54ba",
+   "tender_notice_id": "274791-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "565540-2026",
+   "procedure_id": "3da437df-e6b6-4239-8e66-b4b187ce4305",
+   "tender_notice_id": "239103-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565539-2026",
+   "procedure_id": "1ef5854a-8346-44ba-836d-ffbc99f4810e",
+   "tender_notice_id": "322100-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565538-2026",
+   "procedure_id": "8e9130b7-fcf8-4715-be31-eb0b145e1e14",
+   "tender_notice_id": "297941-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565537-2026",
+   "procedure_id": "47054bc7-8280-4bdc-b6f0-cc1fc3e9c84e",
+   "tender_notice_id": "215701-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565536-2026",
+   "procedure_id": "045fb398-d2b0-4392-9a84-8a0a1b65f55a",
+   "tender_notice_id": "358014-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565534-2026",
+   "procedure_id": "125bff97-338e-4caa-ba4c-c56294783916",
+   "tender_notice_id": "449316-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565531-2026",
+   "procedure_id": "a5cee311-752f-4c60-9baf-5d99e662b58a",
+   "tender_notice_id": "296295-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565527-2026",
+   "procedure_id": "410c5a33-2d2e-46c3-85a2-4ee2cdc6690e",
+   "tender_notice_id": "19816-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565524-2026",
+   "procedure_id": "413cdac8-dce6-4f25-9e66-e9686e3708f4",
+   "tender_notice_id": "478009-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565521-2026",
+   "procedure_id": "b0b4dcec-abc3-4729-981f-e857fe97ac54",
+   "tender_notice_id": "743677-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565518-2026",
+   "procedure_id": "49fb84d7-0326-41ca-94ce-2749a9aef3af",
+   "tender_notice_id": "218404-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565516-2026",
+   "procedure_id": "ef56373e-568f-4317-ae26-f91e94dc86cd",
+   "tender_notice_id": "421402-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565510-2026",
+   "procedure_id": "ded25517-a948-445e-888b-1c3f19e535f1",
+   "tender_notice_id": "345183-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565509-2026",
+   "procedure_id": "fb4a4042-e693-4aa9-b773-4c9250bbb8b0",
+   "tender_notice_id": "45919-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565507-2026",
+   "procedure_id": "9ecfb9ce-5afd-447f-ad0b-0856456f5747",
+   "tender_notice_id": "309589-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565505-2026",
+   "procedure_id": "b49570da-2c6e-4058-91d8-2e8b24438a46",
+   "tender_notice_id": "252008-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565496-2026",
+   "procedure_id": "26b91696-605d-4ba9-9830-5ca311ccf2ff",
+   "tender_notice_id": "231856-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565495-2026",
+   "procedure_id": "8f37cf85-ba7d-4331-916c-52044c486147",
+   "tender_notice_id": "253537-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565493-2026",
+   "procedure_id": "d02fc67f-a654-4754-93c0-2df27368deab",
+   "tender_notice_id": "754426-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565492-2026",
+   "procedure_id": "580a4e27-3660-463e-8037-784787961146",
+   "tender_notice_id": "388361-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565486-2026",
+   "procedure_id": "fc8f945f-8d87-4bc8-9434-8052c1189e9e",
+   "tender_notice_id": "362475-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565485-2026",
+   "procedure_id": "5b0857b6-4fd2-49f6-b810-d4da592f2689",
+   "tender_notice_id": "90529-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565481-2026",
+   "procedure_id": "910c9234-31a5-49ef-8c33-79da40a52a95",
+   "tender_notice_id": "511722-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565480-2026",
+   "procedure_id": "8a16151e-cb42-4d66-babe-767098a9848b",
+   "tender_notice_id": "326855-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565477-2026",
+   "procedure_id": "64b27833-de1e-4925-a7c5-80b819f25637",
+   "tender_notice_id": "367235-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565473-2026",
+   "procedure_id": "a73408d0-a130-46e2-aa5a-7ca29b53888b",
+   "tender_notice_id": "400234-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565472-2026",
+   "procedure_id": "7adb7db4-ca4e-44ca-b651-1d4adeaee4e8",
+   "tender_notice_id": "426521-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565459-2026",
+   "procedure_id": "38d9d892-ba6a-43ab-9b66-692553ab147f",
+   "tender_notice_id": "291009-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565457-2026",
+   "procedure_id": "e2ee46e0-b3bb-4eb2-baa4-fc09cfaa2e02",
+   "tender_notice_id": "175492-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565453-2026",
+   "procedure_id": "07aacd45-9929-42b9-ae20-ca74fd2512f1",
+   "tender_notice_id": "126978-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565452-2026",
+   "procedure_id": "2374adf9-5780-4c77-bd62-e9f0bfd15d46",
+   "tender_notice_id": "278713-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565451-2026",
+   "procedure_id": "49bfc9a1-5183-41eb-b0df-0d959139509f",
+   "tender_notice_id": "650102-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565442-2026",
+   "procedure_id": "9c8754c7-3b00-49a7-8f62-2c96cc5a04a3",
+   "tender_notice_id": "691385-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565437-2026",
+   "procedure_id": "4f8b7f50-8ea8-45b2-a96f-54a8c8931736",
+   "tender_notice_id": "303308-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565435-2026",
+   "procedure_id": "4fea68fd-3471-4cf2-ab3f-3d38f5741541",
+   "tender_notice_id": "78239-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565426-2026",
+   "procedure_id": "42e465ea-2be2-46e9-9608-2ba66268f5e8",
+   "tender_notice_id": "218468-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565421-2026",
+   "procedure_id": "4f62dc6c-8025-4975-928b-e212154d2415",
+   "tender_notice_id": "398427-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565420-2026",
+   "procedure_id": "285ffae0-d04c-40e1-978e-6e36cf833a49",
+   "tender_notice_id": "44594-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565415-2026",
+   "procedure_id": "19d3459d-3819-4477-ae6a-8345636beccb",
+   "tender_notice_id": "371443-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565412-2026",
+   "procedure_id": "df17b20e-7824-4db6-88a8-d40ddeab0129",
+   "tender_notice_id": "410855-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565410-2026",
+   "procedure_id": "44b226dd-87e9-4d6e-8533-9ad0c51a776a",
+   "tender_notice_id": "496338-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565408-2026",
+   "procedure_id": "4b6faf43-31a1-44b8-b81d-ad9dac0628e4",
+   "tender_notice_id": "346791-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565406-2026",
+   "procedure_id": "d5ffa9bf-2d01-462b-91a9-9f8f6c916e36",
+   "tender_notice_id": "411909-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565404-2026",
+   "procedure_id": "ecf56432-681e-4fef-bfd3-9ce29b875cc6",
+   "tender_notice_id": "346867-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565402-2026",
+   "procedure_id": "e76d25e7-5874-4c32-8737-e97da60c3fa9",
+   "tender_notice_id": "321370-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565401-2026",
+   "procedure_id": "c989bdf9-b7a8-4076-84f9-1eb9986b11c3",
+   "tender_notice_id": "34567-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565400-2026",
+   "procedure_id": "eb1fa2e0-d4d5-4b5f-bdd9-75da19b42708",
+   "tender_notice_id": "268578-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565396-2026",
+   "procedure_id": "6cdfa1af-f05c-4ee2-9753-c3b87d82940a",
+   "tender_notice_id": "472030-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565392-2026",
+   "procedure_id": "74a1bf9a-af3e-4340-9ec5-4ab4de1e435b",
+   "tender_notice_id": "253190-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565389-2026",
+   "procedure_id": "c382ccd6-bad8-4a3d-aa53-5951d00108b0",
+   "tender_notice_id": "462472-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565388-2026",
+   "procedure_id": "632e67a5-8290-47af-a6ab-44b1dd43b99f",
+   "tender_notice_id": "109853-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565384-2026",
+   "procedure_id": "094b92c0-8ce3-4a37-92f7-e2009194fd61",
+   "tender_notice_id": "410456-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565383-2026",
+   "procedure_id": "afc5b570-fc4c-416e-8c3a-b0dd02f3a3f5",
+   "tender_notice_id": "185204-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565381-2026",
+   "procedure_id": "251722ce-bbd9-4276-a5b4-1ee2f90b8ced",
+   "tender_notice_id": "373534-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565370-2026",
+   "procedure_id": "6beaeac8-4c81-40b4-97ad-bac76aa3eda9",
+   "tender_notice_id": "240757-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565364-2026",
+   "procedure_id": "598cbc1a-aae6-4db3-9de3-742127d2834c",
+   "tender_notice_id": "422743-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565362-2026",
+   "procedure_id": "0d148289-832b-49f3-9f50-436e2d889d26",
+   "tender_notice_id": "286481-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565361-2026",
+   "procedure_id": "7e16b0a6-3c50-445c-a3bb-63d452070097",
+   "tender_notice_id": "97307-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565355-2026",
+   "procedure_id": "5e6a0640-47dd-4c0e-8509-de8f9f082806",
+   "tender_notice_id": "209065-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565353-2026",
+   "procedure_id": "4f2450e6-04ae-449d-9f67-9572082cadc3",
+   "tender_notice_id": "371760-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565351-2026",
+   "procedure_id": "9de19743-8e72-4e66-ad70-bf238db3cd03",
+   "tender_notice_id": "388194-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565349-2026",
+   "procedure_id": "1cff3845-a709-4966-87a8-1b20798c4419",
+   "tender_notice_id": "561948-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565345-2026",
+   "procedure_id": "a859c239-d9ee-4891-b01d-b2cf990ea402",
+   "tender_notice_id": "201952-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565342-2026",
+   "procedure_id": "de40a1ed-8e1e-4a2b-be88-4c8abe16598f",
+   "tender_notice_id": "332004-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565340-2026",
+   "procedure_id": "86241192-695c-404e-a68e-a485c6850046",
+   "tender_notice_id": "237762-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565338-2026",
+   "procedure_id": "ca771dc8-58d0-4966-adb7-8d5056436e76",
+   "tender_notice_id": "709219-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565336-2026",
+   "procedure_id": "94144e10-7bf5-48e6-a655-964b52cbebb6",
+   "tender_notice_id": "179017-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565334-2026",
+   "procedure_id": "5c24ccda-3769-4f59-9a2e-67cb33a352c3",
+   "tender_notice_id": "445338-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565329-2026",
+   "procedure_id": "260c40e6-88da-41c7-a72a-70fc135cb09f",
+   "tender_notice_id": "169069-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565325-2026",
+   "procedure_id": "0e4f2209-8fe1-4ee1-a426-fa25aa4134fb",
+   "tender_notice_id": "379119-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565322-2026",
+   "procedure_id": "757cd473-52f5-4cb3-a247-28073c1aeb0e",
+   "tender_notice_id": "372353-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565319-2026",
+   "procedure_id": "0f2613d9-4355-4a18-ac29-8723f23f6012",
+   "tender_notice_id": "258433-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565315-2026",
+   "procedure_id": "905592c2-6aa7-4430-9069-d1e3904615ed",
+   "tender_notice_id": "390867-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565309-2026",
+   "procedure_id": "88ed5d75-3dee-4f3b-a42d-132edcfbc934",
+   "tender_notice_id": "158713-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565307-2026",
+   "procedure_id": "f91b9a82-84a6-4d75-8a62-6cab6d0e787b",
+   "tender_notice_id": "100077-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565306-2026",
+   "procedure_id": "f7dd2530-21c2-4e7c-880b-75d549d1f943",
+   "tender_notice_id": "406157-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565298-2026",
+   "procedure_id": "29554291-2bbf-4a34-8215-3d23e1c741d9",
+   "tender_notice_id": "349057-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565297-2026",
+   "procedure_id": "4ff0c3d9-32e5-42d7-bb24-c30b1b9e5b9c",
+   "tender_notice_id": "278638-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565295-2026",
+   "procedure_id": "8c6252c5-16d2-4491-b1aa-91c36c747831",
+   "tender_notice_id": "229639-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565283-2026",
+   "procedure_id": "9ccc0c56-c8cf-4851-8706-b1db2b38149d",
+   "tender_notice_id": "365152-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565280-2026",
+   "procedure_id": "e42a8057-bf20-4329-b506-e69236816df3",
+   "tender_notice_id": "355867-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565279-2026",
+   "procedure_id": "2e44816f-c9dd-4867-abd4-369a1991b6ac",
+   "tender_notice_id": "123069-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565277-2026",
+   "procedure_id": "446641b7-4874-42ff-a092-a67b792cefe5",
+   "tender_notice_id": "273157-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565275-2026",
+   "procedure_id": "d90ff293-3835-4f6d-81dc-4ddf2e8d3c56",
+   "tender_notice_id": "255129-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565274-2026",
+   "procedure_id": "9a9a4a74-f154-4117-8655-569dca0b3e33",
+   "tender_notice_id": "236695-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565273-2026",
+   "procedure_id": "cc6d9af3-5502-4aba-b1c6-b52276a9066b",
+   "tender_notice_id": "309963-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565271-2026",
+   "procedure_id": "afd30d13-b30e-4ae8-8688-dc99dfe1f25f",
+   "tender_notice_id": "432869-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565266-2026",
+   "procedure_id": "d52d0450-f83d-4841-8df0-86e8059c20d9",
+   "tender_notice_id": "446033-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565265-2026",
+   "procedure_id": "62f36ba3-e4c5-4f99-9d14-ce37fcce3acf",
+   "tender_notice_id": "734922-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565260-2026",
+   "procedure_id": "30076e4a-bd11-40e4-bd04-43ee7b4e9475",
+   "tender_notice_id": "47452-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565259-2026",
+   "procedure_id": "b90af4ce-1af2-470b-a8dc-dde1871a71c1",
+   "tender_notice_id": "80514-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565257-2026",
+   "procedure_id": "2743be96-b6b4-4cd6-b142-02c8443017d2",
+   "tender_notice_id": "393981-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565252-2026",
+   "procedure_id": "8e7c86b8-ccc8-48a8-8cbd-864271bc50a3",
+   "tender_notice_id": "276801-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565248-2026",
+   "procedure_id": "74ca9b1a-f551-4da4-b1ad-ddef352039dd",
+   "tender_notice_id": "633191-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565247-2026",
+   "procedure_id": "26e06aaa-716a-4e0f-8cb4-054c35a5ddc2",
+   "tender_notice_id": "132253-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565246-2026",
+   "procedure_id": "3b3dacb9-a93f-4f4b-801e-bc48fe31c8a5",
+   "tender_notice_id": "286466-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565239-2026",
+   "procedure_id": "8bd9e3eb-520b-4f61-9482-734a9600679d",
+   "tender_notice_id": "273466-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565237-2026",
+   "procedure_id": "fca4c2d2-048b-47a3-9e11-9429c677fbf0",
+   "tender_notice_id": "337217-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565230-2026",
+   "procedure_id": "f91aa6ac-abab-410f-a9ac-b20dd1baafc1",
+   "tender_notice_id": "734477-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565227-2026",
+   "procedure_id": "dcdb9fa2-0b47-4299-97c1-60e3fe13be11",
+   "tender_notice_id": "341728-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565225-2026",
+   "procedure_id": "9f478415-2cd8-4384-9335-6e545fcc293e",
+   "tender_notice_id": "292326-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565217-2026",
+   "procedure_id": "d4af941c-a216-432e-aca8-6006ede78a4f",
+   "tender_notice_id": "350685-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565214-2026",
+   "procedure_id": "05c26cc6-ec55-41f0-a99e-f2b261b03f9f",
+   "tender_notice_id": "151925-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565212-2026",
+   "procedure_id": "830727e8-0c48-4cfd-b7bc-0f3ad4af4184",
+   "tender_notice_id": "265515-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565202-2026",
+   "procedure_id": "f778ccaf-d0d7-404d-a4f6-8a3f3c7bc98b",
+   "tender_notice_id": "698949-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565201-2026",
+   "procedure_id": "2aa75138-6195-4be9-b9ec-56857af115de",
+   "tender_notice_id": "274918-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565199-2026",
+   "procedure_id": "1eede95d-234b-4094-90bd-114f46f17ac1",
+   "tender_notice_id": "822001-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565193-2026",
+   "procedure_id": "dd8ce512-d12a-48bc-b85a-6c5e1f33d653",
+   "tender_notice_id": "225795-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565192-2026",
+   "procedure_id": "978bacec-f57e-4db7-8f45-7201c2c5e9ed",
+   "tender_notice_id": "69793-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565190-2026",
+   "procedure_id": "2cf75d52-4d64-4505-99d4-e9c1bfd7a7e7",
+   "tender_notice_id": "352881-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565188-2026",
+   "procedure_id": "5a92aeca-044e-4a84-b016-db9494317d32",
+   "tender_notice_id": "380778-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565187-2026",
+   "procedure_id": "9ca23a5e-8e00-4714-8cef-f788c5844fa6",
+   "tender_notice_id": "327335-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565182-2026",
+   "procedure_id": "c4305877-44bb-4fbd-ac76-b1072ff183ab",
+   "tender_notice_id": "208572-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565177-2026",
+   "procedure_id": "0c0560dd-e3b0-4f66-8a79-71852bcd5abd",
+   "tender_notice_id": "530511-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565176-2026",
+   "procedure_id": "a7cf6236-579d-4e59-8e50-e2aeebd72fee",
+   "tender_notice_id": "377313-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565169-2026",
+   "procedure_id": "9c06d250-eb79-4d98-8019-aab9d0d0bfad",
+   "tender_notice_id": "151585-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565164-2026",
+   "procedure_id": "d9d1f300-1aad-46fc-8b4f-270cf55ce58b",
+   "tender_notice_id": "355498-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565160-2026",
+   "procedure_id": "eb397535-4a74-4709-82d9-d188c680a883",
+   "tender_notice_id": "345227-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565152-2026",
+   "procedure_id": "ee75898d-5606-4718-bc08-a0a71d586bb1",
+   "tender_notice_id": "379883-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "565148-2026",
+   "procedure_id": "ea5c609d-a5d4-4687-b9f8-23aafdb86738",
+   "tender_notice_id": "241472-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452823-2026",
+   "procedure_id": "61158250-e1fe-4cd5-99a3-bd72009d9492",
+   "tender_notice_id": "855050-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452820-2026",
+   "procedure_id": "48bb1c5b-ef41-4f16-8a95-b3b5276d06f6",
+   "tender_notice_id": "30764-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452816-2026",
+   "procedure_id": "8d200759-6dca-4765-a7b0-0d36606cfef9",
+   "tender_notice_id": "835259-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452815-2026",
+   "procedure_id": "0dd70c6e-6bf3-4c73-b4f0-dd38cfdd21e4",
+   "tender_notice_id": "268524-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452811-2026",
+   "procedure_id": "a8168559-93a4-41e6-aabe-7d7055141fde",
+   "tender_notice_id": "189194-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452808-2026",
+   "procedure_id": "cb1484d5-9b0e-4aa2-8b33-173be15cb877",
+   "tender_notice_id": "103907-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452804-2026",
+   "procedure_id": "67835be2-8799-47c4-b86f-083677f1ce43",
+   "tender_notice_id": "267172-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452803-2026",
+   "procedure_id": "708376c4-3126-4dae-a9c2-0237fef86a9a",
+   "tender_notice_id": "188463-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452801-2026",
+   "procedure_id": "65bdb29c-bfc8-4fb3-bfa5-26d15e32a7a0",
+   "tender_notice_id": "134322-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452799-2026",
+   "procedure_id": "ce3bf030-1d20-4f0a-8146-b8a69c2c0c77",
+   "tender_notice_id": "394840-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452797-2026",
+   "procedure_id": "975f54b5-73a4-4a08-8884-20d55ca256e7",
+   "tender_notice_id": "299235-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452794-2026",
+   "procedure_id": "5cdbd66a-ef56-4d1d-bff1-21053779a162",
+   "tender_notice_id": "742353-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452792-2026",
+   "procedure_id": "47229b85-5a77-43ef-a5e0-6fbb12bee96f",
+   "tender_notice_id": "228417-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452790-2026",
+   "procedure_id": "f9a259f7-4325-4b14-bb6c-fc8a110d1a44",
+   "tender_notice_id": "159087-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452786-2026",
+   "procedure_id": "c3196943-a89e-4ae1-bfaa-c7017d1c9353",
+   "tender_notice_id": "339238-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452783-2026",
+   "procedure_id": "2499bfba-87fc-4a98-8e43-74067a2924cf",
+   "tender_notice_id": "439417-2023",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452781-2026",
+   "procedure_id": "a94c3870-409f-4092-8847-9a079575c6e9",
+   "tender_notice_id": "101402-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452778-2026",
+   "procedure_id": "b4f16996-af3a-4f91-94b6-07d6c03543a1",
+   "tender_notice_id": "39032-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452777-2026",
+   "procedure_id": "c917fb2b-3c09-446f-826b-6b724ec66f59",
+   "tender_notice_id": "74817-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452776-2026",
+   "procedure_id": "dc6d2417-491c-4e9a-899b-9d3deb2c4c3b",
+   "tender_notice_id": "515074-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452760-2026",
+   "procedure_id": "40c0eac9-97ca-466b-9ab7-44a168692e60",
+   "tender_notice_id": "302599-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452754-2026",
+   "procedure_id": "2a47009d-d490-4906-8568-ef3f22341005",
+   "tender_notice_id": "737245-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452752-2026",
+   "procedure_id": "56714248-34cd-44e6-8243-3f687453d8a2",
+   "tender_notice_id": "102249-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452750-2026",
+   "procedure_id": "49183795-4c52-4723-98a5-092c89ad10e8",
+   "tender_notice_id": "846832-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452749-2026",
+   "procedure_id": "7c96b953-4d05-446a-8fed-5334f9d0d5d5",
+   "tender_notice_id": "206650-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452743-2026",
+   "procedure_id": "f5c18593-7bf3-4111-b620-149e2fc9a929",
+   "tender_notice_id": "285321-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452742-2026",
+   "procedure_id": "36c091d5-bce9-4f80-bef5-8342f834ce07",
+   "tender_notice_id": "139949-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452738-2026",
+   "procedure_id": "b565a78d-be03-4bae-b53f-76306bb2dfe3",
+   "tender_notice_id": "261809-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452735-2026",
+   "procedure_id": "f4690dad-02ed-4a0c-8dd7-5695282e8e95",
+   "tender_notice_id": "207088-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452732-2026",
+   "procedure_id": "f6e83ba6-8e37-4f2f-a1b4-aa01e6c62629",
+   "tender_notice_id": "841521-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452728-2026",
+   "procedure_id": "22af8100-b585-41c9-bee6-2e88d0d6a540",
+   "tender_notice_id": "36756-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452727-2026",
+   "procedure_id": "f726a460-d43b-469e-bb33-592fdcefec92",
+   "tender_notice_id": "289401-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452712-2026",
+   "procedure_id": "8036af00-63d9-4eff-a4fc-d59aadc9ac0b",
+   "tender_notice_id": "714342-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452704-2026",
+   "procedure_id": "9b7e51ae-4f96-459e-a2d3-06ec6a042994",
+   "tender_notice_id": "136571-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452700-2026",
+   "procedure_id": "8ac0031b-16f9-4116-9506-7d77090ec8e9",
+   "tender_notice_id": "295968-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452699-2026",
+   "procedure_id": "d8900e3e-e4b3-47b1-94ee-dd86fb79f354",
+   "tender_notice_id": "294826-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452695-2026",
+   "procedure_id": "57cd0fda-96d6-4f0b-9ab3-1a74c999bc32",
+   "tender_notice_id": "314913-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452693-2026",
+   "procedure_id": "197aae37-318d-45cf-8ee3-afc8673d2c7b",
+   "tender_notice_id": "215202-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452692-2026",
+   "procedure_id": "25edb7be-cd8f-431e-ae4f-2efce87f79a0",
+   "tender_notice_id": "234414-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452689-2026",
+   "procedure_id": "c7847518-8eae-4538-8985-fe8577bcb9bf",
+   "tender_notice_id": "210163-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452687-2026",
+   "procedure_id": "084b45e9-f1f6-4bd1-9962-0a7244a1431d",
+   "tender_notice_id": "146836-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452685-2026",
+   "procedure_id": "b38935fb-67e1-4f58-a97f-1a4a8a871a7b",
+   "tender_notice_id": "125668-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452684-2026",
+   "procedure_id": "fad4e3f8-7ad2-45a4-a75f-5625e9a8446f",
+   "tender_notice_id": "150529-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452682-2026",
+   "procedure_id": "72357fad-b665-4cc1-8cd7-a63b15eaf3fe",
+   "tender_notice_id": "229315-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452681-2026",
+   "procedure_id": "877e3e2f-adb2-4d78-92e3-068d54d78ca7",
+   "tender_notice_id": "134534-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452679-2026",
+   "procedure_id": "4f1ec88e-6775-4e71-b01f-48e2280879a2",
+   "tender_notice_id": "815331-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452674-2026",
+   "procedure_id": "5996eea6-6676-4a9d-868e-73e63809dad1",
+   "tender_notice_id": "227720-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452672-2026",
+   "procedure_id": "7b5d3584-9126-4285-b915-0ad8d968bb13",
+   "tender_notice_id": "35308-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452671-2026",
+   "procedure_id": "9ffb95a5-ec24-49bb-9e6c-b361adcb6a8e",
+   "tender_notice_id": "199687-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452668-2026",
+   "procedure_id": "72f95d57-85eb-4c42-88be-099a966e51a6",
+   "tender_notice_id": "403223-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452667-2026",
+   "procedure_id": "1a12bfa0-b72a-40f3-bcf1-a157350a9669",
+   "tender_notice_id": "274661-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452666-2026",
+   "procedure_id": "fa8866f0-c32a-4079-998e-09c0f5bd1831",
+   "tender_notice_id": "166236-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452665-2026",
+   "procedure_id": "49f1ec8f-e2bf-4ade-bb73-7d0cfcc92539",
+   "tender_notice_id": "228644-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452659-2026",
+   "procedure_id": "1b5d1f31-151c-432b-8b6b-1a32fb9b194e",
+   "tender_notice_id": "276341-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452658-2026",
+   "procedure_id": "fee8c43a-f3c5-4c50-b154-637e8bd4a20a",
+   "tender_notice_id": "124338-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452653-2026",
+   "procedure_id": "b4ca773e-2b29-4ea2-a0a5-368fcb01eec3",
+   "tender_notice_id": "507051-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452651-2026",
+   "procedure_id": "1437a91a-d312-400f-8243-2541188d09c0",
+   "tender_notice_id": "850034-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452648-2026",
+   "procedure_id": "2f3194f1-06fd-4d9c-b6f6-edf558516681",
+   "tender_notice_id": "722526-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452647-2026",
+   "procedure_id": "8b0d6be3-a6a3-4cb4-a676-a141be1fe2cf",
+   "tender_notice_id": "397849-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452644-2026",
+   "procedure_id": "07951802-93e2-4697-98ac-9edab9ed9ee7",
+   "tender_notice_id": "217702-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452641-2026",
+   "procedure_id": "2a59546b-4efa-4eb2-b20f-6faef38a0bcf",
+   "tender_notice_id": "271396-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452639-2026",
+   "procedure_id": "bd00b831-4946-46b5-bff6-bfc2ebb6292d",
+   "tender_notice_id": "589251-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452636-2026",
+   "procedure_id": "69f690c7-6d9f-4395-af18-e68b98873105",
+   "tender_notice_id": "324435-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452635-2026",
+   "procedure_id": "c02c7034-fd01-4ab2-9569-794e34430c9d",
+   "tender_notice_id": "587591-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452624-2026",
+   "procedure_id": "a925352b-e7bf-4036-a547-427d753e6974",
+   "tender_notice_id": "323207-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452623-2026",
+   "procedure_id": "704805e7-337e-4559-940f-33df5fef6bb0",
+   "tender_notice_id": "242118-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452621-2026",
+   "procedure_id": "29cb947d-4957-4b0d-8895-00d95823c6d0",
+   "tender_notice_id": "310769-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452618-2026",
+   "procedure_id": "dd356373-3672-4405-8d62-68982d110ff2",
+   "tender_notice_id": "278714-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452617-2026",
+   "procedure_id": "e821c43a-a749-445f-913e-f6ced067e5bd",
+   "tender_notice_id": "151921-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452615-2026",
+   "procedure_id": "d0702d7f-6364-42da-ba0a-c9f60b4dd74d",
+   "tender_notice_id": "303327-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452614-2026",
+   "procedure_id": "ca858995-fbbc-4546-a974-d1c23a872e2e",
+   "tender_notice_id": "301268-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452609-2026",
+   "procedure_id": "8490c4de-a9d7-478c-a123-7c7e1a7e88f1",
+   "tender_notice_id": "393022-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452604-2026",
+   "procedure_id": "a815896a-5dba-464e-903b-58575b8cc452",
+   "tender_notice_id": "109938-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452603-2026",
+   "procedure_id": "43dc9b5a-1e26-4ff2-9549-d2e550068aae",
+   "tender_notice_id": "303426-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452598-2026",
+   "procedure_id": "30eefcd3-0eed-40e5-8ea5-cda722114ec0",
+   "tender_notice_id": "219875-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452596-2026",
+   "procedure_id": "33c7136e-9caf-47f0-847a-b58e0cf10f03",
+   "tender_notice_id": "319962-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452588-2026",
+   "procedure_id": "ac129f68-fdd5-4f6f-a847-da25ef70febb",
+   "tender_notice_id": "272539-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452584-2026",
+   "procedure_id": "6529e04a-4f1b-4cb7-a8e2-ff1d396d1dde",
+   "tender_notice_id": "125186-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452581-2026",
+   "procedure_id": "aae47aec-ac50-4d9e-900f-f9c8f4a14f3c",
+   "tender_notice_id": "388907-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452578-2026",
+   "procedure_id": "ca641d2c-5b88-4c53-a67e-af9c80b987d4",
+   "tender_notice_id": "122018-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452573-2026",
+   "procedure_id": "82d4f683-bc15-4fc7-b344-36b5b295a46c",
+   "tender_notice_id": "269183-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452572-2026",
+   "procedure_id": "02bbaf6e-c94f-41cc-b27d-015c890056eb",
+   "tender_notice_id": "812777-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452568-2026",
+   "procedure_id": "3d8cda54-881c-4b9d-b911-0ebdbf50affb",
+   "tender_notice_id": "322683-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452564-2026",
+   "procedure_id": "b09b5159-a8a3-444a-9494-592350101bd0",
+   "tender_notice_id": "200074-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452561-2026",
+   "procedure_id": "989ad5fe-d48f-473e-83db-6e0143894ae6",
+   "tender_notice_id": "137790-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452553-2026",
+   "procedure_id": "7a026f0a-4ecf-4aa4-8182-b47fd60595ce",
+   "tender_notice_id": "413026-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452552-2026",
+   "procedure_id": "391cee95-6893-4c9d-a407-015d2a0a051e",
+   "tender_notice_id": "379152-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452551-2026",
+   "procedure_id": "8d3a6b72-bf00-4495-be9f-c280e68cf8fd",
+   "tender_notice_id": "282831-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452549-2026",
+   "procedure_id": "888ef5e4-3293-45bb-8015-8a03fc965053",
+   "tender_notice_id": "847485-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452548-2026",
+   "procedure_id": "a16cd1ac-dc3b-4f2b-893f-ea4a0563f125",
+   "tender_notice_id": "174429-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452546-2026",
+   "procedure_id": "853cdbd1-9619-4914-9032-3570a0a89483",
+   "tender_notice_id": "741118-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452545-2026",
+   "procedure_id": "96aa065b-4380-4d3e-89db-40e47a22c42d",
+   "tender_notice_id": "279841-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452540-2026",
+   "procedure_id": "8cdc0f46-f5ab-4176-bce6-e41c41ed9ac0",
+   "tender_notice_id": "70772-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452539-2026",
+   "procedure_id": "a843b7bc-d665-4c0e-8018-f510fa01d556",
+   "tender_notice_id": "279234-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452525-2026",
+   "procedure_id": "b51fddbc-44d5-4851-b463-0f8f6de25c73",
+   "tender_notice_id": "458121-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452522-2026",
+   "procedure_id": "41dce2c5-e9c8-466a-b159-dced8881b9a0",
+   "tender_notice_id": "336186-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452516-2026",
+   "procedure_id": "4a29a46b-0be7-4027-a5b8-072d2de7cd94",
+   "tender_notice_id": "24559-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452513-2026",
+   "procedure_id": "ab1769b7-00ba-499e-b08b-8ebcd42255c8",
+   "tender_notice_id": "124840-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452510-2026",
+   "procedure_id": "a3645494-9d2c-4bd5-a8cf-91c2159422b7",
+   "tender_notice_id": "142816-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452505-2026",
+   "procedure_id": "a3a1efa9-294c-48bf-8297-b311f9f0ebe3",
+   "tender_notice_id": "51387-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452504-2026",
+   "procedure_id": "f45011bf-75ae-4cef-9ef3-f45db8300cb5",
+   "tender_notice_id": "314627-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452499-2026",
+   "procedure_id": "8fb265c2-e493-477e-b131-eeba1c4b04ec",
+   "tender_notice_id": "183026-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452498-2026",
+   "procedure_id": "a58b7466-72a1-435d-8549-c3f304f9b869",
+   "tender_notice_id": "166195-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452497-2026",
+   "procedure_id": "d0cd8bc4-746f-4e5f-8c06-0b9ff555040e",
+   "tender_notice_id": "130332-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452496-2026",
+   "procedure_id": "e10872b8-f9df-4864-8f92-665280f66ef1",
+   "tender_notice_id": "183195-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452491-2026",
+   "procedure_id": "335adac5-3a5b-4482-aedc-c5ba68491ffa",
+   "tender_notice_id": "269352-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452478-2026",
+   "procedure_id": "8d3fc0c3-a93a-4aa4-9a56-bdb863946dfa",
+   "tender_notice_id": "10027-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452477-2026",
+   "procedure_id": "cfcd2d54-a07f-4d04-ad1e-9ef5187a5672",
+   "tender_notice_id": "785036-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452474-2026",
+   "procedure_id": "4d234607-9368-4ce1-8bfc-8fde91dc7419",
+   "tender_notice_id": "193586-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452472-2026",
+   "procedure_id": "e7988b55-529c-4f14-9939-9a2d0946a633",
+   "tender_notice_id": "11079-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452471-2026",
+   "procedure_id": "a5c504b7-4186-457d-9521-6b9a7337b18e",
+   "tender_notice_id": "174820-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452466-2026",
+   "procedure_id": "cf1392cc-21a0-4f7a-a91c-23dfe110be6d",
+   "tender_notice_id": "159106-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452464-2026",
+   "procedure_id": "a9a82824-338b-4765-a736-c3936348c5da",
+   "tender_notice_id": "325841-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452461-2026",
+   "procedure_id": "07dfb7c1-6e1a-432e-b381-da03d4f4a091",
+   "tender_notice_id": "292135-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452458-2026",
+   "procedure_id": "14ccb35d-88b8-4ffd-9bbe-e54d1ee37213",
+   "tender_notice_id": "287374-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452454-2026",
+   "procedure_id": "1a030123-2511-49bf-924a-1c92ddc93e3f",
+   "tender_notice_id": "198246-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452452-2026",
+   "procedure_id": "df43e586-7717-4415-a550-8162cc16f7ce",
+   "tender_notice_id": "221950-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452451-2026",
+   "procedure_id": "45b8ca28-f8e9-40c5-85c9-1a4748981f90",
+   "tender_notice_id": "627412-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452450-2026",
+   "procedure_id": "33c5b4a0-38d7-4908-ac0e-aa4a0ca53091",
+   "tender_notice_id": "186282-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452449-2026",
+   "procedure_id": "ba3f7ffe-99a6-4164-8a92-19e878d00ee8",
+   "tender_notice_id": "265457-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452448-2026",
+   "procedure_id": "4f84e96d-9e82-4cb9-a928-bda4b6cc05b8",
+   "tender_notice_id": "752522-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452440-2026",
+   "procedure_id": "75f793aa-9f6a-43a9-80c2-250b310323a4",
+   "tender_notice_id": "125890-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452439-2026",
+   "procedure_id": "f28636c7-4fe7-460b-9dbe-95e5b8607fc7",
+   "tender_notice_id": "123680-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452435-2026",
+   "procedure_id": "b58e4442-2f42-4c43-bc0d-10c19ac8ba0e",
+   "tender_notice_id": "755131-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452432-2026",
+   "procedure_id": "8c951676-7148-4900-b72b-aa6353efde73",
+   "tender_notice_id": "229511-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452428-2026",
+   "procedure_id": "370a3160-cfc3-43f2-98d3-7d984266a7cf",
+   "tender_notice_id": "158790-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452427-2026",
+   "procedure_id": "8b9de008-e45d-4a5f-934b-f29e98d627e6",
+   "tender_notice_id": "197899-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452423-2026",
+   "procedure_id": "4096b026-03d6-4c20-a762-3a0223970267",
+   "tender_notice_id": "224833-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452422-2026",
+   "procedure_id": "dcfe4b7e-c06e-498e-b747-c476922b2adb",
+   "tender_notice_id": "73033-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452419-2026",
+   "procedure_id": "8b8c70e0-b295-4306-b79e-60a0d76b06ff",
+   "tender_notice_id": "535184-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452414-2026",
+   "procedure_id": "6554013c-79b3-4b1d-aac6-43b7d92cceb9",
+   "tender_notice_id": "129144-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452413-2026",
+   "procedure_id": "db6f7bee-0ec5-4433-8109-3013df4b62ca",
+   "tender_notice_id": "91608-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452412-2026",
+   "procedure_id": "b3eabec1-6a1e-49ea-92c6-87f52bb8aca3",
+   "tender_notice_id": "44820-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452408-2026",
+   "procedure_id": "170e2577-ef2e-4cb1-abc9-0630b727c147",
+   "tender_notice_id": "797698-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452406-2026",
+   "procedure_id": "a11363af-18e2-43e5-a9b4-43399d90ddb2",
+   "tender_notice_id": "255566-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452405-2026",
+   "procedure_id": "7c2fc949-85d7-4a0e-a447-394885f9df3f",
+   "tender_notice_id": "206711-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452400-2026",
+   "procedure_id": "dee20cb3-0678-4c8c-abf3-cb56bf85b361",
+   "tender_notice_id": "250575-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452399-2026",
+   "procedure_id": "89615f93-061c-4cc2-8a1b-6f2688cf91aa",
+   "tender_notice_id": "97155-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452395-2026",
+   "procedure_id": "2d04ae83-d9ab-4276-8782-fcc2d54cde8d",
+   "tender_notice_id": "308412-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452394-2026",
+   "procedure_id": "d4cfe944-1b02-4fc4-b21b-5a7a6b4866fa",
+   "tender_notice_id": "46529-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452393-2026",
+   "procedure_id": "2743be96-b6b4-4cd6-b142-02c8443017d2",
+   "tender_notice_id": "393981-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452392-2026",
+   "procedure_id": "12652d70-ab1b-4aee-921a-d893f0b129fa",
+   "tender_notice_id": "266674-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452389-2026",
+   "procedure_id": "269eba3e-002a-441d-8570-a7640ae154c4",
+   "tender_notice_id": "248487-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452387-2026",
+   "procedure_id": "7f765c05-9cec-4c0c-8784-8dac16537ad9",
+   "tender_notice_id": "213177-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452378-2026",
+   "procedure_id": "3acfba01-3174-41d2-9fd9-7a70d2671368",
+   "tender_notice_id": "244949-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452377-2026",
+   "procedure_id": "ed26621b-bf8c-4806-9432-a47f1e93e607",
+   "tender_notice_id": "387327-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452376-2026",
+   "procedure_id": "2a4f738c-1c98-4d39-b90a-41f648ffc446",
+   "tender_notice_id": "125780-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452372-2026",
+   "procedure_id": "c16a8212-2ebb-4495-9e2b-78e7562ad227",
+   "tender_notice_id": "236759-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452365-2026",
+   "procedure_id": "5e47c917-5b07-489e-a61d-0764f5ea3702",
+   "tender_notice_id": "264353-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452362-2026",
+   "procedure_id": "59ae1892-76be-4370-96c4-36d907d515c5",
+   "tender_notice_id": "205611-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452352-2026",
+   "procedure_id": "c8dc51a0-914d-44e0-ab92-0108159a68a0",
+   "tender_notice_id": "364538-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452346-2026",
+   "procedure_id": "40270797-9323-40be-9a96-d52851e6918a",
+   "tender_notice_id": "165068-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452343-2026",
+   "procedure_id": "52312bf0-3e7e-4b23-8013-2d98089d86a9",
+   "tender_notice_id": "201695-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452338-2026",
+   "procedure_id": "cc71b085-8b7f-4a95-875a-fde0aa3760b1",
+   "tender_notice_id": "562414-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452337-2026",
+   "procedure_id": "4bbfe251-6864-4f33-bcbb-e1a9a9393ca7",
+   "tender_notice_id": "233803-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452328-2026",
+   "procedure_id": "cf898196-6256-4157-9ccb-46051ad6fabb",
+   "tender_notice_id": "129582-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452326-2026",
+   "procedure_id": "7ca6bbc9-33c9-4af4-8783-e7f67ab2fe60",
+   "tender_notice_id": "181708-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452323-2026",
+   "procedure_id": "b13ba577-fba6-4907-b52f-38134c0d1cbd",
+   "tender_notice_id": "222576-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452318-2026",
+   "procedure_id": "26afdb42-76ff-49ac-9206-14ab9cfec77b",
+   "tender_notice_id": "160044-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452316-2026",
+   "procedure_id": "a3dad8cc-abef-43dc-a726-de467648b1f4",
+   "tender_notice_id": "96663-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452314-2026",
+   "procedure_id": "5348a6da-fa23-4a9a-a90b-8ab70f6f76dd",
+   "tender_notice_id": "224440-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452308-2026",
+   "procedure_id": "0a36d435-d3ab-4a96-9c4d-59499b63bf9e",
+   "tender_notice_id": "209644-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452306-2026",
+   "procedure_id": "f205422a-90ac-4d30-8ad5-30395b2f551c",
+   "tender_notice_id": "106049-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452302-2026",
+   "procedure_id": "d0a804e2-6192-4d37-8ce3-f3e80005fc37",
+   "tender_notice_id": "253097-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452296-2026",
+   "procedure_id": "711b2f87-5ac8-41a9-b692-8d05e9891980",
+   "tender_notice_id": "226108-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452294-2026",
+   "procedure_id": "65f5572f-a619-491a-bef1-f44c246065e0",
+   "tender_notice_id": "254677-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452291-2026",
+   "procedure_id": "05cc5f1a-6100-45c9-958e-52d0d157bd1f",
+   "tender_notice_id": "41883-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452288-2026",
+   "procedure_id": "45c6d153-7830-4a1a-a6f2-016a2b012ca1",
+   "tender_notice_id": "291887-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452279-2026",
+   "procedure_id": "a474eb90-0e6b-4017-8bff-91e3b1b47e8a",
+   "tender_notice_id": "246041-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452278-2026",
+   "procedure_id": "37246588-3ad9-44ea-8387-adef936097dc",
+   "tender_notice_id": "778555-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452277-2026",
+   "procedure_id": "456db24d-6f5e-49ac-90bc-83376d108a87",
+   "tender_notice_id": "177033-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452274-2026",
+   "procedure_id": "1ed979e0-0280-4d4b-8850-b285d59c186f",
+   "tender_notice_id": "287581-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452272-2026",
+   "procedure_id": "391cee95-6893-4c9d-a407-015d2a0a051e",
+   "tender_notice_id": "379152-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452259-2026",
+   "procedure_id": "51887fad-ed5a-4fae-9550-7a5d0addf499",
+   "tender_notice_id": "212037-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452256-2026",
+   "procedure_id": "2adc9c3c-6cd6-4a21-9c64-9ac9d033ce10",
+   "tender_notice_id": "303782-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452255-2026",
+   "procedure_id": "205f2a0f-6994-47eb-a937-911d21a60b7a",
+   "tender_notice_id": "131843-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452250-2026",
+   "procedure_id": "236cfc4e-2a35-4b37-ba4d-7aaec1797a27",
+   "tender_notice_id": "235238-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452246-2026",
+   "procedure_id": "0beee11a-ba61-411c-83ad-af9e1d1f032e",
+   "tender_notice_id": "729019-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452245-2026",
+   "procedure_id": "2493fde3-6358-4a40-954b-afaced4f2ed5",
+   "tender_notice_id": "311401-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452244-2026",
+   "procedure_id": "2effce2d-5d84-423a-95c4-a18914dcd32a",
+   "tender_notice_id": "258518-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452242-2026",
+   "procedure_id": "f17352c7-eeed-44f2-82ab-401a370453c2",
+   "tender_notice_id": "320369-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452237-2026",
+   "procedure_id": "e0fc717a-4d94-402c-afd5-eedd254f33d3",
+   "tender_notice_id": "143846-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452236-2026",
+   "procedure_id": "a2be919e-3304-4d66-b91d-6f2dfa8e1277",
+   "tender_notice_id": "220260-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452234-2026",
+   "procedure_id": "7019093b-6143-4cfa-9593-cdbb52b8db40",
+   "tender_notice_id": "171761-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452222-2026",
+   "procedure_id": "45507b3c-f89a-4d3a-9b14-6f255ee03a21",
+   "tender_notice_id": "53042-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452217-2026",
+   "procedure_id": "feb7ab3c-644d-4e60-b86b-d0ceea394b3b",
+   "tender_notice_id": "721742-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452214-2026",
+   "procedure_id": "4bb6ddde-6d4d-48ab-bbbb-01b457861a73",
+   "tender_notice_id": "765203-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452212-2026",
+   "procedure_id": "04d72a91-20e9-4e6a-9f8e-c8535e7a91ba",
+   "tender_notice_id": "79698-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452211-2026",
+   "procedure_id": "d01a8f36-1fe1-4ad3-a920-abd37d34a6de",
+   "tender_notice_id": "8249-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452209-2026",
+   "procedure_id": "f4619d1d-67da-499e-a481-bdcf50a23636",
+   "tender_notice_id": "231745-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452208-2026",
+   "procedure_id": "0bd71c0f-397b-4fb2-9231-786de22a86bb",
+   "tender_notice_id": "44999-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452207-2026",
+   "procedure_id": "55abae99-c843-4ed9-b192-e5cd5db0e780",
+   "tender_notice_id": "224720-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452204-2026",
+   "procedure_id": "9bb1ca34-11e1-4917-9777-d84ebcc54e9d",
+   "tender_notice_id": "148729-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452201-2026",
+   "procedure_id": "f5ef6be5-e880-46a0-82f3-2ded43fc9c4a",
+   "tender_notice_id": "313027-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452196-2026",
+   "procedure_id": "9734f448-7f1b-41e6-b518-ddc8c6466589",
+   "tender_notice_id": "3854-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452195-2026",
+   "procedure_id": "0c9c447d-3687-4392-960b-e97f8a6c541f",
+   "tender_notice_id": "224527-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452187-2026",
+   "procedure_id": "3d8ef6eb-6ed9-4557-bdd1-4c8aa220ddf5",
+   "tender_notice_id": "712583-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452185-2026",
+   "procedure_id": "88a5fb68-eded-4d9d-95d5-e850689ccd0a",
+   "tender_notice_id": "282614-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452180-2026",
+   "procedure_id": "12c83718-5a46-4a41-99f8-f21a2be7768d",
+   "tender_notice_id": "229551-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452178-2026",
+   "procedure_id": "2088147d-bc9b-4b52-9c84-bc933c08eeec",
+   "tender_notice_id": "78742-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452175-2026",
+   "procedure_id": "1c307ac1-dbee-4175-be7d-8c11c79aaa08",
+   "tender_notice_id": "851800-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452173-2026",
+   "procedure_id": "3aff3fc5-6067-4928-8a1a-1764bc1ce0ed",
+   "tender_notice_id": "757190-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452172-2026",
+   "procedure_id": "653f5540-294f-482e-8b98-fc4c1fdf5b70",
+   "tender_notice_id": "718716-2023",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452170-2026",
+   "procedure_id": "26ee78a3-0928-42e5-8c04-6b38de5fb0a5",
+   "tender_notice_id": "20253-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452169-2026",
+   "procedure_id": "f943ff4d-bec4-4b05-b737-5c5cfc9a0200",
+   "tender_notice_id": "252262-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452167-2026",
+   "procedure_id": "e118d114-1b6a-4230-8252-83637e91230e",
+   "tender_notice_id": "229169-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452166-2026",
+   "procedure_id": "7a55adae-1e9a-49ee-a74e-843d6c93cf82",
+   "tender_notice_id": "324088-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452163-2026",
+   "procedure_id": "78afa113-1855-4997-9bd7-b3142ed68692",
+   "tender_notice_id": "296807-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452162-2026",
+   "procedure_id": "d80dfc09-27e7-4f65-b248-5a24a1696652",
+   "tender_notice_id": "226684-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452161-2026",
+   "procedure_id": "44ceca78-1d60-42f3-9d8b-88436119f5c8",
+   "tender_notice_id": "272717-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452158-2026",
+   "procedure_id": "477c5dc1-a653-44da-8246-e7f0edf6feb5",
+   "tender_notice_id": "283980-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452156-2026",
+   "procedure_id": "f05ea31d-6095-4da4-8329-8f20aff1080c",
+   "tender_notice_id": "64413-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452152-2026",
+   "procedure_id": "9c3b94ce-37e1-45ec-a470-2d737d02c85d",
+   "tender_notice_id": "101485-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452151-2026",
+   "procedure_id": "5fd3967c-21cb-4636-94bb-4ad4777787e9",
+   "tender_notice_id": "231616-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452145-2026",
+   "procedure_id": "ef344ef6-fac0-43b1-aaf8-dddbb9251ff5",
+   "tender_notice_id": "695015-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452144-2026",
+   "procedure_id": "443f94ed-9681-465b-ad95-58005dad72a2",
+   "tender_notice_id": "308353-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452138-2026",
+   "procedure_id": "5c738708-ab54-4578-bbc0-dc6b4f9c91aa",
+   "tender_notice_id": "224846-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452137-2026",
+   "procedure_id": "ba2a17d3-1775-43c0-bed7-71b6267d0ee8",
+   "tender_notice_id": "232214-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452134-2026",
+   "procedure_id": "15438974-fc29-460f-8f1d-98547a54be31",
+   "tender_notice_id": "325452-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452133-2026",
+   "procedure_id": "8bcc2be5-763a-4bd8-b301-e20db0ed3308",
+   "tender_notice_id": "135802-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452131-2026",
+   "procedure_id": "4dbe7575-496f-432f-ad69-a4dd81448f94",
+   "tender_notice_id": "359250-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452128-2026",
+   "procedure_id": "b8f401e1-09bf-404c-9d4c-bef4184f0792",
+   "tender_notice_id": "300960-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452126-2026",
+   "procedure_id": "28a53a45-f0d5-47b7-a48b-38b2473e4a73",
+   "tender_notice_id": "248013-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452121-2026",
+   "procedure_id": "ee275928-d06f-4888-b0dc-fbcce45f701e",
+   "tender_notice_id": "258641-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452115-2026",
+   "procedure_id": "066d0aa5-d01a-4d2c-9ade-035039037fcf",
+   "tender_notice_id": "81427-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452114-2026",
+   "procedure_id": "35016247-2f2a-437f-aeee-688301f7f069",
+   "tender_notice_id": "192160-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452113-2026",
+   "procedure_id": "fc56e091-409c-45f1-9104-b1f9c22843c3",
+   "tender_notice_id": "197346-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452112-2026",
+   "procedure_id": "220741b6-f1b7-4aa6-8e03-2d335ebe800d",
+   "tender_notice_id": "199311-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452110-2026",
+   "procedure_id": "773513c3-4803-409b-a26a-3e07dbfbeb59",
+   "tender_notice_id": "302594-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452107-2026",
+   "procedure_id": "fc26e688-c809-499e-a46c-601e2d7a1e5d",
+   "tender_notice_id": "694714-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452106-2026",
+   "procedure_id": "260334e3-49fd-4f0d-9230-3d55d0fb335c",
+   "tender_notice_id": "758531-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452101-2026",
+   "procedure_id": "f686bebd-59e2-43d0-8055-acb0734f1f87",
+   "tender_notice_id": "31617-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452097-2026",
+   "procedure_id": "4295806b-11a8-4bed-9aba-04d1ba6b99f3",
+   "tender_notice_id": "259257-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452094-2026",
+   "procedure_id": "d9ada054-d222-488f-815b-12206ed298f6",
+   "tender_notice_id": "164665-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452093-2026",
+   "procedure_id": "bd4cd90f-041d-4fdf-948d-816322d7b173",
+   "tender_notice_id": "131102-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452092-2026",
+   "procedure_id": "aa051959-1576-40dd-af95-96c7143df395",
+   "tender_notice_id": "266261-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452091-2026",
+   "procedure_id": "a795c942-3e14-41ac-8614-fb2ebdb7e820",
+   "tender_notice_id": "192078-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452090-2026",
+   "procedure_id": "5e982a84-6d39-47e3-9fb1-ac92a1428fab",
+   "tender_notice_id": "85367-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452089-2026",
+   "procedure_id": "7b05570b-f6b6-409c-bddb-8c48d50244af",
+   "tender_notice_id": "300690-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452085-2026",
+   "procedure_id": "9efb7e1f-2cc7-4cd8-bc2e-a18b04266534",
+   "tender_notice_id": "753046-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452083-2026",
+   "procedure_id": "9c3b94ce-37e1-45ec-a470-2d737d02c85d",
+   "tender_notice_id": "101485-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452082-2026",
+   "procedure_id": "6ad353bc-116c-449a-b89b-ecf7b89f3665",
+   "tender_notice_id": "484872-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452080-2026",
+   "procedure_id": "1118d40e-b4df-4563-bc8c-ae317a6f0cd0",
+   "tender_notice_id": "52901-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452076-2026",
+   "procedure_id": "59a5cd1e-d90b-46df-ab42-967c8c47a69d",
+   "tender_notice_id": "187475-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452071-2026",
+   "procedure_id": "c446a527-7436-483b-a35c-659032aa5c41",
+   "tender_notice_id": "470898-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452069-2026",
+   "procedure_id": "6a2107a0-f94e-41f1-a0ac-f3eb5fca0c0a",
+   "tender_notice_id": "845683-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452066-2026",
+   "procedure_id": "0027aec3-bcf5-458d-9e64-e13b6347743f",
+   "tender_notice_id": "103062-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": true
+  },
+  {
+   "award": "452063-2026",
+   "procedure_id": "5fb373d8-9a11-497a-9a2b-67ea6c71541d",
+   "tender_notice_id": "39520-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452059-2026",
+   "procedure_id": "71763796-92fb-433a-a5a0-26d9bcf89ea3",
+   "tender_notice_id": "139008-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452058-2026",
+   "procedure_id": "dd66d873-2547-43dc-94c2-a19b20f37d29",
+   "tender_notice_id": "62472-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452056-2026",
+   "procedure_id": "8f16238f-231d-4efd-9e5e-3e929f760b28",
+   "tender_notice_id": "712256-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452055-2026",
+   "procedure_id": "1aed1bb4-5705-4c1b-8596-a6aa1ef7a16a",
+   "tender_notice_id": "277089-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452053-2026",
+   "procedure_id": "b2e2ec0d-ece9-47aa-b108-05c8b006ad0a",
+   "tender_notice_id": "72029-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452051-2026",
+   "procedure_id": "e133402a-0eaf-4f1d-8ba5-cb2c104f3c3c",
+   "tender_notice_id": "325664-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452049-2026",
+   "procedure_id": "19dcd74d-8a02-4d4e-b6c7-be613a4ff4f4",
+   "tender_notice_id": "205240-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452047-2026",
+   "procedure_id": "1c15ca80-0ecc-43c8-b279-fcf6b56df178",
+   "tender_notice_id": "246140-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452045-2026",
+   "procedure_id": "c96356ad-f132-4a04-8f88-2c8defa036e0",
+   "tender_notice_id": "242094-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452044-2026",
+   "procedure_id": "6a3a528e-dc8a-41db-8c1a-ef3616ba361d",
+   "tender_notice_id": "131213-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452031-2026",
+   "procedure_id": "7cc3c980-8a21-4d08-be47-64f01d29d106",
+   "tender_notice_id": "213911-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452023-2026",
+   "procedure_id": "63f7be90-dac6-434c-8607-bee14834f00a",
+   "tender_notice_id": "156055-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452018-2026",
+   "procedure_id": "8a3b904b-4569-4fc4-9f8d-1e13118c035a",
+   "tender_notice_id": "146830-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452010-2026",
+   "procedure_id": "c37cb027-0f85-4e15-afa6-03f41cf8389f",
+   "tender_notice_id": "131297-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452007-2026",
+   "procedure_id": "ff3b92bb-7208-4491-a694-f82e9e796d84",
+   "tender_notice_id": "739889-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452005-2026",
+   "procedure_id": "1b3e46ee-ba43-46ef-a139-d505d349eac0",
+   "tender_notice_id": "138536-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "452002-2026",
+   "procedure_id": "11786703-90bd-4087-b578-d985fd8b53be",
+   "tender_notice_id": "759869-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451995-2026",
+   "procedure_id": "00af9c6c-7100-4fd1-b653-05efe12f415c",
+   "tender_notice_id": "331014-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451994-2026",
+   "procedure_id": "fcd8fc56-17ee-4e38-aa21-1eff386b2ba2",
+   "tender_notice_id": "246059-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451993-2026",
+   "procedure_id": "3a44c719-b16d-4686-b5b7-737f6cec373d",
+   "tender_notice_id": "772711-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451991-2026",
+   "procedure_id": "41135c80-86e9-4efb-8fd5-076f71cb9a7c",
+   "tender_notice_id": "321139-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451987-2026",
+   "procedure_id": "7cf85a7e-734f-447d-9923-c3f43f9a88b6",
+   "tender_notice_id": "288823-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451977-2026",
+   "procedure_id": "da8d0d27-b095-480d-89c7-2ffe4cfdc00b",
+   "tender_notice_id": "164136-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451975-2026",
+   "procedure_id": "8bc9f8d5-e3f1-4fac-9d11-f92945470095",
+   "tender_notice_id": "182117-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451974-2026",
+   "procedure_id": "0872a84b-d776-412a-a7f8-0438a6d7dc6c",
+   "tender_notice_id": "45905-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451966-2026",
+   "procedure_id": "d1fd8988-2763-4542-ab3b-61f97e51a9ec",
+   "tender_notice_id": "337752-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451962-2026",
+   "procedure_id": "3b43252a-50e1-435c-9b4a-eb9529e37b32",
+   "tender_notice_id": "229092-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451960-2026",
+   "procedure_id": "621f4921-a19d-4b94-a98b-4357e0e4561c",
+   "tender_notice_id": "259401-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451957-2026",
+   "procedure_id": "56252f7b-a86d-44d4-b042-7b3fa7362765",
+   "tender_notice_id": "40529-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451954-2026",
+   "procedure_id": "f38283c7-1c6b-4fe0-9aed-e0ea0eefa46d",
+   "tender_notice_id": "157255-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451953-2026",
+   "procedure_id": "d391bd9f-8a18-43eb-a0ac-9cdb9beaa31f",
+   "tender_notice_id": "855285-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451950-2026",
+   "procedure_id": "c6e0c07f-bc36-4e1c-8d20-24a0d8ef3742",
+   "tender_notice_id": "192157-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451948-2026",
+   "procedure_id": "f384e0c1-9ca1-4f6d-a3b2-29f5dec2ea83",
+   "tender_notice_id": "150235-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451946-2026",
+   "procedure_id": "fcbb7b8b-0717-40ad-835a-5ec7069b53d0",
+   "tender_notice_id": "865765-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451942-2026",
+   "procedure_id": "357a0c70-9548-4d54-a1c2-d5600e141635",
+   "tender_notice_id": "243157-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451941-2026",
+   "procedure_id": "e0cd050c-aea4-4bfd-9c7c-bb983f5935ff",
+   "tender_notice_id": "150291-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451940-2026",
+   "procedure_id": "c7033cfd-b749-4973-8c96-fd01b0707bad",
+   "tender_notice_id": "806332-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451938-2026",
+   "procedure_id": "4840b529-ea53-44d4-a37e-df6db6b110f4",
+   "tender_notice_id": "334712-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451934-2026",
+   "procedure_id": "d56ba152-3602-4b71-ac91-c14fc0a4c183",
+   "tender_notice_id": "132909-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451930-2026",
+   "procedure_id": "b62b386d-8763-4312-be69-1850cf2d60e4",
+   "tender_notice_id": "206284-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451929-2026",
+   "procedure_id": "d76325ad-ab37-4ffe-ade7-fc11c43ca9d1",
+   "tender_notice_id": "90016-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451921-2026",
+   "procedure_id": "2ed80b76-9099-4dd3-99c7-89b405a911d0",
+   "tender_notice_id": "450590-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451917-2026",
+   "procedure_id": "f1812aaa-b9bd-42b9-8998-475d212d4091",
+   "tender_notice_id": "113123-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451916-2026",
+   "procedure_id": "c0cbe48b-07f9-4cc1-a662-13e538438b7b",
+   "tender_notice_id": "337006-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451914-2026",
+   "procedure_id": "3b6e219c-9420-48b6-b9e7-6a6614aae9fe",
+   "tender_notice_id": "201064-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451913-2026",
+   "procedure_id": "caf8d990-9a53-41ee-88da-55a50bb73d68",
+   "tender_notice_id": "284483-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451912-2026",
+   "procedure_id": "1370dff9-a106-48fa-afda-5df1cf13f86b",
+   "tender_notice_id": "52492-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451911-2026",
+   "procedure_id": "8a0ac1a2-371f-4eae-97de-b60f392d7102",
+   "tender_notice_id": "469193-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451906-2026",
+   "procedure_id": "7c009640-7b5e-4aba-883b-b0d3946e26a2",
+   "tender_notice_id": "748487-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451905-2026",
+   "procedure_id": "b19e0dff-5c9b-4ea5-b5c8-39fb82d4fbc2",
+   "tender_notice_id": "368187-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451900-2026",
+   "procedure_id": "3782744e-fc38-4839-b34c-d34a65bf44d1",
+   "tender_notice_id": "140158-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451894-2026",
+   "procedure_id": "40898345-cdfc-44f6-ba4c-6cca6440b0bf",
+   "tender_notice_id": "317531-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451890-2026",
+   "procedure_id": "7d59ca37-a1a8-4539-990c-9b428d734f8d",
+   "tender_notice_id": "306330-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451889-2026",
+   "procedure_id": "07def50c-8bf4-45fb-8fd9-cad7bb5fc332",
+   "tender_notice_id": "312552-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451882-2026",
+   "procedure_id": "4bed7d5b-5e51-4739-bbea-42ab6795737f",
+   "tender_notice_id": "104779-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451873-2026",
+   "procedure_id": "e42dc7bd-b561-4b0f-b13d-4501303834cc",
+   "tender_notice_id": "193945-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451872-2026",
+   "procedure_id": "c66a92bd-5dba-49c0-a0fd-6fb50ff0fc21",
+   "tender_notice_id": "108515-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451869-2026",
+   "procedure_id": "f1198d56-e634-426f-bdbc-57578c60865b",
+   "tender_notice_id": "282771-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451866-2026",
+   "procedure_id": "72aea7ff-5eb5-425e-aa8e-3700e785b210",
+   "tender_notice_id": "45378-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451865-2026",
+   "procedure_id": "2ac520ed-2c9d-4a09-be4c-85404b116064",
+   "tender_notice_id": "103642-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451864-2026",
+   "procedure_id": "6e6e66a8-fc39-48d4-b83b-159d8a4f753c",
+   "tender_notice_id": "757700-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451863-2026",
+   "procedure_id": "cc726f09-174a-4af5-b890-55ecaf0e82fc",
+   "tender_notice_id": "71345-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451861-2026",
+   "procedure_id": "18b63d0b-8f23-49a9-b9d7-10db4638ed1e",
+   "tender_notice_id": "107209-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451859-2026",
+   "procedure_id": "d128ac76-5058-454a-b2b8-8e760039d7d7",
+   "tender_notice_id": "165512-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451858-2026",
+   "procedure_id": "23e9a59d-e2dd-4e83-a695-c4a71b7db763",
+   "tender_notice_id": "65946-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451855-2026",
+   "procedure_id": "efe7d408-bfba-49a4-ab41-c80bf3fbf20d",
+   "tender_notice_id": "57630-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451852-2026",
+   "procedure_id": "01dd267f-54e8-48ac-9d96-051b6f3f722b",
+   "tender_notice_id": "494569-2025",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451850-2026",
+   "procedure_id": "5440cef5-d994-481e-847c-fb25e5e4f576",
+   "tender_notice_id": "193819-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451849-2026",
+   "procedure_id": "db92218c-2846-4a66-bd21-9cdc1c45f188",
+   "tender_notice_id": "218411-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451848-2026",
+   "procedure_id": "cd0ec538-2b23-4bf2-bcad-940fe692cb24",
+   "tender_notice_id": "751253-2024",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  },
+  {
+   "award": "451843-2026",
+   "procedure_id": "142f2eab-edd4-4289-8ea5-0820f654cf45",
+   "tender_notice_id": "233871-2026",
+   "status": "linked",
+   "notices_sharing_identifier": null,
+   "verified": null
+  }
+ ]
+}

@@ -1,0 +1,32 @@
+{
+ "caderno_encargos.pdf": {
+  "container": "acingov.bin",
+  "member": "Processo Concurso/1_Caderno_encargos_AE.pdf",
+  "bytes": 482142,
+  "sha256": "0c7db3def9c53b094adcf5655bf32910e0bb693d4e60c03287ad24f38a95e8ef"
+ },
+ "anuncio_joraa.pdf": {
+  "container": "acingov.bin",
+  "member": "Carta Convite ou Anúncio DR/384-II-Anúncio-2026-08-14 JORAA.pdf",
+  "bytes": 50513,
+  "sha256": "d2fda13188f9c5feae3f8603d968dbd580660a18ca1dfa01a7ed489fcf696b6b"
+ },
+ "espd-request.zip": {
+  "container": "acingov.bin",
+  "member": "Processo Concurso/3_espd-request.zip",
+  "bytes": 54019,
+  "sha256": "d8d5907e0b78c85e67e91e6d66927346c4b35880c7ea2f70045955d7c121d6a4"
+ },
+ "dokumentacija.docx": {
+  "container": "enarocanje.bin",
+  "member": "Dokumentacija v zvezi z oddajo.docx",
+  "bytes": 368475,
+  "sha256": "8cd8b0b190978744353f50db669aaaee48d8b18dee1bb9144e72164a5eca16fe"
+ },
+ "popis_opreme.xlsx": {
+  "container": "enarocanje.bin",
+  "member": "Popis opreme - SKLOP 2.xlsx",
+  "bytes": 89962,
+  "sha256": "0410f9d6baf84eceef140128111946db53d74a81a2b71706bb4bb5fcbed82f7d"
+ }
+}
