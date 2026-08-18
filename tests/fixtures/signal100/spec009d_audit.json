@@ -1,0 +1,1552 @@
+{
+ "artefact": "spec009d-audit",
+ "as_of": "2026-08-18",
+ "note": "AUDIT ONLY — aucun moteur, aucun label commercial, aucun seuil n'est modifié",
+ "inputs": {
+  "corpus": {
+   "file": "spec009c_corpus.json",
+   "sha256": "da91b4a2b70ba4bb97438dca0744d01007f7f845f4066c494a2f5d38e86dc951",
+   "award_lots": 2001
+  },
+  "bench": {
+   "file": "spec009c_bench.json",
+   "sha256": "d613648823ba631bd252415460139fd896b1e9724eedc5e528c8cfd3c782277a",
+   "signals": 100
+  },
+  "gold": {
+   "file": "spec009c_gold.json",
+   "sha256": "c579a1396cdffbc24d57c564172f77f8f2d600a8f6d65c7e5363c2079fdbf50b",
+   "records": 100
+  },
+  "icp": "icp-construction-inputs-ch-eu-v0",
+  "engine_versions": {
+   "bkp_policy": "bkp-trade-v0.1",
+   "match_policy": "icp-match-v0.2",
+   "need": "need-graph-v0.2",
+   "reference_icp_library": "reference-icps-v0.1",
+   "rule_library": "need-rules-v0.5",
+   "score_policy": "signal-score-v0.2",
+   "understanding": "contract-understanding-v0.3"
+  },
+  "rubric": "commercial-signal-rubric-v1"
+ },
+ "part_a_recency": {
+  "population": {
+   "natural_shows": 110,
+   "adjudicated": 100
+  },
+  "award_date_coverage": {
+   "n": 110,
+   "known": 89,
+   "unknown": 21,
+   "known_pct": 80.9,
+   "by_source": {
+    "simap": {
+     "n": 76,
+     "known": 76,
+     "unknown": 0,
+     "known_pct": 100.0
+    },
+    "ted": {
+     "n": 34,
+     "known": 13,
+     "unknown": 21,
+     "known_pct": 38.2
+    }
+   }
+  },
+  "publication_date_coverage": {
+   "n": 110,
+   "known": 110,
+   "unknown": 0,
+   "known_pct": 100.0
+  },
+  "contract_start_coverage": {
+   "n": 110,
+   "known": 21,
+   "unknown": 89,
+   "known_pct": 19.1
+  },
+  "contract_end_coverage": {
+   "n": 110,
+   "known": 21,
+   "unknown": 89,
+   "known_pct": 19.1
+  },
+  "award_age_buckets": {
+   "0-7": 7,
+   "8-14": 14,
+   "15-30": 35,
+   "31-60": 22,
+   "61-90": 7,
+   "91-120": 3,
+   ">120": 1,
+   "unknown": 21
+  },
+  "award_age_distribution": {
+   "n": 89,
+   "median": 26,
+   "p25": 18,
+   "p75": 49,
+   "p90": 63,
+   "p95": 76,
+   "max": 8767
+  },
+  "publication_age_distribution": {
+   "n": 110,
+   "median": 11,
+   "p25": 0,
+   "p75": 18,
+   "p90": 21,
+   "p95": 24,
+   "max": 25
+  },
+  "publication_delay_distribution": {
+   "n": 89,
+   "median": 8,
+   "p25": 2,
+   "p75": 33,
+   "p90": 47,
+   "p95": 63,
+   "max": 8767
+  },
+  "publication_delay_buckets": {
+   "same_day": 1,
+   "1-7": 43,
+   "8-14": 8,
+   "15-30": 12,
+   "31-60": 20,
+   ">60": 5,
+   "unknown": 21
+  },
+  "just_won": {
+   "7": {
+    "n": 5,
+    "A": 2,
+    "B": 1,
+    "C": 1,
+    "D": 1,
+    "sample": "reportable",
+    "useful_precision": 60.0,
+    "actionable_rate": 40.0,
+    "weak_rate": 20.0,
+    "false_rate": 20.0,
+    "share_of_shows": 6.4
+   },
+   "14": {
+    "n": 17,
+    "A": 4,
+    "B": 7,
+    "C": 5,
+    "D": 1,
+    "sample": "reportable",
+    "useful_precision": 64.7,
+    "actionable_rate": 23.5,
+    "weak_rate": 29.4,
+    "false_rate": 5.9,
+    "share_of_shows": 19.1
+   },
+   "30": {
+    "n": 51,
+    "A": 14,
+    "B": 16,
+    "C": 18,
+    "D": 3,
+    "sample": "reportable",
+    "useful_precision": 58.8,
+    "actionable_rate": 27.5,
+    "weak_rate": 35.3,
+    "false_rate": 5.9,
+    "share_of_shows": 50.9
+   }
+  },
+  "quality_by_award_age_bucket": {
+   "0-7": {
+    "n": 5,
+    "A": 2,
+    "B": 1,
+    "C": 1,
+    "D": 1,
+    "sample": "reportable",
+    "useful_precision": 60.0,
+    "actionable_rate": 40.0,
+    "weak_rate": 20.0,
+    "false_rate": 20.0
+   },
+   "8-14": {
+    "n": 12,
+    "A": 2,
+    "B": 6,
+    "C": 4,
+    "D": 0,
+    "sample": "reportable",
+    "useful_precision": 66.7,
+    "actionable_rate": 16.7,
+    "weak_rate": 33.3,
+    "false_rate": 0.0
+   },
+   "15-30": {
+    "n": 34,
+    "A": 10,
+    "B": 9,
+    "C": 13,
+    "D": 2,
+    "sample": "reportable",
+    "useful_precision": 55.9,
+    "actionable_rate": 29.4,
+    "weak_rate": 38.2,
+    "false_rate": 5.9
+   },
+   "31-60": {
+    "n": 21,
+    "A": 6,
+    "B": 7,
+    "C": 7,
+    "D": 1,
+    "sample": "reportable",
+    "useful_precision": 61.9,
+    "actionable_rate": 28.6,
+    "weak_rate": 33.3,
+    "false_rate": 4.8
+   },
+   "61-90": {
+    "n": 5,
+    "A": 2,
+    "B": 2,
+    "C": 1,
+    "D": 0,
+    "sample": "reportable",
+    "useful_precision": 80.0,
+    "actionable_rate": 40.0,
+    "weak_rate": 20.0,
+    "false_rate": 0.0
+   },
+   "91-120": {
+    "n": 2,
+    "A": 2,
+    "B": 0,
+    "C": 0,
+    "D": 0,
+    "sample": "sample too small"
+   },
+   "unknown": {
+    "n": 21,
+    "A": 6,
+    "B": 9,
+    "C": 5,
+    "D": 1,
+    "sample": "reportable",
+    "useful_precision": 71.4,
+    "actionable_rate": 28.6,
+    "weak_rate": 23.8,
+    "false_rate": 4.8
+   }
+  },
+  "quality_gradient_30d": {
+   "fresh_le_30d": {
+    "n": 51,
+    "A": 14,
+    "B": 16,
+    "C": 18,
+    "D": 3,
+    "sample": "reportable",
+    "useful_precision": 58.8,
+    "actionable_rate": 27.5,
+    "weak_rate": 35.3,
+    "false_rate": 5.9
+   },
+   "older_gt_30d": {
+    "n": 28,
+    "A": 10,
+    "B": 9,
+    "C": 8,
+    "D": 1,
+    "sample": "reportable",
+    "useful_precision": 67.9,
+    "actionable_rate": 35.7,
+    "weak_rate": 28.6,
+    "false_rate": 3.6
+   },
+   "gradient_points": -9.1
+  },
+  "stale_but_recently_published": [
+   {
+    "signal_id": "fdaa45820027c7d28fd40f83d93ecbb1105be04c4a0f6dd4a0ba757bed0b89a6",
+    "source": "simap",
+    "award_date": "2002-08-17",
+    "publication_date": "2026-08-18",
+    "publication_delay_days": 8767,
+    "award_age_days": 8767,
+    "contract_start_date": null,
+    "contract_end_date": null,
+    "days_to_contract_start": null,
+    "days_until_contract_end": null,
+    "gold": "not adjudicated"
+   },
+   {
+    "signal_id": "ec186af38a1c586ecde93516c9723a82c57f2c7c06727c4ae045e7ea94865fc9",
+    "source": "simap",
+    "award_date": "2026-05-11",
+    "publication_date": "2026-08-07",
+    "publication_delay_days": 88,
+    "award_age_days": 99,
+    "contract_start_date": null,
+    "contract_end_date": null,
+    "days_to_contract_start": null,
+    "days_until_contract_end": null,
+    "gold": "not adjudicated"
+   },
+   {
+    "signal_id": "9ba633780c5e6f107b97a9448d315c556c95cea3326ebd4789633262f91385c3",
+    "source": "ted",
+    "award_date": "2026-05-12",
+    "publication_date": "2026-08-18",
+    "publication_delay_days": 98,
+    "award_age_days": 98,
+    "contract_start_date": null,
+    "contract_end_date": null,
+    "days_to_contract_start": null,
+    "days_until_contract_end": null,
+    "gold": "A"
+   },
+   {
+    "signal_id": "f3e563259ff39f269241651396f825d24199ed4f1b3db6db454296d994da7e32",
+    "source": "ted",
+    "award_date": "2026-05-12",
+    "publication_date": "2026-08-18",
+    "publication_delay_days": 98,
+    "award_age_days": 98,
+    "contract_start_date": null,
+    "contract_end_date": null,
+    "days_to_contract_start": null,
+    "days_until_contract_end": null,
+    "gold": "A"
+   },
+   {
+    "signal_id": "73c9b15f0ccc59ebe8979bd1ef9b7d0dd6f74d677d5309534c6dc5b476d3eb77",
+    "source": "simap",
+    "award_date": "2026-06-11",
+    "publication_date": "2026-08-04",
+    "publication_delay_days": 54,
+    "award_age_days": 68,
+    "contract_start_date": null,
+    "contract_end_date": null,
+    "days_to_contract_start": null,
+    "days_until_contract_end": null,
+    "gold": "not adjudicated"
+   },
+   {
+    "signal_id": "7c19bf5ef550327a7d9c1b7a6860db4865956a55c13fc1afa9efc358599c4135",
+    "source": "ted",
+    "award_date": "2026-06-16",
+    "publication_date": "2026-08-18",
+    "publication_delay_days": 63,
+    "award_age_days": 63,
+    "contract_start_date": null,
+    "contract_end_date": null,
+    "days_to_contract_start": null,
+    "days_until_contract_end": null,
+    "gold": "B"
+   },
+   {
+    "signal_id": "92587889f66d81f609eb1b5f19fb0ad68a6cbddf77a84ea4aea87fc3789d1b8b",
+    "source": "simap",
+    "award_date": "2026-06-18",
+    "publication_date": "2026-08-04",
+    "publication_delay_days": 47,
+    "award_age_days": 61,
+    "contract_start_date": null,
+    "contract_end_date": null,
+    "days_to_contract_start": null,
+    "days_until_contract_end": null,
+    "gold": "C"
+   }
+  ],
+  "contracts_already_started": [
+   {
+    "signal_id": "1644743753bcafe4ebb3cf5eb822d64ec6701efe3167a429c2e1c817fd7f9f4f",
+    "source": "ted",
+    "award_date": "2026-08-04",
+    "publication_date": "2026-08-18",
+    "publication_delay_days": 14,
+    "award_age_days": 14,
+    "contract_start_date": "2026-07-27",
+    "contract_end_date": "2026-09-16",
+    "days_to_contract_start": -22,
+    "days_until_contract_end": 29,
+    "gold": "B"
+   },
+   {
+    "signal_id": "42bd8585c2224de20dbed387a57821421a7f3df40ce3bc8dd72eb98de892733b",
+    "source": "ted",
+    "award_date": "2026-07-22",
+    "publication_date": "2026-08-18",
+    "publication_delay_days": 27,
+    "award_age_days": 27,
+    "contract_start_date": "2026-07-20",
+    "contract_end_date": "2027-06-11",
+    "days_to_contract_start": -29,
+    "days_until_contract_end": 297,
+    "gold": "C"
+   },
+   {
+    "signal_id": "82494b4f9162836be334ba30f7abf89d1634e15f28973332fdeccb04dae46d77",
+    "source": "ted",
+    "award_date": "2026-07-22",
+    "publication_date": "2026-08-18",
+    "publication_delay_days": 27,
+    "award_age_days": 27,
+    "contract_start_date": "2026-07-27",
+    "contract_end_date": "2027-02-05",
+    "days_to_contract_start": -22,
+    "days_until_contract_end": 171,
+    "gold": "A"
+   },
+   {
+    "signal_id": "8be5e6b2913ede2f4bab279f5204e5d9cb440cae0dcc0119ea2e2b95bd58724a",
+    "source": "ted",
+    "award_date": null,
+    "publication_date": "2026-08-18",
+    "publication_delay_days": null,
+    "award_age_days": null,
+    "contract_start_date": "2026-08-17",
+    "contract_end_date": "2026-11-16",
+    "days_to_contract_start": -1,
+    "days_until_contract_end": 90,
+    "gold": "B"
+   },
+   {
+    "signal_id": "9c1c8e10185edd5c75677472d52db839c9304dd998ccf6594bc996dec0312187",
+    "source": "ted",
+    "award_date": "2026-07-09",
+    "publication_date": "2026-08-18",
+    "publication_delay_days": 40,
+    "award_age_days": 40,
+    "contract_start_date": "2026-08-07",
+    "contract_end_date": "2028-02-29",
+    "days_to_contract_start": -11,
+    "days_until_contract_end": 560,
+    "gold": "A"
+   },
+   {
+    "signal_id": "e9fbc300ece200330a5474ca82e1098d38488f4c02b4587fd98fe97029f60394",
+    "source": "ted",
+    "award_date": null,
+    "publication_date": "2026-08-18",
+    "publication_delay_days": null,
+    "award_age_days": null,
+    "contract_start_date": "2026-08-17",
+    "contract_end_date": "2027-01-29",
+    "days_to_contract_start": -1,
+    "days_until_contract_end": 164,
+    "gold": "C"
+   }
+  ],
+  "contracts_ending_soon": [
+   {
+    "signal_id": "1644743753bcafe4ebb3cf5eb822d64ec6701efe3167a429c2e1c817fd7f9f4f",
+    "source": "ted",
+    "award_date": "2026-08-04",
+    "publication_date": "2026-08-18",
+    "publication_delay_days": 14,
+    "award_age_days": 14,
+    "contract_start_date": "2026-07-27",
+    "contract_end_date": "2026-09-16",
+    "days_to_contract_start": -22,
+    "days_until_contract_end": 29,
+    "gold": "B"
+   },
+   {
+    "signal_id": "c0f3e5e48c4b46dd47eb2f65089aedde226d8f2f4fbe59f715cba5731e1ec265",
+    "source": "ted",
+    "award_date": null,
+    "publication_date": "2026-08-18",
+    "publication_delay_days": null,
+    "award_age_days": null,
+    "contract_start_date": "2026-08-18",
+    "contract_end_date": "2026-09-11",
+    "days_to_contract_start": 0,
+    "days_until_contract_end": 24,
+    "gold": "C"
+   }
+  ],
+  "verdict": "RECENCY PARTIALLY OBSERVABLE"
+ },
+ "part_b_purchase_channel": {
+  "population": {
+   "adjudicated": 100,
+   "useful": 64,
+   "non_useful": 36
+  },
+  "fact_coverage": {
+   "bkp_codes": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 47.0,
+    "coverage_useful": 43.8,
+    "coverage_non_useful": 52.8
+   },
+   "lot_title": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 34.0,
+    "coverage_useful": 39.1,
+    "coverage_non_useful": 25.0
+   },
+   "contract_reference": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 34.0,
+    "coverage_useful": 39.1,
+    "coverage_non_useful": 25.0
+   },
+   "cpv_additional": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 21.0,
+    "coverage_useful": 21.9,
+    "coverage_non_useful": 19.4
+   },
+   "characteristics": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 34.0,
+    "coverage_useful": 39.1,
+    "coverage_non_useful": 25.0
+   },
+   "sector": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 19.0,
+    "coverage_useful": 15.6,
+    "coverage_non_useful": 25.0
+   },
+   "award_date": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 79.0,
+    "coverage_useful": 76.6,
+    "coverage_non_useful": 83.3
+   },
+   "contract_start_date": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 21.0,
+    "coverage_useful": 21.9,
+    "coverage_non_useful": 19.4
+   },
+   "contract_end_date": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 21.0,
+    "coverage_useful": 21.9,
+    "coverage_non_useful": 19.4
+   },
+   "winner_website": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 6.0,
+    "coverage_useful": 4.7,
+    "coverage_non_useful": 8.3
+   },
+   "winner_identifiers": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 100.0,
+    "coverage_useful": 100.0,
+    "coverage_non_useful": 100.0
+   },
+   "winner_address": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 100.0,
+    "coverage_useful": 100.0,
+    "coverage_non_useful": 100.0
+   },
+   "place_of_performance": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 78.0,
+    "coverage_useful": 76.6,
+    "coverage_non_useful": 80.6
+   },
+   "amount": {
+    "n": 100,
+    "n_useful": 64,
+    "n_non_useful": 36,
+    "coverage": 100.0,
+    "coverage_useful": 100.0,
+    "coverage_non_useful": 100.0
+   }
+  },
+  "company_information": {
+   "fields": [
+    {
+     "name": "legal_name",
+     "available": true,
+     "coverage": 100.0,
+     "source": "winner.parties[].members[].legal_name",
+     "note": "présent partout, et inutilisable comme donnée d'activité (§30)"
+    },
+    {
+     "name": "country",
+     "available": true,
+     "coverage": 100.0,
+     "source": "winner.parties[].members[].country",
+     "note": "pays du siège ; ne dit rien de la filière d'achat"
+    },
+    {
+     "name": "address",
+     "available": true,
+     "coverage": 100.0,
+     "source": "winner.parties[].members[].address",
+     "note": "adresse postale ; permet d'écrire, pas de qualifier"
+    },
+    {
+     "name": "identifiers",
+     "available": true,
+     "coverage": 100.0,
+     "source": "winner.parties[].members[].identifiers",
+     "note": "clés de plateforme uniquement — aucun code d'activité (§20)"
+    },
+    {
+     "name": "website",
+     "available": true,
+     "coverage": 6.0,
+     "source": "winner.parties[].members[].website",
+     "note": "six gagnants sur cent ; trop rare pour fonder une classification"
+    },
+    {
+     "name": "legal_form",
+     "available": false,
+     "coverage": 0.0,
+     "source": null,
+     "note": "AG, GmbH, SA n'apparaissent que dans la raison sociale, jamais comme champ"
+    },
+    {
+     "name": "industry_code_nace",
+     "available": false,
+     "coverage": 0.0,
+     "source": null,
+     "note": "aucun code NACE dans le modèle canonique"
+    },
+    {
+     "name": "industry_code_noga",
+     "available": false,
+     "coverage": 0.0,
+     "source": null,
+     "note": "aucun code NOGA dans le modèle canonique"
+    },
+    {
+     "name": "business_activity",
+     "available": false,
+     "coverage": 0.0,
+     "source": null,
+     "note": "aucune description d'activité"
+    },
+    {
+     "name": "company_size",
+     "available": false,
+     "coverage": 0.0,
+     "source": null,
+     "note": "absent"
+    },
+    {
+     "name": "employee_count",
+     "available": false,
+     "coverage": 0.0,
+     "source": null,
+     "note": "absent"
+    },
+    {
+     "name": "turnover",
+     "available": false,
+     "coverage": 0.0,
+     "source": null,
+     "note": "absent"
+    },
+    {
+     "name": "manufacturer_status",
+     "available": false,
+     "coverage": 0.0,
+     "source": null,
+     "note": "aucun champ ne distingue un fabricant d'un poseur"
+    },
+    {
+     "name": "wholesaler_status",
+     "available": false,
+     "coverage": 0.0,
+     "source": null,
+     "note": "aucun champ ne distingue un négoce d'un installateur"
+    },
+    {
+     "name": "contractor_status",
+     "available": false,
+     "coverage": 0.0,
+     "source": null,
+     "note": "le rôle publié vaut « sole » ou « member », jamais un métier"
+    }
+   ],
+   "activity_describing_fields": 1,
+   "identifier_schemes": {
+    "SIMAP-VENDOR-ID": {
+     "observed": 66,
+     "is_industry_classification": false,
+     "note": "clé de fournisseur interne à la plateforme SIMAP"
+    },
+    "TED-BT-501": {
+     "observed": 33,
+     "is_industry_classification": false,
+     "note": "identifiant national d'organisation publié par TED (BT-501)"
+    },
+    "eu": {
+     "observed": 1,
+     "is_industry_classification": false,
+     "note": "identifiant européen ; un seul gagnant du banc en porte un"
+    }
+   }
+  },
+  "discrimination": {
+   "source": {
+    "path": "source",
+    "values": {
+     "simap": {
+      "n": 66,
+      "useful": 39,
+      "non_useful": 27,
+      "useful_precision": 59.1,
+      "sample": "reportable"
+     },
+     "ted": {
+      "n": 34,
+      "useful": 25,
+      "non_useful": 9,
+      "useful_precision": 73.5,
+      "sample": "reportable"
+     }
+    },
+    "spread_points": 14.4
+   },
+   "trade_domain": {
+    "path": "trade_domain",
+    "values": {
+     "general_building": {
+      "n": 61,
+      "useful": 38,
+      "non_useful": 23,
+      "useful_precision": 62.3,
+      "sample": "reportable"
+     },
+     "interior_finishing": {
+      "n": 39,
+      "useful": 26,
+      "non_useful": 13,
+      "useful_precision": 66.7,
+      "sample": "reportable"
+     }
+    },
+    "spread_points": 4.4
+   },
+   "trade_domain_source": {
+    "path": "trade_domain_source",
+    "values": {
+     "cpv": {
+      "n": 53,
+      "useful": 36,
+      "non_useful": 17,
+      "useful_precision": 67.9,
+      "sample": "reportable"
+     },
+     "bkp": {
+      "n": 47,
+      "useful": 28,
+      "non_useful": 19,
+      "useful_precision": 59.6,
+      "sample": "reportable"
+     }
+    },
+    "spread_points": 8.3
+   },
+   "bkp_codes": {
+    "path": "bkp_codes",
+    "values": {
+     "absent": {
+      "n": 53,
+      "useful": 36,
+      "non_useful": 17,
+      "useful_precision": 67.9,
+      "sample": "reportable"
+     },
+     "present": {
+      "n": 47,
+      "useful": 28,
+      "non_useful": 19,
+      "useful_precision": 59.6,
+      "sample": "reportable"
+     }
+    },
+    "spread_points": 8.3
+   },
+   "cpv_main": {
+    "path": "contract.cpv_main",
+    "values": {
+     "trade_specific": {
+      "n": 67,
+      "useful": 43,
+      "non_useful": 24,
+      "useful_precision": 64.2,
+      "sample": "reportable"
+     },
+     "generic": {
+      "n": 33,
+      "useful": 21,
+      "non_useful": 12,
+      "useful_precision": 63.6,
+      "sample": "reportable"
+     }
+    },
+    "spread_points": 0.6
+   },
+   "contract_type": {
+    "path": "understanding.contract_type.value",
+    "values": {
+     "construction": {
+      "n": 100,
+      "useful": 64,
+      "non_useful": 36,
+      "useful_precision": 64.0,
+      "sample": "reportable"
+     }
+    },
+    "spread_points": null
+   },
+   "amount": {
+    "path": "contract.value.amount",
+    "values": {
+     "250k_1m": {
+      "n": 58,
+      "useful": 35,
+      "non_useful": 23,
+      "useful_precision": 60.3,
+      "sample": "reportable"
+     },
+     "1m_5m": {
+      "n": 22,
+      "useful": 18,
+      "non_useful": 4,
+      "useful_precision": 81.8,
+      "sample": "reportable"
+     },
+     "under_250k": {
+      "n": 16,
+      "useful": 7,
+      "non_useful": 9,
+      "useful_precision": 43.8,
+      "sample": "indicative only"
+     },
+     "over_5m": {
+      "n": 4,
+      "useful": 4,
+      "non_useful": 0,
+      "useful_precision": 100.0,
+      "sample": "insufficient sample"
+     }
+    },
+    "spread_points": 38.0
+   },
+   "currency": {
+    "path": "contract.value.currency",
+    "values": {
+     "CHF": {
+      "n": 69,
+      "useful": 43,
+      "non_useful": 26,
+      "useful_precision": 62.3,
+      "sample": "reportable"
+     },
+     "EUR": {
+      "n": 31,
+      "useful": 21,
+      "non_useful": 10,
+      "useful_precision": 67.7,
+      "sample": "reportable"
+     }
+    },
+    "spread_points": 5.4
+   },
+   "winner_country": {
+    "path": "winner.parties[].members[].country",
+    "values": {
+     "CH": {
+      "n": 70,
+      "useful": 43,
+      "non_useful": 27,
+      "useful_precision": 61.4,
+      "sample": "reportable"
+     },
+     "DE": {
+      "n": 22,
+      "useful": 14,
+      "non_useful": 8,
+      "useful_precision": 63.6,
+      "sample": "reportable"
+     },
+     "FR": {
+      "n": 6,
+      "useful": 5,
+      "non_useful": 1,
+      "useful_precision": 83.3,
+      "sample": "insufficient sample"
+     },
+     "ES": {
+      "n": 2,
+      "useful": 2,
+      "non_useful": 0,
+      "useful_precision": 100.0,
+      "sample": "insufficient sample"
+     }
+    },
+    "spread_points": 2.2
+   },
+   "winner_website": {
+    "path": "winner.parties[].members[].website",
+    "values": {
+     "absent": {
+      "n": 94,
+      "useful": 61,
+      "non_useful": 33,
+      "useful_precision": 64.9,
+      "sample": "reportable"
+     },
+     "known": {
+      "n": 6,
+      "useful": 3,
+      "non_useful": 3,
+      "useful_precision": 50.0,
+      "sample": "insufficient sample"
+     }
+    },
+    "spread_points": null
+   },
+   "place_of_performance": {
+    "path": "contract.place_of_performance",
+    "values": {
+     "locality known": {
+      "n": 78,
+      "useful": 49,
+      "non_useful": 29,
+      "useful_precision": 62.8,
+      "sample": "reportable"
+     },
+     "country only": {
+      "n": 22,
+      "useful": 15,
+      "non_useful": 7,
+      "useful_precision": 68.2,
+      "sample": "reportable"
+     }
+    },
+    "spread_points": 5.4
+   },
+   "lot_title": {
+    "path": "contract.lot_title",
+    "values": {
+     "absent": {
+      "n": 66,
+      "useful": 39,
+      "non_useful": 27,
+      "useful_precision": 59.1,
+      "sample": "reportable"
+     },
+     "present": {
+      "n": 34,
+      "useful": 25,
+      "non_useful": 9,
+      "useful_precision": 73.5,
+      "sample": "reportable"
+     }
+    },
+    "spread_points": 14.4
+   },
+   "award_date": {
+    "path": "understanding.timing.award_date",
+    "values": {
+     "known": {
+      "n": 79,
+      "useful": 49,
+      "non_useful": 30,
+      "useful_precision": 62.0,
+      "sample": "reportable"
+     },
+     "unknown": {
+      "n": 21,
+      "useful": 15,
+      "non_useful": 6,
+      "useful_precision": 71.4,
+      "sample": "reportable"
+     }
+    },
+    "spread_points": 9.4
+   },
+   "need_categories": {
+    "path": "needs.needs[].category",
+    "values": {
+     "equipment_or_rental|materials_or_components|workforce_capacity": {
+      "n": 84,
+      "useful": 52,
+      "non_useful": 32,
+      "useful_precision": 61.9,
+      "sample": "reportable"
+     },
+     "materials_or_components|specialist_subcontracting|workforce_capacity": {
+      "n": 16,
+      "useful": 12,
+      "non_useful": 4,
+      "useful_precision": 75.0,
+      "sample": "indicative only"
+     }
+    },
+    "spread_points": 13.1
+   }
+  },
+  "failure_study": {
+   "n": 23,
+   "by_channel_reason": {
+    "specialist_contractor": 9,
+    "manufacturer": 3,
+    "integrated_supplier": 2,
+    "trade_specific_buyer_channel": 6,
+    "deliverable_overlap": 3
+   },
+   "cases": [
+    {
+     "signal_id": "19284980bc7ea7f572afbe592e0d09ba7124cdcee9d8c0f8c96cb43f46e2ded0",
+     "channel_reason": "trade_specific_buyer_channel",
+     "observability": "YES",
+     "fact_ids": [
+      "bkp_codes"
+     ],
+     "reason": "BKP 422 « Einfriedungen » : famille 42 (Gartenanlagen), absente de la taxonomie de métiers et de tout signal utile du banc",
+     "gold": "C",
+     "award_age_days": 60
+    },
+    {
+     "signal_id": "1bca9c53f942d491084601f262caa510abfd5dba548678b448dea00bc7e56b43",
+     "channel_reason": "specialist_contractor",
+     "observability": "PARTIAL",
+     "fact_ids": [
+      "cpv_main",
+      "contract_start_date"
+     ],
+     "reason": "CPV 45221119 (réparation d'ouvrage d'art) oriente vers le génie civil spécialisé, mais porte aussi un signal utile du banc",
+     "gold": "C",
+     "award_age_days": null
+    },
+    {
+     "signal_id": "1c3ca2d29739aac10316ca47efa55ab031734361e8e56f0657bd02f92a8c446d",
+     "channel_reason": "specialist_contractor",
+     "observability": "PARTIAL",
+     "fact_ids": [
+      "bkp_codes"
+     ],
+     "reason": "BKP 272 (Metallbau) présent sur deux signaux utiles du banc : il n'exclut pas",
+     "gold": "C",
+     "award_age_days": 14
+    },
+    {
+     "signal_id": "2f40938a6a503fde4132a37b8789e8b47e92df0f434c28856a5f9b9b876f2c3f",
+     "channel_reason": "integrated_supplier",
+     "observability": "YES",
+     "fact_ids": [
+      "cpv_main"
+     ],
+     "reason": "CPV 45421151 (Kücheneinrichtung) exclusif aux échecs, hors catalogue ICP",
+     "gold": "C",
+     "award_age_days": null
+    },
+    {
+     "signal_id": "3e043bd7947075a238b86f214d8fc342859736594571691883738778bb35e08b",
+     "channel_reason": "trade_specific_buyer_channel",
+     "observability": "YES",
+     "fact_ids": [
+      "cpv_main"
+     ],
+     "reason": "CPV 45262220 (forage de puits) exclusif aux échecs, filière d'achat propre",
+     "gold": "C",
+     "award_age_days": null
+    },
+    {
+     "signal_id": "42bd8585c2224de20dbed387a57821421a7f3df40ce3bc8dd72eb98de892733b",
+     "channel_reason": "specialist_contractor",
+     "observability": "PARTIAL",
+     "fact_ids": [
+      "cpv_main"
+     ],
+     "reason": "CPV 45262670 (Metallbau) porte deux signaux utiles du banc autant que deux échecs",
+     "gold": "C",
+     "award_age_days": 27
+    },
+    {
+     "signal_id": "48b30b9519a7a3f087624f206f0be2e207e4da3fa500906fbda6108a21bba4ec",
+     "channel_reason": "manufacturer",
+     "observability": "YES",
+     "fact_ids": [
+      "bkp_codes"
+     ],
+     "reason": "BKP 277.1 (Schiebe- und Faltwände) exclusif aux échecs",
+     "gold": "C",
+     "award_age_days": 21
+    },
+    {
+     "signal_id": "52f5b6f58488682f95a65744e8f62aaa1afbc5e4723bfe5559b34ebc894f43eb",
+     "channel_reason": "specialist_contractor",
+     "observability": "YES",
+     "fact_ids": [
+      "cpv_main"
+     ],
+     "reason": "CPV 45223210 (Stahlbau) exclusif aux échecs, intrants sidérurgiques",
+     "gold": "C",
+     "award_age_days": 26
+    },
+    {
+     "signal_id": "61fe1e4906a4190f544140196e200834ed63da9ead0de5249a8d8f648a17fa66",
+     "channel_reason": "manufacturer",
+     "observability": "YES",
+     "fact_ids": [
+      "bkp_codes"
+     ],
+     "reason": "BKP 228 (Äussere Abschlüsse, Sonnenschutz) exclusif aux échecs",
+     "gold": "C",
+     "award_age_days": 14
+    },
+    {
+     "signal_id": "65195148b6959c7b355a8fb61279e66f61a7d03df1578fcb44a4601214650bb0",
+     "channel_reason": "integrated_supplier",
+     "observability": "NO",
+     "fact_ids": [
+      "cpv_main"
+     ],
+     "reason": "CPV 45421130 nomme la menuiserie, qui est **dans** le catalogue de l'ICP : le code décrit le lot, l'échec tient à l'activité du gagnant",
+     "gold": "C",
+     "award_age_days": 39
+    },
+    {
+     "signal_id": "7550a394b401eb63281420593961fbd9a6a7a14de9e1d7079398beda27192bc8",
+     "channel_reason": "deliverable_overlap",
+     "observability": "NO",
+     "fact_ids": [
+      "bkp_codes"
+     ],
+     "reason": "BKP 273 porte quatre signaux utiles du banc : le recouvrement livrable n'est pas lisible du code",
+     "gold": "C",
+     "award_age_days": 21
+    },
+    {
+     "signal_id": "780564b171374710140f88c5fa596c8fa8c802884ab1ac6d842772707fe734c6",
+     "channel_reason": "deliverable_overlap",
+     "observability": "NO",
+     "fact_ids": [
+      "bkp_codes",
+      "cpv_main"
+     ],
+     "reason": "BKP 273.0, même famille que quatre signaux utiles ; CPV 45213331 partagé",
+     "gold": "C",
+     "award_age_days": 15
+    },
+    {
+     "signal_id": "783db7c9dd3b5a9ee73dee5c20cc7d4e2d067d0c28423cf2d5e19339f211a246",
+     "channel_reason": "deliverable_overlap",
+     "observability": "NO",
+     "fact_ids": [
+      "bkp_codes"
+     ],
+     "reason": "BKP 221.5 partagé avec des signaux utiles ; la réserve « unter Vorbehalt der Kreditgenehmigung » n'existe qu'en texte libre (§31)",
+     "gold": "C",
+     "award_age_days": 21
+    },
+    {
+     "signal_id": "82a8af8318dad722047a9af26882bc0c4d9ffd17d6f89a85802edc181d21efff",
+     "channel_reason": "specialist_contractor",
+     "observability": "PARTIAL",
+     "fact_ids": [
+      "bkp_codes"
+     ],
+     "reason": "BKP 272.2 : la racine 272 porte aussi un signal utile du banc",
+     "gold": "C",
+     "award_age_days": 13
+    },
+    {
+     "signal_id": "8dd986660b5d1dc75e3eb8c194c02e40782641ab94a32be99d00132cce0750af",
+     "channel_reason": "manufacturer",
+     "observability": "PARTIAL",
+     "fact_ids": [
+      "bkp_codes"
+     ],
+     "reason": "BKP 215 (Montagebau als Leichtkonstruktion) porte aussi un signal utile",
+     "gold": "C",
+     "award_age_days": 27
+    },
+    {
+     "signal_id": "92587889f66d81f609eb1b5f19fb0ad68a6cbddf77a84ea4aea87fc3789d1b8b",
+     "channel_reason": "specialist_contractor",
+     "observability": "NO",
+     "fact_ids": [
+      "bkp_codes",
+      "cpv_main"
+     ],
+     "reason": "aucun code BKP extrait — l'objet publie « CFC 242 Chauffage » et l'extracteur ne reconnaît que le marqueur « BKP » ; le CPV 45212421 désigne un type de bâtiment, pas un métier",
+     "gold": "C",
+     "award_age_days": 61
+    },
+    {
+     "signal_id": "974a67e479f76edc8bf12e06586b83ce804d46b7f5c431e84c56e3b5689a0c48",
+     "channel_reason": "specialist_contractor",
+     "observability": "NO",
+     "fact_ids": [
+      "bkp_codes",
+      "cpv_main"
+     ],
+     "reason": "aucun code BKP extrait — l'objet publie « 275.00 Schliessanlagen » sans marqueur ; le CPV 45211200 désigne un type de bâtiment",
+     "gold": "C",
+     "award_age_days": 1
+    },
+    {
+     "signal_id": "9fe93a3cda25a35118ce8c1dc7109f704d0d2238a8d9b1d11ec207c5773bb3a4",
+     "channel_reason": "trade_specific_buyer_channel",
+     "observability": "YES",
+     "fact_ids": [
+      "bkp_codes"
+     ],
+     "reason": "BKP 227 et 285 (peinture) exclusifs aux échecs : filière grossiste peinture",
+     "gold": "C",
+     "award_age_days": 19
+    },
+    {
+     "signal_id": "a7198f485545e2a85fca074b31ebb6c7adac913230f0190b2393b95d30770b3f",
+     "channel_reason": "trade_specific_buyer_channel",
+     "observability": "YES",
+     "fact_ids": [
+      "bkp_codes"
+     ],
+     "reason": "BKP 285 (Malerarbeiten) exclusif aux échecs",
+     "gold": "C",
+     "award_age_days": 25
+    },
+    {
+     "signal_id": "b45adc669bf5450a56002d223c466cfee35ff3a6f44e841d8d57e1af272015a6",
+     "channel_reason": "specialist_contractor",
+     "observability": "PARTIAL",
+     "fact_ids": [
+      "cpv_main"
+     ],
+     "reason": "CPV 45262670 partagé entre deux échecs et deux signaux utiles",
+     "gold": "C",
+     "award_age_days": 50
+    },
+    {
+     "signal_id": "b6719611719288d19abf485c144c68de50f8866b5ce55451941080d61df60678",
+     "channel_reason": "specialist_contractor",
+     "observability": "NO",
+     "fact_ids": [
+      "cpv_main"
+     ],
+     "reason": "CPV 45214610 désigne un type de bâtiment et porte un signal utile ; la nature électrique du lot n'existe que dans le titre",
+     "gold": "C",
+     "award_age_days": 35
+    },
+    {
+     "signal_id": "bbf780f7a760d78b55b08fb8843fa99e57d2db8a4bcccaa0d15af33ba464e0e0",
+     "channel_reason": "trade_specific_buyer_channel",
+     "observability": "YES",
+     "fact_ids": [
+      "bkp_codes",
+      "cpv_main"
+     ],
+     "reason": "BKP 285.1 et CPV 45442110 (travaux de peinture) tous deux exclusifs aux échecs",
+     "gold": "C",
+     "award_age_days": 48
+    },
+    {
+     "signal_id": "eb947063b5fc68a3eb45baf5aac677b312dc3b2b36bc5e0882fd508973f2b6de",
+     "channel_reason": "trade_specific_buyer_channel",
+     "observability": "YES",
+     "fact_ids": [
+      "bkp_codes"
+     ],
+     "reason": "BKP 285.1 (Malerarbeiten) exclusif aux échecs",
+     "gold": "C",
+     "award_age_days": 25
+    }
+   ]
+  },
+  "observability": {
+   "n": 23,
+   "YES": 10,
+   "PARTIAL": 6,
+   "NO": 7,
+   "yes_rate": 43.5,
+   "partial_rate": 26.1,
+   "not_observable_rate": 30.4
+  },
+  "control_sample": {
+   "signal_ids": [
+    "01cb7e99647f9b3989f7fbec9fc8f67bfc0a11e46a782805c728359a1ac6048d",
+    "08bd4c823d9917fe9db59eeb98aac6a4f5949fc59ba9020dd1b09310e8e1468a",
+    "018a0de5e0defa18cce782d95b063164a417572263546444bf7bcc7bb227e2f9",
+    "0d8763e7078cafd59eeaa8b4a308f0c18459a81aae2088d8d4b9d9660017934d",
+    "0faf13d3a63c3cc9aa9b87c74919342086a38dcb1c3c4e65286d335c7c71cd31",
+    "12da7e31985bd87ac1e2a7bcf7080733bba6744fcb7f0f3c84b45ad54740cd31",
+    "1beab7e1260ca87153251b1b66cddcbbed590f7666b923487de57cce8d57f015",
+    "243292c0c7599ccf155d006fbd94522dd2f2d91edf94c470d446f08f43001fb8",
+    "11c11b6b15a6ffec56727c2a7b3467f775e10cd3afacad9291b51cfe54bbcd4a",
+    "1dfce0c8388ec426accda04a1469e0ad0bb65becaf576d99a8b9f71085616773",
+    "3315f5ee715198e123a4039cbcf4ba35771a978112753bb2ab6768a37f4aa72c",
+    "3b4c84502bc6e42bbdbe2119943250b9acefd9d8b70347c39c1aab52338a965d",
+    "17043cae88c48e517f4f58eeeaef01d82c1c4fc9d0cb1c2fa1d6076806932a25",
+    "4d617ffa95fc4a0f2a8ef9071720d6a184a75ed9be4de1447aee87ae6cee8c3c",
+    "282319361db60cf96e6de5e7e3e0b38bea07208902b4186b43b3f123642ae253",
+    "2fd576c0de477f62467322d64a974f57716f87eff99471ebdb24052ee0744da4",
+    "30385b284e81e0ccbf02383341ac39512c36854e5364833fe0f9fc8f34337fd2",
+    "393e8e96bf2ce6b9156e608335383560e49d2179102156e6611f1182efcf5b92",
+    "636bb99136f409f69477cec43554170dfbfd9d20600508006852c0522115d429",
+    "4d8f19f690bb0601ad7c71a8f87803bd81c0bb58eff6cad26cb7483ba8cf2696",
+    "3b7c667f1da94045599ffbb17616038e1c12194b63507073bba76673a938881d",
+    "79cfcaaa709853d236a842f4be3e2fab9f3cb19a59754495467c98df725f8cf7",
+    "87dee838b06b924e372452e92a71954651ee17372c78cc9f666e6023bc45e1d4"
+   ],
+   "profile": {
+    "n": 23,
+    "bkp_present": 12,
+    "cpv_trade_specific": 17,
+    "winner_website_known": 0,
+    "trade_domain": {
+     "general_building": 13,
+     "interior_finishing": 10
+    },
+    "source": {
+     "simap": 17,
+     "ted": 6
+    }
+   },
+   "failure_profile": {
+    "n": 23,
+    "bkp_present": 13,
+    "cpv_trade_specific": 12,
+    "winner_website_known": 1,
+    "trade_domain": {
+     "general_building": 13,
+     "interior_finishing": 10
+    },
+    "source": {
+     "simap": 17,
+     "ted": 6
+    }
+   }
+  },
+  "matchability_matrix": [
+   {
+    "fact": "source",
+    "path": "source",
+    "available_before_matching": true,
+    "describes_purchase_channel": false,
+    "coverage": null,
+    "useful_precision_spread_points": 14.4,
+    "candidate_for_future_use": "NO"
+   },
+   {
+    "fact": "trade_domain",
+    "path": "trade_domain",
+    "available_before_matching": true,
+    "describes_purchase_channel": true,
+    "coverage": null,
+    "useful_precision_spread_points": 4.4,
+    "candidate_for_future_use": "NO"
+   },
+   {
+    "fact": "trade_domain_source",
+    "path": "trade_domain_source",
+    "available_before_matching": true,
+    "describes_purchase_channel": true,
+    "coverage": null,
+    "useful_precision_spread_points": 8.3,
+    "candidate_for_future_use": "NO"
+   },
+   {
+    "fact": "bkp_codes",
+    "path": "bkp_codes",
+    "available_before_matching": true,
+    "describes_purchase_channel": true,
+    "coverage": 47.0,
+    "useful_precision_spread_points": 8.3,
+    "candidate_for_future_use": "NO"
+   },
+   {
+    "fact": "cpv_main",
+    "path": "contract.cpv_main",
+    "available_before_matching": true,
+    "describes_purchase_channel": true,
+    "coverage": null,
+    "useful_precision_spread_points": 0.6,
+    "candidate_for_future_use": "NO"
+   },
+   {
+    "fact": "contract_type",
+    "path": "understanding.contract_type.value",
+    "available_before_matching": true,
+    "describes_purchase_channel": false,
+    "coverage": null,
+    "useful_precision_spread_points": null,
+    "candidate_for_future_use": "UNKNOWN"
+   },
+   {
+    "fact": "amount",
+    "path": "contract.value.amount",
+    "available_before_matching": true,
+    "describes_purchase_channel": false,
+    "coverage": 100.0,
+    "useful_precision_spread_points": 38.0,
+    "candidate_for_future_use": "NO"
+   },
+   {
+    "fact": "currency",
+    "path": "contract.value.currency",
+    "available_before_matching": true,
+    "describes_purchase_channel": false,
+    "coverage": null,
+    "useful_precision_spread_points": 5.4,
+    "candidate_for_future_use": "NO"
+   },
+   {
+    "fact": "winner_country",
+    "path": "winner.parties[].members[].country",
+    "available_before_matching": true,
+    "describes_purchase_channel": false,
+    "coverage": null,
+    "useful_precision_spread_points": 2.2,
+    "candidate_for_future_use": "NO"
+   },
+   {
+    "fact": "winner_website",
+    "path": "winner.parties[].members[].website",
+    "available_before_matching": true,
+    "describes_purchase_channel": true,
+    "coverage": 6.0,
+    "useful_precision_spread_points": null,
+    "candidate_for_future_use": "UNKNOWN"
+   },
+   {
+    "fact": "place_of_performance",
+    "path": "contract.place_of_performance",
+    "available_before_matching": true,
+    "describes_purchase_channel": false,
+    "coverage": 78.0,
+    "useful_precision_spread_points": 5.4,
+    "candidate_for_future_use": "NO"
+   },
+   {
+    "fact": "lot_title",
+    "path": "contract.lot_title",
+    "available_before_matching": true,
+    "describes_purchase_channel": true,
+    "coverage": 34.0,
+    "useful_precision_spread_points": 14.4,
+    "candidate_for_future_use": "NO"
+   },
+   {
+    "fact": "award_date",
+    "path": "understanding.timing.award_date",
+    "available_before_matching": true,
+    "describes_purchase_channel": false,
+    "coverage": 79.0,
+    "useful_precision_spread_points": 9.4,
+    "candidate_for_future_use": "NO"
+   },
+   {
+    "fact": "need_categories",
+    "path": "needs.needs[].category",
+    "available_before_matching": true,
+    "describes_purchase_channel": true,
+    "coverage": null,
+    "useful_precision_spread_points": 13.1,
+    "candidate_for_future_use": "NO"
+   }
+  ],
+  "missing_information": [
+   {
+    "name": "manufacturer_distributor_installer_classification",
+    "value": "HIGH VALUE",
+    "availability": "EXTERNAL COMPANY ENRICHMENT",
+    "failures_addressed": 23,
+    "note": "la variable exacte que le banc réclame : elle sépare celui qui achète des intrants de celui qui les produit ou les revend"
+   },
+   {
+    "name": "winner_business_description",
+    "value": "HIGH VALUE",
+    "availability": "EXTERNAL COMPANY ENRICHMENT",
+    "failures_addressed": 23,
+    "note": "une description de produits et prestations couvre les 23 mécanismes documentés"
+   },
+   {
+    "name": "winner_industry_classification_nace_noga",
+    "value": "HIGH VALUE",
+    "availability": "EXTERNAL COMPANY ENRICHMENT",
+    "failures_addressed": 20,
+    "note": "nomme le métier du gagnant ; reste muette sur les trois recouvrements de livrable, où le métier est justement dans le catalogue"
+   },
+   {
+    "name": "bkp_trade_semantics_at_three_digits",
+    "value": "HIGH VALUE",
+    "availability": "canonical award data",
+    "failures_addressed": 13,
+    "note": "le code BKP à trois chiffres est déjà publié et déjà stocké ; seule sa signification métier manque à la table (21/22/27/28 aujourd'hui)"
+   },
+   {
+    "name": "cfc_marker_recognition",
+    "value": "MEDIUM VALUE",
+    "availability": "SIMAP",
+    "failures_addressed": 1,
+    "note": "l'extracteur ne reconnaît que le marqueur « BKP » ; « CFC », son équivalent romand, laisse le code non extrait — 2 cas sur les 100"
+   },
+   {
+    "name": "winner_website",
+    "value": "MEDIUM VALUE",
+    "availability": "EXTERNAL COMPANY ENRICHMENT",
+    "failures_addressed": 23,
+    "note": "présent à 6 % aujourd'hui ; porte l'activité mais exige une lecture, pas un champ"
+   },
+   {
+    "name": "winner_legal_form",
+    "value": "LOW VALUE",
+    "availability": "EXTERNAL COMPANY ENRICHMENT",
+    "failures_addressed": 0,
+    "note": "AG, GmbH ou SA ne distinguent aucun canal d'achat"
+   },
+   {
+    "name": "winner_size_and_turnover",
+    "value": "LOW VALUE",
+    "availability": "EXTERNAL COMPANY ENRICHMENT",
+    "failures_addressed": 0,
+    "note": "la taille ne dit pas si l'entreprise achète ou fabrique"
+   }
+  ],
+  "verdict": "PURCHASE CHANNEL NOT OBSERVABLE WITH CURRENT DATA"
+ },
+ "decision": {
+  "scenario": "D",
+  "verdict": "RECENCY + CHANNEL NOT OBSERVABLE",
+  "next_step": "rethink MVP signal promise"
+ }
+}
