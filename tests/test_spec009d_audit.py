@@ -314,19 +314,15 @@ def test_decision_matrix_maps_each_pair_to_a_scenario_and_a_next_step():
 
 # ─── la table d'étude des 23 échecs, confrontée au gold gelé ────────────────────
 
-#: Les artefacts SPEC-009C sont gelés mais **non suivis par git** — le
-#: superviseur n'en a pas autorisé le commit. Les tests qui les relisent sont
-#: donc conditionnés à leur présence : sur un clone frais ils sont ignorés
-#: explicitement, jamais silencieusement verts.
+#: Les trois artefacts gelés de SPEC-009C dont cet audit dépend. Ils sont suivis
+#: par git depuis SPEC-009E R1 §7 : un clone frais doit pouvoir **exécuter** ces
+#: tests, pas les ignorer. Un saut silencieux sur la seule preuve que le rejeu
+#: reproduit le banc n'est pas un test, c'est une case verte.
 SPEC009C_DIR = pathlib.Path(__file__).resolve().parents[1] / "tests" / "fixtures" / "signal100"
 SPEC009C_ARTEFACTS = {
     name: SPEC009C_DIR / name
     for name in ("spec009c_corpus.json", "spec009c_bench.json", "spec009c_gold.json")
 }
-needs_spec009c = pytest.mark.skipif(
-    not all(path.exists() for path in SPEC009C_ARTEFACTS.values()),
-    reason="artefacts gelés SPEC-009C absents (non suivis par git, cf. rapport SPEC-009E)",
-)
 
 
 def gold_records() -> list[dict]:
@@ -335,7 +331,6 @@ def gold_records() -> list[dict]:
     ]
 
 
-@needs_spec009c
 def test_the_failure_study_covers_exactly_the_matching_failures_of_the_gold():
     expected = {r["signal_id"] for r in gold_records() if r["primary_failure_layer"] == "matching"}
     assert {case.signal_id for case in MATCHING_FAILURE_STUDY} == expected
@@ -349,7 +344,6 @@ def test_every_failure_case_cites_only_admissible_canonical_facts():
             assert admit_feature(fact_id)
 
 
-@needs_spec009c
 def test_no_failure_case_reclassifies_a_gold_verdict():
     """§3, §40 — l'audit relit le gold, il ne le rejuge pas."""
     verdicts = {r["signal_id"]: r["final_verdict"] for r in gold_records()}
@@ -422,7 +416,6 @@ def test_a_lot_size_proxy_is_never_a_purchase_channel_candidate():
 # ─── §2, §39 — l'audit repose sur les artefacts gelés, et le prouve ─────────────
 
 
-@needs_spec009c
 def test_the_replay_reproduces_the_frozen_bench_exactly():
     """Rejouer le pipeline gelé doit rendre les 110 SHOW et les mêmes dates.
 
@@ -443,3 +436,15 @@ def test_the_replay_reproduces_the_frozen_bench_exactly():
 
     assert len(records) == bench["natural_shows"] == 110
     assert_precondition(records, bench["signals"], bench["natural_shows"])
+
+
+def test_every_frozen_spec009c_artefact_is_present_for_a_fresh_clone():
+    """R1 §7 — l'absence d'un artefact doit faire ÉCHOUER, jamais sauter.
+
+    Les trois fichiers sont suivis par git. Si l'un disparaît, les tests de
+    rejeu et d'étude d'échecs cesseraient de vérifier quoi que ce soit — et ils
+    le feraient en silence, ce qui est pire que de ne pas les avoir écrits.
+    """
+    for name, path in SPEC009C_ARTEFACTS.items():
+        assert path.exists(), f"{name} absent : le banc gelé de SPEC-009C doit être suivi"
+        assert path.stat().st_size > 0, name

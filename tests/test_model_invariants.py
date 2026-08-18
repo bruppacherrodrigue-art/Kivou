@@ -231,8 +231,11 @@ def test_provenance_sans_identifiant_de_notice_refusee():
 
 
 def test_source_inconnue_refusee():
+    # `boamp` servait ici d'exemple de source inconnue jusqu'à SPEC-009E, qui en a
+    # fait un connecteur réel. L'invariant testé est inchangé : ce qui n'est pas
+    # dans `SourceSystem` est refusé.
     with pytest.raises(ValidationError):
-        Provenance(source_system="boamp", source_country="FR", source_notice_id="1")
+        Provenance(source_system="marchesonline", source_country="FR", source_notice_id="1")
 
 
 def test_un_avis_ordinaire_ne_corrige_rien():

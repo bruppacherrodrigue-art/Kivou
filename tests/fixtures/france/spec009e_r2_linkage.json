@@ -1,0 +1,419 @@
+{
+ "artefact": "spec009e-r2-linkage",
+ "as_of": "2026-08-18",
+ "window": {
+  "since": "2026-08-11",
+  "until": "2026-08-18"
+ },
+ "scope": "award-lots BOAMP dont la décision est récente (≤ 30 j)",
+ "boamp_candidates_tested": 45,
+ "boamp_linkable": 37,
+ "decp_candidates_returned": 8,
+ "strong": 4,
+ "probable": 1,
+ "unresolved": 32,
+ "conflicts": 2,
+ "decoys_rejected": 2,
+ "strong_link_agreement": {
+  "cpv": 3,
+  "contract_reference": 2,
+  "amount": 1
+ },
+ "entries": [
+  {
+   "notice": "26-79293",
+   "contract": "CON-0001",
+   "award_date": "2026-07-24",
+   "winner_named": true,
+   "outcome": "strong",
+   "decp_returned": 2,
+   "decp_id": "26-011",
+   "matched_on": [
+    "buyer_siret",
+    "winner_siret",
+    "notification_date",
+    "cpv",
+    "contract_reference"
+   ],
+   "diverged_on": []
+  },
+  {
+   "notice": "26-79601",
+   "contract": "CON-0001",
+   "award_date": "2026-08-03",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-79601",
+   "contract": "CON-0003",
+   "award_date": "2026-08-03",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-79601",
+   "contract": "CON-0002",
+   "award_date": "2026-08-03",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-79615",
+   "contract": "CON-0001",
+   "award_date": "2026-07-28",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-79639",
+   "contract": "CON-0001",
+   "award_date": "2026-07-21",
+   "winner_named": true,
+   "outcome": "not_linkable"
+  },
+  {
+   "notice": "26-79669",
+   "contract": "CON-0002",
+   "award_date": "2026-08-03",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-79727",
+   "contract": "CON-0001",
+   "award_date": "2026-07-30",
+   "winner_named": true,
+   "outcome": "not_linkable"
+  },
+  {
+   "notice": "26-79745",
+   "contract": "CON-0001",
+   "award_date": "2026-08-06",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-79751",
+   "contract": "CON-0001",
+   "award_date": "2026-07-24",
+   "winner_named": true,
+   "outcome": "not_linkable"
+  },
+  {
+   "notice": "26-79753",
+   "contract": "CON-0001",
+   "award_date": "2026-08-11",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-79804",
+   "contract": "CON-0001",
+   "award_date": "2026-07-22",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-79927",
+   "contract": "CON-0001",
+   "award_date": "2026-07-23",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 1
+  },
+  {
+   "notice": "26-79966",
+   "contract": "CON-0004",
+   "award_date": "2026-08-05",
+   "winner_named": true,
+   "outcome": "not_linkable"
+  },
+  {
+   "notice": "26-79966",
+   "contract": "CON-0002",
+   "award_date": "2026-08-05",
+   "winner_named": true,
+   "outcome": "not_linkable"
+  },
+  {
+   "notice": "26-79981",
+   "contract": "CON-0001",
+   "award_date": "2026-07-21",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-79981",
+   "contract": "CON-0002",
+   "award_date": "2026-07-21",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-79981",
+   "contract": "CON-0003",
+   "award_date": "2026-07-21",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80019",
+   "contract": "CON-0001",
+   "award_date": "2026-07-23",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80040",
+   "contract": "CON-0001",
+   "award_date": "2026-07-23",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80043",
+   "contract": "CON-0001",
+   "award_date": "2026-07-28",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80086",
+   "contract": "CON-0001",
+   "award_date": "2026-07-22",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 1
+  },
+  {
+   "notice": "26-80112",
+   "contract": "CON-0001",
+   "award_date": "2026-07-23",
+   "winner_named": true,
+   "outcome": "strong",
+   "decp_returned": 1,
+   "decp_id": "202607LOT03",
+   "matched_on": [
+    "buyer_siret",
+    "winner_siret",
+    "notification_date",
+    "amount"
+   ],
+   "diverged_on": [
+    "cpv"
+   ],
+   "conflicts": [
+    "cpv",
+    "contract_signature_date"
+   ]
+  },
+  {
+   "notice": "26-80358",
+   "contract": "CON-0001",
+   "award_date": "2026-08-03",
+   "winner_named": true,
+   "outcome": "not_linkable"
+  },
+  {
+   "notice": "26-80526",
+   "contract": "CON-0001",
+   "award_date": "2026-07-21",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80526",
+   "contract": "CON-0002",
+   "award_date": "2026-07-21",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80539",
+   "contract": "CON-0001",
+   "award_date": "2026-07-24",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80590",
+   "contract": "CON-0001",
+   "award_date": "2026-08-13",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80734",
+   "contract": "CON-0001",
+   "award_date": "2026-08-07",
+   "winner_named": true,
+   "outcome": "not_linkable"
+  },
+  {
+   "notice": "26-80736",
+   "contract": "CON-0001",
+   "award_date": "2026-08-03",
+   "winner_named": true,
+   "outcome": "strong",
+   "decp_returned": 1,
+   "decp_id": "2026F20180",
+   "matched_on": [
+    "buyer_siret",
+    "winner_siret",
+    "notification_date",
+    "cpv"
+   ],
+   "diverged_on": [],
+   "conflicts": [
+    "contract_signature_date"
+   ]
+  },
+  {
+   "notice": "26-80782",
+   "contract": "CON-0001",
+   "award_date": "2026-07-31",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80878",
+   "contract": "CON-0001",
+   "award_date": "2026-07-30",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80878",
+   "contract": "CON-0002",
+   "award_date": "2026-07-30",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80878",
+   "contract": "CON-0003",
+   "award_date": "2026-07-30",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80878",
+   "contract": "CON-0004",
+   "award_date": "2026-07-30",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-80916",
+   "contract": "CON-0001",
+   "award_date": "2026-07-24",
+   "winner_named": true,
+   "outcome": "strong",
+   "decp_returned": 1,
+   "decp_id": "26-012",
+   "matched_on": [
+    "buyer_siret",
+    "winner_siret",
+    "notification_date",
+    "cpv",
+    "contract_reference"
+   ],
+   "diverged_on": []
+  },
+  {
+   "notice": "26-80933",
+   "contract": "CON-0001",
+   "award_date": "2026-07-31",
+   "winner_named": true,
+   "outcome": "probable",
+   "decp_returned": 1
+  },
+  {
+   "notice": "26-80979",
+   "contract": "CON-0001",
+   "award_date": "2026-07-23",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-81008",
+   "contract": "CON-0006",
+   "award_date": "2026-07-23",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-81008",
+   "contract": "CON-0005",
+   "award_date": "2026-07-23",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-81008",
+   "contract": "CON-0004",
+   "award_date": "2026-07-23",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-81008",
+   "contract": "CON-0003",
+   "award_date": "2026-07-23",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-81008",
+   "contract": "CON-0002",
+   "award_date": "2026-07-23",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-81008",
+   "contract": "CON-0001",
+   "award_date": "2026-07-23",
+   "winner_named": true,
+   "outcome": "unresolved",
+   "decp_returned": 0
+  },
+  {
+   "notice": "26-81038",
+   "contract": "CON-0001",
+   "award_date": "2026-08-06",
+   "winner_named": true,
+   "outcome": "not_linkable"
+  }
+ ]
+}

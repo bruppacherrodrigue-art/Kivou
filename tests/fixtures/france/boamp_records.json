@@ -1,0 +1,255 @@
+{
+ "artefact": "boamp-real-records",
+ "retrieved_at": "2026-08-18",
+ "source": "boamp-datadila.opendatasoft.com dataset=boamp",
+ "note": "Enregistrements réels, non modifiés, conservés pour les tests d'adapter.",
+ "records": [
+  {
+   "idweb": "26-80978",
+   "id": "26_80978",
+   "contractfolderid": "38153216-4bc9-4620-af93-fb8c99fa925e",
+   "objet": "Prestation de transport de personnes pour la ville de Saint-Orens de Gameville et le CCAS",
+   "filename": "26-80978",
+   "famille": "JOUE",
+   "code_departement": [
+    "31"
+   ],
+   "code_departement_prestation": null,
+   "famille_libelle": "Marchés européens",
+   "dateparution": "2026-08-18",
+   "datefindiffusion": "2026-09-18",
+   "datelimitereponse": null,
+   "nomacheteur": "Ville de Saint Orens de Gameville",
+   "titulaire": [
+    "SARL ALCIS TRANSPORTS"
+   ],
+   "perimetre": "DIRECTIVE-24",
+   "type_procedure": "OUVERT",
+   "soustype_procedure": null,
+   "procedure_libelle": "Procédure Ouverte",
+   "procedure_categorise": "OUVERT/",
+   "nature": "ATTRIBUTION",
+   "sousnature": "STANDARD",
+   "nature_libelle": "Résultat de marché",
+   "sousnature_libelle": null,
+   "nature_categorise": "attribution/standard",
+   "nature_categorise_libelle": "Résultat de marché/",
+   "criteres": [
+    "environnementaux"
+   ],
+   "marche_public_simplifie": null,
+   "marche_public_simplifie_label": null,
+   "etat": "INITIAL",
+   "descripteur_code": [
+    "347"
+   ],
+   "dc": [
+    "347"
+   ],
+   "descripteur_libelle": [
+    "Transport"
+   ],
+   "type_marche": [
+    "SERVICES"
+   ],
+   "type_marche_facette": [
+    "Services"
+   ],
+   "type_avis": [
+    "10",
+    "6"
+   ],
+   "annonce_lie": [
+    "26-27786"
+   ],
+   "annonces_anterieures": null,
+   "source_schema": "3.2.5",
+   "gestion": "{\"REFERENCE\": {\"IDWEB\": \"26-80978\", \"TYPE_AVIS\": {\"FAMILLE\": {\"JOUE\": \"\"}, \"PERIMETRE\": {\"DIRECTIVE-24\": \"\"}, \"NATURE\": {\"ATTRIBUTION\": {\"STANDARD\": \"\"}}, \"STATUT\": {\"INITIAL\": \"\"}}, \"ANNONCE_ANTERIEUR\": {\"IDWEB\": \"26-27786\"}}, \"INDEXATION\": {\"SCHEMA\": \"3.2.5\", \"NOMORGANISME\": \"Ville de Saint Orens de Gameville\", \"TITULAIRES\": {\"DENOMINATION\": \"SARL ALCIS TRANSPORTS\"}, \"TYPE_PROCEDURE\": {\"OUVERT\": \"\"}, \"DATE_PUBLICATION\": \"2026-08-18\", \"DATE_FIN_DIFFUSION\": \"2026-09-18\", \"DESCRIPTEURS\": {\"DESCRIPTEUR\": {\"CODE\": \"347\", \"LIBELLE\": \"Transport\"}}, \"NATURE_MARCHE\": {\"SERVICES\": \"\"}, \"CRITERES_SOCIAUX_ENV\": {\"ENVIRONNEMENTAUX\": \"\"}, \"DEP_PUBLICATION\": \"31\", \"RESUME_OBJET\": \"Prestation de transport de personnes pour la ville de Saint-Orens de Gameville et le CCAS\"}}",
+   "donnees": "{\"EFORMS\": {\"ContractAwardNotice\": {\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efac:NoticeResult\": {\"efbc:OverallMaximumFrameworkContractsAmount\": {\"@currencyID\": \"EUR\", \"#text\": \"440000\"}, \"efac:LotResult\": [{\"cbc:ID\": {\"@schemeName\": \"result\", \"#text\": \"RES-0001\"}, \"cbc:TenderResultCode\": {\"@listName\": \"winner-selection-status\", \"#text\": \"selec-w\"}, \"cac:FinancingParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0001\"}}, \"cac:PayerParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0001\"}}, \"efac:LotTender\": {\"cbc:ID\": \"TEN-0001\"}, \"efac:FrameworkAgreementValues\": {\"cbc:MaximumValueAmount\": {\"@currencyID\": \"EUR\", \"#text\": \"160000\"}}, \"efac:ReceivedSubmissionsStatistics\": {\"efbc:StatisticsCode\": {\"@listName\": \"received-submission-type\", \"#text\": \"t-esubm\"}, \"efbc:StatisticsNumeric\": \"2\"}, \"efac:SettledContract\": {\"cbc:ID\": \"CON-0001\"}, \"efac:TenderLot\": {\"cbc:ID\": \"LOT-0001\"}}, {\"cbc:ID\": {\"@schemeName\": \"result\", \"#text\": \"RES-0002\"}, \"cbc:TenderResultCode\": {\"@listName\": \"winner-selection-status\", \"#text\": \"selec-w\"}, \"cac:FinancingParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0001\"}}, \"cac:PayerParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0001\"}}, \"efac:LotTender\": {\"cbc:ID\": \"TEN-0002\"}, \"efac:FrameworkAgreementValues\": {\"cbc:MaximumValueAmount\": {\"@currencyID\": \"EUR\", \"#text\": \"280000\"}}, \"efac:ReceivedSubmissionsStatistics\": {\"efbc:StatisticsCode\": {\"@listName\": \"received-submission-type\", \"#text\": \"t-esubm\"}, \"efbc:StatisticsNumeric\": \"2\"}, \"efac:SettledContract\": {\"cbc:ID\": \"CON-0002\"}, \"efac:TenderLot\": {\"cbc:ID\": \"LOT-0002\"}}], \"efac:LotTender\": [{\"cbc:ID\": {\"@schemeName\": \"tender\", \"#text\": \"TEN-0001\"}, \"cbc:RankCode\": \"1\", \"efbc:TenderRankedIndicator\": \"true\", \"efbc:TenderVariantIndicator\": \"false\", \"efac:SubcontractingTerm\": {\"efbc:TermCode\": {\"@listName\": \"applicability\", \"#text\": \"no\"}}, \"efac:TenderingParty\": {\"cbc:ID\": \"TPA-0001\"}, \"efac:TenderLot\": {\"cbc:ID\": \"LOT-0001\"}, \"efac:TenderReference\": {\"cbc:ID\": \"Offre lot 1 ALCIS TRANSPORT\"}}, {\"cbc:ID\": {\"@schemeName\": \"tender\", \"#text\": \"TEN-0002\"}, \"cbc:RankCode\": \"1\", \"efbc:TenderRankedIndicator\": \"true\", \"efbc:TenderVariantIndicator\": \"false\", \"efac:SubcontractingTerm\": {\"efbc:TermCode\": {\"@listName\": \"applicability\", \"#text\": \"no\"}}, \"efac:TenderingParty\": {\"cbc:ID\": \"TPA-0001\"}, \"efac:TenderLot\": {\"cbc:ID\": \"LOT-0002\"}, \"efac:TenderReference\": {\"cbc:ID\": \"Offre lot 2 ALCIS TRANSPORT\"}}], \"efac:SettledContract\": [{\"cbc:ID\": {\"@schemeName\": \"contract\", \"#text\": \"CON-0001\"}, \"cbc:AwardDate\": \"2026-07-17+02:00\", \"cbc:IssueDate\": \"2026-08-17+02:00\", \"cbc:Title\": {\"@languageID\": \"FRA\", \"#text\": \"Prestation de transport de personnes pour la ville de Saint-Orens de Gameville et le CCAS\\nLOT 1 « Transport ponctuel »\"}, \"efbc:ContractFrameworkIndicator\": \"false\", \"cac:SignatoryParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0001\"}}, \"efac:ContractReference\": {\"cbc:ID\": \"2026-02-01\"}, \"efac:LotTender\": {\"cbc:ID\": \"TEN-0001\"}}, {\"cbc:ID\": {\"@schemeName\": \"contract\", \"#text\": \"CON-0002\"}, \"cbc:AwardDate\": \"2026-07-17+02:00\", \"cbc:IssueDate\": \"2026-08-17+02:00\", \"cbc:Title\": {\"@languageID\": \"FRA\", \"#text\": \"Prestation de transport de personnes pour la ville de Saint-Orens de Gameville et le CCAS\\nLOT 2 « Transport récurrent »\"}, \"efbc:ContractFrameworkIndicator\": \"false\", \"cac:SignatoryParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0001\"}}, \"efac:ContractReference\": {\"cbc:ID\": \"2026-02-02\"}, \"efac:LotTender\": {\"cbc:ID\": \"TEN-0002\"}}], \"efac:TenderingParty\": {\"cbc:ID\": {\"@schemeName\": \"tendering-party\", \"#text\": \"TPA-0001\"}, \"cbc:Name\": \"Offres ALCIS TRANSPORT\", \"efac:Tenderer\": {\"cbc:ID\": \"ORG-0003\"}}}, \"efac:NoticeSubType\": {\"cbc:SubTypeCode\": {\"@listName\": \"notice-subtype\", \"#text\": \"29\"}}, \"efac:Organizations\": {\"efac:Organization\": [{\"efac:Company\": {\"cbc:WebsiteURI\": \"https://www.ville-saint-orens.fr/\", \"cbc:EndpointID\": \"https://www.achatpublic.com/sdm/ent/gen/ent_detail.do?PCSLID=CSL_2026_nkkEK7kb5M\", \"cac:PartyIdentification\": {\"cbc:ID\": {\"@schemeName\": \"organization\", \"#text\": \"ORG-0001\"}}, \"cac:PartyName\": {\"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"Ville de Saint Orens de Gameville\"}}, \"cac:PostalAddress\": {\"cbc:StreetName\": \"46 avenue de Gameville\", \"cbc:Department\": \"Haute-garonne\", \"cbc:CityName\": \"Saint-Orens de Gameville\", \"cbc:PostalZone\": \"31650\", \"cbc:CountrySubentityCode\": {\"@listName\": \"nuts\", \"#text\": \"FRJ23\"}, \"cac:Country\": {\"cbc:IdentificationCode\": {\"@listName\": \"country\", \"#text\": \"FRA\"}}}, \"cac:PartyLegalEntity\": {\"cbc:CompanyID\": \"21310506700010\"}, \"cac:Contact\": {\"cbc:Name\": \"Commande publique\", \"cbc:Telephone\": \"+33561148855\", \"cbc:ElectronicMail\": \"commande.publique@mairie-saint-orens.fr\"}}}, {\"efac:Company\": {\"cbc:WebsiteURI\": \"https://toulouse.tribunal-administratif.fr/\", \"cbc:EndpointID\": \"https://toulouse.tribunal-administratif.fr/\", \"cac:PartyIdentification\": {\"cbc:ID\": {\"@schemeName\": \"organization\", \"#text\": \"ORG-0002\"}}, \"cac:PartyName\": {\"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"Tribunal administratif de Toulouse\"}}, \"cac:PostalAddress\": {\"cbc:StreetName\": \"68 RUE RAYMOND IV\", \"cbc:Department\": \"31000\", \"cbc:CityName\": \"Toulouse\", \"cbc:PostalZone\": \"31000\", \"cbc:CountrySubentityCode\": {\"@listName\": \"nuts\", \"#text\": \"FRJ23\"}, \"cac:Country\": {\"cbc:IdentificationCode\": {\"@listName\": \"country\", \"#text\": \"FRA\"}}}, \"cac:PartyLegalEntity\": {\"cbc:CompanyID\": \"17310005800010\"}, \"cac:Contact\": {\"cbc:Telephone\": \"+33562735757\", \"cbc:ElectronicMail\": \"Greffe.ta-toulouse@juradm.fr\"}}}, {\"efac:Company\": {\"efbc:CompanySizeCode\": {\"@listName\": \"economic-operator-size\", \"#text\": \"medium\"}, \"cac:PartyIdentification\": {\"cbc:ID\": {\"@schemeName\": \"organization\", \"#text\": \"ORG-0003\"}}, \"cac:PartyName\": {\"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"SARL ALCIS TRANSPORTS\"}}, \"cac:PostalAddress\": {\"cbc:StreetName\": \"130 Route de Castres\", \"cbc:CityName\": \"BALMA\", \"cbc:PostalZone\": \"31130\", \"cbc:CountrySubentityCode\": {\"@listName\": \"nuts\", \"#text\": \"FRJ23\"}, \"cac:Country\": {\"cbc:IdentificationCode\": {\"@listName\": \"country\", \"#text\": \"FRA\"}}}, \"cac:PartyLegalEntity\": {\"cbc:CompanyID\": \"47967398000062\"}, \"cac:Contact\": {\"cbc:Telephone\": \"0561833358\", \"cbc:ElectronicMail\": \"jennifer.reusser@alcisgroupe.com\"}}}]}}}}}, \"cbc:UBLVersionID\": \"2.3\", \"cbc:CustomizationID\": \"eforms-sdk-1.13\", \"cbc:ID\": {\"@schemeName\": \"notice-id\", \"#text\": \"f41ca508-f3cb-44cd-a96b-5ba972ed06d2\"}, \"cbc:ContractFolderID\": \"38153216-4bc9-4620-af93-fb8c99fa925e\", \"cbc:IssueDate\": \"2026-08-17+02:00\", \"cbc:IssueTime\": \"11:59:37+02:00\", \"cbc:VersionID\": \"01\", \"cbc:RegulatoryDomain\": \"32014L0024\", \"cbc:NoticeTypeCode\": {\"@listName\": \"result\", \"#text\": \"can-standard\"}, \"cbc:NoticeLanguageCode\": {\"@listName\": \"language\", \"#text\": \"FRA\"}, \"cac:ContractingParty\": {\"cbc:BuyerProfileURI\": \"https://www.achatpublic.com/sdm/ent2/gen/index.jsp\", \"cac:ContractingPartyType\": {\"cbc:PartyTypeCode\": {\"@listName\": \"buyer-legal-type\", \"#text\": \"body-pl\"}}, \"cac:ContractingActivity\": {\"cbc:ActivityTypeCode\": {\"@listName\": \"authority-activity\", \"#text\": \"gen-pub\"}}, \"cac:Party\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0001\"}}}, \"cac:TenderingTerms\": {\"cac:ProcurementLegislationDocumentReference\": {\"cbc:ID\": \"Article L2124-2 du Code de la commande publique\", \"cbc:DocumentDescription\": {\"@languageID\": \"FRA\", \"#text\": \"Appel d'offre ouvert\"}}}, \"cac:TenderingProcess\": {\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efbc:ProcedureRelaunchIndicator\": \"false\"}}}}, \"cbc:ProcedureCode\": {\"@listName\": \"procurement-procedure-type\", \"#text\": \"open\"}, \"cac:NoticeDocumentReference\": {\"cbc:ID\": \"3d5c06cc-0322-460f-b691-996334a3ba0b-01\"}, \"cac:ProcessJustification\": {\"cbc:ProcessReasonCode\": {\"@listName\": \"accelerated-procedure\", \"#text\": \"false\"}}}, \"cac:ProcurementProject\": {\"cbc:ID\": \"AO 2026-02\", \"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"Prestation de transport de personnes pour la ville de Saint-Orens de Gameville et le CCAS\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Les présents marchés ont pour objet des prestations de transport de personnes, pour différents services de la Commune et le CCAS. Le transport des personnes s'effectuera avec la mise à disposition par le titulaire d'un véhicule et d'un chauffeur.\\nEn vertu de la convention générale de groupement, ce marché est conclu par un groupement de commandes constitué entre la Commune et le Centre Communal d'Action Sociale de Saint-Orens de Gameville. Il concerne donc les agents et administrés de ces deux structures.\"}, \"cbc:ProcurementTypeCode\": {\"@listName\": \"contract-nature\", \"#text\": \"services\"}, \"cac:MainCommodityClassification\": {\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"60170000\"}}, \"cac:AdditionalCommodityClassification\": {\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"60172000\"}}, \"cac:RealizedLocation\": {\"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"voir article 10 du CCAP liste des lieux non exhaustive\"}, \"cac:Address\": {\"cbc:StreetName\": \"Mentionné sur le bon de commande + voir article 10 du CCAP liste des lieux non exhaustive\", \"cbc:CityName\": \"Saint-Orens de Gameville\", \"cbc:PostalZone\": \"31650\", \"cbc:CountrySubentityCode\": {\"@listName\": \"nuts\", \"#text\": \"FRJ23\"}, \"cac:Country\": {\"cbc:IdentificationCode\": {\"@listName\": \"country\", \"#text\": \"FRA\"}}}}}, \"cac:ProcurementProjectLot\": [{\"cbc:ID\": {\"@schemeName\": \"Lot\", \"#text\": \"LOT-0001\"}, \"cac:TenderingTerms\": {\"cbc:FundingProgramCode\": {\"@listName\": \"eu-funded\", \"#text\": \"no-eu-funds\"}, \"cac:AwardingTerms\": {\"cac:AwardingCriterion\": {\"cac:SubordinateAwardingCriterion\": [{\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efac:AwardCriterionParameter\": {\"efbc:ParameterCode\": {\"@listName\": \"number-weight\", \"#text\": \"poi-exa\"}, \"efbc:ParameterNumeric\": \"60\"}}}}}, \"cbc:AwardingCriterionTypeCode\": {\"@listName\": \"award-criterion-type\", \"#text\": \"quality\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Valeur technique\"}}, {\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efac:AwardCriterionParameter\": {\"efbc:ParameterCode\": {\"@listName\": \"number-weight\", \"#text\": \"poi-exa\"}, \"efbc:ParameterNumeric\": \"40\"}}}}}, \"cbc:AwardingCriterionTypeCode\": {\"@listName\": \"award-criterion-type\", \"#text\": \"price\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Prix des prestations\"}}]}}, \"cac:AdditionalInformationParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0001\"}}, \"cac:DocumentProviderParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0001\"}}, \"cac:AppealTerms\": {\"cac:PresentationPeriod\": {\"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Les voies de recours ouvertes aux candidats sont les suivantes : Référé précontractuel prévu aux articles L.551-1 à L.551-12 du Code de justice administrative (CJA), et pouvant être exercé avant la signature du contrat. Référé contractuel prévu aux articles L.551-13 à L.551-23 du CJA, et pouvant être exercé dans les délais prévus à l'article R. 551-7 du CJA. Recours de pleine juridiction ouvert aux tiers justifiant d’un intérêt lésé, et pouvant être exercé dans les deux mois suivant la date à laquelle la conclusion du contrat est rendue publique.\"}}, \"cac:AppealInformationParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0002\"}}, \"cac:AppealReceiverParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0002\"}}}}, \"cac:TenderingProcess\": {\"cbc:GovernmentAgreementConstraintIndicator\": \"true\", \"cac:AuctionTerms\": {\"cbc:AuctionConstraintIndicator\": \"false\"}, \"cac:FrameworkAgreement\": {\"cac:SubsequentProcessTenderRequirement\": {\"cbc:Name\": \"buyer-categories\"}}, \"cac:ContractingSystem\": [{\"cbc:ContractingSystemTypeCode\": {\"@listName\": \"framework-agreement\", \"#text\": \"fa-wo-rc\"}}, {\"cbc:ContractingSystemTypeCode\": {\"@listName\": \"dps-usage\", \"#text\": \"none\"}}]}, \"cac:ProcurementProject\": {\"cbc:ID\": \"2026-02-01\", \"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"Lot 1 - Transports ponctuels\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Achat de services de transports ponctuels : le transport des personnes s'effectuera avec la mise à disposition par le titulaire d'un véhicule et d'un chauffeur.\"}, \"cbc:ProcurementTypeCode\": {\"@listName\": \"contract-nature\", \"#text\": \"services\"}, \"cac:RequestedTenderTotal\": {\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efbc:FrameworkMaximumAmount\": {\"@currencyID\": \"EUR\", \"#text\": \"160000\"}}}}}, \"cbc:EstimatedOverallContractAmount\": {\"@currencyID\": \"EUR\", \"#text\": \"0\"}}, \"cac:MainCommodityClassification\": {\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"60170000\"}}, \"cac:AdditionalCommodityClassification\": {\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"60172000\"}}, \"cac:RealizedLocation\": {\"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"mentionné sur le bon de commande + article 10 du CCAP\"}, \"cac:Address\": {\"cbc:StreetName\": \"mentionné sur le bon de commande + article 10 du CCAP\", \"cbc:CityName\": \"Saint-Orens de Gameville\", \"cbc:PostalZone\": \"31650\", \"cbc:CountrySubentityCode\": {\"@listName\": \"nuts\", \"#text\": \"FRJ23\"}, \"cac:Country\": {\"cbc:IdentificationCode\": {\"@listName\": \"country\", \"#text\": \"FRA\"}}}}, \"cac:PlannedPeriod\": {\"cbc:DurationMeasure\": {\"@unitCode\": \"YEAR\", \"#text\": \"1\"}}, \"cac:ContractExtension\": {\"cbc:OptionsDescription\": {\"@languageID\": \"FRA\", \"#text\": \"L'accord-cadre est reconduit tacitement jusqu'à son terme. Le nombre de périodes de reconduction est fixé à 3. La durée de chaque période de reconduction est de 1 an. La durée maximale du contrat, toutes périodes confondues, est de 4 ans.\"}, \"cbc:MaximumNumberNumeric\": \"3\"}}}, {\"cbc:ID\": {\"@schemeName\": \"Lot\", \"#text\": \"LOT-0002\"}, \"cac:TenderingTerms\": {\"cbc:FundingProgramCode\": {\"@listName\": \"eu-funded\", \"#text\": \"no-eu-funds\"}, \"cac:AwardingTerms\": {\"cac:AwardingCriterion\": {\"cac:SubordinateAwardingCriterion\": [{\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efac:AwardCriterionParameter\": {\"efbc:ParameterCode\": {\"@listName\": \"number-weight\", \"#text\": \"poi-exa\"}, \"efbc:ParameterNumeric\": \"60\"}}}}}, \"cbc:AwardingCriterionTypeCode\": {\"@listName\": \"award-criterion-type\", \"#text\": \"quality\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Valeur technique\"}}, {\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efac:AwardCriterionParameter\": {\"efbc:ParameterCode\": {\"@listName\": \"number-weight\", \"#text\": \"poi-exa\"}, \"efbc:ParameterNumeric\": \"40\"}}}}}, \"cbc:AwardingCriterionTypeCode\": {\"@listName\": \"award-criterion-type\", \"#text\": \"price\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Prix des prestations\"}}]}}, \"cac:AdditionalInformationParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0001\"}}, \"cac:DocumentProviderParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0001\"}}, \"cac:AppealTerms\": {\"cac:PresentationPeriod\": {\"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Les voies de recours ouvertes aux candidats sont les suivantes : Référé précontractuel prévu aux articles L.551-1 à L.551-12 du Code de justice administrative (CJA), et pouvant être exercé avant la signature du contrat. Référé contractuel prévu aux articles L.551-13 à L.551-23 du CJA, et pouvant être exercé dans les délais prévus à l'article R. 551-7 du CJA. Recours de pleine juridiction ouvert aux tiers justifiant d’un intérêt lésé, et pouvant être exercé dans les deux mois suivant la date à laquelle la conclusion du contrat est rendue publique.\"}}, \"cac:AppealInformationParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0002\"}}, \"cac:AppealReceiverParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": \"ORG-0002\"}}}}, \"cac:TenderingProcess\": {\"cbc:GovernmentAgreementConstraintIndicator\": \"true\", \"cac:AuctionTerms\": {\"cbc:AuctionConstraintIndicator\": \"false\"}, \"cac:FrameworkAgreement\": {\"cac:SubsequentProcessTenderRequirement\": {\"cbc:Name\": \"buyer-categories\"}}, \"cac:ContractingSystem\": [{\"cbc:ContractingSystemTypeCode\": {\"@listName\": \"framework-agreement\", \"#text\": \"fa-wo-rc\"}}, {\"cbc:ContractingSystemTypeCode\": {\"@listName\": \"dps-usage\", \"#text\": \"none\"}}]}, \"cac:ProcurementProject\": {\"cbc:ID\": \"2026-02-02\", \"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"Lot 2 - Transports récurrents\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Achat de services de transports récurrents : le transport des personnes s'effectuera avec la mise à disposition par le titulaire d'un véhicule et d'un chauffeur.\"}, \"cbc:ProcurementTypeCode\": {\"@listName\": \"contract-nature\", \"#text\": \"services\"}, \"cac:RequestedTenderTotal\": {\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efbc:FrameworkMaximumAmount\": {\"@currencyID\": \"EUR\", \"#text\": \"280000\"}}}}}, \"cbc:EstimatedOverallContractAmount\": {\"@currencyID\": \"EUR\", \"#text\": \"0\"}}, \"cac:MainCommodityClassification\": {\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"60170000\"}}, \"cac:AdditionalCommodityClassification\": {\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"60172000\"}}, \"cac:RealizedLocation\": {\"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"mentionné sur le bon de commande + article 10 du CCAP\"}, \"cac:Address\": {\"cbc:StreetName\": \"mentionné sur le bon de commande + article 10 du CCAP\", \"cbc:CityName\": \"Saint-Orens de Gameville\", \"cbc:PostalZone\": \"31650\", \"cbc:CountrySubentityCode\": {\"@listName\": \"nuts\", \"#text\": \"FRJ23\"}, \"cac:Country\": {\"cbc:IdentificationCode\": {\"@listName\": \"country\", \"#text\": \"FRA\"}}}}, \"cac:PlannedPeriod\": {\"cbc:DurationMeasure\": {\"@unitCode\": \"YEAR\", \"#text\": \"1\"}}, \"cac:ContractExtension\": {\"cbc:OptionsDescription\": {\"@languageID\": \"FRA\", \"#text\": \"L'accord-cadre est reconduit tacitement jusqu'à son terme. Le nombre de périodes de reconduction est fixé à 3. La durée de chaque période de reconduction est de 1 an. La durée maximale du contrat, toutes périodes confondues, est de 4 ans.\"}, \"cbc:MaximumNumberNumeric\": \"3\"}}}], \"cac:TenderResult\": {\"cbc:AwardDate\": \"2000-01-01Z\"}}}}",
+   "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-80978"
+  },
+  {
+   "idweb": "26-80922",
+   "id": "26_80922",
+   "contractfolderid": "24983917-aad4-45ba-98e4-459484b33a17",
+   "objet": "Prestations d'exploitations des installations de vidéoprotection et des systèmes anti-intrusion de l'EPPDCSI",
+   "filename": "26-80922",
+   "famille": "JOUE",
+   "code_departement": [
+    "75"
+   ],
+   "code_departement_prestation": null,
+   "famille_libelle": "Marchés européens",
+   "dateparution": "2026-08-18",
+   "datefindiffusion": "2026-11-14",
+   "datelimitereponse": null,
+   "nomacheteur": "EPPDCSI - UNIVERSCIENCE Etablissement public à caractère industriel et commercial créé par décret interministériel du 3 décembre 2009",
+   "titulaire": [
+    "ULTIME SECURITE"
+   ],
+   "perimetre": "DIRECTIVE-24",
+   "type_procedure": "OUVERT",
+   "soustype_procedure": null,
+   "procedure_libelle": "Procédure Ouverte",
+   "procedure_categorise": "OUVERT/",
+   "nature": "ATTRIBUTION",
+   "sousnature": "STANDARD",
+   "nature_libelle": "Résultat de marché",
+   "sousnature_libelle": null,
+   "nature_categorise": "attribution/standard",
+   "nature_categorise_libelle": "Résultat de marché/",
+   "criteres": [
+    "sociaux",
+    "environnementaux"
+   ],
+   "marche_public_simplifie": null,
+   "marche_public_simplifie_label": null,
+   "etat": "INITIAL",
+   "descripteur_code": [
+    "331"
+   ],
+   "dc": [
+    "331"
+   ],
+   "descripteur_libelle": [
+    "Surveillance"
+   ],
+   "type_marche": [
+    "SERVICES"
+   ],
+   "type_marche_facette": [
+    "Services"
+   ],
+   "type_avis": [
+    "10",
+    "6"
+   ],
+   "annonce_lie": [
+    "26-42140"
+   ],
+   "annonces_anterieures": null,
+   "source_schema": "3.2.5",
+   "gestion": "{\"REFERENCE\": {\"IDWEB\": \"26-80922\", \"TYPE_AVIS\": {\"FAMILLE\": {\"JOUE\": \"\"}, \"PERIMETRE\": {\"DIRECTIVE-24\": \"\"}, \"NATURE\": {\"ATTRIBUTION\": {\"STANDARD\": \"\"}}, \"STATUT\": {\"INITIAL\": \"\"}}, \"ANNONCE_ANTERIEUR\": {\"IDWEB\": \"26-42140\"}}, \"INDEXATION\": {\"SCHEMA\": \"3.2.5\", \"NOMORGANISME\": \"EPPDCSI - UNIVERSCIENCE Etablissement public à caractère industriel et commercial créé par décret interministériel du 3 décembre 2009\", \"TITULAIRES\": {\"DENOMINATION\": \"ULTIME SECURITE\"}, \"TYPE_PROCEDURE\": {\"OUVERT\": \"\"}, \"DATE_PUBLICATION\": \"2026-08-18\", \"DATE_FIN_DIFFUSION\": \"2026-11-14\", \"DESCRIPTEURS\": {\"DESCRIPTEUR\": {\"CODE\": \"331\", \"LIBELLE\": \"Surveillance\"}}, \"NATURE_MARCHE\": {\"SERVICES\": \"\"}, \"CRITERES_SOCIAUX_ENV\": {\"SOCIAUX\": \"\", \"ENVIRONNEMENTAUX\": \"\"}, \"DEP_PUBLICATION\": \"75\", \"RESUME_OBJET\": \"Prestations d'exploitations des installations de vidéoprotection et des systèmes anti-intrusion de l'EPPDCSI\"}}",
+   "donnees": "{\"EFORMS\": {\"ContractAwardNotice\": {\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efac:NoticeResult\": {\"cbc:TotalAmount\": {\"@currencyID\": \"EUR\", \"#text\": \"1535963\"}, \"efac:LotResult\": {\"cbc:ID\": {\"@schemeName\": \"result\", \"#text\": \"RES-0001\"}, \"cbc:TenderResultCode\": {\"@listName\": \"winner-selection-status\", \"#text\": \"selec-w\"}, \"efac:LotTender\": {\"cbc:ID\": {\"@schemeName\": \"tender\", \"#text\": \"TEN-0001\"}}, \"efac:ReceivedSubmissionsStatistics\": {\"efbc:StatisticsCode\": {\"@listName\": \"received-submission-type\", \"#text\": \"tenders\"}, \"efbc:StatisticsNumeric\": \"3\"}, \"efac:SettledContract\": {\"cbc:ID\": {\"@schemeName\": \"contract\", \"#text\": \"CON-0001\"}}, \"efac:TenderLot\": {\"cbc:ID\": {\"@schemeName\": \"Lot\", \"#text\": \"LOT-0000\"}}}, \"efac:LotTender\": {\"cbc:ID\": {\"@schemeName\": \"tender\", \"#text\": \"TEN-0001\"}, \"efbc:TenderVariantIndicator\": \"false\", \"cac:LegalMonetaryTotal\": {\"cbc:PayableAmount\": {\"@currencyID\": \"EUR\", \"#text\": \"1535962.72\"}}, \"efac:SubcontractingTerm\": {\"efbc:TermCode\": {\"@listName\": \"applicability\", \"#text\": \"no\"}}, \"efac:TenderingParty\": {\"cbc:ID\": {\"@schemeName\": \"tendering-party\", \"#text\": \"TPA-0001\"}}, \"efac:TenderLot\": {\"cbc:ID\": {\"@schemeName\": \"Lot\", \"#text\": \"LOT-0000\"}}, \"efac:TenderReference\": {\"cbc:ID\": \"TEN-0001\"}}, \"efac:SettledContract\": {\"cbc:ID\": {\"@schemeName\": \"contract\", \"#text\": \"CON-0001\"}, \"cbc:IssueDate\": \"2026-08-04+02:00\", \"cbc:Title\": {\"@languageID\": \"FRA\", \"#text\": \"Prestations d'exploitations des installations de vidéoprotection et des systèmes anti-intrusion de l'Eppdcsi\"}, \"efac:ContractReference\": {\"cbc:ID\": \"2026-0215-01-Dmts\"}, \"efac:LotTender\": {\"cbc:ID\": {\"@schemeName\": \"tender\", \"#text\": \"TEN-0001\"}}}, \"efac:TenderingParty\": {\"cbc:ID\": {\"@schemeName\": \"tendering-party\", \"#text\": \"TPA-0001\"}, \"efac:Tenderer\": {\"cbc:ID\": {\"@schemeName\": \"organization\", \"#text\": \"ORG-0004\"}}}}, \"efac:NoticeSubType\": {\"cbc:SubTypeCode\": {\"@listName\": \"notice-subtype\", \"#text\": \"29\"}}, \"efac:Organizations\": {\"efac:Organization\": [{\"efac:Company\": {\"cac:PartyIdentification\": {\"cbc:ID\": {\"@schemeName\": \"organization\", \"#text\": \"ORG-0001\"}}, \"cac:PartyName\": {\"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"Avenue-Web Systèmes\"}}, \"cac:PostalAddress\": {\"cbc:CityName\": \"Seyssinet-Pariset\", \"cbc:PostalZone\": \"38170\", \"cbc:CountrySubentityCode\": {\"@listName\": \"nuts\", \"#text\": \"FRK24\"}, \"cac:Country\": {\"cbc:IdentificationCode\": {\"@listName\": \"country\", \"#text\": \"FRA\"}}}, \"cac:PartyLegalEntity\": {\"cbc:CompanyID\": {\"@schemeName\": \"eu\", \"#text\": \"93B89A5C-0AC1-1F94-9033D113B58B67A3\"}}, \"cac:Contact\": {\"cbc:Telephone\": \"+33480041260\", \"cbc:ElectronicMail\": \"publications-joue@aws-france.com\"}}}, {\"efac:Company\": {\"cbc:WebsiteURI\": \"http://www.universcience.fr/fr/accueil\", \"cac:PartyIdentification\": {\"cbc:ID\": {\"@schemeName\": \"organization\", \"#text\": \"ORG-0002\"}}, \"cac:PartyName\": {\"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"EPPDCSI - UNIVERSCIENCE Etablissement public à caractère industriel et commercial créé par décret interministériel du 3 décembre 2009\"}}, \"cac:PostalAddress\": {\"cbc:StreetName\": \"Avenue Franklin D. Roosevelt\", \"cbc:CityName\": \"Paris\", \"cbc:PostalZone\": \"75008\", \"cbc:CountrySubentityCode\": {\"@listName\": \"nuts\", \"#text\": \"FR101\"}, \"cac:Country\": {\"cbc:IdentificationCode\": {\"@listName\": \"country\", \"#text\": \"FRA\"}}}, \"cac:PartyLegalEntity\": {\"cbc:CompanyID\": {\"@schemeName\": \"eu\", \"#text\": \"13630\"}}, \"cac:Contact\": {\"cbc:Name\": \"EPPDCSI\", \"cbc:Telephone\": \"0140058070\", \"cbc:ElectronicMail\": \"Christine.KAUFFMANN@universcience.fr\"}}}, {\"efac:Company\": {\"cac:PartyIdentification\": {\"cbc:ID\": {\"@schemeName\": \"organization\", \"#text\": \"ORG-0003\"}}, \"cac:PartyName\": {\"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"Tribunal administratif de Paris\"}}, \"cac:PostalAddress\": {\"cbc:StreetName\": \"7 rue de Jouy\", \"cbc:CityName\": \"Paris\", \"cbc:PostalZone\": \"75181\", \"cbc:CountrySubentityCode\": {\"@listName\": \"nuts\", \"#text\": \"FR101\"}, \"cac:Country\": {\"cbc:IdentificationCode\": {\"@listName\": \"country\", \"#text\": \"FRA\"}}}, \"cac:PartyLegalEntity\": {\"cbc:CompanyID\": {\"@schemeName\": \"eu\", \"#text\": \"93B89A8D-A6D5-32BF-9A5EA0041BD70DD2\"}}, \"cac:Contact\": {\"cbc:Telephone\": \"0144594400\", \"cbc:Telefax\": \"0144594646\", \"cbc:ElectronicMail\": \"greffe.ta-paris@juradm.fr\"}}}, {\"efbc:ListedOnRegulatedMarketIndicator\": \"false\", \"efac:UltimateBeneficialOwner\": {\"cbc:ID\": {\"@schemeName\": \"ubo\", \"#text\": \"UBO-0004\"}}, \"efac:Company\": {\"efbc:CompanySizeCode\": {\"@listName\": \"economic-operator-size\", \"#text\": \"sme\"}, \"cac:PartyIdentification\": {\"cbc:ID\": {\"@schemeName\": \"organization\", \"#text\": \"ORG-0004\"}}, \"cac:PartyName\": {\"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"ULTIME SECURITE\"}}, \"cac:PostalAddress\": {\"cbc:StreetName\": \"15 Rue Nelson Mandela\", \"cbc:CityName\": \"Alfortville\", \"cbc:PostalZone\": \"94140\", \"cbc:CountrySubentityCode\": {\"@listName\": \"nuts\", \"#text\": \"FR107\"}, \"cac:Country\": {\"cbc:IdentificationCode\": {\"@listName\": \"country\", \"#text\": \"FRA\"}}}, \"cac:PartyLegalEntity\": {\"cbc:CompanyID\": {\"@schemeName\": \"eu\", \"#text\": \"1812659-1-0-1\"}}, \"cac:Contact\": {\"cbc:Telephone\": \"0143429180\", \"cbc:ElectronicMail\": \"contact@ultime-securite.fr\"}}}], \"efac:UltimateBeneficialOwner\": {\"cbc:ID\": {\"@schemeName\": \"ubo\", \"#text\": \"UBO-0004\"}, \"efac:Nationality\": {\"cbc:NationalityID\": \"FRA\"}}}}}}}, \"cbc:UBLVersionID\": \"2.3\", \"cbc:CustomizationID\": \"eforms-sdk-1.12\", \"cbc:ID\": {\"@schemeName\": \"notice-id\", \"#text\": \"b2d736ff-59c9-4e4b-ac8e-facfa1489e4f\"}, \"cbc:ContractFolderID\": \"24983917-aad4-45ba-98e4-459484b33a17\", \"cbc:IssueDate\": \"2026-08-17+02:00\", \"cbc:IssueTime\": \"10:10:30+02:00\", \"cbc:VersionID\": \"01\", \"cbc:RegulatoryDomain\": \"32014L0024\", \"cbc:NoticeTypeCode\": {\"@listName\": \"result\", \"#text\": \"can-standard\"}, \"cbc:NoticeLanguageCode\": \"FRA\", \"cac:ContractingParty\": {\"cbc:BuyerProfileURI\": \"http://www.universcience.fr/fr/accueil\", \"cac:ContractingPartyType\": {\"cbc:PartyTypeCode\": {\"@listName\": \"buyer-legal-type\", \"#text\": \"cga\"}}, \"cac:ContractingActivity\": {\"cbc:ActivityTypeCode\": {\"@listName\": \"authority-activity\", \"#text\": \"rcr\"}}, \"cac:Party\": {\"cac:PartyIdentification\": {\"cbc:ID\": {\"@schemeName\": \"organization\", \"#text\": \"ORG-0002\"}}, \"cac:ServiceProviderParty\": {\"cbc:ServiceTypeCode\": {\"@listName\": \"organisation-role\", \"#text\": \"ted-esen\"}, \"cac:Party\": {\"cac:PartyIdentification\": {\"cbc:ID\": {\"@schemeName\": \"organization\", \"#text\": \"ORG-0001\"}}}}}}, \"cac:TenderingProcess\": {\"cbc:ProcedureCode\": {\"@languageID\": \"FRA\", \"@listName\": \"procurement-procedure-type\", \"#text\": \"open\"}, \"cac:ProcessJustification\": {\"cbc:ProcessReasonCode\": {\"@listName\": \"accelerated-procedure\", \"#text\": \"false\"}}}, \"cac:ProcurementProject\": {\"cbc:ID\": \"26AS-DMTSDS-19607-K\", \"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"Prestations d'exploitations des installations de vidéoprotection et des systèmes anti-intrusion de l'EPPDCSI\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Le présent accord-cadre a pour objet l'exploitation des installations de vidéoprotection des systèmes anti-intrusion de l'EPPDCSI (poste de contrôle situé sur le site de la Cité des Sciences et de l'Industrie, au 30, avenue Corentin Cariou - 75019 Paris) et des systèmes de comptage de la Cité des Sciences cf CCTP\"}, \"cbc:ProcurementTypeCode\": {\"@listName\": \"contract-nature\", \"#text\": \"services\"}, \"cbc:Note\": {\"@languageID\": \"FRA\", \"#text\": \"Montants  euro(s)  Ht sur la durée totale du marché\\nForfait : 1.495.962,72 euro(s)  Ht\\nPart à commandes : sans montants minimum et un maximum de 40.000 euro(s)  Ht\"}, \"cac:MainCommodityClassification\": {\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"75241000\"}}, \"cac:AdditionalCommodityClassification\": [{\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"75310000\"}}, {\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"79711000\"}}]}, \"cac:ProcurementProjectLot\": {\"cbc:ID\": {\"@schemeName\": \"Lot\", \"#text\": \"LOT-0000\"}, \"cac:TenderingTerms\": {\"cbc:FundingProgramCode\": {\"@listName\": \"eu-funded\", \"#text\": \"no-eu-funds\"}, \"cac:AwardingTerms\": {\"cac:AwardingCriterion\": {\"cac:SubordinateAwardingCriterion\": [{\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efac:AwardCriterionParameter\": {\"efbc:ParameterCode\": {\"@listName\": \"number-weight\", \"#text\": \"per-exa\"}, \"efbc:ParameterNumeric\": \"35\"}}}}}, \"cbc:AwardingCriterionTypeCode\": {\"@listName\": \"award-criterion-type\", \"#text\": \"quality\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Valeur technique de l'offre\"}}, {\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efac:AwardCriterionParameter\": {\"efbc:ParameterCode\": {\"@listName\": \"number-weight\", \"#text\": \"per-exa\"}, \"efbc:ParameterNumeric\": \"5\"}}}}}, \"cbc:AwardingCriterionTypeCode\": {\"@listName\": \"award-criterion-type\", \"#text\": \"quality\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Responsabilité Sociale et Environnementale\"}}, {\"ext:UBLExtensions\": {\"ext:UBLExtension\": {\"ext:ExtensionContent\": {\"efext:EformsExtension\": {\"efac:AwardCriterionParameter\": {\"efbc:ParameterCode\": {\"@listName\": \"number-weight\", \"#text\": \"per-exa\"}, \"efbc:ParameterNumeric\": \"60\"}}}}}, \"cbc:AwardingCriterionTypeCode\": {\"@listName\": \"award-criterion-type\", \"#text\": \"price\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Prix\"}}]}}, \"cac:AppealTerms\": {\"cac:PresentationPeriod\": {\"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Tribunal administratif de Paris\\n7 rue de Jouy\\n75181 Paris cedex 04\"}}, \"cac:AppealReceiverParty\": {\"cac:PartyIdentification\": {\"cbc:ID\": {\"@schemeName\": \"organization\", \"#text\": \"ORG-0003\"}}}}}, \"cac:TenderingProcess\": {\"cbc:GovernmentAgreementConstraintIndicator\": \"true\", \"cac:AuctionTerms\": {\"cbc:AuctionConstraintIndicator\": \"false\"}, \"cac:ContractingSystem\": [{\"cbc:ContractingSystemTypeCode\": {\"@listName\": \"framework-agreement\", \"#text\": \"none\"}}, {\"cbc:ContractingSystemTypeCode\": {\"@listName\": \"dps-usage\", \"#text\": \"none\"}}]}, \"cac:ProcurementProject\": {\"cbc:ID\": {\"@schemeName\": \"InternalID\", \"#text\": \"S-PA-1812659\"}, \"cbc:Name\": {\"@languageID\": \"FRA\", \"#text\": \"Prestations d'exploitations des installations de vidéoprotection et des systèmes anti-intrusion de l'EPPDCSI\"}, \"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Le présent accord-cadre a pour objet l'exploitation des installations de vidéoprotection des systèmes anti-intrusion de l'EPPDCSI (poste de contrôle situé sur le site de la Cité des Sciences et de l'Industrie, au 30, avenue Corentin Cariou - 75019 Paris) et des systèmes de comptage de la Cité des Sciences cf CCTP\"}, \"cbc:ProcurementTypeCode\": {\"@listName\": \"contract-nature\", \"#text\": \"services\"}, \"cac:ProcurementAdditionalType\": [{\"cbc:ProcurementTypeCode\": {\"@listName\": \"environmental-impact\", \"#text\": \"other\"}}, {\"cbc:ProcurementTypeCode\": {\"@listName\": \"social-objective\", \"#text\": \"other\"}}], \"cac:MainCommodityClassification\": {\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"75241000\"}}, \"cac:AdditionalCommodityClassification\": [{\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"75310000\"}}, {\"cbc:ItemClassificationCode\": {\"@listName\": \"cpv\", \"#text\": \"79711000\"}}], \"cac:PlannedPeriod\": {\"cbc:StartDate\": \"2026-09-15+02:00\", \"cbc:DurationMeasure\": {\"@unitCode\": \"MONTH\", \"#text\": \"12\"}}, \"cac:ContractExtension\": {\"cbc:MaximumNumberNumeric\": \"1\", \"cac:Renewal\": {\"cac:Period\": {\"cbc:Description\": {\"@languageID\": \"FRA\", \"#text\": \"Renouvellement tacite trois (3) fois par périodes successives d'un (1) an sans que sa durée totale, reconduction comprise, ne puisse excéder quatre (4) ans\"}}}}}}, \"cac:TenderResult\": {\"cbc:AwardDate\": \"2000-01-01Z\"}}}}",
+   "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-80922"
+  },
+  {
+   "idweb": "26-81190",
+   "id": "26_81190",
+   "contractfolderid": null,
+   "objet": "RÉHABILITATION, CONFORTEMENT ET RESTAURATION DU PONT MAÇONNERIE À UNE ARCHE SUR L’APANCE – RD238 PR7+560 À LARIVIÈRE-ARNONCOURT-.",
+   "filename": "26-81190",
+   "famille": "FNS",
+   "code_departement": [
+    "52"
+   ],
+   "code_departement_prestation": null,
+   "famille_libelle": "Marchés entre 90 k€ et seuils européens",
+   "dateparution": "2026-08-18",
+   "datefindiffusion": "2026-10-27",
+   "datelimitereponse": null,
+   "nomacheteur": "Service administratif et financier du Pôle Aménagement",
+   "titulaire": null,
+   "perimetre": "FNSimple",
+   "type_procedure": null,
+   "soustype_procedure": null,
+   "procedure_libelle": "Procédure NC",
+   "procedure_categorise": "/",
+   "nature": "ATTRIBUTION",
+   "sousnature": null,
+   "nature_libelle": "Résultat de marché",
+   "sousnature_libelle": null,
+   "nature_categorise": "attribution/standard",
+   "nature_categorise_libelle": "Résultat de marché/",
+   "criteres": null,
+   "marche_public_simplifie": null,
+   "marche_public_simplifie_label": null,
+   "etat": "INITIAL",
+   "descripteur_code": [
+    "253"
+   ],
+   "dc": [
+    "253"
+   ],
+   "descripteur_libelle": [
+    "Ouvrage d'infrastructure"
+   ],
+   "type_marche": [
+    "TRAVAUX"
+   ],
+   "type_marche_facette": [
+    "Travaux"
+   ],
+   "type_avis": [
+    "10",
+    "6"
+   ],
+   "annonce_lie": null,
+   "annonces_anterieures": null,
+   "source_schema": "3.2.5",
+   "gestion": "{\"REFERENCE\": {\"IDWEB\": \"26-81190\", \"TYPE_AVIS\": {\"FAMILLE\": {\"FNS\": \"\"}, \"PERIMETRE\": {\"FNSimple\": \"\"}, \"NATURE\": {\"ATTRIBUTION\": \"\"}, \"STATUT\": {\"INITIAL\": \"\"}}}, \"INDEXATION\": {\"SCHEMA\": \"3.2.5\", \"NOMORGANISME\": \"Service administratif et financier du Pôle Aménagement\", \"DATE_PUBLICATION\": \"2026-08-18\", \"DATE_FIN_DIFFUSION\": \"2026-10-27\", \"DESCRIPTEURS\": {\"DESCRIPTEUR\": {\"CODE\": \"253\", \"LIBELLE\": \"Ouvrage d'infrastructure\"}}, \"NATURE_MARCHE\": {\"TRAVAUX\": \"\"}, \"DEP_PUBLICATION\": \"52\", \"RESUME_OBJET\": \"RÉHABILITATION, CONFORTEMENT ET RESTAURATION DU PONT MAÇONNERIE À UNE ARCHE SUR L’APANCE – RD238 PR7+560 À LARIVIÈRE-ARNONCOURT-.\"}}",
+   "donnees": "{\"FNSimple\": {\"organisme\": {\"nomOfficiel\": \"Service administratif et financier du Pôle Aménagement\", \"typeIdentificationNational\": {\"siret\": \"\"}, \"codeIdentificationNational\": \"22520001300012\", \"ville\": \"CHAUMONT Cedex\", \"cp\": \"52905\", \"grpCommandes\": {\"non\": \"\"}}, \"attribution\": {\"pasAvisInitial\": \"\", \"natureMarche\": {\"intitule\": \"RÉHABILITATION, CONFORTEMENT ET RESTAURATION DU PONT MAÇONNERIE À UNE ARCHE SUR L’APANCE – RD238 PR7+560 À LARIVIÈRE-ARNONCOURT-.\", \"natureMarche\": {\"travaux\": \"\"}}, \"attributionMarche\": \"Lot 1 : Travaux de réhabilitation de l'ouvrage d'art Attribution : attribué à 1 entreprise(s)  - GRAGLIA BTP (43293695300012) Notifié le 05/06/2026 Montant : 213400.41 euros  Lot 2 : Travaux de consolidation des berges Attribution : attribué à 1 entreprise(s)  - SOCIETE ENTR'IN 52 (81535164800010) Notifié le 05/06/2026 Montant : 17530 euros\"}}}",
+   "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-81190"
+  },
+  {
+   "idweb": "26-80528",
+   "id": "26_80528",
+   "contractfolderid": null,
+   "objet": "MAPA 25.747.37 MISSION DE MAITRISE D'OEUVRE RELATIVE A L'OPERATION DE RECONSTRUCTION APRES SINISTRE D’ESPACES DU SITE DU PATIO DE LA CAISSE PRIMAIRE CENTRALE D’ASSURANCE MALADIE DES BOUCHES-DU-RHONE",
+   "filename": "26-80528",
+   "famille": "MAPA",
+   "code_departement": [
+    "13"
+   ],
+   "code_departement_prestation": null,
+   "famille_libelle": "Marchés <90 k€ (MAPA)",
+   "dateparution": "2026-08-14",
+   "datefindiffusion": "2026-11-01",
+   "datelimitereponse": null,
+   "nomacheteur": "Caisse Primaire Centrale d'Assurance Maladie des Bouches du Rhône",
+   "titulaire": [
+    "Groupement ATC Jean-Claude RICHIER"
+   ],
+   "perimetre": "MAPA",
+   "type_procedure": "PROCEDURE_ADAPTE",
+   "soustype_procedure": null,
+   "procedure_libelle": "Procédure Adaptée",
+   "procedure_categorise": "PROCEDURE_ADAPTE/",
+   "nature": "ATTRIBUTION",
+   "sousnature": null,
+   "nature_libelle": "Résultat de marché",
+   "sousnature_libelle": null,
+   "nature_categorise": "attribution/standard",
+   "nature_categorise_libelle": "Résultat de marché/",
+   "criteres": [
+    "environnementaux"
+   ],
+   "marche_public_simplifie": null,
+   "marche_public_simplifie_label": null,
+   "etat": "INITIAL",
+   "descripteur_code": [
+    "197"
+   ],
+   "dc": [
+    "197"
+   ],
+   "descripteur_libelle": [
+    "Maîtrise d'oeuvre"
+   ],
+   "type_marche": null,
+   "type_marche_facette": null,
+   "type_avis": [
+    "10",
+    "6"
+   ],
+   "annonce_lie": [
+    "26-21814"
+   ],
+   "annonces_anterieures": null,
+   "source_schema": "3.2.5",
+   "gestion": "{\"REFERENCE\": {\"IDWEB\": \"26-80528\", \"TYPE_AVIS\": {\"FAMILLE\": {\"MAPA\": \"\"}, \"PERIMETRE\": {\"MAPA\": \"\"}, \"NATURE\": {\"ATTRIBUTION\": \"\"}, \"STATUT\": {\"INITIAL\": \"\"}}, \"ANNONCE_ANTERIEUR\": {\"IDWEB\": \"26-21814\"}}, \"INDEXATION\": {\"SCHEMA\": \"3.2.5\", \"NOMORGANISME\": \"Caisse Primaire Centrale d'Assurance Maladie des Bouches du Rhône\", \"TITULAIRES\": {\"DENOMINATION\": \"Groupement ATC Jean-Claude RICHIER\"}, \"TYPE_PROCEDURE\": {\"PROCEDURE_ADAPTE\": \"\"}, \"DATE_PUBLICATION\": \"2026-08-14\", \"DATE_FIN_DIFFUSION\": \"2026-11-01\", \"DESCRIPTEURS\": {\"DESCRIPTEUR\": {\"CODE\": \"197\", \"LIBELLE\": \"Maîtrise d'oeuvre\"}}, \"NATURE_MARCHE\": \"\", \"CRITERES_SOCIAUX_ENV\": {\"ENVIRONNEMENTAUX\": \"\"}, \"DEP_PUBLICATION\": \"13\", \"RESUME_OBJET\": \"MAPA 25.747.37 MISSION DE MAITRISE D'OEUVRE RELATIVE A L'OPERATION DE RECONSTRUCTION APRES SINISTRE D’ESPACES DU SITE DU PATIO DE LA CAISSE PRIMAIRE CENTRALE D’ASSURANCE MALADIE DES BOUCHES-DU-RHONE\"}}",
+   "donnees": "{\"MAPA\": {\"organisme\": {\"correspondantPRM\": {\"civilite\": \"M\", \"nom\": \"Départemetn Achats et Marchés\", \"pren\": \"Service Juridique et Marchés\", \"fonc\": \"Service Juridique et Marchés\"}, \"acheteurPublic\": \"CPCAM DES BOUCHES-DU-RHONE\", \"adr\": {\"voie\": {\"num\": \"56\", \"typevoie\": \"chemin\", \"nomvoie\": \"chemin Joseph Aiguier\"}, \"cp\": \"13009\", \"ville\": \"MARSEILLE 9\"}, \"coord\": {\"mel\": \"521.dpt.juridique.cpam-marseille@assurance-maladie.fr\"}, \"urlProfilAcheteur\": \"https://www.marches-publics.gouv.fr/entreprise\", \"classificationOrganisme\": \"7\"}, \"attribution\": {\"avisInitial\": {\"idWeb\": \"26-21814\", \"datePublication\": \"2026-03-03\"}, \"descriptionReduite\": {\"objet\": \"MAPA 25.747.37 MISSION DE MAITRISE D’OEUVRE RELATIVE A L’OPÉRATION DE RECONSTRUCTION APRÈS SINISTRE D’ESPACES DU SITE DU PATIO DE LA CAISSE PRIMAIRE CENTRALE D’ASSURANCE MALADIE (CPCAM) DES BOUCHES-DU-RHONE\"}, \"criteresAttribution\": {\"criterePondere\": [{\"criterePCT\": \"40\", \"critere\": \"Prix des Prestations 40 %\"}, {\"criterePCT\": \"60\", \"critere\": \"Valeur Technique 60 % - Sous- critère 1 : Qualité des propositions à développer - interprétation du programme et de la faisabilité de l'opération (note d'opportunité) 25% - Sous-critère 2 : Qualité de la méthodologie générale et des propositions environnementales (note méthodologique) 20% - Sous-critère 3 : Composition et organisation de l'équipe de maîtrise d'œuvre (note d’organisation de l’équipe) avec une attention particulière sur les expériences en reconstruction et la qualité de dialogue menée avec les assureurs 15%.\"}]}, \"procedure\": {\"procedureAdaptee\": \"\"}, \"attribution\": {\"resultat\": {\"attribue\": {\"titulaire\": {\"PersonnePhysique\": {\"civilite\": \"M\", \"nom\": \"RICHIER\", \"pren\": \"Jean-Claude\", \"fonc\": \"Président\"}, \"PersonneMorale\": \"Groupement ATC Jean-Claude RICHIER\", \"adr\": {\"voie\": {\"num\": \"75\", \"typevoie\": \"Traverse\", \"nomvoie\": \"Saint Pons\"}, \"cp\": \"13012\", \"ville\": \"Marseille\"}, \"coord\": {\"tel\": \"0686005691\", \"fax\": \"0686005691\", \"poste\": \"0686005691\", \"mel\": \"atcjcrichier@outlook.fr\", \"url\": \"https://www.marches-publics.gouv.fr/\"}}, \"montant\": {\"@devise\": \"EUR\", \"valeur\": \"102193\"}}}}, \"autresInformations\": {\"dateAttribution\": \"2026-08-10\", \"nbOffresRecues\": \"11\", \"valeurTotaleEstimee\": {\"@devise\": \"EUR\", \"valeur\": \"89999\"}}}}}",
+   "url_avis": "https://www.boamp.fr/pages/avis/?q=idweb:26-80528"
+  }
+ ]
+}

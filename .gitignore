@@ -4,3 +4,9 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .env
+
+# Gels bruts d'acquisition — régénérables par `signals.research.spec009e_run`.
+# Aucun test suivi ne les lit : la mesure dérivée `spec009e_france.json` porte
+# l'échantillon aplati et suffit à rejouer toute l'analyse hors ligne.
+tests/fixtures/france/spec009e_boamp_raw.json
+tests/fixtures/france/spec009e_decp2022_raw.json

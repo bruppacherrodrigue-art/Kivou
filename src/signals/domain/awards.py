@@ -180,9 +180,28 @@ class ContractAward(CanonicalModel):
     # Où
     place_of_performance: Location | None = None
 
-    # Quand — trois horloges distinctes, jamais fusionnées
+    # Quand — quatre horloges distinctes, jamais fusionnées.
+    #
+    # `award_date`                 la DÉCISION : l'acheteur a retenu ce titulaire.
+    # `contract_signature_date`    la CONCLUSION du contrat. C'est le champ
+    #                              « conclusion » du modèle ; son nom historique dit
+    #                              « signature » parce que le premier connecteur
+    #                              l'appelait ainsi. Renommer casserait tous les
+    #                              connecteurs, le moteur de compréhension et les
+    #                              corpus déjà gelés, pour un gain nul : la
+    #                              sémantique est celle de la conclusion, et elle
+    #                              est écrite ici.
+    # `contract_notification_date` la NOTIFICATION du contrat au titulaire — l'acte
+    #                              qui rend le marché exécutoire dans certains
+    #                              régimes. Elle SUIT la décision, parfois de
+    #                              plusieurs semaines, et ne la date donc jamais.
+    #                              Certains registres ne publient qu'elle : sans
+    #                              champ propre, elle finirait dans `award_date` et
+    #                              rajeunirait artificiellement chaque signal.
+    # `contract_start_date`        le DÉBUT d'exécution.
     award_date: dt.date | None = None
     contract_signature_date: dt.date | None = None
+    contract_notification_date: dt.date | None = None
     contract_start_date: dt.date | None = None
     contract_end_date: dt.date | None = None
     duration: Duration | None = None

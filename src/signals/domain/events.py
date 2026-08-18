@@ -53,8 +53,14 @@ PublicationInstant = Annotated[
 ]
 """Publication à la précision RÉELLEMENT publiée — `date` ou `datetime`, jamais l'un pour l'autre."""
 
-SourceSystem = Literal["simap", "ted", "intelliprocure", "manual"]
-"""Portails connus. Ajouter un 3ᵉ pays = ajouter une valeur ici, rien d'autre.
+SourceSystem = Literal["simap", "ted", "boamp", "decp", "intelliprocure", "manual"]
+"""Portails connus. Ajouter un pays = ajouter une valeur ici, rien d'autre.
+
+La France en occupe deux, et la distinction est un fait, pas une commodité :
+`boamp` publie l'**événement** — un avis d'attribution daté, paru tel jour —
+tandis que `decp` publie la **donnée essentielle** du contrat, des mois ou des
+années plus tard. Les fondre sous un seul `fr` effacerait précisément l'écart
+temporel que SPEC-009E mesure.
 
 `manual` couvre la saisie humaine (correction supervisée, jeu de test) : elle
 doit être traçable comme n'importe quelle autre origine, pas déguisée en source
