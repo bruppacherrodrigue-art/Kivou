@@ -1,0 +1,190 @@
+"""Inscription, connexion, session, réinitialisation.
+
+Chaque point d'entrée fait trois choses dans cet ordre : valider l'origine,
+ouvrir une transaction, appeler le service. Aucune logique métier ne vit ici.
+"""
+
+from __future__ import annotations
+
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, Request, Response
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
+from signals.accounts import service
+from signals.accounts.passwords import MINIMUM_PASSWORD_LENGTH, WeakPassword
+from signals.api.config import SESSION_COOKIE_NAME
+from signals.api.dependencies import current_session, enforce_origin, request_now
+from signals.api.errors import api_error
+
+router = APIRouter()
+
+Password = Annotated[str, Field(min_length=MINIMUM_PASSWORD_LENGTH, max_length=1024)]
+
+
+class SignupRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    password: Password
+    company_name: str = Field(min_length=1, max_length=256)
+    locale: Literal["fr", "en"] = "fr"
+
+
+class LoginRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    password: str = Field(min_length=1, max_length=1024)
+
+
+class PasswordResetRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+
+
+class PasswordResetConfirm(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reset_token: str = Field(min_length=1, max_length=512)
+    new_password: Password
+
+
+class MeResponse(BaseModel):
+    """Ce que le frontend a besoin de savoir — aucun secret n'y figure."""
+
+    user_id: str
+    email: str
+    account_id: str
+    account_display_name: str
+    locale: str
+    onboarding_status: str
+
+
+def _set_session_cookie(response: Response, request: Request, session) -> None:
+    config = request.app.state.config
+    response.set_cookie(
+        SESSION_COOKIE_NAME,
+        session.raw_token,
+        httponly=True,
+        secure=config.cookie_secure,
+        samesite="lax",
+        path="/",
+        expires=session.expires_at,
+    )
+
+
+@router.post("/auth/signup", status_code=201)
+def signup(payload: SignupRequest, request: Request, response: Response) -> MeResponse:
+    config = request.app.state.config
+    enforce_origin(request, config)
+    now = request_now(request)
+    try:
+        with request.app.state.engine.begin() as connection:
+            session = service.sign_up(
+                connection,
+                email=payload.email,
+                password=payload.password,
+                company_name=payload.company_name,
+                locale=payload.locale,
+                now=now,
+                session_ttl=config.session_ttl,
+            )
+            user = service.current_user(connection, user_id=session.user_id)
+    except service.EmailAlreadyUsed as error:
+        # Message volontairement neutre : il ne confirme pas qu'un compte existe.
+        raise api_error(409, error.code, "impossible de créer ce compte") from error
+    except service.UnsupportedLocale as error:
+        raise api_error(422, error.code, "langue non prise en charge") from error
+    except WeakPassword as error:
+        raise api_error(422, "invalid_input", str(error)) from error
+
+    _set_session_cookie(response, request, session)
+    return MeResponse(**vars(user))
+
+
+@router.post("/auth/login")
+def login(payload: LoginRequest, request: Request, response: Response) -> MeResponse:
+    config = request.app.state.config
+    enforce_origin(request, config)
+    now = request_now(request)
+    try:
+        with request.app.state.engine.begin() as connection:
+            session = service.log_in(
+                connection,
+                email=payload.email,
+                password=payload.password,
+                now=now,
+                session_ttl=config.session_ttl,
+            )
+            user = service.current_user(connection, user_id=session.user_id)
+    except service.InvalidCredentials as error:
+        raise api_error(401, error.code, "identifiants invalides") from error
+
+    _set_session_cookie(response, request, session)
+    return MeResponse(**vars(user))
+
+
+@router.post("/auth/logout", status_code=204)
+def logout(request: Request, response: Response) -> Response:
+    config = request.app.state.config
+    enforce_origin(request, config)
+    now = request_now(request)
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        service.log_out(connection, session_id=session.session_id, now=now)
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    response.status_code = 204
+    return response
+
+
+@router.get("/me")
+def me(request: Request) -> MeResponse:
+    now = request_now(request)
+    with request.app.state.engine.connect() as connection:
+        session = current_session(request, connection, now)
+        user = service.current_user(connection, user_id=session.user_id)
+    return MeResponse(**vars(user))
+
+
+@router.post("/auth/password-reset/request", status_code=202)
+def password_reset_request(payload: PasswordResetRequest, request: Request) -> dict[str, str]:
+    """Même réponse publique, que le compte existe ou non (§11)."""
+    config = request.app.state.config
+    enforce_origin(request, config)
+    now = request_now(request)
+    with request.app.state.engine.begin() as connection:
+        service.request_password_reset(
+            connection,
+            email=payload.email,
+            now=now,
+            reset_ttl=config.password_reset_ttl,
+            delivery=request.app.state.password_reset_delivery,
+        )
+    return {"status": "accepted"}
+
+
+@router.post("/auth/password-reset/confirm")
+def password_reset_confirm(
+    payload: PasswordResetConfirm, request: Request, response: Response
+) -> dict[str, str]:
+    config = request.app.state.config
+    enforce_origin(request, config)
+    now = request_now(request)
+    try:
+        with request.app.state.engine.begin() as connection:
+            service.confirm_password_reset(
+                connection,
+                reset_token=payload.reset_token,
+                new_password=payload.new_password,
+                now=now,
+            )
+    except service.InvalidResetToken as error:
+        raise api_error(400, error.code, "jeton de réinitialisation invalide") from error
+    except WeakPassword as error:
+        raise api_error(422, "invalid_input", str(error)) from error
+
+    # Toutes les sessions ont été révoquées : le cookie courant ne vaut plus rien.
+    response.delete_cookie(SESSION_COOKIE_NAME, path="/")
+    return {"status": "password_updated"}

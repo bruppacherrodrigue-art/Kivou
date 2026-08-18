@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from alembic import context
 
+# L'import enregistre les tables de SPEC-011 dans le même `METADATA`.
+import signals.accounts.schema  # noqa: F401
 from signals.persistence.schema import METADATA
 
 target_metadata = METADATA

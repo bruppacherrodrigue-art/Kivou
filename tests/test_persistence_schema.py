@@ -304,5 +304,28 @@ def test_one_logical_signal_exists_per_award_and_icp_context():
     assert ("opportunity_key", "target_icp_id") in unique
 
 
-def test_the_metadata_holds_exactly_the_declared_tables():
-    assert set(METADATA.tables) == {table.name for table in ALL_TABLES}
+def test_the_persistence_tables_are_all_registered_in_the_shared_metadata():
+    """SPEC-011 enregistre ses propres tables dans le même `METADATA`.
+
+    Une seule base, une seule chaîne de migrations, un seul endroit où lire le
+    schéma complet. L'invariant utile n'est donc plus « exactement ces tables »
+    mais « ces tables-là sont bien là, et intactes ».
+    """
+    import signals.accounts.schema  # noqa: F401 — enregistre les tables SPEC-011
+
+    assert {table.name for table in ALL_TABLES} <= set(METADATA.tables)
+
+
+def test_no_persistence_table_was_altered_by_a_later_spec():
+    """Les colonnes de SPEC-010 restent exactement celles de SPEC-010."""
+    import signals.accounts.schema  # noqa: F401
+
+    assert columns(materialized_signal) >= {
+        "signal_key",
+        "opportunity_key",
+        "materialization_award_key",
+        "target_icp_id",
+        "revision",
+        "content_fingerprint",
+    }
+    assert "account_id" not in columns(materialized_signal)
