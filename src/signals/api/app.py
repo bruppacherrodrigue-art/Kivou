@@ -30,6 +30,7 @@ from fastapi.responses import JSONResponse
 from signals.api.config import ApiConfig
 from signals.api.routes_auth import router as auth_router
 from signals.api.routes_icp import router as icp_router
+from signals.api.routes_signals import router as signals_router
 
 
 class _NullDelivery:
@@ -63,6 +64,7 @@ def create_app(
 
     app.include_router(auth_router)
     app.include_router(icp_router)
+    app.include_router(signals_router)
 
     @app.exception_handler(ValueError)
     def _value_error(request: Request, error: ValueError) -> JSONResponse:

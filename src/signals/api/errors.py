@@ -26,6 +26,7 @@ ERROR_CODES: tuple[str, ...] = (
     "not_authenticated",
     "csrf_origin_rejected",
     "invalid_input",
+    "signal_not_found",
 )
 
 

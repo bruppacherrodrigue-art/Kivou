@@ -54,6 +54,10 @@ class StoredEvent:
     published_on: dt.date | None
     published_precision: str | None
     discovered_at: dt.datetime | None
+    #: L'identifiant de procédure publié — utile pour remonter à la source.
+    source_procedure_id: str | None = None
+    #: Les acheteurs publics de la procédure, tels que la source les publie.
+    procedure_buyers: list[dict[str, Any]] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -74,6 +78,9 @@ class StoredAward:
     contract_start_date: dt.date | None
     contract_end_date: dt.date | None
     awardee_parties: list[dict[str, Any]]
+    lot_title: str | None = None
+    contract_reference: str | None = None
+    place_of_performance: dict[str, Any] | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -89,6 +96,8 @@ class StoredEvidence:
     path: str | None
     excerpt: str | None
     engine_version: str | None
+    source_procedure_id: str | None = None
+    retrieved_at: dt.datetime | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -222,6 +231,8 @@ def _event(row: sa.Row) -> StoredEvent:
         published_on=_as_date(row.published_on),
         published_precision=row.published_precision,
         discovered_at=_as_datetime(row.discovered_at),
+        source_procedure_id=row.source_procedure_id,
+        procedure_buyers=row.procedure_buyers,
     )
 
 
@@ -241,6 +252,9 @@ def _award(row: sa.Row) -> StoredAward:
         contract_start_date=_as_date(row.contract_start_date),
         contract_end_date=_as_date(row.contract_end_date),
         awardee_parties=row.awardee_parties,
+        lot_title=row.lot_title,
+        contract_reference=row.contract_reference,
+        place_of_performance=row.place_of_performance,
     )
 
 
@@ -257,12 +271,46 @@ _SELECT = (
 )
 
 
-def _hydrate(connection: sa.Connection, row: sa.Row) -> StoredSignal:
+#: La sélection canonique d'un signal. Exposée pour que d'autres couches — le
+#: feed client de SPEC-012, par exemple — composent leur propre restriction de
+#: propriété PAR-DESSUS elle, au lieu de réécrire une seconde jointure qui
+#: divergerait le jour où le schéma bouge.
+SIGNAL_SELECT = _SELECT
+
+
+def load_evidence(connection: sa.Connection, award_key: str) -> tuple[StoredEvidence, ...]:
+    """Les ancrages d'un award. Séparé de l'hydratation pour que le feed puisse
+    s'en passer : une liste n'a pas besoin des quarante preuves de chaque ligne.
+    """
     anchors = connection.execute(
         sa.select(evidence)
-        .where(evidence.c.award_key == row.award_key)
+        .where(evidence.c.award_key == award_key)
         .order_by(evidence.c.evidence_key)
     ).all()
+    return tuple(
+        StoredEvidence(
+            anchors_kind=anchor.anchors_kind,
+            anchors_ref=anchor.anchors_ref,
+            source_system=anchor.source_system,
+            source_kind=anchor.source_kind,
+            source_notice_id=anchor.source_notice_id,
+            source_url=anchor.source_url,
+            path=anchor.path,
+            excerpt=anchor.excerpt,
+            engine_version=anchor.engine_version,
+            source_procedure_id=anchor.source_procedure_id,
+            retrieved_at=_as_datetime(anchor.retrieved_at),
+        )
+        for anchor in anchors
+    )
+
+
+def signal_from_row(row: sa.Row, *, evidence: tuple[StoredEvidence, ...] = ()) -> StoredSignal:
+    """Reconstitue un signal depuis une ligne de `SIGNAL_SELECT`.
+
+    Les preuves sont passées à part : sans elles la lecture reste une seule
+    requête, ce qui évite le N+1 quand on liste (§31 SPEC-012).
+    """
     return StoredSignal(
         signal_key=row.signal_key,
         opportunity_key=row.opportunity_key,
@@ -272,20 +320,7 @@ def _hydrate(connection: sa.Connection, row: sa.Row) -> StoredSignal:
         content_fingerprint=row.content_fingerprint,
         event=_event(row),
         award=_award(row),
-        evidence=tuple(
-            StoredEvidence(
-                anchors_kind=anchor.anchors_kind,
-                anchors_ref=anchor.anchors_ref,
-                source_system=anchor.source_system,
-                source_kind=anchor.source_kind,
-                source_notice_id=anchor.source_notice_id,
-                source_url=anchor.source_url,
-                path=anchor.path,
-                excerpt=anchor.excerpt,
-                engine_version=anchor.engine_version,
-            )
-            for anchor in anchors
-        ),
+        evidence=evidence,
         materialized_recency_status=row.materialized_recency_status,
         materialized_primary_event=row.materialized_primary_event,
         materialized_award_clock_status=row.materialized_award_clock_status,
@@ -313,6 +348,10 @@ def _hydrate(connection: sa.Connection, row: sa.Row) -> StoredSignal:
         engine_versions=row.engine_versions,
         materialized_at=_as_datetime(row.materialized_at),
     )
+
+
+def _hydrate(connection: sa.Connection, row: sa.Row) -> StoredSignal:
+    return signal_from_row(row, evidence=load_evidence(connection, row.award_key))
 
 
 def get_signal(connection: sa.Connection, signal_key: str) -> StoredSignal | None:
