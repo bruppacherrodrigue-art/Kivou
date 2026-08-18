@@ -69,19 +69,32 @@ class TestSpec009ArtefactsPreserved:
         ):
             assert (FIXTURES / name).exists(), name
 
-    def test_the_frozen_engine_versions_have_not_moved(self) -> None:
-        """§48 — un vérificateur ne vaut que confronté aux mêmes moteurs."""
-        from signals.matching import (
-            MATCH_POLICY_VERSION,
-            REFERENCE_ICP_LIBRARY_VERSION,
-            SCORE_POLICY_VERSION,
-        )
-        from signals.needs import ENGINE_VERSION as NEED_VERSION
+    def test_the_frozen_run_names_the_engines_it_measured(self) -> None:
+        """§48 — un vérificateur ne vaut que confronté aux mêmes moteurs.
 
-        assert NEED_VERSION == "need-graph-v0.1"
-        assert MATCH_POLICY_VERSION == "icp-match-v0.1"
-        assert SCORE_POLICY_VERSION == "signal-score-v0.2"
-        assert REFERENCE_ICP_LIBRARY_VERSION == "reference-icps-v0.1"
+        WEDGE-HARDENING R1 a fait bouger l'appariement (`icp-match-v0.2`, porte
+        « corps de métier ») et la compréhension (`contract-understanding-v0.2`).
+        Ce test ne réaligne pas les constantes : il épingle ce que le sceau a
+        enregistré. Les chiffres de ce run sont un RELEVÉ HISTORIQUE — les
+        confronter aux moteurs courants exige un nouveau run, pas une relecture
+        de ces fixtures.
+        """
+        from signals.matching import MATCH_POLICY_VERSION, REFERENCE_ICP_LIBRARY_VERSION
+
+        seal = json.loads((FIXTURES / "signal100_seal.json").read_text(encoding="utf-8"))[
+            "engine_version_set"
+        ]
+        assert seal == {
+            "understanding_engine": "contract-understanding-v0.1",
+            "need_engine": "need-graph-v0.1",
+            "match_policy": "icp-match-v0.1",
+            "score_policy": "signal-score-v0.2",
+            "reference_icp_library": "reference-icps-v0.1",
+        }
+        # La bibliothèque d'ICPs de référence, elle, n'a pas bougé : les sept
+        # ICPs mesurés sont toujours exactement ceux-là.
+        assert REFERENCE_ICP_LIBRARY_VERSION == seal["reference_icp_library"]
+        assert MATCH_POLICY_VERSION != seal["match_policy"]
 
     def test_document_intelligence_is_still_disabled(self) -> None:
         from signals.documents import AUTO_DOCUMENT_REQUIREMENTS_ENABLED

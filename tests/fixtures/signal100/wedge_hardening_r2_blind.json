@@ -1,0 +1,1043 @@
+{
+  "artefact": "wedge-hardening-r2-blind",
+  "as_of": "2026-08-17",
+  "count": 3,
+  "rubric": "commercial-signal-rubric-v1",
+  "signals": [
+    {
+      "contract": {
+        "buyers": [
+          {
+            "country": "CH",
+            "legal_name": "HBD - Amt für Hochbauten (AHB)"
+          }
+        ],
+        "contract_reference": null,
+        "cpv_additional": [],
+        "cpv_main": "45210000",
+        "description": "<p>Neubau</p><p>BKP 272.0 Innentüren aus Metall</p>",
+        "lot_title": null,
+        "place_of_performance": {
+          "country": "CH",
+          "locality": null,
+          "postal_code": null,
+          "subdivision_code": null,
+          "subdivision_scheme": null
+        },
+        "title": "BAV 80720 Schulanlage Tüffenwies – BKP 272.0 Innentüren aus Metall",
+        "value": {
+          "amount": "520161.45",
+          "currency": "CHF",
+          "vat_category": "standard"
+        }
+      },
+      "contract_understanding": {
+        "buyer_country": "CH",
+        "characteristics": [],
+        "contract_type": "construction",
+        "facts": {
+          "amount": "520161.45 CHF",
+          "award_date": "2026-08-12",
+          "cpv": "45210000",
+          "procedure_buyers": "HBD - Amt für Hochbauten (AHB)",
+          "published_object": "Neubau\nBKP 272.0 Innentüren aus Metall",
+          "winner": "REY Metallbau AG"
+        },
+        "object_summary": "Marché « BAV 80720 Schulanlage Tüffenwies – BKP 272.0 Innentüren aus Metall », Acheteur publié : HBD - Amt für Hochbauten (AHB), à REY Metallbau AG, pour 520161.45 CHF, à CH, décision du 2026-08-12. Objet publié : Neubau\nBKP 272.0 Innentüren aus Metall",
+        "place_of_performance": {
+          "country": "CH",
+          "locality": null,
+          "postal_code": null,
+          "subdivision_code": null,
+          "subdivision_scheme": null
+        },
+        "sector": "unknown",
+        "timing": {
+          "award_date": "2026-08-12",
+          "contract_end_date": null,
+          "contract_signature_date": null,
+          "contract_span_days": null,
+          "contract_start_date": null,
+          "days_between_award_and_start": null,
+          "derived_from": [],
+          "duration_unit": null,
+          "duration_value": null,
+          "published_at": "2026-08-13"
+        }
+      },
+      "derived_needs": [
+        {
+          "category": "workforce_capacity",
+          "confidence": "medium",
+          "evidence_refs": [
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "procurement.cpvCode.code",
+              "raw_value": "45210000",
+              "retrieved_at": "2026-08-17T13:36:31.994308Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "56b314b1-488a-4dee-91db-430e221b9648",
+              "source_procedure_id": "aad28c50-3839-4c0b-906d-ae009fa6f80a",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648"
+            },
+            {
+              "engine_version": null,
+              "excerpt": "<p>Neubau</p><p>BKP 272.0 Innentüren aus Metall</p>",
+              "path": "procurement.orderDescription",
+              "raw_value": null,
+              "retrieved_at": "2026-08-17T13:36:31.994308Z",
+              "source_kind": "publication_text",
+              "source_notice_id": "56b314b1-488a-4dee-91db-430e221b9648",
+              "source_procedure_id": "aad28c50-3839-4c0b-906d-ae009fa6f80a",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648"
+            },
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "value",
+              "raw_value": "520161.45 CHF",
+              "retrieved_at": "2026-08-17T13:36:31.994308Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "56b314b1-488a-4dee-91db-430e221b9648",
+              "source_procedure_id": "aad28c50-3839-4c0b-906d-ae009fa6f80a",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648"
+            }
+          ],
+          "externalisability": "mixed",
+          "reasoning": "Le contrat porte sur un travail à forte intensité de main-d'œuvre et d'une ampleur qui pourrait dépasser les effectifs en place : un renfort — interne, intérimaire ou sous-traité — est plausible. Elle porte sur l'objet publié « Neubau BKP 272.0 Innentüren aus Metall (interior_finishing) » : si cet objet ne relève pas de ces travaux, elle ne tient pas.",
+          "source_mode": "metadata_fallback",
+          "statement": "Une capacité de personnel supplémentaire pourrait être nécessaire pour tenir la charge d'exécution du marché.",
+          "subject": "Neubau BKP 272.0 Innentüren aus Metall (interior_finishing)",
+          "supporting_facts": [
+            "contract_type",
+            "amount"
+          ],
+          "timing": "unknown"
+        },
+        {
+          "category": "equipment_or_rental",
+          "confidence": "medium",
+          "evidence_refs": [
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "procurement.cpvCode.code",
+              "raw_value": "45210000",
+              "retrieved_at": "2026-08-17T13:36:31.994308Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "56b314b1-488a-4dee-91db-430e221b9648",
+              "source_procedure_id": "aad28c50-3839-4c0b-906d-ae009fa6f80a",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648"
+            },
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "value",
+              "raw_value": "520161.45 CHF",
+              "retrieved_at": "2026-08-17T13:36:31.994308Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "56b314b1-488a-4dee-91db-430e221b9648",
+              "source_procedure_id": "aad28c50-3839-4c0b-906d-ae009fa6f80a",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648"
+            }
+          ],
+          "externalisability": "mixed",
+          "reasoning": "Le corps de métier publié compte parmi ceux qui mobilisent des engins au-delà du parc courant : si l'exécution comporte de tels travaux, une location ou un complément d'équipement est plausible. Elle porte sur l'objet publié « Neubau BKP 272.0 Innentüren aus Metall (interior_finishing) » : si cet objet ne relève pas de ces travaux, elle ne tient pas.",
+          "source_mode": "metadata_fallback",
+          "statement": "Une capacité temporaire d'engins ou de matériel de chantier pourrait être commercialement pertinente.",
+          "subject": "Neubau BKP 272.0 Innentüren aus Metall (interior_finishing)",
+          "supporting_facts": [
+            "cpv",
+            "amount"
+          ],
+          "timing": "unknown"
+        },
+        {
+          "category": "materials_or_components",
+          "confidence": "medium",
+          "evidence_refs": [
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "procurement.cpvCode.code",
+              "raw_value": "45210000",
+              "retrieved_at": "2026-08-17T13:36:31.994308Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "56b314b1-488a-4dee-91db-430e221b9648",
+              "source_procedure_id": "aad28c50-3839-4c0b-906d-ae009fa6f80a",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648"
+            },
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "value",
+              "raw_value": "520161.45 CHF",
+              "retrieved_at": "2026-08-17T13:36:31.994308Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "56b314b1-488a-4dee-91db-430e221b9648",
+              "source_procedure_id": "aad28c50-3839-4c0b-906d-ae009fa6f80a",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648"
+            }
+          ],
+          "externalisability": "mixed",
+          "reasoning": "Le corps de métier publié consomme des matériaux et des composants en volume : si l'objet du lot en relève, des achats d'approvisionnement sont plausibles auprès de négoces ou de fabricants. Elle porte sur l'objet publié « Neubau BKP 272.0 Innentüren aus Metall (interior_finishing) » : si cet objet ne relève pas de ces travaux, elle ne tient pas.",
+          "source_mode": "metadata_fallback",
+          "statement": "Un approvisionnement en matériaux ou composants pourrait accompagner l'exécution des travaux.",
+          "subject": "Neubau BKP 272.0 Innentüren aus Metall (interior_finishing)",
+          "supporting_facts": [
+            "cpv",
+            "amount"
+          ],
+          "timing": "unknown"
+        }
+      ],
+      "disclosure": "Need inferred from public award information. No validated execution requirement was available.",
+      "evidence_refs": [
+        {
+          "engine_version": null,
+          "excerpt": null,
+          "path": "procurement.cpvCode.code",
+          "raw_value": "45210000",
+          "retrieved_at": "2026-08-17T13:36:31.994308Z",
+          "source_kind": "publication_field",
+          "source_notice_id": "56b314b1-488a-4dee-91db-430e221b9648",
+          "source_procedure_id": "aad28c50-3839-4c0b-906d-ae009fa6f80a",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648"
+        },
+        {
+          "engine_version": null,
+          "excerpt": "<p>Neubau</p><p>BKP 272.0 Innentüren aus Metall</p>",
+          "path": "procurement.orderDescription",
+          "raw_value": null,
+          "retrieved_at": "2026-08-17T13:36:31.994308Z",
+          "source_kind": "publication_text",
+          "source_notice_id": "56b314b1-488a-4dee-91db-430e221b9648",
+          "source_procedure_id": "aad28c50-3839-4c0b-906d-ae009fa6f80a",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648"
+        },
+        {
+          "engine_version": null,
+          "excerpt": null,
+          "path": "value",
+          "raw_value": "520161.45 CHF",
+          "retrieved_at": "2026-08-17T13:36:31.994308Z",
+          "source_kind": "publication_field",
+          "source_notice_id": "56b314b1-488a-4dee-91db-430e221b9648",
+          "source_procedure_id": "aad28c50-3839-4c0b-906d-ae009fa6f80a",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648"
+        },
+        {
+          "engine_version": null,
+          "excerpt": null,
+          "path": "procurement.cpvCode.code",
+          "raw_value": "45210000",
+          "retrieved_at": "2026-08-17T13:36:31.994308Z",
+          "source_kind": "publication_field",
+          "source_notice_id": "56b314b1-488a-4dee-91db-430e221b9648",
+          "source_procedure_id": "aad28c50-3839-4c0b-906d-ae009fa6f80a",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648"
+        }
+      ],
+      "icp": {
+        "excluded_contract_types": [],
+        "geography_basis": "either",
+        "geography_policy": "preferred",
+        "icp_id": "icp-national-supplier",
+        "included_contract_types": [],
+        "maximum_signal_age_days": 180,
+        "name": "Fournisseur multirégional — capacité et matériaux",
+        "offer_summary": "Groupe national couvrant plusieurs pays, offre large sur les intrants de chantier.",
+        "preferred_timings": [],
+        "primary_need_categories": [
+          "workforce_capacity",
+          "materials_or_components"
+        ],
+        "secondary_need_categories": [
+          "equipment_or_rental",
+          "safety_and_ppe"
+        ],
+        "territories": [
+          {
+            "country": "CH",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "FR",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "DE",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "IT",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "ES",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "PL",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          }
+        ],
+        "value_thresholds": [
+          {
+            "currency": "CHF",
+            "maximum_amount": null,
+            "minimum_amount": 100000.0
+          },
+          {
+            "currency": "EUR",
+            "maximum_amount": null,
+            "minimum_amount": 100000.0
+          }
+        ]
+      },
+      "limitations": [
+        "aucune date de début publiée : le timing reste indéterminé",
+        "besoins inférés depuis les métadonnées de l'avis, sans exigence documentaire validée"
+      ],
+      "publication_date": "2026-08-13",
+      "signal_id": "0cffdfe9e55e74df2b77acd64778b6f59b64385b044c146cdb4273099d5f6431",
+      "source": "simap",
+      "source_mode": "metadata_fallback",
+      "source_url": "https://www.simap.ch/api/publications/v1/project/aad28c50-3839-4c0b-906d-ae009fa6f80a/publication-details/56b314b1-488a-4dee-91db-430e221b9648",
+      "winner": {
+        "parties": [
+          {
+            "is_group": false,
+            "members": [
+              {
+                "address": "Dottenwilerstrasse 25, 9300, Wittenbach",
+                "country": "CH",
+                "identifiers": [
+                  {
+                    "scheme": "SIMAP-VENDOR-ID",
+                    "value": "b1885fb9-88be-462a-b833-12d7b1f63107"
+                  }
+                ],
+                "legal_name": "REY Metallbau AG",
+                "role": "sole",
+                "website": null
+              }
+            ],
+            "name": null
+          }
+        ],
+        "status": "identified"
+      }
+    },
+    {
+      "contract": {
+        "buyers": [
+          {
+            "country": "CH",
+            "legal_name": "Gemeinde Embrach, Abteilung Bau (MINT Baumanagement GmbH)"
+          }
+        ],
+        "contract_reference": null,
+        "cpv_additional": [],
+        "cpv_main": "45212212",
+        "description": "<p>BKP 272.8 Poolauskleidung inkl. Whirlpool</p>",
+        "lot_title": null,
+        "place_of_performance": {
+          "country": "CH",
+          "locality": "Embrach",
+          "postal_code": "8424",
+          "subdivision_code": "CH-ZH",
+          "subdivision_scheme": "ISO-3166-2"
+        },
+        "title": "Umbau Hallen- und Freibad Talegg 8424 Embrach / 272.8",
+        "value": {
+          "amount": "810058.15",
+          "currency": "CHF",
+          "vat_category": "standard"
+        }
+      },
+      "contract_understanding": {
+        "buyer_country": "CH",
+        "characteristics": [],
+        "contract_type": "construction",
+        "facts": {
+          "amount": "810058.15 CHF",
+          "award_date": "2026-08-06",
+          "cpv": "45212212",
+          "procedure_buyers": "Gemeinde Embrach, Abteilung Bau (MINT Baumanagement GmbH)",
+          "published_object": "BKP 272.8 Poolauskleidung inkl. Whirlpool",
+          "winner": "Mauchle Pool AG"
+        },
+        "object_summary": "Marché « Umbau Hallen- und Freibad Talegg 8424 Embrach / 272.8 », Acheteur publié : Gemeinde Embrach, Abteilung Bau (MINT Baumanagement GmbH), à Mauchle Pool AG, pour 810058.15 CHF, à Embrach, CH-ZH, décision du 2026-08-06. Objet publié : BKP 272.8 Poolauskleidung inkl. Whirlpool",
+        "place_of_performance": {
+          "country": "CH",
+          "locality": "Embrach",
+          "postal_code": "8424",
+          "subdivision_code": "CH-ZH",
+          "subdivision_scheme": "ISO-3166-2"
+        },
+        "sector": "culture_recreation",
+        "timing": {
+          "award_date": "2026-08-06",
+          "contract_end_date": null,
+          "contract_signature_date": null,
+          "contract_span_days": null,
+          "contract_start_date": null,
+          "days_between_award_and_start": null,
+          "derived_from": [],
+          "duration_unit": null,
+          "duration_value": null,
+          "published_at": "2026-08-13"
+        }
+      },
+      "derived_needs": [
+        {
+          "category": "workforce_capacity",
+          "confidence": "medium",
+          "evidence_refs": [
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "procurement.cpvCode.code",
+              "raw_value": "45212212",
+              "retrieved_at": "2026-08-17T13:37:05.246614Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+              "source_procedure_id": "50a16f2a-5f29-4a2c-93c7-72879d0acb2b",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f"
+            },
+            {
+              "engine_version": null,
+              "excerpt": "<p>BKP 272.8 Poolauskleidung inkl. Whirlpool</p>",
+              "path": "procurement.orderDescription",
+              "raw_value": null,
+              "retrieved_at": "2026-08-17T13:37:05.246614Z",
+              "source_kind": "publication_text",
+              "source_notice_id": "ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+              "source_procedure_id": "50a16f2a-5f29-4a2c-93c7-72879d0acb2b",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f"
+            },
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "value",
+              "raw_value": "810058.15 CHF",
+              "retrieved_at": "2026-08-17T13:37:05.246614Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+              "source_procedure_id": "50a16f2a-5f29-4a2c-93c7-72879d0acb2b",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f"
+            }
+          ],
+          "externalisability": "mixed",
+          "reasoning": "Le contrat porte sur un travail à forte intensité de main-d'œuvre et d'une ampleur qui pourrait dépasser les effectifs en place : un renfort — interne, intérimaire ou sous-traité — est plausible. Elle porte sur l'objet publié « BKP 272.8 Poolauskleidung inkl. Whirlpool (interior_finishing) » : si cet objet ne relève pas de ces travaux, elle ne tient pas.",
+          "source_mode": "metadata_fallback",
+          "statement": "Une capacité de personnel supplémentaire pourrait être nécessaire pour tenir la charge d'exécution du marché.",
+          "subject": "BKP 272.8 Poolauskleidung inkl. Whirlpool (interior_finishing)",
+          "supporting_facts": [
+            "contract_type",
+            "amount"
+          ],
+          "timing": "unknown"
+        },
+        {
+          "category": "equipment_or_rental",
+          "confidence": "medium",
+          "evidence_refs": [
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "procurement.cpvCode.code",
+              "raw_value": "45212212",
+              "retrieved_at": "2026-08-17T13:37:05.246614Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+              "source_procedure_id": "50a16f2a-5f29-4a2c-93c7-72879d0acb2b",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f"
+            },
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "value",
+              "raw_value": "810058.15 CHF",
+              "retrieved_at": "2026-08-17T13:37:05.246614Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+              "source_procedure_id": "50a16f2a-5f29-4a2c-93c7-72879d0acb2b",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f"
+            }
+          ],
+          "externalisability": "mixed",
+          "reasoning": "Le corps de métier publié compte parmi ceux qui mobilisent des engins au-delà du parc courant : si l'exécution comporte de tels travaux, une location ou un complément d'équipement est plausible. Elle porte sur l'objet publié « BKP 272.8 Poolauskleidung inkl. Whirlpool (interior_finishing) » : si cet objet ne relève pas de ces travaux, elle ne tient pas.",
+          "source_mode": "metadata_fallback",
+          "statement": "Une capacité temporaire d'engins ou de matériel de chantier pourrait être commercialement pertinente.",
+          "subject": "BKP 272.8 Poolauskleidung inkl. Whirlpool (interior_finishing)",
+          "supporting_facts": [
+            "cpv",
+            "amount"
+          ],
+          "timing": "unknown"
+        },
+        {
+          "category": "materials_or_components",
+          "confidence": "medium",
+          "evidence_refs": [
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "procurement.cpvCode.code",
+              "raw_value": "45212212",
+              "retrieved_at": "2026-08-17T13:37:05.246614Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+              "source_procedure_id": "50a16f2a-5f29-4a2c-93c7-72879d0acb2b",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f"
+            },
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "value",
+              "raw_value": "810058.15 CHF",
+              "retrieved_at": "2026-08-17T13:37:05.246614Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+              "source_procedure_id": "50a16f2a-5f29-4a2c-93c7-72879d0acb2b",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f"
+            }
+          ],
+          "externalisability": "mixed",
+          "reasoning": "Le corps de métier publié consomme des matériaux et des composants en volume : si l'objet du lot en relève, des achats d'approvisionnement sont plausibles auprès de négoces ou de fabricants. Elle porte sur l'objet publié « BKP 272.8 Poolauskleidung inkl. Whirlpool (interior_finishing) » : si cet objet ne relève pas de ces travaux, elle ne tient pas.",
+          "source_mode": "metadata_fallback",
+          "statement": "Un approvisionnement en matériaux ou composants pourrait accompagner l'exécution des travaux.",
+          "subject": "BKP 272.8 Poolauskleidung inkl. Whirlpool (interior_finishing)",
+          "supporting_facts": [
+            "cpv",
+            "amount"
+          ],
+          "timing": "unknown"
+        }
+      ],
+      "disclosure": "Need inferred from public award information. No validated execution requirement was available.",
+      "evidence_refs": [
+        {
+          "engine_version": null,
+          "excerpt": null,
+          "path": "procurement.cpvCode.code",
+          "raw_value": "45212212",
+          "retrieved_at": "2026-08-17T13:37:05.246614Z",
+          "source_kind": "publication_field",
+          "source_notice_id": "ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+          "source_procedure_id": "50a16f2a-5f29-4a2c-93c7-72879d0acb2b",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f"
+        },
+        {
+          "engine_version": null,
+          "excerpt": "<p>BKP 272.8 Poolauskleidung inkl. Whirlpool</p>",
+          "path": "procurement.orderDescription",
+          "raw_value": null,
+          "retrieved_at": "2026-08-17T13:37:05.246614Z",
+          "source_kind": "publication_text",
+          "source_notice_id": "ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+          "source_procedure_id": "50a16f2a-5f29-4a2c-93c7-72879d0acb2b",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f"
+        },
+        {
+          "engine_version": null,
+          "excerpt": null,
+          "path": "value",
+          "raw_value": "810058.15 CHF",
+          "retrieved_at": "2026-08-17T13:37:05.246614Z",
+          "source_kind": "publication_field",
+          "source_notice_id": "ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+          "source_procedure_id": "50a16f2a-5f29-4a2c-93c7-72879d0acb2b",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f"
+        },
+        {
+          "engine_version": null,
+          "excerpt": null,
+          "path": "procurement.cpvCode.code",
+          "raw_value": "45212212",
+          "retrieved_at": "2026-08-17T13:37:05.246614Z",
+          "source_kind": "publication_field",
+          "source_notice_id": "ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+          "source_procedure_id": "50a16f2a-5f29-4a2c-93c7-72879d0acb2b",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f"
+        }
+      ],
+      "icp": {
+        "excluded_contract_types": [],
+        "geography_basis": "either",
+        "geography_policy": "preferred",
+        "icp_id": "icp-national-supplier",
+        "included_contract_types": [],
+        "maximum_signal_age_days": 180,
+        "name": "Fournisseur multirégional — capacité et matériaux",
+        "offer_summary": "Groupe national couvrant plusieurs pays, offre large sur les intrants de chantier.",
+        "preferred_timings": [],
+        "primary_need_categories": [
+          "workforce_capacity",
+          "materials_or_components"
+        ],
+        "secondary_need_categories": [
+          "equipment_or_rental",
+          "safety_and_ppe"
+        ],
+        "territories": [
+          {
+            "country": "CH",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "FR",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "DE",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "IT",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "ES",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "PL",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          }
+        ],
+        "value_thresholds": [
+          {
+            "currency": "CHF",
+            "maximum_amount": null,
+            "minimum_amount": 100000.0
+          },
+          {
+            "currency": "EUR",
+            "maximum_amount": null,
+            "minimum_amount": 100000.0
+          }
+        ]
+      },
+      "limitations": [
+        "aucune date de début publiée : le timing reste indéterminé",
+        "besoins inférés depuis les métadonnées de l'avis, sans exigence documentaire validée"
+      ],
+      "publication_date": "2026-08-13",
+      "signal_id": "127931a14b04054d3a72806716e10618d3c30ac9fb5513c8a9a813e9567a58bd",
+      "source": "simap",
+      "source_mode": "metadata_fallback",
+      "source_url": "https://www.simap.ch/api/publications/v1/project/50a16f2a-5f29-4a2c-93c7-72879d0acb2b/publication-details/ff73cd96-46a7-4bed-a5bb-5cd8af37b23f",
+      "winner": {
+        "parties": [
+          {
+            "is_group": false,
+            "members": [
+              {
+                "address": "Pfrundmatte 4, 6210, Sursee",
+                "country": "CH",
+                "identifiers": [
+                  {
+                    "scheme": "SIMAP-VENDOR-ID",
+                    "value": "644a4252-1b01-48cd-a3be-ac21072bec23"
+                  }
+                ],
+                "legal_name": "Mauchle Pool AG",
+                "role": "sole",
+                "website": null
+              }
+            ],
+            "name": null
+          }
+        ],
+        "status": "identified"
+      }
+    },
+    {
+      "contract": {
+        "buyers": [
+          {
+            "country": "CH",
+            "legal_name": "Gemeinde Zollikon (BGS & Partner Architekten AG)"
+          },
+          {
+            "country": "CH",
+            "legal_name": "Gemeinde Zollikon"
+          }
+        ],
+        "contract_reference": null,
+        "cpv_additional": [
+          "45212212"
+        ],
+        "cpv_main": "45212100",
+        "description": "<p>Gipserarbeiten: Innere Dämmungen, Trockenbau Wände und Decken, Verputzarbeiten.</p>",
+        "lot_title": null,
+        "place_of_performance": {
+          "country": "CH",
+          "locality": "Zollikon",
+          "postal_code": "8702",
+          "subdivision_code": "CH-ZH",
+          "subdivision_scheme": "ISO-3166-2"
+        },
+        "title": "Schwimmbad Fohrbach, BKP 271 Gipserarbeiten",
+        "value": {
+          "amount": "365751.73",
+          "currency": "CHF",
+          "vat_category": "standard"
+        }
+      },
+      "contract_understanding": {
+        "buyer_country": "CH",
+        "characteristics": [],
+        "contract_type": "construction",
+        "facts": {
+          "amount": "365751.73 CHF",
+          "award_date": "2026-08-03",
+          "cpv": "45212100",
+          "procedure_buyers": "Gemeinde Zollikon (BGS & Partner Architekten AG), Gemeinde Zollikon",
+          "published_object": "Gipserarbeiten: Innere Dämmungen, Trockenbau Wände und Decken, Verputzarbeiten.",
+          "winner": "TM Partner AG"
+        },
+        "object_summary": "Marché « Schwimmbad Fohrbach, BKP 271 Gipserarbeiten », Acheteurs publiés : Gemeinde Zollikon (BGS & Partner Architekten AG), Gemeinde Zollikon, à TM Partner AG, pour 365751.73 CHF, à Zollikon, CH-ZH, décision du 2026-08-03. Objet publié : Gipserarbeiten: Innere Dämmungen, Trockenbau Wände und Decken, Verputzarbeiten.",
+        "place_of_performance": {
+          "country": "CH",
+          "locality": "Zollikon",
+          "postal_code": "8702",
+          "subdivision_code": "CH-ZH",
+          "subdivision_scheme": "ISO-3166-2"
+        },
+        "sector": "culture_recreation",
+        "timing": {
+          "award_date": "2026-08-03",
+          "contract_end_date": null,
+          "contract_signature_date": null,
+          "contract_span_days": null,
+          "contract_start_date": null,
+          "days_between_award_and_start": null,
+          "derived_from": [],
+          "duration_unit": null,
+          "duration_value": null,
+          "published_at": "2026-08-12"
+        }
+      },
+      "derived_needs": [
+        {
+          "category": "workforce_capacity",
+          "confidence": "medium",
+          "evidence_refs": [
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "procurement.cpvCode.code",
+              "raw_value": "45212100",
+              "retrieved_at": "2026-08-17T13:37:55.882386Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+              "source_procedure_id": "6f523779-3061-4628-ad5f-546487646378",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3"
+            },
+            {
+              "engine_version": null,
+              "excerpt": "<p>Gipserarbeiten: Innere Dämmungen, Trockenbau Wände und Decken, Verputzarbeiten.</p>",
+              "path": "procurement.orderDescription",
+              "raw_value": null,
+              "retrieved_at": "2026-08-17T13:37:55.882386Z",
+              "source_kind": "publication_text",
+              "source_notice_id": "1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+              "source_procedure_id": "6f523779-3061-4628-ad5f-546487646378",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3"
+            },
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "value",
+              "raw_value": "365751.73 CHF",
+              "retrieved_at": "2026-08-17T13:37:55.882386Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+              "source_procedure_id": "6f523779-3061-4628-ad5f-546487646378",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3"
+            }
+          ],
+          "externalisability": "mixed",
+          "reasoning": "Le contrat porte sur un travail à forte intensité de main-d'œuvre et d'une ampleur qui pourrait dépasser les effectifs en place : un renfort — interne, intérimaire ou sous-traité — est plausible. Elle porte sur l'objet publié « Gipserarbeiten: Innere Dämmungen, Trockenbau Wände und Decken, Verputzarbeiten. (interior_finishing) » : si cet objet ne relève pas de ces travaux, elle ne tient pas.",
+          "source_mode": "metadata_fallback",
+          "statement": "Une capacité de personnel supplémentaire pourrait être nécessaire pour tenir la charge d'exécution du marché.",
+          "subject": "Gipserarbeiten: Innere Dämmungen, Trockenbau Wände und Decken, Verputzarbeiten. (interior_finishing)",
+          "supporting_facts": [
+            "contract_type",
+            "amount"
+          ],
+          "timing": "unknown"
+        },
+        {
+          "category": "equipment_or_rental",
+          "confidence": "medium",
+          "evidence_refs": [
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "procurement.cpvCode.code",
+              "raw_value": "45212100",
+              "retrieved_at": "2026-08-17T13:37:55.882386Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+              "source_procedure_id": "6f523779-3061-4628-ad5f-546487646378",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3"
+            },
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "value",
+              "raw_value": "365751.73 CHF",
+              "retrieved_at": "2026-08-17T13:37:55.882386Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+              "source_procedure_id": "6f523779-3061-4628-ad5f-546487646378",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3"
+            }
+          ],
+          "externalisability": "mixed",
+          "reasoning": "Le corps de métier publié compte parmi ceux qui mobilisent des engins au-delà du parc courant : si l'exécution comporte de tels travaux, une location ou un complément d'équipement est plausible. Elle porte sur l'objet publié « Gipserarbeiten: Innere Dämmungen, Trockenbau Wände und Decken, Verputzarbeiten. (interior_finishing) » : si cet objet ne relève pas de ces travaux, elle ne tient pas.",
+          "source_mode": "metadata_fallback",
+          "statement": "Une capacité temporaire d'engins ou de matériel de chantier pourrait être commercialement pertinente.",
+          "subject": "Gipserarbeiten: Innere Dämmungen, Trockenbau Wände und Decken, Verputzarbeiten. (interior_finishing)",
+          "supporting_facts": [
+            "cpv",
+            "amount"
+          ],
+          "timing": "unknown"
+        },
+        {
+          "category": "materials_or_components",
+          "confidence": "medium",
+          "evidence_refs": [
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "procurement.cpvCode.code",
+              "raw_value": "45212100",
+              "retrieved_at": "2026-08-17T13:37:55.882386Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+              "source_procedure_id": "6f523779-3061-4628-ad5f-546487646378",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3"
+            },
+            {
+              "engine_version": null,
+              "excerpt": null,
+              "path": "value",
+              "raw_value": "365751.73 CHF",
+              "retrieved_at": "2026-08-17T13:37:55.882386Z",
+              "source_kind": "publication_field",
+              "source_notice_id": "1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+              "source_procedure_id": "6f523779-3061-4628-ad5f-546487646378",
+              "source_system": "simap",
+              "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3"
+            }
+          ],
+          "externalisability": "mixed",
+          "reasoning": "Le corps de métier publié consomme des matériaux et des composants en volume : si l'objet du lot en relève, des achats d'approvisionnement sont plausibles auprès de négoces ou de fabricants. Elle porte sur l'objet publié « Gipserarbeiten: Innere Dämmungen, Trockenbau Wände und Decken, Verputzarbeiten. (interior_finishing) » : si cet objet ne relève pas de ces travaux, elle ne tient pas.",
+          "source_mode": "metadata_fallback",
+          "statement": "Un approvisionnement en matériaux ou composants pourrait accompagner l'exécution des travaux.",
+          "subject": "Gipserarbeiten: Innere Dämmungen, Trockenbau Wände und Decken, Verputzarbeiten. (interior_finishing)",
+          "supporting_facts": [
+            "cpv",
+            "amount"
+          ],
+          "timing": "unknown"
+        }
+      ],
+      "disclosure": "Need inferred from public award information. No validated execution requirement was available.",
+      "evidence_refs": [
+        {
+          "engine_version": null,
+          "excerpt": null,
+          "path": "procurement.cpvCode.code",
+          "raw_value": "45212100",
+          "retrieved_at": "2026-08-17T13:37:55.882386Z",
+          "source_kind": "publication_field",
+          "source_notice_id": "1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+          "source_procedure_id": "6f523779-3061-4628-ad5f-546487646378",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3"
+        },
+        {
+          "engine_version": null,
+          "excerpt": "<p>Gipserarbeiten: Innere Dämmungen, Trockenbau Wände und Decken, Verputzarbeiten.</p>",
+          "path": "procurement.orderDescription",
+          "raw_value": null,
+          "retrieved_at": "2026-08-17T13:37:55.882386Z",
+          "source_kind": "publication_text",
+          "source_notice_id": "1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+          "source_procedure_id": "6f523779-3061-4628-ad5f-546487646378",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3"
+        },
+        {
+          "engine_version": null,
+          "excerpt": null,
+          "path": "value",
+          "raw_value": "365751.73 CHF",
+          "retrieved_at": "2026-08-17T13:37:55.882386Z",
+          "source_kind": "publication_field",
+          "source_notice_id": "1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+          "source_procedure_id": "6f523779-3061-4628-ad5f-546487646378",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3"
+        },
+        {
+          "engine_version": null,
+          "excerpt": null,
+          "path": "procurement.cpvCode.code",
+          "raw_value": "45212100",
+          "retrieved_at": "2026-08-17T13:37:55.882386Z",
+          "source_kind": "publication_field",
+          "source_notice_id": "1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+          "source_procedure_id": "6f523779-3061-4628-ad5f-546487646378",
+          "source_system": "simap",
+          "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3"
+        }
+      ],
+      "icp": {
+        "excluded_contract_types": [],
+        "geography_basis": "either",
+        "geography_policy": "preferred",
+        "icp_id": "icp-national-supplier",
+        "included_contract_types": [],
+        "maximum_signal_age_days": 180,
+        "name": "Fournisseur multirégional — capacité et matériaux",
+        "offer_summary": "Groupe national couvrant plusieurs pays, offre large sur les intrants de chantier.",
+        "preferred_timings": [],
+        "primary_need_categories": [
+          "workforce_capacity",
+          "materials_or_components"
+        ],
+        "secondary_need_categories": [
+          "equipment_or_rental",
+          "safety_and_ppe"
+        ],
+        "territories": [
+          {
+            "country": "CH",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "FR",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "DE",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "IT",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "ES",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          },
+          {
+            "country": "PL",
+            "subdivision_code": null,
+            "subdivision_scheme": null
+          }
+        ],
+        "value_thresholds": [
+          {
+            "currency": "CHF",
+            "maximum_amount": null,
+            "minimum_amount": 100000.0
+          },
+          {
+            "currency": "EUR",
+            "maximum_amount": null,
+            "minimum_amount": 100000.0
+          }
+        ]
+      },
+      "limitations": [
+        "aucune date de début publiée : le timing reste indéterminé",
+        "besoins inférés depuis les métadonnées de l'avis, sans exigence documentaire validée"
+      ],
+      "publication_date": "2026-08-12",
+      "signal_id": "9a0f6b5342a5e2a9ea0fd263574daff76ae018cd8b1991642b0141720f093e95",
+      "source": "simap",
+      "source_mode": "metadata_fallback",
+      "source_url": "https://www.simap.ch/api/publications/v1/project/6f523779-3061-4628-ad5f-546487646378/publication-details/1d84fc04-07b1-4f1d-bb37-b46887d1e2b3",
+      "winner": {
+        "parties": [
+          {
+            "is_group": false,
+            "members": [
+              {
+                "address": "Schochenmühlestrasse 2, 6340, Baar",
+                "country": "CH",
+                "identifiers": [
+                  {
+                    "scheme": "SIMAP-VENDOR-ID",
+                    "value": "9df02941-8030-489c-8991-2b28ad55c0e7"
+                  }
+                ],
+                "legal_name": "TM Partner AG",
+                "role": "sole",
+                "website": null
+              }
+            ],
+            "name": null
+          }
+        ],
+        "status": "identified"
+      }
+    }
+  ]
+}

@@ -142,6 +142,10 @@ class ContractUnderstanding(CanonicalModel):
 
     contract_type: Claim
     sector: Claim
+    # WEDGE-HARDENING R1 §14 — le corps de métier. Facultatif parce que le champ
+    # est né après les compréhensions déjà gelées ; le moteur le renseigne
+    # toujours, et son absence se lit exactement comme `unknown_or_general`.
+    trade_domain: Claim | None = None
     object_summary: Claim
     characteristics: tuple[Claim, ...] = ()
 
@@ -168,6 +172,7 @@ class ContractUnderstanding(CanonicalModel):
             "contract_type": self.contract_type,
             "sector": self.sector,
             "object_summary": self.object_summary,
+            **({"trade_domain": self.trade_domain} if self.trade_domain else {}),
             **self.facts,
         }
         for index, characteristic in enumerate(self.characteristics):

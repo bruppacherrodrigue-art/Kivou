@@ -166,3 +166,64 @@ REFERENCE_ICPS: tuple[TargetICP, ...] = (
 )
 
 REFERENCE_ICP_LIBRARY_VERSION = "reference-icps-v0.1"
+
+# ─── ICP du wedge MVP (WEDGE-HARDENING R1 §15) ──────────────────────────────────
+
+CONSTRUCTION_INPUTS_ICP = TargetICP(
+    icp_id="icp-construction-inputs-ch-eu-v0",
+    name="Négoce d'intrants de chantier — CH, DE, FR, ES, PT",
+    offer_summary=(
+        "Matériaux et composants de gros œuvre et de second œuvre livrés sur chantier : "
+        "béton et granulats, maçonnerie, charpente, couverture et étanchéité, menuiserie, "
+        "cloisons, sols et revêtements."
+    ),
+    primary_need_categories=("materials_or_components",),
+    secondary_need_categories=("equipment_or_rental",),
+    # §16 — ce qu'un négociant livre vraiment. Le gros œuvre et le second œuvre
+    # sont son marché ; la route et l'ouvrage spécial lui achètent parfois, mais
+    # commandent l'essentiel ailleurs (centrale d'enrobés, fournisseur sur plan) ;
+    # l'installation technique et la caténaire ferroviaire ne lui achètent rien.
+    primary_trade_domains=(
+        "general_building",
+        "interior_finishing",
+        "earthworks_demolition",
+    ),
+    secondary_trade_domains=("roadworks_civil", "special_civil"),
+    geography_basis="place_of_performance",
+    geography_policy="required",
+    territories=(
+        Territory(country="CH"),
+        Territory(country="DE"),
+        Territory(country="FR"),
+        Territory(country="ES"),
+        Territory(country="PT"),
+    ),
+    included_contract_types=("construction",),
+    value_thresholds=(
+        ValueThreshold(currency="CHF", minimum_amount=100_000),
+        ValueThreshold(currency="EUR", minimum_amount=100_000),
+    ),
+    unknown_value_policy="allow_with_penalty",
+    maximum_signal_age_days=120,
+    preferred_timings=("near_term", "medium_term"),
+)
+"""Le wedge que SPEC-009B a isolé, désormais déclaré comme un ICP.
+
+Il vit **hors** de `REFERENCE_ICPS` : la bibliothèque de SPEC-008 est l'archive
+d'un banc gelé, et y ajouter un huitième profil rendrait ses mesures
+incomparables.
+
+**Le nom dit cinq pays parce que le modèle en autorise cinq.** Le filtre
+géographique est une appartenance à un ensemble de codes pays : le lieu
+d'exécution doit être publié et valoir CH, DE, FR, ES ou PT. Ni « zone euro »
+— qui exclurait la Suisse et engloberait quinze États non ciblés — ni « CH+UE »
+— qui en promettrait vingt-sept — ne décrivent cette configuration.
+
+Ces cinq pays sont l'empreinte **observée** des 41 signaux du wedge SPEC-009B
+(DE 17, CH 11, FR 7, ES 5, PT 1), et rien de plus. Ils mesurent une couverture,
+pas une frontière de marché : les award-lots polonais, tchèques ou roumains du
+pool n'ont jamais été éligibles, les deux ICPs sources ne les ciblant pas. Le
+corpus n'établit donc pas que le wedge échoue ailleurs — il n'y a pas été
+testé."""
+
+WEDGE_ICP_LIBRARY_VERSION = "wedge-icps-v0.1"

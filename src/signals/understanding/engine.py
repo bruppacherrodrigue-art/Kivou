@@ -22,7 +22,12 @@ from __future__ import annotations
 from typing import Protocol
 
 from signals.domain import ContractAward, Evidence, PublicEvent
-from signals.understanding.cpv import contract_type_for_cpv, sector_for_cpv
+from signals.understanding.bkp import bkp_codes, resolve_trade_domain
+from signals.understanding.cpv import (
+    contract_type_for_cpv,
+    sector_for_cpv,
+    trade_domain_for_cpv,
+)
 from signals.understanding.model import (
     Claim,
     ContractGeography,
@@ -30,9 +35,10 @@ from signals.understanding.model import (
     ContractTiming,
     ContractUnderstanding,
 )
+from signals.understanding.object_text import describes_object, published_object
 from signals.understanding.text import plain_text
 
-ENGINE_VERSION = "contract-understanding-v0.1"
+ENGINE_VERSION = "contract-understanding-v0.3"
 
 # Mots-clés de confirmation, multilingues, volontairement peu nombreux : ils
 # CONFIRMENT une lecture donnée par le CPV, ils n'en produisent jamais une.
@@ -211,17 +217,26 @@ class ContractUnderstandingEngine:
         source = _SourceFacts(award, event)
         contract_type = self._contract_type(award, source)
         sector = self._sector(award, source)
+        trade_domain = self._trade_domain(award, source)
         characteristics = self._characteristics(award, source)
         summary = self._summary(award, event, source)
 
         facts = self._facts(award, event, source)
-        claims = (contract_type, sector, summary, *characteristics, *facts.values())
+        claims = (
+            contract_type,
+            sector,
+            *((trade_domain,) if trade_domain else ()),
+            summary,
+            *characteristics,
+            *facts.values(),
+        )
         return ContractUnderstanding(
             award_ref=award.event_ref,
             source_system=event.provenance.source_system,
             source_award_id=award.source_award_id,
             contract_type=contract_type,
             sector=sector,
+            trade_domain=trade_domain,
             object_summary=summary,
             characteristics=characteristics,
             facts=facts,
@@ -289,6 +304,18 @@ class ContractUnderstandingEngine:
             add("award_date", award.award_date.isoformat(), "award_date")
         if award.lot is not None:
             add("lot", award.lot.identifier, "lot.identifier")
+        # WEDGE-HARDENING R1 §26 — l'objet publié, et le champ qui l'établit.
+        # Le besoin en aval doit pouvoir nommer ce dont il parle ; sans ce fait
+        # il nommerait le type de contrat, qui n'est pas un objet.
+        obj, field = published_object(award.title, plain_text(award.description))
+        if obj:
+            facts["published_object"] = Claim(
+                value=obj[:280],
+                confidence="high",
+                kind="source_fact",
+                rule=f"objet publié, établi par le champ « {field} »",
+                evidence=(source.field_evidence(field, obj[:280]),),
+            )
         return facts
 
     # ─── Type de contrat ────────────────────────────────────────────────────────
@@ -378,6 +405,73 @@ class ContractUnderstandingEngine:
             rule="secteur explicitement porté par le code CPV",
             evidence=(source.cpv_evidence(),),
         )
+
+    def _trade_domain(self, award: ContractAward, source: _SourceFacts) -> Claim | None:
+        """Le corps de métier — d'abord le BKP publié, sinon le CPV.
+
+        WEDGE-HARDENING R2 §9. Le CPV décrit le PROJET : les treize avis du
+        chantier « Talegg » portent tous `45212212` pour treize métiers
+        différents. Quand l'avis publie lui-même un code BKP, cette
+        classification-là parle du marché attribué, et elle prime.
+
+        Elle ne prime QUE si elle tranche (§11) : un code inconnu de la table
+        d'autorité, une famille sans domaine représentable, ou deux codes de
+        métiers différents laissent le CPV en place. Aucun rattrapage
+        approximatif, aucun code voisin, aucune déduction depuis un libellé.
+
+        Un `45000000` sans BKP reste `unknown_or_general` : il annonce des
+        travaux sans annoncer lesquels, et prétendre le contraire ferait
+        correspondre à un négociant des marchés dont il ne verra jamais la
+        commande.
+        """
+        cpv = award.cpv_main.code if award.cpv_main else None
+        cpv_domain = trade_domain_for_cpv(cpv)
+
+        codes, fields = self._published_bkp(award)
+        bkp_domain, reason = resolve_trade_domain(codes)
+        if bkp_domain is not None:
+            rule = reason
+            if cpv_domain != "unknown_or_general" and bkp_domain != cpv_domain:
+                rule += f" — il prime le CPV publié, qui indiquait « {cpv_domain} »"
+            return Claim(
+                value=bkp_domain,
+                confidence="medium",
+                rule=rule,
+                evidence=tuple(
+                    source.field_evidence(field, f"BKP {' '.join(codes)}") for field in fields
+                ),
+            )
+
+        if cpv_domain == "unknown_or_general":
+            # Aucune affirmation, pas même « inconnu » : l'absence du champ EST
+            # `unknown_or_general` pour l'appariement, et ne rien affirmer ne
+            # creuse pas la couverture de preuve.
+            return None
+        rule = "corps de métier porté par la division CPV"
+        if codes:
+            rule += f" ; {reason} — le CPV est conservé"
+        return Claim(
+            value=cpv_domain,
+            confidence="medium",
+            rule=rule,
+            evidence=(source.cpv_evidence(),),
+        )
+
+    @staticmethod
+    def _published_bkp(award: ContractAward) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        """Les codes BKP déclarés dans l'objet publié, et les champs qui les portent.
+
+        Les deux champs sont lus et FUSIONNÉS : un titre et une description qui
+        annoncent deux métiers différents ne tranchent pas, ce que §13 exige.
+        """
+        codes: list[str] = []
+        fields: list[str] = []
+        for field, text in (("title", award.title), ("description", plain_text(award.description))):
+            found = bkp_codes(text)
+            if found:
+                codes += [c for c in found if c not in codes]
+                fields.append(field)
+        return tuple(codes), tuple(fields)
 
     # ─── Caractéristiques opérationnelles ───────────────────────────────────────
 
@@ -502,8 +596,12 @@ class ContractUnderstandingEngine:
             evidence.append(source.field_evidence("award_date", award.award_date.isoformat()))
 
         summary = ", ".join(pieces) + "."
+        # WEDGE-HARDENING R1 §26 — la description n'est reprise que si elle
+        # décrit. Un renvoi au cahier des charges ou un intitulé de rubrique de
+        # formulaire deviendrait sinon « l'objet publié » du marché, et le
+        # signal irait au feed en nommant un sujet qui n'existe pas.
         description = plain_text(award.description)
-        if description:
+        if description and describes_object(description):
             extrait = description[:280].rstrip()
             summary += f" Objet publié : {extrait}"
             summary += "…" if len(description) > 280 else ""

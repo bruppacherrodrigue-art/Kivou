@@ -108,7 +108,20 @@ class TestFreeze:
     def test_reference_icp_library_still_serializes_to_frozen_fixture(self) -> None:
         """`REFERENCE_ICPS` re-sérialisé est identique au gel : attrape toute retouche d'ICP."""
         frozen = _load(FIXTURES / "reference_icps.json")
-        serialized = [icp.model_dump(mode="json") for icp in REFERENCE_ICPS]
+        # WEDGE-HARDENING R1 §14 ajoute deux champs de ciblage métier au modèle.
+        # Le gel est l'archive de SPEC-008 : on le compare donc sur les champs qui
+        # existaient alors, et on vérifie séparément que les nouveaux sont VIDES
+        # sur les sept ICPs gelés — c'est ce qui prouve qu'aucun ne change de
+        # comportement. Toute autre retouche d'un ICP casse toujours ici.
+        added_since_freeze = ("primary_trade_domains", "secondary_trade_domains")
+        current = [icp.model_dump(mode="json") for icp in REFERENCE_ICPS]
+        for icp in current:
+            for field in added_since_freeze:
+                assert icp.pop(field) == [], (
+                    f"{IMMUTABLE}\nl'ICP gelé {icp['icp_id']!r} déclare un corps de "
+                    "métier : il ne produirait plus les mêmes signaux qu'au gel."
+                )
+        serialized = current
         assert REFERENCE_ICP_LIBRARY_VERSION == frozen["version"], (
             f"{IMMUTABLE}\nversion de bibliothèque attendue : {frozen['version']!r}, "
             f"observée : {REFERENCE_ICP_LIBRARY_VERSION!r}"
@@ -149,7 +162,7 @@ class TestDeclaredPolicies:
         """Le bloc `frozen` cite les versions de politique et les SHA réellement sur disque."""
         frozen = _load(FIXTURES / "signal_match_final_gold.json")["frozen"]
         assert frozen["match_rubric_version"] == "icp-match-rubric-v1"
-        assert frozen["match_policy_version"] == MATCH_POLICY_VERSION == "icp-match-v0.1"
+        assert frozen["match_policy_version"] == "icp-match-v0.1"
         assert frozen["reference_icp_library_version"] == REFERENCE_ICP_LIBRARY_VERSION
         assert frozen["corpus_sha256"] == _sha(FIXTURES / "signal_match_final_corpus.json")
         assert frozen["reference_icp_sha256"] == _sha(FIXTURES / "reference_icps.json")
@@ -166,6 +179,10 @@ class TestDeclaredPolicies:
         frozen = _load(FIXTURES / "signal_match_final_gold.json")["frozen"]
         assert frozen["score_policy_version"] == "signal-score-v0.1"
         assert SCORE_POLICY_VERSION == "signal-score-v0.2"
+        # WEDGE-HARDENING R1 §17 ajoute la porte « corps de métier » au matching :
+        # même raisonnement, même conclusion. Le gold garde `icp-match-v0.1`.
+        assert frozen["match_policy_version"] == "icp-match-v0.1"
+        assert MATCH_POLICY_VERSION == "icp-match-v0.2"
 
 
 class TestDisjointness:

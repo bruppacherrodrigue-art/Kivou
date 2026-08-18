@@ -210,4 +210,4 @@ class TestClientAcquisitionBoundary:
             assert token not in fields
 
     def test_the_policy_version_is_declared(self) -> None:
-        assert MATCH_POLICY_VERSION == "icp-match-v0.1"
+        assert MATCH_POLICY_VERSION == "icp-match-v0.2"

@@ -26,16 +26,20 @@ from signals.matching.model import (
     SignalScoreComponent,
 )
 from signals.matching.reference import (
+    CONSTRUCTION_INPUTS_ICP,
     REFERENCE_ICP_LIBRARY_VERSION,
     REFERENCE_ICPS,
+    WEDGE_ICP_LIBRARY_VERSION,
 )
 
 __all__ = [
+    "CONSTRUCTION_INPUTS_ICP",
     "MATCH_POLICY_VERSION",
     "MAX_SIGNAL_AGE_DAYS",
     "REFERENCE_ICPS",
     "REFERENCE_ICP_LIBRARY_VERSION",
     "SCORE_POLICY_VERSION",
+    "WEDGE_ICP_LIBRARY_VERSION",
     "GeographyBasis",
     "GeographyPolicy",
     "HardFilterResult",

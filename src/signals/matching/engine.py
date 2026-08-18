@@ -103,6 +103,8 @@ class MatchingEngine:
                 ),
             )
         )
+        trade_filter, trade_fit = self._trade_domain_filter(cu, icp)
+        filters.append(trade_filter)
         filters.append(self._contract_type_filter(cu, icp))
         filters.append(self._sector_filter(cu, icp))
         filters.append(self._freshness_filter(cu, icp, as_of=as_of))
@@ -154,9 +156,17 @@ class MatchingEngine:
         # `borderline` : pertinent, mais pas assez pour le feed principal.
         geography_ok = geography_status in ("match", "ignored")
         economic_ok = value_status in ("within", "no_threshold_configured")
+        # WEDGE-HARDENING R1 §18 — le métier est une PORTE, pas des points. Un
+        # marché dont le métier n'est que « compatible » ou inconnu reste
+        # pertinent — il descend en `borderline`, il ne disparaît pas.
+        trade_ok = trade_fit in ("exact", "not_configured")
         decision = (
             "show"
-            if normalized >= SHOW_THRESHOLD and primary_hits and geography_ok and economic_ok
+            if normalized >= SHOW_THRESHOLD
+            and primary_hits
+            and geography_ok
+            and economic_ok
+            and trade_ok
             else "borderline"
             if normalized >= BORDERLINE_THRESHOLD
             else "exclude"
@@ -173,7 +183,15 @@ class MatchingEngine:
         )
 
         reasons, limitations = self._explain(
-            cu, needs, icp, primary_hits, secondary_hits, components, geography_status, value_status
+            cu,
+            needs,
+            icp,
+            primary_hits,
+            secondary_hits,
+            components,
+            geography_status,
+            value_status,
+            trade_fit,
         )
         evidence = self._evidence(cu, needs, matched)
 
@@ -198,6 +216,58 @@ class MatchingEngine:
         )
 
     # ─── Filtres durs (§21) ────────────────────────────────────────────────
+
+    @staticmethod
+    def _trade_domain_filter(
+        cu: ContractUnderstanding, icp: TargetICP
+    ) -> tuple[HardFilterResult, str]:
+        """Le métier du marché contre celui que l'ICP déclare vendre (§17).
+
+        Quatre issues, et une cinquième qui est l'absence de règle :
+
+        · `not_configured` — l'ICP ne déclare aucun métier : rien ne change.
+        · `exact` — métier primaire : le marché peut atteindre le feed.
+        · `compatible` — métier secondaire : pertinent, mais `borderline`.
+        · `unknown` — le CPV ne dit pas le métier : `borderline`, jamais un
+          `show`. Un `45000000` ne prouve pas une compatibilité (§13).
+        · `incompatible` — métier explicitement hors cible : filtre dur.
+
+        Le cas `incompatible` est ÉVALUABLE : ce n'est pas une donnée qui manque,
+        c'est une donnée qui dit non. Le verdict est `exclude`, pas
+        `insufficient_data`.
+        """
+        if not icp.primary_trade_domains:
+            return (
+                HardFilterResult(
+                    name="trade_domain",
+                    passed=True,
+                    detail="l'ICP ne cible aucun corps de métier",
+                ),
+                "not_configured",
+            )
+        domain = cu.trade_domain.value if cu.trade_domain else "unknown_or_general"
+        if domain in icp.primary_trade_domains:
+            fit = "exact"
+        elif domain in icp.secondary_trade_domains:
+            fit = "compatible"
+        elif domain == "unknown_or_general":
+            fit = "unknown"
+        else:
+            fit = "incompatible"
+        details = {
+            "exact": f"corps de métier ciblé : {domain}",
+            "compatible": f"corps de métier accepté en second : {domain}",
+            "unknown": "le CPV publié ne dit pas le corps de métier",
+            "incompatible": f"corps de métier hors cible : {domain}",
+        }
+        return (
+            HardFilterResult(
+                name="trade_domain",
+                passed=fit != "incompatible",
+                detail=details[fit],
+            ),
+            fit,
+        )
 
     @staticmethod
     def _contract_type_filter(cu: ContractUnderstanding, icp: TargetICP) -> HardFilterResult:
@@ -473,7 +543,15 @@ class MatchingEngine:
 
     @staticmethod
     def _explain(
-        cu, needs, icp, primary_hits, secondary_hits, components, geography_status, value_status
+        cu,
+        needs,
+        icp,
+        primary_hits,
+        secondary_hits,
+        components,
+        geography_status,
+        value_status,
+        trade_fit,
     ) -> tuple[list[str], list[str]]:
         reasons: list[str] = []
         limitations: list[str] = []
@@ -499,6 +577,19 @@ class MatchingEngine:
             )
         elif value_status == "not_material":
             limitations.append("montant non matériel : aucun point économique")
+
+        if trade_fit == "exact":
+            reasons.append(f"corps de métier ciblé : {cu.trade_domain.value}")
+        elif trade_fit == "compatible":
+            limitations.append(
+                f"corps de métier « {cu.trade_domain.value} » accepté en second : les "
+                "intrants de ce marché peuvent passer par un autre canal d'achat"
+            )
+        elif trade_fit == "unknown":
+            limitations.append(
+                "le CPV publié ne dit pas le corps de métier : la compatibilité avec "
+                "l'offre du client n'est pas établie"
+            )
 
         if geography_status == "match":
             reasons.append("lieu d'exécution dans la zone ciblée")

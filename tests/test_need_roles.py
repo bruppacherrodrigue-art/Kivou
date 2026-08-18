@@ -265,7 +265,7 @@ class TestUnitAndLibrary:
         assert result.award_ref == cu.award_ref
 
     def test_the_library_declares_its_version(self) -> None:
-        assert RULE_LIBRARY_VERSION == "need-rules-v0.4"
+        assert RULE_LIBRARY_VERSION == "need-rules-v0.5"
 
     def test_every_rule_declares_both_roles(self) -> None:
         for rule in RULE_LIBRARY:

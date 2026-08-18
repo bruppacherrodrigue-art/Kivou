@@ -29,7 +29,7 @@ from pydantic import model_validator
 from signals.domain import EventRef, Evidence
 from signals.domain.values import CanonicalModel, NonEmptyStr
 
-ENGINE_VERSION = "need-graph-v0.1"
+ENGINE_VERSION = "need-graph-v0.2"
 
 MAX_NEEDS = 3
 """En mode metadata_fallback : 0 à 3 besoins, jamais une liste exhaustive.
@@ -106,6 +106,12 @@ class ResourceNeed(CanonicalModel):
     """
 
     category: NeedCategory
+    # WEDGE-HARDENING R1 §19 — DE QUOI ce besoin parle. Une hypothèse qui ne
+    # nomme pas son sujet ne peut pas être contredite par lui : c'est ainsi
+    # qu'un besoin d'engins de terrassement s'est retrouvé sur un lot de portes
+    # intérieures en métal sans que rien ne sonne. Facultatif parce qu'un avis
+    # peut ne publier aucun objet exploitable — et alors le besoin le dit.
+    subject: NonEmptyStr | None = None
     statement: NonEmptyStr
     reasoning: NonEmptyStr
     timing: NeedTiming

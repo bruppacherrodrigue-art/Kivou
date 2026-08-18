@@ -183,4 +183,4 @@ def test_le_moteur_est_reproductible(corpus: list[dict]):
 
 def test_toute_donnee_derivee_porte_la_version_du_moteur(understandings):
     for _, _, understanding in understandings:
-        assert understanding.engine_version == "contract-understanding-v0.1"
+        assert understanding.engine_version == "contract-understanding-v0.3"

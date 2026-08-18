@@ -149,6 +149,11 @@ class NeedFeatures:
     consortium: bool
     duration_months: float | None
     timing: NeedTiming
+    # WEDGE-HARDENING R1 §19, §22 — deux faits canoniques, jamais du texte
+    # reformulé : l'objet tel que l'avis le publie, et le corps de métier tel
+    # que le CPV le porte.
+    published_object: str | None
+    trade_domain: str
     claims: dict[str, Claim]
 
     # ── rôle A : mécanisme ──────────────────────────────────────────────────
@@ -267,5 +272,9 @@ def extract_features(cu: ContractUnderstanding) -> NeedFeatures:
         consortium=bool(characteristics & {"consortium_award", "multiple_contractors"}),
         duration_months=duration_months,
         timing=_timing_of(cu, recurring=recurring),
+        published_object=(
+            cu.facts["published_object"].value if "published_object" in cu.facts else None
+        ),
+        trade_domain=cu.trade_domain.value if cu.trade_domain else "unknown_or_general",
         claims=claims,
     )

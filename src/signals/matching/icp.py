@@ -24,9 +24,9 @@ from pydantic import Field, model_validator
 
 from signals.domain.values import CanonicalModel, NonEmptyStr
 from signals.needs import NeedCategory, NeedTiming, SourceMode
-from signals.understanding.cpv import ContractType, Sector
+from signals.understanding.cpv import ContractType, Sector, TradeDomain
 
-MATCH_POLICY_VERSION = "icp-match-v0.1"
+MATCH_POLICY_VERSION = "icp-match-v0.2"
 
 GeographyBasis = Literal["place_of_performance", "winner_location", "either", "ignore"]
 """Quelle localisation compte pour cet ICP.
@@ -102,6 +102,14 @@ class TargetICP(CanonicalModel):
     geography_policy: GeographyPolicy
     territories: tuple[Territory, ...] = ()
 
+    # WEDGE-HARDENING R1 §14 — le corps de métier ciblé, quand le client en a un.
+    # Laissés vides, ces champs n'introduisent AUCUNE règle : un ICP qui ne
+    # déclare pas de métier se comporte exactement comme avant. C'est ce qui
+    # permet aux sept ICPs de référence gelés de traverser cette correction sans
+    # changer d'un signal.
+    primary_trade_domains: tuple[TradeDomain, ...] = ()
+    secondary_trade_domains: tuple[TradeDomain, ...] = ()
+
     included_contract_types: tuple[ContractType, ...] = ()
     excluded_contract_types: tuple[ContractType, ...] = ()
     included_sectors: tuple[Sector, ...] = ()
@@ -124,6 +132,24 @@ class TargetICP(CanonicalModel):
         overlap = set(self.primary_need_categories) & set(self.secondary_need_categories)
         if overlap:
             raise ValueError(f"catégories à la fois primaires et secondaires : {sorted(overlap)}")
+        trades = set(self.primary_trade_domains) & set(self.secondary_trade_domains)
+        if trades:
+            raise ValueError(
+                f"corps de métier à la fois primaires et secondaires : {sorted(trades)}"
+            )
+        # §13 — `unknown_or_general` n'est pas un métier, c'est son absence. Le
+        # déclarer cible reviendrait à demander les marchés dont on ne sait rien.
+        declared = set(self.primary_trade_domains) | set(self.secondary_trade_domains)
+        if "unknown_or_general" in declared:
+            raise ValueError(
+                "« unknown_or_general » ne se cible pas : un CPV muet sur le métier "
+                "ne peut pas être une correspondance positive"
+            )
+        if self.secondary_trade_domains and not self.primary_trade_domains:
+            raise ValueError(
+                "corps de métier secondaires sans métier primaire : l'ICP dirait ce "
+                "qu'il accepte à regret sans dire ce qu'il vise"
+            )
         types = set(self.included_contract_types) & set(self.excluded_contract_types)
         if types:
             raise ValueError(f"types de contrat à la fois inclus et exclus : {sorted(types)}")

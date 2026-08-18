@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 from signals.needs.model import Externalisability, NeedCategory
 
-RULE_LIBRARY_VERSION = "need-rules-v0.4"
+RULE_LIBRARY_VERSION = "need-rules-v0.5"
 
 
 @dataclass(frozen=True)
@@ -118,9 +118,9 @@ RULE_LIBRARY: tuple[NeedRule, ...] = (
             "être commercialement pertinente."
         ),
         reasoning_template=(
-            "Les travaux relèvent du terrassement ou du génie civil, qui mobilisent "
-            "des engins au-delà du parc courant : une location ou un complément "
-            "d'équipement est plausible."
+            "Le corps de métier publié compte parmi ceux qui mobilisent des engins "
+            "au-delà du parc courant : si l'exécution comporte de tels travaux, une "
+            "location ou un complément d'équipement est plausible."
         ),
         externalisability="mixed",
     ),
@@ -150,9 +150,9 @@ RULE_LIBRARY: tuple[NeedRule, ...] = (
             "l'exécution des travaux."
         ),
         reasoning_template=(
-            "La nature des travaux — bâtiment, installation technique ou finition — "
-            "consomme des matériaux et des composants en volume : des achats "
-            "d'approvisionnement sont plausibles auprès de négoces ou de fabricants."
+            "Le corps de métier publié consomme des matériaux et des composants en "
+            "volume : si l'objet du lot en relève, des achats d'approvisionnement "
+            "sont plausibles auprès de négoces ou de fabricants."
         ),
         externalisability="external_plausible",
     ),

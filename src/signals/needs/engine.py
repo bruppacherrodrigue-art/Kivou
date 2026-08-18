@@ -69,6 +69,29 @@ class _Candidate:
         return tuple(dict.fromkeys(facts))
 
 
+SUBJECT_MAX_CHARS = 120
+"""Un sujet doit tenir dans une phrase lisible. Au-delà, il est coupé — jamais
+résumé : couper est vérifiable, résumer serait réécrire l'avis."""
+
+
+def _subject(features: NeedFeatures) -> str | None:
+    """L'objet publié, complété du corps de métier quand le CPV le donne.
+
+    `unknown_or_general` n'est jamais affiché : dire « métier inconnu » à côté
+    d'un objet publié n'ajoute rien et alourdit la phrase.
+    """
+    # Les avis publient des objets sur plusieurs lignes — listes de postes,
+    # métrés. Le sujet est une phrase : les blancs sont réduits, jamais le texte.
+    published = " ".join((features.published_object or "").split())
+    if not published:
+        return None
+    if len(published) > SUBJECT_MAX_CHARS:
+        published = published[: SUBJECT_MAX_CHARS - 1].rstrip() + "…"
+    if features.trade_domain != "unknown_or_general":
+        return f"{published} ({features.trade_domain})"
+    return published
+
+
 class NeedGraphEngine:
     """Transforme un award-lot compris en 0 à 3 hypothèses commerciales."""
 
@@ -190,10 +213,27 @@ class NeedGraphEngine:
         pressures = {p for candidate in group for p in candidate.pressures}
         if externalisability == "external_plausible" and len(pressures) < 2:
             externalisability = "mixed"
+        # WEDGE-HARDENING R1 §19–§21 — l'hypothèse nomme son sujet et reste
+        # révocable par lui. Deux faits canoniques seulement : l'objet publié
+        # tel quel, et le corps de métier porté par le CPV. Aucune reformulation,
+        # aucun mot-clé lu dans le texte.
+        subject = _subject(features)
+        reasoning = primary.rule.reasoning_template
+        if subject:
+            reasoning += (
+                f" Elle porte sur l'objet publié « {subject} » : si cet objet ne "
+                "relève pas de ces travaux, elle ne tient pas."
+            )
+        else:
+            reasoning += (
+                " L'avis ne publie aucun objet exploitable pour ce lot : l'hypothèse "
+                "repose sur le seul code CPV et reste à ce titre plus fragile."
+            )
         return ResourceNeed(
             category=primary.rule.category,
+            subject=subject,
             statement=primary.rule.statement_template,
-            reasoning=primary.rule.reasoning_template,
+            reasoning=reasoning,
             timing=features.timing,
             externalisability=externalisability,
             confidence="medium",

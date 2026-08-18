@@ -39,7 +39,7 @@ from signals.understanding import (
 )
 from signals.understanding.model import Claim, ContractUnderstanding
 
-ENGINE_VERSION = "contract-understanding-v0.1"
+ENGINE_VERSION = "contract-understanding-v0.3"
 
 
 # ─── Tables CPV ─────────────────────────────────────────────────────────────────

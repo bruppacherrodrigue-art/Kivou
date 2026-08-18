@@ -70,18 +70,28 @@ class TestSeal:
         assert seal["commercial_rubric_version"] == "commercial-signal-rubric-v1"
 
     def test_the_seal_pins_the_engine_versions_of_the_run(self) -> None:
-        """§32, §62 — le banc n'est comparable qu'à versions égales."""
-        assert (
-            _load(SEAL)["engine_version_set"]
-            == engine_version_set()
-            == {
-                "understanding_engine": "contract-understanding-v0.1",
-                "need_engine": "need-graph-v0.1",
-                "match_policy": "icp-match-v0.1",
-                "score_policy": "signal-score-v0.2",
-                "reference_icp_library": "reference-icps-v0.1",
-            }
-        )
+        """§32, §62 — le banc n'est comparable qu'à versions égales.
+
+        WEDGE-HARDENING R1 a rompu cette égalité délibérément : la compréhension
+        passe à `contract-understanding-v0.2` (corps de métier, objet publié) et
+        l'appariement à `icp-match-v0.2` (porte métier). Le sceau reste ce qu'il
+        a toujours été — le relevé des moteurs qui ont produit CES 100 signaux.
+        Les rejouer aujourd'hui demande un banc frais, pas cette fixture.
+        """
+        sealed = _load(SEAL)["engine_version_set"]
+        assert sealed == {
+            "understanding_engine": "contract-understanding-v0.1",
+            "need_engine": "need-graph-v0.1",
+            "match_policy": "icp-match-v0.1",
+            "score_policy": "signal-score-v0.2",
+            "reference_icp_library": "reference-icps-v0.1",
+        }
+        live = engine_version_set()
+        assert live["reference_icp_library"] == sealed["reference_icp_library"]
+        assert live["score_policy"] == sealed["score_policy"]
+        assert live["understanding_engine"] != sealed["understanding_engine"]
+        assert live["need_engine"] != sealed["need_engine"]
+        assert live["match_policy"] != sealed["match_policy"]
 
     def test_the_seal_pins_the_frozen_icp_library(self) -> None:
         """La bibliothèque d'ICPs est celle gelée par SPEC-008 §42, inchangée."""
