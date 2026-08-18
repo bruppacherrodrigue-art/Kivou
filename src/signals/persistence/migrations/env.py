@@ -11,7 +11,8 @@ from alembic import context
 
 # L'import enregistre les tables de SPEC-011 dans le même `METADATA`.
 import signals.accounts.schema
-import signals.billing.schema  # noqa: F401
+import signals.billing.schema
+import signals.engagement.schema  # noqa: F401
 from signals.persistence.schema import METADATA
 
 target_metadata = METADATA

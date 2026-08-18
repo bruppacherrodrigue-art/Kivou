@@ -46,7 +46,10 @@ OFFER_CODES: tuple[str, ...] = ("founding",)
 TerritoryMode = Literal["single", "multiple", "expanded"]
 FilterLevel = Literal["minimum", "basic", "advanced"]
 ExportLevel = Literal["none", "manual", "scheduled"]
-AlertCadence = Literal["none", "weekly", "daily", "realtime"]
+#: SPEC-014 §15 — `priority` remplace `realtime` : Scale est éligible à chaque
+#: exécution du job d'alerte, ce qui est vrai. « Temps réel » promettrait une
+#: architecture qui n'existe pas, et une latence qu'aucun cron ne tient.
+AlertCadence = Literal["none", "weekly", "daily", "priority"]
 
 #: §7 — au-delà, l'offre fondateur n'est plus une offre fondateur.
 FOUNDING_MAXIMUM_ACCOUNTS = 5
@@ -156,7 +159,7 @@ SCALE = PlanEntitlements(
     evidence_access=True,
     filter_level="advanced",
     export_level="scheduled",
-    alert_cadence="daily",
+    alert_cadence="priority",
 )
 
 PLANS: dict[str, PlanEntitlements] = {

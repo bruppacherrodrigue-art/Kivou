@@ -23,6 +23,16 @@ STRIPE_AUTOMATIC_TAX_ENV = "STRIPE_AUTOMATIC_TAX_ENABLED"
 STRIPE_FOUNDING_COUPON_ENV = "STRIPE_FOUNDING_COUPON_ID"
 STRIPE_PORTAL_CONFIGURATION_ENV = "STRIPE_PORTAL_CONFIGURATION_ID"
 
+# SPEC-014 — alertes client
+PUBLIC_APP_URL_ENV = "KIVOU_PUBLIC_APP_URL"
+SMTP_HOST_ENV = "SMTP_HOST"
+SMTP_PORT_ENV = "SMTP_PORT"
+SMTP_USERNAME_ENV = "SMTP_USERNAME"
+SMTP_PASSWORD_ENV = "SMTP_PASSWORD"
+SMTP_FROM_EMAIL_ENV = "SMTP_FROM_EMAIL"
+SMTP_FROM_NAME_ENV = "SMTP_FROM_NAME"
+SMTP_USE_TLS_ENV = "SMTP_USE_TLS"
+
 STRIPE_MODES: tuple[str, ...] = ("test", "live")
 DEFAULT_STRIPE_MODE = "test"
 
@@ -78,9 +88,27 @@ class ApiConfig:
     #: ligne de code le jour où elle est créée.
     stripe_portal_configuration_id: str | None = None
 
+    # ── alertes (SPEC-014) ───────────────────────────────────────────────────
+    #: §22 — la base des liens profonds. `None` fait échouer l'envoi en douceur :
+    #: les signaux restent en file plutôt que de partir avec un lien cassé.
+    public_app_url: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    #: Jamais journalisé, jamais rendu, jamais écrit dans le dépôt (§23, §39).
+    smtp_password: str | None = None
+    smtp_from_email: str | None = None
+    smtp_from_name: str = "Kivou"
+    smtp_use_tls: bool = True
+
     @property
     def stripe_livemode(self) -> bool:
         return self.stripe_mode == "live"
+
+    @property
+    def alerts_configured(self) -> bool:
+        """Peut-on envoyer une alerte sans produire un lien cassé ?"""
+        return bool(self.public_app_url and self.smtp_host and self.smtp_from_email)
 
     @classmethod
     def from_environment(cls) -> ApiConfig:
@@ -108,7 +136,30 @@ class ApiConfig:
             stripe_portal_configuration_id=(
                 os.environ.get(STRIPE_PORTAL_CONFIGURATION_ENV) or None
             ),
+            public_app_url=_optional_url(PUBLIC_APP_URL_ENV),
+            smtp_host=os.environ.get(SMTP_HOST_ENV) or None,
+            smtp_port=int(os.environ.get(SMTP_PORT_ENV) or 587),
+            smtp_username=os.environ.get(SMTP_USERNAME_ENV) or None,
+            smtp_password=os.environ.get(SMTP_PASSWORD_ENV) or None,
+            smtp_from_email=os.environ.get(SMTP_FROM_EMAIL_ENV) or None,
+            smtp_from_name=os.environ.get(SMTP_FROM_NAME_ENV) or "Kivou",
+            smtp_use_tls=os.environ.get(SMTP_USE_TLS_ENV, "1").lower() not in {"0", "false", "no"},
         )
+
+
+def _optional_url(name: str) -> str | None:
+    """Une URL publique facultative, mais forcément absolue et chiffrée.
+
+    §22 — les liens profonds des alertes en dérivent. Une base en `http://`
+    enverrait des clients sur un lien non chiffré ; mieux vaut refuser au
+    démarrage que le découvrir dans une boîte de réception.
+    """
+    value = os.environ.get(name)
+    if not value:
+        return None
+    if not value.startswith("https://"):
+        raise ValueError(f"{name} doit être une URL https absolue, pas {value!r}")
+    return value.rstrip("/")
 
 
 def _flag(name: str) -> bool:

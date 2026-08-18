@@ -41,6 +41,10 @@ ERROR_CODES: tuple[str, ...] = (
     "billing_error",
     "billing_subscription_conflict",
     "checkout_in_progress",
+    # SPEC-014 — retour client et notifications
+    "invalid_feedback",
+    "signal_not_accessible",
+    "invalid_notification_email",
 )
 
 

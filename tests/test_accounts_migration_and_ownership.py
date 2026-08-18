@@ -110,7 +110,14 @@ def test_an_empty_database_reaches_the_latest_schema_through_every_migration(
         "stripe_webhook_event",
         "discovery_signal_grant",
     } <= tables
-    assert current_revision(engine) == "0003_billing"
+    # SPEC-014 — retour client, analytique et alertes, également additifs.
+    assert {
+        "signal_feedback",
+        "product_event",
+        "account_notification_preference",
+        "signal_alert_delivery",
+    } <= tables
+    assert current_revision(engine) == "0004_alerts_feedback_analytics"
 
 
 def test_a_spec010_database_upgrades_without_losing_its_signals(tmp_path: pathlib.Path):

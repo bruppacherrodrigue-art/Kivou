@@ -375,11 +375,16 @@ def test_an_empty_database_reaches_the_billing_schema_through_every_migration(
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'chain.db'}")
     from alembic import command
 
-    for revision in ("0001_initial", "0002_account_auth_target_icp", "0003_billing"):
+    for revision in (
+        "0001_initial",
+        "0002_account_auth_target_icp",
+        "0003_billing",
+        "0004_alerts_feedback_analytics",
+    ):
         command.upgrade(alembic_config(engine), revision)
         assert current_revision(engine) == revision
     migrate_to_latest(engine)
-    assert current_revision(engine) == "0003_billing"
+    assert current_revision(engine) == "0004_alerts_feedback_analytics"
 
 
 def test_a_populated_spec012_database_upgrades_without_losing_anything(tmp_path: pathlib.Path):
@@ -408,7 +413,7 @@ def test_a_populated_spec012_database_upgrades_without_losing_anything(tmp_path:
         icps = connection.execute(sa.select(target_icp)).all()
     assert [item.signal_key for item in signals] == [signal.signal_key]
     assert [row.target_icp_id for row in icps] == [icp_id]
-    assert current_revision(engine) == "0003_billing"
+    assert current_revision(engine) == "0004_alerts_feedback_analytics"
 
 
 def test_the_billing_migration_touches_no_earlier_table(tmp_path: pathlib.Path):

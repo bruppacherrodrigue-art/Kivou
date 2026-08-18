@@ -30,7 +30,9 @@ from fastapi.responses import JSONResponse
 from signals.api.config import ApiConfig
 from signals.api.routes_auth import router as auth_router
 from signals.api.routes_billing import router as billing_router
+from signals.api.routes_feedback import router as feedback_router
 from signals.api.routes_icp import router as icp_router
+from signals.api.routes_notifications import router as notifications_router
 from signals.api.routes_signals import router as signals_router
 from signals.api.routes_webhooks import router as webhooks_router
 
@@ -77,6 +79,8 @@ def create_app(
     app.include_router(signals_router)
     app.include_router(billing_router)
     app.include_router(webhooks_router)
+    app.include_router(feedback_router)
+    app.include_router(notifications_router)
 
     @app.exception_handler(ValueError)
     def _value_error(request: Request, error: ValueError) -> JSONResponse:

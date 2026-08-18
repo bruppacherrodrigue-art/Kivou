@@ -40,6 +40,7 @@ from signals.api.errors import api_error
 from signals.billing import discovery, paywall
 from signals.billing import service as billing
 from signals.billing.access import FeedAccess, FilterNotEntitled, check_filters, feed_access
+from signals.engagement import analytics, feedback
 from signals.feed import policy, query, view
 from signals.recency import RECENCY_POLICY_VERSION
 
@@ -134,6 +135,23 @@ def list_signals(
             # Le profil d'un autre compte se comporte comme un profil inexistant.
             raise api_error(404, "target_icp_not_found", "profil de ciblage introuvable") from error
 
+        # §34 — UNE consultation par appel de feed, jamais une par carte : une
+        # ligne par signal affiché noierait la table et ne dirait rien de plus.
+        analytics.record(
+            connection,
+            account_id=session.account_id,
+            user_id=session.user_id,
+            target_icp_id=target_icp_id,
+            event_type="signal_feed_viewed",
+            occurred_at=now,
+            properties={
+                "freshness": freshness,
+                "returned": len(page.items),
+                "plan_code": access.plan_code,
+                "offset": offset,
+            },
+        )
+
     return {
         "items": [_render(item, access, lang=lang) for item in page.items],
         "total_returned": len(page.items),
@@ -199,7 +217,9 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
     """Le détail d'un signal possédé — de quoi vérifier, pas seulement lire."""
     now = request_now(request)
     as_of = now.date()
-    with request.app.state.engine.connect() as connection:
+    # La consultation est ENREGISTRÉE : d'où une transaction plutôt qu'une
+    # simple lecture.
+    with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         lang = _language(connection, user_id=session.user_id)
         access = feed_access(connection, account_id=session.account_id, as_of=as_of)
@@ -209,6 +229,25 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
             signal_key=signal_key,
             as_of=as_of,
         )
+        if item is not None:
+            # §34 — la tentative sur un signal verrouillé est enregistrée aussi,
+            # avec `access_granted` : c'est elle qui mesure l'appétit derrière
+            # le mur payant. Un signal d'un autre compte n'existe pas ici, donc
+            # rien n'est écrit — l'analytique ne doit pas devenir un annuaire.
+            unlocked = access.is_unlocked(item)
+            analytics.record(
+                connection,
+                account_id=session.account_id,
+                user_id=session.user_id,
+                target_icp_id=item.signal.target_icp_id,
+                signal_key=signal_key,
+                event_type="signal_detail_viewed",
+                occurred_at=now,
+                properties={"access_granted": unlocked, "plan_code": access.plan_code},
+            )
+            interaction = feedback.get_feedback(
+                connection, account_id=session.account_id, signal_key=signal_key
+            )
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
@@ -225,4 +264,14 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
     detail["read_at"] = as_of.isoformat()
     detail["language"] = lang
     detail["locked"] = False
+    # §8 — l'avis du client vit dans SON bloc. Il n'est ni un fait publié ni une
+    # inférence du moteur, et il ne doit contaminer ni `contract`, ni `event`,
+    # ni `evidence`, ni `analysis`.
+    detail["interaction"] = _interaction(interaction)
     return detail
+
+
+def _interaction(stored) -> dict[str, Any] | None:
+    from signals.api.routes_feedback import interaction_block
+
+    return interaction_block(stored)
