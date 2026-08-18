@@ -11,12 +11,24 @@ dependencies = [
     # XML venant d'un tiers : parseur durci contre les bombes d'entités
     "defusedxml>=0.7",
     "pypdf>=6.16.1",
+    # Persistance SaaS — SQLAlchemy est utilisé en mode CORE uniquement (tables
+    # et requêtes), jamais en ORM : le modèle canonique reste souverain.
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
 ]
+
+[project.optional-dependencies]
+# Pilote PostgreSQL de production. Les tests tournent sur SQLite (stdlib) ; la
+# compatibilité PostgreSQL du schéma est vérifiée par compilation du DDL.
+postgres = ["psycopg[binary]>=3.2"]
 
 [dependency-groups]
 dev = [
     "pytest>=8",
     "ruff>=0.6",
+    # Pilote PostgreSQL : présent en dev pour que le dialecte de PRODUCTION soit
+    # exerçable par les tests sans qu'aucun serveur ne tourne.
+    "psycopg[binary]>=3.2",
 ]
 
 [build-system]
