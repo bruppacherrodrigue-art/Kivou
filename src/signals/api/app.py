@@ -29,8 +29,10 @@ from fastapi.responses import JSONResponse
 
 from signals.api.config import ApiConfig
 from signals.api.routes_auth import router as auth_router
+from signals.api.routes_billing import router as billing_router
 from signals.api.routes_icp import router as icp_router
 from signals.api.routes_signals import router as signals_router
+from signals.api.routes_webhooks import router as webhooks_router
 
 
 class _NullDelivery:
@@ -46,6 +48,8 @@ def create_app(
     *,
     now_override: Callable[[], dt.datetime] | None = None,
     password_reset_delivery: object | None = None,
+    stripe_gateway: object | None = None,
+    founding_accounts: frozenset[str] = frozenset(),
 ) -> FastAPI:
     """Construit l'application autour d'un moteur déjà configuré.
 
@@ -61,10 +65,18 @@ def create_app(
     # Aucun fournisseur n'est intégré : par défaut, le jeton n'est remis à
     # personne, ce qui vaut mieux qu'un envoi silencieusement raté.
     app.state.password_reset_delivery = password_reset_delivery or _NullDelivery()
+    # SPEC-013 — la passerelle Stripe est injectée. Absente, les points d'entrée
+    # de facturation répondent 503 : mieux vaut un service annoncé indisponible
+    # qu'une application qui démarre en croyant pouvoir encaisser.
+    app.state.stripe_gateway = stripe_gateway
+    # §33 — l'éligibilité fondateur est une liste serveur, jamais une saisie.
+    app.state.founding_accounts = frozenset(founding_accounts)
 
     app.include_router(auth_router)
     app.include_router(icp_router)
     app.include_router(signals_router)
+    app.include_router(billing_router)
+    app.include_router(webhooks_router)
 
     @app.exception_handler(ValueError)
     def _value_error(request: Request, error: ValueError) -> JSONResponse:

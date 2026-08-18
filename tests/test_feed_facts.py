@@ -16,6 +16,7 @@ import datetime as dt
 import pathlib
 
 import pytest
+from billing_helpers import subscribe
 from fastapi.testclient import TestClient
 from feed_helpers import (
     BOAMP_AGING,
@@ -90,7 +91,29 @@ def app_for(engine, locale: str = "fr") -> TestClient:
         ).status_code
         == 201
     )
+    subscribe_to_scale(engine, client)
     return client
+
+
+def subscribe_to_scale(engine, client: TestClient) -> None:
+    """Abonne le compte à Scale — historique complet, filtres avancés.
+
+    SPEC-013 : ces tests portent sur le CONTENU d'un signal débloqué — faits,
+    inférences, preuve, langue. Depuis l'arrivée de la facturation, un compte
+    Discovery ne voit que trois signaux offerts et verrouille le reste. Les
+    comptes de ces tests sont donc abonnés, pour que les assertions continuent
+    de porter sur ce qu'elles ont été écrites pour vérifier. Le comportement du
+    mur payant, lui, a ses propres tests.
+    """
+    account_id = client.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        subscribe(
+            connection,
+            account_id=account_id,
+            plan="scale",
+            subscription_id=f"sub_test_{account_id[-8:]}",
+            now=Clock()(),
+        )
 
 
 @pytest.fixture

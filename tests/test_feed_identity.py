@@ -17,6 +17,7 @@ import datetime as dt
 import pathlib
 
 import pytest
+from billing_helpers import subscribe
 from fastapi.testclient import TestClient
 from feed_helpers import (
     COMPLETE_ICP_INPUT,
@@ -67,7 +68,27 @@ def client(engine) -> TestClient:
             "locale": "fr",
         },
     )
+    subscribe_to_scale(engine, client)
     return client
+
+
+def subscribe_to_scale(engine, client) -> None:
+    """Abonne le compte à Scale — historique complet, filtres avancés.
+
+    SPEC-013 : ces tests portent sur la FRAÎCHEUR et l'IDENTITÉ d'un signal
+    débloqué. Depuis l'arrivée de la facturation, un compte Discovery ne voit
+    que trois signaux offerts et verrouille le reste ; l'abonnement garde donc
+    ces assertions sur leur objet. Le mur payant a ses propres tests.
+    """
+    account_id = client.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        subscribe(
+            connection,
+            account_id=account_id,
+            plan="scale",
+            subscription_id=f"sub_test_{account_id[-8:]}",
+            now=RETRIEVED_AT,
+        )
 
 
 @pytest.fixture

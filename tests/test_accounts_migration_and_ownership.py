@@ -92,9 +92,10 @@ def materialize(connection: sa.Connection, *, target_icp_id: str):
 # ─── §22 — chemin de migration ─────────────────────────────────────────────────
 
 
-def test_an_empty_database_reaches_the_latest_schema_through_both_migrations(
+def test_an_empty_database_reaches_the_latest_schema_through_every_migration(
     tmp_path: pathlib.Path,
 ):
+    """La révision de tête est nommée : une SPEC qui en ajoute une doit le dire ici."""
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
     migrate_to_latest(engine)
 
@@ -102,7 +103,14 @@ def test_an_empty_database_reaches_the_latest_schema_through_both_migrations(
         tables = set(sa.inspect(connection).get_table_names())
     assert {"source_event", "contract_award", "materialized_signal"} <= tables
     assert {"account", "auth_user", "auth_session", "password_reset", "target_icp"} <= tables
-    assert current_revision(engine) == "0002_account_auth_target_icp"
+    # SPEC-013 — la facturation s'ajoute sans rien retirer de ce qui précède.
+    assert {
+        "billing_customer",
+        "billing_subscription",
+        "stripe_webhook_event",
+        "discovery_signal_grant",
+    } <= tables
+    assert current_revision(engine) == "0003_billing"
 
 
 def test_a_spec010_database_upgrades_without_losing_its_signals(tmp_path: pathlib.Path):

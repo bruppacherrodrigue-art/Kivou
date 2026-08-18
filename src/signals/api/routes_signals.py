@@ -2,6 +2,16 @@
 
 Aucun `POST` : un signal est produit par Kivou, jamais rédigé par un client.
 
+    La facturation est la DERNIÈRE condition (SPEC-013 §22)
+    ───────────────────────────────────────────────────────
+        propriété du compte → identité affichable → politique de signal
+                            → droit du plan → accès
+
+    L'accès payant s'ajoute au bout : il ne peut ni élargir la propriété, ni
+    ressusciter un signal non lié, ni rendre montrable un attributaire sans nom.
+    Un signal hors du droit n'est pas retiré — il est **verrouillé**, avec un
+    aperçu qui ne livre pas la piste commerciale qu'il protège.
+
     Le temps entre par ici, une seule fois (§6)
     ──────────────────────────────────────────
     `request_now()` donne l'instant de la requête ; sa date devient l'`as_of`
@@ -19,6 +29,7 @@ Aucun `POST` : un signal est produit par Kivou, jamais rédigé par un client.
 
 from __future__ import annotations
 
+import dataclasses
 from typing import Any, Literal
 
 from fastapi import APIRouter, Query, Request
@@ -26,6 +37,9 @@ from fastapi import APIRouter, Query, Request
 from signals.accounts import service
 from signals.api.dependencies import current_session, request_now
 from signals.api.errors import api_error
+from signals.billing import discovery, paywall
+from signals.billing import service as billing
+from signals.billing.access import FeedAccess, FilterNotEntitled, check_filters, feed_access
 from signals.feed import policy, query, view
 from signals.recency import RECENCY_POLICY_VERSION
 
@@ -68,16 +82,48 @@ def list_signals(
     de rogner la demande en silence.
     """
     now = request_now(request)
-    with request.app.state.engine.connect() as connection:
+    as_of = now.date()
+    # Une transaction, pas une simple lecture : un compte Discovery peut voir
+    # ses trois déblocages écrits ici, une fois pour toutes (§20).
+    with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         lang = _language(connection, user_id=session.user_id)
+        access = feed_access(connection, account_id=session.account_id, as_of=as_of)
+        try:
+            check_filters(
+                access.entitlements,
+                {
+                    "target_icp_id": target_icp_id,
+                    "country": country,
+                    "primary_event": primary_event,
+                    "winner": winner,
+                },
+            )
+        except FilterNotEntitled as error:
+            raise api_error(
+                403,
+                error.code,
+                "ce filtre demande un plan supérieur",
+                filter=error.filter_name,
+                required_level=error.required_level,
+            ) from error
+
+        allowed = frozenset(
+            billing.feedable_target_icps(
+                connection,
+                account_id=session.account_id,
+                limit=access.entitlements.max_active_icps,
+            )
+        )
+        access = _grant_discovery(connection, session.account_id, access, allowed, now)
         try:
             page = query.feed_page(
                 connection,
                 account_id=session.account_id,
-                as_of=now.date(),
+                as_of=as_of,
                 freshness=freshness,
                 target_icp_id=target_icp_id,
+                allowed_target_icp_ids=allowed,
                 primary_event=primary_event,
                 country=country,
                 winner=winner,
@@ -89,7 +135,7 @@ def list_signals(
             raise api_error(404, "target_icp_not_found", "profil de ciblage introuvable") from error
 
     return {
-        "items": [view.feed_item(item, lang=lang) for item in page.items],
+        "items": [_render(item, access, lang=lang) for item in page.items],
         "total_returned": len(page.items),
         "page": {
             "limit": page.limit,
@@ -101,33 +147,82 @@ def list_signals(
             "without_display_name": page.excluded_without_display_name,
             "by_freshness": page.excluded_by_freshness,
         },
-        "read_at": now.date().isoformat(),
+        "read_at": as_of.isoformat(),
         "freshness": freshness,
         "language": lang,
+        "plan_code": access.plan_code,
         "policy": {
             "feed": policy.FEED_POLICY_VERSION,
             "recency": RECENCY_POLICY_VERSION,
+            "paywall": paywall.PAYWALL_VERSION,
         },
     }
+
+
+def _render(item, access: FeedAccess, *, lang: str) -> dict[str, Any]:
+    """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
+    if access.is_unlocked(item):
+        card = view.feed_item(item, lang=lang)
+        card["locked"] = False
+        return card
+    return paywall.locked_teaser(item, lang=lang)
+
+
+def _grant_discovery(connection, account_id: str, access: FeedAccess, allowed, now):
+    """Attribue les trois signaux offerts, si le compte y a encore droit (§20).
+
+    La file d'attente est TOUJOURS le feed par défaut — pas celui que le client
+    a demandé. Faire dépendre les déblocages d'un paramètre de requête
+    permettrait de choisir ses cadeaux en changeant l'URL, et rendrait le
+    résultat non déterministe.
+    """
+    if access.is_paid or discovery.remaining_slots(connection, account_id=account_id) == 0:
+        return access
+    eligible = query.feed_page(
+        connection,
+        account_id=account_id,
+        as_of=access.as_of,
+        freshness=policy.DEFAULT_FRESHNESS,
+        allowed_target_icp_ids=allowed,
+        limit=policy.MAXIMUM_PAGE_SIZE,
+    )
+    granted = discovery.grant_up_to_limit(
+        connection, account_id=account_id, candidates=list(eligible.items), now=now
+    )
+    if not granted:
+        return access
+    return dataclasses.replace(access, granted=access.granted | frozenset(granted))
 
 
 @router.get("/signals/{signal_key}")
 def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
     """Le détail d'un signal possédé — de quoi vérifier, pas seulement lire."""
     now = request_now(request)
+    as_of = now.date()
     with request.app.state.engine.connect() as connection:
         session = current_session(request, connection, now)
         lang = _language(connection, user_id=session.user_id)
+        access = feed_access(connection, account_id=session.account_id, as_of=as_of)
         item = query.owned_signal(
             connection,
             account_id=session.account_id,
             signal_key=signal_key,
-            as_of=now.date(),
+            as_of=as_of,
         )
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
+    if not access.is_unlocked(item):
+        # Le compte POSSÈDE ce signal : répondre 404 confondrait « pas à vous »
+        # et « pas encore accessible », et empêcherait de dire ce que le
+        # paiement débloquerait.
+        locked = paywall.locked_detail(item, lang=lang)
+        locked["read_at"] = as_of.isoformat()
+        locked["language"] = lang
+        return locked
+
     detail = view.signal_detail(item, lang=lang)
-    detail["read_at"] = now.date().isoformat()
+    detail["read_at"] = as_of.isoformat()
     detail["language"] = lang
+    detail["locked"] = False
     return detail

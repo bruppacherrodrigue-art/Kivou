@@ -171,8 +171,17 @@ def test_the_icp_of_another_account_cannot_be_used_as_a_filter(alice, bob, engin
     assert bob_icp != alice_icp
 
 
-def test_filtering_by_an_own_icp_narrows_the_feed(alice, engine):
-    first, second = icp_of(alice, "Gros œuvre"), icp_of(alice, "Second œuvre")
+def test_filtering_by_an_own_icp_narrows_the_feed(alice, engine, clock: Clock):
+    """SPEC-013 — deux profils actifs demandent un plan qui les autorise : un
+    compte Discovery n'en sert qu'un, et le test porterait alors sur autre
+    chose que le filtre."""
+    from billing_helpers import subscribe
+
+    with engine.begin() as connection:
+        subscribe(connection, account_id=alice.get("/me").json()["account_id"], now=clock.now)
+    first = icp_of(alice, "Gros œuvre")
+    clock.advance(dt.timedelta(minutes=1))
+    second = icp_of(alice, "Second œuvre")
     with engine.begin() as connection:
         one = materialize_simap(connection, SIMAP_RICH, target_icp_id=first)
         materialize_boamp(connection, BOAMP_AGING, target_icp_id=second)

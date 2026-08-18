@@ -22,6 +22,10 @@ dependencies = [
     "fastapi>=0.115",
     # Hachage de mot de passe Argon2id. Aucune cryptographie maison.
     "argon2-cffi>=23.1",
+    # SDK Stripe officiel. Il n'est appelé que derrière la passerelle de
+    # `signals.billing.gateway` : la suite de tests reste hors-ligne, et le SDK
+    # ne sert qu'à la vérification de signature et aux appels réels.
+    "stripe>=11.0",
 ]
 
 [project.optional-dependencies]

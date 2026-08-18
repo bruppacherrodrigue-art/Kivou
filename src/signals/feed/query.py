@@ -300,6 +300,10 @@ def feed_page(
     as_of: dt.date,
     freshness: str = policy.DEFAULT_FRESHNESS,
     target_icp_id: str | None = None,
+    #: SPEC-013 §23 — le sous-ensemble d'ICP que le plan autorise à alimenter le
+    #: feed. `None` = aucune restriction de plan. La restriction s'ajoute APRÈS
+    #: la propriété : elle ne peut pas élargir ce que le compte possède.
+    allowed_target_icp_ids: frozenset[str] | None = None,
     primary_event: str | None = None,
     country: str | None = None,
     winner: str | None = None,
@@ -336,6 +340,10 @@ def feed_page(
     query = _ownership_scoped(account_id)
     if target_icp_id is not None:
         query = query.where(materialized_signal.c.target_icp_id == target_icp_id)
+    if allowed_target_icp_ids is not None:
+        if not allowed_target_icp_ids:
+            return FeedPage((), limit, offset, False, False, 0, 0)
+        query = query.where(materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids)))
     if country is not None:
         query = query.where(source_event.c.source_country == country)
     if winner is not None:

@@ -27,6 +27,20 @@ ERROR_CODES: tuple[str, ...] = (
     "csrf_origin_rejected",
     "invalid_input",
     "signal_not_found",
+    # SPEC-013 — facturation
+    "billing_unavailable",
+    "invalid_webhook_signature",
+    "unknown_plan",
+    "plan_not_purchasable",
+    "price_not_configured",
+    "already_subscribed",
+    "no_billing_customer",
+    "stripe_mode_mismatch",
+    "founding_not_available",
+    "filter_not_entitled",
+    "billing_error",
+    "billing_subscription_conflict",
+    "checkout_in_progress",
 )
 
 
