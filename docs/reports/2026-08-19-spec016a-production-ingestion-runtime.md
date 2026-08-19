@@ -190,6 +190,43 @@ Suggested systemd `ExecStart` application portion:
 SPEC-016 owns the actual interpreter path, working directory, timer units, and environment file.
 This branch intentionally does not modify `ops/`.
 
+## Closeout design — new TargetICP backfill/materialization
+
+The current application creates or activates a TargetICP without evaluating facts that were
+persisted before that customer existed. Waiting for a public source overlap to replay an award
+does not satisfy the Discovery onboarding requirement.
+
+The approved closeout adds a synchronous, bounded application service invoked after an API
+create/update has committed an active TargetICP. It reads persisted opportunity
+representations only; it performs no network acquisition and changes no public fact. Candidates
+are limited to publications that can still pass the TargetICP's existing
+`maximum_signal_age_days` hard filter, ordered newest first, and capped at the existing feed
+candidate ceiling of 500 opportunities. This SQL preselection is only a resource bound:
+`MatchingEngine.match()` remains the sole authority, and only its existing
+`decision == "show"` result may be materialized.
+
+One deterministic representative is evaluated per stable `opportunity_key`, preferring a
+customer-nameable representation and then a stable award key. This prevents two linked source
+representations from alternately rewriting one logical signal on repeated backfills. The
+existing feed sibling-name fallback remains unchanged.
+
+The service returns a structured count and an explicit `truncated` flag when more than 500
+eligible-window opportunities exist. Truncation is never presented as complete success: it is
+logged for operator attention and documented as the current MVP capacity boundary. The
+operation is safe to repeat because `materialize_signal()` retains the existing
+`(opportunity_key, target_icp_id)` identity and content-fingerprint revision semantics.
+
+Draft TargetICPs return without evaluating candidates. Active creation and draft-to-active
+updates invoke the service after the TargetICP transaction commits, so a materialization
+failure cannot roll back or corrupt the customer profile. No billing entitlement or alert
+delivery path participates.
+
+Deterministic closeout tests will prove facts-first/customer-second feed visibility, draft
+exclusion, repeat idempotence without a new revision, deterministic representation choice, and
+the explicit 500-candidate truncation signal. Existing source tests will additionally distinguish
+a supported terminal BOAMP skip from a malformed/transient processing failure that retains the
+previous checkpoint.
+
 ## Tests
 
 ```text
