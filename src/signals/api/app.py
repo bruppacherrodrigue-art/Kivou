@@ -31,6 +31,7 @@ from signals.api.config import ApiConfig
 from signals.api.routes_auth import router as auth_router
 from signals.api.routes_billing import router as billing_router
 from signals.api.routes_feedback import router as feedback_router
+from signals.api.routes_health import router as health_router
 from signals.api.routes_icp import router as icp_router
 from signals.api.routes_notifications import router as notifications_router
 from signals.api.routes_signals import router as signals_router
@@ -59,7 +60,18 @@ def create_app(
     entrée du système, et lui donner une porte explicite vaut mieux que de
     remplacer une horloge par un correctif de test.
     """
-    app = FastAPI(title="Kivou", version="0.1.0", docs_url=None, redoc_url=None)
+    # SPEC-016 §19 — ni documentation interactive, ni schéma OpenAPI servi.
+    # `docs_url`/`redoc_url` étaient déjà coupés ; `openapi_url` restait exposé
+    # et publiait la forme complète de l'API — chaque route, chaque champ — à
+    # qui la demandait. Un dépôt privé qui sert son propre schéma en clair
+    # annule l'intérêt de l'avoir gardé privé.
+    app = FastAPI(
+        title="Kivou",
+        version="0.1.0",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
     app.state.engine = engine
     app.state.config = config or ApiConfig.from_environment()
     app.state.now_override = now_override
@@ -74,6 +86,9 @@ def create_app(
     # §33 — l'éligibilité fondateur est une liste serveur, jamais une saisie.
     app.state.founding_accounts = frozenset(founding_accounts)
 
+    # Les sondes en premier : elles ne dépendent d'aucun état applicatif et
+    # doivent répondre même quand le reste va mal.
+    app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(icp_router)
     app.include_router(signals_router)

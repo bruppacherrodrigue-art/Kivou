@@ -1,0 +1,62 @@
+# Kivou — API FastAPI.
+#
+# Installation :
+#   sudo cp ops/systemd/kivou-api.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now kivou-api
+#
+# Le nombre de workers est délibérément BAS. La règle « 2 × cœurs + 1 » vient
+# des serveurs synchrones saturés en CPU ; Kivou est lié aux entrées-sorties, et
+# chaque worker ouvre son propre pool PostgreSQL. Sur 2 vCPU, 2 workers tiennent
+# la charge de staging tout en laissant des connexions à la base pour les jobs
+# planifiés. À augmenter seulement sur mesure, jamais par réflexe.
+[Unit]
+Description=Kivou API (FastAPI/uvicorn)
+Documentation=https://github.com/bruppacherrodrigue-art/Kivou
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+
+# Les secrets vivent ici, hors de Git, lisibles du seul utilisateur kivou.
+EnvironmentFile=/etc/kivou/staging.env
+
+# `--reload` est interdit en service : il surveille le disque et redémarre le
+# processus sous le trafic.
+ExecStart=/srv/kivou/app/.venv/bin/uvicorn signals.api.asgi:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 2 \
+    --proxy-headers \
+    --forwarded-allow-ips 127.0.0.1 \
+    --no-server-header \
+    --timeout-keep-alive 20
+
+Restart=on-failure
+RestartSec=5s
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-api
+
+# ── Durcissement ─────────────────────────────────────────────────────────────
+# L'application lit du code et écrit dans PostgreSQL. Elle n'a besoin ni
+# d'écrire sur le disque système, ni d'élever ses privilèges.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/kivou/run
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

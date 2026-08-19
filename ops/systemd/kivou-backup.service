@@ -1,0 +1,19 @@
+[Unit]
+Description=Kivou — sauvegarde PostgreSQL
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+EnvironmentFile=/etc/kivou/staging.env
+ExecStart=/usr/bin/flock --nonblock /srv/kivou/run/backup.lock /srv/kivou/app/ops/bin/kivou-backup.sh
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-backup
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/kivou/backups /srv/kivou/run

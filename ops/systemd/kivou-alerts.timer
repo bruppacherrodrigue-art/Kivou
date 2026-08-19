@@ -1,0 +1,16 @@
+[Unit]
+Description=Kivou — déclenche le cycle d'alertes
+
+[Timer]
+# Toutes les heures. Assez fréquent pour que « prioritaire » ait du sens sans
+# promettre du temps réel ; assez espacé pour ne pas marteler la base.
+OnCalendar=hourly
+# Un hôte éteint au moment prévu rattrape au démarrage plutôt que de sauter le
+# cycle en silence.
+Persistent=true
+# Décalage aléatoire : évite que tous les timers de l'hôte partent à la seconde
+# pile.
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

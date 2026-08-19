@@ -1,0 +1,32 @@
+# Kivou — cycle d'alertes clients.
+#
+# Déclenché par kivou-alerts.timer. Le JOB décide de la cadence réelle par
+# client (Scale prioritaire, Pro quotidien, Essential hebdomadaire) ; le timer
+# ne fait que lui donner l'occasion de s'exécuter. Il ne prétend pas que Scale
+# est du temps réel.
+[Unit]
+Description=Kivou — envoi des alertes clients
+After=network-online.target kivou-api.service
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/staging.env
+
+# `flock` sans attente : si le cycle précédent tourne encore, celui-ci renonce
+# au lieu de doubler les envois (§36). L'idempotence du job protège déjà contre
+# le double envoi ; ce verrou évite en plus le travail inutile et la contention.
+ExecStart=/usr/bin/flock --nonblock /srv/kivou/run/alerts.lock \
+    /srv/kivou/app/.venv/bin/python -m signals.alerts
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-alerts
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/kivou/run
