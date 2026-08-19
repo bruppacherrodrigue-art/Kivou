@@ -120,9 +120,11 @@ Build:              PASS
 Typecheck:          PASS
 Lint:               PASS
 
-GitHub CI:          PENDING
-CI run ID:          PENDING
-PR head SHA:        PENDING
+GitHub CI:          PASS
+CI run ID:          32314838061
+Validated code SHA: c90fd30b1418c0673081db26741bea1b2f2fae56
+Backend job:        PASS
+Frontend job:       PASS
 ```
 
 The backend count increased from 2911 and did not reduce the merged baseline.
@@ -146,8 +148,13 @@ docs/reports/2026-08-20-spec019-policy-gateway-plan.md
 docs/reports/2026-08-20-spec019-policy-gateway.md
 ```
 
-Final `git diff --stat` and `git status --porcelain` are recorded after the CI-result documentation commit.
+Final PR diff before this documentation-only closeout:
 
-POLICY GATEWAY PARTIALLY READY
+```text
+24 files changed, 3191 insertions(+), 8 deletions(-)
+git status --porcelain: clean
+```
 
-This interim report remains PARTIALLY READY only until the required GitHub Actions backend/frontend jobs pass. No deployment or merge is authorized.
+POLICY GATEWAY READY
+
+PR #12 remains draft. No deployment or merge is authorized.
