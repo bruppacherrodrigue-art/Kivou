@@ -1,0 +1,15 @@
+[Unit]
+Description=Kivou — déclenche l'ingestion SIMAP
+
+[Timer]
+# Toutes les deux heures. La minute est PROPRE à cette source : les quatre
+# groupes portent des minutes distinctes pour que le verrou d'hôte reste une
+# sécurité de dernier recours et non le mécanisme de cadencement.
+OnCalendar=*-*-* 00/2:05:00
+# Un hôte éteint rattrape au démarrage : le checkpoint étant durable, la
+# reprise ne redemande que la fenêtre manquante.
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

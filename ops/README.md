@@ -228,14 +228,24 @@ sudo cp ops/systemd/kivou-ingest-*.service ops/systemd/kivou-ingest-*.timer /etc
 sudo cp ops/systemd/kivou-ingestion.tmpfiles.conf /etc/tmpfiles.d/kivou-ingestion.conf
 sudo systemd-tmpfiles --create /etc/tmpfiles.d/kivou-ingestion.conf
 sudo systemctl daemon-reload
-sudo systemctl enable --now kivou-ingest-fast.timer kivou-ingest-decp.timer kivou-ingest-ted.timer
+sudo systemctl enable --now kivou-ingest-simap.timer kivou-ingest-boamp.timer \
+    kivou-ingest-decp.timer kivou-ingest-ted.timer
 ```
 
-| Groupe | Sources | Cadence | Borne |
+| Unité | Source | Cadence | Borne |
 |---|---|---|---|
-| `kivou-ingest-fast` | SIMAP + BOAMP | toutes les 2 h, minute 05 | 30 min |
+| `kivou-ingest-simap` | SIMAP | toutes les 2 h, minute 05 | 30 min |
+| `kivou-ingest-boamp` | BOAMP | toutes les 2 h, minute 15 | 30 min |
 | `kivou-ingest-decp` | DECP | 00 h et 12 h, minute 35 | 30 min |
 | `kivou-ingest-ted` | TED | 02:30 UTC | 45 min |
+
+**Une unité par source, et c'est délibéré.** SIMAP et BOAMP ont d'abord partagé
+une unité `kivou-ingest-fast`. En conditions réelles, BOAMP échouait sur une
+catégorie d'avis non gérée et marquait l'unité entière en échec — alors que
+SIMAP venait de réussir. La surveillance voyait « ingestion rapide en panne »
+sans pouvoir dire laquelle des deux sources allait mal, et une source saine
+était noyée dans le bruit d'une source malade. Chaque source porte désormais
+son état, son checkpoint et son alerte.
 
 **Le verrou est le point à comprendre.** Les trois groupes partagent
 `/run/kivou-ingestion.lock` pour que deux écritures de faits ne se croisent

@@ -1,10 +1,10 @@
-# Kivou — sources publiques rapides : SIMAP et BOAMP.
+# Kivou — BOAMP, le bulletin officiel des annonces de marchés publics.
 #
-# Ces deux sources publient au fil de l'eau ; les interroger toutes les deux
-# heures est ce qui donne un sens au mot « récent » dans le feed, sans
-# marteler des services publics.
+# Unité PROPRE à la source : un échec ici ne doit plus faire passer SIMAP pour
+# défaillant, et inversement. Chaque source porte désormais son propre état,
+# son propre checkpoint et sa propre alerte d'exploitation.
 [Unit]
-Description=Kivou — ingestion des sources rapides (SIMAP, BOAMP)
+Description=Kivou — ingestion BOAMP
 After=network-online.target postgresql.service
 Wants=network-online.target
 
@@ -26,7 +26,7 @@ EnvironmentFile=/etc/kivou/staging.env
 # exactement où le précédent s'était arrêté.
 ExecStart=/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 \
     /run/kivou-ingestion.lock \
-    /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source simap --source boamp
+    /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source boamp
 
 # Borne dure : une source qui ne répond plus ne doit pas garder le verrou
 # jusqu'au déclenchement suivant.
@@ -39,7 +39,7 @@ TimeoutStartSec=30min
 
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=kivou-ingest-fast
+SyslogIdentifier=kivou-ingest-boamp
 
 NoNewPrivileges=true
 PrivateTmp=true
