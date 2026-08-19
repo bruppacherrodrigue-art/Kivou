@@ -107,7 +107,7 @@ Expected: DSP advances; malformed JSON retains the previous checkpoint.
 
 **Files:**
 - Modify: `src/signals/persistence/schema.py`
-- Create: `src/signals/persistence/migrations/versions/0006_contract_award_text_capacity_contract_award_text_capacity.py`
+- Create: `src/signals/persistence/migrations/versions/0006_award_text_capacity_contract_award_text_capacity.py`
 - Create: `tests/test_contract_award_text_capacity.py`
 - Create: `tests/test_contract_award_text_capacity_migration.py`
 
@@ -148,7 +148,7 @@ sa.Column("contract_reference", sa.Text)
 
 - [ ] **Step 4: Write migration tests before the migration**
 
-Tests must upgrade a SQLite database to `0005`, insert an existing source event and contract award containing the 409-character value, then upgrade to head and assert revision `0006_contract_award_text_capacity`, type `TEXT`, and exact data equality. A second test upgrades a fresh database to head. A PostgreSQL dialect assertion must compile the target type as `TEXT`.
+Tests must upgrade a SQLite database to `0005`, insert an existing source event and contract award containing the 409-character value, then upgrade to head and assert revision `0006_award_text_capacity`, type `TEXT`, and exact data equality. A second test upgrades a fresh database to head. A PostgreSQL dialect assertion must compile the target type as `TEXT`.
 
 - [ ] **Step 5: Verify migration tests are RED**
 
@@ -158,14 +158,14 @@ Run:
 uv run pytest -q tests/test_contract_award_text_capacity_migration.py
 ```
 
-Expected: failure because revision `0006_contract_award_text_capacity` does not exist.
+Expected: failure because revision `0006_award_text_capacity` does not exist.
 
 - [ ] **Step 6: Add the linear migration**
 
 Create a migration with:
 
 ```python
-revision = "0006_contract_award_text_capacity"
+revision = "0006_award_text_capacity"
 down_revision = "0005_ingestion_runtime"
 ```
 

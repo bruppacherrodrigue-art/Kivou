@@ -13,7 +13,7 @@ Scope: source/runtime hardening only; no deployment
 The three production-data failures observed on staging now have deterministic, production-safe handling:
 
 - BOAMP `DSP` is a recognized terminal skip with reason `unsupported_notice_family_dsp`; supported records later in the same run continue normally.
-- The only demonstrated overflowing field, `contract_award.contract_reference`, is stored as unbounded `Text` through linear migration `0006_contract_award_text_capacity`.
+- The only demonstrated overflowing field, `contract_award.contract_reference`, is stored as unbounded `Text` through linear migration `0006_award_text_capacity`.
 - DECP counts each inclusive window, partitions any result count at or above 10,000 into exact date children, and fails closed on an irreducibly dense day or count/fetch drift.
 
 TED, matching, Need Graph, recency, Evidence, customer readiness, materialization, backfill, billing, alerts, and frontend behavior were not changed.
@@ -110,7 +110,7 @@ Revision:
 
 ```text
 0005_ingestion_runtime
-    -> 0006_contract_award_text_capacity
+    -> 0006_award_text_capacity
 ```
 
 No competing `0006` existed on `origin/main` when the migration was created. Previous migration files were not modified.
@@ -287,7 +287,7 @@ src/signals/connectors/decp/errors.py
 src/signals/ingestion/sources.py
 src/signals/persistence/schema.py
 src/signals/persistence/migrations/versions/
-  0006_contract_award_text_capacity_contract_award_text_capacity.py
+  0006_award_text_capacity_contract_award_text_capacity.py
 ```
 
 Deterministic tests:
