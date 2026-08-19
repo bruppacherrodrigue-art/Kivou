@@ -139,11 +139,11 @@ The backend count increased from the merged baseline of 2824 because two revisio
 ## GitHub CI
 
 ```text
-Draft PR: pending publication
-PR head SHA: pending
-GitHub Actions run ID: pending
-Backend job: pending
-Frontend job: pending
+Draft PR: #10
+Validated executable PR head SHA: d476e5006cb1977db00ca3edd1f42cb5c58878bf
+GitHub Actions run ID: 32300248115
+Backend job: PASS — 2826 passed, Ruff PASS
+Frontend job: PASS — 84 passed, build/typecheck/lint PASS
 ```
 
 ## Files changed
@@ -165,8 +165,13 @@ The old migration filename is removed as the rename counterpart. No `ops/`, VPS,
 
 ## Current diff summary
 
-The final committed diff consists only of the migration filename/revision correction, two graph guards, legitimate head expectations, and the R1/R2 reports. Final commit/status/CI identifiers are recorded after publication.
+The committed diff consists only of the migration filename/revision correction, two graph guards, legitimate head expectations, and the R1/R2 reports:
+
+```text
+10 files changed, 388 insertions(+), 15 deletions(-)
+git status --porcelain: clean at validated executable head
+```
 
 ## Verdict
 
-Pending GitHub CI; final verdict will be recorded after both required jobs pass.
+ALEMBIC REVISION HOTFIX READY
