@@ -119,7 +119,7 @@ def test_an_empty_database_reaches_the_latest_schema_through_every_migration(
     } <= tables
     # SPEC-016A — operational ingestion state remains an additive migration.
     assert {"ingestion_checkpoint", "ingestion_run"} <= tables
-    assert current_revision(engine) == "0006_contract_award_text_capacity"
+    assert current_revision(engine) == "0006_award_text_capacity"
 
 
 def test_a_spec010_database_upgrades_without_losing_its_signals(tmp_path: pathlib.Path):

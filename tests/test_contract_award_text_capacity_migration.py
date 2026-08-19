@@ -12,7 +12,7 @@ from signals.persistence.database import alembic_config, create_database_engine,
 from signals.persistence.schema import contract_award, source_event
 
 PREVIOUS_REVISION = "0005_ingestion_runtime"
-CAPACITY_REVISION = "0006_contract_award_text_capacity"
+CAPACITY_REVISION = "0006_award_text_capacity"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -84,6 +84,32 @@ def test_fresh_database_reaches_the_single_linear_capacity_head(tmp_path):
     assert script.get_heads() == [CAPACITY_REVISION]
     assert script.get_revision(CAPACITY_REVISION).down_revision == PREVIOUS_REVISION
     assert current_revision(engine) == CAPACITY_REVISION
+
+
+def test_every_alembic_revision_fits_the_standard_version_table_and_resolves(tmp_path):
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'graph.db'}")
+    script = ScriptDirectory.from_config(alembic_config(engine))
+    revisions = list(script.walk_revisions())
+
+    assert revisions
+    assert all(len(item.revision) <= 32 for item in revisions)
+    assert len({item.revision for item in revisions}) == len(revisions)
+    assert script.get_heads() == [CAPACITY_REVISION]
+    for item in revisions:
+        parents = item.down_revision
+        if parents is None:
+            continue
+        for parent in (parents,) if isinstance(parents, str) else parents:
+            assert script.get_revision(parent) is not None
+
+
+def test_capacity_revision_is_a_short_linear_child_of_ingestion(tmp_path):
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'linear.db'}")
+    script = ScriptDirectory.from_config(alembic_config(engine))
+
+    assert len(CAPACITY_REVISION) <= 32
+    assert script.get_heads() == [CAPACITY_REVISION]
+    assert script.get_revision(CAPACITY_REVISION).down_revision == PREVIOUS_REVISION
 
 
 def test_postgresql_target_type_is_unbounded_text():
