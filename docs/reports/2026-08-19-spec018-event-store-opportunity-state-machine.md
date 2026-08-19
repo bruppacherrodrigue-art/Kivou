@@ -3,7 +3,7 @@
 Date: 2026-08-19
 Branch: `feat/spec018-acquisition-event-store`
 Base: `main` at `c4d153c0e721836484f992da5c505e637af33290`
-Status: IMPLEMENTED — DRAFT PR / CI PENDING
+Status: READY — DRAFT PR #11 / CI GREEN
 
 ## Result
 
@@ -332,13 +332,15 @@ docs/reports/2026-08-19-spec018-event-store-opportunity-state-machine.md
 
 ```text
 branch: feat/spec018-acquisition-event-store
-draft PR: pending publication
-PR head SHA: pending
-GitHub Actions run: pending
-backend job: pending
-frontend job: pending
+draft PR: #11 https://github.com/bruppacherrodrigue-art/Kivou/pull/11
+validated executable SHA: 191293c44d2a1667ad4a2d24627d9210c78e07ef
+GitHub Actions run: 32305295994 — SUCCESS
+backend job: PASS (tests + Ruff)
+frontend job: PASS (84 tests + build + typecheck + lint)
+validated diff stat: 20 files changed, 3829 insertions, 11 deletions
+git status --porcelain at validated executable SHA: empty
 ```
 
 The branch is not merged and nothing is deployed.
 
-ACQUISITION EVENT STORE PARTIALLY READY
+ACQUISITION EVENT STORE READY
