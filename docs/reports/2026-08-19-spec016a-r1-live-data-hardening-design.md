@@ -10,7 +10,7 @@ Base: `origin/main` at `2586efd4ae9f09cb4be3ab6ee98d0052e056eb44`
 
 Harden the approved production ingestion runtime against three conditions observed with real staging data, without changing normalization, matching, recency, linkage, customer readiness, billing, alerts, or frontend behavior.
 
-SPEC-018 remains paused. Its branch contains no implementation and no migration. This hotfix may therefore use the next linear revision, `0006_contract_award_text_capacity`.
+SPEC-018 remains paused. Its branch contains no implementation and no migration. This hotfix may therefore use the next linear revision, `0006_award_text_capacity`.
 
 ## Root-cause evidence
 
@@ -63,7 +63,7 @@ Unknown families, invalid JSON, empty payloads, incomplete eForms wrappers, and 
 
 Only `contract_award.contract_reference` changes from `String(256)` to `Text`. Values are preserved exactly; there is no truncation, substringing, or discarded award.
 
-Migration `0006_contract_award_text_capacity` follows `0005_ingestion_runtime`. PostgreSQL uses an in-place type widening to `TEXT`. SQLite uses Alembic batch alteration, which copies every existing row into the widened test table; migration tests verify equality before and after the copy. Previous migrations remain untouched.
+Migration `0006_award_text_capacity` follows `0005_ingestion_runtime`. PostgreSQL uses an in-place type widening to `TEXT`. SQLite uses Alembic batch alteration, which copies every existing row into the widened test table; migration tests verify equality before and after the copy. Previous migrations remain untouched.
 
 A faithful regression fixture uses the real 409-character BOAMP `contract_reference` in the actual eForms `ContractReference` path and proves:
 
