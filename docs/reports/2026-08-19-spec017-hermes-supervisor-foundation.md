@@ -383,9 +383,31 @@ git status --porcelain: clean
 
 ## GitHub CI
 
-The branch has not yet been pushed at the instant this implementation report was first written.
-The final report revision will record the draft PR number, PR head SHA, Actions run ID, and backend
-and frontend job results after GitHub Actions reaches a terminal state. A local green suite alone is
-not used for the final verdict.
+Draft pull request: <https://github.com/bruppacherrodrigue-art/Kivou/pull/8>
 
-HERMES SUPERVISOR FOUNDATION PARTIALLY READY
+Base: `main`
+
+Validated PR head: `326f06ebe074513e23328719bc8b147204229111`
+
+GitHub Actions run: `32263540488`
+
+GitHub reached a terminal successful state for both required jobs:
+
+```text
+Backend (Python 3.12 · uv): PASS in 3m19s
+  pytest: 2807 passed in 185.82s
+  skipped: 0
+  ruff: PASS
+
+Frontend (Node 24 · npm): PASS in 41s
+  tests: 84 passed
+  build: PASS
+  typecheck: PASS
+  lint: PASS
+```
+
+The report-finalization commit after this validated head changes documentation only. No executable
+code, test, dependency, migration, profile, pin, or configuration changes after the successful run.
+The PR remains a draft and has not been merged or deployed.
+
+HERMES SUPERVISOR FOUNDATION READY
