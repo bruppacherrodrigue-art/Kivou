@@ -191,8 +191,8 @@ git diff --check: PASS
 ```text
 branch: feat/spec016a-ingestion-runtime
 design commit: b56f5a2
-implementation commit: pending
-draft PR: pending
-git status --porcelain: pending final gate
-git diff --stat: pending final gate
+implementation commit: d5f242c57dfc5ec947572d9ad5ad80d02d9c0d14
+draft PR: https://github.com/bruppacherrodrigue-art/Kivou/pull/7
+git status --porcelain: clean after report finalization commit
+git diff --stat against origin/main: 34 files changed, 3538 insertions, 25 deletions
 ```
