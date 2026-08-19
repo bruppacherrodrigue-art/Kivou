@@ -624,3 +624,100 @@ class AcquisitionStore:
                 raise OpportunityConcurrencyConflict(opportunity_id)
             connection.execute(sa.insert(acquisition_event).values(_event_values(event)))
             return MutationResult(next_projection, event)
+
+    def append_in_transaction(
+        self,
+        connection: Connection,
+        opportunity_id: str,
+        *,
+        event_type: EventType,
+        expected_version: int,
+        idempotency_key: str,
+        payload: dict[str, Any],
+        actor_type: ActorType = ActorType.SYSTEM,
+        actor_ref: str | None = None,
+        reason_codes: tuple[str, ...] = (),
+        evidence_refs: tuple[str, ...] = (),
+        policy_version: str | None = None,
+        skill_version: str | None = None,
+        supervisor_version: str | None = None,
+        confidence: Decimal | None = None,
+        estimated_cost: Decimal | None = None,
+        correlation_id: str | None = None,
+        causation_id: str | None = None,
+        occurred_at: dt.datetime | None = None,
+    ) -> MutationResult:
+        """Append with a caller-owned transaction for atomic cross-journal audit."""
+        semantic = _semantic_input(
+            event_type=event_type,
+            actor_type=actor_type,
+            actor_ref=actor_ref,
+            reason_codes=reason_codes,
+            evidence_refs=evidence_refs,
+            policy_version=policy_version,
+            skill_version=skill_version,
+            supervisor_version=supervisor_version,
+            confidence=confidence,
+            estimated_cost=estimated_cost,
+            payload=payload,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+            occurred_at=occurred_at,
+        )
+        fingerprint = _fingerprint(semantic)
+        recorded_at = self._clock()
+        happened_at = occurred_at or recorded_at
+        current = self._get_opportunity(connection, opportunity_id)
+        existing_row = connection.execute(
+            sa.select(acquisition_event).where(
+                acquisition_event.c.acquisition_opportunity_id == opportunity_id,
+                acquisition_event.c.idempotency_key == idempotency_key,
+            )
+        ).mappings().one_or_none()
+        if existing_row is not None:
+            existing = _event_from_row(existing_row)
+            if existing.semantic_fingerprint != fingerprint:
+                raise IdempotencyConflict(idempotency_key)
+            return MutationResult(current, existing, replayed=True)
+        if current.stream_version != expected_version:
+            raise OpportunityConcurrencyConflict(
+                f"expected {expected_version}, found {current.stream_version}"
+            )
+        event = AcquisitionEvent(
+            event_id=self._event_id_factory(),
+            acquisition_opportunity_id=opportunity_id,
+            stream_sequence=expected_version + 1,
+            event_type=event_type,
+            state_machine_version=STATE_MACHINE_VERSION,
+            occurred_at=happened_at,
+            recorded_at=recorded_at,
+            actor_type=actor_type,
+            actor_ref=actor_ref,
+            idempotency_key=idempotency_key,
+            semantic_fingerprint=fingerprint,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+            reason_codes=reason_codes,
+            evidence_refs=evidence_refs,
+            policy_version=policy_version,
+            skill_version=skill_version,
+            supervisor_version=supervisor_version,
+            confidence=confidence,
+            estimated_cost=estimated_cost,
+            payload=payload,
+        )
+        next_projection = reduce_event(current, event)
+        values = _projection_values(next_projection)
+        values.pop("acquisition_opportunity_id")
+        result = connection.execute(
+            sa.update(acquisition_opportunity)
+            .where(
+                acquisition_opportunity.c.acquisition_opportunity_id == opportunity_id,
+                acquisition_opportunity.c.stream_version == expected_version,
+            )
+            .values(values)
+        )
+        if result.rowcount != 1:
+            raise OpportunityConcurrencyConflict(opportunity_id)
+        connection.execute(sa.insert(acquisition_event).values(_event_values(event)))
+        return MutationResult(next_projection, event)

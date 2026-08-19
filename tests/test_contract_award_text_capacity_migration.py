@@ -13,7 +13,8 @@ from signals.persistence.schema import contract_award, source_event
 
 PREVIOUS_REVISION = "0005_ingestion_runtime"
 CAPACITY_REVISION = "0006_award_text_capacity"
-CURRENT_HEAD = "0007_acquisition_event_store"
+ACQUISITION_REVISION = "0007_acquisition_event_store"
+CURRENT_HEAD = "0008_policy_gateway"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -84,7 +85,8 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
     script = ScriptDirectory.from_config(config)
     assert script.get_heads() == [CURRENT_HEAD]
     assert script.get_revision(CAPACITY_REVISION).down_revision == PREVIOUS_REVISION
-    assert script.get_revision(CURRENT_HEAD).down_revision == CAPACITY_REVISION
+    assert script.get_revision(ACQUISITION_REVISION).down_revision == CAPACITY_REVISION
+    assert script.get_revision(CURRENT_HEAD).down_revision == ACQUISITION_REVISION
     assert current_revision(engine) == CURRENT_HEAD
 
 
