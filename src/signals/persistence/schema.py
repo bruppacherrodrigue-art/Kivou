@@ -55,6 +55,11 @@ FACT_TABLES: tuple[str, ...] = (
 #: Celles qui contiennent ce que Kivou en déduit.
 INFERENCE_TABLES: tuple[str, ...] = ("materialized_signal",)
 
+# Operational ingestion metadata is deliberately neither a source fact nor a
+# commercial inference. Keeping it outside the two sets prevents audit helpers
+# from assigning business semantics to scheduler state.
+INGESTION_SOURCES: tuple[str, ...] = ("simap", "boamp", "decp", "ted")
+
 
 def _created_at() -> sa.Column:
     """§3 — horodatage explicite, posé par l'application, jamais par la base.
@@ -263,5 +268,50 @@ materialized_signal = sa.Table(
     # produire deux signaux pour le même client.
     sa.UniqueConstraint(
         "opportunity_key", "target_icp_id", name="uq_signal_opportunity_target_icp"
+    ),
+)
+
+
+ingestion_checkpoint = sa.Table(
+    "ingestion_checkpoint",
+    METADATA,
+    sa.Column("source", sa.String(16), primary_key=True),
+    sa.Column("cursor", sa.JSON),
+    sa.Column("window_end", sa.DateTime(timezone=True)),
+    sa.Column("last_started_at", sa.DateTime(timezone=True)),
+    sa.Column("last_completed_at", sa.DateTime(timezone=True)),
+    sa.Column("status", sa.String(24), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint(
+        "source IN ('simap', 'boamp', 'decp', 'ted')",
+        name="ck_ingestion_checkpoint_source",
+    ),
+)
+
+
+ingestion_run = sa.Table(
+    "ingestion_run",
+    METADATA,
+    sa.Column("run_id", sa.String(64), primary_key=True),
+    sa.Column("source", sa.String(16), nullable=False, index=True),
+    sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("finished_at", sa.DateTime(timezone=True)),
+    sa.Column("status", sa.String(24), nullable=False, index=True),
+    sa.Column("records_fetched", sa.Integer, nullable=False),
+    sa.Column("records_accepted", sa.Integer, nullable=False),
+    sa.Column("records_rejected", sa.Integer, nullable=False),
+    sa.Column("records_persisted", sa.Integer, nullable=False),
+    sa.Column("representations_linked", sa.Integer, nullable=False),
+    sa.Column("opportunity_conflicts", sa.Integer, nullable=False),
+    sa.Column("signals_materialized", sa.Integer, nullable=False),
+    sa.Column("rate_limited_count", sa.Integer, nullable=False),
+    sa.Column("error_category", sa.String(32)),
+    sa.Column("error_message", sa.Text),
+    sa.Column("checkpoint_before", sa.JSON),
+    sa.Column("checkpoint_after", sa.JSON),
+    sa.Column("dry_run", sa.Boolean, nullable=False),
+    sa.CheckConstraint(
+        "source IN ('simap', 'boamp', 'decp', 'ted')",
+        name="ck_ingestion_run_source",
     ),
 )
