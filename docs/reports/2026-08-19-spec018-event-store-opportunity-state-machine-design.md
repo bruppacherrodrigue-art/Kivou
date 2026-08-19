@@ -1,10 +1,10 @@
 # SPEC-018 — Event Store + Acquisition Opportunity State Machine — Design
 
 Date: 2026-08-19
-Status: DESIGN FOR REVIEW
+Status: APPROVED WITH SUPERVISOR CORRECTIONS INCORPORATED
 Branch: `feat/spec018-acquisition-event-store`
-Base: `main` at `2bb72ef8e1b7598248f0a1422c0e6005f6a42362`
-Current Alembic head: `0006_contract_award_text_capacity`
+Base: `main` at `c4d153c0e721836484f992da5c505e637af33290`
+Current Alembic head: `0006_award_text_capacity`
 
 ## Objective
 
@@ -24,18 +24,18 @@ This foundation records business state. It executes no commercial action and int
 
 ## Entry state and migration decision
 
-SPEC-016A-R1 is merged. `main` and `origin/main` are identical at `2bb72ef8e1b7598248f0a1422c0e6005f6a42362`. Alembic has one head:
+SPEC-016A-R2 is merged. `main` and `origin/main` are identical at `c4d153c0e721836484f992da5c505e637af33290`. Alembic has one head:
 
 ```text
 0005_ingestion_runtime
         ↓
-0006_contract_award_text_capacity
+0006_award_text_capacity
 ```
 
 SPEC-018 was paused before code or migration creation. Its additive migration is therefore:
 
 ```text
-0006_contract_award_text_capacity
+0006_award_text_capacity
         ↓
 0007_acquisition_event_store
 ```
@@ -96,6 +96,7 @@ acquisition_opportunity_id  String(64) primary key
 identity_key                String(256) unique, immutable
 state                       String(32)
 stream_version              Integer
+state_machine_version       String(64)
 
 signal_ref                  String(128)
 supplier_ref                String(128) nullable
@@ -137,13 +138,14 @@ acquisition_opportunity_id  String(64) foreign key, RESTRICT
 stream_sequence             Integer
 event_type                  String(64)
 schema_version              Integer
+state_machine_version       String(64)
 
 occurred_at                 timezone-aware DateTime
 recorded_at                 timezone-aware DateTime
 actor_type                  String(16)
 actor_ref                   String(256) nullable
 
-idempotency_key             String(128) unique
+idempotency_key             String(128)
 semantic_fingerprint        String(64)
 correlation_id              String(64) nullable
 causation_id                String(64) nullable
@@ -157,7 +159,7 @@ estimated_cost              Numeric(18,6) nullable
 payload                     JSON
 ```
 
-Database constraints include `UNIQUE(acquisition_opportunity_id, stream_sequence)` and `UNIQUE(idempotency_key)`. There is no event update/delete method. Append-only is enforced at the application boundary now; PostgreSQL role/trigger hardening remains a later operational option rather than cross-dialect SPEC-018 complexity.
+Database constraints include `UNIQUE(acquisition_opportunity_id, stream_sequence)` and `UNIQUE(acquisition_opportunity_id, idempotency_key)`. The same upstream token may therefore be reused for two different acquisition opportunities without conflating their business events. There is no event update/delete method. Append-only is enforced at the application boundary now; PostgreSQL role/trigger hardening remains a later operational option rather than cross-dialect SPEC-018 complexity.
 
 ## Controlled vocabularies
 
@@ -185,9 +187,17 @@ OUTCOME_RECORDED
 
 Strict application contracts own these values; storage uses strings instead of hard database enums so later event types do not require unsafe enum rewrites.
 
-## Transition registry
+## State-machine version and transition registry
 
-Kivou, never Hermes, owns one versioned registry:
+Kivou, never Hermes, owns the registry. Every event and the current projection persist the explicit version that determines replay semantics:
+
+```text
+state_machine_version = acquisition-state-v1
+```
+
+`schema_version`, `policy_version`, `skill_version`, and `supervisor_version` retain their separate meanings. Replay selects a registered reducer for each persisted `state_machine_version`; an unknown value raises `UnsupportedStateMachineVersion` rather than guessing current behavior. A later semantic change adds a new reducer version while keeping `acquisition-state-v1` available for historical streams.
+
+The initial registry is:
 
 ```text
 DISCOVERED         → ENRICHING
@@ -229,7 +239,9 @@ An `OUTCOME_RECORDED` event with a higher rank advances the projection, allowing
 
 The reducer maps `AcquisitionProjection | None + AcquisitionEvent` to a new `AcquisitionProjection`. It performs no database, network, Hermes, clock, ID, or random operation. Event order must be contiguous `1..N`.
 
-Every event advances `stream_version` and `last_event_id`; state-neutral audit and late lower-stage events leave business state unchanged. `replay(events)` reconstructs the projection. `verify_projection(id)` returns `MATCH` or `MISMATCH` without mutation. `rebuild_projection(id)` is an explicit transactional recovery operation and never runs during normal reads.
+Every event advances `stream_version` and `last_event_id`; state-neutral audit and late lower-stage events leave business state unchanged. `replay(events)` dispatches each event to its persisted state-machine version and reconstructs the projection. Unknown versions fail closed. `verify_projection(id)` returns `MATCH` or `MISMATCH` without mutation. `rebuild_projection(id)` is an explicit transactional recovery operation and never runs during normal reads.
+
+The rebuild test preserves the `RESTRICT` foreign key. It corrupts mutable projection fields (`state`, `stream_version`, and `next_action`) through controlled test SQL, proves `verify_projection()` reports `MISMATCH`, rebuilds transactionally, and confirms the immutable event rows are byte-for-byte unchanged.
 
 ## Atomicity and optimistic concurrency
 
@@ -247,21 +259,37 @@ Every mutation uses one bounded transaction. For an existing opportunity:
 
 Zero updated rows raises `OpportunityConcurrencyConflict`. If event insertion fails, the projection update rolls back. This physical update-first ordering gives a typed race result while preserving the required atomic event+projection invariant.
 
-Creation writes projection and `OPPORTUNITY_CREATED` within the same transaction. The initial projection is `DISCOVERED`, event sequence and stream version are both `1`, and the creation idempotency key obeys the same same-content/different-content rules as every later event.
+Creation writes projection and `OPPORTUNITY_CREATED` within the same transaction. The initial projection is `DISCOVERED`, event sequence and stream version are both `1`, and both rows persist `acquisition-state-v1`.
 
 ## Idempotency
 
-Every event operation requires an `idempotency_key`. A canonical semantic fingerprint covers opportunity, event type, actor, occurrence time, reasons, evidence, provenance versions, cost, and validated payload; it excludes expected version, generated event ID, and recorded time.
+Every event operation requires an `idempotency_key`. Replay lookup is scoped by `(acquisition_opportunity_id, idempotency_key)`. A canonical semantic fingerprint covers opportunity, event type, actor, occurrence time, reasons, evidence, provenance versions, state-machine version, cost, and validated payload; it excludes expected version, generated event ID, and recorded time.
 
 ```text
-same key + same fingerprint
+same opportunity + same key + same fingerprint
   → existing event/result, no event, no version increment
 
-same key + different fingerprint
+same opportunity + same key + different fingerprint
   → IdempotencyConflict, no mutation
+
+different opportunity + same key
+  → allowed
 ```
 
 Idempotency is checked before expected-version rejection so a retry stays successful after later stream events.
+
+Creation is resolved through the immutable `identity_key` before an internal opportunity ID exists:
+
+```text
+same identity_key + same creation key + same fingerprint
+  → existing opportunity and creation event
+
+same identity_key + same creation key + different fingerprint
+  → IdempotencyConflict
+
+same identity_key + different creation key
+  → AcquisitionIdentityConflict; never a second opportunity
+```
 
 ## Payload and metadata guards
 
@@ -283,6 +311,8 @@ Bounds are:
 ```text
 reason_codes: max 50, each 1..100 characters
 evidence_refs: max 100, each 1..100 characters
+confidence: 0..1 inclusive
+estimated_cost: >= 0
 ```
 
 `next_action` must belong to Kivou's existing non-executable `ALLOWED_COMMANDS`. It is symbolic metadata, never shell text or a callable.
@@ -293,7 +323,7 @@ evidence_refs: max 100, each 1..100 characters
 
 ## Hermes Shadow plan audit
 
-`record_supervisor_plan()` accepts an already validated SPEC-017 `SupervisorPlan` and maps only:
+`record_supervisor_plan(acquisition_opportunity_id, plan)` accepts an already validated SPEC-017 `SupervisorPlan`. Each proposed action's `target_ref` must resolve unambiguously to one acquisition opportunity by exact internal ID or unique `identity_key`; otherwise the whole audit request raises `SupervisorAuditMappingError` and writes no event. Actions mapped to other streams are omitted. Only actions mapped to the selected stream are stored, using:
 
 ```text
 plan_id objective priority
@@ -302,7 +332,7 @@ reason_codes evidence_refs estimated_cost
 supervisor_version skill_version
 ```
 
-It stores no action arguments, raw prompt, transcript, Hermes memory, provider data, or hidden reasoning. It appends `SUPERVISOR_PLAN_OBSERVED` with actor `HERMES`. Stream version and audit pointer advance, while acquisition state, decision, next action, retry state, and references remain unchanged. No proposed action executes.
+It stores no action arguments, raw prompt, transcript, Hermes memory, provider data, or hidden reasoning. If no action maps to the selected opportunity, the deterministic rule is **no event written** and an explicit `recorded=False` result; metadata-only duplication is not useful in an opportunity stream. Otherwise it appends `SUPERVISOR_PLAN_OBSERVED` with actor `HERMES`. Stream version and audit pointer advance, while acquisition state, decision, next action, retry state, and references remain unchanged. No proposed action executes.
 
 The event store imports no Hermes runtime and functions when Hermes is unavailable.
 
@@ -315,18 +345,20 @@ The strictly additive migration creates only `acquisition_opportunity`, `acquisi
 TDD groups cover:
 
 ```text
-strict contracts, size/secret/reasoning guards
+strict contracts, numeric/size/secret/reasoning guards
 pure reducer and transition matrix
+persisted state-machine version and unknown-version rejection
 decision mapping and HOLD requirements
 post-send jumps and late lower-stage audit
 creation and immutable identity
 atomic event/projection behavior
 sequence and optimistic concurrency
-same/different idempotency replay
+opportunity-scoped idempotency, conflicts, and cross-opportunity key reuse
+creation idempotency and immutable identity conflicts
 retry and next-action persistence
 restart through a fresh store instance
-replay, verification and explicit rebuild
-SupervisorPlan advisory audit with zero execution/state mutation
+replay, verification and explicit rebuild with the RESTRICT FK preserved
+opportunity-scoped SupervisorPlan audit, mapping failures and zero-action no-op
 Hermes-unavailable isolation
 migration 0006 → 0007 and fresh → head
 PostgreSQL/SQLite compatibility
@@ -337,10 +369,10 @@ Normal CI is deterministic, offline, and uses no real Hermes/model call.
 
 ## Baseline and non-regression
 
-Fresh branch baseline after R1 merge:
+Fresh branch baseline after R2 merge:
 
 ```text
-2824 backend tests passed
+2826 backend tests passed
 0 skipped
 ```
 
