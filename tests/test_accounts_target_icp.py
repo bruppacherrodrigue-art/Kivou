@@ -32,7 +32,8 @@ from signals.accounts.service import onboarding_status
 from signals.api import ApiConfig, create_app
 from signals.persistence.database import create_database_engine, migrate_to_latest
 
-ORIGIN = "https://app.kivou.ch"
+#: Origine synthétique pour la validation CSRF (CLOSEOUT §3).
+ORIGIN = "https://kivou.test"
 PASSWORD = "un-mot-de-passe-assez-long"
 
 COMPLETE_INPUT = {

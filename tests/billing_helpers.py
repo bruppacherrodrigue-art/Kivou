@@ -41,6 +41,23 @@ from signals.billing.service import synchronize_subscription
 #: Stripe : il n'ouvre rien, et n'existe que dans ce fichier.
 TEST_WEBHOOK_SECRET = "whsec_" + "0" * 32
 
+#: CLOSEOUT §3 — les URL de retour n'ont plus de défaut : une configuration de
+#: facturation doit les déclarer. Celles-ci sont SYNTHÉTIQUES et n'existent que
+#: pour la suite de tests ; aucun domaine de production n'apparaît ici, et rien
+#: dans le code ne les connaît.
+TEST_SUCCESS_URL = "https://kivou.test/checkout/success"
+TEST_CANCEL_URL = "https://kivou.test/checkout/cancel"
+TEST_PORTAL_RETURN_URL = "https://kivou.test/app/billing"
+
+#: Les trois arguments à passer à `ApiConfig` pour un test qui exerce la
+#: facturation. Regroupés pour qu'ajouter une quatrième URL un jour ne demande
+#: pas de modifier huit fichiers de test.
+BILLING_RETURN_URLS = {
+    "stripe_success_url": TEST_SUCCESS_URL,
+    "stripe_cancel_url": TEST_CANCEL_URL,
+    "stripe_portal_return_url": TEST_PORTAL_RETURN_URL,
+}
+
 
 def stripe_signature(payload: bytes, *, secret: str, timestamp: int) -> str:
     """L'en-tête `Stripe-Signature` tel que Stripe le calcule.

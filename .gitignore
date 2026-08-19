@@ -10,3 +10,8 @@ __pycache__/
 # l'échantillon aplati et suffit à rejouer toute l'analyse hors ligne.
 tests/fixtures/france/spec009e_boamp_raw.json
 tests/fixtures/france/spec009e_decp2022_raw.json
+
+# Métadonnées NTFS produites par un transfert Windows → WSL. Elles accompagnent
+# chaque fichier copié depuis Windows, ne portent aucun contenu, et n'ont rien à
+# faire dans l'historique.
+*:Zone.Identifier

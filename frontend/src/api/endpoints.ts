@@ -1,0 +1,146 @@
+/* Les appels, un par point d'entrée du backend.
+ *
+ * Chaque fonction correspond à une route réelle de `src/signals/api/`. Aucune
+ * n'accepte ni ne transmet d'`account_id` : la propriété vient de la session
+ * côté serveur, et l'envoyer depuis le navigateur serait au mieux redondant,
+ * au pire une élévation de privilège.
+ */
+import { request } from './client'
+import type { QueryParams } from './client'
+import type {
+  BillingStatus,
+  CheckoutSession,
+  Currency,
+  FeedPage,
+  Freshness,
+  Locale,
+  Me,
+  NotificationPreference,
+  PlanCatalogue,
+  PurchasablePlan,
+  SignalDetail,
+  TargetIcp,
+  TargetIcpInput,
+  Interaction,
+  NegativeReason,
+  Relevance,
+} from './types'
+
+// ─── Authentification ────────────────────────────────────────────────────────
+
+export const auth = {
+  me: () => request<Me>('/me', { silentUnauthenticated: true }),
+
+  signup: (payload: {
+    email: string
+    password: string
+    company_name: string
+    locale: Locale
+  }) => request<Me>('/auth/signup', { method: 'POST', body: payload }),
+
+  login: (payload: { email: string; password: string }) =>
+    request<Me>('/auth/login', { method: 'POST', body: payload }),
+
+  logout: () => request<void>('/auth/logout', { method: 'POST' }),
+
+  requestPasswordReset: (email: string) =>
+    request<{ status: string }>('/auth/password-reset/request', {
+      method: 'POST',
+      body: { email },
+    }),
+
+  confirmPasswordReset: (payload: { reset_token: string; new_password: string }) =>
+    request<{ status: string }>('/auth/password-reset/confirm', {
+      method: 'POST',
+      body: payload,
+    }),
+}
+
+// ─── Profils de ciblage ──────────────────────────────────────────────────────
+
+export const icps = {
+  list: () => request<TargetIcp[]>('/target-icps'),
+
+  get: (id: string) => request<TargetIcp>(`/target-icps/${encodeURIComponent(id)}`),
+
+  create: (payload: { label: string; customer_input: TargetIcpInput }) =>
+    request<TargetIcp>('/target-icps', { method: 'POST', body: payload }),
+
+  update: (id: string, payload: { label?: string; customer_input?: TargetIcpInput }) =>
+    request<TargetIcp>(`/target-icps/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: payload,
+    }),
+}
+
+// ─── Signaux ─────────────────────────────────────────────────────────────────
+
+export interface FeedQuery extends QueryParams {
+  freshness?: Freshness
+  target_icp_id?: string | null
+  country?: string | null
+  winner?: string | null
+  limit?: number
+  offset?: number
+}
+
+export const signals = {
+  feed: (query: FeedQuery = {}) => request<FeedPage>('/signals', { query }),
+
+  detail: (signalKey: string) =>
+    request<SignalDetail>(`/signals/${encodeURIComponent(signalKey)}`),
+}
+
+// ─── Retour client ───────────────────────────────────────────────────────────
+
+interface FeedbackEnvelope {
+  signal_id: string
+  interaction: Interaction | null
+}
+
+export const feedback = {
+  read: (signalKey: string) =>
+    request<FeedbackEnvelope>(`/signals/${encodeURIComponent(signalKey)}/feedback`),
+
+  write: (
+    signalKey: string,
+    payload: { relevance: Relevance; reason?: NegativeReason | null; note?: string | null },
+  ) =>
+    request<FeedbackEnvelope>(`/signals/${encodeURIComponent(signalKey)}/feedback`, {
+      method: 'PUT',
+      body: payload,
+    }),
+
+  markContacted: (signalKey: string) =>
+    request<FeedbackEnvelope & { recorded: boolean }>(
+      `/signals/${encodeURIComponent(signalKey)}/contacted`,
+      { method: 'POST' },
+    ),
+}
+
+// ─── Facturation ─────────────────────────────────────────────────────────────
+
+export const billing = {
+  plans: () => request<PlanCatalogue>('/billing/plans'),
+
+  status: () => request<BillingStatus>('/billing/status'),
+
+  /** Le navigateur n'envoie QUE le plan et la devise. Aucun `price_id`, aucun
+   *  coupon, aucun drapeau fondateur : le serveur choisit le prix. */
+  checkout: (payload: { plan: PurchasablePlan; currency: Currency }) =>
+    request<CheckoutSession>('/billing/checkout', { method: 'POST', body: payload }),
+
+  portal: () => request<{ portal_url: string }>('/billing/portal', { method: 'POST' }),
+}
+
+// ─── Notifications ───────────────────────────────────────────────────────────
+
+export const notifications = {
+  read: () => request<NotificationPreference>('/notification-preferences'),
+
+  update: (payload: { email_enabled?: boolean; notification_email?: string | null }) =>
+    request<NotificationPreference>('/notification-preferences', {
+      method: 'PATCH',
+      body: payload,
+    }),
+}

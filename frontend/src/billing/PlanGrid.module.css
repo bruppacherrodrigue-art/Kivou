@@ -1,0 +1,123 @@
+.grid {
+  list-style: none;
+  display: grid;
+  gap: var(--kivou-space-4);
+}
+
+.cell {
+  display: flex;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-5);
+  width: 100%;
+  overflow: hidden;
+}
+
+/* La bande Forest Green de Pro : le plan recommandé est le centre visuel de la
+ * grille. */
+.recommended {
+  border-color: var(--kivou-action-primary);
+  padding-top: calc(var(--kivou-space-6) + 1.75rem);
+}
+
+.ribbon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: var(--kivou-space-2) var(--kivou-space-4);
+  background: var(--kivou-action-primary);
+  color: var(--kivou-text-inverse);
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.current {
+  border-color: var(--kivou-action-accent);
+  background: var(--kivou-select-bg);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-2);
+  align-items: flex-start;
+}
+
+.name {
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h3);
+  line-height: var(--kivou-leading-h3);
+  font-weight: var(--kivou-weight-regular);
+}
+
+.price {
+  display: flex;
+  align-items: baseline;
+  gap: var(--kivou-space-2);
+}
+
+.amount {
+  font-family: var(--kivou-font-display);
+  font-size: 2.25rem;
+  line-height: 1.1;
+  font-weight: var(--kivou-weight-regular);
+  color: var(--kivou-text-primary);
+}
+
+.interval {
+  font-size: var(--kivou-text-small);
+  color: var(--kivou-text-secondary);
+}
+
+.features {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+  flex: 1;
+  padding-top: var(--kivou-space-5);
+  border-top: 1px solid var(--kivou-border);
+}
+
+.features li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kivou-space-2);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.featureIcon {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  margin-top: 0.2rem;
+  color: var(--kivou-action-primary);
+}
+
+.action {
+  margin-top: auto;
+}
+
+@media (min-width: 640px) {
+  .grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1180px) {
+  .grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: stretch;
+  }
+}

@@ -1,0 +1,175 @@
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-2);
+}
+
+.label {
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-text-primary);
+}
+
+.optional {
+  font-weight: var(--kivou-weight-regular);
+  color: var(--kivou-text-muted);
+}
+
+.input {
+  width: 100%;
+  min-height: var(--kivou-control-height);
+  padding: 0 var(--kivou-space-4);
+  background: var(--kivou-bg-surface);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-sm);
+  color: var(--kivou-text-primary);
+  font-family: var(--kivou-font-sans);
+  /* 16px minimum : en dessous, iOS zoome à la mise au point du champ. */
+  font-size: var(--kivou-text-body);
+  line-height: 1.4;
+  transition: border-color var(--kivou-motion-base) var(--kivou-ease-standard);
+}
+
+.input::placeholder {
+  color: var(--kivou-text-muted);
+}
+
+.input:hover:not(:disabled) {
+  border-color: var(--kivou-border-strong);
+}
+
+.input:disabled {
+  background: var(--kivou-bg-subtle);
+  color: var(--kivou-text-muted);
+  cursor: not-allowed;
+}
+
+.inputInvalid {
+  border-color: var(--kivou-color-danger);
+}
+
+.select {
+  appearance: none;
+  padding-right: var(--kivou-space-10);
+  /* Chevron dessiné en CSS : pas d'icône externe pour un champ natif. */
+  background-image: linear-gradient(45deg, transparent 50%, var(--kivou-text-secondary) 50%),
+    linear-gradient(135deg, var(--kivou-text-secondary) 50%, transparent 50%);
+  background-position:
+    calc(100% - 20px) calc(50% + 2px),
+    calc(100% - 15px) calc(50% + 2px);
+  background-size:
+    5px 5px,
+    5px 5px;
+  background-repeat: no-repeat;
+}
+
+.textarea {
+  min-height: 6.5rem;
+  padding: var(--kivou-space-3) var(--kivou-space-4);
+  line-height: var(--kivou-leading-body);
+  resize: vertical;
+}
+
+.help {
+  margin: 0;
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kivou-space-2);
+  margin: 0;
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-color-danger);
+  font-weight: var(--kivou-weight-medium);
+}
+
+/* ── Groupes ─────────────────────────────────────────────────────────────── */
+.fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+}
+
+.legend {
+  padding: 0;
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-text-primary);
+}
+
+.options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-2);
+}
+
+.option {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kivou-space-2);
+  min-height: var(--kivou-control-height);
+  padding: var(--kivou-space-2) var(--kivou-space-4);
+  background: var(--kivou-bg-surface);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-pill);
+  font-size: var(--kivou-text-small);
+  cursor: pointer;
+  transition:
+    background-color var(--kivou-motion-base) var(--kivou-ease-standard),
+    border-color var(--kivou-motion-base) var(--kivou-ease-standard);
+}
+
+.option:hover {
+  border-color: var(--kivou-border-strong);
+}
+
+/* L'état sélectionné se lit à la bordure, au fond ET à la graisse — pas à la
+ * seule couleur (§38). La case cochée elle-même reste visible. */
+.optionChecked {
+  background: var(--kivou-nav-active-bg);
+  border-color: var(--kivou-action-primary);
+  font-weight: var(--kivou-weight-medium);
+}
+
+.checkbox {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--kivou-action-primary);
+  flex: none;
+  margin: 0;
+}
+
+/* ── Interrupteur ────────────────────────────────────────────────────────── */
+.switchRow {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kivou-space-3);
+}
+
+.switchInput {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.2rem;
+  accent-color: var(--kivou-action-primary);
+  flex: none;
+}
+
+.switchText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-1);
+}
+
+.switchLabel {
+  font-size: var(--kivou-text-body);
+  font-weight: var(--kivou-weight-medium);
+  cursor: pointer;
+}

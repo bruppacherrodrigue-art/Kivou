@@ -1,0 +1,55 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-6);
+  max-width: var(--kivou-container-reading);
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-6);
+}
+
+.cadence {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-1);
+  padding: var(--kivou-space-4) var(--kivou-space-5);
+  background: var(--kivou-bg-subtle);
+  border-radius: var(--kivou-radius-sm);
+}
+
+.cadenceLabel {
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kivou-text-muted);
+}
+
+.cadenceValue {
+  font-size: var(--kivou-text-h3);
+  line-height: var(--kivou-leading-h3);
+  font-weight: var(--kivou-weight-semibold);
+  color: var(--kivou-text-primary);
+}
+
+.cadenceHelp {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kivou-space-4);
+}
+
+.saved {
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-color-success);
+}

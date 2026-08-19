@@ -1,0 +1,132 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+}
+
+.title {
+  font-size: var(--kivou-text-h3);
+  line-height: var(--kivou-leading-h3);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.lead {
+  margin-top: var(--kivou-space-2);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-3);
+  margin: var(--kivou-space-5) 0 0;
+  padding: 0;
+  border: 0;
+}
+
+.choice,
+.reasonOption {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kivou-space-2);
+  min-height: var(--kivou-control-height);
+  padding: var(--kivou-space-2) var(--kivou-space-5);
+  background: var(--kivou-bg-surface);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-pill);
+  font-size: var(--kivou-text-small);
+  cursor: pointer;
+  transition:
+    background-color var(--kivou-motion-base) var(--kivou-ease-standard),
+    border-color var(--kivou-motion-base) var(--kivou-ease-standard);
+}
+
+.choice:hover,
+.reasonOption:hover {
+  border-color: var(--kivou-border-strong);
+}
+
+/* La sélection est portée par la bordure, le fond ET la graisse. Le bouton
+ * radio natif reste visible : l'état n'est jamais dans la seule couleur. */
+.choiceSelected,
+.reasonSelected {
+  background: var(--kivou-nav-active-bg);
+  border-color: var(--kivou-action-primary);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.radio {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--kivou-action-primary);
+}
+
+.reasons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-5);
+  margin-top: var(--kivou-space-5);
+  padding-top: var(--kivou-space-5);
+  border-top: 1px solid var(--kivou-border);
+}
+
+.reasonSet {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+}
+
+.reasonLegend {
+  padding: 0;
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+}
+
+.reasonOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-2);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kivou-space-4);
+  margin-top: var(--kivou-space-5);
+}
+
+.saved,
+.contactedState {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kivou-space-2);
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-color-success);
+}
+
+.contactedState {
+  margin-top: var(--kivou-space-5);
+}
+
+.savedIcon {
+  width: 1.0625rem;
+  height: 1.0625rem;
+  flex: none;
+}
+
+.error {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kivou-space-2);
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-color-danger);
+}

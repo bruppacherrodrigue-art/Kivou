@@ -1,0 +1,170 @@
+.button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kivou-space-2);
+  min-height: var(--kivou-control-height);
+  padding: 0 var(--kivou-space-5);
+  border: 1px solid transparent;
+  border-radius: var(--kivou-radius-sm);
+  font-family: var(--kivou-font-sans);
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  line-height: 1.2;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background-color var(--kivou-motion-base) var(--kivou-ease-standard),
+    border-color var(--kivou-motion-base) var(--kivou-ease-standard),
+    color var(--kivou-motion-base) var(--kivou-ease-standard);
+}
+
+.button:disabled {
+  cursor: not-allowed;
+}
+
+.lg {
+  min-height: var(--kivou-control-height-mobile);
+  padding: 0 var(--kivou-space-6);
+  font-size: var(--kivou-text-body);
+}
+
+.fullWidth {
+  width: 100%;
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+}
+
+.icon :global(svg) {
+  width: 1.125em;
+  height: 1.125em;
+}
+
+/* ── primary ─────────────────────────────────────────────────────────────── */
+.primary {
+  background: var(--kivou-action-primary);
+  color: var(--kivou-text-inverse);
+  border-color: var(--kivou-action-primary);
+}
+
+.primary:hover:not(:disabled) {
+  background: var(--kivou-action-primary-hover);
+  border-color: var(--kivou-action-primary-hover);
+}
+
+.primary:active:not(:disabled) {
+  background: var(--kivou-action-primary-hover);
+}
+
+/* L'état désactivé ne repose PAS sur la seule opacité (§45) : la surface, la
+ * bordure et le texte changent tous les trois. */
+.primary:disabled {
+  background: var(--kivou-bg-beige);
+  border-color: var(--kivou-border);
+  color: var(--kivou-text-muted);
+}
+
+/* ── secondary ───────────────────────────────────────────────────────────── */
+.secondary {
+  background: transparent;
+  color: var(--kivou-text-primary);
+  border-color: var(--kivou-border);
+}
+
+.secondary:hover:not(:disabled) {
+  background: var(--kivou-bg-subtle);
+  border-color: var(--kivou-border-strong);
+}
+
+.secondary:disabled {
+  color: var(--kivou-text-muted);
+  border-color: var(--kivou-border);
+  background: var(--kivou-bg-subtle);
+}
+
+/* ── ghost ───────────────────────────────────────────────────────────────── */
+.ghost {
+  background: var(--kivou-bg-surface);
+  color: var(--kivou-text-primary);
+  border-color: var(--kivou-border);
+}
+
+.ghost:hover:not(:disabled) {
+  background: var(--kivou-bg-subtle);
+}
+
+.ghost:disabled {
+  color: var(--kivou-text-muted);
+  background: var(--kivou-bg-subtle);
+}
+
+/* ── quiet ───────────────────────────────────────────────────────────────── */
+.quiet {
+  background: transparent;
+  color: var(--kivou-text-secondary);
+  border-color: transparent;
+  padding: 0 var(--kivou-space-3);
+}
+
+.quiet:hover:not(:disabled) {
+  background: var(--kivou-bg-subtle);
+  color: var(--kivou-text-primary);
+}
+
+.quiet:disabled {
+  color: var(--kivou-text-muted);
+}
+
+/* ── danger ──────────────────────────────────────────────────────────────── */
+.danger {
+  background: transparent;
+  color: var(--kivou-color-danger);
+  border-color: var(--kivou-color-danger);
+}
+
+.danger:hover:not(:disabled) {
+  background: var(--kivou-color-danger);
+  color: var(--kivou-text-inverse);
+}
+
+/* ── chargement ──────────────────────────────────────────────────────────── */
+.loading .label {
+  /* Le libellé reste en place et conserve la largeur du bouton ; seule sa
+   * visibilité change, ce qui évite le saut de mise en page. */
+  visibility: hidden;
+}
+
+.spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: spin 640ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-right-color: currentColor;
+    opacity: 0.5;
+  }
+}

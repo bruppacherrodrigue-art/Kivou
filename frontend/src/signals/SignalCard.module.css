@@ -1,0 +1,210 @@
+.card {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--kivou-space-4);
+  padding: var(--kivou-space-5);
+  background: var(--kivou-bg-surface);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-md);
+  transition:
+    border-color var(--kivou-motion-base) var(--kivou-ease-standard),
+    background-color var(--kivou-motion-base) var(--kivou-ease-standard);
+}
+
+/* Le survol reprend la sélection brass de la référence 04. Il n'est jamais le
+ * SEUL moyen d'accéder à une information : tout est déjà visible. */
+.card:hover {
+  border-color: var(--kivou-action-accent);
+  background: var(--kivou-select-bg);
+}
+
+/* Le focus du lien remonte sur la carte entière, sinon le contour ne cerne que
+ * le titre alors que toute la carte est cliquable. */
+.card:focus-within {
+  border-color: var(--kivou-action-accent);
+  outline: 2px solid var(--kivou-focus);
+  outline-offset: 3px;
+}
+
+.locked {
+  background: var(--kivou-bg-subtle);
+  /* Une bordure en tirets dit « incomplet » sans recourir à l'opacité, que la
+     directive §45 écarte pour communiquer un état verrouillé. */
+  border-style: dashed;
+}
+
+.avatar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: none;
+  border-radius: var(--kivou-radius-sm);
+  background: var(--kivou-action-primary);
+  color: var(--kivou-text-inverse);
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: 0.04em;
+}
+
+.avatarLocked {
+  background: var(--kivou-bg-beige);
+  color: var(--kivou-text-secondary);
+  border: 1px solid var(--kivou-border);
+}
+
+.lockIcon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-2);
+  min-width: 0;
+}
+
+.topRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kivou-space-2);
+}
+
+.company {
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-semibold);
+  color: var(--kivou-text-primary);
+}
+
+.title,
+.lockedTitle {
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h3);
+  line-height: var(--kivou-leading-h3);
+  font-weight: var(--kivou-weight-regular);
+  color: var(--kivou-text-primary);
+}
+
+.lockedTitle {
+  font-size: var(--kivou-text-body);
+  line-height: var(--kivou-leading-body);
+}
+
+.link {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* La zone cliquable couvre la carte entière — cible tactile large sans
+ * imbriquer un contrôle dans un autre. */
+.link::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.link:focus-visible {
+  outline: none;
+}
+
+.headline {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.meta {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kivou-space-1) var(--kivou-space-4);
+  font-size: var(--kivou-text-small);
+  color: var(--kivou-text-secondary);
+}
+
+.meta > li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kivou-space-1);
+}
+
+.metaLabel {
+  color: var(--kivou-text-muted);
+}
+
+.metaPlace {
+  gap: var(--kivou-space-1);
+}
+
+.metaIcon {
+  width: 0.9375rem;
+  height: 0.9375rem;
+  flex: none;
+}
+
+.aside {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-1);
+  padding-top: var(--kivou-space-3);
+  border-top: 1px solid var(--kivou-border);
+}
+
+.fitLabel {
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-semibold);
+  color: var(--kivou-action-primary);
+}
+
+.fitReason,
+.lockedPitch {
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  color: var(--kivou-text-secondary);
+}
+
+.seeSignal,
+.unlockLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kivou-space-1);
+  margin-top: var(--kivou-space-1);
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-action-primary);
+}
+
+.unlockLink {
+  /* Le lien du teaser doit rester au-dessus de la zone cliquable de la carte,
+     qui n'existe pas ici — mais l'ordre de pile est explicite pour éviter
+     toute surprise si la carte devient cliquable un jour. */
+  position: relative;
+  z-index: 1;
+  align-self: flex-start;
+  min-height: var(--kivou-control-height);
+  align-items: center;
+}
+
+@media (min-width: 900px) {
+  .card {
+    grid-template-columns: auto minmax(0, 1fr) minmax(11rem, 15rem);
+    align-items: start;
+  }
+
+  .aside {
+    grid-column: auto;
+    padding-top: 0;
+    padding-left: var(--kivou-space-5);
+    border-top: 0;
+    border-left: 1px solid var(--kivou-border);
+    align-items: flex-start;
+    text-align: left;
+  }
+}

@@ -1,0 +1,10 @@
+# Le pack de design est une source d'autorité FOURNIE : elle est suivie telle
+# qu'elle a été livrée, à l'octet près.
+#
+# Les directives emploient des retours à la ligne forts Markdown — deux espaces
+# en fin de ligne — dans leur bloc d'en-tête. `git diff --check` les signale
+# comme des espaces parasites, alors que les retirer fusionnerait ces lignes au
+# rendu et modifierait le document. L'exemption porte donc sur le pack entier :
+# nous ne sommes pas l'auteur de ces fichiers et nous ne leur appliquons pas
+# notre politique d'espaces.
+docs/designPattern/** -whitespace

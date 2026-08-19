@@ -1,0 +1,131 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-6);
+  max-width: var(--kivou-container-content);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--kivou-space-4);
+}
+
+.headerActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-2);
+}
+
+/* ── Filtres ─────────────────────────────────────────────────────────────── */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-6);
+  padding: var(--kivou-space-4) var(--kivou-space-5);
+  background: var(--kivou-bg-surface);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-md);
+}
+
+.filterGroup {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.filterLegend {
+  padding: 0;
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kivou-text-muted);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-2);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kivou-space-2);
+  min-height: var(--kivou-control-height);
+  padding: 0 var(--kivou-space-4);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-pill);
+  background: var(--kivou-bg-surface);
+  font-size: var(--kivou-text-small);
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--kivou-border-strong);
+}
+
+.chipActive {
+  background: var(--kivou-nav-active-bg);
+  border-color: var(--kivou-action-primary);
+  color: var(--kivou-action-primary);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.chipInput {
+  width: 0.875rem;
+  height: 0.875rem;
+  margin: 0;
+  accent-color: var(--kivou-action-primary);
+}
+
+.select {
+  min-height: var(--kivou-control-height);
+  min-width: 14rem;
+  padding: 0 var(--kivou-space-4);
+  background: var(--kivou-bg-surface);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-sm);
+  font-family: var(--kivou-font-sans);
+  font-size: var(--kivou-text-body);
+  color: var(--kivou-text-primary);
+}
+
+/* ── Liste ───────────────────────────────────────────────────────────────── */
+.count {
+  font-size: var(--kivou-text-small);
+  color: var(--kivou-text-secondary);
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+}
+
+.more {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--kivou-space-2);
+}
+
+.skeletonRow {
+  display: flex;
+  gap: var(--kivou-space-4);
+}
+
+.skeletonBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+  flex: 1;
+}

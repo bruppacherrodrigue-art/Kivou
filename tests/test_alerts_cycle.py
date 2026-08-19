@@ -525,6 +525,26 @@ def test_the_email_contains_a_deep_link_to_each_signal(app, engine, mailer):
         assert f"{PUBLIC_APP_URL}/signals/{key}" in body
 
 
+def test_the_deep_link_resolves_to_the_browser_signal_route(app, engine, mailer):
+    """CLOSEOUT §3 — le lien reçu par e-mail doit ouvrir la route du navigateur.
+
+    Le job construit `{base}/signals/{clé}` ; le routeur client sert
+    `/app/signals/{clé}`. La configuration de déploiement est donc responsable
+    d'inclure `/app` dans la base, et ce test épingle la valeur attendue pour
+    qu'un changement de préfixe ne casse pas les liens en silence.
+
+    Aucune sémantique d'alerte n'est modifiée ici : seule la FORME de la base
+    est vérifiée.
+    """
+    _, keys = subscriber(app, engine, plan="scale", count=1)
+    cycle(engine, mailer)
+
+    link = f"{PUBLIC_APP_URL}/signals/{keys[0]}"
+    assert link in mailer.last.text_body
+    # C'est bien la route cliente, pas la route publique.
+    assert "/app/signals/" in link
+
+
 def test_the_email_never_dumps_evidence(app, engine, mailer):
     subscriber(app, engine, plan="scale", count=2)
     cycle(engine, mailer)

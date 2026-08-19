@@ -1,0 +1,95 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-6);
+  max-width: var(--kivou-container-content);
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--kivou-space-4);
+}
+
+.limit {
+  font-size: var(--kivou-text-small);
+  color: var(--kivou-text-secondary);
+}
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+}
+
+.card,
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+}
+
+.cardHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kivou-space-3);
+}
+
+.cardTitle {
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h3);
+  line-height: var(--kivou-leading-h3);
+  font-weight: var(--kivou-weight-regular);
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-2);
+}
+
+.overLimitHelp {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.summary {
+  display: grid;
+  gap: var(--kivou-space-4);
+  margin: 0;
+  padding-top: var(--kivou-space-4);
+  border-top: 1px solid var(--kivou-border);
+}
+
+.summary dt {
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--kivou-text-muted);
+}
+
+.summary dd {
+  margin: 0;
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-primary);
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-3);
+}
+
+@media (min-width: 768px) {
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

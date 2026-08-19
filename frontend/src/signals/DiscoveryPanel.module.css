@@ -1,0 +1,50 @@
+/* Discret, pas un bandeau agressif (directive §15). */
+.panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kivou-space-5);
+  background: var(--kivou-bg-subtle);
+  border-left: 3px solid var(--kivou-action-accent);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-1);
+  min-width: 0;
+  flex: 1 1 20rem;
+}
+
+.title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kivou-space-2);
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kivou-text-secondary);
+}
+
+.icon {
+  width: 0.875rem;
+  height: 0.875rem;
+}
+
+.count {
+  font-size: var(--kivou-text-body);
+  color: var(--kivou-text-primary);
+}
+
+.remaining {
+  color: var(--kivou-text-secondary);
+}
+
+.note {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}

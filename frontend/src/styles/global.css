@@ -1,0 +1,107 @@
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--kivou-bg-canvas);
+  color: var(--kivou-text-primary);
+  font-family: var(--kivou-font-sans);
+  font-size: var(--kivou-text-body);
+  line-height: var(--kivou-leading-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote {
+  margin: 0;
+}
+
+ul,
+ol {
+  margin: 0;
+  padding: 0;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+/* Le focus est une signature de marque, pas un défaut de navigateur : contour
+ * brass 2px avec offset, comme kivou.tokens.css le pose.
+ *
+ * Le laiton seul plafonne à 2,87:1 sur l'ivoire, sous les 3:1 qu'exige SC 1.4.11
+ * pour un indicateur non textuel. Un halo d'encre extérieur porte le contraste
+ * requis SANS toucher à la couleur de marque : l'anneau reste brass, il est
+ * simplement cerné. */
+:focus-visible {
+  outline: 2px solid var(--kivou-focus);
+  outline-offset: 3px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 5px rgba(15, 29, 24, 0.28);
+}
+
+/* Chiffres tabulaires partout où un montant, une date ou un pourcentage doit
+ * s'aligner en colonne (docx §Composition et grille). */
+.kivou-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Visible pour un lecteur d'écran, invisible à l'œil — utilisé pour les
+ * légendes de tableau et les libellés que le design rend implicites. */
+.kivou-visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.kivou-skip-link {
+  position: absolute;
+  top: var(--kivou-space-2);
+  left: var(--kivou-space-2);
+  z-index: 100;
+  padding: var(--kivou-space-2) var(--kivou-space-4);
+  background: var(--kivou-bg-surface);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-sm);
+  color: var(--kivou-text-primary);
+  transform: translateY(-200%);
+}
+
+.kivou-skip-link:focus {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

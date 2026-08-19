@@ -73,9 +73,16 @@ class ApiConfig:
     stripe_mode: str = DEFAULT_STRIPE_MODE
     stripe_secret_key: str | None = None
     stripe_webhook_secret: str | None = None
-    stripe_success_url: str = "https://app.kivou.ch/billing/success"
-    stripe_cancel_url: str = "https://app.kivou.ch/billing/cancel"
-    stripe_portal_return_url: str = "https://app.kivou.ch/billing"
+    #: CLOSEOUT §3 — AUCUN défaut. Ces trois URL décident d'où revient un client
+    #: après avoir payé, et un défaut codé en dur les envoie sur le domaine que
+    #: le développeur avait en tête le jour où il l'a écrit. Le précédent
+    #: (`app.kivou.ch`) a survécu au changement de domaine produit sans que rien
+    #: ne le signale : c'est exactement la panne qu'un défaut silencieux
+    #: fabrique. Une absence se voit au démarrage ; un mauvais domaine ne se voit
+    #: qu'au premier paiement réel.
+    stripe_success_url: str | None = None
+    stripe_cancel_url: str | None = None
+    stripe_portal_return_url: str | None = None
     #: §29 — désactivée par défaut. La fiscalité est une décision, pas un défaut :
     #: l'activer sans immatriculation produirait des factures fausses.
     stripe_automatic_tax: bool = False
@@ -91,6 +98,15 @@ class ApiConfig:
     # ── alertes (SPEC-014) ───────────────────────────────────────────────────
     #: §22 — la base des liens profonds. `None` fait échouer l'envoi en douceur :
     #: les signaux restent en file plutôt que de partir avec un lien cassé.
+    #:
+    #: CLOSEOUT §3 — elle DOIT inclure le préfixe du routeur navigateur. Le job
+    #: d'alerte construit `{public_app_url}/signals/{signal_key}` ; la route
+    #: cliente est `/app/signals/{signal_key}`. La base attendue est donc
+    #: `https://<hôte>/app`, et non `https://<hôte>` — sinon le lien reçu par
+    #: e-mail tombe à côté du signal qu'il annonce.
+    #:
+    #:     KIVOU_PUBLIC_APP_URL=https://kivou.eu/app
+    #:       → https://kivou.eu/app/signals/{signal_key}
     public_app_url: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587
@@ -110,6 +126,19 @@ class ApiConfig:
         """Peut-on envoyer une alerte sans produire un lien cassé ?"""
         return bool(self.public_app_url and self.smtp_host and self.smtp_from_email)
 
+    @property
+    def billing_return_urls_configured(self) -> bool:
+        """Sait-on où renvoyer un client après un paiement ?
+
+        CLOSEOUT §3 — la facturation ne s'ouvre pas sans ces trois URL. Les
+        servir depuis un défaut reviendrait à choisir un domaine à la place de
+        l'exploitant, et un client reviendrait sur un hôte qui ne lui appartient
+        plus.
+        """
+        return bool(
+            self.stripe_success_url and self.stripe_cancel_url and self.stripe_portal_return_url
+        )
+
     @classmethod
     def from_environment(cls) -> ApiConfig:
         secure = os.environ.get(COOKIE_SECURE_ENV)
@@ -118,6 +147,28 @@ class ApiConfig:
             raise ValueError(f"{STRIPE_MODE_ENV} doit valoir {STRIPE_MODES}, pas {mode!r}")
         secret_key = os.environ.get(STRIPE_SECRET_KEY_ENV) or None
         _check_key_matches_mode(secret_key, mode)
+        success_url = _optional_url(STRIPE_SUCCESS_URL_ENV)
+        cancel_url = _optional_url(STRIPE_CANCEL_URL_ENV)
+        portal_return_url = _optional_url(STRIPE_PORTAL_RETURN_URL_ENV)
+        # CLOSEOUT §3 — une clé Stripe déclare l'INTENTION d'encaisser. À partir
+        # de là, ne pas savoir où renvoyer le client est une erreur de
+        # configuration, et elle doit s'entendre au démarrage plutôt qu'au
+        # premier paiement.
+        if secret_key is not None:
+            missing = [
+                name
+                for name, value in (
+                    (STRIPE_SUCCESS_URL_ENV, success_url),
+                    (STRIPE_CANCEL_URL_ENV, cancel_url),
+                    (STRIPE_PORTAL_RETURN_URL_ENV, portal_return_url),
+                )
+                if value is None
+            ]
+            if missing:
+                raise ValueError(
+                    "facturation activée sans URL de retour : "
+                    f"{', '.join(missing)} doivent être définies"
+                )
         return cls(
             session_ttl=_duration(SESSION_TTL_ENV, DEFAULT_SESSION_TTL),
             password_reset_ttl=_duration(RESET_TTL_ENV, DEFAULT_RESET_TTL),
@@ -126,11 +177,9 @@ class ApiConfig:
             stripe_mode=mode,
             stripe_secret_key=secret_key,
             stripe_webhook_secret=os.environ.get(STRIPE_WEBHOOK_SECRET_ENV) or None,
-            stripe_success_url=_url(STRIPE_SUCCESS_URL_ENV, cls.stripe_success_url),
-            stripe_cancel_url=_url(STRIPE_CANCEL_URL_ENV, cls.stripe_cancel_url),
-            stripe_portal_return_url=_url(
-                STRIPE_PORTAL_RETURN_URL_ENV, cls.stripe_portal_return_url
-            ),
+            stripe_success_url=success_url,
+            stripe_cancel_url=cancel_url,
+            stripe_portal_return_url=portal_return_url,
             stripe_automatic_tax=_flag(STRIPE_AUTOMATIC_TAX_ENV),
             stripe_founding_coupon_id=os.environ.get(STRIPE_FOUNDING_COUPON_ENV) or None,
             stripe_portal_configuration_id=(
@@ -150,9 +199,13 @@ class ApiConfig:
 def _optional_url(name: str) -> str | None:
     """Une URL publique facultative, mais forcément absolue et chiffrée.
 
-    §22 — les liens profonds des alertes en dérivent. Une base en `http://`
-    enverrait des clients sur un lien non chiffré ; mieux vaut refuser au
-    démarrage que le découvrir dans une boîte de réception.
+    §22 — les liens profonds des alertes en dérivent, et §13 les URL de retour
+    Stripe. Une base en `http://` enverrait des clients sur un lien non chiffré ;
+    mieux vaut refuser au démarrage que le découvrir dans une boîte de réception
+    ou après un paiement.
+
+    Elle n'est jamais lue depuis la requête : une URL de succès fournie par le
+    client transformerait le paiement en redirection ouverte.
     """
     value = os.environ.get(name)
     if not value:
@@ -166,19 +219,6 @@ def _flag(name: str) -> bool:
     """Un drapeau d'environnement. Absent vaut faux : aucun défaut permissif."""
     raw = os.environ.get(name)
     return bool(raw) and raw.lower() in {"1", "true", "yes"}
-
-
-def _url(name: str, default: str) -> str:
-    """Une URL de retour, forcément absolue et chiffrée.
-
-    §13 — elle vient de la configuration, jamais de la requête : une URL de
-    succès fournie par le client transformerait le paiement en redirection
-    ouverte.
-    """
-    value = os.environ.get(name) or default
-    if not value.startswith("https://"):
-        raise ValueError(f"{name} doit être une URL https absolue, pas {value!r}")
-    return value
 
 
 def _check_key_matches_mode(secret_key: str | None, mode: str) -> None:

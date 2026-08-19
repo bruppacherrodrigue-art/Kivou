@@ -1,0 +1,237 @@
+[
+  {
+    "screen": "01-landing",
+    "viewport": "desktop-1440",
+    "file": "01-landing--desktop-1440.png",
+    "text": "Aller au contenu principal\nKIVOU\nFR\nEN\nSignaux\nTransformez les marchés publics gagnés en opportunités B2B concrètes.\n\nKivou analyse les faits publics et les documents des marchés attribués, en extrait les exigences d’exécution, identifie des besoins plausibles et indique quand agir.\n\nDécouvrir mes signaux\nComprendre Kivou\n100 % fait public\nNous analysons les avis d’attribution officiels français, ",
+    "headings": [
+      "H1:Transformez les marchés publics gagnés e",
+      "H2:Du fait publié à la raison de contacter ",
+      "H3:Fait public",
+      "H3:Exigence documentaire",
+      "H3:Besoin plausible",
+      "H3:Timing",
+      "H3:Action",
+      "H2:Ce que Kivou affirme, et ce qu’il qualif"
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 1440,
+    "innerWidth": 1440
+  },
+  {
+    "screen": "01-landing",
+    "viewport": "mobile-390",
+    "file": "01-landing--mobile-390.png",
+    "text": "Aller au contenu principal\nKIVOU\nFR\nEN\nSignaux\nTransformez les marchés publics gagnés en opportunités B2B concrètes.\n\nKivou analyse les faits publics et les documents des marchés attribués, en extrait les exigences d’exécution, identifie des besoins plausibles et indique quand agir.\n\nDécouvrir mes signaux\nComprendre Kivou\n100 % fait public\nNous analysons les avis d’attribution officiels français, ",
+    "headings": [
+      "H1:Transformez les marchés publics gagnés e",
+      "H2:Du fait publié à la raison de contacter ",
+      "H3:Fait public",
+      "H3:Exigence documentaire",
+      "H3:Besoin plausible",
+      "H3:Timing",
+      "H3:Action",
+      "H2:Ce que Kivou affirme, et ce qu’il qualif"
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 390,
+    "innerWidth": 390
+  },
+  {
+    "screen": "04-feed-discovery",
+    "viewport": "desktop-1440",
+    "file": "04-feed-discovery--desktop-1440.png",
+    "text": "Aller au contenu principal\nKIVOU\nSignaux\nProfils de ciblage\nFacturation\nNotifications\nAM\nAcme Matériaux\nclaire.bernard@acme-materiaux.fr\nSe déconnecter\nSignaux récents\n\nDes opportunités détectées dans les faits publics et sourcées par Kivou.\n\nConfigurer mon profil\n\nVOTRE DÉCOUVERTE\n\n3 signaux réels débloqués\n\nCes déblocages sont acquis définitivement. Ils ne se renouvellent pas et n’expirent pas.\n",
+    "headings": [
+      "H1:Signaux récents",
+      "H2:Réfection de la voirie communale — lot 2",
+      "H2:Aménagement du pôle d’échanges multimoda",
+      "H2:Sanierung Kantonsstrasse — Los 3",
+      "H2:Un marché public vient d’être attribué.",
+      "H2:Un marché public vient d’être attribué."
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 1440,
+    "innerWidth": 1440
+  },
+  {
+    "screen": "04-feed-discovery",
+    "viewport": "tablet-768",
+    "file": "04-feed-discovery--tablet-768.png",
+    "text": "Aller au contenu principal\nKIVOU\nOuvrir le menu\nSignaux récents\n\nDes opportunités détectées dans les faits publics et sourcées par Kivou.\n\nConfigurer mon profil\n\nVOTRE DÉCOUVERTE\n\n3 signaux réels débloqués\n\nCes déblocages sont acquis définitivement. Ils ne se renouvellent pas et n’expirent pas.\n\nLes autres opportunités de votre flux restent verrouillées.\n\nVoir les offres\nFRAÎCHEUR\nNouveautés\nRécen",
+    "headings": [
+      "H1:Signaux récents",
+      "H2:Réfection de la voirie communale — lot 2",
+      "H2:Aménagement du pôle d’échanges multimoda",
+      "H2:Sanierung Kantonsstrasse — Los 3",
+      "H2:Un marché public vient d’être attribué.",
+      "H2:Un marché public vient d’être attribué."
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 768,
+    "innerWidth": 768
+  },
+  {
+    "screen": "04-feed-discovery",
+    "viewport": "mobile-390",
+    "file": "04-feed-discovery--mobile-390.png",
+    "text": "Aller au contenu principal\nKIVOU\nOuvrir le menu\nSignaux récents\n\nDes opportunités détectées dans les faits publics et sourcées par Kivou.\n\nConfigurer mon profil\n\nVOTRE DÉCOUVERTE\n\n3 signaux réels débloqués\n\nCes déblocages sont acquis définitivement. Ils ne se renouvellent pas et n’expirent pas.\n\nLes autres opportunités de votre flux restent verrouillées.\n\nVoir les offres\nFRAÎCHEUR\nNouveautés\nRécen",
+    "headings": [
+      "H1:Signaux récents",
+      "H2:Réfection de la voirie communale — lot 2",
+      "H2:Aménagement du pôle d’échanges multimoda",
+      "H2:Sanierung Kantonsstrasse — Los 3",
+      "H2:Un marché public vient d’être attribué.",
+      "H2:Un marché public vient d’être attribué."
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 390,
+    "innerWidth": 390
+  },
+  {
+    "screen": "05-signal-detail",
+    "viewport": "desktop-1440",
+    "file": "05-signal-detail--desktop-1440.png",
+    "text": "Aller au contenu principal\nKIVOU\nSignaux\nProfils de ciblage\nFacturation\nNotifications\nAM\nAcme Matériaux\nclaire.bernard@acme-materiaux.fr\nSe déconnecter\nRetour aux signaux\nConstructions Bertrand SA\nFR\nRéfection de la voirie communale — lot 2 : chaussées et trottoirs\n\nConstructions Bertrand SA vient de remporter un marché public.\n\nLa décision est récente : les besoins d’exécution se décident mainten",
+    "headings": [
+      "H1:Réfection de la voirie communale — lot 2",
+      "H2:Ce que la source officielle publie.",
+      "H2:Ce que Kivou déduit de ces faits. Des hy",
+      "H3:Besoins plausibles",
+      "H3:Lecture du contrat",
+      "H2:Chaque fait ci-dessous renvoie au docume",
+      "H3:Preuves des faits publiés",
+      "H3:Éléments ayant servi à l’analyse"
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 1440,
+    "innerWidth": 1440
+  },
+  {
+    "screen": "05-signal-detail",
+    "viewport": "mobile-390",
+    "file": "05-signal-detail--mobile-390.png",
+    "text": "Aller au contenu principal\nKIVOU\nOuvrir le menu\nRetour aux signaux\nConstructions Bertrand SA\nFR\nRéfection de la voirie communale — lot 2 : chaussées et trottoirs\n\nConstructions Bertrand SA vient de remporter un marché public.\n\nLa décision est récente : les besoins d’exécution se décident maintenant, avant le démarrage du chantier.\n\nLa date d’attribution est publiée par la source.\n\nFAITS PUBLICS\n\nC",
+    "headings": [
+      "H1:Réfection de la voirie communale — lot 2",
+      "H2:Ce que la source officielle publie.",
+      "H2:Ce que Kivou déduit de ces faits. Des hy",
+      "H3:Besoins plausibles",
+      "H3:Lecture du contrat",
+      "H2:Chaque fait ci-dessous renvoie au docume",
+      "H3:Preuves des faits publiés",
+      "H3:Éléments ayant servi à l’analyse"
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 390,
+    "innerWidth": 390
+  },
+  {
+    "screen": "06-signal-locked",
+    "viewport": "desktop-1440",
+    "file": "06-signal-locked--desktop-1440.png",
+    "text": "Aller au contenu principal\nKIVOU\nSignaux\nProfils de ciblage\nFacturation\nNotifications\nAM\nAcme Matériaux\nclaire.bernard@acme-materiaux.fr\nSe déconnecter\nRetour aux signaux\nVerrouillé\nUn marché public vient d’être attribué.\n\nLa décision est récente : les besoins d’exécution se décident maintenant.\n\nCe signal est verrouillé\n\nVotre offre actuelle ne donne pas accès à ce signal. Les offres payantes ouv",
+    "headings": [
+      "H1:Un marché public vient d’être attribué.",
+      "H2:Ce signal est verrouillé"
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 1440,
+    "innerWidth": 1440
+  },
+  {
+    "screen": "07-billing",
+    "viewport": "desktop-1440",
+    "file": "07-billing--desktop-1440.png",
+    "text": "Aller au contenu principal\nKIVOU\nSignaux\nProfils de ciblage\nFacturation\nNotifications\nAM\nAcme Matériaux\nclaire.bernard@acme-materiaux.fr\nSe déconnecter\nFacturation\n\nVotre offre, son statut, et la gestion de votre abonnement.\n\nVOTRE OFFRE\n\nDécouverte\n\nAucun abonnement\nDevise\n\nChoisissez la devise de facturation. Elle ne se déduit pas de votre langue.\n\nCHF\nEUR\nDécouverte\n\nGratuit\n\nVotre offre actuel",
+    "headings": [
+      "H1:Facturation",
+      "H3:Découverte",
+      "H3:Essential",
+      "H3:Pro",
+      "H3:Scale"
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 1440,
+    "innerWidth": 1440
+  },
+  {
+    "screen": "07-billing",
+    "viewport": "mobile-390",
+    "file": "07-billing--mobile-390.png",
+    "text": "Aller au contenu principal\nKIVOU\nOuvrir le menu\nFacturation\n\nVotre offre, son statut, et la gestion de votre abonnement.\n\nVOTRE OFFRE\n\nDécouverte\n\nAucun abonnement\nDevise\n\nChoisissez la devise de facturation. Elle ne se déduit pas de votre langue.\n\nCHF\nEUR\nDécouverte\n\nGratuit\n\nVotre offre actuelle\n1 profil de ciblage\n3 signaux réels débloqués définitivement\n1 territoire principal\nPas de fenêtre d’",
+    "headings": [
+      "H1:Facturation",
+      "H3:Découverte",
+      "H3:Essential",
+      "H3:Pro",
+      "H3:Scale"
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 390,
+    "innerWidth": 390
+  },
+  {
+    "screen": "08-notifications",
+    "viewport": "desktop-1440",
+    "file": "08-notifications--desktop-1440.png",
+    "text": "Aller au contenu principal\nKIVOU\nSignaux\nProfils de ciblage\nFacturation\nNotifications\nAM\nAcme Matériaux\nclaire.bernard@acme-materiaux.fr\nSe déconnecter\nNotifications\n\nLes alertes e-mail que Kivou peut vous envoyer, et à quelle adresse.\n\nRecevoir les alertes par e-mail\n\nVous pouvez les couper à tout moment sans changer d’offre.\n\nAdresse de réception\n\nElle peut différer de votre adresse de connexion",
+    "headings": [
+      "H1:Notifications"
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 1440,
+    "innerWidth": 1440
+  },
+  {
+    "screen": "09-icps",
+    "viewport": "desktop-1440",
+    "file": "09-icps--desktop-1440.png",
+    "text": "Aller au contenu principal\nKIVOU\nSignaux\nProfils de ciblage\nFacturation\nNotifications\nAM\nAcme Matériaux\nclaire.bernard@acme-materiaux.fr\nSe déconnecter\nProfils de ciblage\n\nUn profil décrit ce que vous vendez et où. Il détermine les signaux que vous recevez.\n\nCréer un profil\n\nProfils actifs : 1 / 1\n\nMatériaux — Occitanie\nPrêt pour les signaux\nCE QUE VOUS VENDEZ\nMatériaux et composants\nCORPS DE MÉTI",
+    "headings": [
+      "H1:Profils de ciblage",
+      "H2:Matériaux — Occitanie"
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 1440,
+    "innerWidth": 1440
+  },
+  {
+    "screen": "10-checkout-success",
+    "viewport": "desktop-1440",
+    "file": "10-checkout-success--desktop-1440.png",
+    "text": "Paiement en cours de confirmation\n\nVotre paiement a été transmis. Kivou attend la confirmation de son prestataire avant d’ouvrir votre accès. Cela prend généralement quelques secondes.\n\nActualiser\nVoir ma facturation",
+    "headings": [
+      "H1:Paiement en cours de confirmation"
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 1440,
+    "innerWidth": 1440
+  },
+  {
+    "screen": "11-onboarding",
+    "viewport": "desktop-1440",
+    "file": "11-onboarding--desktop-1440.png",
+    "text": "BIENVENUE DANS KIVOU\n\nConfigurer votre profil de ciblage\n\nCinq questions. Elles déterminent quels signaux vous recevrez.\n\nNom du profil\n\nPour vous y retrouver si vous en créez plusieurs.\n\nQue vendez-vous ?\n\nSélectionnez au moins une catégorie. Elle détermine les besoins qui vous sont remontés.\n\nMatériaux et composants\nLocation de matériel\nPersonnel et main-d’œuvre\nTransport et logistique\nSous-trai",
+    "headings": [
+      "H1:Configurer votre profil de ciblage"
+    ],
+    "h1count": 1,
+    "overflow": false,
+    "scrollWidth": 1440,
+    "innerWidth": 1440
+  }
+]

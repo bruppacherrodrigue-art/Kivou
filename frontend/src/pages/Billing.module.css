@@ -1,0 +1,106 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-6);
+  max-width: var(--kivou-container-content);
+}
+
+.statusCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+}
+
+.statusHead {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kivou-space-4);
+}
+
+.statusLabel {
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kivou-text-muted);
+}
+
+.statusPlan {
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h2);
+  line-height: var(--kivou-leading-h2);
+  font-weight: var(--kivou-weight-regular);
+}
+
+.statusLine {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.portal {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--kivou-space-3);
+  padding-top: var(--kivou-space-4);
+  border-top: 1px solid var(--kivou-border);
+}
+
+/* ── Devise ──────────────────────────────────────────────────────────────── */
+.currency {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+  margin: 0;
+  padding: var(--kivou-space-5);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-md);
+  background: var(--kivou-bg-surface);
+}
+
+.currencyLegend {
+  padding: 0 var(--kivou-space-2);
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.currencyHelp {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.currencyOptions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-2);
+}
+
+.currencyOption {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kivou-space-2);
+  min-height: var(--kivou-control-height);
+  padding: 0 var(--kivou-space-5);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-pill);
+  font-size: var(--kivou-text-small);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.currencySelected {
+  background: var(--kivou-nav-active-bg);
+  border-color: var(--kivou-action-primary);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.radio {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--kivou-action-primary);
+}

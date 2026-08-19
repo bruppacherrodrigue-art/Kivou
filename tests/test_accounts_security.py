@@ -30,7 +30,8 @@ from signals.accounts.tokens import token_hash
 from signals.api import SESSION_COOKIE_NAME, ApiConfig, create_app
 from signals.persistence.database import create_database_engine, migrate_to_latest
 
-ORIGIN = "https://app.kivou.ch"
+#: Origine synthétique pour la validation CSRF (CLOSEOUT §3).
+ORIGIN = "https://kivou.test"
 PASSWORD = "un-mot-de-passe-assez-long"
 EMAIL = "fondateur@negoce-romand.ch"
 
@@ -196,7 +197,7 @@ def test_the_cookie_is_marked_secure_when_configured(engine, clock: Clock):
         ApiConfig(cookie_secure=True, allowed_origin=ORIGIN),
         now_override=clock,
     )
-    with TestClient(app, headers={"Origin": ORIGIN}, base_url="https://app.kivou.ch") as secure:
+    with TestClient(app, headers={"Origin": ORIGIN}, base_url=ORIGIN) as secure:
         header = signup(secure).headers["set-cookie"].lower()
     assert "secure" in header
 

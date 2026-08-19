@@ -1,0 +1,154 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-6);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+}
+
+.sectionTitle {
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--kivou-text-secondary);
+}
+
+.note {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.groups {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-2);
+}
+
+.group {
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-sm);
+  background: var(--kivou-bg-surface);
+  overflow: hidden;
+}
+
+/* Les pièces qui étayent une HYPOTHÈSE ne se lisent pas comme celles qui
+ * établissent un fait : le liseré les distingue sans les dévaloriser. */
+.groupInferred {
+  border-left: 3px solid var(--kivou-action-accent);
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--kivou-space-3);
+  width: 100%;
+  min-height: var(--kivou-control-height);
+  padding: var(--kivou-space-3) var(--kivou-space-4);
+  border: 0;
+  background: transparent;
+  color: var(--kivou-text-primary);
+  font-family: var(--kivou-font-sans);
+  font-size: var(--kivou-text-small);
+  text-align: left;
+  cursor: pointer;
+}
+
+.trigger:hover {
+  background: var(--kivou-bg-subtle);
+}
+
+.triggerIcon {
+  width: 1.0625rem;
+  height: 1.0625rem;
+  flex: none;
+  color: var(--kivou-text-secondary);
+}
+
+.triggerLabel {
+  flex: 1;
+  min-width: 0;
+  font-weight: var(--kivou-weight-medium);
+}
+
+.triggerCount {
+  flex: none;
+  font-size: var(--kivou-text-micro);
+  color: var(--kivou-text-muted);
+}
+
+.chevron {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  color: var(--kivou-text-secondary);
+  transition: transform var(--kivou-motion-base) var(--kivou-ease-standard);
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.items {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+  padding: 0 var(--kivou-space-4) var(--kivou-space-4);
+  border-top: 1px solid var(--kivou-border);
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-2);
+  padding-top: var(--kivou-space-4);
+}
+
+.excerpt {
+  margin: 0;
+  padding-left: var(--kivou-space-4);
+  border-left: 2px solid var(--kivou-border);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-primary);
+  /* Le passage source n'est jamais tronqué sans possibilité de le lire en
+     entier (directive §22) : il s'affiche complet. */
+  overflow-wrap: anywhere;
+}
+
+.itemMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-1) var(--kivou-space-4);
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  color: var(--kivou-text-muted);
+}
+
+.itemSource {
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-text-secondary);
+}
+
+.sourceLink {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kivou-space-1);
+  align-self: flex-start;
+  min-height: var(--kivou-control-height);
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-action-primary);
+}
+
+.linkIcon {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}

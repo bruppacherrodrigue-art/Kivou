@@ -1,0 +1,107 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--kivou-bg-canvas);
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--kivou-bg-canvas);
+  border-bottom: 1px solid var(--kivou-border);
+}
+
+.headerInner {
+  max-width: var(--kivou-container-wide);
+  margin: 0 auto;
+  padding: var(--kivou-space-4) var(--kivou-gutter-mobile);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kivou-space-4);
+}
+
+.logoLink {
+  display: inline-flex;
+  text-decoration: none;
+  border-radius: var(--kivou-radius-sm);
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: var(--kivou-space-2);
+}
+
+.localeSwitch {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-pill);
+  background: var(--kivou-bg-surface);
+}
+
+.localeButton {
+  min-width: 2.75rem;
+  min-height: 2.25rem;
+  padding: 0 var(--kivou-space-2);
+  border: 0;
+  border-radius: var(--kivou-radius-pill);
+  background: transparent;
+  color: var(--kivou-text-secondary);
+  font-family: var(--kivou-font-sans);
+  font-size: var(--kivou-text-micro);
+  font-weight: var(--kivou-weight-medium);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+
+.localeActive {
+  background: var(--kivou-nav-active-bg);
+  color: var(--kivou-action-primary);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.footer {
+  margin-top: auto;
+  border-top: 1px solid var(--kivou-border);
+  background: var(--kivou-bg-surface);
+}
+
+.footerInner {
+  max-width: var(--kivou-container-content);
+  margin: 0 auto;
+  padding: var(--kivou-space-10) var(--kivou-gutter-mobile);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--kivou-space-6);
+}
+
+.footerBrand {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+}
+
+.footerTagline {
+  max-width: 34ch;
+  font-size: var(--kivou-text-small);
+  color: var(--kivou-text-secondary);
+}
+
+.footerLegal {
+  font-size: var(--kivou-text-small);
+  color: var(--kivou-text-muted);
+}
+
+@media (min-width: 768px) {
+  .headerInner,
+  .footerInner {
+    padding-left: var(--kivou-gutter-desktop);
+    padding-right: var(--kivou-gutter-desktop);
+  }
+}

@@ -38,7 +38,10 @@ MATERIALIZED_AT = RETRIEVED_AT
 MATERIALIZED_ON = dt.date(2026, 8, 18)
 
 PASSWORD = "un-mot-de-passe-assez-long"
-ORIGIN = "https://app.kivou.ch"
+#: CLOSEOUT §3 — origine SYNTHÉTIQUE pour la validation CSRF. Ce n'est pas une
+#: URL de retour, mais un nom d'hôte réel et obsolète laissé dans des fixtures
+#: finit par être recopié dans une documentation de déploiement.
+ORIGIN = "https://kivou.test"
 
 #: L'identifiant d'ICP de recherche de SPEC-010 — antérieur à tout compte.
 RESEARCH_ICP_ID = "icp-construction-inputs-ch-eu-v0"

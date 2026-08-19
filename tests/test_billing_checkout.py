@@ -19,7 +19,7 @@ import pathlib
 
 import pytest
 import sqlalchemy as sa
-from billing_helpers import FakeStripe, subscribe
+from billing_helpers import BILLING_RETURN_URLS, FakeStripe, subscribe
 from fastapi.testclient import TestClient
 from feed_helpers import ORIGIN, PASSWORD
 
@@ -55,6 +55,7 @@ def build(engine, stripe: FakeStripe, *, founding: frozenset[str] = frozenset(),
         session_ttl=dt.timedelta(days=365),
         stripe_mode="test",
         stripe_webhook_secret="whsec_test",
+        **BILLING_RETURN_URLS,
         **overrides,
     )
     return create_app(

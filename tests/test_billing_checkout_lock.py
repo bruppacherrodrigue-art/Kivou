@@ -23,6 +23,7 @@ import pathlib
 import pytest
 import sqlalchemy as sa
 from billing_helpers import (
+    BILLING_RETURN_URLS,
     TEST_WEBHOOK_SECRET,
     FakeStripe,
     event_payload,
@@ -85,6 +86,7 @@ def app(engine, stripe: FakeStripe, clock: Clock):
             session_ttl=dt.timedelta(days=365),
             stripe_mode="test",
             stripe_webhook_secret=TEST_WEBHOOK_SECRET,
+            **BILLING_RETURN_URLS,
         ),
         now_override=clock,
         stripe_gateway=stripe,

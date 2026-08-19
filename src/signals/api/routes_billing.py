@@ -46,6 +46,13 @@ def _billing_gateway(request: Request):
 
 def _configuration(request: Request) -> checkout.CheckoutConfiguration:
     config = request.app.state.config
+    # CLOSEOUT §3 — sans URL de retour, on ne SAIT PAS où renvoyer le client.
+    # Ouvrir quand même un paiement le laisserait au bout du parcours Stripe
+    # sans chemin de retour, ou le renverrait vers le domaine qu'un défaut aurait
+    # choisi à sa place. Le service se déclare indisponible : c'est exact, et
+    # c'est réparable par configuration.
+    if not config.billing_return_urls_configured:
+        raise api_error(503, "billing_unavailable", "facturation non configurée")
     return checkout.CheckoutConfiguration(
         success_url=config.stripe_success_url,
         cancel_url=config.stripe_cancel_url,

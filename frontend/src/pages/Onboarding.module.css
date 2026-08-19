@@ -1,0 +1,41 @@
+.page {
+  min-height: 100vh;
+  padding: var(--kivou-space-10) var(--kivou-gutter-mobile) var(--kivou-space-16);
+  background: var(--kivou-bg-canvas);
+}
+
+.inner {
+  max-width: 46rem;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-8);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-5);
+}
+
+.illustration {
+  width: min(280px, 70%);
+}
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-5);
+  align-items: stretch;
+}
+
+@media (min-width: 768px) {
+  .page {
+    padding-left: var(--kivou-gutter-desktop);
+    padding-right: var(--kivou-gutter-desktop);
+  }
+
+  .footer {
+    align-items: flex-start;
+  }
+}

@@ -1,0 +1,314 @@
+/* ── Hero ────────────────────────────────────────────────────────────────── */
+.hero {
+  border-bottom: 1px solid var(--kivou-border);
+  overflow: hidden;
+}
+
+.heroInner {
+  max-width: var(--kivou-container-wide);
+  margin: 0 auto;
+  padding: var(--kivou-space-12) var(--kivou-gutter-mobile);
+  display: grid;
+  gap: var(--kivou-space-10);
+}
+
+.heroText {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-6);
+  align-self: center;
+}
+
+.h1 {
+  /* La référence 02 pose le H1 sur trois lignes. À 15ch il en prenait cinq et
+     perdait la respiration éditoriale de la maquette. */
+  max-width: 21ch;
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-display-xl);
+  line-height: var(--kivou-leading-display-xl);
+  font-weight: var(--kivou-weight-regular);
+  color: var(--kivou-text-primary);
+}
+
+.heroLead {
+  max-width: 48ch;
+  font-size: var(--kivou-text-lg, 1.0625rem);
+  line-height: var(--kivou-leading-body);
+  color: var(--kivou-text-secondary);
+}
+
+.heroActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-3);
+}
+
+.proofs {
+  list-style: none;
+  display: grid;
+  gap: var(--kivou-space-5);
+  padding-top: var(--kivou-space-4);
+  border-top: 1px solid var(--kivou-border);
+}
+
+.proof {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kivou-space-3);
+}
+
+/* Pastille circulaire à bordure fine, exactement le traitement de la
+ * référence 02. */
+.proofIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-pill);
+  color: var(--kivou-action-accent);
+}
+
+.proofIcon svg {
+  width: 1.0625rem;
+  height: 1.0625rem;
+}
+
+.proofTitle {
+  display: block;
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.proofBody {
+  display: block;
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.heroMaterial {
+  /* La matière est un ACCENT : elle occupe la colonne droite en desktop et le
+     bas de section en mobile, jamais le fond d'un contenu. */
+  display: flex;
+  align-items: stretch;
+  min-height: 20rem;
+}
+
+@media (min-width: 1024px) {
+  .heroMaterial {
+    /* Sur desktop, la colonne de matière suit la hauteur du texte, comme dans
+       la référence où l'arche court sur toute la hauteur du hero. */
+    min-height: 30rem;
+  }
+}
+
+.heroIllustration {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--kivou-radius-lg);
+}
+
+/* ── Sections ────────────────────────────────────────────────────────────── */
+.section {
+  padding: var(--kivou-section-marketing) 0;
+  border-bottom: 1px solid var(--kivou-border);
+}
+
+.sectionSubtle {
+  background: var(--kivou-bg-subtle);
+}
+
+.sectionInner {
+  max-width: var(--kivou-container-content);
+  margin: 0 auto;
+  padding: 0 var(--kivou-gutter-mobile);
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-10);
+}
+
+/* ── Chaîne de valeur ────────────────────────────────────────────────────── */
+.chain {
+  list-style: none;
+  display: grid;
+  gap: var(--kivou-space-4);
+  counter-reset: chain;
+}
+
+.chainStep {
+  display: flex;
+}
+
+.chainCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+  width: 100%;
+}
+
+.chainNumber {
+  font-family: var(--kivou-font-sans);
+  font-size: var(--kivou-text-micro);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: 0.14em;
+  /* Pas de laiton ici : « le brass n'est pas une couleur de texte courant »
+     (directive §7.1), et 2,87:1 échouerait de toute façon en AA. */
+  color: var(--kivou-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.chainIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-sm);
+  color: var(--kivou-action-primary);
+  background: var(--kivou-bg-subtle);
+}
+
+.chainIcon svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.chainTitle {
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.chainBody {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+/* ── Fait / hypothèse ────────────────────────────────────────────────────── */
+.honesty {
+  display: grid;
+  gap: var(--kivou-space-5);
+}
+
+.honestyCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+}
+
+/* Traitement PROCHE mais DISTINCT : même card, liseré brass en plus. Une
+ * hypothèse ne doit jamais se lire comme un fait. */
+.honestyQualified {
+  border-left: 3px solid var(--kivou-action-accent);
+  background: var(--kivou-bg-canvas);
+}
+
+.honestyTitle {
+  font-size: var(--kivou-text-h3);
+  line-height: var(--kivou-leading-h3);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.honestyList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+}
+
+.honestyList li {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kivou-space-3);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.honestyIcon {
+  width: 1.0625rem;
+  height: 1.0625rem;
+  flex: none;
+  margin-top: 0.1rem;
+  color: var(--kivou-action-primary);
+}
+
+.honestyNote {
+  max-width: var(--kivou-container-reading);
+  padding: var(--kivou-space-5);
+  background: var(--kivou-bg-surface);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-md);
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h3);
+  line-height: 1.45;
+  color: var(--kivou-text-primary);
+}
+
+/* ── CTA ─────────────────────────────────────────────────────────────────── */
+.sectionCta {
+  border-bottom: 0;
+}
+
+.ctaInner {
+  max-width: var(--kivou-container-reading);
+  margin: 0 auto;
+  padding: 0 var(--kivou-gutter-mobile);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--kivou-space-5);
+  text-align: center;
+}
+
+.ctaTitle {
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-display-l);
+  line-height: var(--kivou-leading-display-l);
+  font-weight: var(--kivou-weight-regular);
+}
+
+.ctaBody {
+  color: var(--kivou-text-secondary);
+}
+
+/* ── Points d'arrêt ──────────────────────────────────────────────────────── */
+@media (min-width: 768px) {
+  .heroInner,
+  .sectionInner,
+  .ctaInner {
+    padding-left: var(--kivou-gutter-desktop);
+    padding-right: var(--kivou-gutter-desktop);
+  }
+
+  .proofs {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: var(--kivou-space-6);
+  }
+
+  .chain {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .honesty {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1024px) {
+  .heroInner {
+    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
+    padding-top: var(--kivou-space-16);
+    padding-bottom: var(--kivou-space-16);
+  }
+
+  .chain {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
