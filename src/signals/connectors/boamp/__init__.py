@@ -7,7 +7,7 @@ from signals.connectors.boamp.client import (
     BoampClient,
     award_query,
 )
-from signals.connectors.boamp.errors import BoampError, BoampHttpError
+from signals.connectors.boamp.errors import BoampError, BoampHttpError, BoampMalformedPayload
 from signals.connectors.boamp.parser import (
     AWARD_NATURES,
     BOAMP_ADAPTER_VERSION,
@@ -30,6 +30,7 @@ __all__ = [
     "BoampClient",
     "BoampError",
     "BoampHttpError",
+    "BoampMalformedPayload",
     "BoampUnsupportedPayload",
     "award_query",
     "parse_award_notice",

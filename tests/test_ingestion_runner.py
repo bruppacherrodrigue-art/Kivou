@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 import pathlib
 
 import pytest
@@ -9,7 +10,7 @@ import sqlalchemy as sa
 from signals.connectors.ted.errors import TedHttpError
 from signals.ingestion.pipeline import PipelineFailure, PipelineResult
 from signals.ingestion.runner import IngestionRunner, RunOptions
-from signals.ingestion.sources import AcquisitionFailure, AcquisitionResult
+from signals.ingestion.sources import AcquisitionFailure, AcquisitionResult, BoampSource
 from signals.ingestion.state import advance_checkpoint, load_checkpoint, start_run
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import ingestion_checkpoint, ingestion_run
@@ -279,3 +280,71 @@ def test_partial_acquisition_and_pipeline_progress_are_kept_in_the_run_audit(tmp
 
     assert pipeline_result.outcomes[0].counters.records_persisted == 2
     assert pipeline_result.outcomes[0].counters.signals_materialized == 1
+
+
+class _BoampRecordClient:
+    def __init__(self, record):
+        self.record = record
+
+    def fetch_awards_since(self, since, *, until=None, max_records=None):
+        yield self.record
+
+
+def test_safe_terminal_skip_allows_boamp_checkpoint_to_advance(tmp_path):
+    engine = _engine(tmp_path)
+    source = BoampSource(
+        _BoampRecordClient(
+            {"idweb": "unsupported", "donnees": json.dumps({"FNSimple": {}})}
+        )
+    )
+
+    result = IngestionRunner(
+        engine,
+        sources={"boamp": source},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("boamp",)))
+
+    assert result.exit_code == 0
+    assert result.outcomes[0].counters.records_rejected == 1
+    with engine.connect() as connection:
+        checkpoint = load_checkpoint(connection, source="boamp")
+    assert checkpoint is not None
+    assert checkpoint.window_end == NOW
+
+
+def test_malformed_boamp_retains_the_previous_successful_checkpoint(tmp_path):
+    engine = _engine(tmp_path)
+    previous_end = NOW - dt.timedelta(days=1)
+    with engine.begin() as connection:
+        start_run(
+            connection,
+            source="boamp",
+            started_at=previous_end,
+            dry_run=False,
+            run_id="boamp-seed",
+        )
+        advance_checkpoint(
+            connection,
+            source="boamp",
+            cursor={"window_end": previous_end.date().isoformat()},
+            window_end=previous_end,
+            completed_at=previous_end,
+        )
+    source = BoampSource(
+        _BoampRecordClient({"idweb": "malformed", "donnees": "{not-json"})
+    )
+
+    result = IngestionRunner(
+        engine,
+        sources={"boamp": source},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("boamp",)))
+
+    assert result.exit_code == 1
+    assert result.outcomes[0].error_category == "malformed"
+    with engine.connect() as connection:
+        checkpoint = load_checkpoint(connection, source="boamp")
+    assert checkpoint is not None
+    assert checkpoint.window_end == previous_end

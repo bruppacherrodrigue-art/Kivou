@@ -11,6 +11,12 @@ class BoampError(Exception):
     """Base class for operational BOAMP failures."""
 
 
+class BoampMalformedPayload(BoampError):
+    """A response that may become processable after a source or code repair."""
+
+    category: FailureCategory = "malformed"
+
+
 class BoampHttpError(BoampError):
     def __init__(
         self,

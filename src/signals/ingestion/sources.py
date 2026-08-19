@@ -4,7 +4,14 @@ import dataclasses
 import datetime as dt
 from typing import Any, Protocol
 
-from signals.connectors.boamp import BoampClient, BoampUnsupportedPayload, parse_award_notice
+from signals.connectors.boamp import (
+    BoampClient,
+    BoampMalformedPayload,
+    BoampUnsupportedPayload,
+    parse_award_notice,
+    payload_kind,
+    supported_payload,
+)
 from signals.connectors.decp import DecpClient, parse_contract
 from signals.connectors.simap import SimapClient
 from signals.connectors.simap import extract as extract_simap
@@ -145,11 +152,23 @@ class BoampSource:
                     complete = False
                     break
                 fetched += 1
+                kind = payload_kind(record)
+                if not supported_payload(record):
+                    if kind not in {"FNSimple", "MAPA"}:
+                        raise BoampMalformedPayload(
+                            f"BOAMP payload cannot be normalized (kind={kind})"
+                        )
+                    rejected += 1
+                    continue
                 try:
                     event, awards = parse_award_notice(record, retrieved_at=retrieved_at)
                 except BoampUnsupportedPayload:
                     rejected += 1
                     continue
+                if not awards:
+                    raise BoampMalformedPayload(
+                        "BOAMP eForms award notice contains no processable award"
+                    )
                 publications.append(AcquiredPublication(event, awards))
         except Exception as error:
             raise AcquisitionFailure(

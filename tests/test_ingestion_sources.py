@@ -45,6 +45,19 @@ class BoampStub:
         yield from records if max_records is None else records[:max_records]
 
 
+class UnsupportedBoampStub:
+    def fetch_awards_since(self, since, *, until=None, max_records=None):
+        yield {"idweb": "unsupported", "donnees": json.dumps({"FNSimple": {}})}
+
+
+class MalformedBoampStub:
+    def __init__(self, donnees):
+        self.donnees = donnees
+
+    def fetch_awards_since(self, since, *, until=None, max_records=None):
+        yield {"idweb": "malformed", "donnees": self.donnees}
+
+
 class DecpStub:
     def fetch_contracts_since(self, since, *, until=None, max_records=None):
         records = [LINKED_DECP]
@@ -132,6 +145,34 @@ def test_a_maximum_record_probe_is_explicitly_incomplete_when_more_data_exists()
     result = BoampSource(BoampStub()).acquire(WINDOW, retrieved_at=NOW, max_records=2)
     assert result.fetched == 2
     assert result.complete is False
+
+
+def test_recognized_non_eforms_boamp_is_a_safe_terminal_skip():
+    result = BoampSource(UnsupportedBoampStub()).acquire(WINDOW, retrieved_at=NOW)
+
+    assert result.complete is True
+    assert result.fetched == 1
+    assert result.accepted == 0
+    assert result.rejected == 1
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        "{not-json",
+        json.dumps({"EFORMS": {}}),
+        json.dumps({"EFORMS": {"ContractAwardNotice": {}}}),
+        json.dumps({"UNKNOWN_SOURCE_SCHEMA": {}}),
+    ],
+)
+def test_malformed_boamp_is_a_processing_failure_not_a_terminal_skip(payload):
+    with pytest.raises(AcquisitionFailure) as raised:
+        BoampSource(MalformedBoampStub(payload)).acquire(WINDOW, retrieved_at=NOW)
+
+    assert raised.value.category == "malformed"
+    assert raised.value.partial.complete is False
+    assert raised.value.partial.fetched == 1
+    assert raised.value.partial.rejected == 0
 
 
 def test_checkpoint_windows_apply_source_specific_overlap():
