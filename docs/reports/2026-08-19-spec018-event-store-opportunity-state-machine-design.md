@@ -98,21 +98,21 @@ state                       String(32)
 stream_version              Integer
 state_machine_version       String(64)
 
-signal_ref                  String(128)
-supplier_ref                String(128) nullable
-contact_ref                 String(128) nullable
-campaign_ref                String(128) nullable
+signal_ref                  String(256)
+supplier_ref                String(256) nullable
+contact_ref                 String(256) nullable
+campaign_ref                String(256) nullable
 
 decision                    String(16) nullable
 reason_codes                JSON
 confidence                  Numeric(5,4) nullable
 evidence_refs               JSON
 
-next_action                 String(64) nullable
+next_action                 String(100) nullable
 next_review_at              timezone-aware DateTime nullable
 retry_count                 Integer
 retry_at                    timezone-aware DateTime nullable
-last_error_category         String(64) nullable
+last_error_category         String(100) nullable
 
 policy_version              String(100) nullable
 skill_version               String(100) nullable
@@ -124,7 +124,7 @@ created_at                  timezone-aware DateTime
 updated_at                  timezone-aware DateTime
 ```
 
-`identity_key` is supplied by a future acquisition service and never recomputed. The store creates an internal `acq_<uuid hex>` ID through an injectable ID factory so tests remain deterministic. Creation requires `signal_ref`; supplier/contact/campaign references remain nullable opaque references. No future entity table is invented.
+`identity_key` is supplied by a future acquisition service and never recomputed. The store creates an internal UUID-hex ID through an injectable ID factory so tests remain deterministic. Creation requires `signal_ref`; supplier/contact/campaign references remain nullable opaque references. No future entity table is invented.
 
 Indexes are limited to `identity_key UNIQUE`, `state`, `next_review_at`, and `retry_at`.
 
@@ -155,6 +155,7 @@ evidence_refs               JSON
 policy_version              String(100) nullable
 skill_version               String(100) nullable
 supervisor_version          String(100) nullable
+confidence                  Numeric(5,4) nullable
 estimated_cost              Numeric(18,6) nullable
 payload                     JSON
 ```
@@ -223,7 +224,7 @@ REVIEW → REVIEW
 SEND → SEND
 ```
 
-`record_decision()` records a supplied decision and never computes one. HOLD requires non-empty reason codes and `next_review_at`. `NO_SEND` accepts state-neutral audit events only and cannot re-enter send workflow. `CHURNED` is terminal.
+`record_decision()` records a supplied decision and never computes one. HOLD requires non-empty reason codes and `next_review_at`. `NO_SEND` cannot re-enter the send workflow; advisory audit/retry metadata may still be recorded without changing state. `CHURNED` is terminal.
 
 ## Out-of-order post-send outcomes
 
@@ -248,8 +249,8 @@ The rebuild test preserves the `RESTRICT` foreign key. It corrupts mutable proje
 Every mutation uses one bounded transaction. For an existing opportunity:
 
 ```text
-1. resolve prior idempotency key
-2. load projection
+1. load projection
+2. resolve prior idempotency key within that opportunity
 3. require expected_version
 4. validate and reduce purely
 5. conditional projection update WHERE stream_version = expected_version
@@ -263,7 +264,7 @@ Creation writes projection and `OPPORTUNITY_CREATED` within the same transaction
 
 ## Idempotency
 
-Every event operation requires an `idempotency_key`. Replay lookup is scoped by `(acquisition_opportunity_id, idempotency_key)`. A canonical semantic fingerprint covers opportunity, event type, actor, occurrence time, reasons, evidence, provenance versions, state-machine version, cost, and validated payload; it excludes expected version, generated event ID, and recorded time.
+Every event operation requires an `idempotency_key`. Replay lookup is scoped by `(acquisition_opportunity_id, idempotency_key)`. A canonical semantic fingerprint covers event type, actor, explicitly supplied occurrence time, reasons, evidence, provenance versions, state-machine version, cost, and validated payload; opportunity scope comes from the database uniqueness key. It excludes expected version, generated event ID, and recorded time. When callers omit occurrence time, the store-generated clock value is deliberately excluded so an ordinary retry remains idempotent.
 
 ```text
 same opportunity + same key + same fingerprint
@@ -319,7 +320,7 @@ estimated_cost: >= 0
 
 ## Retry persistence
 
-`schedule_retry()` appends `RETRY_SCHEDULED` and persists incremented `retry_count`, `retry_at`, `last_error_category`, and validated `next_action`. It stores no raw stack trace. No retry worker, replay daemon, or DLQ is created.
+`schedule_retry()` appends `RETRY_SCHEDULED` and persists incremented `retry_count`, `retry_at`, and `last_error_category`. `set_next_action()` separately persists a validated Kivou command name. Neither stores raw stack traces. No retry worker, replay daemon, or DLQ is created.
 
 ## Hermes Shadow plan audit
 

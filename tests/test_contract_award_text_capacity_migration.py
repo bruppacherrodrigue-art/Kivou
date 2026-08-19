@@ -13,6 +13,7 @@ from signals.persistence.schema import contract_award, source_event
 
 PREVIOUS_REVISION = "0005_ingestion_runtime"
 CAPACITY_REVISION = "0006_award_text_capacity"
+CURRENT_HEAD = "0007_acquisition_event_store"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -70,20 +71,21 @@ def test_upgrade_from_0005_preserves_existing_long_contract_reference(tmp_path):
                 contract_award.c.award_key == "existing-award"
             )
         ).scalar_one()
-    assert current_revision(engine) == CAPACITY_REVISION
+    assert current_revision(engine) == CURRENT_HEAD
     assert isinstance(columns["contract_reference"], sa.Text)
     assert stored == REAL_BOAMP_CONTRACT_REFERENCE
 
 
-def test_fresh_database_reaches_the_single_linear_capacity_head(tmp_path):
+def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'fresh.db'}")
     config = alembic_config(engine)
     command.upgrade(config, "head")
 
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == [CAPACITY_REVISION]
+    assert script.get_heads() == [CURRENT_HEAD]
     assert script.get_revision(CAPACITY_REVISION).down_revision == PREVIOUS_REVISION
-    assert current_revision(engine) == CAPACITY_REVISION
+    assert script.get_revision(CURRENT_HEAD).down_revision == CAPACITY_REVISION
+    assert current_revision(engine) == CURRENT_HEAD
 
 
 def test_every_alembic_revision_fits_the_standard_version_table_and_resolves(tmp_path):
@@ -94,7 +96,7 @@ def test_every_alembic_revision_fits_the_standard_version_table_and_resolves(tmp
     assert revisions
     assert all(len(item.revision) <= 32 for item in revisions)
     assert len({item.revision for item in revisions}) == len(revisions)
-    assert script.get_heads() == [CAPACITY_REVISION]
+    assert script.get_heads() == [CURRENT_HEAD]
     for item in revisions:
         parents = item.down_revision
         if parents is None:
@@ -108,7 +110,7 @@ def test_capacity_revision_is_a_short_linear_child_of_ingestion(tmp_path):
     script = ScriptDirectory.from_config(alembic_config(engine))
 
     assert len(CAPACITY_REVISION) <= 32
-    assert script.get_heads() == [CAPACITY_REVISION]
+    assert script.get_heads() == [CURRENT_HEAD]
     assert script.get_revision(CAPACITY_REVISION).down_revision == PREVIOUS_REVISION
 
 
