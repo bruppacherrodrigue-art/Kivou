@@ -38,6 +38,19 @@ resolved opportunities, ran the approved engines for active customer ICPs, and e
 result through the existing feed. DECP also had an approved normalizer but no production HTTP
 client. SPEC-016A supplies this missing composition, not a new inference engine.
 
+## Files and modules added
+
+- `signals.ingestion`: production CLI, source dispatch, window policy, checkpoint/run state,
+  orchestration pipeline, failure isolation, and persisted France sibling lookup.
+- `signals.connectors.decp.client` and `signals.connectors.decp.errors`: minimal public
+  Opendatasoft acquisition and typed operational failures around the unchanged DECP parser.
+- `signals.connectors.boamp.errors`: typed BOAMP operational failures; normalization is unchanged.
+- `signals.persistence.materialization.persist_award_facts()`: the existing fact/opportunity
+  persistence steps exposed independently from customer matching.
+- Alembic `0005_ingestion_runtime`: additive `ingestion_checkpoint` and `ingestion_run` tables.
+- Deterministic ingestion tests: CLI, four-source dispatch, migration, checkpoints, partial
+  failure, idempotence, restart, linkage/conflict, TargetICP materialization, and feed E2E.
+
 ## Production CLI
 
 Normal run:
@@ -65,12 +78,12 @@ remaining selected sources from running.
 
 ## Source behavior
 
-| Source | Adapter/window | Overlap | Retry/rate-limit behavior | Recommended cadence | Live smoke |
-|---|---|---|---|---|---|
-| SIMAP | Existing rolling `lastItem` search across all approved award families; publication detail mapping | 3 days | finite 30 s client timeout; transient failures retry twice with 1 s/2 s backoff | every 2 hours | PASS: 2 current references fetched and normalized |
-| BOAMP | Existing Opendatasoft `dateparution` window, stable `(dateparution,idweb)` ordering and offset pages | 7 days | finite 60 s timeout; typed timeout/network/429/5xx/4xx/malformed failures; no retry after 429 | every 2 hours | PASS: 2 records fetched and normalized |
-| DECP | New minimal client for approved `decp-2022-marches-valides`; `datepublicationdonnees` window and stable `(date,id)` ordering | 30 days | finite 60 s timeout; same typed bounded operational failures; no retry after 429 | every 12 hours (source is normally updated daily) | PASS: 2 records fetched and normalized |
-| TED | Existing Search API and XML/parser path; explicit publication window, descending stable publication number, 250-row pages and 20-page safety cap | 3 days | finite 30 s timeout; bounded transient retries; immediate stop on 429; checkpoint retained on any incomplete window or truncated API total | daily, off-peak; do not run concurrently | PARTIAL: Search API PASS; XML link returned AWS WAF challenge HTTP 202 from this WSL network, so normalization could not be live-validated here. Frozen real XML passes deterministic E2E. |
+| Source | Adapter/window | Overlap | Retry/rate-limit behavior | Checkpoint behavior | Recommended cadence | Live smoke |
+|---|---|---|---|---|---|---|
+| SIMAP | Existing rolling `lastItem` search across all approved award families; publication detail mapping | 3 days | finite 30 s client timeout; transient failures retry twice with 1 s/2 s backoff | advances only after every selected family and detail completes; page-cap/error retains prior window | every 2 hours | **NETWORK/PARSER SMOKE PASS**: 2 current references fetched and normalized |
+| BOAMP | Existing Opendatasoft `dateparution` window, stable `(dateparution,idweb)` ordering and offset pages | 7 days | finite 60 s timeout; typed timeout/network/429/5xx/4xx/malformed failures; no retry after 429 | advances only after complete acquisition and persistence; partial/error retains prior window | every 2 hours | **NETWORK/PARSER SMOKE PASS**: 2 records fetched and normalized |
+| DECP | New minimal client for approved `decp-2022-marches-valides`; `datepublicationdonnees` window and stable `(date,id)` ordering | 30 days | finite 60 s timeout; same typed bounded operational failures; no retry after 429 | advances only after complete acquisition and persistence; partial/error retains prior window | every 12 hours (source is normally updated daily) | **NETWORK/PARSER SMOKE PASS**: 2 records fetched and normalized in the source-appropriate 30-day window |
+| TED | Existing Search API and XML/parser path; explicit publication window, descending stable publication number, 250-row pages and 20-page safety cap | 3 days | finite 30 s timeout; bounded transient retries; immediate stop on 429 | advances only after announced total and every XML complete; truncation/429/error retains prior window | daily, off-peak; do not run concurrently | **NETWORK/PARSER SMOKE PASS**: 2 current notices searched, downloaded as XML, and normalized; an earlier HTTP 202 WAF response was transient |
 
 The overlap deliberately re-reads recent source days. Existing deterministic keys and database
 constraints absorb duplicates. Explicitly bounded probes cannot advance a checkpoint when more
@@ -120,6 +133,11 @@ Offline CI tests prove:
 - BOAMP first, strongly linked DECP later keeps the same opportunity and logical signal;
 - identifier-only DECP representation remains customer-safe through the existing named BOAMP
   sibling fallback;
+- winner-name readiness remains the existing feed decision: identifier-only DECP facts do not
+  become a named customer lead merely because ingestion persisted them;
+- `award_date`, `contract_notification_date`, `publication_date`, and `discovered_at` remain
+  separate inputs to the unchanged multi-clock recency policy;
+- Evidence persistence and source/inference semantics remain the existing materialization policy;
 - two already-separated strong candidates remain an explicit conflict and three separate
   opportunities, never an auto-merge;
 - TED 429 leaves its checkpoint unchanged while SIMAP, BOAMP, and DECP complete;
@@ -194,5 +212,5 @@ design commit: b56f5a2
 implementation commit: d5f242c57dfc5ec947572d9ad5ad80d02d9c0d14
 draft PR: https://github.com/bruppacherrodrigue-art/Kivou/pull/7
 git status --porcelain: clean after report finalization commit
-git diff --stat against origin/main: 34 files changed, 3538 insertions, 25 deletions
+git diff --stat against origin/main: 34 files changed, 3556 insertions, 25 deletions
 ```
