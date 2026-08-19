@@ -257,7 +257,22 @@ Full local gates:
 
 ## GitHub CI
 
-Code-bearing CI is pending at the time of this first report commit. The report will be updated with the PR, head SHA, Actions run ID, and backend/frontend job results after GitHub completes.
+Draft PR: `#9`, targeting `main` from `fix/spec016a-live-data-hardening`.
+
+Validated code-bearing head:
+
+```text
+28e61025c3735a363db9a358da7809e144cd3c15
+```
+
+GitHub Actions run `32288489951` completed successfully:
+
+| Job | Result |
+|---|---|
+| Backend (Python 3.12 · uv) | PASS — `2821 passed`, `0 skipped`; Ruff PASS |
+| Frontend (Node 24 · npm) | PASS — `84 passed`; build, typecheck, and lint PASS |
+
+The only branch change after this validated code-bearing head is this report-only CI closeout. No executable code, test, migration, profile, dependency, or configuration changed after the successful run.
 
 ## Files changed
 
@@ -306,6 +321,6 @@ Staged diff before the code-bearing commit:
 
 The staged scope contains exactly the three report documents, five application/migration files plus the DECP exports/errors, and the deterministic/migration test updates listed above. `git status --porcelain` contains only these explicitly staged SPEC-016A-R1 paths; there are no unstaged or unrelated files in the isolated worktree.
 
-Post-commit status and the immutable code-bearing SHA are recorded in the CI section after publication.
+The immutable code-bearing commit is `28e61025c3735a363db9a358da7809e144cd3c15`. `git status --porcelain` was empty immediately after that commit and before this report-only CI closeout. The branch was pushed normally; PR `#9` remains a draft and was not merged.
 
-LIVE INGESTION HARDENING PARTIALLY READY
+LIVE INGESTION HARDENING READY
