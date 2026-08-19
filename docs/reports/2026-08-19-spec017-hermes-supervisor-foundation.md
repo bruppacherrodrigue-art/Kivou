@@ -1,8 +1,11 @@
 # SPEC-017 — Hermes Supervisor Foundation
 
-Date: 2026-08-19  
-Branch: `feat/spec017-hermes-supervisor-foundation`  
-Base: `origin/main` at `5df7e32eed7d41e1d25500c112cb4ac4bda87e99`  
+Date: 2026-08-19
+
+Branch: `feat/spec017-hermes-supervisor-foundation`
+
+Base: `origin/main` at `5df7e32eed7d41e1d25500c112cb4ac4bda87e99`
+
 Runtime mode: `SHADOW`
 
 ## Result
