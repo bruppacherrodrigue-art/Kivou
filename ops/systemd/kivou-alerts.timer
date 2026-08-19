@@ -1,3 +1,11 @@
+# ATTENTION — n'activer cette minuterie qu'une fois SMTP configuré.
+#
+# Sans SMTP, le job sort en code 2 à chaque déclenchement. L'unité serait
+# alors perpétuellement « failed », et la surveillance des unités en échec
+# (§40) ne distinguerait plus une vraie panne d'un état attendu. Une alerte qui
+# crie en permanence n'alerte plus de rien.
+#
+#   sudo systemctl enable --now kivou-alerts.timer   ← après configuration SMTP
 [Unit]
 Description=Kivou — déclenche le cycle d'alertes
 

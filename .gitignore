@@ -28,6 +28,14 @@ htmlcov/
 *.db
 *.bak
 
+# ── Métadonnées de connexion locales ─────────────────────────────────────────
+# `ops/local/` porte l'adresse, l'utilisateur et le chemin de clé du serveur de
+# staging. Ce n'est pas un secret cryptographique, mais c'est une carte de la
+# cible. La règle vit ici, dans le dépôt : une exclusion posée seulement dans
+# `.git/info/exclude` ne survivrait pas à un clone, et le premier `git add`
+# d'un nouveau poste publierait le fichier.
+ops/local/
+
 # ── Frontend ─────────────────────────────────────────────────────────────────
 # `frontend/.gitignore` les couvre déjà ; répétés ici pour que la garantie tienne
 # depuis la racine, quel que soit le sous-dossier depuis lequel on ajoute.

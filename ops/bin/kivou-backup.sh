@@ -16,6 +16,11 @@ TARGET="${BACKUP_DIR}/kivou-${STAMP}.dump"
 
 : "${KIVOU_DATABASE_URL:?KIVOU_DATABASE_URL doit être défini}"
 
+# `KIVOU_DATABASE_URL` est une URL SQLAlchemy : elle nomme le PILOTE Python
+# (`postgresql+psycopg://`). `pg_dump` ne connaît pas cette forme et refuse de
+# l'ouvrir. On la ramène donc à l'URL libpq standard.
+PG_URL="$(printf '%s' "${KIVOU_DATABASE_URL}" | sed -E 's#^postgresql\+[a-z0-9_]+://#postgresql://#')"
+
 mkdir -p "${BACKUP_DIR}"
 # La sauvegarde contient TOUTES les données client : personne d'autre ne la lit.
 chmod 700 "${BACKUP_DIR}"
@@ -32,7 +37,7 @@ log "sauvegarde vers ${TARGET}"
 # Format `custom` : compressé, et restaurable sélectivement par pg_restore.
 # `--no-owner`/`--no-privileges` : la restauration vise une base jetable dont
 # les rôles n'ont aucune raison d'exister.
-pg_dump --dbname="${KIVOU_DATABASE_URL}" \
+pg_dump --dbname="${PG_URL}" \
         --format=custom \
         --no-owner \
         --no-privileges \

@@ -18,8 +18,15 @@ EnvironmentFile=/etc/kivou/staging.env
 # `flock` sans attente : si le cycle précédent tourne encore, celui-ci renonce
 # au lieu de doubler les envois (§36). L'idempotence du job protège déjà contre
 # le double envoi ; ce verrou évite en plus le travail inutile et la contention.
+# `--database-url` est OBLIGATOIRE : le CLI ne lit pas l'environnement pour la
+# base, il l'exige en argument. Une première version l'omettait et le service
+# échouait en `2/INVALIDARGUMENT` à chaque déclenchement.
+#
+# Le job refuse de lui-même d'envoyer quoi que ce soit tant que
+# `alerts_configured` est faux — c'est-à-dire tant que SMTP n'est pas
+# configuré. Il sort alors en code 2 sans rien émettre.
 ExecStart=/usr/bin/flock --nonblock /srv/kivou/run/alerts.lock \
-    /srv/kivou/app/.venv/bin/python -m signals.alerts
+    /srv/kivou/app/.venv/bin/python -m signals.alerts --database-url ${KIVOU_DATABASE_URL}
 
 StandardOutput=journal
 StandardError=journal

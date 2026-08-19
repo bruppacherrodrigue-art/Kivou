@@ -5,9 +5,13 @@ serveur, et **rien qui soit secret**. Les gabarits portent des marqueurs à
 remplacer ; les valeurs réelles vivent dans `/etc/kivou/staging.env`, hors de
 Git.
 
-> **Statut au 19 août 2026 :** aucun déploiement n'a eu lieu. Le VPS dédié et le
-> domaine `kivou.eu` n'existent pas encore. Ces fichiers sont prêts et testés en
-> local ; ils attendent l'infrastructure.
+> **Statut au 19 août 2026 :** déployé sur `kivou-staging-01`, au SHA `5102348`. L'application tourne, la base est
+> migrée, les sondes sont vertes et la restauration de sauvegarde est vérifiée.
+>
+> **TLS bloqué :** les ports 80 et 443 sont filtrés en amont de la machine par
+> le pare-feu Infomaniak Public Cloud. Seul 22 est ouvert. Tant que le groupe de
+> sécurité OpenStack n'autorise pas 80/443 en entrée, Let's Encrypt ne peut pas
+> valider et le site reste inaccessible publiquement.
 
 ---
 
@@ -73,7 +77,10 @@ sudo -u kivou git clone https://github.com/bruppacherrodrigue-art/Kivou.git /srv
 cd /srv/kivou/app && sudo -u kivou git checkout <SHA>
 
 # 5. Dépendances et build
-sudo -u kivou uv sync --locked
+#    `--extra server` est OBLIGATOIRE : uvicorn est une dépendance optionnelle,
+#    et `uv sync --locked` seul ne l'installe pas. Sans lui, le service échoue
+#    en 203/EXEC — l'exécutable n'existe pas.
+sudo -u kivou uv sync --locked --extra server
 cd frontend && sudo -u kivou npm ci && sudo -u kivou npm run build
 sudo rsync -a --delete frontend/dist/ /srv/kivou/frontend/
 
@@ -86,6 +93,7 @@ sudo -u kivou env $(grep -v '^#' /etc/kivou/staging.env | xargs) \
 # 7. Services
 sudo cp ops/systemd/*.service ops/systemd/*.timer /etc/systemd/system/
 sudo cp ops/nginx/kivou-proxy-params.conf /etc/nginx/
+sudo cp ops/nginx/kivou-security-headers.conf /etc/nginx/
 sudo cp ops/nginx/kivou-limits.conf /etc/nginx/conf.d/
 sudo sed "s/STAGING_HOST/<hôte>/g" ops/nginx/kivou-staging.conf \
     | sudo tee /etc/nginx/sites-available/kivou > /dev/null
@@ -93,7 +101,10 @@ sudo ln -sf /etc/nginx/sites-available/kivou /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 
 sudo systemctl daemon-reload
-sudo systemctl enable --now kivou-api kivou-alerts.timer kivou-backup.timer
+# `kivou-alerts.timer` reste DÉSACTIVÉE tant que SMTP n'est pas configuré :
+# sans SMTP le job sort en code 2 à chaque déclenchement, et une unité
+# perpétuellement en échec masquerait les vraies pannes dans la surveillance.
+sudo systemctl enable --now kivou-api kivou-backup.timer
 
 # 8. TLS
 sudo certbot --nginx -d <hôte>
@@ -118,7 +129,7 @@ sudo -u kivou git checkout <NOUVEAU_SHA>
 # Confirmer ce qui va réellement tourner
 git rev-parse HEAD          # doit égaler le SHA validé par la CI
 
-sudo -u kivou uv sync --locked
+sudo -u kivou uv sync --locked --extra server
 cd frontend && sudo -u kivou npm ci && sudo -u kivou npm run build
 sudo rsync -a --delete frontend/dist/ /srv/kivou/frontend/
 
@@ -139,7 +150,7 @@ KIVOU_HEALTHCHECK_URL=https://<hôte> ops/bin/kivou-healthcheck.sh
 ```bash
 cd /srv/kivou/app
 sudo -u kivou git checkout <SHA_PRÉCÉDENT_VALIDÉ>
-sudo -u kivou uv sync --locked
+sudo -u kivou uv sync --locked --extra server
 cd frontend && sudo -u kivou npm ci && sudo -u kivou npm run build
 sudo rsync -a --delete frontend/dist/ /srv/kivou/frontend/
 sudo systemctl restart kivou-api
@@ -158,6 +169,25 @@ tolèrent d'une version à l'autre ; les migrations destructives ne se rattrapen
 pas.
 
 ---
+
+## Accès au dépôt depuis le serveur
+
+Le dépôt est privé : le serveur ne peut pas cloner anonymement. Il utilise une
+**clé de déploiement en LECTURE SEULE**, générée sur le serveur — la moitié
+privée n'en sort jamais et ne peut pas pousser.
+
+```bash
+sudo -u kivou ssh-keygen -t ed25519 -N "" -f /srv/kivou/.ssh/github_deploy
+# puis, depuis un poste autorisé :
+gh repo deploy-key add <clé.pub> --title "<hôte> (read-only)" --repo bruppacherrodrigue-art/Kivou
+```
+
+Vérifier qu'elle ne peut PAS pousser :
+
+```bash
+sudo -u kivou git -C /srv/kivou/app push --dry-run origin HEAD:refs/heads/probe
+# doit être refusé
+```
 
 ## Secrets
 
@@ -223,3 +253,33 @@ curl -s https://<hôte>/health/ready
 | `migrations_not_applied` | Base vide — la migration n'a pas été jouée |
 | `schema_revision_mismatch` | L'application a redémarré sans migrer |
 | `schema_unreadable` | Droits insuffisants sur `alembic_version` |
+
+
+---
+
+## Pare-feu — deux couches, et la seconde n'est pas sur la machine
+
+`ufw` sur l'hôte autorise 22, 80 et 443. Mais l'instance vit dans Infomaniak
+Public Cloud (OpenStack) : un **groupe de sécurité** filtre en amont, et il ne
+se configure ni par `ufw` ni par l'API REST Infomaniak.
+
+Symptôme caractéristique : depuis la machine, `curl http://127.0.0.1/` répond ;
+depuis l'extérieur, le port expire sans refus. `ufw status` est actif et
+`iptables -S INPUT` vaut `ACCEPT` — la machine n'y est pour rien.
+
+Ouverture requise dans la console Public Cloud (Horizon), sur le groupe de
+sécurité de l'instance `ov-f58505` :
+
+```text
+Ingress  TCP  80    0.0.0.0/0, ::/0
+Ingress  TCP  443   0.0.0.0/0, ::/0
+```
+
+Vérification depuis un poste extérieur :
+
+```bash
+curl -sS -o /dev/null -w '%{http_code}\n' http://staging.kivou.eu/
+```
+
+Tant que cela expire, aucune porte TLS ne peut être franchie — et on ne
+fabrique pas de certificat auto-signé pour faire semblant.

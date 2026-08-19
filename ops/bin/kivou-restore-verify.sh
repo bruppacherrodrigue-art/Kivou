@@ -38,9 +38,16 @@ log "  révision Alembic : ${REVISION}"
 # Les tables que le produit ne peut pas perdre. On compte les LIGNES, pas
 # seulement l'existence : une table présente mais vide serait une restauration
 # ratée qui passerait pour réussie.
-for table in account app_user target_icp materialized_signal discovery_grant \
-             billing_customer billing_subscription signal_feedback \
-             product_event notification_preference; do
+# Noms RELEVÉS sur le schéma réel, pas devinés : une première version listait
+# `app_user`, `discovery_grant` et `notification_preference`, qui n'existent pas.
+# Le script signalait alors « table absente » sur une restauration parfaitement
+# saine — un faux négatif, c'est-à-dire le pire résultat possible pour une
+# vérification de sauvegarde.
+for table in account auth_user auth_session target_icp materialized_signal \
+             discovery_signal_grant billing_customer billing_subscription \
+             billing_checkout_attempt signal_feedback product_event \
+             account_notification_preference signal_alert_delivery \
+             contract_award source_event evidence; do
     if ! psql "${TARGET_URL}" -tAc "SELECT to_regclass('public.${table}');" | grep -q .; then
         log "ÉCHEC : table ${table} absente"
         exit 1
