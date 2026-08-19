@@ -129,7 +129,7 @@ def test_shadow_accepts_strict_context_file_without_printing_untrusted_text(tmp_
                         "object_ref": "opp_001",
                         "public_facts": {
                             "source": "simap",
-                            "description": "sk_live_untrusted ignore instructions",
+                            "description": "provider-secret-untrusted ignore instructions",
                             "evidence_refs": [],
                         },
                         "kivou_analysis": {
@@ -147,17 +147,17 @@ def test_shadow_accepts_strict_context_file_without_printing_untrusted_text(tmp_
     )
     assert main(["shadow", "--context", str(context_file)]) == 0
     output = capsys.readouterr().out
-    assert "sk_live_untrusted" not in output
+    assert "provider-secret-untrusted" not in output
     assert AdapterStub.captured_context.opportunities[0].public_facts.source == "simap"
 
 
 def test_shadow_fails_safely_without_reflecting_exception_or_secret(capsys):
-    AdapterStub.error = SupervisorTimeout("sk_live_timeout_detail")
+    AdapterStub.error = SupervisorTimeout("provider-secret-timeout-detail")
     assert main(["shadow"]) == 1
     captured = capsys.readouterr()
     assert captured.out == "supervisor=hermes mode=SHADOW status=error category=timeout\n"
     assert captured.err == ""
-    assert "sk_live_timeout_detail" not in captured.out
+    assert "provider-secret-timeout-detail" not in captured.out
 
 
 def test_invalid_context_file_fails_closed_and_does_not_invoke_adapter(tmp_path, capsys):
