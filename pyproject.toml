@@ -31,7 +31,7 @@ dependencies = [
 [project.optional-dependencies]
 # Serveur ASGI de production. Inutile aux tests : le client de test FastAPI
 # appelle l'application en direct.
-server = ["uvicorn[standard]>=0.30"]
+server = ["uvicorn[standard]>=0.52.3"]
 # Pilote PostgreSQL de production. Les tests tournent sur SQLite (stdlib) ; la
 # compatibilité PostgreSQL du schéma est vérifiée par compilation du DDL.
 postgres = ["psycopg[binary]>=3.2"]
