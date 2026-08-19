@@ -1,7 +1,7 @@
 # SPEC-019 — Kivou Policy Gateway — Design
 
 Date: 2026-08-20
-Status: READY FOR SUPERVISOR REVIEW — DESIGN ONLY
+Status: APPROVED — REQUIRED CORRECTIONS INCORPORATED
 Branch: `feat/spec019-policy-gateway`
 Base: `main` at `ea116a25d58bd5de9a80a607c22ad0c82bbd1b81`
 Current Alembic head: `0007_acquisition_event_store`
@@ -127,7 +127,7 @@ supervisor_action_index                nullable
 supervisor_version                     nullable
 skill_version                          nullable
 expected_policy_version
-approval_grant                         nullable, trusted Kivou attachment
+approval_grants                        tuple[ApprovalGrant, ...], maximum 4
 ```
 
 Hermes cannot supply `action_fingerprint`, compliance, evidence readiness, operational readiness, approval state, policy version, budget usage, read-only state, or kill switch state. `mapper.py` receives a validated `ProposedAction`, rejects recursive secret/hidden-reasoning keys and oversized/non-finite JSON, canonicalizes arguments, and computes the fingerprint. External text remains inert data.
@@ -136,7 +136,7 @@ Hermes cannot supply `action_fingerprint`, compliance, evidence readiness, opera
 
 ## Immutable PolicySnapshot
 
-One evaluation uses one frozen `PolicySnapshot` composed from Kivou-authoritative sources:
+One evaluation uses one frozen `PolicySnapshot` composed from Kivou-authoritative sources. At evaluation time `T`, the policy store selects eligible rows with `effective_at <= T` and `(expires_at IS NULL OR expires_at > T)`, then chooses the unique maximum `control_revision`. A higher eligible revision supersedes all lower eligible revisions. Expired and future rows are ignored. If none is eligible, `PolicyControlUnavailable` is raised and no executable decision exists; no default or expired fallback is synthesized.
 
 ```text
 policy_snapshot_id
@@ -146,7 +146,7 @@ captured_at
 valid_until
 
 autonomy_mode
-shadow_target_mode                     required only for SHADOW
+shadow_target_mode                     ASSISTED/AUTONOMOUS_CAPPED/ADAPTIVE_SCALE in SHADOW; NULL otherwise
 read_only
 kill_switch
 
@@ -167,6 +167,8 @@ runtime_revision
 The durable policy-control snapshot supplies version, mode, hard flags, allowlists, scopes, and caps. Current spend/usage and provider/mailbox readiness are captured immediately before evaluation by Kivou services and attached as typed runtime state. Compliance, evidence, and approvals are target/action-specific trusted attachments, not Hermes fields.
 
 Missing, expired, internally inconsistent, or unsupported critical state fails closed. There is no permissive default for a missing policy snapshot, kill switch, READ ONLY, currency, or runtime revision.
+
+`control_revision` is unique, at least 1, and strictly greater than the current maximum when appended. All effective/expiry timestamps are timezone-aware and `expires_at`, when present, is strictly later than `effective_at`. The normal store exposes append and selection only—no update/delete API.
 
 ## Command policy metadata and risk classes
 
@@ -204,7 +206,7 @@ An explicit command allowlist and scope are required in every mode. A mode can r
 
 ### SHADOW result
 
-SHADOW never returns an executable authorization. Gates are evaluated under required `shadow_target_mode` to produce an optional `counterfactual_status` from the same official enum. Effective behavior is:
+SHADOW never returns an executable authorization. Gates are evaluated under required `shadow_target_mode`—which must be exactly ASSISTED, AUTONOMOUS_CAPPED, or ADAPTIVE_SCALE—to produce an optional `counterfactual_status` from the same official enum. Recursive `SHADOW` targets are invalid. Outside SHADOW, `shadow_target_mode` must be null. Effective behavior is:
 
 ```text
 counterfactual would be APPROVED
@@ -278,7 +280,7 @@ consumed_at                            must be absent at evaluation
 approved_by_actor_ref
 ```
 
-The gateway rejects wrong command, target, opportunity, fingerprint, scope, policy, snapshot revision, expired, future-dated, or consumed grants. A normal ACTION approval does not override `compliance_state = REVIEW_REQUIRED`; SPEC-025 or a human compliance process must supply a bound `COMPLIANCE_REVIEW` grant or a new authoritative ALLOWED assessment.
+`PolicyRequest.approval_grants` is an immutable tuple bounded to four entries. The gateway rejects wrong purpose, command, target, opportunity, fingerprint, scope, policy, snapshot revision, expired, future-dated, or consumed grants. Purposes are independent: `COMPLIANCE_REVIEW` can satisfy only a `REVIEW_REQUIRED` compliance gate, while `ACTION` can satisfy only the later commercial-authorization gate. An ASSISTED commercial mutation under `REVIEW_REQUIRED` therefore needs two exact grants. `BLOCKED` and `UNKNOWN` compliance cannot be overridden by any grant.
 
 SPEC-019 does not create an approval UI/workflow or consume a grant. Since evaluation is not execution, one-shot consumption must later be atomic in the permissioned executor/approval service. Until then the decision always says `requires_revalidation = true`.
 
@@ -288,11 +290,11 @@ Contract validation happens before policy evaluation. For a valid request, gates
 
 1. kill switch / READ ONLY hard safety, with explicit safe-action exceptions;
 2. policy version, command allowlist, autonomy eligibility, target and scope permission;
-3. generic compliance state;
+3. generic compliance state, where only an exact `COMPLIANCE_REVIEW` grant may satisfy `REVIEW_REQUIRED`;
 4. required evidence readiness;
 5. cost and volume budgets;
 6. operational quota, mailbox, control-plane, and send-window state;
-7. bound human approval where required;
+7. separate exact `ACTION` approval where commercial authorization requires it;
 8. SHADOW effective-execution block when every earlier gate would approve.
 
 The first failing gate determines primary status. All secondary reason codes are accumulated in the same registry order and deterministically deduplicated; set/dict iteration never affects output.
@@ -355,7 +357,7 @@ Results are deterministic:
 ```text
 ALLOWED          → continue
 BLOCKED          → COMPLIANCE_BLOCKED
-REVIEW_REQUIRED  → APPROVAL_REQUIRED
+REVIEW_REQUIRED  → continue only with exact COMPLIANCE_REVIEW grant; otherwise APPROVAL_REQUIRED
 UNKNOWN          → COMPLIANCE_BLOCKED / compliance_state_unknown
 ```
 
@@ -401,7 +403,7 @@ policy_snapshot_id
 control_revision
 runtime_revision
 evaluated_at
-valid_until
+valid_until                            timezone-aware datetime or NULL
 requires_revalidation = true
 
 currency
@@ -410,7 +412,7 @@ proposed_volume
 cost_remaining
 volume_remaining
 retry_after
-approval_id
+approval_ids                           bounded tuple of grants actually used
 evidence_refs
 ```
 
@@ -420,9 +422,9 @@ It contains no chain of thought, free-form model reasoning, raw prompt, raw prov
 
 A policy decision is an observation, not a reusable capability. The chosen model requires immediate re-evaluation by the future executor using current policy-control revision, usage, compliance, evidence, operational state, and kill switch.
 
-`action_fingerprint` binds command, target, opportunity, canonical arguments, typed scope, proposed cost/currency, and volume. `PolicyDecision` exposes `valid_until` but also always sets `requires_revalidation = true`; expiry alone never authorizes execution. If action arguments change, the fingerprint changes and prior approval/decision no longer matches.
+`action_fingerprint` binds command, target, opportunity, canonical arguments, typed scope, proposed cost/currency, and volume. `PolicyDecision.valid_until` is informational: it is the earliest known authoritative boundary among snapshot expiry, used approval expiries, budget period end, evidence/runtime validity where supplied, or null when no future boundary exists. It is never an invented TTL and always satisfies `valid_until <= snapshot.expires_at` when the snapshot expires. `requires_revalidation` is always true; time before `valid_until` is never sufficient authorization. If action arguments change, the fingerprint changes and prior approval/decision no longer matches.
 
-Repeated evaluation of the same request creates a new `evaluation_id` and a new audit against current state. An existing `APPROVED` decision is never read as authorization input to the evaluator. This directly prevents stale approval after policy, budget, quota, kill-switch, target, or argument changes.
+A new evaluation attempt creates a new `evaluation_id` before its audit transaction, re-reads all authoritative inputs, and produces a new audit. A retry of the same uncertain attempt reuses the same ID and immutable evaluation inputs. Same ID plus the same semantic fingerprint returns the durable row/event without another stream increment. Same ID plus different semantics raises `PolicyEvaluationIdempotencyConflict` with no mutation. An existing `APPROVED` decision is never read as authorization input to the evaluator.
 
 ## Hermes boundary
 
@@ -446,9 +448,9 @@ Every valid evaluation is persisted before a decision is returned. Audit failure
 
 ### Opportunity-scoped decisions
 
-The transaction inserts the universal `policy_evaluation` row and appends state-neutral `POLICY_EVALUATED` to the exact Acquisition Opportunity stream. The event carries only evaluation ID, command, target, status, reason codes, policy/snapshot revisions, evidence refs, bounded budget metadata, approval ref, and safe timing metadata. It advances stream version/audit pointer but changes no acquisition business state.
+The transaction inserts the universal `policy_evaluation` row and appends state-neutral `POLICY_EVALUATED` to the exact Acquisition Opportunity stream using idempotency key `policy_evaluation:<evaluation_id>`. The event carries only safe structured fields. It advances stream version/audit pointer but is state-, decision-, retry-, and reference-neutral under the existing `acquisition-state-v1` reducer.
 
-The request supplies expected opportunity stream version. A concurrency conflict commits neither audit row nor event; the caller reloads and re-evaluates. Existing SPEC-018 event/projection atomicity is preserved.
+The request supplies expected opportunity stream version. The row, event and projection audit pointer commit atomically. A concurrency conflict or either write failure rolls back both audit surfaces; the caller reloads and performs a new evaluation with a new ID/current state. Old SPEC-018 streams replay identically before and after support for this additive audit event.
 
 ### Global decisions
 
@@ -486,7 +488,7 @@ created_by_actor_ref        String(256)
 reason_codes                JSON bounded
 ```
 
-No update/delete method is exposed. Gateway startup/evaluation fails closed if no single effective snapshot exists. A future protected human/operator boundary may append a higher revision using optimistic concurrency; Hermes, an opportunity, provider response, or LLM cannot.
+No update/delete method is exposed. The effective snapshot is the highest eligible `control_revision`, not an assumption that periods never overlap. Appending requires a unique revision greater than the current maximum. Gateway evaluation raises `PolicyControlUnavailable` when no row is eligible. Hermes, an opportunity, provider response, or LLM cannot append controls.
 
 The migration does not silently seed permissive configuration. Tests may insert fixtures; production configuration remains a separate explicitly authorized operational step.
 
@@ -515,15 +517,15 @@ estimated_cost              Numeric(18,6) nullable
 proposed_volume             Integer nullable
 cost_remaining              Numeric(18,6) nullable
 volume_remaining            Integer nullable
-approval_id                 String(64) nullable
+approval_ids                JSON bounded
 evaluated_at                timezone-aware DateTime
-valid_until                 timezone-aware DateTime
+valid_until                 timezone-aware DateTime nullable
 retry_after                 timezone-aware DateTime nullable
 requires_revalidation       Boolean fixed true
 semantic_fingerprint        String(64)
 ```
 
-Only operational indexes are proposed: `(acquisition_opportunity_id, evaluated_at)`, `(command, evaluated_at)`, `status`, and `evaluated_at`. No raw policy request, arguments, provider content, transcript, or secret is stored.
+`evaluation_id` is created before transaction entry. `semantic_fingerprint` makes retry semantics explicit: equal ID/equal fingerprint returns the existing durable result; equal ID/different fingerprint conflicts. Only operational indexes are proposed: `(acquisition_opportunity_id, evaluated_at)`, `(command, evaluated_at)`, `status`, and `evaluated_at`. No raw policy request, arguments, provider content, transcript, or secret is stored.
 
 ### Why protected environment configuration alone is insufficient
 
@@ -598,7 +600,7 @@ Implementation must begin only after design approval, using RED → GREEN cycles
 
 - exact official statuses and derived `allowed`;
 - known/unknown commands and callable-free metadata;
-- unknown policy/autonomy/status fail closed;
+- unknown policy/autonomy/status fail closed; syntactically valid unregistered commands receive durable `DENIED / unknown_command`, while malformed symbolic strings fail contract validation;
 - naive/invalid dates, unsupported actors, malformed refs and extra fields rejected;
 - negative, NaN, infinite cost and invalid currency rejected;
 - oversized canonical arguments, secret keys, hidden-reasoning keys and shell-like symbolic command injection rejected;
@@ -607,7 +609,7 @@ Implementation must begin only after design approval, using RED → GREEN cycles
 ### Autonomy and hard controls
 
 - valid known command approved under a complete envelope;
-- SHADOW effective status non-executable with counterfactual result;
+- SHADOW effective status non-executable with a non-SHADOW target; recursive/misplaced targets are rejected;
 - ASSISTED commercial mutation requires exact approval;
 - AUTONOMOUS_CAPPED only inside command/scope/cost/volume caps;
 - ADAPTIVE_SCALE reallocation only inside supplied wedge and caps, never widening them;
@@ -618,7 +620,7 @@ Implementation must begin only after design approval, using RED → GREEN cycles
 
 ### Approval binding
 
-- correct exact grant accepted where approval is the final remaining gate;
+- bounded multiple grants, distinct ACTION/COMPLIANCE_REVIEW purposes, both required when both gates apply;
 - wrong target, opportunity, fingerprint, scope, policy, snapshot revision rejected;
 - expired, future-dated, or consumed grant rejected;
 - general action approval cannot override compliance review;
@@ -639,11 +641,13 @@ Implementation must begin only after design approval, using RED → GREEN cycles
 ### Audit and persistence
 
 - migration `0007 → 0008`, fresh DB → head, PostgreSQL offline DDL, SQLite compatibility, prior tables unchanged;
-- no effective control snapshot fails closed;
+- no effective control snapshot fails closed; newest eligible revision wins while expired/future rows are ignored;
 - kill switch/READ ONLY survive fresh repository/engine construction;
 - policy snapshots are append-only and higher revision selection is deterministic;
 - every valid evaluation writes one append-only `policy_evaluation` row with policy/snapshot versions;
+- same evaluation retry is idempotent, semantic mismatch conflicts, and a fresh evaluation creates a new audit;
 - opportunity evaluation atomically writes universal audit plus state-neutral `POLICY_EVALUATED` event;
+- old acquisition streams replay unchanged; `POLICY_EVALUATED` changes only audit/version metadata;
 - audit event replay preserves acquisition state and advances stream version;
 - concurrent opportunity version conflict writes neither row;
 - global evaluations have no opportunity event and remain durably queryable;
@@ -728,6 +732,6 @@ Migration `0008_policy_gateway` is recommended: **YES**.
 
 Reason: existing `acquisition_event` cannot truthfully store global decisions, while process-local/environment-only hard controls cannot provide revisioned, shared, restart-safe kill-switch and READ ONLY state; two narrow append-only tables solve exactly those gaps without becoming an Event Bus.
 
-Blocking unresolved questions: none. Supervisor approval is required specifically for the proposed two-table migration and atomic dual-audit boundary before TDD implementation begins.
+Blocking unresolved questions: none. The two-table migration and atomic dual-audit boundary are supervisor-approved.
 
-POLICY GATEWAY DESIGN READY FOR REVIEW
+POLICY GATEWAY DESIGN APPROVED
