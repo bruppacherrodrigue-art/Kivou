@@ -4,16 +4,30 @@ import datetime as dt
 import json
 import pathlib
 
+import httpx
 import pytest
 import sqlalchemy as sa
+from feed_helpers import LINKED_BOAMP, LINKED_DECP
 
+from signals.connectors.decp import DecpClient, DecpWindowLimitError
 from signals.connectors.ted.errors import TedHttpError
-from signals.ingestion.pipeline import PipelineFailure, PipelineResult
+from signals.ingestion.pipeline import IngestionPipeline, PipelineFailure, PipelineResult
 from signals.ingestion.runner import IngestionRunner, RunOptions
-from signals.ingestion.sources import AcquisitionFailure, AcquisitionResult, BoampSource
+from signals.ingestion.sources import (
+    AcquisitionFailure,
+    AcquisitionResult,
+    BoampSource,
+    DecpSource,
+)
 from signals.ingestion.state import advance_checkpoint, load_checkpoint, start_run
 from signals.persistence.database import create_database_engine, migrate_to_latest
-from signals.persistence.schema import ingestion_checkpoint, ingestion_run
+from signals.persistence.schema import (
+    contract_award,
+    ingestion_checkpoint,
+    ingestion_run,
+    opportunity_representation,
+    source_event,
+)
 
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
@@ -290,11 +304,27 @@ class _BoampRecordClient:
         yield self.record
 
 
+class _BoampRecordsClient:
+    def __init__(self, records):
+        self.records = records
+
+    def fetch_awards_since(self, since, *, until=None, max_records=None):
+        yield from self.records
+
+
 def test_safe_terminal_skip_allows_boamp_checkpoint_to_advance(tmp_path):
     engine = _engine(tmp_path)
     source = BoampSource(
-        _BoampRecordClient(
-            {"idweb": "unsupported", "donnees": json.dumps({"FNSimple": {}})}
+        _BoampRecordsClient(
+            [
+                {
+                    "idweb": "26-dsp-safe-skip",
+                    "donnees": json.dumps(
+                        {"DSP": {"nature": "delegation_service_public"}}
+                    ),
+                },
+                LINKED_BOAMP,
+            ]
         )
     )
 
@@ -307,6 +337,8 @@ def test_safe_terminal_skip_allows_boamp_checkpoint_to_advance(tmp_path):
 
     assert result.exit_code == 0
     assert result.outcomes[0].counters.records_rejected == 1
+    assert result.outcomes[0].counters.records_accepted == 1
+    assert result.outcomes[0].counters.records_persisted == 1
     with engine.connect() as connection:
         checkpoint = load_checkpoint(connection, source="boamp")
     assert checkpoint is not None
@@ -348,3 +380,129 @@ def test_malformed_boamp_retains_the_previous_successful_checkpoint(tmp_path):
         checkpoint = load_checkpoint(connection, source="boamp")
     assert checkpoint is not None
     assert checkpoint.window_end == previous_end
+
+
+class _DecpFailureAfterDurableCandidate:
+    def fetch_contracts_since(self, since, *, until=None, max_records=None):
+        yield LINKED_DECP
+        raise DecpWindowLimitError("later DECP child window changed")
+
+
+class _DecpReplayWithBoundaryDuplicate:
+    def fetch_contracts_since(self, since, *, until=None, max_records=None):
+        yield LINKED_DECP
+        yield LINKED_DECP
+
+
+def test_decp_later_slice_failure_retains_checkpoint_and_rerun_is_idempotent(tmp_path):
+    engine = _engine(tmp_path)
+    previous_end = NOW - dt.timedelta(days=1)
+    with engine.begin() as connection:
+        start_run(
+            connection,
+            source="decp",
+            started_at=previous_end,
+            dry_run=False,
+            run_id="decp-partition-seed",
+        )
+        advance_checkpoint(
+            connection,
+            source="decp",
+            cursor={"window_end": previous_end.date().isoformat()},
+            window_end=previous_end,
+            completed_at=previous_end,
+        )
+
+    failed = IngestionRunner(
+        engine,
+        sources={"decp": DecpSource(_DecpFailureAfterDurableCandidate())},
+        pipeline=IngestionPipeline(engine),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("decp",)))
+
+    assert failed.exit_code == 1
+    assert failed.outcomes[0].error_category == "source_limit"
+    assert failed.outcomes[0].counters.records_persisted == 1
+    with engine.connect() as connection:
+        checkpoint_after_failure = load_checkpoint(connection, source="decp")
+        counts_after_failure = tuple(
+            connection.execute(sa.select(sa.func.count()).select_from(table)).scalar_one()
+            for table in (source_event, contract_award, opportunity_representation)
+        )
+    assert checkpoint_after_failure is not None
+    assert checkpoint_after_failure.window_end == previous_end
+    assert counts_after_failure == (1, 1, 1)
+
+    restarted_at = NOW + dt.timedelta(hours=1)
+    recovered = IngestionRunner(
+        engine,
+        sources={"decp": DecpSource(_DecpReplayWithBoundaryDuplicate())},
+        pipeline=IngestionPipeline(engine),
+        clock=lambda: restarted_at,
+    ).run(RunOptions(sources=("decp",)))
+
+    assert recovered.exit_code == 0
+    with engine.connect() as connection:
+        checkpoint_after_recovery = load_checkpoint(connection, source="decp")
+        counts_after_recovery = tuple(
+            connection.execute(sa.select(sa.func.count()).select_from(table)).scalar_one()
+            for table in (source_event, contract_award, opportunity_representation)
+        )
+    assert checkpoint_after_recovery is not None
+    assert checkpoint_after_recovery.window_end == restarted_at
+    assert counts_after_recovery == counts_after_failure == (1, 1, 1)
+
+
+def test_decp_count_fetch_drift_is_source_limit_and_does_not_advance_checkpoint(tmp_path):
+    engine = _engine(tmp_path)
+    previous_end = NOW - dt.timedelta(days=1)
+    with engine.begin() as connection:
+        start_run(
+            connection,
+            source="decp",
+            started_at=previous_end,
+            dry_run=False,
+            run_id="decp-drift-seed",
+        )
+        advance_checkpoint(
+            connection,
+            source="decp",
+            cursor={"window_end": previous_end.date().isoformat()},
+            window_end=previous_end,
+            completed_at=previous_end,
+        )
+    calls = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return httpx.Response(
+                200,
+                json={"total_count": 1, "results": [{"id": "count-probe"}]},
+            )
+        return httpx.Response(
+            200,
+            json={"total_count": 2, "results": [LINKED_DECP]},
+        )
+
+    source = DecpSource(
+        DecpClient(client=httpx.Client(transport=httpx.MockTransport(handler)))
+    )
+    result = IngestionRunner(
+        engine,
+        sources={"decp": source},
+        pipeline=IngestionPipeline(engine),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("decp",)))
+
+    assert result.exit_code == 1
+    assert result.outcomes[0].error_category == "source_limit"
+    with engine.connect() as connection:
+        checkpoint = load_checkpoint(connection, source="decp")
+        stored = connection.execute(
+            sa.select(sa.func.count()).select_from(contract_award)
+        ).scalar_one()
+    assert checkpoint is not None
+    assert checkpoint.window_end == previous_end
+    assert stored == 0

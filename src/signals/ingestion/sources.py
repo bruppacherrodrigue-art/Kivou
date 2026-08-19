@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import logging
 from typing import Any, Protocol
 
 from signals.connectors.boamp import (
@@ -33,6 +34,14 @@ INITIAL_LOOKBACK_DAYS: dict[SourceName, int] = {
     "ted": 3,
 }
 
+logger = logging.getLogger(__name__)
+
+BOAMP_SAFE_SKIP_REASONS: dict[str, str] = {
+    "FNSimple": "unsupported_notice_family_fnsimple",
+    "MAPA": "unsupported_notice_family_mapa",
+    "DSP": "unsupported_notice_family_dsp",
+}
+
 
 @dataclasses.dataclass(frozen=True)
 class SourceWindow:
@@ -59,6 +68,7 @@ class AcquisitionResult:
     rejected: int
     complete: bool
     cursor_after: dict[str, Any]
+    rejection_reasons: dict[str, int] = dataclasses.field(default_factory=dict)
 
 
 class AcquisitionFailure(RuntimeError):
@@ -114,6 +124,7 @@ def _result(
     rejected: int,
     complete: bool,
     window: SourceWindow,
+    rejection_reasons: dict[str, int] | None = None,
 ) -> AcquisitionResult:
     return AcquisitionResult(
         source=source,
@@ -123,6 +134,7 @@ def _result(
         rejected=rejected,
         complete=complete,
         cursor_after={"window_end": window.until.isoformat()},
+        rejection_reasons=dict(rejection_reasons or {}),
     )
 
 
@@ -143,6 +155,7 @@ class BoampSource:
         publications: list[AcquiredPublication] = []
         fetched = 0
         rejected = 0
+        rejection_reasons: dict[str, int] = {}
         complete = True
         try:
             for record in self.client.fetch_awards_since(
@@ -154,11 +167,21 @@ class BoampSource:
                 fetched += 1
                 kind = payload_kind(record)
                 if not supported_payload(record):
-                    if kind not in {"FNSimple", "MAPA"}:
+                    reason = BOAMP_SAFE_SKIP_REASONS.get(kind)
+                    if reason is None:
                         raise BoampMalformedPayload(
                             f"BOAMP payload cannot be normalized (kind={kind})"
                         )
                     rejected += 1
+                    rejection_reasons[reason] = rejection_reasons.get(reason, 0) + 1
+                    logger.info(
+                        "BOAMP notice safely skipped",
+                        extra={
+                            "source": self.source,
+                            "source_notice_id": record.get("idweb"),
+                            "reason_code": reason,
+                        },
+                    )
                     continue
                 try:
                     event, awards = parse_award_notice(record, retrieved_at=retrieved_at)
@@ -180,6 +203,7 @@ class BoampSource:
                     rejected=rejected,
                     complete=False,
                     window=window,
+                    rejection_reasons=rejection_reasons,
                 ),
             ) from error
         return _result(
@@ -189,6 +213,7 @@ class BoampSource:
             rejected=rejected,
             complete=complete,
             window=window,
+            rejection_reasons=rejection_reasons,
         )
 
 
