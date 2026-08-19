@@ -3509,10 +3509,32 @@ Rotation du mot de passe                     BLOCKED go-live production
 | Élément | Valeur |
 |---|---|
 | Branche | `chore/spec016-staging-readiness` |
-| **SHA déployé** | **`8fa44158e7494a3e21bf5299195b49639cd7a278`** |
-| CI | run `32302529271` — backend **2889**, frontend **84** |
+| **SHA déployé** | **`747c8dd89dfacc9bfdfe0c2dacbea421a53a002c`** |
+| CI | run `32308727934` — backend **2889**, frontend **84** |
 | PR #6 | **brouillon, non fusionnée** |
-| `main` | `c4d153c`, intact |
+| Point d'intégration | **`c4d153c`** — le dernier `main` AVANT SPEC-018 |
+
+### Le point d'intégration est délibéré
+
+`main` a avancé pendant cette clôture : **SPEC-018** (`ea116a2`, migration
+`0007_acquisition_event_store`) y a été fusionné après coup. La branche
+SPEC-016 s'arrête **volontairement** à `c4d153c`, qui apporte les correctifs R1
+et R2 nécessaires sans introduire l'entrepôt d'événements d'acquisition.
+
+Vérifié plutôt qu'affirmé :
+
+```text
+c4d153c est un ancêtre de la branche      OUI
+commit SPEC-018 dans la branche           aucun
+migrations livrées                        s'arrêtent à 0006_award_text_capacity
+tête Alembic de la branche                0006_award_text_capacity
+table acquisition_event sur staging       absente
+table acquisition_opportunity sur staging absente
+révision de la base de staging            0006_award_text_capacity
+```
+
+PR #6 reste donc en retard sur `main`, et c'est voulu : la fusionner en l'état
+déploierait SPEC-018 sur staging. La réconciliation sera décidée séparément.
 
 Base backend : 2700 → 2718 → 2757 → 2763 → 2818 → **2889**. Jamais diminuée.
 
