@@ -1,0 +1,31 @@
+# Dependabot — surveillance des dépendances, sans fusion automatique.
+#
+# Cadence hebdomadaire et volume borné : un flux de PR qu'on n'a pas le temps de
+# lire est un flux qu'on finit par ignorer, ce qui est pire que pas de flux.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      # Les montées de version de développement arrivent groupées : elles se
+      # relisent en une fois et se valident par la CI.
+      dev-dependencies:
+        dependency-type: development
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 3
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5

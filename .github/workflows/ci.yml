@@ -1,0 +1,84 @@
+# CI Kivou — valider le code, rien d'autre.
+#
+# Ce workflow ne déploie pas, ne publie pas, ne touche pas à Stripe et ne
+# détient aucun secret. Les tests backend et frontend sont conçus pour tourner
+# hors ligne : si l'un d'eux réclamait un jour une clé réelle, ce serait un
+# défaut d'isolation du test, pas une raison d'ajouter un secret ici.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Moindre privilège : lire le dépôt suffit à le tester.
+permissions:
+  contents: read
+
+# Une poussée qui en suit une autre annule la précédente : inutile de payer deux
+# fois pour un état déjà dépassé.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend (Python 3.12 · uv)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Installer uv
+        uses: astral-sh/setup-uv@v10
+        with:
+          # `uv.lock` est la clé du cache : il change quand les dépendances
+          # changent, et seulement à ce moment-là.
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      # `--locked` échoue si `uv.lock` ne correspond plus à `pyproject.toml`.
+      # C'est ce qui garantit que la CI teste EXACTEMENT les versions verrouillées
+      # dans le dépôt, et non ce que PyPI publiait ce matin.
+      - name: Synchroniser les dépendances verrouillées
+        run: uv sync --locked
+
+      - name: Tests
+        run: uv run pytest -q
+
+      - name: Lint
+        run: uv run ruff check .
+
+  frontend:
+    name: Frontend (Node 24 · npm)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Installer Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # `npm ci` et jamais `npm install` : il installe l'arbre exact du
+      # verrou et échoue si le verrou et le manifeste divergent.
+      - name: Installer les dépendances verrouillées
+        run: npm ci
+
+      - name: Tests
+        run: npm test -- --run
+
+      - name: Build
+        run: npm run build
+
+      - name: Typecheck
+        run: npx tsc -b
+
+      - name: Lint
+        run: npm run lint

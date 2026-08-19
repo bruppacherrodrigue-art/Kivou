@@ -3,7 +3,40 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .ruff_cache/
+
+# ── Secrets et configuration locale ──────────────────────────────────────────
+# `.env.example` est la SEULE variante suivie : elle ne porte que des noms de
+# variables et des valeurs d'exemple.
 .env
+.env.*
+!.env.example
+
+# ── Couverture de tests ──────────────────────────────────────────────────────
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# ── Dumps et sauvegardes de base ─────────────────────────────────────────────
+# Une sauvegarde de base contient des données client. Aucun format de ce type
+# n'est suivi aujourd'hui ; la règle existe pour qu'un dump déposé dans le
+# dossier de travail ne parte jamais par accident.
+*.dump
+*.sql.gz
+*.sqlite
+*.sqlite3
+*.db
+*.bak
+
+# ── Frontend ─────────────────────────────────────────────────────────────────
+# `frontend/.gitignore` les couvre déjà ; répétés ici pour que la garantie tienne
+# depuis la racine, quel que soit le sous-dossier depuis lequel on ajoute.
+frontend/node_modules/
+frontend/dist/
+
+# ── Artefacts de système de fichiers ─────────────────────────────────────────
+.DS_Store
+Thumbs.db
 
 # Gels bruts d'acquisition — régénérables par `signals.research.spec009e_run`.
 # Aucun test suivi ne les lit : la mesure dérivée `spec009e_france.json` porte

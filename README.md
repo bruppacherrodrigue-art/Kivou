@@ -20,8 +20,13 @@ un moteur séparé.
 **SPEC-005** — Contract Understanding + Evidence : ce que l'avis permet de comprendre, et pourquoi.
 **SPEC-006** — Tender Document Intelligence : du dossier de marché aux exigences d'exécution prouvées.
 **SPEC-006R** — Semantic Requirement Filter : un modèle de langue dit ce qu'une phrase *est*, la politique déterministe décide.
+**SPEC-007 → 009** — Need Graph déterministe, matching ICP, fraîcheur multi-horloges, ingestion France.
+**SPEC-010** — persistance PostgreSQL-compatible des signaux matérialisés.
+**SPEC-011 → 014** — SaaS client : comptes et sessions, feed et détail, facturation Stripe, alertes et retour client.
+**SPEC-015** — frontend MVP React/TypeScript, sur le design system Kivou v1.0.
 
-Pas encore de persistance : tout est en mémoire, testable sans base ni Docker.
+La suite de tests reste **hors ligne** : ni base à démarrer, ni Docker, ni clé
+d'API. Le frontend se teste de la même façon, sans navigateur ni réseau.
 
 ## Principes
 
@@ -46,13 +51,34 @@ Pas encore de persistance : tout est en mémoire, testable sans base ni Docker.
 | Document non fiable | tout texte transmis à un modèle est encadré `UNTRUSTED SOURCE TEXT` ; aucune consigne qu'il contient n'est exécutable |
 | Précision préservée | `published_at` reste une `date` ou un `datetime` selon ce que la source publie — ni minuit inventé, ni heure tronquée |
 
-## Développement local (uv)
+## Développement local
+
+### Backend (Python 3.12 · uv)
 
 ```bash
-uv sync
-uv run pytest
+uv sync                 # `uv sync --locked` en CI : refuse un verrou périmé
+uv run pytest -q
 uv run ruff check .
 ```
+
+### Frontend (Node 24 · npm)
+
+```bash
+cd frontend
+npm ci                  # jamais `npm install` : le verrou fait foi
+npm test -- --run
+npm run build
+npx tsc -b
+npm run lint
+```
+
+Le serveur de développement (`npm run dev`) attend l'API sur `127.0.0.1:8000` et
+la relaie derrière la même origine, ce qui reproduit la condition de production.
+
+### Configuration
+
+Copier `.env.example` en `.env` et le remplir. Aucune valeur réelle ne doit
+entrer dans `.env.example`, qui est le seul fichier de la famille suivi par Git.
 
 ## Smoke test live TED (volontaire, hors suite de tests)
 
