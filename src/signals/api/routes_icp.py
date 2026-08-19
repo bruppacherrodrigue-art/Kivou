@@ -20,6 +20,7 @@ from signals.accounts import service
 from signals.accounts.icp_input import TargetIcpInput
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
+from signals.ingestion.backfill import materialize_existing_opportunities_for_target
 
 router = APIRouter()
 
@@ -88,6 +89,13 @@ def create_target_icp(payload: TargetIcpCreate, request: Request) -> TargetIcpRe
             customer_input=payload.customer_input,
             now=now,
         )
+    if stored.status == "active":
+        materialize_existing_opportunities_for_target(
+            request.app.state.engine,
+            target_icp_id=stored.target_icp_id,
+            as_of=now.date(),
+            materialized_at=now,
+        )
     return TargetIcpResponse.of(stored)
 
 
@@ -124,4 +132,11 @@ def update_target_icp(
             )
         except service.TargetIcpNotFound as error:
             raise api_error(404, error.code, "profil de ciblage introuvable") from error
+    if stored.status == "active":
+        materialize_existing_opportunities_for_target(
+            request.app.state.engine,
+            target_icp_id=stored.target_icp_id,
+            as_of=now.date(),
+            materialized_at=now,
+        )
     return TargetIcpResponse.of(stored)

@@ -57,6 +57,12 @@ def _looks_like_identifier(name: str, identifier: str | None) -> bool:
     return bool(reference) and stripped == reference
 
 
+def is_customer_display_name(name: str | None, identifier: str | None) -> bool:
+    """Whether a published winner value is a real display name under feed policy."""
+    cleaned = (name or "").strip()
+    return bool(cleaned) and not _looks_like_identifier(cleaned, identifier)
+
+
 def is_customer_ready(signal: StoredSignal) -> bool:
     """La révision courante porte-t-elle elle-même un nom d'entreprise affichable ?
 
@@ -64,8 +70,7 @@ def is_customer_ready(signal: StoredSignal) -> bool:
     recopié — le cas exact des notifications DECP 2022, qui publient le SIRET
     du titulaire sans sa dénomination sociale (SPEC-009E).
     """
-    name = (signal.winner_name or "").strip()
-    return bool(name) and not _looks_like_identifier(name, signal.winner_identifier_value)
+    return is_customer_display_name(signal.winner_name, signal.winner_identifier_value)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -90,7 +95,7 @@ def _named_identity(awardee_parties: list[dict[str, Any]]) -> tuple[str, str | N
             identifiers = organization.get("identifiers") or []
             identifier = identifiers[0] if identifiers else None
             value = (identifier or {}).get("value")
-            if name and not _looks_like_identifier(name, value):
+            if is_customer_display_name(name, value):
                 return name, organization.get("country"), identifier
     return None
 

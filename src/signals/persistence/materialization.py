@@ -63,6 +63,16 @@ class MaterializationResult:
     updated: bool
 
 
+@dataclasses.dataclass(frozen=True)
+class FactPersistenceResult:
+    """Stable source-fact and opportunity identities, independent of customers."""
+
+    event_key: str
+    award_key: str
+    opportunity_key: str
+    opportunity_created: bool
+
+
 def _json(value: Any) -> Any:
     """Une charge structurée, sérialisée comme le domaine la sérialise déjà."""
     if value is None:
@@ -283,6 +293,35 @@ def _need_payload(needs: Any) -> list[dict[str, Any]]:
     ]
 
 
+def persist_award_facts(
+    connection: sa.Connection,
+    *,
+    event: Any,
+    award: Any,
+    persisted_at: dt.datetime,
+    linked_to: Sequence[Any] = (),
+    link_strength: str = "unresolved",
+) -> FactPersistenceResult:
+    """Persist published facts and stable opportunity identity without a customer match."""
+    event_reference = _upsert_source_event(connection, event, now=persisted_at)
+    award_reference = _upsert_award(
+        connection, award, event_reference=event_reference, now=persisted_at
+    )
+    resolved = resolve_or_create_opportunity(
+        connection,
+        award,
+        now=persisted_at,
+        linked_to=linked_to,
+        link_strength=link_strength,
+    )
+    return FactPersistenceResult(
+        event_key=event_reference,
+        award_key=award_reference,
+        opportunity_key=resolved.opportunity_key,
+        opportunity_created=resolved.created,
+    )
+
+
 def materialize_signal(
     connection: sa.Connection,
     *,
@@ -311,34 +350,29 @@ def materialize_signal(
     """
     from signals.recency.claim import mvp_event_type
 
-    event_reference = _upsert_source_event(connection, event, now=materialized_at)
-    award_reference = _upsert_award(
-        connection, award, event_reference=event_reference, now=materialized_at
-    )
-    # Le rattachement vient APRÈS l'écriture des faits : la clé étrangère de
-    # `opportunity_representation` exige que la représentation existe.
-    resolved = resolve_or_create_opportunity(
+    persisted = persist_award_facts(
         connection,
-        award,
-        now=materialized_at,
+        event=event,
+        award=award,
+        persisted_at=materialized_at,
         linked_to=linked_to,
         link_strength=link_strength,
     )
     _store_evidence(
         connection,
-        award_reference=award_reference,
+        award_reference=persisted.award_key,
         understanding=understanding,
         needs=needs,
         match=match,
         now=materialized_at,
     )
 
-    key = signal_key(resolved.opportunity_key, target_icp_id=match.icp_id)
+    key = signal_key(persisted.opportunity_key, target_icp_id=match.icp_id)
     versions = _engine_versions(understanding, needs, match, recency, engine_version_override)
     payload = {
         "signal_key": key,
-        "opportunity_key": resolved.opportunity_key,
-        "materialization_award_key": award_reference,
+        "opportunity_key": persisted.opportunity_key,
+        "materialization_award_key": persisted.award_key,
         "target_icp_id": match.icp_id,
         "materialized_recency_status": recency.status,
         "materialized_primary_event": mvp_event_type(recency.status),
@@ -383,7 +417,12 @@ def materialize_signal(
             )
         )
         return MaterializationResult(
-            key, resolved.opportunity_key, award_reference, 1, created=True, updated=False
+            key,
+            persisted.opportunity_key,
+            persisted.award_key,
+            1,
+            created=True,
+            updated=False,
         )
 
     revision, stored_fingerprint = current
@@ -391,8 +430,8 @@ def materialize_signal(
         # Contenu identique au bit près : rien à réécrire, et surtout pas de révision.
         return MaterializationResult(
             key,
-            resolved.opportunity_key,
-            award_reference,
+            persisted.opportunity_key,
+            persisted.award_key,
             revision,
             created=False,
             updated=False,
@@ -405,8 +444,8 @@ def materialize_signal(
     )
     return MaterializationResult(
         key,
-        resolved.opportunity_key,
-        award_reference,
+        persisted.opportunity_key,
+        persisted.award_key,
         revision + 1,
         created=False,
         updated=True,
