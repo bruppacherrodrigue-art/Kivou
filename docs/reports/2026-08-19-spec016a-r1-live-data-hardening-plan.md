@@ -195,12 +195,12 @@ Use `httpx.MockTransport` to return `total_count` based on the inclusive `where`
 
 ```text
 9,999  -> one date window; final data request offset=9900 limit=99;
-          final drift probe offset=9999 limit=1; all 9,999 rows returned
+          final count-only verification offset=0 limit=1; all 9,999 rows returned
 10,000 -> root is split before data pagination
 >10,000 -> recursive chronological children; every synthetic row returned
 ```
 
-Also assert every request satisfies `offset + limit <= 10_000`.
+Also assert every request satisfies `offset + limit < 10_000`.
 
 - [ ] **Step 2: Verify RED**
 
@@ -235,7 +235,7 @@ right = (midpoint + dt.timedelta(days=1), until)
 
 For a dense one-day interval raise `DecpWindowLimitError`. Process children left then right.
 
-- [ ] **Step 5: Implement exact remaining-page sizes and a drift probe**
+- [ ] **Step 5: Implement exact remaining-page sizes and final count verification**
 
 For each safe subwindow, page only the planned count using:
 
@@ -243,7 +243,7 @@ For each safe subwindow, page only the planned count using:
 limit = min(PAGE_SIZE, remaining)
 ```
 
-After the planned count is consumed, request one row at `offset=planned_total`, `limit=1`. If a row exists, or a page is unexpectedly short, raise `DecpWindowLimitError("DECP window changed during pagination")`. This is the approved fail-closed fallback for count/fetch drift.
+After the planned count is consumed, repeat the count-only request on the same predicate at `offset=0`, `limit=1`. If the final `total_count` is either higher or lower than the planned count, or if a data page is unexpectedly short, raise `DecpWindowLimitError("DECP window changed during pagination")`. This is the approved fail-closed fallback for count/fetch drift and keeps every request strictly below the provider ceiling.
 
 - [ ] **Step 6: Verify GREEN**
 

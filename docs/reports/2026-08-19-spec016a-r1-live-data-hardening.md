@@ -157,7 +157,7 @@ Every split strictly reduces the date span, so recursion has a deterministic end
 
 | Planned count | Implemented behavior | Deterministic result |
 |---:|---|---|
-| 9,999 | one window; pages of 100; final data page `offset=9900, limit=99`; drift probe `offset=9999, limit=1` | PASS |
+| 9,999 | one window; pages of 100; final data page `offset=9900, limit=99`; final count-only request `offset=0, limit=1` | PASS |
 | 10,000 | partition before any unsafe root data pagination | PASS |
 | >10,000 | recursively partition into chronological safe children | PASS |
 | one day ≥10,000 | typed `source_limit`; no silent loss | PASS |
@@ -165,7 +165,7 @@ Every split strictly reduces the date span, so recursion has a deterministic end
 Every generated request is guarded by:
 
 ```text
-offset + limit <= 10,000
+offset + limit < 10,000
 ```
 
 The runtime never creates an oversized final request merely because the normal page size is 100.
@@ -176,8 +176,10 @@ The client does not assume the count remains immutable:
 
 - each data response's `total_count` is compared with the planned count;
 - an unexpectedly short page is incomplete, not end-of-data success;
-- after consuming the planned rows, a one-row boundary probe checks for newly visible data;
-- any mismatch raises typed `DecpWindowLimitError(category="source_limit")`.
+- after consuming the planned rows, a final count-only request repeats the same date predicate at `offset=0, limit=1`;
+- a final count either higher or lower than the planned count raises typed `DecpWindowLimitError(category="source_limit")`.
+
+No terminal offset probe is issued. A 9,999-row window ends its data pagination at `offset=9900, limit=99`, then verifies drift with the safe count-only request. Deterministic tests cover final-count growth from 9,999 to 10,001 and shrinkage from 9,999 to 9,998; both fail closed and retain the prior checkpoint.
 
 This hotfix uses the approved fail-closed fallback instead of trying to mutate a partition plan while records are streaming. No records are silently declared complete, and the durable source checkpoint does not advance. The next run recounts and repartitions from the previous checkpoint.
 
@@ -247,7 +249,7 @@ Full local gates:
 
 | Gate | Result |
 |---|---|
-| Backend pytest | `2821 passed`, `0 skipped` |
+| Backend pytest | `2824 passed`, `0 skipped` |
 | Ruff | PASS |
 | `git diff --check` | PASS |
 | Frontend Vitest | `84 passed` |
@@ -259,20 +261,7 @@ Full local gates:
 
 Draft PR: `#9`, targeting `main` from `fix/spec016a-live-data-hardening`.
 
-Validated code-bearing head:
-
-```text
-28e61025c3735a363db9a358da7809e144cd3c15
-```
-
-GitHub Actions run `32288489951` completed successfully:
-
-| Job | Result |
-|---|---|
-| Backend (Python 3.12 · uv) | PASS — `2821 passed`, `0 skipped`; Ruff PASS |
-| Frontend (Node 24 · npm) | PASS — `84 passed`; build, typecheck, and lint PASS |
-
-The only branch change after this validated code-bearing head is this report-only CI closeout. No executable code, test, migration, profile, dependency, or configuration changed after the successful run.
+The previous code-bearing run `32288489951` was green, but its head predates the strict Opendatasoft boundary correction. A new GitHub Actions run is mandatory and pending for the corrected executable head. This section will record that head and run after both backend and frontend jobs complete.
 
 ## Files changed
 
@@ -321,6 +310,6 @@ Staged diff before the code-bearing commit:
 
 The staged scope contains exactly the three report documents, five application/migration files plus the DECP exports/errors, and the deterministic/migration test updates listed above. `git status --porcelain` contains only these explicitly staged SPEC-016A-R1 paths; there are no unstaged or unrelated files in the isolated worktree.
 
-The immutable code-bearing commit is `28e61025c3735a363db9a358da7809e144cd3c15`. `git status --porcelain` was empty immediately after that commit and before this report-only CI closeout. The branch was pushed normally; PR `#9` remains a draft and was not merged.
+The final strict-boundary code SHA and clean post-commit status will be recorded after publication. PR `#9` remains a draft and was not merged.
 
-LIVE INGESTION HARDENING READY
+LIVE INGESTION HARDENING PARTIALLY READY

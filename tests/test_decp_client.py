@@ -10,6 +10,7 @@ from signals.connectors.decp import (
     DecpClient,
     DecpCursor,
     DecpHttpError,
+    DecpWindowLimitError,
     decp_query,
 )
 
@@ -37,7 +38,7 @@ def _partition_transport(
         offset = int(request.url.params["offset"])
         limit = int(request.url.params["limit"])
         requests.append((since, until, offset, limit))
-        assert offset + limit <= 10_000
+        assert offset + limit < 10_000
         total = totals[(since, until)]
         count = max(0, min(limit, total - offset))
         results = [
@@ -96,8 +97,23 @@ def test_9999_records_use_the_exact_final_page_size_without_crossing_the_ceiling
 
     assert len(records) == 9_999
     assert (since, until, 9_900, 99) in requests
-    assert requests[-1] == (since, until, 9_999, 1)
-    assert all(offset + limit <= 10_000 for _, _, offset, limit in requests)
+    assert requests[-1] == (since, until, 0, 1)
+    assert (since, until, 9_999, 1) not in requests
+    assert all(offset + limit < 10_000 for _, _, offset, limit in requests)
+
+
+def test_decp_query_rejects_every_request_at_or_above_the_strict_ceiling():
+    day = dt.date(2026, 8, 1)
+
+    with pytest.raises(DecpWindowLimitError) as equal:
+        decp_query(DecpCursor(since=day, until=day, offset=9_999), limit=1)
+
+    assert equal.value.category == "source_limit"
+
+    with pytest.raises(DecpWindowLimitError) as above:
+        decp_query(DecpCursor(since=day, until=day, offset=9_999), limit=2)
+
+    assert above.value.category == "source_limit"
 
 
 def test_exactly_10000_records_partition_before_unsafe_offset_pagination():
@@ -156,40 +172,50 @@ def test_one_calendar_day_at_the_ceiling_fails_with_typed_source_limit():
     requests: list[tuple[dt.date, dt.date, int, int]] = []
     client = httpx.Client(transport=_partition_transport({(day, day): 10_000}, requests))
 
-    with pytest.raises(Exception) as caught:
+    with pytest.raises(DecpWindowLimitError) as caught:
         list(DecpClient(client=client).fetch_contracts_since(day, until=day))
 
-    assert type(caught.value).__name__ == "DecpWindowLimitError"
     assert caught.value.category == "source_limit"
 
 
-def test_count_fetch_drift_fails_closed_before_checkpoint_can_treat_window_complete():
+@pytest.mark.parametrize("final_total", [10_001, 9_998])
+def test_final_count_drift_fails_closed_without_an_unsafe_probe(final_total: int):
     day = dt.date(2026, 8, 1)
-    calls = 0
+    requests: list[tuple[int, int]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal calls
-        calls += 1
         offset = int(request.url.params["offset"])
         limit = int(request.url.params["limit"])
-        if calls == 1:
+        requests.append((offset, limit))
+        assert offset + limit < 10_000
+        if len(requests) == 1:
             return httpx.Response(
                 200,
-                json={"total_count": 2, "results": [{"id": "count-probe"}]},
+                json={"total_count": 9_999, "results": [{"id": "initial-count"}]},
             )
-        actual = [{"id": "one"}, {"id": "two"}, {"id": "late-three"}]
+        if offset == 0 and limit == 1:
+            return httpx.Response(
+                200,
+                json={"total_count": final_total, "results": [{"id": "final-count"}]},
+            )
+        count = min(limit, 9_999 - offset)
         return httpx.Response(
             200,
-            json={"total_count": 3, "results": actual[offset : offset + limit]},
+            json={
+                "total_count": 9_999,
+                "results": [{"id": offset + index} for index in range(count)],
+            },
         )
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
 
-    with pytest.raises(Exception) as caught:
+    with pytest.raises(DecpWindowLimitError) as caught:
         list(DecpClient(client=client).fetch_contracts_since(day, until=day))
 
-    assert type(caught.value).__name__ == "DecpWindowLimitError"
     assert caught.value.category == "source_limit"
+    assert (9_999, 1) not in requests
+    assert requests[-1] == (0, 1)
+    assert all(offset + limit < 10_000 for offset, limit in requests)
 
 
 @pytest.mark.parametrize(

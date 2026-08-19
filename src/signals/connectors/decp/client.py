@@ -46,8 +46,8 @@ class DecpCursor:
 def decp_query(cursor: DecpCursor, *, limit: int = PAGE_SIZE) -> dict[str, Any]:
     if limit <= 0 or limit > PAGE_SIZE:
         raise ValueError("invalid DECP page limit")
-    if cursor.offset + limit > DECP_RESULT_CEILING:
-        raise DecpWindowLimitError("DECP request would cross the provider result ceiling")
+    if cursor.offset + limit >= DECP_RESULT_CEILING:
+        raise DecpWindowLimitError("DECP request would reach or cross the provider result ceiling")
     clauses = [f"datepublicationdonnees>=date'{cursor.since.isoformat()}'"]
     if cursor.until is not None:
         clauses.append(f"datepublicationdonnees<=date'{cursor.until.isoformat()}'")
@@ -163,8 +163,10 @@ class DecpClient:
             current = current.next_page(limit)
             remaining -= limit
 
-        probe, observed_total = self._fetch_payload(current, limit=1)
-        if probe or observed_total is not None and observed_total != planned_total:
+        if cursor.until is None:
+            raise ValueError("DECP counted acquisition requires a bounded until date")
+        observed_total = self.count_contracts(cursor.since, until=cursor.until)
+        if observed_total != planned_total:
             raise DecpWindowLimitError("DECP window changed after count planning")
 
     def fetch_contracts_since(

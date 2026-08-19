@@ -453,7 +453,10 @@ def test_decp_later_slice_failure_retains_checkpoint_and_rerun_is_idempotent(tmp
     assert counts_after_recovery == counts_after_failure == (1, 1, 1)
 
 
-def test_decp_count_fetch_drift_is_source_limit_and_does_not_advance_checkpoint(tmp_path):
+@pytest.mark.parametrize("final_total", [0, 2])
+def test_decp_count_fetch_drift_is_source_limit_and_does_not_advance_checkpoint(
+    tmp_path, final_total: int
+):
     engine = _engine(tmp_path)
     previous_end = NOW - dt.timedelta(days=1)
     with engine.begin() as connection:
@@ -481,9 +484,17 @@ def test_decp_count_fetch_drift_is_source_limit_and_does_not_advance_checkpoint(
                 200,
                 json={"total_count": 1, "results": [{"id": "count-probe"}]},
             )
+        if calls == 2:
+            return httpx.Response(
+                200,
+                json={"total_count": 1, "results": [LINKED_DECP]},
+            )
         return httpx.Response(
             200,
-            json={"total_count": 2, "results": [LINKED_DECP]},
+            json={
+                "total_count": final_total,
+                "results": [] if final_total == 0 else [{"id": "final-count"}],
+            },
         )
 
     source = DecpSource(
@@ -505,4 +516,4 @@ def test_decp_count_fetch_drift_is_source_limit_and_does_not_advance_checkpoint(
         ).scalar_one()
     assert checkpoint is not None
     assert checkpoint.window_end == previous_end
-    assert stored == 0
+    assert stored == 1
