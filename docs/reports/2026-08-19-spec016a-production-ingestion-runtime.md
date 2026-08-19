@@ -41,7 +41,8 @@ client. SPEC-016A supplies this missing composition, not a new inference engine.
 ## Files and modules added
 
 - `signals.ingestion`: production CLI, source dispatch, window policy, checkpoint/run state,
-  orchestration pipeline, failure isolation, and persisted France sibling lookup.
+  orchestration pipeline, failure isolation, persisted France sibling lookup, canonical fact
+  reconstruction, and bounded TargetICP backfill.
 - `signals.connectors.decp.client` and `signals.connectors.decp.errors`: minimal public
   Opendatasoft acquisition and typed operational failures around the unchanged DECP parser.
 - `signals.connectors.boamp.errors`: typed BOAMP operational failures; normalization is unchanged.
@@ -49,7 +50,8 @@ client. SPEC-016A supplies this missing composition, not a new inference engine.
   persistence steps exposed independently from customer matching.
 - Alembic `0005_ingestion_runtime`: additive `ingestion_checkpoint` and `ingestion_run` tables.
 - Deterministic ingestion tests: CLI, four-source dispatch, migration, checkpoints, partial
-  failure, idempotence, restart, linkage/conflict, TargetICP materialization, and feed E2E.
+  failure, idempotence, restart, linkage/conflict, TargetICP materialization/backfill, bounded
+  truncation, safe skip versus malformed failure, and feed E2E.
 
 ## Production CLI
 
@@ -120,6 +122,21 @@ On a strong-link conflict, the existing `OpportunityConflict` is counted and emi
 sanitized structured warning with stable source identifiers and the reconciliation reason. The
 new representation is kept separate; already-persistent opportunities are never silently merged.
 
+### Safe terminal skip versus processing failure
+
+The implementation now makes the checkpoint distinction executable:
+
+- **SAFE TERMINAL SKIP:** a valid, recognized BOAMP non-eForms shape such as `FNSimple` or
+  `MAPA` is intentionally unsupported by the deterministic adapter. It increments `rejected`,
+  leaves no invented fact, and the checkpoint may advance after the rest of the window succeeds.
+- **PROCESSING FAILURE:** empty/unparseable JSON, a structurally broken eForms response, typed
+  source failures, persistence failures, or any pipeline exception mark the source incomplete.
+  The run records the typed category (including `malformed`) and retains the previous successful
+  checkpoint so overlap/idempotence can recover the record after a source or code repair.
+
+Deterministic source and runner tests prove both outcomes. No malformed record can disappear
+behind a newly advanced checkpoint.
+
 ## Deterministic E2E
 
 Offline CI tests prove:
@@ -160,78 +177,112 @@ Unchanged:
 No document download, Document Intelligence auto-accept, residual-need R&D, event store, Hermes,
 daemon, Redis, customer email, Stripe operation, or VPS change is part of this runtime.
 
-## Operational contract for SPEC-016
+## New TargetICP backfill/materialization — implemented
 
-Application command to schedule after merge:
+Before this closeout, active TargetICP creation did not evaluate opportunities persisted before
+the customer existed. The API now commits the created or updated TargetICP first, then invokes a
+synchronous database-only backfill whenever the resulting status is `active`. Draft profiles do
+no work. A failure cannot roll back the committed customer profile, and the idempotent service
+can be called again.
 
-```bash
-python -m signals.ingestion run
-```
+The service selects opportunities whose persisted publication date can still pass the
+TargetICP's existing `maximum_signal_age_days` hard filter. It orders them newest first, caps
+evaluation at 500, and returns `candidates_available`, `candidates_evaluated`,
+`signals_materialized`, and `truncated`. More than 500 candidates yields `truncated=true` and an
+operator-visible structured warning; the result is explicitly not exhaustive.
 
-Contract:
+One deterministic representative is evaluated per stable `opportunity_key`: a representation
+with an existing feed-valid published winner name is preferred, then `award_key` breaks ties.
+The same linked opportunity therefore cannot alternate BOAMP/DECP content across replays.
+Understanding, Need Graph and `MatchingEngine.match()` remain the existing implementations;
+only the existing `decision == "show"` is passed to `materialize_signal()`. No network, billing,
+entitlement, alert, or email path is called.
+
+Tests persist real frozen opportunities before any account exists, then prove active creation
+and draft-to-active update materialize a real `show` signal retrievable through `feed_page()`.
+They also prove draft exclusion, repeat signal/revision stability, explicit 501-candidate
+truncation, and deterministic named BOAMP selection for a linked BOAMP/DECP opportunity.
+
+### Synchronous backfill performance measurement
+
+An isolated SQLite database was seeded with 500 deterministic copies of the real frozen TED
+award fixture. Data preparation was excluded from the timed interval. The actual production
+service measured:
 
 ```text
-WorkingDirectory: checked-out Kivou application release root
-Environment: KIVOU_DATABASE_URL only (plus normal process PATH/Python environment)
-Process model: one shot; exit after one bounded all-source cycle
-Success: exit 0 only when all four source outcomes are successful
-Failure: exit 1 after all selected sources have been attempted
-Host lock: systemd non-overlap or flock -n /run/kivou-ingestion.lock
-Timeout: 45 minutes initially; tune from measured production duration, never infinite
-Alerts: separately scheduled `python -m signals.alerts`; never chained from ingestion
+candidate count: 500
+evaluated count: 500
+materialized count: 500
+truncated: false
+elapsed wall-clock: 8.203498 seconds
 ```
 
-Suggested systemd `ExecStart` application portion:
+This is a measured MVP upper-bound request cost, not a latency promise. It is perceptible but did
+not constitute a clear synchronous onboarding blocker on the local reference machine. The
+500-candidate cap and `truncated` warning remain mandatory; scale beyond it requires a separately
+approved durable asynchronous design, not hidden work in this SPEC.
+
+## Initial production bootstrap
+
+A fresh database should not wait for default first-run windows before the first customer. For a
+deployment performed on 2026-08-19, SPEC-016 should run these isolated bounded recent bootstraps
+before opening onboarding:
 
 ```bash
-/usr/bin/flock -n /run/kivou-ingestion.lock python -m signals.ingestion run
+python -m signals.ingestion run --source simap --since 2026-07-20
+python -m signals.ingestion run --source boamp --since 2026-07-20
+python -m signals.ingestion run --source decp --since 2026-07-20
+python -m signals.ingestion run --source ted --since 2026-08-12
 ```
 
-SPEC-016 owns the actual interpreter path, working directory, timer units, and environment file.
-This branch intentionally does not modify `ops/`.
+SIMAP, BOAMP and DECP therefore request 30 recent days; TED requests 7 recent days because its
+real endpoint is more rate-limit/WAF-sensitive. For a later launch date, use the equivalent
+relative dates rather than these historical literals. Each command advances only its own source
+checkpoint after a complete safe success. Rate limiting, a page safety cap, malformed data, or a
+processing failure retains the previous checkpoint.
 
-## Closeout design — new TargetICP backfill/materialization
+The initial bootstrap may require multiple smaller consecutive date slices if a source window
+hits its existing page safety cap or operational limit. Complete each older slice with explicit
+`--since`/`--until`, then run the final slice to the current time; idempotent overlap makes retries
+safe. Do not use `--max-records` for checkpointed bootstrap completion because an intentionally
+truncated window does not advance.
 
-The current application creates or activates a TargetICP without evaluating facts that were
-persisted before that customer existed. Waiting for a public source overlap to replay an award
-does not satisfy the Discovery onboarding requirement.
+### HISTORY COVERAGE LAUNCH LIMITATION
 
-The approved closeout adds a synchronous, bounded application service invoked after an API
-create/update has committed an active TargetICP. It reads persisted opportunity
-representations only; it performs no network acquisition and changes no public fact. Candidates
-are limited to publications that can still pass the TargetICP's existing
-`maximum_signal_age_days` hard filter, ordered newest first, and capped at the existing feed
-candidate ceiling of 500 opportunities. This SQL preselection is only a resource bound:
-`MatchingEngine.match()` remains the sole authority, and only its existing
-`decision == "show"` result may be materialized.
+This bounded bootstrap provides real recent opportunities for MVP onboarding. It does **not**
+populate twelve months of history. At launch, Essential/Pro/Scale can expose only records that
+have actually been bootstrapped or accumulated since ingestion started. A Pro entitlement may
+permit twelve-month access while the fresh database initially contains materially less than
+twelve months. SPEC-016A does not fake that history and does not introduce a historical warehouse.
 
-One deterministic representative is evaluated per stable `opportunity_key`, preferring a
-customer-nameable representation and then a stable award key. This prevents two linked source
-representations from alternately rewriting one logical signal on repeated backfills. The
-existing feed sibling-name fallback remains unchanged.
+## Corrected source-specific scheduling contract for SPEC-016
 
-The service returns a structured count and an explicit `truncated` flag when more than 500
-eligible-window opportunities exist. Truncation is never presented as complete success: it is
-logged for operator attention and documented as the current MVP capacity boundary. The
-operation is safe to repeat because `materialize_signal()` retains the existing
-`(opportunity_key, target_icp_id)` identity and content-fingerprint revision semantics.
+All commands use the release root as `WorkingDirectory`, the production virtual environment on
+`PATH`, and `KIVOU_DATABASE_URL`. They share one host lock so fact/opportunity writes do not run
+concurrently. A collision waits up to five minutes; if the preceding run is still active,
+`flock --conflict-exit-code 0` records a clean skipped invocation instead of permanent failed-unit
+noise. Timer offsets should make collision exceptional.
 
-Draft TargetICPs return without evaluating candidates. Active creation and draft-to-active
-updates invoke the service after the TargetICP transaction commits, so a materialization
-failure cannot roll back or corrupt the customer profile. No billing entitlement or alert
-delivery path participates.
+| Group | Exact application command | Cadence | Process timeout |
+|---|---|---|---|
+| Fast public sources | `/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou-ingestion.lock python -m signals.ingestion run --source simap --source boamp` | every 2 hours, offset e.g. minute 05 | 30 minutes |
+| DECP | `/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou-ingestion.lock python -m signals.ingestion run --source decp` | every 12 hours, offset e.g. minute 35 | 30 minutes |
+| TED | `/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou-ingestion.lock python -m signals.ingestion run --source ted` | daily off-peak, e.g. 02:30 UTC | 45 minutes |
 
-Deterministic closeout tests will prove facts-first/customer-second feed visibility, draft
-exclusion, repeat idempotence without a new revision, deterministic representation choice, and
-the explicit 500-candidate truncation signal. Existing source tests will additionally distinguish
-a supported terminal BOAMP skip from a malformed/transient processing failure that retains the
-previous checkpoint.
+Once the lock is acquired, exit `0` means every selected source completed, including a valid
+zero-record window; non-zero means at least one selected source requires operator attention.
+Lock contention alone exits `0` after the bounded wait. The journal should still record the
+skipped invocation, and the next normal timer retries from the unchanged durable checkpoint.
+Alerts remain a separate `python -m signals.alerts` job and are never chained from ingestion.
+
+SPEC-016 owns the actual interpreter path, environment file and unit definitions. This branch
+does not create or modify anything under `ops/`.
 
 ## Tests
 
 ```text
-backend tracked/collected: 2740
-backend passed: 2740
+backend tracked/collected: 2755
+backend passed: 2755
 backend skipped: 0
 frontend tests: 84 passed
 ruff: PASS
@@ -241,13 +292,39 @@ frontend lint: PASS
 git diff --check: PASS
 ```
 
+The closeout adds 15 deterministic backend tests over the previous 2740-test branch baseline.
+The final full backend run completed in 266.13 seconds. No live-source smoke was repeated because the
+closeout does not change network acquisition and the previously accepted four-source smoke remains
+valid.
+
 ## Git
 
 ```text
 branch: feat/spec016a-ingestion-runtime
 design commit: b56f5a2
 implementation commit: d5f242c57dfc5ec947572d9ad5ad80d02d9c0d14
+closeout implementation commit: 809880ef95020c0214a2f93bf8cd3294a6dc4202
 draft PR: https://github.com/bruppacherrodrigue-art/Kivou/pull/7
 git status --porcelain: clean after report finalization commit
-git diff --stat against origin/main: 34 files changed, 3556 insertions, 25 deletions
+git diff --stat against origin/main before report finalization: 40 files changed, 4465 insertions, 28 deletions
 ```
+
+The branch remains independently based on `origin/main`; PR #7 is open as a draft and targets
+`main`. It was neither merged nor deployed.
+
+## GitHub CI result
+
+The code-bearing closeout head `809880ef95020c0214a2f93bf8cd3294a6dc4202` completed GitHub
+Actions run `32253374215` successfully:
+
+```text
+backend job: PASS
+frontend job: PASS
+tracked backend tests: 2755 passed, 0 skipped
+frontend tests: 84 passed
+```
+
+No production deployment, VPS access, SPEC-016 infrastructure modification, alert delivery, or
+Hermes work occurred.
+
+PRODUCTION INGESTION RUNTIME READY
