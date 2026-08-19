@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 
-from signals.supervisor.contracts import SupervisorLimits
+from signals.supervisor.contracts import SupervisorLimits, SupervisorModel
 
 
 class HealthState(StrEnum):
@@ -41,6 +41,17 @@ class SupervisorProtocolError(SupervisorError):
 
 class SupervisorValidationError(SupervisorError):
     category = "validation"
+
+
+class SupervisorVersionMismatch(SupervisorError):
+    category = "version_mismatch"
+
+
+class SupervisorHealth(SupervisorModel):
+    state: HealthState
+    hermes_version: str | None = None
+    source_commit: str | None = None
+    executable_tools: tuple[str, ...] = ()
 
 
 def _optional_absolute(value: str | None, *, name: str) -> Path | None:
