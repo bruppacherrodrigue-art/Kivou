@@ -106,8 +106,14 @@ sudo systemctl daemon-reload
 # perpétuellement en échec masquerait les vraies pannes dans la surveillance.
 sudo systemctl enable --now kivou-api kivou-backup.timer
 
-# 8. TLS
-sudo certbot --nginx -d <hôte>
+# 8. TLS — `certonly`, PAS `--nginx`
+#    `--nginx` réécrit le fichier de site et le ferait diverger du gabarit
+#    versionné. `certonly` ne touche qu'à /etc/letsencrypt ; le gabarit déclare
+#    lui-même les chemins de certificat.
+sudo mkdir -p /var/www/certbot
+sudo certbot certonly --webroot -w /var/www/certbot -d <hôte> \
+    --non-interactive --agree-tos --email <email>
+sudo nginx -t && sudo systemctl reload nginx
 
 # 9. Vérification
 KIVOU_HEALTHCHECK_URL=https://<hôte> ops/bin/kivou-healthcheck.sh
