@@ -28,6 +28,7 @@ from __future__ import annotations
 import datetime as dt
 import logging
 from email.utils import make_msgid
+from typing import Protocol
 from urllib.parse import quote, urlsplit
 
 from signals.alerts.gateway import (
@@ -35,6 +36,13 @@ from signals.alerts.gateway import (
     AlertDeliveryGateway,
     AlertMessage,
 )
+
+
+class PasswordResetDelivery(Protocol):
+    """Ce que la route attend d'une remise. Rien de plus."""
+
+    def deliver(self, *, email: str, locale: str, reset_token: str) -> None: ...
+
 
 LOGGER = logging.getLogger("signals.accounts.reset_delivery")
 
@@ -130,6 +138,48 @@ def build_reset_message(
 
 def _domain(site_url: str) -> str:
     return urlsplit(site_url).hostname or "kivou.eu"
+
+
+class DeferredDelivery:
+    """Retient la remise, pour qu'elle ait lieu APRÈS la réponse HTTP.
+
+    Le canal temporel que ceci referme
+    ──────────────────────────────────
+    Mesuré sur staging le 19 août 2026 : une demande pour une adresse CONNUE
+    répondait en 2178 ms, une adresse INCONNUE en 98 ms. Les deux rendaient bien
+    202 avec le même corps — mais la durée trahissait l'existence du compte.
+    Une poignée de requêtes suffisait à énumérer les clients de Kivou. La
+    réponse générique ne suffit donc pas : il faut aussi un temps générique.
+
+    L'écart vient de l'aller-retour SMTP, qui n'a lieu que s'il y a un jeton à
+    envoyer. En sortant cette remise du temps de réponse, les deux chemins
+    redeviennent aussi rapides l'un que l'autre.
+
+    Pourquoi une enveloppe plutôt qu'un test dans la route
+    ─────────────────────────────────────────────────────
+    Parce que la route ne doit RIEN apprendre. Si elle demandait « y a-t-il un
+    e-mail à envoyer ? » pour décider de programmer une tâche, elle
+    connaîtrait l'existence du compte — et la prochaine personne qui touche à
+    ce code pourrait en dériver une branche observable. Ici la route programme
+    `flush()` **inconditionnellement** : vider zéro remise coûte le même prix
+    que d'en vider une.
+
+    Effet secondaire souhaitable : la remise quitte la transaction qui insère
+    le jeton. Le jeton est donc validé avant l'envoi, et non l'inverse.
+    """
+
+    def __init__(self, inner: PasswordResetDelivery) -> None:
+        self._inner = inner
+        self._pending: list[dict[str, str]] = []
+
+    def deliver(self, *, email: str, locale: str, reset_token: str) -> None:
+        self._pending.append({"email": email, "locale": locale, "reset_token": reset_token})
+
+    def flush(self) -> None:
+        """Exécute les remises retenues. Appelée après la réponse, jamais avant."""
+        pending, self._pending = self._pending, []
+        for arguments in pending:
+            self._inner.deliver(**arguments)
 
 
 class SmtpPasswordResetDelivery:

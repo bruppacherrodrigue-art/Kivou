@@ -8,11 +8,12 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Request, Response
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
 from signals.accounts import service
 from signals.accounts.passwords import MINIMUM_PASSWORD_LENGTH, WeakPassword
+from signals.accounts.reset_delivery import DeferredDelivery
 from signals.api.config import SESSION_COOKIE_NAME
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
@@ -149,19 +150,33 @@ def me(request: Request) -> MeResponse:
 
 
 @router.post("/auth/password-reset/request", status_code=202)
-def password_reset_request(payload: PasswordResetRequest, request: Request) -> dict[str, str]:
-    """Même réponse publique, que le compte existe ou non (§11)."""
+def password_reset_request(
+    payload: PasswordResetRequest, request: Request, background: BackgroundTasks
+) -> dict[str, str]:
+    """Même réponse publique, et même DURÉE, que le compte existe ou non (§11).
+
+    L'égalité des réponses ne suffisait pas : l'aller-retour SMTP n'ayant lieu
+    que pour un compte existant, la demande répondait en ~2,2 s pour une adresse
+    connue contre ~0,1 s pour une inconnue. La remise est donc retenue puis
+    exécutée après la réponse.
+
+    `add_task` est appelé SANS condition — voir `DeferredDelivery`. La route
+    ignore s'il y a quoi que ce soit à envoyer, et c'est ce qui garantit qu'elle
+    ne peut pas trahir l'information.
+    """
     config = request.app.state.config
     enforce_origin(request, config)
     now = request_now(request)
+    deferred = DeferredDelivery(request.app.state.password_reset_delivery)
     with request.app.state.engine.begin() as connection:
         service.request_password_reset(
             connection,
             email=payload.email,
             now=now,
             reset_ttl=config.password_reset_ttl,
-            delivery=request.app.state.password_reset_delivery,
+            delivery=deferred,
         )
+    background.add_task(deferred.flush)
     return {"status": "accepted"}
 
 

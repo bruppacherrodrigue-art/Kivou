@@ -25,6 +25,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from signals.accounts.reset_delivery import (
+    DeferredDelivery,
     SmtpPasswordResetDelivery,
     build_reset_message,
     reset_link,
@@ -428,3 +429,97 @@ def test_both_email_senders_share_one_transport_factory(monkeypatch):
     config = ApiConfig.from_environment()
 
     assert cli._gateway(config)._configuration == smtp_transport(config)._configuration
+
+
+# ─── le canal temporel ────────────────────────────────────────────────────────
+
+
+class _CountingDelivery:
+    def __init__(self) -> None:
+        self.calls: list[dict[str, str]] = []
+
+    def deliver(self, *, email: str, locale: str, reset_token: str) -> None:
+        self.calls.append({"email": email, "locale": locale, "reset_token": reset_token})
+
+
+def test_the_delivery_does_not_happen_when_it_is_recorded():
+    """C'est tout l'intérêt : le temps SMTP sort du temps de réponse.
+
+    Mesuré sur staging avant correction — 2178 ms pour une adresse connue contre
+    98 ms pour une inconnue. Les deux rendaient 202 avec le même corps, mais la
+    durée trahissait l'existence du compte.
+    """
+    inner = _CountingDelivery()
+    deferred = DeferredDelivery(inner)
+
+    deferred.deliver(email="a@b.test", locale="fr", reset_token=TOKEN)
+
+    assert inner.calls == []
+
+
+def test_flushing_performs_the_recorded_delivery():
+    inner = _CountingDelivery()
+    deferred = DeferredDelivery(inner)
+    deferred.deliver(email="a@b.test", locale="fr", reset_token=TOKEN)
+
+    deferred.flush()
+
+    assert len(inner.calls) == 1
+    assert inner.calls[0]["reset_token"] == TOKEN
+
+
+def test_flushing_twice_does_not_send_twice():
+    """La route programme `flush` sans condition ; un second appel ne doit rien
+    renvoyer, sinon un même lien partirait en double."""
+    inner = _CountingDelivery()
+    deferred = DeferredDelivery(inner)
+    deferred.deliver(email="a@b.test", locale="fr", reset_token=TOKEN)
+
+    deferred.flush()
+    deferred.flush()
+
+    assert len(inner.calls) == 1
+
+
+def test_flushing_nothing_is_harmless():
+    """Le cas de l'adresse inconnue : vider zéro remise coûte le même prix.
+
+    C'est ce qui permet à la route d'appeler `add_task` sans jamais demander
+    s'il y a quelque chose à envoyer — donc sans jamais apprendre si le compte
+    existe.
+    """
+    inner = _CountingDelivery()
+
+    DeferredDelivery(inner).flush()
+
+    assert inner.calls == []
+
+
+def test_a_broken_inner_delivery_still_does_not_reach_the_caller():
+    """L'enveloppe ne doit pas réintroduire l'exception que l'adaptateur absorbe."""
+    delivery = SmtpPasswordResetDelivery(
+        FailingTransport(UncertainDelivery()), site_url=SITE, ttl=TTL
+    )
+    deferred = DeferredDelivery(delivery)
+    deferred.deliver(email="a@b.test", locale="fr", reset_token=TOKEN)
+
+    deferred.flush()  # ne lève pas
+
+
+def test_the_route_still_delivers_through_the_deferred_wrapper(
+    client: TestClient, transport: RecordingTransport
+):
+    """Le report ne doit pas faire disparaître l'e-mail."""
+    client.post(
+        "/auth/signup",
+        json={
+            "email": "fondateur@negoce-romand.ch",
+            "password": "un-mot-de-passe-assez-long",
+            "company_name": "Negoce Romand SA",
+            "locale": "fr",
+        },
+    )
+
+    client.post("/auth/password-reset/request", json={"email": "fondateur@negoce-romand.ch"})
+
+    assert len(transport.sent) == 1
