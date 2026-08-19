@@ -317,6 +317,22 @@ class StripeApiGateway:
             # déduire quoi que ce soit d'une obligation fiscale ici.
             "tax_id_collection": {"enabled": True},
             "billing_address_collection": "required",
+            # Sans ceci, Stripe REFUSE la session :
+            #
+            #     Tax ID collection requires updating business name on the
+            #     customer. Please set `customer_update[name]` to `auto`.
+            #
+            # La raison est logique : un numéro de TVA appartient à une raison
+            # sociale. Le collecter sans autoriser la mise à jour du nom du
+            # client produirait une facture portant un numéro fiscal et un nom
+            # qui ne se correspondent pas. L'adresse suit la même règle, parce
+            # que `billing_address_collection` la demande à l'écran et qu'il
+            # serait absurde de la saisir sans la conserver.
+            #
+            # Le défaut n'apparaissait dans AUCUN test : la suite double la
+            # passerelle, et seule une vraie session TEST l'a révélé. Tout
+            # paiement aurait échoué en 500, en production comme ailleurs.
+            "customer_update": {"name": "auto", "address": "auto"},
             # Closeout §5 — la session Stripe et la tentative locale décrivent
             # la MÊME durée de vie. Sans cela, une tentative locale pourrait
             # survivre à la session qu'elle décrit et bloquer le compte.
