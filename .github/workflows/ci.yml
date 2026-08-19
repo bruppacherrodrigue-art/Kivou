@@ -29,8 +29,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Version EXACTE : `astral-sh/setup-uv` ne publie pas de tag majeur
+      # flottant au-delà de `v7`. Un `@v10` ne se résout donc pas, et le job
+      # échoue à la préparation, avant même de voir le code.
       - name: Installer uv
-        uses: astral-sh/setup-uv@v10
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           # `uv.lock` est la clé du cache : il change quand les dépendances
           # changent, et seulement à ce moment-là.
