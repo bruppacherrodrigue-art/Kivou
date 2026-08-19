@@ -69,3 +69,36 @@ def test_it_does_not_migrate_at_startup(monkeypatch, tmp_path):
     application = asgi.build_application()
 
     assert current_revision(application.state.engine) is None
+
+
+def test_no_stripe_key_means_no_gateway(monkeypatch, tmp_path):
+    """Un déploiement sans clé n'encaisse pas — et le dit par 503, pas par 500."""
+    monkeypatch.setenv(DATABASE_URL_ENV, f"sqlite+pysqlite:///{tmp_path / 'sans-stripe.db'}")
+    monkeypatch.delenv("STRIPE_SECRET_KEY", raising=False)
+
+    application = asgi.build_application()
+
+    assert application.state.stripe_gateway is None
+
+
+def test_a_configured_stripe_key_builds_a_real_gateway(monkeypatch, tmp_path):
+    """Sans cette fabrique, la facturation serait indisponible EN PERMANENCE.
+
+    Le défaut est silencieux : l'application démarre, sert le feed, et seule une
+    tentative de paiement révèle qu'aucune passerelle n'a jamais été branchée.
+    """
+    from signals.api.config import (
+        STRIPE_CANCEL_URL_ENV,
+        STRIPE_PORTAL_RETURN_URL_ENV,
+        STRIPE_SUCCESS_URL_ENV,
+    )
+
+    monkeypatch.setenv(DATABASE_URL_ENV, f"sqlite+pysqlite:///{tmp_path / 'avec-stripe.db'}")
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_" + "0" * 24)
+    monkeypatch.setenv(STRIPE_SUCCESS_URL_ENV, "https://kivou.test/checkout/success")
+    monkeypatch.setenv(STRIPE_CANCEL_URL_ENV, "https://kivou.test/checkout/cancel")
+    monkeypatch.setenv(STRIPE_PORTAL_RETURN_URL_ENV, "https://kivou.test/app/billing")
+
+    application = asgi.build_application()
+
+    assert application.state.stripe_gateway is not None

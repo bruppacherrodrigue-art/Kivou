@@ -32,6 +32,7 @@ from fastapi import FastAPI
 
 from signals.api.app import create_app
 from signals.api.config import ApiConfig
+from signals.billing.gateway import StripeApiGateway
 from signals.persistence.database import create_database_engine
 
 
@@ -43,8 +44,25 @@ def build_application() -> FastAPI:
     cette vérification, la première requête après la coupure échoue chez un
     client plutôt que d'être remplacée en silence.
     """
+    config = ApiConfig.from_environment()
     engine = create_database_engine(pool_pre_ping=True)
-    return create_app(engine, ApiConfig.from_environment())
+    return create_app(engine, config, stripe_gateway=_stripe_gateway(config))
+
+
+def _stripe_gateway(config: ApiConfig) -> StripeApiGateway | None:
+    """La passerelle Stripe, ou `None` quand aucune clé n'est configurée.
+
+    `None` n'est pas une panne : c'est l'état normal d'un déploiement qui
+    n'encaisse pas. Les routes de facturation répondent alors 503
+    `billing_unavailable`, ce qui est exact et lisible.
+
+    Sans cette fabrique, l'application construite ici n'aurait JAMAIS de
+    passerelle — la facturation serait indisponible en permanence, y compris
+    sur un déploiement parfaitement configuré, et rien ne l'expliquerait.
+    """
+    if config.stripe_secret_key is None:
+        return None
+    return StripeApiGateway(config.stripe_secret_key)
 
 
 def __getattr__(name: str) -> FastAPI:
