@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — déclenche l'ingestion TED
+
+[Timer]
+# 02:30 UTC, heure creuse. Décalé de l'heure de sauvegarde (03:20) pour ne pas
+# faire tourner un dump pendant une écriture massive.
+OnCalendar=*-*-* 02:30:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

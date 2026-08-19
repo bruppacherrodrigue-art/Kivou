@@ -1,0 +1,48 @@
+# Kivou — sources publiques rapides : SIMAP et BOAMP.
+#
+# Ces deux sources publient au fil de l'eau ; les interroger toutes les deux
+# heures est ce qui donne un sens au mot « récent » dans le feed, sans
+# marteler des services publics.
+[Unit]
+Description=Kivou — ingestion des sources rapides (SIMAP, BOAMP)
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/staging.env
+
+# Un verrou d'hôte UNIQUE, partagé par les trois groupes d'ingestion : les
+# écritures de faits et d'opportunités ne doivent jamais se croiser.
+#
+# `--timeout 300` puis `--conflict-exit-code 0` : si le cycle précédent tourne
+# encore, on attend cinq minutes, puis on renonce PROPREMENT. Sortir en erreur
+# ferait d'une collision bénigne une unité « failed » permanente, et la
+# surveillance ne distinguerait plus une vraie panne d'un simple chevauchement.
+# Le checkpoint durable étant inchangé, le déclenchement suivant reprend
+# exactement où le précédent s'était arrêté.
+ExecStart=/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 \
+    /run/kivou-ingestion.lock \
+    /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source simap --source boamp
+
+# Borne dure : une source qui ne répond plus ne doit pas garder le verrou
+# jusqu'au déclenchement suivant.
+#
+# `TimeoutStartSec` et NON `RuntimeMaxSec` : avec `Type=oneshot`, systemd
+# ignore purement et simplement `RuntimeMaxSec` — il le dit dans le journal,
+# puis n'applique aucune borne. `systemd-analyze verify` l'a signalé ; sans
+# cette vérification, la limite documentée ici n'aurait jamais existé.
+TimeoutStartSec=30min
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-ingest-fast
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/kivou-ingestion.lock

@@ -1,0 +1,10 @@
+[Unit]
+Description=Kivou — déclenche l'ingestion DECP
+
+[Timer]
+OnCalendar=*-*-* 00,12:35:00
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

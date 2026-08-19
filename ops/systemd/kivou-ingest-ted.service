@@ -1,0 +1,32 @@
+# Kivou — TED, le journal européen des marchés publics.
+#
+# Publication quotidienne : un passage par jour, aux heures creuses. La borne
+# de durée est plus large que pour les autres sources, TED étant de loin la
+# plus volumineuse.
+[Unit]
+Description=Kivou — ingestion TED
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/staging.env
+
+ExecStart=/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 \
+    /run/kivou-ingestion.lock \
+    /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source ted
+
+TimeoutStartSec=45min
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-ingest-ted
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/kivou-ingestion.lock

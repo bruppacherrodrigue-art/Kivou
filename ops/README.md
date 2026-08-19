@@ -217,6 +217,57 @@ d'alerte construit `{base}/signals/{clé}` et la route navigateur est
 
 ---
 
+## Ingestion — trois groupes, un seul verrou
+
+Les sources publiques n'ont ni le même rythme de publication ni le même
+volume ; leur donner une cadence unique reviendrait soit à marteler DECP et
+TED, soit à laisser vieillir SIMAP et BOAMP.
+
+```bash
+sudo cp ops/systemd/kivou-ingest-*.service ops/systemd/kivou-ingest-*.timer /etc/systemd/system/
+sudo cp ops/systemd/kivou-ingestion.tmpfiles.conf /etc/tmpfiles.d/kivou-ingestion.conf
+sudo systemd-tmpfiles --create /etc/tmpfiles.d/kivou-ingestion.conf
+sudo systemctl daemon-reload
+sudo systemctl enable --now kivou-ingest-fast.timer kivou-ingest-decp.timer kivou-ingest-ted.timer
+```
+
+| Groupe | Sources | Cadence | Borne |
+|---|---|---|---|
+| `kivou-ingest-fast` | SIMAP + BOAMP | toutes les 2 h, minute 05 | 30 min |
+| `kivou-ingest-decp` | DECP | 00 h et 12 h, minute 35 | 30 min |
+| `kivou-ingest-ted` | TED | 02:30 UTC | 45 min |
+
+**Le verrou est le point à comprendre.** Les trois groupes partagent
+`/run/kivou-ingestion.lock` pour que deux écritures de faits ne se croisent
+jamais. En cas de collision, `flock --timeout 300 --conflict-exit-code 0`
+attend cinq minutes puis **renonce proprement** : l'unité sort en 0, le journal
+garde la trace du passage sauté, et le déclenchement suivant reprend au
+checkpoint durable. Sortir en erreur ferait d'un chevauchement bénin une unité
+« failed » permanente — et une surveillance qui crie en continu n'alerte plus
+de rien.
+
+Le fichier de verrou est déclaré en `tmpfiles.d` parce que `/run` est un tmpfs :
+créé à la main, il disparaîtrait au premier redémarrage. Les services tournant
+en `ProtectSystem=strict` ne peuvent pas le créer eux-mêmes, et leur ouvrir tout
+`/run` en écriture pour un seul fichier serait disproportionné.
+
+Amorçage initial, à ne jouer qu'une fois, avec la base de production :
+
+```bash
+cd /srv/kivou/app
+sudo -u kivou env $(sudo cat /etc/kivou/staging.env | xargs) \
+    .venv/bin/python -m signals.ingestion run --source simap --since 2026-07-20
+# puis boamp, decp (mêmes fenêtres), et ted sur une fenêtre plus courte
+```
+
+Pas de `--max-records` pour un amorçage : la borne empêcherait le checkpoint
+d'avancer jusqu'au bout de la fenêtre, et le rattrapage suivant repartirait
+d'un état incomplet sans le dire.
+
+L'ingestion ne déclenche **jamais** l'envoi d'alertes. Les deux jobs restent
+séparés, pour qu'une ingestion lente ne retarde pas les alertes et qu'un
+incident d'envoi ne bloque pas l'acquisition des faits.
+
 ## Sauvegardes
 
 `kivou-backup.timer` déclenche un `pg_dump` quotidien vers

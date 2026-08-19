@@ -1,0 +1,32 @@
+# Kivou — DECP, les données essentielles de la commande publique française.
+#
+# La source est normalement mise à jour une fois par jour : l'interroger toutes
+# les douze heures suffit largement, et deux passages laissent une marge si
+# l'un échoue.
+[Unit]
+Description=Kivou — ingestion DECP
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/staging.env
+
+ExecStart=/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 \
+    /run/kivou-ingestion.lock \
+    /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source decp
+
+TimeoutStartSec=30min
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-ingest-decp
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/kivou-ingestion.lock
