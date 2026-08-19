@@ -13,24 +13,15 @@ import argparse
 import datetime as dt
 import sys
 
-from signals.alerts.gateway import SmtpAlertGateway, SmtpConfiguration
+from signals.alerts.gateway import SmtpAlertGateway
 from signals.alerts.job import CycleReport, run_alert_cycle
 from signals.api.config import ApiConfig
+from signals.api.mail import smtp_transport
 from signals.persistence.database import create_database_engine
 
 
 def _gateway(config: ApiConfig) -> SmtpAlertGateway:
-    return SmtpAlertGateway(
-        SmtpConfiguration(
-            host=config.smtp_host or "",
-            port=config.smtp_port,
-            username=config.smtp_username,
-            password=config.smtp_password,
-            from_email=config.smtp_from_email or "",
-            from_name=config.smtp_from_name,
-            use_tls=config.smtp_use_tls,
-        )
-    )
+    return smtp_transport(config)
 
 
 def summarize(report: CycleReport) -> str:

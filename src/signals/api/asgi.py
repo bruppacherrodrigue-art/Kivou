@@ -30,8 +30,10 @@ from __future__ import annotations
 
 from fastapi import FastAPI
 
+from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
 from signals.api.app import create_app
 from signals.api.config import ApiConfig
+from signals.api.mail import smtp_transport
 from signals.billing.gateway import StripeApiGateway
 from signals.persistence.database import create_database_engine
 
@@ -46,7 +48,12 @@ def build_application() -> FastAPI:
     """
     config = ApiConfig.from_environment()
     engine = create_database_engine(pool_pre_ping=True)
-    return create_app(engine, config, stripe_gateway=_stripe_gateway(config))
+    return create_app(
+        engine,
+        config,
+        stripe_gateway=_stripe_gateway(config),
+        password_reset_delivery=_password_reset_delivery(config),
+    )
 
 
 def _stripe_gateway(config: ApiConfig) -> StripeApiGateway | None:
@@ -63,6 +70,32 @@ def _stripe_gateway(config: ApiConfig) -> StripeApiGateway | None:
     if config.stripe_secret_key is None:
         return None
     return StripeApiGateway(config.stripe_secret_key)
+
+
+def _password_reset_delivery(config: ApiConfig) -> SmtpPasswordResetDelivery | None:
+    """La remise du lien de réinitialisation, ou `None` sans SMTP.
+
+    Même défaut que la passerelle Stripe, et découvert de la même façon : la
+    fabrique acceptait `password_reset_delivery` depuis SPEC-011, mais aucun
+    point d'entrée de production ne la fournissait. La production retombait donc
+    sur `_NullDelivery` — le jeton était créé en base, la route rendait 202, et
+    personne ne recevait jamais rien. Rien dans les journaux ne le disait :
+    l'absence d'e-mail ne produit aucune erreur.
+
+    Ajouter des identifiants SMTP à l'environnement N'AURAIT PAS suffi. Il
+    fallait ce câblage.
+
+    `None` reste l'état normal d'un déploiement sans SMTP : la demande est alors
+    acceptée et le jeton reste inutilisé jusqu'à expiration, ce qui vaut mieux
+    qu'un démarrage refusé.
+    """
+    if not config.password_reset_email_configured:
+        return None
+    return SmtpPasswordResetDelivery(
+        smtp_transport(config),
+        site_url=config.public_site_url or "",
+        ttl=config.password_reset_ttl,
+    )
 
 
 def __getattr__(name: str) -> FastAPI:

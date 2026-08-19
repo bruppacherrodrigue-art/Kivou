@@ -21,6 +21,20 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--kivou-space-4);
+  /* Le bandeau se replie plutôt que de déborder.
+   *
+   * Mesuré sur le staging à 390 px : logo + sélecteur de langue + « Se
+   * connecter » + « Créer un compte » font 419 px sur une fenêtre de 390. La
+   * page entière gagnait donc un défilement horizontal — sur la page d'accueil,
+   * la première que voit un prospect.
+   *
+   * Le repli est préféré à un resserrement des espacements parce que les
+   * libellés changent de langue : « Créer un compte » est plus long que
+   * « Get started », et un calage aux pixels sur l'anglais casserait en
+   * français. Aucun contrôle n'est masqué — masquer une action de navigation
+   * serait une décision de produit, pas une correction de mise en page. */
+  flex-wrap: wrap;
+  row-gap: var(--kivou-space-3);
 }
 
 .logoLink {
@@ -33,6 +47,14 @@
   display: flex;
   align-items: center;
   gap: var(--kivou-space-2);
+  /* `margin-left: auto` et non le seul `space-between` du parent : une fois
+   * replié, ce bloc est SEUL sur sa ligne, et `space-between` l'alignerait
+   * alors à gauche. Les actions resteraient lisibles mais changeraient de côté
+   * entre deux largeurs, ce qui se remarque plus qu'un débordement. */
+  margin-left: auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  row-gap: var(--kivou-space-2);
 }
 
 .localeSwitch {
