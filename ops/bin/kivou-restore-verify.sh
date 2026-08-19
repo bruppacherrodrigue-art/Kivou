@@ -43,11 +43,18 @@ log "  révision Alembic : ${REVISION}"
 # Le script signalait alors « table absente » sur une restauration parfaitement
 # saine — un faux négatif, c'est-à-dire le pire résultat possible pour une
 # vérification de sauvegarde.
+#
+# SPEC-016A ajoute trois tables qui doivent survivre à une restauration au même
+# titre que les autres : `opportunity_representation` porte l'identité des
+# opportunités, et les deux tables d'ingestion portent la position de reprise.
+# Restaurer sans les checkpoints ferait recommencer l'acquisition depuis le
+# début — ou, pire, la ferait reprendre à un point erroné.
 for table in account auth_user auth_session target_icp materialized_signal \
              discovery_signal_grant billing_customer billing_subscription \
              billing_checkout_attempt signal_feedback product_event \
              account_notification_preference signal_alert_delivery \
-             contract_award source_event evidence; do
+             contract_award source_event evidence \
+             opportunity_representation ingestion_checkpoint ingestion_run; do
     if ! psql "${TARGET_URL}" -tAc "SELECT to_regclass('public.${table}');" | grep -q .; then
         log "ÉCHEC : table ${table} absente"
         exit 1
