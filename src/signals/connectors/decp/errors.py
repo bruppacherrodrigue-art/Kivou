@@ -3,12 +3,25 @@ from __future__ import annotations
 from typing import Literal
 
 FailureCategory = Literal[
-    "timeout", "rate_limited", "server_error", "unauthorized", "client_error", "network", "malformed"
+    "timeout",
+    "rate_limited",
+    "server_error",
+    "unauthorized",
+    "client_error",
+    "network",
+    "malformed",
+    "source_limit",
 ]
 
 
 class DecpError(Exception):
     """Base class for operational DECP failures."""
+
+
+class DecpWindowLimitError(DecpError):
+    """A bounded source window cannot be proven complete safely."""
+
+    category: FailureCategory = "source_limit"
 
 
 class DecpHttpError(DecpError):

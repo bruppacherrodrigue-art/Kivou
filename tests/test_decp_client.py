@@ -1,11 +1,53 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 import httpx
 import pytest
 
-from signals.connectors.decp import DecpClient, DecpCursor, DecpHttpError, decp_query
+from signals.connectors.decp import (
+    DecpClient,
+    DecpCursor,
+    DecpHttpError,
+    DecpWindowLimitError,
+    decp_query,
+)
+
+_DATES = re.compile(
+    r"datepublicationdonnees>=date'(?P<since>\d{4}-\d{2}-\d{2})'.*"
+    r"datepublicationdonnees<=date'(?P<until>\d{4}-\d{2}-\d{2})'"
+)
+
+
+def _bounds(request: httpx.Request) -> tuple[dt.date, dt.date]:
+    matched = _DATES.search(str(request.url.params["where"]))
+    assert matched is not None
+    return (
+        dt.date.fromisoformat(matched.group("since")),
+        dt.date.fromisoformat(matched.group("until")),
+    )
+
+
+def _partition_transport(
+    totals: dict[tuple[dt.date, dt.date], int],
+    requests: list[tuple[dt.date, dt.date, int, int]],
+) -> httpx.MockTransport:
+    def handler(request: httpx.Request) -> httpx.Response:
+        since, until = _bounds(request)
+        offset = int(request.url.params["offset"])
+        limit = int(request.url.params["limit"])
+        requests.append((since, until, offset, limit))
+        assert offset + limit < 10_000
+        total = totals[(since, until)]
+        count = max(0, min(limit, total - offset))
+        results = [
+            {"id": f"{since.isoformat()}:{until.isoformat()}:{offset + index}"}
+            for index in range(count)
+        ]
+        return httpx.Response(200, json={"total_count": total, "results": results})
+
+    return httpx.MockTransport(handler)
 
 
 def test_decp_query_uses_publication_window_and_stable_order():
@@ -23,8 +65,15 @@ def test_decp_pagination_is_bounded_by_max_records():
 
     def handler(request: httpx.Request):
         offset = int(request.url.params["offset"])
+        limit = int(request.url.params["limit"])
         offsets.append(offset)
-        return httpx.Response(200, json={"results": [{"id": offset + i} for i in range(100)]})
+        return httpx.Response(
+            200,
+            json={
+                "total_count": 1_000,
+                "results": [{"id": offset + i} for i in range(limit)],
+            },
+        )
 
     client = httpx.Client(transport=httpx.MockTransport(handler))
     records = list(
@@ -33,7 +82,140 @@ def test_decp_pagination_is_bounded_by_max_records():
         )
     )
     assert len(records) == 101
-    assert offsets == [0, 100]
+    assert offsets == [0, 0, 100]
+
+
+def test_9999_records_use_the_exact_final_page_size_without_crossing_the_ceiling():
+    since = dt.date(2026, 8, 1)
+    until = dt.date(2026, 8, 1)
+    requests: list[tuple[dt.date, dt.date, int, int]] = []
+    client = httpx.Client(
+        transport=_partition_transport({(since, until): 9_999}, requests)
+    )
+
+    records = list(DecpClient(client=client).fetch_contracts_since(since, until=until))
+
+    assert len(records) == 9_999
+    assert (since, until, 9_900, 99) in requests
+    assert requests[-1] == (since, until, 0, 1)
+    assert (since, until, 9_999, 1) not in requests
+    assert all(offset + limit < 10_000 for _, _, offset, limit in requests)
+
+
+def test_decp_query_rejects_every_request_at_or_above_the_strict_ceiling():
+    day = dt.date(2026, 8, 1)
+
+    with pytest.raises(DecpWindowLimitError) as equal:
+        decp_query(DecpCursor(since=day, until=day, offset=9_999), limit=1)
+
+    assert equal.value.category == "source_limit"
+
+    with pytest.raises(DecpWindowLimitError) as above:
+        decp_query(DecpCursor(since=day, until=day, offset=9_999), limit=2)
+
+    assert above.value.category == "source_limit"
+
+
+def test_exactly_10000_records_partition_before_unsafe_offset_pagination():
+    first = dt.date(2026, 8, 1)
+    second = dt.date(2026, 8, 2)
+    requests: list[tuple[dt.date, dt.date, int, int]] = []
+    totals = {
+        (first, second): 10_000,
+        (first, first): 5_000,
+        (second, second): 5_000,
+    }
+    client = httpx.Client(transport=_partition_transport(totals, requests))
+
+    records = list(DecpClient(client=client).fetch_contracts_since(first, until=second))
+
+    assert len(records) == 10_000
+    assert not any(
+        since == first and until == second and limit > 1
+        for since, until, _, limit in requests
+    )
+    assert {record["id"].split(":", 1)[0] for record in records} == {
+        first.isoformat(),
+        second.isoformat(),
+    }
+
+
+def test_above_ceiling_recursively_partitions_in_chronological_date_order():
+    day1 = dt.date(2026, 8, 1)
+    day2 = dt.date(2026, 8, 2)
+    day3 = dt.date(2026, 8, 3)
+    day4 = dt.date(2026, 8, 4)
+    requests: list[tuple[dt.date, dt.date, int, int]] = []
+    totals = {
+        (day1, day4): 12_000,
+        (day1, day2): 11_000,
+        (day1, day1): 6_000,
+        (day2, day2): 5_000,
+        (day3, day4): 1_000,
+    }
+    client = httpx.Client(transport=_partition_transport(totals, requests))
+
+    records = list(DecpClient(client=client).fetch_contracts_since(day1, until=day4))
+
+    assert len(records) == 12_000
+    record_windows = [record["id"].rsplit(":", 1)[0] for record in records]
+    assert record_windows == sorted(record_windows)
+    assert {bounds[:2] for bounds in requests if bounds[3] > 1} == {
+        (day1, day1),
+        (day2, day2),
+        (day3, day4),
+    }
+
+
+def test_one_calendar_day_at_the_ceiling_fails_with_typed_source_limit():
+    day = dt.date(2026, 8, 1)
+    requests: list[tuple[dt.date, dt.date, int, int]] = []
+    client = httpx.Client(transport=_partition_transport({(day, day): 10_000}, requests))
+
+    with pytest.raises(DecpWindowLimitError) as caught:
+        list(DecpClient(client=client).fetch_contracts_since(day, until=day))
+
+    assert caught.value.category == "source_limit"
+
+
+@pytest.mark.parametrize("final_total", [10_001, 9_998])
+def test_final_count_drift_fails_closed_without_an_unsafe_probe(final_total: int):
+    day = dt.date(2026, 8, 1)
+    requests: list[tuple[int, int]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        offset = int(request.url.params["offset"])
+        limit = int(request.url.params["limit"])
+        requests.append((offset, limit))
+        assert offset + limit < 10_000
+        if len(requests) == 1:
+            return httpx.Response(
+                200,
+                json={"total_count": 9_999, "results": [{"id": "initial-count"}]},
+            )
+        if offset == 0 and limit == 1:
+            return httpx.Response(
+                200,
+                json={"total_count": final_total, "results": [{"id": "final-count"}]},
+            )
+        count = min(limit, 9_999 - offset)
+        return httpx.Response(
+            200,
+            json={
+                "total_count": 9_999,
+                "results": [{"id": offset + index} for index in range(count)],
+            },
+        )
+
+    client = httpx.Client(transport=httpx.MockTransport(handler))
+
+    with pytest.raises(DecpWindowLimitError) as caught:
+        list(DecpClient(client=client).fetch_contracts_since(day, until=day))
+
+    assert caught.value.category == "source_limit"
+    assert (9_999, 1) not in requests
+    assert requests[-1] == (0, 1)
+    assert all(offset + limit < 10_000 for offset, limit in requests)
 
 
 @pytest.mark.parametrize(
