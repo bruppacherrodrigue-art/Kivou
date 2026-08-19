@@ -261,7 +261,20 @@ Full local gates:
 
 Draft PR: `#9`, targeting `main` from `fix/spec016a-live-data-hardening`.
 
-The previous code-bearing run `32288489951` was green, but its head predates the strict Opendatasoft boundary correction. A new GitHub Actions run is mandatory and pending for the corrected executable head. This section will record that head and run after both backend and frontend jobs complete.
+Validated strict-boundary executable head:
+
+```text
+38048cbf2ba722494468e00a31c66714aa3e4fc6
+```
+
+GitHub Actions run `32291114336` completed successfully:
+
+| Job | Result |
+|---|---|
+| Backend (Python 3.12 · uv) | PASS — `2824 passed`, `0 skipped`; Ruff PASS |
+| Frontend (Node 24 · npm) | PASS — `84 passed`; build, typecheck, and lint PASS |
+
+The only branch change after this validated executable head is this report-only CI closeout. No executable code, test, migration, dependency, or configuration changed after the successful run.
 
 ## Files changed
 
@@ -310,6 +323,6 @@ Staged diff before the code-bearing commit:
 
 The staged scope contains exactly the three report documents, five application/migration files plus the DECP exports/errors, and the deterministic/migration test updates listed above. `git status --porcelain` contains only these explicitly staged SPEC-016A-R1 paths; there are no unstaged or unrelated files in the isolated worktree.
 
-The final strict-boundary code SHA and clean post-commit status will be recorded after publication. PR `#9` remains a draft and was not merged.
+The strict-boundary correction commit contains exactly five files and reports `75 insertions(+), 47 deletions(-)`. At validated executable head `38048cbf2ba722494468e00a31c66714aa3e4fc6`, the full PR diff reports `17 files changed, 1597 insertions(+), 35 deletions(-)`, and `git status --porcelain` is empty. PR `#9` remains a draft and was not merged.
 
-LIVE INGESTION HARDENING PARTIALLY READY
+LIVE INGESTION HARDENING READY
