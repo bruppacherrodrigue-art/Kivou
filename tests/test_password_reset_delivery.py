@@ -269,9 +269,7 @@ def client(engine, transport: RecordingTransport) -> TestClient:
             password_reset_ttl=TTL,
             public_app_url=f"{SITE}/app",
         ),
-        password_reset_delivery=SmtpPasswordResetDelivery(
-            transport, site_url=SITE, ttl=TTL
-        ),
+        password_reset_delivery=SmtpPasswordResetDelivery(transport, site_url=SITE, ttl=TTL),
     )
     return TestClient(app, headers={"Origin": ORIGIN})
 
@@ -313,16 +311,21 @@ def test_the_emitted_link_is_actually_usable(client: TestClient, transport: Reco
     )
 
     assert confirmed.status_code == 200
-    assert client.post(
-        "/auth/login",
-        json={"email": "fondateur@negoce-romand.ch", "password": "un-tout-autre-mot-de-passe"},
-    ).status_code == 200
+    assert (
+        client.post(
+            "/auth/login",
+            json={"email": "fondateur@negoce-romand.ch", "password": "un-tout-autre-mot-de-passe"},
+        ).status_code
+        == 200
+    )
 
 
 def test_an_unknown_address_sends_nothing_and_answers_the_same(
     client: TestClient, transport: RecordingTransport
 ):
-    response = client.post("/auth/password-reset/request", json={"email": "inconnu@negoce-romand.ch"})
+    response = client.post(
+        "/auth/password-reset/request", json={"email": "inconnu@negoce-romand.ch"}
+    )
 
     assert response.status_code == 202
     assert transport.sent == []
@@ -351,7 +354,9 @@ def test_a_broken_transport_does_not_change_the_public_answer(engine):
     known = client.post(
         "/auth/password-reset/request", json={"email": "fondateur@negoce-romand.ch"}
     )
-    unknown = client.post("/auth/password-reset/request", json={"email": "inconnu@negoce-romand.ch"})
+    unknown = client.post(
+        "/auth/password-reset/request", json={"email": "inconnu@negoce-romand.ch"}
+    )
 
     assert known.status_code == unknown.status_code == 202
     assert known.json() == unknown.json()

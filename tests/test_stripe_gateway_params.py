@@ -42,7 +42,9 @@ class _Recorder:
     def create(self, params: dict[str, Any], options: dict[str, Any] | None = None) -> Any:
         self.params = params
         self.options = options or {}
-        return type("Session", (), {"id": "cs_test_1", "url": "https://checkout.test/x", "livemode": False})()
+        return type(
+            "Session", (), {"id": "cs_test_1", "url": "https://checkout.test/x", "livemode": False}
+        )()
 
 
 class _Sessions:
@@ -63,7 +65,7 @@ def recorder() -> _Recorder:
 @pytest.fixture
 def gateway(recorder: _Recorder) -> StripeApiGateway:
     gateway = StripeApiGateway.__new__(StripeApiGateway)
-    gateway._client = _Client(recorder)  # noqa: SLF001
+    gateway._client = _Client(recorder)
     return gateway
 
 
@@ -145,9 +147,7 @@ def test_automatic_tax_is_sent_exactly_as_configured(
     assert recorder.params["automatic_tax"] == {"enabled": True}
 
 
-def test_no_discount_is_sent_when_no_coupon_applies(
-    gateway: StripeApiGateway, recorder: _Recorder
-):
+def test_no_discount_is_sent_when_no_coupon_applies(gateway: StripeApiGateway, recorder: _Recorder):
     """Une liste de remises vide n'est pas la même chose qu'aucune remise."""
     _create(gateway, coupon_id=None)
 
@@ -160,18 +160,14 @@ def test_a_coupon_is_sent_as_a_discount(gateway: StripeApiGateway, recorder: _Re
     assert recorder.params["discounts"] == [{"coupon": "coupon_founding"}]
 
 
-def test_the_idempotency_key_travels_in_the_options(
-    gateway: StripeApiGateway, recorder: _Recorder
-):
+def test_the_idempotency_key_travels_in_the_options(gateway: StripeApiGateway, recorder: _Recorder):
     """Sans elle, un double clic ouvrirait deux paiements pour un abonnement."""
     _create(gateway, idempotency_key="idem-42")
 
     assert recorder.options["idempotency_key"] == "idem-42"
 
 
-def test_the_session_is_a_subscription_for_one_unit(
-    gateway: StripeApiGateway, recorder: _Recorder
-):
+def test_the_session_is_a_subscription_for_one_unit(gateway: StripeApiGateway, recorder: _Recorder):
     _create(gateway, price_id="price_essential_eur")
 
     assert recorder.params["mode"] == "subscription"

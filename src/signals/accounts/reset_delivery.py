@@ -150,9 +150,7 @@ class SmtpPasswordResetDelivery:
     tout parti recevrait un lien déjà mort.
     """
 
-    def __init__(
-        self, gateway: AlertDeliveryGateway, *, site_url: str, ttl: dt.timedelta
-    ) -> None:
+    def __init__(self, gateway: AlertDeliveryGateway, *, site_url: str, ttl: dt.timedelta) -> None:
         if not site_url:
             raise ValueError("URL publique requise pour construire un lien de réinitialisation")
         self._gateway = gateway
