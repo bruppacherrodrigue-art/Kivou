@@ -1,0 +1,6 @@
+[hermes]
+repository = "https://github.com/NousResearch/hermes-agent.git"
+tag = "v2026.8.18"
+commit = "e624e9fde561e1add9388384012b295fde669ade"
+version = "0.20.4"
+python = ">=3.11,<3.14"

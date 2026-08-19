@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 import pathlib
 
 import pytest
@@ -46,8 +47,27 @@ class BoampStub:
 
 
 class UnsupportedBoampStub:
+    def __init__(self, kind="FNSimple"):
+        self.kind = kind
+
     def fetch_awards_since(self, since, *, until=None, max_records=None):
-        yield {"idweb": "unsupported", "donnees": json.dumps({"FNSimple": {}})}
+        yield {"idweb": "unsupported", "donnees": json.dumps({self.kind: {}})}
+
+
+class DspThenSupportedBoampStub:
+    def fetch_awards_since(self, since, *, until=None, max_records=None):
+        yield {
+            "idweb": "26-dsp-safe-skip",
+            "donnees": json.dumps(
+                {
+                    "DSP": {
+                        "nature": "delegation_service_public",
+                        "objet": "Avis distinct volontairement non normalise",
+                    }
+                }
+            ),
+        }
+        yield LINKED_BOAMP
 
 
 class MalformedBoampStub:
@@ -147,13 +167,36 @@ def test_a_maximum_record_probe_is_explicitly_incomplete_when_more_data_exists()
     assert result.complete is False
 
 
-def test_recognized_non_eforms_boamp_is_a_safe_terminal_skip():
-    result = BoampSource(UnsupportedBoampStub()).acquire(WINDOW, retrieved_at=NOW)
+@pytest.mark.parametrize(
+    ("kind", "reason"),
+    [
+        ("FNSimple", "unsupported_notice_family_fnsimple"),
+        ("MAPA", "unsupported_notice_family_mapa"),
+    ],
+)
+def test_recognized_non_eforms_boamp_is_a_safe_terminal_skip(kind, reason):
+    result = BoampSource(UnsupportedBoampStub(kind)).acquire(WINDOW, retrieved_at=NOW)
 
     assert result.complete is True
     assert result.fetched == 1
     assert result.accepted == 0
     assert result.rejected == 1
+    assert result.rejection_reasons == {reason: 1}
+
+
+def test_dsp_is_a_structured_safe_skip_and_later_supported_records_continue(caplog):
+    with caplog.at_level(logging.INFO, logger="signals.ingestion.sources"):
+        result = BoampSource(DspThenSupportedBoampStub()).acquire(WINDOW, retrieved_at=NOW)
+
+    assert result.complete is True
+    assert result.fetched == 2
+    assert result.accepted == 1
+    assert result.rejected == 1
+    assert result.rejection_reasons == {"unsupported_notice_family_dsp": 1}
+    assert result.publications[0].event.provenance.source_notice_id == "26-79799"
+    dsp_log = next(record for record in caplog.records if record.reason_code.endswith("_dsp"))
+    assert dsp_log.source == "boamp"
+    assert dsp_log.source_notice_id == "26-dsp-safe-skip"
 
 
 @pytest.mark.parametrize(

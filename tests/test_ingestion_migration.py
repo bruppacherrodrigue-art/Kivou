@@ -6,7 +6,7 @@ from alembic import command
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
 
 PREVIOUS_REVISION = "0004_alerts_feedback_analytics"
-INGESTION_REVISION = "0005_ingestion_runtime"
+INGESTION_REVISION = "0006_contract_award_text_capacity"
 
 
 def test_ingestion_migration_is_additive_after_the_current_main_head(tmp_path):

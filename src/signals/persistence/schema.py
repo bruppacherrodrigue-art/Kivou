@@ -112,7 +112,7 @@ contract_award = sa.Table(
     sa.Column("source_award_id", sa.String(256)),
     sa.Column("lot_identifier", sa.String(256)),
     sa.Column("lot_title", sa.Text),
-    sa.Column("contract_reference", sa.String(256)),
+    sa.Column("contract_reference", sa.Text),
     # Objet
     sa.Column("title", sa.Text),
     sa.Column("description", sa.Text),
