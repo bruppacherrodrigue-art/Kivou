@@ -17,9 +17,11 @@ from signals.persistence.database import (
 )
 from signals.persistence.identity import award_key, event_key, signal_key
 from signals.persistence.materialization import (
+    FactPersistenceResult,
     MaterializationResult,
     content_fingerprint,
     materialize_signal,
+    persist_award_facts,
 )
 from signals.persistence.opportunity import (
     OpportunityConflict,
@@ -40,6 +42,7 @@ from signals.persistence.schema import METADATA
 __all__ = [
     "DATABASE_URL_ENV",
     "METADATA",
+    "FactPersistenceResult",
     "MaterializationResult",
     "OpportunityConflict",
     "ResolvedOpportunity",
@@ -57,6 +60,7 @@ __all__ = [
     "materialize_signal",
     "migrate_to_latest",
     "opportunity_of",
+    "persist_award_facts",
     "resolve_database_url",
     "resolve_or_create_opportunity",
     "signal_key",

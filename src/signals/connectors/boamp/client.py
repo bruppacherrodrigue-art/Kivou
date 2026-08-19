@@ -29,6 +29,8 @@ from typing import Any, Self
 
 import httpx
 
+from signals.connectors.boamp.errors import BoampHttpError, FailureCategory
+
 BOAMP_DATASET_URL = (
     "https://boamp-datadila.opendatasoft.com/api/explore/v2.1/catalog/datasets/boamp"
 )
@@ -103,10 +105,36 @@ class BoampClient:
             self._client.close()
 
     def fetch_page(self, cursor: AwardCursor) -> list[dict]:
-        response = self._client.get(RECORDS_URL, params=award_query(cursor))
-        response.raise_for_status()
-        payload = response.json()
-        return list(payload.get("results", []))
+        try:
+            response = self._client.get(RECORDS_URL, params=award_query(cursor))
+        except httpx.TimeoutException as error:
+            raise BoampHttpError("BOAMP request timed out", category="timeout") from error
+        except httpx.HTTPError as error:
+            raise BoampHttpError("BOAMP network failure", category="network") from error
+        if response.status_code != 200:
+            category: FailureCategory = (
+                "rate_limited"
+                if response.status_code == 429
+                else "server_error"
+                if response.status_code >= 500
+                else "unauthorized"
+                if response.status_code in (401, 403)
+                else "client_error"
+            )
+            raise BoampHttpError(
+                f"BOAMP HTTP {response.status_code}",
+                category=category,
+                status_code=response.status_code,
+                url=str(response.request.url),
+            )
+        try:
+            payload = response.json()
+            results = payload.get("results")
+        except (ValueError, AttributeError) as error:
+            raise BoampHttpError("BOAMP malformed response", category="malformed") from error
+        if not isinstance(results, list) or not all(isinstance(item, dict) for item in results):
+            raise BoampHttpError("BOAMP malformed results", category="malformed")
+        return results
 
     def fetch_awards_since(
         self, since: dt.date, *, until: dt.date | None = None, max_records: int | None = None

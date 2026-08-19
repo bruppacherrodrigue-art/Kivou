@@ -117,7 +117,9 @@ def test_an_empty_database_reaches_the_latest_schema_through_every_migration(
         "account_notification_preference",
         "signal_alert_delivery",
     } <= tables
-    assert current_revision(engine) == "0004_alerts_feedback_analytics"
+    # SPEC-016A — operational ingestion state remains an additive migration.
+    assert {"ingestion_checkpoint", "ingestion_run"} <= tables
+    assert current_revision(engine) == "0005_ingestion_runtime"
 
 
 def test_a_spec010_database_upgrades_without_losing_its_signals(tmp_path: pathlib.Path):

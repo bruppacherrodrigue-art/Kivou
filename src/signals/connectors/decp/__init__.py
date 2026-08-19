@@ -1,5 +1,13 @@
 """Connecteur DECP — données essentielles de la commande publique française."""
 
+from signals.connectors.decp.client import (
+    DECP_DATASET_URL,
+    PAGE_SIZE,
+    DecpClient,
+    DecpCursor,
+    decp_query,
+)
+from signals.connectors.decp.errors import DecpError, DecpHttpError
 from signals.connectors.decp.parser import (
     DECP_ADAPTER_VERSION,
     DECP_DATASET,
@@ -15,11 +23,18 @@ from signals.connectors.decp.parser import (
 __all__ = [
     "DECP_ADAPTER_VERSION",
     "DECP_DATASET",
+    "DECP_DATASET_URL",
     "DECP_DATE_SEMANTICS",
     "DECP_LEGACY_DATASET",
     "DECP_SOURCE_COUNTRY",
     "DECP_SOURCE_SYSTEM",
+    "PAGE_SIZE",
+    "DecpClient",
+    "DecpCursor",
+    "DecpError",
+    "DecpHttpError",
     "buyer_siret",
+    "decp_query",
     "parse_contract",
     "winner_sirets",
 ]
