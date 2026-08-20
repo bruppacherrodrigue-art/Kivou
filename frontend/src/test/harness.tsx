@@ -87,13 +87,17 @@ export function callsTo(path: string, method = 'POST'): MockRequest[] {
   return recordedCalls.filter((call) => call.url === path && call.method === method)
 }
 
+/** Une entrée d'historique de test : un chemin, ou un chemin ET son état de
+ *  navigation — celui que `navigate(path, { state })` transporte. */
+export type TestRoute = string | { pathname: string; search?: string; state?: unknown }
+
 export function renderApp(
   ui: ReactElement,
   {
     session,
     route = '/',
     locale = 'fr',
-  }: { session?: SessionState; route?: string; locale?: Locale } = {},
+  }: { session?: SessionState; route?: TestRoute; locale?: Locale } = {},
 ): RenderResult {
   return render(
     <MemoryRouter initialEntries={[route]}>

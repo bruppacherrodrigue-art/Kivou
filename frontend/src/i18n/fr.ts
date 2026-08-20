@@ -228,6 +228,10 @@ export const fr = {
     resetDone: 'Mot de passe mis à jour. Vous pouvez vous connecter.',
     backToLogin: 'Retour à la connexion',
     loggingOut: 'Déconnexion…',
+    signupNext:
+      'Ensuite, indiquez ce que vous vendez et où vous intervenez. Kivou préparera vos premiers signaux.',
+    signupNoCard:
+      'Aucune carte bancaire n’est nécessaire pour découvrir vos premiers signaux.',
     sessionExpired: 'Votre session a expiré. Connectez-vous à nouveau.',
   },
 
@@ -269,10 +273,38 @@ export const fr = {
       territories: 'où vous pouvez intervenir',
       minimum_contract_value: 'le montant minimum',
       buyer_trades: 'les corps de métier visés',
+      label: 'le nom du profil',
     },
+    stepOfferTitle: 'Ce que vous vendez',
+    stepAudienceTitle: 'À qui et où vous vendez',
+    stepThresholdTitle: 'À partir de quel montant',
+    reviewTitle: 'Vérifier votre ciblage',
+    summaryLabel: 'Votre offre en une phrase',
+    stepIncomplete: 'Complétez cette étape pour continuer',
+    savedNotFinalisedTitle: 'Votre ciblage a bien été enregistré',
+    savedNotFinalisedBody:
+      'Kivou n’a pas pu finaliser l’ouverture de vos signaux. Réessayez : votre ciblage ne sera pas enregistré une seconde fois.',
+    finaliseRetry: 'Finaliser et voir mes signaux',
     welcomeTitle: 'Bienvenue dans Kivou',
     welcomeLead:
       'Pour recevoir des signaux, Kivou a besoin de savoir ce que vous vendez et où vous intervenez.',
+  },
+
+  activation: {
+    progressLabel: 'Votre mise en route',
+    stepAccount: 'Compte',
+    stepTargeting: 'Ciblage',
+    stepSignals: 'Signaux',
+    stateDone: 'terminé',
+    stateCurrent: 'étape en cours',
+    stateTodo: 'à venir',
+    readyTitle: 'Votre ciblage est prêt',
+    countOne: '{count} signal est accessible avec votre profil.',
+    countOther: '{count} signaux sont accessibles avec votre profil.',
+    noneTitle: 'Aucun signal correspondant n’est disponible pour le moment.',
+    noneBody:
+      'Kivou continuera à surveiller les nouvelles attributions compatibles avec votre profil.',
+    firstSignal: 'Voir mon premier signal',
   },
 
   icp: {

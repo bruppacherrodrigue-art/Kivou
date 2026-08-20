@@ -1,0 +1,32 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+  background: var(--kivou-bg-surface);
+  border-left: 3px solid var(--kivou-action-primary);
+}
+
+.title {
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h3);
+  line-height: var(--kivou-leading-h3);
+  font-weight: var(--kivou-weight-semibold);
+  color: var(--kivou-text-primary);
+}
+
+.count {
+  font-size: var(--kivou-text-body);
+  line-height: var(--kivou-leading-body);
+  color: var(--kivou-text-primary);
+}
+
+.note {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.action {
+  display: flex;
+  padding-top: var(--kivou-space-1);
+}

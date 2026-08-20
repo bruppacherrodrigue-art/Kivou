@@ -24,3 +24,15 @@
   min-height: var(--kivou-control-height);
   font-size: var(--kivou-text-small);
 }
+
+/* Ce qui attend le client après l'inscription — une précision, pas un argument
+ * de vente : le ton reste celui d'une indication de parcours. */
+.note {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.note + .note {
+  margin-top: calc(-1 * var(--kivou-space-3));
+}

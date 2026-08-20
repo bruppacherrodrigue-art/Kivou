@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
@@ -80,6 +80,35 @@ describe('inscription', () => {
     expect(await screen.findAllByText(/Au moins 12 caractères/)).toHaveLength(2)
     expect(screen.getByLabelText('Mot de passe')).toHaveAttribute('aria-invalid', 'true')
     expect(callsTo('/auth/signup')).toHaveLength(0)
+  })
+
+  /* P0-02 §4 — ce que l'inscription annonce, et ce qu'elle se garde d'annoncer.
+   *
+   * La suite du parcours est dite pour que le client sache pourquoi on lui
+   * demandera son métier juste après. Le NOMBRE de signaux, lui, n'appartient
+   * pas à cet écran : aucun déblocage n'existe tant qu'aucun ciblage n'a été
+   * enregistré, et l'annoncer ici promettrait un résultat que le serveur n'a
+   * pas produit. */
+  it('annonce la suite du parcours et l’absence de carte bancaire', async () => {
+    mockApi({ 'POST /auth/signup': { body: ME } })
+    renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/signup' })
+
+    expect(
+      screen.getByText(
+        'Ensuite, indiquez ce que vous vendez et où vous intervenez. Kivou préparera vos premiers signaux.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(
+        'Aucune carte bancaire n’est nécessaire pour découvrir vos premiers signaux.',
+      ),
+    ).toBeInTheDocument()
+
+    // La mise en route est située, et l'inscription en est le premier jalon.
+    const progress = screen.getByRole('navigation', { name: 'Votre mise en route' })
+    const steps = within(progress).getAllByRole('listitem')
+    expect(steps[0]).toHaveAttribute('aria-current', 'step')
+    expect(steps[0]).toHaveTextContent('Compte')
   })
 
   it('n’envoie que les champs du contrat backend — jamais d’account_id', async () => {

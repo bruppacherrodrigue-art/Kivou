@@ -7,6 +7,7 @@ import { SelectField, TextField } from '../components/FormField'
 import { Button } from '../components/Button'
 import { Callout } from '../components/Surfaces'
 import { useSession } from '../auth/SessionProvider'
+import { ActivationProgress } from '../activation/ActivationProgress'
 import { auth } from '../api/endpoints'
 import { describeError, fieldError } from '../api/errorCopy'
 import { MINIMUM_PASSWORD_LENGTH } from '../api/types'
@@ -77,6 +78,8 @@ export function Signup() {
       }
     >
       <form className={styles.form} onSubmit={submit} noValidate>
+        <ActivationProgress current="account" />
+
         {errorCopy ? (
           <Callout tone="danger" title={errorCopy.title} live>
             {errorCopy.body}
@@ -134,6 +137,14 @@ export function Signup() {
         <Button type="submit" fullWidth size="lg" loading={submitting}>
           {t.auth.submitSignup}
         </Button>
+
+        {/* Ce qui vient ENSUITE, et ce qui n'est pas demandé.
+            Un compte neuf n'a pas encore de ciblage, donc pas encore de
+            déblocage : annoncer ici un nombre de signaux promettrait un
+            résultat que le serveur n'a pas produit. La suite est dite, le
+            décompte attend le feed. */}
+        <p className={styles.note}>{t.auth.signupNext}</p>
+        <p className={styles.note}>{t.auth.signupNoCard}</p>
       </form>
     </AuthLayout>
   )

@@ -1,0 +1,76 @@
+.nav {
+  min-width: 0;
+}
+
+.list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kivou-space-2) var(--kivou-space-4);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kivou-space-2);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-muted);
+}
+
+/* Le séparateur est décoratif et ne doit jamais être lu : il ne porte aucune
+ * information que l'ordre de la liste ne donne déjà. */
+.step + .step::before {
+  content: '';
+  width: var(--kivou-space-4);
+  height: 1px;
+  background: var(--kivou-border);
+  /* Le tiret précède la puce du jalon, d'où l'ordre inversé du gap. */
+  margin-right: var(--kivou-space-2);
+}
+
+.marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: none;
+  border: 1px solid var(--kivou-border-strong);
+  border-radius: var(--kivou-radius-pill);
+  background: var(--kivou-bg-surface);
+  font-size: var(--kivou-text-micro);
+  font-weight: var(--kivou-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.done {
+  color: var(--kivou-text-secondary);
+}
+
+.done .marker {
+  border-color: var(--kivou-action-primary);
+  background: var(--kivou-action-primary);
+  color: var(--kivou-text-inverse);
+}
+
+.active {
+  color: var(--kivou-text-primary);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.active .marker {
+  border-color: var(--kivou-action-primary);
+  border-width: 2px;
+  color: var(--kivou-action-primary);
+}
+
+/* 320 px : les trois jalons passent à la ligne plutôt que de déborder. */
+@media (max-width: 26rem) {
+  .step + .step::before {
+    display: none;
+  }
+}
