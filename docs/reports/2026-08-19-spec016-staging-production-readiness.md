@@ -3539,3 +3539,200 @@ déploierait SPEC-018 sur staging. La réconciliation sera décidée séparémen
 Base backend : 2700 → 2718 → 2757 → 2763 → 2818 → **2889**. Jamais diminuée.
 
 Aucun secret ne figure dans ce rapport.
+
+---
+---
+
+# PARTIE X — Observation TED planifiée et clôture
+
+**Date :** 20 août 2026.
+
+---
+
+## T77. L'exécution TED de 02:30 UTC — les faits
+
+Lue dans le journal systemd et dans l'audit d'exécution, sans relance manuelle.
+
+```text
+run_id                  ing_3651f5ca0c8e4cbe8141300072c8b651
+démarrage               2026-08-20 02:30:53.592 UTC
+fin                     2026-08-20 02:30:57.598 UTC
+durée                   4,006 s
+
+résultat systemd        Result=exit-code · ExecMainStatus=1 · ActiveState=failed
+statut ingestion_run    rate_limited · error_category=rate_limited
+
+récupérés               2 750
+acceptés                    0
+rejetés                     0
+persistés                   0
+liés                        0
+matérialisés                0
+rate_limited_count          1
+
+checkpoint avant        {cursor: None, window_end: None, status: failed}
+checkpoint après        {cursor: None, window_end: None, status: failed}   ← INCHANGÉ
+
+HTTP 429                OUI
+Retry-After observé     AUCUN
+```
+
+Le corps de la réponse est une page `429 Too Many Requests` servie par le proxy
+d'entrée de TED — **sans en-tête `Retry-After`**. La source ne dit donc pas
+quand réessayer, ce qui ôte toute base à un recul calculé.
+
+Prochaine exécution planifiée : **vendredi 21 août 02:30 UTC**. La minuterie
+n'a pas été touchée, la cadence reste quotidienne et hors pic.
+
+### Le runtime Kivou se comporte correctement
+
+```text
+échec typé              rate_limited, et non « unexpected »
+aucun faux succès       persistés = 0, matérialisés = 0
+checkpoint immobile     aucune fenêtre déclarée couverte à tort
+aucune donnée douteuse  rien d'écrit à partir d'une acquisition partielle
+```
+
+C'est un échec **fermé**. Le défaut est en amont, pas chez Kivou.
+
+---
+
+## T78. Les trois autres sources ont tourné seules toute la nuit
+
+C'est la preuve la plus utile de cette partie : personne n'a supervisé, et
+l'ingestion a continué.
+
+```text
+checkpoints, au 05:06 UTC
+   simap   success   2026-08-20 04:06
+   boamp   success   2026-08-20 04:16
+   decp    success   2026-08-20 00:35
+   ted     failed    None
+
+volumes
+   contract_award       21 411  →  21 618
+   materialized_signal   4 184  →   4 466
+```
+
+Trois sources avancent leurs checkpoints, la quatrième échoue, et **aucune ne
+contamine l'autre**. La séparation des unités faite en Partie IX produit
+exactement l'effet attendu, observé sur une nuit entière plutôt que déduit d'un
+essai.
+
+---
+
+## T79. Domaine de production — toujours absent
+
+Revérifié depuis l'extérieur :
+
+```text
+kivou.eu       A / AAAA / CNAME      aucun
+www.kivou.eu   A / AAAA / CNAME      aucun
+
+https://kivou.eu/                    injoignable
+https://kivou.eu/cgu                 injoignable
+https://kivou.eu/confidentialite     injoignable
+https://www.kivou.eu/                injoignable
+```
+
+Le domaine n'est pas publié — ce n'est pas un problème de pages manquantes.
+Stripe LIVE pointe pourtant son profil d'entreprise **et** son portail client
+vers `kivou.eu`. Aucun abonnement LIVE ne doit être créé tant que ces URL ne
+résolvent pas.
+
+Le DNS de production **ne doit pas** être pointé vers staging pour verdir cette
+porte : cela ferait servir un environnement de test à de vrais clients payants.
+
+---
+
+## T80. Éléments de durcissement — non bloquants
+
+Consignés, délibérément non corrigés ici. L'ingestion BOAMP courante est saine
+et son checkpoint avance ; ces points ne l'empêchent pas.
+
+### A. Localisation vide sur une reprise historique BOAMP
+
+Un avis BOAMP de la fenêtre de juillet porte un objet de localisation dont
+**tous les champs sont vides**.
+
+```text
+correction attendue    localisation sémantiquement vide  →  None / absente
+à ne pas faire         fabriquer une localisation
+                       écarter une attribution valide
+                       interrompre toute la fenêtre de la source
+```
+
+### B. Visibilité des raisons de rejet
+
+Les raisons de saut sûr — `unsupported_notice_family_dsp` et ses voisines —
+existent en mémoire et dans le champ `extra` du journal, mais **ne sont
+visibles ni dans la sortie normale du journal ni dans `ingestion_run`**. Le
+seuil de journalisation par défaut écarte `INFO`, et le formateur standard ne
+rend pas `extra`.
+
+```text
+correction préférée    un résumé borné en fin de cycle, avec le décompte
+                       par raison de rejet
+à éviter               charges brutes · journaux non bornés
+                       nouveau schéma de base sans nécessité réelle
+```
+
+### C. Disponibilité TED — suivi hors SPEC-016
+
+**TED Source Availability / Rate-Limit Hardening.** À instruire séparément.
+Aucune piste n'est imposée ici ; le seul fait acquis est que la source ne
+publie pas de `Retry-After`, ce qui interdit un recul fondé sur sa réponse.
+
+---
+
+## T81. Trois lectures distinctes de l'état
+
+Un seul mot de « readiness » mélangeait des choses qui ne se décident pas
+ensemble. Les voici séparées.
+
+### STAGING CORE READINESS — **READY**
+
+```text
+migration 0006 déployée                          ✓
+SIMAP · BOAMP · DECP sains, checkpoints avancent ✓
+ingestion continue et non supervisée             ✓ vérifiée sur une nuit
+21 618 attributions · 4 466 signaux réels        ✓
+feed client avec provenance vérifiable           ✓
+backfill à l'activation                          ✓ borné, truncated: true
+alertes réelles remises                          ✓
+paiement Stripe TEST de bout en bout             ✓
+sauvegarde restaurée et vérifiée                 ✓
+redémarrage sans effet de bord                   ✓
+CI verte · arbre serveur propre                  ✓
+```
+
+### TED SOURCE READINESS — **DEGRADED**
+
+Limitation **en amont**, pas un défaut Kivou. Échec typé, checkpoint immobile,
+aucun faux succès, minuterie quotidienne conservée, aucune relance répétée.
+
+### PRODUCTION GO-LIVE READINESS — **PARTIAL**
+
+```text
+DOMAINE kivou.eu / www.kivou.eu non publiés          BLOQUANT
+URL légales /cgu et /confidentialite                 BLOQUANT
+rotation du mot de passe no-reply@kivou.eu           BLOQUANT — non confirmée
+présentation Stripe TEST encore Turiya               déprioritisé par l'exploitant
+```
+
+Aucun de ces points n'entame la lecture « staging core ».
+
+---
+
+## T82. Git
+
+| Élément | Valeur |
+|---|---|
+| **SHA déployé** | **`5ba75ee`** |
+| Révision de la base | **`0006_award_text_capacity`** |
+| Arbre serveur | **0 modification locale** |
+| Point d'intégration | `c4d153c` — dernier `main` **avant** SPEC-018 |
+| PR #6 | **brouillon, non fusionnée, volontairement en retard sur `main`** |
+
+Aucune migration au-delà de `0006` n'a été appliquée. Les tables
+`acquisition_event` et `acquisition_opportunity` restent absentes de staging.
