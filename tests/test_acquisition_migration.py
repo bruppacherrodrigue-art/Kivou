@@ -9,6 +9,7 @@ from signals.persistence.schema import METADATA, acquisition_event, acquisition_
 
 PREVIOUS_REVISION = "0006_award_text_capacity"
 ACQUISITION_REVISION = "0007_acquisition_event_store"
+CURRENT_HEAD = "0008_policy_gateway"
 
 
 def test_upgrade_from_0006_adds_only_acquisition_memory_tables(tmp_path) -> None:
@@ -33,10 +34,10 @@ def test_fresh_database_reaches_one_linear_acquisition_head(tmp_path) -> None:
     command.upgrade(config, "head")
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_heads() == [ACQUISITION_REVISION]
+    assert script.get_heads() == [CURRENT_HEAD]
     assert script.get_revision(ACQUISITION_REVISION).down_revision == PREVIOUS_REVISION
     assert all(len(revision.revision) <= 32 for revision in script.walk_revisions())
-    assert current_revision(engine) == ACQUISITION_REVISION
+    assert current_revision(engine) == CURRENT_HEAD
 
 
 def test_migrated_acquisition_tables_match_declared_core_schema(tmp_path) -> None:

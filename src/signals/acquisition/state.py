@@ -272,7 +272,10 @@ def _reduce_v1(
         return _next_action_set(current, event)
     if event.event_type == EventType.RETRY_SCHEDULED:
         return _retry_scheduled(current, event)
-    if event.event_type == EventType.SUPERVISOR_PLAN_OBSERVED:
+    if event.event_type in {
+        EventType.SUPERVISOR_PLAN_OBSERVED,
+        EventType.POLICY_EVALUATED,
+    }:
         return current.model_copy(update=_common_updates(event))
     raise InvalidTransition(f"unsupported event type: {event.event_type.value}")
 
