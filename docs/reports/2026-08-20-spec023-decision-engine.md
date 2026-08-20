@@ -8,8 +8,8 @@ Status: implementation complete; PR #19 remains DRAFT and unmerged
 - Design audit base: `55906b7da2ea965749cf97fcde5639608760e7a7`
 - Authoritative implementation base (`origin/main`): `25bc0ab22bd70819cbd71003c6222bd9ddedec87`
 - The intervening main change was the supervisor-audited frontend/public-demo and P0-01 evaluation change; no acquisition, policy, or persistence contract changed.
-- Executable SHA: `55676a98c3229aaafa0929ffd7b647dae5bfdc5e`
-- Executable CI: `32405885227` — SUCCESS
+- Executable SHA: `0c5a33548b615b20b9066d601262973cd839d6ba`
+- Executable CI: `32413853200` — SUCCESS
 - Branch: `feat/spec023-decision-engine`
 - PR: #19, DRAFT
 - Alembic head: `0012_decision_engine`
@@ -28,6 +28,8 @@ The supervisor-frozen recency threshold is 60 calendar days, inclusive:
 
 - `age_days <= 60`: eligible for `SEND` after all higher-priority rules pass.
 - `age_days > 60`: `NO_SEND`.
+
+The separate public-date integrity ceiling is `max_plausible_public_age_days = 3650`. It reuses Kivou's existing `IMPLAUSIBLE_AWARD_AGE_DAYS` data-quality guard for known SIMAP and BOAMP/eForms filler anomalies. This parameter is versioned in `decision-policy-v1` and participates in both the policy-configuration and decision-input fingerprints; it does not alter the frozen 60-day commercial threshold.
 
 The exact state/action mapping is:
 
@@ -50,7 +52,9 @@ No stale `evaluate_opportunity` action survives a recorded v1 decision.
 3. `PUBLICATION_DATE` only when both higher-order dates are absent.
 4. `UNRESOLVED` when all three are absent.
 
-`discovered_at` never establishes freshness and is excluded from the public-context freshness fingerprint. A present but inconsistent higher-precedence date does not fall back to a lower-order date. Future selected dates and award/publication contradictions beyond the one-day tolerance produce `REVIEW / PUBLIC_TIMING_INCONSISTENT`.
+`discovered_at` never establishes freshness and is excluded from the public-context freshness fingerprint. A present but inconsistent higher-precedence date does not fall back to a lower-order date. Future selected dates, selected dates older than 3650 days, and award/publication contradictions beyond the one-day tolerance produce `REVIEW / PUBLIC_TIMING_INCONSISTENT`. Thus placeholder dates such as `1970-01-01` and `2000-01-01`, and the known `2002-08-17` anomaly when evaluated in 2026, cannot become an ordinary stale `NO_SEND` and cannot fall back to a recent publication date. A legitimate 61-day-old public clock remains `NO_SEND`.
+
+Publication values preserve their actual source precision. A `date` remains that exact date, and a timezone-aware `datetime` is converted to its UTC calendar date. A naive publication `datetime` is not silently localized: it raises `DecisionPublicContextNotResolvable` before the initial Policy Gateway evaluation. If encountered during final post-policy revalidation, it becomes `DecisionInputChanged`, preventing a stale decision commit.
 
 Notification and publication fallback remain explicit bases and add `RECENCY_NOTIFICATION_FALLBACK` or `RECENCY_PUBLICATION_FALLBACK` to successful `SEND` proposals.
 
@@ -104,7 +108,9 @@ The public context has its own bounded fingerprint over opportunity key, represe
 
 The proposal is computed before Policy Gateway. Policy decides only whether that exact deterministic proposal may mutate acquisition state; it does not choose `SEND`, `REVIEW`, or `NO_SEND`.
 
-Existing decision-audit replay reconstructs and verifies the complete immutable Policy Gateway semantic fingerprint, including actor, scope, evidence/readiness, policy snapshot, and budget usage. It uses the original immutable control snapshot rather than a potentially newer effective snapshot. Changed replay semantics produce `DecisionEvaluationIdempotencyConflict`.
+Existing decision-audit replay reconstructs and verifies the complete immutable Policy Gateway semantic fingerprint, including actor, scope, evidence/readiness, policy snapshot, and budget usage. It uses the original immutable control snapshot rather than a potentially newer effective snapshot. Historical budget usage is reconstructed from the durable snapshot caps and stored decision remainders (`cap - remaining`), never from the replay caller's current global usage. Therefore unrelated later budget activity cannot break an exact completed-decision replay, while changed actor, scope, evidence, operational, request, or action semantics still produce `DecisionEvaluationIdempotencyConflict`.
+
+Policy Decimal fingerprinting is now numeric rather than scale-sensitive for new evaluations. Replay remains compatible with pre-R1 durable hashes through a bounded legacy Decimal encoding check over the six persisted monetary decimal places; this avoids invalidating already-recorded policy evaluations while preserving full semantic authorization checks.
 
 If a policy evaluation exists without a decision audit, the service returns `DecisionEvaluationRequiresFreshAttempt`; an old approved decision is never reused. A new attempt requires a new evaluation ID, fresh clock capture, fresh input/proposal, and fresh policy evaluation.
 
@@ -167,7 +173,7 @@ Pre-implementation merged baseline:
 
 Final local validation:
 
-- `uv run pytest -q`: **3293 passed**, 0 skipped
+- `uv run pytest -q`: **3303 passed**, 0 skipped
 - `uv run ruff check .`: PASS
 - `git diff --check`: PASS
 - `npm test -- --run`: **116 passed**
@@ -177,20 +183,20 @@ Final local validation:
 
 Executable GitHub CI:
 
-- Run `32405885227`: SUCCESS
-- Backend job `96544746938`: tests and lint PASS
-- Frontend job `96544746676`: tests, build, typecheck, and lint PASS
+- Run `32413853200`: SUCCESS
+- Backend job `96570341819`: tests and lint PASS
+- Frontend job `96570342102`: tests, build, typecheck, and lint PASS
 
 Performance diagnostic (not an SLA): 1,000 deterministic in-memory input/evaluation/proposal operations completed in approximately `0.058826s` on the local validation host.
 
 ## Diff and repository status
 
-Executable commit stat:
+R1 executable commit stat:
 
-`34 files changed, 3160 insertions(+), 46 deletions(-)`
+`9 files changed, 323 insertions(+), 19 deletions(-)`
 
-PR diff against authoritative main before this documentation closeout:
+PR diff against authoritative main before this R1 documentation closeout:
 
-`35 files changed, 4078 insertions(+), 46 deletions(-)`
+`37 files changed, 4914 insertions(+), 53 deletions(-)`
 
 After the documentation-only closeout commit, `git status --porcelain` is expected to be empty. The worktree and draft PR remain intact; nothing is merged or deployed.
