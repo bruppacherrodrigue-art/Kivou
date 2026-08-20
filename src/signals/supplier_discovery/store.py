@@ -232,11 +232,17 @@ class SupplierDiscoveryStore:
 
     def get_supplier(self, supplier_ref: str) -> SupplierRecord:
         with self._engine.connect() as connection:
-            row = connection.execute(
-                sa.select(acquisition_supplier).where(
-                    acquisition_supplier.c.supplier_ref == supplier_ref
-                )
-            ).mappings().one()
+            return self.get_supplier_in_transaction(connection, supplier_ref)
+
+    @staticmethod
+    def get_supplier_in_transaction(
+        connection: Connection, supplier_ref: str
+    ) -> SupplierRecord:
+        row = connection.execute(
+            sa.select(acquisition_supplier).where(
+                acquisition_supplier.c.supplier_ref == supplier_ref
+            )
+        ).mappings().one()
         return _record(row)
 
     def upsert_supplier(

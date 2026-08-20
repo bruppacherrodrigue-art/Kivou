@@ -102,16 +102,38 @@ class PolicyGateway:
         self._store = PolicyStore(engine)
         self._acquisition = acquisition_store or AcquisitionStore(engine)
 
-    def evaluate_and_record(
+    def semantic_fingerprint(
         self,
         request: PolicyRequest,
         *,
         evaluated_at: dt.datetime,
         budget_usage: BudgetUsage,
-    ) -> PolicyDecision:
-        control = self._store.get_effective_control(evaluated_at)
+        policy_snapshot_id: str | None = None,
+    ) -> str:
+        """Reconstruct the complete immutable semantics of a policy evaluation."""
+        snapshot = self._snapshot(
+            request,
+            evaluated_at,
+            budget_usage,
+            policy_snapshot_id=policy_snapshot_id,
+        )
+        return _fingerprint(request, snapshot, budget_usage, evaluated_at)
+
+    def _snapshot(
+        self,
+        request: PolicyRequest,
+        evaluated_at: dt.datetime,
+        budget_usage: BudgetUsage,
+        *,
+        policy_snapshot_id: str | None = None,
+    ) -> PolicySnapshot:
+        control = (
+            self._store.get_control(policy_snapshot_id)
+            if policy_snapshot_id is not None
+            else self._store.get_effective_control(evaluated_at)
+        )
         day_start = evaluated_at.replace(hour=0, minute=0, second=0, microsecond=0)
-        snapshot = PolicySnapshot(
+        return PolicySnapshot(
             policy_snapshot_id=control.policy_snapshot_id,
             control_revision=control.control_revision,
             policy_version=control.policy_version,
@@ -136,6 +158,15 @@ class PolicyGateway:
             ),
             runtime_revision=request.operational.runtime_revision,
         )
+
+    def evaluate_and_record(
+        self,
+        request: PolicyRequest,
+        *,
+        evaluated_at: dt.datetime,
+        budget_usage: BudgetUsage,
+    ) -> PolicyDecision:
+        snapshot = self._snapshot(request, evaluated_at, budget_usage)
         semantic_fingerprint = _fingerprint(request, snapshot, budget_usage, evaluated_at)
         with self._engine.connect() as connection:
             existing = self._store.evaluation_row(connection, request.evaluation_id)

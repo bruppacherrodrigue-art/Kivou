@@ -68,7 +68,15 @@ COMMAND_POLICIES = {
         requires_control_plane=True,
     ),
     "evaluate_opportunity": CommandPolicy(
-        RiskClass.PREPARATORY, TargetScope.OPPORTUNITY, ("SIGNAL", "PUBLIC_EVIDENCE")
+        risk_class=RiskClass.PREPARATORY,
+        target_scope=TargetScope.OPPORTUNITY,
+        required_evidence=(
+            "PUBLIC_OPPORTUNITY",
+            "PUBLIC_EVIDENCE",
+            "ACQUISITION_PROSPECT_PREBUILD",
+            "VERIFIED_CONTACT",
+            "DECISION_INPUT",
+        ),
     ),
     "prepare_campaign": CommandPolicy(
         RiskClass.COMMERCIAL_MUTATION,
