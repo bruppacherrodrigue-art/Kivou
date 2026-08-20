@@ -4,7 +4,9 @@ Date : 2026-08-20
 
 Branche : `feat/spec023-decision-engine`
 
-Base `main` autoritaire : `55906b7da2ea965749cf97fcde5639608760e7a7`
+Base acquisition auditée : `55906b7da2ea965749cf97fcde5639608760e7a7`
+
+`origin/main` observé au closeout : `25bc0ab22bd70819cbd71003c6222bd9ddedec87`
 
 Alembic head : `0011_company_research`
 
@@ -52,6 +54,15 @@ Alembic     0011_company_research
 Le squash SPEC-022 est présent sur `main` et contient Supplier Discovery,
 Contact Discovery, Company Research et `AcquisitionProspectPrebuild`. La
 branche de design a été créée depuis ce SHA, pas depuis la branche SPEC-022.
+
+Pendant le closeout, `origin/main` a avancé vers
+`25bc0ab22bd70819cbd71003c6222bd9ddedec87` avec le squash P0-01 « Public
+product proof and signal demo ». La divergence a été auditée avant toute
+réconciliation : elle contient uniquement le frontend public et
+`docs/reports/p0-01-eval`; aucun fichier `src/signals`, acquisition, policy,
+persistence ou migration n'a changé. Elle ne modifie donc aucun contrat lu par
+ce design. La PR est ouverte contre ce `main` courant et son diff reste limité
+au présent rapport ; aucun rebase forcé n'a été effectué.
 
 ## 3. Objectif et limite métier
 
