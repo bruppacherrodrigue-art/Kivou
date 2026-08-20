@@ -171,14 +171,31 @@ class AcquisitionStore:
         with self._engine.connect() as connection:
             return self._get_opportunity(connection, opportunity_id)
 
+    def get_opportunity_in_transaction(
+        self, connection: Connection, opportunity_id: str, *, for_update: bool = False
+    ) -> AcquisitionOpportunity:
+        statement = sa.select(acquisition_opportunity).where(
+            acquisition_opportunity.c.acquisition_opportunity_id == opportunity_id
+        )
+        if for_update:
+            statement = statement.with_for_update()
+        row = connection.execute(statement).mappings().one_or_none()
+        if row is None:
+            raise ProjectionNotFound(opportunity_id)
+        return _projection_from_row(row)
+
     def _get_opportunity(
         self, connection: Connection, opportunity_id: str
     ) -> AcquisitionOpportunity:
-        row = connection.execute(
-            sa.select(acquisition_opportunity).where(
-                acquisition_opportunity.c.acquisition_opportunity_id == opportunity_id
+        row = (
+            connection.execute(
+                sa.select(acquisition_opportunity).where(
+                    acquisition_opportunity.c.acquisition_opportunity_id == opportunity_id
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if row is None:
             raise ProjectionNotFound(opportunity_id)
         return _projection_from_row(row)
@@ -200,9 +217,7 @@ class AcquisitionStore:
         with self._engine.connect() as connection:
             return self._list_events(connection, opportunity_id)
 
-    def _list_events(
-        self, connection: Connection, opportunity_id: str
-    ) -> list[AcquisitionEvent]:
+    def _list_events(self, connection: Connection, opportunity_id: str) -> list[AcquisitionEvent]:
         rows = connection.execute(
             sa.select(acquisition_event)
             .where(acquisition_event.c.acquisition_opportunity_id == opportunity_id)
@@ -221,14 +236,15 @@ class AcquisitionStore:
     def rebuild_projection(self, opportunity_id: str) -> AcquisitionOpportunity:
         """Explicit recovery operation; never called by normal reads or writes."""
         with self._engine.begin() as connection:
-            locked_row = connection.execute(
-                sa.select(acquisition_opportunity)
-                .where(
-                    acquisition_opportunity.c.acquisition_opportunity_id
-                    == opportunity_id
+            locked_row = (
+                connection.execute(
+                    sa.select(acquisition_opportunity)
+                    .where(acquisition_opportunity.c.acquisition_opportunity_id == opportunity_id)
+                    .with_for_update()
                 )
-                .with_for_update()
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if locked_row is None:
                 raise ProjectionNotFound(opportunity_id)
             rebuilt = replay(self._list_events(connection, opportunity_id))
@@ -236,10 +252,7 @@ class AcquisitionStore:
             values.pop("acquisition_opportunity_id")
             connection.execute(
                 sa.update(acquisition_opportunity)
-                .where(
-                    acquisition_opportunity.c.acquisition_opportunity_id
-                    == opportunity_id
-                )
+                .where(acquisition_opportunity.c.acquisition_opportunity_id == opportunity_id)
                 .values(values)
             )
             return rebuilt
@@ -339,20 +352,28 @@ class AcquisitionStore:
         fingerprint = _fingerprint(semantic)
         recorded_at = self._clock()
         happened_at = occurred_at or recorded_at
-        existing_row = connection.execute(
-            sa.select(acquisition_opportunity).where(
-                acquisition_opportunity.c.identity_key == identity_key
+        existing_row = (
+            connection.execute(
+                sa.select(acquisition_opportunity).where(
+                    acquisition_opportunity.c.identity_key == identity_key
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if existing_row is not None:
             existing = _projection_from_row(existing_row)
-            creation_row = connection.execute(
-                sa.select(acquisition_event).where(
-                    acquisition_event.c.acquisition_opportunity_id
-                    == existing.acquisition_opportunity_id,
-                    acquisition_event.c.stream_sequence == 1,
+            creation_row = (
+                connection.execute(
+                    sa.select(acquisition_event).where(
+                        acquisition_event.c.acquisition_opportunity_id
+                        == existing.acquisition_opportunity_id,
+                        acquisition_event.c.stream_sequence == 1,
+                    )
                 )
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             creation = _event_from_row(creation_row)
             if creation.idempotency_key != idempotency_key:
                 raise AcquisitionIdentityConflict(identity_key)
@@ -385,23 +406,29 @@ class AcquisitionStore:
             payload=payload,
         )
         projection = reduce_event(None, event)
-        inserted = self._insert_opportunity_if_absent(
-            connection, _projection_values(projection)
-        )
+        inserted = self._insert_opportunity_if_absent(connection, _projection_values(projection))
         if not inserted:
-            existing_row = connection.execute(
-                sa.select(acquisition_opportunity).where(
-                    acquisition_opportunity.c.identity_key == identity_key
+            existing_row = (
+                connection.execute(
+                    sa.select(acquisition_opportunity).where(
+                        acquisition_opportunity.c.identity_key == identity_key
+                    )
                 )
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             existing = _projection_from_row(existing_row)
-            creation_row = connection.execute(
-                sa.select(acquisition_event).where(
-                    acquisition_event.c.acquisition_opportunity_id
-                    == existing.acquisition_opportunity_id,
-                    acquisition_event.c.stream_sequence == 1,
+            creation_row = (
+                connection.execute(
+                    sa.select(acquisition_event).where(
+                        acquisition_event.c.acquisition_opportunity_id
+                        == existing.acquisition_opportunity_id,
+                        acquisition_event.c.stream_sequence == 1,
+                    )
                 )
-            ).mappings().one()
+                .mappings()
+                .one()
+            )
             creation = _event_from_row(creation_row)
             if creation.idempotency_key != idempotency_key:
                 raise AcquisitionIdentityConflict(identity_key)
@@ -412,9 +439,7 @@ class AcquisitionStore:
         return MutationResult(projection, event)
 
     @staticmethod
-    def _insert_opportunity_if_absent(
-        connection: Connection, values: dict[str, object]
-    ) -> bool:
+    def _insert_opportunity_if_absent(connection: Connection, values: dict[str, object]) -> bool:
         if connection.dialect.name == "sqlite":
             from sqlalchemy.dialects.sqlite import insert
         elif connection.dialect.name == "postgresql":
@@ -424,9 +449,7 @@ class AcquisitionStore:
         result = connection.execute(
             insert(acquisition_opportunity)
             .values(values)
-            .on_conflict_do_nothing(
-                index_elements=[acquisition_opportunity.c.identity_key]
-            )
+            .on_conflict_do_nothing(index_elements=[acquisition_opportunity.c.identity_key])
         )
         if result.rowcount not in {0, 1}:
             raise RuntimeError("indeterminate acquisition identity ownership")
@@ -660,12 +683,16 @@ class AcquisitionStore:
         happened_at = occurred_at or recorded_at
         with self._engine.begin() as connection:
             current = self._get_opportunity(connection, opportunity_id)
-            existing_row = connection.execute(
-                sa.select(acquisition_event).where(
-                    acquisition_event.c.acquisition_opportunity_id == opportunity_id,
-                    acquisition_event.c.idempotency_key == idempotency_key,
+            existing_row = (
+                connection.execute(
+                    sa.select(acquisition_event).where(
+                        acquisition_event.c.acquisition_opportunity_id == opportunity_id,
+                        acquisition_event.c.idempotency_key == idempotency_key,
+                    )
                 )
-            ).mappings().one_or_none()
+                .mappings()
+                .one_or_none()
+            )
             if existing_row is not None:
                 existing = _event_from_row(existing_row)
                 if existing.semantic_fingerprint != fingerprint:
@@ -757,12 +784,16 @@ class AcquisitionStore:
         recorded_at = self._clock()
         happened_at = occurred_at or recorded_at
         current = self._get_opportunity(connection, opportunity_id)
-        existing_row = connection.execute(
-            sa.select(acquisition_event).where(
-                acquisition_event.c.acquisition_opportunity_id == opportunity_id,
-                acquisition_event.c.idempotency_key == idempotency_key,
+        existing_row = (
+            connection.execute(
+                sa.select(acquisition_event).where(
+                    acquisition_event.c.acquisition_opportunity_id == opportunity_id,
+                    acquisition_event.c.idempotency_key == idempotency_key,
+                )
             )
-        ).mappings().one_or_none()
+            .mappings()
+            .one_or_none()
+        )
         if existing_row is not None:
             existing = _event_from_row(existing_row)
             if existing.semantic_fingerprint != fingerprint:

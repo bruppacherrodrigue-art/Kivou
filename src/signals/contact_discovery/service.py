@@ -1,0 +1,479 @@
+"""Permissioned, bounded Apollo contact discovery orchestration."""
+
+from __future__ import annotations
+
+import datetime as dt
+import hashlib
+import json
+from collections.abc import Callable
+
+import sqlalchemy as sa
+from pydantic import ValidationError
+from sqlalchemy.engine import Engine
+
+from signals.acquisition.contracts import (
+    AcquisitionState,
+    ActorType,
+    EventType,
+    OpportunityConcurrencyConflict,
+)
+from signals.acquisition.store import AcquisitionStore
+from signals.contact_discovery.contracts import (
+    ApolloContactProviderError,
+    ContactAuthorizationInput,
+    ContactDiscoveryEvaluationRequiresFreshAttempt,
+    ContactDiscoveryNotActionable,
+    ContactDiscoveryServiceResult,
+    ContactObservation,
+    ContactRunIdentityConflict,
+    ContactRunStart,
+    ContactRunStatus,
+)
+from signals.contact_discovery.identity import contact_ref_for
+from signals.contact_discovery.profile import build_decision_maker_profile
+from signals.contact_discovery.provider import ContactDiscoveryProvider
+from signals.contact_discovery.ranking import classify_title, rank_candidates
+from signals.contact_discovery.store import ContactDiscoveryStore
+from signals.policy.contracts import BudgetUsage, PolicyRequest
+from signals.policy.gateway import PolicyGateway
+from signals.policy.store import PolicyStore
+from signals.supplier_discovery.store import SupplierDiscoveryStore
+
+
+def _canonical_json(value: object) -> str:
+    return json.dumps(value, allow_nan=False, sort_keys=True, separators=(",", ":"))
+
+
+def _fingerprint(value: object) -> str:
+    return hashlib.sha256(_canonical_json(value).encode()).hexdigest()
+
+
+def _utc_now() -> dt.datetime:
+    return dt.datetime.now(dt.UTC)
+
+
+class ContactDiscoveryService:
+    def __init__(
+        self,
+        engine: Engine,
+        *,
+        provider: ContactDiscoveryProvider,
+        policy_gateway: PolicyGateway | None = None,
+        contact_store: ContactDiscoveryStore | None = None,
+        acquisition_store: AcquisitionStore | None = None,
+        supplier_store: SupplierDiscoveryStore | None = None,
+        clock: Callable[[], dt.datetime] = _utc_now,
+    ) -> None:
+        self._engine = engine
+        self._provider = provider
+        self._policy = policy_gateway or PolicyGateway(engine)
+        self._contacts = contact_store or ContactDiscoveryStore(engine, clock=clock)
+        self._acquisition = acquisition_store or AcquisitionStore(engine, clock=clock)
+        self._suppliers = supplier_store or SupplierDiscoveryStore(engine, clock=clock)
+        self._policy_store = PolicyStore(engine)
+        self._clock = clock
+
+    def find(
+        self,
+        opportunity_id: str,
+        authorization: ContactAuthorizationInput,
+        *,
+        evaluated_at: dt.datetime,
+        budget_usage: BudgetUsage,
+        contact_discovery_run_id: str,
+        correlation_id: str,
+    ) -> ContactDiscoveryServiceResult:
+        existing_run = self._contacts.get_run_by_policy(authorization.evaluation_id)
+        if existing_run is not None:
+            self._require_existing_run_binding(
+                existing_run, opportunity_id=opportunity_id, authorization=authorization
+            )
+            return ContactDiscoveryServiceResult(run=existing_run)
+        with self._engine.connect() as connection:
+            if (
+                self._policy_store.evaluation_row(connection, authorization.evaluation_id)
+                is not None
+            ):
+                raise ContactDiscoveryEvaluationRequiresFreshAttempt(authorization.evaluation_id)
+
+        opportunity = self._acquisition.get_opportunity(opportunity_id)
+        self._require_actionable(opportunity)
+        assert opportunity.supplier_ref is not None
+        supplier = self._suppliers.get_supplier(opportunity.supplier_ref)
+        profile = build_decision_maker_profile(
+            acquisition_opportunity_id=opportunity_id,
+            supplier_ref=supplier.supplier_ref,
+            provider_organization_id=supplier.provider_organization_id,
+        )
+        arguments = _canonical_json(
+            {"profile": profile.model_dump(mode="json"), "provider": "apollo"}
+        )
+        action_fingerprint = hashlib.sha256(arguments.encode()).hexdigest()
+        request = self._policy_request(
+            authorization,
+            opportunity_id=opportunity_id,
+            expected_version=opportunity.stream_version,
+            arguments=arguments,
+            action_fingerprint=action_fingerprint,
+        )
+        decision = self._policy.evaluate_and_record(
+            request, evaluated_at=evaluated_at, budget_usage=budget_usage
+        )
+        if not decision.executable:
+            return ContactDiscoveryServiceResult(decision=decision)
+
+        ownership = self._contacts.start_run(
+            ContactRunStart(
+                contact_discovery_run_id=contact_discovery_run_id,
+                acquisition_opportunity_id=opportunity_id,
+                supplier_ref=supplier.supplier_ref,
+                policy_evaluation_id=decision.evaluation_id,
+                profile=profile,
+                provider_request_fingerprint=action_fingerprint,
+                expected_post_policy_version=opportunity.stream_version + 1,
+                started_at=self._now(),
+                correlation_id=correlation_id,
+            )
+        )
+        if not ownership.owned:
+            return ContactDiscoveryServiceResult(decision=decision, run=ownership.run)
+        return self._execute(ownership.run, profile, decision)
+
+    def _execute(self, run, profile, decision) -> ContactDiscoveryServiceResult:
+        search_observed_at = self._now()
+        try:
+            page = self._provider.search_people(profile, observed_at=search_observed_at)
+        except ApolloContactProviderError as exc:
+            finished = self._finish_failed(run, exc)
+            return ContactDiscoveryServiceResult(
+                decision=decision, run=finished, provider_called=True
+            )
+
+        returned = len(page.candidates) + len(page.rejections)
+        counters: dict[str, object] = {
+            "people_search_requests": 1,
+            "provider_total_entries": page.total_entries,
+            "search_results_returned": returned,
+            "search_results_truncated": page.total_entries > returned,
+            "candidates_eligible": 0,
+            "candidates_rejected": len(page.rejections),
+            "enrichment_attempts": 0,
+            "attempted_contact_refs": (),
+        }
+        if page.total_entries > 0 and not page.candidates and not page.rejections:
+            error = ApolloContactProviderError(
+                "malformed_response", detail="unexpected_empty_search_page"
+            )
+            finished = self._finish_failed(run, error, counters=counters)
+            return ContactDiscoveryServiceResult(
+                decision=decision, run=finished, provider_called=True
+            )
+        if page.total_entries > profile.search_too_broad_threshold:
+            return self._complete_without_contact(
+                run,
+                decision,
+                ContactRunStatus.CONTACT_SEARCH_TOO_BROAD,
+                counters,
+            )
+
+        available = tuple(candidate for candidate in page.candidates if candidate.has_email)
+        counters["candidates_rejected"] = int(counters["candidates_rejected"]) + (
+            len(page.candidates) - len(available)
+        )
+        ranked = rank_candidates(available)
+        counters["candidates_eligible"] = len(ranked)
+        counters["candidates_rejected"] = int(counters["candidates_rejected"]) + (
+            len(available) - len(ranked)
+        )
+        if not ranked:
+            return self._complete_without_contact(
+                run, decision, ContactRunStatus.NO_CANDIDATE, counters
+            )
+
+        attempted: list[str] = []
+        for ranked_candidate in ranked[: profile.max_enrichment_attempts]:
+            provider_person_id = ranked_candidate.candidate.provider_person_id
+            attempted.append(contact_ref_for("apollo", provider_person_id, run.supplier_ref))
+            counters["enrichment_attempts"] = int(counters["enrichment_attempts"]) + 1
+            counters["attempted_contact_refs"] = tuple(attempted)
+            try:
+                enriched = self._provider.enrich_person(provider_person_id, observed_at=self._now())
+            except ApolloContactProviderError as exc:
+                finished = self._finish_failed(run, exc, counters=counters)
+                return ContactDiscoveryServiceResult(
+                    decision=decision, run=finished, provider_called=True
+                )
+            if enriched is None:
+                counters["candidates_rejected"] = int(counters["candidates_rejected"]) + 1
+                continue
+            if (
+                enriched.provider_person_id != provider_person_id
+                or enriched.provider_organization_id != profile.provider_organization_id
+            ):
+                counters["candidates_rejected"] = int(counters["candidates_rejected"]) + 1
+                continue
+            classification = (
+                classify_title(enriched.title)
+                if enriched.title is not None
+                else None
+            )
+            if enriched.title is not None and classification is None:
+                counters["candidates_rejected"] = int(counters["candidates_rejected"]) + 1
+                continue
+            current_title = enriched.title or ranked_candidate.candidate.title
+            normalized_title = (
+                classification.normalized_title
+                if classification is not None
+                else ranked_candidate.normalized_title
+            )
+            role_tier = (
+                classification.role_tier
+                if classification is not None
+                else ranked_candidate.role_tier
+            )
+            try:
+                observation = ContactObservation(
+                    supplier_ref=run.supplier_ref,
+                    provider_person_id=enriched.provider_person_id,
+                    provider_organization_id=enriched.provider_organization_id,
+                    first_name=enriched.first_name,
+                    last_name=enriched.last_name,
+                    display_name=enriched.display_name,
+                    title=current_title,
+                    normalized_title=normalized_title,
+                    role_tier=role_tier,
+                    business_email=enriched.business_email,
+                    provider_email_status=enriched.provider_email_status,
+                    provider_observed_at=enriched.provider_observed_at,
+                    email_observed_at=enriched.provider_observed_at,
+                    source_fingerprint=enriched.source_fingerprint,
+                )
+            except ValidationError:
+                counters["candidates_rejected"] = int(counters["candidates_rejected"]) + 1
+                continue
+            try:
+                contact, finished = self._commit_success(run, observation, counters)
+            except (OpportunityConcurrencyConflict, sa.exc.SQLAlchemyError, RuntimeError) as exc:
+                finished = self._finish_persistence_failure(run, exc, counters)
+                return ContactDiscoveryServiceResult(
+                    decision=decision, run=finished, provider_called=True
+                )
+            return ContactDiscoveryServiceResult(
+                decision=decision,
+                run=finished,
+                contact=contact,
+                provider_called=True,
+            )
+
+        return self._complete_without_contact(
+            run, decision, ContactRunStatus.NO_VERIFIED_CONTACT, counters
+        )
+
+    def _commit_success(self, run, observation, counters):
+        with self._engine.begin() as connection:
+            current = self._acquisition.get_opportunity_in_transaction(
+                connection, run.acquisition_opportunity_id, for_update=True
+            )
+            self._require_post_policy(current, run)
+            upserted = self._contacts.upsert_contact_in_transaction(connection, observation)
+            persisted = upserted.contact
+            if not (
+                persisted.supplier_ref == current.supplier_ref
+                and persisted.verification_state == "PROVIDER_VERIFIED"
+                and persisted.verification_provider == "apollo"
+                and persisted.provider_email_status == "verified"
+                and persisted.business_email
+            ):
+                raise RuntimeError("persisted contact is not attachable")
+            selected = self._acquisition.append_in_transaction(
+                connection,
+                current.acquisition_opportunity_id,
+                event_type=EventType.CONTACT_SELECTED,
+                expected_version=run.expected_post_policy_version,
+                idempotency_key=f"contact_selected:{run.contact_discovery_run_id}",
+                actor_type=ActorType.SYSTEM,
+                actor_ref="kivou-contact-discovery",
+                payload={
+                    "contact_ref": persisted.contact_ref,
+                    "supplier_ref": run.supplier_ref,
+                },
+                correlation_id=run.correlation_id,
+            )
+            transitioned = self._acquisition.append_in_transaction(
+                connection,
+                current.acquisition_opportunity_id,
+                event_type=EventType.STATE_TRANSITIONED,
+                expected_version=selected.projection.stream_version,
+                idempotency_key=f"contact_enriching:{run.contact_discovery_run_id}",
+                actor_type=ActorType.SYSTEM,
+                actor_ref="kivou-contact-discovery",
+                payload={"target_state": AcquisitionState.ENRICHING.value},
+                correlation_id=run.correlation_id,
+            )
+            self._acquisition.append_in_transaction(
+                connection,
+                current.acquisition_opportunity_id,
+                event_type=EventType.NEXT_ACTION_SET,
+                expected_version=transitioned.projection.stream_version,
+                idempotency_key=f"contact_next_action:{run.contact_discovery_run_id}",
+                actor_type=ActorType.SYSTEM,
+                actor_ref="kivou-contact-discovery",
+                payload={"next_action": "enrich_company"},
+                correlation_id=run.correlation_id,
+            )
+            finished = self._contacts.finish_run_in_transaction(
+                connection,
+                run.contact_discovery_run_id,
+                status=ContactRunStatus.SUCCESS,
+                completed_at=self._now(),
+                selected_contact_ref=persisted.contact_ref,
+                **counters,
+            )
+        return persisted, finished
+
+    def _complete_without_contact(self, run, decision, status, counters):
+        try:
+            with self._engine.begin() as connection:
+                current = self._acquisition.get_opportunity_in_transaction(
+                    connection, run.acquisition_opportunity_id, for_update=True
+                )
+                self._require_post_policy(current, run)
+                self._acquisition.append_in_transaction(
+                    connection,
+                    current.acquisition_opportunity_id,
+                    event_type=EventType.NEXT_ACTION_SET,
+                    expected_version=run.expected_post_policy_version,
+                    idempotency_key=f"contact_human_review:{run.contact_discovery_run_id}",
+                    actor_type=ActorType.SYSTEM,
+                    actor_ref="kivou-contact-discovery",
+                    reason_codes=(status.value.lower(),),
+                    payload={"next_action": "request_human_review"},
+                    correlation_id=run.correlation_id,
+                )
+                finished = self._contacts.finish_run_in_transaction(
+                    connection,
+                    run.contact_discovery_run_id,
+                    status=status,
+                    completed_at=self._now(),
+                    **counters,
+                )
+        except (OpportunityConcurrencyConflict, sa.exc.SQLAlchemyError, RuntimeError) as exc:
+            finished = self._finish_persistence_failure(run, exc, counters)
+        return ContactDiscoveryServiceResult(decision=decision, run=finished, provider_called=True)
+
+    def _finish_failed(self, run, error, *, counters=None):
+        values = counters or {
+            "people_search_requests": 1,
+            "provider_total_entries": None,
+            "search_results_returned": 0,
+            "search_results_truncated": False,
+            "candidates_eligible": 0,
+            "candidates_rejected": 0,
+            "enrichment_attempts": 0,
+            "attempted_contact_refs": (),
+        }
+        return self._contacts.finish_run(
+            run.contact_discovery_run_id,
+            status=ContactRunStatus.FAILED,
+            completed_at=self._now(),
+            error_category=error.category,
+            error_detail=error.detail,
+            retry_after=error.retry_after,
+            **values,
+        )
+
+    def _finish_persistence_failure(self, run, error, counters):
+        category = (
+            "opportunity_concurrency_conflict"
+            if isinstance(error, (OpportunityConcurrencyConflict, ContactDiscoveryNotActionable))
+            else "persistence_error"
+        )
+        return self._contacts.finish_run(
+            run.contact_discovery_run_id,
+            status=ContactRunStatus.FAILED,
+            completed_at=self._now(),
+            error_category=category,
+            error_detail=type(error).__name__,
+            **counters,
+        )
+
+    @staticmethod
+    def _require_actionable(opportunity) -> None:
+        if not (
+            opportunity.state is AcquisitionState.DISCOVERED
+            and opportunity.supplier_ref is not None
+            and opportunity.contact_ref is None
+            and opportunity.next_action == "find_decision_makers"
+        ):
+            raise ContactDiscoveryNotActionable(opportunity.acquisition_opportunity_id)
+
+    @classmethod
+    def _require_post_policy(cls, opportunity, run) -> None:
+        cls._require_actionable(opportunity)
+        if (
+            opportunity.stream_version != run.expected_post_policy_version
+            or opportunity.supplier_ref != run.supplier_ref
+        ):
+            raise OpportunityConcurrencyConflict(opportunity.acquisition_opportunity_id)
+
+    @staticmethod
+    def _expected_target(opportunity_id: str) -> str:
+        return f"acquisition-opportunity:{opportunity_id}"
+
+    def _require_existing_run_binding(
+        self, run, *, opportunity_id: str, authorization: ContactAuthorizationInput
+    ) -> None:
+        with self._engine.connect() as connection:
+            evaluation = self._policy_store.evaluation_row(connection, authorization.evaluation_id)
+        if evaluation is None or not (
+            run.acquisition_opportunity_id == opportunity_id
+            and evaluation["acquisition_opportunity_id"] == opportunity_id
+            and evaluation["request_id"] == authorization.request_id
+            and evaluation["command"] == "find_decision_makers"
+            and evaluation["target_ref"] == self._expected_target(opportunity_id)
+            and evaluation["action_fingerprint"] == run.provider_request_fingerprint
+        ):
+            raise ContactRunIdentityConflict(authorization.evaluation_id)
+
+    @staticmethod
+    def _policy_request(
+        authorization,
+        *,
+        opportunity_id,
+        expected_version,
+        arguments,
+        action_fingerprint,
+    ) -> PolicyRequest:
+        return PolicyRequest(
+            evaluation_id=authorization.evaluation_id,
+            request_id=authorization.request_id,
+            command="find_decision_makers",
+            target_ref=ContactDiscoveryService._expected_target(opportunity_id),
+            acquisition_opportunity_id=opportunity_id,
+            expected_opportunity_version=expected_version,
+            actor_type=authorization.actor_type,
+            actor_ref=authorization.actor_ref,
+            canonical_arguments=arguments,
+            action_fingerprint=action_fingerprint,
+            scope=authorization.scope,
+            proposed_cost=authorization.proposed_cost,
+            currency=authorization.currency,
+            proposed_volume=0,
+            reason_codes=authorization.reason_codes,
+            evidence_refs=authorization.evidence_refs,
+            evidence=authorization.evidence,
+            compliance=authorization.compliance,
+            operational=authorization.operational,
+            expected_policy_version=authorization.expected_policy_version,
+            approval_grants=authorization.approval_grants,
+            supervisor_plan_id=authorization.supervisor_plan_id,
+            supervisor_action_index=authorization.supervisor_action_index,
+            supervisor_version=authorization.supervisor_version,
+            skill_version=authorization.skill_version,
+        )
+
+    def _now(self) -> dt.datetime:
+        value = self._clock()
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("contact discovery clock must be timezone-aware")
+        return value

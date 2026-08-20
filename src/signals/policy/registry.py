@@ -48,7 +48,12 @@ COMMAND_POLICIES = {
         requires_control_plane=True,
     ),
     "find_decision_makers": CommandPolicy(
-        RiskClass.PREPARATORY, TargetScope.OPPORTUNITY, ("SUPPLIER",), True
+        risk_class=RiskClass.PREPARATORY,
+        target_scope=TargetScope.OPPORTUNITY,
+        required_evidence=("SUPPLIER", "CONTACT_SEARCH_PROFILE"),
+        uses_budget=True,
+        uses_provider_quota=True,
+        requires_control_plane=True,
     ),
     "enrich_company": CommandPolicy(
         RiskClass.PREPARATORY, TargetScope.OPPORTUNITY, ("SUPPLIER",), True
