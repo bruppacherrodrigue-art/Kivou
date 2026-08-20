@@ -3,6 +3,7 @@ import { useI18n } from '../i18n'
 import { ButtonLink } from '../components/Button'
 import { Card, SectionHeading } from '../components/Surfaces'
 import { ArchitecturalHero } from '../assets/Illustrations'
+import { PublicSignalPreview } from '../components/PublicSignalPreview'
 import {
   ArrowRightIcon,
   CheckIcon,
@@ -86,7 +87,7 @@ export function Landing() {
               <ButtonLink to="/signup" variant="primary" size="lg" icon={<ArrowRightIcon />}>
                 {t.landing.heroPrimary}
               </ButtonLink>
-              <ButtonLink to="#comment" variant="secondary" size="lg">
+              <ButtonLink to="/exemple-de-signal" variant="secondary" size="lg">
                 {t.landing.heroSecondary}
               </ButtonLink>
             </div>
@@ -106,13 +107,19 @@ export function Landing() {
             </ul>
           </div>
 
+          {/* La colonne droite montrait la direction artistique ; elle montre
+              désormais ce que Kivou produit. L'illustration reste comme accent
+              de matière, derrière la carte, et non à sa place. */}
           <div className={styles.heroMaterial}>
-            <ArchitecturalHero className={styles.heroIllustration} />
+            <ArchitecturalHero className={styles.heroIllustration} aria-hidden="true" />
+            <div className={styles.heroSignal}>
+              <PublicSignalPreview />
+            </div>
           </div>
         </div>
       </section>
 
-      <section className={styles.section} id="comment">
+      <section className={styles.section} id="comment" tabIndex={-1}>
         <div className={styles.sectionInner}>
           <SectionHeading
             eyebrow={t.landing.chainTitle}
@@ -174,14 +181,23 @@ export function Landing() {
         </div>
       </section>
 
-      {catalogue ? (
-        <section className={styles.section} id="tarifs">
-          <div className={styles.sectionInner}>
-            <SectionHeading title={t.landing.pricingTitle} lead={t.landing.pricingLead} />
+      {/* La section existe TOUJOURS, même sans catalogue.
+       *
+       * Elle était rendue conditionnellement : `/#tarifs` devenait alors un
+       * lien mort dès que la facturation était indisponible, et le visiteur
+       * cliquait dans le vide sans rien comprendre. La cible est donc stable,
+       * et c'est son CONTENU qui varie. `tabIndex={-1}` la rend focusable par
+       * programme, pour que l'ancre déplace réellement le focus. */}
+      <section className={styles.section} id="tarifs" tabIndex={-1}>
+        <div className={styles.sectionInner}>
+          <SectionHeading title={t.landing.pricingTitle} lead={t.landing.pricingLead} />
+          {catalogue ? (
             <PlanGrid catalogue={catalogue} variant="public" />
-          </div>
-        </section>
-      ) : null}
+          ) : (
+            <p className={styles.honestyNote}>{t.landing.pricingUnavailable}</p>
+          )}
+        </div>
+      </section>
 
       <section className={`${styles.section} ${styles.sectionCta}`}>
         <div className={styles.ctaInner}>

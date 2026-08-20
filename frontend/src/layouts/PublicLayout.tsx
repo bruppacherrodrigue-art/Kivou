@@ -1,9 +1,12 @@
-import { Link, Outlet } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
+import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useI18n, LOCALES } from '../i18n'
 import type { Locale } from '../i18n'
 import { useSession } from '../auth/SessionProvider'
 import { KivouLogo } from '../components/KivouLogo'
 import { ButtonLink } from '../components/Button'
+import { CloseIcon, MenuIcon } from '../assets/Icons'
+import { HashTarget } from './HashTarget'
 import styles from './PublicLayout.module.css'
 
 /* Le shell public : header horizontal, contenu, footer.
@@ -16,7 +19,68 @@ import styles from './PublicLayout.module.css'
 export function PublicLayout() {
   const { t, locale, setLocale } = useI18n()
   const { state } = useSession()
+  const location = useLocation()
   const authenticated = state.status === 'authenticated'
+  const [menuOpen, setMenuOpen] = useState(false)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+
+  // Refermer rend le focus au bouton qui a ouvert. Sans cela, la fermeture
+  // renvoie le focus au début du document et l'utilisateur au clavier doit
+  // retraverser toute la page pour revenir où il était.
+  const closeMenu = () => {
+    setMenuOpen(false)
+    toggleRef.current?.focus()
+  }
+
+  // Naviguer referme le menu : laissé ouvert, il masquerait la page atteinte.
+  useEffect(() => {
+    setMenuOpen(false)
+  }, [location.pathname, location.hash])
+
+  // Échap referme. Sans cela, un utilisateur au clavier reste prisonnier de la
+  // couche modale qui recouvre la page.
+  useEffect(() => {
+    if (!menuOpen) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeMenu()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [menuOpen])
+
+  // Les mêmes liens servent le bandeau large et le tiroir : deux listes
+  // séparées finiraient par diverger, et l'une des deux deviendrait fausse.
+  // Les actions d'authentification vivent dans le bandeau en large, et dans le
+  // tiroir en étroit. Une seule définition : deux copies finiraient par
+  // diverger, et l'une des deux deviendrait fausse.
+  const authActions = authenticated ? (
+    <ButtonLink to="/app/signals" variant="primary">
+      {t.nav.signals}
+    </ButtonLink>
+  ) : (
+    <>
+      <ButtonLink to="/login" variant="quiet">
+        {t.nav.login}
+      </ButtonLink>
+      <ButtonLink to="/signup" variant="primary">
+        {t.nav.signup}
+      </ButtonLink>
+    </>
+  )
+
+  const links = (
+    <nav className={styles.nav} aria-label={t.nav.mainNavigation}>
+      <Link to="/exemple-de-signal" className={styles.navLink}>
+        {t.publicDemo.navLabel}
+      </Link>
+      <Link to="/#comment" className={styles.navLink}>
+        {t.nav.howItWorks}
+      </Link>
+      <Link to="/#tarifs" className={styles.navLink}>
+        {t.nav.pricing}
+      </Link>
+    </nav>
+  )
 
   return (
     <div className={styles.page}>
@@ -30,27 +94,65 @@ export function PublicLayout() {
             <KivouLogo size="md" />
           </Link>
 
+          <div className={styles.headerNav}>{links}</div>
+
           <div className={styles.headerActions}>
             <LocaleSwitch locale={locale} onChange={setLocale} label={t.common.language} />
-            {authenticated ? (
-              <ButtonLink to="/app/signals" variant="primary">
-                {t.nav.signals}
-              </ButtonLink>
-            ) : (
-              <>
-                <ButtonLink to="/login" variant="quiet">
-                  {t.nav.login}
-                </ButtonLink>
-                <ButtonLink to="/signup" variant="primary">
-                  {t.nav.signup}
-                </ButtonLink>
-              </>
-            )}
+            {/* Sous 900 px, les actions passent dans le tiroir : le bandeau ne
+                peut pas porter logo, langue, deux boutons et l'ouverture du
+                menu sans déborder — mesuré à 506 px pour 390 disponibles. */}
+            <div className={styles.headerAuth}>{authActions}</div>
+            <button
+              ref={toggleRef}
+              type="button"
+              className={styles.menuToggle}
+              aria-expanded={menuOpen}
+              aria-controls="kivou-public-menu"
+              onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
+            >
+              <MenuIcon />
+              <span className="kivou-visually-hidden">
+                {menuOpen ? t.nav.closeMenu : t.nav.openMenu}
+              </span>
+            </button>
           </div>
         </div>
       </header>
 
+      {/* Panneau NON MODAL, délibérément.
+       *
+       * `role="dialog"` avec `aria-modal="true"` promet un piège de focus : le
+       * lecteur d'écran annonce que le reste de la page est inerte, et il ne
+       * l'était pas. Mieux vaut un panneau honnête — `aria-expanded` et
+       * `aria-controls` sur le bouton, `Échap` pour sortir, et le focus rendu
+       * au bouton — qu'une modale qui ment sur son propre comportement. */}
+      {menuOpen ? (
+        <div className={styles.menuLayer}>
+          <button
+            type="button"
+            className={styles.scrim}
+            // Nom DISTINCT de celui du bouton de fermeture : deux commandes
+            // homonymes rendent la liste des contrôles illisible au lecteur
+            // d'écran.
+            aria-label={t.nav.dismissMenu}
+            onClick={closeMenu}
+          />
+          <div className={styles.menu} id="kivou-public-menu">
+            <div className={styles.menuHead}>
+              <KivouLogo size="sm" />
+              <button type="button" className={styles.menuToggle} onClick={closeMenu}>
+                <CloseIcon />
+                <span className="kivou-visually-hidden">{t.nav.closeMenu}</span>
+              </button>
+            </div>
+            {links}
+            <div className={styles.menuAuth}>{authActions}</div>
+          </div>
+        </div>
+      ) : null}
+
       <main id="kivou-main">
+        <HashTarget />
         <Outlet />
       </main>
 

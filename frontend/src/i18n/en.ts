@@ -11,7 +11,7 @@ export const en: Dictionary = {
   brand: {
     name: 'Kivou',
     baseline: 'Commercial performance under control',
-    promise: 'Turn won public contracts into concrete B2B opportunities.',
+    promise: 'Turn new public contract awards into credible reasons to contact a company.',
     markAlt: 'Kivou',
   },
 
@@ -52,19 +52,20 @@ export const en: Dictionary = {
     mainNavigation: 'Main navigation',
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
+    dismissMenu: 'Close the menu by clicking outside',
     account: 'Account',
   },
 
   landing: {
     heroLead:
-      'Kivou reads the public record and the contract documents of awarded tenders, extracts the delivery requirements, identifies plausible needs and tells you when to act.',
-    heroPrimary: 'See my signals',
-    heroSecondary: 'Understand Kivou',
+      'Kivou identifies the winner, checks the facts, qualifies the timing and explains the plausible needs — with the official source that lets you judge.',
+    heroPrimary: 'See my 3 signals',
+    heroSecondary: 'Examine a complete signal',
     proofsTitle: 'What Kivou stands on',
     proofs: {
       publicTitle: '100% public record',
       publicBody:
-        'We read official French, Swiss and European award notices. No private data.',
+        'We analyse European public data from official contract award notices. No private data.',
       documentTitle: 'Documentary evidence',
       documentBody:
         'Every requirement we quote links back to its source passage and the document that publishes it.',
@@ -104,6 +105,7 @@ export const en: Dictionary = {
       'Kivou does not know what a company will buy. Kivou shows a public event, what it probably implies, and the evidence that lets you judge.',
     pricingTitle: 'Choose a plan',
     pricingLead: 'Monthly billing. No commitment.',
+    pricingUnavailable: 'Plan details are temporarily unavailable. Account creation remains open.',
     ctaTitle: 'Start with three real signals',
     ctaBody:
       'Create an account, describe what you sell, and read three complete signals with their documentary evidence.',
@@ -111,6 +113,86 @@ export const en: Dictionary = {
     footerRights: 'All rights reserved.',
   },
 
+  publicDemo: {
+    navLabel: 'Signal example',
+    badge: 'Real signal example',
+    pageTitle: 'One Kivou signal, in full',
+    pageLead:
+      'The same signal you would see in your feed, with its facts, its proof, what Kivou infers from it and what it does not know.',
+    verifiedOn: 'Facts checked against the official source on {date}.',
+    openSource: 'Open the official notice',
+    openSourceHint: 'Opens the official TED website in a new tab.',
+
+    factsTitle: 'Public fact',
+    factsLead: 'Published by the buyer in the official award notice.',
+    winner: 'Winning company',
+    buyer: 'Public buyer',
+    object: 'Contract object',
+    amountLabel: 'Awarded amount',
+    place: 'Place of performance',
+    reference: 'Contract reference',
+    cpv: 'CPV code',
+    identifier: 'Company identifier',
+    quantitiesTitle: 'Quantities published in the notice',
+    quantitiesNote:
+      'These quantities appear in the award notice description. This is not an excerpt from a tender document.',
+
+    documentaryTitle: 'Documentary requirement',
+    documentaryNone:
+      'No validated execution requirement is available in Kivou data for this award.',
+    documentaryModeLabel: 'Analysis mode',
+    documentaryMode: 'Analysis based on notice metadata',
+    documentaryConfidenceLabel: 'Confidence',
+    documentaryConfidence: 'Reduced',
+    documentaryConfidenceReason:
+      'Object, CPV code, amount, location and dates come from the official award notice. No validated tender document feeds this signal.',
+
+    analysisTitle: 'Kivou analysis',
+    analysisLead: 'A hypothesis drawn from the published fact, not an announced purchase.',
+    needLabel: 'Plausible need',
+    reasoningLabel: 'Why Kivou thinks so',
+    needTimingLabel: 'Horizon',
+    needTimingNearTerm: 'Near term',
+    externalisabilityLabel: 'Outsourceable',
+    externalisabilityPlausible: 'Plausibly',
+
+    timingTitle: 'Timing',
+    timingLead: 'What the published dates allow us to say.',
+    awardDate: 'Award date',
+    signatureDate: 'Signature date',
+    startDate: 'Performance starts',
+    endDate: 'Expected end',
+    publishedAt: 'Notice published',
+    timingNote:
+      'The award date is published: this contract was awarded on a known date, not merely published recently.',
+
+    fitTitle: 'Why this signal can concern a supplier',
+    fitLead: 'Illustration. Your targeting profile determines what you actually receive.',
+    fitBody:
+      'A materials merchant or a component manufacturer can read here a dated, located and quantified project whose execution will consume supplies. That is a reason to reach out, not an order.',
+
+    evidenceTitle: 'Proof',
+    evidenceLead: 'Selected fields verified in the official notice.',
+    evidenceScope:
+      'Three fields carry an individual provenance reference. The other facts on this page come from the same official notice, linked below, without a field-by-field reference.',
+    evidenceAmount: 'Amount',
+    evidenceCpv: 'CPV code',
+    evidenceLot: 'Lot reference',
+    evidenceTechnical: 'Show technical paths',
+    evidencePathXml: 'XML path',
+    evidencePathField: 'Acquisition field',
+
+    ctaTitle: 'See your own signals',
+    ctaBody: 'Describe what you sell and where you deliver. Kivou shows you three complete signals.',
+    ctaButton: 'See my 3 signals',
+
+    previewEyebrow: 'Real signal example',
+    previewMode: 'Official notice verified',
+    previewNeedLabel: 'Plausible need',
+    previewCta: 'See this signal in full',
+    previewAwarded: 'Awarded on {date}',
+    previewStart: 'Performance from {date}',
+  },
   auth: {
     loginTitle: 'Sign in',
     loginLead: 'Reach your signals.',

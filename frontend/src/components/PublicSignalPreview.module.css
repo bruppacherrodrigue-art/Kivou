@@ -1,0 +1,130 @@
+/* La carte de signal du hero.
+ *
+ * `height: 100%` et non une hauteur figée : la carte suit la colonne, et rien
+ * ne se déplace après le rendu. Un `min-height` en pixels aurait produit un
+ * saut de mise en page dès que la traduction change de longueur. */
+.card {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+  background: var(--kivou-bg-surface);
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  /* Le laiton donne 3,04:1 sur la surface de carte — sous le seuil AA de
+     4,5:1. Le vert forêt de la marque en donne 10,86:1 et reste dans la
+     palette : l'accroche garde son accent sans devenir illisible. */
+  color: var(--kivou-color-forest);
+  font-weight: var(--kivou-weight-medium);
+}
+
+.winner {
+  margin: 0;
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h2);
+  line-height: var(--kivou-leading-h2);
+  color: var(--kivou-text-primary);
+}
+
+.object {
+  margin: 0;
+  font-size: var(--kivou-text-body);
+  line-height: var(--kivou-leading-body);
+  color: var(--kivou-text-secondary);
+}
+
+.facts {
+  margin: 0;
+  display: grid;
+  gap: var(--kivou-space-3);
+  padding-top: var(--kivou-space-4);
+  border-top: 1px solid var(--kivou-border);
+}
+
+.fact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--kivou-space-2) var(--kivou-space-4);
+  justify-content: space-between;
+}
+
+.factLabel {
+  margin: 0;
+  font-size: var(--kivou-text-small);
+  color: var(--kivou-text-muted);
+}
+
+.factValue {
+  margin: 0;
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-text-primary);
+  text-align: right;
+}
+
+.dates {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--kivou-space-1);
+  font-size: var(--kivou-text-small);
+  color: var(--kivou-text-secondary);
+}
+
+/* Le besoin est une INFÉRENCE : il est séparé des faits par une surface et une
+   bordure, pas par une nuance de gris. La distinction survit au daltonisme et
+   à une impression en noir et blanc. */
+.needBlock {
+  padding: var(--kivou-space-4);
+  border: 1px dashed var(--kivou-border);
+  border-radius: var(--kivou-radius-sm);
+  background: var(--kivou-bg-subtle);
+  display: grid;
+  gap: var(--kivou-space-2);
+}
+
+.needLabel {
+  margin: 0;
+  font-size: var(--kivou-text-micro);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--kivou-text-muted);
+  font-weight: var(--kivou-weight-medium);
+}
+
+.needStatement {
+  margin: 0;
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-body);
+  color: var(--kivou-text-primary);
+}
+
+.mode {
+  margin: 0;
+}
+
+.cta {
+  margin-top: auto;
+  align-self: flex-start;
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-color-forest);
+  text-decoration: none;
+  border-radius: var(--kivou-radius-sm);
+  padding: var(--kivou-space-2) 0;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cta:hover {
+  text-decoration: underline;
+}
