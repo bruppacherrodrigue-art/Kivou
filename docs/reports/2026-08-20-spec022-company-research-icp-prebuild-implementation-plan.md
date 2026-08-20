@@ -259,7 +259,7 @@ npm run lint
 - Create: `docs/reports/2026-08-20-spec022-company-research-icp-prebuild.md`
 - Update: this plan's checkboxes
 
-- [ ] **Step 1: Record architecture, proofs, test counts, timing, SHA/CI placeholders only after evidence exists**
-- [ ] **Step 2: Run final `git diff --check` and inspect every changed file**
-- [ ] **Step 3: Stage SPEC-022 files explicitly, commit, and push without force**
-- [ ] **Step 4: Keep PR #18 DRAFT and wait for the new GitHub Actions run**
+- [x] **Step 1: Record architecture, proofs, test counts, timing, SHA/CI placeholders only after evidence exists**
+- [x] **Step 2: Run final `git diff --check` and inspect every changed file**
+- [x] **Step 3: Stage SPEC-022 files explicitly, commit, and push without force**
+- [x] **Step 4: Keep PR #18 DRAFT and wait for the new GitHub Actions run**

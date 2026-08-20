@@ -147,7 +147,7 @@ The diagnostic for 100 deterministic accepted organization observations performs
 - TypeScript `tsc -b`: PASS.
 - Frontend lint: PASS.
 - Live Apollo calls: 0.
-- GitHub Actions executable run: pending publication.
+- GitHub Actions executable run: `32380698387` — SUCCESS (backend and frontend).
 
 ## Files changed
 
@@ -159,8 +159,7 @@ The diagnostic for 100 deterministic accepted organization observations performs
 
 ## Git closeout
 
-- Executable SHA: pending initial implementation commit.
-- Final branch head: pending CI closeout.
-- CI run: pending.
-- Diff stat: 28 files changed, 3871 insertions(+), 10 deletions(-).
-- `git status --porcelain`: pending final closeout.
+- Executable SHA: `5aff700c44cd3ad39de3769204b755f1a7ce06d8`.
+- CI run: `32380698387` — SUCCESS.
+- Executable diff stat: 28 files changed, 3931 insertions(+), 10 deletions(-).
+- `git status --porcelain`: clean after the documentation-only closeout commit.
