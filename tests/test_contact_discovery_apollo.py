@@ -192,7 +192,15 @@ def test_documented_enrichment_no_match_returns_none() -> None:
     assert client.enrich_person("apollo-person-1", observed_at=NOW) is None
 
 
-@pytest.mark.parametrize("payload", [{}, {"person": []}, {"person": "none"}])
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {},
+        {"person": []},
+        {"person": "none"},
+        {"person": None, "error": "rate_limited"},
+    ],
+)
 def test_malformed_enrichment_structure_still_fails(payload: object) -> None:
     client = ApolloContactDiscoveryClient(
         api_key="fake",
@@ -207,6 +215,24 @@ def test_malformed_enrichment_structure_still_fails(payload: object) -> None:
         client.enrich_person("apollo-person-1", observed_at=NOW)
 
     assert caught.value.category == "malformed_response"
+
+
+@pytest.mark.parametrize("status", [201, 204, 302])
+def test_non_200_enrichment_status_cannot_become_no_match(status: int) -> None:
+    client = ApolloContactDiscoveryClient(
+        api_key="fake",
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(status, json={"person": None})
+            )
+        ),
+    )
+
+    with pytest.raises(ApolloContactProviderError) as caught:
+        client.enrich_person("apollo-person-1", observed_at=NOW)
+
+    assert caught.value.category == "malformed_response"
+    assert caught.value.detail == "unexpected_http_status"
 
 
 @pytest.mark.parametrize(

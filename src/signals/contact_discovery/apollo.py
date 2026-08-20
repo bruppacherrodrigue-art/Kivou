@@ -191,7 +191,7 @@ class ApolloContactDiscoveryClient:
         payload = self._post(PEOPLE_ENRICHMENT_PATH, params, observed_at=observed_at)
         if not isinstance(payload, dict) or "person" not in payload:
             raise ApolloContactProviderError("malformed_response")
-        if payload["person"] is None:
+        if payload["person"] is None and set(payload) == {"person"}:
             return None
         if not isinstance(payload["person"], dict):
             raise ApolloContactProviderError("malformed_response")
@@ -259,6 +259,10 @@ class ApolloContactDiscoveryClient:
                             if category == "rate_limited"
                             else None
                         ),
+                    )
+                if response.status_code != 200:
+                    raise ApolloContactProviderError(
+                        "malformed_response", detail="unexpected_http_status"
                     )
                 body = bytearray()
                 for chunk in response.iter_bytes():
