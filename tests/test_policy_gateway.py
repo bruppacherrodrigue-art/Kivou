@@ -211,7 +211,20 @@ def test_compliance_and_action_approvals_are_independent() -> None:
         base.model_copy(update={"approval_grants": (compliance, action)}), snap, NOW
     )
     assert approved.status is PolicyStatus.APPROVED
-    assert approved.approval_ids == (compliance.approval_id, action.approval_id)
+    assert {
+        (approval.approval_id, approval.purpose.value)
+        for approval in approved.approval_refs
+    } == {
+        (compliance.approval_id, ApprovalPurpose.COMPLIANCE_REVIEW.value),
+        (action.approval_id, ApprovalPurpose.ACTION.value),
+    }
+    assert all(len(approval.binding_fingerprint) == 64 for approval in approved.approval_refs)
+
+
+def test_no_approval_required_produces_empty_approval_refs() -> None:
+    decision = evaluate_policy(request(), snapshot(), NOW)
+    assert decision.status is PolicyStatus.APPROVED
+    assert decision.approval_refs == ()
 
 
 @pytest.mark.parametrize("state", [ComplianceState.BLOCKED, ComplianceState.UNKNOWN])

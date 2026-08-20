@@ -21,6 +21,7 @@ from signals.policy.contracts import (
     PolicyEvaluationIdempotencyConflict,
     PolicyRequest,
     PolicySnapshot,
+    approval_binding_fingerprint,
 )
 from signals.policy.evaluator import evaluate_policy
 from signals.policy.store import PolicyStore, decision_from_row, decision_values
@@ -41,10 +42,49 @@ def _canonical(value: object) -> object:
 
 
 def _fingerprint(
-    request: PolicyRequest, budget_usage: BudgetUsage, evaluated_at: dt.datetime
+    request: PolicyRequest,
+    snapshot: PolicySnapshot,
+    budget_usage: BudgetUsage,
+    evaluated_at: dt.datetime,
 ) -> str:
+    approval_bindings = sorted(
+        {
+            (
+                grant.approval_id,
+                grant.purpose.value,
+                approval_binding_fingerprint(grant),
+            )
+            for grant in request.approval_grants
+        }
+    )
     payload = {
-        "request": request.model_dump(mode="python"),
+        "evaluation_id": request.evaluation_id,
+        "request": {
+            "request_id": request.request_id,
+            "command": request.command,
+            "target_ref": request.target_ref,
+            "acquisition_opportunity_id": request.acquisition_opportunity_id,
+            "expected_opportunity_version": request.expected_opportunity_version,
+            "actor_type": request.actor_type,
+            "actor_ref": request.actor_ref,
+            "action_fingerprint": request.action_fingerprint,
+            "scope": request.scope.model_dump(mode="python"),
+            "proposed_cost": request.proposed_cost,
+            "currency": request.currency,
+            "proposed_volume": request.proposed_volume,
+            "reason_codes": request.reason_codes,
+            "evidence_refs": request.evidence_refs,
+            "evidence": request.evidence.model_dump(mode="python"),
+            "compliance": request.compliance.model_dump(mode="python"),
+            "operational": request.operational.model_dump(mode="python"),
+            "expected_policy_version": request.expected_policy_version,
+            "approval_bindings": approval_bindings,
+            "supervisor_plan_id": request.supervisor_plan_id,
+            "supervisor_action_index": request.supervisor_action_index,
+            "supervisor_version": request.supervisor_version,
+            "skill_version": request.skill_version,
+        },
+        "selected_policy_snapshot": snapshot.model_dump(mode="python"),
         "budget_usage": budget_usage.model_dump(mode="python"),
         "evaluated_at": evaluated_at,
     }
@@ -69,14 +109,6 @@ class PolicyGateway:
         evaluated_at: dt.datetime,
         budget_usage: BudgetUsage,
     ) -> PolicyDecision:
-        semantic_fingerprint = _fingerprint(request, budget_usage, evaluated_at)
-        with self._engine.connect() as connection:
-            existing = self._store.evaluation_row(connection, request.evaluation_id)
-            if existing is not None:
-                return self._validated_existing(
-                    connection, request, semantic_fingerprint, existing
-                )
-
         control = self._store.get_effective_control(evaluated_at)
         day_start = evaluated_at.replace(hour=0, minute=0, second=0, microsecond=0)
         snapshot = PolicySnapshot(
@@ -104,6 +136,14 @@ class PolicyGateway:
             ),
             runtime_revision=request.operational.runtime_revision,
         )
+        semantic_fingerprint = _fingerprint(request, snapshot, budget_usage, evaluated_at)
+        with self._engine.connect() as connection:
+            existing = self._store.evaluation_row(connection, request.evaluation_id)
+            if existing is not None:
+                return self._validated_existing(
+                    connection, request, semantic_fingerprint, existing
+                )
+
         decision = evaluate_policy(request, snapshot, evaluated_at)
 
         with self._engine.begin() as connection:
@@ -137,7 +177,9 @@ class PolicyGateway:
                         "target_ref": decision.target_ref,
                         "status": decision.status.value,
                         "control_revision": decision.control_revision,
-                        "approval_ids": list(decision.approval_ids),
+                        "approval_refs": [
+                            item.model_dump(mode="json") for item in decision.approval_refs
+                        ],
                     },
                     occurred_at=evaluated_at,
                 )

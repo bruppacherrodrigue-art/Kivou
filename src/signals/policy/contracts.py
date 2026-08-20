@@ -188,6 +188,35 @@ class ApprovalGrant(Contract):
         return self
 
 
+class ApprovalRef(Contract):
+    """Safe durable proof that one bound approval satisfied a policy gate."""
+
+    approval_id: Identifier
+    purpose: ApprovalPurpose
+    binding_fingerprint: Fingerprint
+
+
+def approval_binding_fingerprint(grant: ApprovalGrant) -> str:
+    """Hash only the canonical safe binding fields enforced by the evaluator."""
+    binding = {
+        "purpose": grant.purpose.value,
+        "command": grant.command,
+        "target_ref": grant.target_ref,
+        "acquisition_opportunity_id": grant.acquisition_opportunity_id,
+        "action_fingerprint": grant.action_fingerprint,
+        "policy_version": grant.policy_version,
+        "policy_snapshot_id": grant.policy_snapshot_id,
+        "control_revision": grant.control_revision,
+        "scope_fingerprint": grant.scope_fingerprint,
+        "issued_at": grant.issued_at.isoformat(),
+        "expires_at": grant.expires_at.isoformat(),
+        "one_shot": grant.one_shot,
+        "consumed_at": grant.consumed_at.isoformat() if grant.consumed_at else None,
+    }
+    encoded = json.dumps(binding, allow_nan=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(encoded.encode()).hexdigest()
+
+
 class EvidenceReadiness(Contract):
     status: EvidenceStatus
     claims: tuple[ShortCode, ...] = Field(default=(), max_length=32)
@@ -374,7 +403,7 @@ class PolicyDecision(Contract):
     cost_remaining: Decimal
     volume_remaining: int
     retry_after: dt.datetime | None = None
-    approval_ids: tuple[Identifier, ...] = Field(default=(), max_length=MAX_APPROVAL_GRANTS)
+    approval_refs: tuple[ApprovalRef, ...] = Field(default=(), max_length=MAX_APPROVAL_GRANTS)
     evidence_refs: tuple[StableRef, ...] = Field(default=(), max_length=MAX_EVIDENCE_REFS)
     _evaluated = field_validator("evaluated_at")(_aware)
     _valid = field_validator("valid_until")(_aware)

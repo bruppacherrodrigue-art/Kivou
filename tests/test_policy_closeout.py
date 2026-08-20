@@ -56,6 +56,12 @@ def test_review_grant_does_not_satisfy_action_and_action_does_not_satisfy_review
     action_only = evaluate_policy(req.model_copy(update={"approval_grants": (action,)}), snap, NOW)
     assert "action_approval_required" in review_only.reason_codes
     assert "compliance_review_approval_required" in action_only.reason_codes
+    assert [(item.approval_id, item.purpose) for item in review_only.approval_refs] == [
+        (review.approval_id, ApprovalPurpose.COMPLIANCE_REVIEW)
+    ]
+    assert [(item.approval_id, item.purpose) for item in action_only.approval_refs] == [
+        (action.approval_id, ApprovalPurpose.ACTION)
+    ]
 
 
 def test_pause_campaign_ignores_send_quota_but_requires_control_plane() -> None:

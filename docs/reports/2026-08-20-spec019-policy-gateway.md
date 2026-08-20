@@ -58,6 +58,18 @@ All eleven SPEC-017 command names have callable-free Kivou metadata and one of f
 
 `COMPLIANCE_REVIEW` satisfies only `REVIEW_REQUIRED`; `ACTION` satisfies only the later commercial gate. An ASSISTED commercial mutation under compliance review needs both exact grants. Tests prove either grant alone is insufficient, both may pass remaining gates, and BLOCKED/UNKNOWN compliance cannot be overridden.
 
+Every grant that actually satisfies a gate is now durably represented by an `ApprovalRef` containing only:
+
+```text
+approval_id
+purpose
+binding_fingerprint
+```
+
+`binding_fingerprint` is a Kivou-computed SHA-256 over the canonical safe fields used to bind the approval: purpose, command, target, opportunity, action fingerprint, scope fingerprint, policy version, snapshot, control revision, issue/expiry and one-shot/consumption state. It excludes arguments, prompts, reasoning and secrets. References are bounded to four and deterministically ordered. The universal `policy_evaluation.approval_refs` JSON and the opportunity-scoped `POLICY_EVALUATED` payload carry the same representation.
+
+The deterministic dual-grant test proves an ASSISTED `schedule_campaign` with `REVIEW_REQUIRED` compliance records both `ACTION` and `COMPLIANCE_REVIEW` references with distinct purposes. Single-purpose tests prove neither purpose can masquerade as the other. Evaluations requiring no approval persist an empty list.
+
 ## Gate behavior and precedence
 
 The evaluator is pure: no database, network, Hermes, clock, UUID or randomness. Precedence is fixed:
@@ -79,11 +91,34 @@ Money is finite non-negative `Decimal`; exact cap boundaries pass, negative/NaN/
 
 Kivou supplies `evaluation_id` before transaction entry. Its maximum of 64 characters keeps `policy_evaluation:<evaluation_id>` within the SPEC-018 idempotency bound.
 
-- same ID + same request/budget/evaluation-time fingerprint returns the existing decision/event with no stream increment;
+- same ID + the same complete semantic fingerprint returns the existing decision/event with no stream increment;
 - same ID + different semantics raises `PolicyEvaluationIdempotencyConflict` with no mutation;
 - a fresh ID reselects current controls and creates a new audit.
 
-The retry lookup occurs before current snapshot selection. Retrying one uncertain attempt returns that attempt, while a new attempt observes a newly active kill switch. A future executor must still re-evaluate immediately; decisions are not bearer capabilities.
+Snapshot selection now occurs before retry comparison. Consequently the same `evaluation_id` cannot return a stale durable result after the selected snapshot, control revision or kill switch changes; it fails with `PolicyEvaluationIdempotencyConflict`. A genuinely new `evaluation_id` reselects and evaluates the current controls. A future executor must still re-evaluate immediately; decisions are not bearer capabilities.
+
+The canonical semantic fingerprint contains all authoritative evaluation inputs and excludes generated database timestamps, raw canonical arguments, transcripts and secrets. Its covered fields are:
+
+```text
+evaluation_id and request_id
+command, target_ref, acquisition_opportunity_id, expected opportunity version
+actor and supervisor provenance
+action_fingerprint and typed scope
+proposed cost, currency and volume
+reason/evidence references
+full evidence readiness, version, observation/freshness boundaries
+full compliance state, version and observation/freshness boundaries
+full operational quota/window/control-plane state, runtime revision and retry boundaries
+expected policy version
+normalized approval_id/purpose/binding-fingerprint set
+selected policy snapshot ID, control revision and policy version
+autonomy/shadow mode, READ ONLY, kill switch
+allowlists/scopes and complete cost/volume budget envelope
+current budget usage
+evaluation timestamp
+```
+
+The retry conflict matrix proves that reusing an evaluation ID conflicts after: a control/snapshot revision change; kill switch activation; compliance `ALLOWED -> BLOCKED`; provider quota `READY -> EXHAUSTED`; budget-usage change; or approval-set/purpose change. Exactly identical complete inputs return one durable row and one opportunity event; reversing grant input order is semantically identical and does not increment the stream. A fresh ID produces a fresh audit against current controls.
 
 Global actions use `policy_evaluation.acquisition_opportunity_id = NULL`. Opportunity actions atomically insert `policy_evaluation`, append `POLICY_EVALUATED`, and advance only acquisition audit/version metadata. Injected failures in either write direction commit neither half. An optimistic-concurrency conflict writes neither audit surface.
 
@@ -110,7 +145,7 @@ This is diagnostic, not an SLA.
 ## Tests and quality gates
 
 ```text
-Backend:            2955 passed
+Backend:            2962 passed
 Backend skipped:    0
 Ruff:               PASS
 git diff --check:   PASS
@@ -120,14 +155,14 @@ Build:              PASS
 Typecheck:          PASS
 Lint:               PASS
 
-GitHub CI:          PASS
-CI run ID:          32314838061
-Validated code SHA: c90fd30b1418c0673081db26741bea1b2f2fae56
-Backend job:        PASS
-Frontend job:       PASS
+GitHub CI:          PENDING NEW R1 RUN
+CI run ID:          pending
+Validated code SHA: pending
+Backend job:        pending
+Frontend job:       pending
 ```
 
-The backend count increased from 2911 and did not reduce the merged baseline.
+The backend count increased from the R1 entry baseline of 2955 and did not reduce the merged baseline. The 51 focused policy tests and all 2962 backend tests pass locally with zero skips. Frontend remains 84 tests with build, typecheck and lint green.
 
 ## Files changed
 
@@ -148,11 +183,11 @@ docs/reports/2026-08-20-spec019-policy-gateway-plan.md
 docs/reports/2026-08-20-spec019-policy-gateway.md
 ```
 
-Final PR diff before this documentation-only closeout:
+R1 implementation diff before report/commit:
 
 ```text
-24 files changed, 3191 insertions(+), 8 deletions(-)
-git status --porcelain: clean
+9 files changed, 284 insertions(+), 29 deletions(-)
+git status --porcelain: 9 implementation/test files modified plus this report
 ```
 
 POLICY GATEWAY READY

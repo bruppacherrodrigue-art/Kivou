@@ -77,7 +77,7 @@ def decision_values(decision: PolicyDecision, semantic_fingerprint: str) -> dict
         "proposed_volume": decision.proposed_volume,
         "cost_remaining": decision.cost_remaining,
         "volume_remaining": decision.volume_remaining,
-        "approval_ids": list(decision.approval_ids),
+        "approval_refs": [item.model_dump(mode="json") for item in decision.approval_refs],
         "evaluated_at": decision.evaluated_at,
         "valid_until": decision.valid_until,
         "retry_after": decision.retry_after,
@@ -91,7 +91,7 @@ def decision_from_row(row: RowMapping) -> PolicyDecision:
     values.pop("semantic_fingerprint")
     for field in ("evaluated_at", "valid_until", "retry_after"):
         values[field] = _aware(values[field])
-    for field in ("reason_codes", "evidence_refs", "approval_ids"):
+    for field in ("reason_codes", "evidence_refs", "approval_refs"):
         values[field] = tuple(values[field])
     return PolicyDecision.model_validate(values)
 

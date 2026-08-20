@@ -7,7 +7,7 @@ import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
-from test_policy_gateway import NOW, request
+from test_policy_gateway import NOW, grant, request, snapshot
 
 from signals.acquisition.contracts import EventType, OpportunityConcurrencyConflict
 from signals.acquisition.store import AcquisitionStore
@@ -15,8 +15,11 @@ from signals.persistence.database import alembic_config, create_database_engine,
 from signals.persistence.schema import acquisition_event, policy_evaluation
 from signals.policy.contracts import (
     POLICY_VERSION,
+    ApprovalPurpose,
     AutonomyMode,
     BudgetUsage,
+    ComplianceState,
+    OperationalReadiness,
     PolicyControlSnapshot,
     PolicyControlUnavailable,
     PolicyEvaluationIdempotencyConflict,
@@ -101,6 +104,11 @@ def test_migrated_policy_tables_match_core_schema(engine) -> None:
         assert {column["name"] for column in inspector.get_columns(table.name)} == {
             column.name for column in table.columns
         }
+    evaluation_columns = {
+        column["name"] for column in inspector.get_columns(policy_evaluation.name)
+    }
+    assert "approval_refs" in evaluation_columns
+    assert "approval_ids" not in evaluation_columns
 
 
 def test_snapshot_selection_uses_highest_eligible_revision_and_survives_restart(engine) -> None:
@@ -137,6 +145,7 @@ def test_global_evaluation_is_durable_and_retry_idempotent(engine) -> None:
     with engine.connect() as connection:
         assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 1
         assert connection.scalar(sa.select(sa.func.count()).select_from(acquisition_event)) == 0
+        assert connection.execute(sa.select(policy_evaluation.c.approval_refs)).scalar_one() == []
     with pytest.raises(PolicyEvaluationIdempotencyConflict):
         gateway.evaluate_and_record(
             req.model_copy(update={"target_ref": "changed"}),
@@ -161,7 +170,7 @@ def test_fresh_evaluation_id_creates_a_fresh_audit(engine) -> None:
         assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 2
 
 
-def test_same_attempt_retry_returns_original_audit_after_control_changes(engine) -> None:
+def test_same_evaluation_id_conflicts_when_control_revision_changes(engine) -> None:
     store = PolicyStore(engine)
     store.append_control(control(1))
     gateway = PolicyGateway(engine)
@@ -170,23 +179,165 @@ def test_same_attempt_retry_returns_original_audit_after_control_changes(engine)
         acquisition_opportunity_id=None,
         expected_opportunity_version=None,
     )
-    original = gateway.evaluate_and_record(
-        req, evaluated_at=NOW, budget_usage=BudgetUsage()
-    )
-    store.append_control(control(2, kill_switch=True))
+    gateway.evaluate_and_record(req, evaluated_at=NOW, budget_usage=BudgetUsage())
+    store.append_control(control(2))
 
-    retried = gateway.evaluate_and_record(
-        req, evaluated_at=NOW, budget_usage=BudgetUsage()
-    )
+    with pytest.raises(PolicyEvaluationIdempotencyConflict):
+        gateway.evaluate_and_record(req, evaluated_at=NOW, budget_usage=BudgetUsage())
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 1
     fresh = gateway.evaluate_and_record(
         req.model_copy(update={"evaluation_id": "eval-fresh"}),
         evaluated_at=NOW,
         budget_usage=BudgetUsage(),
     )
-
-    assert retried == original
     assert fresh.control_revision == 2
     assert fresh.evaluation_id == "eval-fresh"
+
+
+def test_same_evaluation_id_conflicts_when_kill_switch_changes(engine) -> None:
+    store = PolicyStore(engine)
+    store.append_control(control(1))
+    gateway = PolicyGateway(engine)
+    req = request(
+        "generate_weekly_report",
+        acquisition_opportunity_id=None,
+        expected_opportunity_version=None,
+    )
+    gateway.evaluate_and_record(req, evaluated_at=NOW, budget_usage=BudgetUsage())
+    store.append_control(control(2, kill_switch=True))
+
+    with pytest.raises(PolicyEvaluationIdempotencyConflict):
+        gateway.evaluate_and_record(req, evaluated_at=NOW, budget_usage=BudgetUsage())
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 1
+
+
+@pytest.mark.parametrize(
+    ("request_update", "usage"),
+    [
+        (
+            {
+                "compliance": request().compliance.model_copy(
+                    update={"state": ComplianceState.BLOCKED}
+                )
+            },
+            BudgetUsage(),
+        ),
+        (
+            {
+                "operational": OperationalReadiness(
+                    runtime_revision="runtime-1", provider_quota="EXHAUSTED"
+                )
+            },
+            BudgetUsage(),
+        ),
+        ({}, BudgetUsage(cost_used=Decimal("1"))),
+    ],
+    ids=("compliance", "provider-quota", "budget-usage"),
+)
+def test_same_evaluation_id_conflicts_when_authoritative_state_changes(
+    engine, request_update, usage
+) -> None:
+    PolicyStore(engine).append_control(control(1))
+    gateway = PolicyGateway(engine)
+    req = request(
+        "generate_weekly_report",
+        acquisition_opportunity_id=None,
+        expected_opportunity_version=None,
+    )
+    gateway.evaluate_and_record(req, evaluated_at=NOW, budget_usage=BudgetUsage())
+
+    with pytest.raises(PolicyEvaluationIdempotencyConflict):
+        gateway.evaluate_and_record(
+            req.model_copy(update=request_update), evaluated_at=NOW, budget_usage=usage
+        )
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 1
+
+
+def test_same_evaluation_id_conflicts_when_approval_set_or_purpose_changes(engine) -> None:
+    PolicyStore(engine).append_control(control(1))
+    gateway = PolicyGateway(engine)
+    req = request(
+        "generate_weekly_report",
+        acquisition_opportunity_id=None,
+        expected_opportunity_version=None,
+    )
+    snap = snapshot(
+        policy_snapshot_id="snapshot-1",
+        control_revision=1,
+        autonomy_mode=AutonomyMode.AUTONOMOUS_CAPPED,
+    )
+    action = grant(ApprovalPurpose.ACTION, req, snap)
+    first = req.model_copy(update={"approval_grants": (action,)})
+    gateway.evaluate_and_record(first, evaluated_at=NOW, budget_usage=BudgetUsage())
+    review = action.model_copy(update={"purpose": ApprovalPurpose.COMPLIANCE_REVIEW})
+
+    with pytest.raises(PolicyEvaluationIdempotencyConflict):
+        gateway.evaluate_and_record(
+            req.model_copy(update={"approval_grants": (review,)}),
+            evaluated_at=NOW,
+            budget_usage=BudgetUsage(),
+        )
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 1
+
+
+def test_both_used_approval_refs_are_persisted_in_both_audit_surfaces(engine) -> None:
+    PolicyStore(engine).append_control(
+        control(
+            1,
+            autonomy_mode=AutonomyMode.ASSISTED,
+            allowed_commands=("schedule_campaign",),
+        )
+    )
+    acquisition = AcquisitionStore(engine)
+    created = acquisition.create_opportunity(
+        identity_key="approval-audit", signal_ref="signal-approval", idempotency_key="create"
+    )
+    req = request(
+        "schedule_campaign",
+        acquisition_opportunity_id=created.projection.acquisition_opportunity_id,
+        expected_opportunity_version=created.projection.stream_version,
+        compliance=request().compliance.model_copy(
+            update={"state": ComplianceState.REVIEW_REQUIRED}
+        ),
+    )
+    snap = snapshot(
+        policy_snapshot_id="snapshot-1",
+        control_revision=1,
+        autonomy_mode=AutonomyMode.ASSISTED,
+    )
+    approvals = (
+        grant(ApprovalPurpose.ACTION, req, snap),
+        grant(ApprovalPurpose.COMPLIANCE_REVIEW, req, snap),
+    )
+    req = req.model_copy(update={"approval_grants": approvals})
+
+    decision = PolicyGateway(engine, acquisition_store=acquisition).evaluate_and_record(
+        req, evaluated_at=NOW, budget_usage=BudgetUsage()
+    )
+    with engine.connect() as connection:
+        row = connection.execute(sa.select(policy_evaluation)).mappings().one()
+    event = acquisition.list_events(created.projection.acquisition_opportunity_id)[-1]
+
+    expected = [item.model_dump(mode="json") for item in decision.approval_refs]
+    assert len(expected) == 2
+    assert {item["purpose"] for item in expected} == {"ACTION", "COMPLIANCE_REVIEW"}
+    assert row["approval_refs"] == expected
+    assert event.payload["approval_refs"] == expected
+
+    replayed = PolicyGateway(engine, acquisition_store=acquisition).evaluate_and_record(
+        req.model_copy(update={"approval_grants": tuple(reversed(approvals))}),
+        evaluated_at=NOW,
+        budget_usage=BudgetUsage(),
+    )
+    assert replayed == decision
+    assert (
+        acquisition.get_opportunity(created.projection.acquisition_opportunity_id).stream_version
+        == created.projection.stream_version + 1
+    )
 
 
 def test_opportunity_audit_is_atomic_state_neutral_and_retry_safe(engine) -> None:

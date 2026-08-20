@@ -8,6 +8,7 @@ from signals.policy.contracts import (
     POLICY_VERSION,
     ApprovalGrant,
     ApprovalPurpose,
+    ApprovalRef,
     AutonomyMode,
     ComplianceState,
     EvidenceStatus,
@@ -15,6 +16,7 @@ from signals.policy.contracts import (
     PolicyRequest,
     PolicySnapshot,
     PolicyStatus,
+    approval_binding_fingerprint,
 )
 from signals.policy.registry import COMMAND_POLICIES, RiskClass, TargetScope
 
@@ -267,6 +269,18 @@ def evaluate_policy(
         retry_after=request.operational.retry_after
         if status is PolicyStatus.RATE_LIMITED
         else None,
-        approval_ids=tuple(grant.approval_id for grant in used_grants),
+        approval_refs=tuple(
+            sorted(
+                (
+                    ApprovalRef(
+                        approval_id=grant.approval_id,
+                        purpose=grant.purpose,
+                        binding_fingerprint=approval_binding_fingerprint(grant),
+                    )
+                    for grant in used_grants
+                ),
+                key=lambda item: (item.purpose.value, item.approval_id, item.binding_fingerprint),
+            )
+        ),
         evidence_refs=request.evidence_refs,
     )

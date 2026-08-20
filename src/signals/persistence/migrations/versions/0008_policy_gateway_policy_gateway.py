@@ -69,7 +69,7 @@ def upgrade() -> None:
         sa.Column("proposed_volume", sa.Integer(), nullable=False),
         sa.Column("cost_remaining", sa.Numeric(18, 6), nullable=False),
         sa.Column("volume_remaining", sa.Integer(), nullable=False),
-        sa.Column("approval_ids", sa.JSON(), nullable=False),
+        sa.Column("approval_refs", sa.JSON(), nullable=False),
         sa.Column("evaluated_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("valid_until", sa.DateTime(timezone=True)),
         sa.Column("retry_after", sa.DateTime(timezone=True)),
