@@ -8,6 +8,8 @@ Base `main` : `2216837d9884594b91f38cd3704fdb6b3234c985`
 
 Commit de design : `046836ce57fe4afd0034a167d7fe48cc98fe49cb`
 
+Commit exécutable : `2be811ec611a2bd155cafc0d22cdc94c4fb123c8`
+
 ## Résultat
 
 SPEC-021 implémente la découverte bornée d’un contact commercial dans une
@@ -254,7 +256,14 @@ Gates locaux :
 
 ## GitHub CI
 
-À compléter après publication du commit exécutable.
+GitHub Actions run `32364458500` sur le commit exécutable
+`2be811ec611a2bd155cafc0d22cdc94c4fb123c8` : SUCCESS.
+
+- backend : `3112 passed`, Tests PASS, Ruff PASS ;
+- frontend : `84 passed`, build PASS, typecheck PASS, lint PASS.
+
+La PR #16 reste DRAFT. Aucun appel Apollo réel, aucune migration distante et aucun
+déploiement n’ont été exécutés.
 
 ## Fichiers modifiés
 
@@ -265,5 +274,6 @@ Gates locaux :
 - tests déterministes SPEC-021 et attentes de head Alembic ;
 - rapports/design/plan SPEC-021.
 
-Le statut Git attendu après le closeout final est propre. Le diff stat exact est
-enregistré après staging explicite des seuls fichiers SPEC-021.
+Diff stat du commit exécutable : `31 files changed, 3937 insertions(+), 84
+deletions(-)`. `git status --porcelain` était vide immédiatement après ce commit ;
+le seul changement du closeout suivant est cette mise à jour documentaire.
