@@ -8,7 +8,7 @@ Base `main` : `2216837d9884594b91f38cd3704fdb6b3234c985`
 
 Commit de design : `046836ce57fe4afd0034a167d7fe48cc98fe49cb`
 
-Commit exécutable : `2be811ec611a2bd155cafc0d22cdc94c4fb123c8`
+Commit exécutable R1 final : `3b8f198c4fd2be49906f3ce38cbe2f4cf71d9b82`
 
 ## Résultat
 
@@ -218,6 +218,43 @@ People Search est compté séparément des enrichissements. Le budget fournisseu
 prévu est au maximum 3 unités email-only ; aucune unité monétaire n’est inventée et
 les crédits observés ne sont renseignés que par une donnée fournisseur autoritative.
 
+## R1 — Complétude fournisseur et intégrité du rôle courant
+
+La complétude People Search échoue désormais fermée. Une réponse
+`total_entries=0` avec `people=[]` reste un résultat vide valide. En revanche,
+un total strictement positif avec une page vide et aucune ligne rejetée produit
+`malformed_response / unexpected_empty_search_page`. Le run devient `FAILED` et
+aucun événement `NEXT_ACTION_SET(request_human_review)` n'est ajouté. Ce contrôle
+existe dans le client Apollo et à la frontière du service ; une page non vide
+dont tous les éléments sont rejetés individuellement reste un `NO_CANDIDATE`
+métier valide.
+
+La documentation officielle Apollo People Enrichment consultée le 2026-08-20
+confirme qu'un HTTP 200 peut ne contenir aucun enregistrement enrichi. Le client
+accepte uniquement HTTP 200 avec le payload exact `{"person": null}` comme no-match et
+retourne `None`; une clé absente, une liste, une chaîne ou toute autre structure
+— y compris une clé supplémentaire — reste `malformed_response`. Un statut autre
+que 200 échoue également avec `unexpected_http_status`. Un no-match incrémente les rejets et poursuit le
+candidat suivant. Trois no-match bornés terminent en `NO_VERIFIED_CONTACT`, sans
+contact fabriqué. Source officielle :
+`https://docs.apollo.io/reference/people-enrichment` et OpenAPI publiée
+`https://docs.apollo.io/openapi/apollo-rest-api.json`.
+
+Le titre enrichi est maintenant l'observation de rôle courante. Un classificateur
+pur unique est partagé entre le ranking Search et la validation Enrichment :
+
+- titre enrichi commercial reconnu : nouveau titre normalisé et tier recalculés ;
+- titre enrichi non commercial, par exemple `CTO` : candidat rejeté ;
+- titre enrichi absent : fallback borné vers le titre Search courant documenté.
+
+Le profil `decision-maker-search-v1`, utilisé avec
+`include_similar_titles=false`, comprend aussi les variantes françaises
+explicites `Directrice commerciale`, `Directrice des ventes`, `Directrice du
+développement commercial`, `Directrice générale`, `Fondatrice`, `Dirigeante`,
+`Responsable commerciale` et `Responsable du développement commercial`. Elles
+utilisent les mêmes tiers que leurs familles de rôle ; aucun genre n'est inféré
+et aucun classement ne dépend du genre.
+
 ## Minimisation et sécurité
 
 Ne sont pas persistés : téléphone, email personnel, adresse/localisation personnelle,
@@ -234,10 +271,12 @@ buffering préalable et non borné du corps externe.
 
 ## Tests et mesure locale
 
-Tests déterministes ajoutés : profil FR/EN, ranking, paramètres Apollo, erreurs
+Tests déterministes ajoutés : profil FR/EN et variantes littérales, ranking,
+paramètres Apollo, erreurs
 401/403/429/timeout/5xx/réseau, données malformées, identité/CAS, propriété concurrente
 du run, fenêtre de crash Policy Gateway, SHADOW, couverture tronquée, seuil 250,
-employeur, trois enrichissements maximum, transactions succès/no-contact,
+employeur, trois enrichissements maximum, page Search vide incohérente, no-match
+Enrichment documenté, revalidation du rôle courant, transactions succès/no-contact,
 concurrence, migration et replay historique.
 
 Mesure diagnostique locale : 100 fixtures de contact, chacune classée, normalisée
@@ -246,7 +285,7 @@ mesure.
 
 Gates locaux :
 
-- backend : `3112 passed`, `0 skipped`, `425.80 s` ;
+- backend : `3139 passed`, `0 skipped`, `415.79 s` ;
 - Ruff : PASS ;
 - `git diff --check` : PASS ;
 - frontend : `84 passed` ;
@@ -256,11 +295,11 @@ Gates locaux :
 
 ## GitHub CI
 
-GitHub Actions run `32364458500` sur le commit exécutable
-`2be811ec611a2bd155cafc0d22cdc94c4fb123c8` : SUCCESS.
+GitHub Actions run R1 final `32369163866` sur le commit exécutable
+`3b8f198c4fd2be49906f3ce38cbe2f4cf71d9b82` : SUCCESS.
 
-- backend : `3112 passed`, Tests PASS, Ruff PASS ;
-- frontend : `84 passed`, build PASS, typecheck PASS, lint PASS.
+- backend CI : `3139 passed`, `0 skipped`, Ruff PASS ;
+- frontend CI : `84 passed`, build PASS, typecheck PASS, lint PASS.
 
 La PR #16 reste DRAFT. Aucun appel Apollo réel, aucune migration distante et aucun
 déploiement n’ont été exécutés.
@@ -277,3 +316,8 @@ déploiement n’ont été exécutés.
 Diff stat du commit exécutable : `31 files changed, 3937 insertions(+), 84
 deletions(-)`. `git status --porcelain` était vide immédiatement après ce commit ;
 le seul changement du closeout suivant est cette mise à jour documentaire.
+
+Diff stat R1 exécutable : `8 files changed, 307 insertions(+), 16 deletions(-)`.
+Durcissement final du sentinel : `2 files changed, 32 insertions(+), 2 deletions(-)`.
+`git status --porcelain` était vide immédiatement après le commit exécutable R1
+final, avant ce closeout documentaire.
