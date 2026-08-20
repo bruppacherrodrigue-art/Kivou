@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useI18n, interpolate, plural } from '../i18n'
 import { Button, ButtonLink } from '../components/Button'
 import { Callout, Card, EmptyState, SectionHeading, Skeleton } from '../components/Surfaces'
 import { NoSignalIllustration } from '../assets/Illustrations'
 import { SignalCard } from '../signals/SignalCard'
 import { DiscoveryPanel } from '../signals/DiscoveryPanel'
+import { ActivationProgress } from '../activation/ActivationProgress'
+import { ActivationSuccess } from '../activation/ActivationSuccess'
 import { signals, billing, icps as icpsApi } from '../api/endpoints'
 import { describeError } from '../api/errorCopy'
 import type { BillingStatus, FeedItem, FeedPage, Freshness, TargetIcp } from '../api/types'
@@ -21,8 +24,34 @@ import styles from './SignalsFeed.module.css'
 
 const PAGE_SIZE = 20
 
+/** Ce que l'onboarding transmet en rejoignant le feed. */
+export interface ActivationNavigationState {
+  activationCompleted?: boolean
+}
+
 export function SignalsFeed() {
   const { t } = useI18n()
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  /* Le moment d'activation, consommé UNE fois.
+   *
+   * Il est lu au premier rendu, puis l'entrée d'historique est réécrite sans
+   * lui. Se contenter de lire `location.state` laisserait le bandeau
+   * réapparaître à chaque rechargement de la page : l'état d'historique du
+   * navigateur survit au rechargement, et « vous venez de terminer votre
+   * ciblage » deviendrait un message permanent — donc faux.
+   */
+  const [activationMoment] = useState(
+    () => (location.state as ActivationNavigationState | null)?.activationCompleted === true,
+  )
+
+  useEffect(() => {
+    if (!activationMoment) return
+    navigate(location.pathname + location.search, { replace: true, state: null })
+    // Une seule fois, au montage : la dépendance est le moment, pas l'URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const [page, setPage] = useState<FeedPage | null>(null)
   const [items, setItems] = useState<FeedItem[]>([])
@@ -33,6 +62,16 @@ export function SignalsFeed() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<unknown>(null)
+
+  /* `GET /signals` n'est pas seulement une lecture : c'est l'appel qui ATTRIBUE
+   * les déblocages Découverte (`_grant_discovery`). Sur la première arrivée
+   * après l'onboarding, lire `GET /billing/status` en parallèle peut donc
+   * répondre AVANT que les déblocages soient commités, et annoncer zéro signal
+   * accessible à un client qui vient d'en recevoir trois.
+   *
+   * Pour ce moment-là, et pour lui seul, le statut est relu APRÈS le feed. Le
+   * reste du temps les deux appels partent ensemble : rien ne les ordonne. */
+  const postFeedBilling = useRef(activationMoment)
 
   const load = useCallback(
     async (nextFreshness: Freshness, nextIcp: string) => {
@@ -47,6 +86,15 @@ export function SignalsFeed() {
         })
         setPage(result)
         setItems(result.items)
+
+        if (postFeedBilling.current) {
+          postFeedBilling.current = false
+          try {
+            setStatus(await billing.status())
+          } catch {
+            setStatus(null)
+          }
+        }
       } catch (caught) {
         setError(caught)
         setPage(null)
@@ -66,14 +114,17 @@ export function SignalsFeed() {
     // Le statut de facturation porte le compteur Découverte et la limite de
     // profils ; les profils portent l'état d'activation. Un échec sur l'un ou
     // l'autre ne doit pas empêcher le feed de s'afficher.
-    billing
-      .status()
-      .then(setStatus)
-      .catch(() => setStatus(null))
+    if (!activationMoment) {
+      billing
+        .status()
+        .then(setStatus)
+        .catch(() => setStatus(null))
+    }
     icpsApi
       .list()
       .then(setProfiles)
       .catch(() => setProfiles(null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function loadMore() {
@@ -114,6 +165,18 @@ export function SignalsFeed() {
           </ButtonLink>
         </div>
       </header>
+
+      {/* Le moment ponctuel d'abord, l'explication durable ensuite : le
+          bandeau d'activation dit que le ciblage est prêt, le panneau
+          Découverte explique le plan. Les intervertir ferait ouvrir la
+          première réussite du client par un rappel de ce qui reste
+          verrouillé. */}
+      {activationMoment && status ? (
+        <>
+          <ActivationProgress current="signals" />
+          <ActivationSuccess status={status} items={items} />
+        </>
+      ) : null}
 
       {status ? <DiscoveryPanel status={status} /> : null}
 

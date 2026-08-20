@@ -39,3 +39,39 @@
     align-items: flex-start;
   }
 }
+
+/* ── Étapes ──────────────────────────────────────────────────────────────── */
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-5);
+}
+
+/* Le titre d'étape reçoit le focus après Suivant ou Retour : sans cela, le
+ * curseur clavier resterait sur un bouton qui vient de changer de sens, et un
+ * lecteur d'écran n'annoncerait pas le changement de contenu. */
+.stepTitle {
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h2);
+  line-height: var(--kivou-leading-h2);
+  font-weight: var(--kivou-weight-semibold);
+  color: var(--kivou-text-primary);
+}
+
+.stepTitle:focus-visible {
+  outline: 2px solid var(--kivou-action-primary);
+  outline-offset: 4px;
+}
+
+.stepLead {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+  margin-top: calc(-1 * var(--kivou-space-3));
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-3);
+}

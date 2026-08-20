@@ -40,6 +40,14 @@ export function SessionProvider({
   const [state, setState] = useState<SessionState>(initialState ?? { status: 'loading', me: null })
   // Empêche qu'un 401 tardif écrase un état déjà résolu après déconnexion.
   const mounted = useRef(true)
+  /* L'état courant, lisible depuis un `useCallback` qui ne doit PAS changer
+   * d'identité à chaque rendu : `refresh` est passé aux consommateurs et
+   * figure dans des dépendances d'effet. */
+  const latest = useRef(state)
+
+  useEffect(() => {
+    latest.current = state
+  }, [state])
 
   useEffect(() => {
     mounted.current = true
@@ -48,17 +56,40 @@ export function SessionProvider({
     }
   }, [])
 
+  /* Relire `/me` peut échouer de deux façons qui n'ont RIEN en commun.
+   *
+   * Un 401 dit que le serveur ne reconnaît plus la session : elle doit tomber.
+   * Une panne réseau ou un 5xx ne disent rien de la session — ils disent que
+   * la question n'a pas pu être posée. Les traiter pareil transformait toute
+   * indisponibilité passagère en déconnexion, et P0-02 en donne le cas le plus
+   * coûteux : un `POST /target-icps` réussi côté serveur suivi d'un `refresh`
+   * en échec renvoyait le client sur l'écran de connexion, sans savoir que son
+   * ciblage existait déjà.
+   *
+   * L'erreur est alors PROPAGÉE : l'appelant est le seul à savoir ce qu'il
+   * avait entrepris, et donc quoi rejouer.
+   *
+   * Le démarrage garde son comportement d'origine. Tant qu'aucune session
+   * n'est établie — `loading` au premier appel — un échec résout l'état en
+   * `unauthenticated` plutôt que de laisser l'application sur un écran de
+   * chargement que rien ne viendrait plus terminer.
+   */
   const refresh = useCallback(async () => {
+    let me: Me
     try {
-      const me = await auth.me()
-      if (mounted.current) setState({ status: 'authenticated', me })
+      me = await auth.me()
     } catch (error) {
       if (!mounted.current) return
-      const expired = error instanceof ApiError && error.isUnauthenticated
+      const rejected = error instanceof ApiError && error.isUnauthenticated
+      if (!rejected && latest.current.status === 'authenticated') {
+        throw error
+      }
       setState({ status: 'unauthenticated', me: null, expired: false })
       // Un échec réseau n'est pas une session expirée : ne pas le dire.
-      if (!expired && !(error instanceof ApiError)) throw error
+      if (!rejected && !(error instanceof ApiError)) throw error
+      return
     }
+    if (mounted.current) setState({ status: 'authenticated', me })
   }, [])
 
   const adopt = useCallback((me: Me) => {

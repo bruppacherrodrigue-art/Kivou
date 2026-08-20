@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { Fragment, useMemo, useState } from 'react'
+import type { ReactNode } from 'react'
 import { useI18n } from '../i18n'
 import { Button } from '../components/Button'
 import { Callout } from '../components/Surfaces'
@@ -38,6 +39,37 @@ export interface IcpFormValue {
   input: TargetIcpInput
 }
 
+/* Les groupes de champs, nommés.
+ *
+ * P0-02 — l'onboarding demande les mêmes questions que `/app/icps`, mais en
+ * trois temps. La tentation serait d'écrire un second composant de champs pour
+ * l'assistant : il y aurait alors DEUX vérités sur ce qu'est un profil de
+ * ciblage, et la première divergence — une option ajoutée d'un seul côté —
+ * produirait un profil que le client croit avoir rempli et que le moteur lit
+ * autrement.
+ *
+ * Un seul composant rend donc les deux écrans. `sections` choisit les groupes
+ * ET leur ordre ; sans `sections`, le formulaire complet est rendu à
+ * l'identique.
+ */
+export type IcpFieldSection =
+  | 'label'
+  | 'offers'
+  | 'trades'
+  | 'territories'
+  | 'threshold'
+  | 'summary'
+
+/** L'ordre du formulaire COMPLET — celui de `/app/icps`, inchangé. */
+export const ICP_FIELD_SECTIONS: readonly IcpFieldSection[] = [
+  'label',
+  'offers',
+  'trades',
+  'territories',
+  'threshold',
+  'summary',
+] as const
+
 export function emptyIcpValue(): IcpFormValue {
   return {
     label: '',
@@ -71,16 +103,24 @@ export function IcpFields({
   value,
   onChange,
   error,
-  showLabel = true,
+  sections,
 }: {
   value: IcpFormValue
   onChange: (next: IcpFormValue) => void
   error?: unknown
-  showLabel?: boolean
+  /** Les groupes à rendre, dans cet ordre. Absent, le formulaire complet est
+   *  rendu — c'est le cas de `/app/icps`, que P0-02 ne change pas. */
+  sections?: readonly IcpFieldSection[]
 }) {
   const { t, locale } = useI18n()
   const threshold = value.input.minimum_contract_value
 
+  /* La saisie BRUTE du seuil vit ici, au sommet du composant, et non dans le
+   * groupe qui l'affiche. C'est ce qui la fait survivre à Suivant → Retour →
+   * Suivant : un `« 50 000 »` en cours de frappe, ou une devise choisie avant
+   * le montant, n'a pas encore de représentation dans `TargetIcpInput`, et un
+   * état monté puis démonté avec son groupe l'effacerait sans que le client
+   * comprenne pourquoi. */
   const [currency, setCurrency] = useState(threshold?.currency ?? 'EUR')
   const [minimum, setMinimum] = useState(
     threshold ? String(threshold.minimum_amount) : '',
@@ -120,20 +160,20 @@ export function IcpFields({
     })
   }
 
-  return (
-    <div className={styles.fields}>
-      {showLabel ? (
-        <TextField
-          label={t.onboarding.labelField}
-          value={value.label}
-          required
-          placeholder={t.onboarding.labelPlaceholder}
-          help={t.onboarding.labelHelp}
-          onChange={(event) => onChange({ ...value, label: event.target.value })}
-          error={fieldError(error, 'label')}
-        />
-      ) : null}
+  const groups: Record<IcpFieldSection, ReactNode> = {
+    label: (
+      <TextField
+        label={t.onboarding.labelField}
+        value={value.label}
+        required
+        placeholder={t.onboarding.labelPlaceholder}
+        help={t.onboarding.labelHelp}
+        onChange={(event) => onChange({ ...value, label: event.target.value })}
+        error={fieldError(error, 'label')}
+      />
+    ),
 
+    offers: (
       <CheckboxGroup legend={t.onboarding.offersStep} help={t.onboarding.offersHelp}>
         {OFFER_KINDS.map((offer) => (
           <CheckboxOption
@@ -144,7 +184,9 @@ export function IcpFields({
           />
         ))}
       </CheckboxGroup>
+    ),
 
+    trades: (
       <CheckboxGroup legend={t.onboarding.tradesStep} help={t.onboarding.tradesHelp}>
         {BUYER_TRADES.map((trade) => (
           <CheckboxOption
@@ -157,7 +199,9 @@ export function IcpFields({
           />
         ))}
       </CheckboxGroup>
+    ),
 
+    territories: (
       <CheckboxGroup legend={t.onboarding.territoriesStep} help={t.onboarding.territoriesHelp}>
         {territories.map((territory) => (
           <CheckboxOption
@@ -168,7 +212,9 @@ export function IcpFields({
           />
         ))}
       </CheckboxGroup>
+    ),
 
+    threshold: (
       <fieldset className={styles.thresholdSet}>
         <legend className={styles.thresholdLegend}>{t.onboarding.thresholdStep}</legend>
         <p className={styles.thresholdHelp}>{t.onboarding.thresholdHelp}</p>
@@ -202,7 +248,9 @@ export function IcpFields({
           />
         </div>
       </fieldset>
+    ),
 
+    summary: (
       <TextAreaField
         label={t.onboarding.summaryStep}
         value={value.input.offer_summary}
@@ -212,6 +260,16 @@ export function IcpFields({
         help={t.onboarding.summaryHelp}
         onChange={(event) => patch({ offer_summary: event.target.value })}
       />
+    ),
+  }
+
+  const rendered = sections ?? ICP_FIELD_SECTIONS
+
+  return (
+    <div className={styles.fields}>
+      {rendered.map((section) => (
+        <Fragment key={section}>{groups[section]}</Fragment>
+      ))}
     </div>
   )
 }

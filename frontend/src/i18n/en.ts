@@ -223,6 +223,9 @@ export const en: Dictionary = {
     resetDone: 'Password updated. You can sign in.',
     backToLogin: 'Back to sign in',
     loggingOut: 'Signing out…',
+    signupNext:
+      'Next, tell us what you sell and where you operate. Kivou will prepare your first signals.',
+    signupNoCard: 'No payment card is needed to discover your first signals.',
     sessionExpired: 'Your session has expired. Please sign in again.',
   },
 
@@ -264,10 +267,37 @@ export const en: Dictionary = {
       territories: 'where you can operate',
       minimum_contract_value: 'the minimum amount',
       buyer_trades: 'the trades you target',
+      label: 'the profile name',
     },
+    stepOfferTitle: 'What you sell',
+    stepAudienceTitle: 'Who and where you sell to',
+    stepThresholdTitle: 'From what amount',
+    reviewTitle: 'Review your targeting',
+    summaryLabel: 'Your offer in one sentence',
+    stepIncomplete: 'Complete this step to continue',
+    savedNotFinalisedTitle: 'Your targeting has been saved',
+    savedNotFinalisedBody:
+      'Kivou could not finish opening your signals. Try again: your targeting will not be saved a second time.',
+    finaliseRetry: 'Finish and see my signals',
     welcomeTitle: 'Welcome to Kivou',
     welcomeLead:
       'To receive signals, Kivou needs to know what you sell and where you operate.',
+  },
+
+  activation: {
+    progressLabel: 'Getting started',
+    stepAccount: 'Account',
+    stepTargeting: 'Targeting',
+    stepSignals: 'Signals',
+    stateDone: 'done',
+    stateCurrent: 'current step',
+    stateTodo: 'upcoming',
+    readyTitle: 'Your targeting is ready',
+    countOne: '{count} signal is available with your profile.',
+    countOther: '{count} signals are available with your profile.',
+    noneTitle: 'No matching signal is available at the moment.',
+    noneBody: 'Kivou will keep watching for new awards that match your profile.',
+    firstSignal: 'See my first signal',
   },
 
   icp: {
