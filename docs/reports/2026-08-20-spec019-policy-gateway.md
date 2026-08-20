@@ -155,11 +155,11 @@ Build:              PASS
 Typecheck:          PASS
 Lint:               PASS
 
-GitHub CI:          PENDING NEW R1 RUN
-CI run ID:          pending
-Validated code SHA: pending
-Backend job:        pending
-Frontend job:       pending
+GitHub CI:          PASS
+CI run ID:          32328181815
+Validated code SHA: b915fd295a022f76d67fdcb2772e36555fe0cdb9
+Backend job:        PASS
+Frontend job:       PASS
 ```
 
 The backend count increased from the R1 entry baseline of 2955 and did not reduce the merged baseline. The 51 focused policy tests and all 2962 backend tests pass locally with zero skips. Frontend remains 84 tests with build, typecheck and lint green.
@@ -183,11 +183,11 @@ docs/reports/2026-08-20-spec019-policy-gateway-plan.md
 docs/reports/2026-08-20-spec019-policy-gateway.md
 ```
 
-R1 implementation diff before report/commit:
+Final PR diff at the validated executable head:
 
 ```text
-9 files changed, 284 insertions(+), 29 deletions(-)
-git status --porcelain: 9 implementation/test files modified plus this report
+24 files changed, 3488 insertions(+), 8 deletions(-)
+git status --porcelain: clean after the executable commit
 ```
 
 POLICY GATEWAY READY
