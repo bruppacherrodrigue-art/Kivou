@@ -17,7 +17,7 @@ export const fr = {
   brand: {
     name: 'Kivou',
     baseline: 'Performance commerciale sous contrôle',
-    promise: 'Transformez les marchés publics gagnés en opportunités B2B concrètes.',
+    promise: 'Transformez les nouvelles attributions publiques en raisons crédibles de contacter une entreprise.',
     markAlt: 'Kivou',
   },
 
@@ -63,9 +63,9 @@ export const fr = {
 
   landing: {
     heroLead:
-      'Kivou analyse les faits publics et les documents des marchés attribués, en extrait les exigences d’exécution, identifie des besoins plausibles et indique quand agir.',
-    heroPrimary: 'Découvrir mes signaux',
-    heroSecondary: 'Comprendre Kivou',
+      'Kivou identifie le gagnant, vérifie les faits, qualifie le timing et explique les besoins plausibles — avec la source officielle qui permet d’en juger.',
+    heroPrimary: 'Voir mes 3 signaux',
+    heroSecondary: 'Examiner un signal complet',
     proofsTitle: 'Ce sur quoi Kivou s’appuie',
     proofs: {
       publicTitle: '100 % fait public',
@@ -116,6 +116,80 @@ export const fr = {
     footerRights: 'Tous droits réservés.',
   },
 
+  publicDemo: {
+    navLabel: 'Exemple de signal',
+    badge: 'Exemple de signal réel',
+    pageTitle: 'Un signal Kivou, en entier',
+    pageLead:
+      'Le même signal que vous verriez dans votre feed, avec ses faits, sa preuve, ce que Kivou en déduit et ce qu’il ne sait pas.',
+    verifiedOn: 'Faits vérifiés contre la source officielle le {date}.',
+    openSource: 'Ouvrir l’avis officiel',
+    openSourceHint: 'S’ouvre sur le site officiel TED, dans un nouvel onglet.',
+
+    factsTitle: 'Fait public',
+    factsLead: 'Publié par l’acheteur dans l’avis d’attribution officiel.',
+    winner: 'Entreprise gagnante',
+    buyer: 'Acheteur public',
+    object: 'Objet du marché',
+    amountLabel: 'Montant attribué',
+    place: 'Lieu d’exécution',
+    reference: 'Référence du marché',
+    cpv: 'Code CPV',
+    identifier: 'Identifiant d’entreprise',
+    quantitiesTitle: 'Quantités publiées dans l’avis',
+    quantitiesNote:
+      'Ces quantités figurent dans le descriptif de l’avis d’attribution. Ce n’est pas un extrait de cahier des charges.',
+
+    documentaryTitle: 'Exigence documentaire',
+    documentaryNone:
+      'Aucune exigence d’exécution validée n’est disponible dans les données Kivou pour cette attribution.',
+    documentaryModeLabel: 'Mode d’analyse',
+    documentaryMode: 'Analyse fondée sur les métadonnées de l’avis',
+    documentaryConfidenceLabel: 'Confiance',
+    documentaryConfidence: 'Réduite',
+    documentaryConfidenceReason:
+      'Objet, code CPV, montant, localisation et dates proviennent de l’avis d’attribution officiel. Aucun cahier des charges validé n’alimente ce signal.',
+
+    analysisTitle: 'Analyse Kivou',
+    analysisLead: 'Une hypothèse tirée du fait publié, pas un achat annoncé.',
+    needLabel: 'Besoin plausible',
+    reasoningLabel: 'Pourquoi Kivou le pense',
+    needTimingLabel: 'Horizon',
+    needTimingNearTerm: 'À court terme',
+    externalisabilityLabel: 'Externalisable',
+    externalisabilityPlausible: 'Plausiblement',
+
+    timingTitle: 'Timing',
+    timingLead: 'Ce que les dates publiées autorisent à dire.',
+    awardDate: 'Date d’attribution',
+    signatureDate: 'Date de signature',
+    startDate: 'Début d’exécution',
+    endDate: 'Fin prévue',
+    publishedAt: 'Publication de l’avis',
+    timingNote:
+      'La date d’attribution est publiée : ce marché a été attribué à une date connue, et non simplement publié récemment.',
+
+    fitTitle: 'Pourquoi ce signal peut concerner un fournisseur',
+    fitLead: 'Illustration. Votre profil de ciblage détermine ce que vous recevez réellement.',
+    fitBody:
+      'Un négoce de matériaux ou un fabricant de composants peut lire ici un chantier daté, localisé et chiffré, dont l’exécution consommera des fournitures. C’est une raison de contacter, pas une commande.',
+
+    evidenceTitle: 'Preuve',
+    evidenceLead: 'Chaque fait renvoie au champ exact de l’avis officiel.',
+    evidenceField: 'Champ',
+    evidenceValue: 'Valeur publiée',
+
+    ctaTitle: 'Voir vos propres signaux',
+    ctaBody: 'Décrivez ce que vous vendez et où vous livrez. Kivou vous montre trois signaux complets.',
+    ctaButton: 'Voir mes 3 signaux',
+
+    previewEyebrow: 'Exemple de signal réel',
+    previewMode: 'Métadonnées de l’avis — confiance réduite',
+    previewNeedLabel: 'Besoin plausible',
+    previewCta: 'Voir ce signal en entier',
+    previewAwarded: 'Attribué le {date}',
+    previewStart: 'Exécution à partir du {date}',
+  },
   auth: {
     loginTitle: 'Se connecter',
     loginLead: 'Accédez à vos signaux.',

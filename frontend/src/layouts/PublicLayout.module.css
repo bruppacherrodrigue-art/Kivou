@@ -105,3 +105,140 @@
     padding-right: var(--kivou-gutter-desktop);
   }
 }
+
+/* ── Navigation publique ─────────────────────────────────────────────────── */
+
+/* Sous 900 px, le bandeau ne peut pas porter logo + navigation + langue +
+   deux actions sans déborder. La navigation passe donc dans un tiroir, et le
+   bouton qui l'ouvre n'existe QUE dans cette fenêtre — afficher les deux
+   simultanément donnerait deux chemins vers la même chose. */
+.headerNav {
+  display: none;
+}
+
+.menuToggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-sm);
+  background: var(--kivou-bg-surface);
+  color: var(--kivou-text-primary);
+  cursor: pointer;
+}
+
+@media (min-width: 900px) {
+  .headerNav {
+    display: flex;
+    flex: 1;
+  }
+
+  .menuToggle {
+    display: none;
+  }
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-2);
+}
+
+@media (min-width: 900px) {
+  .nav {
+    flex-direction: row;
+    gap: var(--kivou-space-5);
+    align-items: center;
+  }
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--kivou-space-2);
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-text-secondary);
+  text-decoration: none;
+  border-radius: var(--kivou-radius-sm);
+}
+
+.navLink:hover {
+  color: var(--kivou-text-primary);
+  text-decoration: underline;
+}
+
+/* ── Tiroir mobile ───────────────────────────────────────────────────────── */
+.menuLayer {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Le scrim est un BOUTON, pas un div : il se ferme au clavier comme à la
+   souris, et porte un nom accessible. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: rgba(15, 29, 24, 0.44);
+  cursor: pointer;
+}
+
+.menu {
+  position: relative;
+  width: min(20rem, 88vw);
+  height: 100%;
+  padding: var(--kivou-space-5) var(--kivou-gutter-mobile);
+  background: var(--kivou-bg-canvas);
+  border-left: 1px solid var(--kivou-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-6);
+  overflow-y: auto;
+}
+
+.menuHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kivou-space-4);
+}
+
+@media (min-width: 900px) {
+  .menuLayer {
+    display: none;
+  }
+}
+
+/* Les actions d'authentification n'apparaissent dans le bandeau qu'à partir de
+   900 px. En dessous elles vivent dans le tiroir — les afficher aux deux
+   endroits donnerait deux chemins vers la même action, et un nom accessible en
+   double pour un lecteur d'écran. */
+.headerAuth {
+  display: none;
+}
+
+.menuAuth {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+}
+
+@media (min-width: 900px) {
+  .headerAuth {
+    display: flex;
+    align-items: center;
+    gap: var(--kivou-space-2);
+  }
+
+  .menuAuth {
+    display: none;
+  }
+}

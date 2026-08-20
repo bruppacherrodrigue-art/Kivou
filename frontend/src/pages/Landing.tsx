@@ -3,6 +3,7 @@ import { useI18n } from '../i18n'
 import { ButtonLink } from '../components/Button'
 import { Card, SectionHeading } from '../components/Surfaces'
 import { ArchitecturalHero } from '../assets/Illustrations'
+import { PublicSignalPreview } from '../components/PublicSignalPreview'
 import {
   ArrowRightIcon,
   CheckIcon,
@@ -86,7 +87,7 @@ export function Landing() {
               <ButtonLink to="/signup" variant="primary" size="lg" icon={<ArrowRightIcon />}>
                 {t.landing.heroPrimary}
               </ButtonLink>
-              <ButtonLink to="#comment" variant="secondary" size="lg">
+              <ButtonLink to="/exemple-de-signal" variant="secondary" size="lg">
                 {t.landing.heroSecondary}
               </ButtonLink>
             </div>
@@ -106,8 +107,14 @@ export function Landing() {
             </ul>
           </div>
 
+          {/* La colonne droite montrait la direction artistique ; elle montre
+              désormais ce que Kivou produit. L'illustration reste comme accent
+              de matière, derrière la carte, et non à sa place. */}
           <div className={styles.heroMaterial}>
-            <ArchitecturalHero className={styles.heroIllustration} />
+            <ArchitecturalHero className={styles.heroIllustration} aria-hidden="true" />
+            <div className={styles.heroSignal}>
+              <PublicSignalPreview />
+            </div>
           </div>
         </div>
       </section>

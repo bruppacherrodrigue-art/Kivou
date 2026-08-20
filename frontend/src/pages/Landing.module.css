@@ -91,10 +91,39 @@
 
 .heroMaterial {
   /* La matière est un ACCENT : elle occupe la colonne droite en desktop et le
-     bas de section en mobile, jamais le fond d'un contenu. */
+     bas de section en mobile, jamais le fond d'un contenu.
+     Depuis P0-01 elle porte la carte de signal — l'illustration passe derrière,
+     en fond, et c'est le produit qui occupe la colonne. */
+  position: relative;
   display: flex;
   align-items: stretch;
   min-height: 20rem;
+  /* L'illustration est tramée pour remplir la colonne : son tracé déborde donc
+     de son cadre par construction. Sans ce rognage, la page entière gagnait un
+     défilement horizontal — mesuré à 569 px pour 390 disponibles. */
+  overflow: hidden;
+  border-radius: var(--kivou-radius-lg);
+  /* La carte flotte SUR la matière : sans ce retrait, elle recouvrait
+     l'illustration entièrement et l'accent architectural disparaissait de la
+     page. L'illustration encadre, la carte informe. */
+  padding: var(--kivou-space-5);
+}
+
+/* L'illustration devient le fond de la colonne. `inset: 0` la fait suivre la
+   hauteur de la carte : rien n'est réservé en pixels, donc rien ne saute quand
+   la traduction change de longueur. */
+.heroMaterial > .heroIllustration {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: 0;
+}
+
+.heroSignal {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  display: flex;
 }
 
 @media (min-width: 1024px) {

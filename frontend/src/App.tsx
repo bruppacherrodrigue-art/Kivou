@@ -6,6 +6,7 @@ import { RedirectIfAuthenticated, RequireAuth } from './auth/RequireAuth'
 import { PublicLayout } from './layouts/PublicLayout'
 import { AppShell } from './layouts/AppShell'
 import { Landing } from './pages/Landing'
+import { PublicSignalDemo } from './pages/PublicSignalDemo'
 import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { ForgotPassword, ResetPassword } from './pages/PasswordReset'
@@ -55,6 +56,10 @@ export function AppRoutes() {
       <Routes>
       <Route element={<PublicLayout />}>
         <Route index element={<Landing />} />
+        {/* Publique et sans garde : un visiteur doit pouvoir examiner un
+            signal complet sans compte, et sans qu'aucun appel de session ne
+            soit requis pour rendre la page. */}
+        <Route path="exemple-de-signal" element={<PublicSignalDemo />} />
       </Route>
 
       <Route element={<RedirectIfAuthenticated />}>

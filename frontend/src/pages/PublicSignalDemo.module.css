@@ -1,0 +1,177 @@
+/* La page publique de démonstration.
+ *
+ * Une colonne unique et lisible : cette page se lit, elle ne se pilote pas.
+ * Une grille à deux colonnes aurait forcé le regard à choisir entre le fait et
+ * l'inférence, alors que tout l'intérêt est de les lire dans l'ordre. */
+.page {
+  max-width: var(--kivou-container-content);
+  margin: 0 auto;
+  padding: var(--kivou-space-12) var(--kivou-gutter-mobile);
+  display: grid;
+  gap: var(--kivou-space-8);
+}
+
+@media (min-width: 768px) {
+  .page {
+    padding-left: var(--kivou-gutter-desktop);
+    padding-right: var(--kivou-gutter-desktop);
+  }
+}
+
+.header {
+  display: grid;
+  gap: var(--kivou-space-4);
+  justify-items: start;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-display-l);
+  line-height: var(--kivou-leading-display-l);
+  font-weight: var(--kivou-weight-regular);
+  color: var(--kivou-text-primary);
+}
+
+.lead {
+  margin: 0;
+  max-width: 60ch;
+  font-size: var(--kivou-text-body);
+  line-height: var(--kivou-leading-body);
+  color: var(--kivou-text-secondary);
+}
+
+.verified {
+  margin: 0;
+  font-size: var(--kivou-text-small);
+  color: var(--kivou-text-muted);
+}
+
+.object {
+  margin: 0;
+  font-size: var(--kivou-text-body);
+  line-height: var(--kivou-leading-body);
+  color: var(--kivou-text-secondary);
+}
+
+/* Les quatre sections portent la même surface mais des BORDURES d'accent
+   différentes. La distinction fait / absence / inférence / timing survit donc
+   au noir et blanc, à un écran mal calibré et au daltonisme — jamais portée
+   par la seule couleur (directive §9). */
+.factsCard {
+  border-left: 3px solid var(--kivou-color-forest);
+  display: grid;
+  gap: var(--kivou-space-5);
+}
+
+.documentaryCard {
+  border-left: 3px dashed var(--kivou-color-brass);
+  display: grid;
+  gap: var(--kivou-space-4);
+}
+
+.analysisCard {
+  border-left: 3px dashed var(--kivou-color-terracotta);
+  display: grid;
+  gap: var(--kivou-space-4);
+}
+
+.timingCard {
+  border-left: 3px solid var(--kivou-border-strong);
+  display: grid;
+  gap: var(--kivou-space-4);
+}
+
+.evidenceCard {
+  display: grid;
+  gap: var(--kivou-space-4);
+  justify-items: start;
+}
+
+.quantities {
+  display: grid;
+  gap: var(--kivou-space-3);
+  padding-top: var(--kivou-space-4);
+  border-top: 1px solid var(--kivou-border);
+}
+
+.blockTitle {
+  margin: 0;
+  font-size: var(--kivou-text-h3);
+  line-height: var(--kivou-leading-h3);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-text-primary);
+}
+
+.quantityList {
+  margin: 0;
+  padding-left: var(--kivou-space-5);
+  display: grid;
+  gap: var(--kivou-space-1);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.note {
+  margin: 0;
+  max-width: 68ch;
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-muted);
+}
+
+.fitLead {
+  margin: 0 0 var(--kivou-space-2);
+  font-size: var(--kivou-text-small);
+  color: var(--kivou-text-muted);
+}
+
+/* Le lien source est une CIBLE tactile, pas seulement un mot souligné. */
+.sourceLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: var(--kivou-text-body);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-color-forest);
+  border-radius: var(--kivou-radius-sm);
+}
+
+.sourceLink:hover {
+  text-decoration: underline;
+}
+
+.ctaCard {
+  display: grid;
+  gap: var(--kivou-space-4);
+  justify-items: start;
+  background: var(--kivou-bg-subtle);
+}
+
+.ctaTitle {
+  margin: 0;
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h1);
+  line-height: var(--kivou-leading-h1);
+  font-weight: var(--kivou-weight-regular);
+  color: var(--kivou-text-primary);
+}
+
+.ctaBody {
+  margin: 0;
+  max-width: 56ch;
+  font-size: var(--kivou-text-body);
+  line-height: var(--kivou-leading-body);
+  color: var(--kivou-text-secondary);
+}
+
+/* Les chemins de preuve sont des sélecteurs XML sans espace :
+   « cac:ProcurementProject/cac:MainCommodityClassification/… ». Insécables, ils
+   poussaient la page à 610 px de large pour 390 disponibles. `anywhere`
+   autorise la coupure à l'intérieur du mot — la seule façon de faire tenir un
+   identifiant technique sur un téléphone sans le tronquer. */
+.evidenceCard dt,
+.evidenceCard dd {
+  overflow-wrap: anywhere;
+}
