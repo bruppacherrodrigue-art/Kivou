@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import threading
 from decimal import Decimal
 
 import pytest
@@ -29,6 +30,7 @@ from signals.policy.store import PolicyStore
 
 PREVIOUS = "0007_acquisition_event_store"
 HEAD = "0008_policy_gateway"
+CURRENT_HEAD = "0009_supplier_discovery"
 
 
 def control(revision: int, **overrides: object) -> PolicyControlSnapshot:
@@ -76,7 +78,7 @@ def test_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
         "policy_evaluation",
     }
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == [HEAD]
+    assert script.get_heads() == [CURRENT_HEAD]
     assert script.get_revision(HEAD).down_revision == PREVIOUS
     assert len(HEAD) <= 32
     assert current_revision(engine) == HEAD
@@ -152,6 +154,57 @@ def test_global_evaluation_is_durable_and_retry_idempotent(engine) -> None:
             evaluated_at=NOW,
             budget_usage=BudgetUsage(),
         )
+
+
+def test_concurrent_identical_evaluation_id_reloads_one_durable_decision(
+    engine, monkeypatch
+) -> None:
+    PolicyStore(engine).append_control(control(1))
+    req = request(
+        "generate_weekly_report",
+        acquisition_opportunity_id=None,
+        expected_opportunity_version=None,
+    )
+    original = PolicyStore.evaluation_row
+    barrier = threading.Barrier(2)
+    call_counts: dict[int, int] = {}
+    counts_lock = threading.Lock()
+
+    def synchronized_read(connection, evaluation_id):
+        row = original(connection, evaluation_id)
+        thread_id = threading.get_ident()
+        with counts_lock:
+            call_counts[thread_id] = call_counts.get(thread_id, 0) + 1
+            call_number = call_counts[thread_id]
+        if row is None and call_number <= 2:
+            barrier.wait(timeout=5)
+        return row
+
+    monkeypatch.setattr(PolicyStore, "evaluation_row", staticmethod(synchronized_read))
+    decisions = []
+    errors = []
+
+    def evaluate() -> None:
+        try:
+            decisions.append(
+                PolicyGateway(engine).evaluate_and_record(
+                    req, evaluated_at=NOW, budget_usage=BudgetUsage()
+                )
+            )
+        except sa.exc.SQLAlchemyError as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    threads = [threading.Thread(target=evaluate) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+
+    assert not errors
+    assert len(decisions) == 2
+    assert decisions[0] == decisions[1]
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 1
 
 
 def test_fresh_evaluation_id_creates_a_fresh_audit(engine) -> None:

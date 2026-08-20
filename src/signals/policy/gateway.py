@@ -13,7 +13,7 @@ from sqlalchemy.engine import Engine
 
 from signals.acquisition.contracts import ActorType, EventType
 from signals.acquisition.store import AcquisitionStore
-from signals.persistence.schema import acquisition_event, policy_evaluation
+from signals.persistence.schema import acquisition_event
 from signals.policy.contracts import (
     BudgetEnvelope,
     BudgetUsage,
@@ -153,9 +153,17 @@ class PolicyGateway:
                     connection, request, semantic_fingerprint, existing
                 )
 
-            connection.execute(
-                sa.insert(policy_evaluation).values(decision_values(decision, semantic_fingerprint))
+            inserted = self._store.insert_evaluation_if_absent(
+                connection,
+                decision_values(decision, semantic_fingerprint),
             )
+            if not inserted:
+                existing = self._store.evaluation_row(connection, request.evaluation_id)
+                if existing is None:
+                    raise RuntimeError("policy evaluation conflict was not durable")
+                return self._validated_existing(
+                    connection, request, semantic_fingerprint, existing
+                )
             if request.acquisition_opportunity_id is not None:
                 if request.expected_opportunity_version is None:
                     raise ValueError("opportunity audit requires expected version")

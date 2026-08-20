@@ -14,6 +14,7 @@ class RiskClass(StrEnum):
 
 class TargetScope(StrEnum):
     OPPORTUNITY = "OPPORTUNITY"
+    SIGNAL = "SIGNAL"
     GLOBAL = "GLOBAL"
     EITHER = "EITHER"
 
@@ -25,14 +26,26 @@ class CommandPolicy:
     required_evidence: tuple[str, ...] = ()
     uses_budget: bool = False
     uses_volume: bool = False
+    uses_provider_quota: bool = False
     uses_send_controls: bool = False
     requires_control_plane: bool = False
     requires_compliance: bool = False
+    target_ref_prefix: str | None = None
 
 
 COMMAND_POLICIES = {
     "discover_suppliers": CommandPolicy(
-        RiskClass.PREPARATORY, TargetScope.OPPORTUNITY, ("SIGNAL", "PUBLIC_EVIDENCE"), True
+        risk_class=RiskClass.PREPARATORY,
+        target_scope=TargetScope.SIGNAL,
+        target_ref_prefix="procurement-opportunity:",
+        required_evidence=(
+            "PUBLIC_OPPORTUNITY",
+            "PUBLIC_EVIDENCE",
+            "SUPPLIER_SEARCH_PROFILE",
+        ),
+        uses_budget=True,
+        uses_provider_quota=True,
+        requires_control_plane=True,
     ),
     "find_decision_makers": CommandPolicy(
         RiskClass.PREPARATORY, TargetScope.OPPORTUNITY, ("SUPPLIER",), True
