@@ -109,6 +109,14 @@ Kivou-owned. Les filtres supportés sont bornés :
 Le seuil fait partie de l'empreinte du profil. Hermes ne peut fournir ni JSON
 Apollo brut, ni filtre arbitraire, ni endpoint, ni URL d'exécution.
 
+Un résultat Need Graph sans besoin (`needs=()`) est une conclusion valide mais
+non actionnable : `SupplierSearchNotActionable(reason=no_supplier_need)` est
+levée avant Policy Gateway, avant création du run et avant tout appel Apollo.
+La frontière service contrôle à la fois les catégories et les tags dérivés ; un
+profil injecté sans catégorie ou sans sélecteur positif ne peut donc pas
+transformer l'absence de besoin en recherche large. Aucun mot-clé de repli
+n'est inventé.
+
 ## Apollo Organization Search
 
 Seul cet endpoint est implémenté :
@@ -147,6 +155,42 @@ en échec partiel plutôt que d'accepter une couverture faussement complète. Un
 organisation individuelle sans ID/nom utilisable, ou avec
 URL/domaine/localisation/normalisation invalide, est rejetée avec un reason
 code stable sans perdre les autres organisations valides.
+
+## Closeout R1 — complétude provider et crédits sans gaspillage
+
+La complétude d'une recherche est maintenant explicite :
+
+- `total_entries == 0` avec page vide est un succès vide valide ;
+- une page finale normale non vide est un succès ;
+- atteindre `candidate_cap` ou `max_pages` après des résultats valides est une
+  terminaison bornée normale ;
+- toute page vide sans rejet qui annonce `total_entries > 0` est une réponse
+  incohérente, y compris `total_pages == 0` ; elle termine en
+  `malformed_response / unexpected_empty_page` ;
+- sans candidat déjà commit, le run est `FAILED` ; après des pages sûres déjà
+  commit, il est `PARTIAL` ; il n'est jamais `SUCCESS`.
+
+Le garde zéro-crédit refuse avant même l'évaluation Policy Gateway tout seed
+dont le Need Graph ne contient aucun besoin, ainsi que tout profil sans
+catégorie ou sans tag positif dérivé. Les tests confirment alors zéro appel
+provider, zéro `supplier_discovery_run`, zéro fournisseur et zéro
+AcquisitionOpportunity.
+
+La propriété de run couvre désormais les deux identités. Un même
+`policy_evaluation_id` rejoue son run existant. Un même `discovery_run_id` avec
+la même évaluation et les mêmes sémantiques rejoue aussi le run. Le même
+`discovery_run_id` présenté avec une autre évaluation produit
+`DiscoveryRunIdentityConflict`, jamais une `IntegrityError` brute et jamais un
+second appel Apollo.
+
+Les horloges sont séparées par une horloge de service injectable et timezone
+aware : `evaluated_at` reste l'heure de policy, `started_at` est capturé avant
+l'insert `STARTED`, `provider_observed_at` est capturé pour chaque page et
+`completed_at` au passage terminal. Une fixture déterministe prouve :
+
+```text
+evaluated_at < started_at <= provider_observed_at <= completed_at
+```
 
 ## Identité fournisseur
 
@@ -258,7 +302,9 @@ Les tests déterministes couvrent notamment :
 - transaction candidat et rollback complet ;
 - seed public réel depuis fixture ingestion et absence de dépendance client ;
 - création/replay/no-rewind acquisition ;
-- succès partiel, rate limit, compteurs de rejet et absence d'outbound.
+- succès partiel, rate limit, compteurs de rejet et absence d'outbound ;
+- complétude page vide, zéro-besoin/zéro-crédit, collision de run typée et
+  horloges d'audit distinctes.
 
 Mesure diagnostique locale, sans SLA :
 
@@ -272,7 +318,7 @@ temps mural             : 1.081371 s
 ## Régression complète locale
 
 ```text
-backend pytest : 3043 passed
+backend pytest : 3055 passed
 skipped        : 0
 ruff           : PASS
 git diff check : PASS
@@ -308,10 +354,11 @@ secret Stripe/SMTP/GitHub ou credential Apollo.
 - tests SPEC-020 et attentes de head migration ;
 - rapports design et final SPEC-020.
 
-Diff de la tête exécutable `457e5756a6adbd3d19809507124a603d918789b4` :
+Diff du closeout R1 exécutable
+`d86fc46c27db89b60cb67e073d21fe9aa5d8b7d6` :
 
 ```text
-34 files changed, 4812 insertions(+), 66 deletions(-)
+7 files changed, 424 insertions(+), 20 deletions(-)
 git status --porcelain : vide
 ```
 
@@ -322,9 +369,9 @@ qui suit la tête exécutable ne modifie que ce rapport.
 
 ```text
 PR             : #13 (DRAFT, base main)
-executable SHA : 457e5756a6adbd3d19809507124a603d918789b4
-CI run ID      : 32339887518
-backend        : PASS — 3043 passed, 0 skipped, Ruff PASS
+executable SHA : d86fc46c27db89b60cb67e073d21fe9aa5d8b7d6
+CI run ID      : 32352219065
+backend        : PASS — 3055 passed, 0 skipped, Ruff PASS
 frontend       : PASS — 84 passed, build/typecheck/lint PASS
 ```
 
