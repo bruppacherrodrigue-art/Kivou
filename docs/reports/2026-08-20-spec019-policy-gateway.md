@@ -83,9 +83,29 @@ The evaluator is pure: no database, network, Hermes, clock, UUID or randomness. 
 7. separate ACTION approval;
 8. SHADOW execution block.
 
-Money is finite non-negative `Decimal`; exact cap boundaries pass, negative/NaN/infinity and currency mismatch fail closed. Evidence and compliance are typed authoritative readiness, never recomputed. Rate limiting copies `retry_after` only when supplied.
+Money is finite non-negative `Decimal`; exact cap boundaries pass and negative/NaN/infinity fail closed. Currency/cost gates apply only to commands whose metadata uses the cost budget, while volume gates apply only to commands using volume. Evidence and compliance are typed authoritative readiness, never recomputed. Rate limiting copies `retry_after` only when supplied.
 
-`valid_until` is informational and equals the earliest known authoritative boundary (snapshot, budget period, evidence/compliance/runtime or used approval); it is null when none exists. It is never an authorization TTL.
+`valid_until` is informational and equals the earliest known command-relevant authoritative boundary (snapshot, applicable budget period, applicable evidence/compliance/runtime or used approval); it is null when none exists. It is never an authorization TTL.
+
+## Command-relevant gates / authoritative freshness closeout
+
+Gate applicability now comes entirely from callable-free `CommandPolicy` metadata; the evaluator contains no hardcoded safe-command exception list.
+
+- Evidence is evaluated only when `required_evidence` is non-empty. Relevant evidence must be READY, contain every required claim, not be future-dated and not be expired. Stable freshness reasons are `evidence_future_dated` and `evidence_expired`.
+- Compliance is evaluated only when `requires_compliance` is true. In `acquisition-policy-v1`, only `schedule_campaign` sets it. BLOCKED/UNKNOWN fail closed; fresh REVIEW_REQUIRED uses the existing exact COMPLIANCE_REVIEW grant; expired/future-dated assessments fail with `compliance_assessment_expired` or `compliance_assessment_future_dated` and cannot be overridden by a grant.
+- Currency and cost apply only when `uses_budget` is true. Volume applies only when `uses_volume` is true. Actual cost/volume limits are unchanged.
+- Operational freshness applies only when send controls or the provider control plane are required. An expired relevant input returns RATE_LIMITED with `operational_readiness_expired`; no retry time is invented. Irrelevant operational metadata does not constrain the decision.
+
+The safe-action asymmetry is metadata-driven:
+
+```text
+request_human_review   no evidence/compliance/budget/operational gate
+generate_weekly_report no evidence/compliance/budget/operational gate
+pause_campaign         provider control plane only
+schedule_campaign      evidence + compliance + cost/volume + send/control-plane gates
+```
+
+The direct table-driven matrix proves that UNKNOWN evidence/compliance and currency mismatch do not block review/report/pause; pause still requires an AVAILABLE control plane; `evaluate_opportunity` fails on UNKNOWN evidence; `discover_suppliers` fails on currency mismatch; and `schedule_campaign` fails on UNKNOWN compliance. Additional deterministic tests cover missing claims and relevant/irrelevant evidence, compliance and operational expiry. SPEC-019-R1 audit references, semantic fingerprints, retry conflicts and dual-audit atomicity remain unchanged. Migration `0008_policy_gateway` and its schema are unchanged; no `0009` exists.
 
 ## Retry-safe audit and TOCTOU
 
@@ -145,7 +165,7 @@ This is diagnostic, not an SLA.
 ## Tests and quality gates
 
 ```text
-Backend:            2962 passed
+Backend:            2981 passed
 Backend skipped:    0
 Ruff:               PASS
 git diff --check:   PASS
@@ -155,14 +175,14 @@ Build:              PASS
 Typecheck:          PASS
 Lint:               PASS
 
-GitHub CI:          PASS
-CI run ID:          32328181815
-Validated code SHA: b915fd295a022f76d67fdcb2772e36555fe0cdb9
-Backend job:        PASS
-Frontend job:       PASS
+GitHub CI:          PENDING NEW R2 RUN
+CI run ID:          pending
+Validated code SHA: pending
+Backend job:        pending
+Frontend job:       pending
 ```
 
-The backend count increased from the R1 entry baseline of 2955 and did not reduce the merged baseline. The 51 focused policy tests and all 2962 backend tests pass locally with zero skips. Frontend remains 84 tests with build, typecheck and lint green.
+The backend count increased from the R2 entry baseline of 2962 and did not reduce the merged baseline. The 70 focused policy tests and all 2981 backend tests pass locally with zero skips. Frontend remains 84 tests with build, typecheck and lint green.
 
 ## Files changed
 
@@ -174,6 +194,7 @@ src/signals/acquisition/store.py
 src/signals/persistence/schema.py
 src/signals/persistence/migrations/versions/0008_policy_gateway_policy_gateway.py
 tests/test_policy_*.py
+tests/test_policy_relevant_gates.py
 tests/test_accounts_migration_and_ownership.py
 tests/test_acquisition_migration.py
 tests/test_billing_entitlements.py

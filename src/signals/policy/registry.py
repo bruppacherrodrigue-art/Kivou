@@ -27,6 +27,7 @@ class CommandPolicy:
     uses_volume: bool = False
     uses_send_controls: bool = False
     requires_control_plane: bool = False
+    requires_compliance: bool = False
 
 
 COMMAND_POLICIES = {
@@ -55,6 +56,7 @@ COMMAND_POLICIES = {
         True,
         True,
         True,
+        requires_compliance=True,
     ),
     "pause_campaign": CommandPolicy(
         RiskClass.RISK_REDUCTION, TargetScope.EITHER, requires_control_plane=True

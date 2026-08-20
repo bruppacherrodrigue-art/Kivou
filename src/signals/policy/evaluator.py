@@ -68,15 +68,20 @@ def _known_boundaries(
     request: PolicyRequest,
     snapshot: PolicySnapshot,
     used_grants: list[ApprovalGrant],
+    *,
+    requires_evidence: bool,
+    requires_compliance: bool,
+    uses_budget: bool,
+    uses_operational: bool,
 ) -> dt.datetime | None:
     values = [
         value
         for value in (
             snapshot.expires_at,
-            snapshot.budget.period_end,
-            request.evidence.valid_until,
-            request.compliance.valid_until,
-            request.operational.valid_until,
+            snapshot.budget.period_end if uses_budget else None,
+            request.evidence.valid_until if requires_evidence else None,
+            request.compliance.valid_until if requires_compliance else None,
+            request.operational.valid_until if uses_operational else None,
             *(grant.expires_at for grant in used_grants),
         )
         if value is not None
@@ -164,35 +169,50 @@ def evaluate_policy(
             primary = primary or PolicyStatus.DENIED
             reasons.append("adaptive_scale_required")
 
-    compliance_grant = None
-    if request.compliance.state is ComplianceState.BLOCKED:
-        primary = primary or PolicyStatus.COMPLIANCE_BLOCKED
-        reasons.append("compliance_blocked")
-    elif request.compliance.state is ComplianceState.UNKNOWN:
-        primary = primary or PolicyStatus.COMPLIANCE_BLOCKED
-        reasons.append("compliance_state_unknown")
-    elif request.compliance.state is ComplianceState.REVIEW_REQUIRED:
-        compliance_grant = _find_grant(
-            ApprovalPurpose.COMPLIANCE_REVIEW, request, snapshot, evaluated_at
-        )
-        if compliance_grant is None:
-            primary = primary or PolicyStatus.APPROVAL_REQUIRED
-            reasons.append("compliance_review_approval_required")
-        else:
-            used_grants.append(compliance_grant)
-
     if profile is not None:
-        claims = set(request.evidence.claims)
-        if request.evidence.status is not EvidenceStatus.READY or any(
-            item not in claims for item in profile.required_evidence
-        ):
-            primary = primary or PolicyStatus.INSUFFICIENT_EVIDENCE
-            reasons.append("insufficient_evidence")
+        if profile.requires_compliance:
+            compliance = request.compliance
+            if compliance.observed_at > evaluated_at:
+                primary = primary or PolicyStatus.COMPLIANCE_BLOCKED
+                reasons.append("compliance_assessment_future_dated")
+            elif compliance.valid_until is not None and evaluated_at >= compliance.valid_until:
+                primary = primary or PolicyStatus.COMPLIANCE_BLOCKED
+                reasons.append("compliance_assessment_expired")
+            elif compliance.state is ComplianceState.BLOCKED:
+                primary = primary or PolicyStatus.COMPLIANCE_BLOCKED
+                reasons.append("compliance_blocked")
+            elif compliance.state is ComplianceState.UNKNOWN:
+                primary = primary or PolicyStatus.COMPLIANCE_BLOCKED
+                reasons.append("compliance_state_unknown")
+            elif compliance.state is ComplianceState.REVIEW_REQUIRED:
+                compliance_grant = _find_grant(
+                    ApprovalPurpose.COMPLIANCE_REVIEW, request, snapshot, evaluated_at
+                )
+                if compliance_grant is None:
+                    primary = primary or PolicyStatus.APPROVAL_REQUIRED
+                    reasons.append("compliance_review_approval_required")
+                else:
+                    used_grants.append(compliance_grant)
+
+        if profile.required_evidence:
+            evidence = request.evidence
+            claims = set(evidence.claims)
+            if evidence.observed_at > evaluated_at:
+                primary = primary or PolicyStatus.INSUFFICIENT_EVIDENCE
+                reasons.append("evidence_future_dated")
+            elif evidence.valid_until is not None and evaluated_at >= evidence.valid_until:
+                primary = primary or PolicyStatus.INSUFFICIENT_EVIDENCE
+                reasons.append("evidence_expired")
+            elif evidence.status is not EvidenceStatus.READY or any(
+                item not in claims for item in profile.required_evidence
+            ):
+                primary = primary or PolicyStatus.INSUFFICIENT_EVIDENCE
+                reasons.append("insufficient_evidence")
 
         budget = snapshot.budget
         cost_remaining = budget.cost_cap - budget.cost_used
         volume_remaining = budget.volume_cap - budget.volume_used
-        if request.currency != budget.currency:
+        if profile.uses_budget and request.currency != budget.currency:
             primary = primary or PolicyStatus.BUDGET_EXCEEDED
             reasons.append("currency_mismatch")
         if profile.uses_budget and request.proposed_cost > cost_remaining:
@@ -203,19 +223,28 @@ def evaluate_policy(
             reasons.append("daily_volume_cap_exceeded")
 
         op = request.operational
-        if profile.uses_send_controls:
-            if op.provider_quota != "READY":
-                primary = primary or PolicyStatus.RATE_LIMITED
-                reasons.append("provider_quota_unavailable")
-            if op.mailbox_quota != "READY":
-                primary = primary or PolicyStatus.RATE_LIMITED
-                reasons.append("mailbox_quota_unavailable")
-            if op.send_window != "OPEN":
-                primary = primary or PolicyStatus.RATE_LIMITED
-                reasons.append("send_window_unavailable")
-        if profile.requires_control_plane and op.provider_control_plane != "AVAILABLE":
+        uses_operational = profile.uses_send_controls or profile.requires_control_plane
+        if (
+            uses_operational
+            and op.valid_until is not None
+            and evaluated_at >= op.valid_until
+        ):
             primary = primary or PolicyStatus.RATE_LIMITED
-            reasons.append("provider_control_plane_unavailable")
+            reasons.append("operational_readiness_expired")
+        else:
+            if profile.uses_send_controls:
+                if op.provider_quota != "READY":
+                    primary = primary or PolicyStatus.RATE_LIMITED
+                    reasons.append("provider_quota_unavailable")
+                if op.mailbox_quota != "READY":
+                    primary = primary or PolicyStatus.RATE_LIMITED
+                    reasons.append("mailbox_quota_unavailable")
+                if op.send_window != "OPEN":
+                    primary = primary or PolicyStatus.RATE_LIMITED
+                    reasons.append("send_window_unavailable")
+            if profile.requires_control_plane and op.provider_control_plane != "AVAILABLE":
+                primary = primary or PolicyStatus.RATE_LIMITED
+                reasons.append("provider_control_plane_unavailable")
 
         action_required = bool(
             profile.risk_class is RiskClass.COMMERCIAL_MUTATION
@@ -231,6 +260,7 @@ def evaluate_policy(
     else:
         cost_remaining = snapshot.budget.cost_cap - snapshot.budget.cost_used
         volume_remaining = snapshot.budget.volume_cap - snapshot.budget.volume_used
+        uses_operational = False
 
     status = primary or PolicyStatus.APPROVED
     counterfactual = None
@@ -259,7 +289,15 @@ def evaluate_policy(
         control_revision=snapshot.control_revision,
         runtime_revision=request.operational.runtime_revision,
         evaluated_at=evaluated_at,
-        valid_until=_known_boundaries(request, snapshot, used_grants),
+        valid_until=_known_boundaries(
+            request,
+            snapshot,
+            used_grants,
+            requires_evidence=bool(profile and profile.required_evidence),
+            requires_compliance=bool(profile and profile.requires_compliance),
+            uses_budget=bool(profile and (profile.uses_budget or profile.uses_volume)),
+            uses_operational=uses_operational,
+        ),
         requires_revalidation=True,
         currency=request.currency,
         estimated_cost=request.proposed_cost,
