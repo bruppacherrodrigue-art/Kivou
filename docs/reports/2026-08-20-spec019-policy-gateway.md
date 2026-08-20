@@ -211,6 +211,16 @@ Final PR diff at the validated executable head:
 git status --porcelain: clean after the executable commit
 ```
 
+## Non-blocking hardening backlog
+
+Before the first concurrent Policy Gateway consumer or executor is enabled,
+convert a simultaneous duplicate `evaluation_id` post-insert unique-key race
+into deterministic existing-evaluation replay instead of exposing the raw
+database `IntegrityError`. This is not a SPEC-019 merge blocker: no executor or
+worker exists, the primary key prevents duplicate evaluations, the transaction
+prevents a partial dual audit, and the race cannot produce an unsafe
+authorization.
+
 POLICY GATEWAY READY
 
 PR #12 remains draft. No deployment or merge is authorized.
