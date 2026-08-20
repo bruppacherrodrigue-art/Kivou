@@ -21,20 +21,33 @@ def _request_with_states(
     compliance: ComplianceState,
     currency: str,
 ):
-    global_command = command in {
+    pre_opportunity_command = command in {
         "generate_weekly_report",
         "pause_campaign",
         "request_human_review",
+        "discover_suppliers",
     }
     base = request(
         command,
-        acquisition_opportunity_id=None if global_command else "opp-1",
-        expected_opportunity_version=None if global_command else 1,
+        target_ref=(
+            "procurement-opportunity:public-1"
+            if command == "discover_suppliers"
+            else "target-1"
+        ),
+        acquisition_opportunity_id=None if pre_opportunity_command else "opp-1",
+        expected_opportunity_version=None if pre_opportunity_command else 1,
         currency=currency,
+    )
+    claims = (
+        ("PUBLIC_OPPORTUNITY", "PUBLIC_EVIDENCE", "SUPPLIER_SEARCH_PROFILE")
+        if command == "discover_suppliers"
+        else base.evidence.claims
     )
     return base.model_copy(
         update={
-            "evidence": base.evidence.model_copy(update={"status": evidence}),
+            "evidence": base.evidence.model_copy(
+                update={"status": evidence, "claims": claims}
+            ),
             "compliance": base.compliance.model_copy(update={"state": compliance}),
         }
     )

@@ -9,6 +9,7 @@ from sqlalchemy.engine import Connection, Engine, RowMapping
 
 from signals.persistence.schema import acquisition_policy_snapshot, policy_evaluation
 from signals.policy.contracts import (
+    PolicyAuditUnavailable,
     PolicyControlSnapshot,
     PolicyControlUnavailable,
     PolicyDecision,
@@ -146,3 +147,26 @@ class PolicyStore:
             .mappings()
             .one_or_none()
         )
+
+    @staticmethod
+    def insert_evaluation_if_absent(
+        connection: Connection, values: dict[str, object]
+    ) -> bool:
+        """Atomically own one evaluation id without exposing uniqueness races."""
+        dialect = connection.dialect.name
+        if dialect == "sqlite":
+            from sqlalchemy.dialects.sqlite import insert
+        elif dialect == "postgresql":
+            from sqlalchemy.dialects.postgresql import insert
+        else:  # The production/test contract is deliberately limited to these two.
+            raise PolicyAuditUnavailable(
+                f"conflict-safe policy audit unsupported for dialect {dialect}"
+            )
+        result = connection.execute(
+            insert(policy_evaluation)
+            .values(values)
+            .on_conflict_do_nothing(index_elements=[policy_evaluation.c.evaluation_id])
+        )
+        if result.rowcount not in {0, 1}:
+            raise PolicyAuditUnavailable("indeterminate policy evaluation insert result")
+        return result.rowcount == 1

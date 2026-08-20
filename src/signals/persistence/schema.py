@@ -509,3 +509,113 @@ policy_evaluation = sa.Table(
     ),
     sa.Index("ix_policy_evaluation_command_time", "command", "evaluated_at"),
 )
+
+
+# SPEC-020: Kivou-owned company identity and one narrow Apollo execution audit.
+# No person/contact data and no provider payload are stored here.
+acquisition_supplier = sa.Table(
+    "acquisition_supplier",
+    METADATA,
+    sa.Column("supplier_ref", sa.String(64), primary_key=True),
+    sa.Column("provider", sa.String(32), nullable=False),
+    sa.Column("provider_organization_id", sa.String(128), nullable=False),
+    sa.Column("display_name", sa.Text, nullable=False),
+    sa.Column("normalized_name", sa.Text, nullable=False),
+    sa.Column("primary_domain", sa.String(253), index=True),
+    sa.Column("website_url", sa.Text),
+    sa.Column("linkedin_company_url", sa.Text),
+    sa.Column("country_code", sa.String(2)),
+    sa.Column("location", sa.Text),
+    sa.Column("industry", sa.Text),
+    sa.Column("identity_status", sa.String(32), nullable=False),
+    sa.Column("identity_conflict_fingerprint", sa.String(64), index=True),
+    sa.Column("provider_observed_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("source_fingerprint", sa.String(64), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.UniqueConstraint(
+        "provider",
+        "provider_organization_id",
+        name="uq_acquisition_supplier_provider_identity",
+    ),
+    sa.CheckConstraint(
+        "identity_status IN ('PROVIDER_IDENTIFIED', 'DOMAIN_CONFLICT')",
+        name="ck_acquisition_supplier_identity_status",
+    ),
+)
+
+
+supplier_discovery_run = sa.Table(
+    "supplier_discovery_run",
+    METADATA,
+    sa.Column("discovery_run_id", sa.String(64), primary_key=True),
+    sa.Column("signal_ref", sa.String(256), nullable=False),
+    sa.Column(
+        "policy_evaluation_id",
+        sa.String(64),
+        sa.ForeignKey("policy_evaluation.evaluation_id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    ),
+    sa.Column("provider", sa.String(32), nullable=False),
+    sa.Column("search_profile_version", sa.String(64), nullable=False),
+    sa.Column("search_profile_fingerprint", sa.String(64), nullable=False),
+    sa.Column("search_profile", sa.JSON, nullable=False),
+    sa.Column("provider_request_fingerprint", sa.String(64), nullable=False),
+    sa.Column("requested_max_pages", sa.Integer, nullable=False),
+    sa.Column("per_page", sa.Integer, nullable=False),
+    sa.Column("candidate_cap", sa.Integer, nullable=False),
+    sa.Column("planned_provider_credit_units", sa.Integer, nullable=False),
+    sa.Column("pages_requested", sa.Integer, nullable=False),
+    sa.Column("provider_credit_units_observed", sa.Integer),
+    sa.Column("provider_total_entries", sa.Integer),
+    sa.Column("partial_results_only", sa.Boolean),
+    sa.Column("records_returned", sa.Integer, nullable=False),
+    sa.Column("records_accepted", sa.Integer, nullable=False),
+    sa.Column("records_rejected", sa.Integer, nullable=False),
+    sa.Column("rejection_reason_counts", sa.JSON, nullable=False),
+    sa.Column("duplicates", sa.Integer, nullable=False),
+    sa.Column("opportunities_created", sa.Integer, nullable=False),
+    sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("completed_at", sa.DateTime(timezone=True)),
+    sa.Column("status", sa.String(32), nullable=False, index=True),
+    sa.Column("error_category", sa.String(64)),
+    sa.Column("error_detail", sa.String(512)),
+    sa.Column("retry_after", sa.DateTime(timezone=True)),
+    sa.Column("correlation_id", sa.String(64), nullable=False),
+    sa.CheckConstraint(
+        "status IN ('STARTED', 'SUCCESS', 'PARTIAL', 'FAILED', 'SEARCH_TOO_BROAD')",
+        name="ck_supplier_discovery_run_status",
+    ),
+    sa.CheckConstraint(
+        "requested_max_pages >= 1 AND requested_max_pages <= 5",
+        name="ck_supplier_discovery_run_pages",
+    ),
+    sa.CheckConstraint(
+        "per_page >= 1 AND per_page <= 100", name="ck_supplier_discovery_run_per_page"
+    ),
+    sa.CheckConstraint(
+        "candidate_cap >= 1 AND candidate_cap <= 500",
+        name="ck_supplier_discovery_run_candidate_cap",
+    ),
+    sa.CheckConstraint(
+        "planned_provider_credit_units >= 0 AND pages_requested >= 0",
+        name="ck_supplier_discovery_run_credit_counts",
+    ),
+    sa.CheckConstraint(
+        "provider_credit_units_observed IS NULL OR provider_credit_units_observed >= 0",
+        name="ck_supplier_discovery_run_observed_credits",
+    ),
+    sa.CheckConstraint(
+        "provider_total_entries IS NULL OR provider_total_entries >= 0",
+        name="ck_supplier_discovery_run_provider_total",
+    ),
+    sa.CheckConstraint(
+        "records_returned >= 0 AND records_accepted >= 0 "
+        "AND records_rejected >= 0 AND duplicates >= 0 "
+        "AND opportunities_created >= 0",
+        name="ck_supplier_discovery_run_record_counts",
+    ),
+    sa.Index("ix_supplier_discovery_run_signal_time", "signal_ref", "started_at"),
+    sa.Index("ix_supplier_discovery_run_status_time", "status", "started_at"),
+)

@@ -271,9 +271,33 @@ def test_evidence_budget_compliance_and_rate_gates_have_deterministic_precedence
         evidence=request().evidence.model_copy(update={"status": EvidenceStatus.INSUFFICIENT})
     )
     assert evaluate_policy(missing, snapshot(), NOW).status is PolicyStatus.INSUFFICIENT_EVIDENCE
-    over = request("discover_suppliers", proposed_cost=Decimal("91"))
+    discovery_evidence = request().evidence.model_copy(
+        update={
+            "claims": (
+                "PUBLIC_OPPORTUNITY",
+                "PUBLIC_EVIDENCE",
+                "SUPPLIER_SEARCH_PROFILE",
+            )
+        }
+    )
+    over = request(
+        "discover_suppliers",
+        target_ref="procurement-opportunity:public-1",
+        acquisition_opportunity_id=None,
+        expected_opportunity_version=None,
+        evidence=discovery_evidence,
+        proposed_cost=Decimal("91"),
+    )
     assert evaluate_policy(over, snapshot(), NOW).status is PolicyStatus.BUDGET_EXCEEDED
-    exact = request("discover_suppliers", proposed_cost=Decimal("90"), proposed_volume=90)
+    exact = request(
+        "discover_suppliers",
+        target_ref="procurement-opportunity:public-1",
+        acquisition_opportunity_id=None,
+        expected_opportunity_version=None,
+        evidence=discovery_evidence,
+        proposed_cost=Decimal("90"),
+        proposed_volume=90,
+    )
     assert evaluate_policy(exact, snapshot(), NOW).status is PolicyStatus.APPROVED
     rate = request(
         "schedule_campaign",

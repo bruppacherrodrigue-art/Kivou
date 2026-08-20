@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import threading
 from decimal import Decimal
 
 import pytest
@@ -427,3 +428,80 @@ def test_verify_and_explicit_rebuild_restore_projection_without_touching_events(
 def test_event_store_exposes_no_event_update_or_delete_api(store):
     assert not hasattr(store, "update_event")
     assert not hasattr(store, "delete_event")
+
+
+def test_connection_owned_creation_rolls_back_projection_and_event_together(engine) -> None:
+    store = AcquisitionStore(engine)
+    with (
+        pytest.raises(RuntimeError, match="candidate transaction failed"),
+        engine.begin() as connection,
+    ):
+        store.create_opportunity_in_transaction(
+            connection,
+            identity_key="connection-owned-identity",
+            signal_ref="procurement-opportunity:public-1",
+            supplier_ref="sup_" + "a" * 60,
+            idempotency_key="connection-owned-create",
+        )
+        raise RuntimeError("candidate transaction failed")
+
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_opportunity)
+        ) == 0
+        assert connection.scalar(sa.select(sa.func.count()).select_from(acquisition_event)) == 0
+
+
+def test_concurrent_creation_replays_same_identity_without_integrity_error(engine) -> None:
+    store = AcquisitionStore(engine, clock=lambda: NOW)
+    barrier = threading.Barrier(2)
+    seen: set[int] = set()
+    lock = threading.Lock()
+
+    @sa.event.listens_for(engine, "before_cursor_execute")
+    def synchronize_projection_insert(
+        connection, cursor, statement, parameters, context, executemany
+    ) -> None:
+        if not statement.lstrip().upper().startswith("INSERT"):
+            return
+        if "acquisition_opportunity" not in statement:
+            return
+        thread_id = threading.get_ident()
+        with lock:
+            if thread_id in seen:
+                return
+            seen.add(thread_id)
+        barrier.wait(timeout=5)
+
+    results = []
+    errors = []
+
+    def create() -> None:
+        try:
+            results.append(
+                store.create_opportunity(
+                    identity_key="concurrent-identity",
+                    signal_ref="procurement-opportunity:public-1",
+                    supplier_ref="sup_" + "a" * 60,
+                    idempotency_key="concurrent-create",
+                )
+            )
+        except (RuntimeError, sa.exc.SQLAlchemyError) as exc:  # pragma: no cover
+            errors.append(exc)
+
+    threads = [threading.Thread(target=create) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=10)
+    sa.event.remove(engine, "before_cursor_execute", synchronize_projection_insert)
+
+    assert not errors
+    assert len(results) == 2
+    assert sorted(result.replayed for result in results) == [False, True]
+    assert len({result.projection.acquisition_opportunity_id for result in results}) == 1
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_opportunity)
+        ) == 1
+        assert connection.scalar(sa.select(sa.func.count()).select_from(acquisition_event)) == 1

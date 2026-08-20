@@ -153,6 +153,17 @@ def evaluate_policy(
         ):
             primary = primary or PolicyStatus.DENIED
             reasons.append("global_command_scope_mismatch")
+        if (
+            profile.target_scope is TargetScope.SIGNAL
+            and request.acquisition_opportunity_id is not None
+        ):
+            primary = primary or PolicyStatus.DENIED
+            reasons.append("signal_command_scope_mismatch")
+        if profile.target_ref_prefix and not request.target_ref.startswith(
+            profile.target_ref_prefix
+        ):
+            primary = primary or PolicyStatus.DENIED
+            reasons.append("signal_target_invalid")
         if request.scope.country and request.scope.country not in snapshot.allowed_countries:
             primary = primary or PolicyStatus.DENIED
             reasons.append("country_not_allowed")
@@ -223,7 +234,11 @@ def evaluate_policy(
             reasons.append("daily_volume_cap_exceeded")
 
         op = request.operational
-        uses_operational = profile.uses_send_controls or profile.requires_control_plane
+        uses_operational = (
+            profile.uses_provider_quota
+            or profile.uses_send_controls
+            or profile.requires_control_plane
+        )
         if (
             uses_operational
             and op.valid_until is not None
@@ -232,10 +247,12 @@ def evaluate_policy(
             primary = primary or PolicyStatus.RATE_LIMITED
             reasons.append("operational_readiness_expired")
         else:
+            if (
+                profile.uses_provider_quota or profile.uses_send_controls
+            ) and op.provider_quota != "READY":
+                primary = primary or PolicyStatus.RATE_LIMITED
+                reasons.append("provider_quota_unavailable")
             if profile.uses_send_controls:
-                if op.provider_quota != "READY":
-                    primary = primary or PolicyStatus.RATE_LIMITED
-                    reasons.append("provider_quota_unavailable")
                 if op.mailbox_quota != "READY":
                     primary = primary or PolicyStatus.RATE_LIMITED
                     reasons.append("mailbox_quota_unavailable")

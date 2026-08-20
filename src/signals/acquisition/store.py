@@ -266,6 +266,53 @@ class AcquisitionStore:
         causation_id: str | None = None,
         occurred_at: dt.datetime | None = None,
     ) -> MutationResult:
+        with self._engine.begin() as connection:
+            return self.create_opportunity_in_transaction(
+                connection,
+                identity_key=identity_key,
+                signal_ref=signal_ref,
+                idempotency_key=idempotency_key,
+                supplier_ref=supplier_ref,
+                contact_ref=contact_ref,
+                campaign_ref=campaign_ref,
+                actor_type=actor_type,
+                actor_ref=actor_ref,
+                reason_codes=reason_codes,
+                evidence_refs=evidence_refs,
+                confidence=confidence,
+                policy_version=policy_version,
+                skill_version=skill_version,
+                supervisor_version=supervisor_version,
+                estimated_cost=estimated_cost,
+                correlation_id=correlation_id,
+                causation_id=causation_id,
+                occurred_at=occurred_at,
+            )
+
+    def create_opportunity_in_transaction(
+        self,
+        connection: Connection,
+        *,
+        identity_key: str,
+        signal_ref: str,
+        idempotency_key: str,
+        supplier_ref: str | None = None,
+        contact_ref: str | None = None,
+        campaign_ref: str | None = None,
+        actor_type: ActorType = ActorType.SYSTEM,
+        actor_ref: str | None = None,
+        reason_codes: tuple[str, ...] = (),
+        evidence_refs: tuple[str, ...] = (),
+        confidence: Decimal | None = None,
+        policy_version: str | None = None,
+        skill_version: str | None = None,
+        supervisor_version: str | None = None,
+        estimated_cost: Decimal | None = None,
+        correlation_id: str | None = None,
+        causation_id: str | None = None,
+        occurred_at: dt.datetime | None = None,
+    ) -> MutationResult:
+        """Create/replay inside a caller-owned bounded transaction."""
         payload = {
             "identity_key": identity_key,
             "signal_ref": signal_ref,
@@ -292,56 +339,98 @@ class AcquisitionStore:
         fingerprint = _fingerprint(semantic)
         recorded_at = self._clock()
         happened_at = occurred_at or recorded_at
-        with self._engine.begin() as connection:
+        existing_row = connection.execute(
+            sa.select(acquisition_opportunity).where(
+                acquisition_opportunity.c.identity_key == identity_key
+            )
+        ).mappings().one_or_none()
+        if existing_row is not None:
+            existing = _projection_from_row(existing_row)
+            creation_row = connection.execute(
+                sa.select(acquisition_event).where(
+                    acquisition_event.c.acquisition_opportunity_id
+                    == existing.acquisition_opportunity_id,
+                    acquisition_event.c.stream_sequence == 1,
+                )
+            ).mappings().one()
+            creation = _event_from_row(creation_row)
+            if creation.idempotency_key != idempotency_key:
+                raise AcquisitionIdentityConflict(identity_key)
+            if creation.semantic_fingerprint != fingerprint:
+                raise IdempotencyConflict(idempotency_key)
+            return MutationResult(existing, creation, replayed=True)
+
+        event = AcquisitionEvent(
+            event_id=self._event_id_factory(),
+            acquisition_opportunity_id=self._opportunity_id_factory(),
+            stream_sequence=1,
+            event_type=EventType.OPPORTUNITY_CREATED,
+            schema_version=EVENT_SCHEMA_VERSION,
+            state_machine_version=STATE_MACHINE_VERSION,
+            occurred_at=happened_at,
+            recorded_at=recorded_at,
+            actor_type=actor_type,
+            actor_ref=actor_ref,
+            idempotency_key=idempotency_key,
+            semantic_fingerprint=fingerprint,
+            correlation_id=correlation_id,
+            causation_id=causation_id,
+            reason_codes=reason_codes,
+            evidence_refs=evidence_refs,
+            policy_version=policy_version,
+            skill_version=skill_version,
+            supervisor_version=supervisor_version,
+            confidence=confidence,
+            estimated_cost=estimated_cost,
+            payload=payload,
+        )
+        projection = reduce_event(None, event)
+        inserted = self._insert_opportunity_if_absent(
+            connection, _projection_values(projection)
+        )
+        if not inserted:
             existing_row = connection.execute(
                 sa.select(acquisition_opportunity).where(
                     acquisition_opportunity.c.identity_key == identity_key
                 )
-            ).mappings().one_or_none()
-            if existing_row is not None:
-                existing = _projection_from_row(existing_row)
-                creation_row = connection.execute(
-                    sa.select(acquisition_event).where(
-                        acquisition_event.c.acquisition_opportunity_id
-                        == existing.acquisition_opportunity_id,
-                        acquisition_event.c.stream_sequence == 1,
-                    )
-                ).mappings().one()
-                creation = _event_from_row(creation_row)
-                if creation.idempotency_key != idempotency_key:
-                    raise AcquisitionIdentityConflict(identity_key)
-                if creation.semantic_fingerprint != fingerprint:
-                    raise IdempotencyConflict(idempotency_key)
-                return MutationResult(existing, creation, replayed=True)
+            ).mappings().one()
+            existing = _projection_from_row(existing_row)
+            creation_row = connection.execute(
+                sa.select(acquisition_event).where(
+                    acquisition_event.c.acquisition_opportunity_id
+                    == existing.acquisition_opportunity_id,
+                    acquisition_event.c.stream_sequence == 1,
+                )
+            ).mappings().one()
+            creation = _event_from_row(creation_row)
+            if creation.idempotency_key != idempotency_key:
+                raise AcquisitionIdentityConflict(identity_key)
+            if creation.semantic_fingerprint != fingerprint:
+                raise IdempotencyConflict(idempotency_key)
+            return MutationResult(existing, creation, replayed=True)
+        connection.execute(sa.insert(acquisition_event).values(_event_values(event)))
+        return MutationResult(projection, event)
 
-            event = AcquisitionEvent(
-                event_id=self._event_id_factory(),
-                acquisition_opportunity_id=self._opportunity_id_factory(),
-                stream_sequence=1,
-                event_type=EventType.OPPORTUNITY_CREATED,
-                schema_version=EVENT_SCHEMA_VERSION,
-                state_machine_version=STATE_MACHINE_VERSION,
-                occurred_at=happened_at,
-                recorded_at=recorded_at,
-                actor_type=actor_type,
-                actor_ref=actor_ref,
-                idempotency_key=idempotency_key,
-                semantic_fingerprint=fingerprint,
-                correlation_id=correlation_id,
-                causation_id=causation_id,
-                reason_codes=reason_codes,
-                evidence_refs=evidence_refs,
-                policy_version=policy_version,
-                skill_version=skill_version,
-                supervisor_version=supervisor_version,
-                confidence=confidence,
-                estimated_cost=estimated_cost,
-                payload=payload,
+    @staticmethod
+    def _insert_opportunity_if_absent(
+        connection: Connection, values: dict[str, object]
+    ) -> bool:
+        if connection.dialect.name == "sqlite":
+            from sqlalchemy.dialects.sqlite import insert
+        elif connection.dialect.name == "postgresql":
+            from sqlalchemy.dialects.postgresql import insert
+        else:
+            raise RuntimeError("unsupported acquisition persistence dialect")
+        result = connection.execute(
+            insert(acquisition_opportunity)
+            .values(values)
+            .on_conflict_do_nothing(
+                index_elements=[acquisition_opportunity.c.identity_key]
             )
-            projection = reduce_event(None, event)
-            connection.execute(sa.insert(acquisition_opportunity).values(_projection_values(projection)))
-            connection.execute(sa.insert(acquisition_event).values(_event_values(event)))
-            return MutationResult(projection, event)
+        )
+        if result.rowcount not in {0, 1}:
+            raise RuntimeError("indeterminate acquisition identity ownership")
+        return result.rowcount == 1
 
     def transition_state(
         self,
