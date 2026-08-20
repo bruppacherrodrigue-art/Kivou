@@ -6,7 +6,7 @@ Branche : `feat/spec020-supplier-discovery-apollo`
 
 Base `main` : `0718550f4c42a419b3cac87a9ad1b98474a0de95`
 
-Statut : implémenté et validé localement ; validation GitHub CI à compléter après push.
+Statut : implémenté, validé localement et validé par GitHub Actions.
 
 ## Résultat
 
@@ -308,26 +308,28 @@ secret Stripe/SMTP/GitHub ou credential Apollo.
 - tests SPEC-020 et attentes de head migration ;
 - rapports design et final SPEC-020.
 
-Le diff exact et `git status --porcelain` seront actualisés après les commits
-de closeout. Aucune modification `ops/` ou frontend n'est incluse.
+Diff de la tête exécutable `457e5756a6adbd3d19809507124a603d918789b4` :
+
+```text
+34 files changed, 4812 insertions(+), 66 deletions(-)
+git status --porcelain : vide
+```
+
+Aucune modification `ops/` ou frontend n'est incluse. Le commit de closeout
+qui suit la tête exécutable ne modifie que ce rapport.
 
 ## GitHub CI
 
-À compléter après le push du commit exécutable :
-
 ```text
-PR             : pending
-executable SHA : pending
-CI run ID      : pending
-backend        : pending
-frontend       : pending
+PR             : #13 (DRAFT, base main)
+executable SHA : 457e5756a6adbd3d19809507124a603d918789b4
+CI run ID      : 32339887518
+backend        : PASS — 3043 passed, 0 skipped, Ruff PASS
+frontend       : PASS — 84 passed, build/typecheck/lint PASS
 ```
 
 ## Verdict
 
 ```text
-SUPPLIER DISCOVERY PARTIALLY READY
+SUPPLIER DISCOVERY READY
 ```
-
-Ce verdict provisoire reflète uniquement l'absence de validation GitHub CI ; les
-portes locales sont vertes.
