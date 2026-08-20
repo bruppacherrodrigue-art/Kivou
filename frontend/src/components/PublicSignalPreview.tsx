@@ -18,10 +18,12 @@ import styles from './PublicSignalPreview.module.css'
  * 1. L'accroche dit « Exemple de signal réel », pas « Signal récent ». Un badge
  *    de fraîcheur figé dans le code deviendrait faux le lendemain, et personne
  *    ne le verrait vieillir.
- * 2. Le mode d'analyse est affiché SUR la carte : « Métadonnées de l'avis —
- *    confiance réduite ». Sans cette mention, un visiteur pourrait croire que
- *    le besoin sort d'un cahier des charges lu par Kivou. Il sort des seules
- *    métadonnées de l'avis, et le dire ici coûte une ligne.
+ * 2. La carte affirme ce qui est VÉRIFIÉ — « Avis officiel vérifié » — et
+ *    qualifie ce qui est déduit par le libellé « Besoin plausible ». Le premier
+ *    écran commercial n'a pas à porter la mesure technique de couverture
+ *    documentaire : les faits de l'attribution, eux, sont bien vérifiés, et
+ *    seule l'inférence repose sur les métadonnées. La limite est dite en toutes
+ *    lettres sur la fiche complète, où elle éclaire au lieu de dévaloriser.
  *
  * Toutes les dates sont ABSOLUES et formatées dans la locale courante. Aucun
  * compte à rebours, aucun « il y a trois jours » : un délai relatif calculé au

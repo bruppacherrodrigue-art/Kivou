@@ -135,9 +135,54 @@ describe('hero de la page d’accueil', () => {
       screen.getByRole('link', { name: new RegExp(fr.publicDemo.previewCta) }),
     ).toHaveAttribute('href', '/exemple-de-signal')
 
-    // Sans cette mention, le besoin affiché passerait pour une exigence lue
-    // dans un document.
+    // La carte affirme ce qui est vérifié ; c'est « Besoin plausible » qui
+    // qualifie l'inférence.
     expect(screen.getByText(fr.publicDemo.previewMode)).toBeInTheDocument()
+  })
+
+  it('ne porte pas la mesure technique de couverture documentaire', async () => {
+    mockApi({})
+    const { container } = renderApp(<AppRoutes />, { route: '/' })
+    await screen.findByText(publicDemoSignal.winner.legalName)
+    const text = container.textContent ?? ''
+
+    // Le premier écran commercial n'a pas à annoncer une confiance réduite :
+    // les FAITS de l'attribution sont vérifiés, seule l'inférence repose sur
+    // les métadonnées. La limite est dite sur la fiche complète.
+    expect(text).not.toContain(fr.publicDemo.documentaryMode)
+    expect(text).not.toContain(fr.publicDemo.documentaryConfidenceReason)
+    expect(text).not.toMatch(/confiance réduite/i)
+    // Mais l'inférence reste qualifiée comme telle.
+    expect(text).toContain(fr.publicDemo.previewNeedLabel)
+  })
+
+  it('conserve la mesure de couverture sur la fiche complète', async () => {
+    mockApi({})
+    const { container } = renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
+    await screen.findByRole('heading', { level: 1 })
+    const text = container.textContent ?? ''
+
+    // Ne pas en faire le message du hero ne veut pas dire la masquer : elle
+    // doit rester entière là où elle éclaire.
+    expect(text).toContain(fr.publicDemo.documentaryNone)
+    expect(text).toContain(fr.publicDemo.documentaryMode)
+    expect(text).toContain(fr.publicDemo.documentaryConfidence)
+    expect(text).toContain(fr.publicDemo.documentaryConfidenceReason)
+  })
+
+  it('en anglais aussi, le hero affirme et la fiche mesure', async () => {
+    mockApi({})
+    const home = renderApp(<AppRoutes />, { route: '/', locale: 'en' })
+    await screen.findByText(publicDemoSignal.winner.legalName)
+    expect(home.container.textContent).toContain(en.publicDemo.previewMode)
+    expect(home.container.textContent).not.toContain(en.publicDemo.documentaryMode)
+    expect(home.container.textContent).not.toMatch(/reduced confidence/i)
+    home.unmount()
+
+    const demo = renderApp(<AppRoutes />, { route: '/exemple-de-signal', locale: 'en' })
+    await screen.findByRole('heading', { level: 1 })
+    expect(demo.container.textContent).toContain(en.publicDemo.documentaryMode)
+    expect(demo.container.textContent).toContain(en.publicDemo.documentaryNone)
   })
 
   it('annonce un exemple, pas une fraîcheur figée dans le code', async () => {
@@ -399,5 +444,29 @@ describe('navigation par ancres', () => {
 
     await waitFor(() => expect(document.activeElement?.id).toBe('tarifs'))
     expect(screen.getByText(fr.landing.pricingUnavailable)).toBeInTheDocument()
+  })
+})
+
+
+describe('bandeau de preuve de la page d’accueil', () => {
+  it('parle de données publiques européennes sans énumérer les pays', async () => {
+    mockApi({})
+    const { container } = renderApp(<AppRoutes />, { route: '/' })
+    await screen.findByText(publicDemoSignal.winner.legalName)
+    const text = container.textContent ?? ''
+
+    expect(text).toContain(fr.landing.proofs.publicBody)
+    // L'énumération pays par pays a été retirée de la présentation publique.
+    expect(text).not.toMatch(/français, suisses et européens/i)
+  })
+
+  it('dit la même chose en anglais', async () => {
+    mockApi({})
+    const { container } = renderApp(<AppRoutes />, { route: '/', locale: 'en' })
+    await screen.findByText(publicDemoSignal.winner.legalName)
+    const text = container.textContent ?? ''
+
+    expect(text).toContain(en.landing.proofs.publicBody)
+    expect(text).not.toMatch(/French, Swiss and European/i)
   })
 })

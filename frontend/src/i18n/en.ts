@@ -65,7 +65,7 @@ export const en: Dictionary = {
     proofs: {
       publicTitle: '100% public record',
       publicBody:
-        'We read official French, Swiss and European award notices. No private data.',
+        'We analyse European public data from official contract award notices. No private data.',
       documentTitle: 'Documentary evidence',
       documentBody:
         'Every requirement we quote links back to its source passage and the document that publishes it.',
@@ -187,7 +187,7 @@ export const en: Dictionary = {
     ctaButton: 'See my 3 signals',
 
     previewEyebrow: 'Real signal example',
-    previewMode: 'Notice metadata — reduced confidence',
+    previewMode: 'Official notice verified',
     previewNeedLabel: 'Plausible need',
     previewCta: 'See this signal in full',
     previewAwarded: 'Awarded on {date}',

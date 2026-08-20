@@ -71,7 +71,7 @@ export const fr = {
     proofs: {
       publicTitle: '100 % fait public',
       publicBody:
-        'Nous analysons les avis d’attribution officiels français, suisses et européens. Aucune donnée privée.',
+        'Nous analysons les données publiques européennes issues des avis d’attribution officiels. Aucune donnée privée.',
       documentTitle: 'Preuve documentaire',
       documentBody:
         'Chaque exigence citée renvoie à son passage source et au document qui la publie.',
@@ -192,7 +192,7 @@ export const fr = {
     ctaButton: 'Voir mes 3 signaux',
 
     previewEyebrow: 'Exemple de signal réel',
-    previewMode: 'Métadonnées de l’avis — confiance réduite',
+    previewMode: 'Avis officiel vérifié',
     previewNeedLabel: 'Besoin plausible',
     previewCta: 'Voir ce signal en entier',
     previewAwarded: 'Attribué le {date}',
