@@ -8,6 +8,7 @@ from signals.persistence.database import alembic_config, create_database_engine,
 
 PREVIOUS = "0008_policy_gateway"
 HEAD = "0009_supplier_discovery"
+CURRENT_HEAD = "0010_contact_discovery"
 
 
 def test_supplier_discovery_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
@@ -24,7 +25,7 @@ def test_supplier_discovery_migration_is_linear_and_adds_exactly_two_tables(tmp_
         "supplier_discovery_run",
     }
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == [HEAD]
+    assert script.get_heads() == [CURRENT_HEAD]
     assert script.get_revision(HEAD).down_revision == PREVIOUS
     assert len(HEAD) <= 32
     assert current_revision(engine) == HEAD

@@ -110,9 +110,7 @@ def _require_transition(source: AcquisitionState, target: AcquisitionState) -> N
         raise InvalidTransition(f"invalid transition: {source.value} -> {target.value}")
 
 
-def _require_hold_metadata(
-    event: AcquisitionEvent, next_review_at: dt.datetime | None
-) -> None:
+def _require_hold_metadata(event: AcquisitionEvent, next_review_at: dt.datetime | None) -> None:
     if not event.reason_codes or next_review_at is None:
         raise InvalidTransition("HOLD requires reason codes and next_review_at")
 
@@ -249,6 +247,37 @@ def _retry_scheduled(
     return current.model_copy(update=updates)
 
 
+def _contact_selected(
+    current: AcquisitionOpportunity, event: AcquisitionEvent
+) -> AcquisitionOpportunity:
+    if set(event.payload) != {"contact_ref", "supplier_ref"}:
+        raise InvalidTransition("CONTACT_SELECTED accepts only reference fields")
+    contact_ref = event.payload.get("contact_ref")
+    supplier_ref = event.payload.get("supplier_ref")
+    if current.state is not AcquisitionState.DISCOVERED:
+        raise InvalidTransition("CONTACT_SELECTED requires DISCOVERED state")
+    if (
+        not current.supplier_ref
+        or not isinstance(supplier_ref, str)
+        or not 1 <= len(supplier_ref) <= 256
+        or supplier_ref.strip() != supplier_ref
+    ):
+        raise InvalidTransition("CONTACT_SELECTED requires supplier_ref")
+    if supplier_ref != current.supplier_ref:
+        raise InvalidTransition("CONTACT_SELECTED supplier_ref mismatch")
+    if current.contact_ref is not None:
+        raise InvalidTransition("CONTACT_SELECTED cannot replace contact_ref")
+    if (
+        not isinstance(contact_ref, str)
+        or not 1 <= len(contact_ref) <= 256
+        or contact_ref.strip() != contact_ref
+    ):
+        raise InvalidTransition("CONTACT_SELECTED requires contact_ref")
+    updates = _common_updates(event)
+    updates["contact_ref"] = contact_ref
+    return current.model_copy(update=updates)
+
+
 def _reduce_v1(
     current: AcquisitionOpportunity | None, event: AcquisitionEvent
 ) -> AcquisitionOpportunity:
@@ -272,6 +301,8 @@ def _reduce_v1(
         return _next_action_set(current, event)
     if event.event_type == EventType.RETRY_SCHEDULED:
         return _retry_scheduled(current, event)
+    if event.event_type == EventType.CONTACT_SELECTED:
+        return _contact_selected(current, event)
     if event.event_type in {
         EventType.SUPERVISOR_PLAN_OBSERVED,
         EventType.POLICY_EVALUATED,
@@ -280,9 +311,7 @@ def _reduce_v1(
     raise InvalidTransition(f"unsupported event type: {event.event_type.value}")
 
 
-Reducer = Callable[
-    [AcquisitionOpportunity | None, AcquisitionEvent], AcquisitionOpportunity
-]
+Reducer = Callable[[AcquisitionOpportunity | None, AcquisitionEvent], AcquisitionOpportunity]
 REDUCERS: dict[str, Reducer] = {STATE_MACHINE_VERSION: _reduce_v1}
 
 

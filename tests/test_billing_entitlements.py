@@ -384,7 +384,7 @@ def test_an_empty_database_reaches_the_billing_schema_through_every_migration(
         command.upgrade(alembic_config(engine), revision)
         assert current_revision(engine) == revision
     migrate_to_latest(engine)
-    assert current_revision(engine) == "0009_supplier_discovery"
+    assert current_revision(engine) == "0010_contact_discovery"
 
 
 def test_a_populated_spec012_database_upgrades_without_losing_anything(tmp_path: pathlib.Path):
@@ -413,7 +413,7 @@ def test_a_populated_spec012_database_upgrades_without_losing_anything(tmp_path:
         icps = connection.execute(sa.select(target_icp)).all()
     assert [item.signal_key for item in signals] == [signal.signal_key]
     assert [row.target_icp_id for row in icps] == [icp_id]
-    assert current_revision(engine) == "0009_supplier_discovery"
+    assert current_revision(engine) == "0010_contact_discovery"
 
 
 def test_the_billing_migration_touches_no_earlier_table(tmp_path: pathlib.Path):
