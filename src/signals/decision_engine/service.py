@@ -86,9 +86,31 @@ def _publication_date(value: dt.date | dt.datetime | None) -> dt.date | None:
     if value is None:
         return None
     if isinstance(value, dt.datetime):
-        aware = value if value.tzinfo is not None else value.replace(tzinfo=dt.UTC)
-        return aware.astimezone(dt.UTC).date()
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise DecisionPublicContextNotResolvable(
+                "publication datetime has no authoritative timezone"
+            )
+        return value.astimezone(dt.UTC).date()
     return value
+
+
+def _legacy_budget_usage_candidates(
+    cost_used: Decimal, volume_used: int
+) -> tuple[BudgetUsage, ...]:
+    """Recreate scale-sensitive hashes written before numeric canonicalization."""
+    candidates: list[BudgetUsage] = []
+    seen: set[str] = set()
+    # Policy money is durable as Numeric(18, 6); all representable legacy scales
+    # are tried without changing the reconstructed numeric budget semantics.
+    for scale in range(7):
+        candidate_cost = cost_used.quantize(Decimal(1).scaleb(-scale))
+        if candidate_cost != cost_used or str(candidate_cost) in seen:
+            continue
+        seen.add(str(candidate_cost))
+        candidates.append(
+            BudgetUsage(cost_used=candidate_cost, volume_used=volume_used)
+        )
+    return tuple(candidates)
 
 
 def _proposal_from_audit(audit) -> AcquisitionDecisionProposal:
@@ -142,7 +164,6 @@ class DecisionEngineService:
                 existing,
                 opportunity_id,
                 authorization,
-                budget_usage=budget_usage,
             )
             return DecisionServiceResult(
                 decision=self._policy_decision(authorization.evaluation_id),
@@ -208,7 +229,6 @@ class DecisionEngineService:
                 concurrent,
                 opportunity_id,
                 authorization,
-                budget_usage=budget_usage,
             )
             return DecisionServiceResult(
                 decision=self._policy_decision(authorization.evaluation_id),
@@ -527,8 +547,6 @@ class DecisionEngineService:
         audit,
         opportunity_id,
         authorization,
-        *,
-        budget_usage: BudgetUsage,
     ) -> None:
         decision_input = AcquisitionDecisionInput.model_validate(audit.decision_input)
         proposal = _proposal_from_audit(audit)
@@ -543,6 +561,17 @@ class DecisionEngineService:
         if row is None or audit.acquisition_opportunity_id != opportunity_id:
             raise DecisionEvaluationIdempotencyConflict(authorization.evaluation_id)
         existing_decision = decision_from_row(row)
+        control = self._policy_store.get_control(existing_decision.policy_snapshot_id)
+        historical_cost_used = control.daily_cost_cap - existing_decision.cost_remaining
+        historical_volume_used = (
+            control.daily_volume_cap - existing_decision.volume_remaining
+        )
+        if historical_cost_used < 0 or historical_volume_used < 0:
+            raise DecisionEvaluationIdempotencyConflict(authorization.evaluation_id)
+        historical_budget_usage = BudgetUsage(
+            cost_used=historical_cost_used,
+            volume_used=historical_volume_used,
+        )
         request = self._policy_request(
             authorization,
             opportunity_id=opportunity_id,
@@ -554,10 +583,25 @@ class DecisionEngineService:
         reconstructed = self._policy.semantic_fingerprint(
             request,
             evaluated_at=existing_decision.evaluated_at,
-            budget_usage=budget_usage,
+            budget_usage=historical_budget_usage,
             policy_snapshot_id=existing_decision.policy_snapshot_id,
         )
-        if row["semantic_fingerprint"] != reconstructed:
+        matches_historical = row["semantic_fingerprint"] == reconstructed
+        if not matches_historical:
+            matches_historical = any(
+                row["semantic_fingerprint"]
+                == self._policy.semantic_fingerprint(
+                    request,
+                    evaluated_at=existing_decision.evaluated_at,
+                    budget_usage=candidate,
+                    policy_snapshot_id=existing_decision.policy_snapshot_id,
+                    legacy_decimal_encoding=True,
+                )
+                for candidate in _legacy_budget_usage_candidates(
+                    historical_cost_used, historical_volume_used
+                )
+            )
+        if not matches_historical:
             raise DecisionEvaluationIdempotencyConflict(authorization.evaluation_id)
 
     def _policy_decision(self, evaluation_id: str):

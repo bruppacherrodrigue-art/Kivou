@@ -29,7 +29,7 @@ from signals.policy.store import PolicyStore, decision_from_row, decision_values
 
 def _canonical(value: object) -> object:
     if isinstance(value, Decimal):
-        return str(value)
+        return "0" if value == 0 else format(value.normalize(), "f")
     if isinstance(value, dt.datetime):
         return value.isoformat()
     if isinstance(value, Enum):
@@ -41,11 +41,28 @@ def _canonical(value: object) -> object:
     return value
 
 
+def _legacy_canonical(value: object) -> object:
+    """Pre-R1 encoding retained only for durable fingerprint compatibility."""
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, dt.datetime):
+        return value.isoformat()
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, dict):
+        return {str(key): _legacy_canonical(nested) for key, nested in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_legacy_canonical(nested) for nested in value]
+    return value
+
+
 def _fingerprint(
     request: PolicyRequest,
     snapshot: PolicySnapshot,
     budget_usage: BudgetUsage,
     evaluated_at: dt.datetime,
+    *,
+    legacy_decimal_encoding: bool = False,
 ) -> str:
     approval_bindings = sorted(
         {
@@ -88,8 +105,9 @@ def _fingerprint(
         "budget_usage": budget_usage.model_dump(mode="python"),
         "evaluated_at": evaluated_at,
     }
+    canonicalizer = _legacy_canonical if legacy_decimal_encoding else _canonical
     encoded = json.dumps(
-        _canonical(payload), allow_nan=False, sort_keys=True, separators=(",", ":")
+        canonicalizer(payload), allow_nan=False, sort_keys=True, separators=(",", ":")
     ).encode()
     return hashlib.sha256(encoded).hexdigest()
 
@@ -109,6 +127,7 @@ class PolicyGateway:
         evaluated_at: dt.datetime,
         budget_usage: BudgetUsage,
         policy_snapshot_id: str | None = None,
+        legacy_decimal_encoding: bool = False,
     ) -> str:
         """Reconstruct the complete immutable semantics of a policy evaluation."""
         snapshot = self._snapshot(
@@ -117,7 +136,13 @@ class PolicyGateway:
             budget_usage,
             policy_snapshot_id=policy_snapshot_id,
         )
-        return _fingerprint(request, snapshot, budget_usage, evaluated_at)
+        return _fingerprint(
+            request,
+            snapshot,
+            budget_usage,
+            evaluated_at,
+            legacy_decimal_encoding=legacy_decimal_encoding,
+        )
 
     def _snapshot(
         self,
@@ -168,11 +193,21 @@ class PolicyGateway:
     ) -> PolicyDecision:
         snapshot = self._snapshot(request, evaluated_at, budget_usage)
         semantic_fingerprint = _fingerprint(request, snapshot, budget_usage, evaluated_at)
+        legacy_semantic_fingerprint = _fingerprint(
+            request,
+            snapshot,
+            budget_usage,
+            evaluated_at,
+            legacy_decimal_encoding=True,
+        )
         with self._engine.connect() as connection:
             existing = self._store.evaluation_row(connection, request.evaluation_id)
             if existing is not None:
                 return self._validated_existing(
-                    connection, request, semantic_fingerprint, existing
+                    connection,
+                    request,
+                    (semantic_fingerprint, legacy_semantic_fingerprint),
+                    existing,
                 )
 
         decision = evaluate_policy(request, snapshot, evaluated_at)
@@ -181,7 +216,10 @@ class PolicyGateway:
             existing = self._store.evaluation_row(connection, request.evaluation_id)
             if existing is not None:
                 return self._validated_existing(
-                    connection, request, semantic_fingerprint, existing
+                    connection,
+                    request,
+                    (semantic_fingerprint, legacy_semantic_fingerprint),
+                    existing,
                 )
 
             inserted = self._store.insert_evaluation_if_absent(
@@ -193,7 +231,10 @@ class PolicyGateway:
                 if existing is None:
                     raise RuntimeError("policy evaluation conflict was not durable")
                 return self._validated_existing(
-                    connection, request, semantic_fingerprint, existing
+                    connection,
+                    request,
+                    (semantic_fingerprint, legacy_semantic_fingerprint),
+                    existing,
                 )
             if request.acquisition_opportunity_id is not None:
                 if request.expected_opportunity_version is None:
@@ -228,10 +269,10 @@ class PolicyGateway:
     def _validated_existing(
         connection,
         request: PolicyRequest,
-        semantic_fingerprint: str,
+        semantic_fingerprints: tuple[str, ...],
         existing,
     ) -> PolicyDecision:
-        if existing["semantic_fingerprint"] != semantic_fingerprint:
+        if existing["semantic_fingerprint"] not in semantic_fingerprints:
             raise PolicyEvaluationIdempotencyConflict(request.evaluation_id)
         if request.acquisition_opportunity_id is not None:
             event_exists = connection.scalar(

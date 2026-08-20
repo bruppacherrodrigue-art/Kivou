@@ -60,7 +60,10 @@ def _resolve_recency(
         return RecencyBasis.UNRESOLVED, None, None, False
 
     age_days = (as_of_date - selected).days
-    inconsistent = age_days < -policy_config.future_date_tolerance_days
+    inconsistent = (
+        age_days < -policy_config.future_date_tolerance_days
+        or age_days > policy_config.max_plausible_public_age_days
+    )
     if (
         context.award_date is not None
         and context.publication_date is not None

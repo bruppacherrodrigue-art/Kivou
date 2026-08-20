@@ -11,7 +11,10 @@ from signals.decision_engine.input import (
     build_acquisition_decision_input,
     build_public_decision_context,
 )
-from signals.decision_engine.policy import DECISION_POLICY_V1
+from signals.decision_engine.policy import (
+    DECISION_POLICY_V1,
+    decision_policy_config_fingerprint,
+)
 from signals.supplier_discovery.contracts import SupplierIdentityStatus
 
 AS_OF = dt.date(2026, 8, 20)
@@ -162,6 +165,26 @@ def test_as_of_date_changes_the_decision_input_fingerprint() -> None:
 
     assert first.age_days + 1 == second.age_days
     assert first.decision_input_fingerprint != second.decision_input_fingerprint
+
+
+def test_public_plausibility_limit_participates_in_config_and_input_fingerprints() -> None:
+    unfingerprinted = DECISION_POLICY_V1.model_copy(
+        update={
+            "max_plausible_public_age_days": 3651,
+            "config_fingerprint": "0" * 64,
+        }
+    )
+    changed_config = unfingerprinted.model_copy(
+        update={
+            "config_fingerprint": decision_policy_config_fingerprint(unfingerprinted)
+        }
+    )
+
+    baseline = _decision_input()
+    changed = _decision_input(policy_config=changed_config)
+
+    assert changed_config.config_fingerprint != DECISION_POLICY_V1.config_fingerprint
+    assert changed.decision_input_fingerprint != baseline.decision_input_fingerprint
 
 
 @pytest.mark.parametrize(

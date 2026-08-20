@@ -1,4 +1,14 @@
+from signals.decision_engine.policy import DECISION_POLICY_V1
 from signals.policy.registry import COMMAND_POLICIES, RiskClass, TargetScope
+from signals.recency import IMPLAUSIBLE_AWARD_AGE_DAYS
+
+
+def test_v1_reuses_the_authoritative_public_date_plausibility_guard() -> None:
+    assert (
+        DECISION_POLICY_V1.max_plausible_public_age_days
+        == IMPLAUSIBLE_AWARD_AGE_DAYS
+        == 3650
+    )
 
 
 def test_evaluate_opportunity_policy_metadata_is_internal_and_proposal_bound() -> None:

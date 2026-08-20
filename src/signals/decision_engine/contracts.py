@@ -66,6 +66,7 @@ class DecisionPolicyConfig(DecisionEngineContract):
     policy_version: Literal["decision-policy-v1"] = POLICY_VERSION
     recency_version: Literal["acquisition-recency-v1"] = RECENCY_VERSION
     max_send_age_days: int = Field(ge=1, le=3650)
+    max_plausible_public_age_days: int = Field(ge=1, le=36500)
     future_date_tolerance_days: int = Field(ge=0, le=30)
     award_publication_tolerance_days: int = Field(ge=0, le=30)
     domain_conflict_behavior: Literal["REVIEW"] = "REVIEW"

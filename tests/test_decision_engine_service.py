@@ -3,6 +3,8 @@ from __future__ import annotations
 import datetime as dt
 import inspect
 import threading
+from decimal import Decimal
+from enum import Enum
 
 import pytest
 import sqlalchemy as sa
@@ -10,6 +12,7 @@ from alembic import command
 from feed_helpers import MATERIALIZED_AT, MATERIALIZED_ON, simap_award
 from test_policy_persistence import control
 
+import signals.policy.gateway as policy_gateway_module
 from signals.acquisition.contracts import AcquisitionState, ActorType, EventType
 from signals.acquisition.store import AcquisitionStore
 from signals.company_research.contracts import ApolloOrganizationObservation
@@ -27,8 +30,13 @@ from signals.decision_engine.contracts import (
     DecisionInputChanged,
     DecisionInputVersionUnsupported,
     DecisionNotActionable,
+    DecisionPublicContextNotResolvable,
 )
-from signals.decision_engine.service import DecisionEngineService, policy_action_fingerprint
+from signals.decision_engine.service import (
+    DecisionEngineService,
+    _publication_date,
+    policy_action_fingerprint,
+)
 from signals.decision_engine.store import DecisionEvaluationStore, decision_evaluation_id
 from signals.ingestion.pipeline import IngestionPipeline
 from signals.ingestion.sources import AcquiredPublication
@@ -39,6 +47,7 @@ from signals.persistence.schema import (
     acquisition_event,
     contract_award,
     policy_evaluation,
+    source_event,
 )
 from signals.policy.contracts import (
     POLICY_VERSION,
@@ -246,6 +255,21 @@ def test_caller_cannot_supply_evaluated_at_or_as_of_date() -> None:
     assert "as_of_date" not in DecisionAuthorizationInput.model_fields
 
 
+def test_publication_date_preserves_date_and_converts_aware_datetime_to_utc() -> None:
+    source_date = dt.date(2026, 8, 20)
+    aware_instant = dt.datetime(
+        2026,
+        8,
+        20,
+        0,
+        30,
+        tzinfo=dt.timezone(dt.timedelta(hours=2)),
+    )
+
+    assert _publication_date(source_date) == source_date
+    assert _publication_date(aware_instant) == dt.date(2026, 8, 19)
+
+
 def test_existing_audit_replays_without_clock_policy_or_event(context) -> None:
     engine, acquisition, opportunity_id = context
     first_clock = CountingClock()
@@ -262,6 +286,140 @@ def test_existing_audit_replays_without_clock_policy_or_event(context) -> None:
     assert replay.audit == first.audit
     assert replay_clock.calls == 0
     assert acquisition.get_opportunity(opportunity_id).stream_version == version
+
+
+def test_existing_audit_replay_uses_historical_not_current_budget_usage(context) -> None:
+    engine, acquisition, opportunity_id = context
+    first = DecisionEngineService(engine, clock=CountingClock()).evaluate(
+        opportunity_id,
+        authorization(),
+        budget_usage=BudgetUsage(cost_used=Decimal("7.50"), volume_used=12),
+    )
+    version = acquisition.get_opportunity(opportunity_id).stream_version
+    replay_clock = CountingClock(EVALUATED_AT + dt.timedelta(days=5))
+
+    replay = DecisionEngineService(engine, clock=replay_clock).evaluate(
+        opportunity_id,
+        authorization(),
+        budget_usage=BudgetUsage(cost_used=Decimal("61.25"), volume_used=73),
+    )
+
+    assert replay.audit == first.audit
+    assert replay_clock.calls == 0
+    assert acquisition.get_opportunity(opportunity_id).stream_version == version
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(policy_evaluation)
+        ) == 1
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_event).where(
+                acquisition_event.c.event_type == "DECISION_RECORDED"
+            )
+        ) == 1
+
+
+def test_completed_audit_with_legacy_decimal_hash_replays_after_r1(
+    context, monkeypatch
+) -> None:
+    engine, acquisition, opportunity_id = context
+
+    def legacy_canonical(value):
+        if isinstance(value, Decimal):
+            return str(value)
+        if isinstance(value, dt.datetime):
+            return value.isoformat()
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, dict):
+            return {
+                str(key): legacy_canonical(nested)
+                for key, nested in value.items()
+            }
+        if isinstance(value, (list, tuple)):
+            return [legacy_canonical(nested) for nested in value]
+        return value
+
+    with monkeypatch.context() as legacy_runtime:
+        legacy_runtime.setattr(policy_gateway_module, "_canonical", legacy_canonical)
+        first = DecisionEngineService(engine, clock=CountingClock()).evaluate(
+            opportunity_id,
+            authorization(),
+            budget_usage=BudgetUsage(cost_used=Decimal("7.50"), volume_used=12),
+        )
+
+    version = acquisition.get_opportunity(opportunity_id).stream_version
+    replay_clock = CountingClock(EVALUATED_AT + dt.timedelta(days=5))
+    replay = DecisionEngineService(engine, clock=replay_clock).evaluate(
+        opportunity_id,
+        authorization(),
+        budget_usage=BudgetUsage(cost_used=Decimal("61.25"), volume_used=73),
+    )
+
+    assert replay.audit == first.audit
+    assert replay_clock.calls == 0
+    assert acquisition.get_opportunity(opportunity_id).stream_version == version
+
+
+def test_naive_publication_datetime_fails_before_policy_or_decision_audit(context) -> None:
+    engine, _, opportunity_id = context
+    with engine.begin() as connection:
+        published = connection.scalar(sa.select(source_event.c.published_at_raw).limit(1))
+        assert published is not None
+        connection.execute(
+            sa.update(source_event).values(
+                published_at_raw=f"{published[:10]}T12:00:00",
+                published_precision="datetime",
+            )
+        )
+
+    with pytest.raises(DecisionPublicContextNotResolvable):
+        DecisionEngineService(engine, clock=CountingClock()).evaluate(
+            opportunity_id,
+            authorization(),
+            budget_usage=BudgetUsage(),
+        )
+
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(policy_evaluation)
+        ) == 0
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_decision_evaluation)
+        ) == 0
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_event).where(
+                acquisition_event.c.event_type == "DECISION_RECORDED"
+            )
+        ) == 0
+
+
+def test_naive_publication_datetime_after_policy_is_input_changed(context) -> None:
+    engine, acquisition, opportunity_id = context
+    service = DecisionEngineService(engine, clock=CountingClock())
+
+    def make_publication_naive() -> None:
+        with engine.begin() as connection:
+            published = connection.scalar(
+                sa.select(source_event.c.published_at_raw).limit(1)
+            )
+            assert published is not None
+            connection.execute(
+                sa.update(source_event).values(
+                    published_at_raw=f"{published[:10]}T12:00:00",
+                    published_precision="datetime",
+                )
+            )
+
+    service._after_policy_hook = make_publication_naive
+    with pytest.raises(DecisionInputChanged):
+        service.evaluate(
+            opportunity_id,
+            authorization(),
+            budget_usage=BudgetUsage(),
+        )
+
+    assert acquisition.get_opportunity(opportunity_id).state is AcquisitionState.READY_FOR_DECISION
+    assert DecisionEvaluationStore(engine).get_by_policy("decision-eval-1") is None
 
 
 @pytest.mark.parametrize(

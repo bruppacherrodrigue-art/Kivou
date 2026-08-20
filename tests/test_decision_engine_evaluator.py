@@ -125,6 +125,28 @@ def test_unresolved_and_future_timing_route_to_review() -> None:
     assert future.reason_codes == ("PUBLIC_TIMING_INCONSISTENT",)
 
 
+@pytest.mark.parametrize(
+    "award_date",
+    (
+        dt.date(2000, 1, 1),
+        dt.date(1970, 1, 1),
+        dt.date(2002, 8, 17),
+    ),
+)
+def test_implausible_award_clock_routes_to_review_without_publication_fallback(
+    award_date,
+) -> None:
+    decision_input = _input(age_days=(AS_OF - award_date).days)
+
+    proposal = evaluate_decision(decision_input, DECISION_POLICY_V1)
+
+    assert decision_input.recency_basis.value == "AWARD_DATE"
+    assert decision_input.recency_date == award_date
+    assert decision_input.public_timing_inconsistent is True
+    assert proposal.proposed_decision is Decision.REVIEW
+    assert proposal.reason_codes == ("PUBLIC_TIMING_INCONSISTENT",)
+
+
 @pytest.mark.parametrize("basis", ("notification", "publication"))
 def test_send_preserves_explicit_fallback_reason(basis) -> None:
     proposal = evaluate_decision(_input(age_days=10, basis=basis), DECISION_POLICY_V1)

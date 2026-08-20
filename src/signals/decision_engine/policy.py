@@ -7,6 +7,7 @@ import json
 from typing import Any
 
 from signals.decision_engine.contracts import DecisionPolicyConfig
+from signals.recency import IMPLAUSIBLE_AWARD_AGE_DAYS
 
 
 def _canonical(value: Any) -> bytes:
@@ -30,6 +31,7 @@ def decision_policy_config_fingerprint(config: DecisionPolicyConfig) -> str:
 
 _POLICY_VALUES = {
     "max_send_age_days": 60,
+    "max_plausible_public_age_days": IMPLAUSIBLE_AWARD_AGE_DAYS,
     "future_date_tolerance_days": 0,
     "award_publication_tolerance_days": 1,
     "domain_conflict_behavior": "REVIEW",
