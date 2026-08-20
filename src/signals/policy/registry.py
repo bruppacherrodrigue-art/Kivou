@@ -56,7 +56,16 @@ COMMAND_POLICIES = {
         requires_control_plane=True,
     ),
     "enrich_company": CommandPolicy(
-        RiskClass.PREPARATORY, TargetScope.OPPORTUNITY, ("SUPPLIER",), True
+        risk_class=RiskClass.PREPARATORY,
+        target_scope=TargetScope.OPPORTUNITY,
+        required_evidence=(
+            "SUPPLIER",
+            "VERIFIED_CONTACT",
+            "COMPANY_RESEARCH_PROFILE",
+        ),
+        uses_budget=True,
+        uses_provider_quota=True,
+        requires_control_plane=True,
     ),
     "evaluate_opportunity": CommandPolicy(
         RiskClass.PREPARATORY, TargetScope.OPPORTUNITY, ("SIGNAL", "PUBLIC_EVIDENCE")
