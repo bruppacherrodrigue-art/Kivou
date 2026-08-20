@@ -175,3 +175,23 @@
 .evidenceCard dd {
   overflow-wrap: anywhere;
 }
+
+.technical {
+  width: 100%;
+}
+
+.technicalSummary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-text-secondary);
+}
+
+.path {
+  font-size: var(--kivou-text-micro);
+  color: var(--kivou-text-muted);
+  overflow-wrap: anywhere;
+}

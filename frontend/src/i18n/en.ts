@@ -52,6 +52,7 @@ export const en: Dictionary = {
     mainNavigation: 'Main navigation',
     openMenu: 'Open menu',
     closeMenu: 'Close menu',
+    dismissMenu: 'Close the menu by clicking outside',
     account: 'Account',
   },
 
@@ -104,6 +105,7 @@ export const en: Dictionary = {
       'Kivou does not know what a company will buy. Kivou shows a public event, what it probably implies, and the evidence that lets you judge.',
     pricingTitle: 'Choose a plan',
     pricingLead: 'Monthly billing. No commitment.',
+    pricingUnavailable: 'Plan details are temporarily unavailable. Account creation remains open.',
     ctaTitle: 'Start with three real signals',
     ctaBody:
       'Create an account, describe what you sell, and read three complete signals with their documentary evidence.',
@@ -170,9 +172,15 @@ export const en: Dictionary = {
       'A materials merchant or a component manufacturer can read here a dated, located and quantified project whose execution will consume supplies. That is a reason to reach out, not an order.',
 
     evidenceTitle: 'Proof',
-    evidenceLead: 'Every fact points to the exact field of the official notice.',
-    evidenceField: 'Field',
-    evidenceValue: 'Published value',
+    evidenceLead: 'Selected fields verified in the official notice.',
+    evidenceScope:
+      'Three fields carry an individual provenance reference. The other facts on this page come from the same official notice, linked below, without a field-by-field reference.',
+    evidenceAmount: 'Amount',
+    evidenceCpv: 'CPV code',
+    evidenceLot: 'Lot reference',
+    evidenceTechnical: 'Show technical paths',
+    evidencePathXml: 'XML path',
+    evidencePathField: 'Acquisition field',
 
     ctaTitle: 'See your own signals',
     ctaBody: 'Describe what you sell and where you deliver. Kivou shows you three complete signals.',

@@ -58,6 +58,7 @@ export const fr = {
     mainNavigation: 'Navigation principale',
     openMenu: 'Ouvrir le menu',
     closeMenu: 'Fermer le menu',
+    dismissMenu: 'Fermer le menu en cliquant à côté',
     account: 'Compte',
   },
 
@@ -109,6 +110,7 @@ export const fr = {
       'Kivou ne sait pas ce qu’une entreprise va acheter. Kivou montre un événement public, ce qu’il implique probablement, et la preuve qui permet d’en juger.',
     pricingTitle: 'Choisir une offre',
     pricingLead: 'Facturation mensuelle. Sans engagement.',
+    pricingUnavailable: 'Le détail des offres est momentanément indisponible. La création de compte reste ouverte.',
     ctaTitle: 'Commencez par trois signaux réels',
     ctaBody:
       'Créez un compte, décrivez ce que vous vendez, et consultez trois signaux complets avec leur preuve documentaire.',
@@ -175,9 +177,15 @@ export const fr = {
       'Un négoce de matériaux ou un fabricant de composants peut lire ici un chantier daté, localisé et chiffré, dont l’exécution consommera des fournitures. C’est une raison de contacter, pas une commande.',
 
     evidenceTitle: 'Preuve',
-    evidenceLead: 'Chaque fait renvoie au champ exact de l’avis officiel.',
-    evidenceField: 'Champ',
-    evidenceValue: 'Valeur publiée',
+    evidenceLead: 'Champs vérifiés sélectionnés dans l’avis officiel.',
+    evidenceScope:
+      'Trois champs portent un renvoi de provenance individuel. Les autres faits de cette page proviennent du même avis officiel, consultable ci-dessous, sans renvoi champ par champ.',
+    evidenceAmount: 'Montant',
+    evidenceCpv: 'Code CPV',
+    evidenceLot: 'Référence du lot',
+    evidenceTechnical: 'Afficher les chemins techniques',
+    evidencePathXml: 'Chemin XML',
+    evidencePathField: 'Champ d’acquisition',
 
     ctaTitle: 'Voir vos propres signaux',
     ctaBody: 'Décrivez ce que vous vendez et où vous livrez. Kivou vous montre trois signaux complets.',

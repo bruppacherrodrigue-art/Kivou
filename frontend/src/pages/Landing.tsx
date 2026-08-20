@@ -119,7 +119,7 @@ export function Landing() {
         </div>
       </section>
 
-      <section className={styles.section} id="comment">
+      <section className={styles.section} id="comment" tabIndex={-1}>
         <div className={styles.sectionInner}>
           <SectionHeading
             eyebrow={t.landing.chainTitle}
@@ -181,14 +181,23 @@ export function Landing() {
         </div>
       </section>
 
-      {catalogue ? (
-        <section className={styles.section} id="tarifs">
-          <div className={styles.sectionInner}>
-            <SectionHeading title={t.landing.pricingTitle} lead={t.landing.pricingLead} />
+      {/* La section existe TOUJOURS, même sans catalogue.
+       *
+       * Elle était rendue conditionnellement : `/#tarifs` devenait alors un
+       * lien mort dès que la facturation était indisponible, et le visiteur
+       * cliquait dans le vide sans rien comprendre. La cible est donc stable,
+       * et c'est son CONTENU qui varie. `tabIndex={-1}` la rend focusable par
+       * programme, pour que l'ancre déplace réellement le focus. */}
+      <section className={styles.section} id="tarifs" tabIndex={-1}>
+        <div className={styles.sectionInner}>
+          <SectionHeading title={t.landing.pricingTitle} lead={t.landing.pricingLead} />
+          {catalogue ? (
             <PlanGrid catalogue={catalogue} variant="public" />
-          </div>
-        </section>
-      ) : null}
+          ) : (
+            <p className={styles.honestyNote}>{t.landing.pricingUnavailable}</p>
+          )}
+        </div>
+      </section>
 
       <section className={`${styles.section} ${styles.sectionCta}`}>
         <div className={styles.ctaInner}>

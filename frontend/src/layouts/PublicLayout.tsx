@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { useI18n, LOCALES } from '../i18n'
 import type { Locale } from '../i18n'
@@ -6,6 +6,7 @@ import { useSession } from '../auth/SessionProvider'
 import { KivouLogo } from '../components/KivouLogo'
 import { ButtonLink } from '../components/Button'
 import { CloseIcon, MenuIcon } from '../assets/Icons'
+import { HashTarget } from './HashTarget'
 import styles from './PublicLayout.module.css'
 
 /* Le shell public : header horizontal, contenu, footer.
@@ -21,6 +22,15 @@ export function PublicLayout() {
   const location = useLocation()
   const authenticated = state.status === 'authenticated'
   const [menuOpen, setMenuOpen] = useState(false)
+  const toggleRef = useRef<HTMLButtonElement>(null)
+
+  // Refermer rend le focus au bouton qui a ouvert. Sans cela, la fermeture
+  // renvoie le focus au début du document et l'utilisateur au clavier doit
+  // retraverser toute la page pour revenir où il était.
+  const closeMenu = () => {
+    setMenuOpen(false)
+    toggleRef.current?.focus()
+  }
 
   // Naviguer referme le menu : laissé ouvert, il masquerait la page atteinte.
   useEffect(() => {
@@ -32,7 +42,7 @@ export function PublicLayout() {
   useEffect(() => {
     if (!menuOpen) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setMenuOpen(false)
+      if (event.key === 'Escape') closeMenu()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
@@ -93,11 +103,12 @@ export function PublicLayout() {
                 menu sans déborder — mesuré à 506 px pour 390 disponibles. */}
             <div className={styles.headerAuth}>{authActions}</div>
             <button
+              ref={toggleRef}
               type="button"
               className={styles.menuToggle}
               aria-expanded={menuOpen}
               aria-controls="kivou-public-menu"
-              onClick={() => setMenuOpen((open) => !open)}
+              onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
             >
               <MenuIcon />
               <span className="kivou-visually-hidden">
@@ -108,22 +119,28 @@ export function PublicLayout() {
         </div>
       </header>
 
+      {/* Panneau NON MODAL, délibérément.
+       *
+       * `role="dialog"` avec `aria-modal="true"` promet un piège de focus : le
+       * lecteur d'écran annonce que le reste de la page est inerte, et il ne
+       * l'était pas. Mieux vaut un panneau honnête — `aria-expanded` et
+       * `aria-controls` sur le bouton, `Échap` pour sortir, et le focus rendu
+       * au bouton — qu'une modale qui ment sur son propre comportement. */}
       {menuOpen ? (
         <div className={styles.menuLayer}>
           <button
             type="button"
             className={styles.scrim}
-            aria-label={t.nav.closeMenu}
-            onClick={() => setMenuOpen(false)}
+            // Nom DISTINCT de celui du bouton de fermeture : deux commandes
+            // homonymes rendent la liste des contrôles illisible au lecteur
+            // d'écran.
+            aria-label={t.nav.dismissMenu}
+            onClick={closeMenu}
           />
-          <div className={styles.menu} id="kivou-public-menu" role="dialog" aria-modal="true">
+          <div className={styles.menu} id="kivou-public-menu">
             <div className={styles.menuHead}>
               <KivouLogo size="sm" />
-              <button
-                type="button"
-                className={styles.menuToggle}
-                onClick={() => setMenuOpen(false)}
-              >
+              <button type="button" className={styles.menuToggle} onClick={closeMenu}>
                 <CloseIcon />
                 <span className="kivou-visually-hidden">{t.nav.closeMenu}</span>
               </button>
@@ -135,6 +152,7 @@ export function PublicLayout() {
       ) : null}
 
       <main id="kivou-main">
+        <HashTarget />
         <Outlet />
       </main>
 

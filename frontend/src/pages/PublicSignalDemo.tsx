@@ -27,7 +27,7 @@ import styles from './PublicSignalDemo.module.css'
  * cette attribution, seulement qu'aucun n'alimente ce signal.
  */
 export function PublicSignalDemo() {
-  const { t, amount, date } = useI18n()
+  const { t, locale, amount, date } = useI18n()
   const s = publicDemoSignal
   const value = amount(s.contract.amount, s.contract.currency)
 
@@ -110,12 +110,12 @@ export function PublicSignalDemo() {
       <Card padding="lg" as="section" className={styles.analysisCard}>
         <SectionHeading
           eyebrow={t.publicDemo.analysisTitle}
-          title={s.need.statement}
+          title={s.need.statement[locale]}
           lead={t.publicDemo.analysisLead}
           id="kivou-public-analysis"
         />
         <DataList>
-          <DataRow label={t.publicDemo.reasoningLabel}>{s.need.reasoning}</DataRow>
+          <DataRow label={t.publicDemo.reasoningLabel}>{s.need.reasoning[locale]}</DataRow>
           <DataRow label={t.publicDemo.needTimingLabel}>
             {t.publicDemo.needTimingNearTerm}
           </DataRow>
@@ -165,13 +165,40 @@ export function PublicSignalDemo() {
           title={t.publicDemo.evidenceLead}
           id="kivou-public-evidence"
         />
+        {/* Libellés HUMAINS en surface. Trois champs seulement portent un
+            renvoi de provenance : l'écran doit donc parler de champs
+            « sélectionnés », jamais de « chaque fait ». */}
+        <p className={styles.note}>{t.publicDemo.evidenceScope}</p>
         <DataList>
           {s.evidence.map((piece) => (
-            <DataRow key={piece.path} label={piece.path}>
+            <DataRow key={piece.path} label={t.publicDemo[piece.labelKey]}>
               <span className="kivou-tabular">{piece.rawValue}</span>
             </DataRow>
           ))}
         </DataList>
+
+        {/* Les chemins techniques sont repliés : ils servent à l'audit, pas à
+            la lecture. `details` natif — accessible au clavier sans code. */}
+        <details className={styles.technical}>
+          <summary className={styles.technicalSummary}>{t.publicDemo.evidenceTechnical}</summary>
+          <DataList>
+            {s.evidence.map((piece) => (
+              <DataRow
+                key={piece.path}
+                // Un chemin n'est qualifié de XML que s'il en est un. `value` et
+                // `lot.identifier` sont des champs d'acquisition, pas des
+                // chemins dans le document TED.
+                label={
+                  piece.pathKind === 'xml'
+                    ? t.publicDemo.evidencePathXml
+                    : t.publicDemo.evidencePathField
+                }
+              >
+                <span className={styles.path}>{piece.path}</span>
+              </DataRow>
+            ))}
+          </DataList>
+        </details>
         {/* `noopener noreferrer` : sans lui, la page ouverte garde une
             référence sur `window.opener` et peut réécrire notre onglet. */}
         <a

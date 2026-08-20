@@ -28,7 +28,7 @@ import styles from './PublicSignalPreview.module.css'
  * rendu ment dès que la page est mise en cache.
  */
 export function PublicSignalPreview() {
-  const { t, amount, date } = useI18n()
+  const { t, locale, amount, date } = useI18n()
   const s = publicDemoSignal
   const value = amount(s.contract.amount, s.contract.currency)
 
@@ -67,7 +67,7 @@ export function PublicSignalPreview() {
         <p className={styles.needLabel}>{t.publicDemo.previewNeedLabel}</p>
         {/* Un seul besoin dans le preview : au-delà, la carte recopie
             l'analyse au lieu d'inviter à l'ouvrir. */}
-        <p className={styles.needStatement}>{s.need.statement}</p>
+        <p className={styles.needStatement}>{s.need.statement[locale]}</p>
       </div>
 
       <p className={styles.mode}>

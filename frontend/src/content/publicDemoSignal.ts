@@ -36,11 +36,27 @@
  * imperfection à cacher.
  */
 
-/** Un fait publié par la source, avec le chemin qui permet de le retrouver. */
+/** Un texte de Kivou, dans les deux langues du produit.
+ *
+ *  Les FAITS restent dans leur forme d'origine — un nom d'entreprise ne se
+ *  traduit pas. Seule l'ANALYSE, qui est notre propre écriture, existe en deux
+ *  versions. */
+export interface LocalisedText {
+  readonly fr: string
+  readonly en: string
+}
+
+/** Un champ vérifié dans l'avis officiel.
+ *
+ *  `pathKind` n'est pas un détail : `xml` désigne un vrai chemin XML dans le
+ *  document TED, `field` un nom de champ interne à l'acquisition. Les
+ *  confondre reviendrait à promettre une traçabilité XML que ces deux-là n'ont
+ *  pas. */
 export interface PublicDemoEvidence {
-  /** Chemin du champ dans le document source. */
+  /** Clé de libellé humain dans les dictionnaires. */
+  readonly labelKey: 'evidenceAmount' | 'evidenceCpv' | 'evidenceLot'
   readonly path: string
-  /** Valeur telle que publiée. */
+  readonly pathKind: 'xml' | 'field'
   readonly rawValue: string
 }
 
@@ -89,8 +105,8 @@ export interface PublicDemoSignal {
    *  promesse. */
   readonly need: {
     readonly category: 'materials_or_components'
-    readonly statement: string
-    readonly reasoning: string
+    readonly statement: LocalisedText
+    readonly reasoning: LocalisedText
     readonly timing: 'near_term'
     readonly externalisability: 'external_plausible'
   }
@@ -144,24 +160,41 @@ export const publicDemoSignal: PublicDemoSignal = {
 
   documentary: { mode: 'metadata_fallback', validatedRequirement: false },
 
+  // Le français est le texte VERBATIM du corpus. L'anglais en est la
+  // traduction fidèle — même portée, même conditionnel, aucune promesse
+  // ajoutée. C'est l'analyse de Kivou, donc notre écriture : la traduire est
+  // légitime là où traduire un fait source ne le serait pas.
   need: {
     category: 'materials_or_components',
-    statement: "Un approvisionnement en matériaux ou composants pourrait accompagner l'exécution des travaux.",
-    reasoning:
-      'La nature des travaux — bâtiment, installation technique ou finition — consomme des matériaux et des composants en volume : des achats d’approvisionnement sont plausibles auprès de négoces ou de fabricants.',
+    statement: {
+      fr: "Un approvisionnement en matériaux ou composants pourrait accompagner l'exécution des travaux.",
+      en: 'A supply of materials or components could accompany the execution of these works.',
+    },
+    reasoning: {
+      fr: 'La nature des travaux — bâtiment, installation technique ou finition — consomme des matériaux et des composants en volume : des achats d’approvisionnement sont plausibles auprès de négoces ou de fabricants.',
+      en: 'The nature of the works — building, technical installation or fit-out — consumes materials and components in volume: supply purchases from merchants or manufacturers are plausible.',
+    },
     timing: 'near_term',
     externalisability: 'external_plausible',
   },
 
-  // Seules les preuves dont le corpus publie une VALEUR sont reprises. Le
-  // corpus porte aussi un renvoi vers `cbc:Description` dont la valeur est
+  // Trois champs vérifiés, et TROIS SEULEMENT.
+  //
+  // Le corpus ne publie de renvoi de provenance que pour ceux-ci ; les autres
+  // faits de l'écran — gagnant, acheteur, dates, lieu — proviennent du même
+  // avis officiel mais sans chemin individuel. L'interface doit donc parler de
+  // « champs vérifiés sélectionnés », jamais de « chaque fait ».
+  //
+  // Le corpus porte aussi un renvoi vers `cbc:Description` dont la valeur est
   // nulle : l'afficher aurait obligé à inventer son contenu.
   evidence: [
     {
+      labelKey: 'evidenceCpv',
       path: 'cac:ProcurementProject/cac:MainCommodityClassification/cbc:ItemClassificationCode',
+      pathKind: 'xml',
       rawValue: '45420000',
     },
-    { path: 'value', rawValue: '5219043.35 EUR' },
-    { path: 'lot.identifier', rawValue: 'LOT-0000' },
+    { labelKey: 'evidenceAmount', path: 'value', pathKind: 'field', rawValue: '5219043.35 EUR' },
+    { labelKey: 'evidenceLot', path: 'lot.identifier', pathKind: 'field', rawValue: 'LOT-0000' },
   ],
 }
