@@ -100,6 +100,45 @@ def test_bad_search_item_is_rejected_without_losing_valid_candidate() -> None:
     assert [item.reason_code for item in page.rejections] == ["missing_person_id"]
 
 
+def test_zero_total_empty_search_is_valid() -> None:
+    client = ApolloContactDiscoveryClient(
+        api_key="fake",
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200, json={"total_entries": 0, "people": []}
+                )
+            )
+        ),
+    )
+
+    page = client.search_people(_profile(), observed_at=NOW)
+
+    assert page.total_entries == 0
+    assert page.candidates == ()
+    assert page.rejections == ()
+
+
+@pytest.mark.parametrize("total", [10, 80])
+def test_positive_total_empty_search_page_fails_closed(total: int) -> None:
+    client = ApolloContactDiscoveryClient(
+        api_key="fake",
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200, json={"total_entries": total, "people": []}
+                )
+            )
+        ),
+    )
+
+    with pytest.raises(ApolloContactProviderError) as caught:
+        client.search_people(_profile(), observed_at=NOW)
+
+    assert caught.value.category == "malformed_response"
+    assert caught.value.detail == "unexpected_empty_search_page"
+
+
 def test_enrichment_uses_id_and_explicitly_disables_sensitive_options() -> None:
     requests: list[httpx.Request] = []
 
@@ -138,6 +177,36 @@ def test_enrichment_uses_id_and_explicitly_disables_sensitive_options() -> None:
     assert request.url.params["run_waterfall_email"] == "false"
     assert request.url.params["run_waterfall_phone"] == "false"
     assert "webhook_url" not in request.url.params
+
+
+def test_documented_enrichment_no_match_returns_none() -> None:
+    client = ApolloContactDiscoveryClient(
+        api_key="fake",
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, json={"person": None})
+            )
+        ),
+    )
+
+    assert client.enrich_person("apollo-person-1", observed_at=NOW) is None
+
+
+@pytest.mark.parametrize("payload", [{}, {"person": []}, {"person": "none"}])
+def test_malformed_enrichment_structure_still_fails(payload: object) -> None:
+    client = ApolloContactDiscoveryClient(
+        api_key="fake",
+        client=httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(200, json=payload)
+            )
+        ),
+    )
+
+    with pytest.raises(ApolloContactProviderError) as caught:
+        client.enrich_person("apollo-person-1", observed_at=NOW)
+
+    assert caught.value.category == "malformed_response"
 
 
 @pytest.mark.parametrize(

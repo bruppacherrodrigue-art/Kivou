@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from dataclasses import dataclass
 
 from signals.contact_discovery.contracts import PeopleSearchCandidate, RankedCandidate
 from signals.contact_discovery.profile import PERSON_TITLES
@@ -26,7 +27,9 @@ _TIER_PATTERNS: tuple[tuple[int, tuple[str, ...]], ...] = (
             "commercial director",
             "chief revenue officer",
             "directeur commercial",
+            "directrice commerciale",
             "directeur des ventes",
+            "directrice des ventes",
         ),
     ),
     (
@@ -36,6 +39,8 @@ _TIER_PATTERNS: tuple[tuple[int, tuple[str, ...]], ...] = (
             "head of business development",
             "vp business development",
             "directeur du developpement commercial",
+            "directrice du developpement commercial",
+            "responsable du developpement commercial",
             "responsable developpement commercial",
         ),
     ),
@@ -45,6 +50,7 @@ _TIER_PATTERNS: tuple[tuple[int, tuple[str, ...]], ...] = (
             "sales manager",
             "business development manager",
             "responsable commercial",
+            "responsable commerciale",
             "responsable des ventes",
         ),
     ),
@@ -56,8 +62,11 @@ _TIER_PATTERNS: tuple[tuple[int, tuple[str, ...]], ...] = (
             "founder",
             "owner",
             "directeur general",
+            "directrice generale",
             "fondateur",
+            "fondatrice",
             "dirigeant",
+            "dirigeante",
         ),
     ),
 )
@@ -78,14 +87,38 @@ def _seniority(title: str) -> int:
         ("head", 3),
         ("director", 4),
         ("directeur", 4),
+        ("directrice", 4),
         ("manager", 5),
         ("responsable", 5),
         ("founder", 6),
         ("fondateur", 6),
+        ("fondatrice", 6),
         ("owner", 7),
         ("dirigeant", 7),
+        ("dirigeante", 7),
     )
     return next((priority for term, priority in terms if term in title), 20)
+
+
+@dataclass(frozen=True)
+class TitleClassification:
+    normalized_title: str
+    role_tier: int
+    exact_title_match: bool
+    seniority_priority: int
+
+
+def classify_title(title: str) -> TitleClassification | None:
+    normalized = _normalize(title)
+    tier = _tier(normalized)
+    if tier is None:
+        return None
+    return TitleClassification(
+        normalized_title=normalized,
+        role_tier=tier,
+        exact_title_match=normalized in _EXACT_TITLES,
+        seniority_priority=_seniority(normalized),
+    )
 
 
 def rank_candidates(
@@ -97,17 +130,16 @@ def rank_candidates(
         if candidate.provider_person_id in seen:
             continue
         seen.add(candidate.provider_person_id)
-        normalized = _normalize(candidate.title)
-        tier = _tier(normalized)
-        if tier is None:
+        classification = classify_title(candidate.title)
+        if classification is None:
             continue
         ranked.append(
             RankedCandidate(
                 candidate=candidate,
-                normalized_title=normalized,
-                role_tier=tier,
-                exact_title_match=normalized in _EXACT_TITLES,
-                seniority_priority=_seniority(normalized),
+                normalized_title=classification.normalized_title,
+                role_tier=classification.role_tier,
+                exact_title_match=classification.exact_title_match,
+                seniority_priority=classification.seniority_priority,
             )
         )
     return tuple(

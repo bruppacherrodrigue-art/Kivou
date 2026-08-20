@@ -11,7 +11,7 @@ from signals.contact_discovery.contracts import (
 )
 from signals.contact_discovery.identity import contact_ref_for
 from signals.contact_discovery.profile import build_decision_maker_profile
-from signals.contact_discovery.ranking import rank_candidates
+from signals.contact_discovery.ranking import classify_title, rank_candidates
 
 
 def test_profile_is_kivou_owned_bounded_and_excludes_stream_version() -> None:
@@ -30,6 +30,16 @@ def test_profile_is_kivou_owned_bounded_and_excludes_stream_version() -> None:
     assert {"head", "director", "manager", "c_suite"}.issubset(profile.person_seniorities)
     assert "Sales Director" in profile.person_titles
     assert "Directeur commercial" in profile.person_titles
+    assert {
+        "Directrice commerciale",
+        "Directrice des ventes",
+        "Directrice du développement commercial",
+        "Directrice générale",
+        "Fondatrice",
+        "Dirigeante",
+        "Responsable commerciale",
+        "Responsable du développement commercial",
+    }.issubset(profile.person_titles)
     assert "expected_opportunity_version" not in profile.model_dump()
     assert len(profile.profile_fingerprint) == 64
 
@@ -96,6 +106,30 @@ def test_commercial_roles_outrank_operational_roles_without_llm() -> None:
         "person-ceo",
     ]
     assert all(item.role_tier in {1, 2, 3, 4} for item in ranked)
+
+
+@pytest.mark.parametrize(
+    ("title", "tier"),
+    [
+        ("Directrice commerciale", 1),
+        ("Directrice des ventes", 1),
+        ("Directrice du développement commercial", 2),
+        ("Responsable du développement commercial", 2),
+        ("Responsable commerciale", 3),
+        ("Directrice générale", 4),
+        ("Fondatrice", 4),
+        ("Dirigeante", 4),
+    ],
+)
+def test_french_literal_variants_share_the_kivou_role_classifier(title, tier) -> None:
+    classified = classify_title(title)
+
+    assert classified is not None
+    assert classified.role_tier == tier
+
+
+def test_unsupported_role_is_not_classified_as_a_decision_maker() -> None:
+    assert classify_title("CTO") is None
 
 
 def test_ranking_is_stable_when_provider_order_changes() -> None:

@@ -157,6 +157,10 @@ class ApolloContactDiscoveryClient:
             or total < len(people)
         ):
             raise ApolloContactProviderError("malformed_response")
+        if total > 0 and not people:
+            raise ApolloContactProviderError(
+                "malformed_response", detail="unexpected_empty_search_page"
+            )
         candidates: list[PeopleSearchCandidate] = []
         rejections: list[ContactCandidateRejection] = []
         for index, item in enumerate(people):
@@ -174,7 +178,7 @@ class ApolloContactDiscoveryClient:
 
     def enrich_person(
         self, provider_person_id: str, *, observed_at: dt.datetime
-    ) -> ApolloEnrichedPerson:
+    ) -> ApolloEnrichedPerson | None:
         if not provider_person_id.strip() or len(provider_person_id.strip()) > 128:
             raise ValueError("provider_person_id outside bounded range")
         params = [
@@ -185,7 +189,11 @@ class ApolloContactDiscoveryClient:
             ("run_waterfall_phone", "false"),
         ]
         payload = self._post(PEOPLE_ENRICHMENT_PATH, params, observed_at=observed_at)
-        if not isinstance(payload, dict) or not isinstance(payload.get("person"), dict):
+        if not isinstance(payload, dict) or "person" not in payload:
+            raise ApolloContactProviderError("malformed_response")
+        if payload["person"] is None:
+            return None
+        if not isinstance(payload["person"], dict):
             raise ApolloContactProviderError("malformed_response")
         person = payload["person"]
         try:

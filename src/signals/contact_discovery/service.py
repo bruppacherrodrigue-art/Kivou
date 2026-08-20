@@ -32,7 +32,7 @@ from signals.contact_discovery.contracts import (
 from signals.contact_discovery.identity import contact_ref_for
 from signals.contact_discovery.profile import build_decision_maker_profile
 from signals.contact_discovery.provider import ContactDiscoveryProvider
-from signals.contact_discovery.ranking import rank_candidates
+from signals.contact_discovery.ranking import classify_title, rank_candidates
 from signals.contact_discovery.store import ContactDiscoveryStore
 from signals.policy.contracts import BudgetUsage, PolicyRequest
 from signals.policy.gateway import PolicyGateway
@@ -160,6 +160,14 @@ class ContactDiscoveryService:
             "enrichment_attempts": 0,
             "attempted_contact_refs": (),
         }
+        if page.total_entries > 0 and not page.candidates and not page.rejections:
+            error = ApolloContactProviderError(
+                "malformed_response", detail="unexpected_empty_search_page"
+            )
+            finished = self._finish_failed(run, error, counters=counters)
+            return ContactDiscoveryServiceResult(
+                decision=decision, run=finished, provider_called=True
+            )
         if page.total_entries > profile.search_too_broad_threshold:
             return self._complete_without_contact(
                 run,
@@ -195,12 +203,34 @@ class ContactDiscoveryService:
                 return ContactDiscoveryServiceResult(
                     decision=decision, run=finished, provider_called=True
                 )
+            if enriched is None:
+                counters["candidates_rejected"] = int(counters["candidates_rejected"]) + 1
+                continue
             if (
                 enriched.provider_person_id != provider_person_id
                 or enriched.provider_organization_id != profile.provider_organization_id
             ):
                 counters["candidates_rejected"] = int(counters["candidates_rejected"]) + 1
                 continue
+            classification = (
+                classify_title(enriched.title)
+                if enriched.title is not None
+                else None
+            )
+            if enriched.title is not None and classification is None:
+                counters["candidates_rejected"] = int(counters["candidates_rejected"]) + 1
+                continue
+            current_title = enriched.title or ranked_candidate.candidate.title
+            normalized_title = (
+                classification.normalized_title
+                if classification is not None
+                else ranked_candidate.normalized_title
+            )
+            role_tier = (
+                classification.role_tier
+                if classification is not None
+                else ranked_candidate.role_tier
+            )
             try:
                 observation = ContactObservation(
                     supplier_ref=run.supplier_ref,
@@ -209,9 +239,9 @@ class ContactDiscoveryService:
                     first_name=enriched.first_name,
                     last_name=enriched.last_name,
                     display_name=enriched.display_name,
-                    title=enriched.title,
-                    normalized_title=ranked_candidate.normalized_title,
-                    role_tier=ranked_candidate.role_tier,
+                    title=current_title,
+                    normalized_title=normalized_title,
+                    role_tier=role_tier,
                     business_email=enriched.business_email,
                     provider_email_status=enriched.provider_email_status,
                     provider_observed_at=enriched.provider_observed_at,

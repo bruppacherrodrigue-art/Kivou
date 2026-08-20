@@ -70,6 +70,8 @@ class FakeProvider:
     def enrich_person(self, provider_person_id, *, observed_at):
         self.enrich_calls += 1
         value = self.enriched.pop(0)
+        if value is None:
+            return None
         return value.model_copy(update={"provider_observed_at": observed_at})
 
 
@@ -100,6 +102,7 @@ def _enriched(
     organization_id="apollo-org-1",
     email="alice@acme.example",
     status="verified",
+    title="Sales Director",
 ):
     return ApolloEnrichedPerson(
         provider_person_id=person_id,
@@ -107,7 +110,7 @@ def _enriched(
         first_name="Alice",
         last_name="Dupont",
         display_name="Alice Dupont",
-        title="Sales Director",
+        title=title,
         business_email=email,
         provider_email_status=status,
         provider_observed_at=NOW,
@@ -323,6 +326,23 @@ def test_no_candidate_sets_human_review_without_changing_state(context) -> None:
     assert current.stream_version == 4
 
 
+@pytest.mark.parametrize("total", [10, 80])
+def test_positive_total_empty_search_fails_without_human_review(context, total) -> None:
+    engine, acquisition, _, opportunity_id = context
+    provider = FakeProvider(_page(total=total))
+
+    result = _find(_service(engine, provider), opportunity_id)
+
+    assert result.run.status is ContactRunStatus.FAILED
+    assert result.run.error_category == "malformed_response"
+    assert result.run.error_detail == "unexpected_empty_search_page"
+    current = acquisition.get_opportunity(opportunity_id)
+    assert current.state is AcquisitionState.DISCOVERED
+    assert current.contact_ref is None
+    assert current.next_action == "find_decision_makers"
+    assert current.stream_version == 3
+
+
 def test_too_broad_performs_zero_enrichment_and_records_coverage(context) -> None:
     engine, acquisition, _, opportunity_id = context
     provider = FakeProvider(_page(_candidate(), total=251), [_enriched()])
@@ -363,6 +383,96 @@ def test_enrichment_is_sequential_bounded_and_stops_on_first_verified(context) -
     assert result.run.enrichment_attempts == 3
     assert provider.enrich_calls == 3
     assert result.contact.provider_person_id == "person-3"
+
+
+def test_enrichment_no_match_continues_to_next_candidate(context) -> None:
+    engine, _, _, opportunity_id = context
+    provider = FakeProvider(
+        _page(
+            _candidate("person-1", position=0),
+            _candidate("person-2", position=1),
+        ),
+        [None, _enriched("person-2")],
+    )
+
+    result = _find(_service(engine, provider), opportunity_id)
+
+    assert result.run.status is ContactRunStatus.SUCCESS
+    assert result.run.enrichment_attempts == 2
+    assert result.run.candidates_rejected == 1
+    assert result.contact.provider_person_id == "person-2"
+
+
+def test_three_enrichment_no_matches_end_without_verified_contact(context) -> None:
+    engine, acquisition, _, opportunity_id = context
+    provider = FakeProvider(
+        _page(
+            _candidate("person-1", position=0),
+            _candidate("person-2", position=1),
+            _candidate("person-3", position=2),
+        ),
+        [None, None, None],
+    )
+
+    result = _find(_service(engine, provider), opportunity_id)
+
+    assert result.run.status is ContactRunStatus.NO_VERIFIED_CONTACT
+    assert result.run.enrichment_attempts == 3
+    assert result.run.candidates_rejected == 3
+    assert acquisition.get_opportunity(opportunity_id).contact_ref is None
+
+
+def test_enriched_non_commercial_title_is_rejected_and_next_candidate_tried(context) -> None:
+    engine, _, _, opportunity_id = context
+    provider = FakeProvider(
+        _page(
+            _candidate("person-1", title="Sales Director", position=0),
+            _candidate("person-2", title="Sales Director", position=1),
+        ),
+        [
+            _enriched("person-1", title="CTO"),
+            _enriched("person-2", title="Commercial Director"),
+        ],
+    )
+
+    result = _find(_service(engine, provider), opportunity_id)
+
+    assert result.run.status is ContactRunStatus.SUCCESS
+    assert result.run.enrichment_attempts == 2
+    assert result.contact.provider_person_id == "person-2"
+    assert result.contact.title == "Commercial Director"
+    assert result.contact.normalized_title == "commercial director"
+    assert result.contact.role_tier == 1
+
+
+def test_enriched_title_reclassifies_current_role(context) -> None:
+    engine, _, _, opportunity_id = context
+    provider = FakeProvider(
+        _page(_candidate(title="Sales Director")),
+        [_enriched(title="Business Development Director")],
+    )
+
+    result = _find(_service(engine, provider), opportunity_id)
+
+    assert result.run.status is ContactRunStatus.SUCCESS
+    assert result.contact.title == "Business Development Director"
+    assert result.contact.normalized_title == "business development director"
+    assert result.contact.role_tier == 2
+
+
+def test_absent_enriched_title_uses_search_title_fallback(context) -> None:
+    engine, _, _, opportunity_id = context
+    provider = FakeProvider(
+        _page(_candidate(title="Sales Director")),
+        [_enriched(title=None)],
+    )
+
+    result = _find(_service(engine, provider), opportunity_id)
+
+    assert result.run.status is ContactRunStatus.SUCCESS
+    assert result.contact.title == "Sales Director"
+    assert result.contact.normalized_title == "sales director"
+    assert result.contact.role_tier == 1
 
 
 def test_concurrent_opportunity_change_after_policy_never_gets_overwritten(context) -> None:
