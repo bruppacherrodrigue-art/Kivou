@@ -64,6 +64,17 @@ class DiscoveryAlreadyStarted(RuntimeError):
     pass
 
 
+class DiscoveryRunIdentityConflict(RuntimeError):
+    pass
+
+
+class SupplierSearchNotActionable(ValueError):
+    reason_code = "no_supplier_need"
+
+    def __init__(self) -> None:
+        super().__init__(self.reason_code)
+
+
 def _aware(value: dt.datetime) -> dt.datetime:
     if value.tzinfo is None or value.utcoffset() is None:
         raise ValueError("datetime must be timezone-aware")

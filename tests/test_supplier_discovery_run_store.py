@@ -15,6 +15,7 @@ from signals.policy.contracts import BudgetUsage
 from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore
 from signals.supplier_discovery.contracts import (
+    DiscoveryRunIdentityConflict,
     DiscoveryRunStart,
     DiscoveryRunStatus,
     SupplierTargetingConfig,
@@ -98,3 +99,36 @@ def test_concurrent_start_has_exactly_one_owner(engine, monkeypatch) -> None:
     assert not errors
     assert sorted(result.owned for result in results) == [False, True]
     assert len({result.run.discovery_run_id for result in results}) == 1
+
+
+def test_discovery_run_id_replay_with_same_semantics_returns_existing(engine) -> None:
+    store = SupplierDiscoveryStore(engine)
+    first = store.start_run(start("run-stable"))
+    replay = store.start_run(start("run-stable"))
+
+    assert first.owned is True
+    assert replay.owned is False
+    assert replay.run == first.run
+
+
+def test_discovery_run_id_collision_with_other_policy_is_typed(engine) -> None:
+    PolicyGateway(engine).evaluate_and_record(
+        _discovery_request(
+            evaluation_id="discovery-eval-2", request_id="discovery-request-2"
+        ),
+        evaluated_at=NOW,
+        budget_usage=BudgetUsage(),
+    )
+    store = SupplierDiscoveryStore(engine)
+    store.start_run(start("run-collision"))
+    other = start("run-collision").model_copy(
+        update={"policy_evaluation_id": "discovery-eval-2"}
+    )
+
+    with pytest.raises(DiscoveryRunIdentityConflict, match="discovery_run_id"):
+        store.start_run(other)
+
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(supplier_discovery_run)
+        ) == 1

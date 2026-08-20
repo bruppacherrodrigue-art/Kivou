@@ -21,6 +21,7 @@ from signals.supplier_discovery.contracts import (
     DiscoveryRunStart,
     DiscoveryRunStatus,
     DiscoveryServiceResult,
+    SupplierSearchNotActionable,
     SupplierSearchProfile,
     SupplierTargetingConfig,
 )
@@ -41,6 +42,10 @@ def _fingerprint(value: object) -> str:
     return hashlib.sha256(_canonical_json(value).encode()).hexdigest()
 
 
+def _utc_now() -> dt.datetime:
+    return dt.datetime.now(dt.UTC)
+
+
 class SupplierDiscoveryService:
     def __init__(
         self,
@@ -53,6 +58,7 @@ class SupplierDiscoveryService:
         profile_resolver: (
             Callable[[str, SupplierTargetingConfig], SupplierSearchProfile] | None
         ) = None,
+        clock: Callable[[], dt.datetime] = _utc_now,
     ) -> None:
         self._engine = engine
         self._provider = provider
@@ -60,6 +66,7 @@ class SupplierDiscoveryService:
         self._suppliers = supplier_store or SupplierDiscoveryStore(engine)
         self._acquisition = acquisition_store or AcquisitionStore(engine)
         self._profile_resolver = profile_resolver or self._resolve_persisted_profile
+        self._clock = clock
 
     def discover(
         self,
@@ -75,6 +82,8 @@ class SupplierDiscoveryService:
         profile = self._profile_resolver(opportunity_key, targeting)
         if profile.signal_ref != f"procurement-opportunity:{opportunity_key}":
             raise ValueError("resolved supplier profile does not match opportunity key")
+        if not profile.need_categories or not profile.keyword_tags:
+            raise SupplierSearchNotActionable
         profile_payload = profile.model_dump(mode="json")
         canonical_arguments = _canonical_json(
             {"profile": profile_payload, "provider": "apollo"}
@@ -121,7 +130,7 @@ class SupplierDiscoveryService:
                 policy_evaluation_id=decision.evaluation_id,
                 profile=profile,
                 provider_request_fingerprint=action_fingerprint,
-                started_at=evaluated_at,
+                started_at=self._now(),
                 correlation_id=correlation_id,
             )
         )
@@ -146,14 +155,15 @@ class SupplierDiscoveryService:
 
         for page_number in range(1, profile.max_pages + 1):
             counters["pages_requested"] = int(counters["pages_requested"]) + 1
+            provider_observed_at = self._now()
             try:
                 page = self._provider.search_page(
-                    profile, page=page_number, observed_at=evaluated_at
+                    profile, page=page_number, observed_at=provider_observed_at
                 )
             except ApolloProviderError as exc:
                 run = self._finish_failure(
                     discovery_run_id,
-                    evaluated_at=evaluated_at,
+                    completed_at=self._now(),
                     counters=counters,
                     error=exc,
                 )
@@ -181,7 +191,7 @@ class SupplierDiscoveryService:
                         if int(counters["records_accepted"])
                         else DiscoveryRunStatus.FAILED
                     ),
-                    completed_at=evaluated_at,
+                    completed_at=self._now(),
                     error_category="malformed_response",
                     error_detail="pagination_changed_during_run",
                     **counters,
@@ -215,7 +225,7 @@ class SupplierDiscoveryService:
                 run = self._suppliers.finish_run(
                     discovery_run_id,
                     status=DiscoveryRunStatus.SEARCH_TOO_BROAD,
-                    completed_at=evaluated_at,
+                    completed_at=self._now(),
                     error_category=(
                         "provider_limit"
                         if page.partial_results_only is True
@@ -225,6 +235,30 @@ class SupplierDiscoveryService:
                 )
                 return DiscoveryServiceResult(
                     decision=decision, run=run, provider_called=True
+                )
+
+            if (
+                page.total_entries > 0
+                and not page.candidates
+                and not page.rejections
+            ):
+                run = self._suppliers.finish_run(
+                    discovery_run_id,
+                    status=(
+                        DiscoveryRunStatus.PARTIAL
+                        if int(counters["records_accepted"])
+                        else DiscoveryRunStatus.FAILED
+                    ),
+                    completed_at=self._now(),
+                    error_category="malformed_response",
+                    error_detail="unexpected_empty_page",
+                    **counters,
+                )
+                return DiscoveryServiceResult(
+                    decision=decision,
+                    run=run,
+                    opportunity_ids=tuple(dict.fromkeys(opportunity_ids)),
+                    provider_called=True,
                 )
 
             for candidate in page.candidates:
@@ -250,7 +284,7 @@ class SupplierDiscoveryService:
                             if int(counters["records_accepted"])
                             else DiscoveryRunStatus.FAILED
                         ),
-                        completed_at=evaluated_at,
+                        completed_at=self._now(),
                         error_category="persistence_error",
                         error_detail=type(exc).__name__,
                         **counters,
@@ -272,14 +306,13 @@ class SupplierDiscoveryService:
             if (
                 int(counters["records_accepted"]) >= profile.candidate_cap
                 or page_number >= page.total_pages
-                or (not page.candidates and not page.rejections)
             ):
                 break
 
         run = self._suppliers.finish_run(
             discovery_run_id,
             status=DiscoveryRunStatus.SUCCESS,
-            completed_at=evaluated_at,
+            completed_at=self._now(),
             **counters,
         )
         return DiscoveryServiceResult(
@@ -299,7 +332,7 @@ class SupplierDiscoveryService:
         self,
         discovery_run_id: str,
         *,
-        evaluated_at: dt.datetime,
+        completed_at: dt.datetime,
         counters: dict[str, object],
         error: ApolloProviderError,
     ):
@@ -310,12 +343,18 @@ class SupplierDiscoveryService:
                 if int(counters["records_accepted"])
                 else DiscoveryRunStatus.FAILED
             ),
-            completed_at=evaluated_at,
+            completed_at=completed_at,
             error_category=error.category,
             error_detail=error.detail,
             retry_after=error.retry_after,
             **counters,
         )
+
+    def _now(self) -> dt.datetime:
+        value = self._clock()
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("supplier discovery clock must be timezone-aware")
+        return value
 
     def _persist_candidate(
         self,

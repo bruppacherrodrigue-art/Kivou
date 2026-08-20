@@ -3,6 +3,7 @@ from __future__ import annotations
 import datetime as dt
 import time
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 import sqlalchemy as sa
@@ -36,6 +37,7 @@ from signals.supplier_discovery.contracts import (
     ApolloProviderError,
     CandidateRejection,
     DiscoveryAuthorizationInput,
+    DiscoveryRunIdentityConflict,
     DiscoveryRunStatus,
     SupplierSearchPage,
     SupplierTargetingConfig,
@@ -43,6 +45,7 @@ from signals.supplier_discovery.contracts import (
 from signals.supplier_discovery.identity import acquisition_identity_for, supplier_ref_for
 from signals.supplier_discovery.profile import build_supplier_search_profile
 from signals.supplier_discovery.service import SupplierDiscoveryService
+from signals.supplier_discovery.store import SupplierDiscoveryStore
 
 NOW = dt.datetime(2026, 8, 20, 9, tzinfo=dt.UTC)
 
@@ -149,12 +152,17 @@ def candidate(*, observed_at: dt.datetime = NOW, name: str = "Acme SA"):
     )
 
 
-def page(*candidates, total_entries: int | None = None, page_number: int = 1):
+def page(
+    *candidates,
+    total_entries: int | None = None,
+    page_number: int = 1,
+    total_pages: int = 1,
+):
     return SupplierSearchPage(
         page=page_number,
         per_page=100,
         total_entries=total_entries if total_entries is not None else len(candidates),
-        total_pages=1,
+        total_pages=total_pages,
         candidates=candidates,
         rejections=(),
     )
@@ -196,6 +204,33 @@ def test_same_policy_evaluation_returns_existing_run_without_second_provider_cal
     )
     assert provider.calls == 1
     assert replay.run == first.run
+
+
+def test_discovery_run_id_collision_never_calls_provider_for_second_policy(engine) -> None:
+    provider = FakeProvider([page(candidate())])
+    service = discovery_service(engine, provider)
+    service.discover(
+        "public-1",
+        targeting(),
+        authorization("eval-run-owner"),
+        evaluated_at=NOW,
+        budget_usage=BudgetUsage(),
+        discovery_run_id="run-shared-id",
+        correlation_id="corr-run-owner",
+    )
+
+    with pytest.raises(DiscoveryRunIdentityConflict):
+        service.discover(
+            "public-1",
+            targeting(),
+            authorization("eval-run-collision"),
+            evaluated_at=NOW + dt.timedelta(seconds=1),
+            budget_usage=BudgetUsage(),
+            discovery_run_id="run-shared-id",
+            correlation_id="corr-run-collision",
+        )
+
+    assert provider.calls == 1
 
 
 def test_shadow_records_policy_but_never_creates_run_or_calls_provider(engine) -> None:
@@ -385,12 +420,12 @@ def test_changed_provider_pagination_after_first_page_fails_partial_not_broad(
     assert len(result.opportunity_ids) == 1
 
 
-def test_empty_provider_page_stops_without_consuming_remaining_page_budget(engine) -> None:
+def test_zero_total_empty_provider_page_is_success(engine) -> None:
     empty = SupplierSearchPage(
         page=1,
         per_page=100,
-        total_entries=300,
-        total_pages=3,
+        total_entries=0,
+        total_pages=1,
         candidates=(),
         rejections=(),
     )
@@ -409,6 +444,260 @@ def test_empty_provider_page_stops_without_consuming_remaining_page_budget(engin
     assert result.run is not None
     assert result.run.status is DiscoveryRunStatus.SUCCESS
     assert result.run.pages_requested == 1
+
+
+def test_positive_total_unexpected_empty_first_page_fails(engine) -> None:
+    provider = FakeProvider(
+        [page(total_entries=300, page_number=1, total_pages=3)]
+    )
+
+    result = discovery_service(engine, provider).discover(
+        "public-1",
+        targeting(max_pages=3),
+        authorization("eval-unexpected-empty-first"),
+        evaluated_at=NOW,
+        budget_usage=BudgetUsage(),
+        discovery_run_id="run-unexpected-empty-first",
+        correlation_id="corr-unexpected-empty-first",
+    )
+
+    assert provider.calls == 1
+    assert result.run is not None
+    assert result.run.status is DiscoveryRunStatus.FAILED
+    assert result.run.error_category == "malformed_response"
+    assert result.run.error_detail == "unexpected_empty_page"
+
+
+def test_positive_total_with_zero_total_pages_is_malformed_not_success(engine) -> None:
+    provider = FakeProvider(
+        [page(total_entries=1, page_number=1, total_pages=0)]
+    )
+
+    result = discovery_service(engine, provider).discover(
+        "public-1",
+        targeting(),
+        authorization("eval-impossible-pagination"),
+        evaluated_at=NOW,
+        budget_usage=BudgetUsage(),
+        discovery_run_id="run-impossible-pagination",
+        correlation_id="corr-impossible-pagination",
+    )
+
+    assert result.run is not None
+    assert result.run.status is DiscoveryRunStatus.FAILED
+    assert result.run.error_category == "malformed_response"
+    assert result.run.error_detail == "unexpected_empty_page"
+
+
+def test_unexpected_empty_later_page_is_partial(engine) -> None:
+    provider = FakeProvider(
+        [
+            page(candidate(), total_entries=101, page_number=1, total_pages=2),
+            page(total_entries=101, page_number=2, total_pages=2),
+        ]
+    )
+
+    result = discovery_service(engine, provider).discover(
+        "public-1",
+        targeting(max_pages=2),
+        authorization("eval-unexpected-empty-second"),
+        evaluated_at=NOW,
+        budget_usage=BudgetUsage(),
+        discovery_run_id="run-unexpected-empty-second",
+        correlation_id="corr-unexpected-empty-second",
+    )
+
+    assert provider.calls == 2
+    assert result.run is not None
+    assert result.run.status is DiscoveryRunStatus.PARTIAL
+    assert result.run.error_category == "malformed_response"
+    assert result.run.error_detail == "unexpected_empty_page"
+    assert result.run.records_accepted == 1
+
+
+def test_normal_nonempty_final_page_completes_successfully(engine) -> None:
+    second = candidate(name="Beta SA").model_copy(
+        update={
+            "provider_organization_id": "apollo-org-2",
+            "primary_domain": "beta.example",
+            "source_fingerprint": "d" * 64,
+        }
+    )
+    provider = FakeProvider(
+        [
+            page(candidate(), total_entries=2, page_number=1, total_pages=2),
+            page(second, total_entries=2, page_number=2, total_pages=2),
+        ]
+    )
+
+    result = discovery_service(engine, provider).discover(
+        "public-1",
+        targeting(max_pages=2),
+        authorization("eval-normal-final-page"),
+        evaluated_at=NOW,
+        budget_usage=BudgetUsage(),
+        discovery_run_id="run-normal-final-page",
+        correlation_id="corr-normal-final-page",
+    )
+
+    assert result.run is not None
+    assert result.run.status is DiscoveryRunStatus.SUCCESS
+    assert result.run.records_accepted == 2
+
+
+def test_empty_need_graph_stops_before_policy_run_and_provider(engine, monkeypatch) -> None:
+    provider = FakeProvider([page(candidate())])
+    service = SupplierDiscoveryService(engine, provider=provider)
+    seed = SimpleNamespace(
+        signal_ref="procurement-opportunity:public-1",
+        representative_award_key="award-1",
+        needs=SimpleNamespace(needs=()),
+    )
+    monkeypatch.setattr(
+        "signals.supplier_discovery.service.resolve_acquisition_seed",
+        lambda _engine, _opportunity_key: seed,
+    )
+
+    with pytest.raises(ValueError, match="no_supplier_need"):
+        service.discover(
+            "public-1",
+            targeting(),
+            authorization("eval-no-need"),
+            evaluated_at=NOW,
+            budget_usage=BudgetUsage(),
+            discovery_run_id="run-no-need",
+            correlation_id="corr-no-need",
+        )
+
+    assert provider.calls == 0
+    with engine.connect() as connection:
+        for table in (
+            policy_evaluation,
+            supplier_discovery_run,
+            acquisition_supplier,
+            acquisition_opportunity,
+        ):
+            assert connection.scalar(sa.select(sa.func.count()).select_from(table)) == 0
+
+
+def test_empty_keyword_profile_stops_before_policy_run_and_provider(engine) -> None:
+    provider = FakeProvider([page(candidate())])
+
+    def empty_keyword_profile(
+        opportunity_key: str, config: SupplierTargetingConfig
+    ):
+        return profile_resolver(opportunity_key, config).model_copy(
+            update={"keyword_tags": ()}
+        )
+
+    service = SupplierDiscoveryService(
+        engine,
+        provider=provider,
+        profile_resolver=empty_keyword_profile,
+    )
+
+    with pytest.raises(ValueError, match="no_supplier_need"):
+        service.discover(
+            "public-1",
+            targeting(),
+            authorization("eval-no-keyword"),
+            evaluated_at=NOW,
+            budget_usage=BudgetUsage(),
+            discovery_run_id="run-no-keyword",
+            correlation_id="corr-no-keyword",
+        )
+
+    assert provider.calls == 0
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(policy_evaluation)
+        ) == 0
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(supplier_discovery_run)
+        ) == 0
+
+
+def test_empty_need_categories_stop_even_if_injected_profile_has_keywords(engine) -> None:
+    provider = FakeProvider([page(candidate())])
+
+    def empty_need_profile(
+        opportunity_key: str, config: SupplierTargetingConfig
+    ):
+        return profile_resolver(opportunity_key, config).model_copy(
+            update={"need_categories": ()}
+        )
+
+    service = SupplierDiscoveryService(
+        engine,
+        provider=provider,
+        profile_resolver=empty_need_profile,
+    )
+
+    with pytest.raises(ValueError, match="no_supplier_need"):
+        service.discover(
+            "public-1",
+            targeting(),
+            authorization("eval-no-category"),
+            evaluated_at=NOW,
+            budget_usage=BudgetUsage(),
+            discovery_run_id="run-no-category",
+            correlation_id="corr-no-category",
+        )
+
+    assert provider.calls == 0
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(policy_evaluation)
+        ) == 0
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(supplier_discovery_run)
+        ) == 0
+
+
+def test_run_and_provider_clocks_are_distinct_from_policy_evaluation(engine) -> None:
+    started = NOW + dt.timedelta(seconds=1)
+    observed = NOW + dt.timedelta(seconds=2)
+    completed = NOW + dt.timedelta(seconds=3)
+    ticks = iter((started, observed, completed))
+
+    class ObservingProvider:
+        calls = 0
+
+        def search_page(self, profile, *, page, observed_at):
+            self.calls += 1
+            return SupplierSearchPage(
+                page=page,
+                per_page=100,
+                total_entries=1,
+                total_pages=1,
+                candidates=(candidate(observed_at=observed_at),),
+                rejections=(),
+            )
+
+    service = SupplierDiscoveryService(
+        engine,
+        provider=ObservingProvider(),
+        profile_resolver=profile_resolver,
+        clock=lambda: next(ticks),
+    )
+    result = service.discover(
+        "public-1",
+        targeting(),
+        authorization("eval-clock"),
+        evaluated_at=NOW,
+        budget_usage=BudgetUsage(),
+        discovery_run_id="run-clock",
+        correlation_id="corr-clock",
+    )
+
+    assert result.run is not None
+    supplier = SupplierDiscoveryStore(engine).get_supplier(
+        supplier_ref_for("apollo", "apollo-org-1")
+    )
+    assert result.run.started_at == started
+    assert supplier.provider_observed_at == observed
+    assert result.run.completed_at == completed
+    assert NOW < started <= observed <= completed
 
 
 def test_item_rejection_reason_is_counted_while_valid_candidate_persists(engine) -> None:

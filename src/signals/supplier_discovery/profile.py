@@ -7,6 +7,7 @@ import json
 
 from signals.supplier_discovery.contracts import (
     PROFILE_VERSION,
+    SupplierSearchNotActionable,
     SupplierSearchProfile,
     SupplierTargetingConfig,
 )
@@ -39,6 +40,8 @@ def build_supplier_search_profile(
     if unknown:
         raise ValueError(f"unsupported need categories: {unknown}")
     keywords = tuple(sorted({tag for category in categories for tag in _KEYWORDS[category]}))
+    if not keywords:
+        raise SupplierSearchNotActionable
     values: dict[str, object] = {
         "profile_version": PROFILE_VERSION,
         "signal_ref": signal_ref,

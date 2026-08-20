@@ -13,6 +13,7 @@ from signals.persistence.schema import acquisition_supplier, supplier_discovery_
 from signals.supplier_discovery.contracts import (
     ApolloOrganizationCandidate,
     DiscoveryAlreadyStarted,
+    DiscoveryRunIdentityConflict,
     DiscoveryRunRecord,
     DiscoveryRunStart,
     DiscoveryRunStatus,
@@ -117,12 +118,31 @@ class SupplierDiscoveryStore:
         }
         with self._engine.begin() as connection:
             owned = self._insert_run_if_absent(connection, values)
-            row = connection.execute(
+            policy_row = connection.execute(
                 sa.select(supplier_discovery_run).where(
                     supplier_discovery_run.c.policy_evaluation_id
                     == start.policy_evaluation_id
                 )
-            ).mappings().one()
+            ).mappings().one_or_none()
+            run_row = connection.execute(
+                sa.select(supplier_discovery_run).where(
+                    supplier_discovery_run.c.discovery_run_id
+                    == start.discovery_run_id
+                )
+            ).mappings().one_or_none()
+            if policy_row is None:
+                if run_row is None:
+                    raise RuntimeError("discovery run conflict could not be resolved")
+                raise DiscoveryRunIdentityConflict(
+                    "discovery_run_id belongs to another policy evaluation"
+                )
+            row = policy_row
+            if run_row is not None and (
+                run_row["policy_evaluation_id"] != start.policy_evaluation_id
+            ):
+                raise DiscoveryRunIdentityConflict(
+                    "discovery_run_id belongs to another policy evaluation"
+                )
             if not owned and any(
                 row[field] != values[field]
                 for field in (
@@ -204,9 +224,7 @@ class SupplierDiscoveryStore:
         result = connection.execute(
             insert(supplier_discovery_run)
             .values(values)
-            .on_conflict_do_nothing(
-                index_elements=[supplier_discovery_run.c.policy_evaluation_id]
-            )
+            .on_conflict_do_nothing()
         )
         if result.rowcount not in {0, 1}:
             raise RuntimeError("indeterminate discovery-run ownership")

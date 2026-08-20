@@ -55,6 +55,16 @@ def test_profile_fingerprint_binds_search_too_broad_threshold() -> None:
     )
 
 
+def test_profile_without_need_derived_keywords_is_not_actionable() -> None:
+    with pytest.raises(ValueError, match="no_supplier_need"):
+        build_supplier_search_profile(
+            signal_ref="procurement-opportunity:opp-public-1",
+            representative_award_key="award-1",
+            need_categories=(),
+            targeting=SupplierTargetingConfig(),
+        )
+
+
 def test_targeting_rejects_unbounded_or_unknown_provider_parameters() -> None:
     with pytest.raises(ValidationError):
         SupplierTargetingConfig(max_pages=6)
