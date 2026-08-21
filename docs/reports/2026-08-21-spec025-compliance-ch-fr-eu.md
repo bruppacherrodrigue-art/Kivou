@@ -1,6 +1,7 @@
 # SPEC-025 — Compliance CH / FR / EU — implementation report
 
-**Status:** executable CI green; final report-head CI pending; DRAFT implementation PR only.
+**Status:** R1 executable CI green; DRAFT implementation PR only; final-head
+validation is tracked by PR #32.
 
 **Authoritative implementation base / merged design SHA:** `ff6a070c3d7a8ad95c002fc0ffc97b3b4f93c594`
 
@@ -191,3 +192,67 @@ effect was performed.
 
 No Apollo/network, Instantly, SMTP, LLM/provider, crawler, campaign, VPS,
 staging, production, Stripe, or deployment side effect was performed.
+
+## SPEC-025 R1 closeout — ruleset authority and canonical jurisdiction
+
+The original executable remains
+`db1c08e0df4c01e82249dfbaeba09c0ded64e9a5`; its CI run
+**32482497568** succeeded with **3,489 backend tests, 0 skipped**, Ruff, and
+**150 frontend tests** plus build/typecheck/lint. Supervisor R1 identified
+three bounded semantic gaps: noncanonical two-letter country values could be
+treated as out-of-scope, the configured-country ruleset declaration was not an
+active evaluator gate, and equal but unsupported historical role-profile
+versions could pass binding validation.
+
+R1 resolves those gaps without changing the approved business matrix:
+
+- `compliance-jurisdiction-v1` recognizes an explicit frozen set of the 249
+  ISO 3166-1 alpha-2 codes. `ZZ` from either supplier or provider data is now
+  unresolved, controlled `UK`/`United Kingdom` aliases normalize to canonical
+  `GB`, and canonical `GB`/`US` remain known out-of-scope countries. Conflicting
+  canonical facts such as CH versus FR remain unresolved.
+- `configured_country_rulesets` is now authoritative. CH or FR cannot execute
+  an automatic country predicate unless that country is explicitly present;
+  absence yields `REVIEW_REQUIRED / COUNTRY_RULESET_UNCONFIGURED`.
+- `acquisition-compliance-ruleset-v1` is bound to legal review
+  `legal-review:spec025-r1:ff6a070c3d7a8ad95c002fc0ffc97b3b4f93c594`
+  and the explicit UTC effective interval
+  `[2026-08-21T00:00:00Z, unbounded)`. The immutable canonical configuration
+  fingerprint covers the legal-review identity, effective interval, configured
+  countries, 24-hour TTL, reason-code version, and ruleset version. No current
+  date or wall clock is consulted by the pure evaluator.
+- Outside the ruleset interval the result is
+  `REVIEW_REQUIRED / RULESET_NOT_EFFECTIVE`; hard suppression remains earlier
+  in precedence. Any future ruleset `valid_until` also clips an `ALLOWED`
+  assessment's validity alongside the 24-hour and sender-config boundaries.
+- `ComplianceRulesetMismatch` rejects any pure evaluation whose input version,
+  configuration fingerprint, legal-review identity, or effective interval is
+  not the selected immutable config. The safe input snapshot persists those
+  exact legal-provenance fields without schema expansion.
+- The current contact and company-profile bindings must both use the
+  authoritative contact-discovery profile version
+  `decision-maker-search-v1`. Equal v0/future semantics fail before Policy as
+  `ComplianceBindingConflict`, with no assessment or workflow event.
+
+R1 executable SHA:
+`eb36524b12f125d50f20ceb26093cb37c97393d6`.
+Executable CI: **32497387614 — SUCCESS**. The GitHub merge-ref backend passed
+**3,523 tests with 0 skipped** and Ruff; frontend passed **150 tests** plus
+build, typecheck, and lint. The direct local branch regression passed **3,506
+tests with 0 skipped**, Ruff, `git diff --check`, the unchanged migration
+regression, and the same 150 frontend tests/build/typecheck/lint. The count
+difference is the compatible API/account-runtime test delta already present on
+current `origin/main`.
+
+Current `origin/main` / PR base at R1 closeout is
+`446cc3073f84f47685ab62d154581c96308ee159`. Its only delta from the original
+implementation base is the audited production ASGI/account-reset runtime and
+tests; it does not touch acquisition, compliance, Policy, supervisor registry,
+persistence, or migrations. Alembic remains the single head
+`0014_compliance`, with exactly the original two SPEC-025 tables and no
+`0015`. The executable PR diff is **37 files changed, 4,825 insertions(+), 27
+deletions(-)**.
+
+No LLM/provider, Apollo network, Instantly, SMTP, campaign/email, VPS,
+staging/production, Stripe, migration deployment, or other deployment side
+effect was performed.
