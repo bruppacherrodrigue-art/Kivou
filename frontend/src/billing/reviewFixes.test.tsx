@@ -269,7 +269,7 @@ describe('intention d’achat périmée', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await user.click(await screen.findByRole('link', { name: /Déverrouiller Kivou/ }))
+    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
     await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
 
     expect(readCheckoutIntent()).toBe('sig_locked_1')

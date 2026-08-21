@@ -390,9 +390,9 @@ export const fr = {
     badge: 'Verrouillé',
     title: 'Étendre l’accès à votre flux',
     teaserHeadingFallback: 'Un signal détecté sur votre périmètre',
-    body: 'L’entreprise gagnante, le marché et la preuve documentaire sont réservés aux offres payantes.',
-    cta: 'Voir les offres',
-    ctaShort: 'Déverrouiller Kivou',
+    body: 'Ces informations ne sont pas incluses dans votre accès actuel.',
+    cta: 'Gérer mon accès',
+    ctaShort: 'Gérer mon accès',
     country: 'Pays',
     sector: 'Secteur',
     magnitude: 'Ordre de grandeur',
@@ -400,7 +400,7 @@ export const fr = {
     needCountOther: '{count} besoins plausibles identifiés',
     detailTitle: 'Ce signal est verrouillé',
     detailBody:
-      'Votre offre actuelle ne donne pas accès à ce signal. Les offres payantes étendent l’accès à votre flux selon leurs droits et leur fenêtre d’historique. Comparez les offres avant de choisir.',
+      'Votre accès actuel n’ouvre pas ce signal. L’accès aux signaux dépend des droits de votre offre et de sa fenêtre d’historique.',
   },
 
   magnitude: {
@@ -616,9 +616,9 @@ export const fr = {
     returnToSignal: 'Revenir à ce signal',
     seeAllSignals: 'Voir tous mes signaux',
     seeBilling: 'Voir ma facturation',
-    cancelTitle: 'Paiement interrompu',
+    cancelTitle: 'Retour depuis le parcours de paiement',
     cancelBody:
-      'Vous avez quitté le paiement avant de le terminer. Rien n’a été débité et votre offre n’a pas changé.',
+      'Vous êtes revenu à Kivou depuis le parcours de paiement. Cette page ne modifie pas votre accès. Consultez votre facturation pour vérifier l’état de votre abonnement.',
     backToPlans: 'Revenir aux offres',
     backToSignals: 'Revenir à mes signaux',
     unlocked: 'Vous débloquez immédiatement',

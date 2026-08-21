@@ -61,7 +61,7 @@ describe('feed de signaux', () => {
     mockApi(feedWith([LOCKED_ITEM]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    const cta = await screen.findByRole('link', { name: /Déverrouiller Kivou/ })
+    const cta = await screen.findByRole('link', { name: 'Gérer mon accès' })
     expect(cta).toHaveAttribute('href', '/app/billing')
     expect(screen.getByText('Verrouillé')).toBeInTheDocument()
     // Jamais une formulation d'extraction de données cachées.

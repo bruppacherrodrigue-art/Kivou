@@ -382,9 +382,9 @@ export const en: Dictionary = {
     badge: 'Locked',
     title: 'Extend access to your stream',
     teaserHeadingFallback: 'A signal detected in your scope',
-    body: 'The winning company, the contract and the documentary evidence are reserved for paid plans.',
-    cta: 'See plans',
-    ctaShort: 'Unlock Kivou',
+    body: 'These details are not included in your current access.',
+    cta: 'Manage my access',
+    ctaShort: 'Manage my access',
     country: 'Country',
     sector: 'Sector',
     magnitude: 'Order of magnitude',
@@ -392,7 +392,7 @@ export const en: Dictionary = {
     needCountOther: '{count} plausible needs identified',
     detailTitle: 'This signal is locked',
     detailBody:
-      'Your current plan does not open this signal. Paid plans extend access to your stream according to their entitlements and their history window. Compare the plans before choosing.',
+      'Your current access does not open this signal. Access to signals depends on your plan entitlements and its history window.',
   },
 
   magnitude: {
@@ -605,9 +605,9 @@ export const en: Dictionary = {
     returnToSignal: 'Back to this signal',
     seeAllSignals: 'See all my signals',
     seeBilling: 'See my billing',
-    cancelTitle: 'Payment interrupted',
+    cancelTitle: 'Back from the payment flow',
     cancelBody:
-      'You left the payment before finishing it. Nothing was charged and your plan has not changed.',
+      'You are back on Kivou from the payment flow. This page does not change your access. Check your billing to see the state of your subscription.',
     backToPlans: 'Back to plans',
     backToSignals: 'Back to my signals',
     unlocked: 'You unlock immediately',

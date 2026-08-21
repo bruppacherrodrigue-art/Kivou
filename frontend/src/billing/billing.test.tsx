@@ -273,8 +273,10 @@ describe('retour de paiement', () => {
     mockApi(BASE)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/checkout/cancel' })
 
-    expect(await screen.findByRole('heading', { name: 'Paiement interrompu' })).toBeInTheDocument()
-    expect(screen.getByText(/Rien n’a été débité/)).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Retour depuis le parcours de paiement' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Cette page ne modifie pas votre accès/)).toBeInTheDocument()
 
     const page = (document.body.textContent ?? '').toLowerCase()
     expect(page).not.toContain('échec')
