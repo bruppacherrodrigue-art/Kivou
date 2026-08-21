@@ -67,7 +67,7 @@ describe('depuis le feed verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals' },
     )
 
-    await user.click(await screen.findByRole('link', { name: /Déverrouiller Kivou/ }))
+    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
     await screen.findByRole('button', { name: /Choisir Pro/ })
 
     const state = JSON.parse(screen.getByTestId('nav-state').textContent ?? 'null')
@@ -85,7 +85,7 @@ describe('depuis le feed verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals' },
     )
 
-    await user.click(await screen.findByRole('link', { name: /Déverrouiller Kivou/ }))
+    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
     await screen.findByRole('button', { name: /Choisir Pro/ })
 
     const serialised = screen.getByTestId('nav-state').textContent ?? ''
@@ -110,7 +110,7 @@ describe('depuis le détail verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
     )
 
-    await user.click(await screen.findByRole('link', { name: 'Voir les offres' }))
+    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
     await screen.findByRole('button', { name: /Choisir Pro/ })
 
     const state = JSON.parse(screen.getByTestId('nav-state').textContent ?? 'null')
@@ -128,7 +128,7 @@ describe('depuis le détail verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
     )
 
-    await user.click(await screen.findByRole('link', { name: 'Voir les offres' }))
+    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
     await screen.findByRole('button', { name: /Choisir Pro/ })
 
     const serialised = screen.getByTestId('nav-state').textContent ?? ''
@@ -144,7 +144,7 @@ describe('avant tout paiement réel', () => {
     mockApi({ ...BILLING_ROUTES, 'GET /signals': { body: feedPage([LOCKED_ITEM]) } })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await user.click(await screen.findByRole('link', { name: /Déverrouiller Kivou/ }))
+    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
     await screen.findByRole('button', { name: /Choisir Pro/ })
 
     // Arriver sur la facturation n'est pas acheter : rien n'est mémorisé.
@@ -163,7 +163,7 @@ describe('avant tout paiement réel', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await user.click(await screen.findByRole('link', { name: /Déverrouiller Kivou/ }))
+    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
     await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
     await screen.findByRole('alert')
 
@@ -188,7 +188,7 @@ describe('avant tout paiement réel', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await user.click(await screen.findByRole('link', { name: /Déverrouiller Kivou/ }))
+    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
     await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
 
     expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/cs_1')

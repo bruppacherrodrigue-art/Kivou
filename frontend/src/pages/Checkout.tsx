@@ -144,10 +144,18 @@ export function CheckoutSuccess() {
   )
 }
 
-/** L'annulation.
+/** Le retour depuis le parcours de paiement.
  *
- *  Aucune mutation, et surtout aucun message d'échec : quitter un paiement
- *  n'est pas un refus de carte, et le dire ainsi inquiéterait pour rien. */
+ *  Cette page ne SAIT presque rien, et sa copy s'arrête là.
+ *
+ *  C'est une URL de retour : n'importe qui peut l'ouvrir, à n'importe quel
+ *  moment, y compris un client payant depuis des mois. Elle ne reçoit rien de
+ *  Stripe et n'interroge rien. Elle ne peut donc affirmer ni qu'un paiement a
+ *  été interrompu, ni qu'aucun débit n'a eu lieu, ni que l'offre n'a pas
+ *  changé — trois assertions qu'elle portait pourtant.
+ *
+ *  Ce qu'elle sait : le client est revenu, et elle-même ne modifie rien. Pour
+ *  l'état réel, elle renvoie à la facturation, qui l'interroge vraiment. */
 export function CheckoutCancel() {
   const { t } = useI18n()
 
@@ -163,8 +171,10 @@ export function CheckoutCancel() {
         <Callout tone="info">{t.checkout.cancelBody}</Callout>
 
         <div className={styles.actions}>
+          {/* La facturation est la seule surface qui interroge réellement
+              l'état de l'abonnement — et elle sait, elle, quoi proposer. */}
           <ButtonLink to="/app/billing" size="lg">
-            {t.checkout.backToPlans}
+            {t.checkout.seeBilling}
           </ButtonLink>
           <ButtonLink to="/app/signals" variant="secondary" size="lg">
             {t.checkout.backToSignals}

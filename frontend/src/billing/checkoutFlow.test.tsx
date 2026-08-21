@@ -216,11 +216,11 @@ describe('annulation', () => {
     mockApi({})
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/checkout/cancel' })
 
-    expect(await screen.findByText('Paiement interrompu')).toBeInTheDocument()
+    expect(await screen.findByText('Retour depuis le parcours de paiement')).toBeInTheDocument()
     await waitFor(() => expect(readCheckoutIntent()).toBeNull())
 
     const page = document.body.textContent ?? ''
     expect(page).not.toMatch(/échec|refus|erreur de paiement/i)
-    expect(page).toMatch(/Rien n’a été débité/)
+    expect(page).toMatch(/Cette page ne modifie pas votre accès/)
   })
 })
