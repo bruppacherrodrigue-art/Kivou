@@ -114,6 +114,19 @@ uv run python -m signals.documents.live_smoke --limit 25 --json rapport.json
 Appelle l'API publique TED, télécharge les XML, les traduit et imprime les
 statistiques d'extraction. `pytest` n'y touche jamais : la suite est hors ligne.
 
+## Smoke test Stripe TEST (volontaire, hors suite de tests)
+
+```bash
+KIVOU_STRIPE_TEST_SMOKE_KEY=sk_test_… uv run pytest \
+    tests/test_billing_stripe_test_smoke.py -v
+```
+
+Crée une vraie Checkout Session Stripe en mode TEST avec un Customer existant
+et la collecte du numéro de TVA — la combinaison qu'aucun double ne peut
+valider, et qui a bloqué tous les paiements jusqu'à P0-03F. La clé doit
+commencer par `sk_test_` : le test échoue plutôt que de toucher LIVE. Aucun
+paiement n'est effectué, et la session est expirée à la fin.
+
 ## Structure
 
 ```
