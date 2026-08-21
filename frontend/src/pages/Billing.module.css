@@ -104,3 +104,25 @@
   margin: 0;
   accent-color: var(--kivou-action-primary);
 }
+
+/* Le contact support est un LIEN : il ouvre un client de messagerie, il n'agit
+ * pas sur l'application (§38 — ce qui navigue est un `a`). */
+.supportLink {
+  display: inline-flex;
+  align-items: center;
+  min-height: var(--kivou-control-height);
+  padding: 0 var(--kivou-space-5);
+  border: 1px solid var(--kivou-border-strong);
+  border-radius: var(--kivou-radius-sm);
+  background: var(--kivou-bg-surface);
+  color: var(--kivou-text-primary);
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.supportLink:hover {
+  border-color: var(--kivou-action-primary);
+  color: var(--kivou-action-primary);
+}

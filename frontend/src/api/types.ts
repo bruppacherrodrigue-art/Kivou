@@ -378,6 +378,25 @@ export interface PlanCatalogue {
   plans: CataloguePlan[]
 }
 
+/* P0-03A — l'action de facturation SÛRE, décidée par le serveur.
+ *
+ * Deux questions, deux champs, et les confondre coûte de l'argent réel :
+ *
+ *     plan_code       →  quels droits le compte a-t-il MAINTENANT ?
+ *     billing_action  →  quelle action de facturation est SÛRE maintenant ?
+ *
+ * Un compte `past_due` vaut `discovery` comme un compte qui n'a jamais payé —
+ * mais il porte un abonnement facturé, et lui proposer un paiement le
+ * facturerait deux fois. Le frontend ne rejoue donc JAMAIS la règle : il ne
+ * connaît ni `TERMINAL_STATUSES`, ni `PAYING_STATUSES`, ni
+ * `is_open_subscription()`, et ne déduit rien de `subscription_status`.
+ */
+export type BillingAction =
+  | 'choose_plan'
+  | 'manage_subscription'
+  | 'recover_payment'
+  | 'contact_support'
+
 export interface BillingStatus {
   plan_code: PlanCode
   offer_code: string | null
@@ -386,6 +405,8 @@ export interface BillingStatus {
   cancel_at_period_end: boolean
   current_period_end: string | null
   payment_issue: string | null
+  /** La SEULE autorité sur ce que l'écran de facturation propose. */
+  billing_action: BillingAction
   entitlements: Entitlements
   discovery: { granted_signal_count: number; remaining_slots: number; limit: number }
   target_icps_over_limit: string[]

@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useI18n, interpolate } from '../i18n'
 import { Badge, Callout, Card, SectionHeading, Skeleton } from '../components/Surfaces'
 import { Button } from '../components/Button'
 import { PlanGrid } from '../billing/PlanGrid'
+import { saveCheckoutIntent, validateSignalKey } from '../billing/checkoutIntent'
 import { billing } from '../api/endpoints'
 import { ApiError } from '../api/client'
 import { describeError } from '../api/errorCopy'
@@ -11,21 +13,35 @@ import styles from './Billing.module.css'
 
 /* La page de facturation.
  *
+ * `billing_action` décide, `plan_code` décrit
+ * ───────────────────────────────────────────
+ * Deux champs, deux questions, et les confondre coûte de l'argent réel :
+ *
+ *     plan_code       →  quels droits le compte a-t-il MAINTENANT ?
+ *     billing_action  →  quelle action de facturation est SÛRE maintenant ?
+ *
+ * Un compte `past_due` vaut `discovery` exactement comme un compte qui n'a
+ * jamais rien payé — mais il porte un abonnement facturé. Brancher l'écran sur
+ * `plan_code`, comme il le faisait, lui proposait « Choisir Pro » : au mieux un
+ * 409, au pire une seconde facture pour un client qui n'a rien demandé de tel.
+ *
+ * Le frontend ne rejoue donc AUCUNE règle d'autorisation. Il ne connaît ni
+ * `TERMINAL_STATUSES`, ni `PAYING_STATUSES`, ni `is_open_subscription()`, et ne
+ * déduit rien de `subscription_status` — qu'il se contente d'AFFICHER.
+ *
  * Le frontend n'envoie QUE `{ plan, currency }`. Aucun `price_id`, aucun
- * coupon, aucun drapeau fondateur : le schéma `CheckoutRequest` interdit tout
- * champ supplémentaire, et surtout le montant n'est pas négociable depuis un
+ * coupon, aucun drapeau fondateur : le montant n'est pas négociable depuis un
  * navigateur.
  *
  * La devise est un CHOIX EXPLICITE. La déduire de la langue ferait payer un
- * client suisse anglophone en euros — la langue et la devise sont deux
- * questions différentes, et le catalogue les traite comme telles (49 CHF **ou**
- * 49 EUR, pas une conversion).
+ * client suisse anglophone en euros.
  *
  * Kivou ne reconstruit aucun écran de gestion d'abonnement : moyen de paiement,
  * factures et résiliation vivent dans le portail du prestataire.
  */
 export function Billing() {
   const { t, date } = useI18n()
+  const location = useLocation()
   const [catalogue, setCatalogue] = useState<PlanCatalogue | null>(null)
   const [status, setStatus] = useState<BillingStatus | null>(null)
   const [currency, setCurrency] = useState<Currency>('chf')
@@ -34,6 +50,19 @@ export function Billing() {
   const [actionError, setActionError] = useState<unknown>(null)
   const [choosing, setChoosing] = useState<PurchasablePlan | null>(null)
   const [openingPortal, setOpeningPortal] = useState(false)
+
+  /* Verrou SYNCHRONE. `setChoosing` planifie un rendu ; il ne ferme pas la
+   * fenêtre entre deux clics du même tour de boucle. Le backend réserve déjà la
+   * place avant d'appeler Stripe, mais une seconde requête partie d'ici
+   * produirait un 409 que le client n'a aucune raison de voir. */
+  const busyRef = useRef(false)
+
+  /* Le signal verrouillé qui a déclenché la venue ici, s'il y en a un.
+   * SEULE sa clé voyage — jamais l'entreprise, le montant, le besoin ni la
+   * preuve, qui sont précisément ce que le paywall protège. */
+  const lockedSignalKey = validateSignalKey(
+    (location.state as { lockedSignalKey?: unknown } | null)?.lockedSignalKey,
+  )
 
   useEffect(() => {
     let active = true
@@ -60,15 +89,24 @@ export function Billing() {
   }, [])
 
   async function startCheckout(plan: PurchasablePlan) {
+    if (busyRef.current) return
+    busyRef.current = true
     setActionError(null)
     setChoosing(plan)
     try {
       const session = await billing.checkout({ plan, currency })
+      /* L'intention n'est mémorisée qu'APRÈS un paiement réellement ouvert.
+       * L'écrire avant laisserait une intention orpheline derrière chaque
+       * tentative refusée — et elle survivrait à un parcours qui n'a jamais eu
+       * lieu. Elle n'accorde aucun droit : le retour au signal reste soumis à
+       * ce que le serveur répondra. */
+      if (lockedSignalKey !== null) saveCheckoutIntent(lockedSignalKey)
       // La destination vient du backend, jamais d'une URL construite ici.
       window.location.assign(session.checkout_url)
     } catch (caught) {
       setActionError(caught)
       setChoosing(null)
+      busyRef.current = false
     }
   }
 
@@ -107,6 +145,7 @@ export function Billing() {
     )
   }
 
+  const action = status.billing_action
   const isPaid = status.plan_code !== 'discovery'
   const actionCopy = actionError ? describeError(actionError, t) : null
   const expiresAt =
@@ -118,6 +157,8 @@ export function Billing() {
     <div className={styles.page}>
       <SectionHeading title={t.billing.title} lead={t.billing.lead} level={1} />
 
+      {/* Les DROITS actuels — `plan_code` et le statut brut, affichés, jamais
+          interprétés pour décider d'une action. */}
       <Card padding="lg" as="section" className={styles.statusCard}>
         <div className={styles.statusHead}>
           <div>
@@ -144,13 +185,7 @@ export function Billing() {
           <Callout tone="warning">{t.billing.cancelAtPeriodEnd}</Callout>
         ) : null}
 
-        {status.payment_issue ? (
-          <Callout tone="danger">{t.billing.paymentIssue}</Callout>
-        ) : null}
-
-        {/* Un compte payant ne se voit PAS proposer un second paiement : il
-            gère son abonnement dans le portail. */}
-        {isPaid ? (
+        {action === 'manage_subscription' ? (
           <div className={styles.portal}>
             <p className={styles.statusLine}>{t.billing.manageLead}</p>
             <Button variant="secondary" loading={openingPortal} onClick={() => void openPortal()}>
@@ -169,8 +204,48 @@ export function Billing() {
         </Callout>
       ) : null}
 
-      {!isPaid ? (
+      {/* L'abonnement existe encore et l'accès est suspendu. Aucun second
+          paiement : le backend le refuserait, et le proposer laisserait croire
+          qu'acheter à nouveau réglerait l'incident. */}
+      {action === 'recover_payment' ? (
+        <Callout
+          tone="warning"
+          title={t.billing.recoverTitle}
+          action={
+            <Button loading={openingPortal} onClick={() => void openPortal()}>
+              {t.billing.recoverCta}
+            </Button>
+          }
+        >
+          {t.billing.recoverBody}
+        </Callout>
+      ) : null}
+
+      {/* Ni achat, ni portail présenté comme une solution certaine : personne ne
+          sait encore ce que porte ce compte. Une vérification humaine d'abord. */}
+      {action === 'contact_support' ? (
+        <Callout
+          tone="warning"
+          title={t.billing.supportTitle}
+          action={
+            <a className={styles.supportLink} href={`mailto:${t.billing.supportEmail}`}>
+              {t.billing.supportCta}
+            </a>
+          }
+        >
+          {t.billing.supportBody}
+        </Callout>
+      ) : null}
+
+      {action === 'choose_plan' ? (
         <>
+          {/* Une tentative expirée porte encore un `payment_issue`, mais
+              l'incident n'est plus « en cours » : la place est libre, et le
+              dire autrement retiendrait un client qui peut recommencer. */}
+          {status.payment_issue ? (
+            <Callout tone="info">{t.billing.terminalNotice}</Callout>
+          ) : null}
+
           <fieldset className={styles.currency}>
             <legend className={styles.currencyLegend}>{t.billing.currency}</legend>
             <p className={styles.currencyHelp}>{t.billing.currencyLead}</p>

@@ -141,8 +141,24 @@ function PlanCard({
   )
 }
 
-/** Traduit les capacités RENVOYÉES par l'API. Rien n'est ajouté : une
- *  fonctionnalité absente du contrat n'est pas promise (Definition of Done, 9). */
+/* Traduit les capacités RENVOYÉES par l'API — et seulement celles qu'un client
+ * peut réellement exercer aujourd'hui.
+ *
+ * Trois capacités du contrat ne sont PAS rendues, et c'est délibéré (P0-03 §14) :
+ *
+ *   — `export_level` : aucune route, aucune UI. Le champ décrit une intention
+ *     de packaging, pas une fonctionnalité livrée ;
+ *   — `filter_level` : l'API autorise bien `country` et `winner` selon le plan,
+ *     mais le feed n'expose aucun de ces filtres. Vendre « Filtres avancés »
+ *     enverrait chercher un écran qui n'existe pas ;
+ *   — `territory_mode` et `max_territories_per_icp` : la limite n'est appliquée
+ *     nulle part, donc « 1 territoire principal » décrit une restriction
+ *     imaginaire — et rend absurde la montée vers « Plusieurs territoires ».
+ *
+ * Les champs restent dans le contrat : ils portent des décisions serveur
+ * réelles, et `filter_level` autorise effectivement les filtres de l'API. Ce
+ * qui disparaît est la PROMESSE COMMERCIALE, pas la donnée. Le jour où l'un de
+ * ces parcours existe, sa ligne revient ici. */
 function describeEntitlements(
   plan: CataloguePlan,
   t: ReturnType<typeof useI18n>['t'],
@@ -163,14 +179,6 @@ function describeEntitlements(
     )
   }
 
-  features.push(
-    e.territory_mode === 'expanded'
-      ? t.billing.entitlements.territoryExpanded
-      : e.territory_mode === 'multiple'
-        ? t.billing.entitlements.territoryMultiple
-        : t.billing.entitlements.territorySingle,
-  )
-
   if (e.history_scope === 'all_available') {
     features.push(t.billing.entitlements.historyAll)
   } else if (e.history_days && e.history_days > 0) {
@@ -180,14 +188,6 @@ function describeEntitlements(
   }
 
   if (e.evidence_access) features.push(t.billing.entitlements.evidence)
-
-  features.push(
-    e.filter_level === 'advanced'
-      ? t.billing.entitlements.filterAdvanced
-      : e.filter_level === 'basic'
-        ? t.billing.entitlements.filterBasic
-        : t.billing.entitlements.filterMinimum,
-  )
 
   // `priority` et jamais « temps réel » : le backend a renommé cette cadence
   // précisément pour ne pas promettre une latence qu'aucun cron ne tient.
@@ -199,14 +199,6 @@ function describeEntitlements(
         : e.alert_cadence === 'weekly'
           ? t.billing.entitlements.alertWeekly
           : t.billing.entitlements.alertNone,
-  )
-
-  features.push(
-    e.export_level === 'scheduled'
-      ? t.billing.entitlements.exportScheduled
-      : e.export_level === 'manual'
-        ? t.billing.entitlements.exportManual
-        : t.billing.entitlements.exportNone,
   )
 
   return features
