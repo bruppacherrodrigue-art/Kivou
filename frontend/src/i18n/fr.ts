@@ -388,7 +388,7 @@ export const fr = {
 
   locked: {
     badge: 'Verrouillé',
-    title: 'Déverrouillez le flux complet',
+    title: 'Étendre l’accès à votre flux',
     teaserHeadingFallback: 'Un signal détecté sur votre périmètre',
     body: 'L’entreprise gagnante, le marché et la preuve documentaire sont réservés aux offres payantes.',
     cta: 'Voir les offres',
@@ -400,7 +400,7 @@ export const fr = {
     needCountOther: '{count} besoins plausibles identifiés',
     detailTitle: 'Ce signal est verrouillé',
     detailBody:
-      'Votre offre actuelle ne donne pas accès à ce signal. Les offres payantes ouvrent l’ensemble de votre flux, avec l’entreprise gagnante, le marché et la preuve.',
+      'Votre offre actuelle ne donne pas accès à ce signal. Les offres payantes étendent l’accès à votre flux selon leurs droits et leur fenêtre d’historique. Comparez les offres avant de choisir.',
   },
 
   magnitude: {
@@ -581,6 +581,10 @@ export const fr = {
       unpaid: 'Impayé',
       paused: 'En pause',
       none: 'Aucun abonnement',
+      /* Tout statut absent de ce dictionnaire. Rendre la chaîne Stripe brute
+       * exposerait un terme technique là où `billing_action` a justement
+       * décidé de traiter l'incertitude comme une vérification à faire. */
+      unknown: 'À vérifier',
     },
     errors: {
       checkoutInProgressTitle: 'Un paiement est déjà ouvert',

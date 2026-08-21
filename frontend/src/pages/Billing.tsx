@@ -4,7 +4,11 @@ import { useI18n, interpolate } from '../i18n'
 import { Badge, Callout, Card, SectionHeading, Skeleton } from '../components/Surfaces'
 import { Button } from '../components/Button'
 import { PlanGrid } from '../billing/PlanGrid'
-import { saveCheckoutIntent, validateSignalKey } from '../billing/checkoutIntent'
+import {
+  clearCheckoutIntent,
+  saveCheckoutIntent,
+  validateSignalKey,
+} from '../billing/checkoutIntent'
 import { billing } from '../api/endpoints'
 import { ApiError } from '../api/client'
 import { describeError } from '../api/errorCopy'
@@ -99,7 +103,14 @@ export function Billing() {
        * L'écrire avant laisserait une intention orpheline derrière chaque
        * tentative refusée — et elle survivrait à un parcours qui n'a jamais eu
        * lieu. Elle n'accorde aucun droit : le retour au signal reste soumis à
-       * ce que le serveur répondra. */
+       * ce que le serveur répondra.
+       *
+       * L'effacement PRÉCÈDE l'écriture, et il est inconditionnel. Un paiement
+       * lancé sans signal doit remplacer une intention précédente par AUCUNE :
+       * sans cela, une clé abandonnée dans le même onglet — retour navigateur,
+       * paiement repris plus tard — ressurgirait sur une page de succès à
+       * laquelle elle n'a plus rien à voir. */
+      clearCheckoutIntent()
       if (lockedSignalKey !== null) saveCheckoutIntent(lockedSignalKey)
       // La destination vient du backend, jamais d'une URL construite ici.
       window.location.assign(session.checkout_url)
@@ -166,13 +177,22 @@ export function Billing() {
             <p className={styles.statusPlan}>{t.billing.plans[status.plan_code]}</p>
           </div>
           <Badge tone={isPaid ? 'positive' : 'neutral'}>
+            {/* Un statut que Stripe inventerait n'est pas montré au client :
+                `billing_action` a déjà décidé de le traiter comme une
+                vérification, et afficher le terme technique contredirait ce
+                défaut fermé. */}
             {t.billing.status[
               (status.subscription_status ?? 'none') as keyof typeof t.billing.status
-            ] ?? status.subscription_status}
+            ] ?? t.billing.status.unknown}
           </Badge>
         </div>
 
-        {status.current_period_end ? (
+        {/* La date de période n'est une PROMESSE que si l'abonnement est
+            réellement géré. Un abonnement résilié ou impayé garde une
+            `current_period_end` — c'est la fin de ce qui a été payé, pas un
+            renouvellement à venir. L'annoncer sur un écran qui propose de
+            choisir une offre dirait au client qu'il est encore abonné. */}
+        {action === 'manage_subscription' && status.current_period_end ? (
           <p className={styles.statusLine}>
             {interpolate(
               status.cancel_at_period_end ? t.billing.endsOn : t.billing.renewsOn,
@@ -181,7 +201,11 @@ export function Billing() {
           </p>
         ) : null}
 
-        {status.cancel_at_period_end ? (
+        {/* Même règle que la date : une résiliation programmée annonce que
+            l'accès court encore jusqu'à une date. Le dire à un compte dont
+            l'accès est SUSPENDU met deux affirmations contradictoires sur le
+            même écran. */}
+        {action === 'manage_subscription' && status.cancel_at_period_end ? (
           <Callout tone="warning">{t.billing.cancelAtPeriodEnd}</Callout>
         ) : null}
 

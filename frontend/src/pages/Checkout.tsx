@@ -72,6 +72,15 @@ export function CheckoutSuccess() {
     }
   }, [poll])
 
+  /* L'intention est consommée dès que le serveur confirme, pas au clic.
+   * La lier au CTA laissait le stockage sale dès que le client choisissait
+   * « Voir tous mes signaux » — ou fermait simplement l'onglet — et la clé
+   * ressurgissait sur une page de succès ultérieure. `intent` reste en état
+   * React pour CE rendu : ce qui est effacé est le stockage, pas l'affichage. */
+  useEffect(() => {
+    if (confirmed) clearCheckoutIntent()
+  }, [confirmed])
+
   function refresh() {
     startedAt.current = Date.now()
     setTimedOut(false)
@@ -83,38 +92,33 @@ export function CheckoutSuccess() {
       <Card padding="lg" className={styles.card}>
         <PaymentConfirmedIllustration className={styles.illustration} />
 
-        {confirmed ? (
-          <>
-            <h1 className={styles.title}>{t.checkout.successTitle}</h1>
-            <p className={styles.body}>
-              {interpolate(t.checkout.successBody, {
+        <h1 className={styles.title}>
+          {confirmed ? t.checkout.successTitle : t.checkout.successPending}
+        </h1>
+
+        {/* UNE seule région live, qui ne se démonte jamais.
+         *
+         * Elle vivait auparavant dans la branche « en attente ». Au moment où
+         * l'accès devenait actif, ce nœud disparaissait et le texte de
+         * confirmation apparaissait ailleurs : un lecteur d'écran n'annonce
+         * pas le contenu d'une région qui vient de naître, seulement le
+         * changement d'une région qui existait déjà. L'annonce était donc
+         * perdue précisément à l'instant qui compte. */}
+        <p className={styles.body} role="status" aria-live="polite">
+          {confirmed
+            ? interpolate(t.checkout.successBody, {
                 plan: t.billing.plans[status.plan_code],
-              })}
-            </p>
-          </>
-        ) : (
-          <>
-            <h1 className={styles.title}>{t.checkout.successPending}</h1>
-            {/* `aria-live` : le passage de « en cours » à « confirmé » est
-                annoncé sans qu'il faille relire la page. */}
-            <p className={styles.body} role="status" aria-live="polite">
-              {timedOut ? t.checkout.successTimeout : t.checkout.successPendingBody}
-            </p>
-          </>
-        )}
+              })
+            : timedOut
+              ? t.checkout.successTimeout
+              : t.checkout.successPendingBody}
+        </p>
 
         <div className={styles.actions}>
           {confirmed ? (
             intent !== null ? (
               <>
-                {/* L'intention est consommée en partant : elle a rempli son
-                    unique office, et la laisser vivre ferait réapparaître ce
-                    retour lors d'un achat suivant. */}
-                <ButtonLink
-                  to={`/app/signals/${encodeURIComponent(intent)}`}
-                  size="lg"
-                  onClick={clearCheckoutIntent}
-                >
+                <ButtonLink to={`/app/signals/${encodeURIComponent(intent)}`} size="lg">
                   {t.checkout.returnToSignal}
                 </ButtonLink>
                 <ButtonLink to="/app/signals" variant="secondary" size="lg">
