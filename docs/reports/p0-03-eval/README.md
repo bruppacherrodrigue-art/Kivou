@@ -91,12 +91,20 @@ les vues : DH non, CT non, `h1` = 1.
 
 | Vue | Fichier | Dim. | Lang. | État | `h1` | CTA attendu | Interdits vérifiés |
 |---|---|---|---|---|---|---|---|
-| Feed verrouillé | `paywall-feed-verrouille-fr-1440x900.png` | 1440×900 | FR | teaser `locked` | Signaux récents | Déverrouiller Kivou | nom du gagnant absent |
+| Feed verrouillé | `paywall-feed-verrouille-fr-1440x900.png` | 1440×900 | FR | teaser `locked` | Signaux récents | Gérer mon accès | nom du gagnant, « réservés aux offres payantes » |
 | Billing atteint depuis le teaser | `paywall-vers-billing-fr-1440x900.png` | 1440×900 | FR | `choose_plan` | Facturation | Choisir Pro | portail, récupération |
-| Détail verrouillé | `paywall-detail-verrouille-fr-1440x900.png` | 1440×900 | FR | détail `locked` | Un marché public vient d'être attribué. | Voir les offres | gagnant, source |
+| Détail verrouillé | `paywall-detail-verrouille-fr-1440x900.png` | 1440×900 | FR | détail `locked` | Un marché public vient d'être attribué. | Gérer mon accès | gagnant, source, « offres payantes », « Comparez les offres » |
 
 Seule la **clé** du signal traverse le paywall, dans l'état de navigation. Ni
 entreprise, ni montant, ni besoin, ni preuve.
+
+**Copy vraie pour TOUS les plans.** Le teaser disait « réservés aux offres
+payantes » — faux dès qu'un compte payant rencontre un signal verrouillé par la
+fenêtre d'historique de son plan, ce qui est un cas normal. Il lisait alors
+qu'il devait acheter ce qu'il paie déjà. La copy est désormais neutre — « Ces
+informations ne sont pas incluses dans votre accès actuel. » — et le CTA
+universel, « Gérer mon accès », parce que `/app/billing` peut légitimement
+n'ouvrir qu'un portail et aucune grille.
 
 ### `choose_plan` — la seule action qui autorise un paiement
 
@@ -136,7 +144,7 @@ vrais, et c'est `billing_action` qui décide de l'action, pas eux.
 | Délai dépassé | `checkout-timeout-fr-1440x900.png` | 1440×900 | FR | 45 s sans confirmation | Vérification de votre accès | Réessayer la vérification | Accès payant actif |
 | Accès actif | `checkout-acces-actif-fr-1440x900.png` | 1440×900 | FR | plan payant confirmé | Accès payant actif | Accéder à mes signaux | **Paiement confirmé**, Revenir à ce signal |
 | Retour au signal | `checkout-retour-au-signal-fr-1440x900.png` | 1440×900 | FR | intention mémorisée | Accès payant actif | Revenir à ce signal + Voir tous mes signaux | nom du gagnant |
-| Annulation | `checkout-annulation-fr-1440x900.png` | 1440×900 | FR | paiement interrompu | Paiement interrompu | Revenir aux offres | échec, refusé |
+| Retour depuis le paiement | `checkout-annulation-fr-1440x900.png` | 1440×900 | FR | retour, état inconnu | Retour depuis le parcours de paiement | Voir ma facturation | échec, refusé, « débité », « n'a pas changé » |
 
 La vue « délai dépassé » est obtenue par une attente **réelle** de 48 secondes,
 sans horloge simulée : c'est le comportement du sondage borné qui est photographié.
@@ -144,6 +152,14 @@ sans horloge simulée : c'est le comportement du sondage borné qui est photogra
 La vue « retour au signal » suit le parcours complet — teaser verrouillé →
 facturation → paiement ouvert → retour — parce que c'est le seul chemin qui
 écrit réellement l'intention.
+
+**La page de retour ne sait presque rien, et sa copy s'arrête là.** C'est une
+URL que n'importe qui peut ouvrir, y compris un client payant depuis des mois.
+Elle ne reçoit rien de Stripe et n'interroge rien : elle ne pouvait donc
+affirmer ni qu'un paiement avait été interrompu, ni qu'aucun débit n'avait eu
+lieu, ni que l'offre n'avait pas changé — trois assertions qu'elle portait.
+Elle dit maintenant ce qu'elle sait, et renvoie à la facturation, seule surface
+qui interroge réellement l'état de l'abonnement.
 
 ## Mesures
 
