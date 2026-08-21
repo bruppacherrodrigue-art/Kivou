@@ -15,12 +15,22 @@ import styles from './ActivationSuccess.module.css'
  * Deux choses, et deux seulement, sont dites : le ciblage est prêt, et voici
  * combien de signaux lui sont réellement ouverts.
  *
- *     D'où vient le nombre
- *     ────────────────────
+ *     D'où vient le nombre — et quand il n'y en a pas
+ *     ───────────────────────────────────────────────
  *     De `discovery.granted_signal_count`, c'est-à-dire du serveur, et jamais
  *     d'un comptage des cartes déverrouillées de la page. La page est paginée
  *     et filtrée ; compter ses items donnerait un nombre qui change avec la
  *     fraîcheur choisie, alors que les déblocages, eux, sont acquis.
+ *
+ *     Ce compteur ne décrit QUE le plan Découverte. Un compte payant n'a pas
+ *     de déblocages : `_grant_discovery` court-circuite dès que le plan est
+ *     payé, et ce sont les droits du plan qui ouvrent les signaux. Lire
+ *     `granted_signal_count` pour un tel compte renverrait zéro — et cet écran
+ *     annoncerait « aucun signal correspondant » à un client qui vient d'en
+ *     payer l'accès, avec les signaux ouverts juste en dessous.
+ *
+ *     Hors Découverte, aucun nombre n'est donc fabriqué : la confirmation est
+ *     qualitative, et le premier signal reste proposé s'il existe.
  *
  *     D'où vient le premier signal
  *     ────────────────────────────
@@ -44,14 +54,21 @@ export function ActivationSuccess({
 }) {
   const { t } = useI18n()
 
+  const onDiscovery = status.plan_code === 'discovery'
   const granted = status.discovery.granted_signal_count
   const first = items.find((item): item is UnlockedFeedItem => item.locked === false)
+
+  // Le compteur n'a de sens que sur Découverte ; ailleurs, l'accès vient des
+  // droits du plan, et le seul fait vérifiable est qu'un signal est ouvert.
+  const showCta = first !== undefined && (!onDiscovery || granted > 0)
 
   return (
     <Card padding="md" as="section" className={styles.card}>
       <h2 className={styles.title}>{t.activation.readyTitle}</h2>
 
-      {granted > 0 ? (
+      {!onDiscovery ? (
+        <p className={styles.count}>{t.activation.paidReady}</p>
+      ) : granted > 0 ? (
         <p className={styles.count}>
           <span className="kivou-tabular">
             {interpolate(plural(granted, t.activation.countOne, t.activation.countOther), {
@@ -66,7 +83,7 @@ export function ActivationSuccess({
         </>
       )}
 
-      {granted > 0 && first ? (
+      {showCta ? (
         <div className={styles.action}>
           <ButtonLink to={`/app/signals/${encodeURIComponent(first.signal_id)}`}>
             {t.activation.firstSignal}

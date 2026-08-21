@@ -7,6 +7,7 @@ import {
   DISCOVERY_STATUS,
   ICP,
   LOCKED_ITEM,
+  PRO_STATUS,
   UNLOCKED_ITEM,
   feedPage,
   mockApi,
@@ -36,6 +37,14 @@ function discovery(granted: number): BillingStatus {
     ...DISCOVERY_STATUS,
     discovery: { granted_signal_count: granted, remaining_slots: 3 - granted, limit: 3 },
   }
+}
+
+/* Un compte payant n'a AUCUN déblocage Découverte : `_grant_discovery` sort
+ * immédiatement dès que le plan est payé. Le compteur vaut donc zéro, et les
+ * signaux sont pourtant ouverts par les droits du plan. */
+const PAID_WITHOUT_GRANTS: BillingStatus = {
+  ...PRO_STATUS,
+  discovery: { granted_signal_count: 0, remaining_slots: 0, limit: 3 },
 }
 
 /** Le second signal débloqué, plus ancien : un reclassement le remonterait. */
@@ -158,6 +167,70 @@ describe('moment d’activation — premier signal', () => {
       await screen.findByText('3 signaux sont accessibles avec votre profil.'),
     ).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Voir mon premier signal' })).not.toBeInTheDocument()
+  })
+})
+
+describe('moment d’activation — plan payant', () => {
+  /* REVUE #2 — le compteur Découverte ne décrit QUE Découverte.
+   *
+   * Un compte peut payer avant d'avoir terminé son ciblage : il atteint
+   * `/app/billing`, souscrit, puis revient finir l'onboarding. `GET /signals`
+   * n'attribue alors aucun déblocage — le plan payé court-circuite
+   * `_grant_discovery` — et `granted_signal_count` reste à zéro pendant que
+   * les signaux, eux, sont ouverts.
+   *
+   * Lire ce compteur sans regarder le plan annonçait « aucun signal
+   * correspondant » à un client qui venait d'en payer l'accès, avec les
+   * signaux ouverts juste en dessous. */
+  it('ne fabrique aucun faux zéro pour un compte payant', async () => {
+    mockApi({
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
+      'GET /billing/status': { body: PAID_WITHOUT_GRANTS },
+      'GET /target-icps': { body: [ICP] },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: ACTIVATION_ROUTE })
+
+    // Une confirmation positive, sans chiffre.
+    expect(await screen.findByText('Vos signaux sont disponibles ci-dessous.')).toBeInTheDocument()
+    expect(
+      screen.queryByText('Aucun signal correspondant n’est disponible pour le moment.'),
+    ).not.toBeInTheDocument()
+    // Aucun compteur Découverte n'est emprunté.
+    expect(screen.queryByText(/signaux sont accessibles avec votre profil/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/signal est accessible avec votre profil/)).not.toBeInTheDocument()
+
+    // Le premier signal ouvert reste proposé.
+    expect(screen.getByRole('link', { name: 'Voir mon premier signal' })).toHaveAttribute(
+      'href',
+      '/app/signals/sig_unlocked_1',
+    )
+  })
+
+  it('n’invente pas de CTA payant quand la page ne contient rien de déverrouillé', async () => {
+    mockApi({
+      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
+      'GET /billing/status': { body: PAID_WITHOUT_GRANTS },
+      'GET /target-icps': { body: [ICP] },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: ACTIVATION_ROUTE })
+
+    expect(await screen.findByText('Vos signaux sont disponibles ci-dessous.')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Voir mon premier signal' })).not.toBeInTheDocument()
+  })
+
+  it('n’affiche pas le panneau Découverte à un compte payant', async () => {
+    mockApi({
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+      'GET /billing/status': { body: PRO_STATUS },
+      'GET /target-icps': { body: [ICP] },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: ACTIVATION_ROUTE })
+
+    await screen.findByText('Vos signaux sont disponibles ci-dessous.')
+    // `PRO_STATUS` porte pourtant `granted_signal_count: 3` — un reliquat que
+    // le bandeau ne doit pas relayer.
+    expect(screen.queryByText(/3 signaux sont accessibles/)).not.toBeInTheDocument()
+    expect(screen.queryByText('Votre découverte')).not.toBeInTheDocument()
   })
 })
 
