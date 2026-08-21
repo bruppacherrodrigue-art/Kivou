@@ -12,6 +12,7 @@ MAX_BODY_LENGTH = 700
 
 _EMAIL = re.compile(r"\b[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}\b")
 _URL = re.compile(r"https?://|www\.", re.IGNORECASE)
+_HEADER = re.compile(r"[,;:]\s*(?:to|cc|bcc)\s*[:<]", re.IGNORECASE)
 
 
 class PersonalizationValidationError(ValueError):
@@ -24,11 +25,21 @@ def safe_first_name(value: str | None) -> str | None:
     normalized = value.strip()
     if not normalized or len(normalized) > 64:
         return None
-    if any(char in normalized for char in "\r\n\x00"):
+    if any(char in normalized for char in "\r\n\x00") or _EMAIL.search(normalized) or _URL.search(normalized):
         return None
-    if any(ord(char) < 32 for char in normalized):
+    if any(ord(char) < 32 for char in normalized) or _HEADER.search(normalized):
+        return None
+    if not re.fullmatch(r"[A-Za-zÀ-ÖØ-öø-ÿ' -]+", normalized):
         return None
     return normalized
+
+
+def require_safe_awardee(value: str) -> str:
+    if not value or len(value) > 512 or any(ord(char) < 32 for char in value):
+        raise PersonalizationValidationError("unsafe awardee")
+    if _EMAIL.search(value) or _URL.search(value):
+        raise PersonalizationValidationError("unsafe awardee")
+    return value
 
 
 def validate_catalog_message(message: CatalogMessage) -> None:
@@ -40,8 +51,10 @@ def validate_catalog_message(message: CatalogMessage) -> None:
         raise PersonalizationValidationError("greeting is empty or overlong")
     if not message.body or len(message.body) > MAX_BODY_LENGTH:
         raise PersonalizationValidationError("body is empty or overlong")
-    if len(message.body.split("\n\n")) > 2:
-        raise PersonalizationValidationError("too many body paragraphs")
+    if len(message.body.split("\n\n")) != 2:
+        raise PersonalizationValidationError("v1 requires two body paragraphs")
+    if "\n" in message.subject or "\r" in message.subject or "\n" in message.greeting or "\r" in message.greeting:
+        raise PersonalizationValidationError("header injection")
     if not message.cta:
         raise PersonalizationValidationError("CTA is required")
     rendered = f"{message.subject}\n{message.greeting}\n{message.body}\n{message.cta}"

@@ -38,12 +38,20 @@ class PersonalizationInput(PersonalizationContract):
     contact_ref: StableRef
     decision_evaluation_id: StableRef
     historical_decision_input_fingerprint: Fingerprint
+    representative_award_key: StableRef
+    source_event_key: StableRef
+    public_evidence_refs: tuple[StableRef, ...] = Field(min_length=1, max_length=16)
+    recency_basis: StableRef
+    recency_date: dt.date | None
+    decision_policy_config_fingerprint: Fingerprint
     company_prebuild_fingerprint: Fingerprint
     public_context_fingerprint: Fingerprint
     eligibility_fingerprint: Fingerprint
     as_of_date: dt.date
     need_engine_version: StableRef
     selected_need_fingerprint: Fingerprint
+    selected_need_category: StableRef
+    selected_need_confidence: StableRef
     language: Literal["fr", "en"]
     salutation_mode: Literal["FIRST_NAME", "NEUTRAL"]
     contact_personalization_fingerprint: Fingerprint

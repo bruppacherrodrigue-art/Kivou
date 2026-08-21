@@ -89,14 +89,6 @@ COMMAND_POLICIES = {
             "PERSONALIZATION_INPUT",
         ),
     ),
-    # SPEC-024 only names the next action.  SPEC-025 owns any compliance
-    # implementation; this callable-free declaration merely keeps state
-    # validation and policy vocabulary aligned.
-    "assess_campaign_compliance": CommandPolicy(
-        RiskClass.COMMERCIAL_MUTATION,
-        TargetScope.OPPORTUNITY,
-        ("PERSONALIZATION_ARTIFACT",),
-    ),
     "schedule_campaign": CommandPolicy(
         RiskClass.COMMERCIAL_MUTATION,
         TargetScope.OPPORTUNITY,

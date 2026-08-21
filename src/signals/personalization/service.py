@@ -28,8 +28,10 @@ from signals.persistence.schema import acquisition_decision_evaluation, acquisit
 from signals.personalization.catalog import (
     CATALOG_VERSION,
     LANGUAGE_POLICY_VERSION,
+    SUPPORTED_LANGUAGES,
     TEMPLATE_VERSION,
     CatalogMessage,
+    PersonalizationLanguageUnsupported,
     render_catalog_message,
 )
 from signals.personalization.contracts import (
@@ -47,7 +49,11 @@ from signals.personalization.store import (
     PersonalizationStore,
     personalization_artifact_id,
 )
-from signals.personalization.validator import safe_first_name, validate_catalog_message
+from signals.personalization.validator import (
+    require_safe_awardee,
+    safe_first_name,
+    validate_catalog_message,
+)
 from signals.policy.contracts import BudgetUsage, EvidenceReadiness, PolicyRequest
 from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore, decision_from_row
@@ -137,10 +143,12 @@ class PersonalizationService:
         *,
         budget_usage: BudgetUsage,
     ):
+        if language not in SUPPORTED_LANGUAGES:
+            raise PersonalizationLanguageUnsupported(language)
         # Idempotency is intentionally before the clock: a completed result is history.
         existing = self._artifacts.get_by_policy(authorization.evaluation_id)
         if existing is not None:
-            self._require_existing(existing, opportunity_id, authorization)
+            self._require_existing(existing, opportunity_id, language, authorization)
             return existing
         with self._engine.connect() as connection:
             if self._policy_store.evaluation_row(connection, authorization.evaluation_id):
@@ -298,7 +306,7 @@ class PersonalizationService:
         awardees = public.award.awardee_organizations()
         if not awardees or not awardees[0].legal_name.strip():
             raise PersonalizationGroundingInsufficient(opportunity.acquisition_opportunity_id)
-        awardee = awardees[0].legal_name
+        awardee = require_safe_awardee(awardees[0].legal_name)
         recency = assess_recency(
             award_date=public.award.award_date,
             contract_notification_date=public.award.contract_notification_date,
@@ -338,12 +346,20 @@ class PersonalizationService:
             "contact_ref": contact.contact_ref,
             "decision_evaluation_id": decision_row["decision_evaluation_id"],
             "historical_decision_input_fingerprint": decision_row["decision_input_fingerprint"],
+            "representative_award_key": public.representative_award_key,
+            "source_event_key": public.event.ref().key(),
+            "public_evidence_refs": public.public_evidence_refs,
+            "recency_basis": decision_input.recency_basis.value,
+            "recency_date": decision_input.recency_date,
+            "decision_policy_config_fingerprint": decision_input.decision_policy_config_fingerprint,
             "company_prebuild_fingerprint": profile.prebuild_fingerprint,
             "public_context_fingerprint": decision_input.public_context_fingerprint,
             "eligibility_fingerprint": decision_input.decision_input_fingerprint,
             "as_of_date": as_of_date,
             "need_engine_version": needs.engine_version,
             "selected_need_fingerprint": selected_need_fingerprint,
+            "selected_need_category": need.category,
+            "selected_need_confidence": need.confidence,
             "language": language,
             "salutation_mode": "FIRST_NAME" if first_name else "NEUTRAL",
             "contact_personalization_fingerprint": contact_personalization_fingerprint,
@@ -367,7 +383,10 @@ class PersonalizationService:
             ClaimMapEntry(
                 claim_id="PLAUSIBLE_NEED",
                 kind="KIVOU_INFERENCE",
-                evidence_refs=public.public_evidence_refs,
+                evidence_refs=(
+                    f"need-graph:{needs.engine_version}:{selected_need_fingerprint}",
+                    *public.public_evidence_refs,
+                ),
             ),
             ClaimMapEntry(claim_id="KIVOU_CTA", kind="KIVOU_PRODUCT_COPY"),
         )
@@ -446,7 +465,9 @@ class PersonalizationService:
             proposed_volume=0,
             reason_codes=("PERSONALIZATION_PREPARED",),
             evidence_refs=tuple(
-                item.evidence_refs[0] for item in values["claim_map"] if item.evidence_refs
+                dict.fromkeys(
+                    ref for item in values["claim_map"] for ref in item.evidence_refs
+                )
             ),
             evidence=self._internal_evidence(authorization),
             compliance=authorization.compliance,
@@ -568,12 +589,12 @@ class PersonalizationService:
             # not a second event. Any other state change remains a typed conflict.
             existing = self._artifacts.get_by_policy(decision.evaluation_id)
             if existing is not None:
-                self._require_existing(existing, opportunity_id, authorization)
+                self._require_existing(existing, opportunity_id, language, authorization)
                 return existing
             raise
 
-    def _require_existing(self, existing, opportunity_id, authorization) -> None:
-        if existing["acquisition_opportunity_id"] != opportunity_id:
+    def _require_existing(self, existing, opportunity_id, language, authorization) -> None:
+        if existing["acquisition_opportunity_id"] != opportunity_id or existing["language"] != language:
             raise PersonalizationArtifactIdempotencyConflict(authorization.evaluation_id)
         with self._engine.connect() as connection:
             row = self._policy_store.evaluation_row(connection, authorization.evaluation_id)
@@ -652,9 +673,9 @@ class PersonalizationService:
             proposed_volume=0,
             reason_codes=("PERSONALIZATION_PREPARED",),
             evidence_refs=tuple(
-                item["evidence_refs"][0]
-                for item in existing["claim_map"]
-                if item["evidence_refs"]
+                dict.fromkeys(
+                    ref for item in existing["claim_map"] for ref in item["evidence_refs"]
+                )
             ),
             evidence=self._internal_evidence(authorization),
             compliance=authorization.compliance,

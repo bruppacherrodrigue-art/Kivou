@@ -213,6 +213,26 @@ def test_changed_actor_for_completed_artifact_conflicts(context) -> None:
         )
 
 
+def test_completed_artifact_replay_conflicts_on_requested_language(context) -> None:
+    engine, _, opportunity_id = context
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+    service = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    service.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+    replay_clock = CountingClock(EVALUATED_AT)
+    with pytest.raises(PersonalizationArtifactIdempotencyConflict):
+        PersonalizationService(engine, clock=replay_clock).personalize(
+            opportunity_id, "en", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+    assert replay_clock.calls == 0
+
+
 def test_shadow_persists_pii_minimized_blocked_artifact_without_workflow_event(context) -> None:
     engine, acquisition, opportunity_id = context
     DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
