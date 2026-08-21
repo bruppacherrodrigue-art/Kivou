@@ -1,12 +1,27 @@
 # SPEC-025 — Compliance CH / FR / EU — design
 
-**Status:** design only; implementation requires supervisor and legal-policy freeze.
+**Status:** design only; R1 freezes the Kivou product policy. Implementation
+still requires a separately authorized implementation task and the remaining
+external legal review described below.
 
 **Audited base:** `f7ee297bf0e873fc5bbf02f296072e81f2a1de4f` (merged SPEC-024)
 
 **Audited on:** 2026-08-21
 
 **Alembic head:** `0013_personalization`
+
+### Design R1 closeout record
+
+The original design-only CI run `32469667785` was frontend-successful but
+backend-failed with **3372 passed / 1 failed**:
+`tests/test_personalization_service.py::test_concurrent_same_evaluation_converges_to_one_artifact_and_next_action`,
+raising `OpportunityConcurrencyConflict`. This PR changes only this report, so
+it is not a SPEC-025 runtime regression. The failed backend job is rerun without
+any runtime or test modification. The rerun completed **SUCCESS** on the same
+run (`32469667785`): backend **3373 passed** and Ruff passed; the previously
+successful frontend job remained green. The different result establishes the
+failure as an unrelated existing concurrency-test flake; no SPEC-024 runtime or
+test change was made from this design PR.
 
 ## Scope and non-goals
 
@@ -56,35 +71,63 @@ policy” below is a conservative Kivou choice, not a statement of law.
 
 | Jurisdiction | Primary source / status | Authoritative operational fact | Kivou technical implication | Classification |
 | --- | --- | --- | --- | --- |
-| Switzerland | [FDPIC/EDÖB — advertising and marketing](https://www.edoeb.admin.ch/de/werbung-marketing), current regulator guidance | The regulator describes commercial email acquisition as personal-data processing and points to the Unfair Competition Act requirements for mass advertising: consent, correct sender identity, and a simple/free opt-out, subject to the stated customer exception. | A cold provider-verified contact alone cannot establish an automatic CH allow; identity and opt-out must be proven at the future campaign envelope. | Regulator guidance describing law; implementation policy remains to be frozen. |
+| Switzerland | [FDPIC/EDÖB — advertising and marketing](https://www.edoeb.admin.ch/de/werbung-marketing), supervisor-verified regulator guidance | The regulator describes commercial email acquisition as personal-data processing and points to the Unfair Competition Act requirements for mass advertising: consent, correct sender identity, and a simple/free opt-out, subject to the stated customer exception. | The R1 product policy below treats a cold provider-verified contact as insufficient for automatic CH allow. | Regulator guidance describing law; Kivou’s predicate is conservative product policy. |
 | Switzerland | [Federal Office of Communications — UWG Art. 3(o)](https://www.bakom.admin.ch/de/rechtstexte), official federal explanatory page | The official page describes the anti-spam conditions and the narrow existing-customer/similar-offering exception. | A CH ruleset may emit `ALLOWED` only for a legally reviewed, evidentially complete predicate. Current acquisition data does not provide that proof. | Legal provision as explained by federal authority. |
 | Switzerland | [FDPIC/EDÖB — information duty](https://www.edoeb.admin.ch/de/informationspflicht) | Processing must be transparent; data collected from elsewhere requires the applicable information analysis. | Source/provenance and notice evidence need a bounded durable representation; unknown provenance must not default to `ALLOWED`. | Regulator guidance. |
 | France | [CPCE Article L34-5 — Légifrance](https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000042155961/), in force since 2020-07-26 | The article addresses electronic direct marketing, consent/customer exception, and valid contact details for objections in all cases. | The design must prove the final sender/objection mechanism; the personalization artifact alone cannot establish it. | Law. |
-| France | [CNIL — electronic communications prospecting](https://www.cnil.fr/fr/communication-electronique-quelles-regles), updated 2026-06-10 | CNIL states that B2B commercial email can be considered without prior consent when it relates to professional activity, with source/purpose information and an easy objection mechanism. | FR can be ruleset-configured only once legal validation defines the evidence predicate for professional relevance, source notice, sender identity, and objection path. | Regulator guidance. |
+| France | [CNIL — electronic communications prospecting](https://www.cnil.fr/fr/communication-electronique-quelles-regles), 2026-06-10 supervisor-verified guidance | CNIL states that B2B commercial email can be considered without prior consent when it relates to professional activity, with source/purpose information and an easy objection mechanism. | The R1 product policy below requires a bounded deterministic proof of each listed predicate before automatic FR allow. | Regulator guidance. |
 | France | [CNIL — suppression list and objections](https://www.cnil.fr/fr/comment-utiliser-une-liste-repoussoir-pour-respecter-lopposition-la-prospection-commerciale) | An objection to direct marketing is free and must be respected; a purpose-limited suppression list is an appropriate mechanism. | A Kivou suppression hit is a non-overridable hard boundary. | Regulator guidance. |
 | European Union | [ePrivacy Directive 2002/58/EC, Article 13 — EUR-Lex](https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32002L0058), current consolidated source | Article 13 sets electronic-marketing rules, an existing-customer exception, and leaves treatment of legal-person electronic mail to Member State law. | “EU” cannot be a single automatic allow rule. Non-FR EU countries require a reviewed Member-State ruleset; otherwise they are not `ALLOWED`. | EU law requiring national implementation analysis. |
-| European Union | [GDPR — Regulation (EU) 2016/679 — EUR-Lex](https://eur-lex.europa.eu/eli/reg/2016/679/oj) | GDPR includes bases for processing, information obligations where data were not obtained from the subject, and the direct-marketing objection right. | The implementation must version source/provenance and objection handling, but counsel must freeze applicable territorial/basis predicates. | EU law; exact national ePrivacy interaction remains open. |
+| European Union | [GDPR — Regulation (EU) 2016/679 — EUR-Lex](https://eur-lex.europa.eu/eli/reg/2016/679/oj), Articles 14 and 21 | GDPR includes information obligations where data were not obtained from the subject and the direct-marketing objection right. | The implementation versions source/provenance and objection handling; country-specific ePrivacy predicates remain independently reviewed. | EU law; exact national ePrivacy interaction remains open. |
 
-### Deliberately unfrozen legal decisions
+### R1-frozen Kivou product policies
 
-1. The legally relevant jurisdictional connecting factor(s): recipient location,
-   employer establishment, controller/sender establishment, and any channel
-   specific rule must be confirmed by counsel for each supported country.
-2. The exact evidence required to treat a CH contact as consented or inside an
-   existing-customer exception, and whether absence of such proof is `BLOCKED`
-   or `REVIEW_REQUIRED` under Kivou policy.
-3. The precise French B2B professional-relevance, source-notice, purpose, and
-   objection predicate for Kivou’s data provenance and final email envelope.
-4. A country-by-country EU ruleset inventory and review process. `EU_OTHER` is
-   not a legal rule; it is an explicit unsupported jurisdiction until added.
-5. Retention periods, access controls, and lawful handling of suppression HMACs,
-   including secret rotation and a response to a deletion request that must not
-   accidentally re-enable marketing.
-6. The identity and information/opt-out content of the future Kivou sender and
-   campaign footer. SPEC-024’s frozen copy intentionally does not contain it.
+These are conservative Kivou routing and product controls, not a declaration
+that a single company-country field decides every conflict-of-laws question.
 
-Until those decisions are frozen, a production ruleset must fail closed and must
-not issue automatic legal `ALLOWED` outcomes for evidence it cannot prove.
+- The durable recipient-employer/business country is the primary routing fact.
+  Kivou also always applies its global sender, privacy, and suppression
+  safeguards in addition to the selected destination ruleset.
+- Language, TLD, company/first name, and inferred nationality are forbidden
+  jurisdiction inputs. Conflicting or unavailable durable country facts fail
+  closed.
+- CH routes to CH; FR routes to FR; another EU Member State routes only to its
+  explicit reviewed national ruleset. An unconfigured EU Member State is
+  `REVIEW_REQUIRED`. France is never inherited merely because French is used;
+  Belgium and Luxembourg are non-automatic until their own rulesets are frozen.
+- A known country outside Kivou’s supported acquisition perimeter is a terminal
+  product `BLOCKED` outcome. An unresolved/conflicting country is `UNKNOWN` and
+  only reaches human data-resolution review when the missing fact can plausibly
+  be corrected.
+
+**CH MVP.** Kivou treats its automated acquisition email as subject to the
+Swiss opt-in/existing-customer safeguards described by EDÖB/BAKOM. Automatic
+`ALLOWED` requires durable proof of either explicit prior marketing consent, or
+the reviewed existing-customer predicate (prior sale/service, Kivou’s own
+similar product/service, and the required objection opportunity). In every
+case, correct sender identity capability, simple/free opt-out capability, no
+active suppression/objection, and current contact/binding/artifact integrity are
+required. A normal provider-verified cold Apollo contact with neither predicate
+is not automatically allowed. Missing but potentially obtainable evidence is
+`REVIEW_REQUIRED`; when review proves no qualifying predicate, the new
+assessment is `BLOCKED`. Approval cannot waive this predicate.
+
+**FR MVP.** Automatic `ALLOWED` requires all of: a verified professional/business
+contact; solicitation purpose demonstrably related to a bounded professional
+role/activity predicate; known-enough source/provenance classification for the
+first-contact information route; configured sender identity; simple/free
+objection route; configured privacy/information route; no suppression or prior
+objection; and current artifact/contact/jurisdiction/ruleset bindings. SPEC-025
+checks readiness/capability and provenance only. SPEC-026 must revalidate the
+actual final envelope before scheduling/sending. No arbitrary semantic
+similarity and no LLM legal judgement are permitted.
+
+### Remaining external legal questions
+
+The remaining questions do not block a fail-closed CH/FR MVP: future BE/LU and
+other Member-State ruleset content; a later legal opinion changing Kivou’s
+conservative CH treatment; exact production privacy/footer wording after counsel
+review; and exceptional suppression deletion requests/key-retirement cases.
 
 ## Deterministic jurisdiction resolution
 
@@ -92,9 +135,10 @@ Introduce a pure, versioned resolver, `compliance-jurisdiction-v1`. It consumes
 only durable, normalized company/contact jurisdiction evidence and returns both
 the selected jurisdiction and an evidence status.
 
-1. Start with a validated, canonical ISO 3166-1 alpha-2 business-country fact
-   from a durable prospect/company record. An unnormalised Apollo country string
-   is evidence to normalize, not a jurisdiction result by itself.
+1. Start with the durable recipient-employer/business-country fact, normalized
+   to canonical ISO 3166-1 alpha-2. This is Kivou’s product routing fact, not a
+   definitive statement of conflict-of-laws doctrine. An unnormalised Apollo
+   country string is evidence to normalize, not a jurisdiction result by itself.
 2. If independent durable country facts conflict, return `UNRESOLVED` rather
    than selecting a convenient one.
 3. `CH` and `FR` are selected only from an unambiguous canonical fact. Other
@@ -105,8 +149,9 @@ the selected jurisdiction and an evidence status.
 
 The v1 result categories are `CH`, `FR`, `EU_MEMBER_STATE_CONFIGURED`,
 `EU_MEMBER_STATE_UNCONFIGURED`, `OUT_OF_SCOPE`, and `UNRESOLVED`. Their mapping
-is conservative: unconfigured EU is `REVIEW_REQUIRED`; unresolved or out of
-scope is `UNKNOWN`. Neither becomes `ALLOWED` by default.
+is frozen: unconfigured EU is `REVIEW_REQUIRED`, `OUT_OF_SCOPE` is terminal
+product `BLOCKED`, and `UNRESOLVED` is `UNKNOWN`. None becomes `ALLOWED` by
+default.
 
 ## Compliance contracts and rule matrix
 
@@ -152,7 +197,8 @@ bounded evidence refs (maximum sixteen):
 | --- | --- | --- |
 | Exact active suppression, unsubscribe, or objection match | `BLOCKED` | `SUPPRESSION_MATCH`, `PRIOR_OBJECTION` |
 | Artifact/binding/contact/prebuild integrity is missing before a valid input exists | typed pre-policy failure | `PersonalizationNotReady` / binding failure, not a legal review result |
-| Jurisdiction cannot be resolved or is outside reviewed scope | `UNKNOWN` | `JURISDICTION_UNRESOLVED`, `JURISDICTION_OUT_OF_SCOPE` |
+| Jurisdiction cannot be resolved from durable facts | `UNKNOWN` | `JURISDICTION_UNRESOLVED` |
+| Known country is outside Kivou’s supported acquisition perimeter | `BLOCKED` | `JURISDICTION_OUT_OF_SCOPE` |
 | Jurisdiction is known but its reviewed country rule is absent, or required source/business/sender/objection evidence is inconclusive | `REVIEW_REQUIRED` | `COUNTRY_RULESET_UNCONFIGURED`, `BUSINESS_CONTEXT_INSUFFICIENT`, `LEGAL_BASIS_UNRESOLVED`, `REQUIRED_SENDER_IDENTITY_MISSING`, `REQUIRED_OPT_OUT_MECHANISM_MISSING` |
 | All reviewed jurisdiction-specific predicates and hard Kivou safeguards hold | `ALLOWED` | `JURISDICTION_RULESET_SATISFIED`, `BUSINESS_CONTEXT_VERIFIED`, `SENDER_AND_OBJECTION_MECHANISM_VERIFIED` |
 
@@ -161,6 +207,12 @@ bounded-code conventions and be frozen with counsel-approved ruleset data. A
 known suppression can never be moved to `ALLOWED` by an approval, Hermes,
 Instantly configuration, or another policy gate. A human may resolve evidence
 ambiguity behind `REVIEW_REQUIRED`, but cannot override a hard `BLOCKED` result.
+
+R1 refines the table’s jurisdiction row: `OUT_OF_SCOPE` is the terminal product
+`BLOCKED` result, while only unavailable/conflicting routing facts are
+`UNKNOWN`. The CH and FR predicates in the R1-frozen policy section are exact
+v1 product requirements; no reviewer may substitute a subjective similarity or
+model judgement for their bounded facts.
 
 ## Suppression and objection: a separate hard-boundary record
 
@@ -186,11 +238,20 @@ received/effective time, immutable evidence ref, lifecycle/supersession fields,
 and key version. Domain/company-wide suppression is never inferred; it requires
 an explicit, separately evidenced instruction and a counsel-approved scope.
 
-Ambiguous identity (unusable email, HMAC-key version unavailable, conflicting
-suppression scope) fails closed: it produces `UNKNOWN`/`REVIEW_REQUIRED`, never
-an automatic allow. Retention and HMAC rotation are the legal-policy questions
-listed above; implementation must never delete an active objection in a way that
-reactivates outreach.
+The R1 retention policy is frozen: keep suppression only for suppression
+purpose, for a **minimum of three years**; never automatically reactivate a
+contact at expiry; and require an explicit privacy/compliance process for
+deletion or supersession after that minimum. A deletion request must not
+accidentally re-enable marketing. An active recipient objection is always a
+hard block. Identity-key rotation is also frozen: the matcher supports active
+and retained historical `identity_key_version` values during rotation; old-key
+retirement is permitted only after safe migration/re-key proof establishes that
+no historical suppression loses its match. Secret/key-management implementation
+belongs to operational security and is never placed in the compliance payload.
+
+Ambiguous identity (unusable email, unavailable required matching-key version,
+or conflicting suppression scope) fails closed: it produces
+`UNKNOWN`/`REVIEW_REQUIRED`, never an automatic allow.
 
 `acquisition_compliance_assessment` is the sole assessment artifact. Proposed
 bounded fields are: deterministic `compliance_assessment_id` derived from
@@ -236,29 +297,52 @@ result does not bypass the later `schedule_campaign` policy or compliance gate.
 Every claim is constructed by Kivou and action fingerprint binds the exact
 `ComplianceProposal`, not caller assertions such as `RECENT_SIGNAL`.
 
+The existing generic `PolicyRequest` always carries a `ComplianceAssessment`.
+For this command alone, the service constructs a fixed Kivou-owned neutral
+pending representation (for example `state=UNKNOWN`, a fixed
+`assessment_version=policy-compliance-pending-v1`, captured observed time, and
+no validity time). It is never caller/Hermes supplied, never inspected as the
+new assessment result because `requires_compliance=false`, and is included in
+the policy semantic fingerprint so replay is stable. SPEC-025 does not redesign
+the generic PolicyRequest contract unless implementation proves that unavoidable.
+
 For an executable result, append the existing `NEXT_ACTION_SET` in the same
 transaction as the assessment; no `EventType` and no state-machine version
-change are necessary. The state stays `SEND` in all four outcomes:
+change are necessary. The state stays `SEND` in all outcomes:
 
 | Assessment | State | next_action | Meaning |
 | --- | --- | --- | --- |
 | `ALLOWED` | `SEND` | `schedule_campaign` | Compliant current assessment exists; SPEC-026 still owns scheduling/send checks. |
 | `REVIEW_REQUIRED` | `SEND` | `request_human_review` | Valid facts, but bounded legal/product uncertainty requires an approved human resolution. |
-| `BLOCKED` | `SEND` | `NULL` | A hard no-contact boundary; do not misuse commercial `NO_SEND`, which has a different historical meaning. |
-| `UNKNOWN` | `SEND` | `request_human_review` | Not enough authoritative information to permit campaign handoff; implementation must fail closed. |
+| `UNKNOWN`, resolvable | `SEND` | `request_human_review` | Missing authoritative data may be corrected; no campaign handoff is permitted. |
+| `UNKNOWN`, not resolvable | `SEND` | `NULL` | No safe resolution path; stop rather than create a review loop. |
+| `BLOCKED` / `OUT_OF_SCOPE` | `SEND` | `NULL` | A hard no-contact/product boundary; do not misuse commercial `NO_SEND`, which has a different historical meaning. |
 
-The supervisor must freeze whether `UNKNOWN` should instead set `NULL` for
-unresolvable cases. This report recommends `request_human_review` so a durable
-data-resolution path exists, while the state remains non-schedulable.
+Current `NEXT_ACTION_SET` accepts only a non-empty string in
+`ALLOWED_NEXT_ACTIONS`, although `AcquisitionOpportunity.next_action` itself
+already permits `None`. Future SPEC-025 implementation must make the existing
+event additive and backwards-compatible: `payload.next_action = null` is an
+explicit clear, permitted only with non-empty `reason_codes`; string values keep
+their current validation; historical events replay exactly unchanged. The
+service—not the reducer—remains responsible for Policy/TOCTOU authorization.
+Required regressions cover both a valid string set and a reasoned explicit
+clear. This avoids a fake terminal command, a new EventType, and an
+`acquisition-state-v2` solely for this extension.
 
 ### Shadow and assisted operation
 
 In SHADOW or any non-executable policy result, persist only a
 `POLICY_BLOCKED` PII-minimized assessment proposal. Do not write
-`NEXT_ACTION_SET`; therefore no campaign action is unlocked. In ASSISTED mode,
-the normal Policy approval flow governs whether the assessment workflow mutation
-may be recorded. A compliance-review approval is only relevant for a bounded
-`REVIEW_REQUIRED` case and cannot override a suppression-derived `BLOCKED`.
+`NEXT_ACTION_SET`; therefore no campaign action is unlocked. Because
+`assess_campaign_compliance` is `PREPARATORY`, current Policy evaluator
+semantics do **not** require ACTION approval merely because autonomy is
+ASSISTED: the assessment may run automatically. When it produces
+`REVIEW_REQUIRED`, the workflow handoff is `request_human_review`; a human must
+add/correct durable evidence or configuration and trigger a **new** assessment.
+Historical `REVIEW_REQUIRED` and `BLOCKED` rows are never mutated into
+`ALLOWED`. A `COMPLIANCE_REVIEW` approval is relevant only to a later command
+whose policy requires it, and cannot override a suppression-derived or other
+hard `BLOCKED` result.
 
 ## Idempotency, revalidation, and atomicity
 
@@ -323,16 +407,22 @@ Before implementation, add failing deterministic tests for:
   `READY` artifact, current verified contact, supported profile and durable
   decision; all other states/binding failures are typed pre-policy failures;
 - resolver: CH, FR, configured EU member state, unconfigured EU member state,
-  conflicting/no country; prove language/TLD/name never establish jurisdiction;
-- rules: counsel-approved CH/FR candidates, unresolved jurisdiction, unverified
-  contact, insufficient business context, missing sender identity/opt-out,
-  personalization mismatch, each bounded reason ordering, and no score;
+  known out-of-scope country, conflicting/no country; prove language/TLD/name
+  never establish jurisdiction and unresolved is reviewable only when resolvable;
+- rules: CH explicit consent, CH existing-customer predicate, CH cold Apollo
+  contact with missing proof, FR professional-role/purpose predicate, FR
+  provenance/identity/objection/privacy capability failures, unconfigured EU,
+  unresolved jurisdiction, unverified contact, personalization mismatch, each
+  bounded reason ordering, and no score;
 - suppression: unsubscribe, explicit objection, duplicate-email/new-contact
   convergence, ambiguous identity failure closed, hard BLOCKED cannot be human
-  overridden, and a post-assessment opt-out blocks future scheduling;
+  overridden, three-year minimum/no automatic reactivation, overlapping HMAC
+  key versions during rotation, and a post-assessment opt-out blocks future
+  scheduling;
 - policy: exact proposal action fingerprint, required Kivou evidence, no circular
-  compliance gate for assessment, SHADOW audit/no action, ASSISTED review
-  approval, and stale caller evidence cannot substitute current input;
+  compliance gate for assessment, fixed Kivou-owned neutral pending compliance
+  contract, SHADOW audit/no action, automatic ASSISTED preparatory assessment,
+  and stale caller evidence cannot substitute current input;
 - replay/crash/concurrency: exact replay with historical budget reconstruction,
   changed actor/scope/evidence/ruleset/artifact conflicts, policy-without-
   assessment fresh attempt, same-evaluation race convergence, and changed
@@ -340,25 +430,29 @@ Before implementation, add failing deterministic tests for:
 - TOCTOU: after-policy drift in artifact, supplier/contact binding, jurisdiction,
   sender configuration, suppression, and ruleset yields `ComplianceInputChanged`
   and rolls back assessment plus action together;
+- reducer: historical `NEXT_ACTION_SET` replay is unchanged; valid string
+  handoffs still require `ALLOWED_NEXT_ACTIONS`; an explicit `next_action=null`
+  clear needs non-empty reason codes and is rejected otherwise;
 - migration: fresh DB, `0013 -> 0014`, PostgreSQL offline SQL, constraints,
   downgrade, and one linear Alembic head; and
 - architecture: zero provider/network/LLM/customer/billing dependencies and no
   raw email/rendered artifact payload in generic audit structures.
 
 The supervisor-reviewable offline EVAL corpus uses synthetic, non-personal test
-fixtures: CH consent/evidence-complete candidate; CH missing proof; FR
-professionally relevant candidate with and without source/objection evidence;
-EU configured and unconfigured countries; unresolved country; contact
-unverified; suppression and later objection; changed artifact/contact/ruleset;
-SHADOW; and concurrent suppression. It evaluates deterministic invariants,
-reason codes, provenance, and workflow safety—not a legal-confidence score or
-copy quality.
+fixtures: CH consent/evidence-complete candidate; CH existing-customer candidate;
+CH cold provider-verified contact; FR professionally relevant candidate with and
+without source/identity/objection/privacy readiness; EU configured,
+unconfigured, and out-of-scope countries; resolvable and non-resolvable unknown
+country; contact unverified; suppression and later objection; changed
+artifact/contact/ruleset; SHADOW; and concurrent suppression. It evaluates
+deterministic invariants, reason codes, provenance, and workflow safety—not a
+legal-confidence score or copy quality.
 
 ## Recommended implementation sequence
 
-1. Obtain counsel/supervisor freeze for the legal matrix, scope connecting
-   factors, sender profile, opt-out route, ruleset predicates, and unknown
-   workflow choice.
+1. Encode the supervisor-frozen CH/FR/EU routing, CH/FR predicates, suppression
+   retention/rotation, review, and null-handoff contracts; obtain counsel review
+   only for the remaining external jurisdiction/footer/exception questions.
 2. Add the two-table linear `0014_compliance` migration and bounded contracts.
 3. Implement pure jurisdiction, suppression matching, and ruleset evaluation
    TDD-first with the offline EVAL corpus.
@@ -366,11 +460,14 @@ copy quality.
 5. Add the atomic assessment service, TOCTOU checks, state handoff, full
    migration/concurrency/architecture regression, then open a separate draft PR.
 
-## Design verdict and open supervisor decisions
+## Design verdict and remaining external questions
 
-The architecture is ready for supervisor/legal review, but implementation must
-not begin until the six legal/product decisions listed above are frozen. The
-recommended topology is `0013_personalization -> 0014_compliance`, with exactly
-two justified tables: one cross-attempt suppression boundary and one immutable
-assessment audit. No runtime, schema, migration, test, or deployment change is
-part of this design PR.
+R1 freezes the product decisions needed for a fail-closed CH/FR MVP. The
+remaining external legal questions are limited to future BE/LU/other
+Member-State rulesets, any later opinion changing the conservative CH treatment,
+exact production privacy/footer wording, and exceptional suppression deletion or
+key-retirement cases. The recommended topology is
+`0013_personalization -> 0014_compliance`, with exactly two justified tables:
+one cross-attempt suppression boundary and one immutable assessment audit. No
+runtime, schema, migration, test, or deployment change is part of this design
+PR.
