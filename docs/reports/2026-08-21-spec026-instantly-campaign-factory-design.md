@@ -13,6 +13,18 @@ deployment change is authorized by this report.
 `150 passed`. These are read-only baseline runs on the audited base, not
 SPEC-026 implementation validation.
 
+### Design R1 freeze
+
+R1 removes the unsafe possibility of enrolling a lead into an active provider
+campaign. Micro-campaigns are immutable batches: all members are enrolled and
+become `QUEUED` while the provider campaign is non-sending, membership is
+sealed, every member is revalidated, and only then may activation be attempted.
+R1 also freezes initial caps/windows/follow-up/tracking/stop settings and gates
+`reply_received` subscription until SPEC-027 can durably retain sensitive reply
+content. The external deployment inputs that remain unresolved are the real
+mailbox catalog, exact privacy/footer catalog, Hyper Growth entitlement, and a
+separately authorized paused-provider transport-contract proof.
+
 ## Executive recommendation
 
 SPEC-026 should add a deterministic, opportunity-scoped scheduling saga around
@@ -31,22 +43,25 @@ next_action = schedule_campaign
 + exact current, unexpired RECORDED/ALLOWED compliance assessment
 ```
 
-It ends at `SEND -> QUEUED` only after Kivou has durable proof that the exact
-lead is enrolled in the exact configured and active Instantly campaign, all
-provider identities are recorded, and a final suppression/compliance check has
-passed. `QUEUED` means accepted for external execution. It does not mean sent.
-Only a deduplicated authoritative `email_sent` provider event may advance
-`QUEUED -> SENT`.
+It reaches `SEND -> QUEUED` only after Kivou has durable proof that the exact
+lead is enrolled in the exact configured **non-sending** Instantly campaign,
+all provider identities are recorded, and all current execution gates pass.
+The batch is then sealed, every queued member is revalidated, and only then may
+provider activation be attempted. `QUEUED` means authorized for subsequent
+external activation; it does not require provider ACTIVE status and does not
+mean sent. Only a deduplicated authoritative `email_sent` provider event may
+advance `QUEUED -> SENT`.
 
 The minimum safe migration recommendation is `0015_campaign_factory` with four
 tables: campaign, campaign member, provider operation, and provider event. Each
 has a distinct normalization/idempotency purpose; none stores provider raw
 responses or duplicate rendered email copy.
 
-No autonomous live volume should be enabled merely by implementing this
-design. Exact follow-up copy/cadence, sender pool, production caps, send hours,
-tracking/header configuration, webhook entitlement, and first-live-send mode
-remain supervisor product/deployment decisions listed at the end.
+R1 freezes autonomous live volume at zero, the first live trial as ASSISTED,
+the initial caps, weekday windows, one follow-up, and tracking/stop settings.
+No live volume becomes authorized merely by implementing this design. Real
+mailboxes, exact footer/privacy configuration, webhook entitlement, and the
+paused Instantly transport proof remain deployment gates listed at the end.
 
 ## Repository baseline and code audit
 
@@ -153,13 +168,20 @@ lead custom variables:
 The adapter must reject missing/empty/extra variables, spintax, Liquid
 conditionals, variants, AI personalization, AI SDR, and provider-generated
 copy. It must read back the campaign template and lead variables and locally
-reconstruct the final string. Before implementation enables provider
-activation, a paused/draft staging contract test must prove Instantly preserves
-the entire subject/body and unsubscribe transport as expected. If that proof
-fails, the safe fallback is a campaign keyed by exact envelope fingerprint with
-literal subject/body; that may degenerate toward one campaign per unique
-message and therefore requires explicit supervisor acceptance. It must never
-silently sacrifice copy integrity to preserve grouping.
+reconstruct the final string. Deployment configuration carries a bounded
+capability:
+
+```text
+transport_contract_proof = UNVERIFIED | VERIFIED
+default = UNVERIFIED
+```
+
+`UNVERIFIED` permits only separately authorized staging creation/configuration
+with the provider campaign kept DRAFT/PAUSED; `ACTIVATE_CAMPAIGN` is impossible.
+Only a separately authorized paused/draft Instantly contract test may establish
+`VERIFIED` after proving exact whole-subject/body and unsubscribe transport.
+Failure does not trigger a literal or one-message-per-campaign fallback: it
+stops for supervisor architecture review.
 
 ## Plan and webhook entitlement
 
@@ -171,9 +193,11 @@ requires **Hyper Growth or above**. The repository contains no durable proof of
 the active Instantly plan or workspace entitlement, and this task did not log
 in or call the API.
 
-Production MVP recommendation: treat Hyper Growth-or-better webhook entitlement
-as a hard deployment gate. Prompt `email_sent`, reply, bounce, account-error,
-and unsubscribe evidence is required for safe `SENT` semantics and stop safety.
+Production MVP requires Hyper Growth-or-better webhook entitlement as a hard
+deployment gate. Prompt `email_sent`, bounce, account-error, and unsubscribe
+evidence is required for safe `SENT` semantics and stop safety. A
+`reply_received` subscription remains prohibited until SPEC-027 provides the
+response-ingress capability frozen below.
 A bounded polling fallback is technically possible using campaign/lead reads
 and webhook-delivery records, but it is not equivalent for timely unsubscribe
 or reply handling and should be later reliability work, not a silent SPEC-026
@@ -249,7 +273,25 @@ Recommended `campaign-factory-v1` grouping dimensions are:
 11. compliance ruleset generation when it changes outbound transport duties.
 
 The deterministic `campaign_group_key` is a domain-separated fingerprint of
-these dimensions, not of a person or email. The factory returns:
+these semantic dimensions, not of a person or email. It deliberately excludes
+batch position. Assignment occurs under database serialization:
+
+```text
+campaign_group_key = fingerprint(semantic grouping dimensions)
+campaign_ref = fingerprint(campaign_group_key, batch_generation)
+```
+
+Select the lowest-generation `BUILDING` batch with an unreserved slot below the
+frozen maximum of **10 members**. If none exists, atomically allocate the next
+generation. A unique `(campaign_group_key, batch_generation)` constraint plus a
+locked capacity reservation prevents two schedulers from allocating duplicate
+batches or the same last slot. Once a batch becomes `SEALED`, it never reopens;
+a later compatible opportunity joins another `BUILDING` generation or creates
+the next one. Ten is intentionally conservative relative to the frozen first
+ASSISTED trial cap of five new leads/day; the provider bulk maximum does not
+raise it.
+
+The factory returns:
 
 - Kivou `campaign_ref`, group key, country/language/wedge/need;
 - exact campaign-safe provider name;
@@ -261,7 +303,9 @@ these dimensions, not of a person or email. The factory returns:
 Do not group materially different language, need, copy/catalog, legal
 transport, sender, schedule, or sequence semantics. Do not make one giant
 generic campaign. A shared micro-campaign is preferred over one campaign per
-prospect only after the whole-message-variable contract is proven.
+prospect only after the whole-message-variable contract is proven. R1 forbids
+an automatic literal/one-message-per-campaign fallback if that proof fails;
+failure returns for supervisor architecture review.
 
 Provider-safe naming recommendation:
 
@@ -269,9 +313,32 @@ Provider-safe naming recommendation:
 KIVOU-{campaign_ref_short}-{country}-{language}-{wedge_slug}
 ```
 
-`campaign_ref_short` comes from the full immutable grouping fingerprint, and
-the full value remains in Kivou storage. The name contains no contact/person
-name, email, public title, customer material, or other PII.
+`campaign_ref_short` comes from the immutable group-plus-generation
+fingerprint, and the full value remains in Kivou storage. The name contains no
+contact/person name, email, public title, customer material, or other PII.
+
+### Sealed campaign lifecycle
+
+Kivou's deterministic lifecycle is:
+
+```text
+BUILDING -> SEALED -> ACTIVE -> PAUSED | COMPLETED
+     \-----------> FAILED (typed terminal/reconciliation outcome)
+```
+
+- `BUILDING`: provider campaign is DRAFT/PAUSED and configuration/membership
+  may be assembled under the ten-member cap.
+- `SEALED`: membership is immutable; every provider lead binding is confirmed
+  and every member is already `QUEUED`. Activation has not yet been attempted.
+- `ACTIVE`: activation has been attempted and reconciled/observed as active.
+  No member or `ADD_LEAD` operation can ever be added.
+- `PAUSED`, `COMPLETED`, `FAILED`: non-building states; none may reopen for
+  membership. A compatible later opportunity uses a new generation.
+
+Creation of `ADD_LEAD` is allowed only while both Kivou lifecycle is `BUILDING`
+and provider readback is DRAFT/PAUSED. As soon as activation is claimed, the
+campaign must already be `SEALED`; membership and capacity reservations are
+permanently closed. MVP never pauses a live campaign merely to append leads.
 
 ## Final outbound envelope
 
@@ -322,53 +389,75 @@ transactions with the same captured time.
 
 The exact production FR/CH source/privacy/opt-out footer wording is not frozen
 in current repository sources; activation remains disabled until that bounded
-catalog is supervisor/legal-approved. An unsubscribe header is defense in
-depth, not a replacement for the required visible objection route.
+catalog is configured. Every entry must provide sender identity, source notice,
+privacy-information route, and a visible simple opt-out. Existing contacts are
+Apollo-derived, but the design does not invent or hard-code a public privacy
+URL that is not authoritative repository/deployment configuration. Synthetic
+fixtures may use fake URLs. An unsubscribe header is defense in depth, not a
+replacement for the required visible objection route.
 
-## Tracking policy recommendation
+## Frozen tracking and provider-stop policy
 
-Recommended conservative MVP candidate, pending supervisor freeze:
+`tracking-policy-v1` is frozen:
 
-| Setting | Candidate | Reason |
+| Setting | V1 value | Consequence |
 | --- | --- | --- |
-| Open tracking | `false` | Tracking pixel is unnecessary for scheduling truth and adds privacy/deliverability cost. Official deliverability guidance recommends no open tracking for simple first email. |
-| Link tracking | `false` | The frozen CTA contains no link; tracking is unnecessary. SPEC-028 can later introduce reviewed conversion links. |
-| First email text-only | `true` | Preserves controlled copy and reduces HTML/provider transformation. |
-| All steps text-only | `true` for v1 | Simplifies exact-envelope proof. |
-| List-Unsubscribe header | `true` once workspace behavior is contract-tested | Official campaign option exists and supports one-click unsubscribe; validate actual configuration and webhook behavior. |
-| Visible opt-out/footer | required approved catalog | Legal/product capability must be visible and deterministic; exact wording is unresolved. |
-| `stop_on_reply` | `true` | Provider-side defense in depth; Kivou remains authoritative. |
-| `stop_for_company` | candidate `true` | Conservative defense against parallel contact after reply; requires supervisor acceptance because it can affect unrelated contacts at the same company. |
-| `stop_on_auto_reply` | candidate `true` for MVP | Prevents unattended follow-ups during uncertain absence handling; supervisor must freeze. |
-| Auto variants/AI/spintax | `false` | Kivou owns exact copy; no adaptive provider prose. |
-| Risky contacts | disallowed | Only current verified contact bindings may enter. |
-| Bounce protection | enabled | Provider may reduce sending; it never increases Kivou authority. |
+| Open tracking | `false` | No tracking pixel. |
+| Link tracking | `false` | No tracked link; SPEC-028 owns later conversion design. |
+| Text-only | `true` | Both steps use deterministic plain text. |
+| First email text-only | `true` | No HTML first-step transformation. |
+| Auto variant selection | disabled | No provider copy selection. |
+| AI SDR | disabled | No provider AI. |
+| Spintax / Liquid | forbidden | No provider-generated or conditional prose. |
+| Risky contacts | `false` | Only current verified contacts enter. |
+| Bounce protection | enabled | Provider may reduce sending, never increase Kivou authority. |
+| Insert unsubscribe header | desired `true`, activation-gated | Activation remains impossible until a paused staging proof establishes compatible List-Unsubscribe behavior. |
+| Visible opt-out/footer | mandatory | Required independently of the header; exact catalog remains a deployment input. |
 
-Open/click transport events may still be normalized when delivered, but disabled
-tracking means their absence is expected and must not affect opportunity truth.
+Provider stop settings are also frozen:
 
-## CampaignSequencePolicy and follow-ups
+```text
+stop_on_reply = true
+stop_on_auto_reply = true
+stop_for_company = false
+```
 
-Introduce a versioned pure `CampaignSequencePolicy` whose ordered steps each
-bind: step number; delay and `minutes|hours|days`; exact subject behavior; body
-catalog/version; stop-on-reply and stop-on-auto-reply behavior; send-window
-policy; core-fact/artifact binding; and sequence fingerprint. Follow-ups may
-refer only to the already-approved event/inference/product claims or bounded
-neutral follow-up text. They may not add new quantities, urgency, fit, purchase,
-or sourcing claims.
+Reply and auto-reply stops are conservative per-lead defenses. Provider-wide
+company stopping is deliberately disabled because it could suppress unrelated
+future Kivou opportunities; Kivou's company/contact pacing remains
+authoritative. Disabled open/link tracking means missing events are expected
+and never change opportunity truth.
 
-Provider-side `stop_on_reply=true` is mandatory defense in depth. A current
-Kivou suppression, reply/unsubscribe transport event, campaign pause, invalid
-compliance assessment, or unhealthy mailbox stops further execution as soon as
-observed. Provider stop logic never replaces Kivou Event Store authority or
-SPEC-027 response handling.
+## Frozen CampaignSequencePolicy v1
 
-The repository freezes no follow-up count, cadence, or FR/EN follow-up copy.
-Therefore the implementation may model and test sequences, but production
-activation must remain disabled until the supervisor approves
-`campaign-sequence-policy-v1`. A safe no-invention interim is first-touch-only
-in paused/staging testing; it does not claim the roadmap's follow-up objective
-is complete.
+`campaign-sequence-policy-v1` contains exactly **two email steps**:
+
+1. **Step 1:** the exact approved SPEC-024/SPEC-026 initial envelope.
+2. **Step 2:** one follow-up, delayed **four calendar days** after Step 1 and
+   then deferred to the next eligible Kivou send-window instant when necessary.
+   The provider follow-up subject is the empty string, using Instantly's
+   documented previous-subject reuse behavior. It reuses the exact safe
+   artifact greeting and appends the exact same approved transport/footer
+   catalog as Step 1.
+
+Exact Step 2 body, after the reused greeting and before the transport footer:
+
+```text
+fr: Je me permets de revenir sur mon précédent message. Si le sujet vous intéresse, je peux vous montrer quelques exemples des signaux que Kivou repère dans les marchés publics.
+
+en: Just following up on my previous message. If this is relevant to you, I can show you a few examples of the signals Kivou identifies in public procurement.
+```
+
+There is no Step 3. The follow-up adds no procurement fact, buyer intent, need,
+urgency, fit, quantity, or sourcing claim. Its input and sequence fingerprints
+bind language, greeting mode, exact body, empty-subject behavior, four-day
+delay, send-window version, footer version, and the stop/tracking policies.
+
+Provider-side `stop_on_reply=true` and `stop_on_auto_reply=true` are mandatory
+defense in depth. A current Kivou suppression, unsubscribe transport event,
+campaign pause, invalid compliance assessment, or unhealthy mailbox stops
+further execution as soon as observed. Provider stop logic never replaces
+Kivou Event Store authority or SPEC-027 response handling.
 
 ## Mailbox catalog and readiness
 
@@ -385,6 +474,11 @@ fifth `0015` table. It maps stable `mailbox_ref` to:
 It contains no provider API key. Hermes selects neither account email nor raw
 provider ID. Secrets use the deployment's secret injection and never enter
 catalog fingerprints, Policy arguments, events, or artifacts.
+
+The production default catalog contains **zero usable mailboxes**. Defining the
+contract does not authorize a provider account. Provider mutation is impossible
+until explicit real `mailbox_ref` entries are deployed and each is readiness-
+verified; the design invents no mailbox address.
 
 The adapter maps current provider facts into a bounded `MailboxReadiness`:
 
@@ -405,7 +499,7 @@ effective_mailbox_capacity = min(Kivou mailbox cap,
 
 Provider state can never increase an approved Kivou volume.
 
-## Send windows and pacing
+## Frozen send windows and pacing
 
 `SendWindowPolicy` is versioned, Kivou-owned, DST-aware, and uses IANA zones.
 Country and current compliance facts select the policy; language never does.
@@ -414,10 +508,13 @@ For current automatic jurisdictions the deterministic zones are
 closed. Instantly's schedule must be explicitly populated and read back; its
 defaults are never authoritative.
 
-Candidate for supervisor review, not frozen: Monday–Friday 09:00–17:00 in the
-recipient-country IANA zone, excluding a separately versioned holiday calendar
-only after an authoritative calendar source is chosen. A simpler v1 may omit
-holiday logic rather than guess it. The exact weekday/hour choice remains open.
+`send-window-policy-v1` is frozen for Monday through Friday, with local start
+`09:00:00` **inclusive** and local cutoff `17:00:00` **exclusive**. CH uses
+`Europe/Zurich`; FR uses `Europe/Paris`. The calculation uses the IANA timezone
+at the candidate instant, including DST transitions, rather than a fixed UTC
+offset. V1 has no holiday calendar and does not guess holidays. Outside the
+window, no lead may be exposed to a sending campaign and activation cannot be
+attempted; the next eligible instant is the next weekday at local 09:00.
 
 Pacing is an ordered minimum across:
 
@@ -431,12 +528,24 @@ Pacing is an ordered minimum across:
 - Policy-authorized volume; and
 - currently available budget/provider quota.
 
-No adaptive increase is allowed. SPEC-029 owns learning/allocation. A
-conservative staged candidate for supervisor review is: autonomous cap **zero**
-until explicitly enabled; first ASSISTED live trial global 5 new leads/day,
-country 5/day, wedge 3/day, mailbox 3/day, micro-campaign 10 members, and one
-active contact per company per 30 days. These are not law, benchmark-tuned
-thresholds, or implementation defaults until approved.
+`pacing-policy-v1` is frozen:
+
+```text
+AUTONOMOUS_CAPPED live outbound = 0 until separately enabled
+first live trial mode = ASSISTED with existing ACTION approval
+global new leads/day = 5
+country new leads/day = 5
+wedge new leads/day = 3
+mailbox new leads/day = 3
+micro-campaign members = 10 maximum
+active contacts/company = 1 per rolling 30 days
+```
+
+All counters use Kivou-owned reservations and the relevant policy timezone/day
+or rolling interval. Provider capacity, Policy budget/volume, or a healthier
+mailbox may only lower the effective minimum; nothing raises these values
+automatically. A later explicit supervisor authorization is required before
+autonomous live volume exceeds zero. SPEC-029 owns adaptive allocation.
 
 ## Corrected `schedule_campaign` Policy contract
 
@@ -489,10 +598,12 @@ compliance, mailbox, or action fingerprint conflicts.
   mutation and no `SEND -> QUEUED`.
 - **ASSISTED:** planning/readiness may run, but the existing
   `COMMERCIAL_MUTATION` ACTION-approval semantics control external mutation.
+  The first live outbound mode is frozen to ASSISTED.
   Approval cannot override suppression, expired compliance, broken mailbox,
   invalid window, quota, or control-plane failure.
-- **AUTONOMOUS_CAPPED:** executable only inside exact approved
-  country/language/wedge/mailbox/budget/volume/window/compliance boundaries.
+- **AUTONOMOUS_CAPPED:** live outbound cap is frozen at zero until a later
+  explicit supervisor authorization raises it. The bounded machinery is tested
+  but cannot execute live sends in v1 deployment.
 - **ADAPTIVE_SCALE:** out of scope; SPEC-029 owns adaptive allocation.
 
 ## Narrow InstantlyProvider
@@ -546,10 +657,12 @@ accounts:read
 ```
 
 Add `leads:update` only if the supervisor approves the bounded risk-reduction
-lead-pause operation after contract testing. Recommended deployment-time webhook
-management needs `webhooks:create`, `webhooks:read`, and `webhooks:update` on a
-separate operational key. Manual creation plus read-only verification needs
-only `webhooks:read` at runtime. Do not request `all:all`.
+lead-pause/removal operation after contract testing. MVP webhook creation is
+manual/deployment-time. The runtime scheduling key receives no
+`webhooks:create` or `webhooks:update`; it may receive only `webhooks:read` for
+narrow verification/reconciliation. A later API-managed deployment design
+would require separate `webhooks:create/read/update` authority. Do not request
+`all:all`.
 
 Where Instantly permits multiple keys, separate read/reconciliation and mutation
 keys so a read worker cannot create or activate campaigns and the webhook setup
@@ -568,12 +681,14 @@ It adds exactly four tables.
 
 ### 1. `acquisition_campaign`
 
-Shared immutable Kivou micro-campaign identity and bounded provider mapping:
-`campaign_ref` primary key; group/version/fingerprint; country/language/wedge/
-need; template/envelope/sequence/tracking/window/mailbox-pool versions;
-provider workspace ref; deterministic provider name; nullable unique provider
-campaign ID; desired/current provider configuration fingerprints; bounded
-lifecycle status; timestamps. No member email, copy, API key, or raw provider
+Shared immutable Kivou micro-campaign batch and bounded provider mapping:
+`campaign_ref` primary key; `campaign_group_key`; `batch_generation`; unique
+group/generation; group/version/fingerprint; country/language/wedge/need;
+template/envelope/sequence/tracking/window/mailbox-pool versions; provider
+workspace ref; deterministic provider name; nullable unique provider campaign
+ID; desired/current provider configuration fingerprints; lifecycle constrained
+to `BUILDING|SEALED|ACTIVE|PAUSED|COMPLETED|FAILED`; membership count/capacity
+reservation; timestamps. No member email, copy, API key, or raw provider
 response.
 
 Why separate: one campaign owns many opportunities and must be created/configured
@@ -586,8 +701,9 @@ supplier, contact, READY artifact, RECORDED/ALLOWED compliance, and Policy
 evaluation refs; exact input/plan/envelope/action fingerprints; nullable unique
 provider lead ID; bounded enrollment/queue/stop state; recorded queue event ref;
 timestamps. Enforce one active scheduling identity per opportunity/artifact/
-compliance generation and unique provider campaign/lead binding. No rendered
-copy or raw email.
+compliance generation and unique provider campaign/lead binding. Insertion is
+valid only against a locked `BUILDING` campaign below capacity; no member is
+created after seal or activation claim. No rendered copy or raw email.
 
 Why separate: membership has independent compliance/idempotency/workflow state
 while many members share one campaign.
@@ -596,11 +712,11 @@ while many members share one campaign.
 
 Durable outbox/reconciliation ledger: operation ID; deterministic unique
 operation key; kind (`CREATE_CAMPAIGN`, `CONFIGURE_CAMPAIGN`, `ADD_LEAD`,
-`ACTIVATE_CAMPAIGN`, `PAUSE_CAMPAIGN`, and only approved risk-reduction/webhook
-kinds); campaign/member refs; desired request fingerprint; status; attempt
-number; provider identity/result fingerprint; lease/start/confirm/error/retry
-timestamps; bounded error code; correlation. No arbitrary request/response JSON
-or secrets.
+`ACTIVATE_CAMPAIGN`, `PAUSE_CAMPAIGN`, and only approved risk-reduction lead
+kinds; no MVP `CREATE_WEBHOOK` operation); campaign/member refs; desired request
+fingerprint; status; attempt number; provider identity/result fingerprint;
+lease/start/confirm/error/retry timestamps; bounded error code; correlation. No
+arbitrary request/response JSON or secrets.
 
 States are `PLANNED`, `IN_FLIGHT`, `CONFIRMED`, `RECONCILE_REQUIRED`,
 `RETRYABLE_FAILED`, and `TERMINAL_FAILED`. `IN_FLIGHT` expiration means unknown,
@@ -612,12 +728,12 @@ unrecorded.
 
 ### 4. `acquisition_provider_event`
 
-Deduplicated PII-minimized ingress: canonical event fingerprint; provider
-event type; workspace/campaign/lead/email-event ID when provided; Kivou
-campaign/member/opportunity/contact refs; step/variant; occurred/received time;
-mailbox ref; bounded transport status; resolution/processing state; recorded
-acquisition event ref. No raw lead email/name/phone, subject, body, HTML, reply
-content, Unibox URL, or raw payload.
+Deduplicated PII-minimized ingress: canonical event fingerprint and fingerprint
+version; provider event type; workspace/campaign/lead/email-event ID when
+provided; Kivou campaign/member/opportunity/contact refs; step/variant;
+occurred/received time; mailbox ref; bounded transport status; resolution/
+processing state; recorded acquisition event ref. No raw lead email/name/phone,
+subject, body, HTML, reply content, Unibox URL, or raw payload.
 
 Why separate: inbound at-least-once delivery has its own identity, retention,
 and atomic effects and cannot safely share an outbound operation row.
@@ -648,23 +764,51 @@ skip flags are defense in depth, not Kivou's source of truth.
    clock/provider access. Exact historical replay returns it with zero clock,
    Policy, provider, event, or row. A Policy decision without schedule/member
    state requires a fresh attempt ID rather than reusing stale approval.
-2. **Plan and authorize:** capture one UTC instant; build exact current inputs,
-   suppression, envelope, mailbox readiness, window/pacing, plan, and Policy
-   request. For executable Policy, atomically reserve the campaign/member and
-   first `PLANNED` operation at the exact post-Policy stream version.
-3. **Execute/reconcile:** a worker claims one operation, revalidates current
-   compliance/suppression/capacity where the operation can expose the recipient,
-   performs the typed call, and records confirmation or reconciliation state.
-4. **Finalize:** after exact campaign config, lead enrollment, and activation
-   are durably confirmed, capture/rebuild current compliance/suppression and
-   provider readback in a bounded final transaction, bind `campaign_ref`, append
-   `STATE_TRANSITIONED(SEND -> QUEUED)`, and store the event on the member.
+2. **Plan, authorize, assign batch:** capture one UTC instant; build exact
+   current inputs, suppression, envelope, mailbox readiness, window/pacing,
+   plan, and Policy request. For executable Policy, serialize on the semantic
+   group, reserve the lowest `BUILDING` generation with capacity (or atomically
+   create the next), reserve its member, and create the first `PLANNED`
+   operation at the exact post-Policy stream version.
+3. **Build non-sending campaign:** create/configure/reconcile the provider
+   campaign as DRAFT/PAUSED. `ADD_LEAD` operations exist only for this
+   `BUILDING` generation. Confirm every exact provider lead binding; an ACTIVE,
+   SEALED, PAUSED-after-activation, COMPLETED, or FAILED batch rejects new
+   enrollment.
+4. **Queue authorized members before activation:** for each confirmed member,
+   re-read its opportunity, READY artifact, RECORDED/ALLOWED unexpired
+   compliance, suppression, contact/supplier/profile, mailbox, plan, window,
+   caps, and Policy execution authority. In one bounded transaction bind
+   `campaign_ref`, append `STATE_TRANSITIONED(SEND -> QUEUED)`, and record the
+   event on the member. The provider campaign remains non-sending. A member
+   that fails this check must be removed/paused through a contract-proven safe
+   provider mechanism or leave the entire batch BUILDING/non-active for review;
+   it cannot be silently retained.
+5. **Seal:** after membership selection completes, atomically move the batch
+   `BUILDING -> SEALED` only when every retained member is `QUEUED`. No later
+   member or `ADD_LEAD` operation is possible.
+6. **Activation revalidation:** immediately before creating/claiming
+   `ACTIVATE_CAMPAIGN`, revalidate **every** queued member's opportunity,
+   artifact, assessment/expiry, suppression, sender/mailbox, plan/member
+   fingerprints, send-window eligibility, and Policy execution authority. The
+   campaign cannot activate while any retained member remains `SEND` or is
+   otherwise ineligible.
+7. **Resolve unsafe membership:** because the campaign is non-sending, remove
+   or pause an ineligible provider membership only through the narrowest V2
+   mechanism proven safe. If exact member removal/pause semantics are not
+   contract-proven, keep the entire campaign non-active in review/
+   reconciliation. Never activate optimistically.
+8. **Activate/reconcile:** only a fully revalidated SEALED batch with
+   `transport_contract_proof=VERIFIED` may create/claim activation. A timeout or
+   unknown mutation outcome becomes `RECONCILE_REQUIRED`. All members are
+   already `QUEUED`, so an immediate `email_sent` can be safely bound even when
+   the provider accepted activation before Kivou recorded confirmation.
 
-For a previously active shared campaign, `ADD_LEAD` is the exposure boundary;
-fresh gates run immediately before it. For a new campaign they also run before
-activation. A new suppression at any point prevents later operations and queue
-commit; a provider lead already added under an unknown outcome triggers a
-risk-reduction reconciliation/pause path, never an optimistic queue.
+There is no active-campaign enrollment path. A new suppression at any point
+before lead addition prevents enrollment; after confirmed enrollment but before
+queue/seal/activation it invokes the non-sending risk-reduction path. After
+`QUEUED` but before activation it prevents activation for that member and, when
+safe removal cannot be proven, for the entire batch.
 
 ### Crash/reconciliation matrix
 
@@ -672,16 +816,16 @@ risk-reduction reconciliation/pause path, never an optimistic queue.
 | --- | --- | --- | --- | --- | --- |
 | Create campaign | `PLANNED`; safe claim | bounded retry/terminal classification | `RECONCILE_REQUIRED`; search exact deterministic name | list/search then exact-match workspace/name/full desired config; zero matches allows controlled retry, one exact match binds ID, ambiguity is conflict | provider campaign stays bound; replay continues configure without creating another |
 | Configure campaign | existing campaign + desired fingerprint | retain prior safe config; retry only typed retryable | GET and compare exact allowed config subset | matching readback confirms; divergent readback conflicts/replans | continue from confirmed config; never repeat create |
-| Add lead | member reserved; fresh compliance/suppression | no queue; typed failure | list leads in exact campaign and reconcile by contact/provider/member identity | exact lead/custom-variable fingerprint confirms; absent permits controlled retry with skip flags; partial bulk result splits per-member outcomes | member remains provider-bound but not queued until final gates/readback; never add blindly |
-| Activate campaign | campaign configured, member enrolled, fresh gates | no queue | GET campaign status/config/member | active + exact config confirms; draft/paused permits controlled retry only after fresh gates; conflicting state fails | final local queue transaction retries without reactivation |
+| Add lead | only a locked `BUILDING` batch whose provider state is DRAFT/PAUSED; fresh gates | no queue; typed failure | list leads in exact campaign and reconcile by contact/provider/member identity | exact lead/custom-variable fingerprint confirms; absent permits controlled retry with skip flags; partial bulk result splits per-member outcomes | member remains provider-bound but not queued until its final local checks; no add is legal after seal/activation claim |
+| Activate campaign | SEALED; every retained member already QUEUED; every member and current gate revalidated; transport proof VERIFIED | remain SEALED/non-sending | `RECONCILE_REQUIRED`; GET campaign status/config/members | active + exact config confirms; draft/paused permits controlled retry only after complete fresh all-member validation; conflicting state fails | members were already QUEUED, so local campaign-state catch-up is safe and immediate `email_sent` can bind without reactivation |
 | Pause campaign/lead | risk-reduction operation reserved | alert/retry conservatively | GET status | paused/stopped readback confirms | local status/event catch-up; risk remains conservative |
-| Create webhook (if API-managed later) | deployment op reserved | deployment gate fails | list exact target/name/event/header-key names, never secret values | unique exact subscription binds ID; ambiguity blocks | local configuration reconciliation only; scheduler remains separate |
 
 No HTTP success alone advances the acquisition state. No process restart can
-skip the ledger. Concurrent different opportunities for the same group converge
-on one `acquisition_campaign`; concurrent calls for one opportunity converge on
-one member and one operation chain. An uncaught unique/integrity error is not a
-public semantic result.
+skip the ledger. Concurrent different opportunities for the same semantic group
+serialize into the same available `BUILDING` generation until its ten slots are
+reserved; only one next generation is allocated. Concurrent calls for one
+opportunity converge on one member and operation chain. An uncaught unique/
+integrity error is not a public semantic result.
 
 ## `campaign_ref`, QUEUED, and SENT
 
@@ -701,17 +845,24 @@ not recommend a new event or state-machine version by default.
 `QUEUED` requires durable proof of:
 
 - exact member -> exact provider lead -> exact provider campaign binding;
-- exact current configured campaign and assigned mailbox pool;
-- campaign active/scheduled as intended;
-- current unexpired compliance and fresh suppression clearance; and
+- exact current configuration and assigned mailbox pool while the provider
+  campaign remains DRAFT/PAUSED and non-sending;
+- current unexpired compliance, fresh suppression, window, cap, and Policy
+  execution authority for the member;
 - all provider identities/operation confirmations persisted.
+
+It means the member is authorized for subsequent provider activation. It does
+not require ACTIVE provider status. Membership is then sealed and all members
+are revalidated once more before activation.
 
 `SENT` is never emitted by campaign create/configure/add/activate success or
 campaign ACTIVE status. A deduplicated `email_sent` event with exact workspace,
 campaign, member, step, and provider email identity may use the existing
 `OUTCOME_RECORDED`/transition convention to advance `QUEUED -> SENT` atomically
 with the provider-event effect. `SENT` means authoritative external execution
-evidence exists.
+evidence exists. It remains valid when it arrives after Instantly accepted an
+activation whose local operation is still `RECONCILE_REQUIRED`, because all
+members were durably `QUEUED` before the activation request.
 
 ## Webhook ingress and transport boundary
 
@@ -744,12 +895,45 @@ Recommend `POST /webhooks/instantly` as a provider-specific route with:
   may be asynchronous after acceptance except an unsubscribe must first establish
   the Kivou hard suppression boundary.
 
-Instantly's documented delivery payload does not promise a stable event ID.
-Use a provider ID when actually present; otherwise derive a versioned canonical
-fingerprint from stable workspace, event type, campaign, resolved member (or
-keyed transient recipient identity), provider `email_id` when present,
-step/variant, and provider occurrence timestamp. Never use `received_at` as
-identity. Duplicate delivery creates exactly one event and effect.
+Instantly's documented delivery payload does not promise a stable event ID or
+a reply-specific `email_id`. Use a provider event/message ID when actually
+present. Otherwise derive a versioned canonical HMAC fingerprint from stable
+workspace, event type, campaign, resolved member (or keyed transient recipient
+identity), step/variant, provider occurrence timestamp, and a digest of the
+canonical transient event-specific content needed to distinguish deliveries.
+For reply-like events this content component covers the present bounded reply
+subject/snippet/text/HTML fields before they are discarded. Never use
+`received_at` as identity.
+
+Persist only the final event fingerprint and fingerprint-key version, never the
+reply content or its standalone digest. A keyed, domain-separated construction
+reduces offline guessing risk but remains pseudonymous event metadata, so its
+access/retention follows the provider-event record. Retain matching key versions
+through the webhook redelivery/reconciliation horizon. Synthetic tests must
+prove identical redeliveries converge while distinct reply payloads sharing
+campaign/member/step/timestamp do not collapse.
+
+### Response-ingress deployment gate
+
+Deployment configuration has a versioned capability:
+
+```text
+response_ingress_capability = NONE | SPEC027_V1
+SPEC-026 default = NONE
+```
+
+When it is `NONE`, deployment verification rejects any Instantly subscription
+containing `reply_received`. SPEC-026 must not acknowledge-and-discard the only
+available reply content, and official documentation does not guarantee that it
+can be fetched later. `stop_on_reply=true` remains mandatory provider defense.
+SPEC-027 owns the separately reviewed sensitive reply-ingress storage and is
+the only component that may set `SPEC027_V1`.
+
+If `reply_received` nevertheless arrives under `NONE`, SPEC-026 establishes
+stop safety, persists only the PII-minimized transport metadata/fingerprint,
+raises an operational configuration alert, and performs no semantic
+classification. This exceptional handling does not make the subscription
+configuration valid.
 
 ### Event handling
 
@@ -758,7 +942,7 @@ identity. Duplicate delivery creates exactly one event and effect.
 | `email_sent` | Resolve exact member and atomically dedupe/store the PII-minimal event and advance `QUEUED -> SENT`. |
 | `email_bounced` | Persist transport fact and stop/pause that member via a bounded risk-reduction operation; no response sentiment. |
 | `email_opened`, link-click event | Persist bounded transport event only if tracking is enabled/authorized; no conversion attribution. |
-| `reply_received` | Persist bounded event identity/metadata, ensure provider/Kivou stop safety, and hand off to SPEC-027. Do not persist reply body here or classify it. |
+| `reply_received` | Normally rejected at subscription verification while capability is `NONE`. If unexpectedly received, establish stop safety, persist bounded transport identity only, raise configuration alert, and do not classify; `SPEC027_V1` later owns durable sensitive content. |
 | `lead_unsubscribed` | Before 2xx/effect completion, resolve contact and append Kivou's immutable SPEC-025 suppression with `UNSUBSCRIBE`; verify/pause provider lead if needed. Never wait for SPEC-027 to establish the hard block. |
 | `campaign_completed` | Update bounded campaign transport status only; do not synthesize SENT for unsent members. |
 | `account_error` | Mark mailbox unhealthy/unknown, prevent new schedule operations, and initiate bounded pause/reconciliation. |
@@ -767,25 +951,19 @@ No reply text/HTML/subject is stored in the generic provider event. SPEC-027
 needs a separately reviewed sensitive-response ingestion contract. No click is
 attributed to Kivou activation/payment/MRR in SPEC-026; SPEC-028 owns that loop.
 
-### Webhook ownership
+### Frozen webhook ownership
 
-Two valid deployment models exist:
-
-1. **Manual/deployment-owned (recommended MVP):** operator configures target,
-   event types, and custom secret header; Kivou uses `webhooks:read` to verify
-   exact workspace/event/status without receiving a mutation key in the
-   scheduler.
-2. **API-managed:** a separate deployment operation ledger uses
-   `webhooks:create/read/update`, reconciles by exact target/name/event/campaign,
-   and never exposes URL/secret selection to Hermes.
-
-Manual ownership is safer initially because public URL, TLS, plan entitlement,
-secret injection, rotation, and infrastructure deployment are operational
-concerns. Do not create or test a live subscription from CI.
+MVP webhook creation is manual/deployment-time. An operator configures the
+target, allowed event set, and custom secret header; Kivou uses only
+`webhooks:read` at runtime to verify exact workspace, event set, status,
+Hyper-Growth-or-better entitlement, and response-ingress capability. The
+scheduling key receives no webhook create/update permission. No polling
+fallback silently substitutes for absent entitlement. API-managed webhook
+creation is later work requiring separate review and authority.
 
 ## Final local/remote TOCTOU rules
 
-Remote calls cannot share a SQL transaction, so each exposure point has two
+Remote calls cannot share a SQL transaction, so each exposure point has three
 layers:
 
 1. a local transaction re-reads and locks the opportunity/member/campaign,
@@ -795,12 +973,19 @@ layers:
    envelope/action fingerprints and claims an operation; and
 2. after the remote result/reconciliation, a final transaction repeats all
    material current checks before creating the next operation or committing
-   `SEND -> QUEUED`.
+   `SEND -> QUEUED`; and
+3. after all members are queued and the batch is sealed, activation performs an
+   all-member revalidation in the same eligible send window. No retained member
+   may remain `SEND` or fail current artifact/compliance/suppression/mailbox/
+   Policy gates.
 
 Any material change after Policy becomes a typed `CampaignInputChanged`; no
 stale queue event commits. A newly inserted suppression after Policy but before
-lead add/activation/queue produces zero new exposure where avoidable and a
-risk-reduction reconciliation if the provider may already have accepted it.
+lead add/queue/activation produces zero new exposure where avoidable and a
+risk-reduction reconciliation while the provider campaign is non-sending if
+lead enrollment was already accepted. A suppression after `QUEUED` prevents
+activation for the unsafe member; absent a contract-proven safe removal/pause,
+the whole batch stays non-active.
 Artifact/assessment/operation/event failures roll back their local event effects
 together.
 
@@ -818,6 +1003,15 @@ Implementation begins with failing tests and offline fakes. Required coverage:
 - variable missing/empty/extra, changed subject/body/core, unapproved footer,
   Liquid/spintax/AI/variant, URL/CC/BCC, or provider readback mismatch fail;
 - approved transport reconstructs byte-exact subject/body;
+- `transport_contract_proof=UNVERIFIED` permits draft/paused staging setup but
+  no activation, while only `VERIFIED` passes the activation gate;
+- sequence has exactly two steps; Step 2 delay is four calendar days followed
+  by window deferral, provider subject is empty, greeting is the exact safe
+  artifact greeting, FR/EN bodies match the frozen strings, and there is no
+  Step 3;
+- tracking/stop readback is exact: open/link false, text-only/first-text-only
+  true, variants/AI/spintax/Liquid/risky contacts disabled, bounce protection
+  enabled, reply/auto-reply stop true, and company stop false;
 - legacy schedule evidence is removed; exact internally built claims/action
   fingerprint are required;
 - budget, volume, provider quota, send window, mailbox, and control-plane caps;
@@ -829,10 +1023,14 @@ Implementation begins with failing tests and offline fakes. Required coverage:
 - each documented active/paused/maintenance/error/setup/warmup/tracking-domain
   state maps to READY/TEMPORARILY_UNAVAILABLE/UNHEALTHY/UNKNOWN;
 - unknown/malformed/missing mailbox fails closed;
+- production catalog with zero usable mailboxes creates zero provider mutation;
 - provider limit only reduces Kivou cap;
-- DST boundary and exact CH/FR IANA windows; wrong/ambiguous timezone rejects;
-- global/country/wedge/campaign/mailbox/company minimum cap and concurrent slot
-  reservation.
+- DST boundary and exact CH/FR IANA Monday–Friday `[09:00, 17:00)` windows;
+  wrong/ambiguous timezone and exact 17:00 cutoff reject; no holiday guess;
+- autonomous live cap is zero; ASSISTED trial enforces global/country/wedge/
+  mailbox limits `5/5/3/3`, ten-member batch capacity, and one active company
+  contact per rolling 30 days;
+- provider capacity can lower but never raise any frozen cap.
 
 ### Remote operations, replay, crashes, and concurrency
 
@@ -846,7 +1044,19 @@ Implementation begins with failing tests and offline fakes. Required coverage:
 - provider acceptance before local commit reconciles to the same remote ID;
 - partial bulk lead result resolves every member independently;
 - two schedulers for same opportunity create one member/enrollment/queue event;
-- different opportunities in same group create one provider campaign;
+- two concurrent compatible members converge on one available `BUILDING` batch
+  and never allocate two generations for the same slot;
+- `ADD_LEAD` and new member insertion are impossible on SEALED/ACTIVE or any
+  non-BUILDING campaign;
+- a compatible opportunity after activation receives the next batch generation;
+- every member's `SEND -> QUEUED` occurs before `ACTIVATE_CAMPAIGN`; activation
+  is impossible while any retained campaign member remains SEND;
+- activation revalidates every queued member and exact execution gate;
+- suppression after QUEUED but before activation safely removes/pauses the
+  provider membership when contract-proven, otherwise leaves the whole batch
+  non-active in review/reconciliation;
+- activation timeout with already-QUEUED members reconciles safely, and an
+  immediate provider `email_sent` can target only an already-QUEUED member;
 - new suppression at every after-Policy/before-add/before-activate/before-queue
   seam prevents stale ALLOWED scheduling;
 - 401/402/403/429/5xx/network/malformed/conflict typed behavior; bounded retry;
@@ -858,7 +1068,11 @@ Implementation begins with failing tests and offline fakes. Required coverage:
 - wrong/missing secret, wrong content type, oversized body, malformed schema,
   future timestamp, wrong workspace/campaign/member, unknown event fail safely;
 - duplicate event produces one row/effect;
-- no documented ID uses stable canonical fingerprint, not receipt time;
+- no documented ID uses a keyed stable canonical fingerprint with transient
+  event-content digest, not receipt time; identical replies dedupe and distinct
+  reply payloads sharing member/step/timestamp remain distinct;
+- deployment verification rejects a `reply_received` subscription while
+  `response_ingress_capability=NONE`;
 - `email_sent` alone advances one exact `QUEUED -> SENT`;
 - create/add/activate and ACTIVE campaign never mark SENT;
 - `reply_received` stores no body and performs no semantic classification;
@@ -883,13 +1097,16 @@ Implementation begins with failing tests and offline fakes. Required coverage:
 ## Offline EVAL and testing ladder
 
 Create synthetic, non-personal fixture `tests/fixtures/campaign_factory_eval_v1.json`
-covering: valid FR/CH plans; different language/need/wedge group splits; same
-group convergence; exact envelope; missing variable; expired compliance; fresh
-suppression; wrong artifact; mailbox active/paused/error/setup-pending; cap/window
-edges; shadow/assisted/capped; create/add/activate crash positions; partial bulk
-result; 429/402/401/403/5xx; duplicate webhooks; sent/reply/unsubscribe/bounce/
-account error; and PII-adversarial payloads. Evaluate invariants and identities,
-not provider prose or desired conversion rates.
+covering: valid FR/CH plans; semantic group plus batch generations; concurrent
+BUILDING-slot assignment; sealed/active enrollment rejection; exact envelope;
+unverified transport proof; two-step FR/EN sequence; missing variable; expired
+compliance; suppression before enrollment and after QUEUED; wrong artifact;
+mailbox active/paused/error/setup-pending/empty catalog; frozen cap/window edges;
+shadow/assisted/zero-autonomous; create/add/activate crash positions; partial
+bulk result; 429/402/401/403/5xx; duplicate and distinct-content reply event
+fingerprints; forbidden reply subscription; sent/unsubscribe/bounce/account
+error; and PII-adversarial payloads. Evaluate invariants and identities, not
+provider prose or desired conversion rates.
 
 Testing ladder:
 
@@ -907,11 +1124,13 @@ send is not a prerequisite for merging implementation code.
 
 ## Later-spec boundaries
 
-- **SPEC-027 Response Intelligence:** owns reply content retention, positive/
-  negative classification, hot-lead scoring, semantic LLM use, response
-  generation, and meeting qualification. SPEC-026 persists only bounded
-  transport identity and ensures stop safety. Unsubscribe hard suppression is
-  handled immediately because it cannot wait for semantic analysis.
+- **SPEC-027 Response Intelligence:** first owns the sensitive response-ingress
+  capability that allows `reply_received` subscription, then owns reply-content
+  retention, positive/negative classification, hot-lead scoring, semantic LLM
+  use, response generation, and meeting qualification. SPEC-026 persists only
+  bounded transport identity and ensures stop safety. Unsubscribe hard
+  suppression is handled immediately because it cannot wait for semantic
+  analysis.
 - **SPEC-028 Conversion Tracking:** owns campaign/click -> activation/payment/
   MRR/retention/churn attribution. SPEC-026 may persist a deduplicated click
   transport event only.
@@ -924,8 +1143,9 @@ send is not a prerequisite for merging implementation code.
 
 ## Recommended implementation sequence
 
-1. Freeze the open product/deployment decisions and the V2 whole-message
-   variable contract; no activation path exists before that freeze.
+1. Implement the R1-frozen product contracts and fail-closed deployment
+   capabilities. No activation path exists until mailbox/footer/entitlement and
+   the V2 whole-message transport proof are configured.
 2. Add pure contracts/factory/envelope/window/pacing tests and implementation.
 3. Add `0015_campaign_factory` and the four stores with migration/parity tests.
 4. Correct `schedule_campaign` Policy evidence/control-plane semantics and add
@@ -938,44 +1158,30 @@ send is not a prerequisite for merging implementation code.
 9. Only under later authorization, verify plan/key scopes/webhook/manual config
    and paused staging contract. Live send remains a separate explicit gate.
 
-## Decisions requiring supervisor/business approval
+## R1-frozen product decisions and remaining deployment inputs
 
-These are deliberately not hidden or silently frozen:
+The supervisor has frozen the v1 product policy: ten-member sealed batches;
+ASSISTED first live mode; autonomous live cap zero; daily caps `5/5/3/3` plus
+one active contact/company/30 days; CH/FR weekday `[09:00,17:00)` windows; the
+exact two-step/four-day FR/EN sequence; tracking disabled; reply and auto-reply
+stop enabled; company stop disabled; and manual webhook ownership.
 
-1. **Initial daily volume:** approve exact global, country, wedge, mailbox,
-   campaign, and per-company caps. Recommendation: autonomous zero until
-   enabled; ASSISTED trial candidate 5 global/day, 5/country, 3/wedge,
-   3/mailbox, 10 members/campaign, one contact/company/30 days.
-2. **Micro-campaign size:** approve the initial maximum (candidate 10 members),
-   independent of Instantly's 1,000-lead bulk maximum.
-3. **Send window:** approve exact weekdays/hours and holiday handling.
-   Candidate: Monday–Friday, 09:00–17:00 in Europe/Zurich or Europe/Paris,
-   DST-aware, no guessed timezone.
-4. **Follow-ups:** freeze count, delay/cadence, exact FR copy, exact EN copy,
-   subject reuse, stop-on-auto-reply, and sequence version. No repository source
-   currently authorizes any follow-up prose.
-5. **Mailbox pool:** approve real `mailbox_ref` catalog, sender identities,
-   eligible jurisdictions/languages/wedges, warmup policy, and Kivou caps.
-6. **Tracking:** approve open=false, link=false, text-only=true,
-   List-Unsubscribe=true, visible footer catalog, stop-on-reply=true,
-   stop-for-company candidate, and stop-on-auto-reply candidate.
-7. **Unsubscribe envelope:** approve exact FR/EN visible opt-out/source/privacy
-   wording and validate provider List-Unsubscribe behavior.
-8. **Plan entitlement:** verify/purchase Hyper Growth-or-better for production
-   webhooks; no repository fact proves entitlement.
-9. **Webhook ownership:** approve recommended manual/deployment-time creation
-   plus read-only runtime verification, or authorize a separate API-managed
-   operational key.
-10. **First live send:** recommendation is ASSISTED with explicit existing
-    ACTION approval and synthetic/staging proof before any real recipient;
-    autonomous execution remains disabled.
-11. **Whole-message transport:** approve micro-campaign custom-variable strategy
-    only after paused staging proves exact subject/body/footer substitution; if
-    it fails, decide whether exact-envelope/literal campaigns are commercially
-    acceptable.
+Only these genuinely external deployment inputs remain:
 
-None of these decisions permits deployment or provider traffic from this
-design task.
+1. **Mailbox catalog:** real `mailbox_ref` entries, sender identities,
+   eligible jurisdiction/language/wedge, warmup/readiness policy, and provider
+   account bindings. Production defaults to zero usable mailboxes.
+2. **Privacy/footer configuration:** exact FR/EN sender/source/privacy/visible-
+   opt-out catalog and authoritative privacy URL. No executable envelope exists
+   without it.
+3. **Hyper Growth entitlement:** verify the production workspace has the
+   required webhook plan. No polling fallback substitutes for it.
+4. **Paused Instantly transport proof:** a separately authorized DRAFT/PAUSED
+   staging contract test must set `transport_contract_proof=VERIFIED` and prove
+   whole-message variables plus List-Unsubscribe behavior. Failure stops for
+   supervisor review; there is no literal-campaign fallback.
+
+These inputs and this report authorize neither deployment nor provider traffic.
 
 ## Design-only closeout
 
