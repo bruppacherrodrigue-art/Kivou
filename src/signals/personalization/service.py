@@ -41,6 +41,7 @@ from signals.personalization.contracts import (
     PersonalizationInput,
 )
 from signals.personalization.grounding import (
+    PersonalizationDecisionNoLongerEligible,
     PersonalizationGroundingInsufficient,
     require_current_send,
 )
@@ -50,6 +51,7 @@ from signals.personalization.store import (
     personalization_artifact_id,
 )
 from signals.personalization.validator import (
+    PersonalizationValidationError,
     require_safe_awardee,
     safe_first_name,
     validate_catalog_message,
@@ -551,11 +553,22 @@ class PersonalizationService:
                 )
                 if current.stream_version != expected:
                     raise PersonalizationInputChanged(opportunity_id)
-                rebuilt = self._build_values(
-                    self._load_in_transaction(connection, opportunity_id, current=current),
-                    language,
-                    as_of_date,
-                )
+                try:
+                    rebuilt = self._build_values(
+                        self._load_in_transaction(
+                            connection, opportunity_id, current=current
+                        ),
+                        language,
+                        as_of_date,
+                    )
+                except (
+                    PersonalizationBindingConflict,
+                    PersonalizationGroundingInsufficient,
+                    PersonalizationNotActionable,
+                    PersonalizationDecisionNoLongerEligible,
+                    PersonalizationValidationError,
+                ) as error:
+                    raise PersonalizationInputChanged(opportunity_id) from error
                 if (
                     rebuilt["input_fingerprint"] != values["input_fingerprint"]
                     or rebuilt["proposal_fingerprint"] != values["proposal_fingerprint"]
