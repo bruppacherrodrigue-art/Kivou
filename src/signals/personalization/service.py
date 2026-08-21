@@ -136,6 +136,8 @@ class PersonalizationService:
         self._artifacts = PersonalizationStore(engine)
         self._policy_store = PolicyStore(engine)
         self._policy = policy_gateway or PolicyGateway(engine, acquisition_store=self._acquisition)
+        # Test seam only: production keeps this as a deterministic no-op.
+        self._after_policy_hook: Callable[[], None] = lambda: None
 
     def personalize(
         self,
@@ -165,6 +167,7 @@ class PersonalizationService:
         decision = self._policy.evaluate_and_record(
             request, evaluated_at=captured_at, budget_usage=budget_usage
         )
+        self._after_policy_hook()
         expected = values["opportunity"].stream_version + 1
         if not decision.executable:
             return self._commit_blocked(values, decision, captured_at)
@@ -316,14 +319,21 @@ class PersonalizationService:
             as_of=as_of_date,
         )
         first_name = safe_first_name(contact.first_name)
+        public_event_sentence = claim_for(recency, company=awardee, lang=language)
         message = render_catalog_message(
             language=language,
             awardee=awardee,
-            public_event_sentence=claim_for(recency, company=awardee, lang=language),
+            public_event_sentence=public_event_sentence,
             need_category=need.category,
             first_name=first_name,
         )
-        validate_catalog_message(message)
+        validate_catalog_message(
+            message,
+            awardee=awardee,
+            public_event_sentence=public_event_sentence,
+            need_category=need.category,
+            first_name=first_name,
+        )
         selected_need_fingerprint = semantic_fingerprint(
             {
                 "kind": "personalization-selected-need-v1",

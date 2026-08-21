@@ -4,7 +4,11 @@ from __future__ import annotations
 
 import re
 
-from signals.personalization.catalog import SUPPORTED_LANGUAGES, CatalogMessage
+from signals.personalization.catalog import (
+    SUPPORTED_LANGUAGES,
+    CatalogMessage,
+    render_catalog_message,
+)
 
 MAX_SUBJECT_LENGTH = 90
 MAX_GREETING_LENGTH = 80
@@ -43,7 +47,13 @@ def require_safe_awardee(value: str) -> str:
 
 
 def validate_catalog_message(
-    message: CatalogMessage, *, expected: CatalogMessage | None = None
+    message: CatalogMessage,
+    *,
+    expected: CatalogMessage | None = None,
+    awardee: str | None = None,
+    public_event_sentence: str | None = None,
+    need_category: str | None = None,
+    first_name: str | None = None,
 ) -> None:
     if message.language not in SUPPORTED_LANGUAGES:
         raise PersonalizationValidationError("unsupported language")
@@ -62,5 +72,15 @@ def validate_catalog_message(
     rendered = f"{message.subject}\n{message.greeting}\n{message.body}\n{message.cta}"
     if _EMAIL.search(rendered) or _URL.search(rendered):
         raise PersonalizationValidationError("rendered copy contains prohibited contact data or URL")
+    if expected is None and all(
+        value is not None for value in (awardee, public_event_sentence, need_category)
+    ):
+        expected = render_catalog_message(
+            language=message.language,
+            awardee=awardee,
+            public_event_sentence=public_event_sentence,
+            need_category=need_category,
+            first_name=first_name,
+        )
     if expected is not None and message != expected:
         raise PersonalizationValidationError("rendered copy differs from frozen catalog")

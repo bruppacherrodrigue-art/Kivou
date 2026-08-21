@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import replace
 from decimal import Decimal
 
 import pytest
@@ -17,6 +18,7 @@ from test_policy_persistence import control
 from signals.acquisition.contracts import AcquisitionState
 from signals.decision_engine.service import DecisionEngineService
 from signals.persistence.schema import (
+    acquisition_company_profile,
     acquisition_event,
     acquisition_personalization_artifact,
     policy_evaluation,
@@ -26,9 +28,14 @@ from signals.personalization.grounding import (
     PersonalizationDecisionNoLongerEligible,
     PersonalizationGroundingInsufficient,
 )
-from signals.personalization.service import PersonalizationService
+from signals.personalization.service import (
+    PersonalizationEvaluationRequiresFreshAttempt,
+    PersonalizationInputChanged,
+    PersonalizationService,
+)
 from signals.personalization.store import PersonalizationArtifactIdempotencyConflict
-from signals.policy.contracts import AutonomyMode, BudgetUsage, EvidenceReadiness
+from signals.personalization.validator import PersonalizationValidationError
+from signals.policy.contracts import AutonomyMode, BudgetUsage, EvidenceReadiness, Scope
 from signals.policy.store import PolicyStore
 
 
@@ -143,6 +150,38 @@ def test_current_zero_need_grounding_fails_before_policy(context, monkeypatch) -
         assert (
             connection.scalar(
                 sa.select(sa.func.count()).select_from(acquisition_personalization_artifact)
+        )
+            == 0
+        )
+
+
+def test_service_rejects_renderer_copy_that_differs_from_frozen_catalog(context, monkeypatch) -> None:
+    """The validator's independent catalog renderer guards the real service boundary."""
+    engine, _, opportunity_id = context
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+
+    from signals.personalization.catalog import render_catalog_message as frozen_renderer
+
+    def altered_renderer(**kwargs):
+        return replace(frozen_renderer(**kwargs), cta="Unapproved CTA")
+
+    monkeypatch.setattr("signals.personalization.service.render_catalog_message", altered_renderer)
+    with pytest.raises(PersonalizationValidationError):
+        PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+
+    with engine.connect() as connection:
+        # Only the historical SPEC-023 policy evaluation exists: catalog failure is pre-Policy.
+        assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 1
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count()).select_from(acquisition_personalization_artifact)
             )
             == 0
         )
@@ -214,6 +253,54 @@ def test_changed_actor_for_completed_artifact_conflicts(context) -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "changed_authorization",
+    (
+        lambda value: value.model_copy(
+            update={"scope": Scope(country="FR", language="fr", wedge="construction")}
+        ),
+        lambda value: value.model_copy(
+            update={
+                "evidence": value.evidence.model_copy(
+                    update={"assessment_version": "personalization-evidence-v2"}
+                )
+            }
+        ),
+    ),
+    ids=("scope", "material_evidence"),
+)
+def test_completed_artifact_replay_rejects_changed_authorization_semantics(
+    context, changed_authorization
+) -> None:
+    engine, _, opportunity_id = context
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+    PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+    replay_clock = CountingClock(EVALUATED_AT)
+    with pytest.raises(PersonalizationArtifactIdempotencyConflict):
+        PersonalizationService(engine, clock=replay_clock).personalize(
+            opportunity_id,
+            "fr",
+            changed_authorization(personalization_authorization()),
+            budget_usage=BudgetUsage(cost_used=Decimal("100"), volume_used=100),
+        )
+    assert replay_clock.calls == 0
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 2
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count()).select_from(acquisition_personalization_artifact)
+            )
+            == 1
+        )
+
+
 def test_completed_artifact_replay_conflicts_on_requested_language(context) -> None:
     engine, _, opportunity_id = context
     DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
@@ -251,6 +338,83 @@ def test_completed_artifact_replay_rejects_unsupported_language_before_clock(con
             opportunity_id, "de", personalization_authorization(), budget_usage=BudgetUsage()
         )
     assert clock.calls == 0
+
+
+def test_policy_without_artifact_requires_a_fresh_evaluation_without_clock(context) -> None:
+    engine, acquisition, opportunity_id = context
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+    service = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    authorization_input = personalization_authorization()
+    values = service._build_values(service._load(opportunity_id), "fr", EVALUATED_AT.date())
+    request = service._request(
+        authorization_input, values, expected_version=acquisition.get_opportunity(opportunity_id).stream_version
+    )
+    service._policy.evaluate_and_record(
+        request, evaluated_at=EVALUATED_AT, budget_usage=BudgetUsage()
+    )
+
+    replay_clock = CountingClock(EVALUATED_AT)
+    with pytest.raises(PersonalizationEvaluationRequiresFreshAttempt):
+        PersonalizationService(engine, clock=replay_clock).personalize(
+            opportunity_id, "fr", authorization_input, budget_usage=BudgetUsage()
+        )
+    assert replay_clock.calls == 0
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 2
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count()).select_from(acquisition_personalization_artifact)
+            )
+            == 0
+        )
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(acquisition_event)
+            .where(acquisition_event.c.event_type == "NEXT_ACTION_SET")
+        ) == 2
+
+
+def test_post_policy_company_profile_drift_is_a_single_typed_input_change(context) -> None:
+    engine, _, opportunity_id = context
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+    service = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+
+    def drift_profile() -> None:
+        with engine.begin() as connection:
+            connection.execute(
+                sa.update(acquisition_company_profile)
+                .where(acquisition_company_profile.c.acquisition_opportunity_id == opportunity_id)
+                .values(prebuild_fingerprint="f" * 64)
+            )
+
+    service._after_policy_hook = drift_profile
+    with pytest.raises(PersonalizationInputChanged):
+        service.personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+
+    with engine.connect() as connection:
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count()).select_from(acquisition_personalization_artifact)
+            )
+            == 0
+        )
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(acquisition_event)
+            .where(acquisition_event.c.event_type == "NEXT_ACTION_SET")
+        ) == 2
 
 
 def test_shadow_persists_pii_minimized_blocked_artifact_without_workflow_event(context) -> None:
