@@ -57,3 +57,42 @@ Policy creates POLICY_BLOCKED without copy or workflow mutation.
 
 No live Apollo, Instantly, SMTP, LLM/provider, campaign, email, deployment, or
 staging/production migration was performed.
+
+## R1.1–R1.3 durability closeout
+
+The intermediate R1 command-vocabulary CI, `32454917363`, failed because the
+reserved next action `assess_campaign_compliance` had incorrectly been added to
+the executable supervisor command registry. The corrective executable
+`5b17bfec6f6da3f9be545e6b15a92ad3c29dec08` restored the invariant that
+`COMMAND_POLICIES` and `ALLOWED_COMMANDS` are equal; CI `32456097195` passed
+with 3356 backend tests. The reserved name is now only in
+`ALLOWED_NEXT_ACTIONS`, and `NEXT_ACTION_SET` validates against that vocabulary.
+
+`3a10a7ffb66c140826b36a4b081091b76ed2f106` activated strict catalog tests;
+CI `32457941295` passed with 3361 backend tests. `9bd94172b0d9a135f10c8197ff4eeccaa1b8ea20`
+made the service call the independent catalog reconstruction validator, so a
+mutated renderer fails before Policy or artifact persistence; CI `32460759463`
+passed.
+
+Final runtime executable: `2c675f55e870684fed7e597dd272b75f8dff39f4`.
+Executable CI `32463342922` succeeded: 3373 backend tests, 0 skipped, Ruff
+passed; frontend 150 tests, build, typecheck and lint passed. The GitHub PR base
+at this validation point was `c0f1595db89508c90cc7348e939d299b88d45b44`.
+
+The final durability proof covers exact language/scope/material-evidence replay
+without a clock or new Policy decision; historical BudgetUsage reconstruction;
+the Policy-without-artifact fresh-attempt window; and a persisted provenance
+snapshot with distinct PUBLIC_EVENT and PLAUSIBLE_NEED references. Post-Policy
+company-profile, supplier identity, contact binding, public-context, and
+zero-need drift each fail as `PersonalizationInputChanged` and leave no READY
+artifact or personalization `NEXT_ACTION_SET`. Concurrent equal requests
+converge to one Policy evaluation, artifact, and workflow event; competing FR
+and EN requests cannot create two outcomes.
+
+Migration topology remains one linear head, `0013_personalization`, with the
+single `acquisition_personalization_artifact` table and no `0014`. The final
+diff stat and clean working-tree status are recorded by the docs-only closeout
+commit that follows this executable validation.
+
+No live Apollo, Instantly, SMTP, LLM/provider, campaign, email, deployment, or
+staging/production migration was performed.
