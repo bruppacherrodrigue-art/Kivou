@@ -301,6 +301,7 @@ export const fr = {
     readyTitle: 'Votre ciblage est prêt',
     countOne: '{count} signal est accessible avec votre profil.',
     countOther: '{count} signaux sont accessibles avec votre profil.',
+    paidReady: 'Vos signaux sont disponibles ci-dessous.',
     noneTitle: 'Aucun signal correspondant n’est disponible pour le moment.',
     noneBody:
       'Kivou continuera à surveiller les nouvelles attributions compatibles avec votre profil.',

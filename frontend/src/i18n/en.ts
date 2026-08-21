@@ -295,6 +295,7 @@ export const en: Dictionary = {
     readyTitle: 'Your targeting is ready',
     countOne: '{count} signal is available with your profile.',
     countOther: '{count} signals are available with your profile.',
+    paidReady: 'Your signals are available below.',
     noneTitle: 'No matching signal is available at the moment.',
     noneBody: 'Kivou will keep watching for new awards that match your profile.',
     firstSignal: 'See my first signal',
