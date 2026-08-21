@@ -24,7 +24,10 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import logging
 from typing import Any, Protocol
+
+_LOGGER = logging.getLogger(__name__)
 
 STRIPE_GATEWAY_VERSION = "stripe-gateway-v0.1"
 
@@ -35,6 +38,29 @@ class StripeGatewayError(RuntimeError):
 
 class InvalidWebhookSignature(StripeGatewayError):
     """La signature est absente, malformée ou ne correspond pas au corps brut."""
+
+
+class CheckoutSessionRejected(StripeGatewayError):
+    """Stripe a refusé la requête elle-même : AUCUNE session n'existe.
+
+    P0-03F — c'est la seule famille d'erreurs qui autorise à libérer la
+    tentative locale. Elle exige une preuve : un refus portant sur la requête
+    (paramètres, clé, permissions) est rendu avant toute création de ressource.
+    """
+
+    code = "checkout_rejected"
+
+
+class CheckoutSessionUncertain(StripeGatewayError):
+    """L'appel n'a pas abouti de façon concluante : Stripe a PEUT-ÊTRE créé la session.
+
+    P0-03F — timeout, coupure réseau, 5xx, limite de débit, clé d'idempotence
+    déjà employée. Dans tous ces cas la réponse manque, pas la session : libérer
+    la place ici ouvrirait un SECOND paiement pour un client qui n'en a demandé
+    qu'un. La tentative reste `creating`, et le rejeu réutilise la même clé.
+    """
+
+    code = "checkout_uncertain"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -316,6 +342,12 @@ class StripeApiGateway:
             # §29 — collecter de quoi facturer correctement plus tard, sans
             # déduire quoi que ce soit d'une obligation fiscale ici.
             "tax_id_collection": {"enabled": True},
+            # P0-03F — Stripe refuse `tax_id_collection` sur un Customer
+            # EXISTANT sans autorisation explicite de compléter son nom. Kivou
+            # crée toujours le Customer avant la session : sans ces deux lignes,
+            # aucun client ne peut payer. `address` répercute en outre l'adresse
+            # de facturation déjà rendue obligatoire ci-dessous.
+            "customer_update": {"name": "auto", "address": "auto"},
             "billing_address_collection": "required",
             # Closeout §5 — la session Stripe et la tentative locale décrivent
             # la MÊME durée de vie. Sans cela, une tentative locale pourrait
@@ -324,9 +356,35 @@ class StripeApiGateway:
         }
         if coupon_id is not None:
             params["discounts"] = [{"coupon": coupon_id}]
-        session = self._client.checkout.sessions.create(
-            params=params, options={"idempotency_key": idempotency_key}
-        )
+        try:
+            session = self._client.checkout.sessions.create(
+                params=params, options={"idempotency_key": idempotency_key}
+            )
+        except (
+            self._stripe.InvalidRequestError,
+            self._stripe.AuthenticationError,
+            self._stripe.PermissionError,
+        ) as error:
+            # Refus PORTANT SUR LA REQUÊTE : Stripe répond avant de créer quoi
+            # que ce soit. La place peut être libérée sans risque de doublon.
+            _LOGGER.warning(
+                "checkout Stripe refusé (%s) : %s", type(error).__name__, error, exc_info=True
+            )
+            raise CheckoutSessionRejected(
+                "Stripe a refusé la création de la session de paiement"
+            ) from error
+        except Exception as error:
+            # P0-03F — défaut fermé dans le sens qui protège le client : ne
+            # jamais conclure « aucune session » d'une réponse qu'on n'a pas lue.
+            _LOGGER.warning(
+                "checkout Stripe non concluant (%s) : %s",
+                type(error).__name__,
+                error,
+                exc_info=True,
+            )
+            raise CheckoutSessionUncertain(
+                "la création de la session de paiement n'a pas abouti de façon concluante"
+            ) from error
         return CheckoutSession(
             session_id=session.id, url=_get(session, "url"), livemode=bool(session.livemode)
         )

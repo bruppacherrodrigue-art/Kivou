@@ -237,6 +237,42 @@ def record_session(
     )
 
 
+def fail_attempt(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    attempt_id: str,
+    now: dt.datetime,
+) -> bool:
+    """Libère la place quand il est PROUVÉ qu'aucune session Stripe n'existe.
+
+    P0-03F — la réservation précède l'appel Stripe et doit continuer à le faire
+    (§9). Mais un refus portant sur la requête elle-même ne laisse rien derrière
+    lui : garder la place ferait attendre trente minutes un compte qui peut
+    recommencer immédiatement.
+
+    Deux conditions, et les deux comptent :
+
+    - `attempt_id` — l'erreur d'un appel lent peut arriver APRÈS qu'une autre
+      tentative a pris la place. Fermer « la tentative du compte » fermerait
+      alors la mauvaise ;
+    - `status == "creating"` — une tentative déjà `open` a une session Stripe
+      enregistrée. Elle existe, donc on ne libère pas.
+
+    Rend `True` si cette tentative précise a bien été libérée.
+    """
+    result = connection.execute(
+        sa.update(billing_checkout_attempt)
+        .where(
+            billing_checkout_attempt.c.account_id == account_id,
+            billing_checkout_attempt.c.attempt_id == attempt_id,
+            billing_checkout_attempt.c.status == "creating",
+        )
+        .values(status="failed", updated_at=now)
+    )
+    return result.rowcount > 0
+
+
 def close_attempt(
     connection: sa.Connection,
     *,
