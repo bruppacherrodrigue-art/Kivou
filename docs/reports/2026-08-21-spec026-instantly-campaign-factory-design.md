@@ -284,6 +284,21 @@ The envelope is two immutable layers:
    footer, MIME/text mode, and approved tracking headers. It may append only
    cataloged transport text; it cannot alter the core's claims.
 
+The deterministic v1 assembly is explicit:
+
+```text
+provider_subject = artifact.subject
+personalization_core_body =
+    artifact.greeting + "\n\n" + artifact.body + "\n\n" + artifact.cta
+provider_body =
+    personalization_core_body + "\n\n" + approved_transport_footer
+```
+
+The transport footer is one bounded FR/EN catalog entry selected by the exact
+jurisdiction/language/sender configuration; it is never free-form provider
+text. Until that catalog is approved, `approved_transport_footer` is unresolved
+and the executable envelope cannot be constructed.
+
 `campaign-envelope-v1` must bind:
 
 - exact personalization artifact and proposal fingerprints;
