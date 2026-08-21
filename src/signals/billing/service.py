@@ -443,6 +443,83 @@ def entitlements(connection: sa.Connection, *, account_id: str) -> catalogue.Pla
     return billing_state(connection, account_id=account_id).entitlements
 
 
+# ─── action de facturation ────────────────────────────────────────────────────
+
+#: P0-03A — la seule action de facturation SÛRE pour ce compte, décidée ici.
+ACTION_CHOOSE_PLAN = "choose_plan"
+ACTION_MANAGE_SUBSCRIPTION = "manage_subscription"
+ACTION_RECOVER_PAYMENT = "recover_payment"
+ACTION_CONTACT_SUPPORT = "contact_support"
+
+BILLING_ACTIONS: tuple[str, ...] = (
+    ACTION_CHOOSE_PLAN,
+    ACTION_MANAGE_SUBSCRIPTION,
+    ACTION_RECOVER_PAYMENT,
+    ACTION_CONTACT_SUPPORT,
+)
+
+#: Les statuts où un abonnement existe encore, ne donne aucun droit, et peut
+#: néanmoins être rattrapé — typiquement en corrigeant le moyen de paiement.
+RECOVERABLE_STATUSES: tuple[str, ...] = ("past_due", "unpaid")
+
+
+def billing_action(connection: sa.Connection, *, account_id: str) -> str:
+    """Quelle action de facturation est sûre pour ce compte.
+
+    Pourquoi cette décision ne peut PAS vivre dans le navigateur
+    ────────────────────────────────────────────────────────────
+    `plan_code` décrit les droits accordés ; il ne dit rien de l'EXISTENCE d'un
+    abonnement. Un compte `past_due` est `discovery` comme un compte qui n'a
+    jamais rien payé — et pourtant l'un porte un abonnement facturé, que doubler
+    coûterait de l'argent réel. Les distinguer depuis le frontend exigerait d'y
+    recopier `TERMINAL_STATUSES` et la clause de défaut fermé de
+    `is_open_subscription()` : une règle d'autorisation dupliquée dans un
+    endroit que personne ne mettra à jour le jour où Stripe ajoutera un statut.
+
+    L'ordre des questions est la garantie
+    ─────────────────────────────────────
+    1. l'abonnement existe-t-il encore chez Stripe ? Sinon, la place est libre.
+    2. sait-on ce qu'il paie ? Un prix hors catalogue n'est ni gérable ni
+       rattrapable — personne ne peut dire ce que ce compte a souscrit.
+    3. quel est son statut ? Seul `active` se gère, seuls `past_due` et
+       `unpaid` se rattrapent, tout le reste demande un humain.
+    4. le portail est-il seulement ouvrable ? Une action qui finit en 409 est
+       pire qu'une absence d'action : elle envoie le client sur une porte close.
+
+    Le défaut est fermé de bout en bout. Aucun chemin ne mène à `choose_plan`
+    tant qu'un abonnement peut encore être facturé.
+    """
+    subscription = current_subscription(connection, account_id=account_id)
+
+    # 1 — aucun abonnement, ou un abonnement terminé : rien n'est plus facturé.
+    if subscription is None or not subscription.is_open:
+        return ACTION_CHOOSE_PLAN
+
+    # 2 — un abonnement ouvert dont le prix ne correspond à aucun plan Kivou.
+    # Ni achat, ni gestion : il faut d'abord savoir ce que ce compte paie.
+    if subscription.plan_code not in catalogue.PURCHASABLE_PLANS:
+        return ACTION_CONTACT_SUPPORT
+
+    # 3 — le statut décide, et tout ce qui n'est pas nommé tombe en revue.
+    if subscription.status in PAYING_STATUSES:
+        intended = ACTION_MANAGE_SUBSCRIPTION
+    elif subscription.status in RECOVERABLE_STATUSES:
+        intended = ACTION_RECOVER_PAYMENT
+    else:
+        # `incomplete` : le premier paiement n'a jamais abouti et le portail ne
+        # garantit pas de le finaliser. `trialing` : le MVP n'offre aucun essai,
+        # c'est une anomalie de configuration. Un statut inconnu : défaut fermé.
+        return ACTION_CONTACT_SUPPORT
+
+    # 4 — les deux actions ci-dessus passent par le portail Stripe, et le
+    # portail exige la ligne `billing_customer` que `open_portal` relit. Un
+    # abonnement créé hors du parcours Kivou peut exister sans elle.
+    if stripe_customer_id(connection, account_id=account_id) is None:
+        return ACTION_CONTACT_SUPPORT
+
+    return intended
+
+
 # ─── offre fondateur ──────────────────────────────────────────────────────────
 
 

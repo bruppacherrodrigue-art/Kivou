@@ -82,6 +82,10 @@ def billing_status(request: Request) -> dict[str, Any]:
     with request.app.state.engine.connect() as connection:
         session = current_session(request, connection, now)
         state = service.billing_state(connection, account_id=session.account_id)
+        # P0-03A — l'action sûre est décidée ICI. Le navigateur ne doit pas
+        # avoir à recopier `TERMINAL_STATUSES` pour savoir si proposer un
+        # paiement facturerait un compte qui en porte déjà un.
+        action = service.billing_action(connection, account_id=session.account_id)
         grants = discovery.grants(connection, account_id=session.account_id)
         remaining = discovery.remaining_slots(connection, account_id=session.account_id)
         over_limit = service.over_limit_icps(
@@ -97,6 +101,7 @@ def billing_status(request: Request) -> dict[str, Any]:
         "cancel_at_period_end": state.cancel_at_period_end,
         "current_period_end": _iso(state.current_period_end),
         "payment_issue": state.payment_issue,
+        "billing_action": action,
         "entitlements": catalogue.customer_safe_entitlements(state.entitlements),
         "discovery": {
             "granted_signal_count": len(grants),
