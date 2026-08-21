@@ -10,13 +10,17 @@ import signals.supplier_discovery.seed as seed_module
 import signals.supplier_discovery.service as service_module
 from signals.ingestion.pipeline import IngestionPipeline
 from signals.ingestion.sources import AcquiredPublication
+from signals.needs import NeedGraphEngine
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import opportunity_representation
 from signals.supplier_discovery.contracts import SupplierTargetingConfig
 from signals.supplier_discovery.seed import (
     build_profile_from_seed,
     resolve_acquisition_seed,
+    resolve_public_acquisition_context,
+    resolve_public_acquisition_context_in_transaction,
 )
+from signals.understanding import ContractUnderstandingEngine
 
 
 def test_public_opportunity_resolves_to_customer_independent_acquisition_seed(tmp_path) -> None:
@@ -34,6 +38,11 @@ def test_public_opportunity_resolves_to_customer_independent_acquisition_seed(tm
         )
 
     seed = resolve_acquisition_seed(engine, opportunity_key)
+    public = resolve_public_acquisition_context(engine, opportunity_key)
+    with engine.connect() as connection:
+        transactional_public = resolve_public_acquisition_context_in_transaction(
+            connection, opportunity_key
+        )
     profile = build_profile_from_seed(seed, targeting=SupplierTargetingConfig())
     service = service_module.SupplierDiscoveryService(engine, provider=object())
     production_profile = service._resolve_persisted_profile(
@@ -42,6 +51,18 @@ def test_public_opportunity_resolves_to_customer_independent_acquisition_seed(tm
 
     assert seed.signal_ref == f"procurement-opportunity:{opportunity_key}"
     assert seed.opportunity_key == opportunity_key
+    assert public == transactional_public
+    assert seed.signal_ref == public.signal_ref
+    assert seed.representative_award_key == public.representative_award_key
+    assert seed.event == public.event
+    assert seed.award == public.award
+    assert seed.public_evidence_refs == public.public_evidence_refs
+    expected_understanding = ContractUnderstandingEngine().understand(
+        public.award, public.event
+    )
+    expected_needs = NeedGraphEngine().derive(expected_understanding)
+    assert seed.understanding == expected_understanding
+    assert seed.needs == expected_needs
     assert seed.understanding.award_ref == seed.award.event_ref
     assert seed.needs.award_ref == seed.award.event_ref
     assert profile.signal_ref == seed.signal_ref

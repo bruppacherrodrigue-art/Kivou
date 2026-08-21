@@ -136,6 +136,25 @@ class PolicyStore:
             raise PolicyControlUnavailable("no effective policy control snapshot")
         return _control_from_row(row)
 
+    def get_control(self, policy_snapshot_id: str) -> PolicyControlSnapshot:
+        """Load the immutable control snapshot used by an existing evaluation."""
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    sa.select(acquisition_policy_snapshot).where(
+                        acquisition_policy_snapshot.c.policy_snapshot_id
+                        == policy_snapshot_id
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+        if row is None:
+            raise PolicyControlUnavailable(
+                f"policy control snapshot not found: {policy_snapshot_id}"
+            )
+        return _control_from_row(row)
+
     @staticmethod
     def evaluation_row(connection: Connection, evaluation_id: str) -> RowMapping | None:
         return (

@@ -6,7 +6,7 @@ import datetime as dt
 from dataclasses import dataclass
 
 import sqlalchemy as sa
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 
 from signals.domain.awards import ContractAward
 from signals.domain.events import PublicEvent
@@ -41,6 +41,18 @@ class AcquisitionSeed:
     public_evidence_refs: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class PublicAcquisitionContext:
+    """Customer-independent public facts shared by acquisition consumers."""
+
+    signal_ref: str
+    opportunity_key: str
+    representative_award_key: str
+    event: PublicEvent
+    award: ContractAward
+    public_evidence_refs: tuple[str, ...]
+
+
 def _publication_rank(value: dt.date | dt.datetime | None) -> float:
     if value is None:
         return 0.0
@@ -64,19 +76,22 @@ def _completeness(event: PublicEvent, award: ContractAward) -> int:
     )
 
 
-def resolve_acquisition_seed(engine: Engine, opportunity_key: str) -> AcquisitionSeed:
-    with engine.connect() as connection:
-        rows = connection.execute(
-            sa.select(opportunity_representation.c.award_key, source_event, contract_award)
-            .select_from(
-                opportunity_representation.join(
-                    contract_award,
-                    opportunity_representation.c.award_key == contract_award.c.award_key,
-                ).join(source_event, contract_award.c.event_key == source_event.c.event_key)
-            )
-            .where(opportunity_representation.c.opportunity_key == opportunity_key)
-            .order_by(contract_award.c.award_key)
-        ).all()
+def resolve_public_acquisition_context_in_transaction(
+    connection: Connection, opportunity_key: str
+) -> PublicAcquisitionContext:
+    """Resolve public context on a caller-owned connection without nested I/O."""
+
+    rows = connection.execute(
+        sa.select(opportunity_representation.c.award_key, source_event, contract_award)
+        .select_from(
+            opportunity_representation.join(
+                contract_award,
+                opportunity_representation.c.award_key == contract_award.c.award_key,
+            ).join(source_event, contract_award.c.event_key == source_event.c.event_key)
+        )
+        .where(opportunity_representation.c.opportunity_key == opportunity_key)
+        .order_by(contract_award.c.award_key)
+    ).all()
     if not rows:
         raise AcquisitionSeedNotFound(opportunity_key)
     choices = []
@@ -92,20 +107,41 @@ def resolve_acquisition_seed(engine: Engine, opportunity_key: str) -> Acquisitio
             item[0],
         ),
     )
-    understanding = ContractUnderstandingEngine().understand(award, event)
-    needs = NeedGraphEngine().derive(understanding)
-    return AcquisitionSeed(
+    return PublicAcquisitionContext(
         signal_ref=f"procurement-opportunity:{opportunity_key}",
         opportunity_key=opportunity_key,
         representative_award_key=award_key,
         event=event,
         award=award,
-        understanding=understanding,
-        needs=needs,
         public_evidence_refs=(
             f"source-event:{event.ref().key()}",
             f"contract-award:{award_key}",
         ),
+    )
+
+
+def resolve_public_acquisition_context(
+    engine: Engine, opportunity_key: str
+) -> PublicAcquisitionContext:
+    with engine.connect() as connection:
+        return resolve_public_acquisition_context_in_transaction(connection, opportunity_key)
+
+
+def resolve_acquisition_seed(engine: Engine, opportunity_key: str) -> AcquisitionSeed:
+    public = resolve_public_acquisition_context(engine, opportunity_key)
+    event = public.event
+    award = public.award
+    understanding = ContractUnderstandingEngine().understand(award, event)
+    needs = NeedGraphEngine().derive(understanding)
+    return AcquisitionSeed(
+        signal_ref=public.signal_ref,
+        opportunity_key=public.opportunity_key,
+        representative_award_key=public.representative_award_key,
+        event=event,
+        award=award,
+        understanding=understanding,
+        needs=needs,
+        public_evidence_refs=public.public_evidence_refs,
     )
 
 
