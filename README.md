@@ -61,6 +61,27 @@ uv run pytest -q
 uv run ruff check .
 ```
 
+### Serveur (production / staging)
+
+Le point d'entrée ASGI est **versionné** : `src/signals/api/asgi.py`. Aucun
+fichier Python ne doit être créé à la main sur un serveur — un déploiement se
+reproduit depuis un SHA du dépôt, sans quoi la revue de code ne voit jamais ce
+qui tourne réellement.
+
+```bash
+uv sync --frozen --extra server --extra postgres
+uvicorn signals.api.asgi:app --host 127.0.0.1 --port 8000
+```
+
+Les deux extras sont **obligatoires** et faciles à oublier : `uvicorn` vit dans
+`server` et `psycopg` dans `postgres`, tous deux sous
+`[project.optional-dependencies]`. Un `uv sync --frozen --no-dev` seul les
+**supprime** — le serveur ne démarre alors plus, et le pilote PostgreSQL manque.
+
+Les migrations sont une étape de déploiement, jouées **une fois avant** le
+redémarrage. Le point d'entrée n'en lance aucune : plusieurs workers uvicorn se
+disputeraient la table `alembic_version`.
+
 ### Frontend (Node 24 · npm)
 
 ```bash

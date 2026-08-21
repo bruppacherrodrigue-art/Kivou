@@ -127,6 +127,36 @@ class ApiConfig:
         return bool(self.public_app_url and self.smtp_host and self.smtp_from_email)
 
     @property
+    def public_site_url(self) -> str | None:
+        """La RACINE du site, d'où pendent les pages hors application.
+
+        `public_app_url` pointe volontairement sur `/app`, le préfixe du routeur
+        navigateur. Mais toutes les routes ne vivent pas dessous : `/login`,
+        `/forgot-password` et surtout `/reset-password` sont servies à la
+        racine. Construire un lien de réinitialisation sur la base des alertes
+        donnerait `…/app/reset-password`, une adresse que le routeur ne connaît
+        pas — le lien reçu par e-mail tomberait sur une page introuvable.
+
+        Le préfixe est retiré plutôt que redemandé dans une seconde variable :
+        deux URL publiques à tenir cohérentes finissent toujours par diverger.
+        """
+        if self.public_app_url is None:
+            return None
+        return self.public_app_url.rstrip("/").removesuffix("/app")
+
+    @property
+    def password_reset_email_configured(self) -> bool:
+        """Le lien de réinitialisation peut-il partir, ET être cliquable ?
+
+        Les mêmes trois éléments que pour une alerte, et pour la même raison :
+        sans expéditeur il n'y a pas d'envoi, sans hôte SMTP il n'y a pas de
+        transport, et sans base publique le lien ne mène nulle part. Une remise
+        câblée sans l'un des trois enverrait un message inutilisable — ou
+        n'enverrait rien en silence, ce qui est pire.
+        """
+        return bool(self.public_site_url and self.smtp_host and self.smtp_from_email)
+
+    @property
     def billing_return_urls_configured(self) -> bool:
         """Sait-on où renvoyer un client après un paiement ?
 
