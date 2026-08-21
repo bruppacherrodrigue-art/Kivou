@@ -133,7 +133,12 @@ function LockedDetailView({ detail }: { detail: LockedDetail }) {
         </DataList>
 
         <div className={styles.lockedAction}>
-          <ButtonLink to="/app/billing" size="lg">
+          {/* Même règle que le teaser : la clé, et rien d'autre. */}
+          <ButtonLink
+            to="/app/billing"
+            state={{ lockedSignalKey: detail.signal_id }}
+            size="lg"
+          >
             {t.locked.cta}
           </ButtonLink>
         </div>

@@ -512,7 +512,19 @@ export const en: Dictionary = {
     cancelAtPeriodEnd: 'Cancellation scheduled at the end of the current period.',
     paymentIssue: 'A payment issue is open on this subscription.',
     managePortal: 'Manage billing',
-    manageLead: 'Payment method, invoices and cancellation are handled by our provider.',
+    manageLead:
+      'Payment method, invoices and cancellation are handled in your billing portal.',
+    recoverTitle: 'Access suspended — payment issue',
+    recoverBody:
+      'Your subscription still exists, but paid access is suspended until the payment issue is settled. Your billing portal holds your payment method, your invoices and your subscription state.',
+    recoverCta: 'Open the billing portal',
+    supportTitle: 'Billing verification needed',
+    supportBody:
+      'Billing for this account needs a verification before any new subscription. Write to us and we will handle it.',
+    supportCta: 'Email contact@kivou.eu',
+    supportEmail: 'contact@kivou.eu',
+    terminalNotice:
+      'The previous attempt is no longer active. You can choose a plan and start again.',
     openingPortal: 'Opening…',
     currency: 'Currency',
     currencyLead: 'Choose the billing currency. It is not inferred from your language.',
@@ -580,15 +592,17 @@ export const en: Dictionary = {
   },
 
   checkout: {
-    successTitle: 'Payment confirmed — access activated',
-    successPending: 'Confirming your payment',
+    successTitle: 'Paid access active',
+    successPending: 'Checking your access',
     successPendingBody:
-      'Your payment has been submitted. Kivou is waiting for its provider to confirm before opening your access. This usually takes a few seconds.',
-    successBody: 'Your {plan} plan is active. Your full stream is open.',
+      'Kivou is checking your subscription state. Access will only open once the server confirms it.',
+    successBody: 'Your {plan} plan is active. Your paid entitlements are available.',
     successTimeout:
-      'The confirmation has not arrived yet. It may still come through in a few minutes. No second payment is needed.',
+      'No paid access has been confirmed yet. If you have just completed a payment, synchronisation can take a few minutes.',
     goToSignals: 'Go to my signals',
-    refresh: 'Refresh',
+    refresh: 'Check again',
+    returnToSignal: 'Back to this signal',
+    seeAllSignals: 'See all my signals',
     seeBilling: 'See my billing',
     cancelTitle: 'Payment interrupted',
     cancelBody:

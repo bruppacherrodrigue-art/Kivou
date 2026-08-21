@@ -241,10 +241,10 @@ describe('retour de paiement', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/checkout/success' })
 
     // Tant que le backend dit « discovery », la page reste en attente.
-    expect(await screen.findByRole('heading', { name: 'Paiement en cours de confirmation' }))
+    expect(await screen.findByRole('heading', { name: 'Vérification de votre accès' }))
       .toBeInTheDocument()
     expect(
-      screen.queryByRole('heading', { name: 'Paiement confirmé — accès activé' }),
+      screen.queryByRole('heading', { name: 'Accès payant actif' }),
     ).not.toBeInTheDocument()
     // Aucun accès n'est proposé avant confirmation.
     expect(screen.queryByRole('link', { name: 'Accéder à mes signaux' })).not.toBeInTheDocument()
@@ -261,7 +261,7 @@ describe('retour de paiement', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/checkout/success' })
 
     expect(
-      await screen.findByRole('heading', { name: 'Paiement confirmé — accès activé' }),
+      await screen.findByRole('heading', { name: 'Accès payant actif' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Accéder à mes signaux' })).toHaveAttribute(
       'href',

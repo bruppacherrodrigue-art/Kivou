@@ -3,6 +3,7 @@ import { useI18n, interpolate } from '../i18n'
 import { Callout, Card } from '../components/Surfaces'
 import { Button, ButtonLink } from '../components/Button'
 import { PaymentConfirmedIllustration } from '../assets/Illustrations'
+import { clearCheckoutIntent, readCheckoutIntent } from '../billing/checkoutIntent'
 import { billing } from '../api/endpoints'
 import type { BillingStatus } from '../api/types'
 import styles from './Checkout.module.css'
@@ -21,6 +22,14 @@ import styles from './Checkout.module.css'
  * derrière une animation, et laisserait le client devant un écran qui tourne
  * sans rien lui dire. Au terme du délai, la page explique ce qui se passe et
  * rend la main.
+ *
+ * Ce que la page annonce, et ce qu'elle se garde d'annoncer
+ * ────────────────────────────────────────────────────────
+ * Elle dit « accès payant actif », jamais « paiement confirmé ». La nuance
+ * n'est pas cosmétique : n'importe qui peut ouvrir cette adresse, et un client
+ * payant depuis des semaines peut la rouvrir à la main. Affirmer un paiement
+ * qui vient d'avoir lieu serait alors faux. Ce que la page constate, elle le
+ * tient du serveur : des droits payants sont ouverts.
  */
 
 const POLL_INTERVAL_MS = 2500
@@ -29,6 +38,11 @@ const POLL_TIMEOUT_MS = 45_000
 export function CheckoutSuccess() {
   const { t } = useI18n()
   const [status, setStatus] = useState<BillingStatus | null>(null)
+  /* Le signal qui a déclenché l'achat, lu UNE fois au montage. Il ne prouve
+   * rien et n'ouvre rien : il ne sert qu'à savoir où ramener le client une fois
+   * que le serveur, lui, a confirmé. Si le détail répond ensuite `locked`,
+   * c'est `locked` qui s'affiche. */
+  const [intent] = useState(() => readCheckoutIntent())
   const [timedOut, setTimedOut] = useState(false)
   const startedAt = useRef(Date.now())
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -91,9 +105,27 @@ export function CheckoutSuccess() {
 
         <div className={styles.actions}>
           {confirmed ? (
-            <ButtonLink to="/app/signals" size="lg">
-              {t.checkout.goToSignals}
-            </ButtonLink>
+            intent !== null ? (
+              <>
+                {/* L'intention est consommée en partant : elle a rempli son
+                    unique office, et la laisser vivre ferait réapparaître ce
+                    retour lors d'un achat suivant. */}
+                <ButtonLink
+                  to={`/app/signals/${encodeURIComponent(intent)}`}
+                  size="lg"
+                  onClick={clearCheckoutIntent}
+                >
+                  {t.checkout.returnToSignal}
+                </ButtonLink>
+                <ButtonLink to="/app/signals" variant="secondary" size="lg">
+                  {t.checkout.seeAllSignals}
+                </ButtonLink>
+              </>
+            ) : (
+              <ButtonLink to="/app/signals" size="lg">
+                {t.checkout.goToSignals}
+              </ButtonLink>
+            )
           ) : (
             <Button variant="secondary" size="lg" onClick={refresh} disabled={!timedOut}>
               {t.checkout.refresh}
@@ -114,6 +146,11 @@ export function CheckoutSuccess() {
  *  n'est pas un refus de carte, et le dire ainsi inquiéterait pour rien. */
 export function CheckoutCancel() {
   const { t } = useI18n()
+
+  /* Le parcours d'achat est abandonné : l'intention n'a plus d'objet. La
+   * garder ferait réapparaître « revenir à ce signal » après un achat
+   * ultérieur, sans rapport avec celui-ci. */
+  useEffect(() => clearCheckoutIntent(), [])
 
   return (
     <main className={styles.page} id="kivou-main">
