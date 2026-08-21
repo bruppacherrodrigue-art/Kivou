@@ -111,6 +111,39 @@ describe('inscription', () => {
     expect(steps[0]).toHaveTextContent('Compte')
   })
 
+  /* REVUE #1 — la promesse chiffrée ne doit pas revenir.
+   *
+   * `signupLead` annonçait « Trois signaux réels vous attendent ». Aucun
+   * déblocage n'existe pourtant à ce stade : le compte n'a pas de ciblage, et
+   * c'est `GET /signals` qui attribue. Le nombre était donc une promesse que
+   * le serveur n'avait pas produite — et qu'il ne tiendrait pas si moins de
+   * trois signaux éligibles existaient.
+   *
+   * Ce test est négatif à dessein : il ne vérifie pas une formulation, il
+   * interdit le retour de celle-là. */
+  it('ne promet aucun nombre de signaux avant attribution — FR', async () => {
+    mockApi({ 'POST /auth/signup': { body: ME } })
+    renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/signup', locale: 'fr' })
+
+    const page = document.body.textContent ?? ''
+    expect(page).not.toContain('Trois signaux réels vous attendent')
+    expect(page).not.toMatch(/\b3 signaux\b/)
+    expect(page).not.toMatch(/\btrois signaux\b/i)
+    // La valeur reste dite, sans chiffre.
+    expect(screen.getByText(/Vos premiers signaux réels/)).toBeInTheDocument()
+  })
+
+  it('ne promet aucun nombre de signaux avant attribution — EN', async () => {
+    mockApi({ 'POST /auth/signup': { body: ME } })
+    renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/signup', locale: 'en' })
+
+    const page = document.body.textContent ?? ''
+    expect(page).not.toContain('Three real signals are waiting')
+    expect(page).not.toMatch(/\b3 signals\b/)
+    expect(page).not.toMatch(/\bthree signals\b/i)
+    expect(screen.getByText(/Your first real signals/)).toBeInTheDocument()
+  })
+
   it('n’envoie que les champs du contrat backend — jamais d’account_id', async () => {
     const user = userEvent.setup()
     mockApi({
