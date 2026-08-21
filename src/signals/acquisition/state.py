@@ -178,6 +178,26 @@ def _decision_recorded(
         raise InvalidTransition("DECISION_RECORDED requires a known decision") from exc
     target = DECISION_STATES[decision]
     _require_transition(current.state, target)
+    is_spec023 = "next_action" in event.payload
+    if is_spec023:
+        allowed_keys = {"decision", "next_action", "next_review_at"}
+        if set(event.payload) - allowed_keys:
+            raise InvalidTransition("SPEC-023 DECISION_RECORDED has unexpected payload keys")
+        expected_actions = {
+            Decision.SEND: "prepare_campaign",
+            Decision.REVIEW: "request_human_review",
+            Decision.NO_SEND: None,
+        }
+        if decision not in expected_actions:
+            raise InvalidTransition("decision-policy-v1 cannot emit HOLD or ENRICH")
+        if event.payload.get("next_action") != expected_actions[decision]:
+            raise InvalidTransition("decision-policy-v1 next_action does not match decision")
+        if event.payload.get("next_review_at") is not None:
+            raise InvalidTransition("decision-policy-v1 cannot schedule a review")
+        if not event.reason_codes or not event.evidence_refs:
+            raise InvalidTransition("SPEC-023 decision requires reasons and evidence")
+        if event.confidence is not None:
+            raise InvalidTransition("decision-policy-v1 has no numeric confidence")
     next_review_at = _datetime_payload(event.payload, "next_review_at")
     if decision == Decision.HOLD:
         _require_hold_metadata(event, next_review_at)
@@ -192,6 +212,8 @@ def _decision_recorded(
             "next_review_at": next_review_at,
         }
     )
+    if is_spec023:
+        updates["next_action"] = event.payload.get("next_action")
     return current.model_copy(update=updates)
 
 

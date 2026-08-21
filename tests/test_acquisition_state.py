@@ -28,6 +28,7 @@ def event(
     payload: dict[str, object] | None = None,
     state_machine_version: str = STATE_MACHINE_VERSION,
     reason_codes: tuple[str, ...] = (),
+    evidence_refs: tuple[str, ...] = (),
     confidence: Decimal | None = None,
 ) -> AcquisitionEvent:
     return AcquisitionEvent(
@@ -42,6 +43,7 @@ def event(
         idempotency_key=f"idem-{sequence}",
         semantic_fingerprint=f"{sequence:064x}",
         reason_codes=reason_codes,
+        evidence_refs=evidence_refs,
         confidence=confidence,
         payload={} if payload is None else payload,
     )
@@ -190,6 +192,104 @@ def test_decision_mapping_is_recorded_without_deciding(
     assert result.decision == decision
     assert result.state == target
     assert result.confidence == Decimal("0.8")
+
+
+@pytest.mark.parametrize(
+    ("decision", "next_action"),
+    (
+        (Decision.SEND, "prepare_campaign"),
+        (Decision.REVIEW, "request_human_review"),
+        (Decision.NO_SEND, None),
+    ),
+)
+def test_spec023_decision_payload_updates_state_and_next_action_atomically(
+    decision: Decision, next_action: str | None
+) -> None:
+    current = projection(AcquisitionState.READY_FOR_DECISION).model_copy(
+        update={"next_action": "evaluate_opportunity"}
+    )
+    change = event(
+        EventType.DECISION_RECORDED,
+        sequence=2,
+        payload={"decision": decision.value, "next_action": next_action},
+        reason_codes=("bounded_reason",),
+        evidence_refs=("contract-award:award-1",),
+    )
+
+    result = reduce_event(current, change)
+
+    assert result.state is DECISION_STATES[decision]
+    assert result.next_action == next_action
+    assert result.confidence is None
+
+
+def test_historical_decision_payload_preserves_previous_next_action_semantics() -> None:
+    current = projection(AcquisitionState.READY_FOR_DECISION).model_copy(
+        update={"next_action": "evaluate_opportunity"}
+    )
+    historical = event(
+        EventType.DECISION_RECORDED,
+        sequence=2,
+        payload={"decision": Decision.NO_SEND.value},
+        reason_codes=("historical",),
+    )
+
+    assert reduce_event(current, historical).next_action == "evaluate_opportunity"
+
+
+@pytest.mark.parametrize(
+    "payload",
+    (
+        {"decision": "SEND", "next_action": "request_human_review"},
+        {"decision": "REVIEW", "next_action": None},
+        {"decision": "NO_SEND", "next_action": "prepare_campaign"},
+        {"decision": "HOLD", "next_action": None},
+        {"decision": "ENRICH", "next_action": "enrich_company"},
+        {"decision": "SEND", "next_action": "prepare_campaign", "score": 100},
+        {
+            "decision": "SEND",
+            "next_action": "prepare_campaign",
+            "next_review_at": (NOW + dt.timedelta(days=1)).isoformat(),
+        },
+    ),
+)
+def test_spec023_decision_payload_fails_closed(payload: dict[str, object]) -> None:
+    change = event(
+        EventType.DECISION_RECORDED,
+        sequence=2,
+        payload=payload,
+        reason_codes=("bounded_reason",),
+        evidence_refs=("contract-award:award-1",),
+    )
+
+    with pytest.raises(InvalidTransition):
+        reduce_event(projection(AcquisitionState.READY_FOR_DECISION), change)
+
+
+@pytest.mark.parametrize(
+    ("reason_codes", "evidence_refs", "confidence"),
+    (
+        ((), ("contract-award:award-1",), None),
+        (("bounded_reason",), (), None),
+        (("bounded_reason",), ("contract-award:award-1",), Decimal("0.9")),
+    ),
+)
+def test_spec023_decision_requires_structured_evidence_without_fake_confidence(
+    reason_codes: tuple[str, ...],
+    evidence_refs: tuple[str, ...],
+    confidence: Decimal | None,
+) -> None:
+    change = event(
+        EventType.DECISION_RECORDED,
+        sequence=2,
+        payload={"decision": "SEND", "next_action": "prepare_campaign"},
+        reason_codes=reason_codes,
+        evidence_refs=evidence_refs,
+        confidence=confidence,
+    )
+
+    with pytest.raises(InvalidTransition):
+        reduce_event(projection(AcquisitionState.READY_FOR_DECISION), change)
 
 
 @pytest.mark.parametrize(

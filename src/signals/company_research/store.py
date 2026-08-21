@@ -247,15 +247,21 @@ class CompanyResearchStore:
 
     def get_profile(self, opportunity_id: str) -> AcquisitionCompanyProfile:
         with self._engine.connect() as connection:
-            row = (
-                connection.execute(
-                    sa.select(acquisition_company_profile).where(
-                        acquisition_company_profile.c.acquisition_opportunity_id == opportunity_id
-                    )
+            return self.get_profile_in_transaction(connection, opportunity_id)
+
+    @staticmethod
+    def get_profile_in_transaction(
+        connection: Connection, opportunity_id: str
+    ) -> AcquisitionCompanyProfile:
+        row = (
+            connection.execute(
+                sa.select(acquisition_company_profile).where(
+                    acquisition_company_profile.c.acquisition_opportunity_id == opportunity_id
                 )
-                .mappings()
-                .one()
             )
+            .mappings()
+            .one()
+        )
         return _profile(row)
 
     def get_contact_binding(self, contact_ref: str) -> CompanyResearchContactBinding:

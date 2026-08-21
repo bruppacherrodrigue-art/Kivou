@@ -81,7 +81,10 @@ def request(command: str = "evaluate_opportunity", **overrides: object) -> Polic
             status=EvidenceStatus.READY,
             claims=(
                 "SIGNAL",
+                "PUBLIC_OPPORTUNITY",
                 "PUBLIC_EVIDENCE",
+                "ACQUISITION_PROSPECT_PREBUILD",
+                "DECISION_INPUT",
                 "FIT_DECISION",
                 "RECENT_SIGNAL",
                 "VERIFIED_CONTACT",
