@@ -380,7 +380,7 @@ export const en: Dictionary = {
 
   locked: {
     badge: 'Locked',
-    title: 'Unlock the full stream',
+    title: 'Extend access to your stream',
     teaserHeadingFallback: 'A signal detected in your scope',
     body: 'The winning company, the contract and the documentary evidence are reserved for paid plans.',
     cta: 'See plans',
@@ -392,7 +392,7 @@ export const en: Dictionary = {
     needCountOther: '{count} plausible needs identified',
     detailTitle: 'This signal is locked',
     detailBody:
-      'Your current plan does not open this signal. Paid plans open your whole stream, with the winning company, the contract and the evidence.',
+      'Your current plan does not open this signal. Paid plans extend access to your stream according to their entitlements and their history window. Compare the plans before choosing.',
   },
 
   magnitude: {
@@ -573,6 +573,7 @@ export const en: Dictionary = {
       unpaid: 'Unpaid',
       paused: 'Paused',
       none: 'No subscription',
+      unknown: 'Needs review',
     },
     errors: {
       checkoutInProgressTitle: 'A payment is already open',
