@@ -262,15 +262,19 @@ class ContactDiscoveryStore:
 
     def get_contact(self, contact_ref: str) -> ContactRecord:
         with self._engine.connect() as connection:
-            row = (
-                connection.execute(
-                    sa.select(acquisition_contact).where(
-                        acquisition_contact.c.contact_ref == contact_ref
-                    )
+            return self.get_contact_in_transaction(connection, contact_ref)
+
+    @staticmethod
+    def get_contact_in_transaction(connection: Connection, contact_ref: str) -> ContactRecord:
+        row = (
+            connection.execute(
+                sa.select(acquisition_contact).where(
+                    acquisition_contact.c.contact_ref == contact_ref
                 )
-                .mappings()
-                .one()
             )
+            .mappings()
+            .one()
+        )
         return _contact(row)
 
     def upsert_contact(self, observation: ContactObservation) -> ContactUpsertResult:

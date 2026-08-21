@@ -29,6 +29,30 @@ class ClaimMapEntry(PersonalizationContract):
     evidence_refs: tuple[StableRef, ...] = Field(default=(), max_length=16)
 
 
+class PersonalizationInput(PersonalizationContract):
+    """PII-minimized immutable identity for one deterministic rendered proposal."""
+
+    acquisition_opportunity_id: StableRef
+    signal_ref: StableRef
+    supplier_ref: StableRef
+    contact_ref: StableRef
+    decision_evaluation_id: StableRef
+    historical_decision_input_fingerprint: Fingerprint
+    company_prebuild_fingerprint: Fingerprint
+    public_context_fingerprint: Fingerprint
+    eligibility_fingerprint: Fingerprint
+    as_of_date: dt.date
+    need_engine_version: StableRef
+    selected_need_fingerprint: Fingerprint
+    language: Literal["fr", "en"]
+    salutation_mode: Literal["FIRST_NAME", "NEUTRAL"]
+    contact_personalization_fingerprint: Fingerprint
+    template_version: StableRef
+    catalog_version: StableRef
+    language_policy_version: StableRef
+    personalization_input_fingerprint: Fingerprint
+
+
 class PersonalizationArtifactWrite(PersonalizationContract):
     personalization_artifact_id: StableRef
     acquisition_opportunity_id: StableRef
@@ -45,6 +69,7 @@ class PersonalizationArtifactWrite(PersonalizationContract):
     template_version: StableRef
     catalog_version: StableRef
     language_policy_version: StableRef
+    proposal_fingerprint: Fingerprint
     policy_action_fingerprint: Fingerprint
     artifact_fingerprint: Fingerprint
     input_snapshot: dict[str, object]

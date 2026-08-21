@@ -1047,6 +1047,7 @@ acquisition_personalization_artifact = sa.Table(
     sa.Column("template_version", sa.String(64), nullable=False),
     sa.Column("catalog_version", sa.String(64), nullable=False),
     sa.Column("language_policy_version", sa.String(64), nullable=False),
+    sa.Column("proposal_fingerprint", sa.String(64), nullable=False),
     sa.Column("policy_action_fingerprint", sa.String(64), nullable=False),
     sa.Column("artifact_fingerprint", sa.String(64), nullable=False),
     sa.Column("input_snapshot", sa.JSON, nullable=False),

@@ -9,6 +9,7 @@ from signals.persistence.schema import acquisition_decision_evaluation
 
 PREVIOUS = "0011_company_research"
 HEAD = "0012_decision_engine"
+CURRENT_HEAD = "0013_personalization"
 
 
 def test_decision_engine_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> None:
@@ -24,7 +25,7 @@ def test_decision_engine_migration_is_linear_and_adds_exactly_one_table(tmp_path
         "acquisition_decision_evaluation"
     }
     script = ScriptDirectory.from_config(config)
-    assert script.get_heads() == [HEAD]
+    assert script.get_heads() == [CURRENT_HEAD]
     assert script.get_revision(HEAD).down_revision == PREVIOUS
     assert len(HEAD) <= 32
     assert current_revision(engine) == HEAD

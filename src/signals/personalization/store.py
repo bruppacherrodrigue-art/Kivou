@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
+from collections.abc import Mapping
+from enum import Enum
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection, Engine
@@ -28,6 +31,22 @@ def _values(write: PersonalizationArtifactWrite) -> dict[str, object]:
         "disposition": write.disposition.value,
         "created_at": write.created_at,
     }
+
+
+def _semantic(value):
+    """Normalize SQL/Pydantic representation differences before idempotency checks."""
+    if isinstance(value, dt.datetime):
+        aware = value if value.tzinfo is not None else value.replace(tzinfo=dt.UTC)
+        return aware.astimezone(dt.UTC).isoformat()
+    if isinstance(value, dt.date):
+        return value.isoformat()
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, Mapping):
+        return {str(key): _semantic(nested) for key, nested in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_semantic(nested) for nested in value]
+    return value
 
 
 class PersonalizationStore:
@@ -72,6 +91,6 @@ class PersonalizationStore:
             raise PersonalizationArtifactIdempotencyConflict(write.policy_evaluation_id)
         if result.rowcount == 1:
             return row
-        if any(row[key] != value for key, value in values.items()):
+        if any(_semantic(row[key]) != _semantic(value) for key, value in values.items()):
             raise PersonalizationArtifactIdempotencyConflict(write.policy_evaluation_id)
         return row

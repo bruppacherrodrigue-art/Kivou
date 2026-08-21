@@ -18,7 +18,7 @@ POLICY_REVISION = "0008_policy_gateway"
 SUPPLIER_REVISION = "0009_supplier_discovery"
 CONTACT_REVISION = "0010_contact_discovery"
 COMPANY_REVISION = "0011_company_research"
-CURRENT_HEAD = "0012_decision_engine"
+CURRENT_HEAD = "0013_personalization"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
