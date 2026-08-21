@@ -16,14 +16,35 @@ SPEC-026 implementation validation.
 ### Design R1 freeze
 
 R1 removes the unsafe possibility of enrolling a lead into an active provider
-campaign. Micro-campaigns are immutable batches: all members are enrolled and
-become `QUEUED` while the provider campaign is non-sending, membership is
-sealed, every member is revalidated, and only then may activation be attempted.
+campaign. Micro-campaigns are immutable batches: retained members are enrolled
+and become `QUEUED` while the provider campaign is non-sending, membership is
+sealed, every retained member is revalidated, and only then may activation be
+attempted.
 R1 also freezes initial caps/windows/follow-up/tracking/stop settings and gates
 `reply_received` subscription until SPEC-027 can durably retain sensitive reply
 content. The external deployment inputs that remain unresolved are the real
 mailbox catalog, exact privacy/footer catalog, Hyper Growth entitlement, and a
 separately authorized paused-provider transport-contract proof.
+
+### Design R2 freeze
+
+R2 freezes `batch-seal-policy-v1`: the first reserved member establishes an
+immutable `membership_close_at = first_member_reserved_at + 15 minutes`, and
+membership closes at the earlier of that deadline or the tenth reserved slot.
+A `BUILDING` campaign can therefore be membership-open or membership-closed
+while already-reserved provider operations finish or reconcile. It becomes
+`SEALED` only after every retained member is ready for activation; a partial
+one- or three-member batch is valid, while a batch with no retained member
+becomes non-active `FAILED`.
+
+R2 also separates the acquisition `QUEUED` milestone from current transport
+truth. After `SEND -> QUEUED`, the closed `acquisition_campaign_member`
+execution state is authoritative for activation eligibility. A later hard
+suppression, objection, compliance expiry, or binding invalidation moves the
+member to `STOPPED`, clears the generic workflow action with the existing
+reasoned `NEXT_ACTION_SET(null)` semantics, and never fabricates a reverse
+AcquisitionState transition. Temporary provider or mailbox failures remain
+operational reconciliation states rather than hard stops.
 
 ## Executive recommendation
 
@@ -46,11 +67,14 @@ next_action = schedule_campaign
 It reaches `SEND -> QUEUED` only after Kivou has durable proof that the exact
 lead is enrolled in the exact configured **non-sending** Instantly campaign,
 all provider identities are recorded, and all current execution gates pass.
-The batch is then sealed, every queued member is revalidated, and only then may
-provider activation be attempted. `QUEUED` means authorized for subsequent
-external activation; it does not require provider ACTIVE status and does not
-mean sent. Only a deduplicated authoritative `email_sent` provider event may
-advance `QUEUED -> SENT`.
+Membership then closes under `batch-seal-policy-v1`; already-reserved members
+finish or reconcile, the retained set is sealed, and every retained member is
+revalidated before provider activation may be attempted. `QUEUED` records that
+an opportunity reached durable external-enrollment authorization; it does not
+require provider ACTIVE status and does not mean sent. Current activation/send
+eligibility is the member execution state, and only member state `QUEUED` is
+eligible. Only a deduplicated authoritative `email_sent` provider event may
+advance the member and acquisition opportunity to `SENT`.
 
 The minimum safe migration recommendation is `0015_campaign_factory` with four
 tables: campaign, campaign member, provider operation, and provider event. Each
@@ -269,8 +293,10 @@ Recommended `campaign-factory-v1` grouping dimensions are:
 7. sender profile and eligible mailbox-pool version;
 8. send-window/timezone policy version;
 9. follow-up sequence version;
-10. tracking policy version; and
-11. compliance ruleset generation when it changes outbound transport duties.
+10. tracking policy version;
+11. compliance ruleset generation when it changes outbound transport duties;
+    and
+12. batch-seal policy version/config fingerprint.
 
 The deterministic `campaign_group_key` is a domain-separated fingerprint of
 these semantic dimensions, not of a person or email. It deliberately excludes
@@ -281,15 +307,43 @@ campaign_group_key = fingerprint(semantic grouping dimensions)
 campaign_ref = fingerprint(campaign_group_key, batch_generation)
 ```
 
-Select the lowest-generation `BUILDING` batch with an unreserved slot below the
-frozen maximum of **10 members**. If none exists, atomically allocate the next
-generation. A unique `(campaign_group_key, batch_generation)` constraint plus a
-locked capacity reservation prevents two schedulers from allocating duplicate
-batches or the same last slot. Once a batch becomes `SEALED`, it never reopens;
-a later compatible opportunity joins another `BUILDING` generation or creates
-the next one. Ten is intentionally conservative relative to the frozen first
-ASSISTED trial cap of five new leads/day; the provider bulk maximum does not
-raise it.
+`batch-seal-policy-v1` fixes both capacity and assembly time:
+
+```text
+maximum_members = 10
+maximum_assembly_duration = 15 minutes
+membership_close_at = first_member_reserved_at + 15 minutes
+membership closes at min(tenth slot reserved, membership_close_at)
+```
+
+Select the lowest-generation `BUILDING` batch whose membership is open, whose
+captured Kivou time is strictly before `membership_close_at` when that deadline
+exists, and which has fewer than ten reserved slots. The first slot reservation
+atomically writes immutable `first_member_reserved_at` and
+`membership_close_at`. Later reservations never change either timestamp. The
+tenth reservation atomically sets `membership_closed_at`; a due-close worker or
+the next scheduler observation sets it when captured time reaches the deadline.
+The time predicate itself prevents a late reservation even if the materialized
+closure timestamp has not yet been written. Capacity closure records the tenth
+reservation's captured instant; deadline closure records the immutable
+`membership_close_at`, not a later worker-observation time.
+
+Assignment and closure lock the campaign row/group serialization boundary. A
+scheduler racing the close receives exactly one result: its slot was committed
+before closure in this generation, or it is rejected from this generation and
+assigned to the next open/new generation. A unique
+`(campaign_group_key, batch_generation)` constraint and locked slot reservation
+prevent duplicate generations, duplicate last-slot assignment, or capacity
+above ten. A reservation consumes its generation slot even if that member later
+stops or fails; capacity is not silently reopened and the deadline never moves.
+
+If no open batch exists, atomically allocate the next generation. Once
+`membership_closed_at` is set, no member insertion, slot reservation, or
+new `ADD_LEAD` operation may be created and the generation never reopens. Ten is
+intentionally conservative relative to the frozen first ASSISTED trial cap of
+five new leads/day; the provider bulk maximum does not raise it. A batch need
+not be full: one or three retained members may proceed after the 15-minute
+deadline once all remaining seal and activation gates pass.
 
 The factory returns:
 
@@ -323,22 +377,83 @@ Kivou's deterministic lifecycle is:
 
 ```text
 BUILDING -> SEALED -> ACTIVE -> PAUSED | COMPLETED
-     \-----------> FAILED (typed terminal/reconciliation outcome)
+BUILDING -> FAILED
+SEALED   -> FAILED (before activation only)
 ```
 
-- `BUILDING`: provider campaign is DRAFT/PAUSED and configuration/membership
-  may be assembled under the ten-member cap.
+- `BUILDING`: provider campaign is DRAFT/PAUSED. While
+  `membership_closed_at IS NULL` and captured time is before the immutable
+  deadline, configuration and membership may be assembled under the ten-member
+  cap. After membership closes, the campaign remains `BUILDING` only to finish
+  or reconcile operations for already-reserved members; no new member or
+  `ADD_LEAD` operation may be created.
 - `SEALED`: membership is immutable; every provider lead binding is confirmed
-  and every member is already `QUEUED`. Activation has not yet been attempted.
+  and every retained member is already execution-state `QUEUED`. Activation
+  has not yet been attempted. A partial retained batch is valid.
 - `ACTIVE`: activation has been attempted and reconciled/observed as active.
   No member or `ADD_LEAD` operation can ever be added.
 - `PAUSED`, `COMPLETED`, `FAILED`: non-building states; none may reopen for
   membership. A compatible later opportunity uses a new generation.
 
-Creation of `ADD_LEAD` is allowed only while both Kivou lifecycle is `BUILDING`
-and provider readback is DRAFT/PAUSED. As soon as activation is claimed, the
-campaign must already be `SEALED`; membership and capacity reservations are
+`FAILED` may be reached from membership-closed `BUILDING` when no member is
+retained, or from pre-activation `SEALED` when all members become stopped or
+cannot be reconciled safely. It is never an activation/send claim.
+
+Membership closure and lifecycle sealing are distinct. Closure prevents new
+membership immediately, but `BUILDING -> SEALED` waits until every retained
+member has the exact confirmed provider enrollment and queue milestone required
+for activation. `STOPPED`/terminally failed members are excluded only through
+the contract-proven non-sending risk-reduction path. If no retained member
+remains, the campaign becomes `FAILED` and never activates. Creation of
+`ADD_LEAD` is allowed only while Kivou lifecycle is `BUILDING`, membership is
+open, and provider readback is DRAFT/PAUSED. As soon as activation is claimed,
+the campaign must already be `SEALED`; membership and capacity reservations are
 permanently closed. MVP never pauses a live campaign merely to append leads.
+
+### Member execution state
+
+The campaign member is the current post-queue execution truth. Its closed v1
+vocabulary is:
+
+```text
+RESERVED -> ENROLLED -> QUEUED -> SENT
+    |          |          \----> STOPPED --email_sent incident--> SENT
+    \----------\----------------> FAILED
+```
+
+- `RESERVED`: one serialized batch slot and immutable member identity exist;
+  provider enrollment is not yet confirmed.
+- `ENROLLED`: the exact provider lead/campaign binding is confirmed while the
+  campaign remains non-sending; the acquisition queue milestone is not yet
+  committed.
+- `QUEUED`: the provider binding is confirmed, all queue-time gates passed,
+  `SEND -> QUEUED` and the campaign binding are durable, and the member is a
+  candidate for the final all-member activation check.
+- `STOPPED`: the member must not send under its current authorization or
+  binding. It is excluded from activation and receives contract-proven provider
+  pause/removal risk reduction. It cannot return to `QUEUED` in SPEC-026.
+- `SENT`: authoritative deduplicated `email_sent` evidence proves provider
+  execution. This is the only ordinary transition from member `QUEUED` to
+  `SENT`.
+- `FAILED`: an irrecoverable, terminal non-send enrollment/member failure. A
+  retryable provider failure, temporary mailbox unavailability, rate limit, or
+  `RECONCILE_REQUIRED` operation does not use this state.
+
+Only member execution state `QUEUED` is activation/send eligible. A later hard
+condition moves `QUEUED -> STOPPED` without reversing the acquisition
+opportunity, which remains `QUEUED` as historical fact. If authoritative
+`email_sent` unexpectedly arrives for a `STOPPED` member, Kivou must preserve
+the real transport evidence, record a bounded transport incident, advance the
+member and opportunity to `SENT`, and never discard or relabel the send.
+
+The v1 workflow/member reason catalog is bounded and non-free-form:
+`CAMPAIGN_MEMBER_QUEUED` for the queue-time action clear;
+`SUPPRESSION_AFTER_QUEUE`, `OBJECTION_AFTER_QUEUE`,
+`COMPLIANCE_EXPIRED_AFTER_QUEUE`, `ARTIFACT_BINDING_CHANGED_AFTER_QUEUE`, and
+`CONTACT_BINDING_CHANGED_AFTER_QUEUE` for hard stops; and
+`UNEXPECTED_EMAIL_SENT_AFTER_STOP` for authoritative transport evidence after a
+stop. These codes explain workflow/member effects without copying PII or legal
+reasoning into generic events.
 
 ## Final outbound envelope
 
@@ -684,12 +799,18 @@ It adds exactly four tables.
 Shared immutable Kivou micro-campaign batch and bounded provider mapping:
 `campaign_ref` primary key; `campaign_group_key`; `batch_generation`; unique
 group/generation; group/version/fingerprint; country/language/wedge/need;
-template/envelope/sequence/tracking/window/mailbox-pool versions; provider
-workspace ref; deterministic provider name; nullable unique provider campaign
-ID; desired/current provider configuration fingerprints; lifecycle constrained
+template/envelope/sequence/tracking/window/mailbox-pool and batch-seal policy
+versions/config fingerprints; provider workspace ref; deterministic provider
+name; nullable unique provider campaign ID; desired/current provider
+configuration fingerprints; lifecycle constrained
 to `BUILDING|SEALED|ACTIVE|PAUSED|COMPLETED|FAILED`; membership count/capacity
-reservation; timestamps. No member email, copy, API key, or raw provider
-response.
+reservation; nullable immutable `first_member_reserved_at` and
+`membership_close_at`; nullable monotonic `membership_closed_at`; timestamps.
+Portable checks bind the first/deadline pair and ten-member bound. Service/store
+invariants require `membership_close_at = first_member_reserved_at + 15
+minutes`, prohibit clearing/changing any closure timestamp, and serialize
+closure against member insertion. No member email, copy, API key, or raw
+provider response.
 
 Why separate: one campaign owns many opportunities and must be created/configured
 once under concurrency.
@@ -699,11 +820,14 @@ once under concurrency.
 One exact opportunity enrollment: member ref; campaign ref; opportunity,
 supplier, contact, READY artifact, RECORDED/ALLOWED compliance, and Policy
 evaluation refs; exact input/plan/envelope/action fingerprints; nullable unique
-provider lead ID; bounded enrollment/queue/stop state; recorded queue event ref;
-timestamps. Enforce one active scheduling identity per opportunity/artifact/
-compliance generation and unique provider campaign/lead binding. Insertion is
-valid only against a locked `BUILDING` campaign below capacity; no member is
-created after seal or activation claim. No rendered copy or raw email.
+provider lead ID; execution state constrained to
+`RESERVED|ENROLLED|QUEUED|STOPPED|SENT|FAILED`; bounded stop/failure reason;
+recorded queue/action-clear/SENT event refs as applicable; timestamps. Enforce
+one active scheduling identity per opportunity/artifact/compliance generation
+and unique provider campaign/lead binding. Insertion is valid only against a
+locked, membership-open `BUILDING` campaign below capacity and before its
+deadline; no member is created after membership closure, seal, or activation
+claim. No rendered copy or raw email.
 
 Why separate: membership has independent compliance/idempotency/workflow state
 while many members share one campaign.
@@ -767,48 +891,75 @@ skip flags are defense in depth, not Kivou's source of truth.
 2. **Plan, authorize, assign batch:** capture one UTC instant; build exact
    current inputs, suppression, envelope, mailbox readiness, window/pacing,
    plan, and Policy request. For executable Policy, serialize on the semantic
-   group, reserve the lowest `BUILDING` generation with capacity (or atomically
-   create the next), reserve its member, and create the first `PLANNED`
-   operation at the exact post-Policy stream version.
+   group, close any due generation, reserve the lowest membership-open
+   `BUILDING` generation with capacity (or atomically create the next), and
+   reserve its member. The first member writes the immutable 15-minute close
+   deadline. The member reservation atomically creates its deterministic
+   `PLANNED ADD_LEAD` operation identity, even if shared campaign creation must
+   execute first; after membership closure no new member-specific add operation
+   may be created.
 3. **Build non-sending campaign:** create/configure/reconcile the provider
-   campaign as DRAFT/PAUSED. `ADD_LEAD` operations exist only for this
-   `BUILDING` generation. Confirm every exact provider lead binding; an ACTIVE,
-   SEALED, PAUSED-after-activation, COMPLETED, or FAILED batch rejects new
-   enrollment.
-4. **Queue authorized members before activation:** for each confirmed member,
+   campaign as DRAFT/PAUSED. Execute or reconcile only deterministic
+   `ADD_LEAD` operations planned while membership was open. Confirm every exact
+   provider lead binding; an ACTIVE, SEALED, PAUSED-after-activation,
+   COMPLETED, FAILED, or membership-closed batch rejects new enrollment or
+   operation creation.
+4. **Close membership:** under the campaign/group serialization boundary,
+   atomically set `membership_closed_at` on the tenth reservation or when
+   captured time reaches the immutable deadline. A reservation/closure race
+   commits either the slot in this generation or closure and next-generation
+   assignment, never both. One- and three-member partial batches are valid.
+5. **Finish the closed BUILDING set:** execute or reconcile only already-
+   reserved members and operations. Closure does not force `SEALED` while a
+   reserved lead outcome is unknown. Terminally ineligible members take the
+   non-sending risk-reduction path; if none is retained, set campaign `FAILED`
+   and never activate.
+6. **Queue authorized members before activation:** for each confirmed retained
+   member,
    re-read its opportunity, READY artifact, RECORDED/ALLOWED unexpired
    compliance, suppression, contact/supplier/profile, mailbox, plan, window,
    caps, and Policy execution authority. In one bounded transaction bind
-   `campaign_ref`, append `STATE_TRANSITIONED(SEND -> QUEUED)`, and record the
-   event on the member. The provider campaign remains non-sending. A member
-   that fails this check must be removed/paused through a contract-proven safe
-   provider mechanism or leave the entire batch BUILDING/non-active for review;
-   it cannot be silently retained.
-5. **Seal:** after membership selection completes, atomically move the batch
-   `BUILDING -> SEALED` only when every retained member is `QUEUED`. No later
-   member or `ADD_LEAD` operation is possible.
-6. **Activation revalidation:** immediately before creating/claiming
+   `campaign_ref`, append `STATE_TRANSITIONED(SEND -> QUEUED)`, append a
+   reasoned `NEXT_ACTION_SET(null)` so `schedule_campaign` is not left as the
+   generic action, set member execution state `QUEUED`, and bind the events on
+   the member. The provider campaign remains non-sending. A member that fails
+   this check must be removed/paused through a contract-proven safe provider
+   mechanism or leave the entire batch BUILDING/non-active for review; it
+   cannot be silently retained.
+7. **Seal:** once membership is closed and every retained member is `QUEUED`,
+   atomically move the partial-or-full batch `BUILDING -> SEALED`. No later
+   member, slot reservation, or `ADD_LEAD` operation is possible.
+8. **Activation revalidation:** immediately before creating/claiming
    `ACTIVATE_CAMPAIGN`, revalidate **every** queued member's opportunity,
    artifact, assessment/expiry, suppression, sender/mailbox, plan/member
    fingerprints, send-window eligibility, and Policy execution authority. The
-   campaign cannot activate while any retained member remains `SEND` or is
-   otherwise ineligible.
-7. **Resolve unsafe membership:** because the campaign is non-sending, remove
-   or pause an ineligible provider membership only through the narrowest V2
-   mechanism proven safe. If exact member removal/pause semantics are not
-   contract-proven, keep the entire campaign non-active in review/
-   reconciliation. Never activate optimistically.
-8. **Activate/reconcile:** only a fully revalidated SEALED batch with
+   campaign cannot activate while any retained member is not execution-state
+   `QUEUED` or fails a current gate.
+9. **Stop unsafe queued membership:** a hard suppression/objection, expired
+   compliance, or artifact/contact binding invalidation atomically moves the
+   member to `STOPPED` and appends a bounded reasoned
+   `NEXT_ACTION_SET(null)`. The acquisition opportunity remains `QUEUED`; no
+   reverse transition is fabricated. Remove or pause the provider membership
+   only through the narrowest V2 mechanism proven safe. If exact member
+   removal/pause semantics are not contract-proven, keep the entire campaign
+   non-active in review/reconciliation. Never activate optimistically and never
+   fabricate a fresh ALLOWED compliance result. Rate limiting, temporary
+   mailbox unavailability, and unknown activation outcome remain operation
+   reconciliation states and do not mark a member `STOPPED`.
+10. **Activate/reconcile:** only a fully revalidated SEALED batch with at least
+   one retained `QUEUED` member and
    `transport_contract_proof=VERIFIED` may create/claim activation. A timeout or
-   unknown mutation outcome becomes `RECONCILE_REQUIRED`. All members are
-   already `QUEUED`, so an immediate `email_sent` can be safely bound even when
-   the provider accepted activation before Kivou recorded confirmation.
+   unknown mutation outcome becomes `RECONCILE_REQUIRED`. All retained members
+   were already `QUEUED`, so an immediate `email_sent` can be safely bound even
+   when the provider accepted activation before Kivou recorded confirmation.
 
 There is no active-campaign enrollment path. A new suppression at any point
 before lead addition prevents enrollment; after confirmed enrollment but before
 queue/seal/activation it invokes the non-sending risk-reduction path. After
-`QUEUED` but before activation it prevents activation for that member and, when
-safe removal cannot be proven, for the entire batch.
+`QUEUED` but before activation it moves the member to `STOPPED`, prevents
+activation for that member, and, when safe removal cannot be proven, prevents
+activation for the entire batch. Compliance expiry follows the same hard-stop
+path; SPEC-026 has no silent post-queue reauthorization flow.
 
 ### Crash/reconciliation matrix
 
@@ -816,16 +967,18 @@ safe removal cannot be proven, for the entire batch.
 | --- | --- | --- | --- | --- | --- |
 | Create campaign | `PLANNED`; safe claim | bounded retry/terminal classification | `RECONCILE_REQUIRED`; search exact deterministic name | list/search then exact-match workspace/name/full desired config; zero matches allows controlled retry, one exact match binds ID, ambiguity is conflict | provider campaign stays bound; replay continues configure without creating another |
 | Configure campaign | existing campaign + desired fingerprint | retain prior safe config; retry only typed retryable | GET and compare exact allowed config subset | matching readback confirms; divergent readback conflicts/replans | continue from confirmed config; never repeat create |
-| Add lead | only a locked `BUILDING` batch whose provider state is DRAFT/PAUSED; fresh gates | no queue; typed failure | list leads in exact campaign and reconcile by contact/provider/member identity | exact lead/custom-variable fingerprint confirms; absent permits controlled retry with skip flags; partial bulk result splits per-member outcomes | member remains provider-bound but not queued until its final local checks; no add is legal after seal/activation claim |
+| Add lead | operation was durably planned while the locked `BUILDING` batch was membership-open and provider state is DRAFT/PAUSED; fresh gates | no queue; typed failure | list leads in exact campaign and reconcile by contact/provider/member identity | exact lead/custom-variable fingerprint confirms; absent permits controlled retry with skip flags; partial bulk result splits per-member outcomes | member remains provider-bound but not queued until its final local checks; after membership closure an existing operation may reconcile, but no new add operation or member is legal |
 | Activate campaign | SEALED; every retained member already QUEUED; every member and current gate revalidated; transport proof VERIFIED | remain SEALED/non-sending | `RECONCILE_REQUIRED`; GET campaign status/config/members | active + exact config confirms; draft/paused permits controlled retry only after complete fresh all-member validation; conflicting state fails | members were already QUEUED, so local campaign-state catch-up is safe and immediate `email_sent` can bind without reactivation |
 | Pause campaign/lead | risk-reduction operation reserved | alert/retry conservatively | GET status | paused/stopped readback confirms | local status/event catch-up; risk remains conservative |
 
 No HTTP success alone advances the acquisition state. No process restart can
 skip the ledger. Concurrent different opportunities for the same semantic group
-serialize into the same available `BUILDING` generation until its ten slots are
-reserved; only one next generation is allocated. Concurrent calls for one
-opportunity converge on one member and operation chain. An uncaught unique/
-integrity error is not a public semantic result.
+serialize into the same membership-open `BUILDING` generation until its ten
+slots are reserved or its immutable 15-minute deadline is reached; only one
+next generation is allocated. The close/member race yields exactly one
+committed generation per member. Concurrent calls for one opportunity converge
+on one member and operation chain. An uncaught unique/integrity error is not a
+public semantic result.
 
 ## `campaign_ref`, QUEUED, and SENT
 
@@ -851,18 +1004,38 @@ not recommend a new event or state-machine version by default.
   execution authority for the member;
 - all provider identities/operation confirmations persisted.
 
-It means the member is authorized for subsequent provider activation. It does
-not require ACTIVE provider status. Membership is then sealed and all members
-are revalidated once more before activation.
+The queue transaction also clears the obsolete `schedule_campaign` handoff with
+the existing `NEXT_ACTION_SET(null)` contract and a bounded queue reason. It
+means the opportunity reached durable external-enrollment authorization. It
+does not require ACTIVE provider status, and it is an irreversible historical
+milestone under `acquisition-state-v1`, not a complete representation of later
+transport eligibility.
+
+After queue, current truth is `acquisition_campaign_member.execution_state`.
+Only `QUEUED` members may be retained for activation. If suppression,
+unsubscribe/objection, expired compliance, or artifact/contact binding drift
+appears before activation, the same local transaction moves the member to
+`STOPPED`, records the bounded reason, and ensures generic `next_action` is
+null. Provider pause/removal risk reduction is then reconciled before any
+activation. The acquisition opportunity remains `QUEUED`; SPEC-026 neither
+reverses it to `SEND` nor silently obtains a fresh compliance authorization.
+Temporary rate limiting, a temporarily unavailable mailbox, or an activation
+operation in `RECONCILE_REQUIRED` leaves the member's legal/authorization state
+unchanged and is not a `STOPPED` condition.
 
 `SENT` is never emitted by campaign create/configure/add/activate success or
 campaign ACTIVE status. A deduplicated `email_sent` event with exact workspace,
 campaign, member, step, and provider email identity may use the existing
 `OUTCOME_RECORDED`/transition convention to advance `QUEUED -> SENT` atomically
-with the provider-event effect. `SENT` means authoritative external execution
-evidence exists. It remains valid when it arrives after Instantly accepted an
-activation whose local operation is still `RECONCILE_REQUIRED`, because all
-members were durably `QUEUED` before the activation request.
+with member `QUEUED -> SENT` and the provider-event effect. `SENT` means
+authoritative external execution evidence exists. It remains valid when it
+arrives after Instantly accepted an activation whose local operation is still
+`RECONCILE_REQUIRED`, because every retained member was durably `QUEUED` before
+the activation request. If such evidence unexpectedly targets a `STOPPED`
+member, the provider event is still deduplicated and preserved,
+member/opportunity move to `SENT`, and Kivou records a bounded transport
+incident: real execution evidence must never be discarded merely because it
+violated the expected stop.
 
 ## Webhook ingress and transport boundary
 
@@ -939,11 +1112,11 @@ configuration valid.
 
 | Provider event | SPEC-026 action |
 | --- | --- |
-| `email_sent` | Resolve exact member and atomically dedupe/store the PII-minimal event and advance `QUEUED -> SENT`. |
+| `email_sent` | Resolve exact member and atomically dedupe/store the PII-minimal event. Ordinary handling advances member/opportunity `QUEUED -> SENT`; an exact `STOPPED` member instead records a bounded unexpected-send incident and still advances to real `SENT` evidence. |
 | `email_bounced` | Persist transport fact and stop/pause that member via a bounded risk-reduction operation; no response sentiment. |
 | `email_opened`, link-click event | Persist bounded transport event only if tracking is enabled/authorized; no conversion attribution. |
 | `reply_received` | Normally rejected at subscription verification while capability is `NONE`. If unexpectedly received, establish stop safety, persist bounded transport identity only, raise configuration alert, and do not classify; `SPEC027_V1` later owns durable sensitive content. |
-| `lead_unsubscribed` | Before 2xx/effect completion, resolve contact and append Kivou's immutable SPEC-025 suppression with `UNSUBSCRIBE`; verify/pause provider lead if needed. Never wait for SPEC-027 to establish the hard block. |
+| `lead_unsubscribed` | Before 2xx/effect completion, resolve contact and append Kivou's immutable SPEC-025 suppression with `UNSUBSCRIBE`; if queued but unsent, atomically make the member `STOPPED`, keep opportunity `QUEUED`, clear generic action with a bounded reason, and verify/pause provider lead. Never wait for SPEC-027 to establish the hard block. |
 | `campaign_completed` | Update bounded campaign transport status only; do not synthesize SENT for unsent members. |
 | `account_error` | Mark mailbox unhealthy/unknown, prevent new schedule operations, and initiate bounded pause/reconciliation. |
 
@@ -974,18 +1147,24 @@ layers:
 2. after the remote result/reconciliation, a final transaction repeats all
    material current checks before creating the next operation or committing
    `SEND -> QUEUED`; and
-3. after all members are queued and the batch is sealed, activation performs an
-   all-member revalidation in the same eligible send window. No retained member
-   may remain `SEND` or fail current artifact/compliance/suppression/mailbox/
-   Policy gates.
+3. membership reservation and deadline/capacity closure serialize on the
+   campaign/group boundary; once closed, only already-reserved operations may
+   finish or reconcile and no new member/add operation can appear; and
+4. after every retained member is execution-state `QUEUED` and the membership-
+   closed batch is sealed, activation performs an all-member revalidation in
+   the same eligible send window. No retained member may fail current artifact,
+   compliance/suppression, mailbox, or Policy gates.
 
 Any material change after Policy becomes a typed `CampaignInputChanged`; no
 stale queue event commits. A newly inserted suppression after Policy but before
 lead add/queue/activation produces zero new exposure where avoidable and a
 risk-reduction reconciliation while the provider campaign is non-sending if
-lead enrollment was already accepted. A suppression after `QUEUED` prevents
-activation for the unsafe member; absent a contract-proven safe removal/pause,
-the whole batch stays non-active.
+lead enrollment was already accepted. A suppression, objection, compliance
+expiry, or binding invalidation after `QUEUED` atomically makes the member
+`STOPPED` and clears generic next action with a bounded reason. Absent a
+contract-proven safe removal/pause, the whole batch stays non-active. A
+temporary provider/mailbox condition stays in the operation/reconciliation
+layer and does not create a false hard stop.
 Artifact/assessment/operation/event failures roll back their local event effects
 together.
 
@@ -1046,17 +1225,48 @@ Implementation begins with failing tests and offline fakes. Required coverage:
 - two schedulers for same opportunity create one member/enrollment/queue event;
 - two concurrent compatible members converge on one available `BUILDING` batch
   and never allocate two generations for the same slot;
+- first member reservation establishes exactly one immutable
+  `first_member_reserved_at` and `membership_close_at = +15 minutes`; a second
+  or later member cannot extend the deadline;
+- the tenth slot closes membership in the reservation transaction before the
+  deadline, while one-member and three-member partial batches close at the
+  15-minute deadline;
+- `membership_closed_at` prohibits every later member insertion, slot
+  reservation, and new `ADD_LEAD` operation even while lifecycle remains
+  `BUILDING`;
+- a genuine close/reservation race gives the member exactly one deterministic
+  generation: committed before closure in the old batch or rejected into the
+  next open generation, never both and never an eleventh slot;
+- membership-closed `BUILDING` executes/reconciles only operations planned for
+  already-reserved members; it cannot reopen or accept a replacement for a
+  failed/stopped reservation;
+- zero retained members produces non-active `FAILED`; a partial retained batch
+  can become `SEALED` and activate when every retained member is `QUEUED` and
+  every final gate passes;
 - `ADD_LEAD` and new member insertion are impossible on SEALED/ACTIVE or any
   non-BUILDING campaign;
 - a compatible opportunity after activation receives the next batch generation;
 - every member's `SEND -> QUEUED` occurs before `ACTIVATE_CAMPAIGN`; activation
-  is impossible while any retained campaign member remains SEND;
+  is impossible while any retained campaign member is not execution-state
+  `QUEUED`; the queue commit also clears `schedule_campaign` with reasoned
+  `NEXT_ACTION_SET(null)` and exact `CAMPAIGN_MEMBER_QUEUED`;
 - activation revalidates every queued member and exact execution gate;
 - suppression after QUEUED but before activation safely removes/pauses the
-  provider membership when contract-proven, otherwise leaves the whole batch
+  provider membership when contract-proven, marks the member `STOPPED`, leaves
+  the acquisition opportunity `QUEUED`, and otherwise leaves the whole batch
   non-active in review/reconciliation;
+- unsubscribe/objection, expired compliance, and artifact/contact binding drift
+  after QUEUED follow the same `STOPPED` path; expired compliance never creates
+  a fabricated fresh ALLOWED result or sends;
+- temporary rate limiting, mailbox unavailability, or activation
+  `RECONCILE_REQUIRED` does not mark a member `STOPPED`;
 - activation timeout with already-QUEUED members reconciles safely, and an
-  immediate provider `email_sent` can target only an already-QUEUED member;
+  expected immediate provider `email_sent` targets an already-QUEUED retained
+  member;
+- an unexpected authoritative `email_sent` for a `STOPPED` member is deduped,
+  recorded with `UNEXPECTED_EMAIL_SENT_AFTER_STOP` as a transport incident and
+  real SENT evidence, and advances the member/opportunity rather than
+  discarding provider truth;
 - new suppression at every after-Policy/before-add/before-activate/before-queue
   seam prevents stale ALLOWED scheduling;
 - 401/402/403/429/5xx/network/malformed/conflict typed behavior; bounded retry;
@@ -1073,11 +1283,13 @@ Implementation begins with failing tests and offline fakes. Required coverage:
   reply payloads sharing member/step/timestamp remain distinct;
 - deployment verification rejects a `reply_received` subscription while
   `response_ingress_capability=NONE`;
-- `email_sent` alone advances one exact `QUEUED -> SENT`;
+- `email_sent` alone advances one exact ordinary `QUEUED -> SENT`; the bounded
+  `STOPPED -> SENT` exception requires the unexpected-send incident path;
 - create/add/activate and ACTIVE campaign never mark SENT;
 - `reply_received` stores no body and performs no semantic classification;
-- `lead_unsubscribed` creates one durable suppression before safe acknowledgement
-  and prevents subsequent operations;
+- `lead_unsubscribed` creates one durable suppression before safe
+  acknowledgement, moves a queued/unsent member to `STOPPED`, clears generic
+  next action, and prevents subsequent send operations;
 - account error/bounce invokes bounded risk-reduction without response scoring;
 - raw lead email/name/phone, mailbox email, subject/body/HTML/reply, API/webhook
   secrets, and raw provider JSON are absent from campaign/member/operation/event,
@@ -1088,6 +1300,10 @@ Implementation begins with failing tests and offline fakes. Required coverage:
 - fresh DB to `0015`, `0014 -> 0015`, PostgreSQL offline SQL, schema parity,
   constraints/indexes/uniques/FKs, downgrade to `0014`, re-upgrade, one head;
 - exactly four tables, no raw-response/copy/analytics/response/conversion table;
+- campaign schema/store enforce immutable first-member/deadline/closure fields,
+  maximum ten reservations, membership-open insertion, and serialization of
+  closure against assignment; member schema/store enforce the closed
+  `RESERVED|ENROLLED|QUEUED|STOPPED|SENT|FAILED` vocabulary;
 - campaign package has no runtime dependency on Apollo network clients, SMTP,
   LLM/OpenRouter, crawler, Stripe/billing, customer TargetICP/MatchingEngine/
   feedback, SPEC-027 response intelligence, SPEC-028 conversion, or adaptive
@@ -1098,9 +1314,13 @@ Implementation begins with failing tests and offline fakes. Required coverage:
 
 Create synthetic, non-personal fixture `tests/fixtures/campaign_factory_eval_v1.json`
 covering: valid FR/CH plans; semantic group plus batch generations; concurrent
-BUILDING-slot assignment; sealed/active enrollment rejection; exact envelope;
+BUILDING-slot assignment; immutable first-member 15-minute close deadline;
+capacity and partial-batch closure; closure/reservation races; membership-closed
+BUILDING reconciliation; sealed/active enrollment rejection; exact envelope;
 unverified transport proof; two-step FR/EN sequence; missing variable; expired
-compliance; suppression before enrollment and after QUEUED; wrong artifact;
+compliance before queue and after QUEUED; suppression before enrollment and
+after QUEUED; STOPPED versus temporary operational reconciliation; unexpected
+send-after-stop evidence; wrong artifact;
 mailbox active/paused/error/setup-pending/empty catalog; frozen cap/window edges;
 shadow/assisted/zero-autonomous; create/add/activate crash positions; partial
 bulk result; 429/402/401/403/5xx; duplicate and distinct-content reply event
@@ -1143,11 +1363,13 @@ send is not a prerequisite for merging implementation code.
 
 ## Recommended implementation sequence
 
-1. Implement the R1-frozen product contracts and fail-closed deployment
+1. Implement the R1/R2-frozen product contracts and fail-closed deployment
    capabilities. No activation path exists until mailbox/footer/entitlement and
    the V2 whole-message transport proof are configured.
-2. Add pure contracts/factory/envelope/window/pacing tests and implementation.
-3. Add `0015_campaign_factory` and the four stores with migration/parity tests.
+2. Add pure contracts/factory/envelope/window/pacing/batch-seal tests and
+   implementation.
+3. Add `0015_campaign_factory` and the four stores, including serialized
+   membership closure and member execution states, with migration/parity tests.
 4. Correct `schedule_campaign` Policy evidence/control-plane semantics and add
    replay/action-fingerprint tests.
 5. Implement service preflight, Policy, reservation, operation ledger, and
@@ -1158,9 +1380,12 @@ send is not a prerequisite for merging implementation code.
 9. Only under later authorization, verify plan/key scopes/webhook/manual config
    and paused staging contract. Live send remains a separate explicit gate.
 
-## R1-frozen product decisions and remaining deployment inputs
+## R1/R2-frozen product decisions and remaining deployment inputs
 
-The supervisor has frozen the v1 product policy: ten-member sealed batches;
+The supervisor has frozen the v1 product policy: `batch-seal-policy-v1` with a
+ten-member maximum and immutable first-member-plus-15-minute assembly deadline;
+partial batches; acquisition `QUEUED` as an irreversible enrollment milestone;
+member execution state as post-queue truth; fail-closed `STOPPED` handling;
 ASSISTED first live mode; autonomous live cap zero; daily caps `5/5/3/3` plus
 one active contact/company/30 days; CH/FR weekday `[09:00,17:00)` windows; the
 exact two-step/four-day FR/EN sequence; tracking disabled; reply and auto-reply
