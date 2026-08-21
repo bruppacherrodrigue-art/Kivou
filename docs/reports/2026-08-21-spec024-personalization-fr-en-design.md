@@ -1,8 +1,8 @@
 # SPEC-024 — Personalization FR / EN: implementation design
 
-**Status:** design only — supervisor review required before implementation  
-**Audited main:** `d4e4818d9eb2f57526842335e5bd39898730acf3`  
-**Audited Alembic head:** `0012_decision_engine`  
+**Status:** design only — supervisor review required before implementation
+**Audited main:** `d4e4818d9eb2f57526842335e5bd39898730acf3`
+**Audited Alembic head:** `0012_decision_engine`
 **Design branch:** `feat/spec024-personalization-design`
 
 ## 1. Executive decision
@@ -268,4 +268,3 @@ No compliance/lawful-basis/opt-out/mailbox/send-window logic; no campaign, Insta
 - **PII:** only rendered first-name text lives in purpose-specific artifact storage.
 - **Workflow:** successful artifact stays SEND and moves by `NEXT_ACTION_SET` to future compliance.
 - **Migration:** one immutable artifact table is the minimum safe record for later campaign creation.
-
