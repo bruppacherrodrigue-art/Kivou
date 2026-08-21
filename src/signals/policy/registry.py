@@ -81,7 +81,13 @@ COMMAND_POLICIES = {
     "prepare_campaign": CommandPolicy(
         RiskClass.COMMERCIAL_MUTATION,
         TargetScope.OPPORTUNITY,
-        ("VERIFIED_CONTACT", "FIT_DECISION", "RECENT_SIGNAL"),
+        (
+            "ACQUISITION_DECISION",
+            "PUBLIC_EVIDENCE",
+            "VERIFIED_CONTACT",
+            "ACQUISITION_PROSPECT_PREBUILD",
+            "PERSONALIZATION_INPUT",
+        ),
     ),
     "schedule_campaign": CommandPolicy(
         RiskClass.COMMERCIAL_MUTATION,
