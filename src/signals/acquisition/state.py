@@ -16,7 +16,7 @@ from signals.acquisition.contracts import (
     InvalidTransition,
     UnsupportedStateMachineVersion,
 )
-from signals.supervisor.registry import ALLOWED_COMMANDS
+from signals.supervisor.registry import ALLOWED_NEXT_ACTIONS
 
 TRANSITIONS: dict[AcquisitionState, frozenset[AcquisitionState]] = {
     AcquisitionState.DISCOVERED: frozenset({AcquisitionState.ENRICHING}),
@@ -242,7 +242,7 @@ def _next_action_set(
     current: AcquisitionOpportunity, event: AcquisitionEvent
 ) -> AcquisitionOpportunity:
     next_action = event.payload.get("next_action")
-    if not isinstance(next_action, str) or next_action not in ALLOWED_COMMANDS:
+    if not isinstance(next_action, str) or next_action not in ALLOWED_NEXT_ACTIONS:
         raise InvalidTransition("unknown next_action")
     updates = _common_updates(event)
     updates["next_action"] = next_action
