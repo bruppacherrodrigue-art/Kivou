@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import threading
 from dataclasses import replace
 from decimal import Decimal
 
@@ -19,8 +20,11 @@ from signals.acquisition.contracts import AcquisitionState
 from signals.decision_engine.service import DecisionEngineService
 from signals.persistence.schema import (
     acquisition_company_profile,
+    acquisition_contact,
     acquisition_event,
     acquisition_personalization_artifact,
+    acquisition_supplier,
+    contract_award,
     policy_evaluation,
 )
 from signals.personalization.catalog import PersonalizationLanguageUnsupported
@@ -35,7 +39,13 @@ from signals.personalization.service import (
 )
 from signals.personalization.store import PersonalizationArtifactIdempotencyConflict
 from signals.personalization.validator import PersonalizationValidationError
-from signals.policy.contracts import AutonomyMode, BudgetUsage, EvidenceReadiness, Scope
+from signals.policy.contracts import (
+    AutonomyMode,
+    BudgetUsage,
+    EvidenceReadiness,
+    PolicyEvaluationIdempotencyConflict,
+    Scope,
+)
 from signals.policy.store import PolicyStore
 
 
@@ -96,6 +106,57 @@ def test_service_creates_one_ready_artifact_and_advances_next_action(context) ->
     current = acquisition.get_opportunity(opportunity_id)
     assert current.state is AcquisitionState.SEND
     assert current.next_action == "assess_campaign_compliance"
+
+
+def test_ready_artifact_persists_safe_need_and_public_provenance(context) -> None:
+    engine, _, opportunity_id = context
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+    artifact = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+    snapshot = artifact["input_snapshot"]
+    for key in (
+        "representative_award_key",
+        "source_event_key",
+        "public_evidence_refs",
+        "recency_basis",
+        "recency_date",
+        "decision_policy_config_fingerprint",
+        "selected_need_category",
+        "selected_need_confidence",
+        "selected_need_fingerprint",
+    ):
+        assert key in snapshot
+    claims = {claim["claim_id"]: claim for claim in artifact["claim_map"]}
+    assert claims["PUBLIC_EVENT"]["kind"] == "PUBLIC_FACT"
+    assert claims["PLAUSIBLE_NEED"]["kind"] == "KIVOU_INFERENCE"
+    need_ref = (
+        f"need-graph:{artifact['need_engine_version']}:"
+        f"{artifact['selected_need_fingerprint']}"
+    )
+    assert need_ref in claims["PLAUSIBLE_NEED"]["evidence_refs"]
+    assert set(claims["PUBLIC_EVENT"]["evidence_refs"]) != set(
+        claims["PLAUSIBLE_NEED"]["evidence_refs"]
+    )
+    assert claims["KIVOU_CTA"]["kind"] == "KIVOU_PRODUCT_COPY"
+    expected_evidence = tuple(
+        dict.fromkeys(ref for claim in artifact["claim_map"] for ref in claim["evidence_refs"])
+    )
+    with engine.connect() as connection:
+        stored_evidence = connection.scalar(
+            sa.select(policy_evaluation.c.evidence_refs).where(
+                policy_evaluation.c.evaluation_id == "personalization-eval-1"
+            )
+        )
+    assert tuple(stored_evidence) == expected_evidence
+    serialized = repr(snapshot)
+    assert "business_email" not in serialized
+    assert "first_name" not in serialized
 
 
 def test_day_sixty_one_historical_send_fails_before_personalization_policy(context) -> None:
@@ -292,13 +353,30 @@ def test_completed_artifact_replay_rejects_changed_authorization_semantics(
         )
     assert replay_clock.calls == 0
     with engine.connect() as connection:
-        assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 2
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(policy_evaluation)
+            .where(policy_evaluation.c.evaluation_id == "personalization-eval-1")
+        ) == 1
         assert (
             connection.scalar(
-                sa.select(sa.func.count()).select_from(acquisition_personalization_artifact)
+                sa.select(sa.func.count())
+                .select_from(acquisition_personalization_artifact)
+                .where(
+                    acquisition_personalization_artifact.c.policy_evaluation_id
+                    == "personalization-eval-1"
+                )
             )
             == 1
         )
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(acquisition_event)
+            .where(
+                acquisition_event.c.event_type == "NEXT_ACTION_SET",
+                acquisition_event.c.causation_id == "personalization-eval-1",
+            )
+        ) == 1
 
 
 def test_completed_artifact_replay_conflicts_on_requested_language(context) -> None:
@@ -365,18 +443,30 @@ def test_policy_without_artifact_requires_a_fresh_evaluation_without_clock(conte
         )
     assert replay_clock.calls == 0
     with engine.connect() as connection:
-        assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 2
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(policy_evaluation)
+            .where(policy_evaluation.c.evaluation_id == authorization_input.evaluation_id)
+        ) == 1
         assert (
             connection.scalar(
-                sa.select(sa.func.count()).select_from(acquisition_personalization_artifact)
+                sa.select(sa.func.count())
+                .select_from(acquisition_personalization_artifact)
+                .where(
+                    acquisition_personalization_artifact.c.policy_evaluation_id
+                    == authorization_input.evaluation_id
+                )
             )
             == 0
         )
         assert connection.scalar(
             sa.select(sa.func.count())
             .select_from(acquisition_event)
-            .where(acquisition_event.c.event_type == "NEXT_ACTION_SET")
-        ) == 2
+            .where(
+                acquisition_event.c.event_type == "NEXT_ACTION_SET",
+                acquisition_event.c.causation_id == authorization_input.evaluation_id,
+            )
+        ) == 0
 
 
 def test_post_policy_company_profile_drift_is_a_single_typed_input_change(context) -> None:
@@ -415,6 +505,230 @@ def test_post_policy_company_profile_drift_is_a_single_typed_input_change(contex
             .select_from(acquisition_event)
             .where(acquisition_event.c.event_type == "NEXT_ACTION_SET")
         ) == 2
+
+
+def _service_after_send(context):
+    engine, _, opportunity_id = context
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+    return engine, opportunity_id, PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+
+
+def _assert_post_policy_drift_has_no_personalization_terminal_write(engine, evaluation_id: str) -> None:
+    with engine.connect() as connection:
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count()).select_from(acquisition_personalization_artifact)
+            )
+            == 0
+        )
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(acquisition_event)
+            .where(
+                acquisition_event.c.event_type == "NEXT_ACTION_SET",
+                acquisition_event.c.causation_id == evaluation_id,
+                acquisition_event.c.payload["next_action"].as_string()
+                == "assess_campaign_compliance",
+            )
+        ) == 0
+
+
+def test_post_policy_supplier_identity_drift_is_input_changed(context) -> None:
+    engine, opportunity_id, service = _service_after_send(context)
+
+    def drift_supplier() -> None:
+        with engine.begin() as connection:
+            connection.execute(
+                sa.update(acquisition_supplier).values(identity_status="DOMAIN_CONFLICT")
+            )
+
+    service._after_policy_hook = drift_supplier
+    with pytest.raises(PersonalizationInputChanged):
+        service.personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+    _assert_post_policy_drift_has_no_personalization_terminal_write(
+        engine, "personalization-eval-1"
+    )
+
+
+def test_post_policy_contact_binding_drift_is_input_changed(context) -> None:
+    engine, opportunity_id, service = _service_after_send(context)
+
+    def drift_contact() -> None:
+        with engine.begin() as connection:
+            connection.execute(sa.update(acquisition_contact).values(role_tier=4))
+
+    service._after_policy_hook = drift_contact
+    with pytest.raises(PersonalizationInputChanged):
+        service.personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+    _assert_post_policy_drift_has_no_personalization_terminal_write(
+        engine, "personalization-eval-1"
+    )
+
+
+def test_post_policy_public_context_drift_is_input_changed(context) -> None:
+    engine, opportunity_id, service = _service_after_send(context)
+
+    def drift_award() -> None:
+        with engine.begin() as connection:
+            connection.execute(sa.update(contract_award).values(award_date=dt.date(2026, 7, 17)))
+
+    service._after_policy_hook = drift_award
+    with pytest.raises(PersonalizationInputChanged):
+        service.personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+    _assert_post_policy_drift_has_no_personalization_terminal_write(
+        engine, "personalization-eval-1"
+    )
+
+
+def test_post_policy_need_graph_zero_need_drift_is_input_changed(context, monkeypatch) -> None:
+    engine, opportunity_id, service = _service_after_send(context)
+    from signals.needs import NeedGraphEngine as ActualNeedGraphEngine
+
+    phase = {"after_policy": False}
+
+    class SwitchableNeedGraph:
+        def derive(self, understanding):
+            result = ActualNeedGraphEngine().derive(understanding)
+            return result.model_copy(update={"needs": ()}) if phase["after_policy"] else result
+
+    monkeypatch.setattr("signals.personalization.service.NeedGraphEngine", SwitchableNeedGraph)
+    service._after_policy_hook = lambda: phase.__setitem__("after_policy", True)
+    with pytest.raises(PersonalizationInputChanged):
+        service.personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+    _assert_post_policy_drift_has_no_personalization_terminal_write(
+        engine, "personalization-eval-1"
+    )
+
+
+def test_concurrent_same_evaluation_converges_to_one_artifact_and_next_action(context) -> None:
+    engine, _, opportunity_id = context
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+    barrier = threading.Barrier(2)
+    results = []
+    errors = []
+    result_lock = threading.Lock()
+
+    def run() -> None:
+        try:
+            barrier.wait(timeout=5)
+            result = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+                opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+            )
+            with result_lock:
+                results.append(result)
+        except (RuntimeError, sa.exc.SQLAlchemyError, ValueError) as error:
+            with result_lock:
+                errors.append(error)
+
+    threads = [threading.Thread(target=run) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=15)
+
+    assert not errors
+    assert len(results) == 2
+    assert {result["personalization_artifact_id"] for result in results} == {
+        results[0]["personalization_artifact_id"]
+    }
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(policy_evaluation)
+            .where(policy_evaluation.c.evaluation_id == "personalization-eval-1")
+        ) == 1
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count()).select_from(acquisition_personalization_artifact)
+            )
+            == 1
+        )
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(acquisition_event)
+            .where(
+                acquisition_event.c.event_type == "NEXT_ACTION_SET",
+                acquisition_event.c.causation_id == "personalization-eval-1",
+            )
+        ) == 1
+
+
+def test_concurrent_languages_cannot_create_two_personalization_outcomes(context) -> None:
+    engine, _, opportunity_id = context
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+    barrier = threading.Barrier(2)
+    results = []
+    errors = []
+    result_lock = threading.Lock()
+
+    def run(language: str) -> None:
+        try:
+            barrier.wait(timeout=5)
+            result = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+                opportunity_id, language, personalization_authorization(), budget_usage=BudgetUsage()
+            )
+            with result_lock:
+                results.append(result)
+        except (
+            PersonalizationArtifactIdempotencyConflict,
+            PolicyEvaluationIdempotencyConflict,
+            RuntimeError,
+            sa.exc.SQLAlchemyError,
+            ValueError,
+        ) as error:
+            with result_lock:
+                errors.append(error)
+
+    threads = [threading.Thread(target=run, args=(language,)) for language in ("fr", "en")]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=15)
+
+    assert len(results) == 1
+    assert len(errors) == 1
+    assert isinstance(
+        errors[0], (PersonalizationArtifactIdempotencyConflict, PolicyEvaluationIdempotencyConflict)
+    )
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(policy_evaluation)
+            .where(policy_evaluation.c.evaluation_id == "personalization-eval-1")
+        ) == 1
+        artifact = connection.execute(sa.select(acquisition_personalization_artifact)).mappings().one()
+        assert artifact["language"] == results[0]["language"]
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(acquisition_event)
+            .where(
+                acquisition_event.c.event_type == "NEXT_ACTION_SET",
+                acquisition_event.c.causation_id == "personalization-eval-1",
+            )
+        ) == 1
 
 
 def test_shadow_persists_pii_minimized_blocked_artifact_without_workflow_event(context) -> None:
