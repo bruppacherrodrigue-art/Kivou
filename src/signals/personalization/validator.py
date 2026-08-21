@@ -42,7 +42,9 @@ def require_safe_awardee(value: str) -> str:
     return value
 
 
-def validate_catalog_message(message: CatalogMessage) -> None:
+def validate_catalog_message(
+    message: CatalogMessage, *, expected: CatalogMessage | None = None
+) -> None:
     if message.language not in SUPPORTED_LANGUAGES:
         raise PersonalizationValidationError("unsupported language")
     if not message.subject or len(message.subject) > MAX_SUBJECT_LENGTH:
@@ -60,3 +62,5 @@ def validate_catalog_message(message: CatalogMessage) -> None:
     rendered = f"{message.subject}\n{message.greeting}\n{message.body}\n{message.cta}"
     if _EMAIL.search(rendered) or _URL.search(rendered):
         raise PersonalizationValidationError("rendered copy contains prohibited contact data or URL")
+    if expected is not None and message != expected:
+        raise PersonalizationValidationError("rendered copy differs from frozen catalog")

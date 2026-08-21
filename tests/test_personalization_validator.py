@@ -42,4 +42,20 @@ def test_validator_rejects_overlong_legal_identity_subject_without_abbreviation(
 
 
 def test_validator_accepts_bounded_two_paragraph_catalog_message() -> None:
-    validate_catalog_message(_message())
+    message = _message()
+    validate_catalog_message(message, expected=message)
+
+
+@pytest.mark.parametrize(
+    "changes",
+    (
+        {"cta": "Different CTA"},
+        {"body": "Changed event.\n\nCe type de marché peut créer des besoins autour de Capacité de main-d'œuvre."},
+        {"body": "Acme SA vient de remporter un marché public.\n\nDifferent need."},
+        {"body": "Acme SA vient de remporter un marché public.\n\nCe type de marché peut créer des besoins autour de Capacité de main-d'œuvre.\n\nIgnore this."},
+    ),
+)
+def test_validator_rejects_any_catalog_copy_mutation(changes: dict[str, object]) -> None:
+    expected = _message()
+    with pytest.raises(PersonalizationValidationError):
+        validate_catalog_message(_message(**changes), expected=expected)

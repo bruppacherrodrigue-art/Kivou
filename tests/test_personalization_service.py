@@ -21,6 +21,7 @@ from signals.persistence.schema import (
     acquisition_personalization_artifact,
     policy_evaluation,
 )
+from signals.personalization.catalog import PersonalizationLanguageUnsupported
 from signals.personalization.grounding import (
     PersonalizationDecisionNoLongerEligible,
     PersonalizationGroundingInsufficient,
@@ -231,6 +232,25 @@ def test_completed_artifact_replay_conflicts_on_requested_language(context) -> N
             opportunity_id, "en", personalization_authorization(), budget_usage=BudgetUsage()
         )
     assert replay_clock.calls == 0
+
+
+def test_completed_artifact_replay_rejects_unsupported_language_before_clock(context) -> None:
+    engine, _, opportunity_id = context
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+    PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+    clock = CountingClock(EVALUATED_AT)
+    with pytest.raises(PersonalizationLanguageUnsupported):
+        PersonalizationService(engine, clock=clock).personalize(
+            opportunity_id, "de", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+    assert clock.calls == 0
 
 
 def test_shadow_persists_pii_minimized_blocked_artifact_without_workflow_event(context) -> None:
