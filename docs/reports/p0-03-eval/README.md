@@ -1,12 +1,12 @@
 # P0-03 — EVAL visuelle
 
-Dix-neuf vues du parcours de conversion payante et de récupération.
+Vingt vues du parcours de conversion payante et de récupération.
 
 | | |
 |---|---|
 | Branche | `feat/p0-03-paid-conversion` |
-| SHA des captures | `6b819b125cf1511c4176764f5ad4736eed408528` |
-| Base | `c0f1595db89508c90cc7348e939d299b88d45b44` |
+| SHA des captures | `576a26d16779e455bb1e8477bca698e1d4cd97d7` |
+| Base | `f7ee297` (`origin/main` après synchronisation) |
 | Environnement | build de production local (`npm run build`), servi sur **une seule origine** |
 | Navigateur | Chromium 151 (Playwright), `deviceScaleFactor: 1`, captures pleine page |
 
@@ -23,10 +23,50 @@ Chaque scénario asserte donc, **avant** la photo :
 - le CTA attendu ;
 - l'**absence** des CTA interdits.
 
-Une assertion ratée fait échouer la campagne. Elle en a déjà attrapé une : la
-vue « détail verrouillé » rendait un détail **ouvert**, parce que le serveur de
-fixtures servait le même objet pour toute clé. Aucune mesure géométrique
-n'aurait vu ce défaut.
+Une assertion ratée fait échouer la campagne. Elle a servi trois fois.
+
+**1 — la vue « détail verrouillé » rendait un détail OUVERT**, parce que le
+serveur de fixtures servait le même objet pour toute clé.
+
+**2 — `cancelAtEnd` fuyait d'un scénario à l'autre.** La vue « résiliation
+programmée » le laissait à 1, et la vue `recover_payment` suivante affichait
+donc « Cancellation scheduled at the end of the current period » sur un compte
+`past_due` dont l'accès était **suspendu** — deux affirmations contradictoires
+dans une capture destinée à faire foi devant la supervision. Le défaut a
+révélé un vrai défaut produit : la notice de résiliation n'était gatée sur
+aucune action. Elle l'est maintenant sur `manage_subscription`.
+
+**3 — `statusReads` vivait hors de l'état réinitialisé.** Ce compteur pilote la
+bascule de sondage ; laissé à sa valeur, il aurait fait confirmer un accès dès
+la première lecture de la vue suivante.
+
+Aucune mesure géométrique n'aurait vu l'un de ces trois défauts.
+
+## Isolation des scénarios
+
+Les knobs mutables vivent dans un objet `DEFAULTS` unique. Chaque appel à
+`__scenario` fait un **reset complet** — `Object.assign(state, DEFAULTS)` plus
+`statusReads = 0` — **avant** d'appliquer les overrides. Aucun état du scénario
+précédent ne survit.
+
+Un contrôle automatisé tourne **avant toute capture** et interrompt la
+campagne s'il échoue. Il salit délibérément les knobs, puis lance un scénario
+qui n'en mentionne aucun, et vérifie la remise à zéro de :
+
+```text
+cancelAtEnd · currentPeriodEnd · plan · billing_action · locale · statusReads
+```
+
+Sortie de la campagne :
+
+```text
+isolation des scénarios : ok (cancelAtEnd, currentPeriodEnd, plan, locale, statusReads)
+```
+
+Les contradictions d'état de facturation sont désormais **assertées**, pas
+relues à l'œil : « Résiliation programmée » et « Prochain renouvellement »
+figurent dans la liste des interdits de toutes les vues `choose_plan`,
+`recover_payment` et `contact_support`, en FR comme en EN.
 
 ## Ce que ces vues prouvent, et ce qu'elles ne prouvent pas
 
@@ -80,6 +120,7 @@ qu'elles ne sont pas exerçables.
 | Récupération | `billing-recover-payment-fr-320x800.png` | 320×800 | FR | reflow limite | idem | idem |
 | Récupération | `billing-recover-payment-en-1440x900.png` | 1440×900 | EN | `past_due` | Open the billing portal | Choose Pro, Advanced filters |
 | Vérification | `billing-contact-support-fr-1440x900.png` | 1440×900 | FR | `trialing` | contact@kivou.eu | Choisir, portail, `cus_`, `lookup` |
+| Statut inconnu | `billing-statut-inconnu-fr-1440x900.png` | 1440×900 | FR | statut hors dictionnaire | contact@kivou.eu | Choisir, portail, **la chaîne Stripe brute** |
 | Gestion | `billing-manage-pro-fr-1440x900.png` | 1440×900 | FR | Pro actif | Gérer ma facturation | **Choisir Pro**, Devise |
 | Résiliation programmée | `billing-cancel-at-period-end-fr-1440x900.png` | 1440×900 | FR | Pro, fin de période | Gérer ma facturation | Choisir Pro |
 
@@ -107,13 +148,15 @@ facturation → paiement ouvert → retour — parce que c'est le seul chemin qu
 ## Mesures
 
 ```text
-19 vues, toutes vérifiées en contenu ET en géométrie
+20 vues, toutes vérifiées en contenu ET en géométrie
 
-débordement horizontal .................... 0 / 19
-coupure de texte .......................... 0 / 19
+isolation des scénarios ................... ok (contrôle automatisé)
+débordement horizontal .................... 0 / 20
+coupure de texte .......................... 0 / 20
 titres h1 par vue ......................... 1 / 1 partout
-assertions de contenu ..................... 19 / 19 satisfaites
+assertions de contenu ..................... 20 / 20 satisfaites
 CTA interdits détectés .................... 0
+contradictions d'état de facturation ...... 0
 ```
 
 Le contrôle de coupure ignore les libellés `.kivou-visually-hidden`, rognés par
@@ -124,7 +167,10 @@ conception, et les éléments en `overflow: visible`, où rien ne peut être rog
 - un seul `h1` par écran ;
 - les quatre états de facturation portent un titre de callout explicite, jamais
   la seule couleur ;
-- le passage « vérification » → « accès actif » est annoncé par `aria-live` ;
+- une **région live persistante** (`role="status" aria-live="polite"`) porte le
+  texte d'état ; elle n'est jamais démontée, y compris au passage
+  « vérification » → « accès actif », car un lecteur d'écran n'annonce pas le
+  contenu d'une région qui vient de naître ;
 - le bouton de réessai est focusable et n'est actif qu'une fois le délai atteint ;
 - le contact support est un lien `mailto:`, pas un bouton — ce qui navigue est
   un `a` ;
