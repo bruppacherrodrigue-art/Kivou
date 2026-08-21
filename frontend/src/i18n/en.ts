@@ -197,7 +197,7 @@ export const en: Dictionary = {
     loginTitle: 'Sign in',
     loginLead: 'Reach your signals.',
     signupTitle: 'Create an account',
-    signupLead: 'Three real signals are waiting, documentary evidence included.',
+    signupLead: 'Your first real signals, documentary evidence included.',
     email: 'Work email address',
     password: 'Password',
     newPassword: 'New password',

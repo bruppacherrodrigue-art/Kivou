@@ -202,7 +202,7 @@ export const fr = {
     loginTitle: 'Se connecter',
     loginLead: 'Accédez à vos signaux.',
     signupTitle: 'Créer un compte',
-    signupLead: 'Trois signaux réels vous attendent, preuve documentaire comprise.',
+    signupLead: 'Vos premiers signaux réels, preuve documentaire comprise.',
     email: 'Adresse e-mail professionnelle',
     password: 'Mot de passe',
     newPassword: 'Nouveau mot de passe',
