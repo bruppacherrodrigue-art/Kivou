@@ -1,0 +1,22 @@
+[
+  {"id":"ch_explicit_consent","synthetic":true,"kind":"RULE","jurisdiction":"CH","country_code":"CH","ch_legal_basis":"CONSENT_PROVEN","expected_state":"ALLOWED"},
+  {"id":"ch_existing_customer","synthetic":true,"kind":"RULE","jurisdiction":"CH","country_code":"CH","ch_legal_basis":"EXISTING_CUSTOMER_SIMILAR_PROVEN","expected_state":"ALLOWED"},
+  {"id":"ch_cold_apollo","synthetic":true,"kind":"RULE","jurisdiction":"CH","country_code":"CH","ch_legal_basis":"UNPROVEN","expected_state":"REVIEW_REQUIRED"},
+  {"id":"fr_tier1","synthetic":true,"kind":"RULE","jurisdiction":"FR","country_code":"FR","role_tier":1,"expected_state":"ALLOWED"},
+  {"id":"fr_tier2","synthetic":true,"kind":"RULE","jurisdiction":"FR","country_code":"FR","role_tier":2,"expected_state":"ALLOWED"},
+  {"id":"fr_tier3","synthetic":true,"kind":"RULE","jurisdiction":"FR","country_code":"FR","role_tier":3,"expected_state":"ALLOWED"},
+  {"id":"fr_tier4","synthetic":true,"kind":"RULE","jurisdiction":"FR","country_code":"FR","role_tier":4,"expected_state":"REVIEW_REQUIRED"},
+  {"id":"fr_missing_source_notice","synthetic":true,"kind":"RULE","jurisdiction":"FR","country_code":"FR","source_notice_ready":false,"expected_state":"REVIEW_REQUIRED"},
+  {"id":"fr_missing_opt_out","synthetic":true,"kind":"RULE","jurisdiction":"FR","country_code":"FR","opt_out_ready":false,"expected_state":"REVIEW_REQUIRED"},
+  {"id":"fr_suppression","synthetic":true,"kind":"RULE","jurisdiction":"FR","country_code":"FR","suppression":"MATCHED","expected_state":"BLOCKED"},
+  {"id":"de_unconfigured","synthetic":true,"kind":"RULE","jurisdiction":"EU_MEMBER_STATE_UNCONFIGURED","country_code":"DE","expected_state":"REVIEW_REQUIRED"},
+  {"id":"be_unconfigured","synthetic":true,"kind":"RULE","jurisdiction":"EU_MEMBER_STATE_UNCONFIGURED","country_code":"BE","expected_state":"REVIEW_REQUIRED"},
+  {"id":"lu_unconfigured","synthetic":true,"kind":"RULE","jurisdiction":"EU_MEMBER_STATE_UNCONFIGURED","country_code":"LU","expected_state":"REVIEW_REQUIRED"},
+  {"id":"us_out_of_scope","synthetic":true,"kind":"RULE","jurisdiction":"OUT_OF_SCOPE","country_code":"US","resolvable":false,"expected_state":"BLOCKED"},
+  {"id":"missing_country","synthetic":true,"kind":"RULE","jurisdiction":"UNRESOLVED","country_code":null,"resolvable":true,"expected_state":"UNKNOWN"},
+  {"id":"conflicting_country","synthetic":true,"kind":"RULE","jurisdiction":"UNRESOLVED","country_code":null,"resolvable":true,"expected_state":"UNKNOWN"},
+  {"id":"suppression_keyring_incomplete","synthetic":true,"kind":"RULE","jurisdiction":"FR","country_code":"FR","suppression":"COVERAGE_UNSAFE","expected_state":"UNKNOWN"},
+  {"id":"shadow","synthetic":true,"kind":"SERVICE","expected_disposition":"POLICY_BLOCKED","expected_workflow_mutation":false},
+  {"id":"changed_artifact","synthetic":true,"kind":"SERVICE","expected_error":"ComplianceInputChanged","expected_workflow_mutation":false},
+  {"id":"concurrent_suppression","synthetic":true,"kind":"SERVICE","expected_error":"ComplianceInputChanged","expected_workflow_mutation":false}
+]

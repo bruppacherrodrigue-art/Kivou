@@ -241,11 +241,18 @@ def _outcome_recorded(
 def _next_action_set(
     current: AcquisitionOpportunity, event: AcquisitionEvent
 ) -> AcquisitionOpportunity:
+    if "next_action" not in event.payload:
+        raise InvalidTransition("next_action is required")
     next_action = event.payload.get("next_action")
-    if not isinstance(next_action, str) or next_action not in ALLOWED_NEXT_ACTIONS:
+    if next_action is None:
+        if not event.reason_codes:
+            raise InvalidTransition("clearing next_action requires a reason")
+    elif not isinstance(next_action, str) or next_action not in ALLOWED_NEXT_ACTIONS:
         raise InvalidTransition("unknown next_action")
     updates = _common_updates(event)
     updates["next_action"] = next_action
+    if next_action is None:
+        updates["reason_codes"] = event.reason_codes
     return current.model_copy(update=updates)
 
 

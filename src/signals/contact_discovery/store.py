@@ -265,13 +265,27 @@ class ContactDiscoveryStore:
             return self.get_contact_in_transaction(connection, contact_ref)
 
     @staticmethod
-    def get_contact_in_transaction(connection: Connection, contact_ref: str) -> ContactRecord:
-        row = (
-            connection.execute(
-                sa.select(acquisition_contact).where(
-                    acquisition_contact.c.contact_ref == contact_ref
+    def get_contact_in_transaction(
+        connection: Connection, contact_ref: str, *, for_update: bool = False
+    ) -> ContactRecord:
+        query = sa.select(acquisition_contact).where(
+            acquisition_contact.c.contact_ref == contact_ref
+        )
+        if for_update:
+            if connection.dialect.name == "sqlite":
+                # SQLite ignores SELECT FOR UPDATE. A bounded no-op write gives
+                # tests and local execution the same serialization boundary.
+                result = connection.execute(
+                    sa.update(acquisition_contact)
+                    .where(acquisition_contact.c.contact_ref == contact_ref)
+                    .values(contact_ref=acquisition_contact.c.contact_ref)
                 )
-            )
+                if result.rowcount != 1:
+                    raise sa.exc.NoResultFound(contact_ref)
+            else:
+                query = query.with_for_update()
+        row = (
+            connection.execute(query)
             .mappings()
             .one()
         )

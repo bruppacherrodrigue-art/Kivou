@@ -89,6 +89,18 @@ COMMAND_POLICIES = {
             "PERSONALIZATION_INPUT",
         ),
     ),
+    "assess_campaign_compliance": CommandPolicy(
+        risk_class=RiskClass.PREPARATORY,
+        target_scope=TargetScope.OPPORTUNITY,
+        required_evidence=(
+            "ACQUISITION_DECISION",
+            "PUBLIC_EVIDENCE",
+            "VERIFIED_CONTACT",
+            "ACQUISITION_PROSPECT_PREBUILD",
+            "PERSONALIZATION_ARTIFACT",
+            "COMPLIANCE_INPUT",
+        ),
+    ),
     "schedule_campaign": CommandPolicy(
         RiskClass.COMMERCIAL_MUTATION,
         TargetScope.OPPORTUNITY,
