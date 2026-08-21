@@ -9,6 +9,7 @@ ALLOWED_COMMANDS: frozenset[str] = frozenset(
         "enrich_company",
         "evaluate_opportunity",
         "prepare_campaign",
+        "assess_campaign_compliance",
         "schedule_campaign",
         "pause_campaign",
         "classify_response",
