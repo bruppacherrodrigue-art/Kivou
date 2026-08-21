@@ -1,6 +1,6 @@
 # SPEC-025 — Compliance CH / FR / EU — implementation report
 
-**Status:** local implementation validation complete; executable CI pending; DRAFT implementation PR only.
+**Status:** executable CI green; final report-head CI pending; DRAFT implementation PR only.
 
 **Authoritative implementation base / merged design SHA:** `ff6a070c3d7a8ad95c002fc0ffc97b3b4f93c594`
 
@@ -170,7 +170,24 @@ schema/index/constraint parity, downgrade/re-upgrade, single head) is green.
 The final local backend regression passed **3,489 tests with 0 skipped**. Ruff
 and `git diff --check` passed. The unchanged frontend passed **150 tests**, its
 production build, explicit TypeScript project build, and lint. Executable and
-final-head CI identities are recorded only after GitHub completes them.
+final-head identities are recorded below as GitHub completes them.
+
+## Executable closeout
+
+- Authoritative base and current `origin/main` at executable validation:
+  `ff6a070c3d7a8ad95c002fc0ffc97b3b4f93c594`.
+- DRAFT implementation PR: **#32**.
+- Executable SHA: `db1c08e0df4c01e82249dfbaeba09c0ded64e9a5`.
+- Executable CI: **32482497568 — SUCCESS**.
+- CI backend: **3,489 passed, 0 skipped**; Ruff **PASS**.
+- CI frontend: **150 passed**; build, typecheck, and lint **PASS**.
+- Alembic head: `0014_compliance`; two new tables and no `0015`.
+- Executable diff stat: **37 files changed, 4,253 insertions(+), 27 deletions(-)**.
+- Working tree: clean after the documentation-only closeout commit and push.
+
+No LLM/provider, Apollo network, Instantly, SMTP, campaign/email, VPS,
+staging/production, Stripe, migration deployment, or other deployment side
+effect was performed.
 
 No Apollo/network, Instantly, SMTP, LLM/provider, crawler, campaign, VPS,
 staging, production, Stripe, or deployment side effect was performed.
