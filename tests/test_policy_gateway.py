@@ -24,7 +24,7 @@ from signals.policy.contracts import (
 )
 from signals.policy.evaluator import evaluate_policy
 from signals.policy.registry import COMMAND_POLICIES
-from signals.supervisor.registry import ALLOWED_COMMANDS
+from signals.supervisor.registry import ALLOWED_COMMANDS, ALLOWED_NEXT_ACTIONS
 
 NOW = dt.datetime(2026, 8, 20, 8, tzinfo=dt.UTC)
 
@@ -134,6 +134,57 @@ def test_registry_covers_all_supervisor_commands_without_callables() -> None:
         for profile in COMMAND_POLICIES.values()
         for value in vars(profile).values()
     )
+
+
+def test_assess_compliance_is_a_real_preparatory_command_without_circular_gate() -> None:
+    policy = COMMAND_POLICIES["assess_campaign_compliance"]
+
+    assert "assess_campaign_compliance" in ALLOWED_COMMANDS
+    assert policy.risk_class.value == "PREPARATORY"
+    assert policy.target_scope.value == "OPPORTUNITY"
+    assert policy.required_evidence == (
+        "ACQUISITION_DECISION",
+        "PUBLIC_EVIDENCE",
+        "VERIFIED_CONTACT",
+        "ACQUISITION_PROSPECT_PREBUILD",
+        "PERSONALIZATION_ARTIFACT",
+        "COMPLIANCE_INPUT",
+    )
+    assert policy.uses_budget is False
+    assert policy.uses_volume is False
+    assert policy.uses_provider_quota is False
+    assert policy.uses_send_controls is False
+    assert policy.requires_control_plane is False
+    assert policy.requires_compliance is False
+    assert ALLOWED_NEXT_ACTIONS == ALLOWED_COMMANDS
+
+
+def test_assisted_assessment_command_is_not_action_approval_gated() -> None:
+    decision = evaluate_policy(
+        request(
+            "assess_campaign_compliance",
+            evidence=EvidenceReadiness(
+                status=EvidenceStatus.READY,
+                claims=COMMAND_POLICIES[
+                    "assess_campaign_compliance"
+                ].required_evidence,
+                assessment_version="compliance-evidence-v1",
+                observed_at=NOW,
+            ),
+            compliance=ComplianceAssessment(
+                state=ComplianceState.UNKNOWN,
+                assessment_version="policy-compliance-pending-v1",
+                observed_at=NOW,
+            ),
+            proposed_cost=Decimal("0"),
+            proposed_volume=0,
+        ),
+        snapshot(autonomy_mode=AutonomyMode.ASSISTED),
+        NOW,
+    )
+
+    assert decision.status is PolicyStatus.APPROVED
+    assert decision.executable is True
 
 
 @pytest.mark.parametrize("value", ["", "x" * 65, "run;rm", "$(id)", "bad\ncommand"])

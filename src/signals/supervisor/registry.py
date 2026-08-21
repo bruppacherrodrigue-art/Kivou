@@ -9,6 +9,7 @@ ALLOWED_COMMANDS: frozenset[str] = frozenset(
         "enrich_company",
         "evaluate_opportunity",
         "prepare_campaign",
+        "assess_campaign_compliance",
         "schedule_campaign",
         "pause_campaign",
         "classify_response",
@@ -18,10 +19,7 @@ ALLOWED_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
-# Reserved state-machine handoff; SPEC-025 will promote it to a command later.
-ALLOWED_NEXT_ACTIONS: frozenset[str] = ALLOWED_COMMANDS | frozenset(
-    {"assess_campaign_compliance"}
-)
+ALLOWED_NEXT_ACTIONS: frozenset[str] = ALLOWED_COMMANDS
 
 DECISION_VOCABULARY: frozenset[str] = frozenset(
     {"SEND", "HOLD", "ENRICH", "NO_SEND", "REVIEW"}

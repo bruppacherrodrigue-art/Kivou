@@ -237,6 +237,67 @@ def test_historical_decision_payload_preserves_previous_next_action_semantics() 
     assert reduce_event(current, historical).next_action == "evaluate_opportunity"
 
 
+def test_next_action_set_can_explicitly_clear_with_a_reason() -> None:
+    current = projection(AcquisitionState.SEND).model_copy(
+        update={"next_action": "assess_campaign_compliance"}
+    )
+    clear = event(
+        EventType.NEXT_ACTION_SET,
+        sequence=2,
+        payload={"next_action": None},
+        reason_codes=("COMPLIANCE_HARD_BLOCK",),
+    )
+
+    result = reduce_event(current, clear)
+
+    assert result.state is AcquisitionState.SEND
+    assert result.next_action is None
+    assert result.reason_codes == ("COMPLIANCE_HARD_BLOCK",)
+
+
+def test_next_action_set_rejects_an_unexplained_clear() -> None:
+    current = projection(AcquisitionState.SEND).model_copy(
+        update={"next_action": "assess_campaign_compliance"}
+    )
+    clear = event(EventType.NEXT_ACTION_SET, sequence=2, payload={"next_action": None})
+
+    with pytest.raises(InvalidTransition, match="reason"):
+        reduce_event(current, clear)
+
+
+def test_next_action_set_requires_an_explicit_next_action_key() -> None:
+    current = projection(AcquisitionState.SEND).model_copy(
+        update={"next_action": "assess_campaign_compliance"}
+    )
+    malformed = event(
+        EventType.NEXT_ACTION_SET,
+        sequence=2,
+        payload={},
+        reason_codes=("COMPLIANCE_HARD_BLOCK",),
+    )
+
+    with pytest.raises(InvalidTransition, match="next_action"):
+        reduce_event(current, malformed)
+
+
+def test_next_action_set_keeps_existing_string_validation() -> None:
+    current = projection(AcquisitionState.SEND)
+    valid = event(
+        EventType.NEXT_ACTION_SET,
+        sequence=2,
+        payload={"next_action": "assess_campaign_compliance"},
+    )
+    unknown = event(
+        EventType.NEXT_ACTION_SET,
+        sequence=2,
+        payload={"next_action": "invented_compliance_action"},
+    )
+
+    assert reduce_event(current, valid).next_action == "assess_campaign_compliance"
+    with pytest.raises(InvalidTransition, match="unknown next_action"):
+        reduce_event(current, unknown)
+
+
 @pytest.mark.parametrize(
     "payload",
     (

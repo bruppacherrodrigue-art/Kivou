@@ -9,6 +9,7 @@ from signals.persistence.schema import acquisition_personalization_artifact
 
 PREVIOUS = "0012_decision_engine"
 HEAD = "0013_personalization"
+CURRENT_HEAD = "0014_compliance"
 
 
 def test_personalization_migration_is_linear_and_adds_one_artifact_table(tmp_path) -> None:
@@ -23,7 +24,7 @@ def test_personalization_migration_is_linear_and_adds_one_artifact_table(tmp_pat
         "acquisition_personalization_artifact"
     }
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
     assert len(HEAD) <= 32
 
