@@ -19,6 +19,7 @@ from pydantic import BaseModel, ConfigDict
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
 from signals.billing import attempts, catalogue, checkout, discovery, service
+from signals.billing import gateway as gateway_errors
 
 router = APIRouter()
 
@@ -171,9 +172,30 @@ def start_checkout(payload: CheckoutRequest, request: Request) -> dict[str, Any]
         except service.BillingError as error:
             raise api_error(422, error.code, "impossible d'ouvrir le paiement") from error
 
-    created = checkout.open_checkout_session(
-        gateway, configuration, prepared, account_id=account_id
-    )
+    try:
+        created = checkout.open_checkout_session(
+            gateway, configuration, prepared, account_id=account_id
+        )
+    except gateway_errors.CheckoutSessionRejected as error:
+        # P0-03F — Stripe a refusé la REQUÊTE : aucune session n'a pu naître, la
+        # place est donc libérée tout de suite. Sans cela, un défaut de
+        # paramètres bloquait le compte trente minutes en 409.
+        with request.app.state.engine.begin() as connection:
+            attempts.fail_attempt(
+                connection,
+                account_id=account_id,
+                attempt_id=prepared.attempt.attempt_id,
+                now=now,
+            )
+        raise api_error(
+            502, "checkout_rejected", "le prestataire de paiement a refusé d'ouvrir la session"
+        ) from error
+    except gateway_errors.CheckoutSessionUncertain as error:
+        # La réponse manque, pas forcément la session : la tentative RESTE
+        # `creating`, et un rejeu du même plan rejouera la même clé (§3, §4).
+        raise api_error(
+            503, "checkout_unavailable", "le paiement n'a pas pu être ouvert ; réessayez"
+        ) from error
 
     with request.app.state.engine.begin() as connection:
         attempts.record_session(

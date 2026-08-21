@@ -41,6 +41,9 @@ ERROR_CODES: tuple[str, ...] = (
     "billing_error",
     "billing_subscription_conflict",
     "checkout_in_progress",
+    # P0-03F — l'appel Stripe de création de session, et ses deux issues.
+    "checkout_rejected",
+    "checkout_unavailable",
     # SPEC-014 — retour client et notifications
     "invalid_feedback",
     "signal_not_accessible",
