@@ -20,6 +20,10 @@ from signals.policy.contracts import ComplianceState
 RULESET_V1 = ComplianceRulesetConfig()
 
 
+class ComplianceRulesetMismatch(ValueError):
+    """The input was constructed for a different immutable legal ruleset."""
+
+
 def _dedupe(values: tuple[str, ...], limit: int) -> tuple[str, ...]:
     return tuple(dict.fromkeys(values))[:limit]
 
@@ -37,6 +41,8 @@ def _proposal(
         validity = value.assessed_at + dt.timedelta(hours=config.allowed_ttl_hours)
         if value.sender_config.valid_until is not None:
             validity = min(validity, value.sender_config.valid_until)
+        if config.valid_until is not None:
+            validity = min(validity, config.valid_until)
     evidence = _dedupe((*value.evidence_refs, *value.jurisdiction.evidence_refs), 16)
     assert config.config_fingerprint is not None
     payload = {
@@ -66,6 +72,15 @@ def evaluate_compliance(
     value: ComplianceInput, config: ComplianceRulesetConfig = RULESET_V1
 ) -> ComplianceProposal:
     """Apply the frozen rule ordering without database, clock, or network access."""
+    if (
+        value.ruleset_version != config.ruleset_version
+        or value.ruleset_config_fingerprint != config.config_fingerprint
+        or value.ruleset_legal_review_ref != config.legal_review_ref
+        or value.ruleset_effective_from != config.effective_from
+        or value.ruleset_valid_until != config.valid_until
+    ):
+        raise ComplianceRulesetMismatch("compliance input ruleset binding mismatch")
+
     if value.suppression_match_state is SuppressionMatchState.MATCHED:
         return _proposal(
             value,
@@ -81,6 +96,17 @@ def evaluate_compliance(
             state=ComplianceState.UNKNOWN,
             reasons=("SUPPRESSION_KEY_COVERAGE_UNSAFE",),
             next_action=None,
+        )
+
+    if value.assessed_at < config.effective_from or (
+        config.valid_until is not None and value.assessed_at >= config.valid_until
+    ):
+        return _proposal(
+            value,
+            config,
+            state=ComplianceState.REVIEW_REQUIRED,
+            reasons=("RULESET_NOT_EFFECTIVE",),
+            next_action="request_human_review",
         )
 
     jurisdiction = value.jurisdiction.jurisdiction
@@ -101,6 +127,14 @@ def evaluate_compliance(
             next_action=None,
         )
     if jurisdiction is ComplianceJurisdiction.EU_MEMBER_STATE_UNCONFIGURED:
+        return _proposal(
+            value,
+            config,
+            state=ComplianceState.REVIEW_REQUIRED,
+            reasons=("COUNTRY_RULESET_UNCONFIGURED",),
+            next_action="request_human_review",
+        )
+    if jurisdiction.value not in config.configured_country_rulesets:
         return _proposal(
             value,
             config,
@@ -170,4 +204,4 @@ def evaluate_compliance(
     )
 
 
-__all__ = ["RULESET_V1", "evaluate_compliance"]
+__all__ = ["RULESET_V1", "ComplianceRulesetMismatch", "evaluate_compliance"]

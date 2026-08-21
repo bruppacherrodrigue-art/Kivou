@@ -41,6 +41,7 @@ from signals.compliance.store import (
     compliance_assessment_id,
 )
 from signals.compliance.suppression import SuppressionIdentityKeyring
+from signals.contact_discovery.contracts import PROFILE_VERSION as CONTACT_PROFILE_VERSION
 from signals.contact_discovery.store import ContactDiscoveryStore
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.decision_engine.service import _legacy_budget_usage_candidates
@@ -282,6 +283,8 @@ class ComplianceService:
             and contact.verification_state == "PROVIDER_VERIFIED"
             and contact.verification_provider == "apollo"
             and contact.provider_email_status == "verified"
+            and contact.role_profile_version == CONTACT_PROFILE_VERSION
+            and profile.contact_role_profile_version == CONTACT_PROFILE_VERSION
             and contact.role_profile_version == profile.contact_role_profile_version
             and contact.role_tier == profile.contact_role_tier
             and supplier.identity_status is SupplierIdentityStatus.PROVIDER_IDENTIFIED
@@ -347,6 +350,9 @@ class ComplianceService:
             "suppression_key_versions_considered": suppression.key_versions_considered,
             "evidence_refs": evidence_refs,
             "ruleset_config_fingerprint": RULESET_V1.config_fingerprint,
+            "ruleset_legal_review_ref": RULESET_V1.legal_review_ref,
+            "ruleset_effective_from": RULESET_V1.effective_from,
+            "ruleset_valid_until": RULESET_V1.valid_until,
             "assessed_at": captured_at,
             "as_of_date": captured_at.date(),
         }

@@ -9,12 +9,17 @@ from signals.compliance.contracts import (
     CHLegalBasis,
     ComplianceInput,
     ComplianceJurisdiction,
+    ComplianceRulesetConfig,
     EmailProvenance,
     JurisdictionResolution,
     SenderComplianceConfig,
     SuppressionMatchState,
 )
-from signals.compliance.rules import RULESET_V1, evaluate_compliance
+from signals.compliance.rules import (
+    RULESET_V1,
+    ComplianceRulesetMismatch,
+    evaluate_compliance,
+)
 from signals.policy.contracts import ComplianceState
 
 NOW = dt.datetime(2026, 8, 21, 10, tzinfo=dt.UTC)
@@ -71,12 +76,34 @@ def compliance_input(**overrides: object) -> ComplianceInput:
             "acquisition-contact:contact-1",
         ),
         "ruleset_config_fingerprint": RULESET_V1.config_fingerprint,
+        "ruleset_legal_review_ref": RULESET_V1.legal_review_ref,
+        "ruleset_effective_from": RULESET_V1.effective_from,
+        "ruleset_valid_until": RULESET_V1.valid_until,
         "assessed_at": NOW,
         "as_of_date": NOW.date(),
         "compliance_input_fingerprint": "f" * 64,
     }
     values.update(overrides)
     return ComplianceInput.model_validate(values)
+
+
+def ruleset(**overrides: object) -> ComplianceRulesetConfig:
+    values = RULESET_V1.model_dump(mode="python", exclude={"config_fingerprint"})
+    values.update(overrides)
+    return ComplianceRulesetConfig.model_validate(values)
+
+
+def ruleset_input(
+    config: ComplianceRulesetConfig, **overrides: object
+) -> ComplianceInput:
+    values: dict[str, object] = {
+        "ruleset_config_fingerprint": config.config_fingerprint,
+        "ruleset_legal_review_ref": config.legal_review_ref,
+        "ruleset_effective_from": config.effective_from,
+        "ruleset_valid_until": config.valid_until,
+    }
+    values.update(overrides)
+    return compliance_input(**values)
 
 
 @pytest.mark.parametrize(
@@ -264,3 +291,99 @@ def test_incomplete_suppression_key_coverage_is_non_resolvable_unknown() -> None
     assert proposal.valid_until is None
     assert len(proposal.reason_codes) <= 8
     assert len(proposal.evidence_refs) <= 16
+
+
+@pytest.mark.parametrize("country", ("FR", "CH"))
+def test_automatic_country_rule_requires_explicit_ruleset_configuration(country: str) -> None:
+    jurisdiction = JurisdictionResolution(
+        jurisdiction=ComplianceJurisdiction(country),
+        country_code=country,
+        resolvable=True,
+        evidence_refs=("jurisdiction:evidence",),
+    )
+    config = ruleset(
+        configured_country_rulesets=tuple(
+            configured
+            for configured in RULESET_V1.configured_country_rulesets
+            if configured != country
+        )
+    )
+    value = ruleset_input(
+        config,
+        jurisdiction=jurisdiction,
+        ch_legal_basis=(
+            CHLegalBasis.CONSENT_PROVEN if country == "CH" else CHLegalBasis.UNPROVEN
+        ),
+    )
+
+    proposal = evaluate_compliance(value, config)
+
+    assert proposal.state is ComplianceState.REVIEW_REQUIRED
+    assert proposal.reason_codes == ("COUNTRY_RULESET_UNCONFIGURED",)
+    assert proposal.next_action == "request_human_review"
+
+
+def test_ruleset_outside_effective_interval_requires_review() -> None:
+    config = ruleset(
+        effective_from=NOW + dt.timedelta(hours=1),
+        valid_until=NOW + dt.timedelta(hours=2),
+    )
+    before = ruleset_input(config)
+    expiring = ruleset(
+        effective_from=NOW - dt.timedelta(hours=1),
+        valid_until=NOW,
+    )
+    at_expiry = ruleset_input(expiring)
+
+    for value, selected in ((before, config), (at_expiry, expiring)):
+        proposal = evaluate_compliance(value, selected)
+        assert proposal.state is ComplianceState.REVIEW_REQUIRED
+        assert proposal.reason_codes == ("RULESET_NOT_EFFECTIVE",)
+        assert proposal.next_action == "request_human_review"
+
+
+def test_ruleset_inside_effective_interval_runs_normal_country_rules() -> None:
+    config = ruleset(
+        effective_from=NOW - dt.timedelta(hours=1),
+        valid_until=NOW + dt.timedelta(hours=1),
+    )
+    value = ruleset_input(config)
+
+    proposal = evaluate_compliance(value, config)
+
+    assert proposal.state is ComplianceState.ALLOWED
+
+
+def test_allowed_validity_is_clipped_by_ruleset_expiry() -> None:
+    expiry = NOW + dt.timedelta(hours=3)
+    config = ruleset(
+        effective_from=NOW - dt.timedelta(hours=1),
+        valid_until=expiry,
+    )
+    value = ruleset_input(config)
+
+    proposal = evaluate_compliance(value, config)
+
+    assert proposal.state is ComplianceState.ALLOWED
+    assert proposal.valid_until == expiry
+
+
+def test_input_must_bind_the_exact_ruleset_config() -> None:
+    other = ruleset(configured_country_rulesets=("CH",))
+
+    with pytest.raises(ComplianceRulesetMismatch, match="ruleset"):
+        evaluate_compliance(compliance_input(), other)
+
+
+def test_legal_review_identity_and_interval_affect_config_fingerprint() -> None:
+    base = RULESET_V1
+    changed_review = ruleset(legal_review_ref="legal-review:spec025-r1:replacement")
+    changed_start = ruleset(effective_from=base.effective_from + dt.timedelta(seconds=1))
+    changed_end = ruleset(valid_until=NOW + dt.timedelta(days=30))
+
+    assert base.legal_review_ref == (
+        "legal-review:spec025-r1:ff6a070c3d7a8ad95c002fc0ffc97b3b4f93c594"
+    )
+    assert base.config_fingerprint != changed_review.config_fingerprint
+    assert base.config_fingerprint != changed_start.config_fingerprint
+    assert base.config_fingerprint != changed_end.config_fingerprint

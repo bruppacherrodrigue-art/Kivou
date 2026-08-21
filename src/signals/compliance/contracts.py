@@ -30,6 +30,12 @@ INPUT_VERSION = "acquisition-compliance-input-v1"
 RULESET_VERSION = "acquisition-compliance-ruleset-v1"
 JURISDICTION_VERSION = "compliance-jurisdiction-v1"
 SENDER_CONFIG_VERSION = "sender-compliance-v1"
+RULESET_LEGAL_REVIEW_REF = (
+    "legal-review:spec025-r1:ff6a070c3d7a8ad95c002fc0ffc97b3b4f93c594"
+)
+# The approved SPEC-025 design was frozen on 2026-08-21. The pure ruleset uses
+# this explicit UTC boundary; it never derives legal effectiveness from today.
+RULESET_EFFECTIVE_FROM = dt.datetime(2026, 8, 21, tzinfo=dt.UTC)
 
 StableRef = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]
 ShortCode = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
@@ -134,13 +140,22 @@ class SenderComplianceConfig(ComplianceContract):
 
 class ComplianceRulesetConfig(ComplianceContract):
     ruleset_version: Literal["acquisition-compliance-ruleset-v1"] = RULESET_VERSION
+    legal_review_ref: StableRef = RULESET_LEGAL_REVIEW_REF
+    effective_from: dt.datetime = RULESET_EFFECTIVE_FROM
+    valid_until: dt.datetime | None = None
     allowed_ttl_hours: Literal[24] = 24
     configured_country_rulesets: tuple[Literal["CH", "FR"], ...] = ("CH", "FR")
     reason_code_version: Literal["compliance-reasons-v1"] = "compliance-reasons-v1"
     config_fingerprint: Fingerprint | None = None
 
+    _effective = field_validator("effective_from", "valid_until")(_aware)
+
     @model_validator(mode="after")
     def derive_fingerprint(self) -> ComplianceRulesetConfig:
+        if self.valid_until is not None and self.valid_until <= self.effective_from:
+            raise ValueError("ruleset valid_until must be after effective_from")
+        configured = tuple(sorted(set(self.configured_country_rulesets)))
+        object.__setattr__(self, "configured_country_rulesets", configured)
         values = self.model_dump(mode="json", exclude={"config_fingerprint"})
         expected = semantic_fingerprint({"kind": "compliance-ruleset-config-v1", **values})
         if self.config_fingerprint not in (None, expected):
@@ -177,12 +192,17 @@ class ComplianceInput(ComplianceContract):
     evidence_refs: tuple[StableRef, ...] = Field(min_length=1, max_length=16)
     ruleset_version: Literal["acquisition-compliance-ruleset-v1"] = RULESET_VERSION
     ruleset_config_fingerprint: Fingerprint
+    ruleset_legal_review_ref: StableRef
+    ruleset_effective_from: dt.datetime
+    ruleset_valid_until: dt.datetime | None = None
     assessed_at: dt.datetime
     as_of_date: dt.date
     input_version: Literal["acquisition-compliance-input-v1"] = INPUT_VERSION
     compliance_input_fingerprint: Fingerprint
 
-    _assessed = field_validator("assessed_at")(_aware)
+    _assessed = field_validator(
+        "ruleset_effective_from", "ruleset_valid_until", "assessed_at"
+    )(_aware)
 
 
 class ComplianceProposal(ComplianceContract):

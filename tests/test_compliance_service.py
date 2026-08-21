@@ -51,9 +51,11 @@ from signals.policy.contracts import (
 )
 from signals.policy.store import PolicyStore
 
+COMPLIANCE_ASSESSED_AT = dt.datetime(2026, 8, 21, 12, 30, tzinfo=dt.UTC)
+
 
 class CountingClock:
-    def __init__(self, value: dt.datetime = EVALUATED_AT) -> None:
+    def __init__(self, value: dt.datetime = COMPLIANCE_ASSESSED_AT) -> None:
         self.value = value
         self.calls = 0
 
@@ -95,7 +97,7 @@ def compliance_authorization(
             status=base.evidence.status,
             claims=("CALLER_CANNOT_SELECT_COMPLIANCE_CLAIMS",),
             assessment_version="compliance-evidence-v1",
-            observed_at=EVALUATED_AT,
+            observed_at=COMPLIANCE_ASSESSED_AT,
         ),
         operational=base.operational,
         expected_policy_version=base.expected_policy_version,
@@ -172,7 +174,7 @@ def service(engine, clock=None, sender_config=None) -> ComplianceService:
         engine,
         keyring=keyring(),
         sender_config=sender_config or sender(),
-        clock=clock or CountingClock(EVALUATED_AT),
+        clock=clock or CountingClock(COMPLIANCE_ASSESSED_AT),
     )
 
 
@@ -190,7 +192,7 @@ def _count_terminal_events(engine, evaluation_id: str) -> int:
 
 def test_fr_tier_one_records_allowed_and_advances_to_schedule(prepared) -> None:
     engine, acquisition, opportunity_id, country = ready_context(prepared)
-    clock = CountingClock(EVALUATED_AT)
+    clock = CountingClock(COMPLIANCE_ASSESSED_AT)
 
     assessment = service(engine, clock).assess(
         opportunity_id,
@@ -201,7 +203,9 @@ def test_fr_tier_one_records_allowed_and_advances_to_schedule(prepared) -> None:
     assert clock.calls == 1
     assert assessment["state"] == "ALLOWED"
     assert assessment["disposition"] == "RECORDED"
-    assert assessment["valid_until"].replace(tzinfo=dt.UTC) == EVALUATED_AT + dt.timedelta(hours=24)
+    assert assessment["valid_until"].replace(tzinfo=dt.UTC) == (
+        COMPLIANCE_ASSESSED_AT + dt.timedelta(hours=24)
+    )
     current = acquisition.get_opportunity(opportunity_id)
     assert current.state is AcquisitionState.SEND
     assert current.next_action == "schedule_campaign"
@@ -209,7 +213,7 @@ def test_fr_tier_one_records_allowed_and_advances_to_schedule(prepared) -> None:
 
 def test_wrong_workflow_action_fails_before_clock_and_policy(prepared) -> None:
     engine, _, opportunity_id = prepared
-    clock = CountingClock(EVALUATED_AT)
+    clock = CountingClock(COMPLIANCE_ASSESSED_AT)
 
     with pytest.raises(ComplianceNotActionable):
         service(engine, clock).assess(
@@ -234,7 +238,7 @@ def test_contact_binding_drift_fails_before_policy(prepared) -> None:
     engine, _, opportunity_id, country = ready_context(prepared)
     with engine.begin() as connection:
         connection.execute(sa.text("UPDATE acquisition_contact SET role_tier = 4"))
-    clock = CountingClock(EVALUATED_AT)
+    clock = CountingClock(COMPLIANCE_ASSESSED_AT)
 
     with pytest.raises(ComplianceBindingConflict):
         service(engine, clock).assess(
@@ -250,6 +254,47 @@ def test_contact_binding_drift_fails_before_policy(prepared) -> None:
                 sa.select(sa.func.count())
                 .select_from(policy_evaluation)
                 .where(policy_evaluation.c.evaluation_id == "compliance-eval-1")
+            )
+            == 0
+        )
+
+
+def test_unsupported_equal_role_profile_versions_fail_before_policy(prepared) -> None:
+    engine, _, opportunity_id, country = ready_context(prepared)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_contact).values(
+                role_profile_version="decision-maker-search-v0"
+            )
+        )
+        connection.execute(
+            sa.update(acquisition_company_profile).values(
+                contact_role_profile_version="decision-maker-search-v0"
+            )
+        )
+    clock = CountingClock(COMPLIANCE_ASSESSED_AT)
+
+    with pytest.raises(ComplianceBindingConflict):
+        service(engine, clock).assess(
+            opportunity_id,
+            compliance_authorization(country=country),
+            budget_usage=BudgetUsage(),
+        )
+
+    assert clock.calls == 1
+    assert _count_terminal_events(engine, "compliance-eval-1") == 0
+    with engine.connect() as connection:
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(policy_evaluation)
+                .where(policy_evaluation.c.evaluation_id == "compliance-eval-1")
+            )
+            == 0
+        )
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count()).select_from(acquisition_compliance_assessment)
             )
             == 0
         )
@@ -369,7 +414,7 @@ def test_incomplete_suppression_key_coverage_clears_action_fail_closed(prepared)
             current_key_version="new-key", keys={"new-key": b"current-new-key"}
         ),
         sender_config=sender(),
-        clock=CountingClock(EVALUATED_AT),
+        clock=CountingClock(COMPLIANCE_ASSESSED_AT),
     )
 
     assessment = incomplete.assess(
@@ -409,7 +454,7 @@ def test_completed_replay_uses_historical_budget_and_zero_clock(prepared) -> Non
         budget_usage=BudgetUsage(cost_used=Decimal("7.5"), volume_used=12),
     )
     before = acquisition.get_opportunity(opportunity_id).stream_version
-    replay_clock = CountingClock(EVALUATED_AT + dt.timedelta(days=30))
+    replay_clock = CountingClock(COMPLIANCE_ASSESSED_AT + dt.timedelta(days=30))
 
     replay = service(engine, replay_clock).assess(
         opportunity_id,
@@ -430,7 +475,7 @@ def test_completed_replay_changed_scope_conflicts_before_clock(prepared) -> None
         compliance_authorization(country=country),
         budget_usage=BudgetUsage(),
     )
-    replay_clock = CountingClock(EVALUATED_AT)
+    replay_clock = CountingClock(COMPLIANCE_ASSESSED_AT)
 
     with pytest.raises(ComplianceAssessmentIdempotencyConflict):
         service(engine, replay_clock).assess(
@@ -462,7 +507,7 @@ def test_completed_replay_rejects_changed_authorization_semantics_before_clock(
     engine, _, opportunity_id, country = ready_context(prepared)
     original = compliance_authorization(country=country)
     service(engine).assess(opportunity_id, original, budget_usage=BudgetUsage())
-    replay_clock = CountingClock(EVALUATED_AT)
+    replay_clock = CountingClock(COMPLIANCE_ASSESSED_AT)
 
     with pytest.raises(ComplianceAssessmentIdempotencyConflict):
         service(engine, replay_clock).assess(
@@ -494,7 +539,7 @@ def test_policy_without_assessment_requires_fresh_attempt_before_clock(prepared)
     engine, acquisition, opportunity_id, country = ready_context(prepared)
     assessment_service = service(engine)
     auth = compliance_authorization(country=country)
-    captured = EVALUATED_AT
+    captured = COMPLIANCE_ASSESSED_AT
     values = assessment_service._build_values(
         assessment_service._load(opportunity_id, captured), captured
     )
@@ -515,7 +560,7 @@ def test_policy_without_assessment_requires_fresh_attempt_before_clock(prepared)
     assessment_service._policy.evaluate_and_record(
         request, evaluated_at=captured, budget_usage=BudgetUsage()
     )
-    replay_clock = CountingClock(EVALUATED_AT)
+    replay_clock = CountingClock(COMPLIANCE_ASSESSED_AT)
 
     with pytest.raises(ComplianceEvaluationRequiresFreshAttempt):
         service(engine, replay_clock).assess(opportunity_id, auth, budget_usage=BudgetUsage())
@@ -870,6 +915,9 @@ def test_persisted_compliance_data_is_pii_and_copy_minimized(prepared) -> None:
         "suppression_key_versions_considered",
         "ruleset_version",
         "ruleset_config_fingerprint",
+        "ruleset_legal_review_ref",
+        "ruleset_effective_from",
+        "ruleset_valid_until",
         "assessed_at",
         "as_of_date",
     } <= set(snapshot)

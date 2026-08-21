@@ -6,6 +6,7 @@ from signals.compliance.contracts import ComplianceJurisdiction
 from signals.compliance.jurisdiction import (
     EU_MEMBER_CODES,
     JURISDICTION_VERSION,
+    normalize_provider_country,
     resolve_jurisdiction,
 )
 
@@ -53,6 +54,58 @@ def test_conflicting_or_missing_country_is_resolvable_unknown(supplier, provider
     assert result.jurisdiction is ComplianceJurisdiction.UNRESOLVED
     assert result.country_code is None
     assert result.resolvable is True
+
+
+@pytest.mark.parametrize(
+    ("supplier", "provider"),
+    ((None, "ZZ"), ("ZZ", None)),
+)
+def test_unknown_two_letter_country_is_unresolved_not_out_of_scope(supplier, provider) -> None:
+    result = resolve_jurisdiction(
+        supplier_country_code=supplier,
+        provider_country=provider,
+        supplier_ref="supplier-1",
+        profile_ref="company-profile:opp-1",
+    )
+
+    assert result.jurisdiction is ComplianceJurisdiction.UNRESOLVED
+    assert result.country_code is None
+    assert result.resolvable is True
+
+
+@pytest.mark.parametrize(
+    ("provider", "canonical"),
+    (("UK", "GB"), ("United Kingdom", "GB"), ("GB", "GB"), ("US", "US")),
+)
+def test_provider_country_accepts_only_controlled_aliases_or_known_iso_codes(
+    provider: str, canonical: str
+) -> None:
+    assert normalize_provider_country(provider) == canonical
+
+
+@pytest.mark.parametrize("provider", ("GB", "US"))
+def test_known_non_supported_iso_country_is_out_of_scope(provider: str) -> None:
+    result = resolve_jurisdiction(
+        supplier_country_code=None,
+        provider_country=provider,
+        supplier_ref="supplier-1",
+        profile_ref="company-profile:opp-1",
+    )
+
+    assert result.jurisdiction is ComplianceJurisdiction.OUT_OF_SCOPE
+    assert result.country_code == provider
+
+
+def test_conflicting_canonical_ch_and_fr_facts_are_unresolved() -> None:
+    result = resolve_jurisdiction(
+        supplier_country_code="CH",
+        provider_country="FR",
+        supplier_ref="supplier-1",
+        profile_ref="company-profile:opp-1",
+    )
+
+    assert result.jurisdiction is ComplianceJurisdiction.UNRESOLVED
+    assert result.country_code is None
 
 
 def test_language_or_email_tld_cannot_be_passed_as_jurisdiction_inputs() -> None:
