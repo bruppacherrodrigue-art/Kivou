@@ -190,8 +190,14 @@ class PolicyGateway:
         *,
         evaluated_at: dt.datetime,
         budget_usage: BudgetUsage,
+        policy_snapshot_id: str | None = None,
     ) -> PolicyDecision:
-        snapshot = self._snapshot(request, evaluated_at, budget_usage)
+        snapshot = self._snapshot(
+            request,
+            evaluated_at,
+            budget_usage,
+            policy_snapshot_id=policy_snapshot_id,
+        )
         semantic_fingerprint = _fingerprint(request, snapshot, budget_usage, evaluated_at)
         legacy_semantic_fingerprint = _fingerprint(
             request,

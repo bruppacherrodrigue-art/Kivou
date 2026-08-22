@@ -19,6 +19,7 @@ from signals.persistence.schema import (
 )
 
 HEAD = "0019_conversion_tracking"
+CURRENT_HEAD = "0020_hermes_learning_loop"
 SPEC028_TABLES = {
     "acquisition_conversion_journey",
     "acquisition_conversion_event",
@@ -33,9 +34,12 @@ def test_linear_head_and_exactly_two_spec028_tables(tmp_path) -> None:
     inspector = sa.inspect(engine)
     assert set(inspector.get_table_names()).issuperset(SPEC028_TABLES)
     with engine.connect() as connection:
-        assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == HEAD
+        assert (
+            connection.scalar(sa.text("SELECT version_num FROM alembic_version"))
+            == CURRENT_HEAD
+        )
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(HEAD).down_revision == "0018_response_intelligence"
 
     assert {column.name for column in acquisition_conversion_journey.c} == {

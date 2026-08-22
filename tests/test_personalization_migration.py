@@ -9,7 +9,7 @@ from signals.persistence.schema import acquisition_personalization_artifact
 
 PREVIOUS = "0012_decision_engine"
 HEAD = "0013_personalization"
-CURRENT_HEAD = "0019_conversion_tracking"
+CURRENT_HEAD = "0020_hermes_learning_loop"
 
 
 def test_personalization_migration_is_linear_and_adds_one_artifact_table(tmp_path) -> None:

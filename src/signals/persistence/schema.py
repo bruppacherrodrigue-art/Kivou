@@ -777,9 +777,7 @@ acquisition_company_profile = sa.Table(
     sa.Column(
         "acquisition_opportunity_id",
         sa.String(64),
-        sa.ForeignKey(
-            "acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"
-        ),
+        sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
         primary_key=True,
     ),
     sa.Column(
@@ -867,9 +865,7 @@ company_research_run = sa.Table(
     sa.Column(
         "acquisition_opportunity_id",
         sa.String(64),
-        sa.ForeignKey(
-            "acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"
-        ),
+        sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
         nullable=False,
     ),
     sa.Column(
@@ -917,17 +913,13 @@ company_research_run = sa.Table(
         "status IN ('STARTED', 'SUCCESS', 'LIMITED', 'FAILED')",
         name="ck_company_run_status",
     ),
+    sa.CheckConstraint("expected_post_policy_version >= 2", name="ck_company_run_expected_version"),
     sa.CheckConstraint(
-        "expected_post_policy_version >= 2", name="ck_company_run_expected_version"
-    ),
-    sa.CheckConstraint(
-        "planned_provider_credit_units = 1 AND provider_calls >= 0 "
-        "AND provider_calls <= 1",
+        "planned_provider_credit_units = 1 AND provider_calls >= 0 AND provider_calls <= 1",
         name="ck_company_run_call_bound",
     ),
     sa.CheckConstraint(
-        "observed_provider_credit_units IS NULL OR "
-        "observed_provider_credit_units >= 0",
+        "observed_provider_credit_units IS NULL OR observed_provider_credit_units >= 0",
         name="ck_company_run_observed_credits",
     ),
     sa.Index(
@@ -948,9 +940,7 @@ acquisition_decision_evaluation = sa.Table(
     sa.Column(
         "acquisition_opportunity_id",
         sa.String(64),
-        sa.ForeignKey(
-            "acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"
-        ),
+        sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
         nullable=False,
     ),
     sa.Column(
@@ -1014,9 +1004,7 @@ acquisition_decision_evaluation = sa.Table(
         "(proposed_decision = 'NO_SEND' AND proposed_next_action IS NULL)",
         name="ck_decision_eval_next_action",
     ),
-    sa.CheckConstraint(
-        "proposed_next_review_at IS NULL", name="ck_decision_eval_no_hold_v1"
-    ),
+    sa.CheckConstraint("proposed_next_review_at IS NULL", name="ck_decision_eval_no_hold_v1"),
     sa.CheckConstraint(
         "expected_post_policy_version >= 2", name="ck_decision_eval_expected_version"
     ),
@@ -1041,10 +1029,33 @@ acquisition_personalization_artifact = sa.Table(
         sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
         nullable=False,
     ),
-    sa.Column("supplier_ref", sa.String(64), sa.ForeignKey("acquisition_supplier.supplier_ref", ondelete="RESTRICT"), nullable=False),
-    sa.Column("contact_ref", sa.String(64), sa.ForeignKey("acquisition_contact.contact_ref", ondelete="RESTRICT"), nullable=False),
-    sa.Column("policy_evaluation_id", sa.String(64), sa.ForeignKey("policy_evaluation.evaluation_id", ondelete="RESTRICT"), nullable=False, unique=True),
-    sa.Column("decision_evaluation_id", sa.String(64), sa.ForeignKey("acquisition_decision_evaluation.decision_evaluation_id", ondelete="RESTRICT"), nullable=False),
+    sa.Column(
+        "supplier_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_supplier.supplier_ref", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column(
+        "contact_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_contact.contact_ref", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column(
+        "policy_evaluation_id",
+        sa.String(64),
+        sa.ForeignKey("policy_evaluation.evaluation_id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    ),
+    sa.Column(
+        "decision_evaluation_id",
+        sa.String(64),
+        sa.ForeignKey(
+            "acquisition_decision_evaluation.decision_evaluation_id", ondelete="RESTRICT"
+        ),
+        nullable=False,
+    ),
     sa.Column("language", sa.String(2), nullable=False),
     sa.Column("input_version", sa.String(64), nullable=False),
     sa.Column("input_fingerprint", sa.String(64), nullable=False),
@@ -1066,11 +1077,21 @@ acquisition_personalization_artifact = sa.Table(
     sa.Column("disposition", sa.String(32), nullable=False, index=True),
     sa.Column("policy_status", sa.String(32), nullable=False),
     sa.Column("policy_counterfactual_status", sa.String(32)),
-    sa.Column("recorded_event_id", sa.String(64), sa.ForeignKey("acquisition_event.event_id", ondelete="RESTRICT"), unique=True),
+    sa.Column(
+        "recorded_event_id",
+        sa.String(64),
+        sa.ForeignKey("acquisition_event.event_id", ondelete="RESTRICT"),
+        unique=True,
+    ),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("language IN ('fr', 'en')", name="ck_personalization_language"),
-    sa.CheckConstraint("disposition IN ('READY', 'POLICY_BLOCKED')", name="ck_personalization_disposition"),
-    sa.CheckConstraint("(disposition = 'READY' AND subject IS NOT NULL AND greeting IS NOT NULL AND body IS NOT NULL AND cta IS NOT NULL AND recorded_event_id IS NOT NULL) OR (disposition = 'POLICY_BLOCKED' AND subject IS NULL AND greeting IS NULL AND body IS NULL AND cta IS NULL AND recorded_event_id IS NULL)", name="ck_personalization_content"),
+    sa.CheckConstraint(
+        "disposition IN ('READY', 'POLICY_BLOCKED')", name="ck_personalization_disposition"
+    ),
+    sa.CheckConstraint(
+        "(disposition = 'READY' AND subject IS NOT NULL AND greeting IS NOT NULL AND body IS NOT NULL AND cta IS NOT NULL AND recorded_event_id IS NOT NULL) OR (disposition = 'POLICY_BLOCKED' AND subject IS NULL AND greeting IS NULL AND body IS NULL AND cta IS NULL AND recorded_event_id IS NULL)",
+        name="ck_personalization_content",
+    ),
     sa.Index("ix_personalization_opportunity_time", "acquisition_opportunity_id", "created_at"),
 )
 
@@ -1087,16 +1108,33 @@ acquisition_contact_suppression = sa.Table(
     sa.Column("source", sa.String(32), nullable=False),
     sa.Column("reason_code", sa.String(100), nullable=False),
     sa.Column("evidence_ref", sa.String(256), nullable=False),
-    sa.Column("contact_ref", sa.String(64), sa.ForeignKey("acquisition_contact.contact_ref", ondelete="RESTRICT")),
-    sa.Column("supplier_ref", sa.String(64), sa.ForeignKey("acquisition_supplier.supplier_ref", ondelete="RESTRICT")),
+    sa.Column(
+        "contact_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_contact.contact_ref", ondelete="RESTRICT"),
+    ),
+    sa.Column(
+        "supplier_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_supplier.supplier_ref", ondelete="RESTRICT"),
+    ),
     sa.Column("received_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("effective_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("minimum_retention_until", sa.DateTime(timezone=True), nullable=False),
-    sa.Column("supersedes_suppression_id", sa.String(64), sa.ForeignKey("acquisition_contact_suppression.suppression_id", ondelete="RESTRICT")),
+    sa.Column(
+        "supersedes_suppression_id",
+        sa.String(64),
+        sa.ForeignKey("acquisition_contact_suppression.suppression_id", ondelete="RESTRICT"),
+    ),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.CheckConstraint("scope = 'KIVOU_ACQUISITION_EMAIL'", name="ck_suppression_scope"),
-    sa.CheckConstraint("source IN ('UNSUBSCRIBE', 'RECIPIENT_OBJECTION', 'MANUAL_VERIFIED', 'SYSTEM_IMPORT')", name="ck_suppression_source"),
-    sa.CheckConstraint("minimum_retention_until >= received_at", name="ck_suppression_retention_order"),
+    sa.CheckConstraint(
+        "source IN ('UNSUBSCRIBE', 'RECIPIENT_OBJECTION', 'MANUAL_VERIFIED', 'SYSTEM_IMPORT')",
+        name="ck_suppression_source",
+    ),
+    sa.CheckConstraint(
+        "minimum_retention_until >= received_at", name="ck_suppression_retention_order"
+    ),
     sa.Index("ix_contact_suppression_identity", "identity_key_version", "identity_hmac", "scope"),
 )
 
@@ -1107,11 +1145,39 @@ acquisition_compliance_assessment = sa.Table(
     "acquisition_compliance_assessment",
     METADATA,
     sa.Column("compliance_assessment_id", sa.String(64), primary_key=True),
-    sa.Column("acquisition_opportunity_id", sa.String(64), sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"), nullable=False),
-    sa.Column("personalization_artifact_id", sa.String(64), sa.ForeignKey("acquisition_personalization_artifact.personalization_artifact_id", ondelete="RESTRICT"), nullable=False),
-    sa.Column("supplier_ref", sa.String(64), sa.ForeignKey("acquisition_supplier.supplier_ref", ondelete="RESTRICT"), nullable=False),
-    sa.Column("contact_ref", sa.String(64), sa.ForeignKey("acquisition_contact.contact_ref", ondelete="RESTRICT"), nullable=False),
-    sa.Column("policy_evaluation_id", sa.String(64), sa.ForeignKey("policy_evaluation.evaluation_id", ondelete="RESTRICT"), nullable=False, unique=True),
+    sa.Column(
+        "acquisition_opportunity_id",
+        sa.String(64),
+        sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column(
+        "personalization_artifact_id",
+        sa.String(64),
+        sa.ForeignKey(
+            "acquisition_personalization_artifact.personalization_artifact_id", ondelete="RESTRICT"
+        ),
+        nullable=False,
+    ),
+    sa.Column(
+        "supplier_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_supplier.supplier_ref", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column(
+        "contact_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_contact.contact_ref", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column(
+        "policy_evaluation_id",
+        sa.String(64),
+        sa.ForeignKey("policy_evaluation.evaluation_id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    ),
     sa.Column("jurisdiction", sa.String(64), nullable=False),
     sa.Column("jurisdiction_resolver_version", sa.String(64), nullable=False),
     sa.Column("ruleset_version", sa.String(64), nullable=False),
@@ -1130,15 +1196,38 @@ acquisition_compliance_assessment = sa.Table(
     sa.Column("expected_post_policy_version", sa.Integer, nullable=False),
     sa.Column("disposition", sa.String(32), nullable=False),
     sa.Column("next_action", sa.String(100)),
-    sa.Column("recorded_event_id", sa.String(64), sa.ForeignKey("acquisition_event.event_id", ondelete="RESTRICT"), unique=True),
+    sa.Column(
+        "recorded_event_id",
+        sa.String(64),
+        sa.ForeignKey("acquisition_event.event_id", ondelete="RESTRICT"),
+        unique=True,
+    ),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
-    sa.CheckConstraint("state IN ('ALLOWED', 'BLOCKED', 'REVIEW_REQUIRED', 'UNKNOWN')", name="ck_compliance_assessment_state"),
-    sa.CheckConstraint("disposition IN ('RECORDED', 'POLICY_BLOCKED')", name="ck_compliance_assessment_disposition"),
-    sa.CheckConstraint("(disposition = 'RECORDED' AND recorded_event_id IS NOT NULL) OR (disposition = 'POLICY_BLOCKED' AND recorded_event_id IS NULL)", name="ck_compliance_assessment_recorded_event"),
-    sa.CheckConstraint("(state = 'ALLOWED' AND next_action IS NOT NULL AND next_action = 'schedule_campaign') OR (state = 'REVIEW_REQUIRED' AND next_action IS NOT NULL AND next_action = 'request_human_review') OR (state = 'UNKNOWN' AND (next_action = 'request_human_review' OR next_action IS NULL)) OR (state = 'BLOCKED' AND next_action IS NULL)", name="ck_compliance_assessment_next_action"),
-    sa.CheckConstraint("(state = 'ALLOWED' AND valid_until IS NOT NULL) OR (state != 'ALLOWED' AND valid_until IS NULL)", name="ck_compliance_assessment_validity"),
-    sa.CheckConstraint("expected_post_policy_version >= 2", name="ck_compliance_assessment_expected_version"),
-    sa.Index("ix_compliance_assessment_opportunity_time", "acquisition_opportunity_id", "created_at"),
+    sa.CheckConstraint(
+        "state IN ('ALLOWED', 'BLOCKED', 'REVIEW_REQUIRED', 'UNKNOWN')",
+        name="ck_compliance_assessment_state",
+    ),
+    sa.CheckConstraint(
+        "disposition IN ('RECORDED', 'POLICY_BLOCKED')", name="ck_compliance_assessment_disposition"
+    ),
+    sa.CheckConstraint(
+        "(disposition = 'RECORDED' AND recorded_event_id IS NOT NULL) OR (disposition = 'POLICY_BLOCKED' AND recorded_event_id IS NULL)",
+        name="ck_compliance_assessment_recorded_event",
+    ),
+    sa.CheckConstraint(
+        "(state = 'ALLOWED' AND next_action IS NOT NULL AND next_action = 'schedule_campaign') OR (state = 'REVIEW_REQUIRED' AND next_action IS NOT NULL AND next_action = 'request_human_review') OR (state = 'UNKNOWN' AND (next_action = 'request_human_review' OR next_action IS NULL)) OR (state = 'BLOCKED' AND next_action IS NULL)",
+        name="ck_compliance_assessment_next_action",
+    ),
+    sa.CheckConstraint(
+        "(state = 'ALLOWED' AND valid_until IS NOT NULL) OR (state != 'ALLOWED' AND valid_until IS NULL)",
+        name="ck_compliance_assessment_validity",
+    ),
+    sa.CheckConstraint(
+        "expected_post_policy_version >= 2", name="ck_compliance_assessment_expected_version"
+    ),
+    sa.Index(
+        "ix_compliance_assessment_opportunity_time", "acquisition_opportunity_id", "created_at"
+    ),
 )
 
 
@@ -1237,9 +1326,7 @@ acquisition_campaign_member = sa.Table(
     sa.Column(
         "acquisition_opportunity_id",
         sa.String(64),
-        sa.ForeignKey(
-            "acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"
-        ),
+        sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
         nullable=False,
     ),
     sa.Column(
@@ -1305,17 +1392,13 @@ acquisition_campaign_member = sa.Table(
     sa.Column("reason_code", sa.String(100)),
     sa.Column("incident_code", sa.String(100)),
     sa.Column("queue_event_id", sa.String(64), sa.ForeignKey("acquisition_event.event_id")),
-    sa.Column(
-        "action_clear_event_id", sa.String(64), sa.ForeignKey("acquisition_event.event_id")
-    ),
+    sa.Column("action_clear_event_id", sa.String(64), sa.ForeignKey("acquisition_event.event_id")),
     sa.Column("sent_event_id", sa.String(64), sa.ForeignKey("acquisition_event.event_id")),
     sa.Column("step_1_provider_event_ref", sa.String(64)),
     sa.Column("step_2_provider_event_ref", sa.String(64)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-    sa.UniqueConstraint(
-        "acquisition_opportunity_id", name="uq_campaign_member_opportunity"
-    ),
+    sa.UniqueConstraint("acquisition_opportunity_id", name="uq_campaign_member_opportunity"),
     sa.UniqueConstraint("provider_lead_id", name="uq_campaign_member_provider_lead"),
     sa.UniqueConstraint("policy_evaluation_id", name="uq_campaign_member_policy"),
     sa.CheckConstraint(
@@ -1418,9 +1501,7 @@ acquisition_provider_event = sa.Table(
     sa.Column(
         "acquisition_opportunity_id",
         sa.String(64),
-        sa.ForeignKey(
-            "acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"
-        ),
+        sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
     ),
     sa.Column("contact_ref", sa.String(64)),
     sa.Column("step", sa.Integer),
@@ -1468,9 +1549,7 @@ acquisition_response_evaluation = sa.Table(
     sa.Column(
         "acquisition_opportunity_id",
         sa.String(64),
-        sa.ForeignKey(
-            "acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"
-        ),
+        sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
         nullable=False,
     ),
     sa.Column(
@@ -1549,9 +1628,7 @@ acquisition_response_evaluation = sa.Table(
     sa.UniqueConstraint(
         "provider_event_ref", "classifier_version", name="uq_response_event_classifier"
     ),
-    sa.UniqueConstraint(
-        "response_ref", "classifier_version", name="uq_response_ref_classifier"
-    ),
+    sa.UniqueConstraint("response_ref", "classifier_version", name="uq_response_ref_classifier"),
     sa.CheckConstraint(
         "input_source IN ('WEBHOOK_V2', 'INSTANTLY_EMAIL_V2')",
         name="ck_response_input_source",
@@ -1650,9 +1727,7 @@ acquisition_conversion_journey = sa.Table(
     sa.Column(
         "acquisition_opportunity_id",
         sa.String(64),
-        sa.ForeignKey(
-            "acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"
-        ),
+        sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
         nullable=False,
     ),
     sa.Column("token_fingerprint", sa.String(64), nullable=False),
@@ -1709,9 +1784,7 @@ acquisition_conversion_event = sa.Table(
     sa.Column(
         "acquisition_opportunity_id",
         sa.String(64),
-        sa.ForeignKey(
-            "acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"
-        ),
+        sa.ForeignKey("acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"),
     ),
     sa.Column("activation_fingerprint", sa.String(64)),
     sa.Column("billing_subscription_ref", sa.String(64)),
@@ -1759,4 +1832,108 @@ acquisition_conversion_event = sa.Table(
     ),
     sa.Index("ix_conversion_event_journey_time", "journey_ref", "occurred_at"),
     sa.Index("ix_conversion_event_milestone_time", "milestone", "occurred_at"),
+)
+
+
+# SPEC-029: immutable country×wedge snapshots and bounded future-plan proposals.
+acquisition_learning_snapshot = sa.Table(
+    "acquisition_learning_snapshot",
+    METADATA,
+    sa.Column("snapshot_ref", sa.String(64), primary_key=True),
+    sa.Column("window_start", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("window_end", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("captured_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("learning_version", sa.String(64), nullable=False),
+    sa.Column("formula_version", sa.String(64), nullable=False),
+    sa.Column("formula_fingerprint", sa.String(64), nullable=False),
+    sa.Column("risk_policy_version", sa.String(64), nullable=False),
+    sa.Column("risk_policy_fingerprint", sa.String(64), nullable=False),
+    sa.Column("cost_policy_version", sa.String(64), nullable=False),
+    sa.Column("cost_policy_fingerprint", sa.String(64), nullable=False),
+    sa.Column("input_fingerprint", sa.String(64), nullable=False),
+    sa.Column("cell_metrics", sa.JSON, nullable=False),
+    sa.Column("allocation_envelope_version", sa.String(64), nullable=False),
+    sa.Column("allocation_envelope_fingerprint", sa.String(64), nullable=False),
+    sa.Column("current_allocation_fingerprint", sa.String(64), nullable=False),
+    sa.Column("previous_applied_proposal_ref", sa.String(64)),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint("window_start < window_end", name="ck_learning_snapshot_window"),
+    sa.CheckConstraint("window_end <= captured_at", name="ck_learning_snapshot_capture"),
+    sa.Index("ix_learning_snapshot_window", "window_end", "captured_at"),
+)
+
+
+acquisition_allocation_proposal = sa.Table(
+    "acquisition_allocation_proposal",
+    METADATA,
+    sa.Column("proposal_ref", sa.String(64), primary_key=True),
+    sa.Column(
+        "snapshot_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_learning_snapshot.snapshot_ref", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column("proposal_version", sa.String(64), nullable=False),
+    sa.Column("candidate_version", sa.String(64), nullable=False),
+    sa.Column("allocation_envelope_fingerprint", sa.String(64), nullable=False),
+    sa.Column("baseline_authority_ref", sa.String(256), nullable=False),
+    sa.Column("current_allocation_fingerprint", sa.String(64), nullable=False),
+    sa.Column("proposed_allocation_fingerprint", sa.String(64), nullable=False),
+    sa.Column("current_allocation", sa.JSON, nullable=False),
+    sa.Column("proposed_allocation", sa.JSON, nullable=False),
+    sa.Column("from_country", sa.String(2)),
+    sa.Column("from_wedge", sa.String(100)),
+    sa.Column("to_country", sa.String(2)),
+    sa.Column("to_wedge", sa.String(100)),
+    sa.Column("delta_units", sa.Integer, nullable=False),
+    sa.Column("expected_score_delta", sa.Numeric(24, 8), nullable=False),
+    sa.Column("reason_codes", sa.JSON, nullable=False),
+    sa.Column("confidence", sa.Numeric(5, 4)),
+    sa.Column("selection_source", sa.String(32)),
+    sa.Column("selection_reason_codes", sa.JSON),
+    sa.Column("state", sa.String(32), nullable=False),
+    sa.Column("policy_evaluation_id", sa.String(64)),
+    sa.Column("policy_action_fingerprint", sa.String(64)),
+    sa.Column("policy_status", sa.String(32)),
+    sa.Column("policy_counterfactual_status", sa.String(32)),
+    sa.Column("decision_reason", sa.String(100)),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("decided_at", sa.DateTime(timezone=True)),
+    sa.Column("applied_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint("delta_units IN (0, 1)", name="ck_learning_proposal_delta"),
+    sa.CheckConstraint(
+        "state IN ('PROPOSED', 'SHADOW_ONLY', 'POLICY_DENIED', 'APPLIED', 'REJECTED')",
+        name="ck_learning_proposal_state",
+    ),
+    sa.CheckConstraint(
+        "selection_source IS NULL OR selection_source IN ('KIVOU_NO_CHANGE', 'HERMES')",
+        name="ck_learning_proposal_selection",
+    ),
+    sa.CheckConstraint(
+        "(selection_source IS NULL AND confidence IS NULL AND selection_reason_codes IS NULL) OR "
+        "(selection_source IS NOT NULL AND confidence IS NOT NULL "
+        "AND selection_reason_codes IS NOT NULL)",
+        name="ck_learning_proposal_selection_fields",
+    ),
+    sa.CheckConstraint(
+        "(delta_units = 0 AND from_country IS NULL AND from_wedge IS NULL "
+        "AND to_country IS NULL AND to_wedge IS NULL) OR "
+        "(delta_units = 1 AND from_country IS NOT NULL AND from_wedge IS NOT NULL "
+        "AND to_country IS NOT NULL AND to_wedge IS NOT NULL)",
+        name="ck_learning_proposal_cells",
+    ),
+    sa.CheckConstraint(
+        "(state = 'APPLIED' AND decided_at IS NOT NULL AND applied_at IS NOT NULL) OR "
+        "(state <> 'APPLIED' AND applied_at IS NULL)",
+        name="ck_learning_proposal_application",
+    ),
+    sa.Index("ix_learning_proposal_snapshot", "snapshot_ref", "created_at"),
+    sa.Index(
+        "uq_learning_applied_successor",
+        "allocation_envelope_fingerprint",
+        "baseline_authority_ref",
+        unique=True,
+        sqlite_where=sa.text("state = 'APPLIED'"),
+        postgresql_where=sa.text("state = 'APPLIED'"),
+    ),
 )
