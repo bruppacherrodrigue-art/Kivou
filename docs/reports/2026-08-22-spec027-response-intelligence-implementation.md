@@ -5,8 +5,8 @@ Merged design SHA: `92ac09215762fdbd2435ac9b5ddb77217bc913ee`
 Final rebased implementation base: `6a391673570f6967b407a9481b8fc7dc0115155c`
 Implementation branch: `feat/spec027-response-intelligence`
 Draft implementation PR: #46
-Executable SHA: `bdba4d3232655f9674753a1849080e65b85c6437`
-Executable CI: `32583347018` — SUCCESS
+Executable SHA: `19f3b402c49783b9f0fc9a850a4f99e8af11066a`
+Executable CI: `32587533177` — SUCCESS
 Final head: the documentation-only closeout commit containing this report; the PR head is the authoritative Git object because a commit cannot embed its own SHA.
 
 ## Scope and package
@@ -87,6 +87,8 @@ Zero candidates retry only within the bounded resolver policy and then finalize 
 
 The repository default Email reader is unconfigured and non-executable. No `emails:read` credential or live provider configuration was added.
 
+Direct R1.1 review found that the earlier executable `bdba4d3232655f9674753a1849080e65b85c6437` incorrectly required `from_address_email` to equal the prospect address. The current official Email V2 contract defines `lead` as the lead address, `eaccount` as the Instantly sending account, and `from_address_email` as a sender-address field based on that account. Candidate binding now requires the exact normalized `lead`, exact `lead_id` when available, and exact bound `eaccount`; it deliberately ignores `from_address_email` for prospect selection. The official-contract fixture now uses `buyer@example.invalid` for `lead` and `sender@example.invalid` for both sender fields, and focused regressions cover both candidate filtering and exact GET readback revalidation.
+
 ## Classifier and Policy
 
 `ResponseClassifier` is provider-neutral and accepts/returns strict bounded domain objects. Output contains category, confidence, reason codes, hot/review flags, classifier version, language, human confirmation, and bounded usage/cost only. It contains no rationale, generated reply, tool call, model-selected next action, or hidden reasoning.
@@ -115,9 +117,9 @@ Covered crash boundaries include before/after Email list and GET, after content 
 
 ## Validation
 
-The SPEC-027 response test files collect 122 focused tests. Executable CI `32583347018` checked the exact rebased executable SHA and completed successfully:
+The SPEC-027 response test files collect 123 focused tests. Executable CI `32587533177` checked the exact corrected executable SHA and completed successfully:
 
-- backend: 3,879 passed, 2 skipped;
+- backend: 3,880 passed, 2 skipped;
 - skipped tests: exactly the two existing opt-in Stripe TEST smokes in `tests/test_billing_stripe_test_smoke.py`; no SPEC-027 test is skipped;
 - Ruff: PASS;
 - frontend: 262 passed;
