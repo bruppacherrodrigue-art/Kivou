@@ -9,9 +9,11 @@ Status: implementation candidate; draft PR only; not deployed
 - Frozen design path:
   `docs/reports/2026-08-22-spec028-conversion-tracking-design.md`.
 - Local design-freeze commit: `31b6c8c`.
-- Executable runtime/test SHA:
+- Original reviewed executable SHA:
   `ca3c86ed8e87cfaee8eae65c8780935338026433`.
-- Executable CI: `32594487306` — SUCCESS.
+- R1 corrected executable runtime/test SHA:
+  `ae1a25720e9e14b15c4d390182621ade4f17c8fc`.
+- R1 executable CI: `32597444353` — SUCCESS.
 - Implementation branch: `feat/spec028-conversion-tracking`.
 - Draft implementation PR: `#47`.
 
@@ -38,10 +40,24 @@ uniques/FKs, the exact two-table boundary, and absence of raw PII columns.
 
 ## First-party click and attribution
 
-`conversion-attribution-token-v1` is a canonical, versioned, keyed-HMAC token.
-It binds campaign, member, opportunity, country, wedge/version, bounded
-sector/version ref, need/version, issuance, expiry, and key version. It carries
-no prospect, account, provider, billing, or copy PII and grants no access.
+Direct review found that the original signed base64url JSON token was
+authenticated but externally readable. R1 removes that disclosure surface. The
+final public format is:
+
+```text
+kat1.<key_version>.<member_ref>.<base64url(HMAC-SHA256)>
+```
+
+The clear `member_ref` is the sole opaque Kivou lookup reference; no canonical
+JSON is embedded. One shared Kivou resolver is used by both campaign issuance
+and click verification. It reconstructs the hidden
+`conversion-attribution-token-v1` HMAC input binding campaign, member,
+opportunity, country, wedge/version, bounded sector ref, need/version,
+issuance, expiry, token version, and key version. The token carries no prospect,
+account, provider, billing, or copy PII and grants no access. Regression tests
+prove its public components cannot be decoded into the canonical payload and
+that member/key/signature tampering, expiry, or durable source drift fails
+closed while retained signing keys still verify old tokens.
 
 The campaign envelope keeps approved CTA prose unchanged and adds one explicit
 Kivou-owned HTTPS `/a/kat1...` URL line. Provider link tracking remains off.
@@ -61,10 +77,13 @@ keeps provider exposure fail-closed.
 
 At signup, the last valid cookie-selected Kivou click is bound in the account
 creation transaction. Eligibility is the earlier of token expiry and 30 days
-after the accepted click. `account_id` and source click are unique. Once bound,
-later clicks and direct traffic cannot rewrite campaign/member/opportunity or
-country/sector/need/wedge attribution. No signup-email-to-lead-email match is
-performed, including for forwarded links.
+after the accepted click. `account_id` remains unique; `source_click_event_ref`
+is intentionally non-unique and indexed. One deduplicated click may
+therefore source multiple distinct account journeys when a legitimate link is
+forwarded, without manufacturing a second click or comparing signup identity to
+the outbound lead. Once an account is bound, later clicks and direct traffic
+cannot rewrite campaign/member/opportunity or country/sector/need/wedge
+attribution.
 
 ## Closed milestone contract
 
@@ -176,9 +195,16 @@ Neither behavior is implemented here.
 
 ## Verification
 
-Executable local verification:
+R1 focused local verification:
 
-- backend: `3914 passed, 2 skipped`;
+- attribution/campaign focused tests: `68 passed`;
+- Ruff: PASS;
+- `git diff --check`: PASS.
+
+Executable GitHub CI `32597444353` on
+`ae1a25720e9e14b15c4d390182621ade4f17c8fc`:
+
+- backend: `3919 passed, 2 skipped`;
 - skipped tests: exactly the two pre-existing opt-in Stripe TEST smokes in
   `tests/test_billing_stripe_test_smoke.py`:
   `test_stripe_accepte_une_session_pour_un_customer_existant` and
@@ -186,33 +212,25 @@ Executable local verification:
 - no SPEC-028 skip;
 - Ruff: PASS;
 - frontend: `262 passed`;
-- build: PASS;
-- typecheck: PASS;
-- lint: PASS;
-- `git diff --check`: PASS.
-
-Executable GitHub CI `32594487306` on
-`ca3c86ed8e87cfaee8eae65c8780935338026433`:
-
-- backend: `3914 passed, 2 skipped`;
-- Ruff: PASS;
-- frontend tests/build/typecheck/lint: PASS;
+- build/typecheck/lint: PASS;
 - status: SUCCESS.
 
-Focused coverage includes token integrity/expiry, fixed redirect and cookie,
-duplicate/concurrent click, last pre-signup click, immutable account binding,
-activation through the real TargetICP route, verified Stripe webhook
-integration, duplicate billing delivery, MRR monthly/founding/unknown/reversion,
-M1/M2, scheduled cancellation/past-due/non-churn, terminal churn, acquisition
-outcomes, migration topology/parity, PII exclusion, architecture dependencies,
-and absence of provider/network behavior.
+Focused coverage includes opaque-token recovery resistance, complete hidden
+HMAC binding, retained-key/tamper/expiry/source-drift behavior, one-click/two-
+account forwarded-link signup, fixed redirect and cookie, duplicate/concurrent
+click, last pre-signup click, immutable account binding, activation through the
+real TargetICP route, verified Stripe webhook integration, duplicate billing
+delivery, MRR monthly/founding/unknown/reversion, M1/M2, scheduled cancellation/
+past-due/non-churn, terminal churn, acquisition outcomes, migration topology/
+parity, PII exclusion, architecture dependencies, and absence of provider/
+network behavior.
 
 ## Known limitations and deployment gates
 
 - Current Kivou billing catalogue is monthly-only; annual MRR remains unknown
   until an explicit trusted annual catalogue contract exists.
-- A shared/replayed click can credit at most one account journey and never
-  proves the new account is the original outbound contact.
+- A shared/replayed click may credit multiple account journeys but never proves
+  that any signup is the original outbound contact.
 - Retention evaluation requires separately reviewed explicit runtime scheduling.
 - The updated rendered CTA envelope still depends on the existing paused/draft
   provider transport proof before any live campaign can activate.
