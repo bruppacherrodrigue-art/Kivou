@@ -1,0 +1,138 @@
+{
+  "version": "response-intelligence-eval-v1",
+  "cases": [
+    {
+      "id": "positive-en",
+      "language": "en",
+      "subject": "Re: synthetic inquiry",
+      "content": "Yes, this is relevant. Please show me the examples.",
+      "classification": "POSITIVE",
+      "reason_code": "EXPLICIT_COMMERCIAL_INTEREST",
+      "human": true,
+      "hot": true,
+      "review": true,
+      "safety_final": false
+    },
+    {
+      "id": "positive-fr",
+      "language": "fr",
+      "subject": "Re: demande synthétique",
+      "content": "Oui, le sujet m'intéresse. Montrez-moi les exemples.",
+      "classification": "POSITIVE",
+      "reason_code": "EXPLICIT_COMMERCIAL_INTEREST",
+      "human": true,
+      "hot": true,
+      "review": true,
+      "safety_final": false
+    },
+    {
+      "id": "negative",
+      "language": "en",
+      "subject": "Re",
+      "content": "No thank you, this is not relevant to us.",
+      "classification": "NEGATIVE",
+      "reason_code": "NEGATIVE_DECLINE",
+      "human": true,
+      "hot": false,
+      "review": false,
+      "safety_final": false
+    },
+    {
+      "id": "unsubscribe",
+      "language": "en",
+      "subject": "Re",
+      "content": "Please unsubscribe me and do not contact me again.",
+      "classification": "UNSUBSCRIBE",
+      "reason_code": "EXPLICIT_STOP_REQUEST",
+      "human": true,
+      "hot": false,
+      "review": false,
+      "safety_final": true
+    },
+    {
+      "id": "complaint",
+      "language": "fr",
+      "subject": "Re",
+      "content": "C'est du spam.",
+      "classification": "COMPLAINT",
+      "reason_code": "SPAM_COMPLAINT",
+      "human": true,
+      "hot": false,
+      "review": true,
+      "safety_final": true
+    },
+    {
+      "id": "wrong-person",
+      "language": "en",
+      "subject": "Re",
+      "content": "You have reached the wrong person.",
+      "classification": "WRONG_PERSON",
+      "reason_code": "WRONG_RECIPIENT",
+      "human": true,
+      "hot": false,
+      "review": true,
+      "safety_final": false
+    },
+    {
+      "id": "referral",
+      "language": "en",
+      "subject": "Re",
+      "content": "Please speak with our procurement lead instead.",
+      "classification": "REFERRAL",
+      "reason_code": "REFERRAL_PROVIDED",
+      "human": true,
+      "hot": false,
+      "review": true,
+      "safety_final": false
+    },
+    {
+      "id": "auto-reply",
+      "language": "en",
+      "subject": "Automatic reply",
+      "content": "This inbox response was generated automatically.",
+      "classification": "AUTO_REPLY",
+      "reason_code": "AUTOMATED_RESPONSE",
+      "human": false,
+      "hot": false,
+      "review": false,
+      "safety_final": true,
+      "event_type": "auto_reply_received"
+    },
+    {
+      "id": "out-of-office",
+      "language": "en",
+      "subject": "Automatic reply",
+      "content": "I am out of office until next week.",
+      "classification": "OUT_OF_OFFICE",
+      "reason_code": "TEMPORARY_ABSENCE",
+      "human": false,
+      "hot": false,
+      "review": false,
+      "safety_final": true
+    },
+    {
+      "id": "sensitive",
+      "language": "fr",
+      "subject": "Re",
+      "content": "Ce contexte est sensible et requiert une personne.",
+      "classification": "SENSITIVE",
+      "reason_code": "SENSITIVE_CONTEXT",
+      "human": true,
+      "hot": false,
+      "review": true,
+      "safety_final": false
+    },
+    {
+      "id": "ambiguous-politeness",
+      "language": "en",
+      "subject": "Re",
+      "content": "Thanks.",
+      "classification": "AMBIGUOUS",
+      "reason_code": "INSUFFICIENT_CONTENT",
+      "human": true,
+      "hot": false,
+      "review": true,
+      "safety_final": false
+    }
+  ]
+}

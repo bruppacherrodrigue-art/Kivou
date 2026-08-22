@@ -8,6 +8,7 @@ import hmac
 import json
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Protocol
 from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
@@ -203,6 +204,20 @@ class WebhookIngestResult:
     event_fingerprint: str
     replayed: bool
     incident_code: str | None = None
+    response_ref: str | None = None
+
+
+class ResponseIngressHandler(Protocol):
+    def reserve_in_transaction(
+        self,
+        connection,
+        *,
+        provider_event_ref: str,
+        campaign,
+        member,
+        payload: InstantlyWebhookPayload,
+        received_at: dt.datetime,
+    ) -> str: ...
 
 
 class InstantlyWebhookService:
@@ -214,12 +229,19 @@ class InstantlyWebhookService:
         fingerprint_keyring: WebhookFingerprintKeyring,
         suppression_keyring: SuppressionIdentityKeyring,
         response_ingress_capability: ResponseIngressCapability,
+        response_ingress: ResponseIngressHandler | None = None,
     ) -> None:
+        if (
+            response_ingress_capability is ResponseIngressCapability.SPEC027_V1
+            and response_ingress is None
+        ):
+            raise ValueError("SPEC027_V1 requires a transactional response ingress")
         self._engine = engine
         self._workspace = provider_workspace_ref
         self._fingerprint_keyring = fingerprint_keyring
         self._suppression_keyring = suppression_keyring
         self._response_capability = response_ingress_capability
+        self._response_ingress = response_ingress
         self._suppressions = SuppressionStore(engine, suppression_keyring)
         self._campaigns = CampaignStore(engine)
 
@@ -298,6 +320,10 @@ class InstantlyWebhookService:
                 return WebhookIngestResult(event_fingerprint=fingerprint, replayed=True)
             incident: str | None = None
             acquisition_event_id: str | None = None
+            response_ref: str | None = None
+            provider_event_ref = semantic_fingerprint(
+                {"kind": "provider-event-ref-v1", "fingerprint": fingerprint}
+            )
             if payload.event_type is None:
                 incident = "UNKNOWN_PROVIDER_EVENT_TYPE"
             elif payload.event_type is ProviderEventType.EMAIL_SENT:
@@ -336,11 +362,31 @@ class InstantlyWebhookService:
                 )
                 if self._response_capability is ResponseIngressCapability.NONE:
                     incident = "UNEXPECTED_REPLY_WITHOUT_RESPONSE_INGRESS"
+                else:
+                    assert self._response_ingress is not None
+                    response_ref = self._response_ingress.reserve_in_transaction(
+                        connection,
+                        provider_event_ref=provider_event_ref,
+                        campaign=campaign,
+                        member=member,
+                        payload=payload,
+                        received_at=received_at,
+                    )
             elif payload.event_type is ProviderEventType.AUTO_REPLY_RECEIVED:
                 assert member is not None
                 self._stop_member(
                     connection, campaign, member, received_at, "AUTO_REPLY_RECEIVED"
                 )
+                if self._response_capability is ResponseIngressCapability.SPEC027_V1:
+                    assert self._response_ingress is not None
+                    response_ref = self._response_ingress.reserve_in_transaction(
+                        connection,
+                        provider_event_ref=provider_event_ref,
+                        campaign=campaign,
+                        member=member,
+                        payload=payload,
+                        received_at=received_at,
+                    )
             elif payload.event_type is ProviderEventType.EMAIL_BOUNCED:
                 assert member is not None
                 self._stop_member(
@@ -390,6 +436,7 @@ class InstantlyWebhookService:
                 event_fingerprint=fingerprint,
                 replayed=False,
                 incident_code=incident,
+                response_ref=response_ref,
             )
 
     def _fingerprints(self, payload: InstantlyWebhookPayload) -> dict[str, str]:

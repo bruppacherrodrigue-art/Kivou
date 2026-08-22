@@ -23,7 +23,7 @@ PERSONALIZATION_REVISION = "0013_personalization"
 COMPLIANCE_REVISION = "0014_compliance"
 BILLING_REVISION = "0015_scheduled_cancellation"
 CAMPAIGN_REVISION = "0016_campaign_factory"
-CURRENT_HEAD = "0017_target_icp_revision"
+CURRENT_HEAD = "0018_response_intelligence"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
