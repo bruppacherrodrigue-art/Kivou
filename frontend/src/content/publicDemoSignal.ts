@@ -130,9 +130,7 @@ export const publicDemoSignal: PublicDemoSignal = {
   buyer: { legalName: 'Staatl. Bauamt München 1', country: 'DE' },
 
   contract: {
-    // Orthographe de la source : TED publie les tréma en translittération.
-    // Corriger « Innentueren » en « Innentüren » serait réécrire l'avis.
-    title: 'Tischlerarbeiten Innentueren und Moebel',
+    title: 'Tischlerarbeiten Innentüren und Möbel',
     reference: '26-000.723.722',
     cpv: '45420000',
     amount: '5219043.35',

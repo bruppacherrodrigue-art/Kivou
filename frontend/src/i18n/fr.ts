@@ -120,76 +120,143 @@ export const fr = {
 
   publicDemo: {
     navLabel: 'Exemple de signal',
-    badge: 'Exemple de signal réel',
-    pageTitle: 'Un signal Kivou, en entier',
-    pageLead:
-      'Le même signal que vous verriez dans votre feed, avec ses faits, sa preuve, ce que Kivou en déduit et ce qu’il ne sait pas.',
-    verifiedOn: 'Faits vérifiés contre la source officielle le {date}.',
-    openSource: 'Ouvrir l’avis officiel',
-    openSourceHint: 'S’ouvre sur le site officiel TED, dans un nouvel onglet.',
+    heroEyebrow: 'Opportunité commerciale détectée',
+    heroTitle: 'H. Hüther GmbH vient de remporter un chantier de 5,22 M€ à Munich',
+    heroSubtitle:
+      'Plus de 700 portes et huisseries, 5,5 km de plinthes, 425 m² de revêtement bois, des vitrages et 13 kitchenettes figurent dans le périmètre publié.',
+    heroTiming:
+      'Le contrat est attribué, mais l’exécution ne commence que le 28 octobre 2026 : la fenêtre de prospection est ouverte.',
+    heroBadgeVerified: 'Événement vérifié',
+    heroBadgeRecent: 'Attribution récente',
+    heroBadgeTiming: 'Timing favorable',
+    heroBadgeSource: 'Source officielle disponible',
+    heroMeta: 'Avis publié le {published} · Vérifié par Kivou le {verified}',
+    heroPrimary: 'Voir mes 3 signaux',
+    heroSecondary: 'Voir la preuve officielle',
+    externalNewTab: '— s’ouvre dans un nouvel onglet',
 
-    factsTitle: 'Fait public',
-    factsLead: 'Publié par l’acheteur dans l’avis d’attribution officiel.',
+    contractSnapshot: 'Le marché en bref',
     winner: 'Entreprise gagnante',
-    buyer: 'Acheteur public',
     object: 'Objet du marché',
+    buyer: 'Acheteur public',
     amountLabel: 'Montant attribué',
     place: 'Lieu d’exécution',
-    reference: 'Référence du marché',
-    cpv: 'Code CPV',
-    identifier: 'Identifiant d’entreprise',
-    quantitiesTitle: 'Quantités publiées dans l’avis',
+    countryGermany: 'Allemagne',
+
+    overviewEyebrow: 'Pourquoi ce prospect mérite votre attention',
+    overviewTitle:
+      'Un contrat important vient d’ouvrir une fenêtre commerciale avant le démarrage des travaux.',
+    overviewBodyOne:
+      'H. Hüther GmbH vient de remporter un marché de menuiserie intérieure d’une valeur de 5,22 M€ à Munich. Les volumes publiés mentionnent plus de 700 ensembles de portes et huisseries, 5 485 mètres de plinthes, 425 m² de revêtement mural bois, 24 vitrages et 13 kitchenettes.',
+    overviewBodyTwo:
+      'L’exécution doit commencer le 28 octobre 2026. Pour les fournisseurs capables d’accompagner ce type de chantier, l’événement crée une raison concrète et documentée de prendre contact avant le démarrage opérationnel.',
+    overviewHighlight: 'Contrat signé. Exécution à venir. Moment pertinent pour se positionner.',
+
+    volumesTitle: 'Ce que l’entreprise devra exécuter',
+    volumesLead: 'Volumes publiés dans l’avis d’attribution officiel.',
+    quantityWoodDoors: 'Huisseries et portes bois',
+    quantitySteelDoors: 'Huisseries acier et portes bois',
+    quantitySkirting: 'Plinthes',
+    quantityWallCladding: 'Revêtement mural bois',
+    quantityGlazing: 'Éléments vitrés',
+    quantityKitchenettes: 'Kitchenettes',
     quantitiesNote:
-      'Ces quantités figurent dans le descriptif de l’avis d’attribution. Ce n’est pas un extrait de cahier des charges.',
+      'Ces quantités figurent dans le descriptif de l’avis d’attribution. Elles ne sont pas présentées comme un extrait de cahier des charges.',
 
-    documentaryTitle: 'Exigence documentaire',
-    documentaryNone:
-      'Aucune exigence d’exécution validée n’est disponible dans les données Kivou pour cette attribution.',
-    documentaryModeLabel: 'Mode d’analyse',
-    documentaryMode: 'Analyse fondée sur les métadonnées de l’avis',
-    documentaryConfidenceLabel: 'Confiance',
-    documentaryConfidence: 'Réduite',
-    documentaryConfidenceReason:
-      'Objet, code CPV, montant, localisation et dates proviennent de l’avis d’attribution officiel. Aucun cahier des charges validé n’alimente ce signal.',
+    opportunitiesTitle: 'Opportunités commerciales associées',
+    opportunitiesLead: 'Les volumes publiés font apparaître plusieurs angles de prospection possibles.',
+    signalStrong: 'Signal fort',
+    signalTargeted: 'Signal ciblé',
+    opportunityDoorsTitle: 'Portes, huisseries et quincaillerie',
+    opportunityDoorsBody:
+      'Plus de 700 ensembles de portes et huisseries sont mentionnés dans le périmètre publié. Ce volume peut rendre pertinente une prise de contact par des fabricants, distributeurs ou fournisseurs spécialisés.',
+    opportunityWoodTitle: 'Plinthes et produits bois',
+    opportunityWoodBody:
+      'L’avis mentionne 5 485 mètres de plinthes et 425 m² de revêtement mural bois, soit un besoin opérationnel clairement associé à l’exécution du chantier.',
+    opportunityGlazingTitle: 'Vitrage',
+    opportunityGlazingBody:
+      'Vingt-quatre éléments vitrés figurent dans les quantités publiées. Cette information peut intéresser les fournisseurs compatibles avec ce type de réalisation.',
+    opportunityKitchenTitle: 'Kitchenettes et agencement',
+    opportunityKitchenBody:
+      'Treize kitchenettes sont prévues dans le périmètre annoncé, ce qui crée un angle de prospection identifiable pour les acteurs de l’agencement.',
+    opportunitiesNote:
+      'Ces opportunités sont déduites des volumes publiés. Elles indiquent des angles commerciaux plausibles, pas des achats futurs confirmés.',
 
-    analysisTitle: 'Analyse Kivou',
-    analysisLead: 'Une hypothèse tirée du fait publié, pas un achat annoncé.',
-    needLabel: 'Besoin plausible',
-    reasoningLabel: 'Pourquoi Kivou le pense',
-    needTimingLabel: 'Horizon',
-    needTimingNearTerm: 'À court terme',
-    externalisabilityLabel: 'Externalisable',
-    externalisabilityPlausible: 'Plausiblement',
+    matchingEyebrow: 'Exemple de matching Kivou',
+    matchingTitle: 'Pourquoi ce signal pourrait vous concerner',
+    matchingIntro:
+      'Illustration pour une entreprise qui fournit des portes, de la quincaillerie ou des composants d’agencement et qui livre en Bavière.',
+    matchingReasonOne: 'votre offre correspond aux catégories publiées',
+    matchingReasonTwo: 'les volumes sont suffisamment importants pour justifier une prospection',
+    matchingReasonThree: 'la zone d’exécution se trouve dans votre territoire commercial',
+    matchingReasonFour: 'l’entreprise gagnante correspond à votre cible',
+    matchingReasonFive: 'l’exécution n’a pas encore commencé',
+    matchingReasonSix: 'la source officielle permet de contextualiser votre approche',
+    matchingConclusion:
+      'Kivou ne vous montre pas simplement une adjudication. Kivou explique pourquoi cette entreprise mérite votre attention à cet instant précis.',
+    matchingNote:
+      'Votre propre feed est personnalisé selon ce que vous vendez, les entreprises que vous ciblez et les régions dans lesquelles vous intervenez.',
 
-    timingTitle: 'Timing',
-    timingLead: 'Ce que les dates publiées autorisent à dire.',
-    awardDate: 'Date d’attribution',
-    signatureDate: 'Date de signature',
-    startDate: 'Début d’exécution',
-    endDate: 'Fin prévue',
-    publishedAt: 'Publication de l’avis',
-    timingNote:
-      'La date d’attribution est publiée : ce marché a été attribué à une date connue, et non simplement publié récemment.',
+    timingTitle: 'Le contrat est signé, mais l’exécution n’a pas encore commencé',
+    timingWhyTitle: 'Pourquoi le timing est favorable',
+    timingBody:
+      'L’attribution est récente et la phase d’exécution n’a pas encore commencé. Pour un fournisseur compatible, cette période constitue une fenêtre pertinente pour présenter ses capacités, ses produits et ses délais.',
+    timelineAwarded: 'Marché attribué',
+    timelinePublished: 'Avis officiel publié',
+    timelineVerified: 'Signal vérifié par Kivou',
+    timelineNow: 'Maintenant',
+    timelineContact: 'Prise de contact recommandée',
+    timelineStart: 'Début prévu de l’exécution',
+    timelineEnd: 'Fin prévue',
 
-    fitTitle: 'Pourquoi ce signal peut concerner un fournisseur',
-    fitLead: 'Illustration. Votre profil de ciblage détermine ce que vous recevez réellement.',
-    fitBody:
-      'Un négoce de matériaux ou un fabricant de composants peut lire ici un chantier daté, localisé et chiffré, dont l’exécution consommera des fournitures. C’est une raison de contacter, pas une commande.',
+    actionEyebrow: 'Prochaine étape',
+    actionTitle: 'Transformez le signal en prise de contact',
+    actionBody:
+      'Pour un fournisseur compatible, l’action recommandée consiste à identifier le responsable achats, approvisionnement, travaux ou opérations de H. Hüther GmbH et à engager la conversation avant le démarrage du chantier.',
+    actionExampleLabel: 'Exemple d’angle commercial',
+    actionExample:
+      '« Nous avons identifié le marché de menuiserie intérieure récemment attribué à H. Hüther GmbH à Munich. Au regard des volumes publiés en portes, huisseries et éléments d’agencement, nous souhaitions vous présenter nos capacités de fourniture et nos délais pour ce type de chantier. »',
+    actionPrimary: 'Recevoir des signaux adaptés à mon activité',
+    actionSecondary: 'Créer mon profil de ciblage',
 
-    evidenceTitle: 'Preuve',
-    evidenceLead: 'Champs vérifiés sélectionnés dans l’avis officiel.',
-    evidenceScope:
-      'Trois champs portent un renvoi de provenance individuel. Les autres faits de cette page proviennent du même avis officiel, consultable ci-dessous, sans renvoi champ par champ.',
-    evidenceAmount: 'Montant',
+    evidenceTitle: 'Les faits essentiels sont vérifiables',
+    evidenceBody:
+      'Le gagnant, l’objet du marché, le montant, le lieu, les dates et les quantités présentées sur cette page proviennent de l’avis d’attribution officiel.',
+    evidenceAmount: 'Montant exact',
     evidenceCpv: 'Code CPV',
     evidenceLot: 'Référence du lot',
-    evidenceTechnical: 'Afficher les chemins techniques',
+    evidenceReference: 'Référence du marché',
+    evidenceIdentifier: 'Identifiant d’entreprise',
+    evidenceSignature: 'Date de signature',
+    evidenceTechnical: 'Voir les détails techniques de provenance',
     evidencePathXml: 'Chemin XML',
     evidencePathField: 'Champ d’acquisition',
+    openSource: 'Consulter l’avis officiel',
+    openSourceHint: 'S’ouvre sur le site officiel TED, dans un nouvel onglet.',
 
-    ctaTitle: 'Voir vos propres signaux',
-    ctaBody: 'Décrivez ce que vous vendez et où vous livrez. Kivou vous montre trois signaux complets.',
-    ctaButton: 'Voir mes 3 signaux',
+    coverageTitle: 'Couverture de cette analyse',
+    coverageBody:
+      'Ce signal s’appuie sur les métadonnées et le descriptif publiés dans l’avis d’attribution officiel. Aucun cahier des charges complet validé n’a été utilisé pour produire cet exemple.',
+    coverageDetails: 'Voir les niveaux de vérification et d’inférence',
+    coverageEvent: 'Événement public',
+    coverageWinner: 'Entreprise gagnante',
+    coverageAmountDates: 'Montant et dates',
+    coverageQuantities: 'Quantités publiées',
+    coverageRelevance: 'Pertinence commerciale',
+    coverageNeeds: 'Besoins commerciaux',
+    coverageDocumentary: 'Couverture documentaire',
+    statusVerified: 'Vérifié',
+    statusVerifiedNotice: 'Vérifiées dans l’avis',
+    statusStrongCompatible: 'Forte pour les catégories compatibles',
+    statusInferredVolumes: 'Inférés à partir des volumes publiés',
+    statusPartial: 'Partielle',
+
+    finalCtaTitle: 'Découvrez les entreprises que vous devriez contacter maintenant',
+    finalCtaBody:
+      'Décrivez ce que vous vendez et où vous intervenez. Kivou sélectionne les entreprises récemment gagnantes correspondant à votre activité et vous montre immédiatement trois signaux complets.',
+    finalCtaNoCard: 'Aucune carte bancaire nécessaire.',
+    finalCtaPrimary: 'Voir mes 3 premiers signaux',
+    finalCtaSecondary: 'Comment Kivou sélectionne mes prospects',
 
     previewEyebrow: 'Exemple de signal réel',
     previewMode: 'Avis officiel vérifié',

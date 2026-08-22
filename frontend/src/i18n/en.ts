@@ -115,76 +115,142 @@ export const en: Dictionary = {
 
   publicDemo: {
     navLabel: 'Signal example',
-    badge: 'Real signal example',
-    pageTitle: 'One Kivou signal, in full',
-    pageLead:
-      'The same signal you would see in your feed, with its facts, its proof, what Kivou infers from it and what it does not know.',
-    verifiedOn: 'Facts checked against the official source on {date}.',
-    openSource: 'Open the official notice',
-    openSourceHint: 'Opens the official TED website in a new tab.',
+    heroEyebrow: 'Commercial opportunity detected',
+    heroTitle: 'H. Hüther GmbH has just won a €5.22m contract in Munich',
+    heroSubtitle:
+      'More than 700 doors and frames, 5.5 km of skirting, 425 m² of timber wall cladding, glazing and 13 kitchenettes are included in the published scope.',
+    heroTiming:
+      'The contract has been awarded, but performance does not start until 28 October 2026: the sales window is open.',
+    heroBadgeVerified: 'Verified public event',
+    heroBadgeRecent: 'Recent award',
+    heroBadgeTiming: 'Relevant time to engage',
+    heroBadgeSource: 'Official source available',
+    heroMeta: 'Notice published on {published} · Verified by Kivou on {verified}',
+    heroPrimary: 'See my 3 signals',
+    heroSecondary: 'View the official evidence',
+    externalNewTab: '— opens in a new tab',
 
-    factsTitle: 'Public fact',
-    factsLead: 'Published by the buyer in the official award notice.',
+    contractSnapshot: 'Contract at a glance',
     winner: 'Winning company',
-    buyer: 'Public buyer',
     object: 'Contract object',
+    buyer: 'Public buyer',
     amountLabel: 'Awarded amount',
     place: 'Place of performance',
-    reference: 'Contract reference',
-    cpv: 'CPV code',
-    identifier: 'Company identifier',
-    quantitiesTitle: 'Quantities published in the notice',
+    countryGermany: 'Germany',
+
+    overviewEyebrow: 'Why this prospect deserves your attention',
+    overviewTitle: 'A major contract has opened a sales window before work begins.',
+    overviewBodyOne:
+      'H. Hüther GmbH has just won a €5.22m interior joinery contract in Munich. The published volumes include more than 700 door-and-frame sets, 5,485 metres of skirting, 425 m² of timber wall cladding, 24 glazed elements and 13 kitchenettes.',
+    overviewBodyTwo:
+      'Performance is due to start on 28 October 2026. For suppliers equipped to support this type of project, the event creates a concrete, documented reason to engage before operational work begins.',
+    overviewHighlight: 'Contract signed. Performance ahead. A relevant time to engage.',
+
+    volumesTitle: 'What the company has to deliver',
+    volumesLead: 'Volumes published in the official contract award notice.',
+    quantityWoodDoors: 'Timber frames and doors',
+    quantitySteelDoors: 'Steel frames and timber doors',
+    quantitySkirting: 'Skirting',
+    quantityWallCladding: 'Timber wall cladding',
+    quantityGlazing: 'Glazed elements',
+    quantityKitchenettes: 'Kitchenettes',
     quantitiesNote:
-      'These quantities appear in the award notice description. This is not an excerpt from a tender document.',
+      'These quantities appear in the contract award notice description. They are not presented as an excerpt from tender specifications.',
 
-    documentaryTitle: 'Documentary requirement',
-    documentaryNone:
-      'No validated execution requirement is available in Kivou data for this award.',
-    documentaryModeLabel: 'Analysis mode',
-    documentaryMode: 'Analysis based on notice metadata',
-    documentaryConfidenceLabel: 'Confidence',
-    documentaryConfidence: 'Reduced',
-    documentaryConfidenceReason:
-      'Object, CPV code, amount, location and dates come from the official award notice. No validated tender document feeds this signal.',
+    opportunitiesTitle: 'Related commercial opportunities',
+    opportunitiesLead: 'The published volumes reveal several potential supplier opportunities.',
+    signalStrong: 'Strong signal',
+    signalTargeted: 'Targeted signal',
+    opportunityDoorsTitle: 'Doors, frames and ironmongery',
+    opportunityDoorsBody:
+      'More than 700 door-and-frame sets appear in the published scope. That volume can make engagement relevant for specialist manufacturers, distributors and suppliers.',
+    opportunityWoodTitle: 'Skirting and timber products',
+    opportunityWoodBody:
+      'The notice lists 5,485 metres of skirting and 425 m² of timber wall cladding, an operational requirement clearly associated with delivering the project.',
+    opportunityGlazingTitle: 'Glazing',
+    opportunityGlazingBody:
+      'Twenty-four glazed elements appear in the published quantities. This can be relevant to suppliers equipped for this type of installation.',
+    opportunityKitchenTitle: 'Kitchenettes and fit-out',
+    opportunityKitchenBody:
+      'Thirteen kitchenettes are included in the announced scope, creating an identifiable sales angle for fit-out specialists.',
+    opportunitiesNote:
+      'These opportunities are inferred from the published volumes. They indicate plausible sales angles, not confirmed future purchases.',
 
-    analysisTitle: 'Kivou analysis',
-    analysisLead: 'A hypothesis drawn from the published fact, not an announced purchase.',
-    needLabel: 'Plausible need',
-    reasoningLabel: 'Why Kivou thinks so',
-    needTimingLabel: 'Horizon',
-    needTimingNearTerm: 'Near term',
-    externalisabilityLabel: 'Outsourceable',
-    externalisabilityPlausible: 'Plausibly',
+    matchingEyebrow: 'Example Kivou matching',
+    matchingTitle: 'Why this signal could be relevant to you',
+    matchingIntro:
+      'Illustration for a company supplying doors, ironmongery or fit-out components and delivering in Bavaria.',
+    matchingReasonOne: 'your offer matches the published categories',
+    matchingReasonTwo: 'the volumes are large enough to justify prospecting',
+    matchingReasonThree: 'the place of performance falls within your sales territory',
+    matchingReasonFour: 'the winning company matches your target profile',
+    matchingReasonFive: 'performance has not started yet',
+    matchingReasonSix: 'the official source helps you put your approach in context',
+    matchingConclusion:
+      'Kivou does not simply show you a contract award. Kivou explains why this company deserves your attention at this precise moment.',
+    matchingNote:
+      'Your own feed is personalised around what you sell, the companies you target and the regions you serve.',
 
-    timingTitle: 'Timing',
-    timingLead: 'What the published dates allow us to say.',
-    awardDate: 'Award date',
-    signatureDate: 'Signature date',
-    startDate: 'Performance starts',
-    endDate: 'Expected end',
-    publishedAt: 'Notice published',
-    timingNote:
-      'The award date is published: this contract was awarded on a known date, not merely published recently.',
+    timingTitle: 'The contract is signed, but performance has not started yet',
+    timingWhyTitle: 'Why the timing is favourable',
+    timingBody:
+      'The award is recent and the performance phase has not yet begun. For a compatible supplier, this is a relevant time to present capabilities, products and lead times.',
+    timelineAwarded: 'Contract awarded',
+    timelinePublished: 'Official notice published',
+    timelineVerified: 'Signal verified by Kivou',
+    timelineNow: 'Now',
+    timelineContact: 'Recommended time to engage',
+    timelineStart: 'Expected performance start',
+    timelineEnd: 'Expected end',
 
-    fitTitle: 'Why this signal can concern a supplier',
-    fitLead: 'Illustration. Your targeting profile determines what you actually receive.',
-    fitBody:
-      'A materials merchant or a component manufacturer can read here a dated, located and quantified project whose execution will consume supplies. That is a reason to reach out, not an order.',
+    actionEyebrow: 'Next step',
+    actionTitle: 'Turn the signal into a conversation',
+    actionBody:
+      'For a compatible supplier, the recommended action is to identify the person responsible for procurement, supply, works or operations at H. Hüther GmbH and start the conversation before the project begins.',
+    actionExampleLabel: 'Example outreach angle',
+    actionExample:
+      '“We identified the interior joinery contract recently awarded to H. Hüther GmbH in Munich. Given the published volumes for doors, frames and fit-out elements, we wanted to introduce our supply capabilities and lead times for this type of project.”',
+    actionPrimary: 'Receive signals matched to my business',
+    actionSecondary: 'Create my targeting profile',
 
-    evidenceTitle: 'Proof',
-    evidenceLead: 'Selected fields verified in the official notice.',
-    evidenceScope:
-      'Three fields carry an individual provenance reference. The other facts on this page come from the same official notice, linked below, without a field-by-field reference.',
-    evidenceAmount: 'Amount',
+    evidenceTitle: 'The essential facts are verifiable',
+    evidenceBody:
+      'The winner, contract object, amount, location, dates and quantities shown on this page come from the official contract award notice.',
+    evidenceAmount: 'Exact amount',
     evidenceCpv: 'CPV code',
     evidenceLot: 'Lot reference',
-    evidenceTechnical: 'Show technical paths',
+    evidenceReference: 'Contract reference',
+    evidenceIdentifier: 'Company identifier',
+    evidenceSignature: 'Signature date',
+    evidenceTechnical: 'View technical provenance details',
     evidencePathXml: 'XML path',
     evidencePathField: 'Acquisition field',
+    openSource: 'View the official notice',
+    openSourceHint: 'Opens the official TED website in a new tab.',
 
-    ctaTitle: 'See your own signals',
-    ctaBody: 'Describe what you sell and where you deliver. Kivou shows you three complete signals.',
-    ctaButton: 'See my 3 signals',
+    coverageTitle: 'Coverage of this analysis',
+    coverageBody:
+      'This signal is based on the metadata and description published in the official contract award notice. No complete, validated tender specifications were used to produce this example.',
+    coverageDetails: 'View verification and inference levels',
+    coverageEvent: 'Public event',
+    coverageWinner: 'Winning company',
+    coverageAmountDates: 'Amount and dates',
+    coverageQuantities: 'Published quantities',
+    coverageRelevance: 'Commercial relevance',
+    coverageNeeds: 'Commercial needs',
+    coverageDocumentary: 'Document coverage',
+    statusVerified: 'Verified',
+    statusVerifiedNotice: 'Verified in the notice',
+    statusStrongCompatible: 'Strong for compatible categories',
+    statusInferredVolumes: 'Inferred from published volumes',
+    statusPartial: 'Partial',
+
+    finalCtaTitle: 'Discover the companies you should contact now',
+    finalCtaBody:
+      'Describe what you sell and where you operate. Kivou selects recently awarded companies that match your business and immediately shows you three complete signals.',
+    finalCtaNoCard: 'No payment card required.',
+    finalCtaPrimary: 'See my first 3 signals',
+    finalCtaSecondary: 'How Kivou selects my prospects',
 
     previewEyebrow: 'Real signal example',
     previewMode: 'Official notice verified',
