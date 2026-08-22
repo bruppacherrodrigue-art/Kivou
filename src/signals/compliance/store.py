@@ -80,6 +80,30 @@ class SuppressionStore:
         effective_at: dt.datetime | None = None,
         key_version: str | None = None,
     ):
+        with self._engine.begin() as connection:
+            return self.record_for_contact_in_transaction(
+                connection,
+                contact_ref,
+                source=source,
+                reason_code=reason_code,
+                evidence_ref=evidence_ref,
+                received_at=received_at,
+                effective_at=effective_at,
+                key_version=key_version,
+            )
+
+    def record_for_contact_in_transaction(
+        self,
+        connection: Connection,
+        contact_ref: str,
+        *,
+        source: SuppressionSource,
+        reason_code: SuppressionReasonCode,
+        evidence_ref: str,
+        received_at: dt.datetime,
+        effective_at: dt.datetime | None = None,
+        key_version: str | None = None,
+    ):
         if received_at.tzinfo is None or received_at.utcoffset() is None:
             raise ValueError("received_at must be timezone-aware")
         if effective_at is not None and (
@@ -100,29 +124,28 @@ class SuppressionStore:
             raise ValueError("suppression evidence_ref must be opaque")
         version = key_version or self._keyring.current_key_version
         self._keyring.require_versions_covered((version,))
-        with self._engine.begin() as connection:
-            contact = ContactDiscoveryStore.get_contact_in_transaction(
-                connection, contact_ref, for_update=True
-            )
-            identities = self._keyring.identities_for_email(contact.business_email)
-            self._lock_identities_in_transaction(connection, identities)
-            values: dict[str, object] = {
-                "identity_hmac": identities[version],
-                "identity_key_version": version,
-                "scope": SUPPRESSION_SCOPE,
-                "source": source.value,
-                "reason_code": reason_code.value,
-                "evidence_ref": evidence_ref,
-                "contact_ref": contact.contact_ref,
-                "supplier_ref": contact.supplier_ref,
-                "received_at": received_at,
-                "effective_at": effective_at or received_at,
-                "minimum_retention_until": minimum_retention_until(received_at),
-                "supersedes_suppression_id": None,
-                "created_at": received_at,
-            }
-            values["suppression_id"] = suppression_id(values)
-            return self._append_in_transaction(connection, values)
+        contact = ContactDiscoveryStore.get_contact_in_transaction(
+            connection, contact_ref, for_update=True
+        )
+        identities = self._keyring.identities_for_email(contact.business_email)
+        self._lock_identities_in_transaction(connection, identities)
+        values: dict[str, object] = {
+            "identity_hmac": identities[version],
+            "identity_key_version": version,
+            "scope": SUPPRESSION_SCOPE,
+            "source": source.value,
+            "reason_code": reason_code.value,
+            "evidence_ref": evidence_ref,
+            "contact_ref": contact.contact_ref,
+            "supplier_ref": contact.supplier_ref,
+            "received_at": received_at,
+            "effective_at": effective_at or received_at,
+            "minimum_retention_until": minimum_retention_until(received_at),
+            "supersedes_suppression_id": None,
+            "created_at": received_at,
+        }
+        values["suppression_id"] = suppression_id(values)
+        return self._append_in_transaction(connection, values)
 
     def match_contact(self, contact_ref: str, *, at: dt.datetime | None = None) -> SuppressionMatch:
         with self._engine.connect() as connection:

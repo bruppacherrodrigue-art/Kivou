@@ -11,7 +11,9 @@ from signals.persistence.schema import (
 )
 
 PREVIOUS = "0013_personalization"
-HEAD = "0014_compliance"
+#: La migration que CE fichier décrit, distincte de la tête de chaîne courante.
+COMPLIANCE = "0014_compliance"
+HEAD = "0016_campaign_factory"
 
 
 def test_compliance_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
@@ -20,7 +22,7 @@ def test_compliance_migration_is_linear_and_adds_exactly_two_tables(tmp_path) ->
     command.upgrade(config, PREVIOUS)
     before = set(sa.inspect(engine).get_table_names())
 
-    command.upgrade(config, HEAD)
+    command.upgrade(config, COMPLIANCE)
 
     assert set(sa.inspect(engine).get_table_names()) - before == {
         "acquisition_contact_suppression",
@@ -28,7 +30,7 @@ def test_compliance_migration_is_linear_and_adds_exactly_two_tables(tmp_path) ->
     }
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [HEAD]
-    assert scripts.get_revision(HEAD).down_revision == PREVIOUS
+    assert scripts.get_revision(COMPLIANCE).down_revision == PREVIOUS
 
 
 def test_compliance_schema_is_pii_and_provider_minimized() -> None:

@@ -48,6 +48,13 @@ ERROR_CODES: tuple[str, ...] = (
     "invalid_feedback",
     "signal_not_accessible",
     "invalid_notification_email",
+    # SPEC-026 — provider-specific, authenticated transport ingress.
+    "instantly_webhook_unavailable",
+    "instantly_json_required",
+    "invalid_instantly_webhook_secret",
+    "instantly_webhook_too_large",
+    "invalid_instantly_json",
+    "invalid_instantly_event",
 )
 
 

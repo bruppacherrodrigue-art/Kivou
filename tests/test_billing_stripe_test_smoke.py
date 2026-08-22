@@ -23,7 +23,10 @@ Comment l'exécuter
         tests/test_billing_stripe_test_smoke.py -v
 
 Il crée un Customer de test et une session non payée, puis fait expirer la
-session. Aucun paiement, aucun abonnement, aucun débit.
+session. Le second test va plus loin : il crée un abonnement TEST réel, y
+programme une résiliation comme le fait le portail Kivou, et vérifie que
+`subscription_state()` la voit. Tout est supprimé ensuite. Aucun débit réel,
+aucun LIVE.
 """
 
 from __future__ import annotations
@@ -88,3 +91,74 @@ def test_stripe_accepte_une_session_pour_un_customer_existant(gateway: StripeApi
 
     # Ne rien laisser d'ouvert derrière un test.
     gateway._client.checkout.sessions.expire(session.session_id)
+
+
+def test_stripe_expose_une_resiliation_programmee_que_kivou_sait_lire(
+    gateway: StripeApiGateway,
+) -> None:
+    """P0-03G — le contrat qu'aucun double ne peut vérifier.
+
+    Sur staging, une résiliation demandée au portail Kivou est restée invisible
+    pendant six heures : Stripe l'exprimait par `cancel_at` en laissant
+    `cancel_at_period_end` à `false`, et la passerelle ne lisait que le booléen.
+
+    Ce test crée un vrai abonnement TEST, y programme une résiliation en fin de
+    période — le mode exact du portail Kivou — puis RELIT l'objet courant par le
+    chemin de production et vérifie ce que Kivou en conclut.
+    """
+    stamp = dt.datetime.now(tz=dt.UTC).strftime("%Y%m%dT%H%M%S")
+    client = gateway._client
+    customer = gateway.create_customer(
+        email=f"smoke.cancel.{stamp}@kivou-qa.ch",
+        account_id=f"acc_smoke_cancel_{stamp}",
+        display_name="Kivou QA — smoke P0-03G",
+        idempotency_key=f"kivou-smoke-cancel-customer:{stamp}",
+    )
+    price = gateway.price_for_lookup_key("kivou_pro_monthly_chf")
+    assert price is not None, "le catalogue TEST doit porter kivou_pro_monthly_chf"
+
+    subscription_id = None
+    try:
+        # Une carte de test Stripe, attachée pour que l'abonnement devienne actif.
+        # `attach` rend un NOUVEAU moyen de paiement : c'est son identifiant qu'il
+        # faut désigner comme défaut, pas le jeton de test partagé.
+        attached = client.payment_methods.attach(
+            "pm_card_visa", params={"customer": customer.customer_id}
+        )
+        client.customers.update(
+            customer.customer_id,
+            params={"invoice_settings": {"default_payment_method": attached.id}},
+        )
+        created = client.subscriptions.create(
+            params={
+                "customer": customer.customer_id,
+                "items": [{"price": price.price_id}],
+            }
+        )
+        subscription_id = created.id
+
+        avant = gateway.fetch_subscription(subscription_id)
+        assert avant is not None
+        assert avant.scheduled_cancellation_at is None, "aucune résiliation n'a été demandée"
+
+        # Ce que fait le portail Kivou : `subscription_cancel.mode = at_period_end`.
+        client.subscriptions.update(subscription_id, params={"cancel_at_period_end": True})
+
+        # RELIRE l'objet courant, par le chemin de production.
+        apres = gateway.fetch_subscription(subscription_id)
+        assert apres is not None
+
+        # Quelle que soit la forme choisie par Stripe — `cancel_at` ou le booléen —
+        # Kivou doit en tirer une échéance, et la bonne.
+        assert apres.scheduled_cancellation_at is not None, (
+            "Stripe annonce une résiliation programmée que Kivou ne voit pas"
+        )
+        assert apres.current_period_end is not None
+        assert apres.scheduled_cancellation_at == apres.current_period_end
+        assert apres.cancel_at_period_end is True
+        assert apres.status == "active", "l'accès reste actif jusqu'à l'échéance"
+    finally:
+        # Ne rien laisser derrière : abonnement résilié immédiatement, client supprimé.
+        if subscription_id is not None:
+            client.subscriptions.cancel(subscription_id)
+        client.customers.delete(customer.customer_id)

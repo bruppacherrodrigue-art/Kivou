@@ -385,6 +385,7 @@ export const DISCOVERY_STATUS: BillingStatus = {
   subscription_status: null,
   cancel_at_period_end: false,
   current_period_end: null,
+  scheduled_cancellation_at: null,
   payment_issue: null,
   billing_action: 'choose_plan',
   entitlements: entitlements({ icps: 1, cadence: 'none', history: 0, granted: 3 }),
@@ -400,6 +401,7 @@ export const PRO_STATUS: BillingStatus = {
   subscription_status: 'active',
   cancel_at_period_end: false,
   current_period_end: '2026-09-18T00:00:00+00:00',
+  scheduled_cancellation_at: null,
   payment_issue: null,
   billing_action: 'manage_subscription',
   entitlements: entitlements({ icps: 3, cadence: 'daily', history: 365, territory: 'multiple' }),
@@ -443,10 +445,25 @@ export const TERMINAL_STATUS: BillingStatus = {
   discovery: { granted_signal_count: 0, remaining_slots: 3, limit: 3 },
 }
 
-/** Abonnement payant qui s'arrêtera en fin de période — l'accès court encore. */
+/** Abonnement payant qui s'arrêtera en fin de période — l'accès court encore.
+ *
+ * P0-03G — l'échéance vient de `scheduled_cancellation_at`, jamais d'un calcul
+ * local ni de `current_period_end`. Ici les deux coïncident, ce qui est le cas
+ * courant ; `PRO_CANCELLING_OTHER_DATE_STATUS` décrit celui où ils diffèrent. */
 export const PRO_CANCELLING_STATUS: BillingStatus = {
   ...PRO_STATUS,
   cancel_at_period_end: true,
+  scheduled_cancellation_at: '2026-09-18T00:00:00+00:00',
+}
+
+/** Résiliation planifiée à une AUTRE date que la fin de période.
+ *
+ * Stripe le permet. Parler de « fin de période » dans ce cas donnerait au
+ * client une échéance fausse. */
+export const PRO_CANCELLING_OTHER_DATE_STATUS: BillingStatus = {
+  ...PRO_STATUS,
+  cancel_at_period_end: false,
+  scheduled_cancellation_at: '2026-11-30T00:00:00+00:00',
 }
 
 export const ICP: TargetIcp = {

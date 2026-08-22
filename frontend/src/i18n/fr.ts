@@ -804,7 +804,10 @@ export const fr = {
     planStatus: 'Statut de l’abonnement',
     renewsOn: 'Prochain renouvellement le {date}',
     endsOn: 'Accès jusqu’au {date}',
-    cancelAtPeriodEnd: 'Résiliation programmée à la fin de la période en cours.',
+    cancellationTitle: 'Résiliation programmée',
+    cancellationAtPeriodEnd:
+      'Votre abonnement prendra fin à la fin de la période en cours, le {date}.',
+    cancellationOnDate: 'Votre abonnement prendra fin le {date}.',
     paymentIssue: 'Un incident de paiement est en cours sur cet abonnement.',
     managePortal: 'Gérer ma facturation',
     manageLead:

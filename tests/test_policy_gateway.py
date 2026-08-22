@@ -23,7 +23,7 @@ from signals.policy.contracts import (
     Scope,
 )
 from signals.policy.evaluator import evaluate_policy
-from signals.policy.registry import COMMAND_POLICIES
+from signals.policy.registry import COMMAND_POLICIES, RiskClass, TargetScope
 from signals.supervisor.registry import ALLOWED_COMMANDS, ALLOWED_NEXT_ACTIONS
 
 NOW = dt.datetime(2026, 8, 20, 8, tzinfo=dt.UTC)
@@ -84,11 +84,17 @@ def request(command: str = "evaluate_opportunity", **overrides: object) -> Polic
                 "PUBLIC_OPPORTUNITY",
                 "PUBLIC_EVIDENCE",
                 "ACQUISITION_PROSPECT_PREBUILD",
+                "ACQUISITION_DECISION",
                 "DECISION_INPUT",
                 "FIT_DECISION",
                 "RECENT_SIGNAL",
                 "VERIFIED_CONTACT",
                 "SUPPLIER",
+                "PERSONALIZATION_ARTIFACT",
+                "COMPLIANCE_ASSESSMENT",
+                "CAMPAIGN_PLAN",
+                "MAILBOX_READINESS",
+                "SEND_WINDOW",
             ),
             assessment_version="evidence-v1",
             observed_at=NOW,
@@ -157,6 +163,32 @@ def test_assess_compliance_is_a_real_preparatory_command_without_circular_gate()
     assert policy.requires_control_plane is False
     assert policy.requires_compliance is False
     assert ALLOWED_NEXT_ACTIONS == ALLOWED_COMMANDS
+
+
+def test_schedule_campaign_policy_is_exact_spec026_commercial_gate() -> None:
+    policy = COMMAND_POLICIES["schedule_campaign"]
+
+    assert policy.risk_class is RiskClass.COMMERCIAL_MUTATION
+    assert policy.target_scope is TargetScope.OPPORTUNITY
+    assert policy.required_evidence == (
+        "ACQUISITION_DECISION",
+        "PUBLIC_EVIDENCE",
+        "VERIFIED_CONTACT",
+        "ACQUISITION_PROSPECT_PREBUILD",
+        "PERSONALIZATION_ARTIFACT",
+        "COMPLIANCE_ASSESSMENT",
+        "CAMPAIGN_PLAN",
+        "MAILBOX_READINESS",
+        "SEND_WINDOW",
+    )
+    assert policy.uses_budget is True
+    assert policy.uses_volume is True
+    assert policy.uses_provider_quota is True
+    assert policy.uses_send_controls is True
+    assert policy.requires_control_plane is True
+    assert policy.requires_compliance is True
+    assert "FIT_DECISION" not in policy.required_evidence
+    assert "RECENT_SIGNAL" not in policy.required_evidence
 
 
 def test_assisted_assessment_command_is_not_action_approval_gated() -> None:
