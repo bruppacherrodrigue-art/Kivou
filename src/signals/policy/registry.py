@@ -126,7 +126,12 @@ COMMAND_POLICIES = {
         RiskClass.RISK_REDUCTION, TargetScope.EITHER, requires_control_plane=True
     ),
     "classify_response": CommandPolicy(
-        RiskClass.PREPARATORY, TargetScope.OPPORTUNITY, ("RESPONSE",)
+        risk_class=RiskClass.PREPARATORY,
+        target_scope=TargetScope.OPPORTUNITY,
+        required_evidence=("RESPONSE",),
+        uses_budget=True,
+        uses_provider_quota=True,
+        requires_control_plane=True,
     ),
     "reallocate_volume": CommandPolicy(
         RiskClass.COMMERCIAL_MUTATION,
