@@ -38,7 +38,7 @@ export function PlanGrid({
   const selected = currency ?? catalogue.currencies[0] ?? 'chf'
 
   return (
-    <ul className={styles.grid}>
+    <ul className={`${styles.grid} ${variant === 'public' ? styles.publicGrid : ''}`}>
       {catalogue.plans.map((plan) => (
         <li key={plan.plan_code} className={styles.cell}>
           <PlanCard
@@ -82,7 +82,9 @@ function PlanCard({
       padding="lg"
       as="article"
       elevated={plan.recommended}
-      className={`${styles.card} ${plan.recommended ? styles.recommended : ''} ${
+      className={`${styles.card} ${variant === 'public' ? styles.publicCard : ''} ${
+        plan.recommended ? styles.recommended : ''
+      } ${
         isCurrent ? styles.current : ''
       }`}
     >
@@ -104,9 +106,13 @@ function PlanCard({
             <span className={styles.amount}>{t.billing.free}</span>
           )}
         </p>
+        {variant === 'public' ? (
+          <p className={styles.positioning}>{t.billing.planPositioning[plan.plan_code]}</p>
+        ) : null}
         {isCurrent ? <Badge tone="positive">{t.billing.current}</Badge> : null}
       </div>
 
+      {variant === 'public' ? <p className={styles.featuresLabel}>{t.billing.included}</p> : null}
       <ul className={styles.features}>
         {describeEntitlements(plan, t).map((feature) => (
           <li key={feature}>
@@ -121,6 +127,7 @@ function PlanCard({
           <ButtonLink
             to="/signup"
             variant={plan.recommended ? 'primary' : 'secondary'}
+            size="lg"
             fullWidth
           >
             {plan.purchasable ? interpolate(t.billing.choose, { plan: name }) : t.nav.signup}

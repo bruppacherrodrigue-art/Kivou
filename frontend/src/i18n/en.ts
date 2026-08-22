@@ -57,10 +57,32 @@ export const en: Dictionary = {
   },
 
   landing: {
+    heroEyebrow: 'SALES SIGNALS FROM PUBLIC CONTRACT AWARDS',
+    heroTitle:
+      'The companies winning new contracts — and the ones your sales team should contact now.',
     heroLead:
-      'Kivou identifies the winner, checks the facts, qualifies the timing and explains the plausible needs — with the official source that lets you judge.',
+      'Kivou identifies new contract winners, understands what they will need to deliver and shows you the opportunities that match what you sell.',
+    heroSecondaryLead:
+      'You do not receive a list of public contracts. You receive documented reasons to approach new prospects.',
     heroPrimary: 'See my 3 signals',
-    heroSecondary: 'Examine a complete signal',
+    heroSecondary: 'Explore a complete signal',
+    heroTrust: 'Switzerland + European Union · Official sources · Verifiable evidence',
+    heroCarousel: {
+      regionLabel: 'Sales signal examples',
+      eventLabel: 'NEW CONTRACT DETECTED',
+      opportunityLabel: 'Sales opportunity',
+      timingLabel: 'Why now',
+      sourceVerified: 'Verified source',
+      viewSignal: 'View signal',
+      previous: 'Previous signal',
+      next: 'Next signal',
+      pause: 'Pause carousel',
+      resume: 'Resume carousel',
+      reducedMotion: 'Automatic rotation disabled by your motion preferences',
+      indicator: 'Show signal {current} of {total}',
+      slide: 'Signal {current} of {total}',
+      manualAnnouncement: 'Signal {current} of {total}: {company}',
+    },
     proofsTitle: 'What Kivou stands on',
     proofs: {
       publicTitle: '100% public record',
@@ -72,6 +94,200 @@ export const en: Dictionary = {
       actionableTitle: 'Fit with what you sell',
       actionableBody:
         'You describe what you sell and where you deliver; Kivou explains why a signal concerns you.',
+    },
+    how: {
+      introEyebrow: 'CONTINUOUS SALES MONITORING',
+      introTitle:
+        'Kivou turns recently awarded public contracts into prospects you can contact at the right time.',
+      introBodyOne:
+        'Every day, companies win public contracts. Kivou identifies the winners, summarises what they need to deliver and selects the opportunities that match what you sell.',
+      introBodyTwo:
+        'Kivou monitors those events, identifies the winners, understands what they will need to deliver and selects only the opportunities that match what you sell.',
+      introHighlight:
+        'Not a tender list: documented reasons to contact new prospects.',
+      profileEyebrow: 'Target profile',
+      profileTitle: 'You describe your business. Kivou monitors the market for you.',
+      profileBody:
+        'You define your offering, targets and regions. Kivou filters out noise and surfaces useful awards.',
+      profileOutput: 'Your personalised sales signal feed',
+      profileCards: [
+        {
+          title: 'Your offering',
+          body: 'Products, services, capabilities.',
+        },
+        {
+          title: 'Your prospects',
+          body: 'Companies you want to reach.',
+        },
+        {
+          title: 'Your territory',
+          body: 'Countries and regions covered.',
+        },
+        {
+          title: 'Your priorities',
+          body: 'Sectors, amounts, needs.',
+        },
+      ],
+      processTitle: 'From public award to sales action',
+      processSteps: [
+        {
+          title: 'Kivou monitors',
+          body: 'New Swiss and European awards are collected.',
+        },
+        {
+          title: 'Kivou identifies',
+          body: 'Winner, contract, amount, buyer, location and dates are verified.',
+        },
+        {
+          title: 'Kivou understands',
+          body: 'Lots, volumes and available documents are summarised.',
+        },
+        {
+          title: 'Kivou matches',
+          body: 'The signal is matched with your offering, targets and territory.',
+        },
+        {
+          title: 'Kivou qualifies the timing',
+          body: 'Award date and execution calendar show when to engage.',
+        },
+        {
+          title: 'Your team acts',
+          body: 'Your salesperson gets the prospect, context, timing and evidence.',
+        },
+      ],
+      dashboardEyebrow: 'IN YOUR DASHBOARD',
+      dashboardTitle: 'A clear signal your team can act on.',
+      dashboardBody:
+        'The company, contract, volumes, timing, available contact details and official evidence are brought together in one view.',
+      dashboardAlt:
+        'Kivou dashboard showing a sales signal for a recently awarded company, the contract amount, volumes, fit with the customer offering, verified company details and the recommended next step.',
+      dashboardCaption:
+        'The prospect, context and next step — brought together in one sales signal.',
+      dashboardMarkers: [
+        'Company identified',
+        'Verified company details',
+        'Timing qualified',
+        'Recommended action',
+        'Official evidence',
+      ],
+      dashboardPrimary: 'View a complete signal',
+      dashboardSecondary: 'Receive my 3 signals',
+      comparisonTitle: 'A public award is not yet a sales opportunity',
+      comparisonWithoutEyebrow: 'Without Kivou',
+      comparisonWithoutTitle: 'One record among thousands',
+      comparisonWithoutItems: [
+        'official notice to read',
+        'administrative title',
+        'codes and references',
+        'sales context still missing',
+      ],
+      comparisonWithoutConclusion:
+        'The salesperson still has to turn the record into a usable approach.',
+      comparisonWithEyebrow: 'With Kivou',
+      comparisonWithTitle: 'A documented reason to contact the right prospect',
+      comparisonWithItems: [
+        'prospect identified',
+        'volumes summarised',
+        'timing qualified',
+        'action and evidence together',
+      ],
+      comparisonWithConclusion:
+        'The salesperson understands why this prospect matters now.',
+      questionsTitle: 'Each signal answers your sales team’s questions',
+      questions: [
+        {
+          title: 'Who should I contact?',
+          body: 'The company that has just won the contract, clearly identified.',
+        },
+        {
+          title: 'How can I reach them?',
+          body: 'The public, verified company details available for that company.',
+        },
+        {
+          title: 'What happened?',
+          body: 'The awarded contract, amount, object, location and dates.',
+        },
+        {
+          title: 'What could I sell them?',
+          body: 'Needs compatible with your offering, explained from published facts.',
+        },
+        {
+          title: 'Why now?',
+          body: 'The freshness of the event, execution calendar and sales window.',
+        },
+        {
+          title: 'Why does this prospect fit me?',
+          body: 'The match with your products, target companies and territory.',
+        },
+        {
+          title: 'What is the analysis based on?',
+          body: 'The official source, verified facts and available documents.',
+        },
+      ],
+      trustTitle: 'A sales analysis you can verify',
+      trustBodyOne:
+        'Kivou distinguishes published facts, needs inferred from those facts, their fit with your business and any document coverage limits.',
+      trustBodyTwo:
+        'Each signal separates verified facts, sales inferences and the official source. You keep the decision; Kivou speeds up the analysis.',
+      trustIndicators: [
+        'Sourced public fact',
+        'Need explained',
+        'Personalised fit',
+        'Official source accessible',
+      ],
+      pricingTitle: 'Your next prospect may have won a contract this week',
+      pricingBody:
+        'Describe what you sell and where you operate. Kivou immediately shows you three complete signals.',
+      pricingNoCard: 'No payment card required.',
+      pricingPrimary: 'See my first 3 signals',
+      pricingSecondary: 'Compare plans',
+      demo: {
+        previewBadge: 'Kivou experience preview',
+        navOverview: 'Overview',
+        navSignals: 'Signals',
+        navCompanies: 'Companies',
+        navAlerts: 'Alerts',
+        navProfile: 'Target profile',
+        navSettings: 'Settings',
+        topTitle: 'Signals',
+        search: 'Search',
+        activeProfile: 'Joinery supplies · Southern Germany',
+        territory: 'Bavaria · Strong relevance',
+        account: 'Demo account',
+        selected: 'Selected',
+        opportunity: 'Commercial opportunity',
+        signalTitle: 'H. Hüther GmbH has just won a €5.22m contract in Munich',
+        summary:
+          'More than 700 door-and-frame sets, 5.5 km of skirting and several fit-out items appear in the published scope.',
+        verifiedEvent: 'Verified public event',
+        goodTiming: 'Relevant time to engage',
+        strongFit: 'Strong fit',
+        officialSource: 'Official source',
+        whyRelevantTitle: 'Why this signal concerns you',
+        whyRelevant:
+          'Your profile says you supply doors, ironmongery or fit-out components and deliver in Bavaria. The categories, volumes and place of performance match your targeting.',
+        whyNowTitle: 'Why act now',
+        whyNow:
+          'The contract has been awarded, but performance does not start until 28 October 2026. This is a relevant window to present supply capabilities.',
+        volumesTitle: 'Published volumes',
+        companyTitle: 'Company',
+        companyVerified: 'Verified company details',
+        legalName: 'Legal name',
+        address: 'Address',
+        countryRegion: 'Country and region',
+        website: 'Website',
+        phone: 'Business phone',
+        identifier: 'Official identifier',
+        status: 'Verification status',
+        updated: 'Last checked',
+        actionTitle: 'Recommended next step',
+        actionBody:
+          'Identify the person responsible for procurement, supply or operations and engage before the project starts.',
+        prepare: 'Prepare outreach',
+        save: 'Save',
+        contacted: 'Mark contacted',
+        source: 'View official source',
+      },
     },
     chainTitle: 'The Kivou value chain',
     chainLead: 'From a published fact to a reason to contact a company now.',
@@ -103,9 +319,11 @@ export const en: Dictionary = {
     ],
     honestyNote:
       'Kivou does not know what a company will buy. Kivou shows a public event, what it probably implies, and the evidence that lets you judge.',
-    pricingTitle: 'Choose a plan',
-    pricingLead: 'Monthly billing. No commitment.',
-    pricingUnavailable: 'Plan details are temporarily unavailable. Account creation remains open.',
+    pricingEyebrow: '4 plans · Monthly billing',
+    pricingTitle: 'Choose the pace that fits your prospecting',
+    pricingLead: 'Compare each plan’s price, target profiles, history and alert cadence at a glance.',
+    pricingUnavailable:
+      'Pricing is temporarily unavailable. Account creation remains open.',
     ctaTitle: 'Start with three real signals',
     ctaBody:
       'Create an account, describe what you sell, and read three complete signals with their documentary evidence.',
@@ -606,6 +824,12 @@ export const en: Dictionary = {
       essential: 'Essential',
       pro: 'Pro',
       scale: 'Scale',
+    },
+    planPositioning: {
+      discovery: 'Explore the quality of Kivou signals with your own targeting.',
+      essential: 'Build a regular prospecting rhythm around one priority market.',
+      pro: 'Track several sales priorities with daily alerts.',
+      scale: 'Cover more markets with a higher-priority alert cadence.',
     },
     entitlements: {
       icpsOne: '{count} target profile',

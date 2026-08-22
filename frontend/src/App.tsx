@@ -6,6 +6,7 @@ import { RedirectIfAuthenticated, RequireAuth } from './auth/RequireAuth'
 import { PublicLayout } from './layouts/PublicLayout'
 import { AppShell } from './layouts/AppShell'
 import { Landing } from './pages/Landing'
+import { DashboardDemoCapture } from './pages/DashboardDemoCapture'
 import { PublicSignalDemo } from './pages/PublicSignalDemo'
 import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
@@ -54,41 +55,44 @@ export function AppRoutes() {
     <>
       <LocaleFollowsAccount />
       <Routes>
-      <Route element={<PublicLayout />}>
-        <Route index element={<Landing />} />
-        {/* Publique et sans garde : un visiteur doit pouvoir examiner un
+        {import.meta.env.DEV ? (
+          <Route path="__capture/dashboard-demo" element={<DashboardDemoCapture />} />
+        ) : null}
+        <Route element={<PublicLayout />}>
+          <Route index element={<Landing />} />
+          {/* Publique et sans garde : un visiteur doit pouvoir examiner un
             signal complet sans compte, et sans qu'aucun appel de session ne
             soit requis pour rendre la page. */}
-        <Route path="exemple-de-signal" element={<PublicSignalDemo />} />
-      </Route>
-
-      <Route element={<RedirectIfAuthenticated />}>
-        <Route path="login" element={<Login />} />
-        <Route path="signup" element={<Signup />} />
-      </Route>
-
-      <Route path="forgot-password" element={<ForgotPassword />} />
-      <Route path="reset-password" element={<ResetPassword />} />
-
-      <Route element={<RequireAuth />}>
-        <Route path="onboarding" element={<Onboarding />} />
-
-        <Route path="app" element={<AppShell />}>
-          <Route index element={<Navigate to="/app/signals" replace />} />
-          <Route path="signals" element={<SignalsFeed />} />
-          <Route path="signals/:signalKey" element={<SignalDetail />} />
-          <Route path="icps" element={<Icps />} />
-          <Route path="billing" element={<Billing />} />
-          <Route path="notifications" element={<Notifications />} />
+          <Route path="exemple-de-signal" element={<PublicSignalDemo />} />
         </Route>
 
-        <Route path="checkout/success" element={<CheckoutSuccess />} />
-        <Route path="checkout/cancel" element={<CheckoutCancel />} />
-        {/* Alias des URL de retour Stripe par défaut. */}
-        <Route path="billing/success" element={<Navigate to="/checkout/success" replace />} />
-        <Route path="billing/cancel" element={<Navigate to="/checkout/cancel" replace />} />
-        <Route path="billing" element={<Navigate to="/app/billing" replace />} />
-      </Route>
+        <Route element={<RedirectIfAuthenticated />}>
+          <Route path="login" element={<Login />} />
+          <Route path="signup" element={<Signup />} />
+        </Route>
+
+        <Route path="forgot-password" element={<ForgotPassword />} />
+        <Route path="reset-password" element={<ResetPassword />} />
+
+        <Route element={<RequireAuth />}>
+          <Route path="onboarding" element={<Onboarding />} />
+
+          <Route path="app" element={<AppShell />}>
+            <Route index element={<Navigate to="/app/signals" replace />} />
+            <Route path="signals" element={<SignalsFeed />} />
+            <Route path="signals/:signalKey" element={<SignalDetail />} />
+            <Route path="icps" element={<Icps />} />
+            <Route path="billing" element={<Billing />} />
+            <Route path="notifications" element={<Notifications />} />
+          </Route>
+
+          <Route path="checkout/success" element={<CheckoutSuccess />} />
+          <Route path="checkout/cancel" element={<CheckoutCancel />} />
+          {/* Alias des URL de retour Stripe par défaut. */}
+          <Route path="billing/success" element={<Navigate to="/checkout/success" replace />} />
+          <Route path="billing/cancel" element={<Navigate to="/checkout/cancel" replace />} />
+          <Route path="billing" element={<Navigate to="/app/billing" replace />} />
+        </Route>
 
         <Route path="*" element={<NotFound />} />
       </Routes>

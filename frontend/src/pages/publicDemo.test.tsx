@@ -3,10 +3,11 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { AppRoutes } from '../App'
+import { landingHeroSignals } from '../content/landingHeroSignals'
 import { publicDemoSignal } from '../content/publicDemoSignal'
 import { en } from '../i18n/en'
 import { fr } from '../i18n/fr'
-import { CATALOGUE, mockApi, recordedCalls, renderApp } from '../test/harness'
+import { CATALOGUE, mockApi, recordedCalls, renderApp, UNAUTHENTICATED } from '../test/harness'
 
 /* La démonstration publique doit vendre l'avance commerciale avant d'exposer
  * ses garde-fous. Ces tests verrouillent cet ordre sans jamais relâcher la
@@ -177,28 +178,34 @@ describe('démonstration publique de signal', () => {
 })
 
 describe('hero de la page d’accueil', () => {
-  it('montre le signal, ses deux CTA et la mention du mode d’analyse', async () => {
+  it('montre le premier signal, les CTA fixes et sa source vérifiée', () => {
     mockApi({})
-    renderApp(<AppRoutes />, { route: '/' })
+    renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
 
-    expect(await screen.findByText(publicDemoSignal.winner.legalName)).toBeInTheDocument()
+    const signalTitle = screen.getByRole('heading', {
+      level: 2,
+      name: landingHeroSignals[0].headline.fr,
+    })
+    const card = signalTitle.closest('article')!
     expect(screen.getAllByRole('link', { name: fr.landing.heroPrimary })[0]).toHaveAttribute(
       'href',
       '/signup',
     )
-    expect(
-      screen.getByRole('link', { name: new RegExp(fr.publicDemo.previewCta) }),
-    ).toHaveAttribute('href', '/exemple-de-signal')
-
-    // La carte affirme ce qui est vérifié ; c'est « Besoin plausible » qui
-    // qualifie l'inférence.
-    expect(screen.getByText(fr.publicDemo.previewMode)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: fr.landing.heroSecondary })).toHaveAttribute(
+      'href',
+      '/exemple-de-signal',
+    )
+    expect(within(card).getByRole('link', { name: fr.landing.heroCarousel.viewSignal })).toHaveAttribute(
+      'href',
+      '/exemple-de-signal',
+    )
+    expect(within(card).getByText(/TED · Source vérifiée/)).toBeInTheDocument()
   })
 
-  it('ne porte pas la mesure technique de couverture documentaire', async () => {
+  it('ne porte pas la mesure technique de couverture documentaire', () => {
     mockApi({})
-    const { container } = renderApp(<AppRoutes />, { route: '/' })
-    await screen.findByText(publicDemoSignal.winner.legalName)
+    const { container } = renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
+    screen.getByRole('heading', { level: 2, name: landingHeroSignals[0].headline.fr })
     const text = container.textContent ?? ''
 
     // Le premier écran commercial n'a pas à annoncer une confiance réduite :
@@ -207,8 +214,8 @@ describe('hero de la page d’accueil', () => {
     expect(text).not.toContain('Couverture de cette analyse')
     expect(text).not.toContain('Aucun cahier des charges complet validé')
     expect(text).not.toMatch(/confiance réduite/i)
-    // Mais l'inférence reste qualifiée comme telle.
-    expect(text).toContain(fr.publicDemo.previewNeedLabel)
+    // Mais la valeur commerciale reste séparée des faits par un bloc nommé.
+    expect(text).toContain(fr.landing.heroCarousel.opportunityLabel)
   })
 
   it('conserve la couverture documentaire sur la fiche complète, après la valeur', async () => {
@@ -228,9 +235,9 @@ describe('hero de la page d’accueil', () => {
 
   it('en anglais aussi, le hero affirme et la fiche relègue les limites', async () => {
     mockApi({})
-    const home = renderApp(<AppRoutes />, { route: '/', locale: 'en' })
-    await screen.findByText(publicDemoSignal.winner.legalName)
-    expect(home.container.textContent).toContain(en.publicDemo.previewMode)
+    const home = renderApp(<AppRoutes />, { route: '/', locale: 'en', session: UNAUTHENTICATED })
+    screen.getByRole('heading', { level: 2, name: landingHeroSignals[0].headline.en })
+    expect(home.container.textContent).toContain(en.landing.heroCarousel.sourceVerified)
     expect(home.container.textContent).not.toContain('Coverage of this analysis')
     expect(home.container.textContent).not.toMatch(/reduced confidence/i)
     home.unmount()
@@ -245,30 +252,26 @@ describe('hero de la page d’accueil', () => {
     )
   })
 
-  it('annonce un exemple, pas une fraîcheur figée dans le code', async () => {
+  it('annonce le contrat détecté sans promesse garantie', () => {
     mockApi({})
-    const { container } = renderApp(<AppRoutes />, { route: '/' })
-    await screen.findByText(publicDemoSignal.winner.legalName)
+    const { container } = renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
+    screen.getByRole('heading', { level: 2, name: landingHeroSignals[0].headline.fr })
     const text = container.textContent ?? ''
 
-    expect(text).toContain(fr.publicDemo.previewEyebrow)
-    // « Signal récent » vieillirait sans que personne ne le voie.
-    expect(text).not.toContain('Signal récent')
+    expect(text).toContain(fr.landing.heroCarousel.eventLabel)
+    expect(text).not.toMatch(/achat garanti|commande garantie/i)
   })
 
-  it('sépare le fait publié de l’inférence Kivou', async () => {
+  it('sépare le fait publié de l’occasion commerciale Kivou', () => {
     mockApi({})
-    renderApp(<AppRoutes />, { route: '/' })
-    await screen.findByText(publicDemoSignal.winner.legalName)
+    renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
 
-    // La requête est portée SUR la carte : « Besoin plausible » apparaît aussi
-    // dans la chaîne de valeur plus bas, et une recherche globale confondrait
-    // les deux.
-    const card = screen.getByText(publicDemoSignal.winner.legalName).closest('article')!
-    expect(within(card).getByText(fr.publicDemo.previewNeedLabel)).toBeInTheDocument()
-    expect(within(card).getByText(publicDemoSignal.need.statement.fr)).toBeInTheDocument()
-    // La formulation reste au conditionnel du corpus — jamais « va acheter ».
-    expect(publicDemoSignal.need.statement.fr).toMatch(/pourrait/)
+    const card = screen
+      .getByRole('heading', { level: 2, name: landingHeroSignals[0].headline.fr })
+      .closest('article')!
+    expect(within(card).getByText(fr.landing.heroCarousel.opportunityLabel)).toBeInTheDocument()
+    expect(within(card).getByText(landingHeroSignals[0].opportunity.fr)).toBeInTheDocument()
+    expect(card).not.toHaveTextContent(/va acheter|achat garanti/i)
   })
 })
 
@@ -553,24 +556,23 @@ describe('navigation par ancres', () => {
 
 
 describe('bandeau de preuve de la page d’accueil', () => {
-  it('parle de données publiques européennes sans énumérer les pays', async () => {
+  it('résume la couverture géographique et la preuve officielle', () => {
     mockApi({})
-    const { container } = renderApp(<AppRoutes />, { route: '/' })
-    await screen.findByText(publicDemoSignal.winner.legalName)
+    const { container } = renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
     const text = container.textContent ?? ''
 
-    expect(text).toContain(fr.landing.proofs.publicBody)
-    // L'énumération pays par pays a été retirée de la présentation publique.
-    expect(text).not.toMatch(/français, suisses et européens/i)
+    expect(text).toContain(fr.landing.heroTrust)
   })
 
-  it('dit la même chose en anglais', async () => {
+  it('dit la même chose en anglais', () => {
     mockApi({})
-    const { container } = renderApp(<AppRoutes />, { route: '/', locale: 'en' })
-    await screen.findByText(publicDemoSignal.winner.legalName)
+    const { container } = renderApp(<AppRoutes />, {
+      route: '/',
+      locale: 'en',
+      session: UNAUTHENTICATED,
+    })
     const text = container.textContent ?? ''
 
-    expect(text).toContain(en.landing.proofs.publicBody)
-    expect(text).not.toMatch(/French, Swiss and European/i)
+    expect(text).toContain(en.landing.heroTrust)
   })
 })

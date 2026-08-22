@@ -2,6 +2,7 @@
 .hero {
   border-bottom: 1px solid var(--kivou-border);
   overflow: hidden;
+  background: var(--kivou-bg-canvas);
 }
 
 .heroInner {
@@ -15,26 +16,44 @@
 .heroText {
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-6);
+  gap: var(--kivou-space-5);
   align-self: center;
+  min-width: 0;
+}
+
+.heroEyebrow {
+  max-width: 42rem;
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  font-weight: var(--kivou-weight-bold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--kivou-action-primary);
 }
 
 .h1 {
-  /* La référence 02 pose le H1 sur trois lignes. À 15ch il en prenait cinq et
-     perdait la respiration éditoriale de la maquette. */
-  max-width: 21ch;
+  max-width: 100%;
   font-family: var(--kivou-font-display);
-  font-size: var(--kivou-text-display-xl);
+  font-size: clamp(2.25rem, 1.55rem + 2vw, 3.125rem);
   line-height: var(--kivou-leading-display-xl);
   font-weight: var(--kivou-weight-regular);
   color: var(--kivou-text-primary);
 }
 
 .heroLead {
-  max-width: 48ch;
+  max-width: 52ch;
   font-size: var(--kivou-text-lg, 1.0625rem);
   line-height: var(--kivou-leading-body);
   color: var(--kivou-text-secondary);
+}
+
+.heroSecondaryLead {
+  max-width: 54ch;
+  padding-left: var(--kivou-space-4);
+  border-left: 2px solid var(--kivou-action-accent);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-primary);
 }
 
 .heroActions {
@@ -43,101 +62,28 @@
   gap: var(--kivou-space-3);
 }
 
-.proofs {
-  list-style: none;
-  display: grid;
-  gap: var(--kivou-space-5);
-  padding-top: var(--kivou-space-4);
-  border-top: 1px solid var(--kivou-border);
-}
-
-.proof {
+.heroTrust {
   display: flex;
   align-items: flex-start;
-  gap: var(--kivou-space-3);
-}
-
-/* Pastille circulaire à bordure fine, exactement le traitement de la
- * référence 02. */
-.proofIcon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.25rem;
-  height: 2.25rem;
-  flex: none;
-  border: 1px solid var(--kivou-border);
-  border-radius: var(--kivou-radius-pill);
-  color: var(--kivou-action-accent);
-}
-
-.proofIcon svg {
-  width: 1.0625rem;
-  height: 1.0625rem;
-}
-
-.proofTitle {
-  display: block;
-  font-size: var(--kivou-text-small);
-  font-weight: var(--kivou-weight-semibold);
-}
-
-.proofBody {
-  display: block;
+  gap: var(--kivou-space-2);
+  padding-top: var(--kivou-space-4);
+  border-top: 1px solid var(--kivou-border);
   font-size: var(--kivou-text-small);
   line-height: var(--kivou-leading-small);
   color: var(--kivou-text-secondary);
 }
 
-.heroMaterial {
-  /* La matière est un ACCENT : elle occupe la colonne droite en desktop et le
-     bas de section en mobile, jamais le fond d'un contenu.
-     Depuis P0-01 elle porte la carte de signal — l'illustration passe derrière,
-     en fond, et c'est le produit qui occupe la colonne. */
-  position: relative;
-  display: flex;
-  align-items: stretch;
-  min-height: 20rem;
-  /* L'illustration est tramée pour remplir la colonne : son tracé déborde donc
-     de son cadre par construction. Sans ce rognage, la page entière gagnait un
-     défilement horizontal — mesuré à 569 px pour 390 disponibles. */
-  overflow: hidden;
-  border-radius: var(--kivou-radius-lg);
-  /* La carte flotte SUR la matière : sans ce retrait, elle recouvrait
-     l'illustration entièrement et l'accent architectural disparaissait de la
-     page. L'illustration encadre, la carte informe. */
-  padding: var(--kivou-space-5);
+.heroTrust svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: none;
+  margin-top: 0.1rem;
+  color: var(--kivou-action-primary);
 }
 
-/* L'illustration devient le fond de la colonne. `inset: 0` la fait suivre la
-   hauteur de la carte : rien n'est réservé en pixels, donc rien ne saute quand
-   la traduction change de longueur. */
-.heroMaterial > .heroIllustration {
-  position: absolute;
-  inset: 0;
-  z-index: 0;
-  border-radius: 0;
-}
-
-.heroSignal {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  display: flex;
-}
-
-@media (min-width: 1024px) {
-  .heroMaterial {
-    /* Sur desktop, la colonne de matière suit la hauteur du texte, comme dans
-       la référence où l'arche court sur toute la hauteur du hero. */
-    min-height: 30rem;
-  }
-}
-
-.heroIllustration {
-  width: 100%;
-  height: 100%;
-  border-radius: var(--kivou-radius-lg);
+.heroCarousel {
+  min-width: 0;
+  align-self: center;
 }
 
 /* ── Sections ────────────────────────────────────────────────────────────── */
@@ -157,6 +103,319 @@
   display: flex;
   flex-direction: column;
   gap: var(--kivou-space-10);
+}
+
+/* ── Comment ça marche ──────────────────────────────────────────────────── */
+.howIntro {
+  gap: var(--kivou-space-12);
+}
+
+.eyebrow {
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--kivou-action-primary);
+}
+
+.howHighlight {
+  max-width: 58rem;
+  padding: var(--kivou-space-6);
+  border: 1px solid var(--kivou-border);
+  border-left: 4px solid var(--kivou-action-primary);
+  border-radius: var(--kivou-radius-lg);
+  background: var(--kivou-bg-surface);
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h2);
+  line-height: var(--kivou-leading-h2);
+  color: var(--kivou-text-primary);
+}
+
+.profileBlock,
+.trustBlock,
+.pricingBridge {
+  display: grid;
+  gap: var(--kivou-space-6);
+  padding: var(--kivou-space-8);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-xl);
+  background: var(--kivou-bg-subtle);
+}
+
+.profileCopy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+}
+
+.blockHeading,
+.bridgeTitle {
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h1);
+  line-height: var(--kivou-leading-h1);
+  font-weight: var(--kivou-weight-regular);
+  color: var(--kivou-text-primary);
+}
+
+.blockLead {
+  max-width: var(--kivou-container-reading);
+  color: var(--kivou-text-secondary);
+}
+
+.profileMap {
+  display: grid;
+  gap: var(--kivou-space-4);
+}
+
+.profileCards {
+  display: grid;
+  gap: var(--kivou-space-4);
+}
+
+.profileCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-2);
+}
+
+.profileCard h4,
+.processStep h4,
+.compareCard h4 {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  font-weight: var(--kivou-weight-semibold);
+  color: var(--kivou-text-primary);
+}
+
+.profileCard p,
+.processStep p,
+.compareCard li,
+.compareConclusion {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.profileOutput {
+  display: flex;
+  align-items: center;
+  gap: var(--kivou-space-3);
+  padding: var(--kivou-space-4) var(--kivou-space-5);
+  border-radius: var(--kivou-radius-lg);
+  background: var(--kivou-action-primary);
+  color: var(--kivou-text-inverse);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.profileOutput svg {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+}
+
+.processBlock,
+.dashboardBlock,
+.comparisonBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-6);
+}
+
+.processList {
+  list-style: none;
+  display: grid;
+  gap: var(--kivou-space-4);
+}
+
+.processStep {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+  padding: var(--kivou-space-5);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-lg);
+  background: var(--kivou-bg-surface);
+}
+
+.processNumber {
+  width: max-content;
+  padding-bottom: var(--kivou-space-2);
+  border-bottom: 2px solid var(--kivou-border);
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  font-weight: var(--kivou-weight-bold);
+  letter-spacing: 0.14em;
+  color: var(--kivou-text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.finalStep {
+  background: var(--kivou-action-primary);
+  color: var(--kivou-text-inverse);
+}
+
+.finalStep h4,
+.finalStep p,
+.finalStep .processNumber {
+  color: var(--kivou-text-inverse);
+}
+
+.finalStep .processNumber {
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.dashboardBlock {
+  padding: var(--kivou-space-8) 0;
+}
+
+.dashboardCopy {
+  max-width: 58rem;
+}
+
+.dashboardFigure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+}
+
+.dashboardFrame {
+  overflow: hidden;
+  border: 1px solid var(--kivou-border-strong);
+  border-radius: var(--kivou-radius-xl);
+  background: var(--kivou-bg-surface);
+  box-shadow: var(--kivou-shadow-raised);
+}
+
+.windowBar {
+  display: flex;
+  gap: var(--kivou-space-2);
+  align-items: center;
+  height: 2.25rem;
+  padding: 0 var(--kivou-space-4);
+  border-bottom: 1px solid var(--kivou-border);
+  background: var(--kivou-bg-subtle);
+}
+
+.windowBar span {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: var(--kivou-radius-pill);
+  background: var(--kivou-border-strong);
+}
+
+.dashboardImage {
+  width: 100%;
+  height: auto;
+  background: var(--kivou-bg-surface);
+}
+
+.dashboardCaption {
+  max-width: 54rem;
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h3);
+  line-height: 1.45;
+  color: var(--kivou-text-primary);
+}
+
+.dashboardMarkers,
+.trustIndicators {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-3);
+}
+
+.dashboardMarkers li,
+.trustIndicators li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kivou-space-2);
+  min-height: 2.5rem;
+  padding: var(--kivou-space-2) var(--kivou-space-3);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-pill);
+  background: var(--kivou-bg-surface);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-primary);
+}
+
+.dashboardMarkers svg,
+.trustIndicators svg {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  color: var(--kivou-action-primary);
+}
+
+.howActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kivou-space-3);
+}
+
+.comparisonGrid {
+  display: grid;
+  gap: var(--kivou-space-5);
+}
+
+.compareCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+}
+
+.compareCard ul {
+  display: grid;
+  gap: var(--kivou-space-2);
+  padding-left: 1.1rem;
+}
+
+.compareKivou {
+  border-color: var(--kivou-action-primary);
+  border-top: 4px solid var(--kivou-action-primary);
+}
+
+.compareConclusion {
+  padding-top: var(--kivou-space-4);
+  border-top: 1px solid var(--kivou-border);
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-text-primary);
+}
+
+.trustBlock {
+  background: var(--kivou-bg-surface);
+}
+
+.trustBlock > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+}
+
+.pricingBridge {
+  align-items: start;
+  background: var(--kivou-action-primary);
+  color: var(--kivou-text-inverse);
+}
+
+.pricingBridge p,
+.pricingBridge .bridgeTitle {
+  color: var(--kivou-text-inverse);
+}
+
+.pricingBridge > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+}
+
+.bridgeSource {
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  opacity: 0.72;
 }
 
 /* ── Chaîne de valeur ────────────────────────────────────────────────────── */
@@ -280,6 +539,27 @@
   color: var(--kivou-text-primary);
 }
 
+/* ── Offres ──────────────────────────────────────────────────────────────── */
+.pricingSection {
+  padding: clamp(4rem, 3rem + 3vw, 6rem) 0;
+}
+
+.pricingInner {
+  gap: var(--kivou-space-8);
+}
+
+.pricingUnavailable {
+  max-width: var(--kivou-container-reading);
+  padding: var(--kivou-space-4) var(--kivou-space-5);
+  border: 1px solid var(--kivou-border);
+  border-left: 3px solid var(--kivou-action-accent);
+  border-radius: var(--kivou-radius-sm);
+  background: var(--kivou-bg-surface);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
 /* ── CTA ─────────────────────────────────────────────────────────────────── */
 .sectionCta {
   border-bottom: 0;
@@ -316,11 +596,6 @@
     padding-right: var(--kivou-gutter-desktop);
   }
 
-  .proofs {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: var(--kivou-space-6);
-  }
-
   .chain {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -328,16 +603,44 @@
   .honesty {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .profileBlock {
+    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr);
+    align-items: center;
+  }
+
+  .profileCards,
+  .processList {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .comparisonGrid,
+  .trustBlock,
+  .pricingBridge {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: center;
+  }
+
+  .pricingBridge .howActions {
+    justify-content: flex-end;
+  }
 }
 
 @media (min-width: 1024px) {
   .heroInner {
-    grid-template-columns: minmax(0, 6fr) minmax(0, 5fr);
-    padding-top: var(--kivou-space-16);
-    padding-bottom: var(--kivou-space-16);
+    grid-template-columns: minmax(0, 47fr) minmax(0, 53fr);
+    align-items: center;
+    gap: clamp(2rem, 4vw, 4.5rem);
+    padding-top: var(--kivou-space-8);
+    padding-bottom: var(--kivou-space-8);
   }
 
   .chain {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
+
+  .processList {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
 }

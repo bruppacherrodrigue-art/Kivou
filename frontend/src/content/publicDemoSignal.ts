@@ -71,6 +71,11 @@ export interface PublicDemoSignal {
     readonly legalName: string
     readonly country: string
     readonly address: string
+    readonly website: string
+    readonly phone: string
+    /** Public professional contact details checked against the company website. */
+    readonly contactVerifiedAt: string
+    readonly contactVerificationSource: string
     readonly identifier: { readonly scheme: string; readonly value: string }
   }
   readonly buyer: { readonly legalName: string; readonly country: string }
@@ -124,6 +129,10 @@ export const publicDemoSignal: PublicDemoSignal = {
     legalName: 'H. Hüther GmbH',
     country: 'DE',
     address: 'Graseweg 8, 34346 Hedemünden',
+    website: 'https://huether-gmbh.de',
+    phone: '+49 5545 9606-0',
+    contactVerifiedAt: '2026-08-22',
+    contactVerificationSource: 'https://huether-gmbh.de/impressum-huther-objektturen/',
     identifier: { scheme: 'TED-BT-501', value: 'DE115302781' },
   },
 
