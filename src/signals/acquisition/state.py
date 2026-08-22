@@ -156,6 +156,20 @@ def _transitioned(
     next_review_at = _datetime_payload(event.payload, "next_review_at")
     if target == AcquisitionState.HOLD:
         _require_hold_metadata(event, next_review_at)
+    if "campaign_ref" in event.payload:
+        campaign_ref = event.payload.get("campaign_ref")
+        if (
+            current.state is not AcquisitionState.SEND
+            or target is not AcquisitionState.QUEUED
+            or current.campaign_ref is not None
+            or not isinstance(campaign_ref, str)
+            or not 1 <= len(campaign_ref) <= 256
+            or campaign_ref.strip() != campaign_ref
+            or not event.reason_codes
+        ):
+            raise InvalidTransition(
+                "campaign_ref may bind once on a reasoned SEND -> QUEUED transition"
+            )
     updates = _common_updates(event)
     updates["state"] = target
     if event.reason_codes:
@@ -166,6 +180,8 @@ def _transitioned(
         updates["confidence"] = event.confidence
     if next_review_at is not None:
         updates["next_review_at"] = next_review_at
+    if "campaign_ref" in event.payload:
+        updates["campaign_ref"] = event.payload["campaign_ref"]
     return current.model_copy(update=updates)
 
 
