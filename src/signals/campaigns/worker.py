@@ -20,6 +20,7 @@ from signals.campaigns.instantly import (
     InstantlyProviderError,
     build_provider_campaign_config,
     provider_campaign_config_fingerprint,
+    provider_campaign_configs_match,
 )
 from signals.campaigns.service import CampaignService
 from signals.campaigns.store import CampaignStore
@@ -126,7 +127,9 @@ class CampaignWorker:
                     or readback.provider_campaign_id != remote.provider_campaign_id
                     or readback.name != campaign["provider_campaign_name"]
                     or str(readback.status).lower() not in {"draft", "paused", "0", "2"}
-                    or readback.raw_config != config
+                    or not provider_campaign_configs_match(
+                        readback.normalized_config, config
+                    )
                 ):
                     raise InstantlyProviderError(
                         InstantlyErrorCode.REMOTE_STATE_CONFLICT,
@@ -170,7 +173,9 @@ class CampaignWorker:
                 remote_attempted = True
                 self._provider.configure_campaign(provider_id, provider_config=config)
                 readback = self._provider.get_campaign(provider_id)
-                if readback.raw_config != config:
+                if not provider_campaign_configs_match(
+                    readback.normalized_config, config
+                ):
                     raise RuntimeError("provider campaign readback conflict")
                 self._service.require_provider_mutation(
                     claimed.kind,
@@ -215,7 +220,9 @@ class CampaignWorker:
                 )
                 if (
                     str(remote_campaign.status).lower() not in {"draft", "paused", "0", "2"}
-                    or remote_campaign.raw_config != expected_config
+                    or not provider_campaign_configs_match(
+                        remote_campaign.normalized_config, expected_config
+                    )
                 ):
                     raise CampaignInputChanged(
                         "provider campaign is not exact and non-sending before ADD_LEAD"
@@ -354,17 +361,11 @@ class CampaignWorker:
                 remote_attempted = True
                 result = self._provider.pause_lead(member["provider_lead_id"])
                 readback = self._provider.get_lead(member["provider_lead_id"])
-                result_status = (
-                    str(result.get("status", "")).lower()
-                    if isinstance(result, dict)
-                    else ""
-                )
+                result_status = result.get("status") if isinstance(result, dict) else None
                 readback_status = (
-                    str(readback.get("status", "")).lower()
-                    if isinstance(readback, dict)
-                    else ""
+                    readback.get("status") if isinstance(readback, dict) else None
                 )
-                safe_statuses = {"paused", "unsubscribed", "completed"}
+                safe_statuses = {2, 3, -1, -2, -3}
                 if (
                     result_status not in safe_statuses
                     or readback_status not in safe_statuses
@@ -479,7 +480,7 @@ class CampaignWorker:
         remote = self._provider.get_campaign(campaign["provider_campaign_id"])
         if (
             str(remote.status).lower() not in {"paused", "2"}
-            or remote.raw_config != config
+            or not provider_campaign_configs_match(remote.normalized_config, config)
         ):
             raise CampaignInputChanged(
                 "provider campaign is not exactly paused for Step 2 release"
@@ -535,7 +536,9 @@ class CampaignWorker:
                     remote.provider_campaign_id != candidate.provider_campaign_id
                     or remote.name != campaign["provider_campaign_name"]
                     or str(remote.status).lower() not in {"draft", "paused", "0", "2"}
-                    or remote.raw_config != config
+                    or not provider_campaign_configs_match(
+                        remote.normalized_config, config
+                    )
                 ):
                     self._store.set_operation_state(
                         operation.operation_ref,
@@ -574,7 +577,7 @@ class CampaignWorker:
         elif operation.kind is ProviderOperationKind.CONFIGURE_CAMPAIGN:
             campaign, _, config = self._context(operation.campaign_ref)
             remote = self._provider.get_campaign(campaign["provider_campaign_id"])
-            if remote.raw_config == config:
+            if provider_campaign_configs_match(remote.normalized_config, config):
                 self._store.bind_provider_campaign(
                     operation.campaign_ref,
                     provider_campaign_id=campaign["provider_campaign_id"],
@@ -608,7 +611,9 @@ class CampaignWorker:
             )
             provider_non_sending = bool(
                 str(remote_campaign.status).lower() in {"draft", "paused", "0", "2"}
-                and remote_campaign.raw_config == expected_config
+                and provider_campaign_configs_match(
+                    remote_campaign.normalized_config, expected_config
+                )
             )
             response = self._provider.list_leads(
                 provider_campaign_id=campaign["provider_campaign_id"]
@@ -689,7 +694,10 @@ class CampaignWorker:
         elif operation.kind is ProviderOperationKind.ACTIVATE_CAMPAIGN:
             campaign, _, config = self._context(operation.campaign_ref)
             remote = self._provider.get_campaign(campaign["provider_campaign_id"])
-            if str(remote.status).lower() in {"active", "1"} and remote.raw_config == config:
+            if str(remote.status).lower() in {
+                "active",
+                "1",
+            } and provider_campaign_configs_match(remote.normalized_config, config):
                 with self._engine.begin() as connection:
                     connection.execute(
                         sa.update(acquisition_campaign)
@@ -713,7 +721,7 @@ class CampaignWorker:
                 return ProviderOperationState.CONFIRMED
             if (
                 str(remote.status).lower() in {"draft", "paused", "0", "2"}
-                and remote.raw_config == config
+                and provider_campaign_configs_match(remote.normalized_config, config)
             ):
                 self._store.set_operation_state(
                     operation.operation_ref,
@@ -760,8 +768,8 @@ class CampaignWorker:
                 operation.campaign_ref, member_ref=operation.member_ref
             )
             remote = self._provider.get_lead(member["provider_lead_id"])
-            status = str(remote.get("status", "")).lower() if isinstance(remote, dict) else ""
-            if status in {"paused", "unsubscribed", "completed"}:
+            status = remote.get("status") if isinstance(remote, dict) else None
+            if status in {2, 3, -1, -2, -3}:
                 self._store.set_operation_state(
                     operation.operation_ref,
                     ProviderOperationState.CONFIRMED,
@@ -772,7 +780,7 @@ class CampaignWorker:
                     ),
                 )
                 return ProviderOperationState.CONFIRMED
-            if status in {"active", "pending"}:
+            if status == 1:
                 self._store.set_operation_state(
                     operation.operation_ref,
                     ProviderOperationState.RETRYABLE_FAILED,

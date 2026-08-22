@@ -13,10 +13,12 @@ from signals.campaigns.contracts import (
     SEND_WINDOW_POLICY_VERSION,
     SEQUENCE_WINDOW_POLICY_VERSION,
     TRACKING_POLICY_VERSION,
+    CampaignDeploymentConfig,
     CampaignFactoryInput,
     CampaignLifecycle,
     FooterCatalog,
     FooterCatalogEntry,
+    LeadRiskReductionContractProof,
     MailboxCatalog,
     MemberExecutionState,
     MemberSequenceState,
@@ -190,6 +192,21 @@ def test_defaults_are_fail_closed_and_pacing_only_decreases_capacity() -> None:
     assert policy.company_rolling_30d_cap == 1
     assert effective_capacity(policy, provider_daily_limit=2) == 2
     assert effective_capacity(policy, provider_daily_limit=99) == 3
+
+
+def test_transport_proof_requires_separate_contract_proven_lead_risk_reduction() -> None:
+    with pytest.raises(ValueError, match="per-lead risk reduction"):
+        CampaignDeploymentConfig(
+            transport_contract_proof=TransportContractProof.VERIFIED
+        )
+
+    verified = CampaignDeploymentConfig(
+        transport_contract_proof=TransportContractProof.VERIFIED,
+        lead_risk_reduction_contract_proof=(
+            LeadRiskReductionContractProof.VERIFIED
+        ),
+    )
+    assert verified.lead_risk_reduction_contract_proof == "VERIFIED"
 
 
 def test_closed_lifecycle_and_state_vocabularies_are_frozen() -> None:

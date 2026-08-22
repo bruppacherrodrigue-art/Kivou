@@ -51,7 +51,8 @@ class ProviderCampaign(_ProviderModel):
     provider_campaign_id: str = Field(min_length=1, max_length=128)
     name: str = Field(min_length=1, max_length=100)
     status: str | int
-    raw_config: dict[str, object] = Field(default_factory=dict, exclude=True)
+    not_sending_status: int | None = None
+    normalized_config: dict[str, object] | None = Field(default=None, exclude=True)
 
 
 class ProviderLead(_ProviderModel):
@@ -91,7 +92,7 @@ class InstantlyProvider(Protocol):
 
 _CAMPAIGN_CONFIG_KEYS = frozenset(
     {
-        "schedule",
+        "campaign_schedule",
         "sequences",
         "daily_limit",
         "email_list",
@@ -104,14 +105,192 @@ _CAMPAIGN_CONFIG_KEYS = frozenset(
         "first_email_text_only",
         "insert_unsubscribe_header",
         "allow_risky_contacts",
-        "bounce_protection",
+        "disable_bounce_protect",
         "auto_variant_select",
     }
 )
 
-_CAMPAIGN_RESPONSE_METADATA_KEYS = frozenset(
-    {"id", "name", "status", "created_at", "updated_at", "workspace_id"}
+_CAMPAIGN_RESPONSE_KEYS = _CAMPAIGN_CONFIG_KEYS | frozenset(
+    {
+        "id",
+        "name",
+        "status",
+        "not_sending_status",
+        "timestamp_created",
+        "timestamp_updated",
+        "created_at",
+        "updated_at",
+        "workspace_id",
+        "organization",
+        "owned_by",
+        "pl_value",
+        "is_evergreen",
+        "email_gap",
+        "random_wait_max",
+        "email_tag_list",
+        "daily_max_leads",
+        "prioritize_new_leads",
+        "match_lead_esp",
+        "core_variables",
+        "custom_variables",
+        "limit_emails_per_company_override",
+        "cc_list",
+        "bcc_list",
+        "ai_sdr_id",
+        "provider_routing_rules",
+        "analytics",
+    }
 )
+
+
+def _expected_weekdays(start_date: dt.date, end_date: dt.date) -> dict[str, bool]:
+    """Map Python's Monday=0 weekday convention to Instantly's 0..6 keys."""
+    active = {start_date.weekday(), end_date.weekday()}
+    return {str(index): index in active for index in range(7)}
+
+
+def _normalize_variants(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict):
+        raise ValueError("each email step must contain exactly one variant")
+    variant = value[0]
+    unknown = set(variant) - {"subject", "body", "v_disabled"}
+    if unknown or not isinstance(variant.get("subject"), str) or not isinstance(
+        variant.get("body"), str
+    ):
+        raise ValueError("provider email variant shape is unsupported")
+    disabled = variant.get("v_disabled", False)
+    if disabled is not False:
+        raise ValueError("the single deterministic email variant must be active")
+    return [
+        {
+            "subject": variant["subject"],
+            "body": variant["body"],
+            "v_disabled": False,
+        }
+    ]
+
+
+def _normalize_sequences(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list) or len(value) != 1 or not isinstance(value[0], dict):
+        raise ValueError("campaign must contain exactly one Instantly sequence")
+    sequence = value[0]
+    if set(sequence) != {"steps"}:
+        raise ValueError("provider sequence shape is unsupported")
+    steps = sequence["steps"]
+    if not isinstance(steps, list) or len(steps) != 2:
+        raise ValueError("campaign must contain exactly two email steps")
+    normalized_steps: list[dict[str, object]] = []
+    allowed_step_keys = {
+        "type",
+        "delay",
+        "delay_unit",
+        "pre_delay",
+        "pre_delay_unit",
+        "variants",
+    }
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict) or set(step) - allowed_step_keys:
+            raise ValueError("provider email step shape is unsupported")
+        if step.get("type") != "email":
+            raise ValueError("Instantly campaign steps must be email steps")
+        normalized_step: dict[str, object] = {
+            "type": "email",
+            "variants": _normalize_variants(step.get("variants")),
+        }
+        if index == 0:
+            # Official V2 defines delay on a step as the wait before the NEXT email.
+            normalized_step["delay"] = step.get("delay")
+            normalized_step["delay_unit"] = step.get("delay_unit", "days")
+        normalized_steps.append(normalized_step)
+    return [{"steps": normalized_steps}]
+
+
+def _normalize_campaign_schedule(value: object) -> dict[str, object]:
+    if not isinstance(value, dict) or set(value) != {
+        "start_date",
+        "end_date",
+        "schedules",
+    }:
+        raise ValueError("campaign_schedule shape violates Instantly V2")
+    try:
+        start_date = dt.date.fromisoformat(str(value["start_date"]))
+        end_date = dt.date.fromisoformat(str(value["end_date"]))
+    except ValueError as exc:
+        raise ValueError("campaign schedule dates are invalid") from exc
+    schedules = value["schedules"]
+    if not isinstance(schedules, list) or len(schedules) != 1 or not isinstance(
+        schedules[0], dict
+    ):
+        raise ValueError("campaign must contain exactly one provider schedule")
+    schedule = schedules[0]
+    if set(schedule) != {"name", "timing", "days", "timezone"}:
+        raise ValueError("provider schedule item shape violates Instantly V2")
+    normalized = {
+        "start_date": start_date.isoformat(),
+        "end_date": end_date.isoformat(),
+        "schedules": [
+            {
+                "name": schedule["name"],
+                "timing": schedule["timing"],
+                "days": schedule["days"],
+                "timezone": schedule["timezone"],
+            }
+        ],
+    }
+    return normalized
+
+
+def _guard_provider_execution_fields(value: dict[str, object]) -> None:
+    """Fail closed on known response-only fields that can expand execution."""
+    if value.get("is_evergreen") not in (None, False):
+        raise ValueError("evergreen provider execution is forbidden")
+    for key in ("cc_list", "bcc_list"):
+        if value.get(key) not in (None, []):
+            raise ValueError(f"provider {key} must remain empty")
+    if value.get("ai_sdr_id") is not None:
+        raise ValueError("provider AI SDR attachment is forbidden")
+    if value.get("core_variables") not in (None, {}) or value.get(
+        "custom_variables"
+    ) not in (None, {}):
+        raise ValueError("campaign-level provider variables are forbidden")
+    if value.get("prioritize_new_leads") not in (None, False):
+        raise ValueError("provider lead-priority execution is forbidden")
+    if value.get("match_lead_esp") not in (None, False):
+        raise ValueError("provider ESP routing is forbidden")
+    routing = value.get("provider_routing_rules")
+    safe_default_routing = [
+        {
+            "action": "send",
+            "recipient_esp": ["all"],
+            "sender_esp": ["all"],
+        }
+    ]
+    if routing not in (None, [], safe_default_routing):
+        raise ValueError("provider routing rules exceed the bounded one-account route")
+
+
+def normalize_provider_campaign_config(response: object) -> dict[str, object]:
+    """Extract the exact comparable V2 subset and validate material read-only guards."""
+    if not isinstance(response, dict):
+        raise TypeError("provider campaign response must be an object")
+    unknown = set(response) - _CAMPAIGN_RESPONSE_KEYS
+    if unknown:
+        raise ValueError(f"unknown provider campaign response fields: {sorted(unknown)}")
+    _guard_provider_execution_fields(response)
+    missing = (_CAMPAIGN_CONFIG_KEYS - {"auto_variant_select"}) - set(response)
+    if missing:
+        raise ValueError(f"provider campaign readback is incomplete: {sorted(missing)}")
+    normalized = {
+        key: response[key]
+        for key in _CAMPAIGN_CONFIG_KEYS
+        if key not in {"campaign_schedule", "sequences", "auto_variant_select"}
+    }
+    normalized["campaign_schedule"] = _normalize_campaign_schedule(
+        response["campaign_schedule"]
+    )
+    normalized["sequences"] = _normalize_sequences(response["sequences"])
+    normalized["auto_variant_select"] = response.get("auto_variant_select")
+    return normalized
 
 
 def _validate_campaign_config(value: dict[str, object]) -> dict[str, object]:
@@ -124,7 +303,7 @@ def _validate_campaign_config(value: dict[str, object]) -> dict[str, object]:
         raise ValueError("reply and auto-reply stops are mandatory")
     if value["stop_for_company"] is not False:
         raise ValueError("provider company-wide stop is forbidden in v1")
-    if value.get("auto_variant_select") is not False:
+    if value.get("auto_variant_select") is not None:
         raise ValueError("provider automatic variant selection is forbidden in v1")
     frozen_flags = {
         "open_tracking": False,
@@ -133,7 +312,7 @@ def _validate_campaign_config(value: dict[str, object]) -> dict[str, object]:
         "first_email_text_only": True,
         "insert_unsubscribe_header": True,
         "allow_risky_contacts": False,
-        "bounce_protection": True,
+        "disable_bounce_protect": False,
     }
     if any(value.get(key) is not expected for key, expected in frozen_flags.items()):
         raise ValueError("campaign tracking or transport flags violate frozen v1")
@@ -150,48 +329,49 @@ def _validate_campaign_config(value: dict[str, object]) -> dict[str, object]:
         raise TypeError("campaign daily limit must be an integer")
     if daily_limit < 1 or daily_limit > 3:
         raise ValueError("campaign daily limit exceeds the frozen mailbox cap")
-    schedule = value.get("schedule")
-    if not isinstance(schedule, dict) or set(schedule) != {
-        "start_date",
-        "end_date",
-        "timezone",
-        "timing",
-        "days",
-    }:
-        raise ValueError("campaign schedule shape violates frozen v1")
+    schedule = _normalize_campaign_schedule(value.get("campaign_schedule"))
     try:
         start_date = dt.date.fromisoformat(str(schedule["start_date"]))
         end_date = dt.date.fromisoformat(str(schedule["end_date"]))
     except ValueError as exc:
         raise ValueError("campaign schedule dates are invalid") from exc
-    if start_date > end_date or schedule["timezone"] not in {
+    schedule_item = schedule["schedules"][0]
+    if start_date > end_date or schedule_item["timezone"] not in {
         "Europe/Zurich",
         "Europe/Paris",
     }:
         raise ValueError("campaign schedule jurisdiction is invalid")
-    if schedule["timing"] != {"from": "09:00", "to": "17:00"}:
+    if schedule_item["name"] != "Kivou two-window schedule":
+        raise ValueError("campaign schedule name violates frozen v1")
+    if schedule_item["timing"] != {"from": "09:00", "to": "17:00"}:
         raise ValueError("campaign schedule hours violate frozen v1")
-    expected_days = {
-        str(start_date.isoweekday()): True,
-        str(end_date.isoweekday()): True,
-    }
-    if schedule["days"] != expected_days:
+    if schedule_item["days"] != _expected_weekdays(start_date, end_date):
         raise ValueError("campaign active weekdays violate two-window containment")
-    sequences = value.get("sequences")
+    sequences = _normalize_sequences(value.get("sequences"))
     expected_sequences = [
         {
             "steps": [
                 {
-                    "step": 1,
-                    "subject": "{{kivou_subject}}",
-                    "body": "{{kivou_envelope}}",
-                },
-                {
-                    "step": 2,
+                    "type": "email",
                     "delay": 4,
                     "delay_unit": "days",
-                    "subject": "",
-                    "body": "{{kivou_follow_up}}",
+                    "variants": [
+                        {
+                            "subject": "{{kivou_subject}}",
+                            "body": "{{kivou_envelope}}",
+                            "v_disabled": False,
+                        }
+                    ],
+                },
+                {
+                    "type": "email",
+                    "variants": [
+                        {
+                            "subject": "",
+                            "body": "{{kivou_follow_up}}",
+                            "v_disabled": False,
+                        }
+                    ],
                 },
             ]
         }
@@ -199,6 +379,33 @@ def _validate_campaign_config(value: dict[str, object]) -> dict[str, object]:
     if sequences != expected_sequences:
         raise ValueError("campaign sequence must be the exact frozen two-step contract")
     return value
+
+
+def normalized_provider_campaign_config_fingerprint(
+    provider_config: dict[str, object],
+) -> str:
+    """Fingerprint only the canonical, Kivou-authorized comparable subset."""
+    return semantic_fingerprint(
+        {
+            "kind": "instantly-provider-config-semantic-v1",
+            "provider_config": _validate_campaign_config(provider_config),
+        }
+    )
+
+
+def provider_campaign_configs_match(
+    normalized_provider_config: dict[str, object] | None,
+    desired_provider_config: dict[str, object],
+) -> bool:
+    """Compare one canonical semantic representation, never raw GET JSON."""
+    if normalized_provider_config is None:
+        return False
+    try:
+        return normalized_provider_campaign_config_fingerprint(
+            normalized_provider_config
+        ) == normalized_provider_campaign_config_fingerprint(desired_provider_config)
+    except (TypeError, ValueError):
+        return False
 
 
 def provider_campaign_config_fingerprint(
@@ -210,7 +417,9 @@ def provider_campaign_config_fingerprint(
         {
             "kind": "instantly-provider-config-v1",
             "campaign_ref": campaign_ref,
-            "provider_config": validated,
+            "normalized_provider_config_fingerprint": (
+                normalized_provider_campaign_config_fingerprint(validated)
+            ),
         }
     )
 
@@ -224,33 +433,45 @@ def build_provider_campaign_config(
     daily_limit: int,
 ) -> dict[str, object]:
     """Return the single frozen V2 campaign subset Kivou can authorize."""
-    weekdays = {
-        str(step_1_execution_date.isoweekday()): True,
-        str(step_2_execution_date.isoweekday()): True,
-    }
+    weekdays = _expected_weekdays(step_1_execution_date, step_2_execution_date)
     return _validate_campaign_config(
         {
-            "schedule": {
+            "campaign_schedule": {
                 "start_date": step_1_execution_date.isoformat(),
                 "end_date": step_2_execution_date.isoformat(),
-                "timezone": timezone,
-                "timing": {"from": "09:00", "to": "17:00"},
-                "days": weekdays,
+                "schedules": [
+                    {
+                        "name": "Kivou two-window schedule",
+                        "timing": {"from": "09:00", "to": "17:00"},
+                        "days": weekdays,
+                        "timezone": timezone,
+                    }
+                ],
             },
             "sequences": [
                 {
                     "steps": [
                         {
-                            "step": 1,
-                            "subject": "{{kivou_subject}}",
-                            "body": "{{kivou_envelope}}",
-                        },
-                        {
-                            "step": 2,
+                            "type": "email",
                             "delay": 4,
                             "delay_unit": "days",
-                            "subject": "",
-                            "body": "{{kivou_follow_up}}",
+                            "variants": [
+                                {
+                                    "subject": "{{kivou_subject}}",
+                                    "body": "{{kivou_envelope}}",
+                                    "v_disabled": False,
+                                }
+                            ],
+                        },
+                        {
+                            "type": "email",
+                            "variants": [
+                                {
+                                    "subject": "",
+                                    "body": "{{kivou_follow_up}}",
+                                    "v_disabled": False,
+                                }
+                            ],
                         },
                     ]
                 }
@@ -266,8 +487,8 @@ def build_provider_campaign_config(
             "first_email_text_only": True,
             "insert_unsubscribe_header": True,
             "allow_risky_contacts": False,
-            "bounce_protection": True,
-            "auto_variant_select": False,
+            "disable_bounce_protect": False,
+            "auto_variant_select": None,
         }
     )
 
@@ -354,24 +575,29 @@ class HttpInstantlyProvider:
             ) from exc
 
     @staticmethod
-    def _campaign(value: object, *, mutation: bool = False) -> ProviderCampaign:
+    def _campaign(
+        value: object,
+        *,
+        mutation: bool = False,
+        require_config: bool = False,
+    ) -> ProviderCampaign:
         if not isinstance(value, dict):
             raise InstantlyProviderError(
                 InstantlyErrorCode.MALFORMED_RESPONSE,
                 reconciliation_required=mutation,
             )
         try:
+            normalized_config = (
+                normalize_provider_campaign_config(value) if require_config else None
+            )
             return ProviderCampaign(
                 provider_campaign_id=str(value["id"]),
                 name=value["name"],
                 status=value["status"],
-                raw_config={
-                    key: item
-                    for key, item in value.items()
-                    if key not in _CAMPAIGN_RESPONSE_METADATA_KEYS
-                },
+                not_sending_status=value.get("not_sending_status"),
+                normalized_config=normalized_config,
             )
-        except (KeyError, ValidationError, TypeError) as exc:
+        except (KeyError, ValidationError, TypeError, ValueError) as exc:
             raise InstantlyProviderError(
                 InstantlyErrorCode.MALFORMED_RESPONSE,
                 reconciliation_required=mutation,
@@ -385,7 +611,10 @@ class HttpInstantlyProvider:
         return tuple(self._campaign(item) for item in items)
 
     def get_campaign(self, provider_campaign_id: str) -> ProviderCampaign:
-        return self._campaign(self._call("GET", f"/campaigns/{provider_campaign_id}"))
+        return self._campaign(
+            self._call("GET", f"/campaigns/{provider_campaign_id}"),
+            require_config=True,
+        )
 
     def create_campaign(
         self, *, name: str, provider_config: dict[str, object]
@@ -460,19 +689,27 @@ class HttpInstantlyProvider:
         )
 
     def list_leads(self, *, provider_campaign_id: str) -> object:
-        return self._call(
+        value = self._call(
             "POST", "/leads/list", json_body={"campaign_id": provider_campaign_id}
         )
+        if not isinstance(value, dict) or not isinstance(value.get("items"), list):
+            raise InstantlyProviderError(InstantlyErrorCode.MALFORMED_RESPONSE)
+        return {
+            **value,
+            "items": [self._normalize_lead(item) for item in value["items"]],
+        }
 
     def get_lead(self, provider_lead_id: str) -> object:
-        return self._call("GET", f"/leads/{provider_lead_id}")
+        return self._normalize_lead(self._call("GET", f"/leads/{provider_lead_id}"))
 
     def pause_lead(self, provider_lead_id: str) -> object:
-        return self._call(
-            "PATCH",
-            f"/leads/{provider_lead_id}",
-            json_body={"status": "paused"},
-            mutation=True,
+        del provider_lead_id
+        # As verified on 2026-08-22, PATCH /leads/{id} exposes lead status only
+        # as a read-only numeric response field.  Never fabricate a writable
+        # "paused" status. Campaign-wide pause remains the fail-closed fallback.
+        raise InstantlyProviderError(
+            InstantlyErrorCode.CLIENT_CONTRACT_ERROR,
+            reconciliation_required=False,
         )
 
     def list_webhooks(self) -> object:
@@ -480,6 +717,17 @@ class HttpInstantlyProvider:
 
     def get_webhook_events(self) -> object:
         return self._call("GET", "/webhook-events")
+
+    @staticmethod
+    def _normalize_lead(value: object) -> dict[str, object]:
+        if not isinstance(value, dict) or not value.get("id"):
+            raise InstantlyProviderError(InstantlyErrorCode.MALFORMED_RESPONSE)
+        normalized = dict(value)
+        if "campaign_id" not in normalized and "campaign" in normalized:
+            normalized["campaign_id"] = normalized["campaign"]
+        if "custom_variables" not in normalized and "payload" in normalized:
+            normalized["custom_variables"] = normalized["payload"]
+        return normalized
 
     @staticmethod
     def _mutation(value: object, *, fallback_identity: str) -> ProviderMutationResult:

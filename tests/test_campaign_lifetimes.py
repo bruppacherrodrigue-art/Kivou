@@ -11,6 +11,7 @@ from test_policy_persistence import control
 from signals.campaigns.contracts import (
     CampaignDeploymentBlocked,
     CampaignInputChanged,
+    LeadRiskReductionContractProof,
     MailboxReadiness,
     MailboxReadinessState,
     ProviderOperationKind,
@@ -319,6 +320,9 @@ def test_unknown_mailbox_at_step_two_fails_closed(tmp_path) -> None:
     deployment = _deployment().model_copy(
         update={
             "transport_contract_proof": TransportContractProof.VERIFIED,
+            "lead_risk_reduction_contract_proof": (
+                LeadRiskReductionContractProof.VERIFIED
+            ),
             "webhook_entitlement": WebhookEntitlement.VERIFIED,
         }
     )
@@ -338,6 +342,9 @@ def test_temporary_mailbox_unavailability_pauses_without_false_stop(tmp_path) ->
     deployment = _deployment().model_copy(
         update={
             "transport_contract_proof": TransportContractProof.VERIFIED,
+            "lead_risk_reduction_contract_proof": (
+                LeadRiskReductionContractProof.VERIFIED
+            ),
             "webhook_entitlement": WebhookEntitlement.VERIFIED,
         }
     )

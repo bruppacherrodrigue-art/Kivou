@@ -27,6 +27,7 @@ from signals.campaigns.contracts import (
     CampaignInputChanged,
     CampaignMemberReservation,
     CampaignNotActionable,
+    LeadRiskReductionContractProof,
     MailboxCatalogEntry,
     MailboxReadiness,
     MailboxReadinessState,
@@ -1137,6 +1138,13 @@ class CampaignService:
     def _require_activation_capabilities(self) -> None:
         if self._deployment.transport_contract_proof is not TransportContractProof.VERIFIED:
             raise CampaignDeploymentBlocked("transport contract proof is UNVERIFIED")
+        if (
+            self._deployment.lead_risk_reduction_contract_proof
+            is not LeadRiskReductionContractProof.VERIFIED
+        ):
+            raise CampaignDeploymentBlocked(
+                "per-lead risk-reduction contract proof is UNVERIFIED"
+            )
         if self._deployment.webhook_entitlement is not WebhookEntitlement.VERIFIED:
             raise CampaignDeploymentBlocked("webhook entitlement is UNVERIFIED")
 

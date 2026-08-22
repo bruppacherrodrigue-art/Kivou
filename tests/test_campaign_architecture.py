@@ -58,6 +58,7 @@ def test_default_composition_is_inert_and_fail_closed(tmp_path) -> None:
 
     assert deployment.mailbox_catalog.usable_entries == ()
     assert deployment.transport_contract_proof == "UNVERIFIED"
+    assert deployment.lead_risk_reduction_contract_proof == "UNVERIFIED"
     assert deployment.webhook_entitlement == "UNVERIFIED"
     assert deployment.response_ingress_capability == "NONE"
     assert PacingPolicy().autonomous_live_cap == 0

@@ -109,6 +109,11 @@ class TransportContractProof(StrEnum):
     VERIFIED = "VERIFIED"
 
 
+class LeadRiskReductionContractProof(StrEnum):
+    UNVERIFIED = "UNVERIFIED"
+    VERIFIED = "VERIFIED"
+
+
 class WebhookEntitlement(StrEnum):
     UNVERIFIED = "UNVERIFIED"
     VERIFIED = "VERIFIED"
@@ -250,8 +255,24 @@ class CampaignDeploymentConfig(CampaignContract):
     mailbox_catalog: MailboxCatalog = MailboxCatalog()
     footer_catalog: FooterCatalog = FooterCatalog()
     transport_contract_proof: TransportContractProof = TransportContractProof.UNVERIFIED
+    lead_risk_reduction_contract_proof: LeadRiskReductionContractProof = (
+        LeadRiskReductionContractProof.UNVERIFIED
+    )
     webhook_entitlement: WebhookEntitlement = WebhookEntitlement.UNVERIFIED
     response_ingress_capability: ResponseIngressCapability = ResponseIngressCapability.NONE
+
+    @model_validator(mode="after")
+    def require_risk_reduction_for_transport_proof(self) -> CampaignDeploymentConfig:
+        if (
+            self.transport_contract_proof is TransportContractProof.VERIFIED
+            and self.lead_risk_reduction_contract_proof
+            is not LeadRiskReductionContractProof.VERIFIED
+        ):
+            raise ValueError(
+                "transport proof cannot be VERIFIED without contract-proven "
+                "per-lead risk reduction"
+            )
+        return self
 
 
 class CampaignAuthorizationInput(CampaignContract):

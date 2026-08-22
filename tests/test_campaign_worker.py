@@ -19,6 +19,7 @@ from signals.acquisition.contracts import AcquisitionState
 from signals.acquisition.store import AcquisitionStore
 from signals.campaigns.contracts import (
     CampaignInputChanged,
+    LeadRiskReductionContractProof,
     ProviderOperationKind,
     ProviderOperationState,
     TransportContractProof,
@@ -72,7 +73,7 @@ class FakeInstantly:
             provider_campaign_id="provider-campaign-1",
             name="KIVOU-placeholder",
             status="draft",
-            raw_config={},
+            normalized_config=None,
         )
 
     def create_campaign(self, *, name, provider_config):
@@ -81,7 +82,7 @@ class FakeInstantly:
             provider_campaign_id="provider-campaign-1",
             name=name,
             status="draft",
-            raw_config=provider_config,
+            normalized_config=provider_config,
         )
         if self.create_timeout:
             self.create_timeout = False
@@ -99,7 +100,9 @@ class FakeInstantly:
 
     def configure_campaign(self, provider_campaign_id, *, provider_config):
         self.configure_calls += 1
-        self.campaign = self.campaign.model_copy(update={"raw_config": provider_config})
+        self.campaign = self.campaign.model_copy(
+            update={"normalized_config": provider_config}
+        )
         if self.configure_timeout:
             self.configure_timeout = False
             raise InstantlyProviderError(
@@ -112,7 +115,7 @@ class FakeInstantly:
         assert len(leads) == 1
         value = {
             "id": "provider-lead-1",
-            "status": "active",
+            "status": 1,
             "campaign_id": provider_campaign_id,
             "email": leads[0]["email"],
             "custom_variables": leads[0]["custom_variables"],
@@ -154,7 +157,7 @@ class FakeInstantly:
     def pause_lead(self, provider_lead_id):
         self.pause_lead_calls += 1
         self.leads = [
-            {**lead, "status": "paused"} if lead["id"] == provider_lead_id else lead
+            {**lead, "status": 2} if lead["id"] == provider_lead_id else lead
             for lead in self.leads
         ]
         if self.pause_lead_timeout:
@@ -162,7 +165,7 @@ class FakeInstantly:
             raise InstantlyProviderError(
                 InstantlyErrorCode.TIMEOUT, reconciliation_required=True
             )
-        return {"id": provider_lead_id, "status": "paused"}
+        return {"id": provider_lead_id, "status": 2}
 
 
 def _planned(tmp_path, **provider_options):
@@ -181,6 +184,9 @@ def _planned(tmp_path, **provider_options):
     deployment = _deployment().model_copy(
         update={
             "transport_contract_proof": TransportContractProof.VERIFIED,
+            "lead_risk_reduction_contract_proof": (
+                LeadRiskReductionContractProof.VERIFIED
+            ),
             "webhook_entitlement": WebhookEntitlement.VERIFIED,
         }
     )
@@ -300,7 +306,7 @@ def test_create_reconciliation_rejects_same_name_with_wrong_config(tmp_path) -> 
     operation_ref = _operation(engine, ProviderOperationKind.CREATE_CAMPAIGN)["operation_ref"]
 
     assert worker.process(operation_ref, NOW) is ProviderOperationState.RECONCILE_REQUIRED
-    provider.campaign = provider.campaign.model_copy(update={"raw_config": {}})
+    provider.campaign = provider.campaign.model_copy(update={"normalized_config": {}})
 
     assert worker.process(operation_ref, NOW + dt.timedelta(minutes=1)) is (
         ProviderOperationState.TERMINAL_FAILED
@@ -487,7 +493,7 @@ def test_pause_lead_two_hundred_active_state_never_confirms_risk_reduction(
         member = connection.execute(sa.select(acquisition_campaign_member)).mappings().one()
     provider.pause_lead = lambda _provider_lead_id: {
         "id": "provider-lead-1",
-        "status": "active",
+        "status": 1,
     }
     pause = store.plan_operation(
         ProviderOperationKind.PAUSE_LEAD,
@@ -657,9 +663,11 @@ def test_add_lead_requires_exact_non_sending_campaign_and_mailbox_binding(tmp_pa
     engine, _, _, provider, worker, _ = _planned(tmp_path)
     worker.process(_operation(engine, ProviderOperationKind.CREATE_CAMPAIGN)["operation_ref"], NOW)
     worker.process(_operation(engine, ProviderOperationKind.CONFIGURE_CAMPAIGN)["operation_ref"], NOW)
-    assert provider.campaign.raw_config["email_list"] == ["provider-account:test"]
-    assert provider.campaign.raw_config["daily_limit"] == 3
-    assert provider.campaign.raw_config["auto_variant_select"] is False
+    assert provider.campaign.normalized_config["email_list"] == [
+        "provider-account:test"
+    ]
+    assert provider.campaign.normalized_config["daily_limit"] == 3
+    assert provider.campaign.normalized_config["auto_variant_select"] is None
     provider.campaign = provider.campaign.model_copy(update={"status": "active"})
     operation_ref = _operation(engine, ProviderOperationKind.ADD_LEAD)["operation_ref"]
 
