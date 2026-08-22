@@ -63,10 +63,32 @@ export const fr = {
   },
 
   landing: {
+    heroEyebrow: 'SIGNAUX COMMERCIAUX ISSUS DES MARCHÉS PUBLICS',
+    heroTitle:
+      'Les entreprises qui remportent des contrats publics — et les occasions commerciales que votre équipe peut examiner.',
     heroLead:
-      'Kivou identifie le gagnant, vérifie les faits, qualifie le timing et explique les besoins plausibles — avec la source officielle qui permet d’en juger.',
+      'Kivou identifie les entreprises gagnantes, comprend ce qu’elles devront exécuter et vous montre les occasions correspondant à ce que vous vendez.',
+    heroSecondaryLead:
+      'Vous ne recevez pas une liste de marchés publics. Vous recevez des raisons documentées de contacter de nouveaux prospects.',
     heroPrimary: 'Voir mes 3 signaux',
-    heroSecondary: 'Examiner un signal complet',
+    heroSecondary: 'Découvrir un signal complet',
+    heroTrust: 'Suisse + Union européenne · Sources officielles · Preuves vérifiables',
+    heroCarousel: {
+      regionLabel: 'Exemples de signaux commerciaux',
+      eventLabel: 'CONTRAT PUBLIC DÉTECTÉ',
+      opportunityLabel: 'Angle commercial plausible',
+      timingLabel: 'Calendrier publié',
+      sourceVerified: 'Source vérifiée',
+      viewSignal: 'Voir le signal',
+      previous: 'Signal précédent',
+      next: 'Signal suivant',
+      pause: 'Mettre le carrousel en pause',
+      resume: 'Reprendre le carrousel',
+      reducedMotion: 'Rotation automatique désactivée selon vos préférences de mouvement',
+      indicator: 'Afficher le signal {current} sur {total}',
+      slide: 'Signal {current} sur {total}',
+      manualAnnouncement: 'Signal {current} sur {total} : {company}',
+    },
     proofsTitle: 'Ce sur quoi Kivou s’appuie',
     proofs: {
       publicTitle: '100 % fait public',
@@ -79,8 +101,203 @@ export const fr = {
       actionableBody:
         'Vous décrivez ce que vous vendez et où vous livrez ; Kivou explique pourquoi un signal vous concerne.',
     },
+    how: {
+      introEyebrow: 'SURVEILLANCE COMMERCIALE CONTINUE',
+      introTitle:
+        'Kivou transforme les attributions publiques en prospects à examiner selon leur calendrier.',
+      introBodyOne:
+        'Des entreprises remportent des contrats publics en Suisse et dans l’Union européenne. Kivou identifie les gagnants, résume ce qu’ils devront exécuter et sélectionne les occasions qui correspondent à ce que vous vendez.',
+      introBodyTwo:
+        'Kivou surveille ces événements, identifie les gagnants, comprend ce qu’ils devront exécuter et sélectionne uniquement les occasions correspondant à ce que vous vendez.',
+      introHighlight:
+        'Pas une liste de marchés publics : des raisons documentées de contacter de nouveaux prospects.',
+      profileEyebrow: 'Votre profil de ciblage',
+      profileTitle: 'Vous décrivez votre activité. Kivou surveille le marché pour vous.',
+      profileBody:
+        'Vous indiquez votre offre, vos cibles et vos régions. Kivou écarte le bruit et fait remonter les attributions utiles.',
+      profileOutput: 'Votre flux de signaux personnalisés',
+      profileCards: [
+        {
+          title: 'Votre offre',
+          body: 'Produits, services, capacités.',
+        },
+        {
+          title: 'Vos prospects',
+          body: 'Entreprises recherchées.',
+        },
+        {
+          title: 'Votre territoire',
+          body: 'Pays et régions couverts.',
+        },
+        {
+          title: 'Vos priorités',
+          body: 'Secteurs, montants, besoins.',
+        },
+      ],
+      processTitle: 'De l’attribution publique à l’action commerciale',
+      processSteps: [
+        {
+          title: 'Kivou surveille',
+          body: 'Les attributions suisses et européennes publiées sont collectées.',
+        },
+        {
+          title: 'Kivou identifie',
+          body: 'Gagnant, contrat, montant, acheteur, lieu et dates sont vérifiés.',
+        },
+        {
+          title: 'Kivou comprend',
+          body: 'Les lots, volumes et documents disponibles sont résumés.',
+        },
+        {
+          title: 'Kivou fait correspondre',
+          body: 'Le signal est comparé à votre offre, vos cibles et votre territoire.',
+        },
+        {
+          title: 'Kivou qualifie le moment',
+          body: 'La date d’attribution et le calendrier d’exécution situent le signal dans le temps.',
+        },
+        {
+          title: 'Votre équipe agit',
+          body: 'Votre commercial reçoit le prospect, le contexte, le timing et la preuve.',
+        },
+      ],
+      dashboardEyebrow: 'DANS VOTRE DASHBOARD',
+      dashboardTitle:
+        'Un signal clair, directement exploitable.',
+      dashboardBody:
+        'L’entreprise, le contrat, les volumes, le timing, les coordonnées disponibles et la preuve officielle tiennent dans une seule vue.',
+      dashboardAlt:
+        'Tableau de bord Kivou montrant un signal commercial pour une entreprise gagnante, le montant du contrat, les volumes, la correspondance avec l’offre du client, les coordonnées professionnelles et la prochaine étape.',
+      dashboardCaption:
+        'Le prospect, le contexte et la prochaine action — réunis dans un seul signal.',
+      dashboardMarkers: [
+        'Entreprise identifiée',
+        'Coordonnées professionnelles',
+        'Timing qualifié',
+        'Action recommandée',
+        'Preuve officielle',
+      ],
+      dashboardPrimary: 'Voir un signal complet',
+      dashboardSecondary: 'Recevoir mes 3 signaux',
+      comparisonTitle: 'Une attribution publique n’est pas encore une occasion commerciale',
+      comparisonWithoutEyebrow: 'Sans Kivou',
+      comparisonWithoutTitle: 'Une donnée parmi des milliers',
+      comparisonWithoutItems: [
+        'avis officiel à lire',
+        'titre administratif',
+        'codes et références',
+        'contexte commercial à reconstituer',
+      ],
+      comparisonWithoutConclusion:
+        'Le commercial doit encore transformer la donnée en approche concrète.',
+      comparisonWithEyebrow: 'Avec Kivou',
+      comparisonWithTitle: 'Une raison documentée de contacter le bon prospect',
+      comparisonWithItems: [
+        'prospect identifié',
+        'volumes résumés',
+        'timing qualifié',
+        'action et preuve réunies',
+      ],
+      comparisonWithConclusion:
+        'Le commercial comprend pourquoi ce prospect mérite son attention et peut vérifier le calendrier publié.',
+      questionsTitle: 'Chaque signal répond aux questions de votre équipe commerciale',
+      questions: [
+        {
+          title: 'Qui contacter ?',
+          body: 'L’entreprise gagnante du marché, clairement identifiée.',
+        },
+        {
+          title: 'Comment la joindre ?',
+          body: 'Les coordonnées professionnelles publiques et vérifiées disponibles pour cette entreprise.',
+        },
+        {
+          title: 'Que s’est-il passé ?',
+          body: 'Le contrat remporté, son montant, son objet, sa localisation et ses dates.',
+        },
+        {
+          title: 'Que pourrais-je lui vendre ?',
+          body: 'Les besoins compatibles avec votre offre, expliqués à partir des faits publiés.',
+        },
+        {
+          title: 'Quel est le calendrier ?',
+          body: 'Les dates publiées de l’attribution et de l’exécution.',
+        },
+        {
+          title: 'Pourquoi ce prospect me correspond-il ?',
+          body: 'La correspondance avec vos produits, vos cibles et votre territoire.',
+        },
+        {
+          title: 'Sur quoi repose l’analyse ?',
+          body: 'La source officielle, les faits vérifiés et les documents disponibles.',
+        },
+      ],
+      trustTitle: 'Une analyse commerciale que vous pouvez vérifier',
+      trustBodyOne:
+        'Kivou distingue les faits publiés, les besoins déduits de ces faits, leur correspondance avec votre activité et les éventuelles limites documentaires.',
+      trustBodyTwo:
+        'Chaque signal sépare les faits vérifiés, les déductions commerciales et la source officielle. Vous gardez la décision ; Kivou accélère l’analyse.',
+      trustIndicators: [
+        'Fait public sourcé',
+        'Besoin expliqué',
+        'Correspondance personnalisée',
+        'Source officielle accessible',
+      ],
+      pricingTitle: 'Une attribution publique peut déjà révéler votre prochain prospect',
+      pricingBody:
+        'Décrivez ce que vous vendez et où vous intervenez. Kivou vous montre immédiatement trois signaux complets.',
+      pricingNoCard: 'Aucune carte bancaire nécessaire.',
+      pricingPrimary: 'Voir mes 3 premiers signaux',
+      pricingSecondary: 'Comparer les offres',
+      demo: {
+        previewBadge: 'Aperçu de l’expérience Kivou',
+        navOverview: 'Vue d’ensemble',
+        navSignals: 'Signaux',
+        navCompanies: 'Entreprises',
+        navAlerts: 'Alertes',
+        navProfile: 'Profil de ciblage',
+        navSettings: 'Paramètres',
+        topTitle: 'Signaux',
+        search: 'Recherche',
+        activeProfile: 'Fournitures de menuiserie · Allemagne du Sud',
+        territory: 'Bavière · Pertinence forte',
+        account: 'Compte démo',
+        selected: 'Sélectionné',
+        opportunity: 'Opportunité commerciale',
+        signalTitle: 'H. Hüther GmbH — marché de 5,22 M€ attribué à Munich',
+        summary:
+          'Plus de 700 ensembles de portes et huisseries, 5,5 km de plinthes et plusieurs équipements d’agencement figurent dans le périmètre publié.',
+        verifiedEvent: 'Événement vérifié',
+        goodTiming: 'Début prévu : 28 octobre 2026',
+        strongFit: 'Adéquation forte',
+        officialSource: 'Source officielle',
+        whyRelevantTitle: 'Pourquoi ce signal vous concerne',
+        whyRelevant:
+          'Votre profil indique que vous fournissez des portes, de la quincaillerie ou des composants d’agencement et que vous livrez en Bavière. Les catégories, les volumes et la zone d’exécution correspondent à votre ciblage.',
+        whyNowTitle: 'Calendrier publié',
+        whyNow:
+          'Le marché a été attribué le 14 août 2026. Le début d’exécution publié est fixé au 28 octobre 2026.',
+        volumesTitle: 'Volumes publiés',
+        companyTitle: 'Entreprise',
+        companyVerified: 'Coordonnées professionnelles vérifiées',
+        legalName: 'Raison sociale',
+        address: 'Adresse',
+        countryRegion: 'Pays et région',
+        website: 'Site internet',
+        phone: 'Téléphone professionnel',
+        identifier: 'Identifiant officiel',
+        status: 'Statut de vérification',
+        updated: 'Dernière vérification',
+        actionTitle: 'Action recommandée',
+        actionBody:
+          'Identifier le responsable achats, approvisionnement ou opérations et engager une prise de contact avant le démarrage du chantier.',
+        prepare: 'Préparer le contact',
+        save: 'Sauvegarder',
+        contacted: 'Marquer contacté',
+        source: 'Voir la source officielle',
+      },
+    },
     chainTitle: 'La chaîne de valeur Kivou',
-    chainLead: 'Du fait publié à la raison de contacter une entreprise maintenant.',
+    chainLead: 'Du fait publié à la raison d’examiner une entreprise selon son calendrier.',
     chain: {
       factTitle: 'Fait public',
       factBody: 'Publication officielle d’un marché attribué et de son gagnant.',
@@ -108,9 +325,12 @@ export const fr = {
     ],
     honestyNote:
       'Kivou ne sait pas ce qu’une entreprise va acheter. Kivou montre un événement public, ce qu’il implique probablement, et la preuve qui permet d’en juger.',
-    pricingTitle: 'Choisir une offre',
-    pricingLead: 'Facturation mensuelle. Sans engagement.',
-    pricingUnavailable: 'Le détail des offres est momentanément indisponible. La création de compte reste ouverte.',
+    pricingEyebrow: '4 offres · Facturation mensuelle',
+    pricingTitle: 'Choisissez la couverture commerciale adaptée à vos objectifs',
+    pricingLead:
+      'Commencez par trois signaux réels. Étendez ensuite votre couverture et votre capacité de suivi à mesure que votre prospection se développe.',
+    pricingUnavailable:
+      'Les tarifs sont momentanément indisponibles. La création de compte reste ouverte.',
     ctaTitle: 'Commencez par trois signaux réels',
     ctaBody:
       'Créez un compte, décrivez ce que vous vendez, et consultez trois signaux complets avec leur preuve documentaire.',
@@ -120,76 +340,160 @@ export const fr = {
 
   publicDemo: {
     navLabel: 'Exemple de signal',
-    badge: 'Exemple de signal réel',
-    pageTitle: 'Un signal Kivou, en entier',
-    pageLead:
-      'Le même signal que vous verriez dans votre feed, avec ses faits, sa preuve, ce que Kivou en déduit et ce qu’il ne sait pas.',
-    verifiedOn: 'Faits vérifiés contre la source officielle le {date}.',
-    openSource: 'Ouvrir l’avis officiel',
-    openSourceHint: 'S’ouvre sur le site officiel TED, dans un nouvel onglet.',
+    heroEyebrow: 'Opportunité commerciale documentée',
+    heroTitle: '{company} a remporté un marché de {amount} à {location}',
+    heroSubtitle:
+      'Le descriptif publié mentionne {woodDoors} huisseries et portes bois, {steelDoors} huisseries acier et portes bois, {skirting} de plinthes, {wallCladding} de revêtement bois, {glazing} vitrages et {kitchenettes} kitchenettes.',
+    heroTiming:
+      'L’exécution est prévue à partir du {startDate}. Kivou permet d’identifier l’entreprise et d’examiner la pertinence d’une approche avant cette étape.',
+    heroBadgeVerified: 'Événement vérifié',
+    heroBadgeAwardDate: 'Date d’attribution publiée',
+    heroBadgeSchedule: 'Calendrier d’exécution publié',
+    heroBadgeSource: 'Source officielle disponible',
+    heroMeta: 'Avis publié le {published} · Vérifié par Kivou le {verified}',
+    heroPrimary: 'Voir mes 3 premiers signaux',
+    heroSecondary: 'Ouvrir l’avis officiel',
+    externalNewTab: '— s’ouvre dans un nouvel onglet',
 
-    factsTitle: 'Fait public',
-    factsLead: 'Publié par l’acheteur dans l’avis d’attribution officiel.',
+    contractSnapshot: 'Le marché en bref',
     winner: 'Entreprise gagnante',
-    buyer: 'Acheteur public',
     object: 'Objet du marché',
+    buyer: 'Acheteur public',
     amountLabel: 'Montant attribué',
     place: 'Lieu d’exécution',
-    reference: 'Référence du marché',
-    cpv: 'Code CPV',
-    identifier: 'Identifiant d’entreprise',
-    quantitiesTitle: 'Quantités publiées dans l’avis',
-    quantitiesNote:
-      'Ces quantités figurent dans le descriptif de l’avis d’attribution. Ce n’est pas un extrait de cahier des charges.',
 
-    documentaryTitle: 'Exigence documentaire',
-    documentaryNone:
-      'Aucune exigence d’exécution validée n’est disponible dans les données Kivou pour cette attribution.',
-    documentaryModeLabel: 'Mode d’analyse',
-    documentaryMode: 'Analyse fondée sur les métadonnées de l’avis',
-    documentaryConfidenceLabel: 'Confiance',
-    documentaryConfidence: 'Réduite',
-    documentaryConfidenceReason:
-      'Objet, code CPV, montant, localisation et dates proviennent de l’avis d’attribution officiel. Aucun cahier des charges validé n’alimente ce signal.',
+    overviewEyebrow: 'Pourquoi cette attribution mérite un examen commercial',
+    overviewTitle:
+      'Un marché important fournit des faits concrets pour évaluer une occasion fournisseur.',
+    overviewBody:
+      '{company} a remporté un marché de {amount} à {location}. Kivou rassemble l’attribution, les volumes publiés et le calendrier pour permettre à un fournisseur d’évaluer la compatibilité avec son offre.',
+    needLabel: 'Besoin commercial plausible',
+    overviewHighlight: 'Attribution publiée. Volumes documentés. Entreprise identifiée.',
 
-    analysisTitle: 'Analyse Kivou',
-    analysisLead: 'Une hypothèse tirée du fait publié, pas un achat annoncé.',
-    needLabel: 'Besoin plausible',
-    reasoningLabel: 'Pourquoi Kivou le pense',
-    needTimingLabel: 'Horizon',
-    needTimingNearTerm: 'À court terme',
-    externalisabilityLabel: 'Externalisable',
-    externalisabilityPlausible: 'Plausiblement',
+    volumesTitle: 'Ce que l’entreprise devra exécuter',
+    volumesLead: 'Volumes publiés dans l’avis d’attribution officiel.',
+    quantityWoodDoors: 'Huisseries et portes bois',
+    quantitySteelDoors: 'Huisseries acier et portes bois',
+    quantitySkirting: 'Plinthes',
+    quantityWallCladding: 'Revêtement mural bois',
+    quantityGlazing: 'Éléments vitrés',
+    quantityKitchenettes: 'Kitchenettes',
+    quantitiesNote: 'Ces quantités figurent dans le descriptif publié de l’avis d’attribution.',
 
-    timingTitle: 'Timing',
-    timingLead: 'Ce que les dates publiées autorisent à dire.',
-    awardDate: 'Date d’attribution',
-    signatureDate: 'Date de signature',
-    startDate: 'Début d’exécution',
-    endDate: 'Fin prévue',
-    publishedAt: 'Publication de l’avis',
-    timingNote:
-      'La date d’attribution est publiée : ce marché a été attribué à une date connue, et non simplement publié récemment.',
+    opportunitiesTitle: 'Opportunités commerciales associées',
+    opportunitiesLead: 'Les volumes publiés font apparaître plusieurs angles de prospection possibles.',
+    plausibleAngle: 'Angle commercial plausible',
+    opportunityDoorsTitle: 'Portes et huisseries',
+    opportunityDoorsBody:
+      '{woodDoors} huisseries et portes bois ainsi que {steelDoors} huisseries acier et portes bois sont publiées. Pour un fournisseur compatible, ces volumes constituent un angle commercial plausible.',
+    opportunityWoodTitle: 'Plinthes et produits bois',
+    opportunityWoodBody:
+      'Le descriptif publie {skirting} de plinthes et {wallCladding} de revêtement mural bois. Ces volumes peuvent intéresser un fournisseur de produits compatibles.',
+    opportunityGlazingTitle: 'Vitrage',
+    opportunityGlazingBody:
+      '{glazing} éléments vitrés figurent dans les quantités publiées. Cette donnée fournit un angle d’examen aux fournisseurs compatibles.',
+    opportunityKitchenTitle: 'Kitchenettes et agencement',
+    opportunityKitchenBody:
+      '{kitchenettes} kitchenettes figurent dans le descriptif publié. Cette donnée peut constituer un angle commercial pour les acteurs de l’agencement.',
+    opportunitiesNote:
+      'Ces angles sont déduits des volumes publiés. Ils ne constituent pas des achats futurs confirmés.',
 
-    fitTitle: 'Pourquoi ce signal peut concerner un fournisseur',
-    fitLead: 'Illustration. Votre profil de ciblage détermine ce que vous recevez réellement.',
-    fitBody:
-      'Un négoce de matériaux ou un fabricant de composants peut lire ici un chantier daté, localisé et chiffré, dont l’exécution consommera des fournitures. C’est une raison de contacter, pas une commande.',
+    matchingEyebrow: 'Illustration publique',
+    matchingTitle: 'Comment le matching serait évalué dans Kivou',
+    matchingIntro:
+      'Illustration publique : dans Kivou, la pertinence est calculée selon ce que vous vendez, vos secteurs cibles et les territoires où vous intervenez.',
+    matchingReasonOne: 'Si votre offre couvre des produits compatibles avec les volumes publiés',
+    matchingReasonTwo: 'Si l’importance du marché correspond à vos priorités commerciales',
+    matchingReasonThree: 'Si vous intervenez dans la zone d’exécution publiée à {location}',
+    matchingReasonFour: 'Si le type d’entreprise gagnante entre dans vos cibles',
+    matchingReasonFive: 'Le calendrier publié peut être comparé à votre cycle commercial',
+    matchingReasonSix: 'La source officielle apporte un contexte vérifiable',
+    matchingConclusion:
+      'Ce bloc explique le mécanisme de matching ; il ne présente pas une correspondance calculée pour le visiteur de cette page.',
+    matchingNote:
+      'Dans un compte Kivou, le flux est personnalisé à partir du profil de ciblage réellement renseigné.',
 
-    evidenceTitle: 'Preuve',
-    evidenceLead: 'Champs vérifiés sélectionnés dans l’avis officiel.',
-    evidenceScope:
-      'Trois champs portent un renvoi de provenance individuel. Les autres faits de cette page proviennent du même avis officiel, consultable ci-dessous, sans renvoi champ par champ.',
-    evidenceAmount: 'Montant',
+    timingTitle: 'Calendrier publié du marché',
+    timingWhyTitle: 'Ce que ces dates permettent d’examiner',
+    timingBody:
+      'L’exécution est prévue à partir du {startDate}. Kivou permet d’identifier l’entreprise et d’examiner la pertinence d’une approche avant cette étape.',
+    timelineAwarded: 'Marché attribué',
+    timelineSigned: 'Marché signé',
+    timelinePublished: 'Avis officiel publié',
+    timelineStart: 'Début prévu de l’exécution',
+    timelineEnd: 'Fin prévue de l’exécution',
+
+    companyTitle: 'Entreprise identifiée',
+    companyLead:
+      'Les faits d’attribution et les coordonnées professionnelles sont présentés avec leurs sources respectives.',
+    companyTedFactsTitle: 'Faits issus de l’avis TED',
+    companyLegalName: 'Raison sociale',
+    companyOfficialAddress: 'Adresse officielle',
+    companyCountry: 'Pays',
+    companyIdentifier: 'Identifiant officiel',
+    companyContract: 'Marché remporté',
+    companyBuyer: 'Acheteur public',
+    companyTedSource: 'Consulter les faits dans TED',
+    companyContactTitle: 'Coordonnées vérifiées sur le site public de l’entreprise',
+    companyContactIntro:
+      'Ces coordonnées professionnelles proviennent du site public de l’entreprise, distinct de l’avis TED.',
+    companyWebsite: 'Site internet',
+    companyWebsiteLink: 'Ouvrir le site internet de l’entreprise',
+    companyPhone: 'Téléphone professionnel',
+    companyContactVerified: 'Coordonnées vérifiées le',
+    companyContactSource: 'Source de vérification',
+    companyContactSourceLink: 'Ouvrir la source de vérification',
+
+    actionEyebrow: 'Prochaine étape',
+    actionTitle: 'Prochaine étape recommandée',
+    actionBody: 'Cette démonstration permet d’examiner le signal sans simuler une prospection automatisée.',
+    actionListTitle: 'Actions disponibles',
+    actionReviewMarket: 'Examiner le marché et les volumes publiés',
+    actionCheckFit: 'Vérifier leur correspondance avec votre offre',
+    actionOpenNotice: 'Consulter l’avis officiel',
+    actionCreateAccount: 'Créer un compte Kivou pour recevoir trois signaux personnalisés',
+    actionPrimary: 'Voir mes 3 premiers signaux',
+    actionSecondary: 'Ouvrir l’avis officiel',
+
+    evidenceTitle: 'Les faits essentiels sont vérifiables',
+    evidenceBody:
+      'Le gagnant, l’objet du marché, le montant, le lieu, les dates et les quantités affichés proviennent de l’avis d’attribution officiel. Trois champs disposent d’une provenance technique détaillée.',
+    evidenceAmount: 'Montant exact',
     evidenceCpv: 'Code CPV',
     evidenceLot: 'Référence du lot',
-    evidenceTechnical: 'Afficher les chemins techniques',
+    evidenceReference: 'Référence du marché',
+    evidenceIdentifier: 'Identifiant d’entreprise',
+    evidenceSignature: 'Date de signature',
+    evidenceTechnical: 'Voir les détails techniques de provenance',
     evidencePathXml: 'Chemin XML',
     evidencePathField: 'Champ d’acquisition',
+    openSource: 'Consulter l’avis officiel',
+    openSourceHint: 'S’ouvre sur le site officiel TED, dans un nouvel onglet.',
 
-    ctaTitle: 'Voir vos propres signaux',
-    ctaBody: 'Décrivez ce que vous vendez et où vous livrez. Kivou vous montre trois signaux complets.',
-    ctaButton: 'Voir mes 3 signaux',
+    coverageTitle: 'Couverture de cette analyse',
+    coverageBody:
+      'Aucun cahier des charges validé n’alimente cette démonstration. Le besoin commercial est donc une inférence fondée sur l’objet, le code CPV, le montant, les volumes, la localisation et les dates publiés. Cette limite ne remet pas en cause les faits de l’attribution.',
+    coverageDetails: 'Voir les niveaux de vérification et d’inférence',
+    coverageEvent: 'Événement public',
+    coverageWinner: 'Entreprise gagnante',
+    coverageAmountDates: 'Montant et dates',
+    coverageQuantities: 'Quantités',
+    coverageNeeds: 'Besoin commercial',
+    coverageDocumentary: 'Couverture documentaire',
+    coverageMode: 'Mode d’analyse',
+    statusVerified: 'Vérifié',
+    statusIdentified: 'Identifiée',
+    statusPublished: 'Publiés',
+    statusPublishedDescription: 'Publiées dans le descriptif',
+    statusPlausible: 'Plausible',
+    statusLimited: 'Limitée',
+    statusMetadata: 'Métadonnées de l’avis',
+
+    finalCtaTitle: 'Recevez les occasions qui correspondent à votre activité',
+    finalCtaBody:
+      'Décrivez ce que vous vendez et où vous intervenez. Kivou surveille les attributions publiques et vous montre les entreprises, les faits, le calendrier et les besoins plausibles correspondant à votre profil.',
+    finalCtaNoCard: 'Aucune carte bancaire nécessaire.',
+    finalCtaPrimary: 'Voir mes 3 premiers signaux',
 
     previewEyebrow: 'Exemple de signal réel',
     previewMode: 'Avis officiel vérifié',
@@ -550,6 +854,8 @@ export const fr = {
     current: 'Votre offre actuelle',
     choose: 'Choisir {plan}',
     choosing: 'Ouverture du paiement…',
+    publicDiscoveryCta: 'Voir mes 3 premiers signaux',
+    publicPaidCta: 'Créer mon compte',
     included: 'Ce qui est inclus',
     plans: {
       discovery: 'Découverte',
@@ -557,12 +863,19 @@ export const fr = {
       pro: 'Pro',
       scale: 'Scale',
     },
+    planPositioning: {
+      discovery: 'Validez la pertinence de Kivou avec vos trois premiers signaux.',
+      essential: 'Concentrez votre prospection sur une priorité commerciale.',
+      pro: 'Suivez plusieurs priorités et agissez avec le contexte et les preuves utiles.',
+      scale: 'Étendez votre couverture à davantage de marchés et de territoires.',
+    },
     entitlements: {
       icpsOne: '{count} profil de ciblage',
       icpsOther: '{count} profils de ciblage',
-      territorySingle: '1 territoire principal',
-      territoryMultiple: 'Plusieurs territoires',
-      territoryExpanded: 'Couverture étendue Suisse et Union européenne',
+      territoriesPerProfileOne: 'Jusqu’à {count} territoire par profil',
+      territoriesPerProfileOther: 'Jusqu’à {count} territoires par profil',
+      territoryMultiple: 'Plusieurs territoires par profil',
+      territoryExpanded: 'Couverture territoriale étendue',
       historyWindow: 'Historique {days} jours',
       historyAll: 'Tout l’historique conservé',
       historyNone: 'Pas de fenêtre d’historique générale',

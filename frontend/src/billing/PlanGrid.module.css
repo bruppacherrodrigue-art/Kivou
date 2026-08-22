@@ -17,6 +17,16 @@
   overflow: hidden;
 }
 
+.publicGrid {
+  gap: var(--kivou-space-5);
+}
+
+.publicCard {
+  min-height: 34rem;
+  gap: var(--kivou-space-4);
+  border-color: var(--kivou-border-strong);
+}
+
 /* La bande Forest Green de Pro : le plan recommandé est le centre visuel de la
  * grille. */
 .recommended {
@@ -73,9 +83,33 @@
   color: var(--kivou-text-primary);
 }
 
+.publicCard .amount {
+  font-size: clamp(2.5rem, 3vw, 2.9rem);
+}
+
 .interval {
   font-size: var(--kivou-text-small);
   color: var(--kivou-text-secondary);
+}
+
+.positioning {
+  max-width: 29ch;
+  min-height: 4.5rem;
+  padding-top: var(--kivou-space-2);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+  color: var(--kivou-text-secondary);
+}
+
+.featuresLabel {
+  margin-top: var(--kivou-space-2);
+  margin-bottom: calc(-1 * var(--kivou-space-2));
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--kivou-text-primary);
 }
 
 .features {
@@ -107,6 +141,10 @@
 
 .action {
   margin-top: auto;
+}
+
+.publicCard .action {
+  padding-top: var(--kivou-space-3);
 }
 
 @media (min-width: 640px) {

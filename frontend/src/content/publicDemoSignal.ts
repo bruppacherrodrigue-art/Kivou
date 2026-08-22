@@ -21,10 +21,11 @@
  *   signal   ffd0dfe063ba123f0fdfc74f1afa06fb2fd5b41dea405425230cd5e350e47353
  *   avis     TED 568562-2026
  *
- * Chacun des faits ci-dessous a été confronté au XML officiel de l'avis,
- * récupéré en direct : gagnant, acheteur, montant, les trois dates, CPV,
- * référence de contrat, identifiant d'entreprise, et jusqu'aux quantités
- * publiées. Aucune valeur n'est reformulée, arrondie ni traduite.
+ * Chacun des faits d'attribution ci-dessous a été confronté au XML officiel de
+ * l'avis, récupéré en direct : gagnant, acheteur, montant, cinq dates, CPV,
+ * référence de contrat, identifiant d'entreprise et quantités publiées. Les
+ * valeurs source sont conservées ici ; leur format d'affichage est localisé au
+ * rendu sans modifier la donnée de référence.
  *
  * Ce que ce signal n'a PAS
  * ────────────────────────
@@ -71,6 +72,11 @@ export interface PublicDemoSignal {
     readonly legalName: string
     readonly country: string
     readonly address: string
+    readonly website?: string
+    readonly phone?: string
+    /** Public professional contact details checked against the company website. */
+    readonly contactVerifiedAt?: string
+    readonly contactVerificationSource?: string
     readonly identifier: { readonly scheme: string; readonly value: string }
   }
   readonly buyer: { readonly legalName: string; readonly country: string }
@@ -124,14 +130,17 @@ export const publicDemoSignal: PublicDemoSignal = {
     legalName: 'H. Hüther GmbH',
     country: 'DE',
     address: 'Graseweg 8, 34346 Hedemünden',
+    website: 'https://huether-gmbh.de',
+    phone: '+49 5545 9606-0',
+    contactVerifiedAt: '2026-08-22',
+    contactVerificationSource: 'https://huether-gmbh.de/impressum-huther-objektturen/',
     identifier: { scheme: 'TED-BT-501', value: 'DE115302781' },
   },
 
   buyer: { legalName: 'Staatl. Bauamt München 1', country: 'DE' },
 
   contract: {
-    // Orthographe de la source : TED publie les tréma en translittération.
-    // Corriger « Innentueren » en « Innentüren » serait réécrire l'avis.
+    // Orthographe exacte publiée dans le XML TED 568562-2026.
     title: 'Tischlerarbeiten Innentueren und Moebel',
     reference: '26-000.723.722',
     cpv: '45420000',

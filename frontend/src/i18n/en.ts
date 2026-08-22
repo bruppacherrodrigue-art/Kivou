@@ -57,10 +57,32 @@ export const en: Dictionary = {
   },
 
   landing: {
+    heroEyebrow: 'SALES SIGNALS FROM PUBLIC CONTRACT AWARDS',
+    heroTitle:
+      'The companies winning public contracts — and the sales opportunities your team can assess.',
     heroLead:
-      'Kivou identifies the winner, checks the facts, qualifies the timing and explains the plausible needs — with the official source that lets you judge.',
+      'Kivou identifies contract winners, understands what they will need to deliver and shows you the opportunities that match what you sell.',
+    heroSecondaryLead:
+      'You do not receive a list of public contracts. You receive documented reasons to approach new prospects.',
     heroPrimary: 'See my 3 signals',
-    heroSecondary: 'Examine a complete signal',
+    heroSecondary: 'Explore a complete signal',
+    heroTrust: 'Switzerland + European Union · Official sources · Verifiable evidence',
+    heroCarousel: {
+      regionLabel: 'Sales signal examples',
+      eventLabel: 'PUBLIC CONTRACT DETECTED',
+      opportunityLabel: 'Plausible sales angle',
+      timingLabel: 'Published schedule',
+      sourceVerified: 'Verified source',
+      viewSignal: 'View signal',
+      previous: 'Previous signal',
+      next: 'Next signal',
+      pause: 'Pause carousel',
+      resume: 'Resume carousel',
+      reducedMotion: 'Automatic rotation disabled by your motion preferences',
+      indicator: 'Show signal {current} of {total}',
+      slide: 'Signal {current} of {total}',
+      manualAnnouncement: 'Signal {current} of {total}: {company}',
+    },
     proofsTitle: 'What Kivou stands on',
     proofs: {
       publicTitle: '100% public record',
@@ -73,8 +95,202 @@ export const en: Dictionary = {
       actionableBody:
         'You describe what you sell and where you deliver; Kivou explains why a signal concerns you.',
     },
+    how: {
+      introEyebrow: 'CONTINUOUS SALES MONITORING',
+      introTitle:
+        'Kivou turns public contract awards into prospects to assess against their published schedule.',
+      introBodyOne:
+        'Companies win public contracts across Switzerland and the European Union. Kivou identifies the winners, summarises what they need to deliver and selects the opportunities that match what you sell.',
+      introBodyTwo:
+        'Kivou monitors those events, identifies the winners, understands what they will need to deliver and selects only the opportunities that match what you sell.',
+      introHighlight:
+        'Not a tender list: documented reasons to contact new prospects.',
+      profileEyebrow: 'Target profile',
+      profileTitle: 'You describe your business. Kivou monitors the market for you.',
+      profileBody:
+        'You define your offering, targets and regions. Kivou filters out noise and surfaces useful awards.',
+      profileOutput: 'Your personalised sales signal feed',
+      profileCards: [
+        {
+          title: 'Your offering',
+          body: 'Products, services, capabilities.',
+        },
+        {
+          title: 'Your prospects',
+          body: 'Companies you want to reach.',
+        },
+        {
+          title: 'Your territory',
+          body: 'Countries and regions covered.',
+        },
+        {
+          title: 'Your priorities',
+          body: 'Sectors, amounts, needs.',
+        },
+      ],
+      processTitle: 'From public award to sales action',
+      processSteps: [
+        {
+          title: 'Kivou monitors',
+          body: 'Published Swiss and European awards are collected.',
+        },
+        {
+          title: 'Kivou identifies',
+          body: 'Winner, contract, amount, buyer, location and dates are verified.',
+        },
+        {
+          title: 'Kivou understands',
+          body: 'Lots, volumes and available documents are summarised.',
+        },
+        {
+          title: 'Kivou matches',
+          body: 'The signal is matched with your offering, targets and territory.',
+        },
+        {
+          title: 'Kivou qualifies the timing',
+          body: 'The award date and execution schedule place the signal in time.',
+        },
+        {
+          title: 'Your team acts',
+          body: 'Your salesperson gets the prospect, context, timing and evidence.',
+        },
+      ],
+      dashboardEyebrow: 'IN YOUR DASHBOARD',
+      dashboardTitle: 'A clear signal your team can act on.',
+      dashboardBody:
+        'The company, contract, volumes, timing, available contact details and official evidence are brought together in one view.',
+      dashboardAlt:
+        'Kivou dashboard showing a sales signal for a contract-winning company, the contract amount, volumes, fit with the customer offering, verified company details and the next step.',
+      dashboardCaption:
+        'The prospect, context and next step — brought together in one sales signal.',
+      dashboardMarkers: [
+        'Company identified',
+        'Verified company details',
+        'Timing qualified',
+        'Recommended action',
+        'Official evidence',
+      ],
+      dashboardPrimary: 'View a complete signal',
+      dashboardSecondary: 'Receive my 3 signals',
+      comparisonTitle: 'A public award is not yet a sales opportunity',
+      comparisonWithoutEyebrow: 'Without Kivou',
+      comparisonWithoutTitle: 'One record among thousands',
+      comparisonWithoutItems: [
+        'official notice to read',
+        'administrative title',
+        'codes and references',
+        'sales context still missing',
+      ],
+      comparisonWithoutConclusion:
+        'The salesperson still has to turn the record into a usable approach.',
+      comparisonWithEyebrow: 'With Kivou',
+      comparisonWithTitle: 'A documented reason to contact the right prospect',
+      comparisonWithItems: [
+        'prospect identified',
+        'volumes summarised',
+        'timing qualified',
+        'action and evidence together',
+      ],
+      comparisonWithConclusion:
+        'The salesperson understands why this prospect deserves attention and can verify the published schedule.',
+      questionsTitle: 'Each signal answers your sales team’s questions',
+      questions: [
+        {
+          title: 'Who should I contact?',
+          body: 'The contract-winning company, clearly identified.',
+        },
+        {
+          title: 'How can I reach them?',
+          body: 'The public, verified company details available for that company.',
+        },
+        {
+          title: 'What happened?',
+          body: 'The awarded contract, amount, object, location and dates.',
+        },
+        {
+          title: 'What could I sell them?',
+          body: 'Needs compatible with your offering, explained from published facts.',
+        },
+        {
+          title: 'What is the schedule?',
+          body: 'The published award and execution dates.',
+        },
+        {
+          title: 'Why does this prospect fit me?',
+          body: 'The match with your products, target companies and territory.',
+        },
+        {
+          title: 'What is the analysis based on?',
+          body: 'The official source, verified facts and available documents.',
+        },
+      ],
+      trustTitle: 'A sales analysis you can verify',
+      trustBodyOne:
+        'Kivou distinguishes published facts, needs inferred from those facts, their fit with your business and any document coverage limits.',
+      trustBodyTwo:
+        'Each signal separates verified facts, sales inferences and the official source. You keep the decision; Kivou speeds up the analysis.',
+      trustIndicators: [
+        'Sourced public fact',
+        'Need explained',
+        'Personalised fit',
+        'Official source accessible',
+      ],
+      pricingTitle: 'A public contract award may already reveal your next prospect',
+      pricingBody:
+        'Describe what you sell and where you operate. Kivou immediately shows you three complete signals.',
+      pricingNoCard: 'No payment card required.',
+      pricingPrimary: 'See my first 3 signals',
+      pricingSecondary: 'Compare plans',
+      demo: {
+        previewBadge: 'Kivou experience preview',
+        navOverview: 'Overview',
+        navSignals: 'Signals',
+        navCompanies: 'Companies',
+        navAlerts: 'Alerts',
+        navProfile: 'Target profile',
+        navSettings: 'Settings',
+        topTitle: 'Signals',
+        search: 'Search',
+        activeProfile: 'Joinery supplies · Southern Germany',
+        territory: 'Bavaria · Strong relevance',
+        account: 'Demo account',
+        selected: 'Selected',
+        opportunity: 'Commercial opportunity',
+        signalTitle: 'H. Hüther GmbH — €5.22m contract awarded in Munich',
+        summary:
+          'More than 700 door-and-frame sets, 5.5 km of skirting and several fit-out items appear in the published scope.',
+        verifiedEvent: 'Verified public event',
+        goodTiming: 'Planned start: 28 October 2026',
+        strongFit: 'Strong fit',
+        officialSource: 'Official source',
+        whyRelevantTitle: 'Why this signal concerns you',
+        whyRelevant:
+          'Your profile says you supply doors, ironmongery or fit-out components and deliver in Bavaria. The categories, volumes and place of performance match your targeting.',
+        whyNowTitle: 'Published schedule',
+        whyNow:
+          'The contract was awarded on 14 August 2026. The published execution start date is 28 October 2026.',
+        volumesTitle: 'Published volumes',
+        companyTitle: 'Company',
+        companyVerified: 'Verified company details',
+        legalName: 'Legal name',
+        address: 'Address',
+        countryRegion: 'Country and region',
+        website: 'Website',
+        phone: 'Business phone',
+        identifier: 'Official identifier',
+        status: 'Verification status',
+        updated: 'Last checked',
+        actionTitle: 'Recommended next step',
+        actionBody:
+          'Identify the person responsible for procurement, supply or operations and engage before the project starts.',
+        prepare: 'Prepare outreach',
+        save: 'Save',
+        contacted: 'Mark contacted',
+        source: 'View official source',
+      },
+    },
     chainTitle: 'The Kivou value chain',
-    chainLead: 'From a published fact to a reason to contact a company now.',
+    chainLead: 'From a published fact to a reason to assess a company against its schedule.',
     chain: {
       factTitle: 'Public fact',
       factBody: 'Official publication of an awarded contract and its winner.',
@@ -103,9 +319,12 @@ export const en: Dictionary = {
     ],
     honestyNote:
       'Kivou does not know what a company will buy. Kivou shows a public event, what it probably implies, and the evidence that lets you judge.',
-    pricingTitle: 'Choose a plan',
-    pricingLead: 'Monthly billing. No commitment.',
-    pricingUnavailable: 'Plan details are temporarily unavailable. Account creation remains open.',
+    pricingEyebrow: '4 plans · Monthly billing',
+    pricingTitle: 'Choose the sales coverage that fits your goals',
+    pricingLead:
+      'Start with three real signals. Then expand your coverage and tracking capacity as your prospecting grows.',
+    pricingUnavailable:
+      'Pricing is temporarily unavailable. Account creation remains open.',
     ctaTitle: 'Start with three real signals',
     ctaBody:
       'Create an account, describe what you sell, and read three complete signals with their documentary evidence.',
@@ -115,76 +334,159 @@ export const en: Dictionary = {
 
   publicDemo: {
     navLabel: 'Signal example',
-    badge: 'Real signal example',
-    pageTitle: 'One Kivou signal, in full',
-    pageLead:
-      'The same signal you would see in your feed, with its facts, its proof, what Kivou infers from it and what it does not know.',
-    verifiedOn: 'Facts checked against the official source on {date}.',
-    openSource: 'Open the official notice',
-    openSourceHint: 'Opens the official TED website in a new tab.',
+    heroEyebrow: 'Documented commercial opportunity',
+    heroTitle: '{company} was awarded a {amount} contract in {location}',
+    heroSubtitle:
+      'The published description lists {woodDoors} timber frames and doors, {steelDoors} steel frames and timber doors, {skirting} of skirting, {wallCladding} of timber wall cladding, {glazing} glazed elements and {kitchenettes} kitchenettes.',
+    heroTiming:
+      'Execution is scheduled from {startDate}. Kivou identifies the company and helps assess whether an approach could be relevant before that stage.',
+    heroBadgeVerified: 'Verified public event',
+    heroBadgeAwardDate: 'Published award date',
+    heroBadgeSchedule: 'Published execution schedule',
+    heroBadgeSource: 'Official source available',
+    heroMeta: 'Notice published on {published} · Verified by Kivou on {verified}',
+    heroPrimary: 'See my first 3 signals',
+    heroSecondary: 'Open the official notice',
+    externalNewTab: '— opens in a new tab',
 
-    factsTitle: 'Public fact',
-    factsLead: 'Published by the buyer in the official award notice.',
+    contractSnapshot: 'Contract at a glance',
     winner: 'Winning company',
-    buyer: 'Public buyer',
     object: 'Contract object',
+    buyer: 'Public buyer',
     amountLabel: 'Awarded amount',
     place: 'Place of performance',
-    reference: 'Contract reference',
-    cpv: 'CPV code',
-    identifier: 'Company identifier',
-    quantitiesTitle: 'Quantities published in the notice',
-    quantitiesNote:
-      'These quantities appear in the award notice description. This is not an excerpt from a tender document.',
 
-    documentaryTitle: 'Documentary requirement',
-    documentaryNone:
-      'No validated execution requirement is available in Kivou data for this award.',
-    documentaryModeLabel: 'Analysis mode',
-    documentaryMode: 'Analysis based on notice metadata',
-    documentaryConfidenceLabel: 'Confidence',
-    documentaryConfidence: 'Reduced',
-    documentaryConfidenceReason:
-      'Object, CPV code, amount, location and dates come from the official award notice. No validated tender document feeds this signal.',
+    overviewEyebrow: 'Why this award merits a commercial review',
+    overviewTitle: 'A substantial contract provides concrete facts for assessing a supplier opportunity.',
+    overviewBody:
+      '{company} was awarded a {amount} contract in {location}. Kivou brings together the award, published volumes and schedule so a supplier can assess fit with its offering.',
+    needLabel: 'Plausible commercial need',
+    overviewHighlight: 'Published award. Documented volumes. Identified company.',
 
-    analysisTitle: 'Kivou analysis',
-    analysisLead: 'A hypothesis drawn from the published fact, not an announced purchase.',
-    needLabel: 'Plausible need',
-    reasoningLabel: 'Why Kivou thinks so',
-    needTimingLabel: 'Horizon',
-    needTimingNearTerm: 'Near term',
-    externalisabilityLabel: 'Outsourceable',
-    externalisabilityPlausible: 'Plausibly',
+    volumesTitle: 'What the company has to deliver',
+    volumesLead: 'Volumes published in the official contract award notice.',
+    quantityWoodDoors: 'Timber frames and doors',
+    quantitySteelDoors: 'Steel frames and timber doors',
+    quantitySkirting: 'Skirting',
+    quantityWallCladding: 'Timber wall cladding',
+    quantityGlazing: 'Glazed elements',
+    quantityKitchenettes: 'Kitchenettes',
+    quantitiesNote: 'These quantities appear in the published contract award notice description.',
 
-    timingTitle: 'Timing',
-    timingLead: 'What the published dates allow us to say.',
-    awardDate: 'Award date',
-    signatureDate: 'Signature date',
-    startDate: 'Performance starts',
-    endDate: 'Expected end',
-    publishedAt: 'Notice published',
-    timingNote:
-      'The award date is published: this contract was awarded on a known date, not merely published recently.',
+    opportunitiesTitle: 'Related commercial opportunities',
+    opportunitiesLead: 'The published volumes reveal several potential supplier opportunities.',
+    plausibleAngle: 'Plausible sales angle',
+    opportunityDoorsTitle: 'Doors and frames',
+    opportunityDoorsBody:
+      '{woodDoors} timber frames and doors and {steelDoors} steel frames and timber doors are published. For a compatible supplier, these volumes provide a plausible sales angle.',
+    opportunityWoodTitle: 'Skirting and timber products',
+    opportunityWoodBody:
+      'The description publishes {skirting} of skirting and {wallCladding} of timber wall cladding. These volumes may be relevant to a compatible product supplier.',
+    opportunityGlazingTitle: 'Glazing',
+    opportunityGlazingBody:
+      '{glazing} glazed elements appear in the published quantities. This provides a review angle for compatible suppliers.',
+    opportunityKitchenTitle: 'Kitchenettes and fit-out',
+    opportunityKitchenBody:
+      '{kitchenettes} kitchenettes appear in the published description. This may provide a sales angle for fit-out businesses.',
+    opportunitiesNote:
+      'These angles are inferred from published volumes. They are not confirmed future purchases.',
 
-    fitTitle: 'Why this signal can concern a supplier',
-    fitLead: 'Illustration. Your targeting profile determines what you actually receive.',
-    fitBody:
-      'A materials merchant or a component manufacturer can read here a dated, located and quantified project whose execution will consume supplies. That is a reason to reach out, not an order.',
+    matchingEyebrow: 'Public illustration',
+    matchingTitle: 'How Kivou would assess the match',
+    matchingIntro:
+      'Public illustration: in Kivou, relevance is calculated from what you sell, your target sectors and the territories where you operate.',
+    matchingReasonOne: 'If your offering covers products compatible with the published volumes',
+    matchingReasonTwo: 'If the scale of the contract fits your commercial priorities',
+    matchingReasonThree: 'If you operate in the published place of performance in {location}',
+    matchingReasonFour: 'If this type of winning company belongs to your target market',
+    matchingReasonFive: 'The published schedule can be compared with your sales cycle',
+    matchingReasonSix: 'The official source provides verifiable context',
+    matchingConclusion:
+      'This block explains the matching mechanism; it does not present a match calculated for the visitor to this page.',
+    matchingNote:
+      'Inside a Kivou account, the feed is personalised from the targeting profile actually provided.',
 
-    evidenceTitle: 'Proof',
-    evidenceLead: 'Selected fields verified in the official notice.',
-    evidenceScope:
-      'Three fields carry an individual provenance reference. The other facts on this page come from the same official notice, linked below, without a field-by-field reference.',
-    evidenceAmount: 'Amount',
+    timingTitle: 'Published contract schedule',
+    timingWhyTitle: 'What these dates make it possible to assess',
+    timingBody:
+      'Execution is scheduled from {startDate}. Kivou identifies the company and helps assess whether an approach could be relevant before that stage.',
+    timelineAwarded: 'Contract awarded',
+    timelineSigned: 'Contract signed',
+    timelinePublished: 'Official notice published',
+    timelineStart: 'Expected performance start',
+    timelineEnd: 'Expected performance end',
+
+    companyTitle: 'Identified company',
+    companyLead:
+      'Award facts and professional contact details are presented with their respective sources.',
+    companyTedFactsTitle: 'Facts from the TED notice',
+    companyLegalName: 'Legal name',
+    companyOfficialAddress: 'Official address',
+    companyCountry: 'Country',
+    companyIdentifier: 'Official identifier',
+    companyContract: 'Awarded contract',
+    companyBuyer: 'Public buyer',
+    companyTedSource: 'Review the facts in TED',
+    companyContactTitle: 'Contact details verified on the company’s public website',
+    companyContactIntro:
+      'These professional contact details come from the company’s public website, separately from the TED notice.',
+    companyWebsite: 'Website',
+    companyWebsiteLink: 'Open the company website',
+    companyPhone: 'Business telephone',
+    companyContactVerified: 'Contact details verified on',
+    companyContactSource: 'Verification source',
+    companyContactSourceLink: 'Open the verification source',
+
+    actionEyebrow: 'Next step',
+    actionTitle: 'Recommended next step',
+    actionBody: 'This demonstration lets you review the signal without simulating automated outreach.',
+    actionListTitle: 'Available actions',
+    actionReviewMarket: 'Review the contract and published volumes',
+    actionCheckFit: 'Check their fit with your offering',
+    actionOpenNotice: 'Read the official notice',
+    actionCreateAccount: 'Create a Kivou account to receive three personalised signals',
+    actionPrimary: 'See my first 3 signals',
+    actionSecondary: 'Open the official notice',
+
+    evidenceTitle: 'The essential facts are verifiable',
+    evidenceBody:
+      'The winner, contract object, amount, location, dates and quantities shown here come from the official contract award notice. Three fields have detailed technical provenance.',
+    evidenceAmount: 'Exact amount',
     evidenceCpv: 'CPV code',
     evidenceLot: 'Lot reference',
-    evidenceTechnical: 'Show technical paths',
+    evidenceReference: 'Contract reference',
+    evidenceIdentifier: 'Company identifier',
+    evidenceSignature: 'Signature date',
+    evidenceTechnical: 'View technical provenance details',
     evidencePathXml: 'XML path',
     evidencePathField: 'Acquisition field',
+    openSource: 'View the official notice',
+    openSourceHint: 'Opens the official TED website in a new tab.',
 
-    ctaTitle: 'See your own signals',
-    ctaBody: 'Describe what you sell and where you deliver. Kivou shows you three complete signals.',
-    ctaButton: 'See my 3 signals',
+    coverageTitle: 'Coverage of this analysis',
+    coverageBody:
+      'No validated tender specifications feed this demonstration. The commercial need is therefore an inference based on the published object, CPV code, amount, volumes, location and dates. This limitation does not undermine the contract award facts.',
+    coverageDetails: 'View verification and inference levels',
+    coverageEvent: 'Public event',
+    coverageWinner: 'Winning company',
+    coverageAmountDates: 'Amount and dates',
+    coverageQuantities: 'Quantities',
+    coverageNeeds: 'Commercial need',
+    coverageDocumentary: 'Document coverage',
+    coverageMode: 'Analysis mode',
+    statusVerified: 'Verified',
+    statusIdentified: 'Identified',
+    statusPublished: 'Published',
+    statusPublishedDescription: 'Published in the description',
+    statusPlausible: 'Plausible',
+    statusLimited: 'Limited',
+    statusMetadata: 'Notice metadata',
+
+    finalCtaTitle: 'Receive opportunities that match your business',
+    finalCtaBody:
+      'Describe what you sell and where you operate. Kivou monitors public contract awards and shows you the companies, facts, schedule and plausible needs that match your profile.',
+    finalCtaNoCard: 'No payment card required.',
+    finalCtaPrimary: 'See my first 3 signals',
 
     previewEyebrow: 'Real signal example',
     previewMode: 'Official notice verified',
@@ -542,6 +844,8 @@ export const en: Dictionary = {
     current: 'Your current plan',
     choose: 'Choose {plan}',
     choosing: 'Opening payment…',
+    publicDiscoveryCta: 'See my first 3 signals',
+    publicPaidCta: 'Create my account',
     included: "What's included",
     plans: {
       discovery: 'Discovery',
@@ -549,12 +853,19 @@ export const en: Dictionary = {
       pro: 'Pro',
       scale: 'Scale',
     },
+    planPositioning: {
+      discovery: 'Validate Kivou’s relevance with your first three signals.',
+      essential: 'Focus your prospecting on one sales priority.',
+      pro: 'Track several priorities and act with the context and evidence you need.',
+      scale: 'Expand your coverage across more markets and territories.',
+    },
     entitlements: {
       icpsOne: '{count} target profile',
       icpsOther: '{count} target profiles',
-      territorySingle: '1 main territory',
-      territoryMultiple: 'Several territories',
-      territoryExpanded: 'Extended Swiss and European Union coverage',
+      territoriesPerProfileOne: 'Up to {count} territory per profile',
+      territoriesPerProfileOther: 'Up to {count} territories per profile',
+      territoryMultiple: 'Multiple territories per profile',
+      territoryExpanded: 'Expanded territory coverage',
       historyWindow: '{days} days of history',
       historyAll: 'All retained history',
       historyNone: 'No general history window',
