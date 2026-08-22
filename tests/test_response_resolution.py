@@ -162,6 +162,17 @@ def test_from_address_email_is_ignored_for_prospect_candidate_selection() -> Non
     assert result.email.lead == "buyer@example.invalid"
 
 
+def test_from_address_email_is_ignored_during_exact_get_revalidation() -> None:
+    candidate = _email(from_address_email="sender@example.invalid")
+    readback = _email(from_address_email="provider-enriched-sender@example.invalid")
+    reader = FakeReader((candidate,), full=readback)
+
+    result = _resolver(reader).resolve(_context(), attempt=1, now=EVENT_AT)
+
+    assert result.status is EmailResolutionStatus.RESOLVED
+    assert result.email == readback
+
+
 def test_auto_reply_event_requires_auto_reply_candidate() -> None:
     auto = _email(is_auto_reply=1)
     reader = FakeReader((auto,), full=auto)
