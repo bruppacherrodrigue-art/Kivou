@@ -142,6 +142,10 @@ billing_subscription = sa.Table(
     sa.Column("current_period_end", sa.DateTime(timezone=True)),
     sa.Column("cancel_at_period_end", sa.Boolean, nullable=False),
     sa.Column("canceled_at", sa.DateTime(timezone=True)),
+    # P0-03G — l'échéance telle que Stripe la publie. Le booléen ci-dessus ne
+    # suffit pas : sur un abonnement `flexible`, Stripe le laisse à `false` et
+    # n'exprime la résiliation que par une date.
+    sa.Column("scheduled_cancellation_at", sa.DateTime(timezone=True)),
     # §17 — l'horodatage de l'événement Stripe qui a produit cet état. Un
     # événement plus ancien qui arrive après ne doit pas faire reculer l'état.
     sa.Column("last_stripe_event_created_at", sa.DateTime(timezone=True)),

@@ -115,6 +115,8 @@ class StoredSubscription:
     current_period_end: dt.datetime | None
     cancel_at_period_end: bool
     canceled_at: dt.datetime | None
+    #: P0-03G — l'échéance publiée par Stripe, `None` si aucune.
+    scheduled_cancellation_at: dt.datetime | None
     last_stripe_event_created_at: dt.datetime | None
     livemode: bool
 
@@ -151,6 +153,10 @@ class BillingState:
     subscription_status: str | None
     cancel_at_period_end: bool
     current_period_end: dt.datetime | None
+    #: P0-03G — quand l'abonnement s'arrêtera, si une résiliation est programmée.
+    #: Ne retire AUCUN droit : Stripe reste l'autorité sur le moment où l'accès
+    #: cesse, et Kivou ne calcule jamais cette coupure lui-même.
+    scheduled_cancellation_at: dt.datetime | None
     payment_issue: str | None
     entitlements: catalogue.PlanEntitlements
 
@@ -280,6 +286,7 @@ def _stored(row: sa.Row) -> StoredSubscription:
         current_period_end=aware_datetime(row.current_period_end),
         cancel_at_period_end=bool(row.cancel_at_period_end),
         canceled_at=aware_datetime(row.canceled_at),
+        scheduled_cancellation_at=aware_datetime(row.scheduled_cancellation_at),
         last_stripe_event_created_at=aware_datetime(row.last_stripe_event_created_at),
         livemode=bool(row.livemode),
     )
@@ -356,6 +363,7 @@ def synchronize_subscription(
         "current_period_end": state.current_period_end,
         "cancel_at_period_end": state.cancel_at_period_end,
         "canceled_at": state.canceled_at,
+        "scheduled_cancellation_at": state.scheduled_cancellation_at,
         "last_stripe_event_created_at": event_created_at,
         "livemode": state.livemode,
         "updated_at": now,
@@ -420,6 +428,7 @@ def billing_state(connection: sa.Connection, *, account_id: str) -> BillingState
             subscription_status=None,
             cancel_at_period_end=False,
             current_period_end=None,
+            scheduled_cancellation_at=None,
             payment_issue=None,
             entitlements=catalogue.DISCOVERY,
         )
@@ -434,6 +443,7 @@ def billing_state(connection: sa.Connection, *, account_id: str) -> BillingState
         subscription_status=subscription.status,
         cancel_at_period_end=subscription.cancel_at_period_end,
         current_period_end=subscription.current_period_end,
+        scheduled_cancellation_at=subscription.scheduled_cancellation_at,
         payment_issue=_PAYMENT_ISSUES.get(subscription.status),
         entitlements=catalogue.entitlements_for(plan_code),
     )
