@@ -385,7 +385,9 @@ export const DISCOVERY_STATUS: BillingStatus = {
   subscription_status: null,
   cancel_at_period_end: false,
   current_period_end: null,
+  scheduled_cancellation_at: null,
   payment_issue: null,
+  billing_action: 'choose_plan',
   entitlements: entitlements({ icps: 1, cadence: 'none', history: 0, granted: 3 }),
   discovery: { granted_signal_count: 3, remaining_slots: 0, limit: 3 },
   target_icps_over_limit: [],
@@ -399,11 +401,69 @@ export const PRO_STATUS: BillingStatus = {
   subscription_status: 'active',
   cancel_at_period_end: false,
   current_period_end: '2026-09-18T00:00:00+00:00',
+  scheduled_cancellation_at: null,
   payment_issue: null,
+  billing_action: 'manage_subscription',
   entitlements: entitlements({ icps: 3, cadence: 'daily', history: 365, territory: 'multiple' }),
   discovery: { granted_signal_count: 3, remaining_slots: 0, limit: 3 },
   target_icps_over_limit: [],
   policy: { billing: 'kivou-billing-v0.1' },
+}
+
+/* Les états où le compte porte ENCORE un abonnement.
+ *
+ * Leur `plan_code` vaut `discovery` — exactement comme un compte qui n'a jamais
+ * rien payé. C'est précisément le piège : seul `billing_action` les distingue,
+ * et proposer un paiement à l'un d'eux le facturerait deux fois. */
+
+/** Incident de paiement : l'abonnement existe, l'accès est suspendu. */
+export const RECOVER_STATUS: BillingStatus = {
+  ...DISCOVERY_STATUS,
+  currency: 'chf',
+  subscription_status: 'past_due',
+  payment_issue: 'payment_past_due',
+  billing_action: 'recover_payment',
+  discovery: { granted_signal_count: 0, remaining_slots: 3, limit: 3 },
+}
+
+/** Anomalie de facturation : ni achat, ni promesse de réparation. */
+export const SUPPORT_STATUS: BillingStatus = {
+  ...DISCOVERY_STATUS,
+  currency: 'chf',
+  subscription_status: 'trialing',
+  billing_action: 'contact_support',
+  discovery: { granted_signal_count: 0, remaining_slots: 3, limit: 3 },
+}
+
+/** Tentative terminale : plus rien n'est facturé, la place est libre. */
+export const TERMINAL_STATUS: BillingStatus = {
+  ...DISCOVERY_STATUS,
+  currency: 'chf',
+  subscription_status: 'incomplete_expired',
+  payment_issue: 'payment_incomplete_expired',
+  billing_action: 'choose_plan',
+  discovery: { granted_signal_count: 0, remaining_slots: 3, limit: 3 },
+}
+
+/** Abonnement payant qui s'arrêtera en fin de période — l'accès court encore.
+ *
+ * P0-03G — l'échéance vient de `scheduled_cancellation_at`, jamais d'un calcul
+ * local ni de `current_period_end`. Ici les deux coïncident, ce qui est le cas
+ * courant ; `PRO_CANCELLING_OTHER_DATE_STATUS` décrit celui où ils diffèrent. */
+export const PRO_CANCELLING_STATUS: BillingStatus = {
+  ...PRO_STATUS,
+  cancel_at_period_end: true,
+  scheduled_cancellation_at: '2026-09-18T00:00:00+00:00',
+}
+
+/** Résiliation planifiée à une AUTRE date que la fin de période.
+ *
+ * Stripe le permet. Parler de « fin de période » dans ce cas donnerait au
+ * client une échéance fausse. */
+export const PRO_CANCELLING_OTHER_DATE_STATUS: BillingStatus = {
+  ...PRO_STATUS,
+  cancel_at_period_end: false,
+  scheduled_cancellation_at: '2026-11-30T00:00:00+00:00',
 }
 
 export const ICP: TargetIcp = {

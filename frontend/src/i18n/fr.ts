@@ -388,11 +388,11 @@ export const fr = {
 
   locked: {
     badge: 'Verrouillé',
-    title: 'Déverrouillez le flux complet',
+    title: 'Étendre l’accès à votre flux',
     teaserHeadingFallback: 'Un signal détecté sur votre périmètre',
-    body: 'L’entreprise gagnante, le marché et la preuve documentaire sont réservés aux offres payantes.',
-    cta: 'Voir les offres',
-    ctaShort: 'Déverrouiller Kivou',
+    body: 'Ces informations ne sont pas incluses dans votre accès actuel.',
+    cta: 'Gérer mon accès',
+    ctaShort: 'Gérer mon accès',
     country: 'Pays',
     sector: 'Secteur',
     magnitude: 'Ordre de grandeur',
@@ -400,7 +400,7 @@ export const fr = {
     needCountOther: '{count} besoins plausibles identifiés',
     detailTitle: 'Ce signal est verrouillé',
     detailBody:
-      'Votre offre actuelle ne donne pas accès à ce signal. Les offres payantes ouvrent l’ensemble de votre flux, avec l’entreprise gagnante, le marché et la preuve.',
+      'Votre accès actuel n’ouvre pas ce signal. L’accès aux signaux dépend des droits de votre offre et de sa fenêtre d’historique.',
   },
 
   magnitude: {
@@ -517,10 +517,25 @@ export const fr = {
     planStatus: 'Statut de l’abonnement',
     renewsOn: 'Prochain renouvellement le {date}',
     endsOn: 'Accès jusqu’au {date}',
-    cancelAtPeriodEnd: 'Résiliation programmée à la fin de la période en cours.',
+    cancellationTitle: 'Résiliation programmée',
+    cancellationAtPeriodEnd:
+      'Votre abonnement prendra fin à la fin de la période en cours, le {date}.',
+    cancellationOnDate: 'Votre abonnement prendra fin le {date}.',
     paymentIssue: 'Un incident de paiement est en cours sur cet abonnement.',
     managePortal: 'Gérer ma facturation',
-    manageLead: 'Moyen de paiement, factures et résiliation sont gérés par notre prestataire.',
+    manageLead:
+      'Moyen de paiement, factures et résiliation sont gérés dans votre portail de facturation.',
+    recoverTitle: 'Accès suspendu — incident de paiement',
+    recoverBody:
+      'Votre abonnement existe toujours, mais l’accès payant est suspendu tant que l’incident de paiement n’est pas régularisé. Votre portail de facturation réunit votre moyen de paiement, vos factures et l’état de votre abonnement.',
+    recoverCta: 'Ouvrir le portail de facturation',
+    supportTitle: 'Vérification de facturation nécessaire',
+    supportBody:
+      'La facturation de ce compte nécessite une vérification avant toute nouvelle souscription. Écrivez-nous et nous la traiterons.',
+    supportCta: 'Écrire à contact@kivou.eu',
+    supportEmail: 'contact@kivou.eu',
+    terminalNotice:
+      'La tentative précédente n’est plus active. Vous pouvez choisir une offre et recommencer.',
     openingPortal: 'Ouverture…',
     currency: 'Devise',
     currencyLead: 'Choisissez la devise de facturation. Elle ne se déduit pas de votre langue.',
@@ -569,6 +584,10 @@ export const fr = {
       unpaid: 'Impayé',
       paused: 'En pause',
       none: 'Aucun abonnement',
+      /* Tout statut absent de ce dictionnaire. Rendre la chaîne Stripe brute
+       * exposerait un terme technique là où `billing_action` a justement
+       * décidé de traiter l'incertitude comme une vérification à faire. */
+      unknown: 'À vérifier',
     },
     errors: {
       checkoutInProgressTitle: 'Un paiement est déjà ouvert',
@@ -588,19 +607,21 @@ export const fr = {
   },
 
   checkout: {
-    successTitle: 'Paiement confirmé — accès activé',
-    successPending: 'Paiement en cours de confirmation',
+    successTitle: 'Accès payant actif',
+    successPending: 'Vérification de votre accès',
     successPendingBody:
-      'Votre paiement a été transmis. Kivou attend la confirmation de son prestataire avant d’ouvrir votre accès. Cela prend généralement quelques secondes.',
-    successBody: 'Votre offre {plan} est active. Votre flux complet est ouvert.',
+      'Kivou vérifie l’état de votre abonnement. L’accès ne sera ouvert qu’après confirmation serveur.',
+    successBody: 'Votre offre {plan} est active. Vos droits payants sont disponibles.',
     successTimeout:
-      'La confirmation n’est pas encore parvenue. Elle peut arriver d’ici quelques minutes. Aucun second paiement n’est nécessaire.',
+      'Aucun accès payant n’a encore été confirmé. Si vous venez de terminer un paiement, la synchronisation peut prendre quelques minutes.',
     goToSignals: 'Accéder à mes signaux',
-    refresh: 'Actualiser',
+    refresh: 'Réessayer la vérification',
+    returnToSignal: 'Revenir à ce signal',
+    seeAllSignals: 'Voir tous mes signaux',
     seeBilling: 'Voir ma facturation',
-    cancelTitle: 'Paiement interrompu',
+    cancelTitle: 'Retour depuis le parcours de paiement',
     cancelBody:
-      'Vous avez quitté le paiement avant de le terminer. Rien n’a été débité et votre offre n’a pas changé.',
+      'Vous êtes revenu à Kivou depuis le parcours de paiement. Cette page ne modifie pas votre accès. Consultez votre facturation pour vérifier l’état de votre abonnement.',
     backToPlans: 'Revenir aux offres',
     backToSignals: 'Revenir à mes signaux',
     unlocked: 'Vous débloquez immédiatement',

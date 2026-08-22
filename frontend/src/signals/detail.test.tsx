@@ -113,7 +113,7 @@ describe('détail d’un signal', () => {
     expect(page).not.toContain('1240000')
     expect(screen.queryByText('Preuve documentaire')).not.toBeInTheDocument()
 
-    expect(screen.getByRole('link', { name: 'Voir les offres' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'Gérer mon accès' })).toHaveAttribute(
       'href',
       '/app/billing',
     )

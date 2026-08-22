@@ -150,7 +150,14 @@ export function LockedSignalCard({ item }: { item: LockedFeedItem }) {
 
       <div className={styles.aside}>
         <p className={styles.lockedPitch}>{t.locked.body}</p>
-        <Link to="/app/billing" className={styles.unlockLink}>
+        {/* SEULE la clé voyage. Ni le gagnant, ni le montant, ni le besoin,
+            ni la preuve : ce sont exactement les données que ce teaser
+            protège, et l'état de navigation est lisible par le client. */}
+        <Link
+          to="/app/billing"
+          state={{ lockedSignalKey: item.signal_id }}
+          className={styles.unlockLink}
+        >
           {t.locked.ctaShort}
           <ArrowRightIcon className={styles.metaIcon} />
         </Link>
