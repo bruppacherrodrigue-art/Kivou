@@ -11,7 +11,7 @@ révéler. Le détail est en fin de document.
 
 | | |
 |---|---|
-| HEAD déployé | `d8cddbb2a7400d6ab709f2e1f90728ff7520bca3` (PR #26, rebasée sur `main` = `117fc96`) |
+| HEAD déployé | `954219e694e2ed48105f1e6092f3d8bc3652d32e` (PR #26, rebasée sur `main` = `305a96d`) |
 | SHA précédent | `d6f9bbc75d8eddd13dde6eb38e8fca396a84f2da` |
 | Révision DB | `0013_personalization` → `0014_compliance` |
 | Mode Stripe | TEST exclusivement (`sk_test_`, tous les événements `livemode=false`) |
@@ -115,3 +115,51 @@ périmètre de ce gate.
 | `04-motif-resiliation.png` | Modale de motif de résiliation |
 | `05-revue-avant-resiliation.png` | « available until the end of your billing period on September 21, 2026 » |
 | `06-resiliation-programmee.png` | « Cancels Sep 21 » côté Stripe — que Kivou n'affiche pas |
+
+
+---
+
+# Seconde exécution — 2026-08-22, HEAD `954219e`
+
+`main` avait avancé de `117fc96` à `305a96d` — **un seul commit, purement
+documentaire** (SPEC-026, aucun code). La PR a été rebasée dessus et le gate
+rejoué **intégralement sur un compte neuf**, pour que la preuve soit autonome et
+porte sur le SHA réellement déployé.
+
+Compte : `acc_H8hbMYUPlSzwSDj4Tf2epg`, créé pour cette exécution.
+
+| Étape | Résultat |
+|---|---|
+| État initial | `discovery`, `billing_action: choose_plan` |
+| Feed réel | 5 signaux — 3 accordés (`remaining_slots: 0`), 2 verrouillés |
+| Signal `fd553883…` | `locked: true`, `unlock_required: paid_plan`, `upgrade_to: [essential, pro, scale]`, attribution 2026-08-07 ; **aucune fuite** `company`/`contract`/`source` |
+| `POST /billing/checkout` | **HTTP 200** — session `cs_test_a1QdlgNd…` |
+| Paiement | carte de test, redirection `/checkout/success` |
+| Webhooks | `invoice.paid` · `customer.subscription.created` · `checkout.session.completed` — `applied`, `livemode=false`, 01:42:07 |
+| Tentative | `completed` |
+| Après paiement | `plan_code: pro` · `subscription_status: active` · `billing_action: manage_subscription` · `history_days: 365` · `max_active_icps: 3` |
+| Signal `fd553883…` | **`locked: false`**, société et acheteur visibles |
+| Feed | 5 signaux, **0 verrouillé** |
+| Portail | Kivou, aucun changement de plan proposé |
+| Résiliation | Stripe : « **Cancels Sep 22** — Your service will end on September 22, 2026 » |
+| Webhook de résiliation | `customer.subscription.updated` **appliqué** à 01:43:12 |
+| Kivou | `cancel_at_period_end` : **`False`** ⛔ |
+| Accès après résiliation | conservé — `pro`, feed à 0 verrouillé |
+
+## Le défaut est déterministe
+
+Sur la première exécution, `cancel_at_period_end` était encore `False`
+**plus de six heures** après la demande — ce n'était donc déjà pas un retard de
+webhook. La seconde exécution le confirme sur un compte neuf, un abonnement
+neuf et un SHA neuf : le webhook est reçu et appliqué en une seconde, et le
+champ reste faux.
+
+Cause inchangée : sur `billing_mode: flexible`, Stripe écrit `cancel_at` et
+laisse `cancel_at_period_end` à `false`. La passerelle ne lit que le second.
+Issue **#38**.
+
+| Fichier | Contenu |
+|---|---|
+| `07-run2-portail-kivou.png` | Portail Kivou, seconde exécution |
+| `08-run2-revue-avant-resiliation.png` | « available until … September 22, 2026 » |
+| `09-run2-resiliation-programmee.png` | « Cancels Sep 22 » côté Stripe — que Kivou n'affiche pas |
