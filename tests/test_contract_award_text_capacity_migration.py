@@ -20,7 +20,8 @@ CONTACT_REVISION = "0010_contact_discovery"
 COMPANY_REVISION = "0011_company_research"
 DECISION_REVISION = "0012_decision_engine"
 PERSONALIZATION_REVISION = "0013_personalization"
-CURRENT_HEAD = "0014_compliance"
+COMPLIANCE_REVISION = "0014_compliance"
+CURRENT_HEAD = "0015_scheduled_cancellation"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -98,7 +99,8 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
     assert script.get_revision(COMPANY_REVISION).down_revision == CONTACT_REVISION
     assert script.get_revision(DECISION_REVISION).down_revision == COMPANY_REVISION
     assert script.get_revision(PERSONALIZATION_REVISION).down_revision == DECISION_REVISION
-    assert script.get_revision(CURRENT_HEAD).down_revision == PERSONALIZATION_REVISION
+    assert script.get_revision(COMPLIANCE_REVISION).down_revision == PERSONALIZATION_REVISION
+    assert script.get_revision(CURRENT_HEAD).down_revision == COMPLIANCE_REVISION
     assert current_revision(engine) == CURRENT_HEAD
 
 

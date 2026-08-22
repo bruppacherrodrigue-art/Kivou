@@ -101,6 +101,10 @@ def billing_status(request: Request) -> dict[str, Any]:
         "subscription_status": state.subscription_status,
         "cancel_at_period_end": state.cancel_at_period_end,
         "current_period_end": _iso(state.current_period_end),
+        # P0-03G — la DATE d'échéance, telle que Stripe la publie. Le booléen
+        # ci-dessus ne la remplace pas : il ne dit que « ça tombe en fin de
+        # période », ce qui est faux dès que Stripe planifie une autre date.
+        "scheduled_cancellation_at": _iso(state.scheduled_cancellation_at),
         "payment_issue": state.payment_issue,
         "billing_action": action,
         "entitlements": catalogue.customer_safe_entitlements(state.entitlements),

@@ -106,6 +106,16 @@ class StripeSubscriptionState:
     livemode: bool
     account_id: str | None = None
     discount_coupon_id: str | None = None
+    #: P0-03G — l'échéance de résiliation, en DATE et non en booléen.
+    #:
+    #: Stripe l'exprime de deux façons selon le `billing_mode` de l'abonnement :
+    #: `cancel_at` sur les `flexible`, `cancel_at_period_end` sur les autres. Ne
+    #: lire que le booléen rendait la résiliation invisible pour les premiers —
+    #: constaté en vrai, deux fois, sur staging.
+    #:
+    #: `None` par défaut : l'absence de preuve d'échéance EST l'absence
+    #: d'échéance, et c'est le seul défaut sûr.
+    scheduled_cancellation_at: dt.datetime | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -248,6 +258,28 @@ def subscription_state(subscription: Any) -> StripeSubscriptionState:
     period_start = _get(subscription, "current_period_start") or _get(item, "current_period_start")
     period_end = _get(subscription, "current_period_end") or _get(item, "current_period_end")
 
+    # P0-03G — l'échéance vient d'une DATE quand Stripe en donne une, sinon du
+    # booléen. `canceled_at` n'entre PAS dans ce calcul : il est renseigné aussi
+    # sur une résiliation immédiate, et le prendre pour un indicateur ferait
+    # annoncer une échéance à des comptes qui n'en ont aucune.
+    current_period_end = _instant(period_end)
+    cancel_at = _instant(_get(subscription, "cancel_at"))
+    cancels_at_period_end = bool(_get(subscription, "cancel_at_period_end", False))
+    if cancel_at is not None:
+        scheduled_cancellation_at = cancel_at
+    elif cancels_at_period_end:
+        scheduled_cancellation_at = current_period_end
+    else:
+        scheduled_cancellation_at = None
+    # Le booléen ne survit que là où il dit vrai : l'échéance tombe bien sur la
+    # fin de période. Une date distincte est une date distincte, et l'annoncer
+    # comme une fin de période donnerait au client une échéance fausse.
+    falls_on_period_end = (
+        scheduled_cancellation_at is not None
+        and current_period_end is not None
+        and scheduled_cancellation_at == current_period_end
+    )
+
     return StripeSubscriptionState(
         subscription_id=_get(subscription, "id"),
         customer_id=(
@@ -261,9 +293,10 @@ def subscription_state(subscription: Any) -> StripeSubscriptionState:
         lookup_key=_get(price, "lookup_key"),
         currency=_get(price, "currency") or _get(subscription, "currency"),
         current_period_start=_instant(period_start),
-        current_period_end=_instant(period_end),
-        cancel_at_period_end=bool(_get(subscription, "cancel_at_period_end", False)),
+        current_period_end=current_period_end,
+        cancel_at_period_end=cancels_at_period_end or falls_on_period_end,
         canceled_at=_instant(_get(subscription, "canceled_at")),
+        scheduled_cancellation_at=scheduled_cancellation_at,
         livemode=bool(_get(subscription, "livemode", False)),
         account_id=_get(metadata, "kivou_account_id"),
         discount_coupon_id=_get(coupon, "id"),
