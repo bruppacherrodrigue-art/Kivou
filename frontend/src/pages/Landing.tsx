@@ -42,7 +42,7 @@ export function Landing() {
       })
       .catch(() => {
         // Le catalogue indisponible ne casse pas la page : la section tarifaire
-        // s'efface, le reste de la promesse tient debout.
+        // conserve son ancre et affiche un état explicite sans inventer de prix.
       })
     return () => {
       active = false

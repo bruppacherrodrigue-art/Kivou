@@ -5,7 +5,7 @@ import { AUTHENTICATED, CATALOGUE, DISCOVERY_STATUS, ME, mockApi, renderApp } fr
 
 /* P0-03 §14, §15 — ne pas vendre ce qui n'existe pas.
  *
- * L'audit préalable a trouvé trois capacités annoncées par la grille et
+ * L'audit préalable a trouvé deux capacités annoncées par la grille et
  * introuvables dans le produit :
  *
  *   — l'export : `export_level` n'est qu'un champ de catalogue. Aucune route
@@ -13,14 +13,15 @@ import { AUTHENTICATED, CATALOGUE, DISCOVERY_STATUS, ME, mockApi, renderApp } fr
  *   — les filtres de base et avancés : l'API gère bien `country` et `winner`,
  *     mais le feed n'expose que fraîcheur et sélecteur de profil, tous deux au
  *     niveau minimum. Un client qui paie pour « Filtres avancés » ne trouvera
- *     aucun filtre avancé ;
- *   — la limite de territoires : `max_territories_per_icp` n'est appliqué nulle
- *     part. « 1 territoire principal » décrit une restriction qui n'existe pas,
- *     ce qui vide de son sens la montée vers « Plusieurs territoires ».
+ *     aucun filtre avancé.
  *
- * Ces trois-là quittent la COPY VISIBLE. Les champs du contrat backend, eux,
+ * Ces deux-là quittent la COPY VISIBLE. Les champs du contrat backend, eux,
  * ne bougent pas : ils décrivent des décisions serveur réelles, et les
  * supprimer casserait l'autorisation des filtres côté API.
+ *
+ * Les limites territoriales sont désormais exercées côté serveur. La variante
+ * publique de la grille les rend depuis le catalogue ; la variante connectée
+ * conserve ici son contenu historique et ses actions de facturation.
  */
 
 afterEach(() => vi.unstubAllGlobals())

@@ -15,7 +15,7 @@ describe('section Comment ça marche de la page d’accueil', () => {
 
     const section = await screen.findByRole('heading', {
       level: 2,
-      name: 'Kivou transforme les marchés récemment attribués en prospects que vous pouvez contacter au bon moment.',
+      name: 'Kivou transforme les attributions publiques en prospects à examiner selon leur calendrier.',
     })
     expect(section.closest('section')).toHaveAttribute('id', 'comment')
 
@@ -32,7 +32,7 @@ describe('section Comment ça marche de la page d’accueil', () => {
       'DANS VOTRE DASHBOARD',
       'Une attribution publique n’est pas encore une occasion commerciale',
       'Une analyse commerciale que vous pouvez vérifier',
-      'Votre prochain prospect a peut-être remporté un contrat cette semaine',
+      'Une attribution publique peut déjà révéler votre prochain prospect',
     ]) {
       expect(text).toContain(marker)
     }
@@ -63,7 +63,7 @@ describe('section Comment ça marche de la page d’accueil', () => {
     renderApp(<AppRoutes />, { route: '/' })
 
     const image = await screen.findByRole('img', {
-      name: /Tableau de bord Kivou montrant un signal commercial pour une entreprise récemment gagnante/i,
+      name: /Tableau de bord Kivou montrant un signal commercial pour une entreprise gagnante/i,
     })
 
     expect(image).toHaveAttribute('src', '/demo/kivou-dashboard-fr-desktop.webp')
@@ -116,7 +116,7 @@ describe('section Comment ça marche de la page d’accueil', () => {
     expect(
       await screen.findByRole('heading', {
         level: 2,
-        name: 'Kivou turns recently awarded public contracts into prospects you can contact at the right time.',
+        name: 'Kivou turns public contract awards into prospects to assess against their published schedule.',
       }),
     ).toBeInTheDocument()
     expect(container.textContent).toContain('CONTINUOUS SALES MONITORING')
@@ -127,7 +127,7 @@ describe('section Comment ça marche de la page d’accueil', () => {
     expect(container.textContent).not.toContain('Votre profil de ciblage')
 
     const image = screen.getByRole('img', {
-      name: /Kivou dashboard showing a sales signal for a recently awarded company/i,
+      name: /Kivou dashboard showing a sales signal for a contract-winning company/i,
     })
     expect(image).toHaveAttribute('src', '/demo/kivou-dashboard-en-desktop.webp')
     expect(image.closest('picture')!.querySelector('source[media="(max-width: 767px)"]')).toHaveAttribute(
@@ -147,7 +147,7 @@ describe('section Comment ça marche de la page d’accueil', () => {
     expect(
       screen.getByRole('heading', {
         level: 2,
-        name: 'Choisissez le rythme adapté à votre prospection',
+        name: 'Choisissez la couverture commerciale adaptée à vos objectifs',
       }),
     ).toBeInTheDocument()
   })
@@ -158,17 +158,17 @@ describe('section Comment ça marche de la page d’accueil', () => {
 
     const title = await screen.findByRole('heading', {
       level: 2,
-      name: 'Choisissez le rythme adapté à votre prospection',
+      name: 'Choisissez la couverture commerciale adaptée à vos objectifs',
     })
     const section = title.closest('section')!
 
     expect(within(section).getAllByRole('article')).toHaveLength(4)
 
     const expectedPlans = [
-      ['Découverte', 'Gratuit', 'Pour découvrir la qualité des signaux avec votre propre ciblage.'],
-      ['Essential', '49', 'Pour prospecter régulièrement sur un marché prioritaire.'],
-      ['Pro', '99', 'Pour suivre plusieurs priorités commerciales au quotidien.'],
-      ['Scale', '199', 'Pour couvrir davantage de marchés avec une cadence renforcée.'],
+      ['Découverte', 'Gratuit', 'Validez la pertinence de Kivou avec vos trois premiers signaux.'],
+      ['Essential', '49', 'Concentrez votre prospection sur une priorité commerciale.'],
+      ['Pro', '99', 'Suivez plusieurs priorités et agissez avec le contexte et les preuves utiles.'],
+      ['Scale', '199', 'Étendez votre couverture à davantage de marchés et de territoires.'],
     ] as const
 
     for (const [name, price, positioning] of expectedPlans) {
@@ -190,7 +190,7 @@ describe('section Comment ça marche de la page d’accueil', () => {
 
     await screen.findByRole('heading', {
       level: 2,
-      name: 'Choisissez le rythme adapté à votre prospection',
+      name: 'Choisissez la couverture commerciale adaptée à vos objectifs',
     })
 
     expect(screen.getByText('Les tarifs sont momentanément indisponibles. La création de compte reste ouverte.')).toBeInTheDocument()

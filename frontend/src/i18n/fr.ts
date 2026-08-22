@@ -65,9 +65,9 @@ export const fr = {
   landing: {
     heroEyebrow: 'SIGNAUX COMMERCIAUX ISSUS DES MARCHÉS PUBLICS',
     heroTitle:
-      'Les entreprises qui viennent de gagner de nouveaux contrats — et que vous devriez contacter maintenant.',
+      'Les entreprises qui remportent des contrats publics — et les occasions commerciales que votre équipe peut examiner.',
     heroLead:
-      'Kivou détecte les nouveaux gagnants, comprend ce qu’ils devront exécuter et vous montre les occasions correspondant à ce que vous vendez.',
+      'Kivou identifie les entreprises gagnantes, comprend ce qu’elles devront exécuter et vous montre les occasions correspondant à ce que vous vendez.',
     heroSecondaryLead:
       'Vous ne recevez pas une liste de marchés publics. Vous recevez des raisons documentées de contacter de nouveaux prospects.',
     heroPrimary: 'Voir mes 3 signaux',
@@ -104,9 +104,9 @@ export const fr = {
     how: {
       introEyebrow: 'SURVEILLANCE COMMERCIALE CONTINUE',
       introTitle:
-        'Kivou transforme les marchés récemment attribués en prospects que vous pouvez contacter au bon moment.',
+        'Kivou transforme les attributions publiques en prospects à examiner selon leur calendrier.',
       introBodyOne:
-        'Chaque jour, des entreprises remportent des contrats publics. Kivou identifie les gagnants, résume ce qu’ils devront exécuter et sélectionne les occasions qui correspondent à ce que vous vendez.',
+        'Des entreprises remportent des contrats publics en Suisse et dans l’Union européenne. Kivou identifie les gagnants, résume ce qu’ils devront exécuter et sélectionne les occasions qui correspondent à ce que vous vendez.',
       introBodyTwo:
         'Kivou surveille ces événements, identifie les gagnants, comprend ce qu’ils devront exécuter et sélectionne uniquement les occasions correspondant à ce que vous vendez.',
       introHighlight:
@@ -138,7 +138,7 @@ export const fr = {
       processSteps: [
         {
           title: 'Kivou surveille',
-          body: 'Les nouvelles attributions suisses et européennes sont collectées.',
+          body: 'Les attributions suisses et européennes publiées sont collectées.',
         },
         {
           title: 'Kivou identifie',
@@ -154,7 +154,7 @@ export const fr = {
         },
         {
           title: 'Kivou qualifie le moment',
-          body: 'La date d’attribution et le calendrier révèlent le bon moment.',
+          body: 'La date d’attribution et le calendrier d’exécution situent le signal dans le temps.',
         },
         {
           title: 'Votre équipe agit',
@@ -167,7 +167,7 @@ export const fr = {
       dashboardBody:
         'L’entreprise, le contrat, les volumes, le timing, les coordonnées disponibles et la preuve officielle tiennent dans une seule vue.',
       dashboardAlt:
-        'Tableau de bord Kivou montrant un signal commercial pour une entreprise récemment gagnante, le montant du contrat, les volumes, la correspondance avec l’offre du client, les coordonnées professionnelles et l’action recommandée.',
+        'Tableau de bord Kivou montrant un signal commercial pour une entreprise gagnante, le montant du contrat, les volumes, la correspondance avec l’offre du client, les coordonnées professionnelles et la prochaine étape.',
       dashboardCaption:
         'Le prospect, le contexte et la prochaine action — réunis dans un seul signal.',
       dashboardMarkers: [
@@ -199,12 +199,12 @@ export const fr = {
         'action et preuve réunies',
       ],
       comparisonWithConclusion:
-        'Le commercial comprend pourquoi regarder ce prospect maintenant.',
+        'Le commercial comprend pourquoi ce prospect mérite son attention et peut vérifier le calendrier publié.',
       questionsTitle: 'Chaque signal répond aux questions de votre équipe commerciale',
       questions: [
         {
           title: 'Qui contacter ?',
-          body: 'L’entreprise qui vient de remporter le marché, clairement identifiée.',
+          body: 'L’entreprise gagnante du marché, clairement identifiée.',
         },
         {
           title: 'Comment la joindre ?',
@@ -219,8 +219,8 @@ export const fr = {
           body: 'Les besoins compatibles avec votre offre, expliqués à partir des faits publiés.',
         },
         {
-          title: 'Pourquoi maintenant ?',
-          body: 'La fraîcheur de l’événement, le calendrier d’exécution et la fenêtre commerciale.',
+          title: 'Quel est le calendrier ?',
+          body: 'Les dates publiées de l’attribution et de l’exécution.',
         },
         {
           title: 'Pourquoi ce prospect me correspond-il ?',
@@ -242,7 +242,7 @@ export const fr = {
         'Correspondance personnalisée',
         'Source officielle accessible',
       ],
-      pricingTitle: 'Votre prochain prospect a peut-être remporté un contrat cette semaine',
+      pricingTitle: 'Une attribution publique peut déjà révéler votre prochain prospect',
       pricingBody:
         'Décrivez ce que vous vendez et où vous intervenez. Kivou vous montre immédiatement trois signaux complets.',
       pricingNoCard: 'Aucune carte bancaire nécessaire.',
@@ -263,19 +263,19 @@ export const fr = {
         account: 'Compte démo',
         selected: 'Sélectionné',
         opportunity: 'Opportunité commerciale',
-        signalTitle: 'H. Hüther GmbH vient de remporter un marché de 5,22 M€ à Munich',
+        signalTitle: 'H. Hüther GmbH — marché de 5,22 M€ attribué à Munich',
         summary:
           'Plus de 700 ensembles de portes et huisseries, 5,5 km de plinthes et plusieurs équipements d’agencement figurent dans le périmètre publié.',
         verifiedEvent: 'Événement vérifié',
-        goodTiming: 'Timing favorable',
+        goodTiming: 'Début prévu : 28 octobre 2026',
         strongFit: 'Adéquation forte',
         officialSource: 'Source officielle',
         whyRelevantTitle: 'Pourquoi ce signal vous concerne',
         whyRelevant:
           'Votre profil indique que vous fournissez des portes, de la quincaillerie ou des composants d’agencement et que vous livrez en Bavière. Les catégories, les volumes et la zone d’exécution correspondent à votre ciblage.',
-        whyNowTitle: 'Pourquoi agir maintenant',
+        whyNowTitle: 'Calendrier publié',
         whyNow:
-          'Le contrat est attribué, mais l’exécution ne commence que le 28 octobre 2026. La période actuelle constitue une fenêtre pertinente pour présenter vos capacités de fourniture.',
+          'Le marché a été attribué le 14 août 2026. Le début d’exécution publié est fixé au 28 octobre 2026.',
         volumesTitle: 'Volumes publiés',
         companyTitle: 'Entreprise',
         companyVerified: 'Coordonnées professionnelles vérifiées',
@@ -297,7 +297,7 @@ export const fr = {
       },
     },
     chainTitle: 'La chaîne de valeur Kivou',
-    chainLead: 'Du fait publié à la raison de contacter une entreprise maintenant.',
+    chainLead: 'Du fait publié à la raison d’examiner une entreprise selon son calendrier.',
     chain: {
       factTitle: 'Fait public',
       factBody: 'Publication officielle d’un marché attribué et de son gagnant.',
@@ -326,9 +326,9 @@ export const fr = {
     honestyNote:
       'Kivou ne sait pas ce qu’une entreprise va acheter. Kivou montre un événement public, ce qu’il implique probablement, et la preuve qui permet d’en juger.',
     pricingEyebrow: '4 offres · Facturation mensuelle',
-    pricingTitle: 'Choisissez le rythme adapté à votre prospection',
+    pricingTitle: 'Choisissez la couverture commerciale adaptée à vos objectifs',
     pricingLead:
-      'Comparez directement le prix, le nombre de profils, l’historique et la cadence d’alerte de chaque offre.',
+      'Commencez par trois signaux réels. Étendez ensuite votre couverture et votre capacité de suivi à mesure que votre prospection se développe.',
     pricingUnavailable:
       'Les tarifs sont momentanément indisponibles. La création de compte reste ouverte.',
     ctaTitle: 'Commencez par trois signaux réels',
@@ -854,6 +854,8 @@ export const fr = {
     current: 'Votre offre actuelle',
     choose: 'Choisir {plan}',
     choosing: 'Ouverture du paiement…',
+    publicDiscoveryCta: 'Voir mes 3 premiers signaux',
+    publicPaidCta: 'Créer mon compte',
     included: 'Ce qui est inclus',
     plans: {
       discovery: 'Découverte',
@@ -862,17 +864,18 @@ export const fr = {
       scale: 'Scale',
     },
     planPositioning: {
-      discovery: 'Pour découvrir la qualité des signaux avec votre propre ciblage.',
-      essential: 'Pour prospecter régulièrement sur un marché prioritaire.',
-      pro: 'Pour suivre plusieurs priorités commerciales au quotidien.',
-      scale: 'Pour couvrir davantage de marchés avec une cadence renforcée.',
+      discovery: 'Validez la pertinence de Kivou avec vos trois premiers signaux.',
+      essential: 'Concentrez votre prospection sur une priorité commerciale.',
+      pro: 'Suivez plusieurs priorités et agissez avec le contexte et les preuves utiles.',
+      scale: 'Étendez votre couverture à davantage de marchés et de territoires.',
     },
     entitlements: {
       icpsOne: '{count} profil de ciblage',
       icpsOther: '{count} profils de ciblage',
-      territorySingle: '1 territoire principal',
-      territoryMultiple: 'Plusieurs territoires',
-      territoryExpanded: 'Couverture étendue Suisse et Union européenne',
+      territoriesPerProfileOne: 'Jusqu’à {count} territoire par profil',
+      territoriesPerProfileOther: 'Jusqu’à {count} territoires par profil',
+      territoryMultiple: 'Plusieurs territoires par profil',
+      territoryExpanded: 'Couverture territoriale étendue',
       historyWindow: 'Historique {days} jours',
       historyAll: 'Tout l’historique conservé',
       historyNone: 'Pas de fenêtre d’historique générale',

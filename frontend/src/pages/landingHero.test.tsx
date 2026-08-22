@@ -98,7 +98,7 @@ describe('hero de la page d’accueil', () => {
     expect(
       screen.getByRole('heading', {
         level: 1,
-        name: 'Les entreprises qui viennent de gagner de nouveaux contrats — et que vous devriez contacter maintenant.',
+        name: 'Les entreprises qui remportent des contrats publics — et les occasions commerciales que votre équipe peut examiner.',
       }),
     ).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
@@ -232,7 +232,7 @@ describe('hero de la page d’accueil', () => {
     expect(
       screen.getByRole('heading', {
         level: 1,
-        name: 'The companies winning new contracts — and the ones your sales team should contact now.',
+        name: 'The companies winning public contracts — and the sales opportunities your team can assess.',
       }),
     ).toBeInTheDocument()
     expect(screen.getByText('SALES SIGNALS FROM PUBLIC CONTRACT AWARDS')).toBeInTheDocument()

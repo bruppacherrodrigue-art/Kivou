@@ -25,7 +25,7 @@ export const dashboardDemoFeed: readonly DemoFeedSignal[] = [
     event: { fr: 'Marché de menuiserie intérieure', en: 'Interior joinery contract' },
     amount: '5,22 M€',
     region: { fr: 'Munich, Allemagne', en: 'Munich, Germany' },
-    freshness: { fr: 'Attribution récente', en: 'Recent award' },
+    freshness: { fr: 'Attribué le 14 août 2026', en: 'Awarded 14 August 2026' },
     fit: { fr: 'Adéquation forte', en: 'Strong fit' },
     reason: {
       fr: 'Portes, plinthes, revêtement bois et kitchenettes dans votre territoire.',

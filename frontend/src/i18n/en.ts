@@ -59,9 +59,9 @@ export const en: Dictionary = {
   landing: {
     heroEyebrow: 'SALES SIGNALS FROM PUBLIC CONTRACT AWARDS',
     heroTitle:
-      'The companies winning new contracts — and the ones your sales team should contact now.',
+      'The companies winning public contracts — and the sales opportunities your team can assess.',
     heroLead:
-      'Kivou identifies new contract winners, understands what they will need to deliver and shows you the opportunities that match what you sell.',
+      'Kivou identifies contract winners, understands what they will need to deliver and shows you the opportunities that match what you sell.',
     heroSecondaryLead:
       'You do not receive a list of public contracts. You receive documented reasons to approach new prospects.',
     heroPrimary: 'See my 3 signals',
@@ -98,9 +98,9 @@ export const en: Dictionary = {
     how: {
       introEyebrow: 'CONTINUOUS SALES MONITORING',
       introTitle:
-        'Kivou turns recently awarded public contracts into prospects you can contact at the right time.',
+        'Kivou turns public contract awards into prospects to assess against their published schedule.',
       introBodyOne:
-        'Every day, companies win public contracts. Kivou identifies the winners, summarises what they need to deliver and selects the opportunities that match what you sell.',
+        'Companies win public contracts across Switzerland and the European Union. Kivou identifies the winners, summarises what they need to deliver and selects the opportunities that match what you sell.',
       introBodyTwo:
         'Kivou monitors those events, identifies the winners, understands what they will need to deliver and selects only the opportunities that match what you sell.',
       introHighlight:
@@ -132,7 +132,7 @@ export const en: Dictionary = {
       processSteps: [
         {
           title: 'Kivou monitors',
-          body: 'New Swiss and European awards are collected.',
+          body: 'Published Swiss and European awards are collected.',
         },
         {
           title: 'Kivou identifies',
@@ -148,7 +148,7 @@ export const en: Dictionary = {
         },
         {
           title: 'Kivou qualifies the timing',
-          body: 'Award date and execution calendar show when to engage.',
+          body: 'The award date and execution schedule place the signal in time.',
         },
         {
           title: 'Your team acts',
@@ -160,7 +160,7 @@ export const en: Dictionary = {
       dashboardBody:
         'The company, contract, volumes, timing, available contact details and official evidence are brought together in one view.',
       dashboardAlt:
-        'Kivou dashboard showing a sales signal for a recently awarded company, the contract amount, volumes, fit with the customer offering, verified company details and the recommended next step.',
+        'Kivou dashboard showing a sales signal for a contract-winning company, the contract amount, volumes, fit with the customer offering, verified company details and the next step.',
       dashboardCaption:
         'The prospect, context and next step — brought together in one sales signal.',
       dashboardMarkers: [
@@ -192,12 +192,12 @@ export const en: Dictionary = {
         'action and evidence together',
       ],
       comparisonWithConclusion:
-        'The salesperson understands why this prospect matters now.',
+        'The salesperson understands why this prospect deserves attention and can verify the published schedule.',
       questionsTitle: 'Each signal answers your sales team’s questions',
       questions: [
         {
           title: 'Who should I contact?',
-          body: 'The company that has just won the contract, clearly identified.',
+          body: 'The contract-winning company, clearly identified.',
         },
         {
           title: 'How can I reach them?',
@@ -212,8 +212,8 @@ export const en: Dictionary = {
           body: 'Needs compatible with your offering, explained from published facts.',
         },
         {
-          title: 'Why now?',
-          body: 'The freshness of the event, execution calendar and sales window.',
+          title: 'What is the schedule?',
+          body: 'The published award and execution dates.',
         },
         {
           title: 'Why does this prospect fit me?',
@@ -235,7 +235,7 @@ export const en: Dictionary = {
         'Personalised fit',
         'Official source accessible',
       ],
-      pricingTitle: 'Your next prospect may have won a contract this week',
+      pricingTitle: 'A public contract award may already reveal your next prospect',
       pricingBody:
         'Describe what you sell and where you operate. Kivou immediately shows you three complete signals.',
       pricingNoCard: 'No payment card required.',
@@ -256,19 +256,19 @@ export const en: Dictionary = {
         account: 'Demo account',
         selected: 'Selected',
         opportunity: 'Commercial opportunity',
-        signalTitle: 'H. Hüther GmbH has just won a €5.22m contract in Munich',
+        signalTitle: 'H. Hüther GmbH — €5.22m contract awarded in Munich',
         summary:
           'More than 700 door-and-frame sets, 5.5 km of skirting and several fit-out items appear in the published scope.',
         verifiedEvent: 'Verified public event',
-        goodTiming: 'Relevant time to engage',
+        goodTiming: 'Planned start: 28 October 2026',
         strongFit: 'Strong fit',
         officialSource: 'Official source',
         whyRelevantTitle: 'Why this signal concerns you',
         whyRelevant:
           'Your profile says you supply doors, ironmongery or fit-out components and deliver in Bavaria. The categories, volumes and place of performance match your targeting.',
-        whyNowTitle: 'Why act now',
+        whyNowTitle: 'Published schedule',
         whyNow:
-          'The contract has been awarded, but performance does not start until 28 October 2026. This is a relevant window to present supply capabilities.',
+          'The contract was awarded on 14 August 2026. The published execution start date is 28 October 2026.',
         volumesTitle: 'Published volumes',
         companyTitle: 'Company',
         companyVerified: 'Verified company details',
@@ -290,7 +290,7 @@ export const en: Dictionary = {
       },
     },
     chainTitle: 'The Kivou value chain',
-    chainLead: 'From a published fact to a reason to contact a company now.',
+    chainLead: 'From a published fact to a reason to assess a company against its schedule.',
     chain: {
       factTitle: 'Public fact',
       factBody: 'Official publication of an awarded contract and its winner.',
@@ -320,8 +320,9 @@ export const en: Dictionary = {
     honestyNote:
       'Kivou does not know what a company will buy. Kivou shows a public event, what it probably implies, and the evidence that lets you judge.',
     pricingEyebrow: '4 plans · Monthly billing',
-    pricingTitle: 'Choose the pace that fits your prospecting',
-    pricingLead: 'Compare each plan’s price, target profiles, history and alert cadence at a glance.',
+    pricingTitle: 'Choose the sales coverage that fits your goals',
+    pricingLead:
+      'Start with three real signals. Then expand your coverage and tracking capacity as your prospecting grows.',
     pricingUnavailable:
       'Pricing is temporarily unavailable. Account creation remains open.',
     ctaTitle: 'Start with three real signals',
@@ -843,6 +844,8 @@ export const en: Dictionary = {
     current: 'Your current plan',
     choose: 'Choose {plan}',
     choosing: 'Opening payment…',
+    publicDiscoveryCta: 'See my first 3 signals',
+    publicPaidCta: 'Create my account',
     included: "What's included",
     plans: {
       discovery: 'Discovery',
@@ -851,17 +854,18 @@ export const en: Dictionary = {
       scale: 'Scale',
     },
     planPositioning: {
-      discovery: 'Explore the quality of Kivou signals with your own targeting.',
-      essential: 'Build a regular prospecting rhythm around one priority market.',
-      pro: 'Track several sales priorities with daily alerts.',
-      scale: 'Cover more markets with a higher-priority alert cadence.',
+      discovery: 'Validate Kivou’s relevance with your first three signals.',
+      essential: 'Focus your prospecting on one sales priority.',
+      pro: 'Track several priorities and act with the context and evidence you need.',
+      scale: 'Expand your coverage across more markets and territories.',
     },
     entitlements: {
       icpsOne: '{count} target profile',
       icpsOther: '{count} target profiles',
-      territorySingle: '1 main territory',
-      territoryMultiple: 'Several territories',
-      territoryExpanded: 'Extended Swiss and European Union coverage',
+      territoriesPerProfileOne: 'Up to {count} territory per profile',
+      territoriesPerProfileOther: 'Up to {count} territories per profile',
+      territoryMultiple: 'Multiple territories per profile',
+      territoryExpanded: 'Expanded territory coverage',
       historyWindow: '{days} days of history',
       historyAll: 'All retained history',
       historyNone: 'No general history window',
