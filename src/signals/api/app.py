@@ -51,6 +51,7 @@ def create_app(
     now_override: Callable[[], dt.datetime] | None = None,
     password_reset_delivery: object | None = None,
     stripe_gateway: object | None = None,
+    instantly_webhook_service: object | None = None,
     founding_accounts: frozenset[str] = frozenset(),
 ) -> FastAPI:
     """Construit l'application autour d'un moteur déjà configuré.
@@ -71,6 +72,8 @@ def create_app(
     # de facturation répondent 503 : mieux vaut un service annoncé indisponible
     # qu'une application qui démarre en croyant pouvoir encaisser.
     app.state.stripe_gateway = stripe_gateway
+    # SPEC-026 transport ingress is injected; app construction never contacts Instantly.
+    app.state.instantly_webhook_service = instantly_webhook_service
     # §33 — l'éligibilité fondateur est une liste serveur, jamais une saisie.
     app.state.founding_accounts = frozenset(founding_accounts)
 

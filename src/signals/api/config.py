@@ -32,6 +32,8 @@ SMTP_PASSWORD_ENV = "SMTP_PASSWORD"
 SMTP_FROM_EMAIL_ENV = "SMTP_FROM_EMAIL"
 SMTP_FROM_NAME_ENV = "SMTP_FROM_NAME"
 SMTP_USE_TLS_ENV = "SMTP_USE_TLS"
+INSTANTLY_WEBHOOK_SECRET_ENV = "KIVOU_INSTANTLY_WEBHOOK_SECRET"
+INSTANTLY_WEBHOOK_WORKSPACE_ENV = "KIVOU_INSTANTLY_WORKSPACE_REF"
 
 STRIPE_MODES: tuple[str, ...] = ("test", "live")
 DEFAULT_STRIPE_MODE = "test"
@@ -116,6 +118,10 @@ class ApiConfig:
     smtp_from_email: str | None = None
     smtp_from_name: str = "Kivou"
     smtp_use_tls: bool = True
+
+    # SPEC-026 — absent by default: the provider-specific route fails closed.
+    instantly_webhook_secret: str | None = None
+    instantly_webhook_workspace_ref: str | None = None
 
     @property
     def stripe_livemode(self) -> bool:
@@ -223,6 +229,10 @@ class ApiConfig:
             smtp_from_email=os.environ.get(SMTP_FROM_EMAIL_ENV) or None,
             smtp_from_name=os.environ.get(SMTP_FROM_NAME_ENV) or "Kivou",
             smtp_use_tls=os.environ.get(SMTP_USE_TLS_ENV, "1").lower() not in {"0", "false", "no"},
+            instantly_webhook_secret=os.environ.get(INSTANTLY_WEBHOOK_SECRET_ENV) or None,
+            instantly_webhook_workspace_ref=(
+                os.environ.get(INSTANTLY_WEBHOOK_WORKSPACE_ENV) or None
+            ),
         )
 
 

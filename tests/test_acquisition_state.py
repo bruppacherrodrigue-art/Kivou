@@ -237,6 +237,52 @@ def test_historical_decision_payload_preserves_previous_next_action_semantics() 
     assert reduce_event(current, historical).next_action == "evaluate_opportunity"
 
 
+def test_send_to_queued_can_bind_campaign_ref_without_new_event_type() -> None:
+    current = projection(AcquisitionState.SEND).model_copy(
+        update={"decision": Decision.SEND, "next_action": "schedule_campaign"}
+    )
+    queued = event(
+        EventType.STATE_TRANSITIONED,
+        sequence=2,
+        payload={"target_state": "QUEUED", "campaign_ref": "campaign-ref-1"},
+        reason_codes=("CAMPAIGN_MEMBER_QUEUED",),
+    )
+
+    result = reduce_event(current, queued)
+
+    assert result.state is AcquisitionState.QUEUED
+    assert result.campaign_ref == "campaign-ref-1"
+    assert len(EventType) == 9
+
+
+def test_historical_queued_transition_without_campaign_ref_replays_unchanged() -> None:
+    current = projection(AcquisitionState.SEND)
+    assert reduce_event(current, transition(AcquisitionState.QUEUED)).campaign_ref is None
+
+
+def test_campaign_ref_cannot_bind_outside_send_to_queued_or_replace_existing() -> None:
+    wrong_transition = event(
+        EventType.STATE_TRANSITIONED,
+        sequence=2,
+        payload={"target_state": "ENRICHING", "campaign_ref": "campaign-ref-1"},
+    )
+    with pytest.raises(InvalidTransition, match="campaign_ref"):
+        reduce_event(projection(AcquisitionState.DISCOVERED), wrong_transition)
+
+    replacement = event(
+        EventType.STATE_TRANSITIONED,
+        sequence=2,
+        payload={"target_state": "QUEUED", "campaign_ref": "campaign-ref-2"},
+    )
+    with pytest.raises(InvalidTransition, match="campaign_ref"):
+        reduce_event(
+            projection(AcquisitionState.SEND).model_copy(
+                update={"campaign_ref": "campaign-ref-1"}
+            ),
+            replacement,
+        )
+
+
 def test_next_action_set_can_explicitly_clear_with_a_reason() -> None:
     current = projection(AcquisitionState.SEND).model_copy(
         update={"next_action": "assess_campaign_compliance"}

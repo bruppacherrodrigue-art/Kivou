@@ -1,0 +1,243 @@
+{
+  "source": {
+    "verified_at": "2026-08-22",
+    "campaign_schema": "https://developer.instantly.ai/api-reference/schemas/campaign",
+    "campaign_create": "https://developer.instantly.ai/api-reference/campaign/create-campaign",
+    "campaign_patch": "https://developer.instantly.ai/api-reference/campaign/patch-campaign",
+    "lead_create": "https://developer.instantly.ai/api-reference/lead/create-lead",
+    "lead_get": "https://developer.instantly.ai/api-reference/lead/get-lead",
+    "lead_list": "https://developer.instantly.ai/api-reference/lead/list-leads",
+    "lead_patch": "https://developer.instantly.ai/api-reference/lead/patch-lead"
+  },
+  "campaign_create_request": {
+    "name": "KIVOU-deadbeef0000-FR-fr-wedge",
+    "campaign_schedule": {
+      "start_date": "2026-08-24",
+      "end_date": "2026-08-28",
+      "schedules": [
+        {
+          "name": "Kivou two-window schedule",
+          "timing": {
+            "from": "09:00",
+            "to": "17:00"
+          },
+          "days": {
+            "0": true,
+            "1": false,
+            "2": false,
+            "3": false,
+            "4": true,
+            "5": false,
+            "6": false
+          },
+          "timezone": "Europe/Paris"
+        }
+      ]
+    },
+    "sequences": [
+      {
+        "steps": [
+          {
+            "type": "email",
+            "delay": 4,
+            "delay_unit": "days",
+            "variants": [
+              {
+                "subject": "{{kivou_subject}}",
+                "body": "{{kivou_envelope}}",
+                "v_disabled": false
+              }
+            ]
+          },
+          {
+            "type": "email",
+            "variants": [
+              {
+                "subject": "",
+                "body": "{{kivou_follow_up}}",
+                "v_disabled": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "email_list": [
+      "sender@example.invalid"
+    ],
+    "daily_limit": 3,
+    "stop_on_reply": true,
+    "stop_on_auto_reply": true,
+    "stop_for_company": false,
+    "open_tracking": false,
+    "link_tracking": false,
+    "text_only": true,
+    "first_email_text_only": true,
+    "insert_unsubscribe_header": true,
+    "allow_risky_contacts": false,
+    "disable_bounce_protect": false,
+    "auto_variant_select": null
+  },
+  "campaign_get_response": {
+    "id": "019c0000-0000-7000-8000-000000000001",
+    "name": "KIVOU-deadbeef0000-FR-fr-wedge",
+    "status": 0,
+    "campaign_schedule": {
+      "start_date": "2026-08-24",
+      "end_date": "2026-08-28",
+      "schedules": [
+        {
+          "name": "Kivou two-window schedule",
+          "timing": {
+            "from": "09:00",
+            "to": "17:00"
+          },
+          "days": {
+            "0": true,
+            "1": false,
+            "2": false,
+            "3": false,
+            "4": true,
+            "5": false,
+            "6": false
+          },
+          "timezone": "Europe/Paris"
+        }
+      ]
+    },
+    "sequences": [
+      {
+        "steps": [
+          {
+            "type": "email",
+            "delay": 4,
+            "delay_unit": "days",
+            "pre_delay": 0,
+            "pre_delay_unit": "days",
+            "variants": [
+              {
+                "subject": "{{kivou_subject}}",
+                "body": "{{kivou_envelope}}",
+                "v_disabled": false
+              }
+            ]
+          },
+          {
+            "type": "email",
+            "delay": 0,
+            "delay_unit": "days",
+            "pre_delay": 0,
+            "pre_delay_unit": "days",
+            "variants": [
+              {
+                "subject": "",
+                "body": "{{kivou_follow_up}}",
+                "v_disabled": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "email_list": [
+      "sender@example.invalid"
+    ],
+    "daily_limit": 3,
+    "stop_on_reply": true,
+    "stop_on_auto_reply": true,
+    "stop_for_company": false,
+    "open_tracking": false,
+    "link_tracking": false,
+    "text_only": true,
+    "first_email_text_only": true,
+    "insert_unsubscribe_header": true,
+    "allow_risky_contacts": false,
+    "disable_bounce_protect": false,
+    "auto_variant_select": null,
+    "timestamp_created": "2026-08-22T08:00:00.000Z",
+    "timestamp_updated": "2026-08-22T08:01:00.000Z",
+    "organization": "019c0000-0000-7000-8000-000000000002",
+    "owned_by": "019c0000-0000-7000-8000-000000000003",
+    "not_sending_status": 1,
+    "core_variables": {},
+    "custom_variables": {},
+    "analytics": {
+      "sent": 0
+    },
+    "is_evergreen": false,
+    "cc_list": [],
+    "bcc_list": [],
+    "ai_sdr_id": null,
+    "daily_max_leads": 3,
+    "prioritize_new_leads": false,
+    "match_lead_esp": false,
+    "provider_routing_rules": [
+      {
+        "action": "send",
+        "recipient_esp": [
+          "all"
+        ],
+        "sender_esp": [
+          "all"
+        ]
+      }
+    ]
+  },
+  "campaign_patch_response": {
+    "id": "019c0000-0000-7000-8000-000000000001",
+    "name": "KIVOU-deadbeef0000-FR-fr-wedge",
+    "status": 0,
+    "timestamp_updated": "2026-08-22T08:02:00.000Z"
+  },
+  "lead_create_request": {
+    "email": "lead@example.invalid",
+    "campaign": "019c0000-0000-7000-8000-000000000001",
+    "custom_variables": {
+      "kivou_member_ref": "member-safe"
+    },
+    "skip_if_in_workspace": true
+  },
+  "lead_create_response": {
+    "id": "019c0000-0000-7000-8000-000000000004",
+    "status": 1
+  },
+  "lead_get_response": {
+    "id": "019c0000-0000-7000-8000-000000000004",
+    "status": 1,
+    "campaign": "019c0000-0000-7000-8000-000000000001",
+    "email": "lead@example.invalid",
+    "payload": {
+      "kivou_member_ref": "member-safe"
+    },
+    "timestamp_created": "2026-08-22T08:03:00.000Z",
+    "timestamp_updated": "2026-08-22T08:03:00.000Z"
+  },
+  "lead_list_response": {
+    "items": [
+      {
+        "id": "019c0000-0000-7000-8000-000000000004",
+        "status": 1,
+        "campaign": "019c0000-0000-7000-8000-000000000001",
+        "email": "lead@example.invalid",
+        "payload": {
+          "kivou_member_ref": "member-safe"
+        }
+      }
+    ],
+    "next_starting_after": null
+  },
+  "lead_patch_supported_request": {
+    "custom_variables": {
+      "kivou_member_ref": "member-safe"
+    }
+  },
+  "lead_patch_response": {
+    "id": "019c0000-0000-7000-8000-000000000004",
+    "status": 1,
+    "campaign": "019c0000-0000-7000-8000-000000000001",
+    "email": "lead@example.invalid",
+    "payload": {
+      "kivou_member_ref": "member-safe"
+    }
+  }
+}

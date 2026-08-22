@@ -1,0 +1,30 @@
+{
+  "version": "campaign-factory-eval-v1",
+  "synthetic_only": true,
+  "cases": [
+    {"id": "fr_allowed_plan", "expected": "PLAN", "email": "lead-01@example.invalid"},
+    {"id": "expired_compliance", "expected": "BLOCK", "email": "lead-02@example.invalid"},
+    {"id": "new_suppression", "expected": "STOP", "email": "lead-03@example.invalid"},
+    {"id": "artifact_drift", "expected": "CONFLICT", "email": "lead-04@example.invalid"},
+    {"id": "mailbox_unhealthy", "expected": "BLOCK", "email": "lead-05@example.invalid"},
+    {"id": "mailbox_unknown", "expected": "BLOCK", "email": "lead-06@example.invalid"},
+    {"id": "send_window_closed", "expected": "BLOCK", "email": "lead-07@example.invalid"},
+    {"id": "budget_cap", "expected": "BLOCK", "email": "lead-08@example.invalid"},
+    {"id": "volume_cap", "expected": "BLOCK", "email": "lead-09@example.invalid"},
+    {"id": "provider_quota", "expected": "BLOCK", "email": "lead-10@example.invalid"},
+    {"id": "shadow", "expected": "NO_PROVIDER", "email": "lead-11@example.invalid"},
+    {"id": "assisted_approval", "expected": "PLAN", "email": "lead-12@example.invalid"},
+    {"id": "create_timeout", "expected": "RECONCILE", "email": "lead-13@example.invalid"},
+    {"id": "configure_timeout", "expected": "RECONCILE", "email": "lead-14@example.invalid"},
+    {"id": "add_timeout", "expected": "RECONCILE", "email": "lead-15@example.invalid"},
+    {"id": "activation_timeout", "expected": "RECONCILE", "email": "lead-16@example.invalid"},
+    {"id": "duplicate_webhook", "expected": "ONE_EFFECT", "email": "lead-17@example.invalid"},
+    {"id": "step1_expired", "expected": "FAILED", "email": "lead-18@example.invalid"},
+    {"id": "step2_expired", "expected": "FAILED", "email": "lead-19@example.invalid"},
+    {"id": "unsubscribe", "expected": "SUPPRESSED", "email": "lead-20@example.invalid"},
+    {"id": "reply_unexpected", "expected": "STOP_INCIDENT", "email": "lead-21@example.invalid"},
+    {"id": "concurrent_batch", "expected": "ONE_GENERATION", "email": "lead-22@example.invalid"},
+    {"id": "kill_switch", "expected": "STOP", "email": "lead-23@example.invalid"},
+    {"id": "read_only", "expected": "STOP", "email": "lead-24@example.invalid"}
+  ]
+}

@@ -19,6 +19,9 @@ jamais stocké.
 
 from __future__ import annotations
 
+import hmac
+import json
+
 from fastapi import APIRouter, Request, Response
 
 from signals.api.dependencies import request_now
@@ -29,6 +32,8 @@ from signals.billing.gateway import InvalidWebhookSignature, verify_event
 router = APIRouter()
 
 STRIPE_SIGNATURE_HEADER = "stripe-signature"
+INSTANTLY_SECRET_HEADER = "x-kivou-instantly-secret"
+INSTANTLY_MAX_BODY_BYTES = 65_536
 
 
 @router.post("/webhooks/stripe")
@@ -71,3 +76,49 @@ async def stripe_webhook(request: Request, response: Response) -> dict[str, str]
     if not outcome.accepted:
         response.status_code = 400
     return {"received": "true", "result": outcome.result}
+
+
+@router.post("/webhooks/instantly")
+async def instantly_webhook(request: Request) -> dict[str, object]:
+    """Accept one authenticated, bounded Instantly transport event durably."""
+    config = request.app.state.config
+    service = getattr(request.app.state, "instantly_webhook_service", None)
+    secret = config.instantly_webhook_secret
+    workspace = config.instantly_webhook_workspace_ref
+    if service is None or not secret or not workspace:
+        raise api_error(503, "instantly_webhook_unavailable", "webhook non configuré")
+    content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if content_type != "application/json":
+        raise api_error(415, "instantly_json_required", "contenu JSON requis")
+    supplied = request.headers.get(INSTANTLY_SECRET_HEADER, "")
+    if not hmac.compare_digest(supplied.encode(), secret.encode()):
+        raise api_error(401, "invalid_instantly_webhook_secret", "authentification invalide")
+    declared = request.headers.get("content-length")
+    if declared and declared.isdigit() and int(declared) > INSTANTLY_MAX_BODY_BYTES:
+        raise api_error(413, "instantly_webhook_too_large", "charge utile trop grande")
+    chunks: list[bytes] = []
+    size = 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > INSTANTLY_MAX_BODY_BYTES:
+            raise api_error(413, "instantly_webhook_too_large", "charge utile trop grande")
+        chunks.append(chunk)
+    try:
+        decoded = json.loads(b"".join(chunks))
+    except (UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise api_error(400, "invalid_instantly_json", "JSON invalide") from error
+    if not isinstance(decoded, dict):
+        raise api_error(422, "invalid_instantly_event", "objet JSON requis")
+    try:
+        outcome = service.ingest(decoded, received_at=request_now(request))
+    except ValueError as error:
+        # Pydantic validation details can echo forbidden provider fields.  The
+        # authenticated sender gets a stable failure code, never reflected PII.
+        raise api_error(
+            422, "invalid_instantly_event", "événement Instantly invalide"
+        ) from error
+    return {
+        "received": True,
+        "event_fingerprint": outcome.event_fingerprint,
+        "replayed": outcome.replayed,
+    }
