@@ -321,7 +321,7 @@ export const fr = {
       'Votre offre {plan} autorise {limit} profil(s) actif(s). Les profils au-delà de cette limite n’alimentent plus votre flux.',
     overLimitBadge: 'Au-delà de la limite de votre offre',
     overLimitHelp:
-      'Ce profil est conservé mais n’alimente plus votre flux. Passez à une offre supérieure ou désactivez-en un autre.',
+      'Ce profil est conservé mais n’alimente plus votre flux. Passez à une offre supérieure pour le réintégrer au flux.',
     offersLabel: 'Ce que vous vendez',
     tradesLabel: 'Corps de métier visés',
     territoriesLabel: 'Territoires',

@@ -314,7 +314,7 @@ export const en: Dictionary = {
       'Your {plan} plan allows {limit} active profile(s). Profiles beyond that limit no longer feed your stream.',
     overLimitBadge: 'Beyond your plan limit',
     overLimitHelp:
-      'This profile is kept but no longer feeds your stream. Move to a higher plan or retire another one.',
+      'This profile is kept but no longer feeds your stream. Move to a higher plan to include it in your stream again.',
     offersLabel: 'What you sell',
     tradesLabel: 'Trades targeted',
     territoriesLabel: 'Territories',

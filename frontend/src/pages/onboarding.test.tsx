@@ -308,6 +308,28 @@ describe('onboarding', () => {
       expect(call.search.get('account_id')).toBeNull()
     }
   })
+
+  it('reste sur la relecture et explique une erreur réseau avant toute création réussie', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      ...ACTIVATED_ROUTES,
+      'POST /target-icps': { status: 503, body: { detail: { code: 'billing_error' } } },
+    })
+    renderApp(<AppRoutes />, {
+      session: { status: 'authenticated', me: INCOMPLETE_ME },
+      route: '/onboarding',
+    })
+
+    await fillTargeting(user)
+    await user.click(
+      screen.getByRole('button', { name: 'Créer mon profil et voir mes signaux' }),
+    )
+
+    expect(await screen.findByText('Une erreur est survenue')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Vérifier votre ciblage' })).toBeInTheDocument()
+    expect(callsTo('/target-icps')).toHaveLength(1)
+    expect(callsTo('/me')).toHaveLength(0)
+  })
 })
 
 describe('succès partiel — ciblage enregistré, session non relue', () => {
@@ -422,6 +444,127 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
 })
 
 describe('gestion des profils', () => {
+  it('rend une erreur de chargement relançable sans masquer le titre de page', async () => {
+    mockApi({
+      'GET /target-icps': { status: 503, body: { detail: { code: 'billing_error' } } },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
+
+    expect(await screen.findByText('Une erreur est survenue')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Profils de ciblage' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument()
+  })
+
+  it('conserve l’éditeur après une erreur de modification et localise l’erreur en anglais', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /target-icps': { body: [ICP] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      'PATCH /target-icps/icp_1': {
+        status: 503,
+        body: { detail: { code: 'billing_error' } },
+      },
+    })
+    renderApp(<AppRoutes />, {
+      session: { status: 'authenticated', me: { ...ME, locale: 'en' } },
+      route: '/app/icps',
+      locale: 'en',
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Something went wrong')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Edit profile' })).toBeInTheDocument()
+    expect(screen.queryByText(/Une erreur|Réessayer|Modifier le profil/)).not.toBeInTheDocument()
+  })
+
+  it('localise les territoires, formate le seuil et affiche la description enregistrée', async () => {
+    const described = {
+      ...ICP,
+      customer_input: {
+        ...ICP.customer_input,
+        offer_summary: 'Composants bois livrés sur chantier.',
+        territories: ['CH', 'ZZ'],
+        minimum_contract_value: {
+          currency: 'CHF',
+          minimum_amount: 75000,
+          maximum_amount: null,
+        },
+      },
+    }
+    mockApi({
+      'GET /target-icps': { body: [described] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
+
+    const card = (await screen.findByText('Matériaux — Occitanie')).closest('article')!
+    const territories = within(card).getByText('Territoires').closest('div')!
+    expect(territories).toHaveTextContent('Suisse, ZZ')
+    expect(territories).not.toHaveTextContent(/\bCH\b/)
+    const threshold = within(card).getByText('Montant minimum').closest('div')!
+    expect(threshold.querySelector('dd')?.textContent).toBe(
+      new Intl.NumberFormat('fr-FR', {
+        style: 'currency',
+        currency: 'CHF',
+        maximumFractionDigits: 0,
+      }).format(75000),
+    )
+    expect(within(card).getByText('Votre offre en une phrase').closest('div')).toHaveTextContent(
+      'Composants bois livrés sur chantier.',
+    )
+  })
+
+  it('rend le même résumé métier en anglais, sans texte français', async () => {
+    const described = {
+      ...ICP,
+      customer_input: {
+        ...ICP.customer_input,
+        offer_summary: 'Timber components delivered to site.',
+        territories: ['CH', 'DE'],
+      },
+    }
+    mockApi({
+      'GET /target-icps': { body: [described] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(<AppRoutes />, {
+      session: { status: 'authenticated', me: { ...ME, locale: 'en' } },
+      route: '/app/icps',
+      locale: 'en',
+    })
+
+    const card = (await screen.findByText('Matériaux — Occitanie')).closest('article')!
+    expect(within(card).getByText('Territories').closest('div')).toHaveTextContent(
+      'Switzerland, Germany',
+    )
+    const threshold = within(card).getByText('Minimum amount').closest('div')!
+    expect(threshold.querySelector('dd')?.textContent).toBe(
+      new Intl.NumberFormat('en-GB', {
+        style: 'currency',
+        currency: 'EUR',
+        maximumFractionDigits: 0,
+      }).format(50000),
+    )
+    expect(within(card).getByText('Your offer in one sentence').closest('div')).toHaveTextContent(
+      'Timber components delivered to site.',
+    )
+    expect(card).not.toHaveTextContent(/Territoires|Montant minimum|Votre offre/)
+  })
+
+  it('masque la description facultative lorsqu’elle est vide', async () => {
+    mockApi({
+      'GET /target-icps': { body: [ICP] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
+
+    await screen.findByText('Matériaux — Occitanie')
+    expect(screen.queryByText('Votre offre en une phrase')).not.toBeInTheDocument()
+  })
+
   it('permet de modifier un profil existant', async () => {
     const user = userEvent.setup()
     mockApi({
@@ -531,5 +674,6 @@ describe('gestion des profils', () => {
 
     const list = screen.getByText('Location — Suisse').closest('article')!
     expect(within(list).getByRole('button', { name: 'Modifier' })).toBeInTheDocument()
+    expect(document.body).not.toHaveTextContent(/désactivez|supprimez/i)
   })
 })
