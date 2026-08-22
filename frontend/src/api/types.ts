@@ -404,6 +404,13 @@ export interface BillingStatus {
   subscription_status: string | null
   cancel_at_period_end: boolean
   current_period_end: string | null
+  /** P0-03G — QUAND l'abonnement s'arrêtera, décidé par le serveur.
+   *
+   * `null` s'il n'y a aucune résiliation programmée. Le navigateur ne calcule
+   * jamais cette date et ne la déduit jamais de `current_period_end` : Stripe
+   * permet de planifier une résiliation à une autre date que la fin de période.
+   */
+  scheduled_cancellation_at: string | null
   payment_issue: string | null
   /** La SEULE autorité sur ce que l'écran de facturation propose. */
   billing_action: BillingAction

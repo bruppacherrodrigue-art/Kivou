@@ -509,7 +509,10 @@ export const en: Dictionary = {
     planStatus: 'Subscription status',
     renewsOn: 'Next renewal on {date}',
     endsOn: 'Access until {date}',
-    cancelAtPeriodEnd: 'Cancellation scheduled at the end of the current period.',
+    cancellationTitle: 'Cancellation scheduled',
+    cancellationAtPeriodEnd:
+      'Your subscription will end at the end of the current period, on {date}.',
+    cancellationOnDate: 'Your subscription will end on {date}.',
     paymentIssue: 'A payment issue is open on this subscription.',
     managePortal: 'Manage billing',
     manageLead:

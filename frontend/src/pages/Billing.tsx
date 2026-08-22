@@ -158,6 +158,10 @@ export function Billing() {
 
   const action = status.billing_action
   const isPaid = status.plan_code !== 'discovery'
+  /* P0-03G — l'échéance de résiliation, telle que le SERVEUR la donne. Aucun
+     calcul, aucune comparaison à l'horloge locale : une échéance déjà passée
+     ne retire aucun droit tant que Stripe n'a pas changé le statut. */
+  const scheduledEnd = status.scheduled_cancellation_at
   const actionCopy = actionError ? describeError(actionError, t) : null
   const expiresAt =
     actionError instanceof ApiError && typeof actionError.extra.expires_at === 'string'
@@ -192,21 +196,30 @@ export function Billing() {
             `current_period_end` — c'est la fin de ce qui a été payé, pas un
             renouvellement à venir. L'annoncer sur un écran qui propose de
             choisir une offre dirait au client qu'il est encore abonné. */}
-        {action === 'manage_subscription' && status.current_period_end ? (
+        {action === 'manage_subscription' && status.current_period_end && !scheduledEnd ? (
           <p className={styles.statusLine}>
-            {interpolate(
-              status.cancel_at_period_end ? t.billing.endsOn : t.billing.renewsOn,
-              { date: date(status.current_period_end) ?? '' },
-            )}
+            {interpolate(t.billing.renewsOn, { date: date(status.current_period_end) ?? '' })}
           </p>
         ) : null}
 
-        {/* Même règle que la date : une résiliation programmée annonce que
-            l'accès court encore jusqu'à une date. Le dire à un compte dont
-            l'accès est SUSPENDU met deux affirmations contradictoires sur le
-            même écran. */}
-        {action === 'manage_subscription' && status.cancel_at_period_end ? (
-          <Callout tone="warning">{t.billing.cancelAtPeriodEnd}</Callout>
+        {/* P0-03G — la date vient du SERVEUR, et d'un seul champ.
+            `current_period_end` ne la remplace jamais : Stripe permet de
+            planifier une résiliation à une autre date, et emprunter la fin de
+            période annoncerait alors une échéance qui n'est pas la sienne.
+
+            Même règle que la ligne de période : une résiliation programmée dit
+            que l'accès court ENCORE jusqu'à une date. Le dire à un compte dont
+            l'accès est SUSPENDU mettrait deux affirmations contradictoires sur
+            le même écran. */}
+        {action === 'manage_subscription' && scheduledEnd ? (
+          <Callout tone="warning" title={t.billing.cancellationTitle}>
+            {interpolate(
+              status.cancel_at_period_end
+                ? t.billing.cancellationAtPeriodEnd
+                : t.billing.cancellationOnDate,
+              { date: date(scheduledEnd) ?? '' },
+            )}
+          </Callout>
         ) : null}
 
         {action === 'manage_subscription' ? (
