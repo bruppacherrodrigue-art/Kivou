@@ -89,6 +89,25 @@ at its own deadline. Any authoritative out-of-window send remains real
 transport truth and records a bounded safety incident rather than being
 discarded or relabeled as authorized.
 
+### Design R3.3 freeze
+
+R3.3 separates Policy freshness from the lifetime of the exact activated
+sequence. The current evaluator makes `PolicyDecision.valid_until` the earliest
+applicable Policy-control, budget-period, evidence, compliance, operational, or
+used-approval boundary. That aggregate decision and any used one-shot ACTION
+approval must be valid immediately before provider activation; neither must
+cover the Step-2 window.
+
+Accepted/reconciled activation consumes their purpose by authorizing one exact
+opportunity-member enrollment and immutable two-step sequence. Subsequent
+ordinary expiry of those historical boundaries does not alone cancel Step 2,
+does not charge another Policy volume unit, and does not trigger a second
+`schedule_campaign` evaluation or ACTION approval. The durable member
+authorization binds safe original Policy provenance. Separately, a bounded live
+safety-control check before the Step-2 provider-active window enforces current
+kill-switch, read-only, explicit pause/risk-reduction, suppression/response, and
+provider/mailbox hard stops without reconstructing historical Policy.
+
 ## Executive recommendation
 
 SPEC-026 should add a deterministic, opportunity-scoped scheduling saga around
@@ -143,7 +162,7 @@ the roadmap alone.
 | Acquisition events | Existing types are `OPPORTUNITY_CREATED`, `STATE_TRANSITIONED`, `DECISION_RECORDED`, `NEXT_ACTION_SET`, `RETRY_SCHEDULED`, `SUPERVISOR_PLAN_OBSERVED`, `POLICY_EVALUATED`, `CONTACT_SELECTED`, and `OUTCOME_RECORDED`. `STATE_TRANSITIONED` currently changes state but does not bind a campaign. | Prefer a backward-compatible optional `campaign_ref` binding on the `SEND -> QUEUED` `STATE_TRANSITIONED` event. Historical payloads remain valid. Introduce a new event type only if implementation proves this atomic extension unsafe. |
 | Personalization | `acquisition_personalization_artifact` has immutable `READY`/`POLICY_BLOCKED` dispositions and exact input/proposal/artifact/action fingerprints. Only `READY` holds the bounded subject, greeting, body, and CTA. | Scheduling binds the exact current `READY` row and fingerprint. Generic campaign/policy/event JSON must not duplicate the copy. |
 | Compliance | `acquisition_compliance_assessment` stores immutable `RECORDED`/`POLICY_BLOCKED` assessments, exact personalization and ruleset bindings, state, `valid_until`, workflow event, and fingerprints. A suppression store already performs Kivou-owned versioned HMAC matching. | A scheduler must find the exact `RECORDED/ALLOWED` assessment that caused the current `schedule_campaign` handoff, require `valid_until > captured_at` through the final pre-activation check, and perform fresh suppression checks before provider exposure, queue commit, and activation. After valid activation, the assessment's aggregate freshness TTL is not itself a Step-2 revocation timer; live hard stops and the separately bound underlying ruleset/sender validity still govern. |
-| Policy registry/evaluator | `schedule_campaign` is already an OPPORTUNITY-scoped `COMMERCIAL_MUTATION`, uses budget/volume/provider quota/send controls, and requires compliance. Its required evidence remains the legacy `VERIFIED_CONTACT`, `FIT_DECISION`, `RECENT_SIGNAL`; `requires_control_plane` is not enabled. ASSISTED commercial mutation requires existing ACTION approval; SHADOW is non-executable. | SPEC-026 must replace legacy evidence with Kivou-built acquisition/personalization/compliance/campaign/readiness evidence and enable the control-plane gate. It must not change TargetScope to CAMPAIGN. |
+| Policy registry/evaluator | `schedule_campaign` is already an OPPORTUNITY-scoped `COMMERCIAL_MUTATION`, uses budget/volume/provider quota/send controls, and requires compliance. Its required evidence remains the legacy `VERIFIED_CONTACT`, `FIT_DECISION`, `RECENT_SIGNAL`; `requires_control_plane` is not enabled. ASSISTED commercial mutation requires a matching unexpired one-shot ACTION approval; SHADOW is non-executable. `PolicyDecision.valid_until` is the earliest applicable Policy snapshot, budget period, evidence, compliance, operational, or used-approval boundary. | SPEC-026 must replace legacy evidence with Kivou-built acquisition/personalization/compliance/campaign/readiness evidence and enable the control-plane gate. It must not change TargetScope to CAMPAIGN. The exact decision must remain executable and unexpired through activation, while ordinary expiry after accepted activation is not a Step-2 revocation timer. |
 | Supervisor | `schedule_campaign`, `pause_campaign`, and later commands already exist in `ALLOWED_COMMANDS`; `ALLOWED_NEXT_ACTIONS` derives from commands. | No new command is needed to schedule one opportunity. Hermes supplies intent/authorization context, never raw provider payloads, mailbox email, or API keys. |
 | Contact/company research | Durable supplier/contact/provider-verification/profile bindings exist. The business email is stored in the contact domain and is needed transiently by the provider. | Resolve email only inside the bounded adapter call and webhook resolver. Never place it in generic campaign/event/Policy payloads or provider campaign names. |
 | API | The FastAPI application currently has only the established Stripe webhook route; there is no Instantly route/config. | A new provider-specific webhook endpoint must follow the same bounded-ingress/atomic-dedup discipline, but use Instantly's verified custom-header capability rather than pretending Instantly supplies Stripe-style signatures. |
@@ -496,13 +515,16 @@ The v1 workflow/member reason catalog is bounded and non-free-form:
 `CAMPAIGN_MEMBER_QUEUED` for the queue-time action clear;
 `SUPPRESSION_AFTER_QUEUE`, `OBJECTION_AFTER_QUEUE`,
 `COMPLIANCE_EXPIRED_AFTER_QUEUE` (before activation),
+`POLICY_EXPIRED_AFTER_QUEUE` (before activation),
 `ARTIFACT_BINDING_CHANGED_AFTER_QUEUE`, and
 `CONTACT_BINDING_CHANGED_AFTER_QUEUE` for hard stops; and
 `STEP1_WINDOW_EXPIRED`, `STEP2_WINDOW_EXPIRED`,
 `STEP1_SENT_OUTSIDE_AUTHORIZED_WINDOW`,
 `STEP2_SENT_BEFORE_AUTHORIZED_WINDOW`,
 `STEP2_SENT_OUTSIDE_AUTHORIZED_WINDOW`, and
-`UNEXPECTED_EMAIL_SENT_AFTER_STOP` for bounded expiry/transport incidents.
+`UNEXPECTED_EMAIL_SENT_AFTER_STOP` for bounded expiry/transport incidents; and
+`LIVE_KILL_SWITCH_STOP`, `LIVE_READ_ONLY_STOP`, and
+`EXPLICIT_RISK_REDUCTION_STOP` for post-activation safety-control stops.
 These codes explain workflow/member effects without copying PII or legal
 reasoning into generic events.
 
@@ -795,17 +817,20 @@ There is one Step-2 window. If it closes without authoritative Step-2 evidence,
 sequence state becomes `FAILED` with `STEP2_WINDOW_EXPIRED`; no next day,
 weekday, campaign, or Step 3 is authorized.
 
-### Live stops and post-activation compliance
+### Live stops and post-activation authority
 
 Once valid activation is accepted, later expiry of the assessment's 24-hour
 freshness TTL alone does not cancel the bounded Step-2 authorization. The
 member remains bound to the exact ruleset/configuration approved at activation;
 publication of a new ruleset version does not silently rewrite the campaign.
+The same rule applies to ordinary later expiry of the exact bound scheduling
+decision, used ACTION approval, original budget period, evidence, and
+operational readiness.
 
 Sequence authorization never overrides newly observed hard stops: Kivou
 suppression, recipient unsubscribe or objection, provider unsubscribe, reply,
-auto-reply, explicit campaign pause, observed kill-switch/risk-reduction
-control, or a provider/account condition requiring a safety pause moves
+auto-reply, explicit campaign pause, observed kill-switch, read-only or risk-
+reduction control, or a provider/account condition requiring a safety pause moves
 `sequence_state` to `STOPPED` after Step 1 and prohibits Step 2. The truthful
 member/opportunity `SENT` milestone is unchanged. Kivou suppression remains
 authoritative, with provider reply/auto-reply stops as defense in depth.
@@ -813,8 +838,9 @@ authoritative, with provider reply/auto-reply stops as defense in depth.
 SPEC-026 v1 performs no post-activation ComplianceService reassessment for a
 `QUEUED` or `SENT` member. The exact two-window envelope was authorized before
 activation, exact timing is materialized from transport truth, and live hard
-stops remain enforceable. A future step-level reauthorization flow requires
-separate review; it is not silently added here.
+stops remain enforceable. It likewise performs no second `schedule_campaign`
+Policy evaluation or ACTION approval. A future step-level reauthorization flow
+requires separate review; it is not silently added here.
 
 ### Window expiry and unexpected provider truth
 
@@ -973,6 +999,98 @@ stored remaining budget/volume; unrelated current usage must not invalidate a
 completed scheduling audit. Changed actor, scope, evidence, plan, artifact,
 compliance, mailbox, or action fingerprint conflicts.
 
+### PolicyDecision freshness is pre-activation authority
+
+Immediately before `ACTIVATE_CAMPAIGN`, each retained member must bind and
+revalidate the exact scheduling decision:
+
+```text
+status == APPROVED
+executable == true
+command == schedule_campaign
+action_fingerprint == exact member/sequence action fingerprint
+evaluation_id == member policy_evaluation_id
+policy_version == bound policy_version
+policy_snapshot_id == bound policy_snapshot_id
+control_revision == bound control_revision
+approval_refs == bound safe approval refs
+decision.valid_until is None
+  or activation_captured_at < decision.valid_until
+```
+
+The final activation check also requires the exact opportunity and current
+member identity already covered by the action fingerprint. An expired or
+semantically changed decision is not reusable: the member is stopped before
+activation and no provider activation operation may be claimed from it.
+
+The pre-activation `sequence_authorization_fingerprint` binds safe Policy
+provenance in addition to the R3.2 sequence/window identities:
+
+- `policy_evaluation_id` and Policy action fingerprint;
+- `policy_version`, `policy_snapshot_id`, and `control_revision`;
+- the sorted `approval_refs` identities/purposes/binding fingerprints;
+- the effective autonomy mode relevant to execution; and
+- the exact decision validity boundary used at activation.
+
+Persist only the bounded `PolicyDecision` fields and safe `ApprovalRef`
+bindings. Do not persist a raw ApprovalGrant, approver identity, approval
+payload, or other human PII. No new table is required.
+
+### One-shot ACTION approval and activated-sequence lifetime
+
+In ASSISTED mode, the existing one-shot ACTION ApprovalGrant authorizes the
+exact `schedule_campaign` commercial mutation whose action fingerprint covers
+the immutable two-step member sequence. It must match and be unexpired when the
+Policy decision is produced and when that exact decision is revalidated for
+activation. It authorizes neither arbitrary later copy nor another enrollment.
+
+Once provider activation is accepted or reconciled as accepted, that one-shot
+approval has served its purpose. Ordinary later expiry of the approval or
+`PolicyDecision.valid_until` does not alone revoke the already-bound Step 2 and
+does not require a second human approval.
+
+The same pre- versus post-activation distinction applies to historical
+boundaries that contributed to the approved decision: Policy control expiry,
+the original daily BudgetEnvelope period end, EvidenceReadiness expiry,
+OperationalReadiness expiry, and the aggregate ComplianceAssessment expiry.
+They govern whether the commercial mutation may begin. They are not hidden
+per-email timers after a valid activation. The separately frozen compliance
+ruleset and sender-config coverage, bounded sequence windows, and live hard
+stops still apply.
+
+### Step-2 live safety-control check
+
+SPEC-026 performs no second `schedule_campaign` Policy evaluation and requests
+no second ACTION approval for Step 2. Before the Step-2 provider-active window,
+it instead performs one bounded live safety-control check. This check does not
+rebuild the expired historical Policy envelope; it reads only current hard-stop
+facts needed to prevent remaining execution:
+
+- `kill_switch == true` or `read_only == true`;
+- an explicit Kivou campaign pause or risk-reduction stop;
+- current suppression, unsubscribe, objection, reply, auto-reply, or provider
+  unsubscribe; and
+- an unsafe current mailbox/provider state.
+
+Any observed hard stop changes sequence state to `STOPPED` and prohibits Step
+2. A new ordinary Policy snapshot/control revision without an explicit
+hard-stop state does not rewrite the activated immutable authorization.
+
+### Budget and volume accounting
+
+The Policy budget and volume unit is the exact opportunity-member sequence
+enrollment/activation mutation. Step 2 is a step inside that approved sequence,
+not a second `schedule_campaign` mutation, so its execution neither consumes a
+second Policy volume unit nor silently re-authorizes/re-charges the original
+daily budget after period rollover. Live provider/mailbox capacity may still
+reduce or stop execution and can never increase volume.
+
+Historical replay preserves the original Policy snapshot, historical
+BudgetUsage, `decision.valid_until`, approval refs, and action fingerprint. It
+never reconstructs authorization from current Policy state. Current live safety
+controls remain a separate execution-time stop check rather than part of exact
+historical replay.
+
 ### Autonomy semantics
 
 - **SHADOW:** build/fingerprint plan and envelope and persist only a PII-minimal
@@ -980,7 +1098,9 @@ compliance, mailbox, or action fingerprint conflicts.
   mutation and no `SEND -> QUEUED`.
 - **ASSISTED:** planning/readiness may run, but the existing
   `COMMERCIAL_MUTATION` ACTION-approval semantics control external mutation.
-  The first live outbound mode is frozen to ASSISTED.
+  The first live outbound mode is frozen to ASSISTED. One matching approval is
+  required for the exact activation mutation; no second approval is required
+  for the already-authorized Step 2.
   Approval cannot override suppression, expired pre-activation compliance,
   broken mailbox, invalid window, quota, or control-plane failure.
 - **AUTONOMOUS_CAPPED:** live outbound cap is frozen at zero until a later
@@ -1087,13 +1207,16 @@ once under concurrency.
 
 One exact opportunity enrollment: member ref; campaign ref; opportunity,
 supplier, contact, READY artifact, RECORDED/ALLOWED compliance, and Policy
-evaluation refs; exact input/plan/envelope/action fingerprints; nullable unique
-provider lead ID; exact ruleset and sender-configuration fingerprints;
+evaluation ref; safe Policy status/executable/command/version/snapshot/control-
+revision/valid-until/autonomy metadata and sorted approval binding refs; exact
+input/plan/envelope/Policy-action fingerprints; nullable unique provider lead
+ID; exact ruleset and sender-configuration fingerprints;
 immutable `step_1_execution_date`, `step_1_authorization_deadline`,
 `step_2_execution_date`, and `step_2_authorization_deadline`; immutable pre-
 activation `sequence_authorization_fingerprint` over those bounds plus the
 assessment, artifact, envelope, sequence, tracking, stop, window, campaign, and
-member identities; nullable write-once `step_1_sent_at`, `step_2_due_at`, and
+member identities and exact safe Policy provenance; nullable write-once
+`step_1_sent_at`, `step_2_due_at`, and
 `sequence_timing_fingerprint`; execution state constrained to
 `RESERVED|ENROLLED|QUEUED|STOPPED|SENT|FAILED`; sequence state constrained to
 `PENDING_STEP1|WAITING_STEP2|COMPLETED|STOPPED|FAILED`; bounded stop/failure/
@@ -1202,7 +1325,8 @@ skip flags are defense in depth, not Kivou's source of truth.
    member,
    re-read its opportunity, READY artifact, RECORDED/ALLOWED unexpired
    compliance, suppression, contact/supplier/profile, mailbox, plan, window,
-   caps, and Policy execution authority. In one bounded transaction bind
+   caps, and exact approved/executable Policy execution authority. In one
+   bounded transaction bind
    `campaign_ref`, append `STATE_TRANSITIONED(SEND -> QUEUED)`, append a
    reasoned `NEXT_ACTION_SET(null)` so `schedule_campaign` is not left as the
    generic action, set member execution state `QUEUED`, and bind the events on
@@ -1218,7 +1342,9 @@ skip flags are defense in depth, not Kivou's source of truth.
    exact `RECORDED/ALLOWED` assessment and personalization/contact/supplier/
    ruleset bindings, `assessment.valid_until > captured_at`, fresh suppression,
    sender/mailbox, plan/member fingerprints, send-window eligibility, and
-   Policy execution authority. Revalidate the already-frozen Step-1 execution
+   exact scheduling Policy status/executable/command/evaluation/action/snapshot/
+   control/approval bindings and its `valid_until` against the activation clock.
+   Revalidate the already-frozen Step-1 execution
    date/window and derived Step-2 execution date/deadline, require ruleset/
    sender validity to cover that deadline, and persist the immutable
    `sequence_authorization_fingerprint` with `sequence_state=PENDING_STEP1`.
@@ -1227,7 +1353,8 @@ skip flags are defense in depth, not Kivou's source of truth.
    activate while any retained member is not execution-state `QUEUED` or fails
    a current gate.
 9. **Stop unsafe queued membership:** a hard suppression/objection, expired
-   pre-activation assessment, or artifact/contact binding invalidation
+   pre-activation assessment or scheduling Policy decision, changed Policy
+   identity/binding, or artifact/contact binding invalidation
    atomically moves the member to `STOPPED` and appends a bounded reasoned
    `NEXT_ACTION_SET(null)`. The acquisition opportunity remains `QUEUED`; no
    reverse transition is fabricated. Remove or pause the provider membership
@@ -1245,7 +1372,8 @@ skip flags are defense in depth, not Kivou's source of truth.
    when the provider accepted activation before Kivou recorded confirmation.
    Acceptance/reconciliation makes each retained member's precommitted exact
    two-date/two-window sequence authorization effective; later passage beyond
-   the assessment freshness TTL alone does not revoke Step 2.
+   the assessment, Policy-decision, ACTION-approval, budget-period, evidence, or
+   operational freshness boundaries alone does not revoke Step 2.
 
 There is no active-campaign enrollment path. A new suppression at any point
 before lead addition prevents enrollment; after confirmed enrollment but before
@@ -1253,11 +1381,20 @@ queue/seal/activation it invokes the non-sending risk-reduction path. After
 `QUEUED` but before activation it moves the member to `STOPPED`, prevents
 activation for that member, and, when safe removal cannot be proven, prevents
 activation for the entire batch. Compliance expiry follows the same hard-stop
-path only while activation is still pending. After valid activation, simple
-expiry of the assessment's 24-hour freshness TTL is not itself a hard stop for
-the already-authorized exact Step 2. Live suppression/reply/pause/safety stops
-still terminate the remaining sequence, and SPEC-026 has no silent post-queue
-or post-activation compliance reauthorization flow.
+path only while activation is still pending; scheduling Policy decision expiry
+or binding change does too. After valid activation, simple expiry of the
+assessment's 24-hour freshness TTL or historical Policy/approval boundaries is
+not itself a hard stop for the already-authorized exact Step 2. Live
+suppression/reply/pause/safety stops still terminate the remaining sequence, and
+SPEC-026 has no silent post-queue or post-activation compliance reauthorization
+flow.
+
+Nor does it have a post-activation scheduling reauthorization flow. Before the
+Step-2 active window, Kivou performs the bounded live safety-control check and
+stops the sequence for current kill-switch, read-only, explicit pause/risk-
+reduction, suppression/response, or unsafe provider/mailbox conditions. It does
+not rerun `schedule_campaign`, consume another Policy volume unit, or request a
+second ACTION approval.
 
 Authoritative Step-1 `email_sent` materializes the exact Step-2 due instant and
 timing fingerprint exactly once. At the Step-1 deadline, unsent members fail and
@@ -1317,9 +1454,9 @@ transport eligibility.
 
 After queue, current truth is `acquisition_campaign_member.execution_state`.
 Only `QUEUED` members may be retained for activation. If suppression,
-unsubscribe/objection, expired assessment freshness, or artifact/contact
-binding drift appears before activation, the same local transaction moves the
-member to
+unsubscribe/objection, expired assessment or scheduling-Policy freshness,
+changed Policy authorization identity, or artifact/contact binding drift
+appears before activation, the same local transaction moves the member to
 `STOPPED`, records the bounded reason, and ensures generic `next_action` is
 null. Provider pause/removal risk reduction is then reconciled before any
 activation. The acquisition opportunity remains `QUEUED`; SPEC-026 neither
@@ -1331,9 +1468,10 @@ unchanged and is not a `STOPPED` condition.
 After valid activation, the member's exact immutable sequence authorization is
 the execution authority for the two frozen steps. It initially has sequence
 state `PENDING_STEP1`; exact Step-2 due timing does not exist yet. The assessment
-freshness TTL expiring after activation does not alone move the member to
-`STOPPED`; newly observed hard stops still do. No reverse acquisition transition
-and no second ComplianceService flow is introduced.
+freshness TTL, Policy-decision validity, or used ACTION-approval expiry after
+activation does not alone move the member to `STOPPED`; newly observed hard
+stops still do. No reverse acquisition transition, second ComplianceService
+flow, scheduling Policy evaluation, or ACTION approval is introduced.
 
 `SENT` is never emitted by campaign create/configure/add/activate success or
 campaign ACTIVE status. A deduplicated Step-1 `email_sent` event with exact
@@ -1473,7 +1611,10 @@ four layers:
    closed batch is sealed, activation performs an all-member revalidation in
    the same eligible Step-1 window. No retained member may fail current artifact,
    exact `RECORDED/ALLOWED` assessment freshness, suppression, mailbox, or
-   Policy gates. The activation proposal binds both execution dates, both
+   Policy gates. The exact scheduling decision must remain APPROVED, executable,
+   command/action/evaluation/snapshot/control/approval-bound, and either
+   unbounded or strictly unexpired at the activation clock. The activation
+   proposal binds both execution dates, both
    exclusive deadlines, timezone, exact provider schedule, and pre-activation
    sequence-authorization fingerprint; explicit ruleset/sender validity must
    cover the Step-2 deadline.
@@ -1493,13 +1634,17 @@ Artifact/assessment/operation/event failures roll back their local event effects
 together.
 
 After activation is accepted/reconciled, the immutable sequence-authorization
-fingerprint controls only the exact two-step/date/window plan. Step-1 provider
-truth atomically or reconciliation-idempotently writes the separate immutable
-timing fingerprint. Assessment freshness expiry alone is no longer a TOCTOU
-failure. Each live hard-stop observation still claims the bounded pause/risk-
-reduction path before remaining execution; a new ruleset version alone does not
-mutate the bound plan. No post-activation ComplianceService call is part of this
-design.
+fingerprint controls only the exact two-step/date/window plan and its safe
+Policy provenance. Step-1 provider truth atomically or reconciliation-
+idempotently writes the separate immutable timing fingerprint. Ordinary expiry
+of the historical Policy decision, used approval, budget period, evidence,
+operational readiness, or aggregate compliance freshness alone is no longer a
+TOCTOU failure. Before Step 2, the separate bounded live safety-control check
+still claims the pause/risk-reduction path for current kill-switch/read-only,
+explicit pause, suppression/response, or unsafe provider/mailbox state. A new
+ordinary Policy/control revision alone does not mutate the bound plan. No post-
+activation ComplianceService call, `schedule_campaign` evaluation, second
+ACTION approval, or second Policy volume charge is part of this design.
 
 ## TDD matrix
 
@@ -1529,6 +1674,36 @@ Implementation begins with failing tests and offline fakes. Required coverage:
 - budget, volume, provider quota, send window, mailbox, and control-plane caps;
 - SHADOW has zero provider mutation/queue; ASSISTED requires existing ACTION
   approval; autonomous-capped rejects every out-of-bound dimension.
+
+### Policy freshness versus activated-sequence lifetime
+
+A. an exact approved/executable scheduling decision is valid at activation,
+   Step 1 sends, its `PolicyDecision.valid_until` expires before day four, and
+   no hard stop appears: bounded Step 2 remains authorized;
+B. `PolicyDecision.valid_until` at/before activation blocks activation;
+C. the used ACTION approval expires after accepted activation but before Step 2:
+   expiry alone does not cancel Step 2;
+D. the ACTION approval is expired before Policy evaluation/activation:
+   activation is unavailable;
+E. the original daily BudgetEnvelope period rolls over after activation without
+   canceling Step 2 or charging another volume unit;
+F. original OperationalReadiness validity expires after activation without
+   canceling Step 2 by itself, while a currently unsafe mailbox/provider state
+   still stops it;
+G. kill switch becoming active after Step 1 stops Step 2;
+H. read-only becoming active after Step 1 stops Step 2;
+I. publication of a new ordinary Policy/control revision without a hard-stop
+   state does not rewrite the activated immutable sequence;
+J. Step 2 creates no second `schedule_campaign` Policy evaluation;
+K. Step 2 requires no second ACTION approval; and
+L. the persisted sequence authorization binds exact Policy evaluation/action/
+   version/snapshot/control/autonomy/approval provenance using safe approval
+   refs/fingerprints and contains no raw grant, approver identity, or human PII.
+
+Replay assertions preserve the original snapshot, historical BudgetUsage,
+decision validity, approval refs, and action fingerprint regardless of current
+ordinary Policy state. The live safety-control check is asserted independently
+and is never counted as a Policy evaluation.
 
 ### Two-window sequence authorization
 
@@ -1669,9 +1844,10 @@ fabricate a second ComplianceAssessment, call ComplianceService for a
   provider membership when contract-proven, marks the member `STOPPED`, leaves
   the acquisition opportunity `QUEUED`, and otherwise leaves the whole batch
   non-active in review/reconciliation;
-- unsubscribe/objection, expired assessment freshness, and artifact/contact
-  binding drift after QUEUED but before activation follow the same `STOPPED`
-  path; expiry never creates a fabricated fresh ALLOWED result or sends;
+- unsubscribe/objection, expired assessment/Policy freshness, changed Policy
+  identity, and artifact/contact binding drift after QUEUED but before activation
+  follow the same `STOPPED` path; expiry never creates a fabricated fresh
+  authorization or sends;
 - temporary rate limiting, mailbox unavailability, or activation
   `RECONCILE_REQUIRED` does not mark a member `STOPPED`;
 - activation timeout with already-QUEUED members reconciles safely, and an
@@ -1723,7 +1899,9 @@ fabricate a second ComplianceAssessment, call ComplianceService for a
   `RESERVED|ENROLLED|QUEUED|STOPPED|SENT|FAILED` execution vocabulary, closed
   `PENDING_STEP1|WAITING_STEP2|COMPLETED|STOPPED|FAILED` sequence vocabulary,
   immutable pre-activation dates/deadlines/fingerprint, and nullable write-once
-  Step-1/timing fields;
+  Step-1/timing fields; member persistence also binds the exact safe Policy
+  decision/snapshot/control/autonomy/approval provenance without raw grants or
+  human PII;
 - campaign package has no runtime dependency on Apollo network clients, SMTP,
   LLM/OpenRouter, crawler, Stripe/billing, customer TargetICP/MatchingEngine/
   feedback, SPEC-027 response intelligence, SPEC-028 conversion, or adaptive
@@ -1739,7 +1917,11 @@ capacity and partial-batch closure; closure/reservation races; membership-closed
 BUILDING reconciliation; sealed/active enrollment rejection; exact envelope;
 unverified transport proof; two-step FR/EN sequence; missing variable; expired
 compliance before queue and after QUEUED/before activation; post-activation
-24-hour freshness expiry with bounded Step 2 still authorized; Monday-through-
+24-hour compliance freshness expiry with bounded Step 2 still authorized;
+Policy-decision/ACTION-approval/operational/budget-period expiry before versus
+after activation; safe Policy provenance persistence and historical replay;
+kill-switch/read-only versus ordinary control-revision changes; proof of zero
+second Policy evaluation/approval/volume charge; Monday-through-
 Friday date derivations and DST; ruleset/sender coverage on both sides of the
 Step-2 deadline; exact provider active-day/start/end containment; post-Step-1
 due-time materialization and replay; Step-1/Step-2 window expiry; unsent-Step-1
@@ -1790,7 +1972,7 @@ send is not a prerequisite for merging implementation code.
 
 ## Recommended implementation sequence
 
-1. Implement the R1/R2/R3.2-frozen product contracts and fail-closed deployment
+1. Implement the R1/R2/R3.3-frozen product contracts and fail-closed deployment
    capabilities. No activation path exists until mailbox/footer/entitlement and
    the V2 whole-message transport proof are configured.
 2. Add pure contracts/factory/envelope/window/pacing/batch-seal/sequence-window
@@ -1799,7 +1981,8 @@ send is not a prerequisite for merging implementation code.
    membership closure, member execution/sequence states, pre-activation window
    bounds, and write-once timing materialization, with migration/parity tests.
 4. Correct `schedule_campaign` Policy evidence/control-plane semantics and add
-   replay/action-fingerprint tests.
+   activation-freshness, safe provenance, historical replay, live-safety, and
+   action-fingerprint tests.
 5. Implement service preflight, Policy, reservation, operation ledger, and
    fake-provider saga with crash/concurrency tests.
 6. Implement the narrow V2 HTTP adapter against offline official fixtures.
@@ -1808,7 +1991,7 @@ send is not a prerequisite for merging implementation code.
 9. Only under later authorization, verify plan/key scopes/webhook/manual config
    and paused staging contract. Live send remains a separate explicit gate.
 
-## R1/R2/R3.2-frozen product decisions and remaining deployment inputs
+## R1/R2/R3.3-frozen product decisions and remaining deployment inputs
 
 The supervisor has frozen the v1 product policy: `batch-seal-policy-v1` with a
 ten-member maximum and immutable first-member-plus-15-minute assembly deadline;
@@ -1827,7 +2010,16 @@ authoritative without a post-activation reassessment flow. Step-1 and Step-2
 window expiry never grants a later execution date, while unexpected provider
 truth is preserved with a bounded incident.
 
-R3.2 does not change the `0015_campaign_factory` recommendation or its four-table
+R3.3 additionally freezes the scheduling Policy decision and used ACTION
+approval as pre-activation freshness authority. Accepted/reconciled activation
+binds their safe provenance to the exact sequence. Ordinary later expiry of the
+decision, approval, budget period, evidence, operational readiness, or aggregate
+compliance assessment does not alone revoke Step 2; no second Policy evaluation,
+approval, or volume charge is created. The separate live safety-control check
+still stops Step 2 for current kill-switch/read-only, explicit pause/risk-
+reduction, suppression/response, or unsafe provider/mailbox state.
+
+R3.3 does not change the `0015_campaign_factory` recommendation or its four-table
 topology. It also changes none of the external deployment gates below.
 
 Only these genuinely external deployment inputs remain:
