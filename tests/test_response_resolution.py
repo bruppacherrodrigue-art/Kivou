@@ -95,6 +95,10 @@ def test_zero_candidates_retry_then_exhaust_to_ambiguous_review() -> None:
 
 def test_one_exact_candidate_is_read_and_fully_revalidated() -> None:
     candidate = _email()
+    assert candidate.lead == "buyer@example.invalid"
+    assert candidate.eaccount == "sender@example.invalid"
+    assert candidate.from_address_email == "sender@example.invalid"
+    assert candidate.from_address_email != candidate.lead
     reader = FakeReader((candidate,), full=candidate)
     result = _resolver(reader).resolve(_context(), attempt=1, now=EVENT_AT)
 
@@ -132,7 +136,6 @@ def test_multiple_candidates_fail_closed_without_nearest_timestamp_selection() -
         {"campaign_id": "01a028e4-5069-7b56-ae56-b7e622c7fbf2"},
         {"lead_id": "01a028e4-5069-7b56-ae56-b7e9cb32ae4d"},
         {"lead": "other@example.invalid"},
-        {"from_address_email": "other@example.invalid"},
         {"eaccount": "other-sender@example.invalid"},
         {"timestamp_created": "2026-08-22T10:20:00Z"},
         {"is_auto_reply": 1},
@@ -146,6 +149,17 @@ def test_candidate_binding_mismatch_fails_closed(updates) -> None:
 
     assert result.status is EmailResolutionStatus.AMBIGUOUS
     assert result.reason_code is ResponseReasonCode.RESPONSE_IDENTITY_AMBIGUOUS
+
+
+def test_from_address_email_is_ignored_for_prospect_candidate_selection() -> None:
+    candidate = _email(from_address_email="alternate-sender@example.invalid")
+    reader = FakeReader((candidate,), full=candidate)
+
+    result = _resolver(reader).resolve(_context(), attempt=1, now=EVENT_AT)
+
+    assert result.status is EmailResolutionStatus.RESOLVED
+    assert result.email is not None
+    assert result.email.lead == "buyer@example.invalid"
 
 
 def test_auto_reply_event_requires_auto_reply_candidate() -> None:

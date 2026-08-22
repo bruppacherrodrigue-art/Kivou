@@ -127,7 +127,7 @@ class EmailResponseResolver:
         if context.provider_lead_id is not None and email.lead_id != context.provider_lead_id:
             return False
         recipient = _address(context.lead_email_transient)
-        if _address(email.lead) != recipient or _address(email.from_address_email) != recipient:
+        if _address(email.lead) != recipient:
             return False
         account = _address(context.email_account_transient)
         if account is not None and _address(email.eaccount) != account:

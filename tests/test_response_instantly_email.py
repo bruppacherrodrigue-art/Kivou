@@ -52,6 +52,10 @@ def test_official_list_contract_uses_only_bounded_get_query() -> None:
     assert INSTANTLY_EMAIL_SCOPE == "emails:read"
     assert len(result.items) == 1
     assert result.items[0].id == "01a028e4-5069-7b56-ae56-b7e4352c53fa"
+    assert result.items[0].lead == "buyer@example.invalid"
+    assert result.items[0].eaccount == "sender@example.invalid"
+    assert result.items[0].from_address_email == "sender@example.invalid"
+    assert result.items[0].from_address_email != result.items[0].lead
     assert len(captured) == 1
     request = captured[0]
     assert request.method == "GET"
