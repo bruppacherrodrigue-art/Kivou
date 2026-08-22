@@ -56,6 +56,8 @@ ERROR_CODES: tuple[str, ...] = (
     "instantly_webhook_too_large",
     "invalid_instantly_json",
     "invalid_instantly_event",
+    # SPEC-028 — a bad opaque token is indistinguishable from a missing link.
+    "attribution_not_found",
 )
 
 

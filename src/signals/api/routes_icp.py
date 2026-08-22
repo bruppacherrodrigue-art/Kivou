@@ -143,6 +143,9 @@ def create_target_icp(payload: TargetIcpCreate, request: Request) -> TargetIcpRe
             as_of=now.date(),
             materialized_at=now,
         )
+        request.app.state.conversion_milestone_service.observe_activation_in_transaction(
+            connection, account_id=session.account_id, observed_at=now
+        )
     return TargetIcpResponse.of(
         stored,
         max_territories=state.entitlements.max_territories_per_icp,
@@ -223,6 +226,9 @@ def update_target_icp(
                 as_of=now.date(),
                 materialized_at=now,
             )
+        request.app.state.conversion_milestone_service.observe_activation_in_transaction(
+            connection, account_id=session.account_id, observed_at=now
+        )
     return TargetIcpResponse.of(
         stored,
         max_territories=state.entitlements.max_territories_per_icp,
