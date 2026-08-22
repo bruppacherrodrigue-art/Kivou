@@ -5,8 +5,12 @@ Authoritative base: `dffb0717ebcb14ef664d4795367293f95f33c684`
 Authoritative design: `docs/reports/2026-08-21-spec026-instantly-campaign-factory-design.md`
 Implementation branch: `feat/spec026-instantly-campaign-factory`
 Draft PR: #41
-Executable SHA: `b98d90b05cf68652e23fbfc6dceef20e9a4793ff`
-Executable CI: `32554495453` — SUCCESS
+Original executable SHA: `b98d90b05cf68652e23fbfc6dceef20e9a4793ff`
+Original executable CI: `32554495453` — SUCCESS (3,677 passed, 1 skipped, 150 frontend)
+R1 pre-rebase head: `255d8b8ca917c52d5a58d61b74c788cce2d21e48`
+Intervening main/base: `d6de1f83ae64de27d093927a9c522c015c20610b`
+R1.1 executable SHA: `be30b1c00770aa6b6bb793b6e9ee3d257d211c65`
+R1.1 executable CI: `32562088849` — SUCCESS
 Final head: the documentation-only closeout commit containing this report; the PR head is the authoritative Git object because a commit cannot embed its own SHA.
 
 ## Outcome and architecture
@@ -45,14 +49,18 @@ Every material plan, envelope, provider configuration, operation, provider bindi
 
 ## Migration and persistence
 
-Alembic head is `0015_campaign_factory`, directly after `0014_compliance`. It introduces exactly four tables:
+The original SPEC-026 implementation used the design-time recommendation `0015_campaign_factory`. While PR #41 was open, current main `d6de1f83ae64de27d093927a9c522c015c20610b` established `0015_scheduled_cancellation` for the billing-owned `billing_subscription.scheduled_cancellation_at` column. The supervisor-authorized implementation topology therefore rebases SPEC-026 onto that main and uses the single linear chain:
+
+`0014_compliance -> 0015_scheduled_cancellation -> 0016_campaign_factory`
+
+Alembic head is exactly `0016_campaign_factory`; its `down_revision` is exactly `0015_scheduled_cancellation`, with `branch_labels = None` and `depends_on = None`. No Alembic merge revision, second head, `0015_campaign_factory`, or `0017` exists. The campaign migration still introduces exactly four tables:
 
 1. `acquisition_campaign`
 2. `acquisition_campaign_member`
 3. `acquisition_provider_operation`
 4. `acquisition_provider_event`
 
-There is no `0016` and no fifth SPEC-026 table. Tests cover fresh upgrade, `0014 -> 0015`, downgrade, re-upgrade, PostgreSQL offline SQL, schema parity, constraints, indexes, foreign keys, unique identities, and the single-head invariant.
+There is no fifth SPEC-026 table. Tests cover fresh upgrade through `0016`, explicit `0014 -> 0015_scheduled_cancellation -> 0016_campaign_factory`, downgrade from `0016` that removes the four campaign tables while preserving `scheduled_cancellation_at` at `0015`, downgrade of `0015` to `0014`, re-upgrade, PostgreSQL offline SQL, schema parity, constraints, indexes, foreign keys, unique identities, and the single-head invariant. Main's billing migration and scheduled-cancellation behavior are unchanged.
 
 Campaign rows hold semantic grouping, deterministic generation/name, bounded provider identity/configuration, two execution dates/deadlines, and monotonic batch lifecycle data. Member rows bind the exact opportunity, artifact, compliance assessment, safe Policy provenance, provider lead, sequence authorization, and write-once realized Step-2 timing. Provider operations store only bounded request/result fingerprints and reconciliation metadata. Provider events store only PII-minimized normalized transport facts and keyed event fingerprints; no raw webhook JSON or message/reply content is retained.
 
@@ -144,6 +152,23 @@ Deployment defaults are intentionally non-executable:
 
 Activation therefore cannot occur from repository defaults.
 
+## R1 Instantly API V2 contract correction
+
+Direct review found that the first executable's Instantly serialization and readback boundary did not match the current official V2 campaign schema. The official documentation was reverified on 2026-08-22 using only the Instantly developer documentation: [Campaign schema](https://developer.instantly.ai/api-reference/schemas/campaign), [create campaign](https://developer.instantly.ai/api-reference/campaign/create-campaign), [patch campaign](https://developer.instantly.ai/api-reference/campaign/patch-campaign), [create lead](https://developer.instantly.ai/api-reference/lead/create-lead), [get lead](https://developer.instantly.ai/api-reference/lead/get-lead), [list leads](https://developer.instantly.ai/api-reference/lead/list-leads), and [patch lead](https://developer.instantly.ai/api-reference/lead/patch-lead). Synthetic official-contract fixtures record these sources and contain no real provider data.
+
+The corrected campaign request allowlist is exactly `campaign_schedule`, `sequences`, `email_list`, `daily_limit`, `stop_on_reply`, `stop_on_auto_reply`, `stop_for_company`, `open_tracking`, `link_tracking`, `text_only`, `first_email_text_only`, `insert_unsubscribe_header`, `allow_risky_contacts`, `disable_bounce_protect`, and `auto_variant_select`, plus `name` on create. The transport mapping now uses:
+
+- `campaign_schedule.start_date`, `end_date`, and one nested `schedules` item containing `name`, `timing.from/to`, `days`, and `timezone`;
+- provider weekday keys `0..6`, with Monday `0`, Friday `4`, and no ISO weekday key `7`;
+- one `sequences` entry with two `type=email` steps and exactly one active `variants` item per step (`v_disabled=false`);
+- `delay=4` and `delay_unit=days` on Step 1 because the documented field is the delay before the next email; Step 2 carries no next-email delay;
+- `disable_bounce_protect=false` for enabled bounce protection;
+- `auto_variant_select=null` for disabled automatic selection, never the undocumented boolean `false`.
+
+Create binds only returned provider identity, then performs GET readback. Configure also performs GET readback. One serializer, one explicit normalizer, and one semantic fingerprint comparator extract only Kivou-authorized comparable fields while ignoring harmless response enrichment such as IDs, timestamps, ownership, provider analytics, and variable catalogs. Material schedule, sequence, stop, tracking, bounce, or variant-selection drift still fails closed. Provider `status` and `not_sending_status` remain separate read-only execution checks rather than desired-config fingerprint inputs. CREATE, CONFIGURE, ADD_LEAD, and ACTIVATE reconciliation use this same normalized contract.
+
+The official single-lead `POST /leads` and `POST /leads/list` contracts remain bounded and use raw email transiently only. Current official `PATCH /leads/{id}` documentation does not establish the formerly assumed writable `{"status": "paused"}` mutation. The adapter therefore performs no request for `pause_lead` and returns a non-reconciliation `CLIENT_CONTRACT_ERROR`; internal `PAUSE_LEAD` vocabulary cannot become an executable provider mutation. Campaign-wide `PAUSE_CAMPAIGN` remains the fail-closed fallback, and `transport_contract_proof` remains `UNVERIFIED` until a separately authorized paused/draft proof establishes a safe per-lead risk-reduction contract.
+
 ## Provider adapter, operation ledger, and reconciliation
 
 The adapter is fixed to `https://api.instantly.ai/api/v2` and exposes only the reviewed campaign, lead, account-readiness, pause, webhook-list, and event-list methods. There is no public arbitrary method/path/body API. HTTP failures map to bounded AUTH, PERMISSION, PLAN_REQUIRED, RATE_LIMITED, TIMEOUT, NETWORK, SERVER_ERROR, CLIENT_CONTRACT_ERROR, MALFORMED_RESPONSE, and REMOTE_STATE_CONFLICT failures. Retry-After is honored; retries are capped at three attempts.
@@ -156,7 +181,8 @@ Reconciliation behavior:
 - CONFIGURE: GET and exact allowlisted configuration fingerprint;
 - ADD_LEAD: exact campaign, transient email, provider lead ID, and all Kivou custom variables; partial bulk outcomes split per member;
 - ACTIVATE: active plus exact configuration/members confirms; draft/paused permits retry only after proven non-activation and complete fresh checks;
-- PAUSE_CAMPAIGN/PAUSE_LEAD: remote result plus exact readback must prove non-sending state; ambiguous outcomes reconcile and cannot unlock activation.
+- PAUSE_CAMPAIGN: remote result plus exact campaign readback must prove non-sending state; ambiguous outcomes reconcile and cannot unlock activation;
+- PAUSE_LEAD: retained only as internal risk-reduction vocabulary and deliberately non-executable because the reviewed official PATCH Lead contract does not prove a writable pause state. Campaign-wide pause is required when member-level risk reduction cannot be proven.
 
 The mutation order is create non-sending campaign, configure/read back, reserve/add/reconcile leads, close membership, queue retained members, seal, revalidate every retained/excluded member, then activate. Activation dependencies wait for all required risk-reduction operations. An immediate email event during activation reconciliation is safe because every sendable member was already QUEUED.
 
@@ -174,18 +200,28 @@ The synthetic offline corpus is `tests/fixtures/campaign_factory_eval_v1.json`. 
 
 Crash/restart coverage includes pre-request crash, unknown CREATE/CONFIGURE/ADD/ACTIVATE/PAUSE results, provider success before local persistence, partial lead outcomes, queue commit, immediate send during activation reconciliation, durable Step-1 event before timing completion, duplicate webhook, expired operation lease, bounded retry, and process restart. Concurrency covers same opportunity convergence, compatible members sharing one BUILDING generation, capacity/close races, and one remote-operation claimant. No restart path treats lease expiry or timeout as provider rejection.
 
-Final executable validation at `b98d90b05cf68652e23fbfc6dceef20e9a4793ff`:
+Original executable validation at `b98d90b05cf68652e23fbfc6dceef20e9a4793ff`:
 
 - focused campaign/Policy/state/migration suite: 218 passed;
 - full backend: 3,677 passed, 1 skipped;
-- only skipped test: `tests/test_billing_stripe_test_smoke.py` (explicit Stripe TEST opt-in; no key present);
+- skipped file: `tests/test_billing_stripe_test_smoke.py` (explicit Stripe TEST opt-in; no key present);
+- Ruff: PASS;
+- frontend: 150 passed;
+- frontend build/typecheck/lint: PASS;
+- executable CI `32554495453`: SUCCESS.
+
+R1/R1.1 rebased executable validation at `be30b1c00770aa6b6bb793b6e9ee3d257d211c65`:
+
+- focused official Instantly-contract plus migration-topology suite: 54 passed;
+- full backend: 3,727 passed, 2 skipped;
+- both skips are the two explicit opt-in Stripe TEST smoke functions in `tests/test_billing_stripe_test_smoke.py`; current main added the scheduled-cancellation smoke, and no `KIVOU_STRIPE_TEST_SMOKE_KEY` was present. No SPEC-026 test is skipped and no Stripe network request occurred;
 - Ruff: PASS;
 - frontend: 150 passed;
 - frontend build: PASS;
 - frontend typecheck: PASS;
 - frontend lint: PASS;
 - `git diff --check`: PASS;
-- executable CI `32554495453`: SUCCESS with the same 3,677/1/150 counts and all gates green.
+- executable CI `32562088849`: SUCCESS on GitHub's merge ref with parents `d6de1f83ae64de27d093927a9c522c015c20610b` and `be30b1c00770aa6b6bb793b6e9ee3d257d211c65`, with the same 3,727/2/150 counts and all gates green.
 
 Architecture tests prove no runtime dependency on Apollo network clients, SMTP, OpenRouter/LLM, crawler, Stripe execution, customer TargetICP/MatchingEngine/feedback, SPEC-027 response classification, SPEC-028 attribution, or SPEC-029 adaptive allocation. HTTP adapter tests use strict `httpx.MockTransport`; campaign workflow tests use an injected fake provider. Normal CI is offline.
 
