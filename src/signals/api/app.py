@@ -28,6 +28,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from signals.api.config import ApiConfig
+from signals.api.routes_attribution import router as attribution_router
 from signals.api.routes_auth import router as auth_router
 from signals.api.routes_billing import router as billing_router
 from signals.api.routes_feedback import router as feedback_router
@@ -35,6 +36,9 @@ from signals.api.routes_icp import router as icp_router
 from signals.api.routes_notifications import router as notifications_router
 from signals.api.routes_signals import router as signals_router
 from signals.api.routes_webhooks import router as webhooks_router
+from signals.conversion.milestones import ConversionMilestoneService
+from signals.conversion.service import ConversionAttributionService
+from signals.conversion.token import AttributionTokenKeyring
 
 
 class _NullDelivery:
@@ -52,6 +56,8 @@ def create_app(
     password_reset_delivery: object | None = None,
     stripe_gateway: object | None = None,
     instantly_webhook_service: object | None = None,
+    conversion_attribution_service: object | None = None,
+    conversion_milestone_service: object | None = None,
     founding_accounts: frozenset[str] = frozenset(),
 ) -> FastAPI:
     """Construit l'application autour d'un moteur déjà configuré.
@@ -74,10 +80,31 @@ def create_app(
     app.state.stripe_gateway = stripe_gateway
     # SPEC-026 transport ingress is injected; app construction never contacts Instantly.
     app.state.instantly_webhook_service = instantly_webhook_service
+    # SPEC-028 attribution is injected and performs no provider/network I/O.
+    # None is the fail-closed repository default: the public link route returns
+    # a fixed not-found response and signup remains normally unattributed.
+    if conversion_attribution_service is None and app.state.config.attribution_hmac_key:
+        key_version = app.state.config.attribution_hmac_key_version
+        if key_version is None:  # guarded by ApiConfig.from_environment; explicit configs fail closed
+            raise ValueError("attribution key version is required")
+        conversion_attribution_service = ConversionAttributionService(
+            engine,
+            AttributionTokenKeyring(
+                current_key_version=key_version,
+                keys={key_version: app.state.config.attribution_hmac_key},
+            ),
+        )
+    app.state.conversion_attribution_service = conversion_attribution_service
+    # Pure local reconciliation; it only reads/writes the caller's database
+    # transaction and does not start a worker or contact Stripe.
+    app.state.conversion_milestone_service = (
+        conversion_milestone_service or ConversionMilestoneService(engine)
+    )
     # §33 — l'éligibilité fondateur est une liste serveur, jamais une saisie.
     app.state.founding_accounts = frozenset(founding_accounts)
 
     app.include_router(auth_router)
+    app.include_router(attribution_router)
     app.include_router(icp_router)
     app.include_router(signals_router)
     app.include_router(billing_router)

@@ -18,7 +18,8 @@ COMPLIANCE = "0014_compliance"
 PREVIOUS = "0015_scheduled_cancellation"
 HEAD = "0016_campaign_factory"
 TARGET_ICP = "0017_target_icp_revision"
-LATEST = "0018_response_intelligence"
+RESPONSE = "0018_response_intelligence"
+LATEST = "0019_conversion_tracking"
 TABLES = (
     acquisition_campaign,
     acquisition_campaign_member,
@@ -38,7 +39,8 @@ def test_campaign_migration_is_linear_and_adds_exactly_four_tables(tmp_path) -> 
     assert set(sa.inspect(engine).get_table_names()) - before == {table.name for table in TABLES}
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == TARGET_ICP
+    assert scripts.get_revision(LATEST).down_revision == RESPONSE
+    assert scripts.get_revision(RESPONSE).down_revision == TARGET_ICP
     assert scripts.get_revision(TARGET_ICP).down_revision == HEAD
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
     assert scripts.get_revision(PREVIOUS).down_revision == COMPLIANCE

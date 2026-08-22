@@ -14,7 +14,7 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from signals.accounts import service
 from signals.accounts.passwords import MINIMUM_PASSWORD_LENGTH, WeakPassword
 from signals.accounts.reset_delivery import DeferredDelivery
-from signals.api.config import SESSION_COOKIE_NAME
+from signals.api.config import ATTRIBUTION_COOKIE_NAME, SESSION_COOKIE_NAME
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
 
@@ -93,6 +93,17 @@ def signup(payload: SignupRequest, request: Request, response: Response) -> MeRe
                 session_ttl=config.session_ttl,
             )
             user = service.current_user(connection, user_id=session.user_id)
+            attribution = getattr(
+                request.app.state, "conversion_attribution_service", None
+            )
+            raw_attribution = request.cookies.get(ATTRIBUTION_COOKIE_NAME)
+            if attribution is not None and raw_attribution:
+                attribution.bind_signup_in_transaction(
+                    connection,
+                    account_id=session.account_id,
+                    raw_token=raw_attribution,
+                    at=now,
+                )
     except service.EmailAlreadyUsed as error:
         # Message volontairement neutre : il ne confirme pas qu'un compte existe.
         raise api_error(409, error.code, "impossible de créer ce compte") from error
@@ -102,6 +113,8 @@ def signup(payload: SignupRequest, request: Request, response: Response) -> MeRe
         raise api_error(422, "invalid_input", str(error)) from error
 
     _set_session_cookie(response, request, session)
+    if request.cookies.get(ATTRIBUTION_COOKIE_NAME):
+        response.delete_cookie(ATTRIBUTION_COOKIE_NAME, path="/auth/signup")
     return MeResponse(**vars(user))
 
 

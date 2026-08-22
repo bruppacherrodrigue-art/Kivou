@@ -47,6 +47,8 @@ from signals.compliance.jurisdiction import resolve_jurisdiction
 from signals.compliance.rules import RULESET_V1
 from signals.compliance.store import SuppressionStore
 from signals.compliance.suppression import SuppressionIdentityKeyring
+from signals.conversion.link import AttributionLinkBuilder
+from signals.conversion.source import AttributionSourceFacts, AttributionSourceResolver
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.persistence.schema import (
     acquisition_campaign,
@@ -130,6 +132,7 @@ class CampaignService:
         mailbox_readiness: MailboxReadinessSource,
         clock: Callable[[], dt.datetime] = _utc_now,
         policy_gateway: PolicyGateway | None = None,
+        attribution_link_builder: AttributionLinkBuilder | None = None,
     ) -> None:
         self._engine = engine
         self._keyring = keyring
@@ -142,6 +145,8 @@ class CampaignService:
         self._campaigns = CampaignStore(engine)
         self._policy_store = PolicyStore(engine)
         self._policy = policy_gateway or PolicyGateway(engine, acquisition_store=self._acquisition)
+        self._attribution_link_builder = attribution_link_builder
+        self._attribution_source_resolver = AttributionSourceResolver(engine)
         self._after_policy_hook: Callable[[], None] = lambda: None
 
     def preview(self, opportunity_id: str, *, captured_at: dt.datetime) -> CampaignPreview:
@@ -482,6 +487,8 @@ class CampaignService:
             member_ref is None or len(members) != 1 or members[0]["execution_state"] != "RESERVED"
         ):
             raise CampaignInputChanged("ADD_LEAD requires one exact RESERVED member")
+        if kind is ProviderOperationKind.ADD_LEAD and self._attribution_link_builder is None:
+            raise CampaignInputChanged("first-party attribution link is unconfigured")
         try:
             control = self._policy_store.get_effective_control(captured_at)
         except (PolicyControlUnavailable, ValidationError, sa.exc.SQLAlchemyError) as exc:
@@ -1135,7 +1142,58 @@ class CampaignService:
         if readiness.state is not MailboxReadinessState.READY:
             raise CampaignInputChanged("queued mailbox is unsafe or UNKNOWN")
 
+    def attribution_url_for_member(
+        self, member: dict[str, object], campaign: dict[str, object]
+    ) -> str | None:
+        if self._attribution_link_builder is None:
+            return None
+        with self._engine.connect() as connection:
+            payload = self._attribution_source_resolver.for_member(
+                connection, str(member["member_ref"])
+            )
+        return self._attribution_link_builder.build(payload).url
+
+    def _attribution_url(
+        self,
+        *,
+        opportunity_id: str,
+        signal_ref: str,
+        campaign_ref: str,
+        member_ref: str,
+        country: str,
+        wedge: str,
+        wedge_version: str,
+        need_ref: str,
+        need_version: str,
+        timezone: str,
+        step_1_execution_date: dt.date,
+        step_2_authorization_deadline: dt.datetime,
+    ) -> str | None:
+        if self._attribution_link_builder is None:
+            return None
+        payload = self._attribution_source_resolver.from_facts(
+            AttributionSourceFacts(
+                campaign_ref=campaign_ref,
+                member_ref=member_ref,
+                acquisition_opportunity_id=opportunity_id,
+                signal_ref=signal_ref,
+                country=country,
+                wedge=wedge,
+                wedge_version=wedge_version,
+                need_ref=need_ref,
+                need_version=need_version,
+                timezone=timezone,
+                step_1_execution_date=step_1_execution_date,
+                step_2_authorization_deadline=step_2_authorization_deadline,
+            )
+        )
+        return self._attribution_link_builder.build(
+            payload
+        ).url
+
     def _require_activation_capabilities(self) -> None:
+        if self._attribution_link_builder is None:
+            raise CampaignDeploymentBlocked("first-party attribution link is unconfigured")
         if self._deployment.transport_contract_proof is not TransportContractProof.VERIFIED:
             raise CampaignDeploymentBlocked("transport contract proof is UNVERIFIED")
         if (
@@ -1335,6 +1393,27 @@ class CampaignService:
                 greeting=artifact["greeting"],
                 body=artifact["body"],
                 cta=artifact["cta"],
+                attribution_url=self._attribution_url(
+                    opportunity_id=opportunity_id,
+                    signal_ref=opportunity.signal_ref,
+                    campaign_ref=plan.campaign_ref,
+                    member_ref=semantic_fingerprint(
+                        {
+                            "kind": "campaign-member-v1",
+                            "acquisition_opportunity_id": opportunity_id,
+                        }
+                    ),
+                    country=plan.country,
+                    wedge=plan.wedge,
+                    wedge_version=factory_input.wedge_version,
+                    need_ref=plan.selected_need_category,
+                    need_version=factory_input.selected_need_version,
+                    timezone=plan.sequence_window.timezone,
+                    step_1_execution_date=plan.sequence_window.step_1_execution_date,
+                    step_2_authorization_deadline=(
+                        plan.sequence_window.step_2_authorization_deadline
+                    ),
+                ),
                 catalog=self._deployment.footer_catalog,
             )
         )

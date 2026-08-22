@@ -1,0 +1,29 @@
+{
+  "fixture_version": "conversion-tracking-eval-v1",
+  "synthetic": true,
+  "attribution": {
+    "country": "CH",
+    "sector_ref": "sector-synthetic-v1",
+    "need_ref": "materials_or_components",
+    "wedge": "construction",
+    "click_to_signup_days": 30,
+    "selection": "LAST_ELIGIBLE_KIVOU_OUTBOUND_CLICK"
+  },
+  "milestones": [
+    "CLICK",
+    "SIGNUP",
+    "ACTIVATED",
+    "PAID",
+    "MRR_CHANGED",
+    "RETAINED_M1",
+    "RETAINED_M2",
+    "CHURNED"
+  ],
+  "non_milestones": [
+    "PAGE_VIEW",
+    "EMAIL_OPEN",
+    "CHECKOUT_SUCCESS_REDIRECT",
+    "SCHEDULED_CANCELLATION",
+    "PAST_DUE"
+  ]
+}

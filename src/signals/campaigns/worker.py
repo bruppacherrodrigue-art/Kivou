@@ -1000,6 +1000,9 @@ class CampaignWorker:
                 greeting=artifact["greeting"],
                 body=artifact["body"],
                 cta=artifact["cta"],
+                attribution_url=self._service.attribution_url_for_member(
+                    member, campaign
+                ),
                 catalog=self._deployment.footer_catalog,
             )
         )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator
 
@@ -34,6 +35,7 @@ class EnvelopeInput(CampaignContract):
     greeting: str = Field(min_length=1, max_length=80)
     body: str = Field(min_length=1, max_length=700)
     cta: str = Field(min_length=1, max_length=256)
+    attribution_url: str | None = Field(default=None, min_length=1, max_length=4096)
     catalog: FooterCatalog
 
     @field_validator("subject", "greeting", "body", "cta")
@@ -41,6 +43,24 @@ class EnvelopeInput(CampaignContract):
     def exact_core_has_no_template_language(cls, value: str) -> str:
         if any(token in value for token in ("{{", "}}", "{%", "%}", "[[", "]]")):
             raise ValueError("template syntax is forbidden in personalization core")
+        return value
+
+    @field_validator("attribution_url")
+    @classmethod
+    def exact_kivou_attribution_shape(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme != "https"
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+            or not parsed.path.startswith("/a/kat1.")
+        ):
+            raise ValueError("attribution URL must be a fixed Kivou HTTPS /a/ token")
         return value
 
 
@@ -79,9 +99,10 @@ def build_envelope(value: EnvelopeInput) -> CampaignEnvelope:
         f"{footer_entry.sender_identity}\n{footer_entry.source_notice}\n"
         f"{footer_entry.privacy_route}\n{footer_entry.visible_opt_out}"
     )
-    initial = f"{value.greeting}\n\n{value.body}\n\n{value.cta}\n\n{footer}"
+    attribution = f"\n\n{value.attribution_url}" if value.attribution_url else ""
+    initial = f"{value.greeting}\n\n{value.body}\n\n{value.cta}{attribution}\n\n{footer}"
     follow_up_copy = FOLLOW_UP_FR if value.language == "fr" else FOLLOW_UP_EN
-    follow_up = f"{value.greeting}\n\n{follow_up_copy}\n\n{footer}"
+    follow_up = f"{value.greeting}\n\n{follow_up_copy}{attribution}\n\n{footer}"
     footer_fingerprint = semantic_fingerprint(
         {"kind": "campaign-footer-v1", **footer_entry.model_dump(mode="json")}
     )
@@ -101,12 +122,15 @@ def build_envelope(value: EnvelopeInput) -> CampaignEnvelope:
         CampaignStep(step=1, delay_calendar_days=0, subject=value.subject, body=initial),
         CampaignStep(step=2, delay_calendar_days=4, subject="", body=follow_up),
     )
+    custom_variables = {"kivou_subject": value.subject, "kivou_envelope": initial}
+    if value.attribution_url:
+        custom_variables["kivou_attribution_url"] = value.attribution_url
     return CampaignEnvelope(
         subject=value.subject,
         initial_envelope=initial,
         follow_up_body=follow_up,
         footer_fingerprint=footer_fingerprint,
         envelope_fingerprint=fingerprint,
-        custom_variables={"kivou_subject": value.subject, "kivou_envelope": initial},
+        custom_variables=custom_variables,
         steps=steps,
     )

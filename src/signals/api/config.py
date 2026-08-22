@@ -12,6 +12,7 @@ import datetime as dt
 import os
 
 SESSION_COOKIE_NAME = "kivou_session"
+ATTRIBUTION_COOKIE_NAME = "kivou_attribution"
 
 STRIPE_MODE_ENV = "KIVOU_STRIPE_MODE"
 STRIPE_SECRET_KEY_ENV = "STRIPE_SECRET_KEY"
@@ -34,6 +35,8 @@ SMTP_FROM_NAME_ENV = "SMTP_FROM_NAME"
 SMTP_USE_TLS_ENV = "SMTP_USE_TLS"
 INSTANTLY_WEBHOOK_SECRET_ENV = "KIVOU_INSTANTLY_WEBHOOK_SECRET"
 INSTANTLY_WEBHOOK_WORKSPACE_ENV = "KIVOU_INSTANTLY_WORKSPACE_REF"
+ATTRIBUTION_HMAC_KEY_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY"
+ATTRIBUTION_HMAC_KEY_VERSION_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
 
 STRIPE_MODES: tuple[str, ...] = ("test", "live")
 DEFAULT_STRIPE_MODE = "test"
@@ -123,6 +126,11 @@ class ApiConfig:
     instantly_webhook_secret: str | None = None
     instantly_webhook_workspace_ref: str | None = None
 
+    # SPEC-028 — both absent by default. The secret is attribution integrity,
+    # never authentication, and is excluded from dataclass repr.
+    attribution_hmac_key: bytes | None = dataclasses.field(default=None, repr=False)
+    attribution_hmac_key_version: str | None = None
+
     @property
     def stripe_livemode(self) -> bool:
         return self.stripe_mode == "live"
@@ -205,6 +213,15 @@ class ApiConfig:
                     "facturation activée sans URL de retour : "
                     f"{', '.join(missing)} doivent être définies"
                 )
+        attribution_key_raw = os.environ.get(ATTRIBUTION_HMAC_KEY_ENV) or None
+        attribution_key_version = os.environ.get(ATTRIBUTION_HMAC_KEY_VERSION_ENV) or None
+        if bool(attribution_key_raw) != bool(attribution_key_version):
+            raise ValueError(
+                f"{ATTRIBUTION_HMAC_KEY_ENV} et {ATTRIBUTION_HMAC_KEY_VERSION_ENV} "
+                "doivent être configurés ensemble"
+            )
+        if attribution_key_raw is not None and len(attribution_key_raw.encode()) < 16:
+            raise ValueError(f"{ATTRIBUTION_HMAC_KEY_ENV} est trop courte")
         return cls(
             session_ttl=_duration(SESSION_TTL_ENV, DEFAULT_SESSION_TTL),
             password_reset_ttl=_duration(RESET_TTL_ENV, DEFAULT_RESET_TTL),
@@ -233,6 +250,10 @@ class ApiConfig:
             instantly_webhook_workspace_ref=(
                 os.environ.get(INSTANTLY_WEBHOOK_WORKSPACE_ENV) or None
             ),
+            attribution_hmac_key=(
+                attribution_key_raw.encode("utf-8") if attribution_key_raw else None
+            ),
+            attribution_hmac_key_version=attribution_key_version,
         )
 
 
