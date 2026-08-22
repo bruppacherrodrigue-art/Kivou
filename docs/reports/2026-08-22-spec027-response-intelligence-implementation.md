@@ -1,11 +1,12 @@
 # SPEC-027 — Response Intelligence implementation
 
 Date: 2026-08-22
-Merged design / implementation base: `92ac09215762fdbd2435ac9b5ddb77217bc913ee`
+Merged design SHA: `92ac09215762fdbd2435ac9b5ddb77217bc913ee`
+Final rebased implementation base: `6a391673570f6967b407a9481b8fc7dc0115155c`
 Implementation branch: `feat/spec027-response-intelligence`
 Draft implementation PR: #46
-Executable SHA: `6b841c88a7798018a7c3589f3f94a197cb5b080e`
-Executable CI: `32580343464` — SUCCESS
+Executable SHA: `bdba4d3232655f9674753a1849080e65b85c6437`
+Executable CI: `32583347018` — SUCCESS
 Final head: the documentation-only closeout commit containing this report; the PR head is the authoritative Git object because a commit cannot embed its own SHA.
 
 ## Scope and package
@@ -98,7 +99,7 @@ Kivou builds the exact response evidence from safe references, provider-event/co
 
 ## Persistence and migration
 
-Migration head is `0017_response_intelligence`, directly after `0016_campaign_factory`. It creates exactly one SPEC-027 table:
+While implementation was in progress, main gained the unrelated, already-merged `0017_target_icp_revision`. Under the specification's pre-authorized linear-topology rule, SPEC-027 was rebased and renumbered without an Alembic merge revision. Migration head is therefore `0018_response_intelligence`, with the exact chain `0016_campaign_factory -> 0017_target_icp_revision -> 0018_response_intelligence`. It creates exactly one SPEC-027 table:
 
 1. `acquisition_response_evaluation`
 
@@ -114,12 +115,12 @@ Covered crash boundaries include before/after Email list and GET, after content 
 
 ## Validation
 
-The SPEC-027 response test files collect 122 focused tests. Executable CI `32580343464` checked the exact executable SHA and completed successfully:
+The SPEC-027 response test files collect 122 focused tests. Executable CI `32583347018` checked the exact rebased executable SHA and completed successfully:
 
-- backend: 3,868 passed, 2 skipped;
+- backend: 3,879 passed, 2 skipped;
 - skipped tests: exactly the two existing opt-in Stripe TEST smokes in `tests/test_billing_stripe_test_smoke.py`; no SPEC-027 test is skipped;
 - Ruff: PASS;
-- frontend: 253 passed;
+- frontend: 262 passed;
 - frontend build: PASS;
 - frontend typecheck: PASS;
 - frontend lint: PASS;
