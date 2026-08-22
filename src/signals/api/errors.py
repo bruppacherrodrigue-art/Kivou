@@ -23,6 +23,7 @@ ERROR_CODES: tuple[str, ...] = (
     "unsupported_locale",
     "invalid_reset_token",
     "target_icp_not_found",
+    "territory_limit_exceeded",
     "not_authenticated",
     "csrf_origin_rejected",
     "invalid_input",

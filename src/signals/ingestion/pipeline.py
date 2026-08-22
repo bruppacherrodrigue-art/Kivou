@@ -64,19 +64,26 @@ def _active_targets(connection: sa.Connection) -> tuple[Any, ...]:
         sa.select(
             target_icp.c.target_icp_id,
             target_icp.c.label,
+            target_icp.c.matching_revision,
             target_icp.c.customer_input,
         )
-        .where(target_icp.c.status == "active")
+        .where(
+            target_icp.c.status == "active",
+            target_icp.c.plan_limit_code.is_(None),
+        )
         .order_by(target_icp.c.created_at, target_icp.c.target_icp_id)
     ).all()
     targets = []
     for row in rows:
         customer_input = TargetIcpInput.model_validate(row.customer_input)
         targets.append(
-            to_target_icp(
-                customer_input,
-                target_icp_id=row.target_icp_id,
-                label=row.label,
+            (
+                to_target_icp(
+                    customer_input,
+                    target_icp_id=row.target_icp_id,
+                    label=row.label,
+                ),
+                row.matching_revision,
             )
         )
     return tuple(targets)
@@ -125,7 +132,7 @@ class IngestionPipeline:
                 ),
                 as_of=as_of,
             )
-            for profile in active_targets:
+            for profile, target_revision in active_targets:
                 match = self.matching.match(understanding, needs, profile, as_of=as_of)
                 # Eligibility is the approved engine decision. The runtime adds no
                 # threshold, entitlement, or copied interpretation of `show`.
@@ -144,6 +151,7 @@ class IngestionPipeline:
                         materialized_at=persisted_at,
                         linked_to=resolution.linked_to,
                         link_strength=resolution.strength,
+                        target_icp_revision=target_revision,
                     )
                 delta = result.created or result.updated
                 materialized += delta

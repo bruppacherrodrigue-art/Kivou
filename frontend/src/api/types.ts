@@ -137,6 +137,12 @@ export interface TargetIcp {
   target_icp_id: string
   label: string
   status: string
+  matching_revision: number
+  plan_limit: {
+    code: string
+    limit: number
+    territory_count: number
+  } | null
   customer_input: TargetIcpInput
   missing_fields: string[]
   created_at: string

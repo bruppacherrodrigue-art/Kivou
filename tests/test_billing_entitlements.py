@@ -384,7 +384,7 @@ def test_an_empty_database_reaches_the_billing_schema_through_every_migration(
         command.upgrade(alembic_config(engine), revision)
         assert current_revision(engine) == revision
     migrate_to_latest(engine)
-    assert current_revision(engine) == "0016_campaign_factory"
+    assert current_revision(engine) == "0018_response_intelligence"
 
 
 def test_a_populated_spec012_database_upgrades_without_losing_anything(tmp_path: pathlib.Path):
@@ -399,13 +399,14 @@ def test_a_populated_spec012_database_upgrades_without_losing_anything(tmp_path:
     from signals.persistence.repository import list_signals
 
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'live.db'}")
-    command.upgrade(alembic_config(engine), "0002_account_auth_target_icp")
+    migrate_to_latest(engine)
     with engine.begin() as connection:
         account_id = make_account(connection, "alice@negoce-romand.ch", "Negoce Romand")
         icp_id = make_icp(connection, account_id, "Intrants")
         signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
     assert ICP_INPUT
 
+    command.downgrade(alembic_config(engine), "0002_account_auth_target_icp")
     migrate_to_latest(engine)
 
     with engine.connect() as connection:
@@ -413,7 +414,7 @@ def test_a_populated_spec012_database_upgrades_without_losing_anything(tmp_path:
         icps = connection.execute(sa.select(target_icp)).all()
     assert [item.signal_key for item in signals] == [signal.signal_key]
     assert [row.target_icp_id for row in icps] == [icp_id]
-    assert current_revision(engine) == "0016_campaign_factory"
+    assert current_revision(engine) == "0018_response_intelligence"
 
 
 def test_the_billing_migration_touches_no_earlier_table(tmp_path: pathlib.Path):

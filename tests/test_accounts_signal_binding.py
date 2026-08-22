@@ -133,9 +133,10 @@ def engine(tmp_path: pathlib.Path):
 def legacy_engine(tmp_path: pathlib.Path):
     """Une base SPEC-010 peuplée AVANT les comptes, puis migrée en 0002."""
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
-    command.upgrade(alembic_config(engine), "0001_initial")
+    migrate_to_latest(engine)
     with engine.begin() as connection:
         materialize(connection, target_icp_id=RESEARCH_ICP_ID)
+    command.downgrade(alembic_config(engine), "0001_initial")
     migrate_to_latest(engine)
     return engine
 

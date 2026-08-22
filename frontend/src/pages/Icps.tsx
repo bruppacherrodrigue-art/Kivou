@@ -6,6 +6,7 @@ import { NoSignalIllustration } from '../assets/Illustrations'
 import { CompletenessNotice, IcpFields, emptyIcpValue, missingFields } from './IcpForm'
 import type { IcpFormValue } from './IcpForm'
 import { billing, icps as icpsApi } from '../api/endpoints'
+import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
 import { describeError } from '../api/errorCopy'
 import type { BillingStatus, TargetIcp } from '../api/types'
 import styles from './Icps.module.css'
@@ -166,9 +167,21 @@ function IcpSummary({
   overLimit: boolean
   onEdit: () => void
 }) {
-  const { t } = useI18n()
+  const { t, locale, amount } = useI18n()
   const input = profile.customer_input
   const ready = profile.status === 'active'
+  const territories = input.territories.map((code) => {
+    const territory = MVP_TERRITORIES.find((candidate) => candidate.code === code)
+    return territory ? territoryLabel(territory, locale) : code
+  })
+  const threshold = input.minimum_contract_value
+    ? amount(
+        String(input.minimum_contract_value.minimum_amount),
+        input.minimum_contract_value.currency,
+      )
+    : null
+  const offerSummary = input.offer_summary.trim()
+  const territoryPlanLimit = profile.plan_limit
 
   return (
     <Card padding="md" as="article" className={styles.card}>
@@ -179,6 +192,9 @@ function IcpSummary({
             {ready ? t.onboarding.statusReady : t.onboarding.statusIncomplete}
           </Badge>
           {overLimit ? <Badge tone="warm">{t.icp.overLimitBadge}</Badge> : null}
+          {territoryPlanLimit ? (
+            <Badge tone="warm">{t.icp.territoryLimitedBadge}</Badge>
+          ) : null}
         </div>
       </div>
 
@@ -187,6 +203,17 @@ function IcpSummary({
       ) : null}
 
       {overLimit ? <p className={styles.overLimitHelp}>{t.icp.overLimitHelp}</p> : null}
+
+      {territoryPlanLimit ? (
+        <p className={styles.overLimitHelp}>
+          {interpolate(
+            territoryPlanLimit.limit === 1
+              ? t.icp.territoryLimitedHelpOne
+              : t.icp.territoryLimitedHelpOther,
+            { limit: territoryPlanLimit.limit },
+          )}
+        </p>
+      ) : null}
 
       <dl className={styles.summary}>
         <div>
@@ -208,19 +235,21 @@ function IcpSummary({
         <div>
           <dt>{t.icp.territoriesLabel}</dt>
           <dd>
-            {input.territories.length > 0
-              ? input.territories.join(', ')
-              : t.common.notAvailable}
+            {territories.length > 0 ? territories.join(', ') : t.common.notAvailable}
           </dd>
         </div>
         <div>
           <dt>{t.icp.thresholdLabel}</dt>
           <dd className="kivou-tabular">
-            {input.minimum_contract_value
-              ? `${input.minimum_contract_value.minimum_amount} ${input.minimum_contract_value.currency}`
-              : t.common.notAvailable}
+            {threshold ?? t.common.notAvailable}
           </dd>
         </div>
+        {offerSummary ? (
+          <div className={styles.summaryDescription}>
+            <dt>{t.onboarding.summaryLabel}</dt>
+            <dd>{offerSummary}</dd>
+          </div>
+        ) : null}
       </dl>
 
       <div className={styles.cardActions}>

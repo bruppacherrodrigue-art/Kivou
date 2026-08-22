@@ -90,6 +90,12 @@ def list_signals(
         session = current_session(request, connection, now)
         lang = _language(connection, user_id=session.user_id)
         access = feed_access(connection, account_id=session.account_id, as_of=as_of)
+        service.reconcile_territory_plan_limits(
+            connection,
+            account_id=session.account_id,
+            max_territories=access.entitlements.max_territories_per_icp,
+            now=now,
+        )
         try:
             check_filters(
                 access.entitlements,
@@ -223,11 +229,25 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
         session = current_session(request, connection, now)
         lang = _language(connection, user_id=session.user_id)
         access = feed_access(connection, account_id=session.account_id, as_of=as_of)
+        service.reconcile_territory_plan_limits(
+            connection,
+            account_id=session.account_id,
+            max_territories=access.entitlements.max_territories_per_icp,
+            now=now,
+        )
+        allowed = frozenset(
+            billing.feedable_target_icps(
+                connection,
+                account_id=session.account_id,
+                limit=access.entitlements.max_active_icps,
+            )
+        )
         item = query.owned_signal(
             connection,
             account_id=session.account_id,
             signal_key=signal_key,
             as_of=as_of,
+            allowed_target_icp_ids=allowed,
         )
         if item is not None:
             # §34 — la tentative sur un signal verrouillé est enregistrée aussi,

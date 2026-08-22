@@ -119,18 +119,22 @@ def test_an_empty_database_reaches_the_latest_schema_through_every_migration(
     } <= tables
     # SPEC-016A — operational ingestion state remains an additive migration.
     assert {"ingestion_checkpoint", "ingestion_run"} <= tables
-    assert current_revision(engine) == "0016_campaign_factory"
+    assert current_revision(engine) == "0018_response_intelligence"
 
 
 def test_a_spec010_database_upgrades_without_losing_its_signals(tmp_path: pathlib.Path):
     """Le seul test qui protège les données d'un déploiement déjà en service."""
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
 
-    # Une base telle que SPEC-010 la laissait, avec un signal réel dedans.
-    command.upgrade(alembic_config(engine), "0001_initial")
-    assert current_revision(engine) == "0001_initial"
+    # Construire la ligne avec le code courant, puis revenir au schéma SPEC-010,
+    # évite qu'un helper courant tente d'écrire des colonnes qui n'existaient
+    # pas encore. Le point de départ de l'upgrade reste bien une base 0001
+    # peuplée, pas une base neuve.
+    migrate_to_latest(engine)
     with engine.begin() as connection:
         result = materialize(connection, target_icp_id="icp-construction-inputs-ch-eu-v0")
+    command.downgrade(alembic_config(engine), "0001_initial")
+    assert current_revision(engine) == "0001_initial"
     with engine.connect() as connection:
         before = connection.execute(
             sa.select(sa.func.count()).select_from(materialized_signal)

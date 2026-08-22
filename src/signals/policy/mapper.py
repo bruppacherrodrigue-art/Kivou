@@ -64,6 +64,11 @@ def _canonical(value: object) -> object:
 def map_proposed_action(action: ProposedAction, **trusted: Any) -> PolicyRequest:
     """Map one validated advisory intent; trusted controls are supplied by Kivou."""
     _guard(action.arguments)
+    if action.command == "classify_response":
+        if action.arguments:
+            raise ValueError("classify_response accepts only an opaque response reference")
+        if re.fullmatch(r"[0-9a-f]{64}", action.target_ref) is None:
+            raise ValueError("classify_response requires an opaque response reference")
     arguments = json.dumps(action.arguments, allow_nan=False, sort_keys=True, separators=(",", ":"))
     semantic = {
         "command": action.command,

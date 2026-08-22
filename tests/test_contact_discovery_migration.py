@@ -9,7 +9,7 @@ from signals.persistence.schema import acquisition_contact, contact_discovery_ru
 
 PREVIOUS = "0009_supplier_discovery"
 HEAD = "0010_contact_discovery"
-CURRENT_HEAD = "0016_campaign_factory"
+CURRENT_HEAD = "0018_response_intelligence"
 
 
 def test_contact_discovery_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:

@@ -128,8 +128,16 @@ target_icp = sa.Table(
     ),
     sa.Column("label", sa.String(256), nullable=False),
     sa.Column("status", sa.String(16), nullable=False, index=True),
+    # La révision ne suit que les critères utilisés par le moteur. Renommer le
+    # profil ou modifier sa description libre ne change donc pas cette valeur.
+    sa.Column("matching_revision", sa.Integer, nullable=False),
+    # Une limite de plan n'efface ni ne tronque la saisie. Elle rend le profil
+    # explicitement non exploitable jusqu'au choix du client.
+    sa.Column("plan_limit_code", sa.String(64), index=True),
+    sa.Column("plan_limited_at", sa.DateTime(timezone=True)),
     # L'entrée CLIENT, dans son vocabulaire. C'est la source de vérité : la
     # représentation moteur en est dérivée déterministement, jamais l'inverse.
     sa.Column("customer_input", sa.JSON, nullable=False),
     *_timestamps(),
+    sa.CheckConstraint("matching_revision >= 1", name="ck_target_icp_matching_revision"),
 )

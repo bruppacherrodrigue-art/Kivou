@@ -1,0 +1,72 @@
+{
+  "list": {
+    "items": [
+      {
+        "id": "01a028e4-5069-7b56-ae56-b7e4352c53fa",
+        "timestamp_created": "2026-08-22T09:54:06.569Z",
+        "timestamp_email": "2026-08-22T09:53:59.000Z",
+        "message_id": "<synthetic-response@example.invalid>",
+        "subject": "Re: Synthetic inquiry",
+        "to_address_email_list": "sender@example.invalid",
+        "body": {
+          "text": "Yes, please show me examples.",
+          "html": "<p>Yes, please show me examples.</p>"
+        },
+        "organization_id": "01a028e4-5069-7b56-ae56-b7e52c2329d7",
+        "eaccount": "sender@example.invalid",
+        "from_address_email": "sender@example.invalid",
+        "campaign_id": "01a028e4-5069-7b56-ae56-b7e622c7fbf1",
+        "lead": "buyer@example.invalid",
+        "lead_id": "01a028e4-5069-7b56-ae56-b7e9cb32ae4c",
+        "ue_type": 3,
+        "step": "step-2",
+        "is_auto_reply": 0,
+        "thread_id": "01a028e4-5069-7b56-ae56-b7ea2c81292b",
+        "content_preview": "SYNTHETIC-CONTENT-PREVIEW-MUST-BE-IGNORED",
+        "attachment_json": {
+          "files": [
+            {
+              "filename": "SYNTHETIC-ATTACHMENT-MUST-BE-IGNORED",
+              "url": "https://attachments.example.invalid/never-fetch"
+            }
+          ]
+        },
+        "ai_interest_value": 1,
+        "provider_future_enrichment": "SYNTHETIC-ENRICHMENT-MUST-BE-IGNORED"
+      }
+    ],
+    "next_starting_after": null
+  },
+  "get": {
+    "id": "01a028e4-5069-7b56-ae56-b7e4352c53fa",
+    "timestamp_created": "2026-08-22T09:54:06.569Z",
+    "timestamp_email": "2026-08-22T09:53:59.000Z",
+    "message_id": "<synthetic-response@example.invalid>",
+    "subject": "Re: Synthetic inquiry",
+    "to_address_email_list": "sender@example.invalid",
+    "body": {
+      "text": "Yes, please show me examples.",
+      "html": "<p>Yes, please show me examples.</p>"
+    },
+    "organization_id": "01a028e4-5069-7b56-ae56-b7e52c2329d7",
+    "eaccount": "sender@example.invalid",
+    "from_address_email": "sender@example.invalid",
+    "campaign_id": "01a028e4-5069-7b56-ae56-b7e622c7fbf1",
+    "lead": "buyer@example.invalid",
+    "lead_id": "01a028e4-5069-7b56-ae56-b7e9cb32ae4c",
+    "ue_type": 3,
+    "step": "step-2",
+    "is_auto_reply": 0,
+    "thread_id": "01a028e4-5069-7b56-ae56-b7ea2c81292b",
+    "content_preview": "SYNTHETIC-CONTENT-PREVIEW-MUST-BE-IGNORED",
+    "attachment_json": {
+      "files": [
+        {
+          "filename": "SYNTHETIC-ATTACHMENT-MUST-BE-IGNORED",
+          "url": "https://attachments.example.invalid/never-fetch"
+        }
+      ]
+    },
+    "ai_interest_value": 1
+  }
+}

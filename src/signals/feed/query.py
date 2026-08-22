@@ -271,6 +271,9 @@ def _ownership_scoped(account_id: str) -> sa.Select:
         .where(
             target_icp.c.account_id == account_id,
             target_icp.c.status == FEEDING_ICP_STATUS,
+            target_icp.c.plan_limit_code.is_(None),
+            materialized_signal.c.invalidated_at.is_(None),
+            materialized_signal.c.target_icp_revision == target_icp.c.matching_revision,
         )
         .order_by(None)
         .order_by(materialized_signal.c.materialized_at.desc(), materialized_signal.c.signal_key)
@@ -405,16 +408,24 @@ def feed_page(
 
 
 def owned_signal(
-    connection: sa.Connection, *, account_id: str, signal_key: str, as_of: dt.date
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    signal_key: str,
+    as_of: dt.date,
+    allowed_target_icp_ids: frozenset[str] | None = None,
 ) -> FeedSignal | None:
     """Le signal détaillé, si ce compte le possède. `None` sinon — jamais « interdit ».
 
     Un signal inexistant et un signal d'autrui rendent la même chose : distinguer
     les deux offrirait un annuaire qu'on parcourt clé par clé (§15).
     """
-    row = connection.execute(
-        _ownership_scoped(account_id).where(materialized_signal.c.signal_key == signal_key)
-    ).one_or_none()
+    query = _ownership_scoped(account_id).where(materialized_signal.c.signal_key == signal_key)
+    if allowed_target_icp_ids is not None:
+        if not allowed_target_icp_ids:
+            return None
+        query = query.where(materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids)))
+    row = connection.execute(query).one_or_none()
     if row is None:
         return None
     owned = owned_target_icps(connection, account_id=account_id)
