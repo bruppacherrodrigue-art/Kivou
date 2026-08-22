@@ -1,0 +1,77 @@
+{
+  "source": {
+    "checked_at": "2026-08-22",
+    "webhook_events": "https://developer.instantly.ai/guides/webhook-events",
+    "webhook_api": "https://developer.instantly.ai/api-reference/groups/webhook"
+  },
+  "events": {
+    "email_sent": {
+      "timestamp": "2026-08-21T13:30:00+00:00",
+      "event_type": "email_sent",
+      "workspace": "workspace:test",
+      "campaign_id": "provider-campaign-1",
+      "campaign_name": "KIVOU-synthetic-fr",
+      "lead_email": "buyer@acme.example",
+      "email_account": "sender@example.invalid",
+      "step": 1,
+      "variant": 1,
+      "is_first": true,
+      "email_id": "provider-email-1",
+      "email_subject": "Synthetic subject that must not persist",
+      "email_text": "Synthetic body that must not persist",
+      "email_html": "<p>Synthetic body that must not persist</p>",
+      "firstName": "Synthetic",
+      "lastName": "Recipient",
+      "companyName": "Example Company",
+      "website": "https://example.invalid",
+      "phone": "+41000000000"
+    },
+    "reply_received": {
+      "timestamp": "2026-08-21T13:35:00+00:00",
+      "event_type": "reply_received",
+      "workspace": "workspace:test",
+      "campaign_id": "provider-campaign-1",
+      "campaign_name": "KIVOU-synthetic-fr",
+      "lead_email": "buyer@acme.example",
+      "email_account": "sender@example.invalid",
+      "unibox_url": "https://app.instantly.ai/app/unibox/synthetic-thread",
+      "step": 1,
+      "variant": 1
+    },
+    "auto_reply_received": {
+      "timestamp": "2026-08-21T13:36:00+00:00",
+      "event_type": "auto_reply_received",
+      "workspace": "workspace:test",
+      "campaign_id": "provider-campaign-1",
+      "campaign_name": "KIVOU-synthetic-fr",
+      "lead_email": "buyer@acme.example",
+      "email_account": "sender@example.invalid",
+      "unibox_url": "https://app.instantly.ai/app/unibox/synthetic-auto-reply",
+      "step": 1,
+      "variant": 1
+    },
+    "lead_unsubscribed": {
+      "timestamp": "2026-08-21T13:37:00+00:00",
+      "event_type": "lead_unsubscribed",
+      "workspace": "workspace:test",
+      "campaign_id": "provider-campaign-1",
+      "campaign_name": "KIVOU-synthetic-fr",
+      "lead_email": "buyer@acme.example"
+    },
+    "account_error": {
+      "timestamp": "2026-08-21T13:38:00+00:00",
+      "event_type": "account_error",
+      "workspace": "workspace:test",
+      "campaign_id": "provider-campaign-1",
+      "campaign_name": "KIVOU-synthetic-fr",
+      "email_account": "sender@example.invalid"
+    },
+    "campaign_completed": {
+      "timestamp": "2026-08-21T13:39:00+00:00",
+      "event_type": "campaign_completed",
+      "workspace": "workspace:test",
+      "campaign_id": "provider-campaign-1",
+      "campaign_name": "KIVOU-synthetic-fr"
+    }
+  }
+}

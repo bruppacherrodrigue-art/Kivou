@@ -1,23 +1,32 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
+from pathlib import Path
 
 import pytest
 import sqlalchemy as sa
 from fastapi.testclient import TestClient
 from test_campaign_service import _keyring
+from test_campaign_store import _additional_opportunity
 from test_campaign_worker import _operation, _planned
 
 from signals.acquisition.contracts import AcquisitionState
 from signals.acquisition.store import AcquisitionStore
 from signals.api.app import create_app
 from signals.api.config import ApiConfig
-from signals.campaigns.contracts import ProviderOperationKind, ResponseIngressCapability
+from signals.campaigns.contracts import (
+    PROVIDER_EVENT_FINGERPRINT_VERSION,
+    ProviderOperationKind,
+    ResponseIngressCapability,
+)
 from signals.campaigns.webhooks import (
     InstantlyWebhookService,
+    ProviderEventType,
     WebhookBindingError,
     WebhookFingerprintKeyring,
     WebhookSubscriptionInvalid,
+    normalize_instantly_webhook_payload,
     validate_webhook_subscription,
 )
 from signals.compliance.contracts import SuppressionMatchState
@@ -31,6 +40,15 @@ from signals.persistence.schema import (
 
 SECRET = "synthetic-webhook-secret"
 RECEIVED = dt.datetime(2026, 8, 21, 13, 20, tzinfo=dt.UTC)
+FIXTURE_PATH = (
+    Path(__file__).parent
+    / "fixtures"
+    / "instantly_v2_webhook_events_2026-08-22.json"
+)
+
+
+def _official_events() -> dict[str, dict[str, object]]:
+    return json.loads(FIXTURE_PATH.read_text())["events"]
 
 
 def _queued(tmp_path):
@@ -61,18 +79,37 @@ def _service(engine) -> InstantlyWebhookService:
 
 
 def _event(result, **overrides):
-    values = {
-        "event_type": "email_sent",
-        "timestamp": "2026-08-21T13:30:00+00:00",
-        "workspace_id": "workspace:test",
-        "campaign_id": "provider-campaign-1",
-        "lead_id": "provider-lead-1",
-        "email_id": "provider-email-1",
-        "step": 1,
-        "status": "sent",
-    }
+    values = dict(_official_events()["email_sent"])
     values.update(overrides)
     return values
+
+
+def test_official_payload_normalizes_workspace_and_drops_enrichment() -> None:
+    raw = _official_events()["email_sent"]
+
+    payload = normalize_instantly_webhook_payload(raw)
+
+    assert payload.event_type is ProviderEventType.EMAIL_SENT
+    assert payload.provider_workspace_ref == "workspace:test"
+    assert payload.provider_campaign_id == "provider-campaign-1"
+    assert payload.campaign_name_transport_only == "KIVOU-synthetic-fr"
+    assert payload.lead_email_transient == "buyer@acme.example"
+    assert payload.email_account_transient == "sender@example.invalid"
+    assert payload.step_if_present == 1
+    assert not hasattr(payload, "workspace_id")
+    assert not hasattr(payload, "firstName")
+    assert not hasattr(payload, "email_subject")
+
+
+def test_official_fixture_covers_required_transport_vocabulary() -> None:
+    assert set(_official_events()) == {
+        "email_sent",
+        "reply_received",
+        "auto_reply_received",
+        "lead_unsubscribed",
+        "account_error",
+        "campaign_completed",
+    }
 
 
 def test_step_one_transport_truth_is_atomic_and_duplicate_safe(tmp_path) -> None:
@@ -81,19 +118,39 @@ def test_step_one_transport_truth_is_atomic_and_duplicate_safe(tmp_path) -> None
 
     first = service.ingest(_event(result), received_at=RECEIVED)
     duplicate = service.ingest(_event(result), received_at=RECEIVED + dt.timedelta(seconds=1))
+    enriched_duplicate = service.ingest(
+        _event(result, provider_added_field="must-have-no-effect"),
+        received_at=RECEIVED + dt.timedelta(seconds=2),
+    )
 
     assert first.replayed is False
     assert duplicate.replayed is True
+    assert enriched_duplicate.replayed is True
+    assert enriched_duplicate.event_fingerprint == first.event_fingerprint
     opportunity = AcquisitionStore(engine).get_opportunity(opportunity_id)
     assert opportunity.state is AcquisitionState.SENT
     with engine.connect() as connection:
         member = connection.execute(sa.select(acquisition_campaign_member)).mappings().one()
+        provider_events = connection.execute(
+            sa.select(acquisition_provider_event)
+        ).mappings().all()
         assert connection.scalar(sa.select(sa.func.count()).select_from(acquisition_provider_event)) == 1
     assert member["execution_state"] == "SENT"
     assert member["sequence_state"] == "WAITING_STEP2"
     assert member["step_1_sent_at"] is not None
     assert member["step_2_due_at"] is not None
     assert member["sequence_timing_fingerprint"] is not None
+    serialized = str([dict(member), *[dict(row) for row in provider_events]])
+    for forbidden in (
+        "buyer@acme.example",
+        "sender@example.invalid",
+        "Synthetic subject",
+        "Synthetic body",
+        "Example Company",
+        "+41000000000",
+        "must-have-no-effect",
+    ):
+        assert forbidden not in serialized
 
 
 def test_conflicting_step_one_transport_timestamp_preserves_first_timing(tmp_path) -> None:
@@ -206,7 +263,7 @@ def test_wrong_workspace_and_unknown_campaign_fail_without_audit(tmp_path) -> No
 
     with pytest.raises(WebhookBindingError, match="workspace"):
         service.ingest(
-            _event(result, workspace_id="workspace:other"), received_at=RECEIVED
+            _event(result, workspace="workspace:other"), received_at=RECEIVED
         )
     with pytest.raises(WebhookBindingError, match="campaign"):
         service.ingest(
@@ -217,6 +274,17 @@ def test_wrong_workspace_and_unknown_campaign_fail_without_audit(tmp_path) -> No
         assert connection.scalar(
             sa.select(sa.func.count()).select_from(acquisition_provider_event)
         ) == 0
+
+
+def test_campaign_name_is_transport_only_not_binding_authority(tmp_path) -> None:
+    engine, opportunity_id, result = _queued(tmp_path)
+
+    _service(engine).ingest(
+        _event(result, campaign_name="Provider-renamed transport label"),
+        received_at=RECEIVED,
+    )
+
+    assert AcquisitionStore(engine).get_opportunity(opportunity_id).state is AcquisitionState.SENT
 
 
 def test_persisted_event_records_injected_fingerprint_key_version(tmp_path) -> None:
@@ -235,9 +303,10 @@ def test_persisted_event_records_injected_fingerprint_key_version(tmp_path) -> N
     service.ingest(_event(result), received_at=RECEIVED)
 
     with engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(acquisition_provider_event.c.fingerprint_key_version)
-        ) == "event-key-v7"
+        row = connection.execute(sa.select(acquisition_provider_event)).mappings().one()
+    assert row["fingerprint_key_version"] == "event-key-v7"
+    assert row["fingerprint_version"] == PROVIDER_EVENT_FINGERPRINT_VERSION
+    assert row["fingerprint_version"] == "provider-event-fingerprint-v2"
 
 
 def test_provider_event_redelivery_converges_across_retained_key_rotation(tmp_path) -> None:
@@ -277,7 +346,7 @@ def test_provider_event_redelivery_converges_across_retained_key_rotation(tmp_pa
         ) == 1
 
 
-def test_missing_provider_lead_id_resolves_transient_email_without_persisting_it(
+def test_official_payload_resolves_transient_email_without_persisting_it(
     tmp_path,
 ) -> None:
     engine, _, result = _queued(tmp_path)
@@ -285,7 +354,7 @@ def test_missing_provider_lead_id_resolves_transient_email_without_persisting_it
         business_email = connection.scalar(sa.select(acquisition_contact.c.business_email))
 
     outcome = _service(engine).ingest(
-        _event(result, lead_id=None, lead_email=business_email),
+        _event(result, lead_email=business_email),
         received_at=RECEIVED,
     )
 
@@ -295,7 +364,9 @@ def test_missing_provider_lead_id_resolves_transient_email_without_persisting_it
     assert business_email not in str([dict(row) for row in rows])
 
 
-def test_reply_fingerprint_distinguishes_transient_content_without_persisting_it(tmp_path) -> None:
+def test_reply_without_content_is_accepted_and_transient_url_only_affects_fingerprint(
+    tmp_path,
+) -> None:
     engine, _, result = _queued(tmp_path)
     service = _service(engine)
 
@@ -304,8 +375,8 @@ def test_reply_fingerprint_distinguishes_transient_content_without_persisting_it
             result,
             event_type="reply_received",
             email_id=None,
-            reply_text="Synthetic reply one",
-            reply_html="<p>Synthetic reply one</p>",
+            timestamp="2026-08-21T13:35:00+00:00",
+            unibox_url="https://app.instantly.ai/app/unibox/synthetic-one",
         ),
         received_at=RECEIVED,
     )
@@ -314,8 +385,8 @@ def test_reply_fingerprint_distinguishes_transient_content_without_persisting_it
             result,
             event_type="reply_received",
             email_id=None,
-            reply_text="Synthetic reply two",
-            reply_html="<p>Synthetic reply two</p>",
+            timestamp="2026-08-21T13:36:00+00:00",
+            unibox_url="https://app.instantly.ai/app/unibox/synthetic-two",
         ),
         received_at=RECEIVED,
     )
@@ -324,9 +395,137 @@ def test_reply_fingerprint_distinguishes_transient_content_without_persisting_it
     with engine.connect() as connection:
         rows = connection.execute(sa.select(acquisition_provider_event)).mappings().all()
     serialized = str([dict(row) for row in rows])
-    assert "Synthetic reply" not in serialized
-    assert "<p>" not in serialized
+    assert "unibox" not in serialized.lower()
     assert all(row["incident_code"] == "UNEXPECTED_REPLY_WITHOUT_RESPONSE_INGRESS" for row in rows)
+
+
+def test_reply_content_enrichment_is_ignored_and_never_persisted(tmp_path) -> None:
+    engine, _, result = _queued(tmp_path)
+    sensitive = "SYNTHETIC-REPLY-CONTENT-MUST-NOT-PERSIST"
+    base = _event(
+        result,
+        event_type="reply_received",
+        email_id=None,
+        timestamp="2026-08-21T13:35:00+00:00",
+        unibox_url="https://app.instantly.ai/app/unibox/synthetic-content-test",
+    )
+
+    service = _service(engine)
+    outcome = service.ingest(base, received_at=RECEIVED)
+    replay = service.ingest(
+        {
+            **base,
+            "reply_subject": sensitive,
+            "reply_text_snippet": sensitive,
+            "reply_text": sensitive,
+            "reply_html": f"<p>{sensitive}</p>",
+        },
+        received_at=RECEIVED,
+    )
+
+    assert outcome.incident_code == "UNEXPECTED_REPLY_WITHOUT_RESPONSE_INGRESS"
+    assert replay.replayed is True
+    assert replay.event_fingerprint == outcome.event_fingerprint
+    with engine.connect() as connection:
+        rows = connection.execute(sa.select(acquisition_provider_event)).mappings().all()
+    assert len(rows) == 1
+    assert sensitive not in str([dict(row) for row in rows])
+
+
+def test_auto_reply_is_safety_only_and_stops_remaining_sequence(tmp_path) -> None:
+    engine, opportunity_id, _ = _queued(tmp_path)
+
+    outcome = _service(engine).ingest(
+        _official_events()["auto_reply_received"], received_at=RECEIVED
+    )
+
+    member = _member_row(engine)
+    assert outcome.incident_code is None
+    assert member["execution_state"] == "STOPPED"
+    assert member["sequence_state"] == "STOPPED"
+    assert member["reason_code"] == "AUTO_REPLY_RECEIVED"
+    assert AcquisitionStore(engine).get_opportunity(opportunity_id).state is AcquisitionState.QUEUED
+
+
+def test_account_error_is_official_campaign_safety_event(tmp_path) -> None:
+    engine, _, _ = _queued(tmp_path)
+
+    outcome = _service(engine).ingest(
+        _official_events()["account_error"], received_at=RECEIVED
+    )
+
+    assert outcome.replayed is False
+    with engine.connect() as connection:
+        row = connection.execute(sa.select(acquisition_provider_event)).mappings().one()
+    assert row["provider_event_type"] == "account_error"
+
+
+def test_non_official_email_account_error_is_not_subscription_vocabulary() -> None:
+    with pytest.raises(WebhookSubscriptionInvalid, match="unknown"):
+        validate_webhook_subscription(
+            ("email_account_error",),
+            response_ingress_capability=ResponseIngressCapability.SPEC027_V1,
+        )
+
+
+def test_unknown_event_type_is_quarantined_without_workflow_effect(tmp_path) -> None:
+    engine, opportunity_id, result = _queued(tmp_path)
+
+    outcome = _service(engine).ingest(
+        _event(result, event_type="lead_interested", email_id=None),
+        received_at=RECEIVED,
+    )
+
+    assert outcome.incident_code == "UNKNOWN_PROVIDER_EVENT_TYPE"
+    assert AcquisitionStore(engine).get_opportunity(opportunity_id).state is AcquisitionState.QUEUED
+    assert _member_row(engine)["execution_state"] == "QUEUED"
+    with engine.connect() as connection:
+        row = connection.execute(sa.select(acquisition_provider_event)).mappings().one()
+    assert row["provider_event_type"] == "unknown"
+    assert row["resolution_state"] == "QUARANTINED"
+
+
+def test_ambiguous_transient_email_binding_fails_safe(tmp_path) -> None:
+    engine, opportunity_id, result = _queued(tmp_path)
+    second_opportunity_id, second_policy_id = _additional_opportunity(
+        engine, opportunity_id, 91
+    )
+    with engine.begin() as connection:
+        original = connection.execute(sa.select(acquisition_campaign_member)).mappings().one()
+        duplicate = dict(original)
+        duplicate.update(
+            member_ref="f" * 64,
+            acquisition_opportunity_id=second_opportunity_id,
+            policy_evaluation_id=second_policy_id,
+            provider_lead_id=None,
+            queue_event_id=None,
+            action_clear_event_id=None,
+            sent_event_id=None,
+        )
+        connection.execute(sa.insert(acquisition_campaign_member).values(**duplicate))
+
+    with pytest.raises(WebhookBindingError, match="ambiguous"):
+        _service(engine).ingest(_event(result), received_at=RECEIVED)
+
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_provider_event)
+        ) == 0
+
+
+def test_unmatched_transient_email_binding_fails_safe(tmp_path) -> None:
+    engine, _, result = _queued(tmp_path)
+
+    with pytest.raises(WebhookBindingError, match="lead binding"):
+        _service(engine).ingest(
+            _event(result, lead_email="unmatched@example.invalid"),
+            received_at=RECEIVED,
+        )
+
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_provider_event)
+        ) == 0
 
 
 def test_unsubscribe_creates_hard_suppression_before_stopping_sequence(tmp_path) -> None:
@@ -407,6 +606,24 @@ def test_route_never_reflects_sensitive_invalid_event_values(tmp_path) -> None:
         headers={"x-kivou-instantly-secret": SECRET},
     )
 
-    assert response.status_code == 422
-    assert response.json()["detail"]["code"] == "invalid_instantly_event"
+    assert response.status_code == 200
     assert sensitive not in response.text
+    with engine.connect() as connection:
+        rows = connection.execute(sa.select(acquisition_provider_event)).mappings().all()
+    assert sensitive not in str([dict(row) for row in rows])
+
+
+def test_webhook_ingress_never_calls_instantly_or_email_api(tmp_path, monkeypatch) -> None:
+    engine, _, _ = _queued(tmp_path)
+
+    def forbidden_network(*args, **kwargs):
+        raise AssertionError("webhook ingestion attempted provider network I/O")
+
+    monkeypatch.setattr("httpx.Client.request", forbidden_network)
+    monkeypatch.setattr("httpx.AsyncClient.request", forbidden_network)
+
+    outcome = _service(engine).ingest(
+        _official_events()["reply_received"], received_at=RECEIVED
+    )
+
+    assert outcome.incident_code == "UNEXPECTED_REPLY_WITHOUT_RESPONSE_INGRESS"
