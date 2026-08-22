@@ -36,7 +36,11 @@
       "email_account": "sender@example.invalid",
       "unibox_url": "https://app.instantly.ai/app/unibox/synthetic-thread",
       "step": 1,
-      "variant": 1
+      "variant": 1,
+      "reply_subject": "Synthetic reply subject",
+      "reply_text_snippet": "Synthetic reply snippet",
+      "reply_text": "Synthetic reply text used only for event identity.",
+      "reply_html": "<p>Synthetic reply HTML used only for event identity.</p>"
     },
     "auto_reply_received": {
       "timestamp": "2026-08-21T13:36:00+00:00",

@@ -32,10 +32,13 @@ from signals.campaigns.webhooks import (
 from signals.compliance.contracts import SuppressionMatchState
 from signals.compliance.store import SuppressionStore
 from signals.persistence.schema import (
+    acquisition_campaign,
     acquisition_campaign_member,
     acquisition_contact,
     acquisition_contact_suppression,
+    acquisition_event,
     acquisition_provider_event,
+    acquisition_provider_operation,
 )
 
 SECRET = "synthetic-webhook-secret"
@@ -364,72 +367,189 @@ def test_official_payload_resolves_transient_email_without_persisting_it(
     assert business_email not in str([dict(row) for row in rows])
 
 
-def test_reply_without_content_is_accepted_and_transient_url_only_affects_fingerprint(
+def test_identical_documented_reply_redelivery_converges(tmp_path) -> None:
+    engine, _, _result = _queued(tmp_path)
+    service = _service(engine)
+
+    first = service.ingest(_official_events()["reply_received"], received_at=RECEIVED)
+    replay = service.ingest(
+        _official_events()["reply_received"],
+        received_at=RECEIVED + dt.timedelta(seconds=1),
+    )
+
+    assert first.replayed is False
+    assert replay.replayed is True
+    assert replay.event_fingerprint == first.event_fingerprint
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_provider_event)
+        ) == 1
+
+
+@pytest.mark.parametrize(
+    ("field", "replacement"),
+    [
+        ("reply_text", "A second synthetic reply text."),
+        ("reply_subject", "A second synthetic reply subject"),
+        ("reply_html", "<p>A second synthetic reply HTML body.</p>"),
+    ],
+)
+def test_documented_reply_content_change_is_a_distinct_event(
+    tmp_path, field, replacement
+) -> None:
+    engine, _, _result = _queued(tmp_path)
+    service = _service(engine)
+    base = _official_events()["reply_received"]
+
+    first = service.ingest(base, received_at=RECEIVED)
+    distinct = service.ingest(
+        {**base, field: replacement},
+        received_at=RECEIVED + dt.timedelta(seconds=1),
+    )
+
+    assert first.incident_code == "UNEXPECTED_REPLY_WITHOUT_RESPONSE_INGRESS"
+    assert distinct.incident_code == "UNEXPECTED_REPLY_WITHOUT_RESPONSE_INGRESS"
+    assert distinct.replayed is False
+    assert distinct.event_fingerprint != first.event_fingerprint
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_provider_event)
+        ) == 2
+
+
+def test_bodyless_reply_redelivery_is_accepted_and_converges(tmp_path) -> None:
+    engine, _, _result = _queued(tmp_path)
+    service = _service(engine)
+    bodyless = dict(_official_events()["reply_received"])
+    for field in ("reply_subject", "reply_text_snippet", "reply_text", "reply_html"):
+        bodyless.pop(field)
+
+    first = service.ingest(bodyless, received_at=RECEIVED)
+    replay = service.ingest(
+        bodyless,
+        received_at=RECEIVED + dt.timedelta(seconds=1),
+    )
+
+    assert first.replayed is False
+    assert replay.replayed is True
+    assert replay.event_fingerprint == first.event_fingerprint
+
+
+def test_unknown_reply_enrichment_does_not_change_identity(tmp_path) -> None:
+    engine, _, _result = _queued(tmp_path)
+    service = _service(engine)
+    base = _official_events()["reply_received"]
+
+    first = service.ingest(base, received_at=RECEIVED)
+    replay = service.ingest(
+        {**base, "provider_enrichment": "synthetic ignored value"},
+        received_at=RECEIVED + dt.timedelta(seconds=1),
+    )
+
+    assert replay.replayed is True
+    assert replay.event_fingerprint == first.event_fingerprint
+
+
+def test_distinct_replies_after_stop_persist_separately_with_convergent_safety(
     tmp_path,
 ) -> None:
-    engine, _, result = _queued(tmp_path)
+    engine, _, _result = _queued(tmp_path)
     service = _service(engine)
+    base = _official_events()["reply_received"]
 
-    one = service.ingest(
-        _event(
-            result,
-            event_type="reply_received",
-            email_id=None,
-            timestamp="2026-08-21T13:35:00+00:00",
-            unibox_url="https://app.instantly.ai/app/unibox/synthetic-one",
-        ),
-        received_at=RECEIVED,
-    )
-    two = service.ingest(
-        _event(
-            result,
-            event_type="reply_received",
-            email_id=None,
-            timestamp="2026-08-21T13:36:00+00:00",
-            unibox_url="https://app.instantly.ai/app/unibox/synthetic-two",
-        ),
-        received_at=RECEIVED,
+    first = service.ingest(base, received_at=RECEIVED)
+    second = service.ingest(
+        {**base, "reply_text": "A genuinely distinct synthetic second reply."},
+        received_at=RECEIVED + dt.timedelta(seconds=1),
     )
 
-    assert one.event_fingerprint != two.event_fingerprint
+    assert first.replayed is False
+    assert second.replayed is False
+    assert second.event_fingerprint != first.event_fingerprint
+    member = _member_row(engine)
+    assert member["execution_state"] == "STOPPED"
+    assert member["sequence_state"] == "STOPPED"
+    with engine.connect() as connection:
+        events = connection.execute(sa.select(acquisition_provider_event)).mappings().all()
+        operations = connection.execute(
+            sa.select(acquisition_provider_operation.c.kind)
+        ).scalars().all()
+    assert len(events) == 2
+    assert operations.count("PAUSE_LEAD") == 1
+    assert operations.count("PAUSE_CAMPAIGN") == 1
+
+
+def test_documented_reply_content_is_transient_hmac_input_only(tmp_path) -> None:
+    engine, _, _result = _queued(tmp_path)
+    documented = _official_events()["reply_received"]
+    normalized = normalize_instantly_webhook_payload(documented)
+
+    assert normalized.reply_subject_transient == documented["reply_subject"]
+    assert normalized.reply_text_snippet_transient == documented["reply_text_snippet"]
+    assert normalized.reply_text_transient == documented["reply_text"]
+    assert normalized.reply_html_transient == documented["reply_html"]
+    normalized_repr = repr(normalized)
+    for field in ("reply_subject", "reply_text_snippet", "reply_text", "reply_html"):
+        assert documented[field] not in normalized_repr
+
+    _service(engine).ingest(documented, received_at=RECEIVED)
+
     with engine.connect() as connection:
         rows = connection.execute(sa.select(acquisition_provider_event)).mappings().all()
-    serialized = str([dict(row) for row in rows])
-    assert "unibox" not in serialized.lower()
-    assert all(row["incident_code"] == "UNEXPECTED_REPLY_WITHOUT_RESPONSE_INGRESS" for row in rows)
+        durable_rows = [
+            *connection.execute(sa.select(acquisition_campaign)).mappings().all(),
+            *connection.execute(sa.select(acquisition_campaign_member)).mappings().all(),
+            *connection.execute(sa.select(acquisition_provider_operation)).mappings().all(),
+            *connection.execute(sa.select(acquisition_event)).mappings().all(),
+            *rows,
+        ]
+    serialized = str([dict(row) for row in durable_rows])
+    for field in ("reply_subject", "reply_text_snippet", "reply_text", "reply_html"):
+        assert documented[field] not in serialized
+    assert "reply_content_digest" not in rows[0]
+    assert "reply_subject" not in rows[0]
+    assert "reply_text" not in rows[0]
 
 
-def test_reply_content_enrichment_is_ignored_and_never_persisted(tmp_path) -> None:
-    engine, _, result = _queued(tmp_path)
-    sensitive = "SYNTHETIC-REPLY-CONTENT-MUST-NOT-PERSIST"
-    base = _event(
-        result,
-        event_type="reply_received",
-        email_id=None,
-        timestamp="2026-08-21T13:35:00+00:00",
-        unibox_url="https://app.instantly.ai/app/unibox/synthetic-content-test",
-    )
+def test_invalid_reply_content_is_not_exposed_by_normalization_error() -> None:
+    sensitive = "SYNTHETIC-REPLY-CONTENT-MUST-NOT-ENTER-ERRORS"
+    raw = {
+        **_official_events()["reply_received"],
+        "reply_text": sensitive + ("x" * 65536),
+    }
 
+    with pytest.raises(ValueError) as captured:
+        normalize_instantly_webhook_payload(raw)
+
+    assert sensitive not in str(captured.value)
+    assert captured.value.__cause__ is None
+
+
+def test_auto_reply_content_differentiates_transport_without_classification(
+    tmp_path,
+) -> None:
+    engine, opportunity_id, _ = _queued(tmp_path)
     service = _service(engine)
-    outcome = service.ingest(base, received_at=RECEIVED)
-    replay = service.ingest(
-        {
-            **base,
-            "reply_subject": sensitive,
-            "reply_text_snippet": sensitive,
-            "reply_text": sensitive,
-            "reply_html": f"<p>{sensitive}</p>",
-        },
+    base = _official_events()["auto_reply_received"]
+
+    first = service.ingest(
+        {**base, "reply_text": "Synthetic automatic response one."},
         received_at=RECEIVED,
     )
+    second = service.ingest(
+        {**base, "reply_text": "Synthetic automatic response two."},
+        received_at=RECEIVED + dt.timedelta(seconds=1),
+    )
 
-    assert outcome.incident_code == "UNEXPECTED_REPLY_WITHOUT_RESPONSE_INGRESS"
-    assert replay.replayed is True
-    assert replay.event_fingerprint == outcome.event_fingerprint
+    assert first.replayed is False
+    assert second.replayed is False
+    assert first.event_fingerprint != second.event_fingerprint
+    assert _member_row(engine)["sequence_state"] == "STOPPED"
+    assert AcquisitionStore(engine).get_opportunity(opportunity_id).state is AcquisitionState.QUEUED
     with engine.connect() as connection:
         rows = connection.execute(sa.select(acquisition_provider_event)).mappings().all()
-    assert len(rows) == 1
-    assert sensitive not in str([dict(row) for row in rows])
+    assert len(rows) == 2
+    assert all(row["incident_code"] is None for row in rows)
 
 
 def test_auto_reply_is_safety_only_and_stops_remaining_sequence(tmp_path) -> None:

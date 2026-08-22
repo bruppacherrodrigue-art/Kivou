@@ -100,6 +100,12 @@ class InstantlyWebhookPayload(BaseModel):
     lead_email_transient: str | None = Field(default=None, max_length=320, repr=False)
     email_account_transient: str | None = Field(default=None, max_length=320, repr=False)
     unibox_url_transient: str | None = Field(default=None, max_length=2048, repr=False)
+    reply_subject_transient: str | None = Field(default=None, max_length=998, repr=False)
+    reply_text_snippet_transient: str | None = Field(
+        default=None, max_length=4096, repr=False
+    )
+    reply_text_transient: str | None = Field(default=None, max_length=65536, repr=False)
+    reply_html_transient: str | None = Field(default=None, max_length=65536, repr=False)
     step_if_present: int | None = Field(default=None, ge=1, le=100)
     variant_if_present: int | None = Field(default=None, ge=1, le=100)
     provider_email_event_id: str | None = Field(default=None, min_length=1, max_length=128)
@@ -125,6 +131,10 @@ class _InstantlyWebhookDocumentedFields(BaseModel):
     lead_email: str | None = Field(default=None, max_length=320, repr=False)
     email_account: str | None = Field(default=None, max_length=320, repr=False)
     unibox_url: str | None = Field(default=None, max_length=2048, repr=False)
+    reply_subject: str | None = Field(default=None, max_length=998, repr=False)
+    reply_text_snippet: str | None = Field(default=None, max_length=4096, repr=False)
+    reply_text: str | None = Field(default=None, max_length=65536, repr=False)
+    reply_html: str | None = Field(default=None, max_length=65536, repr=False)
     step: int | None = Field(default=None, ge=1, le=100)
     variant: int | None = Field(default=None, ge=1, le=100)
     email_id: str | None = Field(default=None, min_length=1, max_length=128)
@@ -178,6 +188,10 @@ def normalize_instantly_webhook_payload(
         lead_email_transient=lead_email,
         email_account_transient=email_account,
         unibox_url_transient=documented.unibox_url,
+        reply_subject_transient=documented.reply_subject,
+        reply_text_snippet_transient=documented.reply_text_snippet,
+        reply_text_transient=documented.reply_text,
+        reply_html_transient=documented.reply_html,
         step_if_present=documented.step,
         variant_if_present=documented.variant,
         provider_email_event_id=documented.email_id,
@@ -394,6 +408,18 @@ class InstantlyWebhookService:
                 "unibox_url": payload.unibox_url_transient,
             },
         }
+        if payload.event_type in {
+            ProviderEventType.REPLY_RECEIVED,
+            ProviderEventType.AUTO_REPLY_RECEIVED,
+        }:
+            reply_content = {
+                "reply_subject": payload.reply_subject_transient,
+                "reply_text_snippet": payload.reply_text_snippet_transient,
+                "reply_text": payload.reply_text_transient,
+                "reply_html": payload.reply_html_transient,
+            }
+            if any(value is not None for value in reply_content.values()):
+                stable["transient_reply_content"] = reply_content
         encoded = json.dumps(stable, sort_keys=True, separators=(",", ":")).encode()
         return {
             version: hmac.new(
