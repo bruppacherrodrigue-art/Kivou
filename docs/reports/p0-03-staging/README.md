@@ -163,3 +163,103 @@ Issue **#38**.
 | `07-run2-portail-kivou.png` | Portail Kivou, seconde exécution |
 | `08-run2-revue-avant-resiliation.png` | « available until … September 22, 2026 » |
 | `09-run2-resiliation-programmee.png` | « Cancels Sep 22 » côté Stripe — que Kivou n'affiche pas |
+
+
+---
+
+# Exécution finale — 2026-08-22, HEAD `0d0d725`, DB `0015`
+
+Le gate complet, rejoué après la fusion de #38 (`main` = `d6de1f8`) et
+l'intégration du contrat `scheduled_cancellation_at` côté frontend.
+
+**Verdict : PASS.** Le point qui faisait échouer le gate précédent — la
+résiliation programmée invisible — est fermé, et vérifié de bout en bout contre
+le vrai Stripe TEST.
+
+| | |
+|---|---|
+| SHA déployé | `0d0d72554e2a53baeac12250dc8358b6057e0230` |
+| SHA précédent | `954219e694e2ed48105f1e6092f3d8bc3652d32e` |
+| DB | `0014_compliance` → **`0015_scheduled_cancellation`** |
+| Compte | anonymisé — `acc_pgiU…LA6g`, créé pour cette exécution |
+| Signal | `f2d1ee3cd154…` |
+| Mode Stripe | TEST exclusivement, tous les événements `livemode=false` |
+
+## Continuité de session — le gate ajouté cette fois
+
+Un **seul contexte navigateur** de l'inscription au retour de Stripe. Aucune URL
+de retour ouverte à la main, aucune reconnexion.
+
+| Moment | Cookie | `/me` | Compte |
+|---|---|---|---|
+| avant Stripe | `kivou_session` présent | **200** | `acc_pgiU…LA6g` |
+| après retour automatique de Stripe | `kivou_session` présent | **200** | `acc_pgiU…LA6g` — le même |
+
+La session survit à l'aller-retour. Aucun `POST-STRIPE SESSION CONTINUITY GAP`.
+
+## Le parcours
+
+| Étape | Résultat |
+|---|---|
+| État initial | `discovery` · `choose_plan` · `scheduled_cancellation_at: null` |
+| Feed réel | 5 signaux — 3 accordés, 2 verrouillés |
+| Signal choisi | `locked: true`, `unlock_required: paid_plan`, `upgrade_to: [essential, pro, scale]` |
+| Checkout | redirection **automatique** vers `checkout.stripe.com`, Pro CHF 99 |
+| Paiement | carte de test, redirection **automatique** vers `/checkout/success` |
+| Webhooks | `invoice.paid` · `customer.subscription.created` · `checkout.session.completed` — `applied`, `livemode=false`, 06:51:03 |
+| Tentative | `completed` |
+| UI | « Paid access active » après sondage de `/billing/status` |
+| Après paiement | `pro` · `active` · `manage_subscription` |
+| Signal | `locked: true` → **`false`**, société visible |
+| Feed | 5 signaux, **0 verrouillé** |
+
+## Portail et résiliation programmée
+
+Portail **Kivou** : branding Kivou, **zéro chaîne Turiya**, **aucun changement de
+plan proposé** (`subscription_update: false`), annulation disponible.
+
+Résiliation demandée en fin de période. Stripe affiche « Cancels Sep 22 ».
+Webhook `customer.subscription.updated` **appliqué** à 06:52:17.
+
+Ce que Kivou en dit désormais :
+
+```
+plan_code                 : pro
+subscription_status       : active
+billing_action            : manage_subscription
+scheduled_cancellation_at : 2026-09-22T06:50:59+00:00
+cancel_at_period_end      : true
+current_period_end        : 2026-09-22T06:50:59+00:00
+```
+
+Persisté en base, colonne `0015` comprise — vérifié directement.
+
+**L'écran affiche :** « Cancellation scheduled — Your subscription will end at
+the end of the current period, on 22 September 2026. » La date vient de
+`scheduled_cancellation_at`, jamais d'un calcul local.
+
+**L'accès reste actif :** signal toujours `locked: false`, feed à 0 verrouillé.
+Une échéance annoncée ne coupe rien — Stripe reste l'autorité sur le moment où
+l'accès cesse.
+
+## Ce qui a changé depuis l'exécution précédente
+
+Le gate d'hier échouait ici même : Stripe annonçait « Cancels Sep 21 » et Kivou
+répondait `cancel_at_period_end: false`, sans aucune notice. Sur un abonnement
+`billing_mode: flexible`, Stripe exprime la résiliation par `cancel_at` et laisse
+le booléen à `false`. P0-03G lit désormais la date ; le frontend l'affiche sans
+jamais l'emprunter à `current_period_end`.
+
+| Fichier | Contenu |
+|---|---|
+| `final-02-signal-verrouille.png` | Le signal verrouillé, avant paiement |
+| `final-03-billing-discovery.png` | Grille des offres, compte Découverte |
+| `final-04-stripe-checkout.png` | Checkout Stripe TEST — Kivou Pro, CHF 99 |
+| `final-05-retour-checkout-success.png` | Retour automatique, session conservée |
+| `final-06-acces-payant-actif.png` | « Paid access active » |
+| `final-07-signal-deverrouille.png` | Le même signal, ouvert |
+| `final-08-billing-pro.png` | Facturation Pro, aucune notice de résiliation |
+| `final-09-portail-kivou.png` | Portail Kivou, sans changement de plan |
+| `final-10-resiliation-programmee-stripe.png` | « Cancels Sep 22 » côté Stripe |
+| `final-11-notice-resiliation-kivou.png` | La notice Kivou et sa date |
+| `final-12-signal-toujours-ouvert.png` | L'accès survit à l'échéance annoncée |
