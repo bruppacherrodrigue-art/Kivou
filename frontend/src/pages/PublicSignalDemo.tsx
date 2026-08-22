@@ -1,27 +1,65 @@
-import { publicDemoSignal } from '../content/publicDemoSignal'
 import { ButtonExternalLink, ButtonLink } from '../components/Button'
 import { Badge, Card, DataList, DataRow, SectionHeading } from '../components/Surfaces'
+import {
+  publicDemoSignal,
+  type PublicDemoEvidence,
+  type PublicDemoSignal,
+} from '../content/publicDemoSignal'
 import { interpolate, useI18n } from '../i18n'
 import styles from './PublicSignalDemo.module.css'
 
-/**
- * Démonstration publique d'un signal Kivou.
- *
- * La page reste entièrement statique et sans donnée de compte. Sa hiérarchie
- * est volontairement commerciale : opportunité → pertinence → timing → action
- * → preuve → limites. Les faits viennent de la projection vérifiée ci-dessous ;
- * les quatre angles de prospection sont explicitement présentés comme des
- * inférences issues des volumes publiés.
- */
-export function PublicSignalDemo() {
-  const { t, locale, amount, date } = useI18n()
-  const s = publicDemoSignal
-  const roundedAmount = amount(s.contract.amount, s.contract.currency)
-  const exactAmount = `${new Intl.NumberFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(Number(s.contract.amount))} ${s.contract.currency}`
+interface PublicSignalDemoProps {
+  /** Permet de vérifier qu'une autre projection publique se rend sans modifier
+   * les dictionnaires. La route publique utilise toujours la fixture validée. */
+  readonly signal?: PublicDemoSignal
+}
 
+interface PublishedQuantity {
+  readonly sourceLabel: string
+  readonly value: string
+}
+
+const EVIDENCE_ORDER: readonly PublicDemoEvidence['labelKey'][] = [
+  'evidenceCpv',
+  'evidenceAmount',
+  'evidenceLot',
+]
+
+function parsePublishedQuantity(line: string): PublishedQuantity {
+  const separator = line.lastIndexOf(' : ')
+  return {
+    sourceLabel: separator >= 0 ? line.slice(0, separator) : line,
+    value: separator >= 0 ? line.slice(separator + 3) : '',
+  }
+}
+
+function compactAmount(value: string, currency: string, locale: 'fr' | 'en'): string {
+  const numeric = Number(value)
+  if (Number.isNaN(numeric)) return `${value} ${currency}`
+  return new Intl.NumberFormat(locale === 'fr' ? 'fr-FR' : 'en-GB', {
+    style: 'currency',
+    currency: currency.toUpperCase(),
+    notation: 'compact',
+    maximumFractionDigits: 2,
+  }).format(numeric)
+}
+
+function regionName(code: string, locale: 'fr' | 'en'): string {
+  return new Intl.DisplayNames([locale], { type: 'region' }).of(code) ?? code
+}
+
+/** Démonstration publique statique et sans donnée de compte.
+ *
+ * Les dictionnaires portent uniquement la structure éditoriale. Entreprise,
+ * montant, lieu, dates, quantités, coordonnées et preuves sont interpolés
+ * depuis la projection publique reçue par le composant. */
+export function PublicSignalDemo({ signal = publicDemoSignal }: PublicSignalDemoProps) {
+  const { t, locale, date } = useI18n()
+  const s = signal
+  const roundedAmount = compactAmount(s.contract.amount, s.contract.currency, locale)
+  const winnerCountry = regionName(s.winner.country, locale)
+  const contractCountry = regionName(s.contract.country, locale)
+  const quantities = s.contract.publishedQuantities.map(parsePublishedQuantity)
   const quantityLabels = [
     t.publicDemo.quantityWoodDoors,
     t.publicDemo.quantitySteelDoors,
@@ -30,46 +68,34 @@ export function PublicSignalDemo() {
     t.publicDemo.quantityGlazing,
     t.publicDemo.quantityKitchenettes,
   ]
-  const quantities = s.contract.publishedQuantities.map((line, index) => {
-    const separator = line.lastIndexOf(' : ')
-    return {
-      label: quantityLabels[index],
-      sourceLabel: separator >= 0 ? line.slice(0, separator) : line,
-      value: separator >= 0 ? line.slice(separator + 3) : '',
-    }
-  })
+
+  const factValues = {
+    company: s.winner.legalName,
+    amount: roundedAmount,
+    location: s.contract.locality,
+    place: `${s.contract.postalCode} ${s.contract.locality}`,
+    country: contractCountry,
+    startDate: date(s.timing.startDate) ?? s.timing.startDate,
+    woodDoors: quantities[0]?.value ?? '',
+    steelDoors: quantities[1]?.value ?? '',
+    skirting: quantities[2]?.value ?? '',
+    wallCladding: quantities[3]?.value ?? '',
+    glazing: quantities[4]?.value ?? '',
+    kitchenettes: quantities[5]?.value ?? '',
+  }
+  const copy = (template: string) => interpolate(template, factValues)
 
   const opportunities = [
-    {
-      title: t.publicDemo.opportunityDoorsTitle,
-      body: t.publicDemo.opportunityDoorsBody,
-      strength: t.publicDemo.signalStrong,
-      tone: 'strong',
-    },
-    {
-      title: t.publicDemo.opportunityWoodTitle,
-      body: t.publicDemo.opportunityWoodBody,
-      strength: t.publicDemo.signalStrong,
-      tone: 'strong',
-    },
-    {
-      title: t.publicDemo.opportunityGlazingTitle,
-      body: t.publicDemo.opportunityGlazingBody,
-      strength: t.publicDemo.signalTargeted,
-      tone: 'targeted',
-    },
-    {
-      title: t.publicDemo.opportunityKitchenTitle,
-      body: t.publicDemo.opportunityKitchenBody,
-      strength: t.publicDemo.signalTargeted,
-      tone: 'targeted',
-    },
-  ] as const
+    { title: t.publicDemo.opportunityDoorsTitle, body: copy(t.publicDemo.opportunityDoorsBody) },
+    { title: t.publicDemo.opportunityWoodTitle, body: copy(t.publicDemo.opportunityWoodBody) },
+    { title: t.publicDemo.opportunityGlazingTitle, body: copy(t.publicDemo.opportunityGlazingBody) },
+    { title: t.publicDemo.opportunityKitchenTitle, body: copy(t.publicDemo.opportunityKitchenBody) },
+  ]
 
   const matchingReasons = [
     t.publicDemo.matchingReasonOne,
     t.publicDemo.matchingReasonTwo,
-    t.publicDemo.matchingReasonThree,
+    copy(t.publicDemo.matchingReasonThree),
     t.publicDemo.matchingReasonFour,
     t.publicDemo.matchingReasonFive,
     t.publicDemo.matchingReasonSix,
@@ -77,11 +103,22 @@ export function PublicSignalDemo() {
 
   const timeline = [
     { date: date(s.timing.awardDate), label: t.publicDemo.timelineAwarded },
+    { date: date(s.timing.signatureDate), label: t.publicDemo.timelineSigned },
     { date: date(s.timing.publishedAt), label: t.publicDemo.timelinePublished },
-    { date: date(s.lastVerifiedAt), label: t.publicDemo.timelineVerified },
-    { date: t.publicDemo.timelineNow, label: t.publicDemo.timelineContact, current: true },
     { date: date(s.timing.startDate), label: t.publicDemo.timelineStart },
     { date: date(s.timing.endDate), label: t.publicDemo.timelineEnd },
+  ]
+
+  const evidenceByLabel = new Map(s.evidence.map((piece) => [piece.labelKey, piece]))
+  const selectedEvidence = EVIDENCE_ORDER.flatMap((labelKey) => {
+    const piece = evidenceByLabel.get(labelKey)
+    return piece ? [piece] : []
+  })
+  const actionItems = [
+    t.publicDemo.actionReviewMarket,
+    t.publicDemo.actionCheckFit,
+    t.publicDemo.actionOpenNotice,
+    t.publicDemo.actionCreateAccount,
   ]
 
   return (
@@ -91,15 +128,15 @@ export function PublicSignalDemo() {
           <div className={styles.heroCopy}>
             <p className={styles.eyebrow}>{t.publicDemo.heroEyebrow}</p>
             <h1 className={styles.heroTitle} id="public-signal-title">
-              {t.publicDemo.heroTitle}
+              {copy(t.publicDemo.heroTitle)}
             </h1>
-            <p className={styles.heroSubtitle}>{t.publicDemo.heroSubtitle}</p>
-            <p className={styles.heroTiming}>{t.publicDemo.heroTiming}</p>
+            <p className={styles.heroSubtitle}>{copy(t.publicDemo.heroSubtitle)}</p>
+            <p className={styles.heroTiming}>{copy(t.publicDemo.heroTiming)}</p>
 
             <div className={styles.badges} aria-label={t.publicDemo.contractSnapshot}>
               <Badge tone="positive">{t.publicDemo.heroBadgeVerified}</Badge>
-              <Badge tone="brand">{t.publicDemo.heroBadgeRecent}</Badge>
-              <Badge tone="positive">{t.publicDemo.heroBadgeTiming}</Badge>
+              <Badge tone="brand">{t.publicDemo.heroBadgeAwardDate}</Badge>
+              <Badge tone="neutral">{t.publicDemo.heroBadgeSchedule}</Badge>
               <Badge tone="muted">{t.publicDemo.heroBadgeSource}</Badge>
             </div>
 
@@ -129,7 +166,7 @@ export function PublicSignalDemo() {
               <DataRow label={t.publicDemo.object}>{s.contract.title}</DataRow>
               <DataRow label={t.publicDemo.buyer}>{s.buyer.legalName}</DataRow>
               <DataRow label={t.publicDemo.place}>
-                {s.contract.postalCode} {s.contract.locality} · {t.publicDemo.countryGermany}
+                {s.contract.postalCode} {s.contract.locality} · {contractCountry}
               </DataRow>
             </DataList>
           </Card>
@@ -144,8 +181,12 @@ export function PublicSignalDemo() {
             id="commercial-summary-title"
           />
           <div className={styles.overviewBody}>
-            <p>{t.publicDemo.overviewBodyOne}</p>
-            <p>{t.publicDemo.overviewBodyTwo}</p>
+            <p>{copy(t.publicDemo.overviewBody)}</p>
+            <div className={styles.needAnalysis}>
+              <p className={styles.needLabel}>{t.publicDemo.needLabel}</p>
+              <p>{s.need.statement[locale]}</p>
+              <p>{s.need.reasoning[locale]}</p>
+            </div>
             <p className={styles.overviewHighlight}>{t.publicDemo.overviewHighlight}</p>
           </div>
         </div>
@@ -153,16 +194,12 @@ export function PublicSignalDemo() {
 
       <section className={`${styles.section} ${styles.sectionSubtle}`} aria-labelledby="volumes-title">
         <div className={styles.sectionInner}>
-          <SectionHeading
-            title={t.publicDemo.volumesTitle}
-            lead={t.publicDemo.volumesLead}
-            id="volumes-title"
-          />
+          <SectionHeading title={t.publicDemo.volumesTitle} lead={t.publicDemo.volumesLead} id="volumes-title" />
           <ul className={styles.volumeGrid}>
-            {quantities.map((quantity) => (
-              <li className={styles.volumeCard} key={quantity.sourceLabel}>
+            {quantities.map((quantity, index) => (
+              <li className={styles.volumeCard} key={`${quantity.sourceLabel}-${quantity.value}`}>
                 <span className={styles.volumeValue}>{quantity.value}</span>
-                <span className={styles.volumeLabel}>{quantity.label}</span>
+                <span className={styles.volumeLabel}>{quantityLabels[index]}</span>
                 <span className={styles.volumeSource}>{quantity.sourceLabel}</span>
               </li>
             ))}
@@ -173,22 +210,11 @@ export function PublicSignalDemo() {
 
       <section className={styles.section} aria-labelledby="opportunities-title">
         <div className={styles.sectionInner}>
-          <SectionHeading
-            title={t.publicDemo.opportunitiesTitle}
-            lead={t.publicDemo.opportunitiesLead}
-            id="opportunities-title"
-          />
+          <SectionHeading title={t.publicDemo.opportunitiesTitle} lead={t.publicDemo.opportunitiesLead} id="opportunities-title" />
           <div className={styles.opportunityGrid}>
             {opportunities.map((opportunity) => (
-              <Card
-                key={opportunity.title}
-                padding="lg"
-                as="article"
-                className={`${styles.opportunityCard} ${styles[`opportunity-${opportunity.tone}`]}`}
-              >
-                <Badge tone={opportunity.tone === 'strong' ? 'positive' : 'brand'}>
-                  {opportunity.strength}
-                </Badge>
+              <Card key={opportunity.title} padding="lg" as="article" className={styles.opportunityCard}>
+                <Badge tone="brand">{t.publicDemo.plausibleAngle}</Badge>
                 <h3 className={styles.cardTitle}>{opportunity.title}</h3>
                 <p className={styles.cardBody}>{opportunity.body}</p>
               </Card>
@@ -202,9 +228,7 @@ export function PublicSignalDemo() {
         <div className={`${styles.sectionInner} ${styles.matchingGrid}`}>
           <div className={styles.matchingIntro}>
             <p className={styles.eyebrowInverse}>{t.publicDemo.matchingEyebrow}</p>
-            <h2 className={styles.matchingTitle} id="matching-title">
-              {t.publicDemo.matchingTitle}
-            </h2>
+            <h2 className={styles.matchingTitle} id="matching-title">{t.publicDemo.matchingTitle}</h2>
             <p className={styles.matchingLead}>{t.publicDemo.matchingIntro}</p>
             <p className={styles.matchingConclusion}>{t.publicDemo.matchingConclusion}</p>
           </div>
@@ -227,7 +251,7 @@ export function PublicSignalDemo() {
           <SectionHeading title={t.publicDemo.timingTitle} id="timing-title" />
           <ol className={styles.timeline}>
             {timeline.map((item) => (
-              <li className={item.current ? styles.timelineCurrent : ''} key={item.label}>
+              <li key={item.label}>
                 <span className={styles.timelineMarker} aria-hidden="true" />
                 <span className={styles.timelineDate}>{item.date}</span>
                 <span className={styles.timelineLabel}>{item.label}</span>
@@ -236,37 +260,84 @@ export function PublicSignalDemo() {
           </ol>
           <div className={styles.timingExplanation}>
             <h3>{t.publicDemo.timingWhyTitle}</h3>
-            <p>{t.publicDemo.timingBody}</p>
+            <p>{copy(t.publicDemo.timingBody)}</p>
           </div>
         </div>
       </section>
 
-      <section className={`${styles.section} ${styles.sectionSubtle}`} aria-labelledby="action-title">
+      <section className={`${styles.section} ${styles.sectionSubtle}`} aria-labelledby="company-title">
+        <div className={styles.sectionInner}>
+          <SectionHeading title={t.publicDemo.companyTitle} lead={t.publicDemo.companyLead} id="company-title" />
+          <div className={styles.companyGrid}>
+            <Card padding="lg" as="article" className={styles.companyCard}>
+              <h3 className={styles.cardTitle}>{t.publicDemo.companyTedFactsTitle}</h3>
+              <DataList>
+                <DataRow label={t.publicDemo.companyLegalName}>{s.winner.legalName}</DataRow>
+                {s.winner.address ? <DataRow label={t.publicDemo.companyOfficialAddress}>{s.winner.address}</DataRow> : null}
+                <DataRow label={t.publicDemo.companyCountry}>{winnerCountry}</DataRow>
+                <DataRow label={t.publicDemo.companyIdentifier}>{s.winner.identifier.value}</DataRow>
+                <DataRow label={t.publicDemo.companyContract}>{s.contract.title}</DataRow>
+                <DataRow label={t.publicDemo.companyBuyer}>{s.buyer.legalName}</DataRow>
+              </DataList>
+              <ButtonExternalLink href={s.sourceUrl} variant="secondary">
+                {t.publicDemo.companyTedSource}
+                <span className="kivou-visually-hidden"> {t.publicDemo.externalNewTab}</span>
+              </ButtonExternalLink>
+            </Card>
+
+            <Card padding="lg" as="article" className={styles.companyCard}>
+              <h3 className={styles.cardTitle}>{t.publicDemo.companyContactTitle}</h3>
+              <p className={styles.companyIntro}>{t.publicDemo.companyContactIntro}</p>
+              <DataList>
+                {s.winner.website ? (
+                  <DataRow label={t.publicDemo.companyWebsite}>
+                    <a className={styles.externalTextLink} href={s.winner.website} target="_blank" rel="noopener noreferrer">
+                      {t.publicDemo.companyWebsiteLink}
+                      <span className="kivou-visually-hidden"> {t.publicDemo.externalNewTab}</span>
+                    </a>
+                  </DataRow>
+                ) : null}
+                {s.winner.phone ? <DataRow label={t.publicDemo.companyPhone}>{s.winner.phone}</DataRow> : null}
+                {s.winner.contactVerifiedAt ? (
+                  <DataRow label={t.publicDemo.companyContactVerified}>{date(s.winner.contactVerifiedAt)}</DataRow>
+                ) : null}
+                {s.winner.contactVerificationSource ? (
+                  <DataRow label={t.publicDemo.companyContactSource}>
+                    <a className={styles.externalTextLink} href={s.winner.contactVerificationSource} target="_blank" rel="noopener noreferrer">
+                      {t.publicDemo.companyContactSourceLink}
+                      <span className="kivou-visually-hidden"> {t.publicDemo.externalNewTab}</span>
+                    </a>
+                  </DataRow>
+                ) : null}
+              </DataList>
+            </Card>
+          </div>
+        </div>
+      </section>
+
+      <section className={styles.section} aria-labelledby="action-title">
         <div className={`${styles.sectionInner} ${styles.actionGrid}`}>
           <div className={styles.actionCopy}>
-            <SectionHeading
-              eyebrow={t.publicDemo.actionEyebrow}
-              title={t.publicDemo.actionTitle}
-              id="action-title"
-            />
+            <SectionHeading eyebrow={t.publicDemo.actionEyebrow} title={t.publicDemo.actionTitle} id="action-title" />
             <p>{t.publicDemo.actionBody}</p>
             <div className={styles.actions}>
-              <ButtonLink to="/signup" variant="primary" size="lg">
-                {t.publicDemo.actionPrimary}
-              </ButtonLink>
-              <ButtonLink to="/signup" variant="secondary" size="lg">
+              <ButtonLink to="/signup" variant="primary" size="lg">{t.publicDemo.actionPrimary}</ButtonLink>
+              <ButtonExternalLink href={s.sourceUrl} variant="secondary" size="lg">
                 {t.publicDemo.actionSecondary}
-              </ButtonLink>
+                <span className="kivou-visually-hidden"> {t.publicDemo.externalNewTab}</span>
+              </ButtonExternalLink>
             </div>
           </div>
-          <blockquote className={styles.outreachExample}>
-            <p className={styles.outreachLabel}>{t.publicDemo.actionExampleLabel}</p>
-            <p>{t.publicDemo.actionExample}</p>
-          </blockquote>
+          <Card padding="lg" className={styles.actionCard}>
+            <h3>{t.publicDemo.actionListTitle}</h3>
+            <ul className={styles.actionList}>
+              {actionItems.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </Card>
         </div>
       </section>
 
-      <section className={styles.section} aria-labelledby="evidence-title">
+      <section className={`${styles.section} ${styles.sectionSubtle}`} aria-labelledby="evidence-title">
         <div className={`${styles.sectionInner} ${styles.evidenceGrid}`}>
           <div className={styles.evidenceIntro}>
             <SectionHeading title={t.publicDemo.evidenceTitle} id="evidence-title" />
@@ -279,9 +350,9 @@ export function PublicSignalDemo() {
           </div>
           <Card className={styles.evidenceCard} padding="lg">
             <DataList>
-              <DataRow label={t.publicDemo.evidenceCpv} tabular>{s.contract.cpv}</DataRow>
-              <DataRow label={t.publicDemo.evidenceAmount} tabular>{exactAmount}</DataRow>
-              <DataRow label={t.publicDemo.evidenceLot} tabular>LOT-0000</DataRow>
+              {selectedEvidence.map((piece) => (
+                <DataRow key={piece.labelKey} label={t.publicDemo[piece.labelKey]} tabular>{piece.rawValue}</DataRow>
+              ))}
               <DataRow label={t.publicDemo.evidenceReference} tabular>{s.contract.reference}</DataRow>
               <DataRow label={t.publicDemo.evidenceIdentifier} tabular>{s.winner.identifier.value}</DataRow>
               <DataRow label={t.publicDemo.evidenceSignature} tabular>{date(s.timing.signatureDate)}</DataRow>
@@ -289,11 +360,12 @@ export function PublicSignalDemo() {
             <details className={styles.technical}>
               <summary className={styles.technicalSummary}>{t.publicDemo.evidenceTechnical}</summary>
               <DataList>
-                {s.evidence.map((piece) => (
-                  <DataRow
-                    key={piece.path}
-                    label={piece.pathKind === 'xml' ? t.publicDemo.evidencePathXml : t.publicDemo.evidencePathField}
-                  >
+                {selectedEvidence.map((piece) => (
+                  <DataRow key={piece.labelKey} label={t.publicDemo[piece.labelKey]}>
+                    <span className={styles.provenanceValue}>{piece.rawValue}</span>
+                    <span className={styles.provenanceKind}>
+                      {piece.pathKind === 'xml' ? t.publicDemo.evidencePathXml : t.publicDemo.evidencePathField}
+                    </span>
                     <span className={styles.path}>{piece.path}</span>
                   </DataRow>
                 ))}
@@ -311,12 +383,12 @@ export function PublicSignalDemo() {
             <summary>{t.publicDemo.coverageDetails}</summary>
             <DataList>
               <DataRow label={t.publicDemo.coverageEvent}>{t.publicDemo.statusVerified}</DataRow>
-              <DataRow label={t.publicDemo.coverageWinner}>{t.publicDemo.statusVerified}</DataRow>
-              <DataRow label={t.publicDemo.coverageAmountDates}>{t.publicDemo.statusVerified}</DataRow>
-              <DataRow label={t.publicDemo.coverageQuantities}>{t.publicDemo.statusVerifiedNotice}</DataRow>
-              <DataRow label={t.publicDemo.coverageRelevance}>{t.publicDemo.statusStrongCompatible}</DataRow>
-              <DataRow label={t.publicDemo.coverageNeeds}>{t.publicDemo.statusInferredVolumes}</DataRow>
-              <DataRow label={t.publicDemo.coverageDocumentary}>{t.publicDemo.statusPartial}</DataRow>
+              <DataRow label={t.publicDemo.coverageWinner}>{t.publicDemo.statusIdentified}</DataRow>
+              <DataRow label={t.publicDemo.coverageAmountDates}>{t.publicDemo.statusPublished}</DataRow>
+              <DataRow label={t.publicDemo.coverageQuantities}>{t.publicDemo.statusPublishedDescription}</DataRow>
+              <DataRow label={t.publicDemo.coverageNeeds}>{t.publicDemo.statusPlausible}</DataRow>
+              <DataRow label={t.publicDemo.coverageDocumentary}>{t.publicDemo.statusLimited}</DataRow>
+              <DataRow label={t.publicDemo.coverageMode}>{t.publicDemo.statusMetadata}</DataRow>
             </DataList>
           </details>
         </div>
@@ -328,12 +400,7 @@ export function PublicSignalDemo() {
           <p>{t.publicDemo.finalCtaBody}</p>
           <p className={styles.noCard}>{t.publicDemo.finalCtaNoCard}</p>
           <div className={`${styles.actions} ${styles.finalActions}`}>
-            <ButtonLink to="/signup" variant="primary" size="lg">
-              {t.publicDemo.finalCtaPrimary}
-            </ButtonLink>
-            <ButtonLink to="/#comment" variant="secondary" size="lg">
-              {t.publicDemo.finalCtaSecondary}
-            </ButtonLink>
+            <ButtonLink to="/signup" variant="primary" size="lg">{t.publicDemo.finalCtaPrimary}</ButtonLink>
           </div>
         </div>
       </section>

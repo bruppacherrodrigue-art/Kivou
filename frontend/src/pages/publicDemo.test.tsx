@@ -4,10 +4,11 @@ import userEvent from '@testing-library/user-event'
 
 import { AppRoutes } from '../App'
 import { landingHeroSignals } from '../content/landingHeroSignals'
-import { publicDemoSignal } from '../content/publicDemoSignal'
+import { publicDemoSignal, type PublicDemoSignal } from '../content/publicDemoSignal'
 import { en } from '../i18n/en'
 import { fr } from '../i18n/fr'
 import { CATALOGUE, mockApi, recordedCalls, renderApp, UNAUTHENTICATED } from '../test/harness'
+import { PublicSignalDemo } from './PublicSignalDemo'
 
 /* La démonstration publique doit vendre l'avance commerciale avant d'exposer
  * ses garde-fous. Ces tests verrouillent cet ordre sans jamais relâcher la
@@ -24,13 +25,9 @@ describe('démonstration publique de signal', () => {
     mockApi({ 'GET /me': { status: 401, body: { code: 'not_authenticated' } } })
     renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
 
-    expect(
-      await screen.findByRole('heading', {
-        level: 1,
-        name: 'H. Hüther GmbH vient de remporter un chantier de 5,22 M€ à Munich',
-      }),
-    ).toBeInTheDocument()
-    expect(screen.getByText('Contrat signé. Exécution à venir. Moment pertinent pour se positionner.')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(
+      publicDemoSignal.winner.legalName,
+    )
 
     // Aucune donnée de compte n'est demandée pour une surface publique.
     const clientRoutes = recordedCalls.filter((call) =>
@@ -53,9 +50,10 @@ describe('démonstration publique de signal', () => {
     mockApi({})
     renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
 
-    expect(await screen.findByText(publicDemoSignal.winner.legalName)).toBeInTheDocument()
-    expect(screen.getByText(publicDemoSignal.buyer.legalName)).toBeInTheDocument()
-    expect(screen.getByText('80335 München · Allemagne')).toBeInTheDocument()
+    expect((await screen.findAllByText(publicDemoSignal.winner.legalName)).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(publicDemoSignal.contract.title).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(publicDemoSignal.buyer.legalName).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(new RegExp(publicDemoSignal.contract.locality)).length).toBeGreaterThan(0)
 
     for (const source of screen.getAllByRole('link', { name: /preuve officielle|avis officiel/i })) {
       expect(source).toHaveAttribute('href', publicDemoSignal.sourceUrl)
@@ -72,10 +70,10 @@ describe('démonstration publique de signal', () => {
 
     const text = container.textContent ?? ''
     const markers = [
-      'Pourquoi ce prospect mérite votre attention',
+      'Pourquoi cette attribution mérite un examen commercial',
       'Opportunités commerciales associées',
-      'Pourquoi le timing est favorable',
-      'Transformez le signal en prise de contact',
+      'Calendrier publié du marché',
+      'Prochaine étape recommandée',
       'Les faits essentiels sont vérifiables',
       'Couverture de cette analyse',
     ]
@@ -90,90 +88,201 @@ describe('démonstration publique de signal', () => {
     renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
     await screen.findByRole('heading', { level: 1 })
 
-    for (const [value, label, source] of [
-      ['497', 'Huisseries et portes bois', 'Holzzarge Holzblatt'],
-      ['234', 'Huisseries acier et portes bois', 'Stahlzarge Holzblatt'],
-      ['5 485 m', 'Plinthes', 'Sockelleisten'],
-      ['425 m²', 'Revêtement mural bois', 'Holzwandverkleidung'],
-      ['24', 'Éléments vitrés', 'Verglasungen'],
-      ['13', 'Kitchenettes', 'Teeküchen'],
-    ]) {
+    for (const publishedQuantity of publicDemoSignal.contract.publishedQuantities) {
+      const [source, value] = publishedQuantity.split(' : ')
       expect(screen.getByText(value)).toBeInTheDocument()
-      expect(screen.getByText(label)).toBeInTheDocument()
       expect(screen.getByText(source)).toBeInTheDocument()
     }
-    expect(screen.getByText(/ne sont pas présentées comme un extrait de cahier des charges/i)).toBeInTheDocument()
+    expect(screen.getByText(publicDemoSignal.need.statement.fr)).toBeInTheDocument()
+    expect(screen.getByText(publicDemoSignal.need.reasoning.fr)).toBeInTheDocument()
   })
 
-  it('expose quatre angles commerciaux qualifiés une seule fois comme inférences', async () => {
+  it('qualifie tous les angles comme plausibles, sans transformer les volumes en achats', async () => {
     mockApi({})
     const { container } = renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
     await screen.findByRole('heading', { level: 1 })
     const text = container.textContent ?? ''
 
-    for (const title of [
-      'Portes, huisseries et quincaillerie',
-      'Plinthes et produits bois',
-      'Vitrage',
-      'Kitchenettes et agencement',
-    ]) {
-      expect(screen.getByRole('heading', { level: 3, name: title })).toBeInTheDocument()
-    }
-    expect((text.match(/pas des achats futurs confirmés/g) ?? [])).toHaveLength(1)
+    expect(screen.getAllByText('Angle commercial plausible')).toHaveLength(4)
+    expect((text.match(/ne constituent pas des achats futurs confirmés/g) ?? [])).toHaveLength(1)
+    expect(text).not.toMatch(/signal fort|signal ciblé|besoin opérationnel clairement associé/i)
+    expect(text).not.toMatch(/quincaillerie/i)
   })
 
-  it('montre le matching, la chronologie et une prochaine action sans inventer de décideur', async () => {
+  it('présente le matching comme une illustration et jamais comme le profil calculé du visiteur', async () => {
     mockApi({})
     const { container } = renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
     await screen.findByRole('heading', { level: 1 })
     const text = container.textContent ?? ''
 
-    for (const item of [
-      'votre offre correspond aux catégories publiées',
-      'les volumes sont suffisamment importants pour justifier une prospection',
-      'la zone d’exécution se trouve dans votre territoire commercial',
-      'l’exécution n’a pas encore commencé',
-    ]) {
-      expect(screen.getByText(item)).toBeInTheDocument()
-    }
-    expect(text).toContain('Maintenant')
-    expect(text).toContain('28 octobre 2026')
-    expect(text).toContain('identifier le responsable achats, approvisionnement, travaux ou opérations')
-    expect(text).not.toMatch(/responsable\s+[A-ZÀ-Ý][a-zà-ÿ]+\s+[A-ZÀ-Ý][a-zà-ÿ]+/)
-  })
-
-  it('relègue les limites après la preuve sans badge global de confiance réduite', async () => {
-    mockApi({})
-    const { container } = renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
-    await screen.findByRole('heading', { level: 1 })
-    const text = container.textContent ?? ''
-
-    expect(text.indexOf('Les faits essentiels sont vérifiables')).toBeLessThan(
-      text.indexOf('Couverture de cette analyse'),
+    expect(text).toContain(
+      'Illustration publique : dans Kivou, la pertinence est calculée selon ce que vous vendez, vos secteurs cibles et les territoires où vous intervenez.',
     )
-    expect(text).toContain('Aucun cahier des charges complet validé n’a été utilisé')
-    expect(text).toContain('Couverture documentaire')
-    expect(text).toContain('Partielle')
-    expect(text).not.toMatch(/confiance réduite/i)
+    expect(text).toContain('il ne présente pas une correspondance calculée pour le visiteur')
+    expect(text).not.toContain('votre offre correspond aux catégories publiées')
+    expect(text).not.toContain('la zone d’exécution se trouve dans votre territoire commercial')
+    expect(text).not.toContain('l’entreprise gagnante correspond à votre cible')
   })
 
-  it('relie tous les CTA aux parcours existants', async () => {
+  it('affiche les cinq dates absolues sans maintenant ni qualification automatique du timing', async () => {
+    mockApi({})
+    const { container } = renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
+    await screen.findByRole('heading', { level: 1 })
+    const text = container.textContent ?? ''
+    const timingSection = screen.getByRole('heading', { name: 'Calendrier publié du marché' }).closest('section')!
+
+    for (const value of Object.values(publicDemoSignal.timing)) {
+      const formatted = new Intl.DateTimeFormat('fr-FR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }).format(new Date(value))
+      expect(text).toContain(formatted)
+    }
+    expect(within(timingSection).getAllByRole('listitem')).toHaveLength(5)
+    for (const label of [
+      'Marché attribué',
+      'Marché signé',
+      'Avis officiel publié',
+      'Début prévu de l’exécution',
+      'Fin prévue de l’exécution',
+    ]) {
+      expect(within(timingSection).getByText(label)).toBeInTheDocument()
+    }
+    expect(text).not.toMatch(/maintenant|timing favorable|attribution récente|fenêtre de prospection est ouverte/i)
+    expect(text).toContain('L’exécution est prévue à partir du 28 octobre 2026')
+  })
+
+  it('affiche l’entreprise identifiée et distingue TED des coordonnées du site public', async () => {
     mockApi({})
     renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
     await screen.findByRole('heading', { level: 1 })
 
-    for (const name of [
-      'Voir mes 3 signaux',
-      'Recevoir des signaux adaptés à mon activité',
-      'Créer mon profil de ciblage',
-      'Voir mes 3 premiers signaux',
+    const companySection = screen.getByRole('heading', { name: 'Entreprise identifiée' }).closest('section')!
+    for (const value of [
+      publicDemoSignal.winner.legalName,
+      publicDemoSignal.winner.address,
+      publicDemoSignal.winner.identifier.value,
+      publicDemoSignal.contract.title,
+      publicDemoSignal.buyer.legalName,
+      publicDemoSignal.winner.phone!,
     ]) {
-      expect(screen.getByRole('link', { name })).toHaveAttribute('href', '/signup')
+      expect(within(companySection).getAllByText(value).length).toBeGreaterThan(0)
     }
-    expect(screen.getByRole('link', { name: 'Comment Kivou sélectionne mes prospects' })).toHaveAttribute(
-      'href',
-      '/#comment',
-    )
+    expect(within(companySection).getByText('Faits issus de l’avis TED')).toBeInTheDocument()
+    expect(within(companySection).getByText('Coordonnées vérifiées sur le site public de l’entreprise')).toBeInTheDocument()
+    const companyLinks = [
+      within(companySection).getByRole('link', { name: /site internet/i }),
+      within(companySection).getByRole('link', { name: /source de vérification/i }),
+    ]
+    expect(companyLinks[0]).toHaveAttribute('href', publicDemoSignal.winner.website!)
+    expect(companyLinks[1]).toHaveAttribute('href', publicDemoSignal.winner.contactVerificationSource!)
+    for (const link of companyLinks) {
+      expect(link).toHaveAttribute('target', '_blank')
+      expect(link.getAttribute('rel')).toContain('noopener')
+      expect(link.getAttribute('rel')).toContain('noreferrer')
+    }
+    expect(companySection.textContent).not.toMatch(/e-mail|linkedin|responsable achats/i)
+  })
+
+  it('retire la prospection simulée et ne propose que les actions réellement disponibles', async () => {
+    mockApi({})
+    const { container } = renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
+    await screen.findByRole('heading', { level: 1 })
+    const text = container.textContent ?? ''
+
+    expect(text).not.toContain('Exemple d’angle commercial')
+    expect(text).not.toContain('Nous avons identifié le marché')
+    expect(text).not.toMatch(/identifier le responsable|préparer le contact|générer.*message|sauvegarder.*crm/i)
+    expect(screen.getAllByRole('link', { name: 'Voir mes 3 premiers signaux' }).length).toBeGreaterThan(0)
+    for (const signup of screen.getAllByRole('link', { name: 'Voir mes 3 premiers signaux' })) {
+      expect(signup).toHaveAttribute('href', '/signup')
+    }
+    const official = screen.getAllByRole('link', { name: /avis officiel/i })
+    expect(official.length).toBeGreaterThan(0)
+    for (const source of official) {
+      expect(source).toHaveAttribute('href', publicDemoSignal.sourceUrl)
+      expect(source).toHaveAttribute('target', '_blank')
+      expect(source.getAttribute('rel')).toContain('noopener')
+      expect(source.getAttribute('rel')).toContain('noreferrer')
+    }
+  })
+
+  it('utilise les rawValue des trois preuves et garde les chemins techniques repliés', async () => {
+    mockApi({})
+    renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
+    await screen.findByRole('heading', { level: 1 })
+    const evidence = screen.getByRole('heading', { name: 'Les faits essentiels sont vérifiables' }).closest('section')!
+
+    for (const piece of publicDemoSignal.evidence) {
+      expect(within(evidence).getAllByText(piece.rawValue).length).toBeGreaterThan(0)
+    }
+    const details = within(evidence).getByText('Voir les détails techniques de provenance').closest('details')!
+    expect(details.open).toBe(false)
+    for (const piece of publicDemoSignal.evidence) {
+      expect(within(details).getByText(piece.path)).toBeInTheDocument()
+      expect(within(details).getByText(piece.rawValue)).toBeInTheDocument()
+    }
+  })
+
+  it('relègue une seule limite documentaire précise après l’action et la preuve', async () => {
+    mockApi({})
+    const { container } = renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
+    await screen.findByRole('heading', { level: 1 })
+    const text = container.textContent ?? ''
+    const action = text.indexOf('Prochaine étape recommandée')
+    const evidence = text.indexOf('Les faits essentiels sont vérifiables')
+    const coverage = text.indexOf('Couverture de cette analyse')
+
+    expect(action).toBeGreaterThanOrEqual(0)
+    expect(action).toBeLessThan(evidence)
+    expect(evidence).toBeLessThan(coverage)
+    expect((text.match(/Aucun cahier des charges validé n’alimente cette démonstration/g) ?? [])).toHaveLength(1)
+    expect(text).toContain('Besoin commercialPlausible')
+    expect(text).toContain('Couverture documentaireLimitée')
+    expect(text).toContain('Mode d’analyseMétadonnées de l’avis')
+    expect(text).not.toMatch(/partielle|confiance réduite/i)
+  })
+
+  it('construit les faits depuis la fixture et non depuis les dictionnaires', async () => {
+    const variant: PublicDemoSignal = {
+      ...publicDemoSignal,
+      winner: { ...publicDemoSignal.winner, legalName: 'Fixture Projection GmbH' },
+      contract: {
+        ...publicDemoSignal.contract,
+        locality: 'Teststadt',
+        amount: '1234567.89',
+      },
+      timing: { ...publicDemoSignal.timing, startDate: '2028-01-02' },
+      evidence: publicDemoSignal.evidence.map((piece) =>
+        piece.labelKey === 'evidenceLot' ? { ...piece, rawValue: 'LOT-FIXTURE-42' } : piece,
+      ),
+    }
+    mockApi({})
+    renderApp(<PublicSignalDemo signal={variant} />, { route: '/exemple-de-signal' })
+
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent('Fixture Projection GmbH')
+    expect(screen.getAllByText(/Teststadt/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(/2 janvier 2028/).length).toBeGreaterThan(0)
+    expect(screen.getAllByText('LOT-FIXTURE-42').length).toBeGreaterThan(0)
+    expect(screen.queryByText('LOT-0000')).not.toBeInTheDocument()
+
+    const dictionaries = JSON.stringify({ fr: fr.publicDemo, en: en.publicDemo })
+    for (const forbiddenFact of [
+      publicDemoSignal.winner.legalName,
+      publicDemoSignal.contract.amount,
+      publicDemoSignal.contract.locality,
+      publicDemoSignal.contract.reference,
+      publicDemoSignal.contract.title,
+      publicDemoSignal.winner.address,
+      publicDemoSignal.winner.identifier.value,
+      '5,22 M€',
+      '€5.22m',
+      '28 octobre 2026',
+      '28 October 2026',
+    ]) {
+      expect(dictionaries).not.toContain(forbiddenFact)
+    }
   })
 })
 
@@ -227,8 +336,8 @@ describe('hero de la page d’accueil', () => {
     // Ne pas en faire le message du hero ne veut pas dire la masquer : elle
     // doit rester entière là où elle éclaire.
     expect(text).toContain('Couverture de cette analyse')
-    expect(text).toContain('Aucun cahier des charges complet validé')
-    expect(text.indexOf('Contrat signé. Exécution à venir.')).toBeLessThan(
+    expect(text).toContain('Aucun cahier des charges validé n’alimente cette démonstration')
+    expect(text.indexOf('Attribution publiée. Volumes documentés. Entreprise identifiée.')).toBeLessThan(
       text.indexOf('Couverture de cette analyse'),
     )
   })
@@ -245,9 +354,9 @@ describe('hero de la page d’accueil', () => {
     const demo = renderApp(<AppRoutes />, { route: '/exemple-de-signal', locale: 'en' })
     await screen.findByRole('heading', { level: 1 })
     const text = demo.container.textContent ?? ''
-    expect(text).toContain('Contract signed. Performance ahead. A relevant time to engage.')
+    expect(text).toContain('Published award. Documented volumes. Identified company.')
     expect(text).toContain('Coverage of this analysis')
-    expect(text.indexOf('Contract signed. Performance ahead.')).toBeLessThan(
+    expect(text.indexOf('Published award. Documented volumes. Identified company.')).toBeLessThan(
       text.indexOf('Coverage of this analysis'),
     )
   })
@@ -269,7 +378,7 @@ describe('hero de la page d’accueil', () => {
     const card = screen
       .getByRole('heading', { level: 2, name: landingHeroSignals[0].headline.fr })
       .closest('article')!
-    expect(within(card).getByText(fr.landing.heroCarousel.opportunityLabel)).toBeInTheDocument()
+    expect(within(card).getAllByText(fr.landing.heroCarousel.opportunityLabel).length).toBeGreaterThan(0)
     expect(within(card).getByText(landingHeroSignals[0].opportunity.fr)).toBeInTheDocument()
     expect(card).not.toHaveTextContent(/va acheter|achat garanti/i)
   })
@@ -308,7 +417,7 @@ describe('données de démonstration', () => {
       },
       buyer: { legalName: 'Staatl. Bauamt München 1' },
       contract: {
-        title: 'Tischlerarbeiten Innentüren und Möbel',
+        title: 'Tischlerarbeiten Innentueren und Moebel',
         reference: '26-000.723.722',
         cpv: '45420000',
         amount: '5219043.35',
@@ -392,38 +501,32 @@ describe('localisation de la démonstration', () => {
 
     // Français d'abord — l'état de départ doit être vérifié, sinon la bascule
     // pourrait passer alors que rien n'a jamais été français.
-    expect(
-      await screen.findByRole('heading', {
-        level: 1,
-        name: 'H. Hüther GmbH vient de remporter un chantier de 5,22 M€ à Munich',
-      }),
-    ).toBeInTheDocument()
-    expect(screen.getByText('Pourquoi ce prospect mérite votre attention')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(
+      publicDemoSignal.winner.legalName,
+    )
+    expect(screen.getByText('Pourquoi cette attribution mérite un examen commercial')).toBeInTheDocument()
 
     // Bascule RÉELLE de la locale, par le sélecteur de l'interface.
     await user.click(screen.getByRole('button', { name: 'EN' }))
 
-    expect(
-      await screen.findByRole('heading', {
-        level: 1,
-        name: 'H. Hüther GmbH has just won a €5.22m contract in Munich',
-      }),
-    ).toBeInTheDocument()
-    expect(screen.getByText('Why this prospect deserves your attention')).toBeInTheDocument()
-    expect(screen.queryByText('Pourquoi ce prospect mérite votre attention')).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1 })).toHaveTextContent(
+      publicDemoSignal.winner.legalName,
+    )
+    expect(screen.getByText('Why this award merits a commercial review')).toBeInTheDocument()
+    expect(screen.queryByText('Pourquoi cette attribution mérite un examen commercial')).not.toBeInTheDocument()
   })
 
   it('laisse les faits sources dans leur forme d’origine après bascule', async () => {
     mockApi({})
     renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
     const user = userEvent.setup()
-    await screen.findByText(publicDemoSignal.winner.legalName)
+    await screen.findAllByText(publicDemoSignal.winner.legalName)
 
     await user.click(screen.getByRole('button', { name: 'EN' }))
 
     // Un nom d'entreprise ne se traduit pas.
-    expect(await screen.findByText(publicDemoSignal.winner.legalName)).toBeInTheDocument()
-    expect(screen.getByText(publicDemoSignal.contract.title)).toBeInTheDocument()
+    expect((await screen.findAllByText(publicDemoSignal.winner.legalName)).length).toBeGreaterThan(0)
+    expect(screen.getAllByText(publicDemoSignal.contract.title).length).toBeGreaterThan(0)
   })
 })
 
@@ -451,9 +554,9 @@ describe('promesse de preuve', () => {
     await screen.findByRole('heading', { level: 1 })
 
     const evidence = screen.getByText('Les faits essentiels sont vérifiables').closest('section')!
-    expect(within(evidence).getByText('Montant exact')).toBeInTheDocument()
-    expect(within(evidence).getByText('Code CPV')).toBeInTheDocument()
-    expect(within(evidence).getByText('Référence du lot')).toBeInTheDocument()
+    expect(within(evidence).getAllByText('Montant exact').length).toBeGreaterThan(0)
+    expect(within(evidence).getAllByText('Code CPV').length).toBeGreaterThan(0)
+    expect(within(evidence).getAllByText('Référence du lot').length).toBeGreaterThan(0)
 
     // Repliés par défaut : ils servent à l'audit, pas à la lecture.
     const details = screen.getByText('Voir les détails techniques de provenance').closest('details')!

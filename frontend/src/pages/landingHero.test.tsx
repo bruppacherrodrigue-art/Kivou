@@ -138,6 +138,11 @@ describe('hero de la page d’accueil', () => {
       ),
     ).toBe(true)
     expect(new Set(landingHeroSignals.map((signal) => signal.sourceNotice)).size).toBe(4)
+    const publicProjection = JSON.stringify(landingHeroSignals)
+    expect(publicProjection).not.toMatch(/acquisition engine|target_icp|score|band|locked|lead|email/i)
+    expect(publicProjection).not.toMatch(/récent|recent|maintenant|now|timing favorable|favourable timing/i)
+    expect(landingHeroSignals.every((signal) => signal.strength.fr === 'Angle commercial plausible')).toBe(true)
+    expect(landingHeroSignals.every((signal) => signal.strength.en === 'Plausible sales angle')).toBe(true)
   })
 
   it('navigue avec les flèches, les indicateurs et le clavier sans déplacer le H1', () => {
