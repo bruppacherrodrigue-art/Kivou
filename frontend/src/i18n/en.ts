@@ -315,6 +315,11 @@ export const en: Dictionary = {
     overLimitBadge: 'Beyond your plan limit',
     overLimitHelp:
       'This profile is kept but no longer feeds your stream. Move to a higher plan to include it in your stream again.',
+    territoryLimitedBadge: 'Limited by your plan',
+    territoryLimitedHelpOne:
+      'This profile keeps its territories, but it does not feed your stream. Select no more than {limit} territory to reactivate it.',
+    territoryLimitedHelpOther:
+      'This profile keeps its territories, but it does not feed your stream. Select no more than {limit} territories to reactivate it.',
     offersLabel: 'What you sell',
     tradesLabel: 'Trades targeted',
     territoriesLabel: 'Territories',
@@ -651,6 +656,13 @@ export const en: Dictionary = {
     notFoundTitle: 'Page not found',
     notFoundBody: 'This address does not match any Kivou page.',
     targetIcpNotFound: 'This target profile could not be found.',
+    territoryLimitTitle: 'Territory limit reached',
+    territoryLimitBodyOne:
+      'Your plan allows {limit} territory per profile. Reduce your selection to save this target profile.',
+    territoryLimitBodyOther:
+      'Your plan allows {limit} territories per profile. Reduce your selection to save this target profile.',
+    territoryLimitBodyFallback:
+      'Your selection exceeds your plan territory limit. Reduce it to save this target profile.',
     filterNotEntitled:
       'This filter requires a higher plan. Your stream is still shown without it.',
     signalNotAccessible: 'This signal must be unlocked before it can be judged.',

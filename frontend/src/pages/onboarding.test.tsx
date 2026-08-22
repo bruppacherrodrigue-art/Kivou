@@ -330,6 +330,39 @@ describe('onboarding', () => {
     expect(callsTo('/target-icps')).toHaveLength(1)
     expect(callsTo('/me')).toHaveLength(0)
   })
+
+  it('reste sur la relecture et affiche la limite territoriale fournie par le serveur', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      ...ACTIVATED_ROUTES,
+      'POST /target-icps': {
+        status: 422,
+        body: {
+          detail: {
+            code: 'territory_limit_exceeded',
+            limit: 1,
+            territory_count: 2,
+            plan_code: 'discovery',
+          },
+        },
+      },
+    })
+    renderApp(<AppRoutes />, {
+      session: { status: 'authenticated', me: INCOMPLETE_ME },
+      route: '/onboarding',
+    })
+
+    await fillTargeting(user)
+    await user.click(screen.getByRole('button', { name: 'Créer mon profil et voir mes signaux' }))
+
+    expect(await screen.findByText('Limite territoriale atteinte')).toBeInTheDocument()
+    expect(document.body).toHaveTextContent(
+      'Votre offre autorise 1 territoire par profil. Réduisez votre sélection pour enregistrer ce ciblage.',
+    )
+    expect(screen.getByRole('heading', { name: 'Vérifier votre ciblage' })).toBeInTheDocument()
+    expect(callsTo('/target-icps')).toHaveLength(1)
+    expect(callsTo('/me')).toHaveLength(0)
+  })
 })
 
 describe('succès partiel — ciblage enregistré, session non relue', () => {
@@ -478,6 +511,39 @@ describe('gestion des profils', () => {
     expect(await screen.findByText('Something went wrong')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Edit profile' })).toBeInTheDocument()
     expect(screen.queryByText(/Une erreur|Réessayer|Modifier le profil/)).not.toBeInTheDocument()
+  })
+
+  it('localise en anglais la limite territoriale renvoyée à la modification', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /target-icps': { body: [ICP] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      'PATCH /target-icps/icp_1': {
+        status: 422,
+        body: {
+          detail: {
+            code: 'territory_limit_exceeded',
+            limit: 1,
+            territory_count: 2,
+            plan_code: 'discovery',
+          },
+        },
+      },
+    })
+    renderApp(<AppRoutes />, {
+      session: { status: 'authenticated', me: { ...ME, locale: 'en' } },
+      route: '/app/icps',
+      locale: 'en',
+    })
+
+    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByText('Territory limit reached')).toBeInTheDocument()
+    expect(document.body).toHaveTextContent(
+      'Your plan allows 1 territory per profile. Reduce your selection to save this target profile.',
+    )
+    expect(screen.queryByText(/Limite|Votre offre|territoire par profil/)).not.toBeInTheDocument()
   })
 
   it('localise les territoires, formate le seuil et affiche la description enregistrée', async () => {
@@ -675,5 +741,33 @@ describe('gestion des profils', () => {
     const list = screen.getByText('Location — Suisse').closest('article')!
     expect(within(list).getByRole('button', { name: 'Modifier' })).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent(/désactivez|supprimez/i)
+  })
+
+  it('signale un profil limité territorialement sans tronquer sa saisie', async () => {
+    const limited = {
+      ...ICP,
+      customer_input: {
+        ...ICP.customer_input,
+        territories: ['CH', 'FR'],
+      },
+      plan_limit: {
+        code: 'territory_limit_exceeded',
+        limit: 1,
+        territory_count: 2,
+      },
+    }
+    mockApi({
+      'GET /target-icps': { body: [limited] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
+
+    const card = (await screen.findByText('Matériaux — Occitanie')).closest('article')!
+    expect(within(card).getByText('Limité par votre offre')).toBeInTheDocument()
+    expect(within(card).getByText('Territoires').closest('div')).toHaveTextContent('Suisse, France')
+    expect(card).toHaveTextContent(
+      'Ce profil conserve ses territoires, mais il n’alimente pas votre flux. Sélectionnez au maximum 1 territoire pour le réactiver.',
+    )
+    expect(within(card).queryByRole('button', { name: /supprimer/i })).not.toBeInTheDocument()
   })
 })

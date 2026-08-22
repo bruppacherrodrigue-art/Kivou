@@ -40,7 +40,7 @@ COMPLETE_INPUT = {
     "offer_summary": "Négoce de matériaux de gros œuvre livrés sur chantier",
     "offers": ["materials_and_components"],
     "buyer_trades": ["building_construction", "interior_finishing"],
-    "territories": ["CH", "FR"],
+    "territories": ["CH"],
     "minimum_contract_value": {"currency": "CHF", "minimum_amount": 100000},
 }
 
@@ -260,7 +260,7 @@ def test_an_unknown_customer_field_is_refused_rather_than_ignored(alice: TestCli
 
 
 def test_a_complete_input_translates_into_a_valid_engine_profile():
-    customer_input = TargetIcpInput.model_validate(COMPLETE_INPUT)
+    customer_input = TargetIcpInput.model_validate({**COMPLETE_INPUT, "territories": ["CH", "FR"]})
     profile = to_target_icp(customer_input, target_icp_id="ticp_test", label="Intrants")
 
     assert profile.icp_id == "ticp_test"

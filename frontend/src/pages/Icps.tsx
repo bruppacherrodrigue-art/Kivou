@@ -181,6 +181,7 @@ function IcpSummary({
       )
     : null
   const offerSummary = input.offer_summary.trim()
+  const territoryPlanLimit = profile.plan_limit
 
   return (
     <Card padding="md" as="article" className={styles.card}>
@@ -191,6 +192,9 @@ function IcpSummary({
             {ready ? t.onboarding.statusReady : t.onboarding.statusIncomplete}
           </Badge>
           {overLimit ? <Badge tone="warm">{t.icp.overLimitBadge}</Badge> : null}
+          {territoryPlanLimit ? (
+            <Badge tone="warm">{t.icp.territoryLimitedBadge}</Badge>
+          ) : null}
         </div>
       </div>
 
@@ -199,6 +203,17 @@ function IcpSummary({
       ) : null}
 
       {overLimit ? <p className={styles.overLimitHelp}>{t.icp.overLimitHelp}</p> : null}
+
+      {territoryPlanLimit ? (
+        <p className={styles.overLimitHelp}>
+          {interpolate(
+            territoryPlanLimit.limit === 1
+              ? t.icp.territoryLimitedHelpOne
+              : t.icp.territoryLimitedHelpOther,
+            { limit: territoryPlanLimit.limit },
+          )}
+        </p>
+      ) : null}
 
       <dl className={styles.summary}>
         <div>

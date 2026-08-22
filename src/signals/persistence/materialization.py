@@ -252,7 +252,15 @@ def content_fingerprint(payload: dict[str, Any]) -> str:
     serialisable = {
         name: (value.isoformat() if isinstance(value, dt.date | dt.datetime) else value)
         for name, value in payload.items()
-        if name not in {"materialized_at", "created_at", "revision", "content_fingerprint"}
+        if name
+        not in {
+            "materialized_at",
+            "created_at",
+            "revision",
+            "content_fingerprint",
+            "invalidated_at",
+            "invalidation_reason",
+        }
     }
     encoded = json.dumps(serialisable, ensure_ascii=False, sort_keys=True, default=str)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
@@ -336,6 +344,7 @@ def materialize_signal(
     linked_to: Sequence[Any] = (),
     link_strength: str = "unresolved",
     engine_version_override: dict[str, str] | None = None,
+    target_icp_revision: int = 1,
 ) -> MaterializationResult:
     """Persiste un signal client à partir de résultats de moteur déjà calculés.
 
@@ -374,6 +383,9 @@ def materialize_signal(
         "opportunity_key": persisted.opportunity_key,
         "materialization_award_key": persisted.award_key,
         "target_icp_id": match.icp_id,
+        "target_icp_revision": target_icp_revision,
+        "invalidated_at": None,
+        "invalidation_reason": None,
         "materialized_recency_status": recency.status,
         "materialized_primary_event": mvp_event_type(recency.status),
         "materialized_award_clock_status": recency.award_clock.status,

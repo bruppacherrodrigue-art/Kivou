@@ -69,6 +69,15 @@ class TargetIcpNotFound(AccountError):
     code = "target_icp_not_found"
 
 
+class TerritoryLimitExceeded(AccountError):
+    code = "territory_limit_exceeded"
+
+    def __init__(self, *, limit: int, territory_count: int) -> None:
+        super().__init__(f"{territory_count} territoires pour une limite de {limit}")
+        self.limit = limit
+        self.territory_count = territory_count
+
+
 class PasswordResetDelivery(Protocol):
     """La frontière par où sortira un jour un e-mail transactionnel.
 
@@ -439,6 +448,9 @@ class StoredTargetIcp:
     account_id: str
     label: str
     status: str
+    matching_revision: int
+    plan_limit_code: str | None
+    plan_limited_at: dt.datetime | None
     customer_input: TargetIcpInput
     missing_fields: tuple[str, ...]
     created_at: dt.datetime
@@ -458,6 +470,78 @@ def _status_of(customer_input: TargetIcpInput, *, target_icp_id: str, label: str
     except (ValueError, TypeError):
         return "draft"
     return "active"
+
+
+def _matching_criteria(customer_input: TargetIcpInput) -> tuple[Any, ...]:
+    """La partie de l'entrée qui influence réellement `MatchingEngine`.
+
+    La description libre est explicitement inerte et l'ordre de cases cochées
+    ne change pas la sémantique du profil.
+    """
+    threshold = customer_input.minimum_contract_value
+    return (
+        tuple(sorted(set(customer_input.offers))),
+        tuple(sorted(set(customer_input.secondary_offers))),
+        tuple(sorted(set(customer_input.buyer_trades))),
+        tuple(sorted(set(customer_input.secondary_buyer_trades))),
+        tuple(sorted(set(customer_input.territories))),
+        None
+        if threshold is None
+        else (threshold.currency, threshold.minimum_amount, threshold.maximum_amount),
+    )
+
+
+def enforce_territory_limit(customer_input: TargetIcpInput, *, max_territories: int | None) -> None:
+    """Refuse une saisie trop large ; ne la tronque jamais."""
+    if max_territories is None:
+        return
+    territory_count = len(set(customer_input.territories))
+    if territory_count > max_territories:
+        raise TerritoryLimitExceeded(
+            limit=max_territories,
+            territory_count=territory_count,
+        )
+
+
+def reconcile_territory_plan_limits(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    max_territories: int | None,
+    now: dt.datetime,
+) -> tuple[str, ...]:
+    """Marque les profils rendus inutilisables par le plan sans toucher à leur saisie."""
+    rows = connection.execute(
+        sa.select(
+            target_icp.c.target_icp_id,
+            target_icp.c.status,
+            target_icp.c.customer_input,
+            target_icp.c.plan_limit_code,
+        ).where(target_icp.c.account_id == account_id)
+    ).all()
+    limited: list[str] = []
+    for row in rows:
+        customer_input = TargetIcpInput.model_validate(row.customer_input)
+        exceeds = (
+            row.status == "active"
+            and max_territories is not None
+            and len(set(customer_input.territories)) > max_territories
+        )
+        code = "territory_limit_exceeded" if exceeds else None
+        if exceeds:
+            limited.append(row.target_icp_id)
+        if row.plan_limit_code == code:
+            continue
+        connection.execute(
+            sa.update(target_icp)
+            .where(target_icp.c.target_icp_id == row.target_icp_id)
+            .values(
+                plan_limit_code=code,
+                plan_limited_at=now if code is not None else None,
+                updated_at=now,
+            )
+        )
+    return tuple(limited)
 
 
 def create_target_icp(
@@ -482,13 +566,27 @@ def create_target_icp(
             account_id=account_id,
             label=label.strip(),
             status=status,
+            matching_revision=1,
+            plan_limit_code=None,
+            plan_limited_at=None,
             customer_input=customer_input.model_dump(mode="json"),
             created_at=now,
             updated_at=now,
         )
     )
     _refresh_onboarding(connection, account_id=account_id, now=now)
-    return _stored(target_icp_id, account_id, label.strip(), status, customer_input, now, now)
+    return _stored(
+        target_icp_id,
+        account_id,
+        label.strip(),
+        status,
+        1,
+        None,
+        None,
+        customer_input,
+        now,
+        now,
+    )
 
 
 def get_target_icp(
@@ -530,10 +628,22 @@ def update_target_icp(
     now: dt.datetime,
 ) -> StoredTargetIcp:
     """Complète ou corrige un profil. Le statut est recalculé, jamais imposé."""
-    existing = get_target_icp(connection, account_id=account_id, target_icp_id=target_icp_id)
+    row = connection.execute(
+        sa.select(target_icp)
+        .where(
+            target_icp.c.target_icp_id == target_icp_id,
+            target_icp.c.account_id == account_id,
+        )
+        .with_for_update()
+    ).one_or_none()
+    if row is None:
+        raise TargetIcpNotFound("profil de ciblage introuvable")
+    existing = _row_to_stored(row)
     new_label = (label or existing.label).strip()
     new_input = customer_input if customer_input is not None else existing.customer_input
     status = _status_of(new_input, target_icp_id=target_icp_id, label=new_label)
+    criteria_changed = _matching_criteria(new_input) != _matching_criteria(existing.customer_input)
+    matching_revision = existing.matching_revision + int(criteria_changed)
     connection.execute(
         sa.update(target_icp)
         .where(
@@ -543,13 +653,23 @@ def update_target_icp(
         .values(
             label=new_label,
             status=status,
+            matching_revision=matching_revision,
             customer_input=new_input.model_dump(mode="json"),
             updated_at=now,
         )
     )
     _refresh_onboarding(connection, account_id=account_id, now=now)
     return _stored(
-        target_icp_id, account_id, new_label, status, new_input, existing.created_at, now
+        target_icp_id,
+        account_id,
+        new_label,
+        status,
+        matching_revision,
+        existing.plan_limit_code,
+        existing.plan_limited_at,
+        new_input,
+        existing.created_at,
+        now,
     )
 
 
@@ -558,6 +678,9 @@ def _stored(
     account_id: str,
     label: str,
     status: str,
+    matching_revision: int,
+    plan_limit_code: str | None,
+    plan_limited_at: dt.datetime | None,
     customer_input: TargetIcpInput,
     created_at: dt.datetime,
     updated_at: dt.datetime,
@@ -567,6 +690,9 @@ def _stored(
         account_id=account_id,
         label=label,
         status=status,
+        matching_revision=matching_revision,
+        plan_limit_code=plan_limit_code,
+        plan_limited_at=plan_limited_at,
         customer_input=customer_input,
         missing_fields=customer_input.missing_fields(),
         created_at=created_at,
@@ -581,6 +707,9 @@ def _row_to_stored(row: sa.Row) -> StoredTargetIcp:
         row.account_id,
         row.label,
         row.status,
+        row.matching_revision,
+        row.plan_limit_code,
+        _aware(row.plan_limited_at) if row.plan_limited_at is not None else None,
         customer_input,
         _aware(row.created_at),
         _aware(row.updated_at),

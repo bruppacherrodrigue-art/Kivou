@@ -1,5 +1,6 @@
 import { ApiError } from './client'
 import type { Dictionary } from '../i18n/fr'
+import { interpolate } from '../i18n'
 
 /* Traduire un code d'erreur backend en ÉTAT PRODUIT.
  *
@@ -33,6 +34,21 @@ export function describeError(error: unknown, t: Dictionary): ErrorCopy {
     case 'target_icp_not_found':
     case 'signal_not_found':
       return { title: t.errors.targetIcpNotFound }
+    case 'territory_limit_exceeded': {
+      const limit = typeof error.extra.limit === 'number' ? error.extra.limit : null
+      return {
+        title: t.errors.territoryLimitTitle,
+        body:
+          limit === null
+            ? t.errors.territoryLimitBodyFallback
+            : interpolate(
+                limit === 1
+                  ? t.errors.territoryLimitBodyOne
+                  : t.errors.territoryLimitBodyOther,
+                { limit },
+              ),
+      }
+    }
     case 'signal_not_accessible':
       return { title: t.errors.signalNotAccessible }
     case 'filter_not_entitled':

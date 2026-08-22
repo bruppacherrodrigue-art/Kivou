@@ -18,6 +18,7 @@ from signals.needs import NeedGraphEngine
 from signals.persistence import materialize_signal
 from signals.persistence.schema import (
     contract_award,
+    materialized_signal,
     opportunity_representation,
     source_event,
 )
@@ -32,25 +33,31 @@ class BackfillResult:
     candidates_available: int = 0
     candidates_evaluated: int = 0
     signals_materialized: int = 0
+    signals_invalidated: int = 0
     truncated: bool = False
 
 
-def _active_target(connection: sa.Connection, target_icp_id: str):
+def _target_state(connection: sa.Connection, target_icp_id: str):
     row = connection.execute(
         sa.select(
             target_icp.c.target_icp_id,
             target_icp.c.label,
             target_icp.c.status,
+            target_icp.c.matching_revision,
+            target_icp.c.plan_limit_code,
             target_icp.c.customer_input,
         ).where(target_icp.c.target_icp_id == target_icp_id)
     ).one_or_none()
-    if row is None or row.status != "active":
+    if row is None:
         return None
-    return to_target_icp(
-        TargetIcpInput.model_validate(row.customer_input),
-        target_icp_id=row.target_icp_id,
-        label=row.label,
-    )
+    profile = None
+    if row.status == "active" and row.plan_limit_code is None:
+        profile = to_target_icp(
+            TargetIcpInput.model_validate(row.customer_input),
+            target_icp_id=row.target_icp_id,
+            label=row.label,
+        )
+    return profile, row.matching_revision
 
 
 def _candidate_query(publication_floor: dt.date) -> sa.Select:
@@ -131,30 +138,72 @@ def materialize_existing_opportunities_for_target(
     max_candidates: int = CANDIDATE_SCAN_CAP,
 ) -> BackfillResult:
     """Evaluate a bounded persisted set; only the existing `show` may materialize."""
+    with engine.begin() as connection:
+        return rematerialize_target_in_transaction(
+            connection,
+            target_icp_id=target_icp_id,
+            as_of=as_of,
+            materialized_at=materialized_at,
+            max_candidates=max_candidates,
+        )
+
+
+def rematerialize_target_in_transaction(
+    connection: sa.Connection,
+    *,
+    target_icp_id: str,
+    as_of: dt.date,
+    materialized_at: dt.datetime,
+    max_candidates: int = CANDIDATE_SCAN_CAP,
+) -> BackfillResult:
+    """Réconcilie une révision ICP dans la transaction de son appelant.
+
+    Les opportunités déjà liées au profil sont toujours réévaluées, même si
+    elles sortent de la fenêtre bornée des nouveaux candidats. Cela permet de
+    décider explicitement si leur ancienne correspondance reste valable.
+    """
     if not 1 <= max_candidates <= CANDIDATE_SCAN_CAP:
-        raise ValueError(
-            f"max_candidates must be between 1 and {CANDIDATE_SCAN_CAP}"
-        )
-    with engine.connect() as connection:
-        profile = _active_target(connection, target_icp_id)
-        if profile is None:
-            return BackfillResult()
-        publication_floor = as_of - dt.timedelta(days=profile.maximum_signal_age_days)
-        candidates = _candidate_query(publication_floor).subquery()
-        available = connection.execute(
-            sa.select(sa.func.count()).select_from(candidates)
-        ).scalar_one()
-        keys = tuple(
-            connection.execute(
-                sa.select(candidates.c.opportunity_key)
-                .order_by(
-                    candidates.c.latest_publication.desc(),
-                    candidates.c.opportunity_key,
-                )
-                .limit(max_candidates)
-            ).scalars()
-        )
-        representatives = _representatives(connection, keys)
+        raise ValueError(f"max_candidates must be between 1 and {CANDIDATE_SCAN_CAP}")
+    state = _target_state(connection, target_icp_id)
+    if state is None:
+        return BackfillResult()
+    profile, matching_revision = state
+    if profile is None:
+        invalidated = connection.execute(
+            sa.update(materialized_signal)
+            .where(
+                materialized_signal.c.target_icp_id == target_icp_id,
+                materialized_signal.c.invalidated_at.is_(None),
+            )
+            .values(
+                invalidated_at=materialized_at,
+                invalidation_reason="target_icp_not_usable",
+            )
+        ).rowcount
+        return BackfillResult(signals_invalidated=invalidated)
+
+    publication_floor = as_of - dt.timedelta(days=profile.maximum_signal_age_days)
+    candidates = _candidate_query(publication_floor).subquery()
+    available = connection.execute(sa.select(sa.func.count()).select_from(candidates)).scalar_one()
+    recent_keys = tuple(
+        connection.execute(
+            sa.select(candidates.c.opportunity_key)
+            .order_by(
+                candidates.c.latest_publication.desc(),
+                candidates.c.opportunity_key,
+            )
+            .limit(max_candidates)
+        ).scalars()
+    )
+    existing_keys = tuple(
+        connection.execute(
+            sa.select(materialized_signal.c.opportunity_key).where(
+                materialized_signal.c.target_icp_id == target_icp_id
+            )
+        ).scalars()
+    )
+    keys = tuple(dict.fromkeys((*recent_keys, *existing_keys)))
+    representatives = _representatives(connection, keys)
 
     truncated = available > max_candidates
     if truncated:
@@ -182,28 +231,39 @@ def materialize_existing_opportunities_for_target(
             contract_notification_date=award.contract_notification_date,
             publication_date=_publication_date(event),
             discovered_at=(
-                event.provenance.retrieved_at.date()
-                if event.provenance.retrieved_at
-                else None
+                event.provenance.retrieved_at.date() if event.provenance.retrieved_at else None
             ),
             as_of=as_of,
         )
-        with engine.begin() as connection:
-            result = materialize_signal(
-                connection,
-                event=event,
-                award=award,
-                understanding=understanding,
-                needs=needs,
-                match=match,
-                recency=recency,
-                as_of=as_of,
-                materialized_at=materialized_at,
-            )
+        result = materialize_signal(
+            connection,
+            event=event,
+            award=award,
+            understanding=understanding,
+            needs=needs,
+            match=match,
+            recency=recency,
+            as_of=as_of,
+            materialized_at=materialized_at,
+            target_icp_revision=matching_revision,
+        )
         materialized += result.created or result.updated
+    invalidated = connection.execute(
+        sa.update(materialized_signal)
+        .where(
+            materialized_signal.c.target_icp_id == target_icp_id,
+            materialized_signal.c.target_icp_revision != matching_revision,
+            materialized_signal.c.invalidated_at.is_(None),
+        )
+        .values(
+            invalidated_at=materialized_at,
+            invalidation_reason="target_icp_criteria_changed",
+        )
+    ).rowcount
     return BackfillResult(
         candidates_available=available,
         candidates_evaluated=len(representatives),
         signals_materialized=materialized,
+        signals_invalidated=invalidated,
         truncated=truncated,
     )
