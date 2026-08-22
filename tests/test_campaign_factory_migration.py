@@ -17,6 +17,7 @@ from signals.persistence.schema import (
 COMPLIANCE = "0014_compliance"
 PREVIOUS = "0015_scheduled_cancellation"
 HEAD = "0016_campaign_factory"
+LATEST = "0017_target_icp_revision"
 TABLES = (
     acquisition_campaign,
     acquisition_campaign_member,
@@ -35,15 +36,16 @@ def test_campaign_migration_is_linear_and_adds_exactly_four_tables(tmp_path) -> 
 
     assert set(sa.inspect(engine).get_table_names()) - before == {table.name for table in TABLES}
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == [LATEST]
+    assert scripts.get_revision(LATEST).down_revision == HEAD
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
     assert scripts.get_revision(PREVIOUS).down_revision == COMPLIANCE
     versions = pathlib.Path(scripts.versions)
     assert (versions / "0015_scheduled_cancellation.py").is_file()
     assert (versions / "0016_campaign_factory.py").is_file()
+    assert (versions / "0017_target_icp_revision.py").is_file()
     assert not (versions / "0015_campaign_factory.py").exists()
     assert not any(path.name.startswith("0016_merge") for path in versions.glob("*.py"))
-    assert not any(path.name.startswith("0017") for path in versions.glob("*.py"))
 
 
 def test_fresh_database_reaches_0016_with_scheduled_cancellation_column(tmp_path) -> None:

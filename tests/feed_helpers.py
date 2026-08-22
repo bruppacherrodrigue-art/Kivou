@@ -49,7 +49,7 @@ RESEARCH_ICP_ID = "icp-construction-inputs-ch-eu-v0"
 COMPLETE_ICP_INPUT = {
     "offers": ["materials_and_components"],
     "buyer_trades": ["building_construction"],
-    "territories": ["CH", "FR"],
+    "territories": ["CH"],
     "minimum_contract_value": {"currency": "CHF", "minimum_amount": 1000},
 }
 

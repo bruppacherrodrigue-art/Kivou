@@ -219,6 +219,12 @@ materialized_signal = sa.Table(
     # SPEC-011 ajoutera `account` et `target_icp(account_id, …)` sans toucher
     # cette table ; aucun `account_id` fictif n'est anticipé ici.
     sa.Column("target_icp_id", sa.String(128), nullable=False, index=True),
+    # La version exacte du ciblage qui a produit cette correspondance. La ligne
+    # survit aux changements d'ICP ; seules les lectures courantes exigent
+    # qu'elle soit égale à `target_icp.matching_revision`.
+    sa.Column("target_icp_revision", sa.Integer, nullable=False),
+    sa.Column("invalidated_at", sa.DateTime(timezone=True), index=True),
+    sa.Column("invalidation_reason", sa.String(64)),
     # §7 — le signal logique ne bouge pas ; sa révision suit son contenu.
     sa.Column("revision", sa.Integer, nullable=False),
     # Closeout §4 — empreinte déterministe de la charge matérialisée. C'est elle
@@ -269,6 +275,7 @@ materialized_signal = sa.Table(
     sa.UniqueConstraint(
         "opportunity_key", "target_icp_id", name="uq_signal_opportunity_target_icp"
     ),
+    sa.CheckConstraint("target_icp_revision >= 1", name="ck_signal_target_icp_revision"),
 )
 
 

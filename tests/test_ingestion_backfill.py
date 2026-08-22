@@ -44,7 +44,7 @@ ACTIVE_INPUT = {
         "waste_and_environmental_services",
     ],
     "buyer_trades": [],
-    "territories": ["CH", "FR"],
+    "territories": ["FR"],
     "minimum_contract_value": {"currency": "EUR", "minimum_amount": 0},
 }
 

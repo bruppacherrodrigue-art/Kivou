@@ -321,7 +321,12 @@ export const fr = {
       'Votre offre {plan} autorise {limit} profil(s) actif(s). Les profils au-delà de cette limite n’alimentent plus votre flux.',
     overLimitBadge: 'Au-delà de la limite de votre offre',
     overLimitHelp:
-      'Ce profil est conservé mais n’alimente plus votre flux. Passez à une offre supérieure ou désactivez-en un autre.',
+      'Ce profil est conservé mais n’alimente plus votre flux. Passez à une offre supérieure pour le réintégrer au flux.',
+    territoryLimitedBadge: 'Limité par votre offre',
+    territoryLimitedHelpOne:
+      'Ce profil conserve ses territoires, mais il n’alimente pas votre flux. Sélectionnez au maximum {limit} territoire pour le réactiver.',
+    territoryLimitedHelpOther:
+      'Ce profil conserve ses territoires, mais il n’alimente pas votre flux. Sélectionnez au maximum {limit} territoires pour le réactiver.',
     offersLabel: 'Ce que vous vendez',
     tradesLabel: 'Corps de métier visés',
     territoriesLabel: 'Territoires',
@@ -662,6 +667,13 @@ export const fr = {
     notFoundTitle: 'Page introuvable',
     notFoundBody: 'Cette adresse ne correspond à aucune page de Kivou.',
     targetIcpNotFound: 'Ce profil de ciblage est introuvable.',
+    territoryLimitTitle: 'Limite territoriale atteinte',
+    territoryLimitBodyOne:
+      'Votre offre autorise {limit} territoire par profil. Réduisez votre sélection pour enregistrer ce ciblage.',
+    territoryLimitBodyOther:
+      'Votre offre autorise {limit} territoires par profil. Réduisez votre sélection pour enregistrer ce ciblage.',
+    territoryLimitBodyFallback:
+      'Votre sélection dépasse la limite territoriale de votre offre. Réduisez-la pour enregistrer ce ciblage.',
     filterNotEntitled:
       'Ce filtre demande une offre supérieure. Votre flux reste affiché sans ce filtre.',
     signalNotAccessible: 'Ce signal doit être déverrouillé avant de pouvoir être jugé.',

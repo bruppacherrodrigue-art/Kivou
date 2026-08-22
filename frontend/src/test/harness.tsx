@@ -470,6 +470,8 @@ export const ICP: TargetIcp = {
   target_icp_id: 'icp_1',
   label: 'Matériaux — Occitanie',
   status: 'active',
+  matching_revision: 1,
+  plan_limit: null,
   customer_input: {
     offer_summary: '',
     offers: ['materials_and_components'],

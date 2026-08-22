@@ -26,6 +26,7 @@ from typing import Any
 
 import sqlalchemy as sa
 
+from signals.accounts import service as account_service
 from signals.accounts.schema import account, auth_user, target_icp
 from signals.billing import catalogue
 from signals.billing.gateway import StripeGateway, StripeSubscriptionState
@@ -375,7 +376,9 @@ def synchronize_subscription(
                 billing_subscription_id=_identifier("bsub"), created_at=now, **values
             )
         )
-        return _fetch(connection, state.subscription_id), "created"
+        stored = _fetch(connection, state.subscription_id)
+        _reconcile_target_icp_territories(connection, stored=stored, now=now)
+        return stored, "created"
 
     previous = aware_datetime(existing.last_stripe_event_created_at)
     if event_created_at is not None and previous is not None and event_created_at < previous:
@@ -388,7 +391,9 @@ def synchronize_subscription(
         .where(billing_subscription.c.stripe_subscription_id == state.subscription_id)
         .values(**values)
     )
-    return _fetch(connection, state.subscription_id), "updated"
+    stored = _fetch(connection, state.subscription_id)
+    _reconcile_target_icp_territories(connection, stored=stored, now=now)
+    return stored, "updated"
 
 
 def _fetch(connection: sa.Connection, stripe_subscription_id: str) -> StoredSubscription:
@@ -398,6 +403,22 @@ def _fetch(connection: sa.Connection, stripe_subscription_id: str) -> StoredSubs
         )
     ).one()
     return _stored(row)
+
+
+def _reconcile_target_icp_territories(
+    connection: sa.Connection,
+    *,
+    stored: StoredSubscription,
+    now: dt.datetime,
+) -> tuple[str, ...]:
+    effective_plan = stored.plan_code if stored.grants_paid_access else "discovery"
+    entitlement = catalogue.entitlements_for(effective_plan)
+    return account_service.reconcile_territory_plan_limits(
+        connection,
+        account_id=stored.account_id,
+        max_territories=entitlement.max_territories_per_icp,
+        now=now,
+    )
 
 
 # ─── droits ───────────────────────────────────────────────────────────────────
@@ -584,7 +605,11 @@ def feedable_target_icps(
     """
     rows = connection.execute(
         sa.select(target_icp.c.target_icp_id)
-        .where(target_icp.c.account_id == account_id, target_icp.c.status == "active")
+        .where(
+            target_icp.c.account_id == account_id,
+            target_icp.c.status == "active",
+            target_icp.c.plan_limit_code.is_(None),
+        )
         .order_by(target_icp.c.created_at, target_icp.c.target_icp_id)
         .limit(max(0, limit))
     ).all()
@@ -595,7 +620,11 @@ def over_limit_icps(connection: sa.Connection, *, account_id: str, limit: int) -
     """Les ICP actifs au-delà du plafond du plan — à faire trancher par le client."""
     rows = connection.execute(
         sa.select(target_icp.c.target_icp_id)
-        .where(target_icp.c.account_id == account_id, target_icp.c.status == "active")
+        .where(
+            target_icp.c.account_id == account_id,
+            target_icp.c.status == "active",
+            target_icp.c.plan_limit_code.is_(None),
+        )
         .order_by(target_icp.c.created_at, target_icp.c.target_icp_id)
     ).all()
     return tuple(row.target_icp_id for row in rows[max(0, limit) :])

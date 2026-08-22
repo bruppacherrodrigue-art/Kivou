@@ -22,8 +22,10 @@ from typing import Any, Literal
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from signals.accounts import service as account_service
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
+from signals.billing import service as billing_service
 from signals.billing.access import feed_access
 from signals.engagement import feedback
 from signals.engagement.schema import MAXIMUM_NOTE_LENGTH
@@ -64,12 +66,29 @@ def _accessible_signal(connection, session, signal_key: str, now: dt.datetime):
     cacher l'empêcherait de comprendre ce qu'un paiement débloquerait.
     """
     as_of = now.date()
+    access = feed_access(connection, account_id=session.account_id, as_of=as_of)
+    account_service.reconcile_territory_plan_limits(
+        connection,
+        account_id=session.account_id,
+        max_territories=access.entitlements.max_territories_per_icp,
+        now=now,
+    )
+    allowed = frozenset(
+        billing_service.feedable_target_icps(
+            connection,
+            account_id=session.account_id,
+            limit=access.entitlements.max_active_icps,
+        )
+    )
     item = feed_query.owned_signal(
-        connection, account_id=session.account_id, signal_key=signal_key, as_of=as_of
+        connection,
+        account_id=session.account_id,
+        signal_key=signal_key,
+        as_of=as_of,
+        allowed_target_icp_ids=allowed,
     )
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
-    access = feed_access(connection, account_id=session.account_id, as_of=as_of)
     if not access.is_unlocked(item):
         raise api_error(
             403,
@@ -123,7 +142,7 @@ def interaction_block(stored: feedback.StoredFeedback | None) -> dict[str, Any] 
 @router.get("/signals/{signal_key}/feedback")
 def read_feedback(signal_key: str, request: Request) -> dict[str, Any]:
     now = request_now(request)
-    with request.app.state.engine.connect() as connection:
+    with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         _accessible_signal(connection, session, signal_key, now)
         stored = feedback.get_feedback(
