@@ -1618,3 +1618,145 @@ acquisition_response_evaluation = sa.Table(
     sa.Index("ix_response_claim", "processing_state", "retry_at", "lease_expires_at"),
     sa.Index("ix_response_member_received", "member_ref", "received_at"),
 )
+
+
+# SPEC-028: one immutable account attribution and one append-only milestone
+# ledger.  Neither table stores the raw token, browser identifiers, contact
+# details, campaign copy, nor Stripe payload/identifiers.
+acquisition_conversion_journey = sa.Table(
+    "acquisition_conversion_journey",
+    METADATA,
+    sa.Column("journey_ref", sa.String(64), primary_key=True),
+    sa.Column(
+        "account_id",
+        sa.String(64),
+        sa.ForeignKey("account.account_id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    ),
+    sa.Column("source_click_event_ref", sa.String(64), nullable=False, unique=True),
+    sa.Column(
+        "campaign_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_campaign.campaign_ref", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column(
+        "member_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_campaign_member.member_ref", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column(
+        "acquisition_opportunity_id",
+        sa.String(64),
+        sa.ForeignKey(
+            "acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"
+        ),
+        nullable=False,
+    ),
+    sa.Column("token_fingerprint", sa.String(64), nullable=False),
+    sa.Column("token_version", sa.String(64), nullable=False),
+    sa.Column("token_key_version", sa.String(100), nullable=False),
+    sa.Column("country", sa.String(2), nullable=False),
+    sa.Column("sector_ref", sa.String(256), nullable=False),
+    sa.Column("sector_version", sa.String(100), nullable=False),
+    sa.Column("need_ref", sa.String(256), nullable=False),
+    sa.Column("need_version", sa.String(100), nullable=False),
+    sa.Column("wedge", sa.String(100), nullable=False),
+    sa.Column("wedge_version", sa.String(100), nullable=False),
+    sa.Column("attribution_policy_version", sa.String(64), nullable=False),
+    sa.Column("source_fingerprint", sa.String(64), nullable=False),
+    sa.Column("clicked_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("attribution_expires_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("signed_up_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint("country IN ('CH', 'FR')", name="ck_conversion_journey_country"),
+    sa.CheckConstraint(
+        "clicked_at <= signed_up_at AND signed_up_at <= attribution_expires_at",
+        name="ck_conversion_journey_window",
+    ),
+    sa.Index("ix_conversion_journey_campaign", "campaign_ref", "signed_up_at"),
+)
+
+
+acquisition_conversion_event = sa.Table(
+    "acquisition_conversion_event",
+    METADATA,
+    sa.Column("conversion_event_ref", sa.String(64), primary_key=True),
+    sa.Column(
+        "journey_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_conversion_journey.journey_ref", ondelete="RESTRICT"),
+    ),
+    sa.Column("milestone", sa.String(32), nullable=False),
+    sa.Column("event_version", sa.String(64), nullable=False),
+    sa.Column("event_fingerprint", sa.String(64), nullable=False, unique=True),
+    sa.Column("token_fingerprint", sa.String(64), index=True),
+    sa.Column("trigger_ref_type", sa.String(64)),
+    sa.Column("trigger_ref", sa.String(256)),
+    sa.Column("account_id", sa.String(64), sa.ForeignKey("account.account_id")),
+    sa.Column(
+        "campaign_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_campaign.campaign_ref", ondelete="RESTRICT"),
+    ),
+    sa.Column(
+        "member_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_campaign_member.member_ref", ondelete="RESTRICT"),
+    ),
+    sa.Column(
+        "acquisition_opportunity_id",
+        sa.String(64),
+        sa.ForeignKey(
+            "acquisition_opportunity.acquisition_opportunity_id", ondelete="RESTRICT"
+        ),
+    ),
+    sa.Column("activation_fingerprint", sa.String(64)),
+    sa.Column("billing_subscription_ref", sa.String(64)),
+    sa.Column("catalogue_version", sa.String(64)),
+    sa.Column("mrr_known", sa.Boolean),
+    sa.Column("mrr_minor_units", sa.BigInteger),
+    sa.Column("currency", sa.String(3)),
+    sa.Column("reason_code", sa.String(100)),
+    sa.Column(
+        "outcome_event_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_event.event_id", ondelete="RESTRICT"),
+    ),
+    sa.Column("occurred_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("recorded_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint(
+        "milestone IN ('CLICK', 'SIGNUP', 'ACTIVATED', 'PAID', 'MRR_CHANGED', "
+        "'RETAINED_M1', 'RETAINED_M2', 'CHURNED')",
+        name="ck_conversion_event_milestone",
+    ),
+    sa.CheckConstraint(
+        "(milestone = 'CLICK' AND journey_ref IS NULL AND token_fingerprint IS NOT NULL "
+        "AND account_id IS NULL) OR "
+        "(milestone <> 'CLICK' AND journey_ref IS NOT NULL AND account_id IS NOT NULL)",
+        name="ck_conversion_event_phase",
+    ),
+    sa.CheckConstraint(
+        "(milestone = 'MRR_CHANGED' AND mrr_known IS NOT NULL) OR "
+        "(milestone <> 'MRR_CHANGED' AND mrr_known IS NULL AND mrr_minor_units IS NULL "
+        "AND currency IS NULL)",
+        name="ck_conversion_event_mrr_scope",
+    ),
+    sa.CheckConstraint(
+        "mrr_known IS NULL OR "
+        "(mrr_known IS TRUE AND mrr_minor_units >= 0 AND currency IN ('chf', 'eur') "
+        "AND reason_code IS NULL) OR "
+        "(mrr_known IS FALSE AND mrr_minor_units IS NULL AND currency IS NULL "
+        "AND reason_code IS NOT NULL)",
+        name="ck_conversion_event_money",
+    ),
+    sa.CheckConstraint(
+        "occurred_at <= observed_at AND observed_at <= recorded_at",
+        name="ck_conversion_event_times",
+    ),
+    sa.Index("ix_conversion_event_journey_time", "journey_ref", "occurred_at"),
+    sa.Index("ix_conversion_event_milestone_time", "milestone", "occurred_at"),
+)

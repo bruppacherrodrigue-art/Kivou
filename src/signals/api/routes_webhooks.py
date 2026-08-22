@@ -71,6 +71,7 @@ async def stripe_webhook(request: Request, response: Response) -> dict[str, str]
             payload=payload,
             expect_livemode=config.stripe_livemode,
             now=now,
+            conversion_milestone_service=request.app.state.conversion_milestone_service,
         )
 
     if not outcome.accepted:

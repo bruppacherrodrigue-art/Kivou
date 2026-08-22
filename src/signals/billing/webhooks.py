@@ -146,6 +146,7 @@ def handle_event(
     payload: bytes,
     expect_livemode: bool,
     now: dt.datetime,
+    conversion_milestone_service: object | None = None,
 ) -> WebhookOutcome:
     """Traite un événement DÉJÀ vérifié. Idempotent, insensible à l'ordre.
 
@@ -248,7 +249,7 @@ def handle_event(
         return WebhookOutcome(event.event_id, event.event_type, RESULT_IGNORED)
 
     try:
-        _, action = synchronize_subscription(
+        stored, action = synchronize_subscription(
             connection,
             state,
             account_id=account_id,
@@ -256,6 +257,13 @@ def handle_event(
             expect_livemode=expect_livemode,
             now=now,
         )
+        if conversion_milestone_service is not None:
+            conversion_milestone_service.observe_billing_in_transaction(
+                connection,
+                account_id=account_id,
+                subscription=stored,
+                observed_at=now,
+            )
     except StripeModeMismatch as error:
         _record(
             connection, event, payload=payload, result=RESULT_REJECTED, detail=str(error), now=now

@@ -12,6 +12,7 @@ from signals.persistence.schema import acquisition_response_evaluation
 CAMPAIGN_FACTORY = "0016_campaign_factory"
 PREVIOUS = "0017_target_icp_revision"
 HEAD = "0018_response_intelligence"
+CURRENT_HEAD = "0019_conversion_tracking"
 
 
 def test_response_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> None:
@@ -26,7 +27,7 @@ def test_response_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> No
         "acquisition_response_evaluation"
     }
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
     assert scripts.get_revision(PREVIOUS).down_revision == CAMPAIGN_FACTORY
     versions = pathlib.Path(scripts.versions)
@@ -34,7 +35,7 @@ def test_response_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> No
     assert (versions / "0018_response_intelligence.py").is_file()
     assert not (versions / "0017_response_intelligence.py").exists()
     assert not any(path.name.startswith("0018_merge") for path in versions.glob("*.py"))
-    assert not any(path.name.startswith("0019") for path in versions.glob("*.py"))
+    assert (versions / "0019_conversion_tracking.py").is_file()
 
 
 def test_fresh_upgrade_downgrade_and_reupgrade_preserve_prior_heads(tmp_path) -> None:

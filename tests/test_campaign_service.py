@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
+from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo
 
 import pytest
 import sqlalchemy as sa
@@ -30,9 +32,13 @@ from signals.campaigns.service import CampaignService
 from signals.compliance.contracts import SuppressionReasonCode, SuppressionSource
 from signals.compliance.store import SuppressionStore
 from signals.compliance.suppression import SuppressionIdentityKeyring
+from signals.conversion.link import AttributionLinkBuilder
+from signals.conversion.token import AttributionTokenKeyring
+from signals.decision_engine.policy import semantic_fingerprint
 from signals.persistence.schema import (
     acquisition_campaign_member,
     acquisition_compliance_assessment,
+    acquisition_opportunity,
     acquisition_provider_operation,
     policy_evaluation,
 )
@@ -48,6 +54,7 @@ from signals.policy.contracts import (
     Scope,
 )
 from signals.policy.store import PolicyStore
+from signals.supplier_discovery.seed import resolve_acquisition_seed
 
 NOW = dt.datetime(2026, 8, 21, 13, tzinfo=dt.UTC)
 
@@ -147,7 +154,16 @@ def _service(
     readiness=None,
     clock=None,
     sender_config=None,
+    attribution_link_builder=None,
 ) -> CampaignService:
+    if attribution_link_builder is None:
+        attribution_link_builder = AttributionLinkBuilder(
+            public_site_url="https://kivou.example.invalid",
+            keyring=AttributionTokenKeyring(
+                current_key_version="attribution-test-v1",
+                keys={"attribution-test-v1": b"synthetic-attribution-secret"},
+            ),
+        )
     return CampaignService(
         engine,
         keyring=_keyring(),
@@ -155,6 +171,7 @@ def _service(
         deployment=deployment or CampaignDeploymentConfig(),
         mailbox_readiness=readiness or FakeReadiness(),
         clock=clock or (lambda: NOW),
+        attribution_link_builder=attribution_link_builder,
     )
 
 
@@ -261,6 +278,49 @@ def test_assisted_approval_plans_one_member_sequence_without_provider_io(tmp_pat
         "ADD_LEAD",
     }
     assert {operation["state"] for operation in operations} == {"PLANNED"}
+
+
+def test_campaign_attribution_freezes_versioned_public_sector_dimension(tmp_path) -> None:
+    engine, opportunity_id, _, _ = _prepared(tmp_path)
+    token_keyring = AttributionTokenKeyring(
+        current_key_version="attribution-test-v1",
+        keys={"attribution-test-v1": b"synthetic-attribution-secret"},
+    )
+    service = _service(
+        engine,
+        _deployment(),
+        attribution_link_builder=AttributionLinkBuilder(
+            public_site_url="https://kivou.example.invalid", keyring=token_keyring
+        ),
+    )
+
+    preview = service.preview(opportunity_id, captured_at=NOW)
+    token = urlsplit(preview.envelope.custom_variables["kivou_attribution_url"]).path.rsplit(
+        "/", 1
+    )[1]
+    issuance = dt.datetime.combine(
+        preview.plan.sequence_window.step_1_execution_date,
+        dt.time(9),
+        tzinfo=ZoneInfo(preview.plan.sequence_window.timezone),
+    ).astimezone(dt.UTC)
+    payload = token_keyring.verify(token, at=issuance).payload
+    with engine.connect() as connection:
+        signal_ref = connection.scalar(
+            sa.select(acquisition_opportunity.c.signal_ref).where(
+                acquisition_opportunity.c.acquisition_opportunity_id == opportunity_id
+            )
+        )
+    assert isinstance(signal_ref, str)
+    opportunity_key = signal_ref.removeprefix("procurement-opportunity:")
+    seed = resolve_acquisition_seed(engine, opportunity_key)
+
+    assert payload.sector_ref == semantic_fingerprint(
+        {
+            "kind": "conversion-sector-ref-v1",
+            "sector_code": seed.understanding.sector.value,
+            "inference_version": seed.understanding.engine_version,
+        }
+    )
 
 
 def _approved(service, engine, opportunity_id, *, evaluation_id="campaign-eval-1"):
