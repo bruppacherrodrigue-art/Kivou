@@ -35,7 +35,7 @@ TRACKING_POLICY_VERSION = "tracking-policy-v1"
 PACING_POLICY_VERSION = "pacing-policy-v1"
 PROVIDER_STOP_POLICY_VERSION = "provider-stop-policy-v1"
 PROVIDER_OPERATION_VERSION = "provider-operation-v1"
-PROVIDER_EVENT_FINGERPRINT_VERSION = "provider-event-fingerprint-v1"
+PROVIDER_EVENT_FINGERPRINT_VERSION = "provider-event-fingerprint-v2"
 PROVIDER_OPERATION_MAX_ATTEMPTS = 3
 
 StableRef = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=256)]

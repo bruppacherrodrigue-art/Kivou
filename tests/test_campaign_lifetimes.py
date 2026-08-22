@@ -64,12 +64,12 @@ def _waiting_step_2(tmp_path):
         {
             "event_type": "email_sent",
             "timestamp": "2026-08-21T13:30:00+00:00",
-            "workspace_id": "workspace:test",
+            "workspace": "workspace:test",
             "campaign_id": "provider-campaign-1",
-            "lead_id": "provider-lead-1",
+            "campaign_name": "KIVOU-synthetic-fr",
+            "lead_email": "buyer@acme.example",
             "email_id": "step-one-event",
             "step": 1,
-            "status": "sent",
         },
         received_at=NOW + dt.timedelta(minutes=31),
     )

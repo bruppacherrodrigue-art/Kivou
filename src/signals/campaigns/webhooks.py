@@ -47,9 +47,10 @@ class ProviderEventType(StrEnum):
     EMAIL_LINK_CLICKED = "email_link_clicked"
     LINK_CLICKED = "link_clicked"
     REPLY_RECEIVED = "reply_received"
+    AUTO_REPLY_RECEIVED = "auto_reply_received"
     LEAD_UNSUBSCRIBED = "lead_unsubscribed"
     CAMPAIGN_COMPLETED = "campaign_completed"
-    EMAIL_ACCOUNT_ERROR = "email_account_error"
+    ACCOUNT_ERROR = "account_error"
 
 
 class WebhookSubscriptionInvalid(ValueError):
@@ -90,21 +91,24 @@ class WebhookFingerprintKeyring:
 class InstantlyWebhookPayload(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
 
-    event_type: ProviderEventType
+    event_type: ProviderEventType | None
+    event_type_transport_only: str = Field(min_length=1, max_length=100, repr=False)
     timestamp: dt.datetime
-    workspace_id: str = Field(min_length=1, max_length=128)
-    campaign_id: str = Field(min_length=1, max_length=128)
-    lead_id: str | None = Field(default=None, min_length=1, max_length=128)
-    email_id: str | None = Field(default=None, min_length=1, max_length=128)
-    step: int | None = Field(default=None, ge=1, le=2)
-    variant: str | None = Field(default=None, max_length=32)
-    status: str | None = Field(default=None, max_length=64)
-    email_account: str | None = Field(default=None, max_length=320)
-    lead_email: str | None = Field(default=None, max_length=320)
-    reply_subject: str | None = Field(default=None, max_length=998)
-    reply_text_snippet: str | None = Field(default=None, max_length=4096)
-    reply_text: str | None = Field(default=None, max_length=65536)
-    reply_html: str | None = Field(default=None, max_length=65536)
+    provider_workspace_ref: str = Field(min_length=1, max_length=128)
+    provider_campaign_id: str = Field(min_length=1, max_length=128)
+    campaign_name_transport_only: str = Field(min_length=1, max_length=256, repr=False)
+    lead_email_transient: str | None = Field(default=None, max_length=320, repr=False)
+    email_account_transient: str | None = Field(default=None, max_length=320, repr=False)
+    unibox_url_transient: str | None = Field(default=None, max_length=2048, repr=False)
+    reply_subject_transient: str | None = Field(default=None, max_length=998, repr=False)
+    reply_text_snippet_transient: str | None = Field(
+        default=None, max_length=4096, repr=False
+    )
+    reply_text_transient: str | None = Field(default=None, max_length=65536, repr=False)
+    reply_html_transient: str | None = Field(default=None, max_length=65536, repr=False)
+    step_if_present: int | None = Field(default=None, ge=1, le=100)
+    variant_if_present: int | None = Field(default=None, ge=1, le=100)
+    provider_email_event_id: str | None = Field(default=None, min_length=1, max_length=128)
 
     @field_validator("timestamp")
     @classmethod
@@ -112,6 +116,86 @@ class InstantlyWebhookPayload(BaseModel):
         if value.tzinfo is None or value.utcoffset() is None:
             raise ValueError("webhook timestamp must be timezone-aware")
         return value
+
+
+class _InstantlyWebhookDocumentedFields(BaseModel):
+    """Strictly validate the allowlisted V2 fields after raw-body authentication."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+    event_type: str = Field(min_length=1, max_length=100)
+    timestamp: dt.datetime
+    workspace: str = Field(min_length=1, max_length=128)
+    campaign_id: str = Field(min_length=1, max_length=128)
+    campaign_name: str = Field(min_length=1, max_length=256)
+    lead_email: str | None = Field(default=None, max_length=320, repr=False)
+    email_account: str | None = Field(default=None, max_length=320, repr=False)
+    unibox_url: str | None = Field(default=None, max_length=2048, repr=False)
+    reply_subject: str | None = Field(default=None, max_length=998, repr=False)
+    reply_text_snippet: str | None = Field(default=None, max_length=4096, repr=False)
+    reply_text: str | None = Field(default=None, max_length=65536, repr=False)
+    reply_html: str | None = Field(default=None, max_length=65536, repr=False)
+    step: int | None = Field(default=None, ge=1, le=100)
+    variant: int | None = Field(default=None, ge=1, le=100)
+    email_id: str | None = Field(default=None, min_length=1, max_length=128)
+
+    @field_validator("timestamp")
+    @classmethod
+    def aware_timestamp(cls, value: dt.datetime) -> dt.datetime:
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("webhook timestamp must be timezone-aware")
+        return value
+
+
+_INSTANTLY_WEBHOOK_DOCUMENTED_FIELDS = frozenset(
+    _InstantlyWebhookDocumentedFields.model_fields
+)
+
+
+def normalize_instantly_webhook_payload(
+    raw: dict[str, object],
+) -> InstantlyWebhookPayload:
+    """Normalize official V2 names and discard provider enrichment transitively.
+
+    Instantly explicitly permits merged lead data to add arbitrary top-level fields.
+    Only this allowlist reaches Kivou's canonical transport model; enrichment is never
+    persisted, logged, fingerprinted, or allowed to affect workflow behavior.
+    """
+
+    documented = _InstantlyWebhookDocumentedFields.model_validate(
+        {key: raw[key] for key in _INSTANTLY_WEBHOOK_DOCUMENTED_FIELDS if key in raw}
+    )
+    try:
+        event_type = ProviderEventType(documented.event_type)
+    except ValueError:
+        event_type = None
+    lead_email = documented.lead_email
+    if lead_email is not None:
+        try:
+            lead_email = normalize_business_email(lead_email)
+        except SuppressionIdentityUnavailable as exc:
+            raise ValueError("provider lead identity is unusable") from exc
+    email_account = documented.email_account
+    if email_account is not None:
+        email_account = email_account.strip().casefold()
+    return InstantlyWebhookPayload(
+        event_type=event_type,
+        event_type_transport_only=documented.event_type,
+        timestamp=documented.timestamp,
+        provider_workspace_ref=documented.workspace,
+        provider_campaign_id=documented.campaign_id,
+        campaign_name_transport_only=documented.campaign_name,
+        lead_email_transient=lead_email,
+        email_account_transient=email_account,
+        unibox_url_transient=documented.unibox_url,
+        reply_subject_transient=documented.reply_subject,
+        reply_text_snippet_transient=documented.reply_text_snippet,
+        reply_text_transient=documented.reply_text,
+        reply_html_transient=documented.reply_html,
+        step_if_present=documented.step,
+        variant_if_present=documented.variant,
+        provider_email_event_id=documented.email_id,
+    )
 
 
 @dataclass(frozen=True)
@@ -142,8 +226,8 @@ class InstantlyWebhookService:
     def ingest(
         self, raw: dict[str, object], *, received_at: dt.datetime
     ) -> WebhookIngestResult:
-        payload = InstantlyWebhookPayload.model_validate(raw)
-        if payload.workspace_id != self._workspace:
+        payload = normalize_instantly_webhook_payload(raw)
+        if payload.provider_workspace_ref != self._workspace:
             raise WebhookBindingError("Instantly workspace mismatch")
         if received_at.tzinfo is None or received_at.utcoffset() is None:
             raise ValueError("webhook received_at must be timezone-aware")
@@ -155,25 +239,17 @@ class InstantlyWebhookService:
         with self._engine.begin() as connection:
             campaign = connection.execute(
                 sa.select(acquisition_campaign).where(
-                    acquisition_campaign.c.provider_campaign_id == payload.campaign_id,
-                    acquisition_campaign.c.provider_workspace_ref == payload.workspace_id,
+                    acquisition_campaign.c.provider_campaign_id
+                    == payload.provider_campaign_id,
+                    acquisition_campaign.c.provider_workspace_ref
+                    == payload.provider_workspace_ref,
                 )
             ).mappings().one_or_none()
             if campaign is None:
                 raise WebhookBindingError("unknown provider campaign binding")
             member = None
-            if payload.lead_id is not None:
-                member = connection.execute(
-                    sa.select(acquisition_campaign_member).where(
-                        acquisition_campaign_member.c.campaign_ref == campaign["campaign_ref"],
-                        acquisition_campaign_member.c.provider_lead_id == payload.lead_id,
-                    )
-                ).mappings().one_or_none()
-            elif payload.lead_email is not None:
-                try:
-                    normalized = normalize_business_email(payload.lead_email)
-                except SuppressionIdentityUnavailable as exc:
-                    raise WebhookBindingError("provider lead identity is unusable") from exc
+            if payload.lead_email_transient is not None:
+                normalized = payload.lead_email_transient
                 candidates = connection.execute(
                     sa.select(acquisition_campaign_member)
                     .join(
@@ -192,9 +268,9 @@ class InstantlyWebhookService:
                     member = candidates[0]
                 elif len(candidates) > 1:
                     raise WebhookBindingError("provider lead identity is ambiguous")
-            member_required = payload.event_type not in {
+            member_required = payload.event_type is not None and payload.event_type not in {
                 ProviderEventType.CAMPAIGN_COMPLETED,
-                ProviderEventType.EMAIL_ACCOUNT_ERROR,
+                ProviderEventType.ACCOUNT_ERROR,
             }
             if member_required and member is None:
                 raise WebhookBindingError("unknown provider lead binding")
@@ -222,7 +298,9 @@ class InstantlyWebhookService:
                 return WebhookIngestResult(event_fingerprint=fingerprint, replayed=True)
             incident: str | None = None
             acquisition_event_id: str | None = None
-            if payload.event_type is ProviderEventType.EMAIL_SENT:
+            if payload.event_type is None:
+                incident = "UNKNOWN_PROVIDER_EVENT_TYPE"
+            elif payload.event_type is ProviderEventType.EMAIL_SENT:
                 assert member is not None
                 incident, acquisition_event_id = self._email_sent(
                     connection,
@@ -258,35 +336,35 @@ class InstantlyWebhookService:
                 )
                 if self._response_capability is ResponseIngressCapability.NONE:
                     incident = "UNEXPECTED_REPLY_WITHOUT_RESPONSE_INGRESS"
-            elif payload.event_type in {
-                ProviderEventType.EMAIL_BOUNCED,
-                ProviderEventType.EMAIL_ACCOUNT_ERROR,
-            }:
-                if member is not None:
-                    self._stop_member(
-                        connection,
-                        campaign,
-                        member,
-                        received_at,
-                        "PROVIDER_TRANSPORT_UNSAFE",
-                    )
-                else:
-                    self._campaigns.plan_operation_in_transaction(
-                        connection,
-                        ProviderOperationKind.PAUSE_CAMPAIGN,
-                        campaign_ref=campaign["campaign_ref"],
-                        member_ref=None,
-                        desired_request_fingerprint=semantic_fingerprint(
-                            {
-                                "kind": "provider-account-error-stop-v1",
-                                "campaign_ref": campaign["campaign_ref"],
-                            }
-                        ),
-                        correlation_id=(
-                            f"provider-account-error:{campaign['campaign_ref']}"
-                        ),
-                        now=received_at,
-                    )
+            elif payload.event_type is ProviderEventType.AUTO_REPLY_RECEIVED:
+                assert member is not None
+                self._stop_member(
+                    connection, campaign, member, received_at, "AUTO_REPLY_RECEIVED"
+                )
+            elif payload.event_type is ProviderEventType.EMAIL_BOUNCED:
+                assert member is not None
+                self._stop_member(
+                    connection,
+                    campaign,
+                    member,
+                    received_at,
+                    "PROVIDER_TRANSPORT_UNSAFE",
+                )
+            elif payload.event_type is ProviderEventType.ACCOUNT_ERROR:
+                self._campaigns.plan_operation_in_transaction(
+                    connection,
+                    ProviderOperationKind.PAUSE_CAMPAIGN,
+                    campaign_ref=campaign["campaign_ref"],
+                    member_ref=None,
+                    desired_request_fingerprint=semantic_fingerprint(
+                        {
+                            "kind": "provider-account-error-stop-v1",
+                            "campaign_ref": campaign["campaign_ref"],
+                        }
+                    ),
+                    correlation_id=f"provider-account-error:{campaign['campaign_ref']}",
+                    now=received_at,
+                )
             elif payload.event_type is ProviderEventType.CAMPAIGN_COMPLETED:
                 connection.execute(
                     sa.update(acquisition_campaign)
@@ -301,7 +379,9 @@ class InstantlyWebhookService:
                     acquisition_provider_event.c.canonical_event_fingerprint == fingerprint
                 )
                 .values(
-                    resolution_state="PROCESSED",
+                    resolution_state=(
+                        "QUARANTINED" if payload.event_type is None else "PROCESSED"
+                    ),
                     incident_code=incident,
                     recorded_acquisition_event_id=acquisition_event_id,
                 )
@@ -315,28 +395,36 @@ class InstantlyWebhookService:
     def _fingerprints(self, payload: InstantlyWebhookPayload) -> dict[str, str]:
         stable: dict[str, object] = {
             "version": PROVIDER_EVENT_FINGERPRINT_VERSION,
-            "event_type": payload.event_type.value,
-            "workspace_id": payload.workspace_id,
-            "campaign_id": payload.campaign_id,
-            "lead_id": payload.lead_id,
-            "email_id": payload.email_id,
-            "step": payload.step,
-            "variant": payload.variant,
+            "event_type": payload.event_type_transport_only,
+            "workspace": payload.provider_workspace_ref,
+            "campaign_id": payload.provider_campaign_id,
+            "email_id": payload.provider_email_event_id,
+            "step": payload.step_if_present,
+            "variant": payload.variant_if_present,
             "timestamp": payload.timestamp.astimezone(dt.UTC).isoformat(),
-            "status": payload.status,
+            "transient_identity": {
+                "lead_email": payload.lead_email_transient,
+                "email_account": payload.email_account_transient,
+                "unibox_url": payload.unibox_url_transient,
+            },
         }
-        if payload.email_id is None:
-            stable["transient_event_differentiator"] = {
-                "reply_subject": payload.reply_subject,
-                "reply_text_snippet": payload.reply_text_snippet,
-                "reply_text": payload.reply_text,
-                "reply_html": payload.reply_html,
+        if payload.event_type in {
+            ProviderEventType.REPLY_RECEIVED,
+            ProviderEventType.AUTO_REPLY_RECEIVED,
+        }:
+            reply_content = {
+                "reply_subject": payload.reply_subject_transient,
+                "reply_text_snippet": payload.reply_text_snippet_transient,
+                "reply_text": payload.reply_text_transient,
+                "reply_html": payload.reply_html_transient,
             }
+            if any(value is not None for value in reply_content.values()):
+                stable["transient_reply_content"] = reply_content
         encoded = json.dumps(stable, sort_keys=True, separators=(",", ":")).encode()
         return {
             version: hmac.new(
                 key,
-                b"kivou:instantly-provider-event:v1\0" + encoded,
+                b"kivou:instantly-provider-event:v2\0" + encoded,
                 hashlib.sha256,
             ).hexdigest()
             for version, key in sorted(self._fingerprint_keyring.keys.items())
@@ -368,23 +456,33 @@ class InstantlyWebhookService:
                 canonical_event_fingerprint=fingerprint,
                 fingerprint_version=PROVIDER_EVENT_FINGERPRINT_VERSION,
                 fingerprint_key_version=fingerprint_key_version,
-                provider_event_type=payload.event_type.value,
-                provider_workspace_ref=payload.workspace_id,
-                provider_campaign_id=payload.campaign_id,
-                provider_lead_id=payload.lead_id,
-                provider_email_event_id=payload.email_id,
+                provider_event_type=(
+                    payload.event_type.value if payload.event_type is not None else "unknown"
+                ),
+                provider_workspace_ref=payload.provider_workspace_ref,
+                provider_campaign_id=payload.provider_campaign_id,
+                provider_lead_id=(member["provider_lead_id"] if member else None),
+                provider_email_event_id=payload.provider_email_event_id,
                 campaign_ref=campaign["campaign_ref"],
                 member_ref=member["member_ref"] if member else None,
                 acquisition_opportunity_id=(
                     member["acquisition_opportunity_id"] if member else None
                 ),
                 contact_ref=member["contact_ref"] if member else None,
-                step=payload.step,
-                variant=payload.variant,
+                step=(
+                    payload.step_if_present
+                    if payload.step_if_present in {1, 2}
+                    else None
+                ),
+                variant=(
+                    str(payload.variant_if_present)
+                    if payload.variant_if_present is not None
+                    else None
+                ),
                 occurred_at=payload.timestamp,
                 received_at=received_at,
                 mailbox_ref=member["mailbox_ref"] if member else None,
-                transport_status=payload.status,
+                transport_status=None,
                 resolution_state="ACCEPTED",
             )
             .on_conflict_do_nothing(
@@ -403,7 +501,7 @@ class InstantlyWebhookService:
         fingerprint,
         received_at,
     ) -> tuple[str | None, str | None]:
-        if payload.step == 1:
+        if payload.step_if_present == 1:
             if member["step_1_sent_at"] is not None:
                 recorded = member["step_1_sent_at"]
                 if recorded.tzinfo is None:
@@ -541,7 +639,7 @@ class InstantlyWebhookService:
                     now=received_at,
                 )
             return incident, event_id
-        if payload.step == 2:
+        if payload.step_if_present == 2:
             due = member["step_2_due_at"]
             deadline = member["step_2_authorization_deadline"]
             if due is not None and due.tzinfo is None:
