@@ -47,8 +47,8 @@ from signals.compliance.jurisdiction import resolve_jurisdiction
 from signals.compliance.rules import RULESET_V1
 from signals.compliance.store import SuppressionStore
 from signals.compliance.suppression import SuppressionIdentityKeyring
-from signals.conversion.contracts import AttributionTokenPayload
 from signals.conversion.link import AttributionLinkBuilder
+from signals.conversion.source import AttributionSourceFacts, AttributionSourceResolver
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.persistence.schema import (
     acquisition_campaign,
@@ -57,7 +57,6 @@ from signals.persistence.schema import (
     acquisition_compliance_assessment,
     acquisition_contact,
     acquisition_event,
-    acquisition_opportunity,
     acquisition_personalization_artifact,
     acquisition_provider_operation,
     acquisition_supplier,
@@ -74,7 +73,6 @@ from signals.policy.contracts import (
 )
 from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore, decision_from_row
-from signals.supplier_discovery.seed import AcquisitionSeedNotFound, resolve_acquisition_seed
 
 _SCHEDULE_EVIDENCE = (
     "ACQUISITION_DECISION",
@@ -148,6 +146,7 @@ class CampaignService:
         self._policy_store = PolicyStore(engine)
         self._policy = policy_gateway or PolicyGateway(engine, acquisition_store=self._acquisition)
         self._attribution_link_builder = attribution_link_builder
+        self._attribution_source_resolver = AttributionSourceResolver(engine)
         self._after_policy_hook: Callable[[], None] = lambda: None
 
     def preview(self, opportunity_id: str, *, captured_at: dt.datetime) -> CampaignPreview:
@@ -1149,32 +1148,10 @@ class CampaignService:
         if self._attribution_link_builder is None:
             return None
         with self._engine.connect() as connection:
-            signal_ref = connection.scalar(
-                sa.select(acquisition_opportunity.c.signal_ref).where(
-                    acquisition_opportunity.c.acquisition_opportunity_id
-                    == member["acquisition_opportunity_id"]
-                )
+            payload = self._attribution_source_resolver.for_member(
+                connection, str(member["member_ref"])
             )
-        if not isinstance(signal_ref, str):
-            raise CampaignInputChanged("attribution source signal is unavailable")
-        step_1_date = campaign["step_1_execution_date"]
-        deadline = campaign["step_2_authorization_deadline"]
-        if not isinstance(step_1_date, dt.date) or not isinstance(deadline, dt.datetime):
-            raise CampaignInputChanged("attribution sequence window is unavailable")
-        return self._attribution_url(
-            opportunity_id=str(member["acquisition_opportunity_id"]),
-            signal_ref=signal_ref,
-            campaign_ref=str(campaign["campaign_ref"]),
-            member_ref=str(member["member_ref"]),
-            country=str(campaign["country"]),
-            wedge=str(campaign["wedge"]),
-            wedge_version=str(campaign["wedge_version"]),
-            need_ref=str(campaign["selected_need_category"]),
-            need_version=str(campaign["selected_need_version"]),
-            timezone=str(campaign["timezone"]),
-            step_1_execution_date=step_1_date,
-            step_2_authorization_deadline=deadline,
-        )
+        return self._attribution_link_builder.build(payload).url
 
     def _attribution_url(
         self,
@@ -1194,45 +1171,25 @@ class CampaignService:
     ) -> str | None:
         if self._attribution_link_builder is None:
             return None
-        issued_at = dt.datetime.combine(
-            step_1_execution_date, dt.time(9), tzinfo=ZoneInfo(timezone)
-        ).astimezone(dt.UTC)
-        deadline = (
-            step_2_authorization_deadline.replace(tzinfo=dt.UTC)
-            if step_2_authorization_deadline.tzinfo is None
-            else step_2_authorization_deadline.astimezone(dt.UTC)
-        )
-        return self._attribution_link_builder.build(
-            AttributionTokenPayload(
+        payload = self._attribution_source_resolver.from_facts(
+            AttributionSourceFacts(
                 campaign_ref=campaign_ref,
                 member_ref=member_ref,
                 acquisition_opportunity_id=opportunity_id,
+                signal_ref=signal_ref,
+                country=country,
                 wedge=wedge,
                 wedge_version=wedge_version,
-                country=country,
-                sector_ref=self._conversion_sector_ref(signal_ref),
                 need_ref=need_ref,
                 need_version=need_version,
-                issued_at=issued_at,
-                expires_at=deadline + dt.timedelta(days=30),
+                timezone=timezone,
+                step_1_execution_date=step_1_execution_date,
+                step_2_authorization_deadline=step_2_authorization_deadline,
             )
-        ).url
-
-    def _conversion_sector_ref(self, signal_ref: str) -> str:
-        prefix = "procurement-opportunity:"
-        if not signal_ref.startswith(prefix):
-            return "sector-unknown-v1"
-        try:
-            seed = resolve_acquisition_seed(self._engine, signal_ref.removeprefix(prefix))
-        except AcquisitionSeedNotFound:
-            return "sector-unknown-v1"
-        return semantic_fingerprint(
-            {
-                "kind": "conversion-sector-ref-v1",
-                "sector_code": seed.understanding.sector.value,
-                "inference_version": seed.understanding.engine_version,
-            }
         )
+        return self._attribution_link_builder.build(
+            payload
+        ).url
 
     def _require_activation_capabilities(self) -> None:
         if self._attribution_link_builder is None:

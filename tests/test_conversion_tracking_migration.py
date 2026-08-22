@@ -101,6 +101,24 @@ def test_core_schema_matches_migration(tmp_path) -> None:
         }
 
 
+def test_source_click_is_indexed_but_not_unique_per_account_journey(tmp_path) -> None:
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'forwarded.db'}")
+    command.upgrade(alembic_config(engine), HEAD)
+    inspector = sa.inspect(engine)
+
+    unique_columns = {
+        tuple(item["column_names"])
+        for item in inspector.get_unique_constraints("acquisition_conversion_journey")
+    }
+    indexes = {
+        tuple(item["column_names"]): item["unique"]
+        for item in inspector.get_indexes("acquisition_conversion_journey")
+    }
+    assert ("account_id",) in unique_columns
+    assert ("source_click_event_ref",) not in unique_columns
+    assert indexes[("source_click_event_ref",)] == 0
+
+
 def test_money_and_milestone_constraints(tmp_path) -> None:
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'constraints.db'}")
     command.upgrade(alembic_config(engine), HEAD)

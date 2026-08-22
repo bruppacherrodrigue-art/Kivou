@@ -8,6 +8,7 @@ from test_conversion_attribution import NOW, prepared
 
 from signals.api.app import create_app
 from signals.api.config import ApiConfig
+from signals.conversion.token import AttributionTokenKeyring
 from signals.persistence.schema import (
     acquisition_conversion_event,
     acquisition_conversion_journey,
@@ -85,11 +86,62 @@ def test_successful_signup_consumes_attribution_in_same_account_transaction(tmp_
     assert "kivou_attribution=\"\"" in response.headers["set-cookie"]
 
 
+def test_one_forwarded_click_can_source_two_distinct_account_signups(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    first = client_for(engine, service, now=NOW + dt.timedelta(days=1))
+    second = client_for(engine, service, now=NOW + dt.timedelta(days=2))
+    for client in (first, second):
+        assert client.get(f"/a/{token.raw_token}", follow_redirects=False).status_code == 303
+
+    first_signup = first.post(
+        "/auth/signup",
+        json={
+            "email": "forwarded-first@example.com",
+            "password": "a-long-synthetic-account-password",
+            "company_name": "Synthetic Forwarded One",
+            "locale": "fr",
+        },
+    )
+    second_signup = second.post(
+        "/auth/signup",
+        json={
+            "email": "forwarded-second@example.com",
+            "password": "a-long-synthetic-account-password",
+            "company_name": "Synthetic Forwarded Two",
+            "locale": "fr",
+        },
+    )
+
+    assert first_signup.status_code == second_signup.status_code == 201
+    assert first_signup.json()["account_id"] != second_signup.json()["account_id"]
+    with engine.connect() as connection:
+        journeys = connection.execute(
+            sa.select(acquisition_conversion_journey).order_by(
+                acquisition_conversion_journey.c.account_id
+            )
+        ).mappings().all()
+        click_count = connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(acquisition_conversion_event)
+            .where(acquisition_conversion_event.c.milestone == "CLICK")
+        )
+    assert len(journeys) == 2
+    assert len({row["account_id"] for row in journeys}) == 2
+    assert len({row["source_click_event_ref"] for row in journeys}) == 1
+    assert len({row["campaign_ref"] for row in journeys}) == 1
+    assert len({row["member_ref"] for row in journeys}) == 1
+    assert len({row["acquisition_opportunity_id"] for row in journeys}) == 1
+    assert click_count == 1
+    assert "forwarded-first@example.com" not in repr(journeys)
+    assert "forwarded-second@example.com" not in repr(journeys)
+
+
 def test_last_pre_signup_click_cookie_freezes_the_selected_source(tmp_path) -> None:
     engine, service, first_token, _ = prepared(tmp_path)
-    second_token = service.keyring.issue(
-        first_token.payload.model_copy(update={"issued_at": NOW + dt.timedelta(minutes=30)})
-    )
+    second_token = AttributionTokenKeyring(
+        current_key_version="attribution-test-old",
+        keys={"attribution-test-old": b"old-synthetic-attribution-secret"},
+    ).issue(first_token.payload.model_copy(update={"key_version": None}))
     client = client_for(engine, service, now=NOW + dt.timedelta(hours=1))
 
     assert client.get(f"/a/{first_token.raw_token}", follow_redirects=False).status_code == 303

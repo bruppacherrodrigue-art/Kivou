@@ -1634,7 +1634,7 @@ acquisition_conversion_journey = sa.Table(
         nullable=False,
         unique=True,
     ),
-    sa.Column("source_click_event_ref", sa.String(64), nullable=False, unique=True),
+    sa.Column("source_click_event_ref", sa.String(64), nullable=False, index=True),
     sa.Column(
         "campaign_ref",
         sa.String(64),

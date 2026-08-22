@@ -3,15 +3,17 @@ from __future__ import annotations
 import datetime as dt
 import threading
 
+import pytest
 import sqlalchemy as sa
 from test_campaign_store import _factory_input, _prepared, _reservation
 
 from signals.accounts import service as account_service
 from signals.campaigns.store import CampaignStore
-from signals.conversion.contracts import AttributionTokenPayload
 from signals.conversion.service import ConversionAttributionService
+from signals.conversion.source import AttributionSourceResolver
 from signals.conversion.token import AttributionTokenKeyring
 from signals.persistence.schema import (
+    acquisition_campaign,
     acquisition_conversion_event,
     acquisition_conversion_journey,
 )
@@ -30,23 +32,16 @@ def prepared(tmp_path):
     )
     keyring = AttributionTokenKeyring(
         current_key_version="attribution-test-v1",
-        keys={"attribution-test-v1": b"synthetic-attribution-secret"},
+        keys={
+            "attribution-test-old": b"old-synthetic-attribution-secret",
+            "attribution-test-v1": b"synthetic-attribution-secret",
+        },
     )
-    token = keyring.issue(
-        AttributionTokenPayload(
-            campaign_ref=reservation.campaign_ref,
-            member_ref=reservation.member_ref,
-            acquisition_opportunity_id=opportunity_id,
-            wedge="construction",
-            wedge_version="wedge-v1",
-            country="FR",
-            sector_ref="sector-public-works-v1",
-            need_ref="GROWTH",
-            need_version="need-v1",
-            issued_at=NOW,
-            expires_at=NOW + dt.timedelta(days=34),
+    with engine.connect() as connection:
+        payload = AttributionSourceResolver(engine).for_member(
+            connection, reservation.member_ref
         )
-    )
+    token = keyring.issue(payload)
     return engine, ConversionAttributionService(engine, keyring), token, opportunity_id
 
 
@@ -130,6 +125,19 @@ def test_signup_after_30_days_is_unattributed(tmp_path) -> None:
         assert connection.scalar(
             sa.select(sa.func.count()).select_from(acquisition_conversion_journey)
         ) == 0
+
+
+def test_hidden_source_binding_drift_invalidates_the_opaque_token(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_campaign)
+            .where(acquisition_campaign.c.campaign_ref == token.payload.campaign_ref)
+            .values(selected_need_category="DRIFTED_NEED")
+        )
+
+    with pytest.raises(ValueError):
+        service.record_click(token.raw_token, at=NOW + dt.timedelta(hours=1))
 
 
 def test_later_click_cannot_rewrite_existing_account_attribution(tmp_path) -> None:

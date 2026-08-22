@@ -20,7 +20,7 @@ def upgrade() -> None:
         "acquisition_conversion_journey",
         sa.Column("journey_ref", sa.String(64), primary_key=True),
         sa.Column("account_id", sa.String(64), nullable=False, unique=True),
-        sa.Column("source_click_event_ref", sa.String(64), nullable=False, unique=True),
+        sa.Column("source_click_event_ref", sa.String(64), nullable=False),
         sa.Column("campaign_ref", sa.String(64), nullable=False),
         sa.Column("member_ref", sa.String(64), nullable=False),
         sa.Column("acquisition_opportunity_id", sa.String(64), nullable=False),
@@ -62,6 +62,11 @@ def upgrade() -> None:
         "ix_conversion_journey_campaign",
         "acquisition_conversion_journey",
         ["campaign_ref", "signed_up_at"],
+    )
+    op.create_index(
+        "ix_acquisition_conversion_journey_source_click_event_ref",
+        "acquisition_conversion_journey",
+        ["source_click_event_ref"],
     )
 
     op.create_table(

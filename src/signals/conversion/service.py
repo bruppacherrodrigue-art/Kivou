@@ -14,18 +14,10 @@ from signals.conversion.contracts import (
     CONVERSION_EVENT_VERSION,
     ConversionMilestone,
 )
+from signals.conversion.source import AttributionSourceResolver
 from signals.conversion.token import AttributionTokenKeyring, IssuedAttributionToken
 from signals.decision_engine.policy import semantic_fingerprint
-from signals.persistence.schema import (
-    acquisition_campaign,
-    acquisition_campaign_member,
-    acquisition_conversion_event,
-    acquisition_conversion_journey,
-)
-
-
-class AttributionBindingInvalid(ValueError):
-    code = "invalid_attribution_binding"
+from signals.persistence.schema import acquisition_conversion_event, acquisition_conversion_journey
 
 
 @dataclasses.dataclass(frozen=True)
@@ -55,9 +47,16 @@ def _aware(value: dt.datetime) -> dt.datetime:
 class ConversionAttributionService:
     """No clock, browser, or network authority is hidden in this service."""
 
-    def __init__(self, engine: sa.Engine, keyring: AttributionTokenKeyring) -> None:
+    def __init__(
+        self,
+        engine: sa.Engine,
+        keyring: AttributionTokenKeyring,
+        *,
+        source_resolver: AttributionSourceResolver | None = None,
+    ) -> None:
         self.engine = engine
         self.keyring = keyring
+        self.source_resolver = source_resolver or AttributionSourceResolver(engine)
 
     def record_click(self, raw_token: str, *, at: dt.datetime) -> ClickResult:
         with self.engine.begin() as connection:
@@ -66,8 +65,7 @@ class ConversionAttributionService:
     def record_click_in_transaction(
         self, connection: sa.Connection, *, raw_token: str, at: dt.datetime
     ) -> ClickResult:
-        verified = self.keyring.verify(raw_token, at=at)
-        self._require_source_binding(connection, verified)
+        verified = self._verify_in_transaction(connection, raw_token=raw_token, at=at)
         event_ref = semantic_fingerprint(
             {
                 "kind": CONVERSION_EVENT_VERSION,
@@ -141,7 +139,7 @@ class ConversionAttributionService:
         if current is not None:
             return current
         try:
-            verified = self.keyring.verify(raw_token, at=at)
+            verified = self._verify_in_transaction(connection, raw_token=raw_token, at=at)
         except ValueError:
             return None
         click = connection.execute(
@@ -248,40 +246,12 @@ class ConversionAttributionService:
             acquisition_opportunity_id=payload.acquisition_opportunity_id,
         )
 
-    def _require_source_binding(
-        self, connection: sa.Connection, verified: IssuedAttributionToken
-    ) -> None:
-        payload = verified.payload
-        row = connection.execute(
-            sa.select(
-                acquisition_campaign.c.campaign_ref,
-                acquisition_campaign.c.country,
-                acquisition_campaign.c.wedge,
-                acquisition_campaign.c.wedge_version,
-                acquisition_campaign.c.selected_need_category,
-                acquisition_campaign.c.selected_need_version,
-                acquisition_campaign_member.c.member_ref,
-                acquisition_campaign_member.c.acquisition_opportunity_id,
-            )
-            .select_from(
-                acquisition_campaign.join(
-                    acquisition_campaign_member,
-                    acquisition_campaign_member.c.campaign_ref
-                    == acquisition_campaign.c.campaign_ref,
-                )
-            )
-            .where(acquisition_campaign_member.c.member_ref == payload.member_ref)
-        ).mappings().one_or_none()
-        if row is None or not (
-            row["campaign_ref"] == payload.campaign_ref
-            and row["acquisition_opportunity_id"] == payload.acquisition_opportunity_id
-            and row["country"] == payload.country
-            and row["wedge"] == payload.wedge
-            and row["wedge_version"] == payload.wedge_version
-            and row["selected_need_category"] == payload.need_ref
-            and row["selected_need_version"] == payload.need_version
-        ):
-            raise AttributionBindingInvalid("attribution source binding is invalid")
+    def _verify_in_transaction(
+        self, connection: sa.Connection, *, raw_token: str, at: dt.datetime
+    ) -> IssuedAttributionToken:
+        lookup = self.keyring.parse(raw_token)
+        payload = self.source_resolver.for_member(connection, lookup.member_ref)
+        return self.keyring.verify(raw_token, payload=payload, at=at)
 
     @staticmethod
     def _journey_for_account(
@@ -305,7 +275,6 @@ class ConversionAttributionService:
 
 
 __all__ = [
-    "AttributionBindingInvalid",
     "ClickResult",
     "ConversionAttributionService",
     "JourneyResult",

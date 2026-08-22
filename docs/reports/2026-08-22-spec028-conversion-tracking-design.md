@@ -95,23 +95,32 @@ The email URL contains a versioned authenticated opaque token, not clear query
 parameters. Its external representation is:
 
 ```text
-kat1.<base64url(canonical-payload)>.<base64url(HMAC-SHA256)>
+kat1.<key_version>.<member_ref>.<base64url(HMAC-SHA256)>
 ```
 
-The canonical payload contains only:
+`member_ref` is the sole clear lookup reference. It is already an opaque,
+PII-free Kivou fingerprint. No JSON, campaign, opportunity, country, wedge,
+sector, need, or timestamp payload is encoded in the public URL.
+
+The hidden canonical HMAC input binds exactly:
 
 - token and key versions;
 - `campaign_ref`;
 - `member_ref`;
 - `acquisition_opportunity_id`;
-- immutable `wedge`, `country`, selected-need code, and a safe `sector_ref`;
+- immutable `country`, `wedge` and wedge version;
+- safe `sector_ref`, selected `need_ref`, and need version;
 - `issued_at` and `expires_at`.
 
 The token contains no email, contact/supplier/company name, account, Stripe ID,
 provider lead ID, copy, or arbitrary URL. The signature uses an injected
 retained-key keyring. Equality and verification use constant-time comparison.
 Only the keyed token fingerprint and safe payload facts may persist; the raw
-token does not.
+token does not. Verification parses only the token/key/member lookup, loads the
+exact durable member/campaign/opportunity, reconstructs the complete hidden
+payload through the same Kivou source resolver used at issuance, and then
+constant-time verifies the HMAC and validity interval. Binding drift is an
+invalid token, never a partially accepted click.
 
 Token issuance is deterministic for the immutable campaign/member envelope.
 `issued_at` is the Step-1 authorized-window start and `expires_at` is 30 days
@@ -130,8 +139,8 @@ original outbound contact.
 The only public entry point is equivalent to `GET /a/{token}`. It accepts no
 redirect argument. On a valid unexpired token it:
 
-1. verifies the HMAC and safe campaign/member/opportunity bindings against
-   current immutable rows;
+1. resolves the clear opaque `member_ref`, reconstructs the full hidden source
+   payload, then verifies its HMAC and immutable bindings;
 2. records or replays one `CLICK` milestone;
 3. sets a signed first-party attribution cookie containing the opaque token;
 4. responds `303` to the fixed relative `/signup` destination;
@@ -166,6 +175,11 @@ The HttpOnly cookie normally identifies the last click. The store still checks
 the durable click and deterministic ordering so a stale, replayed, or forged
 cookie cannot select an ineligible source. Signup without an eligible context
 remains a normal unattributed account; no empty journey is fabricated.
+
+One deduplicated `CLICK` may source multiple distinct account journeys when a
+legitimate attribution-only link is forwarded or shared. Each account still
+freezes at most one journey; reuse never claims that either account is the
+original outbound contact and never blocks either account creation.
 
 `SIGNUP` means only that a real account was committed with an eligible frozen
 journey. It is not a browser form submission.
@@ -251,7 +265,7 @@ service fails closed for review rather than inferring it.
 One immutable attributed account source:
 
 - `journey_ref` primary key and `account_id` unique FK;
-- source click event ref unique;
+- source click event ref indexed and intentionally non-unique;
 - campaign/member/opportunity refs and token fingerprint/version/key version;
 - country, sector ref/version, need ref/version, wedge/version;
 - attribution-policy version and source fingerprint;
@@ -373,11 +387,14 @@ merge revision. Downgrade removes only these two tables in dependency order.
 
 The implementation must prove with focused unit/integration tests:
 
-- valid, duplicate, expired, malformed, and wrong-binding click tokens;
+- opaque token components cannot disclose the hidden canonical payload;
+- valid, deterministic, retained-key, tampered, expired, malformed, and
+  wrong-binding click tokens;
 - token never authenticates or unlocks a protected route;
 - fixed clean redirect, cookie flags, no arbitrary redirect/referrer leak;
 - last eligible pre-signup click wins; equal-time tie-break is deterministic;
-- signup inside/outside 30 days; forwarded token never claims contact identity;
+- signup inside/outside 30 days; one forwarded token may source two account
+  journeys while its CLICK stays deduplicated and never claims contact identity;
 - account attribution is immutable against later/direct clicks;
 - activation requires exact `ready_for_signals` plus active TargetICP and is
   idempotent under create/update/concurrency;
@@ -428,4 +445,3 @@ rewrite them. SPEC-030 may aggregate the frozen country/sector/need/campaign/
 wedge dimensions into weekly funnels, but owns all presentation, cohort
 definitions beyond M1/M2, and cockpit UX. Neither learning nor dashboard logic
 belongs in the SPEC-028 package.
-

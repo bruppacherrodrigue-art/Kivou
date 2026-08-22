@@ -32,7 +32,8 @@ from signals.campaigns.service import CampaignService
 from signals.compliance.contracts import SuppressionReasonCode, SuppressionSource
 from signals.compliance.store import SuppressionStore
 from signals.compliance.suppression import SuppressionIdentityKeyring
-from signals.conversion.link import AttributionLinkBuilder
+from signals.conversion.contracts import AttributionTokenPayload
+from signals.conversion.link import AttributionLink, AttributionLinkBuilder
 from signals.conversion.token import AttributionTokenKeyring
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.persistence.schema import (
@@ -57,6 +58,18 @@ from signals.policy.store import PolicyStore
 from signals.supplier_discovery.seed import resolve_acquisition_seed
 
 NOW = dt.datetime(2026, 8, 21, 13, tzinfo=dt.UTC)
+
+
+class CapturingAttributionLinkBuilder:
+    def __init__(self, keyring: AttributionTokenKeyring) -> None:
+        self.delegate = AttributionLinkBuilder(
+            public_site_url="https://kivou.example.invalid", keyring=keyring
+        )
+        self.payload: AttributionTokenPayload | None = None
+
+    def build(self, payload: AttributionTokenPayload) -> AttributionLink:
+        self.payload = payload
+        return self.delegate.build(payload)
 
 
 class FakeReadiness:
@@ -286,12 +299,11 @@ def test_campaign_attribution_freezes_versioned_public_sector_dimension(tmp_path
         current_key_version="attribution-test-v1",
         keys={"attribution-test-v1": b"synthetic-attribution-secret"},
     )
+    link_builder = CapturingAttributionLinkBuilder(token_keyring)
     service = _service(
         engine,
         _deployment(),
-        attribution_link_builder=AttributionLinkBuilder(
-            public_site_url="https://kivou.example.invalid", keyring=token_keyring
-        ),
+        attribution_link_builder=link_builder,
     )
 
     preview = service.preview(opportunity_id, captured_at=NOW)
@@ -303,7 +315,6 @@ def test_campaign_attribution_freezes_versioned_public_sector_dimension(tmp_path
         dt.time(9),
         tzinfo=ZoneInfo(preview.plan.sequence_window.timezone),
     ).astimezone(dt.UTC)
-    payload = token_keyring.verify(token, at=issuance).payload
     with engine.connect() as connection:
         signal_ref = connection.scalar(
             sa.select(acquisition_opportunity.c.signal_ref).where(
@@ -311,6 +322,8 @@ def test_campaign_attribution_freezes_versioned_public_sector_dimension(tmp_path
             )
         )
     assert isinstance(signal_ref, str)
+    assert link_builder.payload is not None
+    payload = token_keyring.verify(token, payload=link_builder.payload, at=issuance).payload
     opportunity_key = signal_ref.removeprefix("procurement-opportunity:")
     seed = resolve_acquisition_seed(engine, opportunity_key)
 

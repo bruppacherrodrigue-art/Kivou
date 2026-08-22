@@ -7,6 +7,7 @@ import datetime as dt
 import hashlib
 import hmac
 import json
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from types import MappingProxyType
@@ -37,6 +38,13 @@ class IssuedAttributionToken:
     token_version: str
     key_version: str
     payload: AttributionTokenPayload
+
+
+@dataclass(frozen=True)
+class AttributionTokenLookup:
+    key_version: str
+    member_ref: str
+    signature: bytes = field(repr=False)
 
 
 def _b64(value: bytes) -> str:
@@ -71,7 +79,10 @@ class AttributionTokenKeyring:
             not self.current_key_version
             or self.current_key_version not in copied
             or len(copied) > 8
-            or any(not version or len(version) > 100 for version in copied)
+            or any(
+                re.fullmatch(r"[A-Za-z0-9_-]{1,100}", version) is None
+                for version in copied
+            )
             or any(not isinstance(secret, bytes) or len(secret) < 16 for secret in copied.values())
         ):
             raise ValueError("invalid attribution token keyring")
@@ -82,7 +93,12 @@ class AttributionTokenKeyring:
         canonical = _canonical(keyed)
         secret = self.keys[self.current_key_version]
         signature = hmac.new(secret, _SIGNING_DOMAIN + canonical, hashlib.sha256).digest()
-        raw_token = f"{_TOKEN_PREFIX}.{_b64(canonical)}.{_b64(signature)}"
+        if re.fullmatch(r"[0-9a-f]{64}", keyed.member_ref) is None:
+            raise ValueError("attribution member ref must be an opaque fingerprint")
+        raw_token = (
+            f"{_TOKEN_PREFIX}.{self.current_key_version}."
+            f"{keyed.member_ref}.{_b64(signature)}"
+        )
         return IssuedAttributionToken(
             raw_token=raw_token,
             token_fingerprint=hmac.new(
@@ -93,26 +109,45 @@ class AttributionTokenKeyring:
             payload=keyed,
         )
 
-    def verify(self, raw_token: str, *, at: dt.datetime) -> IssuedAttributionToken:
-        if at.tzinfo is None or at.utcoffset() is None:
-            raise ValueError("verification time must be timezone-aware")
-        if not isinstance(raw_token, str) or len(raw_token) > 4096:
+    def parse(self, raw_token: str) -> AttributionTokenLookup:
+        if not isinstance(raw_token, str) or len(raw_token) > 512:
             raise AttributionTokenInvalid("attribution token is invalid")
         parts = raw_token.split(".")
-        if len(parts) != 3 or parts[0] != _TOKEN_PREFIX:
+        if (
+            len(parts) != 4
+            or parts[0] != _TOKEN_PREFIX
+            or re.fullmatch(r"[A-Za-z0-9_-]{1,100}", parts[1]) is None
+            or re.fullmatch(r"[0-9a-f]{64}", parts[2]) is None
+        ):
             raise AttributionTokenInvalid("attribution token is invalid")
-        canonical = _unb64(parts[1])
-        signature = _unb64(parts[2])
-        try:
-            decoded = json.loads(canonical)
-            payload = AttributionTokenPayload.model_validate(decoded)
-        except (json.JSONDecodeError, UnicodeDecodeError, ValueError) as error:
-            raise AttributionTokenInvalid("attribution token payload is invalid") from error
-        if _canonical(payload) != canonical or payload.key_version not in self.keys:
+        signature = _unb64(parts[3])
+        if len(signature) != hashlib.sha256().digest_size:
+            raise AttributionTokenInvalid("attribution token signature is invalid")
+        return AttributionTokenLookup(
+            key_version=parts[1], member_ref=parts[2], signature=signature
+        )
+
+    def verify(
+        self,
+        raw_token: str,
+        *,
+        payload: AttributionTokenPayload,
+        at: dt.datetime,
+    ) -> IssuedAttributionToken:
+        if at.tzinfo is None or at.utcoffset() is None:
+            raise ValueError("verification time must be timezone-aware")
+        lookup = self.parse(raw_token)
+        if payload.member_ref != lookup.member_ref:
             raise AttributionTokenInvalid("attribution token payload is invalid")
-        secret = self.keys[payload.key_version]
+        if payload.key_version not in (None, lookup.key_version):
+            raise AttributionTokenInvalid("attribution token key binding is invalid")
+        if lookup.key_version not in self.keys:
+            raise AttributionTokenInvalid("attribution token key is unavailable")
+        payload = payload.model_copy(update={"key_version": lookup.key_version})
+        canonical = _canonical(payload)
+        secret = self.keys[lookup.key_version]
         expected = hmac.new(secret, _SIGNING_DOMAIN + canonical, hashlib.sha256).digest()
-        if not hmac.compare_digest(signature, expected):
+        if not hmac.compare_digest(lookup.signature, expected):
             raise AttributionTokenInvalid("attribution token signature is invalid")
         observed = at.astimezone(dt.UTC)
         if observed < payload.issued_at:
@@ -134,5 +169,6 @@ __all__ = [
     "AttributionTokenExpired",
     "AttributionTokenInvalid",
     "AttributionTokenKeyring",
+    "AttributionTokenLookup",
     "IssuedAttributionToken",
 ]
