@@ -1,7 +1,7 @@
 # Fiche entreprise SaaS fondée sur les sources officielles — Design
 
-Date : 2026-08-23  
-Statut : approuvé  
+Date : 2026-08-23
+Statut : approuvé
 Branche : `feat/saas-company-profile-apollo`
 
 ## Décision

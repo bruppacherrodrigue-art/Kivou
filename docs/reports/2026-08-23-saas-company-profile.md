@@ -1,7 +1,7 @@
 # Fiche entreprise SaaS officielle — rapport technique
 
-Date : 23 août 2026  
-Branche : `feat/saas-company-profile-apollo`  
+Date : 23 août 2026
+Branche : `feat/saas-company-profile-apollo`
 SHA de départ : `b75c87a22f3ff9da9a71b5bf64bb08633a4a7993`
 
 ## Résultat produit

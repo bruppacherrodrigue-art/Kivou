@@ -56,4 +56,3 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
     if profile is None:
         raise api_error(404, "company_not_found", "entreprise introuvable")
     return profile
-
