@@ -1073,7 +1073,12 @@ For an existing batch:
 - [ ] **Step 5: Run access/paywall regressions and commit**
 
 ```bash
-uv run pytest tests/test_alert_delivery_runtime.py tests/test_alerts_cycle.py tests/test_feed_api.py tests/test_signal_detail.py -q
+uv run pytest \
+  tests/test_alert_delivery_runtime.py \
+  tests/test_alerts_cycle.py \
+  tests/test_billing_paywall.py \
+  tests/test_feed_ownership.py \
+  tests/test_feed_recency.py -q
 uv run ruff check src/signals/alerts tests/test_alert_delivery_runtime.py
 git add src/signals/alerts/delivery.py src/signals/alerts/job.py tests/test_alert_delivery_runtime.py tests/test_alerts_cycle.py
 git commit -m "feat(email): suppress alerts that lose current access"
