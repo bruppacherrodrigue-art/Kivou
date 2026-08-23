@@ -49,24 +49,27 @@ Les chantiers SaaS nº1, nº2 et nº3 sont clôturés. Avant LIVE, Kivou doit é
 
 ## 4. Gates obligatoires avant LIVE
 
-### RTL-01 — Pages légales Kivou
+### RTL-01 — Informations légales, contact et footer public
 
 **Issue : [#30](https://github.com/bruppacherrodrigue-art/Kivou/issues/30)**  
 **Priorité : P0-LIVE**
 
-Créer de vraies pages publiques et indexables :
+Créer de vraies pages publiques et indexables à partir de `docs/LEGAL_CONTENT.md` :
 
-- `/cgu` ;
-- `/confidentialite` ;
-- `/mentions-legales` si conservée comme page distincte ;
+- `/informations-legales`, page canonique unique avec sommaire ;
+- ancres accessibles `#mentions-legales`, `#confidentialite` et `#cgu` ;
+- alias compatibles `/mentions-legales`, `/confidentialite` et `/cgu`, conduisant chacun à la bonne section ;
+- `/contact`, avec `contact@kivou.eu` et sans formulaire ou délai de réponse inventé ;
+- footer public complet : produit, compte, contact, mentions légales, confidentialité et CGU ;
 - versions FR et EN cohérentes ;
-- liens accessibles depuis le footer public et les surfaces de paiement nécessaires ;
+- liens accessibles depuis toutes les surfaces publiques et les surfaces de paiement nécessaires ;
 - tests prouvant que ces routes ne rendent pas le composant `NotFound` ;
+- navigation par ancre, déplacement du focus et retour arrière vérifiés ;
 - vérification finale des URL légales du portail Stripe LIVE, sans modifier LIVE avant validation.
 
 Ne jamais inventer une identité juridique, un numéro IDE/TVA, un registre, une adresse, une durée de conservation, un sous-traitant ou une base légale.
 
-**Gate :** les URL rendent un contenu Kivou réel, accessible et validé, puis les liens Stripe peuvent être contrôlés.
+**Gate :** les URL rendent un contenu Kivou réel, accessible et validé ; le footer permet d’atteindre chaque information ; les liens Stripe peuvent ensuite être contrôlés.
 
 ### RTL-02 — Stabiliser les tests de signature Stripe
 
