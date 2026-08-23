@@ -11,6 +11,7 @@ from engagement_helpers import (
     Clock,
     FakeMailer,
     account_of,
+    events,
     failure,
     icp_of,
     make_app,
@@ -25,6 +26,7 @@ from signals.alerts.gateway import UncertainDelivery
 from signals.alerts.job import run_alert_cycle
 from signals.alerts.lease import acquire, release
 from signals.engagement.schema import signal_alert_delivery
+from signals.persistence.schema import materialized_signal
 
 RETRY_BASE = dt.timedelta(minutes=15)
 DELIVERY_LEASE = dt.timedelta(minutes=30)
@@ -45,10 +47,10 @@ def mailer() -> FakeMailer:
     return FakeMailer()
 
 
-def subscriber(app, engine, *, count: int = 1):
+def subscriber(app, engine, *, count: int = 1, plan: str = "scale"):
     client = signed_up(app)
     icp = icp_of(client)
-    pay(engine, client, plan="scale")
+    pay(engine, client, plan=plan)
     return client, seed(engine, icp, count=count)
 
 
@@ -283,3 +285,78 @@ def test_normal_global_lease_contention_returns_already_running(app, engine, mai
     assert mailer.attempts == 0
     with engine.begin() as connection:
         release(connection, owner_id="other-job")
+
+
+def test_retry_is_suppressed_when_notifications_are_disabled(app, engine, mailer) -> None:
+    client, _ = subscriber(app, engine)
+    mailer.fail_with = failure("smtp_451", retryable=True)
+    cycle(engine, mailer, now=NOW)
+    attempts = deliveries(engine)[0].attempt_count
+    client.patch("/notification-preferences", json={"email_enabled": False})
+
+    report = cycle(engine, mailer, now=NOW + RETRY_BASE)
+
+    row = deliveries(engine)[0]
+    assert row.status == "suppressed"
+    assert row.suppression_reason_code == "notifications_disabled"
+    assert row.attempt_count == attempts
+    assert row.retryable is False
+    assert row.next_attempt_at is None
+    assert row.lease_expires_at is None
+    assert row.failed_at is not None
+    assert row.last_error_code == "smtp_451"
+    assert not report.has_current_incident
+    assert mailer.attempts == 1
+    assert len(events(engine, event_type="alert_failed")) == 1
+    assert len(events(engine, event_type="alert_suppressed")) == 1
+
+
+def test_retry_is_suppressed_when_entitlement_is_lost(app, engine, mailer) -> None:
+    client, _ = subscriber(app, engine)
+    mailer.fail_with = failure("smtp_451", retryable=True)
+    cycle(engine, mailer, now=NOW)
+    attempts = deliveries(engine)[0].attempt_count
+    pay(engine, client, plan="scale", status="canceled")
+
+    report = cycle(engine, mailer, now=NOW + RETRY_BASE)
+
+    row = deliveries(engine)[0]
+    assert row.status == "suppressed"
+    assert row.suppression_reason_code == "entitlement_lost"
+    assert row.attempt_count == attempts
+    assert not report.has_current_incident
+    assert mailer.attempts == 1
+
+
+def test_inaccessible_signal_is_suppressed_while_the_rest_of_the_batch_sends(
+    app, engine, mailer
+) -> None:
+    _, keys = subscriber(app, engine, count=2)
+    mailer.fail_with = failure("smtp_451", retryable=True)
+    cycle(engine, mailer, now=NOW)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == keys[0])
+            .values(invalidated_at=NOW, invalidation_reason="synthetic_test")
+        )
+
+    report = cycle(engine, mailer, now=NOW + RETRY_BASE)
+
+    rows = {row.signal_key: row for row in deliveries(engine)}
+    assert rows[keys[0]].status == "suppressed"
+    assert rows[keys[0]].suppression_reason_code == "signal_inaccessible"
+    assert rows[keys[0]].attempt_count == 1
+    assert rows[keys[1]].status == "sent"
+    assert rows[keys[1]].attempt_count == 2
+    assert keys[0] not in mailer.last.text_body
+    assert keys[1] in mailer.last.text_body
+    assert report.signals_sent == 1
+    assert not report.has_current_incident
+    suppressed = events(engine, event_type="alert_suppressed")
+    assert len(suppressed) == 1
+    assert suppressed[0].properties == {
+        "cadence": "priority",
+        "reason_code": "signal_inaccessible",
+        "signal_count": 1,
+    }

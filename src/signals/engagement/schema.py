@@ -1,6 +1,6 @@
 """Ce que le client dit d'un signal, et ce que le produit observe de lui.
 
-Quatre tables, et une frontière qui traverse tout le module :
+Cinq tables, et une frontière qui traverse tout le module :
 
     L'AVIS DU CLIENT N'EST NI UN FAIT PUBLIC NI UNE INFÉRENCE MOTEUR
     ───────────────────────────────────────────────────────────────
@@ -58,6 +58,7 @@ PRODUCT_EVENT_TYPES: tuple[str, ...] = (
     "alert_queued",
     "alert_sent",
     "alert_failed",
+    "alert_suppressed",
     "checkout_started",
     "subscription_activated",
     "subscription_lost",

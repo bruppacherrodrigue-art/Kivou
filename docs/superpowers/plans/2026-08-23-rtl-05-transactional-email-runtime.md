@@ -1006,7 +1006,7 @@ git commit -m "feat(email): add bounded durable alert retries"
 - Modify: `tests/test_alert_delivery_runtime.py`
 - Modify: `tests/test_alerts_cycle.py`
 
-- [ ] **Step 1: Write RED preference and entitlement suppression tests**
+- [x] **Step 1: Write RED preference and entitlement suppression tests**
 
 ```python
 def test_retry_is_suppressed_when_notifications_are_disabled(app, engine, mailer):
@@ -1038,7 +1038,7 @@ def test_retry_is_suppressed_when_entitlement_is_lost(app, engine, mailer):
     assert row.attempt_count == attempts
 ```
 
-- [ ] **Step 2: Write RED inaccessible and partial-batch tests**
+- [x] **Step 2: Write RED inaccessible and partial-batch tests**
 
 Queue two signals through a controlled pre-accept failure, then set
 `materialized_signal.invalidated_at = NOW` and
@@ -1047,13 +1047,13 @@ Queue two signals through a controlled pre-accept failure, then set
 becomes `sent`, the email contains only the accessible signal and no
 cross-account or locked fact.
 
-- [ ] **Step 3: Run suppression tests and verify RED**
+- [x] **Step 3: Run suppression tests and verify RED**
 
 ```bash
 uv run pytest tests/test_alert_delivery_runtime.py -k suppressed -q
 ```
 
-- [ ] **Step 4: Implement revalidation immediately before claim/send**
+- [x] **Step 4: Implement revalidation immediately before claim/send**
 
 For an existing batch:
 
@@ -1070,7 +1070,7 @@ For an existing batch:
 `attempt_count`, `failed_at` or `last_error_code` and never records
 `alert_failed`; record a distinct aggregate `alert_suppressed` product event.
 
-- [ ] **Step 5: Run access/paywall regressions and commit**
+- [x] **Step 5: Run access/paywall regressions and commit**
 
 ```bash
 uv run pytest \

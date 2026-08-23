@@ -13,6 +13,14 @@ import sqlalchemy as sa
 from signals.alerts.gateway import message_id
 from signals.engagement.schema import signal_alert_delivery
 
+SUPPRESSION_REASON_CODES: frozenset[str] = frozenset(
+    {
+        "entitlement_lost",
+        "notifications_disabled",
+        "signal_inaccessible",
+    }
+)
+
 
 class DeliveryStateConflict(RuntimeError):
     """The durable batch no longer has the state observed by this job."""
@@ -282,10 +290,13 @@ def mark_suppressed(
     reason_code: str,
     now: dt.datetime,
 ) -> None:
-    connection.execute(
+    if reason_code not in SUPPRESSION_REASON_CODES:
+        raise ValueError("unsupported alert suppression reason")
+    keys = tuple(signal_keys)
+    result = connection.execute(
         sa.update(signal_alert_delivery)
         .where(
-            *_owned_rows(batch, signal_keys=signal_keys),
+            *_owned_rows(batch, signal_keys=keys),
             signal_alert_delivery.c.status != "sent",
         )
         .values(
@@ -298,6 +309,8 @@ def mark_suppressed(
             updated_at=now,
         )
     )
+    if result.rowcount != len(keys):
+        raise DeliveryStateConflict(batch.batch_key)
 
 
 def _mark_unsuccessful(

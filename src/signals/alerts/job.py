@@ -245,15 +245,46 @@ def _run_for_account(
     with engine.begin() as connection:
         state = billing.billing_state(connection, account_id=account_id)
         cadence = state.entitlements.alert_cadence
+        batch = delivery.next_due_batch(connection, account_id=account_id, now=now)
         if cadence not in policy.SENDING_CADENCES:
-            # Discovery, ou un plan sans alerte : rien n'est mis en file.
+            if batch is not None:
+                _suppress(
+                    connection,
+                    batch=batch,
+                    signal_keys=batch.signal_keys,
+                    reason_code="entitlement_lost",
+                    cadence=cadence,
+                    now=now,
+                )
+                return AlertOutcome(
+                    account_id,
+                    cadence,
+                    "suppressed",
+                    len(batch.signal_keys),
+                    "entitlement_lost",
+                )
             return AlertOutcome(account_id, cadence, "not_eligible")
 
         preference = notifications.preference(connection, account_id=account_id, now=now)
         if not preference.can_receive_email:
+            if batch is not None:
+                _suppress(
+                    connection,
+                    batch=batch,
+                    signal_keys=batch.signal_keys,
+                    reason_code="notifications_disabled",
+                    cadence=cadence,
+                    now=now,
+                )
+                return AlertOutcome(
+                    account_id,
+                    cadence,
+                    "suppressed",
+                    len(batch.signal_keys),
+                    "notifications_disabled",
+                )
             return AlertOutcome(account_id, cadence, "notifications_disabled")
 
-        batch = delivery.next_due_batch(connection, account_id=account_id, now=now)
         if batch is None:
             if not policy.is_due(
                 cadence,
@@ -309,15 +340,26 @@ def _run_for_account(
             as_of=now.date(),
         )
         by_key = {item.signal.signal_key: item for item in accessible}
-        if any(key not in by_key for key in batch.signal_keys):
-            # Task 6 turns this revalidation result into terminal suppression.
+        inaccessible = tuple(key for key in batch.signal_keys if key not in by_key)
+        if inaccessible:
+            _suppress(
+                connection,
+                batch=batch,
+                signal_keys=inaccessible,
+                reason_code="signal_inaccessible",
+                cadence=cadence,
+                now=now,
+            )
+        accessible_keys = tuple(key for key in batch.signal_keys if key in by_key)
+        if not accessible_keys:
             return AlertOutcome(
                 account_id,
                 cadence,
-                "blocked",
-                len(batch.signal_keys),
-                "batch_signal_inaccessible",
+                "suppressed",
+                len(inaccessible),
+                "signal_inaccessible",
             )
+        batch = dataclasses.replace(batch, signal_keys=accessible_keys)
         batch = delivery.mark_sending(
             connection,
             batch=batch,
@@ -451,3 +493,32 @@ def _run_for_account(
             "delivery_state_persistence_failed",
         )
     return AlertOutcome(account_id, cadence, "sent", len(batch.signal_keys))
+
+
+def _suppress(
+    connection: sa.Connection,
+    *,
+    batch: delivery.DeliveryBatch,
+    signal_keys: tuple[str, ...],
+    reason_code: str,
+    cadence: str,
+    now: dt.datetime,
+) -> None:
+    delivery.mark_suppressed(
+        connection,
+        batch=batch,
+        signal_keys=signal_keys,
+        reason_code=reason_code,
+        now=now,
+    )
+    analytics.record(
+        connection,
+        account_id=batch.account_id,
+        event_type="alert_suppressed",
+        occurred_at=now,
+        properties={
+            "cadence": cadence,
+            "reason_code": reason_code,
+            "signal_count": len(signal_keys),
+        },
+    )
