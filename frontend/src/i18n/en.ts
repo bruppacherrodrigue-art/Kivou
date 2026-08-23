@@ -65,6 +65,13 @@ export const en: Dictionary = {
     icps: 'Active targeting profiles',
     billing: 'Plan and access',
     alerts: 'Alerts',
+    opportunitiesError: 'Opportunities are temporarily unavailable.',
+    retryOpportunities: 'Retry opportunities',
+    company: 'Company profile',
+    companyAction: 'View company profile',
+    companyUnavailable: 'Profile unavailable',
+    companyError: 'The company profile could not be verified.',
+    retryCompany: 'Retry company profile',
   },
 
   cockpit: {

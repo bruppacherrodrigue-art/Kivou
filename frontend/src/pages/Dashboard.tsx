@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { useCurrentUser } from '../auth/SessionProvider'
-import { SectionHeading } from '../components/Surfaces'
+import { Button } from '../components/Button'
+import { Callout, SectionHeading } from '../components/Surfaces'
 import { useI18n } from '../i18n'
 import { billing, icps, notifications, signals } from '../api/endpoints'
 import type {
@@ -9,6 +10,7 @@ import type {
   FeedPage,
   NotificationPreference,
   TargetIcp,
+  UnlockedFeedItem,
 } from '../api/types'
 
 interface ResourceState<T> {
@@ -20,6 +22,13 @@ interface ResourceState<T> {
 function emptyResource<T>(): ResourceState<T> {
   return { data: null, loading: true, error: null }
 }
+
+type CompanyState =
+  | { status: 'idle'; signal: null }
+  | { status: 'loading'; signal: UnlockedFeedItem }
+  | { status: 'available'; signal: UnlockedFeedItem; companyKey: string }
+  | { status: 'unavailable'; signal: UnlockedFeedItem }
+  | { status: 'error'; signal: UnlockedFeedItem; error: unknown }
 
 export function Dashboard() {
   const me = useCurrentUser()
@@ -40,12 +49,17 @@ function ReadyDashboard() {
   const [icpState, setIcpState] = useState<ResourceState<TargetIcp[]>>(emptyResource)
   const [notificationState, setNotificationState] =
     useState<ResourceState<NotificationPreference>>(emptyResource)
+  const [companyState, setCompanyState] = useState<CompanyState>({
+    status: 'idle',
+    signal: null,
+  })
 
   const mountedRef = useRef(false)
   const feedGenerationRef = useRef(0)
   const billingGenerationRef = useRef(0)
   const icpGenerationRef = useRef(0)
   const notificationGenerationRef = useRef(0)
+  const companyGenerationRef = useRef(0)
 
   const loadBilling = useCallback(async () => {
     const generation = ++billingGenerationRef.current
@@ -62,20 +76,46 @@ function ReadyDashboard() {
     }
   }, [])
 
+  const loadCompany = useCallback(async (signal: UnlockedFeedItem) => {
+    const generation = ++companyGenerationRef.current
+    setCompanyState({ status: 'loading', signal })
+    try {
+      const detail = await signals.detail(signal.signal_id)
+      if (!mountedRef.current || generation !== companyGenerationRef.current) return
+      if (detail.locked) {
+        setCompanyState({ status: 'idle', signal: null })
+      } else if (detail.company_key) {
+        setCompanyState({ status: 'available', signal, companyKey: detail.company_key })
+      } else {
+        setCompanyState({ status: 'unavailable', signal })
+      }
+    } catch (error) {
+      if (mountedRef.current && generation === companyGenerationRef.current) {
+        setCompanyState({ status: 'error', signal, error })
+      }
+    }
+  }, [])
+
   const loadFeed = useCallback(async () => {
     const generation = ++feedGenerationRef.current
+    companyGenerationRef.current += 1
+    setCompanyState({ status: 'idle', signal: null })
     setFeedState((current) => ({ ...current, loading: true, error: null }))
     try {
       const data = await signals.feed({ limit: 3, offset: 0 })
       if (!mountedRef.current || generation !== feedGenerationRef.current) return
       setFeedState({ data, loading: false, error: null })
+      const firstUnlocked = data.items.find(
+        (item): item is UnlockedFeedItem => item.locked === false,
+      )
+      if (firstUnlocked) void loadCompany(firstUnlocked)
       void loadBilling()
     } catch (error) {
       if (mountedRef.current && generation === feedGenerationRef.current) {
         setFeedState((current) => ({ ...current, loading: false, error }))
       }
     }
-  }, [loadBilling])
+  }, [loadBilling, loadCompany])
 
   const loadIcps = useCallback(async () => {
     const generation = ++icpGenerationRef.current
@@ -120,6 +160,7 @@ function ReadyDashboard() {
       billingGenerationRef.current += 1
       icpGenerationRef.current += 1
       notificationGenerationRef.current += 1
+      companyGenerationRef.current += 1
     }
   }, [loadBilling, loadFeed, loadIcps, loadNotifications])
 
@@ -130,6 +171,17 @@ function ReadyDashboard() {
       <section aria-labelledby="dashboard-opportunities-title">
         <h2 id="dashboard-opportunities-title">{t.dashboard.opportunities}</h2>
         {feedState.loading && !feedState.data ? <p>{t.common.loading}</p> : null}
+        {feedState.error ? (
+          <Callout
+            tone="danger"
+            title={t.dashboard.opportunitiesError}
+            action={
+              <Button variant="secondary" onClick={() => void loadFeed()}>
+                {t.dashboard.retryOpportunities}
+              </Button>
+            }
+          />
+        ) : null}
       </section>
 
       <section aria-labelledby="dashboard-icps-title">
@@ -147,6 +199,35 @@ function ReadyDashboard() {
         <h2 id="dashboard-alerts-title">{t.dashboard.alerts}</h2>
         {notificationState.loading && !notificationState.data ? <p>{t.common.loading}</p> : null}
       </section>
+
+      {companyState.status !== 'idle' ? (
+        <section aria-labelledby="dashboard-company-title">
+          <h2 id="dashboard-company-title">{t.dashboard.company}</h2>
+          {companyState.status === 'loading' ? <p>{t.common.loading}</p> : null}
+          {companyState.status === 'available' ? (
+            <Link to={`/app/companies/${encodeURIComponent(companyState.companyKey)}`}>
+              {t.dashboard.companyAction}
+            </Link>
+          ) : null}
+          {companyState.status === 'unavailable' ? (
+            <p>{t.dashboard.companyUnavailable}</p>
+          ) : null}
+          {companyState.status === 'error' ? (
+            <Callout
+              tone="danger"
+              title={t.dashboard.companyError}
+              action={
+                <Button
+                  variant="secondary"
+                  onClick={() => void loadCompany(companyState.signal)}
+                >
+                  {t.dashboard.retryCompany}
+                </Button>
+              }
+            />
+          ) : null}
+        </section>
+      ) : null}
     </div>
   )
 }

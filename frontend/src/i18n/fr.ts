@@ -71,6 +71,13 @@ export const fr = {
     icps: 'Ciblages actifs',
     billing: 'Formule et accès',
     alerts: 'Alertes',
+    opportunitiesError: 'Les occasions sont momentanément indisponibles.',
+    retryOpportunities: 'Réessayer les occasions',
+    company: 'Fiche entreprise',
+    companyAction: 'Consulter la fiche entreprise',
+    companyUnavailable: 'Fiche indisponible',
+    companyError: 'La fiche entreprise n’a pas pu être vérifiée.',
+    retryCompany: 'Réessayer la fiche entreprise',
   },
 
   cockpit: {
