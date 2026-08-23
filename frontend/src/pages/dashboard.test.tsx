@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useNavigate } from 'react-router-dom'
 import { AppRoutes } from '../App'
 import {
   AUTHENTICATED,
+  COMPANY_PROFILE,
   DISCOVERY_STATUS,
   ICP,
   LOCKED_DETAIL,
@@ -35,6 +37,20 @@ const DASHBOARD_ROUTES = {
       updated_at: '2026-08-18T09:00:00+00:00',
     },
   },
+}
+
+function HistoryControls() {
+  const navigate = useNavigate()
+  return (
+    <div>
+      <button type="button" onClick={() => navigate(-1)}>
+        Historique précédent
+      </button>
+      <button type="button" onClick={() => navigate(1)}>
+        Historique suivant
+      </button>
+    </div>
+  )
 }
 
 describe('accueil connecté', () => {
@@ -601,5 +617,156 @@ describe('facturation et alertes exactes', () => {
     expect(await screen.findByText('Alertes activées · Cadence quotidienne')).toBeInTheDocument()
     expect(callsTo('/notification-preferences', 'GET')).toHaveLength(2)
     expect(callsTo('/target-icps', 'GET')).toHaveLength(1)
+  })
+})
+
+describe('navigation et garde-fous du dashboard', () => {
+  it('suit le parcours existant de session expirée après un 401 local', async () => {
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /signals': {
+        status: 401,
+        body: { detail: { code: 'not_authenticated' } },
+      },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(
+      await screen.findByText('Votre session a expiré. Connectez-vous à nouveau.'),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Se connecter' })).toBeInTheDocument()
+  })
+
+  it('rend les blocs et actions structurants avec une parité anglaise', async () => {
+    mockApi({ ...DASHBOARD_ROUTES, 'GET /billing/status': { body: PRO_STATUS } })
+    renderApp(<AppRoutes />, {
+      session: { status: 'authenticated', me: { ...ME, locale: 'en' } },
+      route: '/app/dashboard',
+      locale: 'en',
+    })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Next opportunities to review' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Active targeting profiles' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Plan and access' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Alerts' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Manage my targeting' })).toHaveAttribute(
+      'href',
+      '/app/icps',
+    )
+    expect(screen.getByRole('link', { name: 'Manage my subscription' })).toHaveAttribute(
+      'href',
+      '/app/billing',
+    )
+    expect(screen.getByRole('link', { name: 'Manage my alerts' })).toHaveAttribute(
+      'href',
+      '/app/notifications',
+    )
+  })
+
+  it('préserve les blocs chargés quand la facturation échoue', async () => {
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+      'GET /signals/sig_unlocked_1': { body: UNLOCKED_DETAIL },
+      'GET /billing/status': {
+        status: 503,
+        body: { detail: { code: 'temporarily_unavailable' } },
+      },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findAllByText(UNLOCKED_ITEM.company.name!)).not.toHaveLength(0)
+    expect(screen.getByText(ICP.label)).toBeInTheDocument()
+    expect(screen.getByText('Alertes activées')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Réessayer la facturation' })).toBeInTheDocument()
+  })
+
+  it('restaure dashboard, détail et fiche entreprise avec précédent et suivant', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+      'GET /signals/sig_unlocked_1': { body: UNLOCKED_DETAIL },
+      [`GET /companies/${UNLOCKED_DETAIL.company_key}`]: { body: COMPANY_PROFILE },
+    })
+
+    renderApp(
+      <>
+        <AppRoutes />
+        <HistoryControls />
+      </>,
+      { session: AUTHENTICATED, route: '/app/dashboard' },
+    )
+
+    await screen.findByRole('link', { name: 'Consulter la fiche entreprise' })
+    await user.click(screen.getByRole('link', { name: 'Examiner le signal' }))
+    expect(
+      await screen.findByRole('heading', { level: 1, name: UNLOCKED_DETAIL.contract.title! }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Historique précédent' }))
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' }),
+    ).toBeInTheDocument()
+    await user.click(await screen.findByRole('link', { name: 'Consulter la fiche entreprise' }))
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: COMPANY_PROFILE.official_identity.name,
+      }),
+    ).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Historique précédent' }))
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' }),
+    ).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Historique suivant' }))
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: COMPANY_PROFILE.official_identity.name,
+      }),
+    ).toBeInTheDocument()
+  })
+
+  it('ne stocke aucune donnée entreprise ni company_key dans le navigateur', async () => {
+    localStorage.clear()
+    sessionStorage.clear()
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+      'GET /signals/sig_unlocked_1': { body: UNLOCKED_DETAIL },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+    await screen.findByRole('link', { name: 'Consulter la fiche entreprise' })
+
+    expect(localStorage).toHaveLength(0)
+    expect(sessionStorage).toHaveLength(0)
+    expect(JSON.stringify(localStorage)).not.toContain(UNLOCKED_ITEM.company.name)
+    expect(JSON.stringify(sessionStorage)).not.toContain(UNLOCKED_DETAIL.company_key)
+  })
+
+  it('rend un seul main, un seul h1 et des actions nommées', async () => {
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+      'GET /signals/sig_unlocked_1': { body: UNLOCKED_DETAIL },
+    })
+
+    const { container } = renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: '/app/dashboard',
+    })
+    await screen.findByRole('link', { name: 'Consulter la fiche entreprise' })
+
+    expect(container.querySelectorAll('main')).toHaveLength(1)
+    expect(container.querySelectorAll('h1')).toHaveLength(1)
+    for (const action of container.querySelectorAll('a[href], button')) {
+      expect(action).toHaveAccessibleName()
+    }
   })
 })
