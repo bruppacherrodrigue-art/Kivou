@@ -21,6 +21,7 @@ export function PublicLayout() {
   const { state } = useSession()
   const location = useLocation()
   const authenticated = state.status === 'authenticated'
+  const footerLinkLabel = (label: string) => `${label} — ${t.publicFooter.linkContext}`
   const [menuOpen, setMenuOpen] = useState(false)
   const toggleRef = useRef<HTMLButtonElement>(null)
 
@@ -152,7 +153,10 @@ export function PublicLayout() {
       ) : null}
 
       <main id="kivou-main">
-        <HashTarget />
+        {/* Remonter la cible quand la langue change relance le mécanisme de
+            focus sans modifier l'URL : l'ancre reste active et le lecteur
+            reprend au même endroit dans la nouvelle langue. */}
+        <HashTarget key={locale} />
         <Outlet />
       </main>
 
@@ -162,9 +166,92 @@ export function PublicLayout() {
             <KivouLogo size="sm" baseline={t.brand.baseline} />
             <p className={styles.footerTagline}>{t.landing.footerTagline}</p>
           </div>
-          <p className={styles.footerLegal}>
-            © {new Date().getFullYear()} {t.brand.name} — {t.landing.footerRights}
-          </p>
+
+          <nav className={styles.footerColumn} aria-label={t.publicFooter.product}>
+            <p className={styles.footerHeading}>{t.publicFooter.product}</p>
+            <Link to="/" aria-label={footerLinkLabel(t.publicFooter.home)}>
+              {t.publicFooter.home}
+            </Link>
+            <Link
+              to="/exemple-de-signal"
+              aria-label={footerLinkLabel(t.publicFooter.signalExample)}
+            >
+              {t.publicFooter.signalExample}
+            </Link>
+            <Link to="/#comment" aria-label={footerLinkLabel(t.nav.howItWorks)}>
+              {t.nav.howItWorks}
+            </Link>
+            <Link to="/#tarifs" aria-label={footerLinkLabel(t.nav.pricing)}>
+              {t.nav.pricing}
+            </Link>
+          </nav>
+
+          <nav className={styles.footerColumn} aria-label={t.publicFooter.account}>
+            <p className={styles.footerHeading}>{t.publicFooter.account}</p>
+            {authenticated ? (
+              <ButtonLink
+                to="/app/signals"
+                variant="primary"
+                aria-label={footerLinkLabel(t.nav.signals)}
+              >
+                {t.nav.signals}
+              </ButtonLink>
+            ) : (
+              <>
+                <ButtonLink
+                  to="/signup"
+                  variant="primary"
+                  aria-label={footerLinkLabel(t.publicFooter.firstSignals)}
+                >
+                  {t.publicFooter.firstSignals}
+                </ButtonLink>
+                <Link to="/login" aria-label={footerLinkLabel(t.nav.login)}>
+                  {t.nav.login}
+                </Link>
+              </>
+            )}
+          </nav>
+
+          <nav className={styles.footerColumn} aria-label={t.publicFooter.helpAndLegal}>
+            <p className={styles.footerHeading}>{t.publicFooter.helpAndLegal}</p>
+            <ButtonLink
+              to="/contact"
+              variant="secondary"
+              aria-label={footerLinkLabel(t.publicFooter.contact)}
+            >
+              {t.publicFooter.contact}
+            </ButtonLink>
+            <Link
+              to="/informations-legales#mentions-legales"
+              aria-label={footerLinkLabel(t.publicFooter.legalNotice)}
+            >
+              {t.publicFooter.legalNotice}
+            </Link>
+            <Link
+              to="/informations-legales#confidentialite"
+              aria-label={footerLinkLabel(t.publicFooter.privacy)}
+            >
+              {t.publicFooter.privacy}
+            </Link>
+            <Link
+              to="/informations-legales#cgu"
+              aria-label={footerLinkLabel(t.publicFooter.terms)}
+            >
+              {t.publicFooter.terms}
+            </Link>
+          </nav>
+
+          <div className={styles.footerBottom}>
+            <p className={styles.footerLegal}>
+              © {new Date().getFullYear()} {t.brand.name} — {t.landing.footerRights}
+            </p>
+            <LocaleSwitch
+              locale={locale}
+              onChange={setLocale}
+              label={t.publicFooter.language}
+              optionContext={t.publicFooter.linkContext}
+            />
+          </div>
         </div>
       </footer>
     </div>
@@ -175,10 +262,12 @@ function LocaleSwitch({
   locale,
   onChange,
   label,
+  optionContext,
 }: {
   locale: Locale
   onChange: (next: Locale) => void
   label: string
+  optionContext?: string
 }) {
   return (
     <div className={styles.localeSwitch} role="group" aria-label={label}>
@@ -190,6 +279,7 @@ function LocaleSwitch({
           // L'état sélectionné est porté par `aria-pressed`, pas par la seule
           // couleur de fond.
           aria-pressed={option === locale}
+          aria-label={optionContext ? `${option.toUpperCase()} — ${optionContext}` : undefined}
           onClick={() => onChange(option)}
         >
           {option.toUpperCase()}

@@ -362,6 +362,49 @@ export const en: Dictionary = {
     footerRights: 'All rights reserved.',
   },
 
+  publicFooter: {
+    linkContext: 'footer',
+    language: 'Footer language',
+    product: 'Product',
+    account: 'Account',
+    helpAndLegal: 'Help and legal information',
+    home: 'Home',
+    signalExample: 'Signal example',
+    firstSignals: 'See my first 3 signals',
+    contact: 'Contact us',
+    legalNotice: 'Legal notice',
+    privacy: 'Privacy',
+    terms: 'Terms',
+  },
+
+  contact: {
+    eyebrow: 'CONTACT',
+    title: 'Contact us',
+    lead: 'Have a question about Kivou, your account, a subscription or your data? Email contact@kivou.eu.',
+    categories: [
+      {
+        title: 'Product and account',
+        body: 'Using Kivou, access or a signal.',
+      },
+      {
+        title: 'Billing',
+        body: 'Subscription, payment or cancellation.',
+      },
+      {
+        title: 'Privacy',
+        body: 'Exercising rights or asking about data.',
+      },
+      {
+        title: 'Partnerships and general enquiries',
+        body: 'Any other professional request.',
+      },
+    ],
+    emailAction: 'Email contact@kivou.eu',
+    signupAction: 'See my first 3 signals',
+    metaTitle: 'Contact us — Kivou',
+    metaDescription: 'Contact Kivou about the product, your account, billing or your data.',
+  },
+
   publicDemo: {
     navLabel: 'Signal example',
     heroEyebrow: 'Documented commercial opportunity',

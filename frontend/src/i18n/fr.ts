@@ -368,6 +368,49 @@ export const fr = {
     footerRights: 'Tous droits réservés.',
   },
 
+  publicFooter: {
+    linkContext: 'pied de page',
+    language: 'Langue du pied de page',
+    product: 'Produit',
+    account: 'Compte',
+    helpAndLegal: 'Aide et informations légales',
+    home: 'Accueil',
+    signalExample: 'Exemple de signal',
+    firstSignals: 'Voir mes 3 premiers signaux',
+    contact: 'Contactez-nous',
+    legalNotice: 'Mentions légales',
+    privacy: 'Confidentialité',
+    terms: 'Conditions générales',
+  },
+
+  contact: {
+    eyebrow: 'CONTACT',
+    title: 'Contactez-nous',
+    lead: 'Une question sur Kivou, votre compte, un abonnement ou vos données ? Écrivez-nous à contact@kivou.eu.',
+    categories: [
+      {
+        title: 'Produit et compte',
+        body: 'Utilisation de Kivou, accès ou signal.',
+      },
+      {
+        title: 'Facturation',
+        body: 'Abonnement, paiement ou résiliation.',
+      },
+      {
+        title: 'Confidentialité',
+        body: 'Exercice de droits ou question sur les données.',
+      },
+      {
+        title: 'Partenariats et questions générales',
+        body: 'Toute autre demande professionnelle.',
+      },
+    ],
+    emailAction: 'Écrire à contact@kivou.eu',
+    signupAction: 'Voir mes 3 premiers signaux',
+    metaTitle: 'Contactez-nous — Kivou',
+    metaDescription: 'Contactez Kivou pour une question sur le produit, votre compte, la facturation ou vos données.',
+  },
+
   publicDemo: {
     navLabel: 'Exemple de signal',
     heroEyebrow: 'Opportunité commerciale documentée',
