@@ -26,9 +26,7 @@ def test_reliability_migration_is_single_linear_head_and_adds_two_tables(tmp_pat
 
     command.upgrade(config, HEAD)
 
-    assert set(sa.inspect(engine).get_table_names()) - before == {
-        table.name for table in TABLES
-    }
+    assert set(sa.inspect(engine).get_table_names()) - before == {table.name for table in TABLES}
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [HEAD]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
@@ -50,9 +48,7 @@ def test_reliability_roundtrip_and_core_schema_parity(tmp_path) -> None:
         }
 
     command.downgrade(config, PREVIOUS)
-    assert {table.name for table in TABLES}.isdisjoint(
-        sa.inspect(migrated).get_table_names()
-    )
+    assert {table.name for table in TABLES}.isdisjoint(sa.inspect(migrated).get_table_names())
     assert current_revision(migrated) == PREVIOUS
     command.upgrade(config, HEAD)
     assert current_revision(migrated) == HEAD
@@ -93,4 +89,3 @@ def test_reliability_core_tables_exclude_raw_payload_and_pii_columns() -> None:
     }
     for table in TABLES:
         assert forbidden.isdisjoint(column.name for column in table.columns)
-

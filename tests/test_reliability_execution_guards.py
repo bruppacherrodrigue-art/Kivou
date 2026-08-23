@@ -55,18 +55,23 @@ def test_open_breaker_blocks_new_campaign_before_policy_or_provider_planning(tmp
         service.schedule(opportunity_id, authorization, budget_usage=BudgetUsage())
 
     with engine.connect() as connection:
-        assert connection.scalar(
-            sa.select(sa.func.count())
-            .select_from(policy_evaluation)
-            .where(policy_evaluation.c.evaluation_id == authorization.evaluation_id)
-        ) == 0
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(policy_evaluation)
+                .where(policy_evaluation.c.evaluation_id == authorization.evaluation_id)
+            )
+            == 0
+        )
 
 
 def test_open_breaker_blocks_learning_application_without_rewriting_proposal(tmp_path) -> None:
     engine, snapshot, envelope, candidates = _context(tmp_path)
     store = LearningStore(engine)
     store.save_snapshot(snapshot)
-    store.save_candidates(candidates, envelope_fingerprint=envelope.fingerprint, created_at=LEARNING_NOW)
+    store.save_candidates(
+        candidates, envelope_fingerprint=envelope.fingerprint, created_at=LEARNING_NOW
+    )
     shift = next(item for item in candidates if item.delta_units == 1)
     store.record_selection(
         shift.proposal_ref,
@@ -88,8 +93,10 @@ def test_open_breaker_blocks_learning_application_without_rewriting_proposal(tmp
     with pytest.raises(LearningConflict, match="circuit"):
         store.apply(shift.proposal_ref, applied_at=LEARNING_NOW)
 
-    assert store.existing_cycle(
-        window_end=snapshot.window.window_end,
-        envelope_fingerprint=envelope.fingerprint,
-    )[1]["state"] == "PROPOSED"
-
+    assert (
+        store.existing_cycle(
+            window_end=snapshot.window.window_end,
+            envelope_fingerprint=envelope.fingerprint,
+        )[1]["state"]
+        == "PROPOSED"
+    )

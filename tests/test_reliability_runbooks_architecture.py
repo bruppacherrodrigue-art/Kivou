@@ -55,4 +55,3 @@ def test_operations_package_has_no_network_or_import_time_execution() -> None:
 def test_no_service_manager_or_autostart_manifest_is_added() -> None:
     assert not list(Path(".").glob("**/*spec031*.service"))
     assert not list(Path(".").glob("**/*spec031*.timer"))
-

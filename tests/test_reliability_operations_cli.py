@@ -61,4 +61,3 @@ def test_operator_cli_health_is_bounded_and_never_prints_database_url(tmp_path, 
     assert "status=NOT_READY" in output
     assert url not in output
     assert "ops-health-secret-marker" not in output
-

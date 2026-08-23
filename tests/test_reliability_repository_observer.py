@@ -32,9 +32,7 @@ def test_authoritative_post_stop_send_is_preserved_observed_and_downgrades_contr
     )
     assert transport.incident_code == "UNEXPECTED_EMAIL_SENT_AFTER_STOP"
     with engine.connect() as connection:
-        provider_event = connection.execute(
-            sa.select(acquisition_provider_event)
-        ).mappings().one()
+        provider_event = connection.execute(sa.select(acquisition_provider_event)).mappings().one()
 
     observed = RepositoryReliabilityObserver(engine).scan_campaign(
         result.campaign_ref, observed_at=RECEIVED + dt.timedelta(seconds=1)
@@ -58,11 +56,14 @@ def test_authoritative_post_stop_send_is_preserved_observed_and_downgrades_contr
     )
     assert replay.incident_refs == observed.incident_refs
     with engine.connect() as connection:
-        same_event = connection.execute(
-            sa.select(acquisition_provider_event).where(
-                acquisition_provider_event.c.provider_event_ref
-                == provider_event["provider_event_ref"]
+        same_event = (
+            connection.execute(
+                sa.select(acquisition_provider_event).where(
+                    acquisition_provider_event.c.provider_event_ref
+                    == provider_event["provider_event_ref"]
+                )
             )
-        ).mappings().one()
+            .mappings()
+            .one()
+        )
     assert same_event["incident_code"] == "UNEXPECTED_EMAIL_SENT_AFTER_STOP"
-

@@ -1,7 +1,7 @@
 # SPEC-031 — Reliability & Autonomous Operations — design
 
-Status: frozen implementation design  
-Base: `9b7cb4298f5a51b476976a8ec47d8e652a806285`  
+Status: frozen implementation design
+Base: `af2f0122c13d906d5af077e4c620eada7c4db0bc`
 Version: `acquisition-operations-v1`
 
 ## Scope and non-goals

@@ -123,4 +123,3 @@ def test_requeue_is_idempotent_and_history_is_not_deleted(tmp_path) -> None:
     assert handler.refs == ["response-evaluation-ref"]
     store.resolve_dead_letter(ref, at=NOW + dt.timedelta(minutes=2))
     assert store.get_dead_letter(ref)["status"] == DeadLetterStatus.RESOLVED
-
