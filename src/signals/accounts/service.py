@@ -339,6 +339,18 @@ def request_password_reset(
 
     user_id, locale = row
     raw = new_token()
+    # Une nouvelle demande remplace toutes les précédentes. Si un premier
+    # e-mail n'est pas parti, l'utilisateur peut redemander sans laisser un
+    # ancien jeton latent devenir utilisable plus tard. `used_at` conserve
+    # l'historique sans stocker le jeton en clair ni supprimer de ligne.
+    connection.execute(
+        sa.update(password_reset)
+        .where(
+            password_reset.c.user_id == user_id,
+            password_reset.c.used_at.is_(None),
+        )
+        .values(used_at=now)
+    )
     connection.execute(
         sa.insert(password_reset).values(
             reset_id=_identifier("rst"),

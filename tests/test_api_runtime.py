@@ -235,6 +235,96 @@ def test_the_reset_message_never_carries_a_tracker():
     assert "désinscri" not in message.text_body.lower(), "un e-mail de sécurité ne se désinscrit pas"
 
 
+@pytest.mark.parametrize(
+    ("locale", "subject", "greeting", "validity"),
+    [
+        (
+            "fr",
+            "Réinitialisation de votre mot de passe Kivou",
+            "Bonjour,",
+            "Ce lien est valable 1 heure(s) et ne fonctionne qu'une seule fois.",
+        ),
+        (
+            "en",
+            "Reset your Kivou password",
+            "Hello,",
+            "The link is valid for 1 hour(s) and works only once.",
+        ),
+    ],
+)
+def test_reset_templates_preserve_the_same_certainty_in_french_and_english(
+    locale: str, subject: str, greeting: str, validity: str
+) -> None:
+    from signals.accounts.reset_delivery import build_reset_message
+
+    message = build_reset_message(
+        email="synthetic-user@kivou.eu",
+        locale=locale,
+        reset_token="synthetic-reset-value",
+        site_url="https://staging.kivou.test",
+        ttl=dt.timedelta(hours=1),
+        message_id=f"<reset-{locale}@kivou.eu>",
+    )
+
+    assert message.subject == subject
+    assert message.text_body.startswith(greeting)
+    assert validity in message.text_body
+    assert (
+        "https://staging.kivou.test/reset-password?token=synthetic-reset-value"
+        in message.text_body
+    )
+
+
+@pytest.mark.parametrize(
+    "origin",
+    ["https://staging.kivou.test", "https://kivou.eu"],
+)
+def test_reset_links_are_rooted_at_the_configured_public_origin(origin: str) -> None:
+    from signals.accounts.reset_delivery import build_reset_message
+
+    message = build_reset_message(
+        email="synthetic-user@kivou.eu",
+        locale="fr",
+        reset_token="synthetic-reset-value",
+        site_url=origin,
+        ttl=dt.timedelta(minutes=30),
+    )
+
+    assert f"{origin}/reset-password?token=synthetic-reset-value" in message.text_body
+    assert f"{origin}/app/" not in message.text_body
+
+
+@pytest.mark.parametrize(
+    "error_code",
+    ["unknown_delivery_state", "smtp_authentication_failed"],
+)
+def test_reset_delivery_failure_logs_only_a_safe_code(caplog, error_code: str) -> None:
+    from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
+    from signals.alerts.gateway import AlertDeliveryError, UncertainDelivery
+
+    reset_value = "reset-" + "private-value"
+    address = "synthetic-private-user" + "@kivou.eu"
+    smtp_secret = "smtp-" + "private-value"
+
+    class FailingGateway:
+        def send(self, message):
+            if error_code == "unknown_delivery_state":
+                raise UncertainDelivery()
+            raise AlertDeliveryError(error_code, retryable=False)
+
+    delivery = SmtpPasswordResetDelivery(
+        FailingGateway(),
+        site_url="https://staging.kivou.test",
+        ttl=dt.timedelta(hours=1),
+    )
+    delivery.deliver(email=address, locale="fr", reset_token=reset_value)
+
+    rendered = caplog.text
+    assert error_code in rendered
+    for forbidden in (reset_value, address, smtp_secret, "Traceback"):
+        assert forbidden not in rendered
+
+
 def test_a_delivery_failure_never_reaches_the_caller():
     """`deliver()` ne lève jamais : une erreur SMTP remontée à la route
     distinguerait une adresse connue d'une inconnue."""

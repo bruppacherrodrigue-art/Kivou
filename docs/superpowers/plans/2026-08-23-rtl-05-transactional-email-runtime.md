@@ -1248,7 +1248,7 @@ it ran.
 - Modify: `tests/test_smtp_gateway.py`
 - Modify: `tests/test_engagement_secrets.py`
 
-- [ ] **Step 1: Add reset-link and enumeration regressions**
+- [x] **Step 1: Add reset-link and enumeration regressions**
 
 Pin FR/EN subjects and bodies, root staging/production link, one-time token,
 expired token, old/new password behavior, and identical known/unknown status and
@@ -1275,13 +1275,13 @@ def test_reset_timeout_logs_only_a_safe_code(caplog):
         assert forbidden not in rendered
 ```
 
-- [ ] **Step 2: Add one-shot recovery test**
+- [x] **Step 2: Add one-shot recovery test**
 
 Submit a reset whose first fake SMTP call fails, submit a second request, then
 assert a new token/message ID is generated and only the second token can be
 used. Do not add a reset outbox or raw-token persistence.
 
-- [ ] **Step 3: Run security tests and commit**
+- [x] **Step 3: Run security tests and commit**
 
 ```bash
 uv run pytest tests/test_accounts_security.py tests/test_api_runtime.py tests/test_smtp_gateway.py tests/test_engagement_secrets.py -q
