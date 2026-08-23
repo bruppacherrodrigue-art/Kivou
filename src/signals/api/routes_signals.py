@@ -39,7 +39,13 @@ from signals.api.dependencies import current_session, request_now
 from signals.api.errors import api_error
 from signals.billing import discovery, paywall
 from signals.billing import service as billing
-from signals.billing.access import FeedAccess, FilterNotEntitled, check_filters, feed_access
+from signals.billing.access import (
+    FeedAccess,
+    FilterNotEntitled,
+    check_filters,
+    eligible_upgrade_plans,
+    feed_access,
+)
 from signals.engagement import analytics, feedback
 from signals.feed import policy, query, view
 from signals.recency import RECENCY_POLICY_VERSION
@@ -275,7 +281,9 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
         # Le compte POSSÈDE ce signal : répondre 404 confondrait « pas à vous »
         # et « pas encore accessible », et empêcherait de dire ce que le
         # paiement débloquerait.
-        locked = paywall.locked_detail(item, lang=lang)
+        locked = paywall.locked_detail(
+            item, lang=lang, upgrade_to=eligible_upgrade_plans(item, access=access)
+        )
         locked["read_at"] = as_of.isoformat()
         locked["language"] = lang
         return locked
