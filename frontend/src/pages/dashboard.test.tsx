@@ -543,6 +543,31 @@ describe('facturation et alertes exactes', () => {
     )
   })
 
+  it.each([
+    ['weekly', true, 'Alertes activées · Cadence hebdomadaire'],
+    ['none', false, 'Alertes désactivées · Votre formule ne prévoit aucune cadence'],
+  ] as const)('rend aussi exactement la cadence %s', async (cadence, enabled, copy) => {
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /billing/status': {
+        body: {
+          ...PRO_STATUS,
+          entitlements: { ...PRO_STATUS.entitlements, alert_cadence: cadence },
+        },
+      },
+      'GET /notification-preferences': {
+        body: {
+          email_enabled: enabled,
+          notification_email: 'claire@acme.test',
+          updated_at: '2026-08-18T09:00:00+00:00',
+        },
+      },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText(copy)).toBeInTheDocument()
+  })
+
   it('montre la cadence disponible mais ne prétend rien sur l’activation si les préférences échouent', async () => {
     mockApi({
       ...DASHBOARD_ROUTES,
@@ -765,6 +790,14 @@ describe('navigation et garde-fous du dashboard', () => {
 
     expect(container.querySelectorAll('main')).toHaveLength(1)
     expect(container.querySelectorAll('h1')).toHaveLength(1)
+    expect(
+      screen.getByRole('list', { name: 'Prochaines occasions à examiner' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('list', { name: 'Ciblages actifs' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Ciblages actifs' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Formule et accès' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Alertes' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Fiche entreprise' })).toBeInTheDocument()
     for (const action of container.querySelectorAll('a[href], button')) {
       expect(action).toHaveAccessibleName()
     }

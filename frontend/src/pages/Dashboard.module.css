@@ -37,6 +37,17 @@
   min-width: 0;
 }
 
+.signalList,
+.icpList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.listItem {
+  min-width: 0;
+}
+
 .supportGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

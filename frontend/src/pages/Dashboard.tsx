@@ -240,11 +240,13 @@ function ReadyDashboard() {
           />
         ) : null}
         {feedItems.length > 0 ? (
-          <div className={styles.signalList}>
+          <ol className={styles.signalList} aria-label={t.dashboard.opportunities}>
             {feedItems.map((item) => (
-              <SignalCard key={item.signal_id} item={item} />
+              <li key={item.signal_id} className={styles.listItem}>
+                <SignalCard item={item} />
+              </li>
             ))}
-          </div>
+          </ol>
         ) : null}
         {feedState.data && feedItems.length === 0 ? (
           <Card padding="none">
@@ -269,6 +271,7 @@ function ReadyDashboard() {
           as="section"
           padding="lg"
           className={styles.icpSection}
+          ariaLabelledBy="dashboard-icps-title"
         >
           <div className={styles.cardHeader}>
             <SectionHeading id="dashboard-icps-title" title={t.dashboard.icps} />
@@ -300,19 +303,25 @@ function ReadyDashboard() {
             </div>
           ) : null}
           {activeIcps.length > 0 ? (
-            <div className={styles.icpList}>
+            <ol className={styles.icpList} aria-label={t.dashboard.icps}>
               {activeIcps.map((profile) => (
-                <IcpSummary
-                  key={profile.target_icp_id}
-                  profile={profile}
-                  overLimit={overLimitIcps.has(profile.target_icp_id)}
-                />
+                <li key={profile.target_icp_id} className={styles.listItem}>
+                  <IcpSummary
+                    profile={profile}
+                    overLimit={overLimitIcps.has(profile.target_icp_id)}
+                  />
+                </li>
               ))}
-            </div>
+            </ol>
           ) : null}
         </Card>
 
-        <Card as="section" padding="lg" className={styles.sectionCard}>
+        <Card
+          as="section"
+          padding="lg"
+          className={styles.sectionCard}
+          ariaLabelledBy="dashboard-billing-title"
+        >
           <SectionHeading id="dashboard-billing-title" title={t.dashboard.billing} />
           {billingState.loading && !billingStatus ? (
             <Skeleton width="40%" height="1.5rem" />
@@ -382,7 +391,12 @@ function ReadyDashboard() {
           ) : null}
         </Card>
 
-        <Card as="section" padding="lg" className={styles.sectionCard}>
+        <Card
+          as="section"
+          padding="lg"
+          className={styles.sectionCard}
+          ariaLabelledBy="dashboard-alerts-title"
+        >
           <SectionHeading id="dashboard-alerts-title" title={t.dashboard.alerts} />
           {notificationState.loading && !notificationPreference ? (
             <Skeleton width="62%" height="1.25rem" />
@@ -405,7 +419,7 @@ function ReadyDashboard() {
         </Card>
 
         {companyState.status !== 'idle' ? (
-          <Card as="section" padding="lg">
+          <Card as="section" padding="lg" ariaLabelledBy="dashboard-company-title">
             <SectionHeading id="dashboard-company-title" title={t.dashboard.company} />
             <p className={styles.supportingCopy}>{companyState.signal.company.name}</p>
             {companyState.status === 'loading' ? (

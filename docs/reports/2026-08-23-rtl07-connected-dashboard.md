@@ -80,7 +80,7 @@ entreprise.
 
 - Backend de base : `uv run pytest` — `4115 passed, 2 skipped` ; aucun fichier
   backend n’est modifié.
-- Frontend : typecheck et lint verts ; `374 passed` sur la suite Vitest ; build
+- Frontend : typecheck et lint verts ; `376 passed` sur la suite Vitest ; build
   Vite vert.
 - Navigateur réel : 1440, 1024, 768, 390 et 320 px vérifiés avec quatre ICP
   actifs. À chaque largeur, `scrollWidth` égale la largeur du viewport, les
