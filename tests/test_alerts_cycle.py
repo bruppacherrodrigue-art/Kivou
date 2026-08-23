@@ -417,8 +417,10 @@ def test_a_known_delivery_failure_stays_retryable(app, engine, mailer):
     assert {row.last_error_code for row in rows} == {"smtp_451"}
     assert {row.attempt_count for row in rows} == {1}
 
-    # Le cycle suivant réessaie, et réussit.
-    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=5)).signals_sent == 2
+    # Le backoff est durable : pas de rejeu précoce, puis reprise à l'échéance.
+    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=5)).signals_sent == 0
+    assert mailer.attempts == 1
+    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=15)).signals_sent == 2
     assert {row.status for row in deliveries(engine)} == {"sent"}
 
 
@@ -432,6 +434,13 @@ def test_an_uncertain_delivery_is_never_blindly_resent(app, engine, mailer):
     rows = deliveries(engine)
     assert {row.status for row in rows} == {"unknown_delivery_state"}
     assert {row.last_error_code for row in rows} == {"unknown_delivery_state"}
+    assert {row.retryable for row in rows} == {True}
+    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=14)).signals_sent == 0
+    assert mailer.attempts == 1
+
+    identifier = rows[0].delivery_message_id
+    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=15)).signals_sent == 1
+    assert mailer.last.message_id == identifier
 
 
 def test_a_failure_never_consumes_the_accounts_turn(app, engine, mailer):
@@ -450,7 +459,13 @@ def test_no_exception_trace_or_credential_reaches_the_database(app, engine, mail
     cycle(engine, mailer)
 
     body = str([dict(row._mapping) for row in deliveries(engine)])
-    for forbidden in ("Traceback", "password", "smtplib", "login", "@"):
+    for forbidden in (
+        "Traceback",
+        "password",
+        "smtplib",
+        "login",
+        "alice@negoce-romand.ch",
+    ):
         assert forbidden not in body, forbidden
 
 

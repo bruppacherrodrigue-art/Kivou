@@ -77,10 +77,12 @@ class FakeMailer:
     """Une passerelle d'e-mail déterministe : elle garde ce qu'on lui donne."""
 
     sent: list[AlertMessage] = dataclasses.field(default_factory=list)
+    attempts: int = 0
     #: Erreur à lever au prochain envoi, pour éprouver les chemins d'échec.
     fail_with: Exception | None = None
 
     def send(self, message: AlertMessage) -> DeliveryResult:
+        self.attempts += 1
         if self.fail_with is not None:
             error, self.fail_with = self.fail_with, None
             raise error

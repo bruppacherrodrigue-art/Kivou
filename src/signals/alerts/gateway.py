@@ -45,11 +45,11 @@ class AlertDeliveryError(RuntimeError):
 
 
 class UncertainDelivery(AlertDeliveryError):
-    """Le serveur n'a ni confirmé ni refusé — on ne renvoie pas à l'aveugle.
+    """Le serveur n'a ni confirmé ni refusé — aucune reprise immédiate.
 
-    §27 — préférer un état explicite à la production d'e-mails répétés : le
-    client qui reçoit deux fois la même alerte perd confiance plus vite qu'un
-    client qui la reçoit une fois de trop tard.
+    L'état durable conserve l'ambiguïté, applique un backoff borné et réutilise
+    le même `Message-ID`. Cela réduit le risque sans prétendre à un exactement
+    une fois que SMTP ne sait pas garantir.
     """
 
     def __init__(self, code: str = "unknown_delivery_state") -> None:

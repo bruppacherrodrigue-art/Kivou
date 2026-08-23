@@ -5,6 +5,12 @@ une politique de cadence qui lit le catalogue de facturation plutôt que d'en
 inventer un second.
 """
 
+from signals.alerts.delivery import (
+    DeliveryBatch,
+    DeliveryStateConflict,
+    logical_batch_key,
+    retry_delay,
+)
 from signals.alerts.gateway import (
     AlertDeliveryError,
     AlertDeliveryGateway,
@@ -33,7 +39,9 @@ __all__ = [
     "AlertMessage",
     "AlertOutcome",
     "CycleReport",
+    "DeliveryBatch",
     "DeliveryResult",
+    "DeliveryStateConflict",
     "LeaseAcquisition",
     "SmtpAlertGateway",
     "SmtpConfiguration",
@@ -41,7 +49,9 @@ __all__ = [
     "acquire",
     "eligible_signals",
     "is_due",
+    "logical_batch_key",
     "message_id",
     "release",
+    "retry_delay",
     "run_alert_cycle",
 ]

@@ -822,7 +822,7 @@ git commit -m "feat(email): serialize alert jobs with database leases"
 - Modify: `tests/test_alerts_cycle.py`
 - Modify: `tests/engagement_helpers.py`
 
-- [ ] **Step 1: Write RED deterministic retry tests**
+- [x] **Step 1: Write RED deterministic retry tests**
 
 ```python
 def test_retryable_failure_uses_backoff_and_the_same_message_id(app, engine, mailer):
@@ -852,7 +852,7 @@ def test_permanent_failure_is_terminal(app, engine, mailer):
     assert deliveries(engine)[0].retryable is False
 ```
 
-- [ ] **Step 2: Write RED stale sending and bounded-attempt tests**
+- [x] **Step 2: Write RED stale sending and bounded-attempt tests**
 
 ```python
 def test_expired_sending_lease_is_reclaimed_with_same_message_id(app, engine, mailer):
@@ -891,7 +891,7 @@ def test_retry_budget_is_bounded(app, engine, mailer):
     assert row.next_attempt_at is None
 ```
 
-- [ ] **Step 3: Write RED post-accept persistence-failure test**
+- [x] **Step 3: Write RED post-accept persistence-failure test**
 
 Patch `signals.alerts.delivery.mark_sent` to raise
 `sa.exc.OperationalError("UPDATE", {}, RuntimeError("synthetic"))` after the
@@ -900,13 +900,13 @@ expiry, restore `mark_sent`, retry and assert both recorded calls use the same
 `Message-ID`. The assertion names the two accepted calls as the documented
 possible duplicate and never labels the behavior exactly-once.
 
-- [ ] **Step 4: Run focused tests and verify RED**
+- [x] **Step 4: Run focused tests and verify RED**
 
 ```bash
 uv run pytest tests/test_alert_delivery_runtime.py tests/test_alerts_cycle.py -q
 ```
 
-- [ ] **Step 5: Implement batch identity and state transitions**
+- [x] **Step 5: Implement batch identity and state transitions**
 
 `delivery.py` owns these operations:
 
@@ -953,7 +953,7 @@ def send(self, message: AlertMessage) -> DeliveryResult:
     return DeliveryResult(provider_message_id=message.message_id)
 ```
 
-- [ ] **Step 6: Orchestrate the global lease and current-run report**
+- [x] **Step 6: Orchestrate the global lease and current-run report**
 
 Extend the report with closed execution semantics:
 
@@ -981,13 +981,13 @@ Return an empty `already_running` report for normal contention. Let technical
 database failures propagate. Historical terminal rows are never converted into
 current outcomes.
 
-- [ ] **Step 7: Update existing tests for bounded ambiguity**
+- [x] **Step 7: Update existing tests for bounded ambiguity**
 
 Replace the old assertion that uncertain delivery is retried immediately on
 every cycle. Assert no retry before `next_attempt_at`, bounded retries after it,
 stable Message-ID and terminal exhaustion.
 
-- [ ] **Step 8: Run tests and commit**
+- [x] **Step 8: Run tests and commit**
 
 ```bash
 uv run pytest tests/test_alert_delivery_runtime.py tests/test_alerts_cycle.py tests/test_alert_job_lease.py -q
