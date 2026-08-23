@@ -39,6 +39,7 @@ export const en: Dictionary = {
   },
 
   nav: {
+    dashboard: 'Dashboard',
     signals: 'Signals',
     icps: 'Target profiles',
     billing: 'Billing',
@@ -55,6 +56,10 @@ export const en: Dictionary = {
     closeMenu: 'Close menu',
     dismissMenu: 'Close the menu by clicking outside',
     account: 'Account',
+  },
+
+  dashboard: {
+    title: 'Dashboard',
   },
 
   cockpit: {

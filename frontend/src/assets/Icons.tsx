@@ -26,6 +26,16 @@ function Icon({ children, ...props }: IconProps) {
   )
 }
 
+/** Dashboard — quatre surfaces d’action, sans suggérer une métrique. */
+export const DashboardIcon = (props: IconProps) => (
+  <Icon {...props}>
+    <rect x="3.5" y="3.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="3.5" width="7" height="4" rx="1.5" />
+    <rect x="3.5" y="13.5" width="7" height="7" rx="1.5" />
+    <rect x="13.5" y="10.5" width="7" height="10" rx="1.5" />
+  </Icon>
+)
+
 /** Signaux — le radar, écho direct du symbole de marque. */
 export const SignalsIcon = (props: IconProps) => (
   <Icon {...props}>

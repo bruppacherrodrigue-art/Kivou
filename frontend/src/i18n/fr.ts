@@ -45,6 +45,7 @@ export const fr = {
   },
 
   nav: {
+    dashboard: 'Accueil',
     signals: 'Signaux',
     icps: 'Profils de ciblage',
     billing: 'Facturation',
@@ -61,6 +62,10 @@ export const fr = {
     closeMenu: 'Fermer le menu',
     dismissMenu: 'Fermer le menu en cliquant à côté',
     account: 'Compte',
+  },
+
+  dashboard: {
+    title: 'Tableau de bord',
   },
 
   cockpit: {
