@@ -14,7 +14,7 @@ from signals.persistence.schema import (
 )
 
 HEAD = "0020_hermes_learning_loop"
-LATEST = "0021_reliability_operations"
+LATEST = "0022_saas_company_profile"
 TABLES = {"acquisition_learning_snapshot", "acquisition_allocation_proposal"}
 
 

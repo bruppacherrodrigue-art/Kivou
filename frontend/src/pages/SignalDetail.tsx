@@ -172,6 +172,14 @@ function UnlockedDetailView({ detail }: { detail: UnlockedDetail }) {
         {/* Le complément sur la date d'attribution empêche de lire une
             publication récente comme une décision récente. */}
         <p className={styles.awardNote}>{event.award_date_note}</p>
+        {detail.company_key ? (
+          <ButtonLink
+            to={`/app/companies/${encodeURIComponent(detail.company_key)}`}
+            variant="secondary"
+          >
+            {t.detail.companyProfileCta}
+          </ButtonLink>
+        ) : null}
       </header>
 
       <div className={styles.columns}>

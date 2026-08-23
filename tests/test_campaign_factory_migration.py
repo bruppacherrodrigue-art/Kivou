@@ -21,7 +21,7 @@ TARGET_ICP = "0017_target_icp_revision"
 RESPONSE = "0018_response_intelligence"
 CONVERSION = "0019_conversion_tracking"
 LEARNING = "0020_hermes_learning_loop"
-LATEST = "0021_reliability_operations"
+LATEST = "0022_saas_company_profile"
 TABLES = (
     acquisition_campaign,
     acquisition_campaign_member,
