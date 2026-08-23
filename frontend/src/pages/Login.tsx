@@ -39,7 +39,9 @@ export function Login() {
       // l'onboarding, et la destination demandée ne s'applique qu'à un compte
       // prêt. La dupliquer ici la ferait diverger de `RedirectIfAuthenticated`.
       const home = homeFor(me)
-      navigate(home === '/app/signals' ? (state.from ?? home) : home, { replace: true })
+      const destination =
+        me.onboarding_status === 'ready_for_signals' ? (state.from ?? home) : home
+      navigate(destination, { replace: true })
     } catch (caught) {
       setError(caught)
     } finally {

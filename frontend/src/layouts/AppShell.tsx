@@ -8,6 +8,7 @@ import {
   BellIcon,
   BillingIcon,
   CloseIcon,
+  DashboardIcon,
   LogoutIcon,
   MenuIcon,
   SignalsIcon,
@@ -30,6 +31,7 @@ import styles from './AppShell.module.css'
  */
 
 const NAV_ITEMS = [
+  { to: '/app/dashboard', key: 'dashboard', Icon: DashboardIcon },
   { to: '/app/signals', key: 'signals', Icon: SignalsIcon },
   { to: '/app/icps', key: 'icps', Icon: TargetIcon },
   { to: '/app/billing', key: 'billing', Icon: BillingIcon },
@@ -132,7 +134,7 @@ export function AppShell() {
 
       {/* Barre mobile : le tiroir remplace la sidebar sous 1024px (§20). */}
       <header className={styles.mobileBar}>
-        <Link to="/app/signals" className={styles.logoLink}>
+        <Link to="/app/dashboard" className={styles.logoLink}>
           <KivouLogo size="sm" />
         </Link>
         <button
@@ -150,7 +152,7 @@ export function AppShell() {
       </header>
 
       <aside className={styles.sidebar}>
-        <Link to="/app/signals" className={styles.logoLink}>
+        <Link to="/app/dashboard" className={styles.logoLink}>
           <KivouLogo size="md" />
         </Link>
         {navigation}

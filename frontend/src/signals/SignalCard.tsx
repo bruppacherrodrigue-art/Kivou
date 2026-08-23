@@ -44,14 +44,9 @@ function UnlockedSignalCard({ item }: { item: UnlockedFeedItem }) {
           </div>
           <div className={styles.identityCopy}>
             <p className={styles.eyebrow}>{t.feed.winningCompany}</p>
-            {/* h2 : le titre de page est le h1. L'entreprise est la première
-                décision commerciale du feed, elle porte donc le titre de la
-                carte et la destination vers le détail. */}
-            <h2 className={styles.company}>
-              <Link to={`/app/signals/${encodeURIComponent(item.signal_id)}`} className={styles.link}>
-                {company}
-              </Link>
-            </h2>
+            {/* Le CTA explicite en pied reste l'unique lien de la carte. Le
+                pseudo-élément de ce lien étend sa cible à toute la surface. */}
+            <h2 className={styles.company}>{company}</h2>
           </div>
         </div>
 
@@ -127,10 +122,13 @@ function UnlockedSignalCard({ item }: { item: UnlockedFeedItem }) {
       </div>
 
       <div className={styles.cardFooter}>
-        <span className={styles.seeSignal}>
+        <Link
+          to={`/app/signals/${encodeURIComponent(item.signal_id)}`}
+          className={`${styles.seeSignal} ${styles.link}`}
+        >
           {t.feed.seeSignal}
           <ArrowRightIcon className={styles.metaIcon} aria-hidden="true" />
-        </span>
+        </Link>
       </div>
     </article>
   )
