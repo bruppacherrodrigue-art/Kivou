@@ -8,6 +8,7 @@ import { billing, icps, notifications, signals } from '../api/endpoints'
 import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
 import { SignalCard } from '../signals/SignalCard'
 import type {
+  BillingAction,
   BillingStatus,
   FeedPage,
   NotificationPreference,
@@ -44,7 +45,7 @@ export function Dashboard() {
 }
 
 function ReadyDashboard() {
-  const { t } = useI18n()
+  const { t, date } = useI18n()
 
   const [feedState, setFeedState] = useState<ResourceState<FeedPage>>(emptyResource)
   const [billingState, setBillingState] =
@@ -171,6 +172,39 @@ function ReadyDashboard() {
   const hasUnlockedSignal = feedItems.some((item) => item.locked === false)
   const activeIcps = icpState.data?.filter((profile) => profile.status === 'active') ?? []
   const overLimitIcps = new Set(billingState.data?.target_icps_over_limit ?? [])
+  const billingStatus = billingState.data
+  const billingActionLabels = {
+    choose_plan: t.dashboard.choosePlan,
+    manage_subscription: t.dashboard.manageSubscription,
+    recover_payment: t.dashboard.recoverPayment,
+    contact_support: t.dashboard.contactSupport,
+  } satisfies Record<BillingAction, string>
+  const notificationPreference = notificationState.data
+  const alertCadence = billingStatus?.entitlements.alert_cadence ?? null
+  const cadenceCopy = alertCadence ? t.dashboard.cadence[alertCadence] : null
+  let alertsSummary: string | null = null
+
+  if (notificationPreference && alertCadence && cadenceCopy) {
+    const activation = notificationPreference.email_enabled
+      ? t.dashboard.alertsEnabled
+      : t.dashboard.alertsDisabled
+    const capability =
+      alertCadence === 'none'
+        ? t.dashboard.noAlertCadence
+        : notificationPreference.email_enabled
+          ? interpolate(t.dashboard.activeCadence, { cadence: cadenceCopy })
+          : interpolate(t.dashboard.availableCadenceForPlan, { cadence: cadenceCopy })
+    alertsSummary = `${activation} · ${capability}`
+  } else if (notificationPreference) {
+    alertsSummary = notificationPreference.email_enabled
+      ? t.dashboard.alertsEnabled
+      : t.dashboard.alertsDisabled
+  } else if (alertCadence && cadenceCopy) {
+    alertsSummary =
+      alertCadence === 'none'
+        ? t.dashboard.noAlertCadence
+        : interpolate(t.dashboard.availableCadence, { cadence: cadenceCopy })
+  }
 
   return (
     <div className={styles.page}>
@@ -278,19 +312,96 @@ function ReadyDashboard() {
           ) : null}
         </Card>
 
-        <Card as="section" padding="lg">
+        <Card as="section" padding="lg" className={styles.sectionCard}>
           <SectionHeading id="dashboard-billing-title" title={t.dashboard.billing} />
-          {billingState.loading && !billingState.data ? (
+          {billingState.loading && !billingStatus ? (
             <Skeleton width="40%" height="1.5rem" />
           ) : null}
-          {billingState.data ? <p>{t.billing.plans[billingState.data.plan_code]}</p> : null}
+          {billingState.error ? (
+            <Callout
+              tone="danger"
+              title={t.dashboard.billingError}
+              action={
+                <Button variant="secondary" onClick={() => void loadBilling()}>
+                  {t.dashboard.retryBilling}
+                </Button>
+              }
+            />
+          ) : null}
+          {billingStatus ? (
+            <>
+              <div className={styles.statusHead}>
+                <div>
+                  <p className={styles.microLabel}>{t.billing.currentPlan}</p>
+                  <p className={styles.planName}>{t.billing.plans[billingStatus.plan_code]}</p>
+                </div>
+                <Badge tone={billingStatus.plan_code === 'discovery' ? 'neutral' : 'positive'}>
+                  {t.billing.status[
+                    (billingStatus.subscription_status ??
+                      'none') as keyof typeof t.billing.status
+                  ] ?? t.billing.status.unknown}
+                </Badge>
+              </div>
+              <DataList>
+                <DataRow label={t.dashboard.discoveryUsed}>
+                  {interpolate(
+                    billingStatus.discovery.granted_signal_count === 1
+                      ? t.dashboard.discoveryUsedOne
+                      : t.dashboard.discoveryUsedOther,
+                    { count: billingStatus.discovery.granted_signal_count },
+                  )}
+                </DataRow>
+                <DataRow label={t.dashboard.discoveryRemaining}>
+                  {interpolate(
+                    billingStatus.discovery.remaining_slots === 1
+                      ? t.dashboard.discoveryRemainingOne
+                      : t.dashboard.discoveryRemainingOther,
+                    { count: billingStatus.discovery.remaining_slots },
+                  )}
+                </DataRow>
+                <DataRow label={t.dashboard.discoveryLimit}>
+                  {interpolate(t.dashboard.discoveryLimitValue, {
+                    count: billingStatus.discovery.limit,
+                  })}
+                </DataRow>
+              </DataList>
+              {billingStatus.discovery.remaining_slots === 0 ? (
+                <p className={styles.supportingCopy}>{t.dashboard.discoveryExhausted}</p>
+              ) : null}
+              {billingStatus.scheduled_cancellation_at ? (
+                <Callout tone="warning" title={t.billing.cancellationTitle}>
+                  {interpolate(t.dashboard.scheduledCancellation, {
+                    date: date(billingStatus.scheduled_cancellation_at) ?? '',
+                  })}
+                </Callout>
+              ) : null}
+              <ButtonLink to="/app/billing" variant="secondary">
+                {billingActionLabels[billingStatus.billing_action]}
+              </ButtonLink>
+            </>
+          ) : null}
         </Card>
 
-        <Card as="section" padding="lg">
+        <Card as="section" padding="lg" className={styles.sectionCard}>
           <SectionHeading id="dashboard-alerts-title" title={t.dashboard.alerts} />
-          {notificationState.loading && !notificationState.data ? (
+          {notificationState.loading && !notificationPreference ? (
             <Skeleton width="62%" height="1.25rem" />
           ) : null}
+          {alertsSummary ? <p className={styles.alertSummary}>{alertsSummary}</p> : null}
+          {notificationState.error ? (
+            <Callout
+              tone="danger"
+              title={t.dashboard.alertsError}
+              action={
+                <Button variant="secondary" onClick={() => void loadNotifications()}>
+                  {t.dashboard.retryAlerts}
+                </Button>
+              }
+            />
+          ) : null}
+          <ButtonLink to="/app/notifications" variant="secondary">
+            {t.dashboard.manageAlerts}
+          </ButtonLink>
         </Card>
 
         {companyState.status !== 'idle' ? (

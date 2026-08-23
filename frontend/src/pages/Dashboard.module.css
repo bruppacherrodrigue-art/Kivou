@@ -50,6 +50,48 @@
   gap: var(--kivou-space-4);
 }
 
+.sectionCard {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--kivou-space-4);
+  min-width: 0;
+}
+
+.statusHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--kivou-space-3);
+  width: 100%;
+}
+
+.microLabel,
+.planName,
+.alertSummary {
+  margin: 0;
+}
+
+.microLabel {
+  color: var(--kivou-text-secondary);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+}
+
+.planName {
+  margin-top: var(--kivou-space-1);
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-large);
+  line-height: var(--kivou-leading-large);
+  overflow-wrap: anywhere;
+}
+
+.alertSummary {
+  color: var(--kivou-text-primary);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
 .icpCard {
   display: flex;
   flex-direction: column;

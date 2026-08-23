@@ -9,7 +9,10 @@ import {
   LOCKED_DETAIL,
   LOCKED_ITEM,
   ME,
+  PRO_CANCELLING_OTHER_DATE_STATUS,
   PRO_STATUS,
+  RECOVER_STATUS,
+  SUPPORT_STATUS,
   UNAUTHENTICATED,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
@@ -26,7 +29,11 @@ const DASHBOARD_ROUTES = {
   'GET /billing/status': { body: DISCOVERY_STATUS },
   'GET /target-icps': { body: [ICP] },
   'GET /notification-preferences': {
-    body: { email_enabled: true, notification_email: 'claire@acme.test' },
+    body: {
+      email_enabled: true,
+      notification_email: 'claire@acme.test',
+      updated_at: '2026-08-18T09:00:00+00:00',
+    },
   },
 }
 
@@ -448,5 +455,151 @@ describe('occasions et ciblages autoritaires', () => {
 
     expect(await screen.findByText('Aucun ciblage actif utilisable.')).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Gérer mes ciblages' })).toHaveLength(1)
+  })
+})
+
+describe('facturation et alertes exactes', () => {
+  it('affiche les compteurs Discovery exacts et l’action décidée par billing_action', async () => {
+    mockApi(DASHBOARD_ROUTES)
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    const billing = (await screen.findByRole('heading', { name: 'Formule et accès' })).closest(
+      'section',
+    )
+    expect(billing).not.toBeNull()
+    expect(within(billing!).getByText('Découverte')).toBeInTheDocument()
+    expect(within(billing!).getByText('3 déblocages utilisés')).toBeInTheDocument()
+    expect(within(billing!).getByText('0 déblocages restants')).toBeInTheDocument()
+    expect(within(billing!).getByText('Limite : 3')).toBeInTheDocument()
+    expect(within(billing!).getByRole('link', { name: 'Choisir une formule' })).toHaveAttribute(
+      'href',
+      '/app/billing',
+    )
+  })
+
+  it.each([
+    [PRO_STATUS, 'Gérer mon abonnement'],
+    [RECOVER_STATUS, 'Corriger le paiement'],
+    [SUPPORT_STATUS, 'Contacter le support'],
+  ])('rend le plan et le CTA sans rejouer la décision serveur %#', async (status, action) => {
+    mockApi({ ...DASHBOARD_ROUTES, 'GET /billing/status': { body: status } })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText(status.plan_code === 'pro' ? 'Pro' : 'Découverte')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: action })).toHaveAttribute('href', '/app/billing')
+    expect(callsTo('/billing/plans', 'GET')).toHaveLength(0)
+    expect(callsTo('/billing/checkout')).toHaveLength(0)
+    expect(document.body.textContent).not.toMatch(/price_id|CHF\s*\/|EUR\s*\//i)
+  })
+
+  it('affiche uniquement scheduled_cancellation_at sans emprunter current_period_end', async () => {
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /billing/status': { body: PRO_CANCELLING_OTHER_DATE_STATUS },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText('Résiliation programmée le 30 novembre 2026')).toBeInTheDocument()
+    expect(screen.queryByText(/18 septembre 2026/)).not.toBeInTheDocument()
+  })
+
+  it.each([
+    [true, 'Alertes activées · Cadence quotidienne'],
+    [false, 'Alertes désactivées · Votre formule permet une cadence quotidienne'],
+  ])('sépare le choix utilisateur de la cadence du plan — email_enabled=%s', async (enabled, copy) => {
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /billing/status': { body: PRO_STATUS },
+      'GET /notification-preferences': {
+        body: {
+          email_enabled: enabled,
+          notification_email: 'claire@acme.test',
+          updated_at: '2026-08-18T09:00:00+00:00',
+        },
+      },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText(copy)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Gérer mes alertes' })).toHaveAttribute(
+      'href',
+      '/app/notifications',
+    )
+  })
+
+  it('montre la cadence disponible mais ne prétend rien sur l’activation si les préférences échouent', async () => {
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /billing/status': {
+        body: {
+          ...PRO_STATUS,
+          entitlements: { ...PRO_STATUS.entitlements, alert_cadence: 'priority' },
+        },
+      },
+      'GET /notification-preferences': {
+        status: 503,
+        body: { detail: { code: 'temporarily_unavailable' } },
+      },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText('Cadence disponible : prioritaire')).toBeInTheDocument()
+    expect(document.body.textContent).not.toMatch(/alertes (activées|désactivées)/i)
+    expect(document.body.textContent).not.toMatch(/temps réel/i)
+    expect(screen.getByRole('button', { name: 'Réessayer les alertes' })).toBeInTheDocument()
+  })
+
+  it('conserve le plan déjà chargé si la relecture post-feed échoue', async () => {
+    let resolveFeed: ((value: { body: ReturnType<typeof feedPage> }) => void) | undefined
+    let billingCall = 0
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /signals': () =>
+        new Promise((resolve) => {
+          resolveFeed = resolve
+        }),
+      'GET /billing/status': () => {
+        billingCall += 1
+        return billingCall === 1
+          ? { body: PRO_STATUS }
+          : { status: 503, body: { detail: { code: 'temporarily_unavailable' } } }
+      },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText('Pro')).toBeInTheDocument()
+    await act(async () => {
+      resolveFeed?.({ body: feedPage([]) })
+    })
+    expect(screen.getByRole('button', { name: 'Réessayer la facturation' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Prochaines occasions à examiner' })).toBeInTheDocument()
+  })
+
+  it('reprend localement les alertes sans masquer les ICP déjà chargés', async () => {
+    const user = userEvent.setup()
+    let preferenceCall = 0
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /billing/status': { body: PRO_STATUS },
+      'GET /notification-preferences': () => {
+        preferenceCall += 1
+        return preferenceCall === 1
+          ? { status: 503, body: { detail: { code: 'temporarily_unavailable' } } }
+          : {
+              body: {
+                email_enabled: true,
+                notification_email: 'claire@acme.test',
+                updated_at: '2026-08-18T09:00:00+00:00',
+              },
+            }
+      },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText(ICP.label)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Réessayer les alertes' }))
+    expect(await screen.findByText('Alertes activées · Cadence quotidienne')).toBeInTheDocument()
+    expect(callsTo('/notification-preferences', 'GET')).toHaveLength(2)
+    expect(callsTo('/target-icps', 'GET')).toHaveLength(1)
   })
 })
