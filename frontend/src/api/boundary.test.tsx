@@ -43,6 +43,12 @@ describe('frontière HTTP', () => {
     expect(String(url)).not.toMatch(/^https?:\/\//)
   })
 
+  it('proxyfie la frontière entreprise vers l’API en développement', () => {
+    const viteConfig = readFileSync(join(process.cwd(), 'vite.config.ts'), 'utf8')
+
+    expect(viteConfig).toContain("'/companies'")
+  })
+
   it('traduit un code d’erreur stable, sans laisser passer le message serveur', async () => {
     mockApi({
       'POST /billing/checkout': {

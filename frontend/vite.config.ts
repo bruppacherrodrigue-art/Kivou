@@ -14,6 +14,7 @@ const API_PREFIXES = [
   '/me',
   '/target-icps',
   '/signals',
+  '/companies',
   '/billing',
   '/notification-preferences',
 ]
