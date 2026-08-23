@@ -36,10 +36,23 @@ from signals.policy.store import PolicyStore
 )
 def test_autonomy_matrix(mode: AutonomyMode, command: str, expected: PolicyStatus) -> None:
     global_command = command == "reallocate_volume"
+    evidence = request().evidence
+    if global_command:
+        evidence = evidence.model_copy(
+            update={
+                "claims": (
+                    *evidence.claims,
+                    "LEARNING_SNAPSHOT",
+                    "ALLOCATION_ENVELOPE",
+                    "CONVERSION_RETENTION",
+                )
+            }
+        )
     req = request(
         command,
         acquisition_opportunity_id=None if global_command else "opp-1",
         expected_opportunity_version=None if global_command else 1,
+        evidence=evidence,
     )
     assert evaluate_policy(req, snapshot(autonomy_mode=mode), NOW).status is expected
 
