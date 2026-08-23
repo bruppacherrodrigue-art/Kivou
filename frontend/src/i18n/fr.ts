@@ -661,8 +661,9 @@ export const fr = {
   },
 
   feed: {
-    title: 'Signaux récents',
-    lead: 'Des opportunités détectées dans les faits publics et sourcées par Kivou.',
+    title: 'Occasions commerciales',
+    lead:
+      'Les entreprises et marchés correspondant à votre ciblage actif, dans l’ordre établi par Kivou.',
     countOne: '{count} signal',
     countOther: '{count} signaux',
     activeProfile: 'Profil actif',
@@ -684,10 +685,19 @@ export const fr = {
     noIcpAction: 'Configurer mon profil',
     errorTitle: 'Les signaux n’ont pas pu être chargés',
     errorBody: 'La liste n’a pas pu être récupérée. Vous pouvez réessayer.',
+    moreErrorTitle: 'Les signaux suivants n’ont pas pu être chargés',
+    moreErrorBody: 'Les occasions déjà affichées restent disponibles. Vous pouvez réessayer.',
+    retryMore: 'Réessayer la page suivante',
     truncatedNote:
       'La lecture a été bornée : des signaux plus anciens existent au-delà de cette page.',
     seeSignal: 'Voir le signal',
-    profileMatch: 'Adéquation à votre profil',
+    winningCompany: 'Entreprise gagnante',
+    publishedAmount: 'Montant publié',
+    awardedContract: 'Marché remporté',
+    publicFact: 'Fait public',
+    plausibleNeed: 'Besoin plausible',
+    profileMatch: 'Correspondance avec votre profil',
+    timing: 'Calendrier commercial',
     plausibleNeedsShort: 'Besoins plausibles',
     aria: {
       list: 'Liste des signaux',

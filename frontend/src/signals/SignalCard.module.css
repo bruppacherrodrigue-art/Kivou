@@ -1,26 +1,33 @@
 .card {
   position: relative;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: var(--kivou-space-4);
-  padding: var(--kivou-space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-5);
+  padding: clamp(var(--kivou-space-5), 3vw, var(--kivou-space-8));
+  overflow: hidden;
   background: var(--kivou-bg-surface);
   border: 1px solid var(--kivou-border);
-  border-radius: var(--kivou-radius-md);
+  border-radius: var(--kivou-radius-lg);
   transition:
     border-color var(--kivou-motion-base) var(--kivou-ease-standard),
     background-color var(--kivou-motion-base) var(--kivou-ease-standard);
 }
 
-/* Le survol reprend la sélection brass de la référence 04. Il n'est jamais le
- * SEUL moyen d'accéder à une information : tout est déjà visible. */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  background: var(--kivou-action-accent);
+}
+
+/* Le survol soutient la sélection sans devenir le seul moyen de comprendre
+ * qu'une carte est interactive. */
 .card:hover {
   border-color: var(--kivou-action-accent);
   background: var(--kivou-select-bg);
 }
 
-/* Le focus du lien remonte sur la carte entière, sinon le contour ne cerne que
- * le titre alors que toute la carte est cliquable. */
 .card:focus-within {
   border-color: var(--kivou-action-accent);
   outline: 2px solid var(--kivou-focus);
@@ -28,18 +35,44 @@
 }
 
 .locked {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--kivou-space-4);
   background: var(--kivou-bg-subtle);
-  /* Une bordure en tirets dit « incomplet » sans recourir à l'opacité, que la
-     directive §45 écarte pour communiquer un état verrouillé. */
   border-style: dashed;
+}
+
+.locked::before {
+  background: var(--kivou-border-strong);
+}
+
+.cardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--kivou-space-5);
+}
+
+.identity {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kivou-space-4);
+  min-width: 0;
+}
+
+.identityCopy {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-1);
+  min-width: 0;
 }
 
 .avatar {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 3rem;
+  height: 3rem;
   flex: none;
   border-radius: var(--kivou-radius-sm);
   background: var(--kivou-action-primary);
@@ -60,38 +93,23 @@
   height: 1.125rem;
 }
 
-.body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--kivou-space-2);
-  min-width: 0;
-}
-
-.topRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--kivou-space-2);
+.eyebrow,
+.sectionLabel {
+  font-size: var(--kivou-text-micro);
+  line-height: var(--kivou-leading-micro);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kivou-text-muted);
 }
 
 .company {
-  font-size: var(--kivou-text-small);
-  font-weight: var(--kivou-weight-semibold);
-  color: var(--kivou-text-primary);
-}
-
-.title,
-.lockedTitle {
   font-family: var(--kivou-font-display);
-  font-size: var(--kivou-text-h3);
-  line-height: var(--kivou-leading-h3);
+  font-size: clamp(1.5rem, 2.5vw, 2rem);
+  line-height: 1.15;
   font-weight: var(--kivou-weight-regular);
   color: var(--kivou-text-primary);
-}
-
-.lockedTitle {
-  font-size: var(--kivou-text-body);
-  line-height: var(--kivou-leading-body);
+  overflow-wrap: anywhere;
 }
 
 .link {
@@ -99,8 +117,7 @@
   text-decoration: none;
 }
 
-/* La zone cliquable couvre la carte entière — cible tactile large sans
- * imbriquer un contrôle dans un autre. */
+/* Une seule cible couvre la carte sans imbriquer d'autres contrôles. */
 .link::after {
   content: '';
   position: absolute;
@@ -112,10 +129,60 @@
   outline: none;
 }
 
+.amountBlock {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--kivou-space-1);
+  text-align: right;
+}
+
+.amount {
+  font-family: var(--kivou-font-display);
+  font-size: clamp(1.5rem, 2.8vw, 2rem);
+  line-height: 1.1;
+  font-weight: var(--kivou-weight-medium);
+  color: var(--kivou-action-primary);
+  white-space: nowrap;
+}
+
+.contractBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-1);
+  padding-left: calc(3rem + var(--kivou-space-4));
+}
+
+.contractTitle,
+.lockedTitle {
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h3);
+  line-height: var(--kivou-leading-h3);
+  font-weight: var(--kivou-weight-regular);
+  color: var(--kivou-text-primary);
+  overflow-wrap: anywhere;
+}
+
+.lockedTitle {
+  font-size: var(--kivou-text-body);
+  line-height: var(--kivou-leading-body);
+}
+
+.publicFact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-2);
+  padding: var(--kivou-space-4) var(--kivou-space-5);
+  background: var(--kivou-bg-subtle);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-sm);
+}
+
 .headline {
-  font-size: var(--kivou-text-small);
-  line-height: var(--kivou-leading-small);
-  color: var(--kivou-text-secondary);
+  font-size: var(--kivou-text-body);
+  line-height: var(--kivou-leading-body);
+  color: var(--kivou-text-primary);
 }
 
 .meta {
@@ -148,12 +215,23 @@
   flex: none;
 }
 
-.aside {
-  grid-column: 1 / -1;
+.analysisGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  border-top: 1px solid var(--kivou-border);
+  border-bottom: 1px solid var(--kivou-border);
+}
+
+.analysisBlock {
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-1);
-  padding-top: var(--kivou-space-3);
+  align-items: flex-start;
+  gap: var(--kivou-space-2);
+  min-width: 0;
+  padding: var(--kivou-space-4) 0;
+}
+
+.analysisBlock + .analysisBlock {
   border-top: 1px solid var(--kivou-border);
 }
 
@@ -163,37 +241,87 @@
   color: var(--kivou-action-primary);
 }
 
+.analysisText,
 .fitReason,
 .lockedPitch {
-  font-size: var(--kivou-text-micro);
-  line-height: var(--kivou-leading-micro);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
   color: var(--kivou-text-secondary);
+}
+
+.cardFooter {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .seeSignal,
 .unlockLink {
   display: inline-flex;
   align-items: center;
-  gap: var(--kivou-space-1);
-  margin-top: var(--kivou-space-1);
+  gap: var(--kivou-space-2);
+  min-height: var(--kivou-control-height);
   font-size: var(--kivou-text-small);
-  font-weight: var(--kivou-weight-medium);
+  font-weight: var(--kivou-weight-semibold);
   color: var(--kivou-action-primary);
 }
 
+/* Structure spécifique du teaser : elle n'utilise que le contrat public
+ * borné que l'API autorise pour un signal verrouillé. */
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-2);
+  min-width: 0;
+}
+
+.topRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--kivou-space-2);
+}
+
+.aside {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--kivou-space-1);
+  padding-top: var(--kivou-space-3);
+  border-top: 1px solid var(--kivou-border);
+}
+
 .unlockLink {
-  /* Le lien du teaser doit rester au-dessus de la zone cliquable de la carte,
-     qui n'existe pas ici — mais l'ordre de pile est explicite pour éviter
-     toute surprise si la carte devient cliquable un jour. */
   position: relative;
   z-index: 1;
-  align-self: flex-start;
-  min-height: var(--kivou-control-height);
-  align-items: center;
+  margin-top: var(--kivou-space-1);
+}
+
+@media (min-width: 760px) {
+  .analysisGrid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .analysisBlock {
+    padding: var(--kivou-space-5);
+  }
+
+  .analysisBlock:first-child {
+    padding-left: 0;
+  }
+
+  .analysisBlock:last-child {
+    padding-right: 0;
+  }
+
+  .analysisBlock + .analysisBlock {
+    border-top: 0;
+    border-left: 1px solid var(--kivou-border);
+  }
 }
 
 @media (min-width: 900px) {
-  .card {
+  .locked {
     grid-template-columns: auto minmax(0, 1fr) minmax(11rem, 15rem);
     align-items: start;
   }
@@ -204,7 +332,35 @@
     padding-left: var(--kivou-space-5);
     border-top: 0;
     border-left: 1px solid var(--kivou-border);
+  }
+}
+
+@media (max-width: 559px) {
+  .card {
+    gap: var(--kivou-space-4);
+    padding: var(--kivou-space-5);
+  }
+
+  .cardHeader {
+    flex-direction: column;
+  }
+
+  .amountBlock {
     align-items: flex-start;
+    padding-left: calc(3rem + var(--kivou-space-4));
     text-align: left;
+  }
+
+  .contractBlock {
+    padding-left: 0;
+  }
+
+  .publicFact {
+    padding: var(--kivou-space-4);
+  }
+
+  .meta {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
