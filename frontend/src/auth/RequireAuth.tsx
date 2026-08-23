@@ -36,7 +36,7 @@ export function RequireAuth() {
  *  particulier. Un compte sans profil exploitable va à l'onboarding : le feed
  *  lui rendrait un état vide qu'il ne saurait pas résoudre. */
 export function homeFor(me: Me): string {
-  return me.onboarding_status === 'ready_for_signals' ? '/app/signals' : '/onboarding'
+  return me.onboarding_status === 'ready_for_signals' ? '/app/dashboard' : '/onboarding'
 }
 
 /** L'inverse : une page publique d'authentification qu'un utilisateur déjà
@@ -47,7 +47,14 @@ export function homeFor(me: Me): string {
  *  un compte incomplet atterrirait sur un feed vide au lieu de l'onboarding. */
 export function RedirectIfAuthenticated() {
   const { state } = useSession()
+  const location = useLocation()
   if (state.status === 'loading') return <FullPageLoader />
-  if (state.status === 'authenticated') return <Navigate to={homeFor(state.me)} replace />
+  if (state.status === 'authenticated') {
+    const requested = (location.state as { from?: string } | null)?.from
+    const home = homeFor(state.me)
+    const destination =
+      state.me.onboarding_status === 'ready_for_signals' ? (requested ?? home) : home
+    return <Navigate to={destination} replace />
+  }
   return <Outlet />
 }

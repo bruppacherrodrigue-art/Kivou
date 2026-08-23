@@ -34,7 +34,10 @@ export interface RouteHandler {
   calls?: { method: string; body: unknown; url: string }[]
 }
 
-export type Routes = Record<string, RouteHandler | ((request: MockRequest) => RouteHandler)>
+export type Routes = Record<
+  string,
+  RouteHandler | ((request: MockRequest) => RouteHandler | Promise<RouteHandler>)
+>
 
 export interface MockRequest {
   method: string
@@ -69,7 +72,7 @@ export function mockApi(routes: Routes) {
       })
     }
 
-    const resolved = typeof match === 'function' ? match(request) : match
+    const resolved = typeof match === 'function' ? await match(request) : match
     const status = resolved.status ?? 200
 
     if (status === 204) return new Response(null, { status })

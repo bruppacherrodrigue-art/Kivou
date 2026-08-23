@@ -13,15 +13,18 @@ export function Card({
   className = '',
   as: Tag = 'div',
   elevated = false,
+  ariaLabelledBy,
 }: {
   children: ReactNode
   padding?: 'none' | 'sm' | 'md' | 'lg'
   className?: string
   as?: 'div' | 'section' | 'article' | 'aside' | 'li'
   elevated?: boolean
+  ariaLabelledBy?: string
 }) {
   return (
     <Tag
+      aria-labelledby={ariaLabelledBy}
       className={[
         styles.card,
         styles[`padding-${padding}`],

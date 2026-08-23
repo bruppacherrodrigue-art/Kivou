@@ -14,6 +14,7 @@ import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { ForgotPassword, ResetPassword } from './pages/PasswordReset'
 import { Onboarding } from './pages/Onboarding'
+import { Dashboard } from './pages/Dashboard'
 import { SignalsFeed } from './pages/SignalsFeed'
 import { SignalDetail } from './pages/SignalDetail'
 import { CompanyProfile } from './pages/CompanyProfile'
@@ -96,7 +97,8 @@ export function AppRoutes() {
           <Route path="onboarding" element={<Onboarding />} />
 
           <Route path="app" element={<AppShell />}>
-            <Route index element={<Navigate to="/app/signals" replace />} />
+            <Route index element={<Navigate to="/app/dashboard" replace />} />
+            <Route path="dashboard" element={<Dashboard />} />
             <Route path="signals" element={<SignalsFeed />} />
             <Route path="signals/:signalKey" element={<SignalDetail />} />
             <Route path="companies/:companyKey" element={<CompanyProfile />} />

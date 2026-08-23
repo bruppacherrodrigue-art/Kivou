@@ -193,6 +193,22 @@ Réutiliser autant que possible les API SaaS existantes. Si un agrégat manque r
 
 **Gate :** après connexion, le client comprend son état, voit ce qui mérite son attention et peut atteindre sa prochaine action en un clic.
 
+**État au 23 août 2026 : dashboard connecté livré en PR.**
+
+La tranche livrée compose uniquement les contrats SaaS existants dans
+`/app/dashboard`. Elle conserve l’ordre serveur des occasions et de tous les
+ICP actifs, les valeurs Discovery exactes, l’action de facturation décidée par
+le serveur, et la séparation entre activation des alertes et cadence permise
+par la formule. La fiche entreprise n’est proposée qu’après le détail du
+premier signal déclaré accessible par le serveur. Aucun endpoint agrégé,
+calcul de priorité, contrat de la PR nº58, stockage navigateur ou accès à
+l’Acquisition Engine n’est ajouté.
+
+Les erreurs restent locales à chaque bloc et les actions conduisent aux
+surfaces SaaS existantes : détail du signal, feed, fiche entreprise, ciblages,
+alertes et facturation. RTL-07 ne sera déclaré terminé qu’après fusion dans
+`main` et CI verte sur le SHA final de `main`.
+
 ### RTL-08 — Déploiement staging du `main` retenu
 
 **Priorité : P0-RELEASE**
