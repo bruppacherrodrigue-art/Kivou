@@ -1,0 +1,131 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-7);
+  width: 100%;
+  max-width: var(--kivou-container-content);
+  min-width: 0;
+}
+
+.pageHeader {
+  padding-bottom: var(--kivou-space-5);
+  border-bottom: 1px solid var(--kivou-border);
+}
+
+.opportunities {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+  min-width: 0;
+}
+
+.sectionHeader,
+.cardHeader,
+.icpHead {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--kivou-space-4);
+}
+
+.signalList,
+.icpList,
+.compactList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+  min-width: 0;
+}
+
+.supportGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--kivou-space-4);
+  min-width: 0;
+}
+
+.icpSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-4);
+}
+
+.icpCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-3);
+  background: var(--kivou-bg-subtle);
+}
+
+.icpTitle {
+  margin: 0;
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-large);
+  line-height: var(--kivou-leading-large);
+  font-weight: var(--kivou-weight-regular);
+  overflow-wrap: anywhere;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--kivou-space-2);
+}
+
+.icpSummary,
+.supportingCopy,
+.limitCopy,
+.emptyTitle {
+  margin: 0;
+}
+
+.icpSummary,
+.supportingCopy {
+  color: var(--kivou-text-secondary);
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.limitCopy {
+  padding-top: var(--kivou-space-3);
+  border-top: 1px solid var(--kivou-border);
+  color: var(--kivou-text-secondary);
+  font-size: var(--kivou-text-small);
+  line-height: var(--kivou-leading-small);
+}
+
+.emptyCompact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-2);
+  padding: var(--kivou-space-4) 0;
+}
+
+.emptyTitle {
+  font-weight: var(--kivou-weight-semibold);
+  color: var(--kivou-text-primary);
+}
+
+@media (min-width: 768px) {
+  .supportGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .icpSection {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 559px) {
+  .sectionHeader,
+  .cardHeader,
+  .icpHead {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .badges {
+    justify-content: flex-start;
+  }
+}

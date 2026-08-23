@@ -73,6 +73,18 @@ export const fr = {
     alerts: 'Alertes',
     opportunitiesError: 'Les occasions sont momentanément indisponibles.',
     retryOpportunities: 'Réessayer les occasions',
+    viewAllFeed: 'Voir tout le feed',
+    noOpportunities: 'Aucune occasion à examiner pour le moment.',
+    noOpportunitiesBody:
+      'Kivou continue de surveiller les publications. Vérifiez vos ciblages pendant ce temps.',
+    noAccessibleCompany:
+      'Aucune fiche entreprise n’est accessible depuis les occasions actuellement affichées.',
+    adjustTargeting: 'Ajuster le ciblage',
+    manageIcps: 'Gérer mes ciblages',
+    icpsError: 'Les ciblages n’ont pas pu être chargés.',
+    noActiveIcp: 'Aucun ciblage actif utilisable.',
+    noActiveIcpBody: 'Créez ou corrigez un ciblage pour recevoir des occasions pertinentes.',
+    territoryLimit: '{count} territoires configurés · limite de la formule : {limit}',
     company: 'Fiche entreprise',
     companyAction: 'Consulter la fiche entreprise',
     companyUnavailable: 'Fiche indisponible',
@@ -780,7 +792,7 @@ export const fr = {
     retryMore: 'Réessayer la page suivante',
     truncatedNote:
       'La lecture a été bornée : des signaux plus anciens existent au-delà de cette page.',
-    seeSignal: 'Voir le signal',
+    seeSignal: 'Examiner le signal',
     winningCompany: 'Entreprise gagnante',
     publishedAmount: 'Montant publié',
     awardedContract: 'Marché remporté',

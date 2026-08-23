@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
@@ -303,5 +303,150 @@ describe('accès à la fiche entreprise', () => {
     expect(callsTo('/billing/status', 'GET')).toHaveLength(2)
     expect(callsTo('/target-icps', 'GET')).toHaveLength(1)
     expect(callsTo('/notification-preferences', 'GET')).toHaveLength(1)
+  })
+})
+
+describe('occasions et ciblages autoritaires', () => {
+  it('rend un extrait du feed dans l’ordre serveur avec le bon CTA de détail', async () => {
+    const second = {
+      ...UNLOCKED_ITEM,
+      signal_id: 'sig_server_second',
+      company: { ...UNLOCKED_ITEM.company, name: 'Deuxième dans la réponse' },
+    }
+    const first = {
+      ...UNLOCKED_ITEM,
+      signal_id: 'sig_server_first',
+      company: { ...UNLOCKED_ITEM.company, name: 'Premier selon le score serveur' },
+    }
+    const fourth = {
+      ...UNLOCKED_ITEM,
+      signal_id: 'sig_not_in_excerpt',
+      company: { ...UNLOCKED_ITEM.company, name: 'Hors extrait' },
+    }
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /signals': { body: feedPage([second, LOCKED_ITEM, first, fourth]) },
+      'GET /signals/sig_server_second': {
+        body: { ...UNLOCKED_DETAIL, signal_id: second.signal_id, company: second.company },
+      },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+    const opportunities = (await screen.findByRole('heading', {
+      name: 'Prochaines occasions à examiner',
+    })).closest('section')
+    expect(opportunities).not.toBeNull()
+
+    const cards = within(opportunities!).getAllByRole('article')
+    expect(cards.map((card) => within(card).getByRole('heading').textContent)).toEqual([
+      'Deuxième dans la réponse',
+      LOCKED_ITEM.headline,
+      'Premier selon le score serveur',
+    ])
+    expect(
+      within(opportunities!).getAllByRole('link', { name: 'Examiner le signal' }).map((link) =>
+        link.getAttribute('href'),
+      ),
+    ).toEqual(['/app/signals/sig_server_second', '/app/signals/sig_server_first'])
+    expect(within(opportunities!).queryByText('Hors extrait')).not.toBeInTheDocument()
+    expect(within(opportunities!).getByRole('link', { name: 'Voir tout le feed' })).toHaveAttribute(
+      'href',
+      '/app/signals',
+    )
+  })
+
+  it('ne révèle aucun champ protégé même si un objet verrouillé malformé les contient', async () => {
+    const leakingLocked = {
+      ...LOCKED_ITEM,
+      company: { name: 'ENTREPRISE SECRÈTE', country: 'FR', identifier: null },
+      company_key: 'cmp_secret',
+      contract: {
+        title: 'MARCHÉ SECRET',
+        reference: 'REF-SECRET',
+        buyer: { name: 'ACHETEUR SECRET' },
+        amount: { value: '999999', currency: 'EUR' },
+      },
+      analysis: { fit: { label: 'SCORE SECRET' } },
+      source: { url: 'https://secret.invalid' },
+    }
+    mockApi({ ...DASHBOARD_ROUTES, 'GET /signals': { body: feedPage([leakingLocked]) } })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+    await screen.findByText(LOCKED_ITEM.headline)
+
+    const page = document.body.textContent ?? ''
+    expect(page).not.toContain('ENTREPRISE SECRÈTE')
+    expect(page).not.toContain('MARCHÉ SECRET')
+    expect(page).not.toContain('REF-SECRET')
+    expect(page).not.toContain('ACHETEUR SECRET')
+    expect(page).not.toContain('999999')
+    expect(page).not.toContain('SCORE SECRET')
+    expect(page).not.toContain('cmp_secret')
+    expect(screen.getByRole('link', { name: 'Gérer mon accès' })).toHaveAttribute(
+      'href',
+      '/app/billing',
+    )
+  })
+
+  it('affiche tous les ICP actifs dans l’ordre serveur avec résumé, territoires et limites', async () => {
+    const first = {
+      ...ICP,
+      target_icp_id: 'icp_first',
+      label: 'Isolation — Suisse et Belgique',
+      customer_input: {
+        ...ICP.customer_input,
+        offer_summary: 'Isolation thermique pour bâtiments publics',
+        territories: ['CH', 'BE'],
+      },
+    }
+    const inactive = {
+      ...ICP,
+      target_icp_id: 'icp_inactive',
+      label: 'Profil incomplet à ne pas afficher',
+      status: 'incomplete',
+    }
+    const second = {
+      ...ICP,
+      target_icp_id: 'icp_second',
+      label: 'Matériaux — France',
+      plan_limit: { code: 'territory_limit', limit: 1, territory_count: 3 },
+    }
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /target-icps': { body: [first, inactive, second] },
+      'GET /billing/status': {
+        body: { ...DISCOVERY_STATUS, target_icps_over_limit: ['icp_second'] },
+      },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+    const section = (await screen.findByRole('heading', { name: 'Ciblages actifs' })).closest(
+      'section',
+    )
+    expect(section).not.toBeNull()
+
+    const profiles = within(section!).getAllByRole('article')
+    expect(profiles.map((profile) => within(profile).getByRole('heading').textContent)).toEqual([
+      'Isolation — Suisse et Belgique',
+      'Matériaux — France',
+    ])
+    expect(within(profiles[0]).getByText('Isolation thermique pour bâtiments publics')).toBeInTheDocument()
+    expect(within(profiles[0]).getByText('Suisse, Belgique')).toBeInTheDocument()
+    expect(within(profiles[1]).getByText('3 territoires configurés · limite de la formule : 1')).toBeInTheDocument()
+    expect(within(profiles[1]).getByText('Au-delà de la limite de votre offre')).toBeInTheDocument()
+    expect(within(section!).queryByText('Profil incomplet à ne pas afficher')).not.toBeInTheDocument()
+    expect(within(section!).getAllByRole('link', { name: 'Gérer mes ciblages' })).toHaveLength(1)
+  })
+
+  it('affiche un état honnête et une seule action quand aucun ICP actif n’existe', async () => {
+    mockApi({
+      ...DASHBOARD_ROUTES,
+      'GET /target-icps': { body: [{ ...ICP, status: 'incomplete' }] },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText('Aucun ciblage actif utilisable.')).toBeInTheDocument()
+    expect(screen.getAllByRole('link', { name: 'Gérer mes ciblages' })).toHaveLength(1)
   })
 })

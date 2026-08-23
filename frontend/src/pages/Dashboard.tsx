@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, Navigate } from 'react-router-dom'
 import { useCurrentUser } from '../auth/SessionProvider'
-import { Button } from '../components/Button'
-import { Callout, SectionHeading } from '../components/Surfaces'
-import { useI18n } from '../i18n'
+import { Button, ButtonLink } from '../components/Button'
+import { Badge, Callout, Card, DataList, DataRow, EmptyState, SectionHeading, Skeleton } from '../components/Surfaces'
+import { useI18n, interpolate } from '../i18n'
 import { billing, icps, notifications, signals } from '../api/endpoints'
+import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
+import { SignalCard } from '../signals/SignalCard'
 import type {
   BillingStatus,
   FeedPage,
@@ -12,6 +14,7 @@ import type {
   TargetIcp,
   UnlockedFeedItem,
 } from '../api/types'
+import styles from './Dashboard.module.css'
 
 interface ResourceState<T> {
   data: T | null
@@ -164,13 +167,33 @@ function ReadyDashboard() {
     }
   }, [loadBilling, loadFeed, loadIcps, loadNotifications])
 
-  return (
-    <div>
-      <SectionHeading level={1} title={t.dashboard.title} lead={t.dashboard.lead} />
+  const feedItems = feedState.data?.items.slice(0, 3) ?? []
+  const hasUnlockedSignal = feedItems.some((item) => item.locked === false)
+  const activeIcps = icpState.data?.filter((profile) => profile.status === 'active') ?? []
+  const overLimitIcps = new Set(billingState.data?.target_icps_over_limit ?? [])
 
-      <section aria-labelledby="dashboard-opportunities-title">
-        <h2 id="dashboard-opportunities-title">{t.dashboard.opportunities}</h2>
-        {feedState.loading && !feedState.data ? <p>{t.common.loading}</p> : null}
+  return (
+    <div className={styles.page}>
+      <header className={styles.pageHeader}>
+        <SectionHeading level={1} title={t.dashboard.title} lead={t.dashboard.lead} />
+      </header>
+
+      <section className={styles.opportunities} aria-labelledby="dashboard-opportunities-title">
+        <div className={styles.sectionHeader}>
+          <SectionHeading id="dashboard-opportunities-title" title={t.dashboard.opportunities} />
+          <ButtonLink to="/app/signals" variant="secondary">
+            {t.dashboard.viewAllFeed}
+          </ButtonLink>
+        </div>
+        {feedState.loading && !feedState.data ? (
+          <div className={styles.signalList} aria-label={t.common.loading}>
+            {[0, 1].map((index) => (
+              <Card key={index} padding="lg">
+                <Skeleton width="42%" height="1.75rem" />
+              </Card>
+            ))}
+          </div>
+        ) : null}
         {feedState.error ? (
           <Callout
             tone="danger"
@@ -182,52 +205,172 @@ function ReadyDashboard() {
             }
           />
         ) : null}
+        {feedItems.length > 0 ? (
+          <div className={styles.signalList}>
+            {feedItems.map((item) => (
+              <SignalCard key={item.signal_id} item={item} />
+            ))}
+          </div>
+        ) : null}
+        {feedState.data && feedItems.length === 0 ? (
+          <Card padding="none">
+            <EmptyState
+              title={t.dashboard.noOpportunities}
+              body={t.dashboard.noOpportunitiesBody}
+              action={
+                <ButtonLink to="/app/icps" variant="secondary">
+                  {t.dashboard.adjustTargeting}
+                </ButtonLink>
+              }
+            />
+          </Card>
+        ) : null}
+        {feedState.data && feedItems.length > 0 && !hasUnlockedSignal ? (
+          <p className={styles.supportingCopy}>{t.dashboard.noAccessibleCompany}</p>
+        ) : null}
       </section>
 
-      <section aria-labelledby="dashboard-icps-title">
-        <h2 id="dashboard-icps-title">{t.dashboard.icps}</h2>
-        {icpState.loading && !icpState.data ? <p>{t.common.loading}</p> : null}
-      </section>
-
-      <section aria-labelledby="dashboard-billing-title">
-        <h2 id="dashboard-billing-title">{t.dashboard.billing}</h2>
-        {billingState.loading && !billingState.data ? <p>{t.common.loading}</p> : null}
-        {billingState.data ? <p>{t.billing.plans[billingState.data.plan_code]}</p> : null}
-      </section>
-
-      <section aria-labelledby="dashboard-alerts-title">
-        <h2 id="dashboard-alerts-title">{t.dashboard.alerts}</h2>
-        {notificationState.loading && !notificationState.data ? <p>{t.common.loading}</p> : null}
-      </section>
-
-      {companyState.status !== 'idle' ? (
-        <section aria-labelledby="dashboard-company-title">
-          <h2 id="dashboard-company-title">{t.dashboard.company}</h2>
-          {companyState.status === 'loading' ? <p>{t.common.loading}</p> : null}
-          {companyState.status === 'available' ? (
-            <Link to={`/app/companies/${encodeURIComponent(companyState.companyKey)}`}>
-              {t.dashboard.companyAction}
-            </Link>
+      <div className={styles.supportGrid}>
+        <Card
+          as="section"
+          padding="lg"
+          className={styles.icpSection}
+        >
+          <div className={styles.cardHeader}>
+            <SectionHeading id="dashboard-icps-title" title={t.dashboard.icps} />
+            <ButtonLink to="/app/icps" variant="secondary">
+              {t.dashboard.manageIcps}
+            </ButtonLink>
+          </div>
+          {icpState.loading && !icpState.data ? (
+            <div className={styles.compactList} aria-label={t.common.loading}>
+              <Skeleton width="58%" height="1.5rem" />
+              <Skeleton width="76%" height="1rem" />
+            </div>
           ) : null}
-          {companyState.status === 'unavailable' ? (
-            <p>{t.dashboard.companyUnavailable}</p>
-          ) : null}
-          {companyState.status === 'error' ? (
+          {icpState.error ? (
             <Callout
               tone="danger"
-              title={t.dashboard.companyError}
+              title={t.dashboard.icpsError}
               action={
-                <Button
-                  variant="secondary"
-                  onClick={() => void loadCompany(companyState.signal)}
-                >
-                  {t.dashboard.retryCompany}
+                <Button variant="secondary" onClick={() => void loadIcps()}>
+                  {t.common.retry}
                 </Button>
               }
             />
           ) : null}
-        </section>
-      ) : null}
+          {icpState.data && activeIcps.length === 0 ? (
+            <div className={styles.emptyCompact}>
+              <p className={styles.emptyTitle}>{t.dashboard.noActiveIcp}</p>
+              <p className={styles.supportingCopy}>{t.dashboard.noActiveIcpBody}</p>
+            </div>
+          ) : null}
+          {activeIcps.length > 0 ? (
+            <div className={styles.icpList}>
+              {activeIcps.map((profile) => (
+                <IcpSummary
+                  key={profile.target_icp_id}
+                  profile={profile}
+                  overLimit={overLimitIcps.has(profile.target_icp_id)}
+                />
+              ))}
+            </div>
+          ) : null}
+        </Card>
+
+        <Card as="section" padding="lg">
+          <SectionHeading id="dashboard-billing-title" title={t.dashboard.billing} />
+          {billingState.loading && !billingState.data ? (
+            <Skeleton width="40%" height="1.5rem" />
+          ) : null}
+          {billingState.data ? <p>{t.billing.plans[billingState.data.plan_code]}</p> : null}
+        </Card>
+
+        <Card as="section" padding="lg">
+          <SectionHeading id="dashboard-alerts-title" title={t.dashboard.alerts} />
+          {notificationState.loading && !notificationState.data ? (
+            <Skeleton width="62%" height="1.25rem" />
+          ) : null}
+        </Card>
+
+        {companyState.status !== 'idle' ? (
+          <Card as="section" padding="lg">
+            <SectionHeading id="dashboard-company-title" title={t.dashboard.company} />
+            <p className={styles.supportingCopy}>{companyState.signal.company.name}</p>
+            {companyState.status === 'loading' ? (
+              <Skeleton width="70%" height="1.25rem" />
+            ) : null}
+            {companyState.status === 'available' ? (
+              <Link to={`/app/companies/${encodeURIComponent(companyState.companyKey)}`}>
+                {t.dashboard.companyAction}
+              </Link>
+            ) : null}
+            {companyState.status === 'unavailable' ? (
+              <p className={styles.emptyTitle}>{t.dashboard.companyUnavailable}</p>
+            ) : null}
+            {companyState.status === 'error' ? (
+              <Callout
+                tone="danger"
+                title={t.dashboard.companyError}
+                action={
+                  <Button
+                    variant="secondary"
+                    onClick={() => void loadCompany(companyState.signal)}
+                  >
+                    {t.dashboard.retryCompany}
+                  </Button>
+                }
+              />
+            ) : null}
+          </Card>
+        ) : null}
+      </div>
     </div>
+  )
+}
+
+function IcpSummary({ profile, overLimit }: { profile: TargetIcp; overLimit: boolean }) {
+  const { t, locale, amount } = useI18n()
+  const input = profile.customer_input
+  const summary =
+    input.offer_summary.trim() ||
+    input.offers.map((offer) => t.offers[offer]).join(', ') ||
+    t.common.notAvailable
+  const territories = input.territories.map((code) => {
+    const territory = MVP_TERRITORIES.find((candidate) => candidate.code === code)
+    return territory ? territoryLabel(territory, locale) : code
+  })
+  const threshold = input.minimum_contract_value
+    ? amount(
+        String(input.minimum_contract_value.minimum_amount),
+        input.minimum_contract_value.currency,
+      )
+    : null
+
+  return (
+    <Card as="article" padding="md" className={styles.icpCard}>
+      <div className={styles.icpHead}>
+        <h3 className={styles.icpTitle}>{profile.label}</h3>
+        <div className={styles.badges}>
+          {overLimit ? <Badge tone="warm">{t.icp.overLimitBadge}</Badge> : null}
+          {profile.plan_limit ? <Badge tone="warm">{t.icp.territoryLimitedBadge}</Badge> : null}
+        </div>
+      </div>
+      <p className={styles.icpSummary}>{summary}</p>
+      <DataList>
+        <DataRow label={t.icp.territoriesLabel}>
+          {territories.length > 0 ? territories.join(', ') : t.common.notAvailable}
+        </DataRow>
+        {threshold ? <DataRow label={t.icp.thresholdLabel}>{threshold}</DataRow> : null}
+      </DataList>
+      {profile.plan_limit ? (
+        <p className={styles.limitCopy}>
+          {interpolate(t.dashboard.territoryLimit, {
+            count: profile.plan_limit.territory_count,
+            limit: profile.plan_limit.limit,
+          })}
+        </p>
+      ) : null}
+    </Card>
   )
 }
