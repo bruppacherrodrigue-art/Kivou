@@ -28,6 +28,11 @@ def test_learning_migration_is_one_linear_head_with_exactly_two_tables(tmp_path)
     with engine.connect() as connection:
         assert connection.scalar(sa.text("SELECT version_num FROM alembic_version")) == HEAD
     assert TABLES.issubset(sa.inspect(engine).get_table_names())
+    indexes = {
+        index["name"]: index
+        for index in sa.inspect(engine).get_indexes("acquisition_allocation_proposal")
+    }
+    assert indexes["uq_learning_snapshot_selected_proposal"]["unique"] == 1
 
 
 def test_0019_upgrade_downgrade_reupgrade_and_core_parity(tmp_path) -> None:
@@ -46,6 +51,13 @@ def test_0019_upgrade_downgrade_reupgrade_and_core_parity(tmp_path) -> None:
         assert {item["name"] for item in sa.inspect(migrated).get_columns(table)} == {
             item["name"] for item in sa.inspect(core).get_columns(table)
         }
+    assert {
+        (item["name"], item["unique"])
+        for item in sa.inspect(migrated).get_indexes("acquisition_allocation_proposal")
+    } == {
+        (item["name"], item["unique"])
+        for item in sa.inspect(core).get_indexes("acquisition_allocation_proposal")
+    }
 
 
 def test_learning_tables_are_pii_minimized_and_allocation_is_bounded() -> None:
@@ -89,4 +101,5 @@ def test_postgresql_offline_sql_contains_two_tables_and_linear_revision(capsys) 
 
     assert "CREATE TABLE acquisition_learning_snapshot" in sql
     assert "CREATE TABLE acquisition_allocation_proposal" in sql
+    assert "CREATE UNIQUE INDEX uq_learning_snapshot_selected_proposal" in sql
     assert "0020_hermes_learning_loop" in sql

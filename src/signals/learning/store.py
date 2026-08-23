@@ -214,8 +214,8 @@ class LearningStore:
     ) -> RowMapping:
         if source not in {"KIVOU_NO_CHANGE", "HERMES"}:
             raise ValueError("invalid learning selection source")
-        with self.engine.begin() as connection:
-            row = self._proposal(connection, proposal_ref)
+        with self._serialized() as connection:
+            row = self._proposal(connection, proposal_ref, lock=True)
             if row["selection_source"] is not None:
                 if (
                     _semantic(row["selection_source"]) != source
@@ -224,17 +224,42 @@ class LearningStore:
                 ):
                     raise LearningConflict(proposal_ref)
                 return row
-            connection.execute(
-                sa.update(acquisition_allocation_proposal)
-                .where(acquisition_allocation_proposal.c.proposal_ref == proposal_ref)
-                .values(
-                    selection_source=source,
-                    confidence=confidence,
-                    selection_reason_codes=list(reason_codes),
-                    decided_at=decided_at,
-                )
+            winner = self._selected_proposal(
+                connection, snapshot_ref=row["snapshot_ref"], lock=True
             )
-            return self._proposal(connection, proposal_ref)
+            if winner is not None:
+                return winner
+            try:
+                with connection.begin_nested():
+                    connection.execute(
+                        sa.update(acquisition_allocation_proposal)
+                        .where(
+                            acquisition_allocation_proposal.c.proposal_ref == proposal_ref,
+                            acquisition_allocation_proposal.c.selection_source.is_(None),
+                        )
+                        .values(
+                            selection_source=source,
+                            confidence=confidence,
+                            selection_reason_codes=list(reason_codes),
+                            decided_at=decided_at,
+                        )
+                    )
+            except sa.exc.IntegrityError:
+                winner = self._selected_proposal(
+                    connection, snapshot_ref=row["snapshot_ref"], lock=True
+                )
+                if winner is None:
+                    raise
+                return winner
+            selected = self._proposal(connection, proposal_ref, lock=True)
+            if selected["selection_source"] is None:
+                winner = self._selected_proposal(
+                    connection, snapshot_ref=row["snapshot_ref"], lock=True
+                )
+                if winner is None:
+                    raise LearningConflict("selection did not persist")
+                return winner
+            return selected
 
     def record_policy(
         self,
@@ -450,6 +475,18 @@ class LearningStore:
         if row is None:
             raise KeyError(proposal_ref)
         return row
+
+    @staticmethod
+    def _selected_proposal(
+        connection: Connection, *, snapshot_ref: str, lock: bool = False
+    ) -> RowMapping | None:
+        statement = sa.select(acquisition_allocation_proposal).where(
+            acquisition_allocation_proposal.c.snapshot_ref == snapshot_ref,
+            acquisition_allocation_proposal.c.selection_source.is_not(None),
+        )
+        if lock:
+            statement = statement.with_for_update()
+        return connection.execute(statement).mappings().one_or_none()
 
     @staticmethod
     def _require_exact(row: RowMapping, values: dict[str, object], ref: str) -> None:

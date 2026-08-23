@@ -115,6 +115,14 @@ def upgrade() -> None:
         ["snapshot_ref", "created_at"],
     )
     op.create_index(
+        "uq_learning_snapshot_selected_proposal",
+        "acquisition_allocation_proposal",
+        ["snapshot_ref"],
+        unique=True,
+        sqlite_where=sa.text("selection_source IS NOT NULL"),
+        postgresql_where=sa.text("selection_source IS NOT NULL"),
+    )
+    op.create_index(
         "uq_learning_applied_successor",
         "acquisition_allocation_proposal",
         ["allocation_envelope_fingerprint", "baseline_authority_ref"],

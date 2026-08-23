@@ -134,7 +134,7 @@ class LearningLoopWorker:
             selection, snapshot_ref=snapshot.snapshot_ref, candidates=candidates
         )
         source = "KIVOU_NO_CHANGE" if candidate.kind is CandidateKind.NO_CHANGE else "HERMES"
-        self.store.record_selection(
+        selected = self.store.record_selection(
             candidate.proposal_ref,
             source=source,
             confidence=selection.confidence,
@@ -142,10 +142,10 @@ class LearningLoopWorker:
             decided_at=captured_at,
         )
         return self._finish_selected(
-            snapshot_ref=snapshot.snapshot_ref,
-            proposal_ref=candidate.proposal_ref,
-            delta_units=candidate.delta_units,
-            policy_status=None,
+            snapshot_ref=selected["snapshot_ref"],
+            proposal_ref=selected["proposal_ref"],
+            delta_units=selected["delta_units"],
+            policy_status=selected["policy_status"],
             now=captured_at,
         )
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import datetime as dt
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
+from threading import Barrier, Lock
 
 import pytest
 import sqlalchemy as sa
@@ -80,6 +82,40 @@ class SelectShift:
         )
 
 
+class MetricsWithCompetingShifts:
+    def capture(self, *, window):
+        return (
+            _metric("weakest", 10_000),
+            _metric("middle", 20_000),
+            _metric("strongest", 30_000),
+        )
+
+
+class SelectRouteAtBarrier:
+    def __init__(self, barrier: Barrier, *, from_wedge: str, to_wedge: str) -> None:
+        self.barrier = barrier
+        self.from_wedge = from_wedge
+        self.to_wedge = to_wedge
+
+    def select(self, context):
+        selected = next(
+            item
+            for item in context.candidates
+            if item.kind is CandidateKind.SHIFT_ONE_UNIT
+            and item.from_cell is not None
+            and item.from_cell.wedge == self.from_wedge
+            and item.to_cell is not None
+            and item.to_cell.wedge == self.to_wedge
+        )
+        self.barrier.wait(timeout=10)
+        return LearningSelection(
+            snapshot_ref=context.snapshot_ref,
+            proposal_ref=selected.proposal_ref,
+            reason_codes=("HERMES_SELECTED_ROUTE",),
+            confidence=Decimal("0.9"),
+        )
+
+
 class Authorization:
     def __init__(self, *, status: str, executable: bool, counterfactual: str | None = None):
         self.status = status
@@ -97,6 +133,18 @@ class Authorization:
             policy_status=self.status,
             policy_counterfactual_status=self.counterfactual,
         )
+
+
+class TrackingAuthorization(Authorization):
+    def __init__(self) -> None:
+        super().__init__(status="APPROVED", executable=True)
+        self.proposal_refs: list[str] = []
+        self.lock = Lock()
+
+    def authorize(self, proposal_ref: str, *, now: dt.datetime):
+        with self.lock:
+            self.proposal_refs.append(proposal_ref)
+        return super().authorize(proposal_ref, now=now)
 
 
 def _envelope() -> LearningAllocationEnvelope:
@@ -117,6 +165,23 @@ def _envelope() -> LearningAllocationEnvelope:
                 minimum_units=1,
                 maximum_units=4,
             ),
+        ),
+    )
+
+
+def _competing_envelope() -> LearningAllocationEnvelope:
+    return LearningAllocationEnvelope(
+        valid_from=NOW - dt.timedelta(days=1),
+        valid_until=NOW + dt.timedelta(days=30),
+        total_daily_units=6,
+        cells=tuple(
+            AllocationCell(
+                cell=LearningCellKey(country="CH", wedge=wedge),
+                current_units=2,
+                minimum_units=1,
+                maximum_units=4,
+            )
+            for wedge in ("weakest", "middle", "strongest")
         ),
     )
 
@@ -210,6 +275,73 @@ def test_repeated_worker_window_converges_without_second_application(tmp_path) -
             )
             == 1
         )
+
+
+def test_concurrent_workers_with_different_choices_converge_to_one_durable_selection(
+    tmp_path,
+) -> None:
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'selection-race.db'}")
+    command.upgrade(alembic_config(engine), "head")
+    barrier = Barrier(2)
+    authorization = TrackingAuthorization()
+    selectors = (
+        SelectRouteAtBarrier(barrier, from_wedge="weakest", to_wedge="strongest"),
+        SelectRouteAtBarrier(barrier, from_wedge="middle", to_wedge="strongest"),
+    )
+    workers = tuple(
+        LearningLoopWorker(
+            store=LearningStore(engine),
+            metrics_source=MetricsWithCompetingShifts(),
+            envelope_provider=lambda at: _competing_envelope(),
+            selector=selector,
+            policy_authorizer=authorization,
+        )
+        for selector in selectors
+    )
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = tuple(
+            pool.map(
+                lambda worker: worker.run(window_end=NOW, captured_at=NOW),
+                workers,
+            )
+        )
+
+    with engine.connect() as connection:
+        selected = (
+            connection.execute(
+                sa.select(acquisition_allocation_proposal).where(
+                    acquisition_allocation_proposal.c.selection_source.is_not(None)
+                )
+            )
+            .mappings()
+            .all()
+        )
+        policy_proposal_refs = set(
+            connection.execute(
+                sa.select(acquisition_allocation_proposal.c.proposal_ref).where(
+                    acquisition_allocation_proposal.c.policy_evaluation_id.is_not(None)
+                )
+            ).scalars()
+        )
+        applied_count = connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(acquisition_allocation_proposal)
+            .where(acquisition_allocation_proposal.c.state == "APPLIED")
+        )
+    assert len(selected) == 1
+    durable_proposal_ref = selected[0]["proposal_ref"]
+    assert {result.proposal_ref for result in results} == {durable_proposal_ref}
+    assert set(authorization.proposal_refs) == {durable_proposal_ref}
+    assert policy_proposal_refs == {durable_proposal_ref}
+    assert applied_count == 1
+    existing = LearningStore(engine).existing_cycle(
+        window_end=NOW,
+        envelope_fingerprint=_competing_envelope().fingerprint,
+    )
+    assert existing is not None
+    assert existing[1] is not None
+    assert existing[1]["proposal_ref"] == durable_proposal_ref
 
 
 def test_gateway_policy_is_durable_and_exact_adaptive_control_can_apply(tmp_path) -> None:

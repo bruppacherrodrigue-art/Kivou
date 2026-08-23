@@ -4,6 +4,7 @@ import datetime as dt
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 
+import pytest
 import sqlalchemy as sa
 from alembic import command
 
@@ -177,13 +178,10 @@ def test_two_candidates_on_same_baseline_have_at_most_one_applied_successor(tmp_
     store.save_candidates(
         (shift, alternative), envelope_fingerprint=envelope.fingerprint, created_at=NOW
     )
+    # This is a deliberately lower-level synthetic state used only to retain
+    # coverage of the independent single-APPLIED-successor database invariant.
+    # Normal business APIs must never durably select both proposals.
     for index, proposal in enumerate((shift, alternative), 1):
-        store.record_selection(
-            proposal.proposal_ref,
-            source="HERMES",
-            confidence=Decimal("0.9"),
-            decided_at=NOW,
-        )
         store.record_policy(
             proposal.proposal_ref,
             evaluation_id=f"evaluation-{index}",
@@ -208,6 +206,72 @@ def test_two_candidates_on_same_baseline_have_at_most_one_applied_successor(tmp_
             connection.execute(sa.select(acquisition_allocation_proposal.c.state)).scalars().all()
         )
     assert sorted(states) == ["APPLIED", "REJECTED"]
+
+
+def test_database_rejects_two_selected_proposals_for_one_snapshot(tmp_path) -> None:
+    engine, snapshot, envelope, candidates = _context(tmp_path)
+    store = LearningStore(engine)
+    store.save_snapshot(snapshot)
+    shifts = tuple(item for item in candidates if item.delta_units == 1)
+    first = shifts[0]
+    second = first.model_copy(
+        update={
+            "proposal_ref": "8" * 64,
+            "reason_codes": ("SYNTHETIC_COMPETING_SELECTION",),
+        }
+    )
+    store.save_candidates(
+        (first, second), envelope_fingerprint=envelope.fingerprint, created_at=NOW
+    )
+
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_allocation_proposal)
+            .where(acquisition_allocation_proposal.c.proposal_ref == first.proposal_ref)
+            .values(
+                selection_source="HERMES",
+                confidence=Decimal("0.9"),
+                selection_reason_codes=["FIRST_SELECTION"],
+                decided_at=NOW,
+            )
+        )
+
+    with pytest.raises(sa.exc.IntegrityError), engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_allocation_proposal)
+            .where(acquisition_allocation_proposal.c.proposal_ref == second.proposal_ref)
+            .values(
+                selection_source="HERMES",
+                confidence=Decimal("0.8"),
+                selection_reason_codes=["SECOND_SELECTION"],
+                decided_at=NOW,
+            )
+        )
+
+
+def test_identical_selection_replays_the_same_durable_proposal(tmp_path) -> None:
+    engine, snapshot, envelope, candidates = _context(tmp_path)
+    store = LearningStore(engine)
+    store.save_snapshot(snapshot)
+    store.save_candidates(candidates, envelope_fingerprint=envelope.fingerprint, created_at=NOW)
+    candidate = next(item for item in candidates if item.delta_units == 1)
+
+    first = store.record_selection(
+        candidate.proposal_ref,
+        source="HERMES",
+        confidence=Decimal("0.9"),
+        decided_at=NOW,
+    )
+    replay = store.record_selection(
+        candidate.proposal_ref,
+        source="HERMES",
+        confidence=Decimal("0.9"),
+        decided_at=NOW + dt.timedelta(seconds=1),
+    )
+
+    assert first["proposal_ref"] == candidate.proposal_ref
+    assert replay["proposal_ref"] == candidate.proposal_ref
+    assert replay["decided_at"].replace(tzinfo=dt.UTC) == NOW
 
 
 def test_current_allocation_follows_authority_chain_not_timestamp_order(tmp_path) -> None:

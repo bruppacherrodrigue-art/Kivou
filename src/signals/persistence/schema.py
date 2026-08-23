@@ -1929,6 +1929,13 @@ acquisition_allocation_proposal = sa.Table(
     ),
     sa.Index("ix_learning_proposal_snapshot", "snapshot_ref", "created_at"),
     sa.Index(
+        "uq_learning_snapshot_selected_proposal",
+        "snapshot_ref",
+        unique=True,
+        sqlite_where=sa.text("selection_source IS NOT NULL"),
+        postgresql_where=sa.text("selection_source IS NOT NULL"),
+    ),
+    sa.Index(
         "uq_learning_applied_successor",
         "allocation_envelope_fingerprint",
         "baseline_authority_ref",
