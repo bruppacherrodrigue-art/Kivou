@@ -290,6 +290,28 @@ def test_an_unchanged_rematerialization_does_not_bump_the_revision(
     assert store(connection, item).revision == 1
 
 
+def test_an_unchanged_rematerialization_does_not_rewrite_the_company_index(
+    connection: sa.Connection,
+):
+    item = bundle()
+    store(connection, item)
+    materialized_updates: list[str] = []
+
+    def track_statement(_connection, _cursor, statement, _parameters, _context, _many):
+        normalized = statement.strip().lower()
+        if normalized.startswith("update materialized_signal"):
+            materialized_updates.append(normalized)
+
+    sa.event.listen(connection, "before_cursor_execute", track_statement)
+    try:
+        replay = store(connection, item)
+    finally:
+        sa.event.remove(connection, "before_cursor_execute", track_statement)
+
+    assert replay.updated is False
+    assert materialized_updates == []
+
+
 def test_new_engine_versions_produce_a_new_revision_of_the_same_signal(
     connection: sa.Connection,
 ):

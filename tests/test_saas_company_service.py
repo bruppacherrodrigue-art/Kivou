@@ -440,3 +440,54 @@ def test_related_signal_order_reuses_the_server_sort_order(engine) -> None:
     assert [item.signal_id for item in profile.related_signals] == [
         item.signal.signal_key for item in expected.items
     ]
+
+
+def test_profile_hydrates_only_indexed_company_matches_among_many_account_signals(
+    engine, monkeypatch
+) -> None:
+    with engine.begin() as connection:
+        account_id, icp_id = _paid_account(connection, email="bounded-scan@kivou.test")
+        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
+        key = _company_key(
+            connection,
+            account_id=account_id,
+            icp_id=icp_id,
+            signal_key=signal.signal_key,
+        )
+        template = dict(
+            connection.execute(
+                sa.select(materialized_signal).where(
+                    materialized_signal.c.signal_key == signal.signal_key
+                )
+            ).mappings().one()
+        )
+        noise = []
+        for index in range(600):
+            row = dict(template)
+            row["signal_key"] = f"sig_unrelated_{index:04d}"
+            row["opportunity_key"] = f"opp_unrelated_{index:04d}"
+            if "company_identity_fingerprint" in row:
+                row["company_identity_fingerprint"] = None
+            noise.append(row)
+        connection.execute(sa.insert(materialized_signal), noise)
+
+        hydrated: list[str] = []
+        original = company_service.signal_from_row
+
+        def counting_signal_from_row(row):
+            hydrated.append(row.signal_key)
+            return original(row)
+
+        monkeypatch.setattr(company_service, "signal_from_row", counting_signal_from_row)
+        profile = company_profile_for_account(
+            connection,
+            company_key=key,
+            account_id=account_id,
+            as_of=AS_OF,
+            allowed_target_icp_ids=frozenset({icp_id}),
+            access=feed_access(connection, account_id=account_id, as_of=AS_OF),
+            lang="fr",
+        )
+
+    assert profile is not None
+    assert hydrated == [signal.signal_key]

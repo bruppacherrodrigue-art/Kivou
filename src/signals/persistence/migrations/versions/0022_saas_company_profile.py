@@ -7,7 +7,7 @@ Revises: 0021_reliability_operations
 from __future__ import annotations
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 
 revision = "0022_saas_company_profile"
 down_revision = "0021_reliability_operations"
@@ -16,6 +16,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.add_column(
+        "materialized_signal",
+        sa.Column("company_identity_fingerprint", sa.String(64)),
+    )
     op.create_table(
         "saas_company",
         sa.Column("company_key", sa.String(64), primary_key=True),
@@ -41,8 +45,21 @@ def upgrade() -> None:
     )
     op.create_index("ix_saas_company_source_award_key", "saas_company", ["source_award_key"])
     op.create_index("ix_saas_company_origin_signal_key", "saas_company", ["origin_signal_key"])
+    if not context.is_offline_mode():
+        from signals.companies.indexing import backfill_signal_company_identities
+
+        backfill_signal_company_identities(op.get_bind())
+    op.create_index(
+        "ix_materialized_signal_company_identity_fingerprint",
+        "materialized_signal",
+        ["company_identity_fingerprint"],
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_materialized_signal_company_identity_fingerprint",
+        table_name="materialized_signal",
+    )
+    op.drop_column("materialized_signal", "company_identity_fingerprint")
     op.drop_table("saas_company")
-

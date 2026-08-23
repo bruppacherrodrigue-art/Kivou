@@ -91,11 +91,14 @@ règles. Une clé inconnue, une fiche étrangère, une fiche ne portant plus auc
 signal accessible ou une entreprise seulement liée à des signaux verrouillés
 répondent toutes `404 company_not_found`.
 
-La recherche d'autorisation parcourt les matérialisations courantes du compte
-par lots déterministes. L'identité exacte et `FeedAccess.is_unlocked` sont
-appliqués avant la limite de réponse de 100 signaux. Un signal Discovery ancien
-ne peut donc pas être masqué par des signaux verrouillés plus récents. La mémoire
-reste bornée au lot courant et aux 100 meilleurs résultats selon l'ordre serveur.
+Chaque matérialisation porte une empreinte d'identité officielle opaque,
+calculée dans la frontière SaaS depuis l'avis public et indexée en base. La
+migration rétroprojette les signaux existants par lots bornés et les écritures
+suivantes maintiennent cette projection. La recherche d'autorisation interroge
+donc uniquement les matérialisations courantes du compte portant l'empreinte
+exacte, au lieu de parcourir tous ses signaux. `FeedAccess.is_unlocked` reste
+appliqué avant la limite de réponse de 100 signaux : un grant Discovery ancien
+ne peut pas être masqué par des signaux verrouillés plus récents.
 
 L'identité officielle rendue est choisie seulement parmi les résolutions ainsi
 déverrouillées. Deux comptes partageant une empreinte ne partagent jamais les
@@ -174,21 +177,27 @@ Le dernier cas se confond volontairement avec la fiche inaccessible côté API.
 
 ## Migration et compatibilité
 
-La migration additive `0022_saas_company_profile` crée uniquement
-`saas_company`. Son downgrade retire uniquement cette table. Le modèle
-SQLAlchemy Core est déclaré dans le nouveau paquet puis enregistré dans la
-métadonnée Alembic, sans modifier les tables du moteur.
+La migration additive `0022_saas_company_profile` crée la table
+`saas_company` et ajoute à `materialized_signal` la seule colonne opaque
+`company_identity_fingerprint`, avec son index. La migration rétroprojette les
+signaux existants sans payload fournisseur ni donnée personnelle. Son downgrade
+retire la table, l'index et cette colonne. Le modèle SQLAlchemy Core est déclaré
+dans la frontière SaaS et la projection reste distincte des modules internes
+du moteur.
 
 Les tests de migration couvrent l'aller-retour SQLite, la parité avec
-`METADATA`, la tête linéaire et le SQL PostgreSQL hors ligne.
+`METADATA`, la tête linéaire et le SQL PostgreSQL hors ligne. Ce dernier ne peut
+pas exécuter la rétroprojection Python : un déploiement fondé uniquement sur
+l'artefact `--sql` doit lancer le backfill applicatif séparément avant
+d'exposer la route.
 
 ## Tests et garde-fous
 
 Les tests backend couvrent l'authentification, l'isolation inter-comptes, les
 signaux verrouillés, l'invalidation, les révisions ICP, les déblocages
 Discovery, l'identité exacte, les homonymes, l'idempotence, la migration et
-la séparation des faits officiels entre comptes, le scan avant troncature,
-l'absence de champs internes.
+la séparation des faits officiels entre comptes, la sélection indexée avant
+hydratation, le déverrouillage avant troncature et l'absence de champs internes.
 
 Les tests frontend couvrent le rendu FR/EN, les champs officiels, les champs
 absents, les liens sûrs, la navigation depuis un détail déverrouillé, l'absence

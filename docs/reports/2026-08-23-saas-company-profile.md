@@ -125,7 +125,7 @@ Une lecture de fiche revalide dans la transaction courante :
 
 Les signaux verrouillés sont exclus. Si aucun signal autorisé ne reste, la fiche répond `404`. Une même entreprise peut être visible par deux comptes seulement lorsque chacun possède son propre signal courant et déverrouillé ; chaque réponse contient uniquement les signaux du compte appelant.
 
-Les matérialisations courantes sont parcourues par lots déterministes. La résolution exacte et `FeedAccess.is_unlocked` précèdent la limite de réponse de 100 signaux ; un grant Discovery ancien ne peut donc pas être caché par des signaux verrouillés plus récents. La mémoire reste bornée au lot courant et aux 100 meilleurs résultats selon l’ordre serveur.
+Chaque signal matérialisé porte une empreinte d’identité officielle opaque et indexée. La migration `0022` rétroprojette les lignes existantes par lots de 250 et la matérialisation maintient ensuite cette projection. La fiche ne charge que les lignes courantes du compte portant l’empreinte exacte ; elle ne reparcourt pas tous les signaux du compte. La résolution exacte et `FeedAccess.is_unlocked` précèdent toujours la limite de réponse de 100 signaux, afin qu’un grant Discovery ancien ne puisse pas être caché par des signaux verrouillés plus récents.
 
 L’identité officielle de la réponse est reconstruite depuis un avis lié à ces signaux déverrouillés. L’instantané de création persiste pour l’audit et la déduplication, mais n’est jamais utilisé pour transmettre à un compte les champs optionnels observés uniquement par un autre compte.
 
@@ -159,6 +159,7 @@ Les limites restantes sont explicites :
 - le site n’est affiché que si l’avis public le publie en HTTPS ;
 - la fiche ne révèle aucune coordonnée personnelle ou directe ;
 - une évolution Apollo exige un accord contractuel écrit et une nouvelle revue produit, sécurité, coût et provenance ;
+- un déploiement Alembic `--sql` hors ligne n'exécute pas la rétroprojection applicative : il faut alors lancer un backfill séparé avant d'exposer la route ; le chemin de promotion recommandé reste la migration Alembic en ligne ;
 - la migration doit être promue selon le runbook habituel avant toute mise en production.
 
 ## Validation

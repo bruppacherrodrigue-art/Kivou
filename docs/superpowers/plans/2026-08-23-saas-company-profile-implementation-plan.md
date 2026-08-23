@@ -4,7 +4,7 @@
 
 **Goal:** Add a protected, official-source company profile reachable only from an unlocked Kivou signal, without Apollo or any Acquisition Engine dependency.
 
-**Architecture:** A new `signals.companies` boundary owns client-safe contracts, exact official identity resolution, one additive SaaS table, account-scoped reads, and response assembly. Signal detail creates or resolves an opaque random Kivou key only after the existing paywall grants access. Company reads independently re-evaluate account ownership, current ICP revision, invalidation, plan limits, and Discovery/paid access before returning official facts and currently unlocked related signals. The React page renders only that API contract inside the existing protected app shell.
+**Architecture:** A new `signals.companies` boundary owns client-safe contracts, exact official identity resolution, one additive SaaS table, an indexed opaque identity projection on materialized signals, account-scoped reads, and response assembly. Signal detail creates or resolves an opaque random Kivou key only after the existing paywall grants access. Company reads independently re-evaluate account ownership, current ICP revision, invalidation, plan limits, and Discovery/paid access before returning official facts and currently unlocked related signals. The React page renders only that API contract inside the existing protected app shell.
 
 **Tech Stack:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy Core, Alembic, pytest; React 19, TypeScript, React Router, CSS Modules, Vitest/Testing Library, Playwright CLI.
 
@@ -99,8 +99,9 @@ git commit -m "feat(companies): define official company identity"
 Assert:
 
 - `0022_saas_company_profile` is the single head after `0021_reliability_operations`;
-- upgrade adds exactly `saas_company`;
-- downgrade returns to `0021_reliability_operations` and drops only that table;
+- upgrade adds exactly `saas_company`, the opaque identity projection column,
+  its index, and retroprojects existing signals in bounded batches;
+- downgrade returns to `0021_reliability_operations` and drops those additions;
 - migrated SQLite columns match the Core table;
 - PostgreSQL offline SQL contains the table, unique identity fingerprint, source-award foreign key, and no acquisition/PII/provider columns.
 
@@ -123,6 +124,11 @@ Create `saas_company` with:
 - official observation, creation, and update instants.
 
 Import the new schema into Alembic metadata. Update only tests whose constants mean “current repository head”; keep historical migration relationships unchanged.
+
+Add the nullable, indexed `company_identity_fingerprint` projection to
+`materialized_signal`. Populate it for existing signals during the online
+migration and maintain it after every signal materialization. Offline SQL emits
+only DDL; no application backfill is attempted.
 
 **Step 4: Verify migration GREEN**
 
@@ -199,7 +205,7 @@ Expected: missing service.
 Add:
 
 - `ensure_company_for_unlocked_signal(connection, item, now)` to load the exact public organization from `display.from_award_key`, persist/resolve the opaque company, and return the key;
-- `company_profile_for_account(...)` to load the opaque row, query only current account-owned materializations, re-resolve official identities, filter by exact fingerprint, apply `FeedAccess.is_unlocked`, and build client-safe related-signal projections.
+- `company_profile_for_account(...)` to load the opaque row, query only current account-owned materializations through the indexed exact fingerprint, re-resolve official identities, apply `FeedAccess.is_unlocked`, and build client-safe related-signal projections without scanning unrelated account signals.
 
 Keep a bounded maximum related-signal response and never expose a truncation as completeness if the bound is reached.
 

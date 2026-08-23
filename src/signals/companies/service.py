@@ -22,6 +22,7 @@ from signals.companies.contracts import (
     CompanySignalEvent,
 )
 from signals.companies.identity import ResolvedOfficialCompany, official_company_identity
+from signals.companies.indexing import index_signal_company_identity
 from signals.companies.store import StoredCompany, get_company_by_key, get_or_create_company
 from signals.feed import query as feed_query
 from signals.feed import view as feed_view
@@ -76,29 +77,15 @@ def ensure_company_for_unlocked_signal(
     now: dt.datetime,
 ) -> str | None:
     """Persist the exact public winner after the caller has granted signal access."""
-    if item.display is None:
-        return None
-    source = _award_sources(connection, {item.display.from_award_key}).get(
-        item.display.from_award_key
+    indexed = index_signal_company_identity(
+        connection, signal_key=item.signal.signal_key
     )
-    if source is None:
-        return None
-    parties, observed_at = source
-    try:
-        resolved = official_company_identity(
-            awardee_parties=parties,
-            display=item.display,
-            opportunity_key=item.signal.opportunity_key,
-            observed_at=observed_at,
-        )
-    except (TypeError, ValueError):
-        return None
-    if resolved is None:
+    if indexed is None:
         return None
     stored = get_or_create_company(
         connection,
-        resolved=resolved,
-        source_award_key=item.display.from_award_key,
+        resolved=indexed.resolved,
+        source_award_key=indexed.source_award_key,
         origin_signal_key=item.signal.signal_key,
         now=now,
     )
@@ -109,6 +96,7 @@ def _current_signal_query(
     *,
     account_id: str,
     allowed_target_icp_ids: frozenset[str],
+    identity_fingerprint: str,
     after_signal_key: str,
 ) -> sa.Select:
     return (
@@ -122,6 +110,7 @@ def _current_signal_query(
             materialized_signal.c.invalidated_at.is_(None),
             materialized_signal.c.target_icp_revision == target_icp.c.matching_revision,
             materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids)),
+            materialized_signal.c.company_identity_fingerprint == identity_fingerprint,
             materialized_signal.c.signal_key > after_signal_key,
         )
         .order_by(None)
@@ -153,6 +142,7 @@ def _accessible_matching_items(
             _current_signal_query(
                 account_id=account_id,
                 allowed_target_icp_ids=allowed_target_icp_ids,
+                identity_fingerprint=stored.identity_fingerprint,
                 after_signal_key=cursor,
             )
         ).all()

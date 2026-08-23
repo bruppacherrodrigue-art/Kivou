@@ -5,10 +5,11 @@ import pathlib
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
+from feed_helpers import SIMAP_RICH, make_account, make_icp, materialize_simap
 
 from signals.companies.schema import saas_company
 from signals.persistence.database import alembic_config, create_database_engine, current_revision
-from signals.persistence.schema import METADATA
+from signals.persistence.schema import METADATA, materialized_signal
 
 PREVIOUS = "0021_reliability_operations"
 HEAD = "0022_saas_company_profile"
@@ -68,3 +69,31 @@ def test_company_postgresql_sql_is_scoped_and_client_safe(capsys) -> None:
         "api_key",
     ):
         assert forbidden not in sql
+
+
+def test_company_migration_backfills_the_index_for_existing_signals(tmp_path) -> None:
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'backfill.db'}")
+    config = alembic_config(engine)
+    command.upgrade(config, HEAD)
+    with engine.begin() as connection:
+        account_id = make_account(connection, "company-backfill@kivou.test", "Backfill")
+        icp_id = make_icp(connection, account_id)
+        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
+        assert connection.scalar(
+            sa.select(materialized_signal.c.company_identity_fingerprint).where(
+                materialized_signal.c.signal_key == signal.signal_key
+            )
+        )
+
+    command.downgrade(config, PREVIOUS)
+    assert "company_identity_fingerprint" not in {
+        column["name"] for column in sa.inspect(engine).get_columns(materialized_signal.name)
+    }
+
+    command.upgrade(config, HEAD)
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(materialized_signal.c.company_identity_fingerprint).where(
+                materialized_signal.c.signal_key == signal.signal_key
+            )
+        )
