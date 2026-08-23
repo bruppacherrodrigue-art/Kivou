@@ -16,6 +16,7 @@ from signals.alerts.gateway import (
     message_id,
 )
 from signals.alerts.job import AlertOutcome, CycleReport, eligible_signals, run_alert_cycle
+from signals.alerts.lease import LeaseAcquisition, acquire, release
 from signals.alerts.policy import (
     ALERT_POLICY_VERSION,
     MAXIMUM_SIGNALS_PER_EMAIL,
@@ -33,11 +34,14 @@ __all__ = [
     "AlertOutcome",
     "CycleReport",
     "DeliveryResult",
+    "LeaseAcquisition",
     "SmtpAlertGateway",
     "SmtpConfiguration",
     "UncertainDelivery",
+    "acquire",
     "eligible_signals",
     "is_due",
     "message_id",
+    "release",
     "run_alert_cycle",
 ]

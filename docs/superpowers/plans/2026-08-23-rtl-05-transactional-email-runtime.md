@@ -699,7 +699,7 @@ git commit -m "feat(email): persist transactional alert runtime state"
 - Create: `tests/test_alert_job_lease.py`
 - Modify: `src/signals/alerts/__init__.py`
 
-- [ ] **Step 1: Write RED sequential and expired-lease tests**
+- [x] **Step 1: Write RED sequential and expired-lease tests**
 
 ```python
 def test_second_owner_observes_normal_contention(engine):
@@ -719,18 +719,18 @@ def test_expired_lease_is_reclaimed(engine):
     assert result is LeaseAcquisition.ACQUIRED
 ```
 
-- [ ] **Step 2: Write RED concurrent acquisition test**
+- [x] **Step 2: Write RED concurrent acquisition test**
 
 Use two threads, a barrier and two independent connections. Assert exactly one
 `ACQUIRED`, one `ALREADY_RUNNING`, no exception and one persisted lease owner.
 
-- [ ] **Step 3: Run lease tests and verify RED**
+- [x] **Step 3: Run lease tests and verify RED**
 
 ```bash
 uv run pytest tests/test_alert_job_lease.py -q
 ```
 
-- [ ] **Step 4: Implement atomic acquire/release**
+- [x] **Step 4: Implement atomic acquire/release**
 
 Expose:
 
@@ -797,10 +797,10 @@ def release(
 Acquire first updates an expired row with a compare-and-set. If no row updates,
 attempt an insert inside a nested transaction; unique conflict means
 `ALREADY_RUNNING`, not an error. Unexpected database errors propagate. Release
-deletes only the row owned by the current process. Generate owner tokens with
-`secrets.token_hex(16)`; never log them.
+deletes only the row owned by the current process. Generate owner identifiers
+with `secrets.token_hex(16)`; never log them.
 
-- [ ] **Step 5: Run tests and commit**
+- [x] **Step 5: Run tests and commit**
 
 ```bash
 uv run pytest tests/test_alert_job_lease.py -q
