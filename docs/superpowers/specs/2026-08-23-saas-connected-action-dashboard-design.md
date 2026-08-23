@@ -98,6 +98,12 @@ every older continuation from writing state.
 6. If the detail is unlocked and contains `company_key`, expose the existing company route. If it
    fails, is locked, or lacks the key, do not infer or reconstruct one.
 
+A feed retry starts a new feed generation and immediately invalidates the previous company-detail
+candidate and result. A successful retry selects the first newly returned server-unlocked item,
+issues at most one new detail request, and triggers exactly one new post-feed billing-status read.
+It does not clear or restart already loaded ICP or notification-preference blocks. The existing
+billing block may remain visible while its protected post-feed refresh is pending.
+
 The detail failure affects only the company action. No dashboard data is written to
 `localStorage` or `sessionStorage`.
 
@@ -141,8 +147,10 @@ no standalone company block is rendered.
 ### Discovery or subscription
 
 - Render `plan_code`, the localized raw subscription status when supported, exact
-  `granted_signal_count`, exact `remaining_slots`, and the server-provided scheduled change only
-  when present.
+  `granted_signal_count`, and exact `remaining_slots`.
+- Render `scheduled_cancellation_at` only when the server provides it. The base contract has no
+  `scheduled_plan_change`; do not anticipate or depend on the future plan-change contract from
+  pull request #58.
 - Never derive a price, `price_id`, entitlement, renewal, cancellation date, or safe billing
   action.
 - Map the server's `billing_action` only to honest localized copy and link to the existing billing
@@ -176,9 +184,10 @@ no standalone company block is rendered.
 
 ## Loading, partial failure, and session behavior
 
-Each resource has `loading`, `success`, and `error` state. Feed, ICP, billing, and notification
-errors each have a local retry that starts a new protected generation for only that resource.
-Already loaded blocks remain mounted and usable.
+Each resource has `loading`, `success`, and `error` state. ICP, billing, and notification errors
+each have a local retry that starts a new protected generation for only that resource. A feed
+retry follows the explicit feed/company/post-feed-billing sequence above while preserving the
+already loaded ICP and notification blocks. Already loaded blocks remain mounted and usable.
 
 - Feed failure does not hide ICP, billing, or alert data.
 - Billing failure does not hide signals or ICP data.
