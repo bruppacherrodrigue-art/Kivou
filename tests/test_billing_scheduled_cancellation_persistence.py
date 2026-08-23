@@ -23,6 +23,7 @@ from billing_helpers import (
     TEST_WEBHOOK_SECRET,
     FakeStripe,
     event_payload,
+    signature_timestamp,
     stripe_signature,
     subscription_state,
 )
@@ -373,7 +374,7 @@ def test_le_webhook_de_resiliation_rend_l_echeance_visible(engine, client, strip
         content=payload,
         headers={
             "Stripe-Signature": stripe_signature(
-                payload, secret=TEST_WEBHOOK_SECRET, timestamp=int(created.timestamp())
+                payload, secret=TEST_WEBHOOK_SECRET, timestamp=signature_timestamp()
             ),
             "Content-Type": "application/json",
         },

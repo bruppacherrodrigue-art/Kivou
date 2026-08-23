@@ -26,6 +26,7 @@ from billing_helpers import (
     TEST_WEBHOOK_SECRET,
     FakeStripe,
     event_payload,
+    signature_timestamp,
     stripe_signature,
     subscription_state,
 )
@@ -124,7 +125,10 @@ def deliver(
         data_object=data_object,
         livemode=livemode,
     )
-    signature = stripe_signature(payload, secret=secret, timestamp=int(created.timestamp()))
+    # Deux horloges : `created` date l'événement (métier, figé à `NOW`), tandis
+    # que l'en-tête est signé à l'heure que `construct_event` consulte vraiment.
+    # Les confondre faisait expirer la suite au 25 août 2026 (#42).
+    signature = stripe_signature(payload, secret=secret, timestamp=signature_timestamp())
     body = payload + (b" " if tamper else b"")
     return client.post(
         "/webhooks/stripe",

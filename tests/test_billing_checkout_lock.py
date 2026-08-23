@@ -27,6 +27,7 @@ from billing_helpers import (
     TEST_WEBHOOK_SECRET,
     FakeStripe,
     event_payload,
+    signature_timestamp,
     stripe_signature,
     subscribe,
 )
@@ -381,7 +382,7 @@ def test_the_expired_event_closes_the_attempt_without_granting_anything(
         data_object={"id": session_id, "customer": "cus_test_0001"},
     )
     signature = stripe_signature(
-        payload, secret=TEST_WEBHOOK_SECRET, timestamp=int(NOW.timestamp())
+        payload, secret=TEST_WEBHOOK_SECRET, timestamp=signature_timestamp()
     )
     response = TestClient(app).post(
         "/webhooks/stripe",
@@ -416,7 +417,7 @@ def test_a_checkout_may_restart_after_the_expired_event(app, client, engine, str
         content=payload,
         headers={
             "Stripe-Signature": stripe_signature(
-                payload, secret=TEST_WEBHOOK_SECRET, timestamp=int(NOW.timestamp())
+                payload, secret=TEST_WEBHOOK_SECRET, timestamp=signature_timestamp()
             ),
             "Content-Type": "application/json",
         },
@@ -446,7 +447,7 @@ def test_the_completed_event_closes_the_attempt_but_grants_nothing_by_itself(
         content=payload,
         headers={
             "Stripe-Signature": stripe_signature(
-                payload, secret=TEST_WEBHOOK_SECRET, timestamp=int(NOW.timestamp())
+                payload, secret=TEST_WEBHOOK_SECRET, timestamp=signature_timestamp()
             ),
             "Content-Type": "application/json",
         },
