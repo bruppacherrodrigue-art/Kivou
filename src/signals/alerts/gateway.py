@@ -180,7 +180,14 @@ class SmtpAlertGateway:
         try:
             server.send_message(email)
         except smtplib.SMTPRecipientsRefused as error:
-            raise AlertDeliveryError("smtp_recipient_refused", retryable=False) from error
+            code = _single_recipient_status(error.recipients)
+            if code is None:
+                raise AlertDeliveryError(
+                    "smtp_recipient_refused", retryable=False
+                ) from error
+            raise AlertDeliveryError(
+                f"smtp_{code}", retryable=400 <= code < 500
+            ) from error
         except smtplib.SMTPResponseException as error:
             raise AlertDeliveryError(
                 f"smtp_{error.smtp_code}", retryable=400 <= error.smtp_code < 500
@@ -192,6 +199,19 @@ class SmtpAlertGateway:
         finally:
             _close(server)
         return DeliveryResult(provider_message_id=message.message_id)
+
+
+def _single_recipient_status(
+    recipients: dict[str, tuple[int, bytes]],
+) -> int | None:
+    """Return the safe SMTP status for Kivou's one-recipient messages."""
+
+    if len(recipients) != 1:
+        return None
+    status = next(iter(recipients.values()), None)
+    if status is None or not isinstance(status[0], int):
+        return None
+    return status[0]
 
 
 def _close(server: object) -> None:

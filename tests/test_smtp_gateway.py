@@ -210,6 +210,23 @@ def test_smtp_response_classification(
     assert "private" not in str(raised.value)
 
 
+@pytest.mark.parametrize(("code", "retryable"), [(450, True), (550, False)])
+def test_recipient_refusal_uses_the_recipient_smtp_status(
+    monkeypatch: pytest.MonkeyPatch, code: int, retryable: bool
+) -> None:
+    RecordingSmtp.send_failure = smtplib.SMTPRecipientsRefused(
+        {"private-recipient@kivou.test": (code, b"private response")}
+    )
+    monkeypatch.setattr(smtplib, "SMTP", RecordingSmtp)
+
+    with pytest.raises(AlertDeliveryError) as raised:
+        SmtpAlertGateway(configuration()).send(sample_message())
+
+    assert raised.value.retryable is retryable
+    assert raised.value.code == f"smtp_{code}"
+    assert "private" not in str(raised.value)
+
+
 def test_disconnect_during_message_submission_is_ambiguous(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

@@ -143,6 +143,76 @@ def test_expired_sending_lease_is_reclaimed_with_same_message_id(app, engine, ma
     assert row.status == "sent"
 
 
+def test_expired_sending_lease_cannot_exceed_the_retry_budget(
+    app, engine, mailer
+) -> None:
+    subscriber(app, engine)
+    mailer.fail_with = failure("smtp_451", retryable=True)
+    cycle(engine, mailer, now=NOW)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(signal_alert_delivery).values(
+                status="sending",
+                attempt_count=5,
+                lease_expires_at=NOW,
+                next_attempt_at=None,
+            )
+        )
+
+    report = cycle(engine, mailer, now=NOW)
+
+    row = deliveries(engine)[0]
+    assert mailer.attempts == 1
+    assert row.attempt_count == 5
+    assert row.status == "unknown_delivery_state"
+    assert row.retryable is False
+    assert row.next_attempt_at is None
+    assert report.has_current_incident
+
+
+def test_lowered_retry_budget_terminalizes_an_existing_due_failure(
+    app, engine, mailer
+) -> None:
+    subscriber(app, engine)
+    mailer.fail_with = failure("smtp_451", retryable=True)
+    cycle(engine, mailer, now=NOW)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(signal_alert_delivery).values(
+                attempt_count=3,
+                next_attempt_at=NOW,
+            )
+        )
+
+    first = run_alert_cycle(
+        engine,
+        mailer,
+        now=NOW,
+        public_app_url=PUBLIC_APP_URL,
+        delivery_lease_ttl=DELIVERY_LEASE,
+        retry_base=RETRY_BASE,
+        max_attempts=3,
+    )
+    second = run_alert_cycle(
+        engine,
+        mailer,
+        now=NOW + dt.timedelta(days=1),
+        public_app_url=PUBLIC_APP_URL,
+        delivery_lease_ttl=DELIVERY_LEASE,
+        retry_base=RETRY_BASE,
+        max_attempts=3,
+    )
+
+    row = deliveries(engine)[0]
+    assert mailer.attempts == 1
+    assert row.status == "failed"
+    assert row.attempt_count == 3
+    assert row.retryable is False
+    assert row.next_attempt_at is None
+    assert first.has_current_incident
+    assert not second.has_current_incident
+
+
 def test_retry_budget_is_bounded(app, engine, mailer) -> None:
     subscriber(app, engine)
     instants = [

@@ -1,6 +1,6 @@
 # RTL-05 — Transactional email runtime design
 
-**Date:** 2026-08-23  
+**Date:** 2026-08-23
 **Status:** approved design; implementation pending
 **Scope:** password-reset messages and account signal alerts requested by SaaS users
 
@@ -217,6 +217,11 @@ an execution incident and returns non-zero.
 
 An expired global or delivery lease is reclaimable. A reclaimed batch keeps the
 same logical key and `Message-ID`.
+
+The versioned service has a 20-minute hard timeout. Configuration rejects a
+global/delivery lease shorter than 30 minutes, so the lease remains owned while
+systemd terminates an overlong execution; the extra margin prevents another
+host from reclaiming it during shutdown.
 
 ### 6.3 Retry policy
 

@@ -33,6 +33,7 @@ class DeliveryBatch:
     batch_key: str
     message_id: str
     attempt_count: int
+    status: str
 
 
 def logical_batch_key(account_id: str, signal_keys: Iterable[str]) -> str:
@@ -119,6 +120,7 @@ def queue_batch(
         batch_key=batch_key,
         message_id=delivery_message_id,
         attempt_count=0,
+        status="queued",
     )
 
 
@@ -169,6 +171,7 @@ def next_due_batch(
         sa.select(
             signal_alert_delivery.c.signal_key,
             signal_alert_delivery.c.attempt_count,
+            signal_alert_delivery.c.status,
         )
         .where(
             signal_alert_delivery.c.account_id == account_id,
@@ -181,12 +184,16 @@ def next_due_batch(
     ).all()
     if not rows:
         return None
+    statuses = {row.status for row in rows}
+    if len(statuses) != 1:
+        raise DeliveryStateConflict(candidate.batch_key)
     return DeliveryBatch(
         account_id=account_id,
         signal_keys=tuple(row.signal_key for row in rows),
         batch_key=candidate.batch_key,
         message_id=candidate.delivery_message_id,
         attempt_count=max(row.attempt_count for row in rows),
+        status=statuses.pop(),
     )
 
 
@@ -196,10 +203,15 @@ def mark_sending(
     batch: DeliveryBatch,
     now: dt.datetime,
     lease_ttl: dt.timedelta,
+    max_attempts: int,
 ) -> DeliveryBatch:
     result = connection.execute(
         sa.update(signal_alert_delivery)
-        .where(*_owned_rows(batch), _due(now))
+        .where(
+            *_owned_rows(batch),
+            _due(now),
+            signal_alert_delivery.c.attempt_count < max_attempts,
+        )
         .values(
             status="sending",
             attempt_count=signal_alert_delivery.c.attempt_count + 1,
@@ -211,7 +223,50 @@ def mark_sending(
         )
     )
     _expect_all(result, batch)
-    return dataclasses.replace(batch, attempt_count=batch.attempt_count + 1)
+    return dataclasses.replace(
+        batch,
+        attempt_count=batch.attempt_count + 1,
+        status="sending",
+    )
+
+
+def mark_attempt_budget_exhausted(
+    connection: sa.Connection,
+    *,
+    batch: DeliveryBatch,
+    now: dt.datetime,
+    max_attempts: int,
+) -> str:
+    """Close an interrupted attempt that cannot safely be replayed again."""
+
+    terminal_status = (
+        "unknown_delivery_state" if batch.status == "sending" else batch.status
+    )
+    if terminal_status not in {"failed", "unknown_delivery_state"}:
+        raise DeliveryStateConflict(batch.batch_key)
+    values: dict[str, object] = {
+        "status": terminal_status,
+        "retryable": False,
+        "lease_expires_at": None,
+        "next_attempt_at": None,
+        "updated_at": now,
+    }
+    if batch.status == "sending":
+        values.update(
+            failed_at=now,
+            last_error_code="attempt_budget_exhausted",
+        )
+    result = connection.execute(
+        sa.update(signal_alert_delivery)
+        .where(
+            *_owned_rows(batch),
+            _due(now),
+            signal_alert_delivery.c.attempt_count >= max_attempts,
+        )
+        .values(**values)
+    )
+    _expect_all(result, batch)
+    return terminal_status
 
 
 def mark_sent(

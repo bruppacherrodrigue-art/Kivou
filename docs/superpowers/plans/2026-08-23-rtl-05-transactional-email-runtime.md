@@ -247,10 +247,12 @@ alert_retry_base: dt.timedelta = dt.timedelta(minutes=15)
 ```
 
 Mark `smtp_password` as `dataclasses.field(default=None, repr=False)`. Validate
-port `1..65535`, timeout `1..60`, lease `60..3600`, attempts `1..10`, retry base
-`60..86400`, `starttls|implicit_tls`, email syntax and the username/password
-pair. If every SMTP variable is absent, leave delivery disabled. If any SMTP
-variable is present, require the complete contract including the public origin.
+port `1..65535`, timeout `1..60`, lease `1800..3600`, attempts `1..10`, retry
+base `60..86400`, `starttls|implicit_tls`, email syntax and the
+username/password pair. The 30-minute lease minimum stays above the versioned
+service's 20-minute timeout. If every SMTP variable is absent, leave delivery
+disabled. If any SMTP variable is present, require the complete contract
+including the public origin.
 
 - [x] **Step 7: Update `.env.example` and the shared test origin**
 

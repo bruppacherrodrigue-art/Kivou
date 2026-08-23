@@ -125,6 +125,7 @@ def _accessible_signals(
     *,
     account_id: str,
     as_of: dt.date,
+    signal_keys: tuple[str, ...] | None = None,
 ) -> list:
     access = feed_access(connection, account_id=account_id, as_of=as_of)
     if not access.entitlements.feed_access:
@@ -136,15 +137,42 @@ def _accessible_signals(
             limit=access.entitlements.max_active_icps,
         )
     )
-    page = feed_query.feed_page(
-        connection,
-        account_id=account_id,
-        as_of=as_of,
-        freshness=feed_policy.DEFAULT_FRESHNESS,
-        allowed_target_icp_ids=allowed,
-        limit=feed_policy.MAXIMUM_PAGE_SIZE,
-    )
-    return [item for item in page.items if access.is_unlocked(item)]
+    if signal_keys is not None:
+        admitted = feed_policy.statuses_for(feed_policy.DEFAULT_FRESHNESS)
+        assert admitted is not None
+        exact: list = []
+        for signal_key in signal_keys:
+            item = feed_query.owned_signal(
+                connection,
+                account_id=account_id,
+                signal_key=signal_key,
+                as_of=as_of,
+                allowed_target_icp_ids=allowed,
+            )
+            if (
+                item is not None
+                and item.display is not None
+                and item.status in admitted
+                and access.is_unlocked(item)
+            ):
+                exact.append(item)
+        return exact
+    unlocked: list = []
+    offset = 0
+    while True:
+        page = feed_query.feed_page(
+            connection,
+            account_id=account_id,
+            as_of=as_of,
+            freshness=feed_policy.DEFAULT_FRESHNESS,
+            allowed_target_icp_ids=allowed,
+            limit=feed_policy.MAXIMUM_PAGE_SIZE,
+            offset=offset,
+        )
+        unlocked.extend(item for item in page.items if access.is_unlocked(item))
+        if not page.has_more:
+            return unlocked
+        offset += page.limit
 
 
 def eligible_signals(
@@ -338,6 +366,7 @@ def _run_for_account(
             connection,
             account_id=account_id,
             as_of=now.date(),
+            signal_keys=batch.signal_keys,
         )
         by_key = {item.signal.signal_key: item for item in accessible}
         inaccessible = tuple(key for key in batch.signal_keys if key not in by_key)
@@ -360,11 +389,37 @@ def _run_for_account(
                 "signal_inaccessible",
             )
         batch = dataclasses.replace(batch, signal_keys=accessible_keys)
+        if batch.attempt_count >= max_attempts:
+            terminal_status = delivery.mark_attempt_budget_exhausted(
+                connection,
+                batch=batch,
+                now=now,
+                max_attempts=max_attempts,
+            )
+            analytics.record(
+                connection,
+                account_id=account_id,
+                event_type="alert_failed",
+                occurred_at=now,
+                properties={
+                    "cadence": cadence,
+                    "error_code": "attempt_budget_exhausted",
+                    "retryable": False,
+                },
+            )
+            return AlertOutcome(
+                account_id,
+                cadence,
+                terminal_status,
+                len(batch.signal_keys),
+                "attempt_budget_exhausted",
+            )
         batch = delivery.mark_sending(
             connection,
             batch=batch,
             now=now,
             lease_ttl=delivery_lease_ttl,
+            max_attempts=max_attempts,
         )
         lang = _language(locale)
         items = [by_key[key] for key in batch.signal_keys]

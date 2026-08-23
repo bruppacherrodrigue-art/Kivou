@@ -168,6 +168,16 @@ def test_complete_smtp_configuration_is_typed_and_secret_safe(
     assert "smtp-secret-never-render" not in repr(config)
 
 
+def test_alert_job_lease_outlives_the_versioned_service_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    configure_complete_smtp(monkeypatch)
+    monkeypatch.setenv("KIVOU_ALERT_LEASE_SECONDS", "1799")
+
+    with pytest.raises(ValueError, match="KIVOU_ALERT_LEASE_SECONDS"):
+        ApiConfig.from_environment()
+
+
 @pytest.mark.parametrize("missing", ["SMTP_HOST", "SMTP_FROM_EMAIL", "SMTP_TLS_MODE"])
 def test_partial_smtp_configuration_fails_closed(
     monkeypatch: pytest.MonkeyPatch, missing: str

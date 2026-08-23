@@ -124,7 +124,12 @@ simulation, la boîte destinataire doit être synthétique, contrôlée et autor
 ### Simulation et diagnostic
 
 ```bash
-sudo -u kivou --preserve-env=KIVOU_DATABASE_URL,KIVOU_ALLOWED_ORIGIN,KIVOU_PUBLIC_APP_URL,SMTP_HOST,SMTP_PORT,SMTP_FROM_EMAIL,SMTP_FROM_NAME,SMTP_TLS_MODE,SMTP_TIMEOUT_SECONDS \
+sudo systemd-run \
+  --unit=kivou-alerts-dry-run \
+  --wait --collect --pipe \
+  --uid=kivou --gid=kivou \
+  --working-directory=/srv/kivou/app \
+  --property=EnvironmentFile=/etc/kivou/staging.env \
   /srv/kivou/app/.venv/bin/python -m signals.alerts --dry-run
 systemctl cat kivou-alerts.service kivou-alerts.timer
 sudo journalctl -u kivou-alerts.service -n 50 --no-pager

@@ -59,6 +59,10 @@ DEFAULT_SESSION_TTL = dt.timedelta(days=14)
 DEFAULT_RESET_TTL = dt.timedelta(hours=1)
 DEFAULT_SMTP_TIMEOUT_SECONDS = 30
 DEFAULT_ALERT_LEASE_TTL = dt.timedelta(minutes=30)
+# The versioned service is killed after 20 minutes. Keeping ten minutes of
+# margin prevents a second host from reclaiming the database lease while the
+# first process is still being terminated.
+MINIMUM_ALERT_LEASE_SECONDS = 30 * 60
 DEFAULT_ALERT_MAX_ATTEMPTS = 5
 DEFAULT_ALERT_RETRY_BASE = dt.timedelta(minutes=15)
 
@@ -269,7 +273,7 @@ class ApiConfig:
                 seconds=_bounded_integer(
                     ALERT_LEASE_SECONDS_ENV,
                     default=int(DEFAULT_ALERT_LEASE_TTL.total_seconds()),
-                    minimum=60,
+                    minimum=MINIMUM_ALERT_LEASE_SECONDS,
                     maximum=3600,
                 )
             ),

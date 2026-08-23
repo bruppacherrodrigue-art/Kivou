@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime as dt
 import pathlib
+import types
 
 import pytest
 import sqlalchemy as sa
@@ -39,6 +40,7 @@ from engagement_helpers import (
 )
 from feed_helpers import RESEARCH_ICP_ID, SIMAP_RICH, materialize, materialize_simap, simap_award
 
+from signals.alerts import job as alert_job
 from signals.alerts import policy, run_alert_cycle
 from signals.alerts.gateway import UncertainDelivery, message_id
 from signals.engagement.schema import signal_alert_delivery
@@ -72,6 +74,90 @@ def cycle(engine, mailer, *, now: dt.datetime = NOW, url: str | None = PUBLIC_AP
 def deliveries(engine) -> list[sa.Row]:
     with engine.connect() as connection:
         return connection.execute(sa.select(signal_alert_delivery)).all()
+
+
+def test_alert_selection_continues_after_the_first_feed_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    items = tuple(
+        types.SimpleNamespace(signal=types.SimpleNamespace(signal_key=f"sig-{index:02d}"))
+        for index in range(51)
+    )
+    offsets: list[int] = []
+    access = types.SimpleNamespace(
+        entitlements=types.SimpleNamespace(feed_access=True, max_active_icps=1),
+        is_unlocked=lambda _item: True,
+    )
+
+    monkeypatch.setattr(alert_job, "feed_access", lambda *_args, **_kwargs: access)
+    monkeypatch.setattr(
+        alert_job.billing,
+        "feedable_target_icps",
+        lambda *_args, **_kwargs: ("icp-current",),
+    )
+    monkeypatch.setattr(
+        alert_job,
+        "_registered_deliveries",
+        lambda *_args, **_kwargs: {item.signal.signal_key for item in items[:50]},
+    )
+
+    def page(*_args, offset=0, limit=50, **_kwargs):
+        offsets.append(offset)
+        selected = items[offset : offset + limit]
+        return types.SimpleNamespace(
+            items=selected,
+            limit=limit,
+            offset=offset,
+            has_more=offset + limit < len(items),
+        )
+
+    monkeypatch.setattr(alert_job.feed_query, "feed_page", page)
+
+    selected = alert_job.eligible_signals(
+        object(), account_id="acc-current", as_of=NOW.date(), limit=10
+    )
+
+    assert [item.signal.signal_key for item in selected] == ["sig-50"]
+    assert offsets == [0, 50]
+
+
+def test_retry_revalidation_looks_up_its_keys_beyond_the_feed_scan_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    item = types.SimpleNamespace(
+        signal=types.SimpleNamespace(signal_key="sig-501"),
+        display=object(),
+        status="recent_award",
+    )
+    access = types.SimpleNamespace(
+        entitlements=types.SimpleNamespace(feed_access=True, max_active_icps=1),
+        is_unlocked=lambda _item: True,
+    )
+    monkeypatch.setattr(alert_job, "feed_access", lambda *_args, **_kwargs: access)
+    monkeypatch.setattr(
+        alert_job.billing,
+        "feedable_target_icps",
+        lambda *_args, **_kwargs: ("icp-current",),
+    )
+    monkeypatch.setattr(
+        alert_job.feed_query,
+        "owned_signal",
+        lambda *_args, signal_key, **_kwargs: item if signal_key == "sig-501" else None,
+    )
+    monkeypatch.setattr(
+        alert_job.feed_query,
+        "feed_page",
+        lambda *_args, **_kwargs: pytest.fail("retry revalidation used the scan-capped feed"),
+    )
+
+    selected = alert_job._accessible_signals(
+        object(),
+        account_id="acc-current",
+        as_of=NOW.date(),
+        signal_keys=("sig-501",),
+    )
+
+    assert selected == [item]
 
 
 def subscriber(app, engine, *, plan: str, count: int = 1, email: str = "alice@negoce-romand.ch"):

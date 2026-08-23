@@ -10,6 +10,7 @@ import pytest
 REPOSITORY = pathlib.Path(__file__).resolve().parents[1]
 SERVICE = REPOSITORY / "ops/systemd/kivou-alerts.service"
 TIMER = REPOSITORY / "ops/systemd/kivou-alerts.timer"
+OPERATIONS = REPOSITORY / "ops/README.md"
 
 
 def test_versioned_service_uses_the_audited_staging_runtime() -> None:
@@ -59,6 +60,15 @@ def test_timer_is_hourly_persistent_and_jittered() -> None:
     assert "RandomizedDelaySec=300" in body
     assert "Unit=kivou-alerts.service" in body
     assert "WantedBy=timers.target" in body
+
+
+def test_documented_dry_run_loads_the_same_environment_file_as_systemd() -> None:
+    body = OPERATIONS.read_text(encoding="utf-8")
+
+    assert "systemd-run" in body
+    assert "--property=EnvironmentFile=/etc/kivou/staging.env" in body
+    assert "source /etc/kivou/staging.env" not in body
+    assert "--preserve-env=" not in body
 
 
 @pytest.mark.skipif(shutil.which("flock") is None, reason="util-linux flock is required")
