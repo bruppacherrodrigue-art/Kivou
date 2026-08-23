@@ -541,7 +541,7 @@ git commit -m "feat(email): harden SMTP transactional transport"
 - Modify: `tests/test_persistence_migrations.py`
 - Modify: `tests/test_engagement_secrets.py`
 
-- [ ] **Step 1: Write RED migration shape and roundtrip tests**
+- [x] **Step 1: Write RED migration shape and roundtrip tests**
 
 ```python
 PREVIOUS = "0022_saas_company_profile"
@@ -628,12 +628,12 @@ def test_migration_roundtrip_preserves_existing_delivery_history(tmp_path):
     assert current_revision(engine) == HEAD
 ```
 
-- [ ] **Step 2: Write RED offline PostgreSQL assertions**
+- [x] **Step 2: Write RED offline PostgreSQL assertions**
 
 Render `0022:0023` with `sql=True` and assert one lease table, additive columns,
 indexes, status check including `suppressed`, and no private payload columns.
 
-- [ ] **Step 3: Run migration tests and verify RED**
+- [x] **Step 3: Run migration tests and verify RED**
 
 ```bash
 uv run pytest tests/test_transactional_email_migration.py tests/test_persistence_migrations.py -q
@@ -641,7 +641,7 @@ uv run pytest tests/test_transactional_email_migration.py tests/test_persistence
 
 Expected: missing revision/table/columns.
 
-- [ ] **Step 4: Add matching SQLAlchemy schema**
+- [x] **Step 4: Add matching SQLAlchemy schema**
 
 Add `signal_alert_job_lease`:
 
@@ -650,7 +650,7 @@ signal_alert_job_lease = sa.Table(
     "signal_alert_job_lease",
     METADATA,
     sa.Column("job_name", sa.String(64), primary_key=True),
-    sa.Column("owner_token", sa.String(64), nullable=False),
+    sa.Column("owner_id", sa.String(64), nullable=False),
     sa.Column("acquired_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("lease_expires_at", sa.DateTime(timezone=True), nullable=False, index=True),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -666,7 +666,7 @@ Extend `signal_alert_delivery` with nullable migration-safe columns:
 status IN ('queued','sending','sent','failed','unknown_delivery_state','suppressed')
 ```
 
-- [ ] **Step 5: Implement upgrade/downgrade and historical backfill**
+- [x] **Step 5: Implement upgrade/downgrade and historical backfill**
 
 The upgrade adds columns/indexes/table, sets `retryable = false` and
 `next_attempt_at = NULL` for every pre-existing `failed` or
@@ -675,13 +675,13 @@ status check using Alembic batch operations where SQLite requires table
 recreation. Downgrade drops only new columns/indexes/check/table and retains the
 original delivery rows and columns.
 
-- [ ] **Step 6: Extend privacy schema tests**
+- [x] **Step 6: Extend privacy schema tests**
 
 Assert that neither table has columns named `password`, `token`, `recipient`,
 `email`, `payload`, `body`, `trace` or `credential` and that migration SQL
 contains no acquisition/provider surface.
 
-- [ ] **Step 7: Run migration tests and commit**
+- [x] **Step 7: Run migration tests and commit**
 
 ```bash
 uv run pytest tests/test_transactional_email_migration.py tests/test_persistence_migrations.py tests/test_engagement_secrets.py -q
@@ -704,18 +704,18 @@ git commit -m "feat(email): persist transactional alert runtime state"
 ```python
 def test_second_owner_observes_normal_contention(engine):
     with engine.begin() as connection:
-        first = acquire(connection, owner_token="one", now=NOW, ttl=TTL)
+        first = acquire(connection, owner_id="one", now=NOW, ttl=TTL)
     with engine.begin() as connection:
-        second = acquire(connection, owner_token="two", now=NOW, ttl=TTL)
+        second = acquire(connection, owner_id="two", now=NOW, ttl=TTL)
     assert first is LeaseAcquisition.ACQUIRED
     assert second is LeaseAcquisition.ALREADY_RUNNING
 
 
 def test_expired_lease_is_reclaimed(engine):
     with engine.begin() as connection:
-        acquire(connection, owner_token="one", now=NOW, ttl=TTL)
+        acquire(connection, owner_id="one", now=NOW, ttl=TTL)
     with engine.begin() as connection:
-        result = acquire(connection, owner_token="two", now=NOW + TTL, ttl=TTL)
+        result = acquire(connection, owner_id="two", now=NOW + TTL, ttl=TTL)
     assert result is LeaseAcquisition.ACQUIRED
 ```
 
@@ -743,7 +743,7 @@ class LeaseAcquisition(enum.StrEnum):
 def acquire(
     connection: sa.Connection,
     *,
-    owner_token: str,
+    owner_id: str,
     now: dt.datetime,
     ttl: dt.timedelta,
     job_name: str = "signals.alerts",
@@ -756,7 +756,7 @@ def acquire(
             signal_alert_job_lease.c.lease_expires_at <= now,
         )
         .values(
-            owner_token=owner_token,
+            owner_id=owner_id,
             acquired_at=now,
             lease_expires_at=expires_at,
             updated_at=now,
@@ -769,7 +769,7 @@ def acquire(
             connection.execute(
                 sa.insert(signal_alert_job_lease).values(
                     job_name=job_name,
-                    owner_token=owner_token,
+                    owner_id=owner_id,
                     acquired_at=now,
                     lease_expires_at=expires_at,
                     updated_at=now,
@@ -783,13 +783,13 @@ def acquire(
 def release(
     connection: sa.Connection,
     *,
-    owner_token: str,
+    owner_id: str,
     job_name: str = "signals.alerts",
 ) -> None:
     connection.execute(
         sa.delete(signal_alert_job_lease).where(
             signal_alert_job_lease.c.job_name == job_name,
-            signal_alert_job_lease.c.owner_token == owner_token,
+            signal_alert_job_lease.c.owner_id == owner_id,
         )
     )
 ```

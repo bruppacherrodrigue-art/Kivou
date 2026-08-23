@@ -70,7 +70,14 @@ ACTIVATION_EVENT_TYPES: tuple[str, ...] = ("signal_feedback_relevant", "signal_c
 #: §13 — l'action commerciale. Une seule, et c'est la seule qui compte.
 COMMERCIAL_ACTION_EVENT = "signal_contacted"
 
-ALERT_DELIVERY_STATUSES: tuple[str, ...] = ("queued", "sent", "failed", "unknown_delivery_state")
+ALERT_DELIVERY_STATUSES: tuple[str, ...] = (
+    "queued",
+    "sending",
+    "sent",
+    "failed",
+    "unknown_delivery_state",
+    "suppressed",
+)
 
 
 def _created_at() -> sa.Column:
@@ -176,16 +183,40 @@ signal_alert_delivery = sa.Table(
     ),
     sa.Column("signal_key", sa.String(64), primary_key=True),
     sa.Column("status", sa.String(32), nullable=False, index=True),
+    sa.CheckConstraint(
+        "status IN ('queued', 'sending', 'sent', 'failed', "
+        "'unknown_delivery_state', 'suppressed')",
+        name="ck_alert_delivery_status",
+    ),
     sa.Column("cadence", sa.String(16), nullable=False),
+    sa.Column("batch_key", sa.String(64), index=True),
+    sa.Column("delivery_message_id", sa.String(255)),
     sa.Column("queued_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("sent_at", sa.DateTime(timezone=True), index=True),
     sa.Column("failed_at", sa.DateTime(timezone=True)),
     sa.Column("attempt_count", sa.Integer, nullable=False),
+    sa.Column("retryable", sa.Boolean, nullable=True),
+    sa.Column("attempt_started_at", sa.DateTime(timezone=True)),
+    sa.Column("lease_expires_at", sa.DateTime(timezone=True), index=True),
+    sa.Column("next_attempt_at", sa.DateTime(timezone=True), index=True),
     sa.Column("provider_message_id", sa.String(255)),
     # Un CODE, jamais une trace d'exception : une pile d'appels d'un fournisseur
     # SMTP contient parfois l'adresse, parfois l'identifiant de connexion.
     sa.Column("last_error_code", sa.String(64)),
+    sa.Column("suppressed_at", sa.DateTime(timezone=True)),
+    sa.Column("suppression_reason_code", sa.String(64)),
     *_timestamps(),
+)
+
+
+signal_alert_job_lease = sa.Table(
+    "signal_alert_job_lease",
+    METADATA,
+    sa.Column("job_name", sa.String(64), primary_key=True),
+    sa.Column("owner_id", sa.String(64), nullable=False),
+    sa.Column("acquired_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("lease_expires_at", sa.DateTime(timezone=True), nullable=False, index=True),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
 )
 
 
@@ -194,4 +225,5 @@ ENGAGEMENT_TABLES: tuple[sa.Table, ...] = (
     product_event,
     account_notification_preference,
     signal_alert_delivery,
+    signal_alert_job_lease,
 )
