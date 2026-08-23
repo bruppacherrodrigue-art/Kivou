@@ -69,6 +69,14 @@ def map_proposed_action(action: ProposedAction, **trusted: Any) -> PolicyRequest
             raise ValueError("classify_response accepts only an opaque response reference")
         if re.fullmatch(r"[0-9a-f]{64}", action.target_ref) is None:
             raise ValueError("classify_response requires an opaque response reference")
+    if action.command == "reallocate_volume":
+        if action.target_ref != "global:acquisition-allocation-v1":
+            raise ValueError("reallocate_volume requires the frozen global target")
+        if (
+            set(action.arguments) != {"proposal_ref"}
+            or re.fullmatch(r"[0-9a-f]{64}", str(action.arguments.get("proposal_ref", ""))) is None
+        ):
+            raise ValueError("reallocate_volume accepts only an opaque proposal_ref")
     arguments = json.dumps(action.arguments, allow_nan=False, sort_keys=True, separators=(",", ":"))
     semantic = {
         "command": action.command,
