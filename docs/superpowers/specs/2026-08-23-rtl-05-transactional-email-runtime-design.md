@@ -1,7 +1,7 @@
 # RTL-05 — Transactional email runtime design
 
 **Date:** 2026-08-23  
-**Status:** approved design; implementation pending  
+**Status:** proposed design; review pending
 **Scope:** password-reset messages and account signal alerts requested by SaaS users
 
 ## 1. Outcome
@@ -183,9 +183,11 @@ offline PostgreSQL SQL. SQLite execution and PostgreSQL-compatible SQL are both
 tested. Downgrade removes only the new coordination fields/table and does not
 delete the pre-existing alert history.
 
-Historical `sent` rows remain terminal. Historical permanent failures are not
-blindly reactivated by the migration. Operator-controlled requeue, if needed,
-must be an explicit operation documented in the runbook.
+Historical `sent` rows remain terminal. Every historical `failed` or
+`unknown_delivery_state` row migrates as terminal by default, with no next
+attempt. The migration does not infer retryability by parsing historical error
+text or codes. Operator-controlled requeue, if needed, must be an explicit
+operation documented in the runbook.
 
 ### 6.2 State machine
 
@@ -196,6 +198,7 @@ queued -> sending -> sent
                   -> failed (retry scheduled)
                   -> failed (terminal)
                   -> unknown_delivery_state (retry scheduled or exhausted)
+queued/failed/unknown_delivery_state -> suppressed (terminal)
 ```
 
 Before network I/O, the job commits:
@@ -208,7 +211,9 @@ Before network I/O, the job commits:
 
 Only one process can hold the global `signals.alerts` lease. Acquisition uses an
 atomic compare-and-set that works on SQLite and PostgreSQL. A second concurrent
-job exits without sending and reports that the job is already running.
+job is normal contention: it exits without sending, reports `already_running`
+and returns code 0. A technical failure while reading or acquiring the lease is
+an execution incident and returns non-zero.
 
 An expired global or delivery lease is reclaimable. A reclaimed batch keeps the
 same logical key and `Message-ID`.
@@ -227,12 +232,19 @@ Errors are classified without persisting exception strings:
   ambiguous.
 
 Retryable and ambiguous failures use bounded exponential backoff, a maximum
-attempt count and the same `Message-ID`. Once exhausted, the state remains
-visible and the command exits non-zero. It is never silently treated as sent.
+attempt count and the same `Message-ID`. When an attempt made by the current
+execution fails or exhausts its retry budget, the state remains visible and the
+current command exits non-zero. It is never silently treated as sent.
 
 Entitlements, preference, current signal access, unlock status and cadence are
-rechecked immediately before every actual retry. A signal that is no longer
-accessible is terminally suppressed without revealing it in a message.
+rechecked immediately before every actual retry. If the recipient is no longer
+eligible because notifications were disabled, entitlements were lost, the
+cadence no longer permits email, or no signal in the logical batch remains
+accessible and unlocked, the affected delivery rows become terminal
+`suppressed`. If only part of a batch remains accessible, inaccessible rows are
+suppressed and the remaining rows form the authorized message. Suppression has
+an allowlisted reason code and timestamp; it is not an SMTP failure and does not
+increment an SMTP attempt count.
 
 ### 6.4 Exact guarantee
 
@@ -261,7 +273,8 @@ The repository will version:
 The service uses the audited deployment convention and executes:
 
 ```text
-/usr/bin/flock --nonblock /srv/kivou/run/alerts.lock \
+/usr/bin/flock --verbose --nonblock --conflict-exit-code 0 \
+  /srv/kivou/run/alerts.lock \
   /srv/kivou/app/.venv/bin/python -m signals.alerts
 ```
 
@@ -274,9 +287,15 @@ The timer runs hourly, uses `Persistent=true` and a bounded randomized delay.
 This permits the server-supported priority cadence to run at most once per
 timer cycle; it does not describe it as real-time.
 
-The Python command returns non-zero for configuration failure, lock/lease
-failure that requires attention, persistence failure, exhausted delivery or an
-ambiguous result. It emits aggregate account/signal/status counts only.
+Host-lock or database-lease contention is an expected no-op and returns zero,
+with an `already_running`/contention indication in the operational log. A
+technical lock or lease acquisition failure returns non-zero.
+
+The Python command's non-zero result depends only on incidents encountered by
+the current invocation: configuration failure, persistence failure, a delivery
+attempt that fails or exhausts its retry budget, or a newly ambiguous result.
+Historical terminal or ambiguous rows do not make every future timer run fail.
+The command emits aggregate account/signal/status counts only.
 
 ## 8. Testing strategy
 
@@ -291,13 +310,18 @@ Automated coverage will include:
 - reset FR/EN, unknown-account neutrality, expiry and one-time use;
 - alert preferences and entitlement-derived cadence;
 - current access, unlock and inter-account isolation checks on every attempt;
+- terminal `suppressed` results for preferences, entitlements or signal access
+  lost during revalidation, without an SMTP attempt;
 - sequential replay and concurrent job acquisition;
+- normal lease contention returning zero and technical acquisition failure
+  returning non-zero;
 - known pre-accept failure, retry and backoff;
 - permanent failure terminality;
 - expired job and delivery leases;
 - process/persistence failure around SMTP acceptance;
 - deterministic `Message-ID` reuse and the documented ambiguity boundary;
 - CLI exit codes, environment-only database URL and dry-run behavior;
+- current-run-only failure exit codes, with historical terminal rows ignored;
 - versioned service/timer content and local runtime locking;
 - migration upgrade/downgrade on SQLite and offline PostgreSQL SQL;
 - a local fake SMTP integration that never reaches the public network.
