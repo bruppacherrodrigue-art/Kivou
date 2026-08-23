@@ -5,12 +5,17 @@ Status: implementation complete on a draft, unmerged pull request
 
 ## Artifact boundary
 
-- authoritative implementation base and SPEC-029 squash merge:
+- original implementation base and SPEC-029 squash merge:
   `8a4d0f53e2e8008a89be8d200323803fc0c72a49`;
-- frozen design commit: `6ae824c1bb9ffc9bf8b916bd1e8c8d263213f653`;
-- executable runtime/test SHA:
+- R1-compatible rebased `main`:
+  `cbcf41218635dd43c37d421895a5e842338371e3`;
+- frozen design commit after rebase:
+  `c5e9d0e14c4822c086104ddfd833a97250b09477`;
+- original reviewed executable:
   `21cc1ea1dfb114403df1e20141ab92b27976e082`;
-- executable GitHub Actions CI: `32622033939`, SUCCESS;
+- R1 executable runtime/test SHA:
+  `5b32dcd83086888d750ab8a245e11eb4bf06ea5e`;
+- R1 executable GitHub Actions CI: `32625363691`, SUCCESS;
 - implementation pull request: #51, DRAFT and unmerged;
 - the final head is a later docs-only closeout commit. The executable-to-final
   delta is restricted to this report.
@@ -108,13 +113,26 @@ an unavailable or conflicting source enters the explicit `UNRESOLVED` bucket.
 The row counts reconcile with the top-level funnel and stable sorting is
 contract-validated.
 
+The supervisor's R1 review found that the original implementation incorrectly
+conditioned the delivered denominator on a journey reaching PAID. That
+survivor-biased denominator was removed.
+
 The sole secondary KPI is retained M2 MRR per 1,000 delivered-proxy emails by
-wedge and currency. A member is M2-eligible only once when at least one bound
-journey has an authoritative PAID fact at least 60 days before the cutoff and
-the member was not bounced. Retained accounts require RETAINED_M2 and no CHURNED
-fact by the cutoff. Multiple forwarded journeys may contribute multiple retained
-accounts and MRR while the contacted denominator stays unique. Missing maturity
-or MRR yields `INSUFFICIENT_M2_EVIDENCE`, not zero performance.
+wedge and currency. Its denominator now counts each non-bounced member once
+when the member's earliest authoritative Step-1 `email_sent`, normalized to UTC,
+satisfies `sent_at <= cutoff - 60 days`. Signup, activation, payment, MRR, and
+retention have no effect on denominator membership. The 100-member regression
+keeps all 98 non-converting prospects in the denominator: one retained CHF
+10,000-minor-unit journey yields CHF 100,000 minor units per 1,000 delivered,
+not the paid-conditioned inflated result.
+
+The numerator still requires authoritative SPEC-028 `RETAINED_M2`, excludes
+`CHURNED`, and uses only current known MRR in its exact currency. Multiple
+forwarded retained journeys may contribute multiple accounts and MRR while the
+source delivered member remains one denominator unit. A mature cohort with no
+conversion is a valid READY zero result; only no mature denominator or
+materially unknown MRR on an actually retained journey is insufficient. CHF and
+EUR remain separate and no FX exists.
 
 ## Internal access and API
 
@@ -169,17 +187,17 @@ wedges, and the cutoff. It is not an engineering observability console.
 
 ## Validation
 
-Executable CI `32622033939` on
-`21cc1ea1dfb114403df1e20141ab92b27976e082` recorded:
+R1 executable CI `32625363691` on
+`5b32dcd83086888d750ab8a245e11eb4bf06ea5e` recorded:
 
-- backend: `3978 passed`, `2 skipped`;
+- backend: `3982 passed`, `2 skipped`;
 - skipped tests: exactly the two existing opt-in Stripe TEST smokes in
   `tests/test_billing_stripe_test_smoke.py`:
   `test_stripe_accepte_une_session_pour_un_customer_existant` and
   `test_stripe_expose_une_resiliation_programmee_que_kivou_sait_lire`;
 - no SPEC-030 test skipped;
 - Ruff: PASS;
-- frontend: `298 passed`;
+- frontend: `306 passed`;
 - frontend build: PASS;
 - frontend typecheck: PASS;
 - frontend lint: PASS;
@@ -190,8 +208,10 @@ The SPEC-030 tests cover Zurich DST weeks, bounded history, empty reports,
 deterministic replay, cohort/Step-2/provider-event dedupe, bounce proxy,
 response reclassification, provider-label exclusion, first-party clicks,
 forwarded journeys, activation/payment/MRR/churn cutoffs, unknown and
-multi-currency MRR, dimensions and reconciliation, unresolved sectors, M2
-maturity/churn/no-FX, no business mutation, privacy, internal authorization,
+multi-currency MRR, dimensions and reconciliation, unresolved sectors, the
+inclusive 60-day Step-1 maturity boundary, mature non-converters, bounced and
+immature exclusions, forwarded retained journeys, M2 churn/no-FX, no business
+mutation, privacy, internal authorization,
 Hermes/Policy boundaries, frontend loading/empty/error/unauthorized states,
 keyboard operation, and responsive overflow containment.
 
