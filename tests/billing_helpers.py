@@ -18,11 +18,13 @@ n'est simulée — la simuler reviendrait à ne pas la tester.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import datetime as dt
 import hashlib
 import hmac
 import json
+from collections.abc import Iterator
 from typing import Any
 
 import sqlalchemy as sa
@@ -68,6 +70,79 @@ def stripe_signature(payload: bytes, *, secret: str, timestamp: int) -> str:
     signed = f"{timestamp}.".encode() + payload
     digest = hmac.new(secret.encode(), signed, hashlib.sha256).hexdigest()
     return f"t={timestamp},v1={digest}"
+
+
+#: La tolérance que Stripe applique par défaut aux horodatages de signature.
+#: Elle est RECOPIÉE ici, pas modifiée : `verify_event` laisse
+#: `stripe.Webhook.construct_event` utiliser son propre défaut. Les tests de
+#: frontière ont besoin de la connaître pour se placer de part et d'autre.
+STRIPE_SIGNATURE_TOLERANCE_SECONDS = 300
+
+
+def signature_timestamp() -> int:
+    """L'horodatage à mettre dans l'en-tête `Stripe-Signature`.
+
+    Deux horloges cohabitent, et les confondre est le défaut que corrige #42.
+
+    L'horloge MÉTIER est injectée (`now_override`) et volontairement figée à une
+    date d'écriture : c'est elle qui date l'événement dans le corps, ordonne les
+    mises à jour et rend les tests reproductibles.
+
+    L'horloge de SIGNATURE, elle, n'est pas injectable : `construct_event`
+    interroge `time.time()` et rejette tout horodatage antérieur de plus de
+    `STRIPE_SIGNATURE_TOLERANCE_SECONDS`. Signer avec la date métier fabrique
+    donc une bombe à retardement — l'en-tête n'est accepté que tant que cette
+    date reste dans le futur. Signer avec l'horloge réellement consultée rend le
+    test vrai à toute date, sans toucher à la tolérance.
+
+    C'est bien CETTE horloge qui est lue, et pas `time.time()` en direct : un
+    test de frontière fige la première, et la signature doit suivre.
+    """
+    return int(_verifier_time().time())
+
+
+def _verifier_time() -> Any:
+    """Le module `time` tel que `construct_event` le voit, figé ou non."""
+    import stripe._webhook as webhook_module
+
+    return webhook_module.time
+
+
+class _FrozenClock:
+    """Le module `time` vu par la vérification Stripe, arrêté à un instant.
+
+    Seul `time()` est figé ; tout le reste est délégué au vrai module, pour ne
+    pas transformer un outil de test en piège si le SDK consulte autre chose.
+    """
+
+    def __init__(self, instant: float, wrapped: Any) -> None:
+        self._instant = instant
+        self._wrapped = wrapped
+
+    def time(self) -> float:
+        return self._instant
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._wrapped, name)
+
+
+@contextlib.contextmanager
+def verifier_clock_at(instant: dt.datetime) -> Iterator[None]:
+    """Fige l'horloge que `construct_event` consulte, le temps d'un bloc.
+
+    Sans cela, une frontière EXACTE de tolérance est intestable : `time.time()`
+    avance entre la signature et la vérification, et le test à +/-300 s
+    exactement bascule au hasard. Le substitut ne vise que l'espace de noms de
+    `stripe._webhook` : le module `time` global n'est pas touché.
+    """
+    import stripe._webhook as webhook_module
+
+    original = webhook_module.time
+    webhook_module.time = _FrozenClock(instant.timestamp(), original)
+    try:
+        yield
+    finally:
+        webhook_module.time = original
 
 
 def event_payload(

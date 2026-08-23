@@ -26,6 +26,7 @@ from billing_helpers import (
     TEST_WEBHOOK_SECRET,
     FakeStripe,
     event_payload,
+    signature_timestamp,
     stripe_signature,
     subscribe,
     subscription_state,
@@ -323,7 +324,7 @@ def test_the_webhook_records_a_conflict_without_touching_the_current_state(
         },
     )
     signature = stripe_signature(
-        payload, secret=TEST_WEBHOOK_SECRET, timestamp=int(NOW.timestamp())
+        payload, secret=TEST_WEBHOOK_SECRET, timestamp=signature_timestamp()
     )
     response = TestClient(app).post(
         "/webhooks/stripe",
