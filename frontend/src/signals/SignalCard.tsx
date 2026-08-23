@@ -7,10 +7,9 @@ import styles from './SignalCard.module.css'
 
 /* La carte du feed — le résumé doit suffire pour décider d'ouvrir ou non.
  *
- * La structure vient de la référence 04 : pastille d'initiales, entreprise,
- * badge de besoin, titre du marché, ligne de méta, et statut de fraîcheur à
- * droite. La preuve documentaire N'Y FIGURE PAS : elle appartient au détail
- * (§16, et docx §SignalCard qui décrit une carte « compacte, sans preuve »).
+ * L'entreprise, le montant et le marché précèdent les trois lectures de Kivou :
+ * fait public, besoin plausible, correspondance et calendrier. La preuve
+ * documentaire détaillée reste dans la route de détail.
  *
  * Aucune fraîcheur n'est recalculée ici. `event.status`, `event.date`,
  * `event.headline` et `event.why_now` viennent de l'API, qui les recalcule à
@@ -25,69 +24,112 @@ export function SignalCard({ item }: { item: FeedItem }) {
 function UnlockedSignalCard({ item }: { item: UnlockedFeedItem }) {
   const { t, date, amount } = useI18n()
   const company = item.company.name
+  if (!company) return null
+
   const needs = item.analysis.plausible_needs.items
   const primaryNeed = needs.find((need) => need.targeted_by_your_profile) ?? needs[0]
   const eventDate = date(item.event.date)
   const contractAmount = amount(item.contract.amount?.value, item.contract.amount?.currency)
+  const place = [item.contract.location?.locality, item.contract.location?.country]
+    .filter(Boolean)
+    .join(', ')
+  const fitReason = item.analysis.fit.reasons[0]
 
   return (
     <article className={styles.card}>
-      <div className={styles.avatar} aria-hidden="true">
-        {monogram(company)}
-      </div>
-
-      <div className={styles.body}>
-        <div className={styles.topRow}>
-          <p className={styles.company}>{company ?? t.common.notAvailable}</p>
-          {primaryNeed?.label ? (
-            <Badge tone={primaryNeed.targeted_by_your_profile ? 'positive' : 'neutral'}>
-              {primaryNeed.label}
-            </Badge>
-          ) : null}
+      <div className={styles.cardHeader}>
+        <div className={styles.identity}>
+          <div className={styles.avatar} aria-hidden="true">
+            {monogram(company)}
+          </div>
+          <div className={styles.identityCopy}>
+            <p className={styles.eyebrow}>{t.feed.winningCompany}</p>
+            {/* h2 : le titre de page est le h1. L'entreprise est la première
+                décision commerciale du feed, elle porte donc le titre de la
+                carte et la destination vers le détail. */}
+            <h2 className={styles.company}>
+              <Link to={`/app/signals/${encodeURIComponent(item.signal_id)}`} className={styles.link}>
+                {company}
+              </Link>
+            </h2>
+          </div>
         </div>
 
-        {/* h2 : le titre de page est le h1, et sauter un niveau casse la
-            navigation par titres d'un lecteur d'écran. */}
-        <h2 className={styles.title}>
-          {/* Le lien couvre la carte entière via ::after, ce qui donne une
-              cible tactile large sans imbriquer de contrôles. */}
-          <Link to={`/app/signals/${encodeURIComponent(item.signal_id)}`} className={styles.link}>
-            {item.contract.title ?? t.common.notAvailable}
-          </Link>
-        </h2>
+        {contractAmount ? (
+          <div className={styles.amountBlock}>
+            <span className={styles.eyebrow}>{t.feed.publishedAmount}</span>
+            <strong className={`${styles.amount} kivou-tabular`}>{contractAmount}</strong>
+          </div>
+        ) : null}
+      </div>
 
+      {item.contract.title ? (
+        <div className={styles.contractBlock}>
+          <p className={styles.eyebrow}>{t.feed.awardedContract}</p>
+          <p className={styles.contractTitle}>{item.contract.title}</p>
+        </div>
+      ) : null}
+
+      <section className={styles.publicFact} aria-label={t.feed.publicFact}>
+        <p className={styles.sectionLabel}>{t.feed.publicFact}</p>
         {/* La phrase de fraîcheur vient de `recency.claim` — la seule autorité
             sur ce que Kivou a le droit d'affirmer d'une date. */}
-        <p className={styles.headline}>{item.event.headline}</p>
-
+        {item.event.headline ? <p className={styles.headline}>{item.event.headline}</p> : null}
         <ul className={styles.meta}>
           {eventDate ? (
             <li className="kivou-tabular">
-              <span className={styles.metaLabel}>{eventClockLabel(item, t)}</span> {eventDate}
+              <span className={styles.metaLabel}>{eventClockLabel(item, t)}</span>{' '}
+              <time dateTime={item.event.date ?? undefined}>{eventDate}</time>
             </li>
           ) : null}
-          {contractAmount ? <li className="kivou-tabular">{contractAmount}</li> : null}
-          {item.contract.location?.country ? (
+          {place ? (
             <li className={styles.metaPlace}>
-              <MapPinIcon className={styles.metaIcon} />
-              {[item.contract.location.locality, item.contract.location.country]
-                .filter(Boolean)
-                .join(', ')}
+              <MapPinIcon className={styles.metaIcon} aria-hidden="true" />
+              {place}
             </li>
           ) : null}
         </ul>
+      </section>
+
+      <div className={styles.analysisGrid}>
+        {primaryNeed?.label || primaryNeed?.statement ? (
+          <section className={styles.analysisBlock} aria-label={t.feed.plausibleNeed}>
+            <p className={styles.sectionLabel}>{t.feed.plausibleNeed}</p>
+            {primaryNeed.label ? (
+              <Badge tone={primaryNeed.targeted_by_your_profile ? 'positive' : 'neutral'}>
+                {primaryNeed.label}
+              </Badge>
+            ) : null}
+            {primaryNeed.statement ? (
+              <p className={styles.analysisText}>{primaryNeed.statement}</p>
+            ) : null}
+          </section>
+        ) : null}
+
+        {item.analysis.fit.label || fitReason ? (
+          <section className={styles.analysisBlock} aria-label={t.feed.profileMatch}>
+            <p className={styles.sectionLabel}>{t.feed.profileMatch}</p>
+            {/* Le fit n'est jamais un score nu : son libellé et sa première
+                raison viennent ensemble de l'API. */}
+            {item.analysis.fit.label ? (
+              <p className={styles.fitLabel}>{item.analysis.fit.label}</p>
+            ) : null}
+            {fitReason ? <p className={styles.analysisText}>{fitReason}</p> : null}
+          </section>
+        ) : null}
+
+        {item.event.why_now ? (
+          <section className={styles.analysisBlock} aria-label={t.feed.timing}>
+            <p className={styles.sectionLabel}>{t.feed.timing}</p>
+            <p className={styles.analysisText}>{item.event.why_now}</p>
+          </section>
+        ) : null}
       </div>
 
-      <div className={styles.aside}>
-        {/* Le fit n'est jamais un score nu : il porte un libellé, et sa raison
-            courte est le premier motif calculé par l'API. */}
-        <p className={styles.fitLabel}>{item.analysis.fit.label}</p>
-        {item.analysis.fit.reasons[0] ? (
-          <p className={styles.fitReason}>{item.analysis.fit.reasons[0]}</p>
-        ) : null}
+      <div className={styles.cardFooter}>
         <span className={styles.seeSignal}>
           {t.feed.seeSignal}
-          <ArrowRightIcon className={styles.metaIcon} />
+          <ArrowRightIcon className={styles.metaIcon} aria-hidden="true" />
         </span>
       </div>
     </article>

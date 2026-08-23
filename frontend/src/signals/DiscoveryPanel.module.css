@@ -4,15 +4,15 @@
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--kivou-space-5);
+  gap: var(--kivou-space-3) var(--kivou-space-5);
   background: var(--kivou-bg-subtle);
-  border-left: 3px solid var(--kivou-action-accent);
+  border-left: 2px solid var(--kivou-action-accent);
 }
 
 .body {
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-1);
+  gap: 0;
   min-width: 0;
   flex: 1 1 20rem;
 }
@@ -47,4 +47,11 @@
   font-size: var(--kivou-text-small);
   line-height: var(--kivou-leading-small);
   color: var(--kivou-text-secondary);
+}
+
+@media (max-width: 559px) {
+  .panel > a {
+    width: 100%;
+    justify-content: center;
+  }
 }

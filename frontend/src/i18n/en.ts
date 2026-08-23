@@ -652,8 +652,9 @@ export const en: Dictionary = {
   },
 
   feed: {
-    title: 'Recent signals',
-    lead: 'Opportunities detected in the public record and sourced by Kivou.',
+    title: 'Sales opportunities',
+    lead:
+      'The companies and contracts matching your active targeting, in the order established by Kivou.',
     countOne: '{count} signal',
     countOther: '{count} signals',
     activeProfile: 'Active profile',
@@ -675,9 +676,18 @@ export const en: Dictionary = {
     noIcpAction: 'Configure my profile',
     errorTitle: 'Signals could not be loaded',
     errorBody: 'The list could not be retrieved. You can try again.',
+    moreErrorTitle: 'The next signals could not be loaded',
+    moreErrorBody: 'The opportunities already shown remain available. You can try again.',
+    retryMore: 'Retry the next page',
     truncatedNote: 'The read was capped: older signals exist beyond this page.',
     seeSignal: 'See the signal',
+    winningCompany: 'Winning company',
+    publishedAmount: 'Published amount',
+    awardedContract: 'Awarded contract',
+    publicFact: 'Public fact',
+    plausibleNeed: 'Plausible need',
     profileMatch: 'Fit with your profile',
+    timing: 'Commercial timing',
     plausibleNeedsShort: 'Plausible needs',
     aria: {
       list: 'Signal list',

@@ -276,7 +276,7 @@ describe('onboarding', () => {
       screen.getByRole('button', { name: 'Créer mon profil et voir mes signaux' }),
     )
 
-    expect(await screen.findByRole('heading', { name: 'Signaux récents' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Occasions commerciales' })).toBeInTheDocument()
     // Le compte vient du serveur, et il n'est annoncé qu'une fois les
     // déblocages réellement attribués.
     expect(
@@ -400,7 +400,7 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
 
     await user.click(screen.getByRole('button', { name: 'Finaliser et voir mes signaux' }))
 
-    expect(await screen.findByRole('heading', { name: 'Signaux récents' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Occasions commerciales' })).toBeInTheDocument()
     // Le point capital : UN seul profil a été créé, malgré deux tentatives.
     expect(callsTo('/target-icps')).toHaveLength(1)
     expect(meCalls).toBe(2)
@@ -458,7 +458,7 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
       await gate
     })
 
-    expect(await screen.findByRole('heading', { name: 'Signaux récents' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Occasions commerciales' })).toBeInTheDocument()
     expect(seen.filter((call) => call === 'POST /target-icps')).toHaveLength(1)
   })
 
@@ -468,7 +468,7 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
     mockApi(ACTIVATED_ROUTES)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/onboarding' })
 
-    expect(await screen.findByRole('heading', { name: 'Signaux récents' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Occasions commerciales' })).toBeInTheDocument()
     expect(
       screen.queryByRole('heading', { name: 'Configurer votre profil de ciblage' }),
     ).not.toBeInTheDocument()

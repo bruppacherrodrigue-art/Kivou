@@ -62,6 +62,7 @@ export function SignalsFeed() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const [paginationError, setPaginationError] = useState<unknown>(null)
 
   /* `GET /signals` n'est pas seulement une lecture : c'est l'appel qui ATTRIBUE
    * les déblocages Découverte (`_grant_discovery`). Sur la première arrivée
@@ -77,6 +78,7 @@ export function SignalsFeed() {
     async (nextFreshness: Freshness, nextIcp: string) => {
       setLoading(true)
       setError(null)
+      setPaginationError(null)
       try {
         const result = await signals.feed({
           freshness: nextFreshness,
@@ -130,6 +132,7 @@ export function SignalsFeed() {
   async function loadMore() {
     if (!page?.page.has_more) return
     setLoadingMore(true)
+    setPaginationError(null)
     try {
       const next = await signals.feed({
         freshness,
@@ -146,7 +149,9 @@ export function SignalsFeed() {
         return [...current, ...next.items.filter((item) => !seen.has(item.signal_id))]
       })
     } catch (caught) {
-      setError(caught)
+      // Une page suivante ratée ne transforme pas les signaux déjà lus en
+      // erreur globale. Ils restent utilisables et le réessai reste local.
+      setPaginationError(caught)
     } finally {
       setLoadingMore(false)
     }
@@ -177,8 +182,6 @@ export function SignalsFeed() {
           <ActivationSuccess status={status} items={items} />
         </>
       ) : null}
-
-      {status ? <DiscoveryPanel status={status} /> : null}
 
       {hasNoUsableProfile ? (
         <Card padding="none">
@@ -239,6 +242,10 @@ export function SignalsFeed() {
                 ))}
               </ul>
 
+              {paginationError ? (
+                <PaginationError error={paginationError} onRetry={() => void loadMore()} />
+              ) : null}
+
               {/* Le dépassement de la fenêtre de lecture est ANNONCÉ par
                   l'API, pas deviné : le taire ferait croire à une liste
                   exhaustive. */}
@@ -257,6 +264,11 @@ export function SignalsFeed() {
           )}
         </>
       )}
+
+      {/* L'occasion précède l'explication du plan. Le panneau reste exact et
+          accessible, mais ne prend plus la première place lorsque le serveur
+          a déjà livré des signaux à examiner. */}
+      {status ? <DiscoveryPanel status={status} /> : null}
     </div>
   )
 }
@@ -368,6 +380,25 @@ function FeedError({ error, onRetry }: { error: unknown; onRetry: () => void }) 
       }
     >
       {copy.body ?? t.feed.errorBody}
+    </Callout>
+  )
+}
+
+function PaginationError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const { t } = useI18n()
+  const copy = describeError(error, t)
+  return (
+    <Callout
+      tone="danger"
+      title={t.feed.moreErrorTitle}
+      live
+      action={
+        <Button variant="secondary" onClick={onRetry}>
+          {t.feed.retryMore}
+        </Button>
+      }
+    >
+      {copy.body ?? t.feed.moreErrorBody}
     </Callout>
   )
 }
