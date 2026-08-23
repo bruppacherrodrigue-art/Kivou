@@ -19,6 +19,9 @@ from signals.learning.contracts import (
     LearningSnapshot,
     canonical_fingerprint,
 )
+from signals.operations.circuit_breakers import AcquisitionCircuitOpen, AcquisitionExecutionGuard
+from signals.operations.contracts import BreakerScope
+from signals.operations.store import OperationsStore
 from signals.persistence.schema import (
     acquisition_allocation_proposal,
     acquisition_learning_snapshot,
@@ -80,6 +83,7 @@ class LearningStore:
 
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
+        self._execution_guard = AcquisitionExecutionGuard(OperationsStore(engine))
 
     @contextlib.contextmanager
     def _serialized(self) -> Iterator[Connection]:
@@ -304,6 +308,18 @@ class LearningStore:
                 return ApplyResult(row=row, applied=False, replayed=True)
             if row["state"] != "PROPOSED" or row["policy_status"] != "APPROVED":
                 raise LearningConflict("proposal is not executable")
+            scopes = [BreakerScope(scope_type="GLOBAL", scope_ref="acquisition")]
+            for prefix in ("from", "to"):
+                country = row[f"{prefix}_country"]
+                wedge = row[f"{prefix}_wedge"]
+                if country is not None:
+                    scopes.append(BreakerScope(scope_type="COUNTRY", scope_ref=country))
+                if wedge is not None:
+                    scopes.append(BreakerScope(scope_type="WEDGE", scope_ref=wedge))
+            try:
+                self._execution_guard.require_allowed(*scopes)
+            except AcquisitionCircuitOpen as exc:
+                raise LearningConflict("acquisition execution circuit is open") from exc
             current = self._current_allocation(
                 connection,
                 row["allocation_envelope_fingerprint"],

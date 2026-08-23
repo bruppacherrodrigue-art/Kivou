@@ -50,6 +50,12 @@ from signals.compliance.suppression import SuppressionIdentityKeyring
 from signals.conversion.link import AttributionLinkBuilder
 from signals.conversion.source import AttributionSourceFacts, AttributionSourceResolver
 from signals.decision_engine.policy import semantic_fingerprint
+from signals.operations.circuit_breakers import (
+    AcquisitionCircuitOpen,
+    AcquisitionExecutionGuard,
+)
+from signals.operations.contracts import BreakerScope
+from signals.operations.store import OperationsStore
 from signals.persistence.schema import (
     acquisition_campaign,
     acquisition_campaign_member,
@@ -145,6 +151,7 @@ class CampaignService:
         self._campaigns = CampaignStore(engine)
         self._policy_store = PolicyStore(engine)
         self._policy = policy_gateway or PolicyGateway(engine, acquisition_store=self._acquisition)
+        self._execution_guard = AcquisitionExecutionGuard(OperationsStore(engine))
         self._attribution_link_builder = attribution_link_builder
         self._attribution_source_resolver = AttributionSourceResolver(engine)
         self._after_policy_hook: Callable[[], None] = lambda: None
@@ -178,6 +185,12 @@ class CampaignService:
         self._require_deployment_planning()
         captured_at = self._now()
         preview = self._build_preview(opportunity_id, captured_at)
+        self._require_execution_circuit(
+            campaign_ref=preview.plan.campaign_ref,
+            country=preview.plan.country,
+            wedge=preview.plan.wedge,
+            mailbox_refs=(preview.mailbox.mailbox_ref,),
+        )
         if (
             authorization.scope.country != preview.plan.country
             or authorization.scope.language != preview.plan.language
@@ -483,6 +496,12 @@ class CampaignService:
             members = connection.execute(statement).mappings().all()
         if campaign is None or campaign["lifecycle"] != "BUILDING" or not members:
             raise CampaignInputChanged("provider mutation binding is no longer BUILDING")
+        self._require_execution_circuit(
+            campaign_ref=campaign_ref,
+            country=campaign["country"],
+            wedge=campaign["wedge"],
+            mailbox_refs=tuple(sorted({member["mailbox_ref"] for member in members})),
+        )
         if kind is ProviderOperationKind.ADD_LEAD and (
             member_ref is None or len(members) != 1 or members[0]["execution_state"] != "RESERVED"
         ):
@@ -706,6 +725,12 @@ class CampaignService:
             ).mappings().all()
         if campaign["lifecycle"] != "SEALED" or not members:
             raise CampaignInputChanged("only a SEALED campaign may activate")
+        self._require_execution_circuit(
+            campaign_ref=campaign_ref,
+            country=campaign["country"],
+            wedge=campaign["wedge"],
+            mailbox_refs=tuple(sorted({member["mailbox_ref"] for member in members})),
+        )
         retained = tuple(
             member for member in members if member["execution_state"] == "QUEUED"
         )
@@ -842,6 +867,12 @@ class CampaignService:
         )
         if not members:
             raise CampaignDeploymentBlocked("no member is waiting for Step 2")
+        self._require_execution_circuit(
+            campaign_ref=campaign_ref,
+            country=campaign["country"],
+            wedge=campaign["wedge"],
+            mailbox_refs=tuple(sorted({member["mailbox_ref"] for member in all_members})),
+        )
         if campaign["lifecycle"] != "PAUSED":
             raise CampaignDeploymentBlocked(
                 "provider campaign must be durably PAUSED before Step 2 safety release"
@@ -1570,6 +1601,28 @@ class CampaignService:
             raise CampaignDeploymentBlocked("mailbox catalog has zero usable entries")
         if not self._deployment.footer_catalog.entries:
             raise CampaignDeploymentBlocked("footer catalog is unconfigured")
+
+    def _require_execution_circuit(
+        self,
+        *,
+        campaign_ref: str,
+        country: str,
+        wedge: str,
+        mailbox_refs: tuple[str, ...],
+    ) -> None:
+        scopes = (
+            BreakerScope(scope_type="CAMPAIGN", scope_ref=campaign_ref),
+            BreakerScope(scope_type="COUNTRY", scope_ref=country),
+            BreakerScope(scope_type="WEDGE", scope_ref=wedge),
+            *(
+                BreakerScope(scope_type="MAILBOX", scope_ref=mailbox_ref)
+                for mailbox_ref in mailbox_refs
+            ),
+        )
+        try:
+            self._execution_guard.require_allowed(*scopes)
+        except AcquisitionCircuitOpen as exc:
+            raise CampaignDeploymentBlocked("acquisition execution circuit is open") from exc
 
     @staticmethod
     def _require_sequence_coverage(raw, deadline: dt.datetime, kind: str) -> None:

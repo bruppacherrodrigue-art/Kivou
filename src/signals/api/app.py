@@ -41,6 +41,8 @@ from signals.cockpit.service import WeeklyCommercialCockpitService
 from signals.conversion.milestones import ConversionMilestoneService
 from signals.conversion.service import ConversionAttributionService
 from signals.conversion.token import AttributionTokenKeyring
+from signals.operations.api import router as operations_router
+from signals.operations.service import OperationsReadService
 
 
 class _NullDelivery:
@@ -61,6 +63,7 @@ def create_app(
     conversion_attribution_service: object | None = None,
     conversion_milestone_service: object | None = None,
     cockpit_service: object | None = None,
+    operations_service: object | None = None,
     founding_accounts: frozenset[str] = frozenset(),
 ) -> FastAPI:
     """Construit l'application autour d'un moteur déjà configuré.
@@ -106,6 +109,11 @@ def create_app(
     # SPEC-030 is a local read model. Construction performs no query, worker start,
     # provider I/O, or report persistence.
     app.state.cockpit_service = cockpit_service or WeeklyCommercialCockpitService(engine)
+    # SPEC-031 is a local read model; the default observes conservative,
+    # unconfigured runtime evidence and never starts Hermes or a worker.
+    app.state.operations_service = operations_service or OperationsReadService(
+        engine, environment_identity=app.state.config.acquisition_environment
+    )
     # §33 — l'éligibilité fondateur est une liste serveur, jamais une saisie.
     app.state.founding_accounts = frozenset(founding_accounts)
 
@@ -118,6 +126,7 @@ def create_app(
     app.include_router(feedback_router)
     app.include_router(notifications_router)
     app.include_router(cockpit_router)
+    app.include_router(operations_router)
 
     @app.exception_handler(ValueError)
     def _value_error(request: Request, error: ValueError) -> JSONResponse:
