@@ -11,9 +11,11 @@ Status: implementation complete on a draft, unmerged pull request
   `7943d135d9089bbf0478b1cec16c80065a9cd2c4`;
 - frozen local design commit after the compatible frontend-only main rebase:
   `4f92194`;
-- executable runtime/test SHA:
+- original reviewed executable runtime/test SHA:
   `5cbfec883f896be50b8d93db2f52b7efd21c8a30`;
-- executable CI: GitHub Actions run `32603995285`, SUCCESS;
+- R1 executable runtime/test SHA:
+  `35cc89864f089b50a8e72dec82d1bb89e704e4c1`;
+- R1 executable CI: GitHub Actions run `32607695001`, SUCCESS;
 - the final head is a later docs-only closeout commit. The executable-to-final
   delta is restricted to this report.
 
@@ -41,7 +43,12 @@ a third table. Snapshot/proposal identities are deterministic. A partial unique
 successor constraint and serialized application make one applied proposal the
 only successor of a given allocation authority. Current allocation is resolved
 by walking the explicit `INITIAL -> proposal_ref` lineage, never by an ambiguous
-latest-row convention.
+latest-row convention. R1 adds the partial unique index
+`uq_learning_snapshot_selected_proposal` on `snapshot_ref WHERE
+selection_source IS NOT NULL` for both PostgreSQL and SQLite. It is mirrored in
+SQLAlchemy Core and makes one durable selected proposal the database invariant
+for each snapshot, independently of the existing single-APPLIED-successor
+constraint.
 
 ## Metric contracts
 
@@ -125,6 +132,13 @@ Every move respects allowlisted cells and min/max bounds and moves at most one
 daily unit per cycle. Stale-baseline proposals are rejected. Duplicate snapshot,
 candidate, selection, Policy, and apply operations converge.
 
+When two workers select different valid candidates for the same snapshot,
+`record_selection()` serializes the write and returns the durable winner. An
+identical replay returns that same row; a losing proposal is left unselected.
+The worker uses the returned proposal reference for every subsequent Policy and
+application step, so a local Hermes choice that loses the race cannot create a
+competing Policy path. Winner selection never depends on timestamp ordering.
+
 ## Hermes boundary
 
 `HermesLearningSelector` is injected and has no network implementation in this
@@ -184,8 +198,11 @@ Policy, compliance, pacing, mailbox, provider, and window gates.
 The worker is an explicitly invoked service. It has no ASGI autostart,
 background thread, import-time work, or provider/model adapter. A crash before
 Policy, after a durable Policy decision, or before application resumes from the
-same snapshot/proposal identity. Concurrent application has at most one applied
-successor, and lease/timestamp ordering is not treated as allocation authority.
+same snapshot/proposal identity. Concurrent selection has exactly one durable
+winner per snapshot and restart through `existing_cycle()` resolves that winner
+without `MultipleResultsFound`. Concurrent application independently retains at
+most one applied successor, and lease/timestamp ordering is not treated as
+allocation authority.
 
 Repository defaults remain a safe no-op:
 
@@ -197,10 +214,10 @@ Repository defaults remain a safe no-op:
 
 ## Validation
 
-Executable CI `32603995285` on
-`5cbfec883f896be50b8d93db2f52b7efd21c8a30` recorded:
+R1 executable CI `32607695001` on
+`35cc89864f089b50a8e72dec82d1bb89e704e4c1` recorded:
 
-- backend: `3963 passed`, `2 skipped`;
+- backend: `3966 passed`, `2 skipped`;
 - skipped tests: exactly the two existing opt-in Stripe TEST smokes in
   `tests/test_billing_stripe_test_smoke.py`;
 - no SPEC-029 test skipped;
@@ -210,8 +227,10 @@ Executable CI `32603995285` on
 - frontend typecheck: PASS;
 - frontend lint: PASS.
 
-Focused post-rebase verification recorded 47 passing learning/Policy/migration
-tests plus Ruff and `git diff --check`. The GitHub executable CI is the complete
+Focused R1 verification recorded 47 passing learning tests, including a real
+two-worker/different-candidate race, database uniqueness, PostgreSQL offline
+SQL, Core parity, identical-selection replay, and `existing_cycle()` restart.
+Ruff and `git diff --check` passed. The GitHub executable CI is the complete
 backend/frontend regression authority.
 
 ## Boundaries and limitations
