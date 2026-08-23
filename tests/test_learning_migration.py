@@ -15,6 +15,7 @@ from signals.persistence.schema import (
 
 HEAD = "0020_hermes_learning_loop"
 RELIABILITY = "0021_reliability_operations"
+SAAS_COMPANY = "0022_saas_company_profile"
 LATEST = "0023_scheduled_plan_change"
 TABLES = {"acquisition_learning_snapshot", "acquisition_allocation_proposal"}
 
@@ -26,7 +27,8 @@ def test_learning_migration_is_one_linear_head_with_exactly_two_tables(tmp_path)
 
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == RELIABILITY
+    assert scripts.get_revision(LATEST).down_revision == SAAS_COMPANY
+    assert scripts.get_revision(SAAS_COMPANY).down_revision == RELIABILITY
     assert scripts.get_revision(RELIABILITY).down_revision == HEAD
     assert scripts.get_revision(HEAD).down_revision == "0019_conversion_tracking"
     with engine.connect() as connection:

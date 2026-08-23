@@ -22,6 +22,7 @@ RESPONSE = "0018_response_intelligence"
 CONVERSION = "0019_conversion_tracking"
 LEARNING = "0020_hermes_learning_loop"
 RELIABILITY = "0021_reliability_operations"
+SAAS_COMPANY = "0022_saas_company_profile"
 LATEST = "0023_scheduled_plan_change"
 TABLES = (
     acquisition_campaign,
@@ -42,7 +43,8 @@ def test_campaign_migration_is_linear_and_adds_exactly_four_tables(tmp_path) -> 
     assert set(sa.inspect(engine).get_table_names()) - before == {table.name for table in TABLES}
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == RELIABILITY
+    assert scripts.get_revision(LATEST).down_revision == SAAS_COMPANY
+    assert scripts.get_revision(SAAS_COMPANY).down_revision == RELIABILITY
     assert scripts.get_revision(RELIABILITY).down_revision == LEARNING
     assert scripts.get_revision(LEARNING).down_revision == CONVERSION
     assert scripts.get_revision(CONVERSION).down_revision == RESPONSE
