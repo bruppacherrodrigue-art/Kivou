@@ -1,5 +1,5 @@
 import { forwardRef } from 'react'
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import type { AnchorHTMLAttributes, ButtonHTMLAttributes, ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import type { LinkProps } from 'react-router-dom'
 import styles from './Button.module.css'
@@ -87,6 +87,30 @@ export function ButtonLink({
       ) : null}
       <span className={styles.label}>{children}</span>
     </Link>
+  )
+}
+
+type ButtonAnchorProps = CommonProps & AnchorHTMLAttributes<HTMLAnchorElement>
+
+/** A non-router link styled as a button. This is intentionally separate from
+ * `ButtonExternalLink`: a `mailto:` action must not open a blank browser tab. */
+export function ButtonAnchor({
+  variant,
+  size,
+  fullWidth,
+  icon,
+  children,
+  ...rest
+}: ButtonAnchorProps) {
+  return (
+    <a className={classesFor({ variant, size, fullWidth, children })} {...rest}>
+      {icon ? (
+        <span className={styles.icon} aria-hidden="true">
+          {icon}
+        </span>
+      ) : null}
+      <span className={styles.label}>{children}</span>
+    </a>
   )
 }
 

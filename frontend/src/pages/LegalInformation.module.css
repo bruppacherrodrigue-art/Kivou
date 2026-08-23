@@ -1,0 +1,231 @@
+.page {
+  background: var(--kivou-bg-canvas);
+  color: var(--kivou-text-primary);
+}
+
+.hero {
+  border-bottom: 1px solid var(--kivou-border);
+  background: var(--kivou-bg-subtle);
+}
+
+.heroInner,
+.document {
+  width: min(100%, var(--kivou-container-content));
+  margin: 0 auto;
+  padding-inline: var(--kivou-gutter-mobile);
+}
+
+.heroInner {
+  padding-block: clamp(var(--kivou-space-10), 9vw, var(--kivou-space-16));
+  display: grid;
+  gap: var(--kivou-space-5);
+}
+
+.updated {
+  color: var(--kivou-text-muted);
+  font-size: var(--kivou-text-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.contents {
+  margin-top: var(--kivou-space-3);
+  border-block: 1px solid var(--kivou-border);
+}
+
+.contents ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+}
+
+.contents li + li {
+  border-top: 1px solid var(--kivou-border);
+}
+
+.contents a {
+  min-height: 3.5rem;
+  padding: var(--kivou-space-3) 0;
+  display: flex;
+  align-items: center;
+  gap: var(--kivou-space-4);
+  color: var(--kivou-text-primary);
+  font-weight: var(--kivou-weight-medium);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.25em;
+}
+
+.contents a span {
+  color: var(--kivou-action-accent);
+  font-size: var(--kivou-text-micro);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.08em;
+}
+
+.document {
+  padding-block: var(--kivou-space-10) var(--kivou-space-16);
+}
+
+.legalSection {
+  scroll-margin-top: 6rem;
+  display: grid;
+  gap: var(--kivou-space-4);
+  padding-block: var(--kivou-space-10);
+  border-bottom: 1px solid var(--kivou-border);
+}
+
+.legalSection:first-child {
+  padding-top: 0;
+}
+
+.legalSection:focus-visible {
+  border-radius: var(--kivou-radius-sm);
+}
+
+.sectionNumber {
+  color: var(--kivou-action-accent);
+  font-size: var(--kivou-text-micro);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.12em;
+}
+
+.sectionBody {
+  min-width: 0;
+  max-width: 74ch;
+}
+
+.sectionBody > h2 {
+  margin-bottom: var(--kivou-space-8);
+  font-family: var(--kivou-font-display);
+  font-size: var(--kivou-text-h2);
+  line-height: var(--kivou-leading-h2);
+  font-weight: var(--kivou-weight-regular);
+  text-wrap: balance;
+}
+
+.subsection + .subsection {
+  margin-top: var(--kivou-space-8);
+}
+
+.subsection h3 {
+  margin-bottom: var(--kivou-space-3);
+  font-family: var(--kivou-font-sans);
+  font-size: var(--kivou-text-h3);
+  line-height: var(--kivou-leading-h3);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.subsection p,
+.subsection li,
+.subsection address {
+  color: var(--kivou-text-secondary);
+  line-height: 1.72;
+}
+
+.subsection p + p,
+.subsection p + ul,
+.subsection ul + p,
+.subsection address + p {
+  margin-top: var(--kivou-space-4);
+}
+
+.subsection ul {
+  margin: var(--kivou-space-4) 0 0;
+  padding-left: 1.35rem;
+}
+
+.subsection li + li {
+  margin-top: var(--kivou-space-2);
+}
+
+.subsection address {
+  margin-top: var(--kivou-space-3);
+  padding-left: var(--kivou-space-4);
+  border-left: 2px solid var(--kivou-action-accent);
+  color: var(--kivou-text-primary);
+  font-style: normal;
+}
+
+.subsection code {
+  overflow-wrap: anywhere;
+  color: var(--kivou-text-primary);
+  font-size: 0.94em;
+}
+
+.subsection a,
+.backLink {
+  color: var(--kivou-action-primary);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+  overflow-wrap: anywhere;
+}
+
+.backLink {
+  display: inline-flex;
+  margin-top: var(--kivou-space-8);
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
+}
+
+@media (min-width: 768px) {
+  .heroInner,
+  .document {
+    padding-inline: var(--kivou-gutter-desktop);
+  }
+
+  .contents ol {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .contents li + li {
+    border-top: 0;
+    border-left: 1px solid var(--kivou-border);
+  }
+
+  .contents a {
+    padding-inline: var(--kivou-space-5);
+  }
+
+  .contents li:first-child a {
+    padding-left: 0;
+  }
+
+  .legalSection {
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+    gap: var(--kivou-space-6);
+    padding-block: var(--kivou-space-12);
+  }
+}
+
+@media print {
+  .hero,
+  .page {
+    background: #fff;
+  }
+
+  .heroInner,
+  .document {
+    width: 100%;
+    padding: 1cm 1.2cm;
+  }
+
+  .contents,
+  .backLink,
+  .sectionNumber {
+    display: none;
+  }
+
+  .legalSection {
+    display: block;
+    border: 0;
+    break-before: page;
+  }
+
+  .legalSection:first-child {
+    break-before: auto;
+  }
+
+  .subsection {
+    break-inside: avoid;
+  }
+}

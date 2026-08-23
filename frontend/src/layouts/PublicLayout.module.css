@@ -71,14 +71,12 @@
 }
 
 .footerInner {
-  max-width: var(--kivou-container-content);
+  max-width: var(--kivou-container-wide);
   margin: 0 auto;
-  padding: var(--kivou-space-10) var(--kivou-gutter-mobile);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--kivou-space-6);
+  padding: var(--kivou-space-10) var(--kivou-gutter-mobile) var(--kivou-space-6);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--kivou-space-8);
 }
 
 .footerBrand {
@@ -93,6 +91,47 @@
   color: var(--kivou-text-secondary);
 }
 
+.footerColumn {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--kivou-space-3);
+}
+
+.footerHeading {
+  margin-bottom: var(--kivou-space-1);
+  color: var(--kivou-text-muted);
+  font-size: var(--kivou-text-micro);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.footerColumn > a:not([class]) {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  color: var(--kivou-text-secondary);
+  font-size: var(--kivou-text-small);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.2em;
+}
+
+.footerColumn > a:not([class]):hover {
+  color: var(--kivou-text-primary);
+}
+
+.footerBottom {
+  padding-top: var(--kivou-space-5);
+  border-top: 1px solid var(--kivou-border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kivou-space-3);
+}
+
 .footerLegal {
   font-size: var(--kivou-text-small);
   color: var(--kivou-text-muted);
@@ -103,6 +142,28 @@
   .footerInner {
     padding-left: var(--kivou-gutter-desktop);
     padding-right: var(--kivou-gutter-desktop);
+  }
+
+  .footerBottom {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 520px) and (max-width: 899px) {
+  .footerInner {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .footerBrand,
+  .footerBottom {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 900px) {
+  .footerInner {
+    grid-template-columns: minmax(14rem, 1.35fr) repeat(3, minmax(9rem, 1fr));
+    column-gap: var(--kivou-space-8);
   }
 }
 

@@ -8,6 +8,8 @@ import { AppShell } from './layouts/AppShell'
 import { Landing } from './pages/Landing'
 import { DashboardDemoCapture } from './pages/DashboardDemoCapture'
 import { PublicSignalDemo } from './pages/PublicSignalDemo'
+import { LegalInformation } from './pages/LegalInformation'
+import { Contact } from './pages/Contact'
 import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { ForgotPassword, ResetPassword } from './pages/PasswordReset'
@@ -65,15 +67,29 @@ export function AppRoutes() {
             signal complet sans compte, et sans qu'aucun appel de session ne
             soit requis pour rendre la page. */}
           <Route path="exemple-de-signal" element={<PublicSignalDemo />} />
-        </Route>
+          <Route path="informations-legales" element={<LegalInformation />} />
+          <Route path="contact" element={<Contact />} />
+          {/* Compatibilité des anciennes URL : `replace` évite d'emprisonner
+              le bouton précédent sur la redirection, tandis que HashTarget
+              déplace ensuite le focus vers la section canonique. */}
+          <Route
+            path="mentions-legales"
+            element={<Navigate to="/informations-legales#mentions-legales" replace />}
+          />
+          <Route
+            path="confidentialite"
+            element={<Navigate to="/informations-legales#confidentialite" replace />}
+          />
+          <Route path="cgu" element={<Navigate to="/informations-legales#cgu" replace />} />
 
-        <Route element={<RedirectIfAuthenticated />}>
-          <Route path="login" element={<Login />} />
-          <Route path="signup" element={<Signup />} />
-        </Route>
+          <Route element={<RedirectIfAuthenticated />}>
+            <Route path="login" element={<Login />} />
+            <Route path="signup" element={<Signup />} />
+          </Route>
 
-        <Route path="forgot-password" element={<ForgotPassword />} />
-        <Route path="reset-password" element={<ResetPassword />} />
+          <Route path="forgot-password" element={<ForgotPassword />} />
+          <Route path="reset-password" element={<ResetPassword />} />
+        </Route>
 
         <Route element={<RequireAuth />}>
           <Route path="onboarding" element={<Onboarding />} />
