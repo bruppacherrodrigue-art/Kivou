@@ -1096,7 +1096,7 @@ git commit -m "feat(email): suppress alerts that lose current access"
 - Create: `tests/test_ops_alerts_runtime.py`
 - Modify: `ops/README.md`
 
-- [ ] **Step 1: Write RED CLI tests**
+- [x] **Step 1: Write RED CLI tests**
 
 ```python
 @pytest.fixture
@@ -1151,13 +1151,13 @@ def test_only_current_execution_incidents_return_nonzero(monkeypatch, configured
 Also assert `--database-url` is rejected and neither stdout nor stderr contains
 the database URL, SMTP password, recipient or exception text.
 
-- [ ] **Step 2: Run CLI tests and verify RED**
+- [x] **Step 2: Run CLI tests and verify RED**
 
 ```bash
 uv run pytest tests/test_alerts_cli.py -q
 ```
 
-- [ ] **Step 3: Implement environment-only CLI and exit codes**
+- [x] **Step 3: Implement environment-only CLI and exit codes**
 
 Remove `--database-url`; call `create_database_engine()` with no URL argument.
 Return:
@@ -1169,7 +1169,7 @@ Return:
 Catch only at the CLI boundary and print fixed codes. Do not print exception
 objects. Summaries contain aggregate counts and result labels only.
 
-- [ ] **Step 4: Write RED unit-file tests**
+- [x] **Step 4: Write RED unit-file tests**
 
 Assert exact user, group, working directory, environment file, Python command,
 no database URL argument, `flock --verbose --nonblock --conflict-exit-code 0`,
@@ -1178,7 +1178,7 @@ hardening, hourly timer, `Persistent=true`, and randomized delay.
 Exercise actual local host-lock contention with a temporary lock and assert
 return code zero and no child invocation.
 
-- [ ] **Step 5: Add service and timer**
+- [x] **Step 5: Add service and timer**
 
 The service core is:
 
@@ -1215,14 +1215,14 @@ RandomizedDelaySec=300
 Unit=kivou-alerts.service
 ```
 
-- [ ] **Step 6: Document install/manual/rollback commands**
+- [x] **Step 6: Document install/manual/rollback commands**
 
 Add commands that create `/srv/kivou/run` as `kivou`, install both units,
 daemon-reload, verify, start manually, inspect safe journals, enable the timer,
 and roll back by disabling/restoring prior units. Do not include a real address,
 password, token or database URL.
 
-- [ ] **Step 7: Run runtime tests and commit**
+- [x] **Step 7: Run runtime tests and commit**
 
 ```bash
 uv run pytest tests/test_alerts_cli.py tests/test_ops_alerts_runtime.py -q

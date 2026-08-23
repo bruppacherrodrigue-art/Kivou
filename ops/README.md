@@ -1,7 +1,8 @@
 # Runtime d'exploitation Kivou
 
 Ce dossier ne contient que ce qui doit être **versionné pour être reproductible**.
-Aujourd'hui : la sauvegarde PostgreSQL (RTL-03 / #39).
+Aujourd'hui : la sauvegarde PostgreSQL (RTL-03 / #39) et le runtime des alertes
+transactionnelles (RTL-05).
 
 > Un service systemd qui appelle un fichier absent de la branche déployable
 > échoue au premier déploiement propre. C'est exactement ce qu'a révélé #39 :
@@ -82,3 +83,69 @@ uv run pytest tests/test_ops_backup_runtime.py
 Ce que ces tests **ne** prouvent pas : qu'un dump PostgreSQL réel se restaure.
 Cela demande un serveur et une base isolée — c'est la validation staging de #39,
 et elle reste à faire.
+
+## Alertes transactionnelles RTL-05
+
+Le couple `kivou-alerts.service` / `kivou-alerts.timer` exécute
+`python -m signals.alerts` au plus une fois par heure, avec un léger délai
+aléatoire. Le timer ne transforme donc pas la cadence `priority` en temps réel.
+Le verrou hôte `flock` couvre les déclenchements systemd et le lease PostgreSQL
+couvre aussi deux processus ou deux hôtes. Une contention normale retourne 0 ;
+une panne technique ou un incident apparu pendant le cycle retourne un code non
+nul.
+
+La commande lit exclusivement l'environnement. Elle n'accepte aucune URL de
+base sur la ligne de commande et n'imprime ni adresse, ni secret, ni texte
+d'exception. Les variables applicatives requises sont documentées dans
+`.env.example`; leurs valeurs vivent dans `/etc/kivou/staging.env`, hors dépôt.
+
+### Installation staging
+
+```bash
+sudo install -o kivou -g kivou -m 700 -d /srv/kivou/run
+sudo install -o root -g root -m 644 \
+  ops/systemd/kivou-alerts.service \
+  ops/systemd/kivou-alerts.timer \
+  /etc/systemd/system/
+sudo systemd-analyze verify \
+  /etc/systemd/system/kivou-alerts.service \
+  /etc/systemd/system/kivou-alerts.timer
+sudo systemctl daemon-reload
+sudo systemctl start kivou-alerts.service
+sudo systemctl status kivou-alerts.service --no-pager
+sudo journalctl -u kivou-alerts.service -n 50 --no-pager
+sudo systemctl enable --now kivou-alerts.timer
+systemctl list-timers kivou-alerts.timer --no-pager
+```
+
+Le démarrage manuel précède l'activation du timer. Avant toute exécution hors
+simulation, la boîte destinataire doit être synthétique, contrôlée et autorisée.
+
+### Simulation et diagnostic
+
+```bash
+sudo -u kivou --preserve-env=KIVOU_DATABASE_URL,KIVOU_ALLOWED_ORIGIN,KIVOU_PUBLIC_APP_URL,SMTP_HOST,SMTP_PORT,SMTP_FROM_EMAIL,SMTP_FROM_NAME,SMTP_TLS_MODE,SMTP_TIMEOUT_SECONDS \
+  /srv/kivou/app/.venv/bin/python -m signals.alerts --dry-run
+systemctl cat kivou-alerts.service kivou-alerts.timer
+sudo journalctl -u kivou-alerts.service -n 50 --no-pager
+```
+
+La simulation valide la configuration sans effectuer d'appel SMTP. La lecture
+du journal doit confirmer uniquement des compteurs et des codes opérationnels.
+
+### Rollback
+
+```bash
+sudo systemctl disable --now kivou-alerts.timer
+sudo systemctl stop kivou-alerts.service
+sudo cp /chemin/controle/kivou-alerts.service /etc/systemd/system/
+sudo cp /chemin/controle/kivou-alerts.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl reset-failed kivou-alerts.service
+```
+
+Le rollback applicatif restaure ensuite le SHA précédent. Le downgrade de la
+migration `0023` n'est exécuté que si la procédure de release le décide
+explicitement ; il conserve l'historique antérieur des livraisons. Si aucun
+timer antérieur n'existait, les deux commandes `cp` sont omises et les unités
+restent simplement désactivées.
