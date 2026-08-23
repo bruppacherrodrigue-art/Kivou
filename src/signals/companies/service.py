@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import dataclass
 from typing import Any
 
 import sqlalchemy as sa
@@ -20,14 +21,20 @@ from signals.companies.contracts import (
     CompanySignalAmount,
     CompanySignalEvent,
 )
-from signals.companies.identity import IdentityMethod, official_company_identity
+from signals.companies.identity import ResolvedOfficialCompany, official_company_identity
 from signals.companies.store import StoredCompany, get_company_by_key, get_or_create_company
 from signals.feed import query as feed_query
 from signals.feed import view as feed_view
 from signals.persistence.repository import SIGNAL_SELECT, signal_from_row
 from signals.persistence.schema import contract_award, materialized_signal, source_event
 
-_SCAN_CAP = 500
+_SCAN_BATCH = 250
+
+
+@dataclass(frozen=True)
+class _AccessibleCompanySignal:
+    item: feed_query.FeedSignal
+    resolved: ResolvedOfficialCompany
 
 
 def _aware(value: dt.datetime) -> dt.datetime:
@@ -77,12 +84,15 @@ def ensure_company_for_unlocked_signal(
     if source is None:
         return None
     parties, observed_at = source
-    resolved = official_company_identity(
-        awardee_parties=parties,
-        display=item.display,
-        opportunity_key=item.signal.opportunity_key,
-        observed_at=observed_at,
-    )
+    try:
+        resolved = official_company_identity(
+            awardee_parties=parties,
+            display=item.display,
+            opportunity_key=item.signal.opportunity_key,
+            observed_at=observed_at,
+        )
+    except (TypeError, ValueError):
+        return None
     if resolved is None:
         return None
     stored = get_or_create_company(
@@ -95,103 +105,110 @@ def ensure_company_for_unlocked_signal(
     return stored.company_key
 
 
-def _candidate_query(
+def _current_signal_query(
     *,
     account_id: str,
-    stored: StoredCompany,
     allowed_target_icp_ids: frozenset[str],
+    after_signal_key: str,
 ) -> sa.Select:
-    scoped = SIGNAL_SELECT.join(
-        target_icp, materialized_signal.c.target_icp_id == target_icp.c.target_icp_id
-    ).where(
-        target_icp.c.account_id == account_id,
-        target_icp.c.status == feed_query.FEEDING_ICP_STATUS,
-        target_icp.c.plan_limit_code.is_(None),
-        materialized_signal.c.invalidated_at.is_(None),
-        materialized_signal.c.target_icp_revision == target_icp.c.matching_revision,
-        materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids)),
-    )
-
-    if stored.identity_method is IdentityMethod.OPPORTUNITY:
-        identity_scope = materialized_signal.c.opportunity_key == stored.identity_validation[
-            "opportunity_key"
-        ]
-    else:
-        probes: list[sa.ColumnElement[bool]] = [
-            materialized_signal.c.winner_name == stored.official_identity.name
-        ]
-        if stored.official_identity.identifiers:
-            probes.append(
-                materialized_signal.c.winner_identifier_value
-                == stored.official_identity.identifiers[0].value
-            )
-        identity_scope = sa.or_(*probes)
-
     return (
-        scoped.where(identity_scope)
+        SIGNAL_SELECT.join(
+            target_icp, materialized_signal.c.target_icp_id == target_icp.c.target_icp_id
+        )
+        .where(
+            target_icp.c.account_id == account_id,
+            target_icp.c.status == feed_query.FEEDING_ICP_STATUS,
+            target_icp.c.plan_limit_code.is_(None),
+            materialized_signal.c.invalidated_at.is_(None),
+            materialized_signal.c.target_icp_revision == target_icp.c.matching_revision,
+            materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids)),
+            materialized_signal.c.signal_key > after_signal_key,
+        )
         .order_by(None)
-        .order_by(materialized_signal.c.materialized_at.desc(), materialized_signal.c.signal_key)
-        .limit(_SCAN_CAP + 1)
+        .order_by(materialized_signal.c.signal_key)
+        .limit(_SCAN_BATCH)
     )
 
 
-def _matching_items(
+def _accessible_matching_items(
     connection: sa.Connection,
     *,
     stored: StoredCompany,
     account_id: str,
     as_of: dt.date,
     allowed_target_icp_ids: frozenset[str],
-) -> tuple[list[feed_query.FeedSignal], bool]:
+    access: FeedAccess,
+) -> tuple[list[_AccessibleCompanySignal], CompanyOfficialIdentity | None, bool]:
     if not allowed_target_icp_ids:
-        return [], True
-    rows = connection.execute(
-        _candidate_query(
-            account_id=account_id,
-            stored=stored,
-            allowed_target_icp_ids=allowed_target_icp_ids,
-        )
-    ).all()
-    scan_complete = len(rows) <= _SCAN_CAP
-    rows = rows[:_SCAN_CAP]
+        return [], None, True
     owned = feed_query.owned_target_icps(connection, account_id=account_id)
-    signals = [signal_from_row(row) for row in rows]
-    displays = feed_query.resolve_display_identity(connection, signals)
-    display_awards = {display.from_award_key for display in displays.values()}
-    sources = _award_sources(connection, display_awards)
+    selected: list[_AccessibleCompanySignal] = []
+    accessible_count = 0
+    latest_identity: CompanyOfficialIdentity | None = None
+    latest_identity_rank: tuple[dt.datetime, str] | None = None
+    cursor = ""
 
-    matches: list[feed_query.FeedSignal] = []
-    for signal in signals:
-        display = displays.get(signal.signal_key)
-        if display is None:
-            continue
-        source = sources.get(display.from_award_key)
-        if source is None:
-            continue
-        parties, observed_at = source
-        resolved = official_company_identity(
-            awardee_parties=parties,
-            display=display,
-            opportunity_key=signal.opportunity_key,
-            observed_at=observed_at,
-        )
-        if resolved is None or resolved.identity_fingerprint != stored.identity_fingerprint:
-            continue
-        profile = owned.get(signal.target_icp_id)
-        if profile is None:
-            continue
-        matches.append(
-            feed_query.FeedSignal(
+    while True:
+        rows = connection.execute(
+            _current_signal_query(
+                account_id=account_id,
+                allowed_target_icp_ids=allowed_target_icp_ids,
+                after_signal_key=cursor,
+            )
+        ).all()
+        if not rows:
+            break
+        cursor = rows[-1].signal_key
+        signals = [signal_from_row(row) for row in rows]
+        displays = feed_query.resolve_display_identity(connection, signals)
+        display_awards = {display.from_award_key for display in displays.values()}
+        sources = _award_sources(connection, display_awards)
+
+        for signal in signals:
+            display = displays.get(signal.signal_key)
+            if display is None:
+                continue
+            source = sources.get(display.from_award_key)
+            if source is None:
+                continue
+            parties, observed_at = source
+            try:
+                resolved = official_company_identity(
+                    awardee_parties=parties,
+                    display=display,
+                    opportunity_key=signal.opportunity_key,
+                    observed_at=observed_at,
+                )
+            except (TypeError, ValueError):
+                continue
+            if resolved is None or resolved.identity_fingerprint != stored.identity_fingerprint:
+                continue
+            profile = owned.get(signal.target_icp_id)
+            if profile is None:
+                continue
+            item = feed_query.FeedSignal(
                 signal=signal,
                 recency=signal.current_recency(as_of=as_of),
                 account_id=account_id,
                 target_icp_label=profile.label,
                 display=display,
             )
-        )
-    matches.sort(key=lambda item: item.sort_key)
-    response_complete = scan_complete and len(matches) <= MAX_RELATED_SIGNALS
-    return matches[:MAX_RELATED_SIGNALS], response_complete
+            if not access.is_unlocked(item):
+                continue
+            accessible_count += 1
+            match = _AccessibleCompanySignal(item=item, resolved=resolved)
+            selected.append(match)
+            selected.sort(key=lambda candidate: candidate.item.sort_key)
+            del selected[MAX_RELATED_SIGNALS:]
+            identity_rank = (resolved.official.observed_at, signal.signal_key)
+            if latest_identity_rank is None or identity_rank > latest_identity_rank:
+                latest_identity = resolved.official
+                latest_identity_rank = identity_rank
+
+        if len(rows) < _SCAN_BATCH:
+            break
+
+    return selected, latest_identity, accessible_count <= MAX_RELATED_SIGNALS
 
 
 def _related_signal(item: feed_query.FeedSignal, *, lang: str) -> CompanyRelatedSignal:
@@ -262,19 +279,19 @@ def company_profile_for_account(
     stored = get_company_by_key(connection, company_key=company_key)
     if stored is None:
         return None
-    candidates, complete = _matching_items(
+    accessible, official_identity, complete = _accessible_matching_items(
         connection,
         stored=stored,
         account_id=account_id,
         as_of=as_of,
         allowed_target_icp_ids=allowed_target_icp_ids,
+        access=access,
     )
-    unlocked = [item for item in candidates if access.is_unlocked(item)]
-    if not unlocked:
+    if not accessible or official_identity is None:
         return None
     return CompanyProfile(
         company_key=stored.company_key,
-        official_identity=stored.official_identity,
-        related_signals=tuple(_related_signal(item, lang=lang) for item in unlocked),
-        coverage=_coverage(stored.official_identity, complete=complete),
+        official_identity=official_identity,
+        related_signals=tuple(_related_signal(match.item, lang=lang) for match in accessible),
+        coverage=_coverage(official_identity, complete=complete),
     )

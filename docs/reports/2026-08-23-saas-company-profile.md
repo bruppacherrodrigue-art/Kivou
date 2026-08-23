@@ -125,6 +125,10 @@ Une lecture de fiche revalide dans la transaction courante :
 
 Les signaux verrouillés sont exclus. Si aucun signal autorisé ne reste, la fiche répond `404`. Une même entreprise peut être visible par deux comptes seulement lorsque chacun possède son propre signal courant et déverrouillé ; chaque réponse contient uniquement les signaux du compte appelant.
 
+Les matérialisations courantes sont parcourues par lots déterministes. La résolution exacte et `FeedAccess.is_unlocked` précèdent la limite de réponse de 100 signaux ; un grant Discovery ancien ne peut donc pas être caché par des signaux verrouillés plus récents. La mémoire reste bornée au lot courant et aux 100 meilleurs résultats selon l’ordre serveur.
+
+L’identité officielle de la réponse est reconstruite depuis un avis lié à ces signaux déverrouillés. L’instantané de création persiste pour l’audit et la déduplication, mais n’est jamais utilisé pour transmettre à un compte les champs optionnels observés uniquement par un autre compte.
+
 ## Données affichées
 
 Faits officiels, lorsqu’ils existent :
@@ -143,7 +147,7 @@ Contexte Kivou, uniquement depuis les signaux accessibles :
 - besoins plausibles ;
 - correspondance avec l’ICP et raisons existantes.
 
-Le site est rendu seulement après une validation HTTPS côté backend et une seconde validation défensive côté frontend. Le lien est externe, ouvre un nouvel onglet et porte `rel="noopener noreferrer"`.
+Le site est rendu seulement après une validation de domaine public HTTPS côté backend et une seconde validation défensive côté frontend. Les IP littérales et les hôtes locaux sont refusés. Le lien est externe, ouvre un nouvel onglet et porte `rel="noopener noreferrer"`.
 
 ## Coût, cache et limites
 
@@ -159,7 +163,7 @@ Les limites restantes sont explicites :
 
 ## Validation
 
-Les tests backend couvrent les contrats fermés, la résolution exacte, l’idempotence, la migration SQLite/PostgreSQL, l’isolement inter-comptes, les signaux verrouillés, Discovery, les invalidations et les révisions ICP.
+Les tests backend couvrent les contrats fermés, la résolution exacte, l’idempotence, la migration SQLite/PostgreSQL, l’isolement inter-comptes, la séparation des faits officiels par avis accessible, les signaux verrouillés, la troncature après déverrouillage, Discovery, les invalidations et les révisions ICP.
 
 Les tests frontend couvrent FR/EN, sources, date absolue, champs absents, URL sûre, états chargement/partiel/404/503/session expirée, navigation depuis le détail, absence de lien verrouillé, clavier, titres et absence de `sessionStorage`.
 

@@ -5,12 +5,21 @@ import datetime as dt
 import pytest
 import sqlalchemy as sa
 from billing_helpers import subscribe
-from feed_helpers import RETRIEVED_AT, SIMAP_RICH, make_account, make_icp, materialize_simap
+from feed_helpers import (
+    RETRIEVED_AT,
+    SIMAP_RICH,
+    make_account,
+    make_icp,
+    materialize,
+    materialize_simap,
+    simap_award,
+)
 
 from signals.accounts.schema import target_icp
 from signals.billing import discovery
 from signals.billing.access import feed_access
 from signals.billing.schema import billing_subscription
+from signals.companies import service as company_service
 from signals.companies.service import (
     company_profile_for_account,
     ensure_company_for_unlocked_signal,
@@ -62,6 +71,38 @@ def _company_key(connection, *, account_id: str, icp_id: str, signal_key: str) -
     key = ensure_company_for_unlocked_signal(connection, item=item, now=NOW)
     assert key is not None
     return key
+
+
+def _identity_variant(
+    connection,
+    *,
+    fixture: str,
+    target_icp_id: str,
+    name: str,
+    address: str | None,
+    identifiers: tuple | None = None,
+    website: str | None = None,
+):
+    event, awards = simap_award(fixture)
+    _, templates = simap_award(SIMAP_RICH)
+    template_party = templates[0].awardee_parties[0]
+    template_member = template_party.members[0]
+    template_organization = template_member.organization
+    assert template_organization is not None
+    organization = template_organization.model_copy(
+        update={
+            "legal_name": name,
+            "address": address,
+            "identifiers": (
+                template_organization.identifiers if identifiers is None else identifiers
+            ),
+            "website": website,
+        }
+    )
+    member = template_member.model_copy(update={"organization": organization})
+    party = template_party.model_copy(update={"members": (member,)})
+    award = awards[0].model_copy(update={"awardee_parties": (party,)})
+    return materialize(connection, event, award, target_icp_id=target_icp_id)
 
 
 def test_current_unlocked_signal_authorizes_official_profile(engine) -> None:
@@ -134,6 +175,136 @@ def test_same_exact_official_identity_can_authorize_two_accounts(engine) -> None
     assert profile is not None
     assert [item.signal_id for item in profile.related_signals] == [second.signal_key]
     assert "a-service" not in profile.model_dump_json()
+
+
+def test_official_fields_come_only_from_this_accounts_accessible_notice(engine) -> None:
+    with engine.begin() as connection:
+        account_a, icp_a = _paid_account(connection, email="facts-a@kivou.test")
+        account_b, icp_b = _paid_account(connection, email="facts-b@kivou.test")
+        first = _identity_variant(
+            connection,
+            fixture=SIMAP_RICH,
+            target_icp_id=icp_a,
+            name="Entreprise Partagee SA",
+            address="Adresse visible uniquement dans avis A",
+            website="https://partagee.example/a",
+        )
+        second = _identity_variant(
+            connection,
+            fixture="33885-03",
+            target_icp_id=icp_b,
+            name="Entreprise Partagee SA",
+            address=None,
+            website=None,
+        )
+        key = _company_key(
+            connection, account_id=account_a, icp_id=icp_a, signal_key=first.signal_key
+        )
+
+        profile = company_profile_for_account(
+            connection,
+            company_key=key,
+            account_id=account_b,
+            as_of=AS_OF,
+            allowed_target_icp_ids=frozenset({icp_b}),
+            access=feed_access(connection, account_id=account_b, as_of=AS_OF),
+            lang="fr",
+        )
+
+    assert profile is not None
+    assert [item.signal_id for item in profile.related_signals] == [second.signal_key]
+    assert profile.official_identity.address is None
+    assert profile.official_identity.website_url is None
+    assert "Adresse visible uniquement" not in profile.model_dump_json()
+
+
+def test_domain_identity_survives_an_official_name_change(engine) -> None:
+    with engine.begin() as connection:
+        account_a, icp_a = _paid_account(connection, email="domain-a@kivou.test")
+        account_b, icp_b = _paid_account(connection, email="domain-b@kivou.test")
+        first = _identity_variant(
+            connection,
+            fixture=SIMAP_RICH,
+            target_icp_id=icp_a,
+            name="Ancienne raison sociale SA",
+            address=None,
+            identifiers=(),
+            website="https://identite-domaine.example/a",
+        )
+        second = _identity_variant(
+            connection,
+            fixture="33885-03",
+            target_icp_id=icp_b,
+            name="Nouvelle raison sociale SA",
+            address=None,
+            identifiers=(),
+            website="https://identite-domaine.example/b",
+        )
+        key = _company_key(
+            connection, account_id=account_a, icp_id=icp_a, signal_key=first.signal_key
+        )
+
+        profile = company_profile_for_account(
+            connection,
+            company_key=key,
+            account_id=account_b,
+            as_of=AS_OF,
+            allowed_target_icp_ids=frozenset({icp_b}),
+            access=feed_access(connection, account_id=account_b, as_of=AS_OF),
+            lang="fr",
+        )
+
+    assert profile is not None
+    assert profile.official_identity.name == "Nouvelle raison sociale SA"
+    assert [item.signal_id for item in profile.related_signals] == [second.signal_key]
+
+
+def test_locked_matches_cannot_hide_an_older_permanent_discovery_grant(
+    engine, monkeypatch
+) -> None:
+    monkeypatch.setattr(company_service, "MAX_RELATED_SIGNALS", 1)
+    with engine.begin() as connection:
+        account_id = make_account(connection, "bounded-grant@kivou.test", "Bounded Grant")
+        icp_id = make_icp(connection, account_id)
+        granted_signal = _identity_variant(
+            connection,
+            fixture=SIMAP_RICH,
+            target_icp_id=icp_id,
+            name="Entreprise Borne SA",
+            address=None,
+        )
+        locked_signal = _identity_variant(
+            connection,
+            fixture="33885-03",
+            target_icp_id=icp_id,
+            name="Entreprise Borne SA",
+            address=None,
+        )
+        granted_item = _item(
+            connection,
+            account_id=account_id,
+            signal_key=granted_signal.signal_key,
+            icp_id=icp_id,
+        )
+        discovery.grant_up_to_limit(
+            connection, account_id=account_id, candidates=[granted_item], now=NOW
+        )
+        key = ensure_company_for_unlocked_signal(connection, item=granted_item, now=NOW)
+        assert key is not None
+
+        profile = company_profile_for_account(
+            connection,
+            company_key=key,
+            account_id=account_id,
+            as_of=AS_OF,
+            allowed_target_icp_ids=frozenset({icp_id}),
+            access=feed_access(connection, account_id=account_id, as_of=AS_OF),
+            lang="fr",
+        )
+
+    assert locked_signal.signal_key != granted_signal.signal_key
+    assert profile is not None
+    assert [item.signal_id for item in profile.related_signals] == [granted_signal.signal_key]
 
 
 def test_locked_only_invalidated_and_old_revision_signals_do_not_authorize(engine) -> None:

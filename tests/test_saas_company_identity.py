@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 
+from signals.companies.contracts import MAX_OFFICIAL_IDENTIFIERS
 from signals.companies.identity import (
     IdentityMethod,
     company_key,
@@ -128,6 +129,60 @@ def test_name_only_homonyms_never_merge_across_opportunities() -> None:
     assert first is not None
     assert second is not None
     assert first.identity_fingerprint != second.identity_fingerprint
+
+
+def test_identifier_without_country_falls_back_to_opportunity_scope() -> None:
+    first = official_company_identity(
+        awardee_parties=_parties(name="Alpha SA", country=None, website=None),
+        display=_display(name="Alpha SA", country=None),
+        opportunity_key="opp_1",
+        observed_at=OBSERVED_AT,
+    )
+    second = official_company_identity(
+        awardee_parties=_parties(name="Beta SA", country=None, website=None),
+        display=_display(name="Beta SA", country=None),
+        opportunity_key="opp_2",
+        observed_at=OBSERVED_AT,
+    )
+
+    assert first is not None
+    assert second is not None
+    assert first.identity_method is IdentityMethod.OPPORTUNITY
+    assert second.identity_method is IdentityMethod.OPPORTUNITY
+    assert first.identity_fingerprint != second.identity_fingerprint
+
+
+def test_untrusted_identifier_collection_is_bounded_before_contract_validation() -> None:
+    parties = _parties()
+    organization = parties[0]["members"][0]["organization"]
+    organization["identifiers"] = [
+        {"scheme": "REG", "value": f"identifier-{index}"}
+        for index in range(MAX_OFFICIAL_IDENTIFIERS + 1)
+    ]
+    display = _display(identifier=("REG", "identifier-0"))
+
+    identity = official_company_identity(
+        awardee_parties=parties,
+        display=display,
+        opportunity_key="opp_1",
+        observed_at=OBSERVED_AT,
+    )
+
+    assert identity is not None
+    assert len(identity.official.identifiers) == MAX_OFFICIAL_IDENTIFIERS
+
+
+def test_unrepresentable_public_identity_omits_the_optional_profile() -> None:
+    name = "A" * 513
+
+    identity = official_company_identity(
+        awardee_parties=_parties(name=name),
+        display=_display(name=name),
+        opportunity_key="opp_1",
+        observed_at=OBSERVED_AT,
+    )
+
+    assert identity is None
 
 
 def test_display_identity_must_match_an_exact_published_organization() -> None:

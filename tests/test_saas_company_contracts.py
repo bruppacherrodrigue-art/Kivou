@@ -114,6 +114,8 @@ def test_observation_requires_timezone_and_website_requires_https() -> None:
         "javascript:alert(1)",
         "https://user:password@entreprise.example",
         "https://localhost",
+        "https://127.0.0.1/admin",
+        "https://intranet.local/admin",
     ):
         with pytest.raises(ValidationError):
             CompanyOfficialIdentity(

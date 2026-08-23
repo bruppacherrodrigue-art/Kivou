@@ -13,6 +13,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from signals.companies.contracts import (
+    MAX_OFFICIAL_IDENTIFIERS,
     CompanyOfficialIdentifier,
     CompanyOfficialIdentity,
     safe_https_url,
@@ -53,22 +54,40 @@ def _country(value: Any) -> str | None:
 def _identifier_values(organization: dict[str, Any]) -> tuple[CompanyOfficialIdentifier, ...]:
     values: list[CompanyOfficialIdentifier] = []
     seen: set[tuple[str, str]] = set()
-    for raw in organization.get("identifiers") or []:
-        scheme = str((raw or {}).get("scheme") or "").strip()
-        value = str((raw or {}).get("value") or "").strip()
+    raw_identifiers = organization.get("identifiers") or []
+    if not isinstance(raw_identifiers, (list, tuple)):
+        return ()
+    for raw in raw_identifiers:
+        if not isinstance(raw, dict):
+            continue
+        scheme = str(raw.get("scheme") or "").strip()
+        value = str(raw.get("value") or "").strip()
         exact = (_normalized(scheme), _normalized(value))
         if not all(exact) or exact in seen:
             continue
+        try:
+            identifier = CompanyOfficialIdentifier(scheme=scheme, value=value)
+        except ValueError:
+            continue
         seen.add(exact)
-        values.append(CompanyOfficialIdentifier(scheme=scheme, value=value))
+        values.append(identifier)
+        if len(values) == MAX_OFFICIAL_IDENTIFIERS:
+            break
     return tuple(values)
 
 
 def _organizations(awardee_parties: list[dict[str, Any]]) -> list[dict[str, Any]]:
     organizations: list[dict[str, Any]] = []
     for party in awardee_parties or []:
-        for member in party.get("members") or []:
-            organization = (member or {}).get("organization") or {}
+        if not isinstance(party, dict):
+            continue
+        members = party.get("members") or []
+        if not isinstance(members, (list, tuple)):
+            continue
+        for member in members:
+            if not isinstance(member, dict):
+                continue
+            organization = member.get("organization") or {}
             if isinstance(organization, dict):
                 organizations.append(organization)
     return organizations
@@ -84,7 +103,13 @@ def _matches_display(organization: dict[str, Any], display: DisplayIdentity) -> 
         for identifier in _identifier_values(organization)
     }
     if all(display_identifier):
-        return display_identifier in organization_identifiers
+        display_country = _country(display.country)
+        organization_country = _country(organization.get("country"))
+        return display_identifier in organization_identifiers and not (
+            display_country
+            and organization_country
+            and display_country != organization_country
+        )
     return (
         _normalized(str(organization.get("legal_name") or "")) == _normalized(display.name)
         and _country(organization.get("country")) == _country(display.country)
@@ -129,16 +154,19 @@ def official_company_identity(
     identifiers = _identifier_values(organization)
     country = _country(organization.get("country")) or _country(display.country)
     website = _safe_website(organization.get("website"))
-    official = CompanyOfficialIdentity(
-        name=str(organization.get("legal_name") or display.name).strip(),
-        country=country,
-        address=(str(organization.get("address") or "").strip() or None),
-        identifiers=identifiers,
-        website_url=website,
-        observed_at=observed_at,
-    )
+    try:
+        official = CompanyOfficialIdentity(
+            name=str(organization.get("legal_name") or display.name).strip(),
+            country=country,
+            address=(str(organization.get("address") or "").strip() or None),
+            identifiers=identifiers,
+            website_url=website,
+            observed_at=observed_at,
+        )
+    except ValueError:
+        return None
 
-    if identifiers:
+    if identifiers and country:
         first = identifiers[0]
         method = IdentityMethod.OFFICIAL_IDENTIFIER
         evidence = {
@@ -146,7 +174,7 @@ def official_company_identity(
             "identifier_scheme": _normalized(first.scheme),
             "identifier_value": _normalized(first.value),
         }
-    elif website is not None:
+    elif website is not None and country:
         method = IdentityMethod.OFFICIAL_DOMAIN
         evidence = {
             "country": country or "",

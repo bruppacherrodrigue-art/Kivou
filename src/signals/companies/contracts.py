@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import ipaddress
 from typing import Annotated, Literal
 from urllib.parse import urlsplit
 
@@ -41,12 +42,19 @@ def safe_https_url(value: str | None) -> str | None:
         return None
     parsed = urlsplit(value)
     hostname = parsed.hostname
+    normalized_hostname = (hostname or "").rstrip(".").casefold()
+    try:
+        is_ip_literal = bool(hostname) and ipaddress.ip_address(hostname) is not None
+    except ValueError:
+        is_ip_literal = False
     if (
         parsed.scheme.lower() != "https"
         or not hostname
         or parsed.username is not None
         or parsed.password is not None
-        or hostname.lower() == "localhost"
+        or normalized_hostname == "localhost"
+        or normalized_hostname.endswith((".localhost", ".local", ".internal"))
+        or is_ip_literal
         or "." not in hostname
     ):
         raise ValueError("website_url must be a public HTTPS URL without credentials")

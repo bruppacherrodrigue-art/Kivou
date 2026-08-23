@@ -92,6 +92,21 @@ describe('fiche entreprise officielle', () => {
     expect(screen.queryByRole('link', { name: /site de l’entreprise/ })).not.toBeInTheDocument()
   })
 
+  it('refuse défensivement une adresse IP locale même sous HTTPS', async () => {
+    const unsafe = {
+      ...COMPANY_PROFILE,
+      official_identity: {
+        ...COMPANY_PROFILE.official_identity,
+        website_url: 'https://127.0.0.1/admin',
+      },
+    }
+    mockApi(companyRoutes(unsafe))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
+
+    await screen.findByRole('heading', { name: 'Constructions Bertrand SA' })
+    expect(screen.queryByRole('link', { name: /site de l’entreprise/ })).not.toBeInTheDocument()
+  })
+
   it('rend le même degré de certitude en anglais', async () => {
     const englishSession = {
       status: 'authenticated' as const,

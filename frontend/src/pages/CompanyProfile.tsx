@@ -63,12 +63,18 @@ function safeWebsite(value: string | null): string | null {
   if (!value) return null
   try {
     const parsed = new URL(value)
+    const hostname = parsed.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase()
+    const ipLiteral = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) || hostname.includes(':')
     if (
       parsed.protocol !== 'https:' ||
       parsed.username ||
       parsed.password ||
-      parsed.hostname === 'localhost' ||
-      !parsed.hostname.includes('.')
+      hostname === 'localhost' ||
+      hostname.endsWith('.localhost') ||
+      hostname.endsWith('.local') ||
+      hostname.endsWith('.internal') ||
+      ipLiteral ||
+      !hostname.includes('.')
     ) {
       return null
     }

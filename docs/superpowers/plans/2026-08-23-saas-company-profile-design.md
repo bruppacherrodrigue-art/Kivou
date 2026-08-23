@@ -49,8 +49,11 @@ barrière d'architecture interdira notamment les imports depuis `acquisition`,
 
 La table SaaS `saas_company` contient une clé aléatoire `cmp_…`, une empreinte
 d'identité Kivou et un instantané normalisé des faits officiels nécessaires à
-la fiche. La clé n'est jamais construite par le navigateur et ne contient ni
-nom, ni domaine, ni identifiant officiel.
+l'audit de création. Cet instantané n'est pas l'autorité de la réponse client :
+à chaque lecture, les faits affichés sont reconstruits uniquement depuis un
+avis lié à un signal encore accessible au compte. La clé n'est jamais
+construite par le navigateur et ne contient ni nom, ni domaine, ni identifiant
+officiel.
 
 L'identité est résolue dans cet ordre strict :
 
@@ -87,6 +90,16 @@ est déverrouillé pour ce compte. Les signaux liés suivent exactement les mêm
 règles. Une clé inconnue, une fiche étrangère, une fiche ne portant plus aucun
 signal accessible ou une entreprise seulement liée à des signaux verrouillés
 répondent toutes `404 company_not_found`.
+
+La recherche d'autorisation parcourt les matérialisations courantes du compte
+par lots déterministes. L'identité exacte et `FeedAccess.is_unlocked` sont
+appliqués avant la limite de réponse de 100 signaux. Un signal Discovery ancien
+ne peut donc pas être masqué par des signaux verrouillés plus récents. La mémoire
+reste bornée au lot courant et aux 100 meilleurs résultats selon l'ordre serveur.
+
+L'identité officielle rendue est choisie seulement parmi les résolutions ainsi
+déverrouillées. Deux comptes partageant une empreinte ne partagent jamais les
+champs optionnels d'un avis auquel un seul des deux a accès.
 
 La lecture réutilise la requête de feed actuelle avec `freshness=all`, puis
 applique `FeedAccess.is_unlocked`. Elle ne modifie ni l'ordre du feed, ni les
@@ -151,8 +164,9 @@ La page possède un seul `h1` et quatre sections :
 4. sources et couverture.
 
 Tous les champs absents sont masqués. Une couverture partielle produit un seul
-message compact. Les liens externes sont limités à HTTPS, ouverts dans un
-nouvel onglet et portent `rel="noopener noreferrer"`.
+message compact. Les liens externes sont limités à des domaines publics HTTPS
+(ni IP littérale, ni hôte local), ouverts dans un nouvel onglet et portent
+`rel="noopener noreferrer"`.
 
 Les états prévus sont : chargement, fiche complète, identité officielle
 partielle, fiche inaccessible, session expirée et absence de signal accessible.
@@ -173,6 +187,7 @@ Les tests de migration couvrent l'aller-retour SQLite, la parité avec
 Les tests backend couvrent l'authentification, l'isolation inter-comptes, les
 signaux verrouillés, l'invalidation, les révisions ICP, les déblocages
 Discovery, l'identité exacte, les homonymes, l'idempotence, la migration et
+la séparation des faits officiels entre comptes, le scan avant troncature,
 l'absence de champs internes.
 
 Les tests frontend couvrent le rendu FR/EN, les champs officiels, les champs
