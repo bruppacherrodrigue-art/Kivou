@@ -5,17 +5,22 @@ from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 import sqlalchemy as sa
+from test_campaign_store import _additional_opportunity, _factory_input, _reservation
 from test_conversion_attribution import NOW, create_account, prepared
 from test_learning_metrics import _conversion_event, _provider_event
 
+from signals.campaigns.store import CampaignStore
 from signals.cockpit.contracts import CockpitWeek
 from signals.cockpit.service import WeeklyCommercialCockpitService
+from signals.conversion.source import AttributionSourceResolver
 from signals.persistence.schema import (
     acquisition_campaign,
     acquisition_campaign_member,
+    acquisition_compliance_assessment,
     acquisition_conversion_event,
     acquisition_conversion_journey,
     acquisition_opportunity,
+    acquisition_personalization_artifact,
     acquisition_provider_event,
     acquisition_response_evaluation,
 )
@@ -65,6 +70,72 @@ def _response(*, ref: str, response_ref: str, campaign: dict, member: dict, at: 
         "created_at": at,
         "updated_at": at,
     }
+
+
+def _reserve_members(engine, opportunity_id: str, *, count: int) -> tuple[str, ...]:
+    with engine.connect() as connection:
+        original = connection.execute(sa.select(acquisition_campaign_member)).mappings().one()
+        artifact = connection.execute(
+            sa.select(acquisition_personalization_artifact).where(
+                acquisition_personalization_artifact.c.personalization_artifact_id
+                == original["personalization_artifact_id"]
+            )
+        ).mappings().one()
+        assessment = connection.execute(
+            sa.select(acquisition_compliance_assessment).where(
+                acquisition_compliance_assessment.c.compliance_assessment_id
+                == original["compliance_assessment_id"]
+            )
+        ).mappings().one()
+    refs = [original["member_ref"]]
+    for index in range(1, count):
+        extra_opportunity, evaluation_id = _additional_opportunity(
+            engine, opportunity_id, index
+        )
+        reservation = CampaignStore(engine).reserve_member(
+            _factory_input(),
+            _reservation(
+                extra_opportunity,
+                artifact,
+                assessment,
+                policy_evaluation_id=evaluation_id,
+            ),
+            provider_workspace_ref="workspace:test",
+            desired_provider_config_fingerprint="2" * 64,
+            reserved_at=NOW,
+        )
+        refs.append(reservation.member_ref)
+    return tuple(refs)
+
+
+def _record_step1_sends(
+    engine,
+    member_refs: tuple[str, ...],
+    *,
+    occurred_at: dt.datetime,
+) -> None:
+    with engine.begin() as connection:
+        campaigns = {
+            row["campaign_ref"]: dict(row)
+            for row in connection.execute(sa.select(acquisition_campaign)).mappings()
+        }
+        members = connection.execute(
+            sa.select(acquisition_campaign_member).where(
+                acquisition_campaign_member.c.member_ref.in_(member_refs)
+            )
+        ).mappings()
+        events = [
+            _provider_event(
+                ref=f"{index + 1000:064x}",
+                campaign=campaigns[member["campaign_ref"]],
+                member=dict(member),
+                event_type="email_sent",
+                occurred_at=occurred_at,
+                step=1,
+            )
+            for index, member in enumerate(members)
+        ]
+        connection.execute(sa.insert(acquisition_provider_event), events)
 
 
 def test_weekly_report_uses_one_step1_cohort_and_as_of_authoritative_truth(tmp_path) -> None:
@@ -242,7 +313,252 @@ def test_bounce_proxy_unknown_mrr_and_empty_week_are_truthful(tmp_path) -> None:
     assert empty.analytical_rows == ()
 
 
-def test_m2_efficiency_uses_paid_age_known_mrr_and_excludes_churn(tmp_path) -> None:
+def test_m2_efficiency_keeps_98_nonconverters_in_the_delivered_denominator(
+    tmp_path,
+) -> None:
+    engine, attribution, token, opportunity_id = prepared(tmp_path)
+    member_refs = _reserve_members(engine, opportunity_id, count=100)
+    sent_at = NOW
+    _record_step1_sends(engine, member_refs, occurred_at=sent_at)
+    attribution.record_click(token.raw_token, at=sent_at + dt.timedelta(hours=1))
+
+    with engine.begin() as connection:
+        for suffix, retained, base in (("winner", True, 20), ("paid-only", False, 30)):
+            account_id = create_account(connection, suffix=suffix, now=sent_at)
+            attribution.bind_signup_in_transaction(
+                connection,
+                account_id=account_id,
+                raw_token=token.raw_token,
+                at=sent_at + dt.timedelta(hours=2),
+            )
+            journey = dict(
+                connection.execute(
+                    sa.select(acquisition_conversion_journey).where(
+                        acquisition_conversion_journey.c.account_id == account_id
+                    )
+                ).mappings().one()
+            )
+            events = [
+                _conversion_event(
+                    ref=f"{base:064x}",
+                    milestone="PAID",
+                    journey=journey,
+                    occurred_at=sent_at + dt.timedelta(days=1),
+                ),
+                _conversion_event(
+                    ref=f"{base + 1:064x}",
+                    milestone="MRR_CHANGED",
+                    journey=journey,
+                    occurred_at=sent_at + dt.timedelta(days=1),
+                    mrr=10_000 if retained else 20_000,
+                ),
+            ]
+            if retained:
+                events.append(
+                    _conversion_event(
+                        ref=f"{base + 2:064x}",
+                        milestone="RETAINED_M2",
+                        journey=journey,
+                        occurred_at=sent_at + dt.timedelta(days=60),
+                    )
+                )
+            connection.execute(sa.insert(acquisition_conversion_event), events)
+
+    report = WeeklyCommercialCockpitService(engine).generate(
+        week=_week(dt.datetime(2026, 11, 2, tzinfo=dt.UTC))
+    )
+    chf = next(row for row in report.wedge_m2_efficiency if row.currency == "CHF")
+    assert chf.m2_eligible_delivered_proxy_count == 100
+    assert chf.retained_m2_accounts == 1
+    assert chf.retained_m2_mrr_minor_units == 10_000
+    assert chf.retained_m2_mrr_per_1000_delivered == Decimal("100000.000000")
+
+
+def test_m2_denominator_uses_sent_maturity_not_conversion_and_excludes_bounce(
+    tmp_path,
+) -> None:
+    engine, attribution, _, opportunity_id = prepared(tmp_path)
+    member_refs = _reserve_members(engine, opportunity_id, count=5)
+    week = _week(dt.datetime(2026, 11, 2, tzinfo=dt.UTC))
+    maturity = week.week_end.astimezone(dt.UTC) - dt.timedelta(days=60)
+    with engine.begin() as connection:
+        campaigns = {
+            row["campaign_ref"]: dict(row)
+            for row in connection.execute(sa.select(acquisition_campaign)).mappings()
+        }
+        members = {
+            row["member_ref"]: dict(row)
+            for row in connection.execute(sa.select(acquisition_campaign_member)).mappings()
+        }
+        events = []
+        for index, member_ref in enumerate(member_refs):
+            sent_at = maturity if index < 4 else maturity + dt.timedelta(microseconds=1)
+            member = members[member_ref]
+            events.append(
+                _provider_event(
+                    ref=f"{index + 2000:064x}",
+                    campaign=campaigns[member["campaign_ref"]],
+                    member=member,
+                    event_type="email_sent",
+                    occurred_at=sent_at,
+                    step=1,
+                )
+            )
+        bounced = members[member_refs[3]]
+        events.append(
+            _provider_event(
+                ref=f"{3000:064x}",
+                campaign=campaigns[bounced["campaign_ref"]],
+                member=bounced,
+                event_type="email_bounced",
+                occurred_at=maturity + dt.timedelta(days=1),
+                step=1,
+            )
+        )
+        connection.execute(sa.insert(acquisition_provider_event), events)
+
+    # One mature member signs up without payment.
+    with engine.connect() as connection:
+        signup_payload = AttributionSourceResolver(engine).for_member(
+            connection, member_refs[1]
+        )
+    signup_token = attribution.keyring.issue(signup_payload)
+    attribution.record_click(signup_token.raw_token, at=NOW + dt.timedelta(hours=1))
+    with engine.begin() as connection:
+        signup_account = create_account(connection, suffix="signup-only", now=NOW)
+        attribution.bind_signup_in_transaction(
+            connection,
+            account_id=signup_account,
+            raw_token=signup_token.raw_token,
+            at=NOW + dt.timedelta(hours=2),
+        )
+
+    # Another mature member pays but never reaches RETAINED_M2.
+    with engine.connect() as connection:
+        paid_payload = AttributionSourceResolver(engine).for_member(
+            connection, member_refs[2]
+        )
+    paid_token = attribution.keyring.issue(paid_payload)
+    attribution.record_click(paid_token.raw_token, at=NOW + dt.timedelta(hours=1))
+    with engine.begin() as connection:
+        paid_account = create_account(connection, suffix="paid-not-retained", now=NOW)
+        attribution.bind_signup_in_transaction(
+            connection,
+            account_id=paid_account,
+            raw_token=paid_token.raw_token,
+            at=NOW + dt.timedelta(hours=2),
+        )
+        journey = dict(
+            connection.execute(
+                sa.select(acquisition_conversion_journey).where(
+                    acquisition_conversion_journey.c.account_id == paid_account
+                )
+            ).mappings().one()
+        )
+        connection.execute(
+            sa.insert(acquisition_conversion_event),
+            [
+                _conversion_event(
+                    ref=f"{4000:064x}",
+                    milestone="PAID",
+                    journey=journey,
+                    occurred_at=NOW + dt.timedelta(days=1),
+                ),
+                _conversion_event(
+                    ref=f"{4001:064x}",
+                    milestone="MRR_CHANGED",
+                    journey=journey,
+                    occurred_at=NOW + dt.timedelta(days=1),
+                    mrr=9_900,
+                ),
+            ],
+        )
+
+    report = WeeklyCommercialCockpitService(engine).generate(week=week)
+    by_currency = {row.currency: row for row in report.wedge_m2_efficiency}
+    assert by_currency["CHF"].m2_eligible_delivered_proxy_count == 3
+    assert by_currency["CHF"].retained_m2_accounts == 0
+    assert by_currency["CHF"].retained_m2_mrr_minor_units == 0
+    assert by_currency["CHF"].retained_m2_mrr_per_1000_delivered == Decimal("0.000000")
+
+
+def test_m2_mature_nonconverter_has_zero_ready_currency_buckets(tmp_path) -> None:
+    engine, _, token, _ = prepared(tmp_path)
+    week = _week(dt.datetime(2026, 11, 2, tzinfo=dt.UTC))
+    maturity = week.week_end.astimezone(dt.UTC) - dt.timedelta(days=60)
+    _record_step1_sends(engine, (token.payload.member_ref,), occurred_at=maturity)
+
+    report = WeeklyCommercialCockpitService(engine).generate(week=week)
+
+    assert {row.currency for row in report.wedge_m2_efficiency} == {"CHF", "EUR"}
+    for row in report.wedge_m2_efficiency:
+        assert row.data_status == "READY"
+        assert row.m2_eligible_delivered_proxy_count == 1
+        assert row.retained_m2_accounts == 0
+        assert row.retained_m2_mrr_minor_units == 0
+        assert row.retained_m2_mrr_per_1000_delivered == Decimal("0.000000")
+
+
+def test_m2_forwarded_retained_journeys_share_one_denominator_without_fx(tmp_path) -> None:
+    engine, attribution, token, _ = prepared(tmp_path)
+    week = _week(dt.datetime(2026, 11, 2, tzinfo=dt.UTC))
+    sent_at = week.week_end.astimezone(dt.UTC) - dt.timedelta(days=60)
+    _record_step1_sends(engine, (token.payload.member_ref,), occurred_at=sent_at)
+    attribution.record_click(token.raw_token, at=NOW + dt.timedelta(hours=1))
+    with engine.begin() as connection:
+        for index, (currency, amount) in enumerate((("chf", 10_000), ("eur", 4_000))):
+            account_id = create_account(
+                connection, suffix=f"m2-forwarded-{currency}", now=NOW
+            )
+            attribution.bind_signup_in_transaction(
+                connection,
+                account_id=account_id,
+                raw_token=token.raw_token,
+                at=NOW + dt.timedelta(hours=2),
+            )
+            journey = dict(
+                connection.execute(
+                    sa.select(acquisition_conversion_journey).where(
+                        acquisition_conversion_journey.c.account_id == account_id
+                    )
+                ).mappings().one()
+            )
+            base = 5000 + index * 10
+            events = [
+                _conversion_event(
+                    ref=f"{base:064x}",
+                    milestone="PAID",
+                    journey=journey,
+                    occurred_at=NOW + dt.timedelta(days=1),
+                ),
+                _conversion_event(
+                    ref=f"{base + 1:064x}",
+                    milestone="MRR_CHANGED",
+                    journey=journey,
+                    occurred_at=NOW + dt.timedelta(days=1),
+                    mrr=amount,
+                ),
+                _conversion_event(
+                    ref=f"{base + 2:064x}",
+                    milestone="RETAINED_M2",
+                    journey=journey,
+                    occurred_at=NOW + dt.timedelta(days=60),
+                ),
+            ]
+            events[1]["currency"] = currency
+            connection.execute(sa.insert(acquisition_conversion_event), events)
+
+    report = WeeklyCommercialCockpitService(engine).generate(week=week)
+    by_currency = {row.currency: row for row in report.wedge_m2_efficiency}
+    assert by_currency["CHF"].m2_eligible_delivered_proxy_count == 1
+    assert by_currency["EUR"].m2_eligible_delivered_proxy_count == 1
+    assert by_currency["CHF"].retained_m2_accounts == 1
+    assert by_currency["EUR"].retained_m2_accounts == 1
+    assert by_currency["CHF"].retained_m2_mrr_minor_units == 10_000
+    assert by_currency["EUR"].retained_m2_mrr_minor_units == 4_000
+
+
+def test_m2_efficiency_uses_sent_age_known_mrr_and_excludes_churn(tmp_path) -> None:
     engine, attribution, token, _ = prepared(tmp_path)
     sent_at = NOW + dt.timedelta(hours=1)
     attribution.record_click(token.raw_token, at=sent_at)

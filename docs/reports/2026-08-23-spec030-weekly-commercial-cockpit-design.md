@@ -112,23 +112,34 @@ sector, need, and campaign refs.
 The sole secondary KPI is retained M2 MRR per 1,000 delivered-proxy emails, by wedge
 and currency. It is not derived from replies.
 
-M2 maturity follows SPEC-028 payment-age truth. A journey is M2-eligible only if its
-first authoritative `PAID` occurred at least 60 days before the report cutoff. A member
-enters `m2_eligible_delivered_proxy_count` once when it has at least one such journey
-and was not bounced at Step 1 by the cutoff. This avoids double-counting one contacted
-member while allowing forwarded links to produce multiple retained accounts and MRR.
-`retained_m2_accounts` counts distinct mature journeys with `RETAINED_M2` before the
-cutoff and no `CHURNED` before the cutoff. Their latest known, non-churned MRR supplies
-`retained_m2_mrr_minor_units`.
+The denominator is the unique delivered-proxy Step-1 member cohort mature at M2. A
+member enters `m2_eligible_delivered_proxy_count` exactly once when its earliest
+authoritative Step-1 `email_sent`, normalized to UTC, satisfies
+`sent_at <= cutoff - 60 days`, and no authoritative Step-1 bounce exists before the
+cutoff. Membership depends only on Step-1 transport age and wedge; it is independent
+of signup, activation, payment, MRR, and retention. A mature prospect that never
+converts therefore remains in the denominator with a legitimate zero economic
+contribution.
+
+The numerator uses only SPEC-028 truth. `retained_m2_accounts` counts distinct
+journeys attributed to mature denominator members with `RETAINED_M2` before the cutoff
+and no `CHURNED` before the cutoff. Their latest known, non-churned MRR supplies
+`retained_m2_mrr_minor_units`. Forwarded links may create several eligible retained
+journeys from one delivered member: the denominator still counts that member once,
+while every eligible retained journey contributes to the account count and numerator.
 
 The value is:
 
 `Decimal(retained_m2_mrr_minor_units) * 1000 / m2_eligible_delivered_proxy_count`.
 
-It is emitted separately for CHF and EUR. If no delivered member is mature, MRR is
-unknown, or no single currency-specific value can be proved, the value is `null` and
-`data_status = INSUFFICIENT_M2_EVIDENCE`. A churned journey contributes neither
-retained account nor retained MRR. No FX exists.
+It is emitted separately for CHF and EUR, with no FX. When the mature denominator is
+positive and there are no retained journeys, both currency buckets are `READY` with a
+zero numerator: absence of conversion is evidence, not insufficient data. If no
+delivered member is mature, or an actually `RETAINED_M2` journey has materially
+unknown MRR, the affected result is `null` with
+`data_status = INSUFFICIENT_M2_EVIDENCE`. Unconverted, unpaid, or non-retained members
+do not create unknown-MRR status. A churned journey contributes neither retained
+account nor retained MRR.
 
 ## Data quality
 

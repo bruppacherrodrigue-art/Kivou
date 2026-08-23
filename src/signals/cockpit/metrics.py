@@ -31,6 +31,7 @@ from signals.persistence.schema import (
 UNRESOLVED_SECTOR = "UNRESOLVED"
 _UNKNOWN_SECTOR = "sector-unknown-v1"
 _RATE_QUANTUM = Decimal("0.000001")
+_MRR_CURRENCIES = ("CHF", "EUR")
 
 
 def _utc(value: dt.datetime) -> dt.datetime:
@@ -413,27 +414,38 @@ class RepositoryCockpitMetrics:
                 acquisition_provider_event.c.step == 1,
                 acquisition_provider_event.c.occurred_at < cutoff,
             )
-            .order_by(acquisition_campaign_member.c.member_ref)
+            .order_by(
+                acquisition_campaign_member.c.member_ref,
+                acquisition_provider_event.c.occurred_at,
+            )
         ).mappings()
         member_wedge: dict[str, str] = {}
+        member_sent_at: dict[str, dt.datetime] = {}
         for row in sent_rows:
             member_wedge.setdefault(row["member_ref"], row["wedge"])
+            member_sent_at.setdefault(row["member_ref"], _utc(row["occurred_at"]))
         if not member_wedge:
             return ()
         refs = tuple(sorted(member_wedge))
         bounces = self._bounces(connection, refs, cutoff=cutoff)
-        journeys = self._journeys(connection, refs, cutoff=cutoff)
-        events = self._conversion_events(connection, refs, cutoff=cutoff)
+        maturity = _utc(cutoff) - dt.timedelta(days=60)
+        mature_refs = tuple(
+            ref
+            for ref in refs
+            if member_sent_at[ref] <= maturity and ref not in bounces
+        )
+        journeys = self._journeys(connection, mature_refs, cutoff=cutoff)
+        events = self._conversion_events(connection, mature_refs, cutoff=cutoff)
         by_journey: dict[str, list[sa.RowMapping]] = defaultdict(list)
         for row in events:
             if row["journey_ref"] is not None:
                 by_journey[row["journey_ref"]].append(row)
         eligible_members: dict[str, set[str]] = defaultdict(set)
-        currencies: dict[str, set[str]] = defaultdict(set)
+        for member_ref in mature_refs:
+            eligible_members[member_wedge[member_ref]].add(member_ref)
         retained_accounts: dict[tuple[str, str], int] = defaultdict(int)
         retained_money: dict[tuple[str, str], int] = defaultdict(int)
         incomplete: set[str] = set()
-        maturity = _utc(cutoff) - dt.timedelta(days=60)
         for journey in journeys:
             member_ref = journey["member_ref"]
             wedge = member_wedge[member_ref]
@@ -441,11 +453,9 @@ class RepositoryCockpitMetrics:
                 by_journey.get(journey["journey_ref"], ()),
                 key=lambda event: (_utc(event["occurred_at"]), event["conversion_event_ref"]),
             )
-            paid = [event for event in facts if event["milestone"] == "PAID"]
-            if not paid or min(_utc(event["occurred_at"]) for event in paid) > maturity:
+            milestones = {event["milestone"] for event in facts}
+            if "RETAINED_M2" not in milestones or "CHURNED" in milestones:
                 continue
-            if member_ref not in bounces:
-                eligible_members[wedge].add(member_ref)
             mrr = [event for event in facts if event["milestone"] == "MRR_CHANGED"]
             if not mrr or not mrr[-1]["mrr_known"]:
                 incomplete.add(wedge)
@@ -454,16 +464,13 @@ class RepositoryCockpitMetrics:
             if currency not in {"CHF", "EUR"}:
                 incomplete.add(wedge)
                 continue
-            currencies[wedge].add(currency)
-            milestones = {event["milestone"] for event in facts}
-            if "RETAINED_M2" in milestones and "CHURNED" not in milestones:
-                retained_accounts[(wedge, currency)] += 1
-                retained_money[(wedge, currency)] += int(mrr[-1]["mrr_minor_units"])
+            retained_accounts[(wedge, currency)] += 1
+            retained_money[(wedge, currency)] += int(mrr[-1]["mrr_minor_units"])
         wedges = sorted(set(member_wedge.values()))
         result: list[WedgeM2Efficiency] = []
         for wedge in wedges:
             denominator = len(eligible_members.get(wedge, set()))
-            if denominator == 0 or wedge in incomplete or not currencies.get(wedge):
+            if denominator == 0 or wedge in incomplete:
                 result.append(
                     WedgeM2Efficiency(
                         wedge=wedge,
@@ -476,7 +483,7 @@ class RepositoryCockpitMetrics:
                     )
                 )
                 continue
-            for currency in sorted(currencies[wedge]):
+            for currency in _MRR_CURRENCIES:
                 amount = retained_money[(wedge, currency)]
                 result.append(
                     WedgeM2Efficiency(

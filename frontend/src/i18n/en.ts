@@ -72,7 +72,7 @@ export const en: Dictionary = {
     paid: 'Paying accounts',
     mrr: 'MRR',
     churn: 'Churn',
-    m2Title: 'Retained M2 MRR / 1,000 delivered',
+    m2Title: 'Retained M2 MRR / 1,000 delivered emails (proxy)',
     m2Insufficient: 'Insufficient M2 evidence',
     analyticalTitle: 'Country × sector × need × campaign',
     country: 'Country',

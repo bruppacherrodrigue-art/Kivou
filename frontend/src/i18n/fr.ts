@@ -78,7 +78,7 @@ export const fr = {
     paid: 'Comptes payants',
     mrr: 'MRR',
     churn: 'Churn',
-    m2Title: 'MRR M2 retenu / 1 000 délivrés',
+    m2Title: 'MRR M2 retenu / 1 000 emails délivrés (proxy)',
     m2Insufficient: 'Données M2 insuffisantes',
     analyticalTitle: 'Pays × secteur × besoin × campagne',
     country: 'Pays',

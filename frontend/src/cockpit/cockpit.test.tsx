@@ -107,7 +107,11 @@ describe('cockpit commercial interne', () => {
     expect(screen.getAllByText(/99/).length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText(/^49/).length).toBeGreaterThanOrEqual(1)
     expect(screen.getByText('Donnée incomplète')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'MRR M2 retenu / 1 000 délivrés' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', {
+        name: 'MRR M2 retenu / 1 000 emails délivrés (proxy)',
+      }),
+    ).toBeInTheDocument()
     const table = screen.getByRole('table', { name: 'Pays × secteur × besoin × campagne' })
     expect(within(table).getByText('campaign-ref-safe')).toBeInTheDocument()
     expect(within(table).getByText('workforce_capacity')).toBeInTheDocument()
