@@ -52,6 +52,12 @@ class PasswordResetConfirm(BaseModel):
     new_password: Password
 
 
+class InternalCapabilities(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    commercial_cockpit: bool
+
+
 class MeResponse(BaseModel):
     """Ce que le frontend a besoin de savoir — aucun secret n'y figure."""
 
@@ -61,6 +67,18 @@ class MeResponse(BaseModel):
     account_display_name: str
     locale: str
     onboarding_status: str
+    capabilities: InternalCapabilities
+
+
+def _me_response(user, request: Request) -> MeResponse:
+    return MeResponse(
+        **vars(user),
+        capabilities=InternalCapabilities(
+            commercial_cockpit=(
+                user.account_id in request.app.state.config.cockpit_operator_account_ids
+            )
+        ),
+    )
 
 
 def _set_session_cookie(response: Response, request: Request, session) -> None:
@@ -115,7 +133,7 @@ def signup(payload: SignupRequest, request: Request, response: Response) -> MeRe
     _set_session_cookie(response, request, session)
     if request.cookies.get(ATTRIBUTION_COOKIE_NAME):
         response.delete_cookie(ATTRIBUTION_COOKIE_NAME, path="/auth/signup")
-    return MeResponse(**vars(user))
+    return _me_response(user, request)
 
 
 @router.post("/auth/login")
@@ -137,7 +155,7 @@ def login(payload: LoginRequest, request: Request, response: Response) -> MeResp
         raise api_error(401, error.code, "identifiants invalides") from error
 
     _set_session_cookie(response, request, session)
-    return MeResponse(**vars(user))
+    return _me_response(user, request)
 
 
 @router.post("/auth/logout", status_code=204)
@@ -159,7 +177,7 @@ def me(request: Request) -> MeResponse:
     with request.app.state.engine.connect() as connection:
         session = current_session(request, connection, now)
         user = service.current_user(connection, user_id=session.user_id)
-    return MeResponse(**vars(user))
+    return _me_response(user, request)
 
 
 @router.post("/auth/password-reset/request", status_code=202)

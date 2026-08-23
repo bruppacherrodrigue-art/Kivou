@@ -58,6 +58,8 @@ ERROR_CODES: tuple[str, ...] = (
     "invalid_instantly_event",
     # SPEC-028 — a bad opaque token is indistinguishable from a missing link.
     "attribution_not_found",
+    # SPEC-030 — internal business information is default-denied.
+    "cockpit_forbidden",
 )
 
 

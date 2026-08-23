@@ -25,7 +25,7 @@ import styles from './AppShell.module.css'
  * inexistante la promettrait.
  *
  * Ce qui n'y figure jamais (§14, §40) : Acquisition Engine, Apollo, Instantly,
- * mailboxes, campagnes, séquences, délivrabilité, cockpit MRR interne. Ce sont
+ * mailboxes, campagnes, séquences et délivrabilité. Ce sont
  * les systèmes internes de Kivou, pas des fonctionnalités du produit client.
  */
 
@@ -35,6 +35,12 @@ const NAV_ITEMS = [
   { to: '/app/billing', key: 'billing', Icon: BillingIcon },
   { to: '/app/notifications', key: 'notifications', Icon: BellIcon },
 ] as const
+
+const INTERNAL_NAV_ITEM = {
+  to: '/app/internal/cockpit',
+  key: 'cockpit',
+  Icon: SignalsIcon,
+} as const
 
 export function AppShell() {
   const { t } = useI18n()
@@ -61,11 +67,14 @@ export function AppShell() {
   }, [drawerOpen])
 
   const me = state.status === 'authenticated' ? state.me : null
+  const items = me?.capabilities.commercial_cockpit
+    ? [...NAV_ITEMS, INTERNAL_NAV_ITEM]
+    : NAV_ITEMS
 
   const navigation = (
     <nav className={styles.nav} aria-label={t.nav.mainNavigation}>
       <ul className={styles.navList}>
-        {NAV_ITEMS.map(({ to, key, Icon }) => (
+        {items.map(({ to, key, Icon }) => (
           <li key={to}>
             <NavLink
               to={to}

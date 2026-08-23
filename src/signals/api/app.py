@@ -36,6 +36,8 @@ from signals.api.routes_icp import router as icp_router
 from signals.api.routes_notifications import router as notifications_router
 from signals.api.routes_signals import router as signals_router
 from signals.api.routes_webhooks import router as webhooks_router
+from signals.cockpit.api import router as cockpit_router
+from signals.cockpit.service import WeeklyCommercialCockpitService
 from signals.conversion.milestones import ConversionMilestoneService
 from signals.conversion.service import ConversionAttributionService
 from signals.conversion.token import AttributionTokenKeyring
@@ -58,6 +60,7 @@ def create_app(
     instantly_webhook_service: object | None = None,
     conversion_attribution_service: object | None = None,
     conversion_milestone_service: object | None = None,
+    cockpit_service: object | None = None,
     founding_accounts: frozenset[str] = frozenset(),
 ) -> FastAPI:
     """Construit l'application autour d'un moteur déjà configuré.
@@ -100,6 +103,9 @@ def create_app(
     app.state.conversion_milestone_service = (
         conversion_milestone_service or ConversionMilestoneService(engine)
     )
+    # SPEC-030 is a local read model. Construction performs no query, worker start,
+    # provider I/O, or report persistence.
+    app.state.cockpit_service = cockpit_service or WeeklyCommercialCockpitService(engine)
     # §33 — l'éligibilité fondateur est une liste serveur, jamais une saisie.
     app.state.founding_accounts = frozenset(founding_accounts)
 
@@ -111,6 +117,7 @@ def create_app(
     app.include_router(webhooks_router)
     app.include_router(feedback_router)
     app.include_router(notifications_router)
+    app.include_router(cockpit_router)
 
     @app.exception_handler(ValueError)
     def _value_error(request: Request, error: ValueError) -> JSONResponse:

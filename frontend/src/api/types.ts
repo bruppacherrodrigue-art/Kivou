@@ -113,6 +113,70 @@ export interface Me {
   account_display_name: string
   locale: string
   onboarding_status: OnboardingStatus
+  capabilities: {
+    commercial_cockpit: boolean
+  }
+}
+
+// ─── Cockpit commercial interne (SPEC-030) ──────────────────────────────────
+
+export type CockpitCurrency = 'CHF' | 'EUR'
+
+export interface CockpitMoneyTotal {
+  currency: CockpitCurrency
+  minor_units: number
+}
+
+export interface CockpitFunnel {
+  delivered_proxy_count: number
+  positive_reply_count: number
+  click_count: number
+  activated_account_count: number
+  paid_account_count: number
+  mrr_by_currency: CockpitMoneyTotal[]
+  churn_count: number
+}
+
+export interface CockpitAnalyticalRow extends Omit<CockpitFunnel, 'mrr_by_currency'> {
+  country: 'CH' | 'FR'
+  sector_ref: string
+  need_ref: string
+  campaign_ref: string
+  mrr_by_currency: CockpitMoneyTotal[]
+  positive_reply_rate: string | null
+  click_rate: string | null
+  activation_rate: string | null
+  paid_rate: string | null
+}
+
+export interface CockpitWedgeM2 {
+  wedge: string
+  currency: CockpitCurrency | null
+  m2_eligible_delivered_proxy_count: number
+  retained_m2_accounts: number
+  retained_m2_mrr_minor_units: number | null
+  retained_m2_mrr_per_1000_delivered: string | null
+  data_status: 'READY' | 'INSUFFICIENT_M2_EVIDENCE'
+}
+
+export interface WeeklyCommercialCockpit {
+  report_version: 'weekly-commercial-cockpit-v1'
+  report_ref: string
+  week_start: string
+  week_end: string
+  captured_at: string
+  timezone: 'Europe/Zurich'
+  delivery_semantics: 'PROXY_SENT_MINUS_BOUNCE_V1'
+  funnel: CockpitFunnel
+  analytical_rows: CockpitAnalyticalRow[]
+  wedge_m2_efficiency: CockpitWedgeM2[]
+  data_quality: {
+    delivery_is_proxy: true
+    unresolved_sector_count: number
+    unknown_mrr_journey_count: number
+    m2_insufficient_wedges: string[]
+    captured_at: string
+  }
 }
 
 // ─── Profil de ciblage ───────────────────────────────────────────────────────

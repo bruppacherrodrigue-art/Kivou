@@ -1,0 +1,143 @@
+.page {
+  display: grid;
+  gap: var(--kivou-space-8);
+  max-width: 1440px;
+  min-width: 0;
+  margin: 0 auto;
+  padding: var(--kivou-space-8);
+}
+
+.header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--kivou-space-6);
+}
+
+.header h1,
+.header p,
+.page h2,
+.notes p {
+  margin: 0;
+}
+
+.header p,
+.notes,
+.metric span,
+.m2Card small {
+  color: var(--kivou-text-muted);
+}
+
+.weekField {
+  display: grid;
+  gap: var(--kivou-space-2);
+  min-width: 14rem;
+  font-weight: 600;
+}
+
+.weekField select {
+  min-height: 44px;
+  padding: 0 var(--kivou-space-3);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-md);
+  background: var(--kivou-bg-surface);
+  color: var(--kivou-text-primary);
+}
+
+.funnel {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(8rem, 1fr));
+  gap: var(--kivou-space-3);
+  margin-top: var(--kivou-space-4);
+}
+
+.metric,
+.m2Card {
+  display: grid;
+  gap: var(--kivou-space-2);
+  padding: var(--kivou-space-4);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-lg);
+  background: var(--kivou-bg-surface);
+}
+
+.metric strong {
+  font-size: var(--kivou-text-h2);
+}
+
+.moneyList {
+  display: grid;
+  gap: var(--kivou-space-1);
+}
+
+.m2Grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--kivou-space-3);
+  margin-top: var(--kivou-space-4);
+}
+
+.tableWrap {
+  max-width: 100%;
+  margin-top: var(--kivou-space-4);
+  overflow-x: auto;
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-lg);
+}
+
+.tableWrap table {
+  width: 100%;
+  min-width: 70rem;
+  border-collapse: collapse;
+  background: var(--kivou-bg-surface);
+}
+
+.tableWrap th,
+.tableWrap td {
+  padding: var(--kivou-space-3);
+  border-bottom: 1px solid var(--kivou-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.tableWrap code {
+  overflow-wrap: anywhere;
+}
+
+.state,
+.error,
+.empty {
+  max-width: 48rem;
+  margin: var(--kivou-space-8) auto;
+  padding: var(--kivou-space-6);
+}
+
+.error {
+  border: 1px solid var(--kivou-color-danger);
+  border-radius: var(--kivou-radius-lg);
+}
+
+@media (max-width: 1100px) {
+  .funnel {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: var(--kivou-space-4);
+  }
+
+  .header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .weekField {
+    min-width: 0;
+  }
+
+  .funnel {
+    grid-template-columns: 1fr;
+  }
+}

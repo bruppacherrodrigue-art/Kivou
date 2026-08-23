@@ -21,6 +21,7 @@ import type {
   SignalDetail,
   TargetIcp,
   TargetIcpInput,
+  WeeklyCommercialCockpit,
   Interaction,
   NegativeReason,
   Relevance,
@@ -142,5 +143,14 @@ export const notifications = {
     request<NotificationPreference>('/notification-preferences', {
       method: 'PATCH',
       body: payload,
+    }),
+}
+
+// ─── Cockpit commercial interne ─────────────────────────────────────────────
+
+export const cockpit = {
+  weekly: (weekOffset = 0) =>
+    request<WeeklyCommercialCockpit>('/internal/commercial-cockpit', {
+      query: { week_offset: weekOffset },
     }),
 }

@@ -66,7 +66,7 @@ class AttributionSourceResolver:
             wedge=facts.wedge,
             wedge_version=facts.wedge_version,
             country=facts.country,
-            sector_ref=self._sector_ref(facts.signal_ref),
+            sector_ref=self.sector_ref_for_signal(facts.signal_ref),
             need_ref=facts.need_ref,
             need_version=facts.need_version,
             issued_at=issued_at,
@@ -127,7 +127,8 @@ class AttributionSourceResolver:
             )
         )
 
-    def _sector_ref(self, signal_ref: str) -> str:
+    def sector_ref_for_signal(self, signal_ref: str) -> str:
+        """Return the shared deterministic sector identity used by attribution readers."""
         prefix = "procurement-opportunity:"
         if not signal_ref.startswith(prefix):
             return "sector-unknown-v1"

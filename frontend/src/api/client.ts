@@ -40,6 +40,7 @@ export type ApiErrorCode =
   | 'invalid_feedback'
   | 'signal_not_accessible'
   | 'invalid_notification_email'
+  | 'cockpit_forbidden'
   /** Panne réseau ou réponse illisible : ce code n'existe pas côté serveur. */
   | 'network_error'
   /** Erreur de validation FastAPI (422 pydantic), qui n'a pas de `code`. */
