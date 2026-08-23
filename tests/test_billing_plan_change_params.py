@@ -80,6 +80,7 @@ SUBSCRIPTION = {
 SCHEDULE_ONE_PHASE = {
     "id": "sub_sched_1",
     "livemode": False,
+    "current_phase": {"start_date": PERIOD_START, "end_date": PERIOD_END},
     "phases": [
         {
             "start_date": PERIOD_START,
@@ -94,9 +95,11 @@ SCHEDULE_ONE_PHASE = {
 SCHEDULE_TWO_PHASES = {
     "id": "sub_sched_1",
     "livemode": False,
+    "current_phase": {"start_date": PERIOD_START, "end_date": PERIOD_END},
     "phases": [
         SCHEDULE_ONE_PHASE["phases"][0],
         {
+            "start_date": PERIOD_END,
             "items": [
                 {
                     "price": {
@@ -105,9 +108,18 @@ SCHEDULE_TWO_PHASES = {
                         "currency": "chf",
                     }
                 }
-            ]
+            ],
         },
     ],
+}
+
+#: Le MÊME schedule une fois la bascule faite : la phase Essential est devenue
+#: la phase COURANTE. Plus rien n'est « à venir », et l'annoncer mentirait.
+SCHEDULE_AFTER_SWITCH = {
+    "id": "sub_sched_1",
+    "livemode": False,
+    "current_phase": {"start_date": PERIOD_END, "end_date": PERIOD_END + 2_678_400},
+    "phases": SCHEDULE_TWO_PHASES["phases"],
 }
 
 
@@ -124,8 +136,11 @@ def gateway_recording(*, subscription=None, error=None):
             "update": SCHEDULE_TWO_PHASES,
         }
     )
+    prices = _Recorder({"retrieve": {"id": "price_essential_chf", "recurring": {"interval": "month", "interval_count": 1}}})
     gateway._client = type(
-        "_Client", (), {"subscriptions": subscriptions, "subscription_schedules": schedules}
+        "_Client",
+        (),
+        {"subscriptions": subscriptions, "subscription_schedules": schedules, "prices": prices},
     )()
     return gateway, subscriptions, schedules
 
@@ -225,6 +240,11 @@ def test_a_downgrade_keeps_the_paid_period_then_switches():
     assert phases[0]["end_date"] == PERIOD_END
     assert phases[0]["items"][0]["price"] == "price_scale_chf", "la formule PAYÉE reste"
     assert phases[1]["items"] == [{"price": "price_essential_chf", "quantity": 1}]
+    # `iterations` n'existe plus dans l'API : Stripe rejette la requête. Une
+    # phase finale sans durée ne se termine jamais, donc `release` ne se
+    # déclenche pas. Défaut trouvé en Test Clock, verrouillé ici.
+    assert "iterations" not in phases[1]
+    assert phases[1]["duration"] == {"interval": "month", "interval_count": 1}
 
 
 def test_a_downgrade_releases_the_subscription_after_the_switch():
@@ -309,3 +329,32 @@ def test_the_real_gateway_implements_every_verb_the_protocol_declares():
 
     assert declared, "le protocole doit déclarer au moins un verbe"
     assert missing == []
+
+
+def test_a_schedule_whose_switch_already_happened_announces_nothing():
+    """Après la bascule, la phase n'est plus « à venir » : elle est courante.
+
+    Prendre `phases[1]` sans regarder `current_phase` annonçait encore « vous
+    passerez à Essential le … » longtemps après que c'était fait. Défaut trouvé
+    en Test Clock, verrouillé ici.
+    """
+    gateway, _, schedules = gateway_recording(
+        subscription={**SUBSCRIPTION, "schedule": "sub_sched_1"}
+    )
+    schedules.results["retrieve"] = SCHEDULE_AFTER_SWITCH
+
+    assert gateway.pending_plan_change(subscription_id="sub_1") is None
+
+
+def test_a_schedule_with_a_future_phase_is_announced():
+    """La garde ci-dessus ne doit pas rendre le cas normal muet."""
+    gateway, _, schedules = gateway_recording(
+        subscription={**SUBSCRIPTION, "schedule": "sub_sched_1"}
+    )
+    schedules.results["retrieve"] = SCHEDULE_TWO_PHASES
+
+    pending = gateway.pending_plan_change(subscription_id="sub_1")
+
+    assert pending is not None
+    assert pending.lookup_key == "kivou_essential_monthly_chf"
+    assert pending.effective_at is not None

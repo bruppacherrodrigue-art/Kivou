@@ -296,13 +296,28 @@ _SCHEDULE_EXPAND: list[str] = ["phases.items.price"]
 def _scheduled_change(schedule: Any) -> StripeScheduledChange | None:
     """La phase À VENIR d'un schedule, traduite. `None` s'il n'y en a pas.
 
-    Un schedule dont il ne reste que la phase courante ne programme rien : le
-    présenter comme un changement à venir mentirait à l'écran du client.
+    La phase à venir est celle qui commence APRÈS la phase courante — et non
+    « la deuxième de la liste ». Les phases déjà jouées restent dans l'objet :
+    prendre `phases[1]` annonçait encore « vous passerez à Essential le … »
+    des semaines après que la bascule avait eu lieu. Défaut trouvé en Test
+    Clock, invisible hors ligne.
     """
     phases = _get(schedule, "phases") or []
-    if len(phases) < 2:
+    current = _get(schedule, "current_phase")
+    boundary = _get(current, "end_date") if current is not None else None
+    if not phases or boundary is None:
         return None
-    items = _get(phases[1], "items") or []
+    upcoming = next(
+        (
+            phase
+            for phase in phases
+            if _get(phase, "start_date") is not None and _get(phase, "start_date") >= boundary
+        ),
+        None,
+    )
+    if upcoming is None:
+        return None
+    items = _get(upcoming, "items") or []
     price = _get(items[0], "price") if items else None
     return StripeScheduledChange(
         schedule_id=_get(schedule, "id"),
@@ -310,7 +325,7 @@ def _scheduled_change(schedule: Any) -> StripeScheduledChange | None:
         # plutôt qu'une supposition, et l'appelant refusera par défaut fermé.
         lookup_key=_get(price, "lookup_key") if not isinstance(price, str) else None,
         currency=_get(price, "currency") if not isinstance(price, str) else None,
-        effective_at=_instant(_get(phases[0], "end_date")),
+        effective_at=_instant(boundary),
         livemode=bool(_get(schedule, "livemode", False)),
     )
 
@@ -612,12 +627,33 @@ class StripeApiGateway:
                         "start_date": _get(current, "start_date"),
                         "end_date": _get(current, "end_date"),
                     },
-                    {"items": [{"price": price_id, "quantity": 1}], "iterations": 1},
+                    {
+                        "items": [{"price": price_id, "quantity": 1}],
+                        # `iterations` n'existe plus : l'API attend `duration`.
+                        # Une phase finale SANS durée ne se termine jamais, donc
+                        # `end_behavior=release` ne se déclencherait pas et
+                        # l'abonnement resterait piloté par un schedule fantôme.
+                        "duration": self._billing_duration(price_id),
+                    },
                 ],
                 "expand": _SCHEDULE_EXPAND,
             },
         )
         return _scheduled_change(updated)
+
+    def _billing_duration(self, price_id: str) -> dict[str, Any]:
+        """La durée d'UN cycle du prix visé.
+
+        Lue sur le prix plutôt que codée en dur : le catalogue est mensuel
+        aujourd'hui, et un plan annuel introduit un jour ferait silencieusement
+        durer la phase un mois au lieu d'un an.
+        """
+        price = self._client.prices.retrieve(price_id)
+        recurring = _get(price, "recurring")
+        interval = _get(recurring, "interval")
+        if interval is None:
+            raise StripeGatewayError("prix non récurrent : aucune durée de phase")
+        return {"interval": interval, "interval_count": _get(recurring, "interval_count", 1) or 1}
 
     def pending_plan_change(self, *, subscription_id: str) -> StripeScheduledChange | None:
         """Le changement programmé, s'il y en a un. `None` sinon — jamais une supposition."""
