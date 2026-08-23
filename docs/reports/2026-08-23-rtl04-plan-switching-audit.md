@@ -139,22 +139,37 @@ Livrer un chemin d'écriture Stripe non validé, qui touche à de l'argent réel
 contredit la règle même que cette issue défend : ne rien affirmer qu'on n'a pas vu
 s'exécuter. La partie externe est donc **arrêtée**, pas bâclée.
 
-### 3.3 Ce que #29 exige encore, et dans quel ordre
+### 3.3 Décision prise — `SubscriptionSchedule`, catalogue inchangé
 
-1. **Décision produit** — catalogue à Product unique (le portail suffit alors) **ou**
-   flux serveur `SubscriptionSchedule` (le catalogue reste tel quel). Recommandation :
-   le flux serveur, car restructurer le catalogue touche LIVE et invalide les
-   abonnements existants.
-2. **Implémenter et valider** les transitions en Stripe TEST avec des comptes
-   synthétiques, puis sortir cette PR du mode draft.
+**Statut #29 : décision produit prise. Implémentation bloquée uniquement par l'absence
+d'un accès Stripe TEST en écriture.**
 
-La configuration de portail Kivou dédiée, elle, **n'est plus un reste** : elle existe en
-TEST comme en LIVE, `subscription_update` désactivé (décision P0-03 inchangée), et elle
-est référencée explicitement. Ce point de #29 est **fermé**.
+Le catalogue conserve **un Product par formule** — conforme à la modélisation recommandée
+par Stripe — et le changement différé passe par un **`SubscriptionSchedule` côté serveur**.
+Restructurer le catalogue en un Product unique aurait imposé une migration des
+abonnements **LIVE** : le coût est réel et le bénéfice nul, puisque le flux serveur
+couvre les deux sens.
 
-Aucun `price_id` piloté par le navigateur, aucun second abonnement, aucun élargissement
-d'entitlements n'a été introduit : `POST /billing/checkout` continue de refuser tout
-`price_id` (`extra="forbid"`), et `billing_action` reste la seule autorité frontend.
+Politique cible retenue :
+
+| Transition | Effet |
+| --- | --- |
+| upgrade | immédiat, prorata facturé ; **aucun droit accordé si le paiement échoue** |
+| downgrade | **programmé en fin de période déjà payée** via `SubscriptionSchedule` |
+| résiliation | reste programmée en fin de période (décision P0-03 inchangée) |
+| devise | **conservée** — le serveur résout le Price depuis le plan et la devise du contrat |
+| portail | `subscription_update` reste **désactivé** |
+
+Ce qui reste :
+
+1. **un accès Stripe TEST en écriture** — CLI authentifiée ou clé TEST restreinte dans
+   l'environnement, **jamais dans une conversation** ;
+2. **implémentation** sur une branche dédiée, puis validation **Test Clock** : upgrade,
+   downgrade programmé, webhooks et droits ;
+3. fusion **seulement après** cette validation.
+
+Hors périmètre, explicitement : **aucune modification fiscale, aucune activation
+d'`automatic_tax`** ne doit être mêlée à ce chantier.
 
 ---
 
