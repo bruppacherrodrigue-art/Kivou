@@ -1,7 +1,7 @@
 # RTL-05 — Transactional email runtime design
 
 **Date:** 2026-08-23
-**Status:** approved design; implementation pending
+**Status:** approved design; implementation locally validated
 **Scope:** password-reset messages and account signal alerts requested by SaaS users
 
 ## 1. Outcome

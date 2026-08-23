@@ -1300,7 +1300,7 @@ git commit -m "test(email): prove reset delivery security boundaries"
 - Create: `docs/reports/2026-08-23-rtl-05-transactional-email-runtime.md`
 - Modify: `docs/superpowers/specs/2026-08-23-rtl-05-transactional-email-runtime-design.md`
 
-- [ ] **Step 1: Write the redacted technical report**
+- [x] **Step 1: Write the redacted technical report**
 
 Document:
 
@@ -1321,7 +1321,7 @@ Document:
 
 Do not place the controlled test address in the report.
 
-- [ ] **Step 2: Run migration and targeted integration validation**
+- [x] **Step 2: Run migration and targeted integration validation**
 
 ```bash
 uv run pytest \
@@ -1340,7 +1340,7 @@ uv run pytest \
 
 Record exact counts and duration in the report.
 
-- [ ] **Step 3: Run complete local validation**
+- [x] **Step 3: Run complete local validation**
 
 ```bash
 uv run ruff check .
@@ -1359,7 +1359,7 @@ git status --short
 Also render the migration offline for PostgreSQL through its test and confirm
 the SQLite downgrade/re-upgrade test. No real SMTP endpoint is called.
 
-- [ ] **Step 4: Verify scope and secrets**
+- [x] **Step 4: Verify scope and secrets**
 
 ```bash
 git diff --name-only 2481c6e88cd20ca5a78c7d3a8894bcdfdd0b48e4...HEAD
@@ -1376,7 +1376,7 @@ rg -n 'smtp-secret|reset-secret-never-log' tests
 to a file. Expected: the forbidden-scope file list and real-address scan are
 empty. Test sentinels may appear only inside their explicit secret-leak tests.
 
-- [ ] **Step 5: Update evidence and commit**
+- [x] **Step 5: Update evidence and commit**
 
 Change the design status to `approved design; implementation locally validated`
 only after every required local command succeeds. Commit the report and status:
@@ -1396,7 +1396,7 @@ Do not yet mark RTL-05 staging-validated or operational.
 - Modify if needed after PR creation: `docs/ROAD_TO_LIVE.md` (RTL-05 only)
 - Modify if needed after PR creation: `docs/reports/2026-08-23-rtl-05-transactional-email-runtime.md`
 
-- [ ] **Step 1: Merge current `origin/main` normally**
+- [x] **Step 1: Merge current `origin/main` normally**
 
 ```bash
 git fetch origin
@@ -1407,7 +1407,7 @@ git merge --no-edit origin/main
 Never rebase, reset or force-push. Resolve only genuine conflicts in scoped
 files and preserve unrelated upstream work.
 
-- [ ] **Step 2: Re-run release validation after the merge**
+- [x] **Step 2: Re-run release validation after the merge**
 
 Run Ruff, the full backend suite, frontend typecheck/lint/tests/build,
 `systemd-analyze verify`, `git diff --check` and scope/secret checks again.
