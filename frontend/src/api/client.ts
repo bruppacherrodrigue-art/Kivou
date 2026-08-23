@@ -24,6 +24,7 @@ export type ApiErrorCode =
   | 'csrf_origin_rejected'
   | 'invalid_input'
   | 'signal_not_found'
+  | 'company_not_found'
   | 'billing_unavailable'
   | 'invalid_webhook_signature'
   | 'unknown_plan'

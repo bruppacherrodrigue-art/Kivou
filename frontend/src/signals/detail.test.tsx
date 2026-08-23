@@ -130,6 +130,27 @@ describe('détail d’un signal', () => {
     expect(
       screen.queryByRole('button', { name: 'J’ai contacté cette entreprise' }),
     ).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Voir la fiche entreprise' })).not.toBeInTheDocument()
+  })
+
+  it('navigue vers la fiche avec la seule clé opaque depuis un signal déverrouillé', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      ...detailRoutes(UNLOCKED_DETAIL),
+      'GET /companies/cmp_0123456789abcdefghijklmnop': {
+        status: 404,
+        body: { detail: { code: 'company_not_found', message: 'entreprise introuvable' } },
+      },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_unlocked_1' })
+
+    const link = await screen.findByRole('link', { name: 'Voir la fiche entreprise' })
+    expect(link).toHaveAttribute('href', '/app/companies/cmp_0123456789abcdefghijklmnop')
+    expect(link).not.toHaveAttribute('state')
+    await user.click(link)
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Fiche entreprise inaccessible' }),
+    ).toBeInTheDocument()
   })
 
   it('rend un signal introuvable comme un état produit', async () => {

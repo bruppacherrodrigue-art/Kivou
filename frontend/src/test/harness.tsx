@@ -9,6 +9,7 @@ import { SessionProvider } from '../auth/SessionProvider'
 import type { SessionState } from '../auth/SessionProvider'
 import type {
   BillingStatus,
+  CompanyProfile,
   LockedDetail,
   LockedFeedItem,
   Me,
@@ -245,6 +246,7 @@ export const STALE_ITEM: UnlockedFeedItem = {
 
 export const UNLOCKED_DETAIL: UnlockedDetail = {
   ...UNLOCKED_ITEM,
+  company_key: 'cmp_0123456789abcdefghijklmnop',
   analysis: {
     ...UNLOCKED_ITEM.analysis,
     contract_reading: {
@@ -307,6 +309,52 @@ export const LOCKED_DETAIL: LockedDetail = {
   access: { granted: false, reason: 'plan_entitlement_required', upgrade_to: ['essential', 'pro', 'scale'] },
   read_at: '2026-08-18',
   language: 'fr',
+}
+
+export const COMPANY_PROFILE: CompanyProfile = {
+  company_key: 'cmp_0123456789abcdefghijklmnop',
+  official_identity: {
+    name: 'Constructions Bertrand SA',
+    country: 'FR',
+    address: '12 rue des Ateliers, 31270 Villeneuve',
+    identifiers: [
+      { scheme: 'SIRET', value: '12345678900011' },
+      { scheme: 'TVA', value: 'FR12123456789' },
+    ],
+    website_url: 'https://constructions-bertrand.example/entreprise',
+    observed_at: '2026-08-23T12:00:00Z',
+    source: 'public_notice',
+  },
+  related_signals: [
+    {
+      signal_id: 'sig_unlocked_1',
+      contract_title: 'Réfection de la voirie communale — lot 2',
+      amount: { value: '1240000', currency: 'EUR' },
+      event: {
+        status: 'recent_award',
+        date: '2026-08-04',
+        headline: 'Constructions Bertrand SA vient de remporter un marché public.',
+        why_now: 'La décision est récente : les besoins d’exécution se décident maintenant.',
+        award_date_note: 'La date d’attribution est publiée.',
+      },
+      plausible_needs: [
+        {
+          label: 'Matériaux ou composants',
+          statement: 'Le chantier peut nécessiter un approvisionnement en enrobés.',
+          timing_label: 'Court terme',
+          reasoning: 'Le cahier des charges impose 4 200 m² de reprise de chaussée.',
+        },
+      ],
+      fit: {
+        label: 'Très bon pour votre profil',
+        reasons: ['Besoin visé : Matériaux ou composants', 'Territoire couvert : FR'],
+      },
+    },
+  ],
+  coverage: {
+    related_signals_complete: true,
+    unavailable_fields: [],
+  },
 }
 
 export const CATALOGUE: PlanCatalogue = {

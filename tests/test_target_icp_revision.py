@@ -139,10 +139,16 @@ def test_populated_0016_upgrade_preserves_profiles_signals_grants_and_history(en
     assert current_revision(engine) == "0017_target_icp_revision"
     with engine.connect() as connection:
         stored_target = connection.execute(
-            sa.select(target_icp).where(target_icp.c.target_icp_id == created["target_icp_id"])
+            sa.select(
+                target_icp.c.matching_revision,
+                target_icp.c.plan_limit_code,
+            ).where(target_icp.c.target_icp_id == created["target_icp_id"])
         ).one()
         stored_signal = connection.execute(
-            sa.select(materialized_signal).where(materialized_signal.c.signal_key == signal_key)
+            sa.select(
+                materialized_signal.c.target_icp_revision,
+                materialized_signal.c.invalidated_at,
+            ).where(materialized_signal.c.signal_key == signal_key)
         ).one()
         after = {
             "signals": connection.execute(

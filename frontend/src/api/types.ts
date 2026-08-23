@@ -395,6 +395,7 @@ export interface FeedPage {
 }
 
 export type UnlockedDetail = UnlockedFeedItem & {
+  company_key?: string | null
   evidence: Evidence
   opportunity_id: string
   customer_ready: boolean
@@ -410,6 +411,56 @@ export type LockedDetail = LockedFeedItem & {
 }
 
 export type SignalDetail = UnlockedDetail | LockedDetail
+
+// ─── Fiche entreprise SaaS ──────────────────────────────────────────────────
+
+export interface CompanyOfficialIdentifier {
+  scheme: string
+  value: string
+}
+
+export interface CompanyOfficialIdentity {
+  name: string
+  country: string | null
+  address: string | null
+  identifiers: CompanyOfficialIdentifier[]
+  website_url: string | null
+  observed_at: string
+  source: 'public_notice'
+}
+
+export interface CompanyRelatedSignal {
+  signal_id: string
+  contract_title: string | null
+  amount: Money | null
+  event: {
+    status: EventStatus
+    date: string | null
+    headline: string
+    why_now: string
+    award_date_note: string | null
+  }
+  plausible_needs: {
+    label: string
+    statement: string | null
+    timing_label: string | null
+    reasoning: string | null
+  }[]
+  fit: {
+    label: string
+    reasons: string[]
+  }
+}
+
+export interface CompanyProfile {
+  company_key: string
+  official_identity: CompanyOfficialIdentity
+  related_signals: CompanyRelatedSignal[]
+  coverage: {
+    related_signals_complete: boolean
+    unavailable_fields: string[]
+  }
+}
 
 // ─── Facturation ─────────────────────────────────────────────────────────────
 

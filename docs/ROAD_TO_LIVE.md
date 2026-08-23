@@ -150,6 +150,27 @@ Si le contrat SaaS actuel ne contient pas les champs nécessaires, effectuer d�
 
 **Gate :** depuis un signal, le client accède à une fiche entreprise concrète et peut utiliser au moins une coordonnée réellement vérifiée lorsqu’elle existe, sans confusion sur sa provenance ni fuite de données internes.
 
+**État au 23 août 2026 :**
+
+- **Fiche entreprise officielle : livrée en PR.**
+- **Enrichissement Apollo : différé jusqu’à obtention d’un accord contractuel écrit.**
+
+Apollo ne bloque pas le lancement du SaaS. La fiche officielle apporte déjà
+une valeur concrète à partir des avis publics et des signaux Kivou accessibles ;
+un enrichissement fournisseur pourra devenir une extension séparée après
+validation contractuelle, produit, sécurité, provenance et coût.
+
+**Tranche livrée en PR — fiche officielle :**
+
+- route protégée depuis le détail d’un signal déverrouillé, avec une clé Kivou opaque ;
+- identité, adresse, identifiants, site HTTPS et date d’observation issus de l’avis public lorsqu’ils sont publiés ;
+- signaux liés, besoins plausibles, correspondance ICP et timing limités aux matérialisations courantes encore accessibles au compte ;
+- autorisation réévaluée à chaque lecture selon le compte, le plan, Discovery, la révision ICP et l’invalidation ;
+- aucune intégration Apollo, aucune donnée personnelle et aucune dépendance à l’Acquisition Engine ;
+- coût fournisseur et cache fournisseur nuls pour cette tranche.
+
+Cette tranche livre la surface et le contrat client sûrs. Elle ne transforme pas une coordonnée absente en donnée vérifiée et ne clôt donc pas, à elle seule, les futurs travaux éventuels sur des coordonnées d’organisation autorisées.
+
 ### RTL-07 — Dashboard connecté orienté action
 
 **Priorité : P0-PRODUCT**

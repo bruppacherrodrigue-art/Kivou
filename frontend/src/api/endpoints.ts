@@ -10,6 +10,7 @@ import type { QueryParams } from './client'
 import type {
   BillingStatus,
   CheckoutSession,
+  CompanyProfile,
   Currency,
   FeedPage,
   Freshness,
@@ -90,6 +91,13 @@ export const signals = {
 
   detail: (signalKey: string) =>
     request<SignalDetail>(`/signals/${encodeURIComponent(signalKey)}`),
+}
+
+// ─── Entreprises ─────────────────────────────────────────────────────────────
+
+export const companies = {
+  get: (companyKey: string) =>
+    request<CompanyProfile>(`/companies/${encodeURIComponent(companyKey)}`),
 }
 
 // ─── Retour client ───────────────────────────────────────────────────────────

@@ -251,6 +251,10 @@ materialized_signal = sa.Table(
     sa.Column("winner_country", sa.String(2)),
     sa.Column("winner_identifier_scheme", sa.String(64)),
     sa.Column("winner_identifier_value", sa.String(128), index=True),
+    # Projection SaaS exacte et opaque, calculée depuis l'avis public. Elle
+    # permet de retrouver les signaux d'une entreprise sans parcourir ceux du
+    # compte et ne contient aucun nom, domaine ou identifiant fournisseur.
+    sa.Column("company_identity_fingerprint", sa.String(64), index=True),
     # ── inférences, nommées comme telles ──────────────────────────────────────
     sa.Column("inferred_contract_type", sa.String(64)),
     sa.Column("inferred_sector", sa.String(64)),

@@ -15,6 +15,7 @@ from signals.persistence.schema import (
 
 PREVIOUS = "0020_hermes_learning_loop"
 HEAD = "0021_reliability_operations"
+CURRENT_HEAD = "0022_saas_company_profile"
 TABLES = (acquisition_operational_incident, acquisition_dead_letter)
 
 
@@ -28,11 +29,11 @@ def test_reliability_migration_is_single_linear_head_and_adds_two_tables(tmp_pat
 
     assert set(sa.inspect(engine).get_table_names()) - before == {table.name for table in TABLES}
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
     versions = pathlib.Path(scripts.versions)
     assert (versions / "0021_reliability_operations.py").is_file()
-    assert not any(path.name.startswith("0022") for path in versions.glob("*.py"))
+    assert (versions / "0022_saas_company_profile.py").is_file()
 
 
 def test_reliability_roundtrip_and_core_schema_parity(tmp_path) -> None:

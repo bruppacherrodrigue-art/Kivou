@@ -46,6 +46,7 @@ from signals.billing.access import (
     eligible_upgrade_plans,
     feed_access,
 )
+from signals.companies.service import ensure_company_for_unlocked_signal
 from signals.engagement import analytics, feedback
 from signals.feed import policy, query, view
 from signals.recency import RECENCY_POLICY_VERSION
@@ -231,6 +232,7 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
     as_of = now.date()
     # La consultation est ENREGISTRÉE : d'où une transaction plutôt qu'une
     # simple lecture.
+    company_key = None
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         lang = _language(connection, user_id=session.user_id)
@@ -274,6 +276,12 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
             interaction = feedback.get_feedback(
                 connection, account_id=session.account_id, signal_key=signal_key
             )
+            if unlocked:
+                company_key = ensure_company_for_unlocked_signal(
+                    connection,
+                    item=item,
+                    now=now,
+                )
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
@@ -292,6 +300,8 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
     detail["read_at"] = as_of.isoformat()
     detail["language"] = lang
     detail["locked"] = False
+    if company_key is not None:
+        detail["company_key"] = company_key
     # §8 — l'avis du client vit dans SON bloc. Il n'est ni un fait publié ni une
     # inférence du moteur, et il ne doit contaminer ni `contract`, ni `event`,
     # ni `evidence`, ni `analysis`.
