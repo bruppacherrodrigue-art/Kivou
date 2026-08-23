@@ -150,7 +150,17 @@ Si le contrat SaaS actuel ne contient pas les champs nécessaires, effectuer d�
 
 **Gate :** depuis un signal, le client accède à une fiche entreprise concrète et peut utiliser au moins une coordonnée réellement vérifiée lorsqu’elle existe, sans confusion sur sa provenance ni fuite de données internes.
 
-**Tranche livrée le 23 août 2026 — fiche officielle :**
+**État au 23 août 2026 :**
+
+- **Fiche entreprise officielle : livrée en PR.**
+- **Enrichissement Apollo : différé jusqu’à obtention d’un accord contractuel écrit.**
+
+Apollo ne bloque pas le lancement du SaaS. La fiche officielle apporte déjà
+une valeur concrète à partir des avis publics et des signaux Kivou accessibles ;
+un enrichissement fournisseur pourra devenir une extension séparée après
+validation contractuelle, produit, sécurité, provenance et coût.
+
+**Tranche livrée en PR — fiche officielle :**
 
 - route protégée depuis le détail d’un signal déverrouillé, avec une clé Kivou opaque ;
 - identité, adresse, identifiants, site HTTPS et date d’observation issus de l’avis public lorsqu’ils sont publiés ;
