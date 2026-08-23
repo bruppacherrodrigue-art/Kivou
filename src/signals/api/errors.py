@@ -60,6 +60,8 @@ ERROR_CODES: tuple[str, ...] = (
     "attribution_not_found",
     # SPEC-030 — internal business information is default-denied.
     "cockpit_forbidden",
+    # SPEC-031 — detailed operational state uses the same internal allowlist.
+    "acquisition_ops_forbidden",
 )
 
 

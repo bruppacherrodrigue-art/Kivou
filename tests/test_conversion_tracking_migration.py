@@ -19,7 +19,7 @@ from signals.persistence.schema import (
 )
 
 HEAD = "0019_conversion_tracking"
-CURRENT_HEAD = "0020_hermes_learning_loop"
+CURRENT_HEAD = "0021_reliability_operations"
 SPEC028_TABLES = {
     "acquisition_conversion_journey",
     "acquisition_conversion_event",

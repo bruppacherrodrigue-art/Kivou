@@ -39,6 +39,7 @@ INSTANTLY_WEBHOOK_WORKSPACE_ENV = "KIVOU_INSTANTLY_WORKSPACE_REF"
 ATTRIBUTION_HMAC_KEY_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY"
 ATTRIBUTION_HMAC_KEY_VERSION_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
 COCKPIT_OPERATOR_ACCOUNT_IDS_ENV = "KIVOU_COCKPIT_OPERATOR_ACCOUNT_IDS"
+ACQUISITION_ENVIRONMENT_ENV = "KIVOU_ACQUISITION_ENVIRONMENT"
 
 STRIPE_MODES: tuple[str, ...] = ("test", "live")
 DEFAULT_STRIPE_MODE = "test"
@@ -136,6 +137,10 @@ class ApiConfig:
     # SPEC-030 — empty by default, so no SaaS customer can read the internal cockpit.
     cockpit_operator_account_ids: frozenset[str] = frozenset()
 
+    # SPEC-031 — workers never infer production. The absent default is deliberately
+    # unusable as autonomous-readiness evidence.
+    acquisition_environment: str = "UNCONFIGURED"
+
     @property
     def stripe_livemode(self) -> bool:
         return self.stripe_mode == "live"
@@ -227,6 +232,7 @@ class ApiConfig:
             )
         if attribution_key_raw is not None and len(attribution_key_raw.encode()) < 16:
             raise ValueError(f"{ATTRIBUTION_HMAC_KEY_ENV} est trop courte")
+        acquisition_environment = resolve_acquisition_environment()
         return cls(
             session_ttl=_duration(SESSION_TTL_ENV, DEFAULT_SESSION_TTL),
             password_reset_ttl=_duration(RESET_TTL_ENV, DEFAULT_RESET_TTL),
@@ -262,6 +268,7 @@ class ApiConfig:
             cockpit_operator_account_ids=_account_ref_allowlist(
                 COCKPIT_OPERATOR_ACCOUNT_IDS_ENV
             ),
+            acquisition_environment=acquisition_environment,
         )
 
 
@@ -282,6 +289,16 @@ def _optional_url(name: str) -> str | None:
     if not value.startswith("https://"):
         raise ValueError(f"{name} doit être une URL https absolue, pas {value!r}")
     return value.rstrip("/")
+
+
+def resolve_acquisition_environment() -> str:
+    """Return only an explicit deployment identity; never infer production."""
+    value = (os.environ.get(ACQUISITION_ENVIRONMENT_ENV) or "UNCONFIGURED").upper()
+    if value not in {"UNCONFIGURED", "STAGING", "PRODUCTION"}:
+        raise ValueError(
+            f"{ACQUISITION_ENVIRONMENT_ENV} doit valoir UNCONFIGURED, STAGING ou PRODUCTION"
+        )
+    return value
 
 
 def _flag(name: str) -> bool:

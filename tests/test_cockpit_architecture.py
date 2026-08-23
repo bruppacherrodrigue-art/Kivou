@@ -32,7 +32,7 @@ def test_cockpit_adds_no_truth_table_migration_state_or_duplicate_command() -> N
         "send_weekly_report",
     }.intersection(ALLOWED_COMMANDS)
     assert "acquisition_commercial_cockpit" not in METADATA.tables
-    assert not tuple(migrations.glob("0021*"))
+    assert not tuple(migrations.glob("*cockpit*"))
 
 
 def test_cockpit_package_has_no_network_provider_mutation_or_pii_contract() -> None:

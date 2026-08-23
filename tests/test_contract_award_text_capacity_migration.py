@@ -26,7 +26,8 @@ CAMPAIGN_REVISION = "0016_campaign_factory"
 TARGET_ICP_REVISION = "0017_target_icp_revision"
 RESPONSE_REVISION = "0018_response_intelligence"
 CONVERSION_REVISION = "0019_conversion_tracking"
-CURRENT_HEAD = "0020_hermes_learning_loop"
+LEARNING_REVISION = "0020_hermes_learning_loop"
+CURRENT_HEAD = "0021_reliability_operations"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -110,7 +111,8 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
     assert script.get_revision(TARGET_ICP_REVISION).down_revision == CAMPAIGN_REVISION
     assert script.get_revision(RESPONSE_REVISION).down_revision == TARGET_ICP_REVISION
     assert script.get_revision(CONVERSION_REVISION).down_revision == RESPONSE_REVISION
-    assert script.get_revision(CURRENT_HEAD).down_revision == CONVERSION_REVISION
+    assert script.get_revision(LEARNING_REVISION).down_revision == CONVERSION_REVISION
+    assert script.get_revision(CURRENT_HEAD).down_revision == LEARNING_REVISION
     assert current_revision(engine) == CURRENT_HEAD
 
 
