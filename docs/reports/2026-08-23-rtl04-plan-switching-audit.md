@@ -79,9 +79,16 @@ Aucun produit Turiya actif. **Aucune écriture LIVE n'a été effectuée.**
 | `subscription_update.enabled` | `false` | `false` |
 | `subscription_cancel.mode` | `at_period_end` ✅ | `at_period_end` ✅ |
 
-`STRIPE_PORTAL_CONFIGURATION_ID` est **vide** dans `.env.example` : Kivou n'envoie donc
-aucune `configuration` et retombe sur la configuration **par défaut** — celle que #29
-demande justement de ne plus partager.
+**Le partage avec Turiya est déjà résolu.** La configuration TEST porte
+« Gérer votre abonnement **Kivou** », un retour vers `staging.kivou.eu/app/billing` et les
+CGU `kivou.eu` — plus aucune chaîne Turiya. Elle a été convertie au Dashboard le
+2026-08-21, et `STRIPE_PORTAL_CONFIGURATION_ID` a été posée sur le VPS staging le même
+jour. `.env.example` la déclare vide, ce qui est correct pour un gabarit : aucune valeur
+d'environnement n'a sa place dans le dépôt.
+
+Reste que la configuration est `is_default: true` — Kivou l'utilise donc à la fois
+explicitement et comme défaut de compte. Sans objet Turiya actif, c'est sans conséquence
+aujourd'hui ; cela le redeviendrait si un second projet réutilisait ce compte.
 
 ---
 
@@ -138,12 +145,12 @@ s'exécuter. La partie externe est donc **arrêtée**, pas bâclée.
    flux serveur `SubscriptionSchedule` (le catalogue reste tel quel). Recommandation :
    le flux serveur, car restructurer le catalogue touche LIVE et invalide les
    abonnements existants.
-2. **Créer la configuration de portail Kivou** en TEST puis en LIVE, `subscription_update`
-   laissé **désactivé** (décision P0-03 inchangée), et renseigner
-   `STRIPE_PORTAL_CONFIGURATION_ID` — cela seul règle le partage avec la configuration
-   par défaut, indépendamment du point 1.
-3. **Implémenter et valider** les transitions en Stripe TEST avec des comptes
-   synthétiques, puis rouvrir cette PR.
+2. **Implémenter et valider** les transitions en Stripe TEST avec des comptes
+   synthétiques, puis sortir cette PR du mode draft.
+
+La configuration de portail Kivou dédiée, elle, **n'est plus un reste** : elle existe en
+TEST comme en LIVE, `subscription_update` désactivé (décision P0-03 inchangée), et elle
+est référencée explicitement. Ce point de #29 est **fermé**.
 
 Aucun `price_id` piloté par le navigateur, aucun second abonnement, aucun élargissement
 d'entitlements n'a été introduit : `POST /billing/checkout` continue de refuser tout
