@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — sauvegarde quotidienne
+
+[Timer]
+OnCalendar=*-*-* 03:17:00
+# Une machine éteinte à 03:17 doit tout de même être sauvegardée au réveil :
+# sans ceci, un hôte redémarré chaque nuit ne serait jamais sauvegardé.
+Persistent=true
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

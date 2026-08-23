@@ -19,7 +19,7 @@ import datetime as dt
 
 import sqlalchemy as sa
 
-from signals.billing import discovery, service
+from signals.billing import catalogue, discovery, service
 from signals.billing.catalogue import PlanEntitlements
 from signals.billing.paywall import within_history_window
 from signals.feed.query import FeedSignal
@@ -93,6 +93,39 @@ class FeedAccess:
         return within_history_window(
             item, history_days=self.entitlements.history_days, as_of=self.as_of
         )
+
+    def as_plan(self, plan_code: str) -> FeedAccess:
+        """La MÊME décision, posée avec les droits d'un autre plan.
+
+        Les déblocages déjà acquis et la date de lecture sont conservés : c'est
+        ce qui permet de répondre « et si ce compte payait tel plan ? » sans
+        réécrire une seule règle d'accès.
+        """
+        return dataclasses.replace(
+            self, plan_code=plan_code, entitlements=catalogue.entitlements_for(plan_code)
+        )
+
+
+def eligible_upgrade_plans(item: FeedSignal, *, access: FeedAccess) -> tuple[str, ...]:
+    """Les plans achetables qui ouvriraient RÉELLEMENT ce signal (§27).
+
+    Pourquoi rejouer la décision plutôt que comparer des fenêtres
+    ─────────────────────────────────────────────────────────────
+    On pourrait trier les plans par `history_days` et prendre ceux dont la
+    fenêtre couvre l'âge du signal. Ce serait une SECONDE implémentation de la
+    règle d'accès, et le jour où l'accès dépendrait d'autre chose que de l'âge,
+    elle deviendrait fausse sans que rien n'échoue. Ici, chaque plan candidat
+    passe par `is_unlocked` — la même fonction qui verrouille la carte.
+
+    Un signal déjà ouvert ne rend RIEN : recommander un paiement pour ce qui est
+    déjà accessible — un déblocage Discovery, par exemple — serait vendre du
+    vent, et c'est précisément le piège que §20 interdit.
+    """
+    if access.is_unlocked(item):
+        return ()
+    return tuple(
+        plan for plan in catalogue.PURCHASABLE_PLANS if access.as_plan(plan).is_unlocked(item)
+    )
 
 
 def feed_access(connection: sa.Connection, *, account_id: str, as_of: dt.date) -> FeedAccess:
