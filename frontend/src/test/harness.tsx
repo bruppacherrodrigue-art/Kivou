@@ -117,6 +117,7 @@ export const ME: Me = {
   account_display_name: 'Acme Solutions',
   locale: 'fr',
   onboarding_status: 'ready_for_signals',
+  capabilities: { commercial_cockpit: false },
 }
 
 export const AUTHENTICATED: SessionState = { status: 'authenticated', me: ME }

@@ -77,6 +77,11 @@ def map_proposed_action(action: ProposedAction, **trusted: Any) -> PolicyRequest
             or re.fullmatch(r"[0-9a-f]{64}", str(action.arguments.get("proposal_ref", ""))) is None
         ):
             raise ValueError("reallocate_volume accepts only an opaque proposal_ref")
+    if action.command == "generate_weekly_report":
+        if action.target_ref != "global:commercial-cockpit-v1":
+            raise ValueError("generate_weekly_report requires the frozen global target")
+        if action.arguments:
+            raise ValueError("generate_weekly_report accepts no arguments")
     arguments = json.dumps(action.arguments, allow_nan=False, sort_keys=True, separators=(",", ":"))
     semantic = {
         "command": action.command,

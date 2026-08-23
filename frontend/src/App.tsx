@@ -17,6 +17,7 @@ import { SignalDetail } from './pages/SignalDetail'
 import { Icps } from './pages/Icps'
 import { Billing } from './pages/Billing'
 import { Notifications } from './pages/Notifications'
+import { CommercialCockpit } from './cockpit/CommercialCockpit'
 import { CheckoutCancel, CheckoutSuccess } from './pages/Checkout'
 import { NotFound } from './pages/NotFound'
 
@@ -84,6 +85,7 @@ export function AppRoutes() {
             <Route path="icps" element={<Icps />} />
             <Route path="billing" element={<Billing />} />
             <Route path="notifications" element={<Notifications />} />
+            <Route path="internal/cockpit" element={<CommercialCockpit />} />
           </Route>
 
           <Route path="checkout/success" element={<CheckoutSuccess />} />

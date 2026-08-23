@@ -10,6 +10,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import os
+import re
 
 SESSION_COOKIE_NAME = "kivou_session"
 ATTRIBUTION_COOKIE_NAME = "kivou_attribution"
@@ -37,6 +38,7 @@ INSTANTLY_WEBHOOK_SECRET_ENV = "KIVOU_INSTANTLY_WEBHOOK_SECRET"
 INSTANTLY_WEBHOOK_WORKSPACE_ENV = "KIVOU_INSTANTLY_WORKSPACE_REF"
 ATTRIBUTION_HMAC_KEY_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY"
 ATTRIBUTION_HMAC_KEY_VERSION_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
+COCKPIT_OPERATOR_ACCOUNT_IDS_ENV = "KIVOU_COCKPIT_OPERATOR_ACCOUNT_IDS"
 
 STRIPE_MODES: tuple[str, ...] = ("test", "live")
 DEFAULT_STRIPE_MODE = "test"
@@ -130,6 +132,9 @@ class ApiConfig:
     # never authentication, and is excluded from dataclass repr.
     attribution_hmac_key: bytes | None = dataclasses.field(default=None, repr=False)
     attribution_hmac_key_version: str | None = None
+
+    # SPEC-030 — empty by default, so no SaaS customer can read the internal cockpit.
+    cockpit_operator_account_ids: frozenset[str] = frozenset()
 
     @property
     def stripe_livemode(self) -> bool:
@@ -254,6 +259,9 @@ class ApiConfig:
                 attribution_key_raw.encode("utf-8") if attribution_key_raw else None
             ),
             attribution_hmac_key_version=attribution_key_version,
+            cockpit_operator_account_ids=_account_ref_allowlist(
+                COCKPIT_OPERATOR_ACCOUNT_IDS_ENV
+            ),
         )
 
 
@@ -280,6 +288,20 @@ def _flag(name: str) -> bool:
     """Un drapeau d'environnement. Absent vaut faux : aucun défaut permissif."""
     raw = os.environ.get(name)
     return bool(raw) and raw.lower() in {"1", "true", "yes"}
+
+
+def _account_ref_allowlist(name: str) -> frozenset[str]:
+    raw = os.environ.get(name) or ""
+    values = tuple(value.strip() for value in raw.split(",") if value.strip())
+    if len(values) > 100:
+        raise ValueError(f"{name} contient trop de comptes")
+    invalid = next(
+        (value for value in values if re.fullmatch(r"[A-Za-z0-9:_-]{1,64}", value) is None),
+        None,
+    )
+    if invalid is not None:
+        raise ValueError(f"{name} contient une référence de compte invalide")
+    return frozenset(values)
 
 
 def _check_key_matches_mode(secret_key: str | None, mode: str) -> None:
