@@ -23,6 +23,7 @@ autorisées.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 
@@ -126,18 +127,27 @@ def locked_teaser(item: FeedSignal, *, lang: str) -> dict[str, Any]:
     }
 
 
-def locked_detail(item: FeedSignal, *, lang: str) -> dict[str, Any]:
+def locked_detail(item: FeedSignal, *, lang: str, upgrade_to: Sequence[str]) -> dict[str, Any]:
     """Le détail d'un signal verrouillé : le même aperçu, et rien de plus.
 
     Rendre 404 aurait été plus simple, et faux : le compte POSSÈDE ce signal, il
     ne l'a simplement pas payé. Confondre « pas à vous » et « pas encore
     accessible » empêcherait de dire au client ce qu'il obtiendrait en payant.
+
+    §27 — `upgrade_to` arrive CALCULÉ par l'autorité d'accès
+    ────────────────────────────────────────────────────────
+    Ce module met en forme ; il ne décide pas de l'accès. La liste était
+    autrefois écrite en dur (`essential / pro / scale`), ce qui promettait à un
+    client qu'un plan Essential ouvrirait un signal de 400 jours — il ne
+    l'ouvre pas. La calculer ici demanderait d'y importer les droits et la
+    fenêtre d'historique, c'est-à-dire de dupliquer la règle d'accès dans la
+    couche d'affichage.
     """
     teaser = locked_teaser(item, lang=lang)
     teaser["access"] = {
         "granted": False,
         "reason": "plan_entitlement_required",
-        "upgrade_to": ("essential", "pro", "scale"),
+        "upgrade_to": tuple(upgrade_to),
     }
     return teaser
 
