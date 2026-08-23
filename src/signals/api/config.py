@@ -11,6 +11,7 @@ import dataclasses
 import datetime as dt
 import os
 import re
+from urllib.parse import urlsplit
 
 SESSION_COOKIE_NAME = "kivou_session"
 ATTRIBUTION_COOKIE_NAME = "kivou_attribution"
@@ -33,7 +34,12 @@ SMTP_USERNAME_ENV = "SMTP_USERNAME"
 SMTP_PASSWORD_ENV = "SMTP_PASSWORD"
 SMTP_FROM_EMAIL_ENV = "SMTP_FROM_EMAIL"
 SMTP_FROM_NAME_ENV = "SMTP_FROM_NAME"
-SMTP_USE_TLS_ENV = "SMTP_USE_TLS"
+SMTP_TLS_MODE_ENV = "SMTP_TLS_MODE"
+SMTP_TIMEOUT_ENV = "SMTP_TIMEOUT_SECONDS"
+SMTP_REPLY_TO_ENV = "SMTP_REPLY_TO_EMAIL"
+ALERT_LEASE_SECONDS_ENV = "KIVOU_ALERT_LEASE_SECONDS"
+ALERT_MAX_ATTEMPTS_ENV = "KIVOU_ALERT_MAX_ATTEMPTS"
+ALERT_RETRY_BASE_SECONDS_ENV = "KIVOU_ALERT_RETRY_BASE_SECONDS"
 INSTANTLY_WEBHOOK_SECRET_ENV = "KIVOU_INSTANTLY_WEBHOOK_SECRET"
 INSTANTLY_WEBHOOK_WORKSPACE_ENV = "KIVOU_INSTANTLY_WORKSPACE_REF"
 ATTRIBUTION_HMAC_KEY_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY"
@@ -51,6 +57,10 @@ ALLOWED_ORIGIN_ENV = "KIVOU_ALLOWED_ORIGIN"
 
 DEFAULT_SESSION_TTL = dt.timedelta(days=14)
 DEFAULT_RESET_TTL = dt.timedelta(hours=1)
+DEFAULT_SMTP_TIMEOUT_SECONDS = 30
+DEFAULT_ALERT_LEASE_TTL = dt.timedelta(minutes=30)
+DEFAULT_ALERT_MAX_ATTEMPTS = 5
+DEFAULT_ALERT_RETRY_BASE = dt.timedelta(minutes=15)
 
 
 def _duration(name: str, default: dt.timedelta) -> dt.timedelta:
@@ -104,26 +114,27 @@ class ApiConfig:
     stripe_portal_configuration_id: str | None = None
 
     # ── alertes (SPEC-014) ───────────────────────────────────────────────────
-    #: §22 — la base des liens profonds. `None` fait échouer l'envoi en douceur :
+    #: §22 — l'origine des liens profonds. `None` fait échouer l'envoi en douceur :
     #: les signaux restent en file plutôt que de partir avec un lien cassé.
     #:
-    #: CLOSEOUT §3 — elle DOIT inclure le préfixe du routeur navigateur. Le job
-    #: d'alerte construit `{public_app_url}/signals/{signal_key}` ; la route
-    #: cliente est `/app/signals/{signal_key}`. La base attendue est donc
-    #: `https://<hôte>/app`, et non `https://<hôte>` — sinon le lien reçu par
-    #: e-mail tombe à côté du signal qu'il annonce.
+    #: RTL-05 — elle ne porte AUCUN chemin. Les constructeurs serveur ajoutent
+    #: `/reset-password`, `/app/signals/{signal_key}` ou `/app/notifications`.
     #:
-    #:     KIVOU_PUBLIC_APP_URL=https://kivou.eu/app
-    #:       → https://kivou.eu/app/signals/{signal_key}
+    #:     KIVOU_PUBLIC_APP_URL=https://kivou.eu
     public_app_url: str | None = None
     smtp_host: str | None = None
     smtp_port: int = 587
     smtp_username: str | None = None
     #: Jamais journalisé, jamais rendu, jamais écrit dans le dépôt (§23, §39).
-    smtp_password: str | None = None
+    smtp_password: str | None = dataclasses.field(default=None, repr=False)
     smtp_from_email: str | None = None
     smtp_from_name: str = "Kivou"
-    smtp_use_tls: bool = True
+    smtp_tls_mode: str = "starttls"
+    smtp_timeout_seconds: int = DEFAULT_SMTP_TIMEOUT_SECONDS
+    smtp_reply_to_email: str | None = None
+    alert_lease_ttl: dt.timedelta = DEFAULT_ALERT_LEASE_TTL
+    alert_max_attempts: int = DEFAULT_ALERT_MAX_ATTEMPTS
+    alert_retry_base: dt.timedelta = DEFAULT_ALERT_RETRY_BASE
 
     # SPEC-026 — absent by default: the provider-specific route fails closed.
     instantly_webhook_secret: str | None = None
@@ -151,22 +162,14 @@ class ApiConfig:
         return bool(self.public_app_url and self.smtp_host and self.smtp_from_email)
 
     @property
+    def smtp_use_tls(self) -> bool:
+        """Compatibilité interne jusqu'à la migration de la passerelle SMTP."""
+        return self.smtp_tls_mode == "starttls"
+
+    @property
     def public_site_url(self) -> str | None:
-        """La RACINE du site, d'où pendent les pages hors application.
-
-        `public_app_url` pointe volontairement sur `/app`, le préfixe du routeur
-        navigateur. Mais toutes les routes ne vivent pas dessous : `/login`,
-        `/forgot-password` et surtout `/reset-password` sont servies à la
-        racine. Construire un lien de réinitialisation sur la base des alertes
-        donnerait `…/app/reset-password`, une adresse que le routeur ne connaît
-        pas — le lien reçu par e-mail tomberait sur une page introuvable.
-
-        Le préfixe est retiré plutôt que redemandé dans une seconde variable :
-        deux URL publiques à tenir cohérentes finissent toujours par diverger.
-        """
-        if self.public_app_url is None:
-            return None
-        return self.public_app_url.rstrip("/").removesuffix("/app")
+        """Compatibilité de nom : la valeur est déjà l'origine du site."""
+        return self.public_app_url
 
     @property
     def password_reset_email_configured(self) -> bool:
@@ -196,6 +199,7 @@ class ApiConfig:
     @classmethod
     def from_environment(cls) -> ApiConfig:
         secure = os.environ.get(COOKIE_SECURE_ENV)
+        allowed_origin = os.environ.get(ALLOWED_ORIGIN_ENV) or None
         mode = (os.environ.get(STRIPE_MODE_ENV) or DEFAULT_STRIPE_MODE).lower()
         if mode not in STRIPE_MODES:
             raise ValueError(f"{STRIPE_MODE_ENV} doit valoir {STRIPE_MODES}, pas {mode!r}")
@@ -204,6 +208,8 @@ class ApiConfig:
         success_url = _optional_url(STRIPE_SUCCESS_URL_ENV)
         cancel_url = _optional_url(STRIPE_CANCEL_URL_ENV)
         portal_return_url = _optional_url(STRIPE_PORTAL_RETURN_URL_ENV)
+        public_origin = _public_origin(PUBLIC_APP_URL_ENV, allowed_origin=allowed_origin)
+        smtp = _smtp_environment(public_origin=public_origin)
         # CLOSEOUT §3 — une clé Stripe déclare l'INTENTION d'encaisser. À partir
         # de là, ne pas savoir où renvoyer le client est une erreur de
         # configuration, et elle doit s'entendre au démarrage plutôt qu'au
@@ -237,7 +243,7 @@ class ApiConfig:
             session_ttl=_duration(SESSION_TTL_ENV, DEFAULT_SESSION_TTL),
             password_reset_ttl=_duration(RESET_TTL_ENV, DEFAULT_RESET_TTL),
             cookie_secure=True if secure is None else secure.lower() not in {"0", "false", "no"},
-            allowed_origin=os.environ.get(ALLOWED_ORIGIN_ENV) or None,
+            allowed_origin=allowed_origin,
             stripe_mode=mode,
             stripe_secret_key=secret_key,
             stripe_webhook_secret=os.environ.get(STRIPE_WEBHOOK_SECRET_ENV) or None,
@@ -249,14 +255,38 @@ class ApiConfig:
             stripe_portal_configuration_id=(
                 os.environ.get(STRIPE_PORTAL_CONFIGURATION_ENV) or None
             ),
-            public_app_url=_optional_url(PUBLIC_APP_URL_ENV),
-            smtp_host=os.environ.get(SMTP_HOST_ENV) or None,
-            smtp_port=int(os.environ.get(SMTP_PORT_ENV) or 587),
-            smtp_username=os.environ.get(SMTP_USERNAME_ENV) or None,
-            smtp_password=os.environ.get(SMTP_PASSWORD_ENV) or None,
-            smtp_from_email=os.environ.get(SMTP_FROM_EMAIL_ENV) or None,
-            smtp_from_name=os.environ.get(SMTP_FROM_NAME_ENV) or "Kivou",
-            smtp_use_tls=os.environ.get(SMTP_USE_TLS_ENV, "1").lower() not in {"0", "false", "no"},
+            public_app_url=public_origin,
+            smtp_host=smtp["host"],
+            smtp_port=smtp["port"],
+            smtp_username=smtp["username"],
+            smtp_password=smtp["password"],
+            smtp_from_email=smtp["from_email"],
+            smtp_from_name=smtp["from_name"],
+            smtp_tls_mode=smtp["tls_mode"],
+            smtp_timeout_seconds=smtp["timeout_seconds"],
+            smtp_reply_to_email=smtp["reply_to_email"],
+            alert_lease_ttl=dt.timedelta(
+                seconds=_bounded_integer(
+                    ALERT_LEASE_SECONDS_ENV,
+                    default=int(DEFAULT_ALERT_LEASE_TTL.total_seconds()),
+                    minimum=60,
+                    maximum=3600,
+                )
+            ),
+            alert_max_attempts=_bounded_integer(
+                ALERT_MAX_ATTEMPTS_ENV,
+                default=DEFAULT_ALERT_MAX_ATTEMPTS,
+                minimum=1,
+                maximum=10,
+            ),
+            alert_retry_base=dt.timedelta(
+                seconds=_bounded_integer(
+                    ALERT_RETRY_BASE_SECONDS_ENV,
+                    default=int(DEFAULT_ALERT_RETRY_BASE.total_seconds()),
+                    minimum=60,
+                    maximum=86400,
+                )
+            ),
             instantly_webhook_secret=os.environ.get(INSTANTLY_WEBHOOK_SECRET_ENV) or None,
             instantly_webhook_workspace_ref=(
                 os.environ.get(INSTANTLY_WEBHOOK_WORKSPACE_ENV) or None
@@ -289,6 +319,122 @@ def _optional_url(name: str) -> str | None:
     if not value.startswith("https://"):
         raise ValueError(f"{name} doit être une URL https absolue, pas {value!r}")
     return value.rstrip("/")
+
+
+def _public_origin(name: str, *, allowed_origin: str | None) -> str | None:
+    value = os.environ.get(name)
+    if not value:
+        return None
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme != "https"
+        or not parsed.hostname
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in {"", "/"}
+    ):
+        raise ValueError(f"{name} doit être une origine https absolue sans chemin")
+    normalized = f"https://{parsed.netloc}"
+    if allowed_origin is None or normalized != allowed_origin.rstrip("/"):
+        raise ValueError(f"{name} doit correspondre à l'origine autorisée")
+    return normalized
+
+
+def _bounded_integer(name: str, *, default: int, minimum: int, maximum: int) -> int:
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        value = int(raw)
+    except ValueError as error:
+        raise ValueError(f"{name} doit être un entier") from error
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} doit être compris entre {minimum} et {maximum}")
+    return value
+
+
+def _email_address(name: str) -> str | None:
+    raw = os.environ.get(name)
+    if not raw:
+        return None
+    from pydantic import TypeAdapter, ValidationError
+    from pydantic.networks import EmailStr
+
+    try:
+        return str(TypeAdapter(EmailStr).validate_python(raw))
+    except ValidationError as error:
+        raise ValueError(f"{name} doit être une adresse e-mail valide") from error
+
+
+def _smtp_environment(*, public_origin: str | None) -> dict[str, object]:
+    names = (
+        SMTP_HOST_ENV,
+        SMTP_PORT_ENV,
+        SMTP_USERNAME_ENV,
+        SMTP_PASSWORD_ENV,
+        SMTP_FROM_EMAIL_ENV,
+        SMTP_FROM_NAME_ENV,
+        SMTP_TLS_MODE_ENV,
+        SMTP_TIMEOUT_ENV,
+        SMTP_REPLY_TO_ENV,
+    )
+    configured = any(name in os.environ for name in names)
+    if not configured:
+        return {
+            "host": None,
+            "port": 587,
+            "username": None,
+            "password": None,
+            "from_email": None,
+            "from_name": "Kivou",
+            "tls_mode": "starttls",
+            "timeout_seconds": DEFAULT_SMTP_TIMEOUT_SECONDS,
+            "reply_to_email": None,
+        }
+
+    host = (os.environ.get(SMTP_HOST_ENV) or "").strip() or None
+    from_email_raw = os.environ.get(SMTP_FROM_EMAIL_ENV) or None
+    tls_mode = (os.environ.get(SMTP_TLS_MODE_ENV) or "").strip().lower() or None
+    missing = [
+        name
+        for name, value in (
+            (PUBLIC_APP_URL_ENV, public_origin),
+            (SMTP_HOST_ENV, host),
+            (SMTP_FROM_EMAIL_ENV, from_email_raw),
+            (SMTP_TLS_MODE_ENV, tls_mode),
+        )
+        if value is None
+    ]
+    if missing:
+        raise ValueError(f"configuration SMTP incomplète : {', '.join(missing)}")
+
+    username = os.environ.get(SMTP_USERNAME_ENV) or None
+    password = os.environ.get(SMTP_PASSWORD_ENV) or None
+    if bool(username) != bool(password):
+        raise ValueError(
+            f"{SMTP_USERNAME_ENV} et {SMTP_PASSWORD_ENV} doivent être configurés ensemble"
+        )
+    if tls_mode not in {"starttls", "implicit_tls"}:
+        raise ValueError(f"{SMTP_TLS_MODE_ENV} doit valoir starttls ou implicit_tls")
+
+    return {
+        "host": host,
+        "port": _bounded_integer(SMTP_PORT_ENV, default=587, minimum=1, maximum=65535),
+        "username": username,
+        "password": password,
+        "from_email": _email_address(SMTP_FROM_EMAIL_ENV),
+        "from_name": os.environ.get(SMTP_FROM_NAME_ENV) or "Kivou",
+        "tls_mode": tls_mode,
+        "timeout_seconds": _bounded_integer(
+            SMTP_TIMEOUT_ENV,
+            default=DEFAULT_SMTP_TIMEOUT_SECONDS,
+            minimum=1,
+            maximum=60,
+        ),
+        "reply_to_email": _email_address(SMTP_REPLY_TO_ENV),
+    }
 
 
 def resolve_acquisition_environment() -> str:

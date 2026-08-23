@@ -196,8 +196,9 @@ def test_a_configured_smtp_actually_delivers_the_reset_link(
     from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
 
     monkeypatch.setenv("SMTP_HOST", "smtp.kivou.test")
-    monkeypatch.setenv("SMTP_FROM_EMAIL", "no-reply@kivou.test")
-    monkeypatch.setenv("KIVOU_PUBLIC_APP_URL", "https://staging.kivou.test/app")
+    monkeypatch.setenv("SMTP_FROM_EMAIL", "no-reply@kivou.eu")
+    monkeypatch.setenv("SMTP_TLS_MODE", "starttls")
+    monkeypatch.setenv("KIVOU_PUBLIC_APP_URL", "https://staging.kivou.test")
 
     module = importlib.import_module(MODULE)
     app = module.build_application()
@@ -205,14 +206,13 @@ def test_a_configured_smtp_actually_delivers_the_reset_link(
 
 
 def test_the_reset_link_points_at_the_site_root_not_the_app_prefix():
-    """`public_app_url` pointe sur `/app`, mais `/reset-password` est servie à
-    la RACINE. Un lien construit sur la base des alertes donnerait
-    `…/app/reset-password`, que le routeur ne connaît pas."""
+    """L'origine publique n'inclut aucun chemin et `/reset-password` reste à
+    la racine servie par le routeur navigateur."""
     from signals.accounts.reset_delivery import reset_link
 
     config = ApiConfig(
         allowed_origin="https://staging.kivou.test",
-        public_app_url="https://staging.kivou.test/app",
+        public_app_url="https://staging.kivou.test",
     )
     assert config.public_site_url == "https://staging.kivou.test"
     link = reset_link(config.public_site_url or "", "jeton-abc")

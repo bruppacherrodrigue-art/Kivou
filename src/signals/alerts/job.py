@@ -49,6 +49,7 @@ from signals.feed import policy as feed_policy
 from signals.feed import query as feed_query
 from signals.feed import view as feed_view
 from signals.recency.claim import LANGUAGES
+from signals.transactional_email.links import signal_url
 
 
 @dataclasses.dataclass(frozen=True)
@@ -301,7 +302,7 @@ def _run_for_account(
         lines = [
             content.line_from_card(
                 feed_view.feed_item(item, lang=lang),
-                url=f"{public_app_url.rstrip('/')}/signals/{item.signal.signal_key}",
+                url=signal_url(public_app_url, item.signal.signal_key),
                 lang=lang,
             )
             for item in items

@@ -53,11 +53,9 @@ SIGNAL_SOURCES: tuple[tuple[str, str, int], ...] = (
 #: L'avis SIMAP riche en besoins plausibles — celui qui rend un digest complet.
 RICH_SOURCE_INDEX = 2
 
-#: CLOSEOUT §3 — la base des liens profonds inclut le préfixe `/app` du routeur
-#: navigateur : le job d'alerte construit `{base}/signals/{clé}`, et la route
-#: cliente est `/app/signals/{clé}`. Une base sans `/app` produirait un lien qui
-#: tombe sur la route publique et non sur le signal. Domaine synthétique.
-PUBLIC_APP_URL = "https://kivou.test/app"
+#: RTL-05 — la configuration est une origine, sans chemin. Le constructeur
+#: serveur ajoute la route protégée `/app/signals/{clé}`.
+PUBLIC_APP_URL = "https://kivou.test"
 
 
 class Clock:

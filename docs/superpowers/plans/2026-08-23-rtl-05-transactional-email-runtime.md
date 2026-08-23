@@ -68,7 +68,7 @@ tests remain regression gates.
 - Modify: `.env.example`
 - Modify: `tests/engagement_helpers.py`
 
-- [ ] **Step 1: Write failing public-origin and link tests**
+- [x] **Step 1: Write failing public-origin and link tests**
 
 Add tests that pin an origin-only contract and never use request data:
 
@@ -79,13 +79,13 @@ def configure_complete_smtp(monkeypatch) -> None:
         "KIVOU_PUBLIC_APP_URL": "https://staging.kivou.test",
         "SMTP_HOST": "smtp.kivou.test",
         "SMTP_PORT": "587",
-        "SMTP_USERNAME": "sender@kivou.test",
+        "SMTP_USERNAME": "sender@kivou.eu",
         "SMTP_PASSWORD": "smtp-secret",
-        "SMTP_FROM_EMAIL": "no-reply@kivou.test",
+        "SMTP_FROM_EMAIL": "no-reply@kivou.eu",
         "SMTP_FROM_NAME": "Kivou",
         "SMTP_TLS_MODE": "starttls",
         "SMTP_TIMEOUT_SECONDS": "12",
-        "SMTP_REPLY_TO_EMAIL": "support@kivou.test",
+        "SMTP_REPLY_TO_EMAIL": "support@kivou.eu",
     }
     for name, value in values.items():
         monkeypatch.setenv(name, value)
@@ -126,7 +126,7 @@ def test_transactional_links_add_their_own_routes():
     assert preferences_url(origin) == "https://staging.kivou.eu/app/notifications"
 ```
 
-- [ ] **Step 2: Run the link tests and verify RED**
+- [x] **Step 2: Run the link tests and verify RED**
 
 Run:
 
@@ -137,7 +137,7 @@ uv run pytest tests/test_transactional_email_config.py -q
 Expected: failures because the shared link module and strict validation do not
 exist and the current configuration accepts an `/app` path.
 
-- [ ] **Step 3: Implement the shared link boundary and origin normalization**
+- [x] **Step 3: Implement the shared link boundary and origin normalization**
 
 Create a link module with this closed interface:
 
@@ -180,7 +180,7 @@ Wire the helper from `ApiConfig.from_environment()` after parsing
 but change its documented meaning to the normalized origin. Make
 `public_site_url` a compatibility property returning that same origin.
 
-- [ ] **Step 4: Write failing SMTP-contract tests**
+- [x] **Step 4: Write failing SMTP-contract tests**
 
 Cover complete, absent and partial configuration, credential pairing, timeout,
 port, TLS mode, sender validation and secret-safe representation:
@@ -191,7 +191,7 @@ def test_complete_smtp_configuration(monkeypatch):
     config = ApiConfig.from_environment()
     assert config.smtp_tls_mode == "starttls"
     assert config.smtp_timeout_seconds == 12
-    assert config.smtp_reply_to_email == "support@kivou.test"
+    assert config.smtp_reply_to_email == "support@kivou.eu"
     assert "smtp-secret" not in repr(config)
 
 
@@ -218,11 +218,11 @@ def test_deployed_smtp_has_no_unencrypted_mode(monkeypatch, mode):
         ApiConfig.from_environment()
 ```
 
-- [ ] **Step 5: Run the SMTP configuration tests and verify RED**
+- [x] **Step 5: Run the SMTP configuration tests and verify RED**
 
 Run the same test file. Expected: missing fields and validators.
 
-- [ ] **Step 6: Implement the exact environment contract**
+- [x] **Step 6: Implement the exact environment contract**
 
 Replace `SMTP_USE_TLS` with:
 
@@ -252,7 +252,7 @@ port `1..65535`, timeout `1..60`, lease `60..3600`, attempts `1..10`, retry base
 pair. If every SMTP variable is absent, leave delivery disabled. If any SMTP
 variable is present, require the complete contract including the public origin.
 
-- [ ] **Step 7: Update `.env.example` and the shared test origin**
+- [x] **Step 7: Update `.env.example` and the shared test origin**
 
 Document non-secret examples only:
 
@@ -276,7 +276,7 @@ Change `tests/engagement_helpers.py::PUBLIC_APP_URL` to
 `https://kivou.test`; link tests must expect `/app/signals/{signal_key}` from
 the builder.
 
-- [ ] **Step 8: Run focused tests and commit**
+- [x] **Step 8: Run focused tests and commit**
 
 ```bash
 uv run pytest tests/test_transactional_email_config.py tests/test_api_runtime.py -q
@@ -1114,7 +1114,7 @@ def configured_runtime(monkeypatch, migrated_url) -> None:
         "KIVOU_PUBLIC_APP_URL": "https://staging.kivou.test",
         "SMTP_HOST": "smtp.kivou.test",
         "SMTP_PORT": "587",
-        "SMTP_FROM_EMAIL": "no-reply@kivou.test",
+        "SMTP_FROM_EMAIL": "no-reply@kivou.eu",
         "SMTP_TLS_MODE": "starttls",
     }
     for name, value in values.items():
