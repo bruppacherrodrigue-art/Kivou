@@ -66,6 +66,11 @@ export const fr = {
 
   dashboard: {
     title: 'Tableau de bord',
+    lead: 'Vos prochaines décisions commerciales, à partir des données de votre compte.',
+    opportunities: 'Prochaines occasions à examiner',
+    icps: 'Ciblages actifs',
+    billing: 'Formule et accès',
+    alerts: 'Alertes',
   },
 
   cockpit: {

@@ -60,6 +60,11 @@ export const en: Dictionary = {
 
   dashboard: {
     title: 'Dashboard',
+    lead: 'Your next commercial decisions, based on your account data.',
+    opportunities: 'Next opportunities to review',
+    icps: 'Active targeting profiles',
+    billing: 'Plan and access',
+    alerts: 'Alerts',
   },
 
   cockpit: {
