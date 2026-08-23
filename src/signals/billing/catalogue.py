@@ -182,6 +182,21 @@ LOOKUP_KEYS: dict[str, dict[str, str]] = {
     for plan in PURCHASABLE_PLANS
 }
 
+#: L'ordre commercial des formules payantes, du plus petit au plus grand. Il
+#: décide du SENS d'un changement — donc de son effet : monter est immédiat,
+#: descendre attend la fin de la période déjà payée. Comparer `history_days`
+#: aurait marché aujourd'hui et cassé le jour où deux plans partageraient une
+#: fenêtre en se distinguant autrement.
+PLAN_ORDER: tuple[str, ...] = ("essential", "pro", "scale")
+
+
+def plan_rank(plan_code: str) -> int:
+    """La position d'une formule payante dans l'échelle. Refuse le reste."""
+    if plan_code not in PLAN_ORDER:
+        raise UnknownPlan(f"formule non ordonnable : {plan_code!r} (attendu {PLAN_ORDER})")
+    return PLAN_ORDER.index(plan_code)
+
+
 PRODUCT_NAMES: dict[str, str] = {
     "essential": "Kivou Essential",
     "pro": "Kivou Pro",
