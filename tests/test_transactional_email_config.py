@@ -200,6 +200,13 @@ def test_smtp_refuses_an_unencrypted_or_implicit_mode_name(
         ApiConfig.from_environment()
 
 
+def test_smtp_accepts_explicit_implicit_tls(monkeypatch: pytest.MonkeyPatch) -> None:
+    configure_complete_smtp(monkeypatch)
+    monkeypatch.setenv("SMTP_TLS_MODE", "implicit_tls")
+
+    assert ApiConfig.from_environment().smtp_tls_mode == "implicit_tls"
+
+
 @pytest.mark.parametrize("timeout", ["0", "0.5", "61", "not-a-number"])
 def test_smtp_timeout_is_bounded(
     monkeypatch: pytest.MonkeyPatch, timeout: str

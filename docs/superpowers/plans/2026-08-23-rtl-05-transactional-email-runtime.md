@@ -300,7 +300,7 @@ Expected: all focused tests pass; no secret value appears in the diff.
 - Create: `tests/test_smtp_gateway.py`
 - Modify: `tests/test_api_runtime.py`
 
-- [ ] **Step 1: Add local-only SMTP test dependencies**
+- [x] **Step 1: Add local-only SMTP test dependencies**
 
 Run:
 
@@ -310,7 +310,7 @@ uv add --dev "aiosmtpd>=1.4.6" "trustme>=1.2"
 
 These packages are test-only. No production mail provider SDK is added.
 
-- [ ] **Step 2: Write RED tests for STARTTLS, implicit TLS and headers**
+- [x] **Step 2: Write RED tests for STARTTLS, implicit TLS and headers**
 
 Build a loopback fixture using `aiosmtpd.controller.Controller` and a
 `trustme` CA. It must bind only to `127.0.0.1`, capture bytes in memory, and
@@ -446,7 +446,7 @@ def test_implicit_tls_uses_smtp_ssl(monkeypatch):
     assert RecordingSmtpSsl.calls == [("smtp.kivou.test", 465, 3.0)]
 ```
 
-- [ ] **Step 3: Write RED classification and privacy tests**
+- [x] **Step 3: Write RED classification and privacy tests**
 
 ```python
 @pytest.mark.parametrize("code,retryable", [(451, True), (550, False)])
@@ -477,7 +477,7 @@ def test_smtp_configuration_repr_never_contains_the_password():
     assert "smtp-secret-never-log" not in repr(configured)
 ```
 
-- [ ] **Step 4: Run gateway tests and verify RED**
+- [x] **Step 4: Run gateway tests and verify RED**
 
 ```bash
 uv run pytest tests/test_smtp_gateway.py -q
@@ -486,7 +486,7 @@ uv run pytest tests/test_smtp_gateway.py -q
 Expected: failures for the new constructor, TLS modes, timeout and error
 classification.
 
-- [ ] **Step 5: Implement the minimal hardened gateway**
+- [x] **Step 5: Implement the minimal hardened gateway**
 
 Change the transport configuration to:
 
@@ -513,7 +513,7 @@ Open `smtplib.SMTP_SSL` for implicit TLS and `smtplib.SMTP` followed by
 Set `Reply-To` only when configured and preserve `Auto-Submitted` and the
 deterministic `Message-ID`.
 
-- [ ] **Step 6: Wire reset delivery to the validated configuration**
+- [x] **Step 6: Wire reset delivery to the validated configuration**
 
 Update `src/signals/api/asgi.py::_password_reset_delivery` to pass TLS mode,
 timeout and Reply-To. Replace reset URL construction in
@@ -521,7 +521,7 @@ timeout and Reply-To. Replace reset URL construction in
 Keep `deliver()` exception-neutral so known and unknown accounts remain
 indistinguishable.
 
-- [ ] **Step 7: Run focused tests and commit**
+- [x] **Step 7: Run focused tests and commit**
 
 ```bash
 uv run pytest tests/test_smtp_gateway.py tests/test_api_runtime.py tests/test_accounts_security.py -q
