@@ -119,7 +119,13 @@ def _authorised_price(gateway: StripeGateway, *, plan_code: str, currency: str) 
 
 
 def _idempotency_key(
-    kind: str, *, account_id: str, source: str, target: str, currency: str, sequence: int
+    kind: str,
+    *,
+    subscription_id: str,
+    source: str,
+    target: str,
+    currency: str,
+    sequence: int,
 ) -> str:
     """L'identité d'UNE opération de changement de formule.
 
@@ -140,8 +146,15 @@ def _idempotency_key(
     laisse donc le compteur inchangé, et la tentative suivante retrouve
     exactement la même clé — c'est là, et là seulement, que l'idempotence de
     Stripe est la dernière défense.
+
+    La clé porte l'ABONNEMENT et non le compte : `synchronize_subscription`
+    supprime la ligne d'un abonnement terminé et en insère une neuve, ce qui
+    remet le compteur à zéro. Un compte qui résilie, se réabonne et redemande
+    la même transition dans les 24 h retomberait sinon sur la clé de son
+    abonnement précédent — et rien ne serait programmé sur le nouveau. Un
+    identifiant d'abonnement Stripe, lui, n'est jamais réattribué.
     """
-    return f"kivou-plan-{kind}:{account_id}:{sequence}:{source}->{target}:{currency}"
+    return f"kivou-plan-{kind}:{subscription_id}:{sequence}:{source}->{target}:{currency}"
 
 
 def _record_scheduled(
@@ -224,7 +237,7 @@ def request_plan_change(
             price_id=price_id,
             idempotency_key=_idempotency_key(
                 "change",
-                account_id=account_id,
+                subscription_id=subscription.stripe_subscription_id,
                 source=current_plan,
                 target=target_plan,
                 currency=currency,
@@ -250,7 +263,7 @@ def request_plan_change(
         price_id=price_id,
         idempotency_key=_idempotency_key(
             "schedule",
-            account_id=account_id,
+            subscription_id=subscription.stripe_subscription_id,
             source=current_plan,
             target=target_plan,
             currency=currency,

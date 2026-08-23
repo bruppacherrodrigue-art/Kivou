@@ -553,3 +553,57 @@ def test_the_switch_webhook_clears_the_persisted_state(client, engine, stripe: F
     body = client.get("/billing/status").json()
     assert body["plan_code"] == "essential", "la formule programmée est devenue la formule payée"
     assert body["scheduled_plan_change"] is None, "plus rien à annoncer"
+
+
+def test_a_replacement_subscription_never_reuses_a_key(client, engine, stripe: FakeStripe):
+    """Un abonnement remplacé remet le compteur à zéro — pas la clé.
+
+    `synchronize_subscription` SUPPRIME la ligne d'un abonnement terminé et en
+    insère une neuve : `plan_change_sequence` repart donc à 0. Sans autre
+    discriminant, un compte qui résilie puis se réabonne et redemande la même
+    transition dans les 24 h retomberait sur la clé de son abonnement
+    précédent. Stripe rendrait la réponse en cache, et rien ne serait programmé
+    sur le nouvel abonnement.
+    """
+    account_id = paying(engine, client, stripe, plan="scale")
+    assert change_to(client, "essential").status_code == 200
+
+    # L'abonnement est résilié, puis un NOUVEL abonnement prend la place.
+    remplacant = "sub_test_0002"
+    stripe.put_subscription(
+        subscription_state(
+            subscription_id=remplacant,
+            customer_id=CUSTOMER_ID,
+            account_id=account_id,
+            plan="scale",
+            currency="chf",
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+        )
+    )
+    with engine.begin() as connection:
+        subscribe(
+            connection,
+            account_id=account_id,
+            plan="scale",
+            status="canceled",
+            subscription_id=SUBSCRIPTION_ID,
+            customer_id=CUSTOMER_ID,
+            now=NOW,
+        )
+        subscribe(
+            connection,
+            account_id=account_id,
+            plan="scale",
+            subscription_id=remplacant,
+            customer_id=CUSTOMER_ID,
+            period_start=PERIOD_START,
+            period_end=PERIOD_END,
+            now=NOW,
+        )
+
+    assert change_to(client, "essential").status_code == 200
+
+    keys = [call["idempotency_key"] for call in stripe.schedule_calls]
+    assert len(keys) == 2, f"deux programmations attendues, vu {keys}"
+    assert len(set(keys)) == 2, f"collision entre deux abonnements distincts : {keys}"
