@@ -1412,13 +1412,13 @@ files and preserve unrelated upstream work.
 Run Ruff, the full backend suite, frontend typecheck/lint/tests/build,
 `systemd-analyze verify`, `git diff --check` and scope/secret checks again.
 
-- [ ] **Step 3: Push the fully validated implementation branch**
+- [x] **Step 3: Push the fully validated implementation branch**
 
 ```bash
 git push origin feat/operational-transactional-email-runtime
 ```
 
-- [ ] **Step 4: Open the draft PR only now**
+- [x] **Step 4: Open the draft PR only now**
 
 ```bash
 gh pr create --draft \
@@ -1433,7 +1433,7 @@ ambiguity, provider/cache-free cost posture, privacy boundaries, test evidence,
 staging/DNS gates and confirms no production action. The temporary body must not
 contain the controlled address or secrets.
 
-- [ ] **Step 5: Mark RTL-05 delivered in the draft PR**
+- [x] **Step 5: Mark RTL-05 delivered in the draft PR**
 
 After GitHub returns the PR number, update only RTL-05 in
 `docs/ROAD_TO_LIVE.md` to **livré en PR**, add the PR reference to the report,

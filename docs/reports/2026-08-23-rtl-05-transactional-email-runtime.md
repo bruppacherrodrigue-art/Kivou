@@ -3,6 +3,7 @@
 **État :** implémentation validée localement ; livrée en PR brouillon
 **Branche :** `feat/operational-transactional-email-runtime`
 **SHA de départ :** `2481c6e88cd20ca5a78c7d3a8894bcdfdd0b48e4`
+**PR brouillon :** [#61](https://github.com/bruppacherrodrigue-art/Kivou/pull/61)
 **Envoi externe effectué :** aucun
 **Action production ou DNS effectuée :** aucune
 
