@@ -136,7 +136,14 @@ def gateway_recording(*, subscription=None, error=None):
             "update": SCHEDULE_TWO_PHASES,
         }
     )
-    prices = _Recorder({"retrieve": {"id": "price_essential_chf", "recurring": {"interval": "month", "interval_count": 1}}})
+    prices = _Recorder(
+        {
+            "retrieve": {
+                "id": "price_essential_chf",
+                "recurring": {"interval": "month", "interval_count": 1},
+            }
+        }
+    )
     gateway._client = type(
         "_Client",
         (),
@@ -245,6 +252,25 @@ def test_a_downgrade_keeps_the_paid_period_then_switches():
     # déclenche pas. Défaut trouvé en Test Clock, verrouillé ici.
     assert "iterations" not in phases[1]
     assert phases[1]["duration"] == {"interval": "month", "interval_count": 1}
+
+
+def test_the_phase_update_carries_its_own_derived_idempotency_key():
+    """Sans clé sur l'`update`, l'idempotence ne protégeait que la 1re fois.
+
+    Dès qu'un schedule existe, c'est `update` qui agit. Et la clé doit être
+    DÉRIVÉE : Stripe scope l'idempotence au compte, donc réutiliser telle
+    quelle celle du `create` ferait rendre à l'`update` la réponse du `create`.
+    """
+    gateway, _, schedules = gateway_recording()
+
+    gateway.schedule_subscription_price(
+        subscription_id="sub_1", price_id="price_essential_chf", idempotency_key="k-op"
+    )
+
+    calls = {c["verb"]: c for c in schedules.calls}
+    assert calls["create"]["options"] == {"idempotency_key": "k-op"}
+    assert calls["update"]["options"] == {"idempotency_key": "k-op:phases"}
+    assert calls["create"]["options"] != calls["update"]["options"]
 
 
 def test_a_downgrade_releases_the_subscription_after_the_switch():

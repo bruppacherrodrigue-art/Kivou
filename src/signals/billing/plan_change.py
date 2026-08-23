@@ -32,6 +32,7 @@ import sqlalchemy as sa
 
 from signals.billing import catalogue, service
 from signals.billing.gateway import PlanChangePaymentFailed, StripeGateway
+from signals.billing.schema import billing_subscription
 
 #: Ce que le serveur rend au client, et rien de plus : aucun identifiant Stripe.
 EFFECT_IMMEDIATE = "immediate"
@@ -117,6 +118,74 @@ def _authorised_price(gateway: StripeGateway, *, plan_code: str, currency: str) 
     return price.price_id
 
 
+def _idempotency_key(
+    kind: str, *, account_id: str, source: str, target: str, currency: str, sequence: int
+) -> str:
+    """L'identité d'UNE opération de changement de formule.
+
+    Deux exigences que le seul couple (départ, cible) ne peut pas tenir
+    ensemble :
+
+    - **stable** pour une nouvelle tentative de la même action — sinon un
+      double-clic, un rechargement ou une reprise après plantage facturerait
+      deux prorata ;
+    - **différente** pour deux changements volontairement distincts — sinon
+      Scale→Pro, puis Scale→Essential, puis Scale→Pro à nouveau réutiliserait
+      la clé de la première opération. Stripe rendrait sa réponse en cache
+      pendant 24 h, et le client resterait sur une formule dont il ne veut
+      plus, **sans aucune erreur pour le signaler**.
+
+    Le compteur tranche : il n'est incrémenté qu'APRÈS une opération réussie,
+    dans la même transaction que l'état programmé. Une transaction annulée
+    laisse donc le compteur inchangé, et la tentative suivante retrouve
+    exactement la même clé — c'est là, et là seulement, que l'idempotence de
+    Stripe est la dernière défense.
+    """
+    return f"kivou-plan-{kind}:{account_id}:{sequence}:{source}->{target}:{currency}"
+
+
+def _record_scheduled(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    plan_code: str,
+    effective_at: dt.datetime | None,
+    schedule_id: str | None,
+    now: dt.datetime,
+) -> None:
+    """Écrit l'état programmé APRÈS confirmation du schedule par Stripe."""
+    connection.execute(
+        sa.update(billing_subscription)
+        .where(billing_subscription.c.account_id == account_id)
+        .values(
+            scheduled_plan_code=plan_code,
+            scheduled_plan_change_at=effective_at,
+            stripe_schedule_id=schedule_id,
+            plan_change_sequence=billing_subscription.c.plan_change_sequence + 1,
+            updated_at=now,
+        )
+    )
+
+
+def _clear_scheduled(
+    connection: sa.Connection, *, account_id: str, now: dt.datetime, advance: bool
+) -> None:
+    """Efface l'annonce. `advance` numérote l'opération quand il y en a une."""
+    values: dict[str, object] = {
+        "scheduled_plan_code": None,
+        "scheduled_plan_change_at": None,
+        "stripe_schedule_id": None,
+        "updated_at": now,
+    }
+    if advance:
+        values["plan_change_sequence"] = billing_subscription.c.plan_change_sequence + 1
+    connection.execute(
+        sa.update(billing_subscription)
+        .where(billing_subscription.c.account_id == account_id)
+        .values(**values)
+    )
+
+
 def request_plan_change(
     connection: sa.Connection,
     gateway: StripeGateway,
@@ -128,26 +197,43 @@ def request_plan_change(
 ) -> PlanChangeOutcome:
     """Monte ou descend la formule d'un compte déjà abonné."""
     subscription = _changeable(connection, account_id=account_id)
+
+    # Rejeu exact d'un changement DÉJÀ programmé : rien ne part chez Stripe.
+    # C'est la première défense contre le double-clic, et elle ne dépend pas de
+    # la fenêtre d'idempotence de 24 h.
+    if subscription.scheduled_plan_code == target_plan:
+        return PlanChangeOutcome(
+            EFFECT_SCHEDULED, target_plan, subscription.scheduled_plan_change_at
+        )
+
     current_plan = subscription.plan_code
     if target_plan == current_plan:
         raise PlanChangeSamePlan(f"déjà sur la formule {target_plan}")
 
     currency = subscription.currency
     price_id = _authorised_price(gateway, plan_code=target_plan, currency=currency)
-    going_up = catalogue.plan_rank(target_plan) > catalogue.plan_rank(current_plan)
+    sequence = subscription.plan_change_sequence
 
-    if going_up:
-        # La clé d'idempotence porte la CIBLE : deux clics sur « passer à Pro »
-        # ne facturent qu'un prorata, alors qu'un changement d'avis vers Scale
-        # reste une opération distincte.
+    if catalogue.plan_rank(target_plan) > catalogue.plan_rank(current_plan):
+        if subscription.scheduled_plan_code is not None:
+            # Une descente programmée deviendrait caduque : la laisser courir
+            # ferait redescendre au terme un client qui vient de monter.
+            gateway.release_pending_plan_change(subscription_id=subscription.stripe_subscription_id)
         state = gateway.change_subscription_price(
             subscription_id=subscription.stripe_subscription_id,
             price_id=price_id,
-            idempotency_key=f"plan-change:{account_id}:{target_plan}:{currency}",
+            idempotency_key=_idempotency_key(
+                "change",
+                account_id=account_id,
+                source=current_plan,
+                target=target_plan,
+                currency=currency,
+                sequence=sequence,
+            ),
         )
         # L'état vient de la RÉPONSE de Stripe, pas d'une supposition locale :
-        # c'est la même discipline que le webhook, et la seule qui n'accorde un
-        # droit qu'après confirmation.
+        # même discipline que le webhook, et la seule qui n'accorde un droit
+        # qu'après confirmation.
         service.synchronize_subscription(
             connection,
             state,
@@ -156,52 +242,67 @@ def request_plan_change(
             expect_livemode=expect_livemode,
             now=now,
         )
+        _clear_scheduled(connection, account_id=account_id, now=now, advance=True)
         return PlanChangeOutcome(EFFECT_IMMEDIATE, target_plan, None)
 
     scheduled = gateway.schedule_subscription_price(
         subscription_id=subscription.stripe_subscription_id,
         price_id=price_id,
-        idempotency_key=f"plan-schedule:{account_id}:{target_plan}:{currency}",
+        idempotency_key=_idempotency_key(
+            "schedule",
+            account_id=account_id,
+            source=current_plan,
+            target=target_plan,
+            currency=currency,
+            sequence=sequence,
+        ),
     )
-    # Rien n'est écrit localement : les droits COURANTS restent ceux de la
-    # formule payée jusqu'au terme. C'est le webhook de bascule qui les changera.
-    return PlanChangeOutcome(
-        EFFECT_SCHEDULED, target_plan, scheduled.effective_at if scheduled else None
+    effective_at = scheduled.effective_at if scheduled else None
+    # Les droits COURANTS ne bougent pas : la formule payée tient jusqu'au
+    # terme. Seule l'ANNONCE est écrite ici.
+    _record_scheduled(
+        connection,
+        account_id=account_id,
+        plan_code=target_plan,
+        effective_at=effective_at,
+        schedule_id=scheduled.schedule_id if scheduled else None,
+        now=now,
     )
+    return PlanChangeOutcome(EFFECT_SCHEDULED, target_plan, effective_at)
 
 
 def cancel_scheduled_plan_change(
-    connection: sa.Connection, gateway: StripeGateway, *, account_id: str
+    connection: sa.Connection, gateway: StripeGateway, *, account_id: str, now: dt.datetime
 ) -> None:
     """Se raviser : la formule programmée est abandonnée, l'abonnement reste."""
     subscription = _changeable(connection, account_id=account_id)
-    if scheduled_plan_change(connection, gateway, account_id=account_id) is None:
+    if subscription.scheduled_plan_code is None:
         raise PlanChangeNoneScheduled("aucun changement programmé")
     gateway.release_pending_plan_change(subscription_id=subscription.stripe_subscription_id)
+    _clear_scheduled(connection, account_id=account_id, now=now, advance=True)
 
 
 def scheduled_plan_change(
-    connection: sa.Connection, gateway: StripeGateway, *, account_id: str
+    connection: sa.Connection, *, account_id: str
 ) -> dict[str, object] | None:
     """Le changement programmé, tel que l'écran peut l'annoncer. `None` sinon.
 
-    Traduit par le catalogue Kivou : une clé de recherche inconnue ne rend
-    AUCUNE formule, et l'écran n'annonce alors rien plutôt qu'une supposition.
+    Lecture PUREMENT locale : `/billing/status` est consulté deux fois par le
+    tableau de bord, et le faire dépendre d'un appel Stripe y importait la
+    latence — et la disponibilité — d'un tiers pour afficher des droits déjà
+    payés.
     """
     subscription = service.current_subscription(connection, account_id=account_id)
     if subscription is None or not subscription.is_open:
         return None
-    scheduled = gateway.pending_plan_change(subscription_id=subscription.stripe_subscription_id)
-    if scheduled is None:
+    if subscription.scheduled_plan_code is None:
         return None
-    resolved = catalogue.plan_for_lookup_key(scheduled.lookup_key)
-    if resolved is None:
-        return None
-    plan_code, _currency = resolved
     return {
-        "plan_code": plan_code,
+        "plan_code": subscription.scheduled_plan_code,
         "effective_at": (
-            None if scheduled.effective_at is None else scheduled.effective_at.isoformat()
+            None
+            if subscription.scheduled_plan_change_at is None
+            else subscription.scheduled_plan_change_at.isoformat()
         ),
     }
 

@@ -387,3 +387,169 @@ def test_a_plan_change_without_the_expected_origin_is_refused(app, engine, strip
     )
 
     assert response.status_code == 403
+
+
+# ─── L'écran de facturation ne doit pas dépendre de Stripe pour s'afficher ────
+
+
+def test_the_billing_status_survives_stripe_being_unreachable(client, engine, stripe: FakeStripe):
+    """`/billing/status` était une lecture LOCALE ; l'enrichir l'a couplé à Stripe.
+
+    Annoncer un changement programmé demande d'interroger Stripe. Si cet appel
+    peut faire tomber la page, alors une panne Stripe prive le client de son
+    plan, de ses droits et de son bouton de paiement — pour une ligne
+    d'information accessoire. La page doit survivre ; c'est l'annonce, et elle
+    seule, qui a le droit de manquer.
+    """
+    paying(engine, client, stripe, plan="scale")
+
+    def en_panne(**_kwargs):
+        raise RuntimeError("Stripe injoignable")
+
+    stripe.pending_plan_change = en_panne
+
+    response = client.get("/billing/status")
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["plan_code"] == "scale", "les droits restent lisibles"
+    assert body["billing_action"] == "manage_subscription"
+    assert body["scheduled_plan_change"] is None, "rien n'est annoncé plutôt qu'inventé"
+
+
+# ─── Idempotence PAR OPÉRATION ────────────────────────────────────────────────
+
+
+def test_replaying_the_same_request_performs_a_single_stripe_operation(
+    client, engine, stripe: FakeStripe
+):
+    """Un rejeu ne doit rien refacturer ni reprogrammer.
+
+    Le client qui recharge, double-clique ou dont le réseau retente envoie deux
+    fois la même intention. Une seule opération doit atteindre Stripe.
+    """
+    paying(engine, client, stripe, plan="scale")
+
+    first = change_to(client, "essential")
+    second = change_to(client, "essential")
+
+    assert first.status_code == 200, first.text
+    assert second.status_code == 200, second.text
+    assert first.json() == second.json(), "la seconde réponse doit être la première"
+    assert len(stripe.schedule_calls) == 1, f"appels Stripe : {stripe.schedule_calls}"
+
+
+def test_alternating_targets_within_a_day_all_take_effect(client, engine, stripe: FakeStripe):
+    """A → B → A → B : le DERNIER changement doit réellement s'exécuter.
+
+    Composer la clé d'idempotence du seul couple (départ, cible) ferait
+    réutiliser à la quatrième opération la clé de la première. Stripe rendrait
+    sa réponse en cache — moins de 24 h — et le client resterait sur une
+    formule qu'il ne veut plus, sans qu'aucune erreur ne le signale.
+    """
+    paying(engine, client, stripe, plan="scale")
+
+    assert change_to(client, "pro").status_code == 200
+    assert change_to(client, "essential").status_code == 200
+    assert change_to(client, "pro").status_code == 200
+    last = change_to(client, "essential")
+
+    assert last.status_code == 200, last.text
+    assert last.json()["plan_code"] == "essential"
+
+    keys = [call["idempotency_key"] for call in stripe.schedule_calls]
+    assert len(keys) == 4, f"quatre intentions distinctes attendues, vu {len(keys)}"
+    assert len(set(keys)) == 4, f"clés en collision : {keys}"
+
+    # Et l'état RÉELLEMENT programmé est le dernier demandé.
+    assert client.get("/billing/status").json()["scheduled_plan_change"]["plan_code"] == "essential"
+
+
+def test_a_retry_after_a_rolled_back_write_reuses_the_same_key(client, engine, stripe: FakeStripe):
+    """Si Stripe a répondu mais que la transaction Kivou a été annulée.
+
+    C'est le seul cas où l'idempotence de Stripe est la dernière défense : la
+    clé ne doit donc pas dépendre de ce que Kivou a réussi à persister. Le
+    compteur n'étant incrémenté que dans la transaction qui écrit l'annonce,
+    une annulation les emporte tous les deux — et la tentative suivante
+    retrouve exactement la même clé.
+    """
+    account_id = paying(engine, client, stripe, plan="scale")
+
+    assert change_to(client, "essential").status_code == 200
+
+    # On rejoue l'annulation de la transaction : ni annonce, ni compteur.
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(billing_subscription)
+            .where(billing_subscription.c.account_id == account_id)
+            .values(
+                scheduled_plan_code=None,
+                scheduled_plan_change_at=None,
+                stripe_schedule_id=None,
+                plan_change_sequence=0,
+            )
+        )
+
+    assert change_to(client, "essential").status_code == 200
+
+    keys = [call["idempotency_key"] for call in stripe.schedule_calls]
+    assert len(keys) == 2, "les deux tentatives doivent bien atteindre Stripe"
+    assert len(set(keys)) == 1, f"la clé doit être stable après annulation : {keys}"
+
+
+# ─── L'état programmé est LOCAL ───────────────────────────────────────────────
+
+
+def test_the_billing_status_never_calls_stripe(client, engine, stripe: FakeStripe):
+    """Le tableau de bord consulte cet écran deux fois : il doit rester local.
+
+    Attraper l'erreur Stripe évitait le plantage, pas la latence. L'état
+    programmé étant persisté, plus aucun appel réseau n'est nécessaire.
+    """
+    paying(engine, client, stripe, plan="scale")
+    assert change_to(client, "essential").status_code == 200
+
+    stripe.forbid_reads = True
+    body = client.get("/billing/status").json()
+
+    assert body["plan_code"] == "scale", "les droits payés restent"
+    assert body["scheduled_plan_change"]["plan_code"] == "essential"
+
+
+def test_cancelling_clears_the_persisted_state(client, engine, stripe: FakeStripe):
+    paying(engine, client, stripe, plan="scale")
+    assert change_to(client, "essential").status_code == 200
+
+    assert client.delete("/billing/plan").status_code == 200
+
+    stripe.forbid_reads = True
+    assert client.get("/billing/status").json()["scheduled_plan_change"] is None
+
+
+def test_the_switch_webhook_clears_the_persisted_state(client, engine, stripe: FakeStripe):
+    """Au terme, la formule programmée DEVIENT la formule payée.
+
+    Laisser l'annonce en place afficherait « vous descendrez le … » sur une
+    bascule déjà faite — le mensonge que #29 existe pour empêcher.
+    """
+    account_id = paying(engine, client, stripe, plan="scale")
+    assert change_to(client, "essential").status_code == 200
+
+    # Stripe bascule la formule au terme et le webhook resynchronise.
+    with engine.begin() as connection:
+        subscribe(
+            connection,
+            account_id=account_id,
+            plan="essential",
+            subscription_id=SUBSCRIPTION_ID,
+            customer_id=CUSTOMER_ID,
+            period_start=PERIOD_END,
+            period_end=PERIOD_END + dt.timedelta(days=30),
+            now=PERIOD_END,
+        )
+
+    stripe.forbid_reads = True
+    body = client.get("/billing/status").json()
+    assert body["plan_code"] == "essential", "la formule programmée est devenue la formule payée"
+    assert body["scheduled_plan_change"] is None, "plus rien à annoncer"

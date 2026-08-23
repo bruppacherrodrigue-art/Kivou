@@ -617,6 +617,15 @@ class StripeApiGateway:
         current = phases[0]
         updated = self._client.subscription_schedules.update(
             _get(schedule, "id"),
+            # La clé DÉRIVÉE, et non la clé brute : Stripe scope l'idempotence
+            # au compte, pas à l'endpoint. Réutiliser telle quelle la clé du
+            # `create` ferait rendre à cet `update` la réponse du `create`.
+            #
+            # Sans clé du tout, l'idempotence n'aurait protégé que la première
+            # programmation : dès qu'un schedule existe, c'est cet `update` qui
+            # agit, et un rejeu réappliquerait une cible périmée par-dessus le
+            # choix le plus récent du client.
+            options={"idempotency_key": f"{idempotency_key}:phases"},
             params={
                 "end_behavior": "release",
                 "phases": [

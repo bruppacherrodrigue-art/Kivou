@@ -28,7 +28,7 @@ RESPONSE_REVISION = "0018_response_intelligence"
 CONVERSION_REVISION = "0019_conversion_tracking"
 LEARNING_REVISION = "0020_hermes_learning_loop"
 RELIABILITY_REVISION = "0021_reliability_operations"
-CURRENT_HEAD = "0022_saas_company_profile"
+CURRENT_HEAD = "0023_scheduled_plan_change"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 

@@ -181,8 +181,16 @@ class FakeStripe:
     #: a réellement reçu plutôt que ce qu'on espère lui avoir envoyé.
     price_changes: list[dict[str, Any]] = dataclasses.field(default_factory=list)
     scheduled_changes: list[dict[str, Any]] = dataclasses.field(default_factory=list)
+    #: L'HISTORIQUE des programmations, clés d'idempotence comprises. Distinct
+    #: de `scheduled_changes`, qui ne retient que l'état courant : c'est cet
+    #: historique qui prouve qu'un rejeu n'a pas produit deux opérations.
+    schedule_calls: list[dict[str, Any]] = dataclasses.field(default_factory=list)
     #: Pilotage : simule un prorata refusé par la banque.
     fail_price_change: bool = False
+    #: Pilotage : fait échouer TOUTE lecture. Sert à prouver qu'un endpoint est
+    #: purement local — une dépendance réseau oubliée devient un échec, pas une
+    #: lenteur invisible en test.
+    forbid_reads: bool = False
     _counter: int = 0
     _by_idempotency_key: dict[str, StripeCustomer] = dataclasses.field(default_factory=dict)
     _sessions_by_key: dict[str, CheckoutSession] = dataclasses.field(default_factory=dict)
@@ -194,6 +202,7 @@ class FakeStripe:
     # ── protocole StripeGateway ──────────────────────────────────────────────
 
     def price_for_lookup_key(self, lookup_key: str) -> StripePrice | None:
+        self._guard_read("price_for_lookup_key")
         return self.prices.get(lookup_key)
 
     def create_customer(
@@ -245,7 +254,12 @@ class FakeStripe:
         )
         return PortalSession(url=f"https://billing.stripe.test/{customer_id}")
 
+    def _guard_read(self, verb: str) -> None:
+        if self.forbid_reads:
+            raise AssertionError(f"appel réseau interdit dans ce test : {verb}")
+
     def fetch_subscription(self, subscription_id: str) -> StripeSubscriptionState | None:
+        self._guard_read("fetch_subscription")
         return self.subscriptions.get(subscription_id)
 
     # ── changement de formule (#29) ──────────────────────────────────────────
@@ -289,6 +303,13 @@ class FakeStripe:
     def schedule_subscription_price(
         self, *, subscription_id: str, price_id: str, idempotency_key: str
     ) -> StripeScheduledChange:
+        self.schedule_calls.append(
+            {
+                "subscription_id": subscription_id,
+                "price_id": price_id,
+                "idempotency_key": idempotency_key,
+            }
+        )
         current = self.subscriptions[subscription_id]
         price = self._price_of(price_id)
         # L'échéance est la FIN de la période déjà payée : c'est exactement ce
@@ -311,6 +332,7 @@ class FakeStripe:
         )
 
     def pending_plan_change(self, *, subscription_id: str) -> StripeScheduledChange | None:
+        self._guard_read("pending_plan_change")
         for scheduled in self.scheduled_changes:
             if scheduled["subscription_id"] == subscription_id:
                 return StripeScheduledChange(

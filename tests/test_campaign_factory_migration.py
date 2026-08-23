@@ -22,7 +22,7 @@ RESPONSE = "0018_response_intelligence"
 CONVERSION = "0019_conversion_tracking"
 LEARNING = "0020_hermes_learning_loop"
 RELIABILITY = "0021_reliability_operations"
-LATEST = "0022_saas_company_profile"
+LATEST = "0023_scheduled_plan_change"
 TABLES = (
     acquisition_campaign,
     acquisition_campaign_member,

@@ -11,6 +11,7 @@ par le serveur, depuis une clé de recherche approuvée (§32).
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from typing import Any, Literal
 
 from fastapi import APIRouter, Request
@@ -22,6 +23,7 @@ from signals.billing import attempts, catalogue, checkout, discovery, plan_chang
 from signals.billing import gateway as gateway_errors
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 PlanChoice = Literal["essential", "pro", "scale"]
 CurrencyChoice = Literal["chf", "eur"]
@@ -105,14 +107,15 @@ def billing_status(request: Request) -> dict[str, Any]:
         # #29 — l'écran doit pouvoir dire « vous descendrez le 1er » sans
         # laisser croire que c'est déjà fait : `plan_code` ci-dessus reste la
         # formule PAYÉE, celle qui ouvre les droits jusqu'au terme.
-        gateway = getattr(request.app.state, "stripe_gateway", None)
-        pending = (
-            None
-            if gateway is None
-            else plan_change.scheduled_plan_change(
-                connection, gateway, account_id=session.account_id
-            )
-        )
+        # #29 — l'écran doit pouvoir dire « vous descendrez le 1er » sans
+        # laisser croire que c'est déjà fait : `plan_code` ci-dessus reste la
+        # formule PAYÉE, celle qui ouvre les droits jusqu'au terme.
+        #
+        # Lecture LOCALE. L'état programmé est persisté à sa création et
+        # réconcilié au webhook de bascule : cette réponse ne dépend d'aucun
+        # appel réseau, et le tableau de bord peut la consulter deux fois sans
+        # importer la latence de Stripe dans un parcours financier.
+        pending = plan_change.scheduled_plan_change(connection, account_id=session.account_id)
         over_limit = service.over_limit_icps(
             connection,
             account_id=session.account_id,
@@ -199,7 +202,7 @@ def cancel_plan_change(request: Request) -> dict[str, Any]:
         session = current_session(request, connection, now)
         try:
             plan_change.cancel_scheduled_plan_change(
-                connection, gateway, account_id=session.account_id
+                connection, gateway, account_id=session.account_id, now=now
             )
         except (
             plan_change.PlanChangeNoneScheduled,

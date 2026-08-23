@@ -119,6 +119,12 @@ class StoredSubscription:
     #: P0-03G — l'échéance publiée par Stripe, `None` si aucune.
     scheduled_cancellation_at: dt.datetime | None
     last_stripe_event_created_at: dt.datetime | None
+    #: #29 — la formule VISÉE et son échéance, `None` quand rien n'est programmé.
+    scheduled_plan_code: str | None
+    scheduled_plan_change_at: dt.datetime | None
+    stripe_schedule_id: str | None
+    #: Numérote les changements de formule : voir `plan_change`.
+    plan_change_sequence: int
     livemode: bool
 
     @property
@@ -289,6 +295,10 @@ def _stored(row: sa.Row) -> StoredSubscription:
         canceled_at=aware_datetime(row.canceled_at),
         scheduled_cancellation_at=aware_datetime(row.scheduled_cancellation_at),
         last_stripe_event_created_at=aware_datetime(row.last_stripe_event_created_at),
+        scheduled_plan_code=row.scheduled_plan_code,
+        scheduled_plan_change_at=aware_datetime(row.scheduled_plan_change_at),
+        stripe_schedule_id=row.stripe_schedule_id,
+        plan_change_sequence=int(row.plan_change_sequence or 0),
         livemode=bool(row.livemode),
     )
 
@@ -369,6 +379,16 @@ def synchronize_subscription(
         "livemode": state.livemode,
         "updated_at": now,
     }
+
+    # #29 — au terme, la formule PROGRAMMÉE devient la formule payée. Laisser
+    # l'annonce en place afficherait « vous descendrez le … » sur une bascule
+    # déjà faite. La réconciliation vit ici, dans le seul chemin par lequel un
+    # changement d'état Stripe entre dans Kivou — webhook comme appel direct.
+    announced = existing.scheduled_plan_code if existing is not None else None
+    if announced is not None and plan_code == announced:
+        values["scheduled_plan_code"] = None
+        values["scheduled_plan_change_at"] = None
+        values["stripe_schedule_id"] = None
 
     if existing is None:
         connection.execute(

@@ -236,6 +236,47 @@ try:
     check("le changement est refusé", refused)
     check("AUCUN droit supérieur accordé", after3 == before3, f"reste {after3}")
 
+    # ── 6. IDEMPOTENCE, vérifiée contre le vrai Stripe ───────────────────────
+    print("\n=== 6. idempotence des clés ===")
+    clock4, cust4, sub4 = setup("idem", start_price=SCALE)
+    same_key = f"tc-idem-{sub4.id}"
+
+    first = gw.schedule_subscription_price(
+        subscription_id=sub4.id, price_id=PRO.price_id, idempotency_key=same_key
+    )
+    replay = gw.schedule_subscription_price(
+        subscription_id=sub4.id, price_id=PRO.price_id, idempotency_key=same_key
+    )
+    check(
+        "une clé REJOUÉE ne crée pas un second schedule",
+        first.schedule_id == replay.schedule_id,
+        f"{first.schedule_id}",
+    )
+    check("le rejeu vise toujours la même formule", replay.lookup_key == "kivou_pro_monthly_chf")
+
+    # Changement d'avis : clé DIFFÉRENTE, la cible doit réellement changer.
+    gw.schedule_subscription_price(
+        subscription_id=sub4.id, price_id=ESS.price_id, idempotency_key=f"tc-idem2-{sub4.id}"
+    )
+    after = gw.pending_plan_change(subscription_id=sub4.id)
+    check(
+        "une clé DISTINCTE exécute bien le nouveau changement",
+        after is not None and after.lookup_key == "kivou_essential_monthly_chf",
+        f"cible = {getattr(after, 'lookup_key', None)}",
+    )
+    # Le piège que la clé sans compteur produirait : réutiliser la clé initiale
+    # après avoir changé d'avis renverrait la réponse EN CACHE, et la formule
+    # visée resterait Pro sans qu'aucune erreur ne le signale.
+    gw.schedule_subscription_price(
+        subscription_id=sub4.id, price_id=PRO.price_id, idempotency_key=same_key
+    )
+    cached = gw.pending_plan_change(subscription_id=sub4.id)
+    check(
+        "REJOUER une ancienne clé ne réapplique PAS l'ancienne cible",
+        cached is not None and cached.lookup_key == "kivou_essential_monthly_chf",
+        f"cible restee = {getattr(cached, 'lookup_key', None)} (le cache Stripe ne doit pas ecraser)",
+    )
+
 finally:
     print("\n=== nettoyage ===")
     for clock_id, cust_id in created:

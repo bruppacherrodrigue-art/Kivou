@@ -12,7 +12,7 @@ from signals.persistence.database import alembic_config, create_database_engine,
 from signals.persistence.schema import METADATA, materialized_signal
 
 PREVIOUS = "0021_reliability_operations"
-HEAD = "0022_saas_company_profile"
+HEAD = "0023_scheduled_plan_change"
 
 
 def test_company_migration_is_the_single_additive_head(tmp_path) -> None:
@@ -27,7 +27,7 @@ def test_company_migration_is_the_single_additive_head(tmp_path) -> None:
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [HEAD]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
-    assert (pathlib.Path(scripts.versions) / "0022_saas_company_profile.py").is_file()
+    assert (pathlib.Path(scripts.versions) / "0023_scheduled_plan_change.py").is_file()
 
 
 def test_company_migration_roundtrip_matches_core_schema(tmp_path) -> None:
