@@ -146,7 +146,7 @@ Kivou utilise des mécanismes strictement nécessaires à la connexion et à la 
 - `kivou_session`, cookie HTTP-only de session, sécurisé en production et limité à la durée de la session configurée ;
 - `kivou_attribution`, cookie HTTP-only de première partie, limité au parcours d’inscription après l’ouverture d’un lien d’attribution Kivou et expirant selon la durée du lien signé.
 
-Kivou n’annonce aucun cookie publicitaire tiers dans cette version du Service. Avant une diffusion nécessitant un consentement préalable pour la mesure d’attribution, Kivou doit soit conditionner ce dépôt à un consentement réel, soit désactiver ce mécanisme pour l’audience concernée. Le texte public ne doit jamais prétendre qu’un bandeau ou un retrait existe s’il n’est pas effectivement implémenté.
+Kivou n’utilise aucun cookie publicitaire tiers dans cette version du Service. Le cookie d’attribution ne sert pas à personnaliser de la publicité ; il relie un lien Kivou à une inscription afin d’en mesurer l’origine.
 
 ### 7. Destinataires et prestataires
 
@@ -450,7 +450,7 @@ Kivou uses mechanisms required for authentication and journey continuity:
 - `kivou_session`, an HTTP-only session cookie, secure in production and limited to the configured session duration;
 - `kivou_attribution`, a first-party HTTP-only cookie limited to signup after a Kivou attribution link is opened and expiring according to the signed link duration.
 
-Kivou does not declare third-party advertising cookies in this version of the Service. Before distribution to an audience for which attribution measurement requires prior consent, Kivou must either make the cookie conditional on real consent or disable that mechanism for the relevant audience. Public copy must never claim that a banner or opt-out exists unless it is actually implemented.
+Kivou does not use third-party advertising cookies in this version of the Service. The attribution cookie is not used to personalise advertising; it links a Kivou link to a signup in order to measure its origin.
 
 ### 7. Recipients and providers
 
@@ -685,7 +685,7 @@ Ce document est une source produit alignée sur le dépôt, pas un avis juridiqu
 
 1. le statut exact de l’éditeur et les mentions d’identification éventuellement obligatoires ;
 2. l’applicabilité du RGPD et la nécessité éventuelle d’un représentant dans l’Union européenne ;
-3. le mécanisme de consentement ou la désactivation du cookie `kivou_attribution` pour les audiences qui l’exigent ;
+3. le mécanisme de consentement ou la désactivation du cookie `kivou_attribution` pour les audiences qui l’exigent ; aucun bandeau ou retrait ne doit être annoncé avant son implémentation réelle ;
 4. l’identité et les pays de traitement du prestataire SMTP réellement configuré ;
 5. les durées opérationnelles de conservation, d’effacement et de sauvegarde ;
 6. la procédure interne de réponse aux droits et de suppression de compte ;
