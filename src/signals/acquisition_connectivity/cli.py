@@ -162,4 +162,3 @@ def main(
 
 if __name__ == "__main__":  # pragma: no cover - module entrypoint
     raise SystemExit(main())
-

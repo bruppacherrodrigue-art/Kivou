@@ -1,6 +1,6 @@
 # Acquisition SHADOW connectivity — delta matrix
 
-Date: 2026-08-24  
+Date: 2026-08-24
 Design authority: `53f0aae01077c33af1382887c396b4e9eecb27ac`
 
 | Domain | Existing reused | Small addition | Missing implementation |
@@ -19,4 +19,3 @@ The connectivity package may define only its deployment document, bounded smoke 
 identity probe, orchestration, and CLI contracts. It must not define another Apollo
 search/research client, Instantly provider, mailbox normalizer, campaign worker, Hermes
 adapter/bridge/plan, Policy implementation, operations store, or persistence schema.
-
