@@ -34,6 +34,7 @@ from signals.decision_engine.policy import semantic_fingerprint
 from signals.persistence.schema import (
     acquisition_campaign,
     acquisition_campaign_member,
+    acquisition_provider_event,
     acquisition_provider_operation,
 )
 
@@ -47,6 +48,49 @@ class CampaignStore:
 
     def __init__(self, engine: sa.Engine) -> None:
         self.engine = engine
+
+    def bounded_connectivity_counts(self) -> dict[str, int]:
+        """Read the four smoke-test mutation counters in one database statement."""
+        tables = {
+            "campaigns": acquisition_campaign,
+            "members": acquisition_campaign_member,
+            "provider_operations": acquisition_provider_operation,
+            "provider_events": acquisition_provider_event,
+        }
+        statement = sa.select(
+            *(
+                sa.select(sa.func.count())
+                .select_from(table)
+                .scalar_subquery()
+                .label(name)
+                for name, table in tables.items()
+            )
+        )
+        with self.engine.connect() as connection:
+            row = connection.execute(statement).mappings().one()
+        return {name: int(row[name]) for name in tables}
+
+    def has_ambiguous_positive_provider_operations(self) -> bool:
+        """Detect only positive operations whose remote outcome can still be unknown."""
+        with self.engine.connect() as connection:
+            count = connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(acquisition_provider_operation)
+                .where(
+                    acquisition_provider_operation.c.kind.in_(
+                        (
+                            "CREATE_CAMPAIGN",
+                            "CONFIGURE_CAMPAIGN",
+                            "ADD_LEAD",
+                            "ACTIVATE_CAMPAIGN",
+                        )
+                    ),
+                    acquisition_provider_operation.c.state.in_(
+                        ("IN_FLIGHT", "RECONCILE_REQUIRED")
+                    ),
+                )
+            )
+        return bool(count)
 
     def propose_plan(self, factory_input: CampaignFactoryInput, *, at: dt.datetime):
         """Return the lowest open generation without reserving a member slot."""

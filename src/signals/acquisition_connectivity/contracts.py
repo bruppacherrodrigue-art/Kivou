@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
 from typing import Annotated, Literal
@@ -106,6 +107,47 @@ class InstantlyConnectivityEvidence(_DeploymentModel):
     workspace: Literal["BOUND"] = "BOUND"
     mailboxes_ready: Literal[3] = 3
     mailboxes_total: Literal[3] = 3
+
+
+class ShadowPreflightEvidence(_DeploymentModel):
+    environment: Literal["STAGING"] = "STAGING"
+    policy: Literal["SHADOW"] = "SHADOW"
+    read_only: Literal[True] = True
+    kill_switch: Literal[True] = True
+    autonomous_live_volume_cap: Literal[0] = 0
+
+
+class HermesConnectivityEvidence(_DeploymentModel):
+    state: Literal["AVAILABLE"] = "AVAILABLE"
+    version: Literal["0.20.4"] = "0.20.4"
+    executable_tools: Literal[0] = 0
+    model: Literal["anthropic/claude-sonnet-4.6"] = "anthropic/claude-sonnet-4.6"
+
+
+class ShadowPlanEvidence(_DeploymentModel):
+    status: Literal["advisory"] = "advisory"
+    actions: int = Field(ge=0, le=10)
+    estimated_cost: Decimal = Field(ge=0, le=Decimal("1"))
+
+
+class AcquisitionMutationDelta(_DeploymentModel):
+    campaigns: int
+    members: int
+    provider_operations: int
+    provider_events: int
+
+    @property
+    def detected(self) -> bool:
+        return any(self.model_dump().values())
+
+
+class AcquisitionShadowSmokeResult(_DeploymentModel):
+    preflight: ShadowPreflightEvidence
+    apollo: ApolloIdentityEvidence
+    instantly: InstantlyConnectivityEvidence
+    hermes: HermesConnectivityEvidence
+    shadow_plan: ShadowPlanEvidence
+    mutation_delta: AcquisitionMutationDelta
 
 
 class AcquisitionConnectivityConfig(_DeploymentModel):
