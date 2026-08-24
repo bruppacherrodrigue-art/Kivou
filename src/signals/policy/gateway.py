@@ -122,7 +122,9 @@ class PreparedEvaluation:
     """
 
     decision: PolicyDecision
-    fingerprints: tuple[str, ...]
+    #: Exactement deux : l'empreinte courante et la variante héritée. `_record`
+    #: les dépaquette par paire, et une longueur libre y lèverait un `ValueError`.
+    fingerprints: tuple[str, str]
 
 
 class PolicyGateway:
@@ -250,6 +252,16 @@ class PolicyGateway:
         C'est ce qui permet à la persistance de l'évaluation de partager le sort
         de l'artefact qu'elle justifie : les deux tombent ensemble, ou aucune.
         """
+        if not isinstance(prepared, PreparedEvaluation):
+            # `prepare()` rend une union : une décision déjà inscrite n'a rien à
+            # réinscrire. Un appelant qui omet la discrimination échouerait
+            # sinon en `AttributeError` DANS sa propre transaction d'écriture —
+            # au pire moment, et sans type exploitable.
+            raise TypeError(
+                "record_in_transaction attend une PreparedEvaluation ; "
+                f"reçu {type(prepared).__name__}. Une décision déjà inscrite "
+                "n'a pas à être réinscrite."
+            )
         return self._record(
             connection, request, prepared.decision, prepared.fingerprints, evaluated_at
         )

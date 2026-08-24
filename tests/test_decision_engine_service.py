@@ -11,9 +11,12 @@ from enum import Enum
 import pytest
 import sqlalchemy as sa
 from alembic import command
-from conftest import register_disposable_database
+from conftest import (
+    _DISPOSABLE_DATABASES,
+    disposable_database_url,
+    register_disposable_database,
+)
 from feed_helpers import MATERIALIZED_AT, MATERIALIZED_ON, simap_award
-from sqlalchemy.engine import make_url
 from test_policy_persistence import control
 
 import signals.policy.gateway as policy_gateway_module
@@ -105,16 +108,13 @@ def _test_engine(tmp_path, name: str):
         connection.execution_options(isolation_level="AUTOCOMMIT").execute(
             sa.text(f'CREATE DATABASE "{disposable}"')
         )
-    # `make_url(...).set(database=...)` plutôt qu'un découpage de chaîne : une
-    # URL peut porter des paramètres (`?sslmode=require`) qu'un `rsplit` perdrait,
-    # et la base jetable se connecterait alors autrement que l'admin qui vient
-    # de réussir.
-    # `render_as_string(hide_password=False)` et non `str(...)` : `str()` masque
-    # le mot de passe en `***`, et la base jetable échouerait à s'authentifier.
-    engine = create_database_engine(
-        make_url(admin_url).set(database=disposable).render_as_string(hide_password=False)
-    )
+    # Inscrite AVANT toute autre opération : si la construction du moteur échoue
+    # (URL invalide, pilote absent), la base existe déjà et fuirait sans cela.
+    register_disposable_database(admin, admin, disposable)
 
+    engine = create_database_engine(disposable_database_url(admin_url, disposable))
+    # L'inscription provisoire est remplacée par celle qui libère AUSSI le moteur.
+    _DISPOSABLE_DATABASES.pop()
     register_disposable_database(engine, admin, disposable)
     return engine
 

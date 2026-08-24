@@ -179,7 +179,15 @@ class PersonalizationService:
             self._require_existing(existing, opportunity_id, language, authorization)
             return existing
         with self._engine.connect() as connection:
-            if self._policy_store.evaluation_row(connection, authorization.evaluation_id):
+            already_evaluated = bool(
+                self._policy_store.evaluation_row(connection, authorization.evaluation_id)
+            )
+        # La connexion est RENDUE avant la convergence : celle-ci en ouvre deux
+        # autres (`get_by_policy`, puis `_require_existing`). Les tenir toutes
+        # ensemble amputait le pool pour rien — et ce service est justement
+        # écrit pour un usage concurrent, où la file d'attente du pool se
+        # manifesterait en `QueuePool limit ... timed out` plutôt qu'en conflit.
+        if already_evaluated:
                 # Les deux gardes sont DEUX lectures, à deux instants. Un gagnant
                 # concurrent a pu valider entre elles : on voit alors son
                 # évaluation sans avoir vu son artefact. Comme les deux sont

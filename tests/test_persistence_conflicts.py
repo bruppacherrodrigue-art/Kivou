@@ -232,12 +232,10 @@ def test_a_disposable_url_keeps_its_password_and_its_options() -> None:
     `render_as_string(hide_password=False)` est la seule forme qui rende une URL
     utilisable.
     """
-    from sqlalchemy.engine import make_url
+    from conftest import disposable_database_url
 
     admin = "postgresql+psycopg://kivou:s3cr3t@db.example:5432/postgres?sslmode=require"
-    rendered = make_url(admin).set(database="kivou_test_abc").render_as_string(
-        hide_password=False
-    )
+    rendered = disposable_database_url(admin, "kivou_test_abc")
 
     assert "s3cr3t" in rendered, "sans mot de passe, la connexion échoue"
     assert "sslmode=require" in rendered, "les options doivent survivre"

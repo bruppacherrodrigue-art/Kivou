@@ -7,6 +7,7 @@ vrai contrat d'entrée, et pas sur une structure inventée pour l'occasion.
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 import pytest
@@ -169,6 +170,29 @@ def blind() -> dict[str, Any]:
 _DISPOSABLE_DATABASES: list[tuple] = []
 
 
+def disposable_database_url(admin_url: str, name: str) -> str:
+    """L'URL d'une base jetable, dérivée de celle de l'administration.
+
+    Deux pièges se rejoignent ici, et le second a réellement cassé
+    l'authentification pendant cette PR :
+
+    - découper l'URL à la main (`rsplit`) perd ses paramètres — `?sslmode=require`
+      disparaît, et la base jetable se connecte autrement que l'admin qui vient
+      de réussir ;
+    - `str(URL)` MASQUE le mot de passe en `***`, ce qui produit une URL
+      d'apparence correcte et une authentification refusée.
+
+    `render_as_string(hide_password=False)` est la seule forme connectable.
+    `str()` reste la seule forme journalisable — les deux coexistent, et les
+    confondre fait soit échouer la connexion, soit fuiter un secret.
+    """
+    import sqlalchemy as sa
+
+    return sa.engine.make_url(admin_url).set(database=name).render_as_string(
+        hide_password=False
+    )
+
+
 def register_disposable_database(engine, admin, name: str) -> None:
     """Inscrit une base jetable à supprimer après le test en cours."""
     _DISPOSABLE_DATABASES.append((engine, admin, name))
@@ -183,15 +207,28 @@ def _drop_disposable_databases():
     d'un nettoyage attaché à cette seule fixture.
     """
     yield
+    import warnings
+
     import sqlalchemy as sa
 
+    # Chaque base est traitée isolément : une suppression qui échoue — erreur
+    # transitoire, connexion coupée pendant le démontage — ne doit ni faire
+    # échouer un test qui a RÉUSSI, ni interrompre la boucle en laissant les
+    # bases suivantes derrière elle. C'est précisément l'accumulation que cette
+    # fixture existe pour empêcher.
     while _DISPOSABLE_DATABASES:
         engine, admin, name = _DISPOSABLE_DATABASES.pop()
-        engine.dispose()
         try:
+            engine.dispose()
             with admin.connect() as connection:
                 connection.execution_options(isolation_level="AUTOCOMMIT").execute(
                     sa.text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
                 )
+        except Exception as error:  # noqa: BLE001 - un résidu ne doit rien casser
+            warnings.warn(
+                f"base jetable {name} non supprimée : {type(error).__name__}",
+                stacklevel=2,
+            )
         finally:
-            admin.dispose()
+            with contextlib.suppress(Exception):
+                admin.dispose()
