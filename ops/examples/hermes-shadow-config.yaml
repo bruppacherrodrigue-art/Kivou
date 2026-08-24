@@ -1,0 +1,11 @@
+{
+  "model": {
+    "provider": "openrouter",
+    "default": "anthropic/claude-sonnet-4.6"
+  },
+  "provider_routing": {
+    "require_parameters": true,
+    "data_collection": "deny"
+  }
+}
+
