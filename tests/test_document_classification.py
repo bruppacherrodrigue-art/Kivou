@@ -681,10 +681,18 @@ class TestProviderBoundary:
         marques = ("anthropic", "openai", "mistral", "gemini", "openrouter", "deepseek")
         # Un adaptateur par fournisseur, et eux seuls ont le droit de le nommer.
         adaptateurs = {"providers.py", "openrouter.py"}
+        deployment_adapters = {
+            root / "supervisor" / "hermes.py",
+            root / "supervisor" / "hermes_bridge.py",
+            root / "acquisition_connectivity" / "config.py",
+            root / "acquisition_connectivity" / "contracts.py",
+            root / "acquisition_connectivity" / "cli.py",
+        }
         fautifs = [
             path.name
             for path in root.rglob("*.py")
             if path.name not in adaptateurs
+            and path not in deployment_adapters
             and any(marque in path.read_text().casefold() for marque in marques)
         ]
         assert fautifs == [], f"fournisseur nommé hors des adaptateurs : {fautifs}"

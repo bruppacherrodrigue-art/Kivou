@@ -2,13 +2,20 @@ from __future__ import annotations
 
 import datetime as dt
 import inspect
+import os
 import threading
+import uuid
 from decimal import Decimal
 from enum import Enum
 
 import pytest
 import sqlalchemy as sa
 from alembic import command
+from conftest import (
+    _DISPOSABLE_DATABASES,
+    disposable_database_url,
+    register_disposable_database,
+)
 from feed_helpers import MATERIALIZED_AT, MATERIALIZED_ON, simap_award
 from test_policy_persistence import control
 
@@ -77,9 +84,44 @@ class CountingClock:
         return self.value
 
 
+def _test_engine(tmp_path, name: str):
+    """Le moteur du scénario — SQLite par défaut, PostgreSQL sur demande.
+
+    La production tourne sur PostgreSQL et la suite entière sur SQLite : les
+    deux ne partagent ni le même verrouillage ni la même isolation, et une
+    course peut donc n'apparaître que sur l'un des deux. `KIVOU_TEST_DATABASE_URL`
+    permet de rejouer un scénario contre un vrai PostgreSQL, dans une base
+    JETABLE créée pour l'occasion — jamais dans celle qu'on lui donne.
+
+    La base jetable et son moteur sont inscrits au registre de `conftest`, qui
+    les supprime après chaque test : sans cela, chaque test laisserait une base
+    ET un pool de connexions vivants sur le serveur, jusqu'à épuiser
+    `max_connections` en cours de suite.
+    """
+    admin_url = os.environ.get("KIVOU_TEST_DATABASE_URL")
+    if not admin_url:
+        return create_database_engine(f"sqlite+pysqlite:///{tmp_path / name}")
+
+    disposable = f"kivou_test_{uuid.uuid4().hex[:16]}"
+    admin = create_database_engine(admin_url)
+    with admin.connect() as connection:
+        connection.execution_options(isolation_level="AUTOCOMMIT").execute(
+            sa.text(f'CREATE DATABASE "{disposable}"')
+        )
+    # Inscrite AVANT toute autre opération : si la construction du moteur échoue
+    # (URL invalide, pilote absent), la base existe déjà et fuirait sans cela.
+    register_disposable_database(admin, admin, disposable)
+
+    engine = create_database_engine(disposable_database_url(admin_url, disposable))
+    # L'inscription provisoire est remplacée par celle qui libère AUSSI le moteur.
+    _DISPOSABLE_DATABASES.pop()
+    register_disposable_database(engine, admin, disposable)
+    return engine
+
+
 @pytest.fixture
 def context(tmp_path):
-    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'decision-service.db'}")
+    engine = _test_engine(tmp_path, "decision-service.db")
     command.upgrade(alembic_config(engine), "head")
     event, awards = simap_award("33112-02")
     IngestionPipeline(engine).process(

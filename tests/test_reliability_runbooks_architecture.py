@@ -11,6 +11,7 @@ RUNBOOKS = (
     "05-dead-letter-recovery.md",
     "06-vps-database-restart.md",
     "07-staging-to-production-promotion.md",
+    "08-acquisition-shadow-provider-connectivity.md",
 )
 
 

@@ -31,6 +31,7 @@ from signals.acquisition.contracts import (
     ProjectionVerification,
 )
 from signals.acquisition.state import reduce_event, replay
+from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import acquisition_event, acquisition_opportunity
 
 
@@ -440,20 +441,17 @@ class AcquisitionStore:
 
     @staticmethod
     def _insert_opportunity_if_absent(connection: Connection, values: dict[str, object]) -> bool:
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported acquisition persistence dialect")
-        result = connection.execute(
-            insert(acquisition_opportunity)
-            .values(values)
-            .on_conflict_do_nothing(index_elements=[acquisition_opportunity.c.identity_key])
+        inserted = insert_if_absent(
+            connection,
+            acquisition_opportunity,
+            values,
+            index_elements=[acquisition_opportunity.c.identity_key],
         )
-        if result.rowcount not in {0, 1}:
-            raise RuntimeError("indeterminate acquisition identity ownership")
-        return result.rowcount == 1
+        return inserted
 
     def transition_state(
         self,

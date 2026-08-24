@@ -33,6 +33,7 @@ from signals.compliance.suppression import (
     normalize_business_email,
 )
 from signals.decision_engine.policy import semantic_fingerprint
+from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import (
     acquisition_campaign,
     acquisition_campaign_member,
@@ -488,55 +489,52 @@ class InstantlyWebhookService:
         member,
         received_at,
     ) -> bool:
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported provider event persistence dialect")
-        result = connection.execute(
-            insert(acquisition_provider_event)
-            .values(
-                provider_event_ref=semantic_fingerprint(
-                    {"kind": "provider-event-ref-v1", "fingerprint": fingerprint}
-                ),
-                canonical_event_fingerprint=fingerprint,
-                fingerprint_version=PROVIDER_EVENT_FINGERPRINT_VERSION,
-                fingerprint_key_version=fingerprint_key_version,
-                provider_event_type=(
-                    payload.event_type.value if payload.event_type is not None else "unknown"
-                ),
-                provider_workspace_ref=payload.provider_workspace_ref,
-                provider_campaign_id=payload.provider_campaign_id,
-                provider_lead_id=(member["provider_lead_id"] if member else None),
-                provider_email_event_id=payload.provider_email_event_id,
-                campaign_ref=campaign["campaign_ref"],
-                member_ref=member["member_ref"] if member else None,
-                acquisition_opportunity_id=(
-                    member["acquisition_opportunity_id"] if member else None
-                ),
-                contact_ref=member["contact_ref"] if member else None,
-                step=(
-                    payload.step_if_present
-                    if payload.step_if_present in {1, 2}
-                    else None
-                ),
-                variant=(
-                    str(payload.variant_if_present)
-                    if payload.variant_if_present is not None
-                    else None
-                ),
-                occurred_at=payload.timestamp,
-                received_at=received_at,
-                mailbox_ref=member["mailbox_ref"] if member else None,
-                transport_status=None,
-                resolution_state="ACCEPTED",
-            )
-            .on_conflict_do_nothing(
-                index_elements=[acquisition_provider_event.c.canonical_event_fingerprint]
-            )
+        values = {
+            "provider_event_ref": semantic_fingerprint(
+                {"kind": "provider-event-ref-v1", "fingerprint": fingerprint}
+            ),
+            "canonical_event_fingerprint": fingerprint,
+            "fingerprint_version": PROVIDER_EVENT_FINGERPRINT_VERSION,
+            "fingerprint_key_version": fingerprint_key_version,
+            "provider_event_type": (
+                payload.event_type.value if payload.event_type is not None else "unknown"
+            ),
+            "provider_workspace_ref": payload.provider_workspace_ref,
+            "provider_campaign_id": payload.provider_campaign_id,
+            "provider_lead_id": (member["provider_lead_id"] if member else None),
+            "provider_email_event_id": payload.provider_email_event_id,
+            "campaign_ref": campaign["campaign_ref"],
+            "member_ref": member["member_ref"] if member else None,
+            "acquisition_opportunity_id": (
+                member["acquisition_opportunity_id"] if member else None
+            ),
+            "contact_ref": member["contact_ref"] if member else None,
+            "step": (
+                payload.step_if_present
+                if payload.step_if_present in {1, 2}
+                else None
+            ),
+            "variant": (
+                str(payload.variant_if_present)
+                if payload.variant_if_present is not None
+                else None
+            ),
+            "occurred_at": payload.timestamp,
+            "received_at": received_at,
+            "mailbox_ref": member["mailbox_ref"] if member else None,
+            "transport_status": None,
+            "resolution_state": "ACCEPTED",
+        }
+        return insert_if_absent(
+            connection,
+            acquisition_provider_event,
+            values,
+            index_elements=[acquisition_provider_event.c.canonical_event_fingerprint],
         )
-        return result.rowcount == 1
 
     def _email_sent(
         self,

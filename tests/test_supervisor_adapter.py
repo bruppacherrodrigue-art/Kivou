@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import datetime as dt
 import json
 from decimal import Decimal
@@ -10,6 +11,7 @@ import pytest
 from signals.api import ApiConfig, create_app
 from signals.ingestion.runner import IngestionRunner
 from signals.persistence.database import create_database_engine
+from signals.supervisor import hermes as hermes_module
 from signals.supervisor.contracts import (
     BudgetEnvelope,
     KivouAnalysis,
@@ -17,6 +19,7 @@ from signals.supervisor.contracts import (
     PublicFacts,
     SupervisorContext,
     SupervisorLimits,
+    SupervisorPlan,
 )
 from signals.supervisor.hermes import HermesSupervisorAdapter
 from signals.supervisor.pin import load_hermes_pin
@@ -107,9 +110,17 @@ def bridge_response(response: str | None = None, **metadata):
         "source_commit": PIN.commit,
         "executable_tools": [],
     }
-    value.update(metadata)
     if response is not None:
         value["response"] = response
+        value.update(
+            {
+                "provider": "openrouter",
+                "model": "anthropic/claude-sonnet-4.6",
+                "automatic_retries": 0,
+                "fallbacks": False,
+            }
+        )
+    value.update(metadata)
     return value
 
 
@@ -135,7 +146,131 @@ def test_adapter_satisfies_replaceable_protocol_and_returns_advisory_actions(tmp
     assert result.proposed_actions[0].command == "evaluate_opportunity"
     assert adapter.propose_actions(context()) == result.proposed_actions
     assert [request["operation"] for request in transport.requests] == ["plan", "plan"]
+    assert transport.requests[0]["provider"] == "openrouter"
+    assert transport.requests[0]["model"] == "anthropic/claude-sonnet-4.6"
+    assert transport.requests[0]["provider_routing"] == {
+        "require_parameters": True,
+        "data_collection": "deny",
+    }
+    original_schema = SupervisorPlan.model_json_schema()
+    assert transport.requests[0]["response_schema"] == hermes_module.transform_provider_schema(
+        original_schema
+    )
+    assert transport.requests[0]["response_schema"] != original_schema
+    serialized_original = json.dumps(
+        original_schema,
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    assert serialized_original in transport.requests[0]["instructions"]
     assert not hasattr(adapter, "execute")
+
+
+def _schema_nodes(value):
+    if isinstance(value, dict):
+        yield value
+        for nested in value.values():
+            yield from _schema_nodes(nested)
+    elif isinstance(value, list):
+        for nested in value:
+            yield from _schema_nodes(nested)
+
+
+def test_provider_schema_removes_unsupported_constraints_without_mutating_contract():
+    original_schema = SupervisorPlan.model_json_schema()
+    original_snapshot = copy.deepcopy(original_schema)
+
+    provider_schema = hermes_module.transform_provider_schema(original_schema)
+
+    assert original_schema == original_snapshot
+    assert provider_schema is not original_schema
+    forbidden = {
+        "minimum",
+        "maximum",
+        "exclusiveMinimum",
+        "exclusiveMaximum",
+        "minLength",
+        "maxLength",
+        "multipleOf",
+    }
+    for node in _schema_nodes(provider_schema):
+        assert forbidden.isdisjoint(node)
+        if node.get("type") == "object":
+            assert node["additionalProperties"] is False
+    assert "minimum" in provider_schema["properties"]["priority"]["description"]
+    assert "maximum" in provider_schema["properties"]["priority"]["description"]
+
+
+def test_provider_schema_recurses_through_compositions_defs_refs_and_formats():
+    original_schema = {
+        "type": "object",
+        "properties": {
+            "choice": {
+                "oneOf": [
+                    {"type": "integer", "minimum": 1},
+                    {"type": "string", "format": "date-time", "minLength": 1},
+                ]
+            },
+            "nested": {
+                "allOf": [
+                    {
+                        "type": "object",
+                        "properties": {"identifier": {"type": "string", "format": "uuid"}},
+                        "required": ["identifier"],
+                    }
+                ]
+            },
+            "referenced": {"$ref": "#/$defs/Amount"},
+            "unsupported_format": {
+                "type": "string",
+                "format": "regex",
+                "maxLength": 8,
+            },
+        },
+        "required": ["choice", "nested", "referenced", "unsupported_format"],
+        "$defs": {
+            "Amount": {
+                "type": "object",
+                "properties": {"value": {"type": "number", "multipleOf": 0.01}},
+                "required": ["value"],
+            }
+        },
+    }
+
+    provider_schema = hermes_module.transform_provider_schema(original_schema)
+
+    assert "oneOf" not in provider_schema["properties"]["choice"]
+    assert len(provider_schema["properties"]["choice"]["anyOf"]) == 2
+    assert provider_schema["properties"]["choice"]["anyOf"][1]["format"] == "date-time"
+    nested = provider_schema["properties"]["nested"]["allOf"][0]
+    assert nested["additionalProperties"] is False
+    assert nested["properties"]["identifier"]["format"] == "uuid"
+    assert provider_schema["properties"]["referenced"] == {"$ref": "#/$defs/Amount"}
+    assert provider_schema["$defs"]["Amount"]["additionalProperties"] is False
+    unsupported = provider_schema["properties"]["unsupported_format"]
+    assert "format" not in unsupported
+    assert "regex" in unsupported["description"]
+    assert "maxLength" in unsupported["description"]
+
+
+def test_valid_structured_plan_still_traverses_pydantic_validation(tmp_path, monkeypatch):
+    validated = []
+    original = SupervisorPlan.model_validate
+
+    def recording_validate(cls, value):
+        validated.append(value)
+        return original(value)
+
+    monkeypatch.setattr(SupervisorPlan, "model_validate", classmethod(recording_validate))
+    adapter = HermesSupervisorAdapter(
+        settings(tmp_path), transport=FakeTransport(bridge_response(valid_plan()))
+    )
+
+    plan = adapter.plan(context())
+
+    assert plan.plan_id == "plan_001"
+    assert validated == [json.loads(valid_plan())]
 
 
 def test_health_distinguishes_all_runtime_states(tmp_path):
@@ -238,6 +373,23 @@ def test_timeout_and_version_mismatch_produce_no_plan(tmp_path):
         HermesSupervisorAdapter(
             settings(tmp_path),
             transport=FakeTransport(bridge_response(valid_plan(), source_commit="0" * 40)),
+        ).plan(context())
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"provider": "other"},
+        {"model": "other/model"},
+        {"automatic_retries": 1},
+        {"fallbacks": True},
+    ],
+)
+def test_plan_rejects_unproven_exact_openrouter_route(tmp_path, metadata):
+    with pytest.raises(SupervisorVersionMismatch):
+        HermesSupervisorAdapter(
+            settings(tmp_path),
+            transport=FakeTransport(bridge_response(valid_plan(), **metadata)),
         ).plan(context())
 
 
