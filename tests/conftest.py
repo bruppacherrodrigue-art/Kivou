@@ -7,6 +7,7 @@ vrai contrat d'entrée, et pas sur une structure inventée pour l'occasion.
 
 from __future__ import annotations
 
+import contextlib
 from typing import Any
 
 import pytest
@@ -157,3 +158,77 @@ def make_blind(**overrides: Any) -> dict[str, Any]:
 @pytest.fixture
 def blind() -> dict[str, Any]:
     return make_blind()
+
+
+# ─── Bases PostgreSQL jetables ────────────────────────────────────────────────
+#
+# Un scénario rejoué contre un vrai PostgreSQL crée une base par test. Sans
+# suppression, chaque test laisse une base ET un pool de connexions vivants sur
+# le serveur : une suite complète finit par épuiser `max_connections`, et les
+# échecs qui en résultent n'ont plus aucun rapport avec le code testé.
+
+_DISPOSABLE_DATABASES: list[tuple] = []
+
+
+def disposable_database_url(admin_url: str, name: str) -> str:
+    """L'URL d'une base jetable, dérivée de celle de l'administration.
+
+    Deux pièges se rejoignent ici, et le second a réellement cassé
+    l'authentification pendant cette PR :
+
+    - découper l'URL à la main (`rsplit`) perd ses paramètres — `?sslmode=require`
+      disparaît, et la base jetable se connecte autrement que l'admin qui vient
+      de réussir ;
+    - `str(URL)` MASQUE le mot de passe en `***`, ce qui produit une URL
+      d'apparence correcte et une authentification refusée.
+
+    `render_as_string(hide_password=False)` est la seule forme connectable.
+    `str()` reste la seule forme journalisable — les deux coexistent, et les
+    confondre fait soit échouer la connexion, soit fuiter un secret.
+    """
+    import sqlalchemy as sa
+
+    return sa.engine.make_url(admin_url).set(database=name).render_as_string(
+        hide_password=False
+    )
+
+
+def register_disposable_database(engine, admin, name: str) -> None:
+    """Inscrit une base jetable à supprimer après le test en cours."""
+    _DISPOSABLE_DATABASES.append((engine, admin, name))
+
+
+@pytest.fixture(autouse=True)
+def _drop_disposable_databases():
+    """Supprime, après CHAQUE test, les bases jetables qu'il a créées.
+
+    Placé ici plutôt que dans la fixture qui les crée : trois fichiers
+    l'appellent directement via `__wrapped__`, et ne bénéficieraient donc pas
+    d'un nettoyage attaché à cette seule fixture.
+    """
+    yield
+    import warnings
+
+    import sqlalchemy as sa
+
+    # Chaque base est traitée isolément : une suppression qui échoue — erreur
+    # transitoire, connexion coupée pendant le démontage — ne doit ni faire
+    # échouer un test qui a RÉUSSI, ni interrompre la boucle en laissant les
+    # bases suivantes derrière elle. C'est précisément l'accumulation que cette
+    # fixture existe pour empêcher.
+    while _DISPOSABLE_DATABASES:
+        engine, admin, name = _DISPOSABLE_DATABASES.pop()
+        try:
+            engine.dispose()
+            with admin.connect() as connection:
+                connection.execution_options(isolation_level="AUTOCOMMIT").execute(
+                    sa.text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+                )
+        except Exception as error:  # noqa: BLE001 - un résidu ne doit rien casser
+            warnings.warn(
+                f"base jetable {name} non supprimée : {type(error).__name__}",
+                stacklevel=2,
+            )
+        finally:
+            with contextlib.suppress(Exception):
+                admin.dispose()

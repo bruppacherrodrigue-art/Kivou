@@ -213,3 +213,47 @@ def test_the_default_projection_needs_no_column_from_the_caller(engine) -> None:
             is False
         )
     assert stored(engine, "d1") == "x"
+
+
+# ─── L'URL de la base jetable ─────────────────────────────────────────────────
+
+
+def test_a_disposable_url_keeps_its_password_and_its_options() -> None:
+    """`str(url)` MASQUE le mot de passe : la base jetable ne s'authentifierait pas.
+
+    Deux pièges se rejoignent ici, et j'ai fait les deux :
+
+    - découper l'URL à la main (`rsplit`) perd les paramètres — `?sslmode=require`
+      disparaît, et la base jetable se connecte autrement que l'admin qui vient
+      de réussir ;
+    - `str(URL)` remplace le mot de passe par `***`, ce qui produit une URL
+      d'apparence correcte et une authentification refusée.
+
+    `render_as_string(hide_password=False)` est la seule forme qui rende une URL
+    utilisable.
+    """
+    from conftest import disposable_database_url
+
+    admin = "postgresql+psycopg://kivou:s3cr3t@db.example:5432/postgres?sslmode=require"
+    rendered = disposable_database_url(admin, "kivou_test_abc")
+
+    assert "s3cr3t" in rendered, "sans mot de passe, la connexion échoue"
+    assert "sslmode=require" in rendered, "les options doivent survivre"
+    assert "/kivou_test_abc" in rendered
+    assert "***" not in rendered
+
+
+def test_the_masked_form_is_what_belongs_in_a_log() -> None:
+    """Le corollaire : ce qui va dans un journal doit rester masqué.
+
+    Rendre l'URL en clair est nécessaire pour SE CONNECTER, et interdit pour
+    JOURNALISER. Les deux formes coexistent, et les confondre ferait fuiter un
+    mot de passe dans une sortie de test ou de CI.
+    """
+    from sqlalchemy.engine import make_url
+
+    url = make_url("postgresql+psycopg://kivou:s3cr3t@db.example:5432/postgres")
+
+    assert "s3cr3t" not in str(url), "la forme par défaut doit masquer"
+    assert "s3cr3t" not in repr(url)
+    assert "***" in str(url)
