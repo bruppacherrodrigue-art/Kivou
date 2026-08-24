@@ -21,6 +21,12 @@ the exact OpenRouter route once with SDK retries set to zero and
 `allow_fallbacks=false`; the existing adapter rejects missing or different route
 evidence.
 
+The existing document-classification architecture test originally permitted provider
+names only in files named `providers.py` or `openrouter.py`. The deployment contract
+must name the approved OpenRouter provider/model explicitly, so its allowlist is
+extended only to the exact Hermes adapter/bridge and connectivity config/contract/CLI
+files. Provider names remain forbidden everywhere else in the domain.
+
 ## Non-duplication boundary
 
 The connectivity package may define only its deployment document, bounded smoke result,
