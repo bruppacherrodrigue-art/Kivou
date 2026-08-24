@@ -102,6 +102,12 @@ class ApolloIdentityEvidence(_DeploymentModel):
     acting_profile_fingerprint: Fingerprint = Field(repr=False)
 
 
+class InstantlyConnectivityEvidence(_DeploymentModel):
+    workspace: Literal["BOUND"] = "BOUND"
+    mailboxes_ready: Literal[3] = 3
+    mailboxes_total: Literal[3] = 3
+
+
 class AcquisitionConnectivityConfig(_DeploymentModel):
     environment: Literal["STAGING"]
     shadow_config_path: Path
