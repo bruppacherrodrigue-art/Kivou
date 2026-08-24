@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
@@ -28,6 +29,7 @@ OpaqueRef = Annotated[
 ]
 ProviderAccountEmail = Annotated[EmailStr, Field(max_length=320)]
 Fingerprint = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+GitSha = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
 
 
 class ConnectivityErrorCode(StrEnum):
@@ -52,24 +54,6 @@ class ConnectivityErrorCode(StrEnum):
     HERMES_TOOLS_EXPOSED = "HERMES_TOOLS_EXPOSED"
     HERMES_PLAN_INVALID = "HERMES_PLAN_INVALID"
     LOCAL_MUTATION_DETECTED = "LOCAL_MUTATION_DETECTED"
-
-
-class ConnectivityFailure(RuntimeError):
-    """One bounded error category; never carries provider/configuration values."""
-
-    def __init__(
-        self,
-        code: ConnectivityErrorCode,
-        *,
-        retry_after_seconds: int | None = None,
-    ) -> None:
-        super().__init__(f"acquisition connectivity failure: {code.value}")
-        self.code = code
-        self.retry_after_seconds = (
-            retry_after_seconds
-            if retry_after_seconds is not None and 0 <= retry_after_seconds <= 86_400
-            else None
-        )
 
 
 class _DeploymentModel(BaseModel):
@@ -115,6 +99,8 @@ class ShadowPreflightEvidence(_DeploymentModel):
     read_only: Literal[True] = True
     kill_switch: Literal[True] = True
     autonomous_live_volume_cap: Literal[0] = 0
+    policy_control_revision: int = Field(ge=0)
+    policy_version: OpaqueRef
 
 
 class HermesConnectivityEvidence(_DeploymentModel):
@@ -122,12 +108,24 @@ class HermesConnectivityEvidence(_DeploymentModel):
     version: Literal["0.20.4"] = "0.20.4"
     executable_tools: Literal[0] = 0
     model: Literal["anthropic/claude-sonnet-4.6"] = "anthropic/claude-sonnet-4.6"
+    tag: Literal["v2026.8.18"] = "v2026.8.18"
+    commit: Literal["e624e9fde561e1add9388384012b295fde669ade"] = (
+        "e624e9fde561e1add9388384012b295fde669ade"
+    )
 
 
 class ShadowPlanEvidence(_DeploymentModel):
     status: Literal["advisory"] = "advisory"
+    plan_id: OpaqueRef
     actions: int = Field(ge=0, le=10)
     estimated_cost: Decimal = Field(ge=0, le=Decimal("1"))
+    next_review_at: dt.datetime
+
+    @model_validator(mode="after")
+    def aware_review_time(self) -> ShadowPlanEvidence:
+        if self.next_review_at.tzinfo is None or self.next_review_at.utcoffset() is None:
+            raise ValueError("next review time must be timezone-aware")
+        return self
 
 
 class AcquisitionMutationDelta(_DeploymentModel):
@@ -142,12 +140,44 @@ class AcquisitionMutationDelta(_DeploymentModel):
 
 
 class AcquisitionShadowSmokeResult(_DeploymentModel):
+    deployed_sha: GitSha
     preflight: ShadowPreflightEvidence
     apollo: ApolloIdentityEvidence
     instantly: InstantlyConnectivityEvidence
     hermes: HermesConnectivityEvidence
     shadow_plan: ShadowPlanEvidence
     mutation_delta: AcquisitionMutationDelta
+
+
+class AcquisitionShadowSmokePartial(_DeploymentModel):
+    deployed_sha: GitSha
+    preflight: ShadowPreflightEvidence
+    failed_component: Literal["apollo", "instantly", "hermes", "postcondition"]
+    apollo: ApolloIdentityEvidence | None = None
+    instantly: InstantlyConnectivityEvidence | None = None
+    hermes: HermesConnectivityEvidence | None = None
+    shadow_plan: ShadowPlanEvidence | None = None
+    mutation_delta: AcquisitionMutationDelta | None = None
+
+
+class ConnectivityFailure(RuntimeError):
+    """One bounded error category; never carries provider/configuration values."""
+
+    def __init__(
+        self,
+        code: ConnectivityErrorCode,
+        *,
+        retry_after_seconds: int | None = None,
+        partial: AcquisitionShadowSmokePartial | None = None,
+    ) -> None:
+        super().__init__(f"acquisition connectivity failure: {code.value}")
+        self.code = code
+        self.retry_after_seconds = (
+            retry_after_seconds
+            if retry_after_seconds is not None and 0 <= retry_after_seconds <= 86_400
+            else None
+        )
+        self.partial = partial
 
 
 class AcquisitionConnectivityConfig(_DeploymentModel):

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 from enum import StrEnum
 from typing import Protocol
 from urllib.parse import quote
@@ -522,13 +523,47 @@ class HttpInstantlyProvider:
         mutation: bool = False,
     ) -> object:
         try:
-            response = self._client.request(
+            with self._client.stream(
                 method,
                 f"{self._base_url}{path}",
                 params=params,
                 json=json_body,
                 headers={"Authorization": f"Bearer {self._api_key}"},
-            )
+            ) as response:
+                retry_after: int | None = None
+                if response.status_code == 429:
+                    raw_retry = response.headers.get("Retry-After")
+                    retry_after = (
+                        int(raw_retry) if raw_retry and raw_retry.isdigit() else None
+                    )
+                status_map = {
+                    401: InstantlyErrorCode.AUTH,
+                    402: InstantlyErrorCode.PLAN_REQUIRED,
+                    403: InstantlyErrorCode.PERMISSION,
+                    429: InstantlyErrorCode.RATE_LIMITED,
+                }
+                code = status_map.get(response.status_code)
+                if code is None and response.status_code >= 500:
+                    code = InstantlyErrorCode.SERVER_ERROR
+                if code is None and response.status_code >= 400:
+                    code = InstantlyErrorCode.CLIENT_CONTRACT_ERROR
+                if code is not None:
+                    raise InstantlyProviderError(
+                        code,
+                        reconciliation_required=mutation
+                        and code in {InstantlyErrorCode.SERVER_ERROR},
+                        retry_after_seconds=retry_after,
+                    )
+                body = bytearray()
+                for chunk in response.iter_bytes():
+                    if len(body) + len(chunk) > MAX_PROVIDER_RESPONSE_BYTES:
+                        raise InstantlyProviderError(
+                            InstantlyErrorCode.MALFORMED_RESPONSE,
+                            reconciliation_required=mutation,
+                        )
+                    body.extend(chunk)
+        except InstantlyProviderError:
+            raise
         except httpx.TimeoutException as exc:
             raise InstantlyProviderError(
                 InstantlyErrorCode.TIMEOUT,
@@ -539,36 +574,8 @@ class HttpInstantlyProvider:
                 InstantlyErrorCode.NETWORK,
                 reconciliation_required=mutation,
             ) from exc
-        retry_after: int | None = None
-        if response.status_code == 429:
-            raw_retry = response.headers.get("Retry-After")
-            retry_after = int(raw_retry) if raw_retry and raw_retry.isdigit() else None
-        status_map = {
-            401: InstantlyErrorCode.AUTH,
-            402: InstantlyErrorCode.PLAN_REQUIRED,
-            403: InstantlyErrorCode.PERMISSION,
-            429: InstantlyErrorCode.RATE_LIMITED,
-        }
-        code = status_map.get(response.status_code)
-        if code is None and response.status_code >= 500:
-            code = InstantlyErrorCode.SERVER_ERROR
-        if code is None and response.status_code >= 400:
-            code = InstantlyErrorCode.CLIENT_CONTRACT_ERROR
-        if code is not None:
-            raise InstantlyProviderError(
-                code,
-                reconciliation_required=mutation and (
-                    code in {InstantlyErrorCode.SERVER_ERROR}
-                ),
-                retry_after_seconds=retry_after,
-            )
-        if len(response.content) > MAX_PROVIDER_RESPONSE_BYTES:
-            raise InstantlyProviderError(
-                InstantlyErrorCode.MALFORMED_RESPONSE,
-                reconciliation_required=mutation,
-            )
         try:
-            return response.json()
+            return json.loads(body)
         except ValueError as exc:
             raise InstantlyProviderError(
                 InstantlyErrorCode.MALFORMED_RESPONSE,

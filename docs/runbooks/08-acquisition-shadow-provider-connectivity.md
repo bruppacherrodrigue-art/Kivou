@@ -26,6 +26,11 @@ The contracts revalidated on 2026-08-24 are:
 
 No other provider route belongs to this smoke.
 
+OpenRouter provider routing is documented at
+<https://openrouter.ai/docs/guides/routing/provider-selection>. The bridge sends
+the configured `require_parameters=true` and `data_collection=deny` values and
+adds request-level `allow_fallbacks=false`.
+
 ## 1. Preconditions
 
 Record the approved Kivou merge SHA. Confirm that `/srv/kivou/app` resolves to
@@ -71,6 +76,18 @@ sudo -u kivou \
 
 Any mismatch stops installation. Do not substitute a newer tag, branch, package,
 or fallback model.
+
+### Pinned Hermes integration constraint
+
+At the pinned commit, upstream `agent.oneshot.run_oneshot()` uses the auxiliary
+router, which owns transient retries and provider/model fallback. The Kivou bridge
+therefore does not use that helper for this strict smoke. It reuses the pinned
+Hermes OpenAI-client constructor, sets SDK retries to zero, performs exactly one
+request for `anthropic/claude-sonnet-4.6`, disables OpenRouter fallback on that
+request, and returns bounded route evidence to `HermesSupervisorAdapter`. The
+adapter rejects any provider, model, retry or fallback mismatch. This is the
+narrowest real-contract divergence from the approved design and does not add a
+second adapter, bridge, CLI, plan contract or engine.
 
 ## 3. Provision protected configuration
 
@@ -183,9 +200,14 @@ sudo journalctl -u kivou-acquisition-shadow-smoke.service -n 30 --no-pager
 
 Accept only `result=PASS` with Apollo READY/BOUND, Instantly BOUND and `3/3`,
 Hermes `0.20.4` with zero executable tools and the exact model, an advisory
-plan within CHF 1, and all four mutation deltas equal to zero. The journal must
+plan within CHF 1, the deployed SHA, Policy control revision, Hermes tag/commit,
+plan ID/review time, and all four mutation deltas equal to zero. The journal must
 contain no key, email address, raw provider object, prompt, reasoning, or raw
 model response.
+
+If a provider stage fails after network access begins, retain the bounded FAIL
+output showing prior successful components and the postcondition delta. A missing
+postcondition is printed as `mutation_delta state=UNKNOWN` and is never accepted.
 
 Recheck `kivou-api.service`, the deployed SHA, and the durable Policy authority.
 The oneshot remains static and unscheduled after success.

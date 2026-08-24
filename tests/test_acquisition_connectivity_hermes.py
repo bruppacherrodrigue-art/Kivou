@@ -224,7 +224,11 @@ def test_probe_reuses_adapter_with_exact_limits_and_advisory_context(tmp_path: P
     assert hermes.version == "0.20.4"
     assert hermes.executable_tools == 0
     assert hermes.model == MODEL
+    assert hermes.tag == "v2026.8.18"
+    assert hermes.commit == "e624e9fde561e1add9388384012b295fde669ade"
     assert plan.status == "advisory"
+    assert plan.plan_id == "shadow-plan"
+    assert plan.next_review_at == NOW + dt.timedelta(hours=1)
     assert plan.actions == 0
     context = adapter.contexts[0]
     assert context.runtime_mode == "SHADOW"

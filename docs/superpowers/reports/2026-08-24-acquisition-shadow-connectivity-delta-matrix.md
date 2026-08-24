@@ -7,11 +7,19 @@ Design authority: `53f0aae01077c33af1382887c396b4e9eecb27ac`
 | --- | --- | --- | --- |
 | Apollo | `ApolloOrganizationSearchClient`, `ApolloContactDiscoveryClient`, `ApolloCompanyResearchClient` and their bounded transports | Construct all three from the protected deployment key | Zero-credit `auth/health` and `users/api_profile` identity probe with an opaque acting-user fingerprint |
 | Instantly | `HttpInstantlyProvider`, `InstantlyMailboxReadinessSource`, `normalize_mailbox_readiness`, and `CampaignWorker` as the sole business worker | Read-only current-workspace method and safe account-email path encoding | Workspace binding plus exactly-three-mailbox smoke orchestration; no second provider or worker |
-| Hermes/OpenRouter | `HermesSupervisorAdapter`, `SubprocessHermesTransport`, bridge, CLI, strict supervisor contracts, and immutable TOML pin | Validate the exact non-secret deployment `config.yaml` before invocation | Compose existing health and advisory-plan calls in the smoke; no new Hermes engine or plan contract |
+| Hermes/OpenRouter | `HermesSupervisorAdapter`, `SubprocessHermesTransport`, bridge, CLI, strict supervisor contracts, and immutable TOML pin | Validate the exact non-secret deployment `config.yaml`; make the existing bridge enforce one zero-retry OpenRouter request with request-level fallback disabled and return route evidence | Compose existing health and advisory-plan calls in the smoke; no new Hermes engine or plan contract |
 | Policy and operations | `PolicyStore.get_effective_control`, `AutonomyMode`, `OperationsStore`, and SPEC-031 execution controls | Bounded read of unresolved positive provider operations | Aggregate STAGING/SHADOW/read-only/kill-switch/zero-cap preflight |
 | Persistence | Existing `CampaignStore` and the four acquisition campaign/provider tables | One read-only bounded counter method on the existing store | Before/after snapshot and exact delta; no new store, table, or migration |
 | Deployment | Existing Python CLI conventions and systemd/runbook conventions | Seven protected settings plus one closed three-binding JSON document | Connectivity composition root, disabled manual oneshot, redacted examples, and VPS runbook |
 | Business execution | `CampaignWorker` remains the sole campaign execution path | None | The smoke never starts it and never invokes a mutating worker/provider method |
+
+The bridge adjustment is required because pinned Hermes `run_oneshot()` selects an
+auxiliary route that owns transient retries and provider/model fallback. That real
+upstream behavior conflicts with this smoke's no-retry/no-fallback contract. Kivou
+therefore keeps the existing bridge and pinned Hermes client construction, but calls
+the exact OpenRouter route once with SDK retries set to zero and
+`allow_fallbacks=false`; the existing adapter rejects missing or different route
+evidence.
 
 ## Non-duplication boundary
 

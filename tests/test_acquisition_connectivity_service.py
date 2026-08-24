@@ -170,7 +170,12 @@ class FakeHermes:
             raise self.failure
         return (
             HermesConnectivityEvidence(),
-            ShadowPlanEvidence(actions=0, estimated_cost=Decimal("0")),
+            ShadowPlanEvidence(
+                plan_id="shadow-plan",
+                actions=0,
+                estimated_cost=Decimal("0"),
+                next_review_at=NOW + dt.timedelta(hours=1),
+            ),
         )
 
 
@@ -192,6 +197,7 @@ def _service(
         apollo_identity=apollo,
         instantly=instantly,
         hermes=hermes,
+        deployed_sha="c" * 40,
     )
     return service, apollo, instantly, hermes
 
@@ -245,6 +251,8 @@ def test_success_returns_only_bounded_advisory_evidence_and_zero_delta() -> None
 
     assert result.preflight.environment == "STAGING"
     assert result.preflight.policy == "SHADOW"
+    assert result.deployed_sha == "c" * 40
+    assert result.preflight.policy_control_revision == 1
     assert result.apollo.auth == "READY"
     assert result.instantly.mailboxes_ready == 3
     assert result.hermes.executable_tools == 0
@@ -278,6 +286,10 @@ def test_every_reached_network_failure_still_rereads_counts(
         service.check(observed_at=NOW)
 
     assert caught.value.code is ConnectivityErrorCode.NETWORK
+    assert caught.value.partial is not None
+    assert caught.value.partial.failed_component == failed_component
+    assert caught.value.partial.mutation_delta is not None
+    assert caught.value.partial.mutation_delta.model_dump() == ZERO
     assert store.count_calls == 2
     assert (apollo.calls, instantly.calls, hermes.calls) == expected_calls
 
@@ -292,6 +304,10 @@ def test_local_mutation_takes_precedence_over_a_provider_failure() -> None:
         service.check(observed_at=NOW)
 
     assert caught.value.code is ConnectivityErrorCode.LOCAL_MUTATION_DETECTED
+    assert caught.value.partial is not None
+    assert caught.value.partial.failed_component == "postcondition"
+    assert caught.value.partial.mutation_delta is not None
+    assert caught.value.partial.mutation_delta.provider_operations == 1
     assert store.count_calls == 2
     assert (instantly.calls, hermes.calls) == (0, 0)
 

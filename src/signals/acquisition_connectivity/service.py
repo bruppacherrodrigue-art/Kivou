@@ -10,6 +10,7 @@ from signals.acquisition_connectivity.config import validate_hermes_shadow_confi
 from signals.acquisition_connectivity.contracts import (
     AcquisitionConnectivityConfig,
     AcquisitionMutationDelta,
+    AcquisitionShadowSmokePartial,
     AcquisitionShadowSmokeResult,
     ApolloIdentityEvidence,
     ConnectivityErrorCode,
@@ -35,13 +36,6 @@ from signals.supervisor.runtime import (
     SupervisorValidationError,
     SupervisorVersionMismatch,
 )
-
-HERMES_REPOSITORY = "https://github.com/NousResearch/hermes-agent.git"
-HERMES_TAG = "v2026.8.18"
-HERMES_COMMIT = "e624e9fde561e1add9388384012b295fde669ade"
-HERMES_VERSION = "0.20.4"
-HERMES_PYTHON_CONTRACT = ">=3.11,<3.14"
-OPENROUTER_MODEL = "anthropic/claude-sonnet-4.6"
 
 
 class _PolicyReader(Protocol):
@@ -95,14 +89,6 @@ class HermesConnectivityProbe:
     ) -> tuple[HermesConnectivityEvidence, ShadowPlanEvidence]:
         validate_hermes_shadow_config(self._config)
         pin = load_hermes_pin()
-        if (
-            pin.repository != HERMES_REPOSITORY
-            or pin.tag != HERMES_TAG
-            or pin.commit != HERMES_COMMIT
-            or pin.version != HERMES_VERSION
-            or pin.python != HERMES_PYTHON_CONTRACT
-        ):
-            raise ConnectivityFailure(ConnectivityErrorCode.HERMES_VERSION_MISMATCH)
         limits = self._adapter.settings.limits
         if (
             limits.invocation_timeout_seconds > 30
@@ -158,13 +144,26 @@ class HermesConnectivityProbe:
             raise ConnectivityFailure(ConnectivityErrorCode.NETWORK) from None
         except (SupervisorValidationError, TypeError, ValueError):
             raise ConnectivityFailure(ConnectivityErrorCode.HERMES_PLAN_INVALID) from None
-        return (
-            HermesConnectivityEvidence(),
-            ShadowPlanEvidence(
+        try:
+            hermes_evidence = HermesConnectivityEvidence(
+                version=pin.version,
+                tag=pin.tag,
+                commit=pin.commit,
+            )
+        except (TypeError, ValueError):
+            raise ConnectivityFailure(
+                ConnectivityErrorCode.HERMES_VERSION_MISMATCH
+            ) from None
+        try:
+            plan_evidence = ShadowPlanEvidence(
+                plan_id=plan.plan_id,
                 actions=len(plan.proposed_actions),
                 estimated_cost=plan.estimated_cost,
-            ),
-        )
+                next_review_at=plan.next_review_at,
+            )
+        except (TypeError, ValueError):
+            raise ConnectivityFailure(ConnectivityErrorCode.HERMES_PLAN_INVALID) from None
+        return hermes_evidence, plan_evidence
 
 
 class AcquisitionConnectivityService:
@@ -177,6 +176,7 @@ class AcquisitionConnectivityService:
         apollo_identity: _ApolloIdentity,
         instantly: _InstantlyConnectivity,
         hermes: _HermesConnectivity,
+        deployed_sha: str,
     ) -> None:
         self._config = config
         self._policy = policy_store
@@ -184,6 +184,7 @@ class AcquisitionConnectivityService:
         self._apollo = apollo_identity
         self._instantly = instantly
         self._hermes = hermes
+        self._deployed_sha = deployed_sha
 
     def check(self, *, observed_at: dt.datetime) -> AcquisitionShadowSmokeResult:
         if observed_at.tzinfo is None or observed_at.utcoffset() is None:
@@ -192,6 +193,7 @@ class AcquisitionConnectivityService:
         control, preflight = self._preflight(observed_at)
         before = self._counts()
         failure: ConnectivityFailure | None = None
+        failed_component: str = "apollo"
         apollo: ApolloIdentityEvidence | None = None
         instantly: InstantlyConnectivityEvidence | None = None
         hermes: HermesConnectivityEvidence | None = None
@@ -200,18 +202,22 @@ class AcquisitionConnectivityService:
 
         try:
             network_reached = True
+            failed_component = "apollo"
             apollo = self._apollo.check()
+            failed_component = "instantly"
             instantly = self._instantly.check(
                 self._config.deployment, observed_at=observed_at
             )
+            failed_component = "hermes"
             hermes, shadow_plan = self._hermes.check(control, observed_at=observed_at)
         except ConnectivityFailure as exc:
             failure = exc
         except Exception:  # noqa: BLE001 - boundary maps details to a closed safe code
             failure = ConnectivityFailure(ConnectivityErrorCode.MALFORMED_RESPONSE)
 
-        delta = AcquisitionMutationDelta(**{name: 0 for name in before})
+        delta: AcquisitionMutationDelta | None = None
         if network_reached:
+            failed_component = "postcondition" if failure is None else failed_component
             try:
                 after = self._counts()
                 delta = AcquisitionMutationDelta(
@@ -219,15 +225,35 @@ class AcquisitionConnectivityService:
                 )
             except ConnectivityFailure as exc:
                 failure = exc
-            if delta.detected:
-                raise ConnectivityFailure(ConnectivityErrorCode.LOCAL_MUTATION_DETECTED)
+                failed_component = "postcondition"
+            if delta is not None and delta.detected:
+                failure = ConnectivityFailure(
+                    ConnectivityErrorCode.LOCAL_MUTATION_DETECTED
+                )
+                failed_component = "postcondition"
         if failure is not None:
-            raise failure
+            partial = AcquisitionShadowSmokePartial(
+                deployed_sha=self._deployed_sha,
+                preflight=preflight,
+                failed_component=failed_component,
+                apollo=apollo,
+                instantly=instantly,
+                hermes=hermes,
+                shadow_plan=shadow_plan,
+                mutation_delta=delta,
+            )
+            raise ConnectivityFailure(
+                failure.code,
+                retry_after_seconds=failure.retry_after_seconds,
+                partial=partial,
+            )
         assert apollo is not None
         assert instantly is not None
         assert hermes is not None
         assert shadow_plan is not None
+        assert delta is not None
         return AcquisitionShadowSmokeResult(
+            deployed_sha=self._deployed_sha,
             preflight=preflight,
             apollo=apollo,
             instantly=instantly,
@@ -259,7 +285,10 @@ class AcquisitionConnectivityService:
             raise ConnectivityFailure(ConnectivityErrorCode.OPERATIONAL_AMBIGUITY) from None
         if ambiguous:
             raise ConnectivityFailure(ConnectivityErrorCode.OPERATIONAL_AMBIGUITY)
-        return control, ShadowPreflightEvidence()
+        return control, ShadowPreflightEvidence(
+            policy_control_revision=control.control_revision,
+            policy_version=control.policy_version,
+        )
 
     def _counts(self) -> dict[str, int]:
         expected = {

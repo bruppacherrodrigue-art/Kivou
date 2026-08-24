@@ -107,9 +107,17 @@ def bridge_response(response: str | None = None, **metadata):
         "source_commit": PIN.commit,
         "executable_tools": [],
     }
-    value.update(metadata)
     if response is not None:
         value["response"] = response
+        value.update(
+            {
+                "provider": "openrouter",
+                "model": "anthropic/claude-sonnet-4.6",
+                "automatic_retries": 0,
+                "fallbacks": False,
+            }
+        )
+    value.update(metadata)
     return value
 
 
@@ -135,6 +143,12 @@ def test_adapter_satisfies_replaceable_protocol_and_returns_advisory_actions(tmp
     assert result.proposed_actions[0].command == "evaluate_opportunity"
     assert adapter.propose_actions(context()) == result.proposed_actions
     assert [request["operation"] for request in transport.requests] == ["plan", "plan"]
+    assert transport.requests[0]["provider"] == "openrouter"
+    assert transport.requests[0]["model"] == "anthropic/claude-sonnet-4.6"
+    assert transport.requests[0]["provider_routing"] == {
+        "require_parameters": True,
+        "data_collection": "deny",
+    }
     assert not hasattr(adapter, "execute")
 
 
@@ -238,6 +252,23 @@ def test_timeout_and_version_mismatch_produce_no_plan(tmp_path):
         HermesSupervisorAdapter(
             settings(tmp_path),
             transport=FakeTransport(bridge_response(valid_plan(), source_commit="0" * 40)),
+        ).plan(context())
+
+
+@pytest.mark.parametrize(
+    "metadata",
+    [
+        {"provider": "other"},
+        {"model": "other/model"},
+        {"automatic_retries": 1},
+        {"fallbacks": True},
+    ],
+)
+def test_plan_rejects_unproven_exact_openrouter_route(tmp_path, metadata):
+    with pytest.raises(SupervisorVersionMismatch):
+        HermesSupervisorAdapter(
+            settings(tmp_path),
+            transport=FakeTransport(bridge_response(valid_plan(), **metadata)),
         ).plan(context())
 
 

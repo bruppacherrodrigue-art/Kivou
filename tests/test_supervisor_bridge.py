@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import io
 import json
+import sys
+from types import ModuleType, SimpleNamespace
 
 import pytest
 
 from signals.supervisor.hermes_bridge import (
     BRIDGE_PROTOCOL_VERSION,
     BridgeRequestError,
+    _official_oneshot,
     handle_request,
     run_bridge,
 )
@@ -17,6 +20,11 @@ PINNED_METADATA = {
     "hermes_version": "0.20.4",
     "source_commit": "e624e9fde561e1add9388384012b295fde669ade",
     "executable_tools": [],
+}
+MODEL = "anthropic/claude-sonnet-4.6"
+ROUTING = {
+    "require_parameters": True,
+    "data_collection": "deny",
 }
 
 
@@ -34,7 +42,13 @@ def test_plan_calls_only_injected_stateless_oneshot_with_bounded_arguments():
 
     def oneshot(**kwargs):
         captured.update(kwargs)
-        return '{"plan_id":"plan_001"}'
+        return {
+            "response": '{"plan_id":"plan_001"}',
+            "provider": "openrouter",
+            "model": MODEL,
+            "automatic_retries": 0,
+            "fallbacks": False,
+        }
 
     result = handle_request(
         {
@@ -43,6 +57,9 @@ def test_plan_calls_only_injected_stateless_oneshot_with_bounded_arguments():
             "context_json": '{"runtime_mode":"SHADOW"}',
             "max_tokens": 512,
             "timeout_seconds": 4.5,
+            "provider": "openrouter",
+            "model": MODEL,
+            "provider_routing": ROUTING,
         },
         metadata_loader=lambda: PINNED_METADATA.copy(),
         oneshot=oneshot,
@@ -53,10 +70,92 @@ def test_plan_calls_only_injected_stateless_oneshot_with_bounded_arguments():
         "user_input": '{"runtime_mode":"SHADOW"}',
         "max_tokens": 512,
         "timeout": 4.5,
+        "provider": "openrouter",
+        "model": MODEL,
+        "provider_routing": ROUTING,
     }
-    assert result == {"ok": True, **PINNED_METADATA, "response": '{"plan_id":"plan_001"}'}
+    assert result == {
+        "ok": True,
+        **PINNED_METADATA,
+        "response": '{"plan_id":"plan_001"}',
+        "provider": "openrouter",
+        "model": MODEL,
+        "automatic_retries": 0,
+        "fallbacks": False,
+    }
     assert "tools" not in captured
     assert "toolsets" not in captured
+
+
+def test_official_oneshot_makes_one_exact_openrouter_request_without_retry_or_fallback(
+    monkeypatch,
+):
+    captured: dict[str, object] = {}
+
+    class Completions:
+        def create(self, **kwargs):
+            captured.setdefault("requests", []).append(kwargs)
+            return SimpleNamespace(
+                model=MODEL,
+                choices=[SimpleNamespace(message=SimpleNamespace(content='{"plan_id":"p"}'))],
+            )
+
+    class Client:
+        def __init__(self):
+            self.chat = SimpleNamespace(completions=Completions())
+
+        def close(self):
+            captured["closed"] = True
+
+    auxiliary = ModuleType("agent.auxiliary_client")
+
+    def create_client(**kwargs):
+        captured["client"] = kwargs
+        return Client()
+
+    auxiliary._create_openai_client = create_client
+    agent = ModuleType("agent")
+    agent.__path__ = []
+    monkeypatch.setitem(sys.modules, "agent", agent)
+    monkeypatch.setitem(sys.modules, "agent.auxiliary_client", auxiliary)
+    monkeypatch.setenv("OPENROUTER_API_KEY", "synthetic-openrouter")
+
+    result = _official_oneshot(
+        instructions="system authority",
+        user_input='{"runtime_mode":"SHADOW"}',
+        max_tokens=2_048,
+        timeout=30,
+        provider="openrouter",
+        model=MODEL,
+        provider_routing=ROUTING,
+    )
+
+    assert captured["client"] == {
+        "api_key": "synthetic-openrouter",
+        "base_url": "https://openrouter.ai/api/v1",
+        "max_retries": 0,
+    }
+    requests = captured["requests"]
+    assert isinstance(requests, list) and len(requests) == 1
+    assert requests[0]["model"] == MODEL
+    assert requests[0]["max_tokens"] == 2_048
+    assert requests[0]["timeout"] == 30
+    assert requests[0]["extra_body"] == {
+        "provider": {
+            "require_parameters": True,
+            "data_collection": "deny",
+            "allow_fallbacks": False,
+        }
+    }
+    assert "tools" not in requests[0]
+    assert result == {
+        "response": '{"plan_id":"p"}',
+        "provider": "openrouter",
+        "model": MODEL,
+        "automatic_retries": 0,
+        "fallbacks": False,
+    }
+    assert captured["closed"] is True
 
 
 @pytest.mark.parametrize(

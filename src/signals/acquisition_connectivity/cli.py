@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import re
+import subprocess
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -47,6 +49,7 @@ def build_connectivity_composition(
     config: AcquisitionConnectivityConfig,
     engine: Engine,
     client: httpx.Client,
+    deployed_sha: str,
 ) -> ConnectivityComposition:
     apollo = build_apollo_components(
         api_key=config.apollo_api_key.get_secret_value(),
@@ -78,6 +81,7 @@ def build_connectivity_composition(
         apollo_identity=apollo.identity,
         instantly=instantly,
         hermes=HermesConnectivityProbe(config=config, adapter=hermes_adapter),
+        deployed_sha=deployed_sha,
     )
     return ConnectivityComposition(
         service=service,
@@ -89,6 +93,7 @@ def build_connectivity_composition(
 
 def execute_connectivity_check() -> AcquisitionShadowSmokeResult:
     config = load_connectivity_config()
+    deployed_sha = _deployed_sha()
     engine = create_database_engine()
     try:
         with httpx.Client(timeout=10.0, follow_redirects=False) as client:
@@ -96,6 +101,7 @@ def execute_connectivity_check() -> AcquisitionShadowSmokeResult:
                 config=config,
                 engine=engine,
                 client=client,
+                deployed_sha=deployed_sha,
             )
             return composition.service.check(observed_at=dt.datetime.now(dt.UTC))
     finally:
@@ -111,28 +117,118 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _print_success(result: AcquisitionShadowSmokeResult) -> None:
+def _deployed_sha() -> str:
+    try:
+        revision = subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=2,
+        )
+        status = subprocess.run(
+            ["git", "status", "--porcelain=v1", "--untracked-files=normal"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=2,
+        )
+    except (OSError, subprocess.SubprocessError):
+        raise ConnectivityFailure(ConnectivityErrorCode.OPERATIONAL_AMBIGUITY) from None
+    value = revision.stdout.strip()
+    if (
+        revision.returncode != 0
+        or status.returncode != 0
+        or status.stdout
+        or re.fullmatch(r"[0-9a-f]{40}", value) is None
+    ):
+        raise ConnectivityFailure(ConnectivityErrorCode.OPERATIONAL_AMBIGUITY)
+    return value
+
+
+def _instant(value: dt.datetime) -> str:
+    return value.astimezone(dt.UTC).isoformat().replace("+00:00", "Z")
+
+
+def _print_preflight(result) -> None:
     print(
         "acquisition_shadow environment=STAGING policy=SHADOW "
-        "read_only=true kill_switch=true"
+        "read_only=true kill_switch=true "
+        f"deployment_sha={result.deployed_sha} "
+        f"policy_control_revision={result.preflight.policy_control_revision}"
     )
+
+
+def _print_apollo() -> None:
     print("apollo auth=READY acting_profile=BOUND")
+
+
+def _print_instantly() -> None:
     print("instantly workspace=BOUND mailboxes_ready=3 mailboxes_total=3")
+
+
+def _print_hermes() -> None:
     print(
         "hermes state=AVAILABLE version=0.20.4 executable_tools=0 "
-        "model=anthropic/claude-sonnet-4.6"
+        "model=anthropic/claude-sonnet-4.6 tag=v2026.8.18 "
+        "commit=e624e9fde561e1add9388384012b295fde669ade"
     )
+
+
+def _print_plan(plan) -> None:
     print(
-        f"shadow_plan status=advisory actions={result.shadow_plan.actions} "
-        f"estimated_cost={result.shadow_plan.estimated_cost:.2f}"
+        f"shadow_plan status=advisory actions={plan.actions} "
+        f"estimated_cost={plan.estimated_cost:.2f} plan_id={plan.plan_id} "
+        f"next_review_at={_instant(plan.next_review_at)}"
     )
-    delta = result.mutation_delta
+
+
+def _print_delta(delta) -> None:
     print(
         f"mutation_delta campaigns={delta.campaigns} members={delta.members} "
         f"provider_operations={delta.provider_operations} "
         f"provider_events={delta.provider_events}"
     )
+
+
+def _print_success(result: AcquisitionShadowSmokeResult) -> None:
+    _print_preflight(result)
+    _print_apollo()
+    _print_instantly()
+    _print_hermes()
+    _print_plan(result.shadow_plan)
+    _print_delta(result.mutation_delta)
     print("result=PASS")
+
+
+def _print_failure(exc: ConnectivityFailure) -> None:
+    partial = exc.partial
+    if partial is not None:
+        _print_preflight(partial)
+        if partial.apollo is not None:
+            _print_apollo()
+        elif partial.failed_component == "apollo":
+            print(f"apollo auth=NOT_READY error={exc.code.value}")
+        if partial.instantly is not None:
+            _print_instantly()
+        elif partial.failed_component == "instantly":
+            print(f"instantly workspace=NOT_READY error={exc.code.value}")
+        if partial.hermes is not None:
+            _print_hermes()
+        elif partial.failed_component == "hermes":
+            print(f"hermes state=NOT_READY error={exc.code.value}")
+        if partial.shadow_plan is not None:
+            _print_plan(partial.shadow_plan)
+        if partial.mutation_delta is not None:
+            _print_delta(partial.mutation_delta)
+        else:
+            print("mutation_delta state=UNKNOWN")
+    retry = (
+        f" retry_after_seconds={exc.retry_after_seconds}"
+        if exc.retry_after_seconds is not None
+        else ""
+    )
+    print(f"result=FAIL error={exc.code.value}{retry}")
 
 
 def main(
@@ -146,12 +242,7 @@ def main(
     try:
         result = execute()
     except ConnectivityFailure as exc:
-        retry = (
-            f" retry_after_seconds={exc.retry_after_seconds}"
-            if exc.retry_after_seconds is not None
-            else ""
-        )
-        print(f"result=FAIL error={exc.code.value}{retry}")
+        _print_failure(exc)
         return 1
     except Exception:  # noqa: BLE001 - CLI never reflects raw runtime/provider detail
         print(f"result=FAIL error={ConnectivityErrorCode.MALFORMED_RESPONSE.value}")

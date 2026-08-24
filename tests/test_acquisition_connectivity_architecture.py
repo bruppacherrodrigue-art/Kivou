@@ -13,6 +13,7 @@ OPS_ENV = Path("ops/examples/acquisition-shadow.env.example")
 OPS_JSON = Path("ops/examples/acquisition-shadow.json.example")
 HERMES_CONFIG = Path("ops/examples/hermes-shadow-config.yaml")
 RUNBOOK = Path("docs/runbooks/08-acquisition-shadow-provider-connectivity.md")
+HERMES_BRIDGE = Path("src/signals/supervisor/hermes_bridge.py")
 
 
 def _assignments(path: Path) -> dict[str, str]:
@@ -81,6 +82,14 @@ def test_connectivity_package_contains_no_mutating_http_method_or_paid_apollo_pa
     assert not any(path in source for path in forbidden_paths)
     assert "time.sleep" not in source
     assert "CampaignWorker" not in source
+
+
+def test_existing_hermes_bridge_has_one_exact_route_without_retry_or_fallback() -> None:
+    source = HERMES_BRIDGE.read_text(encoding="utf-8")
+    assert "from agent.oneshot import run_oneshot" not in source
+    assert "max_retries=0" in source
+    assert '"allow_fallbacks": False' in source
+    assert 'OPENROUTER_MODEL = "anthropic/claude-sonnet-4.6"' in source
 
 
 def test_main_env_example_has_only_blank_values_for_the_seven_new_settings() -> None:
@@ -167,6 +176,9 @@ def test_runbook_contains_pin_provisioning_permissions_smoke_and_rollback() -> N
         "https://docs.apollo.io/reference/authentication",
         "https://developer.instantly.ai/api-reference/workspace/get-workspace",
         "https://developer.instantly.ai/api-reference/account/get-account",
+        "https://openrouter.ai/docs/guides/routing/provider-selection",
+        "allow_fallbacks=false",
+        "SDK retries to zero",
         "sudoedit /etc/kivou/acquisition-shadow.env",
         "namei -l",
         "systemctl start kivou-acquisition-shadow-smoke.service",

@@ -487,6 +487,28 @@ def test_oversized_provider_response_is_rejected_before_json_decode() -> None:
     assert caught.value.code is InstantlyErrorCode.MALFORMED_RESPONSE
 
 
+def test_oversized_provider_stream_stops_at_the_configured_read_bound() -> None:
+    class OversizedStream(httpx.SyncByteStream):
+        def __init__(self) -> None:
+            self.chunks_read = 0
+
+        def __iter__(self):
+            for _ in range(10):
+                self.chunks_read += 1
+                yield b"x" * 262_144
+
+    stream = OversizedStream()
+    provider = _provider(
+        lambda _request: httpx.Response(200, stream=stream)
+    )
+
+    with pytest.raises(InstantlyProviderError) as caught:
+        provider.list_webhooks()
+
+    assert caught.value.code is InstantlyErrorCode.MALFORMED_RESPONSE
+    assert stream.chunks_read == 5
+
+
 @pytest.mark.parametrize(
     ("changes", "expected"),
     [
