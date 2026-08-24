@@ -157,3 +157,41 @@ def make_blind(**overrides: Any) -> dict[str, Any]:
 @pytest.fixture
 def blind() -> dict[str, Any]:
     return make_blind()
+
+
+# ─── Bases PostgreSQL jetables ────────────────────────────────────────────────
+#
+# Un scénario rejoué contre un vrai PostgreSQL crée une base par test. Sans
+# suppression, chaque test laisse une base ET un pool de connexions vivants sur
+# le serveur : une suite complète finit par épuiser `max_connections`, et les
+# échecs qui en résultent n'ont plus aucun rapport avec le code testé.
+
+_DISPOSABLE_DATABASES: list[tuple] = []
+
+
+def register_disposable_database(engine, admin, name: str) -> None:
+    """Inscrit une base jetable à supprimer après le test en cours."""
+    _DISPOSABLE_DATABASES.append((engine, admin, name))
+
+
+@pytest.fixture(autouse=True)
+def _drop_disposable_databases():
+    """Supprime, après CHAQUE test, les bases jetables qu'il a créées.
+
+    Placé ici plutôt que dans la fixture qui les crée : trois fichiers
+    l'appellent directement via `__wrapped__`, et ne bénéficieraient donc pas
+    d'un nettoyage attaché à cette seule fixture.
+    """
+    yield
+    import sqlalchemy as sa
+
+    while _DISPOSABLE_DATABASES:
+        engine, admin, name = _DISPOSABLE_DATABASES.pop()
+        engine.dispose()
+        try:
+            with admin.connect() as connection:
+                connection.execution_options(isolation_level="AUTOCOMMIT").execute(
+                    sa.text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)')
+                )
+        finally:
+            admin.dispose()

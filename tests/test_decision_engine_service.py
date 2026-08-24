@@ -11,7 +11,9 @@ from enum import Enum
 import pytest
 import sqlalchemy as sa
 from alembic import command
+from conftest import register_disposable_database
 from feed_helpers import MATERIALIZED_AT, MATERIALIZED_ON, simap_award
+from sqlalchemy.engine import make_url
 from test_policy_persistence import control
 
 import signals.policy.gateway as policy_gateway_module
@@ -87,6 +89,11 @@ def _test_engine(tmp_path, name: str):
     course peut donc n'apparaître que sur l'un des deux. `KIVOU_TEST_DATABASE_URL`
     permet de rejouer un scénario contre un vrai PostgreSQL, dans une base
     JETABLE créée pour l'occasion — jamais dans celle qu'on lui donne.
+
+    La base jetable et son moteur sont inscrits au registre de `conftest`, qui
+    les supprime après chaque test : sans cela, chaque test laisserait une base
+    ET un pool de connexions vivants sur le serveur, jusqu'à épuiser
+    `max_connections` en cours de suite.
     """
     admin_url = os.environ.get("KIVOU_TEST_DATABASE_URL")
     if not admin_url:
@@ -98,8 +105,18 @@ def _test_engine(tmp_path, name: str):
         connection.execution_options(isolation_level="AUTOCOMMIT").execute(
             sa.text(f'CREATE DATABASE "{disposable}"')
         )
-    admin.dispose()
-    return create_database_engine(admin_url.rsplit("/", 1)[0] + "/" + disposable)
+    # `make_url(...).set(database=...)` plutôt qu'un découpage de chaîne : une
+    # URL peut porter des paramètres (`?sslmode=require`) qu'un `rsplit` perdrait,
+    # et la base jetable se connecterait alors autrement que l'admin qui vient
+    # de réussir.
+    # `render_as_string(hide_password=False)` et non `str(...)` : `str()` masque
+    # le mot de passe en `***`, et la base jetable échouerait à s'authentifier.
+    engine = create_database_engine(
+        make_url(admin_url).set(database=disposable).render_as_string(hide_password=False)
+    )
+
+    register_disposable_database(engine, admin, disposable)
+    return engine
 
 
 @pytest.fixture

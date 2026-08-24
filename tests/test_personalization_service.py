@@ -908,18 +908,12 @@ def test_each_atomic_conflict_converges_on_the_concurrent_artifact(context, conf
     assert _counts(engine) == (1, 1, 1)
 
 
-@pytest.mark.parametrize(
-    "conflict",
-    [OpportunityConcurrencyConflict, PolicyEvaluationIdempotencyConflict],
-    ids=["opportunity-version", "policy-idempotency"],
-)
-def test_an_atomic_conflict_without_any_artifact_is_an_invariant_error(context, conflict) -> None:
-    """Ne rien trouver après un conflit atomique n'est PAS une course à retenter.
+def test_an_idempotency_conflict_without_any_artifact_is_an_invariant_error(context) -> None:
+    """Ce conflit-là porte sur CET `evaluation_id` : ne rien trouver est grave.
 
-    Depuis que les cinq écritures partagent une transaction, voir l'un de ces
-    conflits prouve qu'un gagnant a validé. L'artefact introuvable signale donc
-    une corruption — et doit être dit, jamais absorbé par une attente ou un
-    nouvel essai.
+    Il n'est observable que si une transaction concurrente a inscrit la même
+    évaluation — écrite dans la même transaction que l'artefact. L'artefact
+    introuvable signale donc une corruption, et doit être dit plutôt qu'absorbé.
     """
     engine, _, opportunity_id = context
     _prepared(engine, opportunity_id)
@@ -928,7 +922,7 @@ def test_an_atomic_conflict_without_any_artifact_is_an_invariant_error(context, 
     service._artifacts.get_by_policy = lambda _evaluation_id: None
 
     def raise_conflict(*_args, **_kwargs):
-        raise conflict(opportunity_id)
+        raise PolicyEvaluationIdempotencyConflict(opportunity_id)
 
     service._policy.record_in_transaction = raise_conflict
 
@@ -936,6 +930,89 @@ def test_an_atomic_conflict_without_any_artifact_is_an_invariant_error(context, 
         service.personalize(
             opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
         )
+
+
+def test_a_stream_conflict_from_another_writer_stays_a_retryable_conflict(context) -> None:
+    """`OpportunityConcurrencyConflict` ne prouve RIEN sur cette personnalisation.
+
+    `expected_version` est lu hors transaction, et le flux de l'opportunité est
+    PARTAGÉ : conformité, découverte de contacts, recherche d'entreprise et
+    moteur de décision y écrivent aussi. N'importe laquelle de leurs écritures
+    déclenche ce conflit.
+
+    Le convertir en erreur d'invariant transformerait une concurrence bénigne et
+    rattrapable en alarme de corruption — et priverait les appelants du conflit
+    typé que les services frères savent déjà traiter.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    service = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    service._artifacts.get_by_policy = lambda _evaluation_id: None
+
+    def raise_conflict(*_args, **_kwargs):
+        raise OpportunityConcurrencyConflict(opportunity_id)
+
+    service._policy.record_in_transaction = raise_conflict
+
+    with pytest.raises(OpportunityConcurrencyConflict):
+        service.personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+
+
+def test_a_conflict_raised_while_preparing_still_converges(context) -> None:
+    """L'empreinte sémantique inclut `evaluated_at`.
+
+    Deux appelants concurrents en produisent donc deux différentes dès que
+    l'horloge est réelle, et `prepare()` lève `PolicyEvaluationIdempotencyConflict`
+    — sur une COURSE, pas sur une incohérence. Hors du périmètre de convergence,
+    cette exception échappait à l'appelant : c'est la forme la plus probable en
+    production du défaut que ce correctif vise.
+
+    Les autres tests figent l'horloge, donc les empreintes coïncident et cette
+    branche n'est jamais atteinte. Elle est ici déclenchée explicitement.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    winner = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    entry = {"seen": False}
+    real_get = loser._artifacts.get_by_policy
+
+    def get_by_policy(evaluation_id):
+        if not entry["seen"]:
+            entry["seen"] = True
+            return None
+        return real_get(evaluation_id)
+
+    loser._artifacts.get_by_policy = get_by_policy
+    loser._policy_store_evaluation_row = loser._policy_store.evaluation_row
+    seen_row = {"n": 0}
+
+    def evaluation_row(connection, evaluation_id):
+        seen_row["n"] += 1
+        return None if seen_row["n"] == 1 else loser._policy_store_evaluation_row(
+            connection, evaluation_id
+        )
+
+    loser._policy_store.evaluation_row = evaluation_row
+
+    def prepare_conflict(*_args, **_kwargs):
+        raise PolicyEvaluationIdempotencyConflict("personalization-eval-1")
+
+    loser._policy.prepare = prepare_conflict
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert converged["personalization_artifact_id"] == winner["personalization_artifact_id"]
+    assert _counts(engine) == (1, 1, 1)
 
 
 def test_the_policy_evaluation_and_the_artifact_share_one_transaction(context) -> None:
@@ -1088,4 +1165,60 @@ def test_an_opportunity_advanced_by_the_winner_is_a_race_not_a_dead_end(context)
     )
 
     assert converged["personalization_artifact_id"] == winner["personalization_artifact_id"]
+    assert _counts(engine) == (1, 1, 1)
+
+
+# ─── Horloges RÉELLEMENT différentes — la forme de production de la course ────
+
+
+def test_a_race_with_genuinely_different_clocks_converges(context) -> None:
+    """Deux appelants concurrents n'ont PAS le même instant.
+
+    `evaluated_at` entre dans l'empreinte sémantique, donc deux horloges
+    distinctes produisent deux empreintes distinctes. Le perdant voit alors la
+    passerelle lever `PolicyEvaluationIdempotencyConflict` depuis `prepare()` —
+    sur une COURSE, pas sur une incohérence.
+
+    Tous les autres tests figent la MÊME horloge sur les deux appelants : les
+    empreintes coïncident, `prepare()` rend une décision, et cette branche n'est
+    jamais atteinte. C'est ce qui l'avait laissée hors du périmètre de
+    convergence.
+
+    Ici le conflit vient du VRAI code de la passerelle, pas d'une exception
+    injectée : seul l'instant du gagnant est imposé, pour que le test reste
+    déterministe tout en étant fidèle.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    winner_at = EVALUATED_AT
+    loser_at = EVALUATED_AT + dt.timedelta(seconds=37)
+    assert winner_at != loser_at, "le test n'a de sens que si les horloges diffèrent"
+
+    loser = PersonalizationService(engine, clock=CountingClock(loser_at))
+    winner_result = {}
+    real_prepare = loser._policy.prepare
+
+    def prepare(*args, **kwargs):
+        # Le gagnant valide APRÈS les gardes d'entrée du perdant, donc juste
+        # avant que celui-ci ne prépare sa propre décision.
+        if not winner_result:
+            winner_result["artifact"] = PersonalizationService(
+                engine, clock=CountingClock(winner_at)
+            ).personalize(
+                opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+            )
+        return real_prepare(*args, **kwargs)
+
+    loser._policy.prepare = prepare
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert winner_result, "le gagnant doit avoir validé avant la préparation du perdant"
+    assert (
+        converged["personalization_artifact_id"]
+        == winner_result["artifact"]["personalization_artifact_id"]
+    )
     assert _counts(engine) == (1, 1, 1)

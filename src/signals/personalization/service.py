@@ -223,9 +223,22 @@ class PersonalizationService:
         )
         # Le calcul de politique reste HORS transaction : tenir un verrou
         # pendant un travail métier l'allongerait sans rien garantir de plus.
-        prepared = self._policy.prepare(
-            request, evaluated_at=captured_at, budget_usage=budget_usage
-        )
+        #
+        # Mais il est DANS le périmètre de convergence : l'empreinte sémantique
+        # inclut `evaluated_at`, donc deux appelants concurrents en produisent
+        # deux différentes dès que l'horloge est réelle. `prepare` lève alors
+        # `PolicyEvaluationIdempotencyConflict` — sur une course, pas sur une
+        # incohérence. Le laisser hors du `try` faisait échapper la forme la
+        # plus probable du défaut que ce correctif vise. Les tests ne le
+        # voyaient pas : ils figent l'horloge, donc les empreintes coïncident.
+        try:
+            prepared = self._policy.prepare(
+                request, evaluated_at=captured_at, budget_usage=budget_usage
+            )
+        except PolicyEvaluationIdempotencyConflict as error:
+            return self._converge_after_conflict(
+                authorization, opportunity_id, language, cause=error
+            )
         # Le point d'injection de dérive reste ici, avant l'ouverture de la
         # transaction : une dérive écrite depuis une autre connexion pendant que
         # le verrou d'écriture est tenu ne pourrait pas s'appliquer.
@@ -249,14 +262,30 @@ class PersonalizationService:
                 as_of_date,
                 captured_at,
             )
-        except (OpportunityConcurrencyConflict, PolicyEvaluationIdempotencyConflict) as error:
-            # La transaction est ENTIÈREMENT annulée à ce point : le `with`
-            # s'est refermé sur une exception. Ces deux conflits ne sont
-            # observables que si une transaction concurrente a été validée,
-            # donc le résultat concurrent est durable et lisible.
+        except PolicyEvaluationIdempotencyConflict as error:
+            # Ce conflit porte sur CET `evaluation_id` : il n'est observable que
+            # si une transaction concurrente l'a inscrit, et l'artefact est écrit
+            # dans la même. La convergence est donc démontrable.
             return self._converge_after_conflict(
                 authorization, opportunity_id, language, cause=error
             )
+        except OpportunityConcurrencyConflict:
+            # Celui-ci, en revanche, ne prouve RIEN sur cette personnalisation.
+            # `expected_version` est lu hors transaction, et le flux de
+            # l'opportunité est partagé : conformité, découverte de contacts,
+            # recherche d'entreprise et moteur de décision y écrivent aussi.
+            # N'importe laquelle de leurs écritures déclenche ce conflit.
+            #
+            # Le traiter comme une preuve de gagnant transformerait une
+            # concurrence bénigne et RATTRAPABLE en alarme de corruption. On ne
+            # converge donc que si un artefact existe réellement pour cet
+            # `evaluation_id` ; sinon le conflit typé remonte tel quel, comme
+            # avant ce correctif, et comme les services frères le traitent déjà.
+            existing = self._artifacts.get_by_policy(authorization.evaluation_id)
+            if existing is None:
+                raise
+            self._require_existing(existing, opportunity_id, language, authorization)
+            return existing
         except PersonalizationInputChanged:
             # Une dérive d'entrée RÉELLE ne garantit aucun gagnant concurrent :
             # si rien n'a été écrit, c'est bien une dérive, et elle remonte.
@@ -832,6 +861,7 @@ class PersonalizationService:
 
 __all__ = [
     "PersonalizationBindingConflict",
+    "PersonalizationConvergenceInvariantViolated",
     "PersonalizationEvaluationRequiresFreshAttempt",
     "PersonalizationInputChanged",
     "PersonalizationNotActionable",
