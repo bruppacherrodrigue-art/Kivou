@@ -17,6 +17,7 @@ from signals.supervisor.contracts import (
     PublicFacts,
     SupervisorContext,
     SupervisorLimits,
+    SupervisorPlan,
 )
 from signals.supervisor.hermes import HermesSupervisorAdapter
 from signals.supervisor.pin import load_hermes_pin
@@ -149,7 +150,27 @@ def test_adapter_satisfies_replaceable_protocol_and_returns_advisory_actions(tmp
         "require_parameters": True,
         "data_collection": "deny",
     }
+    assert transport.requests[0]["response_schema"] == SupervisorPlan.model_json_schema()
     assert not hasattr(adapter, "execute")
+
+
+def test_valid_structured_plan_still_traverses_pydantic_validation(tmp_path, monkeypatch):
+    validated = []
+    original = SupervisorPlan.model_validate
+
+    def recording_validate(cls, value):
+        validated.append(value)
+        return original(value)
+
+    monkeypatch.setattr(SupervisorPlan, "model_validate", classmethod(recording_validate))
+    adapter = HermesSupervisorAdapter(
+        settings(tmp_path), transport=FakeTransport(bridge_response(valid_plan()))
+    )
+
+    plan = adapter.plan(context())
+
+    assert plan.plan_id == "plan_001"
+    assert validated == [json.loads(valid_plan())]
 
 
 def test_health_distinguishes_all_runtime_states(tmp_path):
