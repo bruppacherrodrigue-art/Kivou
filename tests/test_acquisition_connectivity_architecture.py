@@ -84,6 +84,16 @@ def test_connectivity_package_contains_no_mutating_http_method_or_paid_apollo_pa
     assert "CampaignWorker" not in source
 
 
+def test_optional_gap_profile_is_owned_only_by_manual_connectivity_composition() -> None:
+    opt_out_callers = [
+        path
+        for path in Path("src/signals").rglob("*.py")
+        if "require_sending_gap=False" in path.read_text(encoding="utf-8")
+    ]
+
+    assert opt_out_callers == [Path("src/signals/acquisition_connectivity/cli.py")]
+
+
 def test_existing_hermes_bridge_has_one_exact_route_without_retry_or_fallback() -> None:
     source = HERMES_BRIDGE.read_text(encoding="utf-8")
     assert "from agent.oneshot import run_oneshot" not in source

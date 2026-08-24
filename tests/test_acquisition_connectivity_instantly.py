@@ -66,7 +66,9 @@ def _probe(handler) -> InstantlyConnectivityProbe:
     )
     return InstantlyConnectivityProbe(
         provider=provider,
-        mailbox_readiness=InstantlyMailboxReadinessSource(provider),
+        mailbox_readiness=InstantlyMailboxReadinessSource(
+            provider, require_sending_gap=False
+        ),
     )
 
 
@@ -97,6 +99,22 @@ def test_probe_reuses_provider_and_normalizer_for_four_official_gets() -> None:
     assert evidence.mailboxes_ready == 3
     assert evidence.mailboxes_total == 3
     assert "@" not in repr(evidence)
+
+
+def test_probe_accepts_exact_configured_staging_account_shape() -> None:
+    account = _ready_account(tracking_domain_status="CTD_ACTIVE")
+    account.pop("sending_gap")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/workspaces/current"):
+            return httpx.Response(200, json={"id": "workspace-staging-ref"})
+        return httpx.Response(200, json=account)
+
+    evidence = _probe(handler).check(_document(), observed_at=NOW)
+
+    assert evidence.workspace == "BOUND"
+    assert evidence.mailboxes_ready == 3
+    assert evidence.mailboxes_total == 3
 
 
 def test_official_numeric_account_statuses_use_the_existing_normalizer() -> None:
