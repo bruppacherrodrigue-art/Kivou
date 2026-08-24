@@ -27,6 +27,33 @@ OPENROUTER_PROVIDER_ROUTING = {
 }
 
 
+def _closed_provider_failure(exc: Exception) -> dict[str, Any] | None:
+    class_names = {item.__name__ for item in type(exc).__mro__}
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, bool) or not isinstance(status, int) or not 100 <= status <= 599:
+        status = None
+
+    if "APITimeoutError" in class_names or isinstance(exc, TimeoutError):
+        return {"ok": False, "error": "TIMEOUT"}
+    if status == 401 or "AuthenticationError" in class_names:
+        value: dict[str, Any] = {"ok": False, "error": "AUTH"}
+    elif status == 403 or "PermissionDeniedError" in class_names:
+        value = {"ok": False, "error": "PERMISSION"}
+    elif status == 429 or "RateLimitError" in class_names:
+        value = {"ok": False, "error": "RATE_LIMITED"}
+    elif status is not None and 400 <= status <= 499:
+        value = {"ok": False, "error": "HERMES_PLAN_INVALID"}
+    elif status is not None and 500 <= status <= 599:
+        value = {"ok": False, "error": "SERVER_ERROR"}
+    elif "APIConnectionError" in class_names or isinstance(exc, ConnectionError):
+        return {"ok": False, "error": "NETWORK"}
+    else:
+        return None
+    if status is not None:
+        value["status"] = status
+    return value
+
+
 class BridgeRequestError(ValueError):
     pass
 
@@ -313,7 +340,11 @@ def run_bridge(
     except (BridgeRequestError, UnicodeDecodeError, json.JSONDecodeError, KeyError, TypeError):
         _write_json(output_stream, {"ok": False, "error": "invalid_request"})
         return 2
-    except Exception:  # noqa: BLE001 - child boundary must fail closed without leaking details
+    except Exception as exc:  # noqa: BLE001 - child boundary classifies without raw detail
+        provider_failure = _closed_provider_failure(exc)
+        if provider_failure is not None:
+            _write_json(output_stream, provider_failure)
+            return 0
         _write_json(output_stream, {"ok": False, "error": "runtime_unavailable"})
         return 1
     _write_json(output_stream, result)

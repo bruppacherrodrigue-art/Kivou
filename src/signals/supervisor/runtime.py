@@ -47,6 +47,18 @@ class SupervisorVersionMismatch(SupervisorError):
     category = "version_mismatch"
 
 
+class SupervisorProviderError(SupervisorError):
+    category = "provider"
+
+    def __init__(self, code: str, *, status_code: int | None = None) -> None:
+        super().__init__(
+            f"Hermes provider failure category={code}"
+            + (f" status={status_code}" if status_code is not None else "")
+        )
+        self.code = code
+        self.status_code = status_code
+
+
 class SupervisorHealth(SupervisorModel):
     state: HealthState
     hermes_version: str | None = None
