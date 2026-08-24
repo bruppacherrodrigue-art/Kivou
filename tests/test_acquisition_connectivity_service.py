@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from pydantic import SecretStr
 
+import signals.accounts.schema  # noqa: F401 - registers cross-module FK tables
 from signals.acquisition_connectivity.contracts import (
     AcquisitionConnectivityConfig,
     ApolloIdentityEvidence,

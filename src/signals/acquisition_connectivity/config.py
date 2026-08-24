@@ -26,6 +26,17 @@ REQUIRED_ENVIRONMENT_VARIABLES = (
     "KIVOU_HERMES_CWD",
 )
 MAX_DEPLOYMENT_DOCUMENT_BYTES = 65_536
+MAX_HERMES_MODEL_CONFIG_BYTES = 16_384
+HERMES_SHADOW_MODEL_CONFIG = {
+    "model": {
+        "provider": "openrouter",
+        "default": "anthropic/claude-sonnet-4.6",
+    },
+    "provider_routing": {
+        "require_parameters": True,
+        "data_collection": "deny",
+    },
+}
 
 
 def _required(source: Mapping[str, str], name: str) -> str:
@@ -80,3 +91,16 @@ def load_connectivity_config(
         hermes_cwd=_absolute_path(source, "KIVOU_HERMES_CWD"),
         deployment=_load_document(shadow_path),
     )
+
+
+def validate_hermes_shadow_config(config: AcquisitionConnectivityConfig) -> None:
+    """Require one exact JSON-compatible YAML model config without fallbacks/tools."""
+    try:
+        body = (config.hermes_home / "config.yaml").read_bytes()
+        if len(body) > MAX_HERMES_MODEL_CONFIG_BYTES:
+            raise ValueError("Hermes model config exceeds bound")
+        parsed = json.loads(body.decode("utf-8"))
+        if parsed != HERMES_SHADOW_MODEL_CONFIG:
+            raise ValueError("Hermes model config differs from the frozen shadow contract")
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
+        raise ConnectivityFailure(ConnectivityErrorCode.NOT_CONFIGURED) from None
