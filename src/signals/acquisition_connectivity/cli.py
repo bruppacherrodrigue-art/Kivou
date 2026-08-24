@@ -61,7 +61,10 @@ def build_connectivity_composition(
     )
     instantly = InstantlyConnectivityProbe(
         provider=instantly_provider,
-        mailbox_readiness=InstantlyMailboxReadinessSource(instantly_provider),
+        mailbox_readiness=InstantlyMailboxReadinessSource(
+            instantly_provider,
+            require_sending_gap=False,
+        ),
     )
     settings = SupervisorSettings(
         hermes_python=config.hermes_python,

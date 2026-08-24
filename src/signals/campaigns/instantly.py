@@ -766,7 +766,10 @@ class HttpInstantlyProvider:
 
 
 def normalize_mailbox_readiness(
-    raw: object, *, observed_at: dt.datetime
+    raw: object,
+    *,
+    observed_at: dt.datetime,
+    require_sending_gap: bool = True,
 ) -> MailboxReadiness:
     """Map only bounded V2 account facts and fail closed on incomplete state."""
     if observed_at.tzinfo is None or observed_at.utcoffset() is None:
@@ -801,47 +804,65 @@ def normalize_mailbox_readiness(
     setup_pending = raw.get("setup_pending")
     daily_limit = raw.get("daily_limit")
     sending_gap = raw.get("sending_gap")
+    valid_daily_limit = (
+        isinstance(daily_limit, int)
+        and not isinstance(daily_limit, bool)
+        and 0 <= daily_limit <= 100_000
+    )
+    valid_sending_gap = (
+        isinstance(sending_gap, int)
+        and not isinstance(sending_gap, bool)
+        and 0 <= sending_gap <= 1_440
+    )
     if (
         not isinstance(setup_pending, bool)
-        or not isinstance(daily_limit, int)
-        or isinstance(daily_limit, bool)
-        or not isinstance(sending_gap, int)
-        or isinstance(sending_gap, bool)
-        or daily_limit < 0
-        or sending_gap < 0
-        or daily_limit > 100_000
-        or sending_gap > 1_440
+        or not valid_daily_limit
+        or (require_sending_gap and not valid_sending_gap)
+        or (sending_gap is not None and not valid_sending_gap)
     ):
         state = MailboxReadinessState.UNKNOWN
-        daily_limit = 0
-        sending_gap = 0
-    elif status in {"connection_error", "soft_bounce_error", "sending_error", "banned"} or warmup in {
-        "banned",
-        "suspended",
-        "error",
-        "spam_folder_unknown",
-        "permanent_suspension",
-    } or tracking in {
-        "invalid",
-        "error",
-        "failed",
-    }:
-        state = MailboxReadinessState.UNHEALTHY
-    elif status in {"paused", "maintenance"} or warmup in {"paused", "maintenance"} or daily_limit == 0:
-        state = MailboxReadinessState.TEMPORARILY_UNAVAILABLE
-    elif (
-        status == "active"
-        and setup_pending is False
-        and warmup in {"active", "completed", "enabled"}
-        and tracking in {"active", "verified", "connected", "not_required"}
-    ):
-        state = MailboxReadinessState.READY
+        normalized_daily_limit = 0
+        normalized_sending_gap = 0
     else:
-        state = MailboxReadinessState.UNKNOWN
+        normalized_daily_limit = int(daily_limit)
+        normalized_sending_gap = int(sending_gap) if valid_sending_gap else 0
+        if status in {
+            "connection_error",
+            "soft_bounce_error",
+            "sending_error",
+            "banned",
+        } or warmup in {
+            "banned",
+            "suspended",
+            "error",
+            "spam_folder_unknown",
+            "permanent_suspension",
+        } or tracking in {
+            "invalid",
+            "error",
+            "failed",
+        }:
+            state = MailboxReadinessState.UNHEALTHY
+        elif (
+            status in {"paused", "maintenance"}
+            or warmup in {"paused", "maintenance"}
+            or normalized_daily_limit == 0
+        ):
+            state = MailboxReadinessState.TEMPORARILY_UNAVAILABLE
+        elif (
+            status == "active"
+            and setup_pending is False
+            and warmup in {"active", "completed", "enabled"}
+            and tracking
+            in {"active", "verified", "connected", "not_required", "ctd_active"}
+        ):
+            state = MailboxReadinessState.READY
+        else:
+            state = MailboxReadinessState.UNKNOWN
     return MailboxReadiness(
         state=state,
-        provider_daily_limit=daily_limit,
-        sending_gap_seconds=sending_gap * 60,
+        provider_daily_limit=normalized_daily_limit,
+        sending_gap_seconds=normalized_sending_gap * 60,
         observed_at=observed_at,
         valid_until=(
             observed_at + dt.timedelta(minutes=5)
@@ -854,11 +875,18 @@ def normalize_mailbox_readiness(
 class InstantlyMailboxReadinessSource:
     """Explicit network-backed source; construction and imports perform no I/O."""
 
-    def __init__(self, provider: InstantlyProvider) -> None:
+    def __init__(
+        self,
+        provider: InstantlyProvider,
+        *,
+        require_sending_gap: bool = True,
+    ) -> None:
         self._provider = provider
+        self._require_sending_gap = require_sending_gap
 
     def get(self, provider_account_id: str, *, observed_at: dt.datetime) -> MailboxReadiness:
         return normalize_mailbox_readiness(
             self._provider.get_mailbox_readiness(provider_account_id),
             observed_at=observed_at,
+            require_sending_gap=self._require_sending_gap,
         )

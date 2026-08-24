@@ -517,6 +517,7 @@ def test_oversized_provider_stream_stops_at_the_configured_read_bound() -> None:
         ({"daily_limit": 0}, MailboxReadinessState.TEMPORARILY_UNAVAILABLE),
         ({"status": "connection error"}, MailboxReadinessState.UNHEALTHY),
         ({"warmup_status": "banned"}, MailboxReadinessState.UNHEALTHY),
+        ({"tracking_domain_status": "CTD_ACTIVE"}, MailboxReadinessState.READY),
         ({"tracking_domain_status": "invalid"}, MailboxReadinessState.UNHEALTHY),
         ({"status": "provider-new-state"}, MailboxReadinessState.UNKNOWN),
         ({"setup_pending": None}, MailboxReadinessState.UNKNOWN),
@@ -539,3 +540,40 @@ def test_mailbox_readiness_mapper_is_typed_and_fail_closed(changes, expected) ->
 
     assert result.state is expected
     assert "email" not in result.model_dump(mode="json")
+
+
+def test_missing_optional_gap_remains_unknown_for_send_readiness() -> None:
+    raw = {
+        "status": 1,
+        "warmup_status": 1,
+        "setup_pending": False,
+        "daily_limit": 20,
+        "tracking_domain_status": "CTD_ACTIVE",
+    }
+
+    result = normalize_mailbox_readiness(
+        raw, observed_at=dt.datetime(2026, 8, 24, 13, tzinfo=dt.UTC)
+    )
+
+    assert result.state is MailboxReadinessState.UNKNOWN
+    assert result.sending_gap_seconds == 0
+
+
+def test_connectivity_profile_accepts_openapi_optional_missing_gap() -> None:
+    raw = {
+        "status": 1,
+        "warmup_status": 1,
+        "setup_pending": False,
+        "daily_limit": 20,
+        "tracking_domain_status": "CTD_ACTIVE",
+    }
+
+    result = normalize_mailbox_readiness(
+        raw,
+        observed_at=dt.datetime(2026, 8, 24, 13, tzinfo=dt.UTC),
+        require_sending_gap=False,
+    )
+
+    assert result.state is MailboxReadinessState.READY
+    assert result.provider_daily_limit == 20
+    assert result.sending_gap_seconds == 0
