@@ -7,7 +7,9 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from signals.supervisor import hermes_bridge as bridge_module
 from signals.supervisor.contracts import SupervisorPlan
+from signals.supervisor.hermes import transform_provider_schema
 from signals.supervisor.hermes_bridge import (
     BRIDGE_PROTOCOL_VERSION,
     BridgeRequestError,
@@ -27,7 +29,7 @@ ROUTING = {
     "require_parameters": True,
     "data_collection": "deny",
 }
-RESPONSE_SCHEMA = SupervisorPlan.model_json_schema()
+PROVIDER_SCHEMA = transform_provider_schema(SupervisorPlan.model_json_schema())
 
 
 def test_health_reports_actual_runtime_identity_and_zero_tools():
@@ -62,7 +64,7 @@ def test_plan_calls_only_injected_stateless_oneshot_with_bounded_arguments():
             "provider": "openrouter",
             "model": MODEL,
             "provider_routing": ROUTING,
-            "response_schema": RESPONSE_SCHEMA,
+            "response_schema": PROVIDER_SCHEMA,
         },
         metadata_loader=lambda: PINNED_METADATA.copy(),
         oneshot=oneshot,
@@ -76,7 +78,7 @@ def test_plan_calls_only_injected_stateless_oneshot_with_bounded_arguments():
         "provider": "openrouter",
         "model": MODEL,
         "provider_routing": ROUTING,
-        "response_schema": RESPONSE_SCHEMA,
+        "response_schema": PROVIDER_SCHEMA,
     }
     assert result == {
         "ok": True,
@@ -132,7 +134,7 @@ def test_official_oneshot_makes_one_exact_openrouter_request_without_retry_or_fa
         provider="openrouter",
         model=MODEL,
         provider_routing=ROUTING,
-        response_schema=RESPONSE_SCHEMA,
+        response_schema=PROVIDER_SCHEMA,
     )
 
     assert captured["client"] == {
@@ -157,7 +159,7 @@ def test_official_oneshot_makes_one_exact_openrouter_request_without_retry_or_fa
         "json_schema": {
             "name": "kivou_supervisor_plan",
             "strict": True,
-            "schema": RESPONSE_SCHEMA,
+            "schema": PROVIDER_SCHEMA,
         },
     }
     assert "tools" not in requests[0]
@@ -169,6 +171,54 @@ def test_official_oneshot_makes_one_exact_openrouter_request_without_retry_or_fa
         "fallbacks": False,
     }
     assert captured["closed"] is True
+
+
+def _provider_exception(name: str, *, status_code: int | None = None) -> Exception:
+    exception = type(name, (RuntimeError,), {})(
+        "provider detail and sk-secret must never cross the bridge"
+    )
+    if status_code is not None:
+        exception.status_code = status_code
+    return exception
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_error", "expected_status"),
+    [
+        (_provider_exception("AuthenticationError", status_code=401), "AUTH", 401),
+        (_provider_exception("PermissionDeniedError", status_code=403), "PERMISSION", 403),
+        (_provider_exception("RateLimitError", status_code=429), "RATE_LIMITED", 429),
+        (_provider_exception("BadRequestError", status_code=400), "HERMES_PLAN_INVALID", 400),
+        (
+            _provider_exception("UnprocessableEntityError", status_code=422),
+            "HERMES_PLAN_INVALID",
+            422,
+        ),
+        (_provider_exception("InternalServerError", status_code=503), "SERVER_ERROR", 503),
+        (_provider_exception("APITimeoutError"), "TIMEOUT", None),
+        (_provider_exception("APIConnectionError"), "NETWORK", None),
+    ],
+)
+def test_bridge_serializes_only_closed_provider_error_category(
+    monkeypatch, failure, expected_error, expected_status
+):
+    def fail(_request):
+        raise failure
+
+    monkeypatch.setattr(bridge_module, "handle_request", fail)
+    stdout = io.BytesIO()
+    stderr = io.StringIO()
+
+    code = run_bridge(stdin=io.BytesIO(b'{"operation":"plan"}'), stdout=stdout, stderr=stderr)
+
+    expected = {"ok": False, "error": expected_error}
+    if expected_status is not None:
+        expected["status"] = expected_status
+    assert code == 0
+    assert json.loads(stdout.getvalue()) == expected
+    assert stderr.getvalue() == ""
+    assert b"provider detail" not in stdout.getvalue()
+    assert b"sk-secret" not in stdout.getvalue()
 
 
 @pytest.mark.parametrize(

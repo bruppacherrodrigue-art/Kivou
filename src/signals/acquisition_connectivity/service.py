@@ -31,6 +31,7 @@ from signals.supervisor.runtime import (
     HealthState,
     SupervisorNotConfigured,
     SupervisorProtocolError,
+    SupervisorProviderError,
     SupervisorTimeout,
     SupervisorUnavailable,
     SupervisorValidationError,
@@ -140,6 +141,12 @@ class HermesConnectivityProbe:
             raise ConnectivityFailure(ConnectivityErrorCode.HERMES_VERSION_MISMATCH) from None
         except SupervisorNotConfigured:
             raise ConnectivityFailure(ConnectivityErrorCode.NOT_CONFIGURED) from None
+        except SupervisorProviderError as exc:
+            try:
+                code = ConnectivityErrorCode(exc.code)
+            except ValueError:
+                code = ConnectivityErrorCode.NETWORK
+            raise ConnectivityFailure(code) from None
         except (SupervisorProtocolError, SupervisorUnavailable):
             raise ConnectivityFailure(ConnectivityErrorCode.NETWORK) from None
         except (SupervisorValidationError, TypeError, ValueError):

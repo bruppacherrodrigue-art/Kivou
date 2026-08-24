@@ -163,8 +163,14 @@ class FakeAdapter:
 
 
 class RecordingTransport:
-    def __init__(self, response: str) -> None:
+    def __init__(
+        self,
+        response: str,
+        *,
+        plan_failure: dict[str, object] | None = None,
+    ) -> None:
         self._response = response
+        self._plan_failure = plan_failure
         self.requests: list[dict[str, object]] = []
 
     def invoke(self, request):
@@ -177,6 +183,8 @@ class RecordingTransport:
             "executable_tools": [],
         }
         if request["operation"] == "plan":
+            if self._plan_failure is not None:
+                return self._plan_failure
             value.update(
                 {
                     "response": self._response,
@@ -279,10 +287,44 @@ def test_probe_passes_exact_plan_schema_through_existing_adapter(tmp_path: Path)
 
     request = transport.requests[1]
     assert request["operation"] == "plan"
-    assert request["response_schema"] == SupervisorPlan.model_json_schema()
+    assert request["response_schema"] != SupervisorPlan.model_json_schema()
     assert "tools" not in request
     assert hermes.executable_tools == 0
     assert plan.status == "advisory"
+
+
+@pytest.mark.parametrize(
+    ("bridge_error", "status", "expected_code"),
+    [
+        ("AUTH", 401, ConnectivityErrorCode.AUTH),
+        ("PERMISSION", 403, ConnectivityErrorCode.PERMISSION),
+        ("RATE_LIMITED", 429, ConnectivityErrorCode.RATE_LIMITED),
+        ("TIMEOUT", None, ConnectivityErrorCode.TIMEOUT),
+        ("HERMES_PLAN_INVALID", 422, ConnectivityErrorCode.HERMES_PLAN_INVALID),
+        ("SERVER_ERROR", 503, ConnectivityErrorCode.SERVER_ERROR),
+        ("NETWORK", None, ConnectivityErrorCode.NETWORK),
+    ],
+)
+def test_probe_preserves_closed_bridge_provider_error_category(
+    tmp_path: Path,
+    bridge_error: str,
+    status: int | None,
+    expected_code: ConnectivityErrorCode,
+) -> None:
+    config = _config(tmp_path, _model_config())
+    failure: dict[str, object] = {"ok": False, "error": bridge_error}
+    if status is not None:
+        failure["status"] = status
+    transport = RecordingTransport(_plan().model_dump_json(), plan_failure=failure)
+    adapter = HermesSupervisorAdapter(_settings(config), transport=transport)
+
+    with pytest.raises(ConnectivityFailure) as caught:
+        HermesConnectivityProbe(config=config, adapter=adapter).check(
+            _control(), observed_at=NOW
+        )
+
+    assert caught.value.code is expected_code
+    assert len(transport.requests) == 2
 
 
 @pytest.mark.parametrize(
