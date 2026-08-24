@@ -7,6 +7,10 @@ import datetime as dt
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection, Engine, RowMapping
 
+from signals.persistence.conflicts import (
+    UnsupportedConflictDialect,
+    insert_if_absent,
+)
 from signals.persistence.schema import acquisition_policy_snapshot, policy_evaluation
 from signals.policy.contracts import (
     PolicyAuditUnavailable,
@@ -171,21 +175,22 @@ class PolicyStore:
     def insert_evaluation_if_absent(
         connection: Connection, values: dict[str, object]
     ) -> bool:
-        """Atomically own one evaluation id without exposing uniqueness races."""
-        dialect = connection.dialect.name
-        if dialect == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif dialect == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
-        else:  # The production/test contract is deliberately limited to these two.
-            raise PolicyAuditUnavailable(
-                f"conflict-safe policy audit unsupported for dialect {dialect}"
+        """Atomically own one evaluation id without exposing uniqueness races.
+
+        #63 — la décision passait par `rowcount`, qui ne peut pas la rendre : sur
+        PostgreSQL avec `psycopg`, `ON CONFLICT DO NOTHING` rend `-1`
+        (« inconnu ») que l'insertion ait eu lieu ou non, et la garde
+        « indéterminé » se déclenchait donc à CHAQUE inscription. Sur SQLite le
+        même code rendait `0` ou `1`, et toute la suite restait verte.
+        `RETURNING` répond identiquement sur les deux moteurs.
+        """
+        try:
+            return insert_if_absent(
+                connection,
+                policy_evaluation,
+                values,
+                index_elements=[policy_evaluation.c.evaluation_id],
+                returning=policy_evaluation.c.evaluation_id,
             )
-        result = connection.execute(
-            insert(policy_evaluation)
-            .values(values)
-            .on_conflict_do_nothing(index_elements=[policy_evaluation.c.evaluation_id])
-        )
-        if result.rowcount not in {0, 1}:
-            raise PolicyAuditUnavailable("indeterminate policy evaluation insert result")
-        return result.rowcount == 1
+        except UnsupportedConflictDialect as error:
+            raise PolicyAuditUnavailable(str(error)) from error

@@ -16,6 +16,7 @@ from signals.operations.contracts import (
     IncidentState,
     IncidentTrigger,
 )
+from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import acquisition_dead_letter, acquisition_operational_incident
 
 
@@ -73,12 +74,11 @@ class OperationsStore:
             "updated_at": trigger.triggered_at,
         }
         with self.engine.begin() as connection:
-            result = connection.execute(
-                _insert(connection, acquisition_operational_incident)
-                .values(values)
-                .on_conflict_do_nothing(
-                    index_elements=[acquisition_operational_incident.c.trigger_fingerprint]
-                )
+            inserted = insert_if_absent(
+                connection,
+                acquisition_operational_incident,
+                values,
+                index_elements=[acquisition_operational_incident.c.trigger_fingerprint],
             )
             row = self._incident(connection, trigger.incident_ref)
             self._require_same(
@@ -95,7 +95,7 @@ class OperationsStore:
                     "updated_at",
                 },
             )
-            return SaveResult(row=row, replayed=result.rowcount == 0)
+            return SaveResult(row=row, replayed=not inserted)
 
     def get_incident(self, incident_ref: str) -> RowMapping:
         with self.engine.connect() as connection:
@@ -220,12 +220,11 @@ class OperationsStore:
             "updated_at": created_at,
         }
         with self.engine.begin() as connection:
-            result = connection.execute(
-                _insert(connection, acquisition_dead_letter)
-                .values(values)
-                .on_conflict_do_nothing(
-                    index_elements=[acquisition_dead_letter.c.exhaustion_fingerprint]
-                )
+            inserted = insert_if_absent(
+                connection,
+                acquisition_dead_letter,
+                values,
+                index_elements=[acquisition_dead_letter.c.exhaustion_fingerprint],
             )
             row = self._dead_letter(connection, exhaustion.dead_letter_ref)
             self._require_same(
@@ -233,7 +232,7 @@ class OperationsStore:
                 values,
                 exclude={"status", "requeued_at", "resolved_at", "created_at", "updated_at"},
             )
-            return SaveResult(row=row, replayed=result.rowcount == 0)
+            return SaveResult(row=row, replayed=not inserted)
 
     def get_dead_letter(self, dead_letter_ref: str) -> RowMapping:
         with self.engine.connect() as connection:

@@ -15,6 +15,7 @@ from signals.decision_engine.contracts import (
     DecisionEvaluationRecord,
     DecisionEvaluationWrite,
 )
+from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import acquisition_decision_evaluation
 
 
@@ -125,16 +126,14 @@ class DecisionEvaluationStore:
         connection: Connection, write: DecisionEvaluationWrite
     ) -> DecisionEvaluationRecord:
         values = _values(write)
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported decision-evaluation persistence dialect")
-        result = connection.execute(
-            insert(acquisition_decision_evaluation)
-            .values(values)
-            .on_conflict_do_nothing()
+        inserted = insert_if_absent(
+            connection,
+            acquisition_decision_evaluation,
+            values,
         )
         row = (
             connection.execute(
@@ -156,7 +155,7 @@ class DecisionEvaluationStore:
             if collision is not None:
                 raise DecisionEvaluationIdempotencyConflict(write.decision_evaluation_id)
             raise RuntimeError("decision evaluation conflict was not durable")
-        if result.rowcount == 1:
+        if inserted:
             return _record(row)
         semantic_fields = tuple(values)
         if any(

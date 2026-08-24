@@ -24,6 +24,7 @@ from signals.compliance.suppression import (
     minimum_retention_until,
 )
 from signals.contact_discovery.store import ContactDiscoveryStore
+from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import (
     acquisition_compliance_assessment,
     acquisition_contact_suppression,
@@ -225,18 +226,15 @@ class SuppressionStore:
 
     @staticmethod
     def _append_in_transaction(connection: Connection, values: dict[str, object]):
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported suppression persistence dialect")
-        result = connection.execute(
-            insert(acquisition_contact_suppression)
-            .values(values)
-            .on_conflict_do_nothing(
-                index_elements=[acquisition_contact_suppression.c.suppression_id]
-            )
+        inserted = insert_if_absent(
+            connection,
+            acquisition_contact_suppression,
+            values,
+            index_elements=[acquisition_contact_suppression.c.suppression_id],
         )
         row = (
             connection.execute(
@@ -249,7 +247,7 @@ class SuppressionStore:
         )
         if row is None:
             raise SuppressionIdempotencyConflict(str(values["suppression_id"]))
-        if result.rowcount == 0 and any(
+        if not inserted and any(
             _semantic(row[key]) != _semantic(value) for key, value in values.items()
         ):
             raise SuppressionIdempotencyConflict(str(values["suppression_id"]))
@@ -288,25 +286,22 @@ class ComplianceAssessmentStore:
                 "disposition": write.disposition.value,
             }
         )
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported compliance persistence dialect")
-        result = connection.execute(
-            insert(acquisition_compliance_assessment)
-            .values(values)
-            .on_conflict_do_nothing(
-                index_elements=[acquisition_compliance_assessment.c.policy_evaluation_id]
-            )
+        inserted = insert_if_absent(
+            connection,
+            acquisition_compliance_assessment,
+            values,
+            index_elements=[acquisition_compliance_assessment.c.policy_evaluation_id],
         )
         row = ComplianceAssessmentStore.get_by_policy_in_transaction(
             connection, write.policy_evaluation_id
         )
         if row is None:
             raise ComplianceAssessmentIdempotencyConflict(write.policy_evaluation_id)
-        if result.rowcount == 0 and any(
+        if not inserted and any(
             _semantic(row[key]) != _semantic(value) for key, value in values.items()
         ):
             raise ComplianceAssessmentIdempotencyConflict(write.policy_evaluation_id)
