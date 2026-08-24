@@ -90,9 +90,9 @@ class HermesSupervisorAdapter:
             executable_tools=(),
         )
 
-    def _instructions(self) -> str:
+    def _instructions(self, response_schema: dict[str, Any]) -> str:
         schema = json.dumps(
-            SupervisorPlan.model_json_schema(),
+            response_schema,
             ensure_ascii=True,
             separators=(",", ":"),
             sort_keys=True,
@@ -118,16 +118,18 @@ class HermesSupervisorAdapter:
         except ValueError as exc:
             raise SupervisorValidationError("Kivou supervisor context is invalid") from exc
 
+        response_schema = SupervisorPlan.model_json_schema()
         response = self.transport.invoke(
             {
                 "operation": "plan",
-                "instructions": self._instructions(),
+                "instructions": self._instructions(response_schema),
                 "context_json": self._context_json(context),
                 "max_tokens": self.settings.limits.max_output_tokens,
                 "timeout_seconds": self.settings.limits.invocation_timeout_seconds,
                 "provider": OPENROUTER_PROVIDER,
                 "model": OPENROUTER_MODEL,
                 "provider_routing": OPENROUTER_PROVIDER_ROUTING,
+                "response_schema": response_schema,
             }
         )
         self._validate_metadata(response)

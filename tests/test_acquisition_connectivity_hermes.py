@@ -17,6 +17,7 @@ from signals.acquisition_connectivity.contracts import (
 from signals.acquisition_connectivity.service import HermesConnectivityProbe
 from signals.policy.contracts import AutonomyMode, PolicyControlSnapshot
 from signals.supervisor.contracts import ProposedAction, SupervisorLimits, SupervisorPlan
+from signals.supervisor.hermes import HermesSupervisorAdapter
 from signals.supervisor.pin import load_hermes_pin
 from signals.supervisor.profile import PROFILE_VERSION
 from signals.supervisor.runtime import (
@@ -161,6 +162,33 @@ class FakeAdapter:
         return self._plan
 
 
+class RecordingTransport:
+    def __init__(self, response: str) -> None:
+        self._response = response
+        self.requests: list[dict[str, object]] = []
+
+    def invoke(self, request):
+        self.requests.append(request)
+        value = {
+            "ok": True,
+            "protocol_version": 1,
+            "hermes_version": PIN.version,
+            "source_commit": PIN.commit,
+            "executable_tools": [],
+        }
+        if request["operation"] == "plan":
+            value.update(
+                {
+                    "response": self._response,
+                    "provider": "openrouter",
+                    "model": MODEL,
+                    "automatic_retries": 0,
+                    "fallbacks": False,
+                }
+            )
+        return value
+
+
 def _settings(config: AcquisitionConnectivityConfig, **limits: object) -> SupervisorSettings:
     return SupervisorSettings(
         config.hermes_python,
@@ -238,6 +266,23 @@ def test_probe_reuses_adapter_with_exact_limits_and_advisory_context(tmp_path: P
     assert len(context.available_commands) > 0
     assert context.opportunities == ()
     assert context.recent_outcomes == ()
+
+
+def test_probe_passes_exact_plan_schema_through_existing_adapter(tmp_path: Path) -> None:
+    config = _config(tmp_path, _model_config())
+    transport = RecordingTransport(_plan().model_dump_json())
+    adapter = HermesSupervisorAdapter(_settings(config), transport=transport)
+
+    hermes, plan = HermesConnectivityProbe(config=config, adapter=adapter).check(
+        _control(), observed_at=NOW
+    )
+
+    request = transport.requests[1]
+    assert request["operation"] == "plan"
+    assert request["response_schema"] == SupervisorPlan.model_json_schema()
+    assert "tools" not in request
+    assert hermes.executable_tools == 0
+    assert plan.status == "advisory"
 
 
 @pytest.mark.parametrize(

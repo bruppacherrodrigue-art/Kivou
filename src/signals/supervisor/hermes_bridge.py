@@ -102,6 +102,7 @@ def _official_oneshot(
     provider: str,
     model: str,
     provider_routing: Mapping[str, Any],
+    response_schema: Mapping[str, Any],
 ) -> dict[str, Any]:
     """Make one exact OpenRouter call through Hermes' zero-retry client helper."""
     if (
@@ -110,6 +111,8 @@ def _official_oneshot(
         or dict(provider_routing) != OPENROUTER_PROVIDER_ROUTING
     ):
         raise BridgeRequestError("the frozen OpenRouter route is required")
+    if not response_schema:
+        raise BridgeRequestError("response_schema is required")
     api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
     if not api_key:
         raise BridgeRequestError("OpenRouter is not configured")
@@ -133,6 +136,14 @@ def _official_oneshot(
             ],
             max_tokens=max_tokens,
             timeout=timeout,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "kivou_supervisor_plan",
+                    "strict": True,
+                    "schema": response_schema,
+                },
+            },
             extra_body={
                 "provider": {
                     **OPENROUTER_PROVIDER_ROUTING,
@@ -215,6 +226,7 @@ def handle_request(
         "provider",
         "model",
         "provider_routing",
+        "response_schema",
     }
     if set(request) != required:
         raise BridgeRequestError("plan request fields are incomplete or unknown")
@@ -223,6 +235,7 @@ def handle_request(
     provider = request["provider"]
     model = request["model"]
     provider_routing = request["provider_routing"]
+    response_schema = request["response_schema"]
     if not isinstance(instructions, str) or not instructions.strip():
         raise BridgeRequestError("instructions are required")
     if not isinstance(context_json, str) or not context_json.strip():
@@ -234,6 +247,8 @@ def handle_request(
         or dict(provider_routing) != OPENROUTER_PROVIDER_ROUTING
     ):
         raise BridgeRequestError("the exact OpenRouter routing policy is required")
+    if not isinstance(response_schema, Mapping) or not response_schema:
+        raise BridgeRequestError("response_schema is required")
     max_tokens = int(_positive_number(request["max_tokens"], name="max_tokens", maximum=16_384))
     timeout = _positive_number(
         request["timeout_seconds"], name="timeout_seconds", maximum=300
@@ -250,6 +265,7 @@ def handle_request(
         provider=provider,
         model=model,
         provider_routing=provider_routing,
+        response_schema=response_schema,
     )
     expected_route_fields = {
         "response",

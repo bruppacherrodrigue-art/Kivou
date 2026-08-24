@@ -7,6 +7,7 @@ from types import ModuleType, SimpleNamespace
 
 import pytest
 
+from signals.supervisor.contracts import SupervisorPlan
 from signals.supervisor.hermes_bridge import (
     BRIDGE_PROTOCOL_VERSION,
     BridgeRequestError,
@@ -26,6 +27,7 @@ ROUTING = {
     "require_parameters": True,
     "data_collection": "deny",
 }
+RESPONSE_SCHEMA = SupervisorPlan.model_json_schema()
 
 
 def test_health_reports_actual_runtime_identity_and_zero_tools():
@@ -60,6 +62,7 @@ def test_plan_calls_only_injected_stateless_oneshot_with_bounded_arguments():
             "provider": "openrouter",
             "model": MODEL,
             "provider_routing": ROUTING,
+            "response_schema": RESPONSE_SCHEMA,
         },
         metadata_loader=lambda: PINNED_METADATA.copy(),
         oneshot=oneshot,
@@ -73,6 +76,7 @@ def test_plan_calls_only_injected_stateless_oneshot_with_bounded_arguments():
         "provider": "openrouter",
         "model": MODEL,
         "provider_routing": ROUTING,
+        "response_schema": RESPONSE_SCHEMA,
     }
     assert result == {
         "ok": True,
@@ -128,6 +132,7 @@ def test_official_oneshot_makes_one_exact_openrouter_request_without_retry_or_fa
         provider="openrouter",
         model=MODEL,
         provider_routing=ROUTING,
+        response_schema=RESPONSE_SCHEMA,
     )
 
     assert captured["client"] == {
@@ -146,6 +151,14 @@ def test_official_oneshot_makes_one_exact_openrouter_request_without_retry_or_fa
             "data_collection": "deny",
             "allow_fallbacks": False,
         }
+    }
+    assert requests[0]["response_format"] == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "kivou_supervisor_plan",
+            "strict": True,
+            "schema": RESPONSE_SCHEMA,
+        },
     }
     assert "tools" not in requests[0]
     assert result == {
