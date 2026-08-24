@@ -10,7 +10,13 @@ from decimal import Decimal
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection, Engine
 
-from signals.acquisition.contracts import AcquisitionState, ActorType, Decision, EventType
+from signals.acquisition.contracts import (
+    AcquisitionState,
+    ActorType,
+    Decision,
+    EventType,
+    OpportunityConcurrencyConflict,
+)
 from signals.acquisition.store import AcquisitionStore
 from signals.company_research.contracts import PREBUILD_VERSION, SIZE_BAND_VERSION
 from signals.company_research.store import CompanyResearchStore
@@ -56,7 +62,13 @@ from signals.personalization.validator import (
     safe_first_name,
     validate_catalog_message,
 )
-from signals.policy.contracts import BudgetUsage, EvidenceReadiness, PolicyRequest
+from signals.policy.contracts import (
+    BudgetUsage,
+    EvidenceReadiness,
+    PolicyDecision,
+    PolicyEvaluationIdempotencyConflict,
+    PolicyRequest,
+)
 from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore, decision_from_row
 from signals.recency import assess_recency
@@ -91,6 +103,18 @@ class PersonalizationBindingConflict(ValueError):
 
 class PersonalizationEvaluationRequiresFreshAttempt(RuntimeError):
     """A policy audit exists but its personalization artifact does not."""
+
+
+class PersonalizationConvergenceInvariantViolated(RuntimeError):
+    """Un conflit atomique s'est produit sans résultat concurrent à rendre.
+
+    Depuis que l'évaluation, la version, l'artefact, son rattachement et la
+    prochaine action partagent UNE transaction, voir l'un de ces conflits
+    signifie qu'une transaction concurrente a été validée — donc que son
+    artefact est durable et lisible. Ne pas le trouver n'est pas une course à
+    retenter : c'est un invariant rompu, et le taire par une attente ou un
+    nouvel essai masquerait une corruption au lieu de la signaler.
+    """
 
 
 class PersonalizationInputChanged(RuntimeError):
@@ -164,23 +188,138 @@ class PersonalizationService:
         request = self._request(
             authorization, values, expected_version=values["opportunity"].stream_version
         )
-        decision = self._policy.evaluate_and_record(
+        # Le calcul de politique reste HORS transaction : tenir un verrou
+        # pendant un travail métier l'allongerait sans rien garantir de plus.
+        prepared = self._policy.prepare(
             request, evaluated_at=captured_at, budget_usage=budget_usage
         )
+        # Le point d'injection de dérive reste ici, avant l'ouverture de la
+        # transaction : une dérive écrite depuis une autre connexion pendant que
+        # le verrou d'écriture est tenu ne pourrait pas s'appliquer.
         self._after_policy_hook()
         expected = values["opportunity"].stream_version + 1
-        if not decision.executable:
-            return self._commit_blocked(values, decision, captured_at)
-        return self._commit_ready(
-            opportunity_id,
-            language,
-            values,
-            decision,
-            expected,
-            as_of_date,
-            captured_at,
-            authorization,
-        )
+
+        if isinstance(prepared, PolicyDecision):
+            # L'évaluation est apparue entre la garde d'entrée et ce calcul :
+            # une course l'a déjà inscrite, il n'y a plus rien à décider.
+            return self._converge_after_conflict(
+                authorization, opportunity_id, language, cause=None
+            )
+        try:
+            return self._commit_atomically(
+                opportunity_id,
+                language,
+                values,
+                prepared,
+                request,
+                expected,
+                as_of_date,
+                captured_at,
+            )
+        except (OpportunityConcurrencyConflict, PolicyEvaluationIdempotencyConflict) as error:
+            # La transaction est ENTIÈREMENT annulée à ce point : le `with`
+            # s'est refermé sur une exception. Ces deux conflits ne sont
+            # observables que si une transaction concurrente a été validée,
+            # donc le résultat concurrent est durable et lisible.
+            return self._converge_after_conflict(
+                authorization, opportunity_id, language, cause=error
+            )
+        except PersonalizationInputChanged:
+            # Une dérive d'entrée RÉELLE ne garantit aucun gagnant concurrent :
+            # si rien n'a été écrit, c'est bien une dérive, et elle remonte.
+            existing = self._artifacts.get_by_policy(authorization.evaluation_id)
+            if existing is None:
+                raise
+            self._require_existing(existing, opportunity_id, language, authorization)
+            return existing
+
+    def _converge_after_conflict(self, authorization, opportunity_id, language, *, cause):
+        """UNE lecture fraîche. Aucune attente, aucune boucle, aucun nouvel essai."""
+        existing = self._artifacts.get_by_policy(authorization.evaluation_id)
+        if existing is None:
+            raise PersonalizationConvergenceInvariantViolated(
+                authorization.evaluation_id
+            ) from cause
+        self._require_existing(existing, opportunity_id, language, authorization)
+        return existing
+
+    def _commit_atomically(
+        self,
+        opportunity_id,
+        language,
+        values,
+        prepared,
+        request,
+        expected,
+        as_of_date,
+        captured_at,
+    ):
+        """La frontière atomique de #33.
+
+        Une seule transaction porte : l'inscription de l'évaluation, la version
+        de l'opportunité, l'artefact, son rattachement à l'évaluation et
+        l'unique prochaine action. Les cinq tombent ensemble ou aucune — c'est
+        ce qui rend le conflit du perdant *informatif* : le voir prouve que le
+        gagnant a validé, artefact compris.
+        """
+        with self._engine.begin() as connection:
+            decision = self._policy.record_in_transaction(
+                connection, request, prepared, evaluated_at=captured_at
+            )
+            if not decision.executable:
+                return self._artifacts.append_in_transaction(
+                    connection,
+                    self._write(
+                        values, decision, PersonalizationDisposition.POLICY_BLOCKED, captured_at
+                    ),
+                )
+            current = self._acquisition.get_opportunity_in_transaction(
+                connection, opportunity_id, for_update=True
+            )
+            if current.stream_version != expected:
+                raise PersonalizationInputChanged(opportunity_id)
+            try:
+                rebuilt = self._build_values(
+                    self._load_in_transaction(connection, opportunity_id, current=current),
+                    language,
+                    as_of_date,
+                )
+            except (
+                PersonalizationBindingConflict,
+                PersonalizationGroundingInsufficient,
+                PersonalizationNotActionable,
+                PersonalizationDecisionNoLongerEligible,
+                PersonalizationValidationError,
+            ) as error:
+                raise PersonalizationInputChanged(opportunity_id) from error
+            if (
+                rebuilt["input_fingerprint"] != values["input_fingerprint"]
+                or rebuilt["proposal_fingerprint"] != values["proposal_fingerprint"]
+                or rebuilt["action_fingerprint"] != values["action_fingerprint"]
+            ):
+                raise PersonalizationInputChanged(opportunity_id)
+            mutation = self._acquisition.append_in_transaction(
+                connection,
+                opportunity_id,
+                event_type=EventType.NEXT_ACTION_SET,
+                expected_version=expected,
+                idempotency_key=f"personalization_next_action:{decision.evaluation_id}",
+                actor_type=ActorType.SYSTEM,
+                actor_ref="kivou-personalization",
+                payload={"next_action": "assess_campaign_compliance"},
+                causation_id=decision.evaluation_id,
+                occurred_at=captured_at,
+            )
+            return self._artifacts.append_in_transaction(
+                connection,
+                self._write(
+                    rebuilt,
+                    decision,
+                    PersonalizationDisposition.READY,
+                    captured_at,
+                    mutation.event.event_id,
+                ),
+            )
 
     def _load(self, opportunity_id: str):
         with self._engine.connect() as connection:
@@ -532,89 +671,6 @@ class PersonalizationService:
             recorded_event_id=event_id,
             created_at=created_at,
         )
-
-    def _commit_blocked(self, values, decision, created_at):
-        with self._engine.begin() as connection:
-            return self._artifacts.append_in_transaction(
-                connection,
-                self._write(
-                    values,
-                    decision,
-                    PersonalizationDisposition.POLICY_BLOCKED,
-                    created_at,
-                ),
-            )
-
-    def _commit_ready(
-        self,
-        opportunity_id,
-        language,
-        values,
-        decision,
-        expected,
-        as_of_date,
-        captured_at,
-        authorization,
-    ):
-        try:
-            with self._engine.begin() as connection:
-                current = self._acquisition.get_opportunity_in_transaction(
-                    connection, opportunity_id, for_update=True
-                )
-                if current.stream_version != expected:
-                    raise PersonalizationInputChanged(opportunity_id)
-                try:
-                    rebuilt = self._build_values(
-                        self._load_in_transaction(
-                            connection, opportunity_id, current=current
-                        ),
-                        language,
-                        as_of_date,
-                    )
-                except (
-                    PersonalizationBindingConflict,
-                    PersonalizationGroundingInsufficient,
-                    PersonalizationNotActionable,
-                    PersonalizationDecisionNoLongerEligible,
-                    PersonalizationValidationError,
-                ) as error:
-                    raise PersonalizationInputChanged(opportunity_id) from error
-                if (
-                    rebuilt["input_fingerprint"] != values["input_fingerprint"]
-                    or rebuilt["proposal_fingerprint"] != values["proposal_fingerprint"]
-                    or rebuilt["action_fingerprint"] != values["action_fingerprint"]
-                ):
-                    raise PersonalizationInputChanged(opportunity_id)
-                mutation = self._acquisition.append_in_transaction(
-                    connection,
-                    opportunity_id,
-                    event_type=EventType.NEXT_ACTION_SET,
-                    expected_version=expected,
-                    idempotency_key=f"personalization_next_action:{decision.evaluation_id}",
-                    actor_type=ActorType.SYSTEM,
-                    actor_ref="kivou-personalization",
-                    payload={"next_action": "assess_campaign_compliance"},
-                    causation_id=decision.evaluation_id,
-                    occurred_at=captured_at,
-                )
-                return self._artifacts.append_in_transaction(
-                    connection,
-                    self._write(
-                        rebuilt,
-                        decision,
-                        PersonalizationDisposition.READY,
-                        captured_at,
-                        mutation.event.event_id,
-                    ),
-                )
-        except PersonalizationInputChanged:
-            # A race that completed the same durable evaluation is an exact replay,
-            # not a second event. Any other state change remains a typed conflict.
-            existing = self._artifacts.get_by_policy(decision.evaluation_id)
-            if existing is not None:
-                self._require_existing(existing, opportunity_id, language, authorization)
-                return existing
-            raise
 
     def _require_existing(self, existing, opportunity_id, language, authorization) -> None:
         if existing["acquisition_opportunity_id"] != opportunity_id or existing["language"] != language:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import hashlib
 import json
@@ -9,7 +10,7 @@ from decimal import Decimal
 from enum import Enum
 
 import sqlalchemy as sa
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 
 from signals.acquisition.contracts import ActorType, EventType
 from signals.acquisition.store import AcquisitionStore
@@ -112,6 +113,18 @@ def _fingerprint(
     return hashlib.sha256(encoded).hexdigest()
 
 
+@dataclasses.dataclass(frozen=True)
+class PreparedEvaluation:
+    """Une décision calculée, pas encore inscrite.
+
+    Porte les empreintes avec elle : les recalculer au moment d'écrire
+    rouvrirait la porte que la séparation calcul/persistance vient de fermer.
+    """
+
+    decision: PolicyDecision
+    fingerprints: tuple[str, ...]
+
+
 class PolicyGateway:
     def __init__(
         self, engine: Engine, *, acquisition_store: AcquisitionStore | None = None
@@ -184,6 +197,63 @@ class PolicyGateway:
             runtime_revision=request.operational.runtime_revision,
         )
 
+    def prepare(
+        self,
+        request: PolicyRequest,
+        *,
+        evaluated_at: dt.datetime,
+        budget_usage: BudgetUsage,
+        policy_snapshot_id: str | None = None,
+    ) -> PreparedEvaluation | PolicyDecision:
+        """Calcule la décision SANS rien écrire.
+
+        Séparer le calcul de sa persistance permet à un appelant d'inscrire la
+        décision dans SA transaction, et donc de rendre atomique la frontière
+        « évaluation + version + artefact + prochaine action ». Le calcul, lui,
+        reste dehors : tenir une transaction ouverte pendant un travail métier
+        allongerait le verrou sans rien garantir de plus.
+
+        Rend directement une `PolicyDecision` quand l'évaluation existe déjà —
+        il n'y a alors plus rien à décider ni à écrire.
+        """
+        snapshot = self._snapshot(
+            request,
+            evaluated_at,
+            budget_usage,
+            policy_snapshot_id=policy_snapshot_id,
+        )
+        fingerprints = (
+            _fingerprint(request, snapshot, budget_usage, evaluated_at),
+            _fingerprint(
+                request, snapshot, budget_usage, evaluated_at, legacy_decimal_encoding=True
+            ),
+        )
+        with self._engine.connect() as connection:
+            existing = self._store.evaluation_row(connection, request.evaluation_id)
+            if existing is not None:
+                return self._validated_existing(connection, request, fingerprints, existing)
+        return PreparedEvaluation(
+            decision=evaluate_policy(request, snapshot, evaluated_at),
+            fingerprints=fingerprints,
+        )
+
+    def record_in_transaction(
+        self,
+        connection: Connection,
+        request: PolicyRequest,
+        prepared: PreparedEvaluation,
+        *,
+        evaluated_at: dt.datetime,
+    ) -> PolicyDecision:
+        """Inscrit une décision déjà calculée DANS la transaction de l'appelant.
+
+        C'est ce qui permet à la persistance de l'évaluation de partager le sort
+        de l'artefact qu'elle justifie : les deux tombent ensemble, ou aucune.
+        """
+        return self._record(
+            connection, request, prepared.decision, prepared.fingerprints, evaluated_at
+        )
+
     def evaluate_and_record(
         self,
         request: PolicyRequest,
@@ -192,83 +262,83 @@ class PolicyGateway:
         budget_usage: BudgetUsage,
         policy_snapshot_id: str | None = None,
     ) -> PolicyDecision:
-        snapshot = self._snapshot(
+        """Calcule puis inscrit, dans une transaction à soi.
+
+        Conservé tel quel pour les appelants qui n'ont pas besoin d'élargir la
+        frontière atomique.
+        """
+        prepared = self.prepare(
             request,
-            evaluated_at,
-            budget_usage,
+            evaluated_at=evaluated_at,
+            budget_usage=budget_usage,
             policy_snapshot_id=policy_snapshot_id,
         )
-        semantic_fingerprint = _fingerprint(request, snapshot, budget_usage, evaluated_at)
-        legacy_semantic_fingerprint = _fingerprint(
-            request,
-            snapshot,
-            budget_usage,
-            evaluated_at,
-            legacy_decimal_encoding=True,
-        )
-        with self._engine.connect() as connection:
-            existing = self._store.evaluation_row(connection, request.evaluation_id)
-            if existing is not None:
-                return self._validated_existing(
-                    connection,
-                    request,
-                    (semantic_fingerprint, legacy_semantic_fingerprint),
-                    existing,
-                )
-
-        decision = evaluate_policy(request, snapshot, evaluated_at)
-
+        if isinstance(prepared, PolicyDecision):
+            return prepared
         with self._engine.begin() as connection:
-            existing = self._store.evaluation_row(connection, request.evaluation_id)
-            if existing is not None:
-                return self._validated_existing(
-                    connection,
-                    request,
-                    (semantic_fingerprint, legacy_semantic_fingerprint),
-                    existing,
-                )
-
-            inserted = self._store.insert_evaluation_if_absent(
-                connection,
-                decision_values(decision, semantic_fingerprint),
+            return self.record_in_transaction(
+                connection, request, prepared, evaluated_at=evaluated_at
             )
-            if not inserted:
-                existing = self._store.evaluation_row(connection, request.evaluation_id)
-                if existing is None:
-                    raise RuntimeError("policy evaluation conflict was not durable")
-                return self._validated_existing(
-                    connection,
-                    request,
-                    (semantic_fingerprint, legacy_semantic_fingerprint),
-                    existing,
-                )
-            if request.acquisition_opportunity_id is not None:
-                if request.expected_opportunity_version is None:
-                    raise ValueError("opportunity audit requires expected version")
-                self._acquisition.append_in_transaction(
-                    connection,
-                    request.acquisition_opportunity_id,
-                    event_type=EventType.POLICY_EVALUATED,
-                    expected_version=request.expected_opportunity_version,
-                    idempotency_key=f"policy_evaluation:{request.evaluation_id}",
-                    actor_type=ActorType.SYSTEM,
-                    actor_ref="kivou-policy-gateway",
-                    reason_codes=decision.reason_codes,
-                    evidence_refs=decision.evidence_refs,
-                    policy_version=decision.policy_version,
-                    estimated_cost=decision.estimated_cost,
-                    payload={
-                        "evaluation_id": decision.evaluation_id,
-                        "command": decision.command,
-                        "target_ref": decision.target_ref,
-                        "status": decision.status.value,
-                        "control_revision": decision.control_revision,
-                        "approval_refs": [
-                            item.model_dump(mode="json") for item in decision.approval_refs
-                        ],
-                    },
-                    occurred_at=evaluated_at,
-                )
+
+    def _record(
+        self,
+        connection: Connection,
+        request: PolicyRequest,
+        decision: PolicyDecision,
+        fingerprints: tuple[str, ...],
+        evaluated_at: dt.datetime,
+    ) -> PolicyDecision:
+        semantic_fingerprint, legacy_semantic_fingerprint = fingerprints
+        existing = self._store.evaluation_row(connection, request.evaluation_id)
+        if existing is not None:
+            return self._validated_existing(
+                connection,
+                request,
+                (semantic_fingerprint, legacy_semantic_fingerprint),
+                existing,
+            )
+
+        inserted = self._store.insert_evaluation_if_absent(
+            connection,
+            decision_values(decision, semantic_fingerprint),
+        )
+        if not inserted:
+            existing = self._store.evaluation_row(connection, request.evaluation_id)
+            if existing is None:
+                raise RuntimeError("policy evaluation conflict was not durable")
+            return self._validated_existing(
+                connection,
+                request,
+                (semantic_fingerprint, legacy_semantic_fingerprint),
+                existing,
+            )
+        if request.acquisition_opportunity_id is not None:
+            if request.expected_opportunity_version is None:
+                raise ValueError("opportunity audit requires expected version")
+            self._acquisition.append_in_transaction(
+                connection,
+                request.acquisition_opportunity_id,
+                event_type=EventType.POLICY_EVALUATED,
+                expected_version=request.expected_opportunity_version,
+                idempotency_key=f"policy_evaluation:{request.evaluation_id}",
+                actor_type=ActorType.SYSTEM,
+                actor_ref="kivou-policy-gateway",
+                reason_codes=decision.reason_codes,
+                evidence_refs=decision.evidence_refs,
+                policy_version=decision.policy_version,
+                estimated_cost=decision.estimated_cost,
+                payload={
+                    "evaluation_id": decision.evaluation_id,
+                    "command": decision.command,
+                    "target_ref": decision.target_ref,
+                    "status": decision.status.value,
+                    "control_revision": decision.control_revision,
+                    "approval_refs": [
+                        item.model_dump(mode="json") for item in decision.approval_refs
+                    ],
+                },
+                occurred_at=evaluated_at,
+            )
         return decision
 
     @staticmethod

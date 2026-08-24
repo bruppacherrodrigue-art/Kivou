@@ -16,7 +16,7 @@ from test_decision_engine_service import (
 )
 from test_policy_persistence import control
 
-from signals.acquisition.contracts import AcquisitionState
+from signals.acquisition.contracts import AcquisitionState, OpportunityConcurrencyConflict
 from signals.decision_engine.service import DecisionEngineService
 from signals.persistence.schema import (
     acquisition_company_profile,
@@ -33,6 +33,7 @@ from signals.personalization.grounding import (
     PersonalizationGroundingInsufficient,
 )
 from signals.personalization.service import (
+    PersonalizationConvergenceInvariantViolated,
     PersonalizationEvaluationRequiresFreshAttempt,
     PersonalizationInputChanged,
     PersonalizationService,
@@ -755,3 +756,243 @@ def test_shadow_persists_pii_minimized_blocked_artifact_without_workflow_event(c
     current = acquisition.get_opportunity(opportunity_id)
     assert current.stream_version == before + 1  # POLICY_EVALUATED only
     assert current.next_action == "prepare_campaign"
+
+
+# ─── #33 — la frontière atomique, et la convergence du perdant ────────────────
+#
+# Une évaluation concurrente doit produire EXACTEMENT un artefact et une seule
+# prochaine action. Auparavant, la convergence n'était tentée que sur
+# `PersonalizationInputChanged` : la même course pouvait surgir en
+# `OpportunityConcurrencyConflict` ou `PolicyEvaluationIdempotencyConflict`, et
+# le perdant remontait alors l'exception au lieu de l'artefact du gagnant.
+
+
+def _prepared(engine, opportunity_id):
+    """Amène l'opportunité au point où la personnalisation est possible."""
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+
+
+def _counts(engine):
+    """(évaluations de personnalisation, artefacts, prochaines actions)."""
+    with engine.connect() as connection:
+        evaluations = connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(policy_evaluation)
+            .where(policy_evaluation.c.evaluation_id == "personalization-eval-1")
+        )
+        artifacts = connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_personalization_artifact)
+        )
+        next_actions = connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(acquisition_event)
+            .where(
+                acquisition_event.c.idempotency_key
+                == "personalization_next_action:personalization-eval-1"
+            )
+        )
+    return evaluations, artifacts, next_actions
+
+
+def test_a_loser_converges_deterministically_on_the_winner_artifact(context) -> None:
+    """Course FORCÉE, sans fil ni horloge : l'ordre est imposé, pas espéré.
+
+    Le point d'ancrage post-politique fait tourner une seconde
+    personnalisation ENTIÈRE — qui valide — avant que la première n'ouvre sa
+    transaction. La première se retrouve donc systématiquement perdante.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    winner_result = {}
+
+    def let_the_winner_commit() -> None:
+        if not winner_result:
+            winner_result["artifact"] = PersonalizationService(
+                engine, clock=CountingClock(EVALUATED_AT)
+            ).personalize(
+                opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+            )
+
+    loser._after_policy_hook = let_the_winner_commit
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert winner_result, "le gagnant doit avoir validé avant le perdant"
+    assert (
+        converged["personalization_artifact_id"]
+        == winner_result["artifact"]["personalization_artifact_id"]
+    )
+    assert _counts(engine) == (1, 1, 1), "un artefact, une évaluation, une prochaine action"
+
+
+def test_the_loser_writes_nothing_at_all(context) -> None:
+    """Le perdant doit voir sa transaction ENTIÈREMENT annulée avant de lire.
+
+    Un rollback partiel laisserait un événement ou une évaluation orphelins :
+    les comptages sont donc pris avant et après la course perdue.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    winner = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+    after_winner = _counts(engine)
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert converged["personalization_artifact_id"] == winner["personalization_artifact_id"]
+    assert _counts(engine) == after_winner, "le perdant n'a rien écrit"
+
+
+@pytest.mark.parametrize(
+    "conflict",
+    [OpportunityConcurrencyConflict, PolicyEvaluationIdempotencyConflict],
+    ids=["opportunity-version", "policy-idempotency"],
+)
+def test_each_atomic_conflict_converges_on_the_concurrent_artifact(context, conflict) -> None:
+    """Les deux conflits qui GARANTISSENT un gagnant doivent converger.
+
+    Auparavant seul `PersonalizationInputChanged` était rattrapé : ces deux-là
+    remontaient à l'appelant, qui recevait une exception au lieu de l'artefact
+    déjà écrit.
+
+    L'ordre est imposé, pas espéré : le perdant franchit ses gardes d'entrée
+    AVANT que le gagnant ne valide — c'est la vraie forme de la course, et la
+    seule où ces conflits sont observables. Le type de conflit, lui, est injecté
+    pour couvrir les deux sans dépendre de l'ordonnancement du système.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    winner_result = {}
+
+    def let_the_winner_commit() -> None:
+        if winner_result:
+            return
+        winner_result["artifact"] = PersonalizationService(
+            engine, clock=CountingClock(EVALUATED_AT)
+        ).personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+
+        def raise_conflict(*_args, **_kwargs):
+            raise conflict(opportunity_id)
+
+        loser._policy.record_in_transaction = raise_conflict
+
+    loser._after_policy_hook = let_the_winner_commit
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert winner_result, "le gagnant doit avoir validé avant le perdant"
+    assert (
+        converged["personalization_artifact_id"]
+        == winner_result["artifact"]["personalization_artifact_id"]
+    )
+    assert _counts(engine) == (1, 1, 1)
+
+
+@pytest.mark.parametrize(
+    "conflict",
+    [OpportunityConcurrencyConflict, PolicyEvaluationIdempotencyConflict],
+    ids=["opportunity-version", "policy-idempotency"],
+)
+def test_an_atomic_conflict_without_any_artifact_is_an_invariant_error(context, conflict) -> None:
+    """Ne rien trouver après un conflit atomique n'est PAS une course à retenter.
+
+    Depuis que les cinq écritures partagent une transaction, voir l'un de ces
+    conflits prouve qu'un gagnant a validé. L'artefact introuvable signale donc
+    une corruption — et doit être dit, jamais absorbé par une attente ou un
+    nouvel essai.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    service = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    service._artifacts.get_by_policy = lambda _evaluation_id: None
+
+    def raise_conflict(*_args, **_kwargs):
+        raise conflict(opportunity_id)
+
+    service._policy.record_in_transaction = raise_conflict
+
+    with pytest.raises(PersonalizationConvergenceInvariantViolated):
+        service.personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+
+
+def test_the_policy_evaluation_and_the_artifact_share_one_transaction(context) -> None:
+    """Aucun état intermédiaire ne doit survivre à un échec d'écriture.
+
+    L'évaluation de politique était inscrite dans SA transaction, donc un échec
+    ultérieur laissait une évaluation sans artefact — et c'est ce résidu qui
+    rendait le conflit du perdant non concluant.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    service = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    boom = RuntimeError("échec après inscription de l'évaluation")
+
+    def explode(*_args, **_kwargs):
+        raise boom
+
+    service._artifacts.append_in_transaction = explode
+
+    with pytest.raises(RuntimeError):
+        service.personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+
+    assert _counts(engine) == (0, 0, 0), "l'évaluation doit être annulée avec l'artefact"
+
+
+@pytest.mark.parametrize("attempt", range(6))
+def test_two_concurrent_threads_always_converge(context, attempt: int) -> None:
+    """La course réelle, répétée : deux appels, un seul artefact, aucun échec."""
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    barrier = threading.Barrier(2)
+    results, errors = [], []
+    lock = threading.Lock()
+
+    def run() -> None:
+        try:
+            barrier.wait(timeout=5)
+            result = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+                opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+            )
+            with lock:
+                results.append(result)
+        except BaseException as error:  # noqa: BLE001 - aucune exception n'est acceptable
+            with lock:
+                errors.append(error)
+
+    threads = [threading.Thread(target=run) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=15)
+
+    assert not errors, f"aucun appelant ne doit échouer : {errors}"
+    assert len(results) == 2
+    assert len({result["personalization_artifact_id"] for result in results}) == 1
+    assert _counts(engine) == (1, 1, 1)
