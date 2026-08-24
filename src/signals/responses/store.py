@@ -11,6 +11,7 @@ from enum import Enum
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection, Engine, RowMapping
 
+from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import acquisition_response_evaluation
 from signals.responses.contracts import ResponseFinalization, ResponseReservation
 
@@ -111,22 +112,21 @@ class ResponseStore:
             attempt=0,
             updated_at=value.created_at,
         )
-        result = connection.execute(
-            _insert(connection)
-            .values(values)
-            .on_conflict_do_nothing(
-                index_elements=[
-                    acquisition_response_evaluation.c.provider_event_ref,
-                    acquisition_response_evaluation.c.classifier_version,
-                ]
-            )
+        inserted = insert_if_absent(
+            connection,
+            acquisition_response_evaluation,
+            values,
+            index_elements=[
+                acquisition_response_evaluation.c.provider_event_ref,
+                acquisition_response_evaluation.c.classifier_version,
+            ],
         )
         row = ResponseStore.get_in_transaction(connection, value.response_evaluation_id)
         expected = value.model_dump(mode="python")
         for key, expected_value in expected.items():
             if _semantic(row[key]) != _semantic(expected_value):
                 raise ResponseEvaluationConflict(value.response_evaluation_id)
-        return ReservationResult(row=row, replayed=result.rowcount == 0)
+        return ReservationResult(row=row, replayed=not inserted)
 
     def claim(
         self,

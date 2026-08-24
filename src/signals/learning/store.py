@@ -22,6 +22,7 @@ from signals.learning.contracts import (
 from signals.operations.circuit_breakers import AcquisitionCircuitOpen, AcquisitionExecutionGuard
 from signals.operations.contracts import BreakerScope
 from signals.operations.store import OperationsStore
+from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import (
     acquisition_allocation_proposal,
     acquisition_learning_snapshot,
@@ -132,12 +133,11 @@ class LearningStore:
             "created_at": snapshot.created_at,
         }
         with self.engine.begin() as connection:
-            result = connection.execute(
-                _insert(connection, acquisition_learning_snapshot)
-                .values(values)
-                .on_conflict_do_nothing(
-                    index_elements=[acquisition_learning_snapshot.c.snapshot_ref]
-                )
+            inserted = insert_if_absent(
+                connection,
+                acquisition_learning_snapshot,
+                values,
+                index_elements=[acquisition_learning_snapshot.c.snapshot_ref],
             )
             row = (
                 connection.execute(
@@ -149,14 +149,14 @@ class LearningStore:
                 .one()
             )
             comparable = dict(values)
-            if result.rowcount == 0:
+            if not inserted:
                 # captured_at is operational observation time, deliberately excluded
                 # from the semantic snapshot identity. A retry keeps the first durable
                 # capture timestamp while every authority-bearing fact remains exact.
                 comparable.pop("captured_at")
                 comparable.pop("created_at")
             self._require_exact(row, comparable, snapshot.snapshot_ref)
-            return SaveResult(row=row, replayed=result.rowcount == 0)
+            return SaveResult(row=row, replayed=not inserted)
 
     def save_candidates(
         self,
@@ -195,16 +195,15 @@ class LearningStore:
                     "state": "PROPOSED",
                     "created_at": created_at,
                 }
-                result = connection.execute(
-                    _insert(connection, acquisition_allocation_proposal)
-                    .values(values)
-                    .on_conflict_do_nothing(
-                        index_elements=[acquisition_allocation_proposal.c.proposal_ref]
-                    )
+                inserted = insert_if_absent(
+                    connection,
+                    acquisition_allocation_proposal,
+                    values,
+                    index_elements=[acquisition_allocation_proposal.c.proposal_ref],
                 )
                 row = self._proposal(connection, candidate.proposal_ref)
                 self._require_exact(row, values, candidate.proposal_ref)
-                results.append(SaveResult(row=row, replayed=result.rowcount == 0))
+                results.append(SaveResult(row=row, replayed=not inserted))
         return tuple(results)
 
     def record_selection(

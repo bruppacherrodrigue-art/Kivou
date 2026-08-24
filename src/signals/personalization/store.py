@@ -10,6 +10,7 @@ from enum import Enum
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection, Engine
 
+from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import acquisition_personalization_artifact
 from signals.personalization.contracts import PersonalizationArtifactWrite
 
@@ -73,23 +74,21 @@ class PersonalizationStore:
     @staticmethod
     def append_in_transaction(connection: Connection, write: PersonalizationArtifactWrite):
         values = _values(write)
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported personalization persistence dialect")
-        result = connection.execute(
-            insert(acquisition_personalization_artifact)
-            .values(values)
-            .on_conflict_do_nothing()
+        inserted = insert_if_absent(
+            connection,
+            acquisition_personalization_artifact,
+            values,
         )
         row = PersonalizationStore.get_by_policy_in_transaction(
             connection, write.policy_evaluation_id
         )
         if row is None:
             raise PersonalizationArtifactIdempotencyConflict(write.policy_evaluation_id)
-        if result.rowcount == 1:
+        if inserted:
             return row
         if any(_semantic(row[key]) != _semantic(value) for key, value in values.items()):
             raise PersonalizationArtifactIdempotencyConflict(write.policy_evaluation_id)
