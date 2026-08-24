@@ -26,6 +26,7 @@ OpaqueRef = Annotated[
     ),
 ]
 ProviderAccountEmail = Annotated[EmailStr, Field(max_length=320)]
+Fingerprint = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 
 
 class ConnectivityErrorCode(StrEnum):
@@ -95,6 +96,12 @@ class ShadowConnectivityDocument(_DeploymentModel):
         return self
 
 
+class ApolloIdentityEvidence(_DeploymentModel):
+    auth: Literal["READY"] = "READY"
+    acting_profile: Literal["BOUND"] = "BOUND"
+    acting_profile_fingerprint: Fingerprint = Field(repr=False)
+
+
 class AcquisitionConnectivityConfig(_DeploymentModel):
     environment: Literal["STAGING"]
     shadow_config_path: Path
@@ -104,4 +111,3 @@ class AcquisitionConnectivityConfig(_DeploymentModel):
     hermes_home: Path
     hermes_cwd: Path
     deployment: ShadowConnectivityDocument = Field(repr=False)
-
