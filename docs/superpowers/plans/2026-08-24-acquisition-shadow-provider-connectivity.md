@@ -4,13 +4,13 @@
 
 **Goal:** Deliver a manually invoked, fail-closed staging smoke test that proves read-only Apollo and Instantly connectivity plus one advisory pinned-Hermes/OpenRouter plan without creating any Kivou or provider-side commercial mutation.
 
-**Architecture:** Add one isolated `signals.acquisition_connectivity` composition package. It will parse a closed deployment document, read the existing durable Policy Control and acquisition tables, use dedicated GET-only provider probes, invoke the existing Hermes adapter/contracts, and always compare bounded database counters after any provider I/O. A disabled systemd oneshot and operator runbook will remain the only deployment entry point.
+**Architecture:** Add one isolated `signals.acquisition_connectivity` composition package. It will parse only the missing deployment document, compose all three existing Apollo clients and the existing Instantly provider/readiness source, read the existing durable Policy Control and stores, add only the missing identity GET probes, invoke the existing Hermes adapter/contracts, and compare existing acquisition-table counters after provider I/O. A disabled systemd oneshot and operator runbook remain the only deployment entry point. `CampaignWorker` remains the sole execution worker but is never started or invoked by this smoke.
 
 **Tech Stack:** Python 3.11+, Pydantic v2, SQLAlchemy Core, HTTPX, pytest, Ruff, systemd.
 
 ---
 
-### Task 1: Closed configuration and result contracts
+### Task 1: Closed deployment configuration and bounded smoke results
 
 **Files:**
 - Create: `src/signals/acquisition_connectivity/__init__.py`
@@ -20,10 +20,10 @@
 
 - [ ] Write tests for the exact seven required variables, missing/empty values, absolute paths, malformed JSON, unknown properties, exact schema version, exact mailbox cardinality, bounded strings, unique mailbox refs, and unique provider bindings.
 - [ ] Run the focused test file and capture the expected import/contract failures.
-- [ ] Implement frozen, extra-forbidden Pydantic contracts and a secret-safe configuration exception with one closed error code.
+- [ ] Implement only the absent deployment/smoke contracts as frozen, extra-forbidden Pydantic models plus a secret-safe configuration exception; reuse all existing business/provider/Hermes/Policy contracts.
 - [ ] Run the focused test file and Ruff until green.
 
-### Task 2: Apollo read-only probe
+### Task 2: Apollo composition and missing identity probe
 
 **Files:**
 - Create: `src/signals/acquisition_connectivity/apollo.py`
@@ -31,19 +31,20 @@
 
 - [ ] Write tests proving only the two fixed HTTPS GET endpoints, `x-api-key`-only authentication, finite timeouts, response-size enforcement, error mapping, opaque acting-user hashing, and redaction.
 - [ ] Run the tests red before implementation.
-- [ ] Implement the injected HTTPX probe with no arbitrary method, path, request-body, search, discovery, or enrichment interface.
+- [ ] Implement the injected identity probe with no arbitrary method/path/body escape hatch and compose the three existing Apollo clients from the same protected key without invoking their paid methods.
 - [ ] Run focused tests and Ruff green.
 
-### Task 3: Instantly read-only probe
+### Task 3: Instantly provider extensions and read-only orchestration
 
 **Files:**
+- Modify: `src/signals/campaigns/instantly.py`
 - Create: `src/signals/acquisition_connectivity/instantly.py`
 - Test: `tests/test_acquisition_connectivity_instantly.py`
 
 - [ ] Record the current official contracts for `GET /api/v2/workspaces/current` and `GET /api/v2/accounts/{email}` in tests and the runbook.
 - [ ] Write tests for Bearer authentication, exact GET routes, URL-encoded account identifiers, workspace binding, all four existing readiness states, exactly three distinct READY mailboxes, response bounds, transport failures, and redaction.
 - [ ] Run the tests red before implementation.
-- [ ] Implement the narrow probe and reuse only the existing strict mailbox-readiness normalizer.
+- [ ] Add the missing read-only workspace method and safe mailbox path encoding to `HttpInstantlyProvider`; implement only a narrow coordinator over that provider and `InstantlyMailboxReadinessSource`.
 - [ ] Run focused tests and Ruff green.
 
 ### Task 4: Durable safety preflight and non-mutation proof
@@ -55,7 +56,7 @@
 - [ ] Write tests for exact STAGING identity, effective SHADOW control, `read_only=true`, `kill_switch=true`, durable volume cap zero, absence of unresolved positive provider operations, and zero provider calls on every preflight failure.
 - [ ] Write parameterized tests requiring an after-snapshot on success and every reached network failure, with `LOCAL_MUTATION_DETECTED` taking precedence over a provider error.
 - [ ] Run the tests red before implementation.
-- [ ] Implement a read-only state boundary over `PolicyStore` and the four acquisition tables; never append or update control state.
+- [ ] Add one bounded-count method to the existing `CampaignStore`; compose it with `PolicyStore`/`OperationsStore` and never define a new store or append/update control state.
 - [ ] Run focused tests and Ruff green.
 
 ### Task 5: Existing Hermes adapter, exact model configuration, and advisory plan
@@ -67,7 +68,7 @@
 
 - [ ] Write tests for the immutable Hermes pin, strict JSON-compatible `config.yaml`, exact OpenRouter model/routing, no fallback, zero tools, 30-second timeout, 2,048 output tokens, ten-action limit, CHF 1 envelope, strict SupervisorPlan validation, and no plan persistence/execution.
 - [ ] Run the tests red before implementation.
-- [ ] Validate the dedicated Hermes home configuration and compose `HermesSupervisorAdapter` with the existing `SupervisorSettings`, `SupervisorContext`, and `SupervisorPlan` contracts.
+- [ ] Validate the dedicated Hermes home configuration and compose the existing `HermesSupervisorAdapter`, `SupervisorSettings`, `SupervisorContext`, and `SupervisorPlan` contracts without recreating CLI, bridge, pin, engine, or plan types.
 - [ ] Map all Hermes failures to the closed connectivity vocabulary without leaking prompt or response content.
 - [ ] Run focused supervisor/connectivity tests and Ruff green.
 
