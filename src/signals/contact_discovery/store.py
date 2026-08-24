@@ -20,6 +20,7 @@ from signals.contact_discovery.contracts import (
     ContactRunStatus,
 )
 from signals.contact_discovery.identity import contact_ref_for
+from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import acquisition_contact, contact_discovery_run
 
 
@@ -247,18 +248,16 @@ class ContactDiscoveryStore:
 
     @staticmethod
     def _insert_run_if_absent(connection: Connection, values: dict[str, object]) -> bool:
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported contact persistence dialect")
-        result = connection.execute(
-            insert(contact_discovery_run).values(values).on_conflict_do_nothing()
+        inserted = insert_if_absent(
+            connection,
+            contact_discovery_run,
+            values,
         )
-        if result.rowcount not in {0, 1}:
-            raise RuntimeError("indeterminate contact-run ownership")
-        return result.rowcount == 1
+        return inserted
 
     def get_contact(self, contact_ref: str) -> ContactRecord:
         with self._engine.connect() as connection:
@@ -355,23 +354,14 @@ class ContactDiscoveryStore:
 
     @staticmethod
     def _insert_contact_if_absent(connection: Connection, values: dict[str, object]) -> bool:
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported contact persistence dialect")
-        result = connection.execute(
-            insert(acquisition_contact)
-            .values(values)
-            .on_conflict_do_nothing(
-                index_elements=[
-                    acquisition_contact.c.provider,
-                    acquisition_contact.c.provider_person_id,
-                    acquisition_contact.c.supplier_ref,
-                ]
-            )
+        inserted = insert_if_absent(
+            connection,
+            acquisition_contact,
+            values,
+            index_elements=[acquisition_contact.c.provider, acquisition_contact.c.provider_person_id, acquisition_contact.c.supplier_ref,],
         )
-        if result.rowcount not in {0, 1}:
-            raise RuntimeError("indeterminate contact identity ownership")
-        return result.rowcount == 1
+        return inserted
