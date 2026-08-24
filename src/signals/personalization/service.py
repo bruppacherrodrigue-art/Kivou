@@ -180,11 +180,44 @@ class PersonalizationService:
             return existing
         with self._engine.connect() as connection:
             if self._policy_store.evaluation_row(connection, authorization.evaluation_id):
+                # Les deux gardes sont DEUX lectures, à deux instants. Un gagnant
+                # concurrent a pu valider entre elles : on voit alors son
+                # évaluation sans avoir vu son artefact. Comme les deux sont
+                # écrits dans la MÊME transaction, une relecture postérieure —
+                # qui voit au moins autant — trouve nécessairement l'artefact.
+                # Constaté sur PostgreSQL sous contention ; SQLite sérialise
+                # assez pour que la fenêtre ne s'ouvre jamais. La relecture part
+                # d'une connexion NEUVE — donc d'un instantané postérieur au
+                # commit du gagnant ; la faire depuis `connection` ci-dessus,
+                # ouverte avant, ne trouverait rien.
+                concurrent = self._artifacts.get_by_policy(authorization.evaluation_id)
+                if concurrent is not None:
+                    self._require_existing(concurrent, opportunity_id, language, authorization)
+                    return concurrent
                 raise PersonalizationEvaluationRequiresFreshAttempt(authorization.evaluation_id)
 
         captured_at = self._now()
         as_of_date = captured_at.date()
-        values = self._build_values(self._load(opportunity_id), language, as_of_date)
+        try:
+            values = self._build_values(self._load(opportunity_id), language, as_of_date)
+        except (
+            PersonalizationNotActionable,
+            PersonalizationBindingConflict,
+            PersonalizationGroundingInsufficient,
+            PersonalizationDecisionNoLongerEligible,
+        ):
+            # Ce chargement est HORS transaction : un gagnant concurrent peut
+            # avoir fait avancer l'opportunité entre-temps, la rendant
+            # « non actionnable » pour une raison qui n'en est pas une. Si son
+            # artefact existe, la course est gagnée par lui et l'on converge ;
+            # sinon l'erreur est réelle et remonte intacte. La lecture ouvre là
+            # encore sa propre transaction : c'est ce qui lui permet de voir un
+            # commit survenu après le début de cet appel.
+            concurrent = self._artifacts.get_by_policy(authorization.evaluation_id)
+            if concurrent is None:
+                raise
+            self._require_existing(concurrent, opportunity_id, language, authorization)
+            return concurrent
         request = self._request(
             authorization, values, expected_version=values["opportunity"].stream_version
         )
@@ -234,7 +267,30 @@ class PersonalizationService:
             return existing
 
     def _converge_after_conflict(self, authorization, opportunity_id, language, *, cause):
-        """UNE lecture fraîche. Aucune attente, aucune boucle, aucun nouvel essai."""
+        """UNE lecture fraîche. Aucune attente, aucune boucle, aucun nouvel essai.
+
+        Trois conditions rendent cette lecture unique suffisante, et les perdre
+        rendrait la convergence fausse sans que rien ne le signale :
+
+        1. **Après annulation.** L'appelant a quitté le `with engine.begin()` par
+           une exception, donc la transaction du perdant est entièrement annulée
+           avant qu'on lise. Lire depuis l'intérieur de la transaction avortée
+           rendrait l'état que le perdant croyait écrire, pas celui du gagnant.
+
+        2. **Dans une transaction FRAÎCHE.** `get_by_policy` ouvre sa propre
+           connexion (`engine.connect()`), donc un nouvel instantané. Réutiliser
+           la connexion du perdant — ou toute connexion ouverte avant le commit
+           du gagnant — verrait un instantané antérieur et ne trouverait rien,
+           sur PostgreSQL en particulier.
+
+        3. **Sans cache de session.** Rien n'est mémorisé entre les appels : le
+           `SELECT` part vraiment à la base. Un cache d'identité rendrait le
+           `None` lu par la garde d'entrée, et la convergence échouerait.
+
+        Le fait durable sur lequel tout repose : l'évaluation et l'artefact du
+        gagnant sont écrits dans la MÊME transaction. Voir l'un garantit donc que
+        l'autre est déjà durable, et qu'une lecture postérieure le voit.
+        """
         existing = self._artifacts.get_by_policy(authorization.evaluation_id)
         if existing is None:
             raise PersonalizationConvergenceInvariantViolated(

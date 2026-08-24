@@ -996,3 +996,96 @@ def test_two_concurrent_threads_always_converge(context, attempt: int) -> None:
     assert len(results) == 2
     assert len({result["personalization_artifact_id"] for result in results}) == 1
     assert _counts(engine) == (1, 1, 1)
+
+
+# ─── Les deux fenêtres que seul PostgreSQL sous contention a révélées ─────────
+
+
+def test_a_winner_committing_between_the_two_entry_guards_still_converges(context) -> None:
+    """Les gardes d'entrée sont DEUX lectures, à deux instants.
+
+    Un gagnant qui valide entre elles laisse le perdant voir son évaluation sans
+    avoir vu son artefact — d'où un `RequiresFreshAttempt` alors qu'il s'agit
+    d'une course. Les deux étant écrits dans la même transaction, une relecture
+    postérieure trouve nécessairement l'artefact.
+
+    Constaté sur PostgreSQL sous contention ; SQLite sérialise assez pour que la
+    fenêtre ne s'ouvre jamais. L'ordre est ici imposé, donc le test vaut sur les
+    deux moteurs.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    winner = {}
+    real = loser._artifacts.get_by_policy
+
+    def get_by_policy(evaluation_id):
+        if not winner:
+            # Première garde : rien encore. Le gagnant valide JUSTE APRÈS.
+            winner["artifact"] = PersonalizationService(
+                engine, clock=CountingClock(EVALUATED_AT)
+            ).personalize(
+                opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+            )
+            return None
+        return real(evaluation_id)
+
+    loser._artifacts.get_by_policy = get_by_policy
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert (
+        converged["personalization_artifact_id"]
+        == winner["artifact"]["personalization_artifact_id"]
+    )
+    assert _counts(engine) == (1, 1, 1)
+
+
+def test_an_opportunity_advanced_by_the_winner_is_a_race_not_a_dead_end(context) -> None:
+    """Le chargement des valeurs est HORS transaction, donc rattrapable.
+
+    Le gagnant fait avancer l'opportunité ; le perdant la recharge et la trouve
+    « non actionnable » — pour une raison qui n'en est pas une. Si l'artefact du
+    gagnant existe, c'est une course, et l'on converge.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    winner = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    seen = {"guards": 0}
+    real = loser._artifacts.get_by_policy
+
+    def get_by_policy(evaluation_id):
+        seen["guards"] += 1
+        # La garde d'entrée est aveugle : le perdant descend jusqu'au
+        # chargement, où l'opportunité a déjà avancé.
+        return None if seen["guards"] <= 1 else real(evaluation_id)
+
+    loser._artifacts.get_by_policy = get_by_policy
+
+    # Seule la GARDE D'ENTRÉE est aveuglée : `_require_existing` s'appuie
+    # légitimement sur la même lecture pour valider la convergence.
+    real_evaluation_row = loser._policy_store.evaluation_row
+    entry = {"seen": False}
+
+    def evaluation_row(connection, evaluation_id):
+        if not entry["seen"]:
+            entry["seen"] = True
+            return None
+        return real_evaluation_row(connection, evaluation_id)
+
+    loser._policy_store.evaluation_row = evaluation_row
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert converged["personalization_artifact_id"] == winner["personalization_artifact_id"]
+    assert _counts(engine) == (1, 1, 1)
