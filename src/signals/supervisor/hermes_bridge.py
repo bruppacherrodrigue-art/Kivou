@@ -18,6 +18,13 @@ from typing import Any, BinaryIO, TextIO
 BRIDGE_PROTOCOL_VERSION = 1
 MAX_BRIDGE_REQUEST_BYTES = 2_000_000
 _COMMIT_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+OPENROUTER_PROVIDER = "openrouter"
+OPENROUTER_MODEL = "anthropic/claude-sonnet-4.6"
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+OPENROUTER_PROVIDER_ROUTING = {
+    "require_parameters": True,
+    "data_collection": "deny",
+}
 
 
 class BridgeRequestError(ValueError):
@@ -86,10 +93,72 @@ def _load_profile_environment() -> None:
     )
 
 
-def _official_oneshot(**kwargs: Any) -> str:
-    from agent.oneshot import run_oneshot
+def _official_oneshot(
+    *,
+    instructions: str,
+    user_input: str,
+    max_tokens: int,
+    timeout: float,
+    provider: str,
+    model: str,
+    provider_routing: Mapping[str, Any],
+) -> dict[str, Any]:
+    """Make one exact OpenRouter call through Hermes' zero-retry client helper."""
+    if (
+        provider != OPENROUTER_PROVIDER
+        or model != OPENROUTER_MODEL
+        or dict(provider_routing) != OPENROUTER_PROVIDER_ROUTING
+    ):
+        raise BridgeRequestError("the frozen OpenRouter route is required")
+    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not api_key:
+        raise BridgeRequestError("OpenRouter is not configured")
 
-    return run_oneshot(**kwargs)
+    # This helper is part of the exact pinned Hermes source. Passing max_retries=0
+    # prevents the SDK from retrying, while the direct completion call bypasses
+    # Hermes' auxiliary retry and provider/model fallback router entirely.
+    from agent.auxiliary_client import _create_openai_client
+
+    client = _create_openai_client(
+        api_key=api_key,
+        base_url=OPENROUTER_BASE_URL,
+        max_retries=0,
+    )
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": instructions},
+                {"role": "user", "content": user_input},
+            ],
+            max_tokens=max_tokens,
+            timeout=timeout,
+            extra_body={
+                "provider": {
+                    **OPENROUTER_PROVIDER_ROUTING,
+                    "allow_fallbacks": False,
+                }
+            },
+        )
+        actual_model = getattr(response, "model", None)
+        choices = getattr(response, "choices", None)
+        if actual_model != model or not isinstance(choices, list) or len(choices) != 1:
+            raise BridgeRequestError("OpenRouter returned an unexpected route")
+        message = getattr(choices[0], "message", None)
+        content = getattr(message, "content", None)
+        if not isinstance(content, str) or not content.strip():
+            raise BridgeRequestError("OpenRouter returned no structured response")
+        return {
+            "response": content.strip(),
+            "provider": OPENROUTER_PROVIDER,
+            "model": actual_model,
+            "automatic_retries": 0,
+            "fallbacks": False,
+        }
+    finally:
+        close = getattr(client, "close", None)
+        if callable(close):
+            close()
 
 
 def _validated_metadata(loader: Callable[[], Mapping[str, Any]]) -> dict[str, Any]:
@@ -126,7 +195,7 @@ def handle_request(
     request: Mapping[str, Any],
     *,
     metadata_loader: Callable[[], Mapping[str, Any]] = runtime_metadata,
-    oneshot: Callable[..., str] | None = None,
+    oneshot: Callable[..., Mapping[str, Any]] | None = None,
     load_profile_environment: Callable[[], None] = _load_profile_environment,
 ) -> dict[str, Any]:
     operation = request.get("operation")
@@ -143,15 +212,28 @@ def handle_request(
         "context_json",
         "max_tokens",
         "timeout_seconds",
+        "provider",
+        "model",
+        "provider_routing",
     }
     if set(request) != required:
         raise BridgeRequestError("plan request fields are incomplete or unknown")
     instructions = request["instructions"]
     context_json = request["context_json"]
+    provider = request["provider"]
+    model = request["model"]
+    provider_routing = request["provider_routing"]
     if not isinstance(instructions, str) or not instructions.strip():
         raise BridgeRequestError("instructions are required")
     if not isinstance(context_json, str) or not context_json.strip():
         raise BridgeRequestError("context_json is required")
+    if provider != OPENROUTER_PROVIDER or model != OPENROUTER_MODEL:
+        raise BridgeRequestError("the exact OpenRouter model is required")
+    if (
+        not isinstance(provider_routing, Mapping)
+        or dict(provider_routing) != OPENROUTER_PROVIDER_ROUTING
+    ):
+        raise BridgeRequestError("the exact OpenRouter routing policy is required")
     max_tokens = int(_positive_number(request["max_tokens"], name="max_tokens", maximum=16_384))
     timeout = _positive_number(
         request["timeout_seconds"], name="timeout_seconds", maximum=300
@@ -160,15 +242,34 @@ def handle_request(
     metadata = _validated_metadata(metadata_loader)
     load_profile_environment()
     invoke = oneshot or _official_oneshot
-    response = invoke(
+    route = invoke(
         instructions=instructions,
         user_input=context_json,
         max_tokens=max_tokens,
         timeout=timeout,
+        provider=provider,
+        model=model,
+        provider_routing=provider_routing,
     )
-    if not isinstance(response, str):
-        raise BridgeRequestError("Hermes one-shot response must be text")
-    return {"ok": True, **metadata, "response": response}
+    expected_route_fields = {
+        "response",
+        "provider",
+        "model",
+        "automatic_retries",
+        "fallbacks",
+    }
+    if not isinstance(route, Mapping) or set(route) != expected_route_fields:
+        raise BridgeRequestError("Hermes one-shot route evidence is incomplete")
+    response = route["response"]
+    if (
+        not isinstance(response, str)
+        or route["provider"] != OPENROUTER_PROVIDER
+        or route["model"] != OPENROUTER_MODEL
+        or route["automatic_retries"] != 0
+        or route["fallbacks"] is not False
+    ):
+        raise BridgeRequestError("Hermes one-shot route evidence is invalid")
+    return {"ok": True, **metadata, **dict(route)}
 
 
 def _write_json(stdout: BinaryIO, value: Mapping[str, Any]) -> None:

@@ -28,6 +28,12 @@ from signals.supervisor.runtime import (
 from signals.supervisor.transport import HermesTransport, SubprocessHermesTransport
 
 BRIDGE_PROTOCOL_VERSION = 1
+OPENROUTER_PROVIDER = "openrouter"
+OPENROUTER_MODEL = "anthropic/claude-sonnet-4.6"
+OPENROUTER_PROVIDER_ROUTING = {
+    "require_parameters": True,
+    "data_collection": "deny",
+}
 
 
 class HermesSupervisorAdapter:
@@ -53,6 +59,16 @@ class HermesSupervisorAdapter:
             raise SupervisorVersionMismatch("Hermes source commit mismatch")
         if response.get("executable_tools") != []:
             raise SupervisorVersionMismatch("Hermes bridge exposed executable tools")
+
+    @staticmethod
+    def _validate_route(response: dict[str, Any]) -> None:
+        if (
+            response.get("provider") != OPENROUTER_PROVIDER
+            or response.get("model") != OPENROUTER_MODEL
+            or response.get("automatic_retries") != 0
+            or response.get("fallbacks") is not False
+        ):
+            raise SupervisorVersionMismatch("Hermes bridge route mismatch")
 
     def health(self) -> SupervisorHealth:
         if self.settings.configuration_state() is HealthState.NOT_CONFIGURED:
@@ -109,9 +125,13 @@ class HermesSupervisorAdapter:
                 "context_json": self._context_json(context),
                 "max_tokens": self.settings.limits.max_output_tokens,
                 "timeout_seconds": self.settings.limits.invocation_timeout_seconds,
+                "provider": OPENROUTER_PROVIDER,
+                "model": OPENROUTER_MODEL,
+                "provider_routing": OPENROUTER_PROVIDER_ROUTING,
             }
         )
         self._validate_metadata(response)
+        self._validate_route(response)
         raw_plan = response.get("response")
         if not isinstance(raw_plan, str):
             raise SupervisorValidationError("Hermes response is missing a structured plan")
