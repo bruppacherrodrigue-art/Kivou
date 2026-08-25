@@ -25,15 +25,30 @@ from signals.operations.service import OperationsReadService
 from signals.persistence.database import create_database_engine
 
 
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(prog="python -m signals.operations")
+class _OpaqueMutationArguments(ValueError):
+    """A parser failure whose original values must never cross the CLI boundary."""
+
+
+class _OpaqueMutationParser(argparse.ArgumentParser):
+    def error(self, message: str) -> None:
+        del message
+        raise _OpaqueMutationArguments("invalid mutation arguments")
+
+
+def _parser(*, opaque_errors: bool = False) -> argparse.ArgumentParser:
+    parser_type = _OpaqueMutationParser if opaque_errors else argparse.ArgumentParser
+    parser = parser_type(prog="python -m signals.operations")
     parser.add_argument(
         "--database-url",
         default=None,
         help="explicit database URL; otherwise KIVOU_DATABASE_URL is required",
     )
     parser.add_argument("--now", default=None, help="timezone-aware ISO 8601 instant")
-    commands = parser.add_subparsers(dest="command", required=True)
+    commands = parser.add_subparsers(
+        dest="command",
+        required=True,
+        parser_class=parser_type,
+    )
     commands.add_parser("health", help="read bounded local operational health")
     commands.add_parser("readiness", help="read H-A…H-G autonomy readiness")
     commands.add_parser("incidents", help="list bounded operational incident refs")
@@ -102,7 +117,7 @@ def _mutation_error_label(command: str) -> str:
 
 
 def _forbidden_mutation_authority(arguments: list[str]) -> str | None:
-    command = next((item for item in arguments if item in _MUTATING_COMMANDS), None)
+    command = _mutation_command(arguments)
     if command is None:
         return None
     if any(
@@ -111,6 +126,10 @@ def _forbidden_mutation_authority(arguments: list[str]) -> str | None:
     ):
         return _mutation_error_label(command)
     return None
+
+
+def _mutation_command(arguments: list[str]) -> str | None:
+    return next((item for item in arguments if item in _MUTATING_COMMANDS), None)
 
 
 def _server_instant(clock: Callable[[], dt.datetime]) -> dt.datetime:
@@ -204,11 +223,16 @@ def main(
     clock: Callable[[], dt.datetime] = _system_clock,
 ) -> int:
     raw_arguments = list(argv) if argv is not None else sys.argv[1:]
+    mutation_command = _mutation_command(raw_arguments)
     authority_error = _forbidden_mutation_authority(raw_arguments)
     if authority_error is not None:
         print(authority_error, file=sys.stderr)
         return 2
-    arguments = _parser().parse_args(raw_arguments)
+    try:
+        arguments = _parser(opaque_errors=mutation_command is not None).parse_args(raw_arguments)
+    except _OpaqueMutationArguments:
+        print(_mutation_error_label(mutation_command or ""), file=sys.stderr)
+        return 2
     if arguments.command in _MUTATING_COMMANDS:
         return _run_mutation(arguments, clock=clock)
     now = _now(arguments.now)

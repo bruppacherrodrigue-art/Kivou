@@ -92,7 +92,18 @@ class RuntimeQaPolicyWindowController:
             raise RuntimeQaPolicyWindowError("runtime QA policy expiry is invalid")
 
         for _attempt in range(MAX_CONTROL_APPEND_ATTEMPTS):
+            head = self._latest()
             current = self._current(at)
+            if current.control_revision > head.control_revision:
+                continue
+            if current.control_revision != head.control_revision and not (
+                self._is_expected_expired_window(
+                    head,
+                    authority=authority,
+                    at=at,
+                )
+            ):
+                raise RuntimeQaPolicyWindowError("runtime QA policy durable head is unrelated")
             self._require_chf(current)
             if self._same_open_window(
                 current,
@@ -105,8 +116,13 @@ class RuntimeQaPolicyWindowController:
                 return current
             if current.autonomy_mode is not AutonomyMode.SHADOW or not current.read_only:
                 raise RuntimeQaPolicyWindowError("runtime QA policy cannot be opened")
+            if current.kill_switch and current.created_by_actor_ref == SAFETY_CONTROLLER_REF:
+                raise RuntimeQaPolicyWindowError(
+                    "runtime QA policy critical stop must not be cleared"
+                )
             replacement = self._append(
                 current,
+                head=head,
                 authority=authority,
                 at=at,
                 expires_at=expires_at,
@@ -134,7 +150,12 @@ class RuntimeQaPolicyWindowController:
         actor = self._actor(actor_ref)
         reason = self._reason(reason_code)
         for _attempt in range(MAX_CONTROL_APPEND_ATTEMPTS):
+            head = self._latest()
             current = self._current(at)
+            if current.control_revision > head.control_revision:
+                continue
+            if current.control_revision != head.control_revision:
+                raise RuntimeQaPolicyWindowError("runtime QA policy durable head is not effective")
             self._require_chf(current)
             if self._same_closed_window(current, authority=authority):
                 return current
@@ -147,6 +168,7 @@ class RuntimeQaPolicyWindowController:
                 raise RuntimeQaPolicyWindowError("runtime QA policy authority is unsafe")
             replacement = self._append(
                 current,
+                head=head,
                 authority=authority,
                 at=at,
                 expires_at=None,
@@ -164,6 +186,7 @@ class RuntimeQaPolicyWindowController:
         self,
         current: PolicyControlSnapshot,
         *,
+        head: PolicyControlSnapshot,
         authority: _QaAuthority,
         at: dt.datetime,
         expires_at: dt.datetime | None,
@@ -173,13 +196,12 @@ class RuntimeQaPolicyWindowController:
         shadow_target_mode: AutonomyMode | None,
         read_only: bool,
     ) -> PolicyControlSnapshot | None:
-        latest = self._latest()
-        revision = latest.control_revision + 1
+        revision = head.control_revision + 1
         fingerprint = canonical_fingerprint(
             "acquisition-runtime-qa-policy-window:v3",
             {
                 "previous": current.policy_snapshot_id,
-                "durable_head": latest.policy_snapshot_id,
+                "durable_head": head.policy_snapshot_id,
                 "control_revision": revision,
                 "qa_signal_ref": authority.signal_ref,
                 "autonomy_mode": autonomy_mode.value,
@@ -231,7 +253,7 @@ class RuntimeQaPolicyWindowController:
         try:
             if self._policy.append_control_if_latest(
                 replacement,
-                expected_latest_revision=latest.control_revision,
+                expected_latest_revision=head.control_revision,
             ):
                 return replacement
         except sa.exc.SQLAlchemyError:
@@ -390,6 +412,28 @@ class RuntimeQaPolicyWindowController:
             and control.expires_at == expires_at
             and control.created_by_actor_ref == actor_ref
             and control.reason_codes == (QA_WINDOW_OPENED, reason_code)
+        )
+
+    @classmethod
+    def _is_expected_expired_window(
+        cls,
+        control: PolicyControlSnapshot,
+        *,
+        authority: _QaAuthority,
+        at: dt.datetime,
+    ) -> bool:
+        return (
+            control.autonomy_mode is AutonomyMode.ASSISTED
+            and control.shadow_target_mode is None
+            and not control.read_only
+            and not control.kill_switch
+            and cls._same_qa_authority(control, authority=authority)
+            and control.effective_at <= at
+            and control.expires_at is not None
+            and control.expires_at <= at
+            and control.created_by_actor_type == "HUMAN"
+            and len(control.reason_codes) == 2
+            and control.reason_codes[0] == QA_WINDOW_OPENED
         )
 
     @classmethod

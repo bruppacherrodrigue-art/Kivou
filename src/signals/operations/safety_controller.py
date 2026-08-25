@@ -33,7 +33,14 @@ class SafetyController:
 
     def downgrade(self, *, at: dt.datetime, reason_codes: tuple[str, ...]) -> PolicyControlSnapshot:
         for _attempt in range(MAX_CONTROL_APPEND_ATTEMPTS):
+            head = self._policy.get_latest_control()
             current = self._policy.get_effective_control(at)
+            if current.control_revision > head.control_revision:
+                continue
+            if current.control_revision != head.control_revision and not (
+                head.expires_at is not None and head.expires_at <= at
+            ):
+                raise SafetyControlConflict("policy safety durable head is not effective")
             if (
                 current.created_by_actor_ref == SAFETY_CONTROLLER_REF
                 and current.reason_codes == reason_codes
@@ -44,6 +51,7 @@ class SafetyController:
                 return current
             replacement = self._append_safer(
                 current,
+                head=head,
                 at=at,
                 target=target,
                 kill_switch=current.kill_switch,
@@ -58,11 +66,15 @@ class SafetyController:
         self, *, at: dt.datetime, reason_codes: tuple[str, ...]
     ) -> PolicyControlSnapshot:
         for _attempt in range(MAX_CONTROL_APPEND_ATTEMPTS):
+            head = self._policy.get_latest_control()
             current = self._policy.get_effective_control(at)
+            if current.control_revision > head.control_revision:
+                continue
             if self._is_exact_critical_stop(current):
                 return current
             replacement = self._append_safer(
                 current,
+                head=head,
                 at=at,
                 target=AutonomyMode.SHADOW,
                 kill_switch=True,
@@ -80,17 +92,17 @@ class SafetyController:
         self,
         current: PolicyControlSnapshot,
         *,
+        head: PolicyControlSnapshot,
         at: dt.datetime,
         target: AutonomyMode,
         kill_switch: bool,
         read_only: bool,
         reason_codes: tuple[str, ...],
     ) -> PolicyControlSnapshot | None:
-        latest = self._policy.get_latest_control()
-        revision = latest.control_revision + 1
+        revision = head.control_revision + 1
         payload = {
             "previous": current.policy_snapshot_id,
-            "durable_head": latest.policy_snapshot_id,
+            "durable_head": head.policy_snapshot_id,
             "control_revision": revision,
             "target": target.value,
             "kill_switch": kill_switch,
@@ -125,7 +137,7 @@ class SafetyController:
             raise SafetyControlConflict("policy safety control is invalid") from None
         if self._policy.append_control_if_latest(
             replacement,
-            expected_latest_revision=latest.control_revision,
+            expected_latest_revision=head.control_revision,
         ):
             return replacement
         return None

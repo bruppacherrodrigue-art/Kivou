@@ -186,6 +186,27 @@ def _configure_cli(
     return configured
 
 
+def _inject_critical_stop_after_stale_effective_read(
+    monkeypatch,
+    engine,
+) -> None:
+    original = PolicyStore.get_effective_control
+    injected = False
+
+    def interleaved(store, at):
+        nonlocal injected
+        stale = original(store, at)
+        if not injected:
+            injected = True
+            SafetyController(engine).critical_stop(
+                at=at,
+                reason_codes=("OPERATOR_QA_STOP",),
+            )
+        return stale
+
+    monkeypatch.setattr(PolicyStore, "get_effective_control", interleaved)
+
+
 def test_open_window_is_staging_only_and_never_changes_policy_elsewhere(
     tmp_path, monkeypatch
 ) -> None:
@@ -432,6 +453,57 @@ def test_expired_window_can_be_reopened_with_the_next_persisted_revision(
     assert reopened.qa_signal_ref == "procurement-opportunity:opportunity-qa-001"
 
 
+def test_reopen_refuses_an_unrelated_expired_durable_head(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    PolicyStore(engine).append_control(
+        control(
+            2,
+            autonomy_mode=AutonomyMode.ASSISTED,
+            read_only=False,
+            kill_switch=False,
+            effective_at=NOW - dt.timedelta(minutes=2),
+            expires_at=NOW - dt.timedelta(minutes=1),
+        )
+    )
+
+    with pytest.raises(_error_type()):
+        _open(_controller(engine))
+
+    assert PolicyStore(engine).get_latest_control().control_revision == 2
+
+
+def test_open_cannot_clear_a_critical_stop_inserted_after_its_head_read(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    engine = _engine(tmp_path)
+    controller = _controller(engine)
+    runtime_config = _runtime_config()
+    _open(controller, runtime_config=runtime_config)
+    controller.close(
+        at=NOW + dt.timedelta(minutes=1),
+        actor_ref="operator-qa-001",
+        reason_code="AUDIT_80_QA_CYCLE_COMPLETE",
+        runtime_config=runtime_config,
+    )
+    _inject_critical_stop_after_stale_effective_read(monkeypatch, engine)
+
+    with pytest.raises(_error_type()):
+        controller.open(
+            at=NOW + dt.timedelta(minutes=2),
+            expires_at=NOW + dt.timedelta(minutes=12),
+            actor_ref="operator-qa-001",
+            reason_code="AUDIT_80_QA_CYCLE_REOPEN",
+            runtime_config=runtime_config,
+        )
+
+    winner = PolicyStore(engine).get_effective_control(NOW + dt.timedelta(minutes=2))
+    assert winner.autonomy_mode is AutonomyMode.SHADOW
+    assert winner.read_only is True
+    assert winner.kill_switch is True
+    assert winner.created_by_actor_ref == SAFETY_CONTROLLER_REF
+
+
 def test_close_appends_safe_shadow_authority_and_is_idempotent(tmp_path) -> None:
     engine = _engine(tmp_path)
     controller = _controller(engine)
@@ -534,6 +606,52 @@ def test_close_refuses_to_clear_a_kill_switch_raised_before_the_window_was_close
     current = PolicyStore(engine).get_effective_control(NOW + dt.timedelta(minutes=2))
     assert current == stopped
     assert current.kill_switch is True
+
+
+def test_close_cannot_clear_a_critical_stop_inserted_after_its_head_read(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    engine = _engine(tmp_path)
+    controller = _controller(engine)
+    runtime_config = _runtime_config()
+    _open(controller, runtime_config=runtime_config)
+    _inject_critical_stop_after_stale_effective_read(monkeypatch, engine)
+
+    with pytest.raises(_error_type()):
+        controller.close(
+            at=NOW + dt.timedelta(minutes=1),
+            actor_ref="operator-qa-001",
+            reason_code="AUDIT_80_QA_CYCLE_COMPLETE",
+            runtime_config=runtime_config,
+        )
+
+    winner = PolicyStore(engine).get_effective_control(NOW + dt.timedelta(minutes=1))
+    assert winner.autonomy_mode is AutonomyMode.SHADOW
+    assert winner.read_only is True
+    assert winner.kill_switch is True
+    assert winner.created_by_actor_ref == SAFETY_CONTROLLER_REF
+
+
+def test_downgrade_cannot_clear_a_critical_stop_inserted_after_its_head_read(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    engine = _engine(tmp_path)
+    _open(_controller(engine))
+    _inject_critical_stop_after_stale_effective_read(monkeypatch, engine)
+
+    result = SafetyController(engine).downgrade(
+        at=NOW + dt.timedelta(minutes=1),
+        reason_codes=("OPERATIONS_INCIDENT",),
+    )
+
+    winner = PolicyStore(engine).get_effective_control(NOW + dt.timedelta(minutes=1))
+    assert result == winner
+    assert winner.autonomy_mode is AutonomyMode.SHADOW
+    assert winner.read_only is True
+    assert winner.kill_switch is True
+    assert winner.created_by_actor_ref == SAFETY_CONTROLLER_REF
 
 
 def test_kill_switch_can_be_tested_then_explicitly_recovered_to_ready_shadow(
@@ -902,6 +1020,38 @@ def test_mutating_qa_command_redacts_forbidden_authority_after_the_subcommand(
             "open-runtime-qa-policy-window",
             "--database-url",
             f"sqlite+pysqlite:///{marker}.db",
+            "--duration-seconds",
+            "1800",
+            "--actor-ref",
+            "operator-qa-001",
+            "--reason-code",
+            "AUDIT_80_QA_CYCLE",
+        ],
+        clock=lambda: NOW,
+    )
+
+    assert result == 2
+    streams = capsys.readouterr()
+    assert streams.out == ""
+    assert streams.err == "runtime_qa_policy_window_invalid\n"
+    assert marker not in streams.err
+
+
+def test_mutating_qa_parser_never_reflects_an_unknown_private_option(
+    tmp_path,
+    monkeypatch,
+    capsys,
+) -> None:
+    engine = _engine(tmp_path, "qa-policy-cli-private-option.db")
+    marker = "private-email@example.test"
+    monkeypatch.setenv("KIVOU_DATABASE_URL", str(engine.url))
+    _configure_cli(monkeypatch)
+
+    result = main(
+        [
+            "open-runtime-qa-policy-window",
+            "--private-note",
+            marker,
             "--duration-seconds",
             "1800",
             "--actor-ref",
