@@ -55,6 +55,41 @@ def load_checkpoint(connection: sa.Connection, *, source: SourceName) -> Checkpo
     return _checkpoint(row)
 
 
+def reconcile_stale_runs(
+    connection: sa.Connection,
+    *,
+    source: SourceName,
+    stale_before: dt.datetime,
+    reconciled_at: dt.datetime,
+) -> int:
+    result = connection.execute(
+        sa.update(ingestion_run)
+        .where(
+            ingestion_run.c.source == source,
+            ingestion_run.c.status == "running",
+            ingestion_run.c.started_at <= stale_before,
+        )
+        .values(
+            finished_at=reconciled_at,
+            status="failed",
+            error_category="stale_run_reconciled",
+            error_message=None,
+        )
+    )
+    reconciled = int(result.rowcount or 0)
+    if reconciled:
+        connection.execute(
+            sa.update(ingestion_checkpoint)
+            .where(
+                ingestion_checkpoint.c.source == source,
+                ingestion_checkpoint.c.status == "running",
+                ingestion_checkpoint.c.last_started_at <= stale_before,
+            )
+            .values(status="failed", updated_at=reconciled_at)
+        )
+    return reconciled
+
+
 def start_run(
     connection: sa.Connection,
     *,
@@ -135,6 +170,39 @@ def fail_checkpoint(
         sa.update(ingestion_checkpoint)
         .where(ingestion_checkpoint.c.source == source)
         .values(status="failed", updated_at=failed_at)
+    )
+    result = load_checkpoint(connection, source=source)
+    assert result is not None
+    return result
+
+
+def save_checkpoint_cursor(
+    connection: sa.Connection,
+    *,
+    source: SourceName,
+    cursor: dict[str, Any],
+    updated_at: dt.datetime,
+) -> Checkpoint:
+    connection.execute(
+        sa.update(ingestion_checkpoint)
+        .where(ingestion_checkpoint.c.source == source)
+        .values(cursor=cursor, updated_at=updated_at)
+    )
+    result = load_checkpoint(connection, source=source)
+    assert result is not None
+    return result
+
+
+def complete_checkpoint_pass(
+    connection: sa.Connection,
+    *,
+    source: SourceName,
+    completed_at: dt.datetime,
+) -> Checkpoint:
+    connection.execute(
+        sa.update(ingestion_checkpoint)
+        .where(ingestion_checkpoint.c.source == source)
+        .values(status="success", updated_at=completed_at)
     )
     result = load_checkpoint(connection, source=source)
     assert result is not None
