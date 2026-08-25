@@ -19,6 +19,13 @@ from signals.api.config import ApiConfig
 from signals.persistence.database import create_database_engine
 
 
+class _SafeArgumentParser(argparse.ArgumentParser):
+    """Reject invalid arguments without reflecting possibly secret values."""
+
+    def error(self, _message: str) -> None:
+        self.exit(2, "configuration_invalid\n")
+
+
 def _gateway(config: ApiConfig) -> SmtpAlertGateway:
     return SmtpAlertGateway(
         SmtpConfiguration(
@@ -28,13 +35,17 @@ def _gateway(config: ApiConfig) -> SmtpAlertGateway:
             password=config.smtp_password,
             from_email=config.smtp_from_email or "",
             from_name=config.smtp_from_name,
-            use_tls=config.smtp_use_tls,
+            tls_mode=config.smtp_tls_mode,
+            timeout_seconds=config.smtp_timeout_seconds,
+            reply_to_email=config.smtp_reply_to_email,
         )
     )
 
 
 def summarize(report: CycleReport) -> str:
     """Un résumé lisible dans un journal de cron. Aucune adresse, aucun secret."""
+    if report.already_running:
+        return "status=already_running"
     by_result: dict[str, int] = {}
     for outcome in report.outcomes:
         by_result[outcome.result] = by_result.get(outcome.result, 0) + 1
@@ -46,8 +57,7 @@ def summarize(report: CycleReport) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="kivou-alerts", description="Cycle d'alerte Kivou")
-    parser.add_argument("--database-url", required=True)
+    parser = _SafeArgumentParser(prog="kivou-alerts", description="Cycle d'alerte Kivou")
     parser.add_argument(
         "--now",
         default=None,
@@ -57,25 +67,42 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="n'envoie rien, décrit seulement")
     arguments = parser.parse_args(argv)
 
-    config = ApiConfig.from_environment()
-    if not config.alerts_configured:
-        print("alertes non configurées : KIVOU_PUBLIC_APP_URL et SMTP requis", file=sys.stderr)
+    try:
+        config = ApiConfig.from_environment()
+        if not config.alerts_configured:
+            raise ValueError("transactional alert configuration is incomplete")
+        now = (
+            dt.datetime.fromisoformat(arguments.now)
+            if arguments.now
+            else dt.datetime.now(tz=dt.UTC)
+        )
+        if now.tzinfo is None:
+            now = now.replace(tzinfo=dt.UTC)
+        engine = create_database_engine()
+    except (RuntimeError, ValueError):
+        print("configuration_invalid", file=sys.stderr)
         return 2
 
-    now = dt.datetime.fromisoformat(arguments.now) if arguments.now else dt.datetime.now(tz=dt.UTC)
-    if now.tzinfo is None:
-        now = now.replace(tzinfo=dt.UTC)
-
-    engine = create_database_engine(arguments.database_url)
     if arguments.dry_run:
-        print("mode simulation : aucun e-mail n'est envoyé")
+        print("status=dry_run no_delivery_attempted=true")
         return 0
 
-    report = run_alert_cycle(
-        engine, _gateway(config), now=now, public_app_url=config.public_app_url
-    )
+    try:
+        report = run_alert_cycle(
+            engine,
+            _gateway(config),
+            now=now,
+            public_app_url=config.public_app_url,
+            delivery_lease_ttl=config.alert_lease_ttl,
+            job_lease_ttl=config.alert_lease_ttl,
+            retry_base=config.alert_retry_base,
+            max_attempts=config.alert_max_attempts,
+        )
+    except Exception:  # noqa: BLE001 - sanitized process boundary, never exception text
+        print("runtime_failed", file=sys.stderr)
+        return 1
     print(summarize(report))
-    return 0
+    return 1 if report.has_current_incident else 0
 
 
 if __name__ == "__main__":  # pragma: no cover - point d'entrée

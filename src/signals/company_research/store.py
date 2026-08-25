@@ -20,6 +20,7 @@ from signals.company_research.contracts import (
     CompanyResearchRunStart,
     CompanyResearchRunStatus,
 )
+from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import (
     acquisition_company_profile,
     acquisition_contact,
@@ -179,18 +180,16 @@ class CompanyResearchStore:
 
     @staticmethod
     def _insert_run_if_absent(connection: Connection, values: dict[str, object]) -> bool:
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported company research persistence dialect")
-        result = connection.execute(
-            insert(company_research_run).values(values).on_conflict_do_nothing()
+        inserted = insert_if_absent(
+            connection,
+            company_research_run,
+            values,
         )
-        if result.rowcount not in {0, 1}:
-            raise RuntimeError("indeterminate company-research-run ownership")
-        return result.rowcount == 1
+        return inserted
 
     def finish_run(
         self,
@@ -373,22 +372,17 @@ class CompanyResearchStore:
 
     @staticmethod
     def _insert_profile_if_absent(connection: Connection, values: dict[str, object]) -> bool:
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported company research persistence dialect")
-        result = connection.execute(
-            insert(acquisition_company_profile)
-            .values(values)
-            .on_conflict_do_nothing(
-                index_elements=[acquisition_company_profile.c.acquisition_opportunity_id]
-            )
+        inserted = insert_if_absent(
+            connection,
+            acquisition_company_profile,
+            values,
+            index_elements=[acquisition_company_profile.c.acquisition_opportunity_id],
         )
-        if result.rowcount not in {0, 1}:
-            raise RuntimeError("indeterminate company-profile ownership")
-        return result.rowcount == 1
+        return inserted
 
 
 __all__ = [

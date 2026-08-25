@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 from enum import StrEnum
 from typing import Protocol
+from urllib.parse import quote
 
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -521,53 +523,59 @@ class HttpInstantlyProvider:
         mutation: bool = False,
     ) -> object:
         try:
-            response = self._client.request(
+            with self._client.stream(
                 method,
                 f"{self._base_url}{path}",
                 params=params,
                 json=json_body,
                 headers={"Authorization": f"Bearer {self._api_key}"},
-            )
+            ) as response:
+                retry_after: int | None = None
+                if response.status_code == 429:
+                    raw_retry = response.headers.get("Retry-After")
+                    retry_after = (
+                        int(raw_retry) if raw_retry and raw_retry.isdigit() else None
+                    )
+                status_map = {
+                    401: InstantlyErrorCode.AUTH,
+                    402: InstantlyErrorCode.PLAN_REQUIRED,
+                    403: InstantlyErrorCode.PERMISSION,
+                    429: InstantlyErrorCode.RATE_LIMITED,
+                }
+                code = status_map.get(response.status_code)
+                if code is None and response.status_code >= 500:
+                    code = InstantlyErrorCode.SERVER_ERROR
+                if code is None and response.status_code >= 400:
+                    code = InstantlyErrorCode.CLIENT_CONTRACT_ERROR
+                if code is not None:
+                    raise InstantlyProviderError(
+                        code,
+                        reconciliation_required=mutation
+                        and code in {InstantlyErrorCode.SERVER_ERROR},
+                        retry_after_seconds=retry_after,
+                    )
+                body = bytearray()
+                for chunk in response.iter_bytes():
+                    if len(body) + len(chunk) > MAX_PROVIDER_RESPONSE_BYTES:
+                        raise InstantlyProviderError(
+                            InstantlyErrorCode.MALFORMED_RESPONSE,
+                            reconciliation_required=mutation,
+                        )
+                    body.extend(chunk)
+        except InstantlyProviderError:
+            raise
         except httpx.TimeoutException as exc:
             raise InstantlyProviderError(
                 InstantlyErrorCode.TIMEOUT,
                 reconciliation_required=mutation,
             ) from exc
-        except httpx.NetworkError as exc:
+        except httpx.RequestError as exc:
             raise InstantlyProviderError(
                 InstantlyErrorCode.NETWORK,
                 reconciliation_required=mutation,
             ) from exc
-        retry_after: int | None = None
-        if response.status_code == 429:
-            raw_retry = response.headers.get("Retry-After")
-            retry_after = int(raw_retry) if raw_retry and raw_retry.isdigit() else None
-        status_map = {
-            401: InstantlyErrorCode.AUTH,
-            402: InstantlyErrorCode.PLAN_REQUIRED,
-            403: InstantlyErrorCode.PERMISSION,
-            429: InstantlyErrorCode.RATE_LIMITED,
-        }
-        code = status_map.get(response.status_code)
-        if code is None and response.status_code >= 500:
-            code = InstantlyErrorCode.SERVER_ERROR
-        if code is None and response.status_code >= 400:
-            code = InstantlyErrorCode.CLIENT_CONTRACT_ERROR
-        if code is not None:
-            raise InstantlyProviderError(
-                code,
-                reconciliation_required=mutation and (
-                    code in {InstantlyErrorCode.SERVER_ERROR}
-                ),
-                retry_after_seconds=retry_after,
-            )
-        if len(response.content) > MAX_PROVIDER_RESPONSE_BYTES:
-            raise InstantlyProviderError(
-                InstantlyErrorCode.MALFORMED_RESPONSE,
-                reconciliation_required=mutation,
-            )
         try:
-            return response.json()
+            return json.loads(body)
         except ValueError as exc:
             raise InstantlyProviderError(
                 InstantlyErrorCode.MALFORMED_RESPONSE,
@@ -650,7 +658,8 @@ class HttpInstantlyProvider:
         return self._mutation(value, fallback_identity=provider_campaign_id)
 
     def get_mailbox_readiness(self, provider_account_email: str) -> dict[str, object]:
-        value = self._call("GET", f"/accounts/{provider_account_email}")
+        encoded_email = quote(provider_account_email, safe="")
+        value = self._call("GET", f"/accounts/{encoded_email}")
         if not isinstance(value, dict):
             raise InstantlyProviderError(InstantlyErrorCode.MALFORMED_RESPONSE)
         allowed = {
@@ -662,6 +671,20 @@ class HttpInstantlyProvider:
             "tracking_domain_status",
         }
         return {key: value.get(key) for key in allowed}
+
+    def get_current_workspace_ref(self) -> str:
+        """Return only the documented current-workspace identity bound to the key."""
+        value = self._call("GET", "/workspaces/current")
+        if not isinstance(value, dict):
+            raise InstantlyProviderError(InstantlyErrorCode.MALFORMED_RESPONSE)
+        workspace_ref = value.get("id")
+        if (
+            not isinstance(workspace_ref, str)
+            or not workspace_ref.strip()
+            or len(workspace_ref.strip()) > 256
+        ):
+            raise InstantlyProviderError(InstantlyErrorCode.MALFORMED_RESPONSE)
+        return workspace_ref.strip()
 
     def create_lead_or_batch(
         self,
@@ -743,7 +766,10 @@ class HttpInstantlyProvider:
 
 
 def normalize_mailbox_readiness(
-    raw: object, *, observed_at: dt.datetime
+    raw: object,
+    *,
+    observed_at: dt.datetime,
+    require_sending_gap: bool = True,
 ) -> MailboxReadiness:
     """Map only bounded V2 account facts and fail closed on incomplete state."""
     if observed_at.tzinfo is None or observed_at.utcoffset() is None:
@@ -755,47 +781,88 @@ def normalize_mailbox_readiness(
             sending_gap_seconds=0,
             observed_at=observed_at,
         )
-    status = str(raw.get("status", "")).strip().casefold().replace(" ", "_")
-    warmup = str(raw.get("warmup_status", "")).strip().casefold().replace(" ", "_")
+    official_status = {
+        1: "active",
+        2: "paused",
+        3: "maintenance",
+        -1: "connection_error",
+        -2: "soft_bounce_error",
+        -3: "sending_error",
+    }.get(raw.get("status"), raw.get("status", ""))
+    official_warmup = {
+        0: "paused",
+        1: "active",
+        -1: "banned",
+        -2: "spam_folder_unknown",
+        -3: "permanent_suspension",
+    }.get(raw.get("warmup_status"), raw.get("warmup_status", ""))
+    status = str(official_status).strip().casefold().replace(" ", "_")
+    warmup = str(official_warmup).strip().casefold().replace(" ", "_")
     tracking = (
         str(raw.get("tracking_domain_status", "")).strip().casefold().replace(" ", "_")
     )
     setup_pending = raw.get("setup_pending")
     daily_limit = raw.get("daily_limit")
     sending_gap = raw.get("sending_gap")
+    valid_daily_limit = (
+        isinstance(daily_limit, int)
+        and not isinstance(daily_limit, bool)
+        and 0 <= daily_limit <= 100_000
+    )
+    valid_sending_gap = (
+        isinstance(sending_gap, int)
+        and not isinstance(sending_gap, bool)
+        and 0 <= sending_gap <= 1_440
+    )
     if (
         not isinstance(setup_pending, bool)
-        or not isinstance(daily_limit, int)
-        or isinstance(daily_limit, bool)
-        or not isinstance(sending_gap, int)
-        or isinstance(sending_gap, bool)
-        or daily_limit < 0
-        or sending_gap < 0
+        or not valid_daily_limit
+        or (require_sending_gap and not valid_sending_gap)
+        or (sending_gap is not None and not valid_sending_gap)
     ):
         state = MailboxReadinessState.UNKNOWN
-        daily_limit = 0
-        sending_gap = 0
-    elif status in {"connection_error", "soft_bounce_error", "sending_error", "banned"} or warmup in {"banned", "suspended", "error"} or tracking in {
-        "invalid",
-        "error",
-        "failed",
-    }:
-        state = MailboxReadinessState.UNHEALTHY
-    elif status in {"paused", "maintenance"} or warmup in {"paused", "maintenance"} or daily_limit == 0:
-        state = MailboxReadinessState.TEMPORARILY_UNAVAILABLE
-    elif (
-        status == "active"
-        and setup_pending is False
-        and warmup in {"active", "completed", "enabled"}
-        and tracking in {"active", "verified", "connected", "not_required"}
-    ):
-        state = MailboxReadinessState.READY
+        normalized_daily_limit = 0
+        normalized_sending_gap = 0
     else:
-        state = MailboxReadinessState.UNKNOWN
+        normalized_daily_limit = int(daily_limit)
+        normalized_sending_gap = int(sending_gap) if valid_sending_gap else 0
+        if status in {
+            "connection_error",
+            "soft_bounce_error",
+            "sending_error",
+            "banned",
+        } or warmup in {
+            "banned",
+            "suspended",
+            "error",
+            "spam_folder_unknown",
+            "permanent_suspension",
+        } or tracking in {
+            "invalid",
+            "error",
+            "failed",
+        }:
+            state = MailboxReadinessState.UNHEALTHY
+        elif (
+            status in {"paused", "maintenance"}
+            or warmup in {"paused", "maintenance"}
+            or normalized_daily_limit == 0
+        ):
+            state = MailboxReadinessState.TEMPORARILY_UNAVAILABLE
+        elif (
+            status == "active"
+            and setup_pending is False
+            and warmup in {"active", "completed", "enabled"}
+            and tracking
+            in {"active", "verified", "connected", "not_required", "ctd_active"}
+        ):
+            state = MailboxReadinessState.READY
+        else:
+            state = MailboxReadinessState.UNKNOWN
     return MailboxReadiness(
         state=state,
-        provider_daily_limit=daily_limit,
-        sending_gap_seconds=sending_gap,
+        provider_daily_limit=normalized_daily_limit,
+        sending_gap_seconds=normalized_sending_gap * 60,
         observed_at=observed_at,
         valid_until=(
             observed_at + dt.timedelta(minutes=5)
@@ -808,11 +875,18 @@ def normalize_mailbox_readiness(
 class InstantlyMailboxReadinessSource:
     """Explicit network-backed source; construction and imports perform no I/O."""
 
-    def __init__(self, provider: InstantlyProvider) -> None:
+    def __init__(
+        self,
+        provider: InstantlyProvider,
+        *,
+        require_sending_gap: bool = True,
+    ) -> None:
         self._provider = provider
+        self._require_sending_gap = require_sending_gap
 
     def get(self, provider_account_id: str, *, observed_at: dt.datetime) -> MailboxReadiness:
         return normalize_mailbox_readiness(
             self._provider.get_mailbox_readiness(provider_account_id),
             observed_at=observed_at,
+            require_sending_gap=self._require_sending_gap,
         )

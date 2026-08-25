@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import sqlalchemy as sa
 from sqlalchemy.engine import Connection, Engine, RowMapping
 
+from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import acquisition_supplier, supplier_discovery_run
 from signals.supplier_discovery.contracts import (
     ApolloOrganizationCandidate,
@@ -215,20 +216,16 @@ class SupplierDiscoveryStore:
     def _insert_run_if_absent(
         connection: Connection, values: dict[str, object]
     ) -> bool:
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported discovery persistence dialect")
-        result = connection.execute(
-            insert(supplier_discovery_run)
-            .values(values)
-            .on_conflict_do_nothing()
+        inserted = insert_if_absent(
+            connection,
+            supplier_discovery_run,
+            values,
         )
-        if result.rowcount not in {0, 1}:
-            raise RuntimeError("indeterminate discovery-run ownership")
-        return result.rowcount == 1
+        return inserted
 
     def get_supplier(self, supplier_ref: str) -> SupplierRecord:
         with self._engine.connect() as connection:
@@ -339,25 +336,17 @@ class SupplierDiscoveryStore:
     def _insert_supplier_if_absent(
         connection: Connection, values: dict[str, object]
     ) -> bool:
-        if connection.dialect.name == "sqlite":
-            from sqlalchemy.dialects.sqlite import insert
-        elif connection.dialect.name == "postgresql":
-            from sqlalchemy.dialects.postgresql import insert
+        if connection.dialect.name == "sqlite" or connection.dialect.name == "postgresql":
+            pass
         else:
             raise RuntimeError("unsupported supplier persistence dialect")
-        result = connection.execute(
-            insert(acquisition_supplier)
-            .values(values)
-            .on_conflict_do_nothing(
-                index_elements=[
-                    acquisition_supplier.c.provider,
-                    acquisition_supplier.c.provider_organization_id,
-                ]
-            )
+        inserted = insert_if_absent(
+            connection,
+            acquisition_supplier,
+            values,
+            index_elements=[acquisition_supplier.c.provider, acquisition_supplier.c.provider_organization_id,],
         )
-        if result.rowcount not in {0, 1}:
-            raise RuntimeError("indeterminate supplier identity ownership")
-        return result.rowcount == 1
+        return inserted
 
     @staticmethod
     def _lock_domains(connection: Connection, domains: tuple[str, ...]) -> None:

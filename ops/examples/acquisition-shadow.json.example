@@ -1,0 +1,18 @@
+{
+  "schema_version": "acquisition-shadow-connectivity-v1",
+  "instantly_workspace_ref": "00000000-0000-0000-0000-000000000000",
+  "mailboxes": [
+    {
+      "mailbox_ref": "mailbox-staging-01",
+      "provider_account_id": "mailbox-one@example.com"
+    },
+    {
+      "mailbox_ref": "mailbox-staging-02",
+      "provider_account_id": "mailbox-two@example.com"
+    },
+    {
+      "mailbox_ref": "mailbox-staging-03",
+      "provider_account_id": "mailbox-three@example.com"
+    }
+  ]
+}

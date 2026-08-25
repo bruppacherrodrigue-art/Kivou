@@ -196,8 +196,9 @@ def test_a_configured_smtp_actually_delivers_the_reset_link(
     from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
 
     monkeypatch.setenv("SMTP_HOST", "smtp.kivou.test")
-    monkeypatch.setenv("SMTP_FROM_EMAIL", "no-reply@kivou.test")
-    monkeypatch.setenv("KIVOU_PUBLIC_APP_URL", "https://staging.kivou.test/app")
+    monkeypatch.setenv("SMTP_FROM_EMAIL", "no-reply@kivou.eu")
+    monkeypatch.setenv("SMTP_TLS_MODE", "starttls")
+    monkeypatch.setenv("KIVOU_PUBLIC_APP_URL", "https://staging.kivou.test")
 
     module = importlib.import_module(MODULE)
     app = module.build_application()
@@ -205,14 +206,13 @@ def test_a_configured_smtp_actually_delivers_the_reset_link(
 
 
 def test_the_reset_link_points_at_the_site_root_not_the_app_prefix():
-    """`public_app_url` pointe sur `/app`, mais `/reset-password` est servie à
-    la RACINE. Un lien construit sur la base des alertes donnerait
-    `…/app/reset-password`, que le routeur ne connaît pas."""
+    """L'origine publique n'inclut aucun chemin et `/reset-password` reste à
+    la racine servie par le routeur navigateur."""
     from signals.accounts.reset_delivery import reset_link
 
     config = ApiConfig(
         allowed_origin="https://staging.kivou.test",
-        public_app_url="https://staging.kivou.test/app",
+        public_app_url="https://staging.kivou.test",
     )
     assert config.public_site_url == "https://staging.kivou.test"
     link = reset_link(config.public_site_url or "", "jeton-abc")
@@ -233,6 +233,96 @@ def test_the_reset_message_never_carries_a_tracker():
     assert "jeton-abc" in message.text_body
     assert "<img" not in message.text_body
     assert "désinscri" not in message.text_body.lower(), "un e-mail de sécurité ne se désinscrit pas"
+
+
+@pytest.mark.parametrize(
+    ("locale", "subject", "greeting", "validity"),
+    [
+        (
+            "fr",
+            "Réinitialisation de votre mot de passe Kivou",
+            "Bonjour,",
+            "Ce lien est valable 1 heure(s) et ne fonctionne qu'une seule fois.",
+        ),
+        (
+            "en",
+            "Reset your Kivou password",
+            "Hello,",
+            "The link is valid for 1 hour(s) and works only once.",
+        ),
+    ],
+)
+def test_reset_templates_preserve_the_same_certainty_in_french_and_english(
+    locale: str, subject: str, greeting: str, validity: str
+) -> None:
+    from signals.accounts.reset_delivery import build_reset_message
+
+    message = build_reset_message(
+        email="synthetic-user@kivou.eu",
+        locale=locale,
+        reset_token="synthetic-reset-value",
+        site_url="https://staging.kivou.test",
+        ttl=dt.timedelta(hours=1),
+        message_id=f"<reset-{locale}@kivou.eu>",
+    )
+
+    assert message.subject == subject
+    assert message.text_body.startswith(greeting)
+    assert validity in message.text_body
+    assert (
+        "https://staging.kivou.test/reset-password?token=synthetic-reset-value"
+        in message.text_body
+    )
+
+
+@pytest.mark.parametrize(
+    "origin",
+    ["https://staging.kivou.test", "https://kivou.eu"],
+)
+def test_reset_links_are_rooted_at_the_configured_public_origin(origin: str) -> None:
+    from signals.accounts.reset_delivery import build_reset_message
+
+    message = build_reset_message(
+        email="synthetic-user@kivou.eu",
+        locale="fr",
+        reset_token="synthetic-reset-value",
+        site_url=origin,
+        ttl=dt.timedelta(minutes=30),
+    )
+
+    assert f"{origin}/reset-password?token=synthetic-reset-value" in message.text_body
+    assert f"{origin}/app/" not in message.text_body
+
+
+@pytest.mark.parametrize(
+    "error_code",
+    ["unknown_delivery_state", "smtp_authentication_failed"],
+)
+def test_reset_delivery_failure_logs_only_a_safe_code(caplog, error_code: str) -> None:
+    from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
+    from signals.alerts.gateway import AlertDeliveryError, UncertainDelivery
+
+    reset_value = "reset-" + "private-value"
+    address = "synthetic-private-user" + "@kivou.eu"
+    smtp_secret = "smtp-" + "private-value"
+
+    class FailingGateway:
+        def send(self, message):
+            if error_code == "unknown_delivery_state":
+                raise UncertainDelivery()
+            raise AlertDeliveryError(error_code, retryable=False)
+
+    delivery = SmtpPasswordResetDelivery(
+        FailingGateway(),
+        site_url="https://staging.kivou.test",
+        ttl=dt.timedelta(hours=1),
+    )
+    delivery.deliver(email=address, locale="fr", reset_token=reset_value)
+
+    rendered = caplog.text
+    assert error_code in rendered
+    for forbidden in (reset_value, address, smtp_secret, "Traceback"):
+        assert forbidden not in rendered
 
 
 def test_a_delivery_failure_never_reaches_the_caller():

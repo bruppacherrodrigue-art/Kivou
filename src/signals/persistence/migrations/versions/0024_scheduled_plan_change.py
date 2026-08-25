@@ -1,7 +1,7 @@
 """Persist the scheduled plan change, and give each change an identity.
 
-Revision ID: 0023_scheduled_plan_change
-Revises: 0022_saas_company_profile
+Revision ID: 0024_scheduled_plan_change
+Revises: 0023_transactional_email_runtime
 
 Pourquoi cet état vit en base
 ─────────────────────────────
@@ -27,8 +27,8 @@ from __future__ import annotations
 import sqlalchemy as sa
 from alembic import op
 
-revision = "0023_scheduled_plan_change"
-down_revision = "0022_saas_company_profile"
+revision = "0024_scheduled_plan_change"
+down_revision = "0023_transactional_email_runtime"
 branch_labels = None
 depends_on = None
 

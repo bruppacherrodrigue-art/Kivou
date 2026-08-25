@@ -43,6 +43,8 @@ dev = [
     # Pilote PostgreSQL : présent en dev pour que le dialecte de PRODUCTION soit
     # exerçable par les tests sans qu'aucun serveur ne tourne.
     "psycopg[binary]>=3.2",
+    "aiosmtpd>=1.4.6",
+    "trustme>=1.2",
 ]
 
 [build-system]

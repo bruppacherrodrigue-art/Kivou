@@ -107,7 +107,9 @@ def _password_reset_delivery(config: ApiConfig) -> SmtpPasswordResetDelivery | N
             password=config.smtp_password,
             from_email=config.smtp_from_email or "",
             from_name=config.smtp_from_name,
-            use_tls=config.smtp_use_tls,
+            tls_mode=config.smtp_tls_mode,
+            timeout_seconds=config.smtp_timeout_seconds,
+            reply_to_email=config.smtp_reply_to_email,
         )
     )
     return SmtpPasswordResetDelivery(

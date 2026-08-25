@@ -16,7 +16,7 @@ from test_decision_engine_service import (
 )
 from test_policy_persistence import control
 
-from signals.acquisition.contracts import AcquisitionState
+from signals.acquisition.contracts import AcquisitionState, OpportunityConcurrencyConflict
 from signals.decision_engine.service import DecisionEngineService
 from signals.persistence.schema import (
     acquisition_company_profile,
@@ -33,6 +33,7 @@ from signals.personalization.grounding import (
     PersonalizationGroundingInsufficient,
 )
 from signals.personalization.service import (
+    PersonalizationConvergenceInvariantViolated,
     PersonalizationEvaluationRequiresFreshAttempt,
     PersonalizationInputChanged,
     PersonalizationService,
@@ -755,3 +756,469 @@ def test_shadow_persists_pii_minimized_blocked_artifact_without_workflow_event(c
     current = acquisition.get_opportunity(opportunity_id)
     assert current.stream_version == before + 1  # POLICY_EVALUATED only
     assert current.next_action == "prepare_campaign"
+
+
+# ─── #33 — la frontière atomique, et la convergence du perdant ────────────────
+#
+# Une évaluation concurrente doit produire EXACTEMENT un artefact et une seule
+# prochaine action. Auparavant, la convergence n'était tentée que sur
+# `PersonalizationInputChanged` : la même course pouvait surgir en
+# `OpportunityConcurrencyConflict` ou `PolicyEvaluationIdempotencyConflict`, et
+# le perdant remontait alors l'exception au lieu de l'artefact du gagnant.
+
+
+def _prepared(engine, opportunity_id):
+    """Amène l'opportunité au point où la personnalisation est possible."""
+    DecisionEngineService(engine, clock=lambda: EVALUATED_AT).evaluate(
+        opportunity_id, authorization(), budget_usage=BudgetUsage()
+    )
+    PolicyStore(engine).append_control(
+        control(2, allowed_commands=("prepare_campaign",), effective_at=EVALUATED_AT)
+    )
+
+
+def _counts(engine):
+    """(évaluations de personnalisation, artefacts, prochaines actions)."""
+    with engine.connect() as connection:
+        evaluations = connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(policy_evaluation)
+            .where(policy_evaluation.c.evaluation_id == "personalization-eval-1")
+        )
+        artifacts = connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_personalization_artifact)
+        )
+        next_actions = connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(acquisition_event)
+            .where(
+                acquisition_event.c.idempotency_key
+                == "personalization_next_action:personalization-eval-1"
+            )
+        )
+    return evaluations, artifacts, next_actions
+
+
+def test_a_loser_converges_deterministically_on_the_winner_artifact(context) -> None:
+    """Course FORCÉE, sans fil ni horloge : l'ordre est imposé, pas espéré.
+
+    Le point d'ancrage post-politique fait tourner une seconde
+    personnalisation ENTIÈRE — qui valide — avant que la première n'ouvre sa
+    transaction. La première se retrouve donc systématiquement perdante.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    winner_result = {}
+
+    def let_the_winner_commit() -> None:
+        if not winner_result:
+            winner_result["artifact"] = PersonalizationService(
+                engine, clock=CountingClock(EVALUATED_AT)
+            ).personalize(
+                opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+            )
+
+    loser._after_policy_hook = let_the_winner_commit
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert winner_result, "le gagnant doit avoir validé avant le perdant"
+    assert (
+        converged["personalization_artifact_id"]
+        == winner_result["artifact"]["personalization_artifact_id"]
+    )
+    assert _counts(engine) == (1, 1, 1), "un artefact, une évaluation, une prochaine action"
+
+
+def test_the_loser_writes_nothing_at_all(context) -> None:
+    """Le perdant doit voir sa transaction ENTIÈREMENT annulée avant de lire.
+
+    Un rollback partiel laisserait un événement ou une évaluation orphelins :
+    les comptages sont donc pris avant et après la course perdue.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    winner = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+    after_winner = _counts(engine)
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert converged["personalization_artifact_id"] == winner["personalization_artifact_id"]
+    assert _counts(engine) == after_winner, "le perdant n'a rien écrit"
+
+
+@pytest.mark.parametrize(
+    "conflict",
+    [OpportunityConcurrencyConflict, PolicyEvaluationIdempotencyConflict],
+    ids=["opportunity-version", "policy-idempotency"],
+)
+def test_each_atomic_conflict_converges_on_the_concurrent_artifact(context, conflict) -> None:
+    """Les deux conflits qui GARANTISSENT un gagnant doivent converger.
+
+    Auparavant seul `PersonalizationInputChanged` était rattrapé : ces deux-là
+    remontaient à l'appelant, qui recevait une exception au lieu de l'artefact
+    déjà écrit.
+
+    L'ordre est imposé, pas espéré : le perdant franchit ses gardes d'entrée
+    AVANT que le gagnant ne valide — c'est la vraie forme de la course, et la
+    seule où ces conflits sont observables. Le type de conflit, lui, est injecté
+    pour couvrir les deux sans dépendre de l'ordonnancement du système.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    winner_result = {}
+
+    def let_the_winner_commit() -> None:
+        if winner_result:
+            return
+        winner_result["artifact"] = PersonalizationService(
+            engine, clock=CountingClock(EVALUATED_AT)
+        ).personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+
+        def raise_conflict(*_args, **_kwargs):
+            raise conflict(opportunity_id)
+
+        loser._policy.record_in_transaction = raise_conflict
+
+    loser._after_policy_hook = let_the_winner_commit
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert winner_result, "le gagnant doit avoir validé avant le perdant"
+    assert (
+        converged["personalization_artifact_id"]
+        == winner_result["artifact"]["personalization_artifact_id"]
+    )
+    assert _counts(engine) == (1, 1, 1)
+
+
+def test_an_idempotency_conflict_without_any_artifact_is_an_invariant_error(context) -> None:
+    """Ce conflit-là porte sur CET `evaluation_id` : ne rien trouver est grave.
+
+    Il n'est observable que si une transaction concurrente a inscrit la même
+    évaluation — écrite dans la même transaction que l'artefact. L'artefact
+    introuvable signale donc une corruption, et doit être dit plutôt qu'absorbé.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    service = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    service._artifacts.get_by_policy = lambda _evaluation_id: None
+
+    def raise_conflict(*_args, **_kwargs):
+        raise PolicyEvaluationIdempotencyConflict(opportunity_id)
+
+    service._policy.record_in_transaction = raise_conflict
+
+    with pytest.raises(PersonalizationConvergenceInvariantViolated):
+        service.personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+
+
+def test_a_stream_conflict_from_another_writer_stays_a_retryable_conflict(context) -> None:
+    """`OpportunityConcurrencyConflict` ne prouve RIEN sur cette personnalisation.
+
+    `expected_version` est lu hors transaction, et le flux de l'opportunité est
+    PARTAGÉ : conformité, découverte de contacts, recherche d'entreprise et
+    moteur de décision y écrivent aussi. N'importe laquelle de leurs écritures
+    déclenche ce conflit.
+
+    Le convertir en erreur d'invariant transformerait une concurrence bénigne et
+    rattrapable en alarme de corruption — et priverait les appelants du conflit
+    typé que les services frères savent déjà traiter.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    service = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    service._artifacts.get_by_policy = lambda _evaluation_id: None
+
+    def raise_conflict(*_args, **_kwargs):
+        raise OpportunityConcurrencyConflict(opportunity_id)
+
+    service._policy.record_in_transaction = raise_conflict
+
+    with pytest.raises(OpportunityConcurrencyConflict):
+        service.personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+
+
+def test_a_conflict_raised_while_preparing_still_converges(context) -> None:
+    """L'empreinte sémantique inclut `evaluated_at`.
+
+    Deux appelants concurrents en produisent donc deux différentes dès que
+    l'horloge est réelle, et `prepare()` lève `PolicyEvaluationIdempotencyConflict`
+    — sur une COURSE, pas sur une incohérence. Hors du périmètre de convergence,
+    cette exception échappait à l'appelant : c'est la forme la plus probable en
+    production du défaut que ce correctif vise.
+
+    Les autres tests figent l'horloge, donc les empreintes coïncident et cette
+    branche n'est jamais atteinte. Elle est ici déclenchée explicitement.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    winner = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    entry = {"seen": False}
+    real_get = loser._artifacts.get_by_policy
+
+    def get_by_policy(evaluation_id):
+        if not entry["seen"]:
+            entry["seen"] = True
+            return None
+        return real_get(evaluation_id)
+
+    loser._artifacts.get_by_policy = get_by_policy
+    loser._policy_store_evaluation_row = loser._policy_store.evaluation_row
+    seen_row = {"n": 0}
+
+    def evaluation_row(connection, evaluation_id):
+        seen_row["n"] += 1
+        return None if seen_row["n"] == 1 else loser._policy_store_evaluation_row(
+            connection, evaluation_id
+        )
+
+    loser._policy_store.evaluation_row = evaluation_row
+
+    def prepare_conflict(*_args, **_kwargs):
+        raise PolicyEvaluationIdempotencyConflict("personalization-eval-1")
+
+    loser._policy.prepare = prepare_conflict
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert converged["personalization_artifact_id"] == winner["personalization_artifact_id"]
+    assert _counts(engine) == (1, 1, 1)
+
+
+def test_the_policy_evaluation_and_the_artifact_share_one_transaction(context) -> None:
+    """Aucun état intermédiaire ne doit survivre à un échec d'écriture.
+
+    L'évaluation de politique était inscrite dans SA transaction, donc un échec
+    ultérieur laissait une évaluation sans artefact — et c'est ce résidu qui
+    rendait le conflit du perdant non concluant.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    service = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    boom = RuntimeError("échec après inscription de l'évaluation")
+
+    def explode(*_args, **_kwargs):
+        raise boom
+
+    service._artifacts.append_in_transaction = explode
+
+    with pytest.raises(RuntimeError):
+        service.personalize(
+            opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+        )
+
+    assert _counts(engine) == (0, 0, 0), "l'évaluation doit être annulée avec l'artefact"
+
+
+@pytest.mark.parametrize("attempt", range(6))
+def test_two_concurrent_threads_always_converge(context, attempt: int) -> None:
+    """La course réelle, répétée : deux appels, un seul artefact, aucun échec."""
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    barrier = threading.Barrier(2)
+    results, errors = [], []
+    lock = threading.Lock()
+
+    def run() -> None:
+        try:
+            barrier.wait(timeout=5)
+            result = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+                opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+            )
+            with lock:
+                results.append(result)
+        except BaseException as error:  # noqa: BLE001 - aucune exception n'est acceptable
+            with lock:
+                errors.append(error)
+
+    threads = [threading.Thread(target=run) for _ in range(2)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=15)
+
+    assert not errors, f"aucun appelant ne doit échouer : {errors}"
+    assert len(results) == 2
+    assert len({result["personalization_artifact_id"] for result in results}) == 1
+    assert _counts(engine) == (1, 1, 1)
+
+
+# ─── Les deux fenêtres que seul PostgreSQL sous contention a révélées ─────────
+
+
+def test_a_winner_committing_between_the_two_entry_guards_still_converges(context) -> None:
+    """Les gardes d'entrée sont DEUX lectures, à deux instants.
+
+    Un gagnant qui valide entre elles laisse le perdant voir son évaluation sans
+    avoir vu son artefact — d'où un `RequiresFreshAttempt` alors qu'il s'agit
+    d'une course. Les deux étant écrits dans la même transaction, une relecture
+    postérieure trouve nécessairement l'artefact.
+
+    Constaté sur PostgreSQL sous contention ; SQLite sérialise assez pour que la
+    fenêtre ne s'ouvre jamais. L'ordre est ici imposé, donc le test vaut sur les
+    deux moteurs.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    winner = {}
+    real = loser._artifacts.get_by_policy
+
+    def get_by_policy(evaluation_id):
+        if not winner:
+            # Première garde : rien encore. Le gagnant valide JUSTE APRÈS.
+            winner["artifact"] = PersonalizationService(
+                engine, clock=CountingClock(EVALUATED_AT)
+            ).personalize(
+                opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+            )
+            return None
+        return real(evaluation_id)
+
+    loser._artifacts.get_by_policy = get_by_policy
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert (
+        converged["personalization_artifact_id"]
+        == winner["artifact"]["personalization_artifact_id"]
+    )
+    assert _counts(engine) == (1, 1, 1)
+
+
+def test_an_opportunity_advanced_by_the_winner_is_a_race_not_a_dead_end(context) -> None:
+    """Le chargement des valeurs est HORS transaction, donc rattrapable.
+
+    Le gagnant fait avancer l'opportunité ; le perdant la recharge et la trouve
+    « non actionnable » — pour une raison qui n'en est pas une. Si l'artefact du
+    gagnant existe, c'est une course, et l'on converge.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    winner = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT)).personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    loser = PersonalizationService(engine, clock=CountingClock(EVALUATED_AT))
+    seen = {"guards": 0}
+    real = loser._artifacts.get_by_policy
+
+    def get_by_policy(evaluation_id):
+        seen["guards"] += 1
+        # La garde d'entrée est aveugle : le perdant descend jusqu'au
+        # chargement, où l'opportunité a déjà avancé.
+        return None if seen["guards"] <= 1 else real(evaluation_id)
+
+    loser._artifacts.get_by_policy = get_by_policy
+
+    # Seule la GARDE D'ENTRÉE est aveuglée : `_require_existing` s'appuie
+    # légitimement sur la même lecture pour valider la convergence.
+    real_evaluation_row = loser._policy_store.evaluation_row
+    entry = {"seen": False}
+
+    def evaluation_row(connection, evaluation_id):
+        if not entry["seen"]:
+            entry["seen"] = True
+            return None
+        return real_evaluation_row(connection, evaluation_id)
+
+    loser._policy_store.evaluation_row = evaluation_row
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert converged["personalization_artifact_id"] == winner["personalization_artifact_id"]
+    assert _counts(engine) == (1, 1, 1)
+
+
+# ─── Horloges RÉELLEMENT différentes — la forme de production de la course ────
+
+
+def test_a_race_with_genuinely_different_clocks_converges(context) -> None:
+    """Deux appelants concurrents n'ont PAS le même instant.
+
+    `evaluated_at` entre dans l'empreinte sémantique, donc deux horloges
+    distinctes produisent deux empreintes distinctes. Le perdant voit alors la
+    passerelle lever `PolicyEvaluationIdempotencyConflict` depuis `prepare()` —
+    sur une COURSE, pas sur une incohérence.
+
+    Tous les autres tests figent la MÊME horloge sur les deux appelants : les
+    empreintes coïncident, `prepare()` rend une décision, et cette branche n'est
+    jamais atteinte. C'est ce qui l'avait laissée hors du périmètre de
+    convergence.
+
+    Ici le conflit vient du VRAI code de la passerelle, pas d'une exception
+    injectée : seul l'instant du gagnant est imposé, pour que le test reste
+    déterministe tout en étant fidèle.
+    """
+    engine, _, opportunity_id = context
+    _prepared(engine, opportunity_id)
+
+    winner_at = EVALUATED_AT
+    loser_at = EVALUATED_AT + dt.timedelta(seconds=37)
+    assert winner_at != loser_at, "le test n'a de sens que si les horloges diffèrent"
+
+    loser = PersonalizationService(engine, clock=CountingClock(loser_at))
+    winner_result = {}
+    real_prepare = loser._policy.prepare
+
+    def prepare(*args, **kwargs):
+        # Le gagnant valide APRÈS les gardes d'entrée du perdant, donc juste
+        # avant que celui-ci ne prépare sa propre décision.
+        if not winner_result:
+            winner_result["artifact"] = PersonalizationService(
+                engine, clock=CountingClock(winner_at)
+            ).personalize(
+                opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+            )
+        return real_prepare(*args, **kwargs)
+
+    loser._policy.prepare = prepare
+
+    converged = loser.personalize(
+        opportunity_id, "fr", personalization_authorization(), budget_usage=BudgetUsage()
+    )
+
+    assert winner_result, "le gagnant doit avoir validé avant la préparation du perdant"
+    assert (
+        converged["personalization_artifact_id"]
+        == winner_result["artifact"]["personalization_artifact_id"]
+    )
+    assert _counts(engine) == (1, 1, 1)

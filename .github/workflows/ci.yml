@@ -25,7 +25,12 @@ jobs:
   backend:
     name: Backend (Python 3.12 · uv)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # La suite dure ~22 min en local et davantage sur un runner partagé. À 20,
+    # l'étape « Tests » était tuée à 20 min 03 s et le job rendu `cancelled` —
+    # ce qui se lisait comme une stalle (#71) alors que c'était le budget qui
+    # était dépassé. 40 laisse une marge sans masquer un vrai blocage.
+    # Réduire la DURÉE de la suite est suivi séparément.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v7
 

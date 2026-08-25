@@ -129,6 +129,16 @@ Ne jamais inventer une identité juridique, un numéro IDE/TVA, un registre, une
 
 **Gate :** un utilisateur reçoit effectivement les e-mails attendus et peut contrôler ses préférences.
 
+**État au 24 août 2026 : livré en PR brouillon ; validation staging en attente.**
+
+- origine publique HTTPS, SMTP explicite, liens transactionnels FR/EN et reset
+  à usage unique validés localement ;
+- alertes account-scoped avec lease durable, retry borné, suppression après
+  perte de droits et protection contre les doublons déterministes ;
+- service et timer systemd versionnés, mais non installés sur staging ;
+- aucun envoi réel, aucune écriture DNS et aucune action production effectués ;
+- SPF/DKIM/DMARC et les deux messages réels restent des gates staging.
+
 ### RTL-06 — Fiche entreprise et coordonnées vérifiées
 
 **Priorité : P0-PRODUCT**
@@ -192,6 +202,22 @@ Créer un accueil SaaS connecté qui aide immédiatement le client à décider q
 Réutiliser autant que possible les API SaaS existantes. Si un agrégat manque réellement, créer un contrat account-scoped minimal et testé, sans lire ni exposer les tables internes d’acquisition.
 
 **Gate :** après connexion, le client comprend son état, voit ce qui mérite son attention et peut atteindre sa prochaine action en un clic.
+
+**État au 23 août 2026 : dashboard connecté livré en PR.**
+
+La tranche livrée compose uniquement les contrats SaaS existants dans
+`/app/dashboard`. Elle conserve l’ordre serveur des occasions et de tous les
+ICP actifs, les valeurs Discovery exactes, l’action de facturation décidée par
+le serveur, et la séparation entre activation des alertes et cadence permise
+par la formule. La fiche entreprise n’est proposée qu’après le détail du
+premier signal déclaré accessible par le serveur. Aucun endpoint agrégé,
+calcul de priorité, contrat de la PR nº58, stockage navigateur ou accès à
+l’Acquisition Engine n’est ajouté.
+
+Les erreurs restent locales à chaque bloc et les actions conduisent aux
+surfaces SaaS existantes : détail du signal, feed, fiche entreprise, ciblages,
+alertes et facturation. RTL-07 ne sera déclaré terminé qu’après fusion dans
+`main` et CI verte sur le SHA final de `main`.
 
 ### RTL-08 — Déploiement staging du `main` retenu
 

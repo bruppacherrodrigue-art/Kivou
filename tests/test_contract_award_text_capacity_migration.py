@@ -29,7 +29,9 @@ CONVERSION_REVISION = "0019_conversion_tracking"
 LEARNING_REVISION = "0020_hermes_learning_loop"
 RELIABILITY_REVISION = "0021_reliability_operations"
 SAAS_COMPANY_REVISION = "0022_saas_company_profile"
-CURRENT_HEAD = "0023_scheduled_plan_change"
+#: Le maillon inséré entre la migration SaaS et la tête courante.
+EMAIL_REVISION = "0023_transactional_email_runtime"
+CURRENT_HEAD = "0024_scheduled_plan_change"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -114,7 +116,8 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
     assert script.get_revision(RESPONSE_REVISION).down_revision == TARGET_ICP_REVISION
     assert script.get_revision(CONVERSION_REVISION).down_revision == RESPONSE_REVISION
     assert script.get_revision(LEARNING_REVISION).down_revision == CONVERSION_REVISION
-    assert script.get_revision(CURRENT_HEAD).down_revision == SAAS_COMPANY_REVISION
+    assert script.get_revision(CURRENT_HEAD).down_revision == EMAIL_REVISION
+    assert script.get_revision(EMAIL_REVISION).down_revision == SAAS_COMPANY_REVISION
     assert script.get_revision(SAAS_COMPANY_REVISION).down_revision == RELIABILITY_REVISION
     assert script.get_revision(RELIABILITY_REVISION).down_revision == LEARNING_REVISION
     assert current_revision(engine) == CURRENT_HEAD

@@ -25,7 +25,8 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
-from typing import Protocol
+import ssl
+from typing import Literal, Protocol
 
 ALERT_GATEWAY_VERSION = "kivou-alert-smtp-v0.1"
 
@@ -44,11 +45,11 @@ class AlertDeliveryError(RuntimeError):
 
 
 class UncertainDelivery(AlertDeliveryError):
-    """Le serveur n'a ni confirmé ni refusé — on ne renvoie pas à l'aveugle.
+    """Le serveur n'a ni confirmé ni refusé — aucune reprise immédiate.
 
-    §27 — préférer un état explicite à la production d'e-mails répétés : le
-    client qui reçoit deux fois la même alerte perd confiance plus vite qu'un
-    client qui la reçoit une fois de trop tard.
+    L'état durable conserve l'ambiguïté, applique un backoff borné et réutilise
+    le même `Message-ID`. Cela réduit le risque sans prétendre à un exactement
+    une fois que SMTP ne sait pas garantir.
     """
 
     def __init__(self, code: str = "unknown_delivery_state") -> None:
@@ -64,6 +65,10 @@ class AlertMessage:
     text_body: str
     message_id: str
     language: str
+    #: La page de préférences du compte. Sert à la fois le pied de page et
+    #: l'en-tête `List-Unsubscribe` : les deux doivent désigner le même endroit,
+    #: sans quoi le destinataire suit un lien qui ne le désabonne pas.
+    preferences_url: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -89,30 +94,45 @@ def message_id(*, account_id: str, batch_key: str, domain: str = "kivou.ch") -> 
     return f"<kivou-alert-{digest}@{domain}>"
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class SmtpConfiguration:
     """Les réglages SMTP. Aucun secret n'est écrit dans le dépôt (§23, §39)."""
 
     host: str
-    port: int = 587
-    username: str | None = None
-    password: str | None = None
-    from_email: str = ""
+    port: int
+    from_email: str
     from_name: str = "Kivou"
-    use_tls: bool = True
+    username: str | None = None
+    password: str | None = dataclasses.field(default=None, repr=False)
+    tls_mode: Literal["starttls", "implicit_tls"] = "starttls"
+    timeout_seconds: int = 30
+    reply_to_email: str | None = None
 
     @property
     def is_usable(self) -> bool:
-        return bool(self.host and self.from_email)
+        return bool(
+            self.host
+            and self.from_email
+            and self.tls_mode in {"starttls", "implicit_tls"}
+            and 1 <= self.port <= 65535
+            and self.timeout_seconds > 0
+            and bool(self.username) == bool(self.password)
+        )
 
 
 class SmtpAlertGateway:
     """L'adaptateur réel. Jamais appelé par la suite de tests."""
 
-    def __init__(self, configuration: SmtpConfiguration) -> None:
+    def __init__(
+        self,
+        configuration: SmtpConfiguration,
+        *,
+        ssl_context: ssl.SSLContext | None = None,
+    ) -> None:
         if not configuration.is_usable:
-            raise ValueError("configuration SMTP incomplète : hôte et expéditeur requis")
+            raise ValueError("configuration SMTP incomplète ou invalide")
         self._configuration = configuration
+        self._ssl_context = ssl_context or ssl.create_default_context()
 
     def send(self, message: AlertMessage) -> DeliveryResult:
         import smtplib
@@ -124,28 +144,115 @@ class SmtpAlertGateway:
         email["From"] = f"{configuration.from_name} <{configuration.from_email}>"
         email["To"] = message.to_email
         email["Message-ID"] = message.message_id
+        if configuration.reply_to_email:
+            email["Reply-To"] = configuration.reply_to_email
         # Un en-tête de désinscription est attendu d'un envoi automatisé, et il
         # pointe vers les préférences du compte — pas vers un traqueur.
+        #
+        # PAS de `List-Unsubscribe-Post` : cet en-tête promet une désinscription
+        # « en un clic », que le client de messagerie exécute SANS ouvrir la
+        # page. L'annoncer sans point d'entrée dédié ferait échouer la
+        # désinscription en silence, ce qui est pire que de ne rien promettre —
+        # le destinataire croirait s'être désabonné.
+        if message.preferences_url:
+            email["List-Unsubscribe"] = f"<{message.preferences_url}>"
         email["Auto-Submitted"] = "auto-generated"
         email.set_content(message.text_body)
 
+        server: smtplib.SMTP | None = None
         try:
-            with smtplib.SMTP(configuration.host, configuration.port, timeout=30) as server:
-                if configuration.use_tls:
-                    server.starttls()
-                if configuration.username and configuration.password:
-                    server.login(configuration.username, configuration.password)
-                server.send_message(email)
+            if configuration.tls_mode == "implicit_tls":
+                server = smtplib.SMTP_SSL(
+                    configuration.host,
+                    configuration.port,
+                    timeout=configuration.timeout_seconds,
+                    context=self._ssl_context,
+                )
+            else:
+                server = smtplib.SMTP(
+                    configuration.host,
+                    configuration.port,
+                    timeout=configuration.timeout_seconds,
+                )
+                server.starttls(context=self._ssl_context)
+            if configuration.username and configuration.password:
+                server.login(configuration.username, configuration.password)
         except smtplib.SMTPAuthenticationError as error:
             # Non rejouable : réessayer avec les mêmes identifiants échouera
             # pareil, et multiplierait les tentatives d'authentification.
+            _close(server)
             raise AlertDeliveryError("smtp_authentication_failed", retryable=False) from error
-        except smtplib.SMTPRecipientsRefused as error:
-            raise AlertDeliveryError("smtp_recipient_refused", retryable=False) from error
+        except (smtplib.SMTPNotSupportedError, ssl.SSLError) as error:
+            _close(server)
+            raise AlertDeliveryError("smtp_tls_failed", retryable=False) from error
         except smtplib.SMTPResponseException as error:
-            raise AlertDeliveryError(f"smtp_{error.smtp_code}") from error
+            raise AlertDeliveryError(
+                f"smtp_{error.smtp_code}", retryable=400 <= error.smtp_code < 500
+            ) from error
         except (smtplib.SMTPServerDisconnected, TimeoutError, OSError) as error:
-            # Le serveur a peut-être accepté avant de couper : on ne peut pas
-            # savoir, donc on ne renvoie pas.
+            _close(server)
+            raise AlertDeliveryError("smtp_unavailable", retryable=True) from error
+        except BaseException:
+            # Toute sortie de ce bloc doit refermer la socket. Un échec de
+            # `starttls` ou de `login` laissait sinon une session TLS ouverte
+            # jusqu'au ramasse-miettes : dans un processus ASGI de longue durée,
+            # chaque demande de réinitialisation avec un mot de passe SMTP
+            # erroné en fuyait une, jusqu'à épuiser le plafond de connexions
+            # simultanées du fournisseur et les descripteurs du processus.
+            _close(server)
+            raise
+        else:
+            if server is None:  # pragma: no cover - garde de cohérence
+                raise AlertDeliveryError("smtp_unavailable", retryable=True)
+
+        try:
+            server.send_message(email)
+        except smtplib.SMTPRecipientsRefused as error:
+            code = _single_recipient_status(error.recipients)
+            if code is None:
+                raise AlertDeliveryError(
+                    "smtp_recipient_refused", retryable=False
+                ) from error
+            raise AlertDeliveryError(
+                f"smtp_{code}", retryable=400 <= code < 500
+            ) from error
+        except smtplib.SMTPResponseException as error:
+            raise AlertDeliveryError(
+                f"smtp_{error.smtp_code}", retryable=400 <= error.smtp_code < 500
+            ) from error
+        except (smtplib.SMTPServerDisconnected, TimeoutError, OSError) as error:
+            # La coupure se produit pendant la soumission du message : le
+            # serveur peut l'avoir accepté sans que sa réponse atteigne Kivou.
             raise UncertainDelivery() from error
+        finally:
+            _close(server)
         return DeliveryResult(provider_message_id=message.message_id)
+
+
+def _single_recipient_status(
+    recipients: dict[str, tuple[int, bytes]],
+) -> int | None:
+    """Return the safe SMTP status for Kivou's one-recipient messages."""
+
+    if len(recipients) != 1:
+        return None
+    status = next(iter(recipients.values()), None)
+    if status is None or not isinstance(status[0], int):
+        return None
+    return status[0]
+
+
+def _close(server: object) -> None:
+    quit_method = getattr(server, "quit", None)
+    if quit_method is not None:
+        try:
+            quit_method()
+            return
+        except Exception:  # noqa: BLE001 — l'envoi a déjà son résultat
+            quit_method = None
+    close_method = getattr(server, "close", None)
+    if close_method is not None:
+        try:
+            close_method()
+        except Exception:  # noqa: BLE001 — aucun secret ni statut ne dépend de QUIT
+            return
