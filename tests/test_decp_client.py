@@ -245,3 +245,30 @@ def test_decp_network_and_malformed_payload_are_typed():
     with pytest.raises(DecpHttpError) as caught:
         DecpClient(client=malformed).fetch_page(DecpCursor(since=dt.date(2026, 8, 1)))
     assert caught.value.category == "malformed"
+
+
+def test_decp_stop_callback_prevents_the_next_provider_request() -> None:
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"total_count": 1, "results": [{"id": "one"}]})
+
+    class StopRequested(RuntimeError):
+        pass
+
+    def stop() -> None:
+        raise StopRequested("bounded pass ended")
+
+    client = DecpClient(client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    with pytest.raises(StopRequested, match="bounded pass ended"):
+        list(
+            client.fetch_contracts_since(
+                dt.date(2026, 8, 25),
+                until=dt.date(2026, 8, 25),
+                should_stop=stop,
+            )
+        )
+
+    assert requests == []

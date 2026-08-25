@@ -8,14 +8,23 @@ from typing import Any
 
 import sqlalchemy as sa
 
+from signals.ingestion.convergence import (
+    advance_decp_cycle,
+    decp_checkpoint_high_water,
+    next_decp_window,
+    plan_decp_cycle,
+)
 from signals.ingestion.model import IngestionCounters, SourceName
 from signals.ingestion.pipeline import IngestionPipeline, PipelineFailure, PipelineResult
 from signals.ingestion.sources import AcquisitionFailure, ProductionSource, checkpoint_window
 from signals.ingestion.state import (
     advance_checkpoint,
+    complete_checkpoint_pass,
     fail_checkpoint,
     finish_run,
     load_checkpoint,
+    reconcile_stale_runs,
+    save_checkpoint_cursor,
     start_run,
 )
 
@@ -29,6 +38,10 @@ class RunOptions:
     until: dt.datetime | None = None
     max_records: int | None = None
     dry_run: bool = False
+    decp_max_windows_per_run: int | None = None
+    decp_time_budget_seconds: float | None = None
+    decp_overlap_days: int = 30
+    ingestion_stale_run_seconds: int = 3600
 
 
 @dataclasses.dataclass(frozen=True)
@@ -38,6 +51,7 @@ class SourceOutcome:
     counters: IngestionCounters
     duration_seconds: float
     error_category: str | None = None
+    work_pending: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -50,12 +64,47 @@ class IncompleteSourceWindow(RuntimeError):
     category = "incomplete_window"
 
 
+class BoundedPassComplete(RuntimeError):
+    category = "bounded_pass_complete"
+
+
+class IngestionTerminated(RuntimeError):
+    category = "terminated"
+
+
 def _add_pipeline(left: PipelineResult, right: PipelineResult) -> PipelineResult:
     return PipelineResult(
         records_persisted=left.records_persisted + right.records_persisted,
         representations_linked=(left.representations_linked + right.representations_linked),
         opportunity_conflicts=left.opportunity_conflicts + right.opportunity_conflicts,
         signals_materialized=left.signals_materialized + right.signals_materialized,
+    )
+
+
+def _add_counters(left: IngestionCounters, right: IngestionCounters) -> IngestionCounters:
+    return IngestionCounters(
+        **{
+            field.name: getattr(left, field.name) + getattr(right, field.name)
+            for field in dataclasses.fields(IngestionCounters)
+        }
+    )
+
+
+def _counters(
+    acquisition: Any | None,
+    pipeline: PipelineResult,
+    *,
+    category: str | None = None,
+) -> IngestionCounters:
+    return IngestionCounters(
+        records_fetched=acquisition.fetched if acquisition else 0,
+        records_accepted=acquisition.accepted if acquisition else 0,
+        records_rejected=acquisition.rejected if acquisition else 0,
+        records_persisted=pipeline.records_persisted,
+        representations_linked=pipeline.representations_linked,
+        opportunity_conflicts=pipeline.opportunity_conflicts,
+        signals_materialized=pipeline.signals_materialized,
+        rate_limited_count=1 if category == "rate_limited" else 0,
     )
 
 
@@ -94,21 +143,35 @@ class IngestionRunner:
         pipeline: IngestionPipeline,
         clock: Callable[[], dt.datetime] | None = None,
         sleep: Callable[[float], None] = time.sleep,
+        monotonic: Callable[[], float] = time.monotonic,
+        cancel_requested: Callable[[], bool] | None = None,
     ) -> None:
         self.engine = engine
         self.sources = sources
         self.pipeline = pipeline
         self.clock = clock or (lambda: dt.datetime.now(tz=dt.UTC))
         self.sleep = sleep
+        self.monotonic = monotonic
+        self.cancel_requested = cancel_requested or (lambda: False)
 
-    def _acquire(self, source: ProductionSource, window: Any, options: RunOptions, started):
+    def _acquire(
+        self,
+        source: ProductionSource,
+        window: Any,
+        options: RunOptions,
+        started: dt.datetime,
+        *,
+        should_stop: Callable[[], None] | None = None,
+    ):
         for attempt in range(3):
             try:
-                return source.acquire(
-                    window,
-                    retrieved_at=started,
-                    max_records=options.max_records,
-                )
+                arguments = {
+                    "retrieved_at": started,
+                    "max_records": options.max_records,
+                }
+                if should_stop is not None:
+                    arguments["should_stop"] = should_stop
+                return source.acquire(window, **arguments)
             # Source isolation requires turning an unexpected adapter or pipeline
             # failure into one failed source outcome while the other sources run.
             except Exception as error:
@@ -118,7 +181,237 @@ class IngestionRunner:
                 self.sleep(float(2**attempt))
         raise AssertionError("bounded retry loop exhausted")  # pragma: no cover
 
+    def _start_persisted_run(
+        self,
+        *,
+        source: SourceName,
+        started_at: dt.datetime,
+        stale_after_seconds: int,
+    ):
+        with self.engine.begin() as connection:
+            reconcile_stale_runs(
+                connection,
+                source=source,
+                stale_before=started_at - dt.timedelta(seconds=stale_after_seconds),
+                reconciled_at=started_at,
+            )
+            previous = load_checkpoint(connection, source=source)
+            run_id = start_run(
+                connection,
+                source=source,
+                started_at=started_at,
+                dry_run=False,
+            )
+        return previous, run_id
+
+    def _check_decp_stop(self, *, deadline: float | None) -> None:
+        if self.cancel_requested():
+            raise IngestionTerminated("ingestion termination requested")
+        if deadline is not None and self.monotonic() >= deadline:
+            raise BoundedPassComplete("DECP pass time budget reached")
+
+    def _run_decp(
+        self,
+        *,
+        source: ProductionSource,
+        options: RunOptions,
+        started: dt.datetime,
+        until: dt.datetime,
+    ) -> SourceOutcome:
+        previous, run_id = self._start_persisted_run(
+            source="decp",
+            started_at=started,
+            stale_after_seconds=options.ingestion_stale_run_seconds,
+        )
+        deadline = (
+            self.monotonic() + options.decp_time_budget_seconds
+            if options.decp_time_budget_seconds is not None
+            else None
+        )
+        total = IngestionCounters()
+        acquisition = None
+        unit_pipeline = PipelineResult()
+        unit_accounted = True
+        work_pending = False
+        try:
+            cursor = plan_decp_cycle(
+                cursor=previous.cursor if previous else None,
+                checkpoint_end=previous.window_end if previous else None,
+                until=until,
+                overlap_days=options.decp_overlap_days,
+                explicit_since=options.since,
+            )
+            with self.engine.begin() as connection:
+                save_checkpoint_cursor(
+                    connection,
+                    source="decp",
+                    cursor=cursor.as_dict(),
+                    updated_at=started,
+                )
+
+            completed_windows = 0
+            while (window := next_decp_window(cursor)) is not None:
+                if (
+                    options.decp_max_windows_per_run is not None
+                    and completed_windows >= options.decp_max_windows_per_run
+                ):
+                    work_pending = True
+                    break
+                acquisition = None
+                unit_pipeline = PipelineResult()
+                unit_accounted = False
+                self._check_decp_stop(deadline=deadline)
+                acquisition_error = None
+                try:
+                    acquisition = self._acquire(
+                        source,
+                        window,
+                        options,
+                        started,
+                        should_stop=lambda: self._check_decp_stop(deadline=deadline),
+                    )
+                except AcquisitionFailure as error:
+                    acquisition = error.partial
+                    acquisition_error = error
+
+                acquisition_category = (
+                    _category(acquisition_error) if acquisition_error is not None else None
+                )
+                if acquisition_category in {
+                    BoundedPassComplete.category,
+                    IngestionTerminated.category,
+                }:
+                    raise acquisition_error
+                if not acquisition.complete and acquisition_error is None:
+                    raise IncompleteSourceWindow(
+                        "selected DECP daily window was bounded before exhaustion"
+                    )
+                for publication in acquisition.publications:
+                    self._check_decp_stop(deadline=deadline)
+                    try:
+                        item = self.pipeline.process(
+                            publication,
+                            as_of=until.date(),
+                            persisted_at=started,
+                        )
+                    except PipelineFailure as error:
+                        unit_pipeline = _add_pipeline(unit_pipeline, error.partial)
+                        raise
+                    unit_pipeline = _add_pipeline(unit_pipeline, item)
+
+                total = _add_counters(
+                    total,
+                    _counters(acquisition, unit_pipeline, category=acquisition_category),
+                )
+                unit_accounted = True
+                if acquisition_error is not None:
+                    raise acquisition_error
+
+                cursor = advance_decp_cycle(cursor, window)
+                unit_finished = self.clock()
+                high_water = decp_checkpoint_high_water(
+                    previous=previous.window_end if previous else None,
+                    completed_window=window,
+                    requested_until=until,
+                )
+                with self.engine.begin() as connection:
+                    advance_checkpoint(
+                        connection,
+                        source="decp",
+                        cursor=cursor.as_dict(),
+                        window_end=high_water,
+                        completed_at=unit_finished,
+                    )
+                completed_windows += 1
+
+            finished = self.clock()
+            with self.engine.begin() as connection:
+                checkpoint = complete_checkpoint_pass(
+                    connection,
+                    source="decp",
+                    completed_at=finished,
+                )
+                finish_run(
+                    connection,
+                    run_id=run_id,
+                    finished_at=finished,
+                    status="success",
+                    counters=total,
+                    checkpoint_after=checkpoint,
+                )
+            return SourceOutcome(
+                "decp",
+                "success",
+                total,
+                (finished - started).total_seconds(),
+                work_pending=work_pending,
+            )
+        except Exception as error:  # noqa: BLE001
+            category = _category(error)
+            if not unit_accounted:
+                total = _add_counters(
+                    total,
+                    _counters(acquisition, unit_pipeline, category=category),
+                )
+            if category == BoundedPassComplete.category:
+                finished = self.clock()
+                with self.engine.begin() as connection:
+                    checkpoint = complete_checkpoint_pass(
+                        connection,
+                        source="decp",
+                        completed_at=finished,
+                    )
+                    finish_run(
+                        connection,
+                        run_id=run_id,
+                        finished_at=finished,
+                        status="success",
+                        counters=total,
+                        checkpoint_after=checkpoint,
+                    )
+                return SourceOutcome(
+                    "decp",
+                    "success",
+                    total,
+                    (finished - started).total_seconds(),
+                    work_pending=True,
+                )
+
+            finished = self.clock()
+            with self.engine.begin() as connection:
+                retained_checkpoint = fail_checkpoint(
+                    connection,
+                    source="decp",
+                    failed_at=finished,
+                )
+                finish_run(
+                    connection,
+                    run_id=run_id,
+                    finished_at=finished,
+                    status="rate_limited" if category == "rate_limited" else "failed",
+                    counters=total,
+                    checkpoint_after=retained_checkpoint,
+                    error_category=category,
+                    error_message=str(error),
+                )
+            return SourceOutcome(
+                "decp",
+                "rate_limited" if category == "rate_limited" else "failed",
+                total,
+                (finished - started).total_seconds(),
+                error_category=category,
+                work_pending=True,
+            )
+
     def run(self, options: RunOptions) -> RunOutcome:
+        if options.decp_max_windows_per_run is not None and options.decp_max_windows_per_run < 1:
+            raise ValueError("DECP max windows must be positive")
+        if options.decp_time_budget_seconds is not None and options.decp_time_budget_seconds <= 0:
+            raise ValueError("DECP time budget must be positive")
+        if options.decp_overlap_days < 1:
+            raise ValueError("DECP overlap must be positive")
+        if options.ingestion_stale_run_seconds < 1:
+            raise ValueError("ingestion stale-run threshold must be positive")
         validation_now = self.clock()
         requested_until = options.until
         if requested_until is not None:
@@ -133,17 +426,25 @@ class IngestionRunner:
             until = options.until or started
             if until.tzinfo is None:
                 until = until.replace(tzinfo=dt.UTC)
+            if source_name == "decp" and not options.dry_run:
+                outcome = self._run_decp(
+                    source=source,
+                    options=options,
+                    started=started,
+                    until=until,
+                )
+                outcomes.append(outcome)
+                if outcome.error_category == IngestionTerminated.category:
+                    break
+                continue
             previous = None
             run_id = None
             if not options.dry_run:
-                with self.engine.begin() as connection:
-                    previous = load_checkpoint(connection, source=source_name)
-                    run_id = start_run(
-                        connection,
-                        source=source_name,
-                        started_at=started,
-                        dry_run=False,
-                    )
+                previous, run_id = self._start_persisted_run(
+                    source=source_name,
+                    started_at=started,
+                    stale_after_seconds=options.ingestion_stale_run_seconds,
+                )
             acquisition = None
             pipeline_total = PipelineResult()
             try:

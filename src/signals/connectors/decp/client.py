@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from typing import Any, Self
 
 import httpx
@@ -81,8 +81,14 @@ class DecpClient:
             self._client.close()
 
     def _fetch_payload(
-        self, cursor: DecpCursor, *, limit: int
+        self,
+        cursor: DecpCursor,
+        *,
+        limit: int,
+        should_stop: Callable[[], None] | None = None,
     ) -> tuple[list[dict], int | None]:
+        if should_stop is not None:
+            should_stop()
         try:
             response = self._client.get(
                 DECP_DATASET_URL,
@@ -126,16 +132,30 @@ class DecpClient:
         results, _ = self._fetch_payload(cursor, limit=limit)
         return results
 
-    def count_contracts(self, since: dt.date, *, until: dt.date) -> int:
-        _, total = self._fetch_payload(DecpCursor(since=since, until=until), limit=1)
+    def count_contracts(
+        self,
+        since: dt.date,
+        *,
+        until: dt.date,
+        should_stop: Callable[[], None] | None = None,
+    ) -> int:
+        _, total = self._fetch_payload(
+            DecpCursor(since=since, until=until),
+            limit=1,
+            should_stop=should_stop,
+        )
         if total is None:
             raise DecpHttpError("DECP response omitted total_count", category="malformed")
         return total
 
     def _safe_windows(
-        self, since: dt.date, until: dt.date
+        self,
+        since: dt.date,
+        until: dt.date,
+        *,
+        should_stop: Callable[[], None] | None = None,
     ) -> Iterator[tuple[DecpCursor, int]]:
-        total = self.count_contracts(since, until=until)
+        total = self.count_contracts(since, until=until, should_stop=should_stop)
         if total < DECP_RESULT_CEILING:
             yield DecpCursor(since=since, until=until), total
             return
@@ -144,28 +164,47 @@ class DecpClient:
                 f"DECP day {since.isoformat()} contains {total} records at the provider ceiling"
             )
         midpoint = since + dt.timedelta(days=(until - since).days // 2)
-        yield from self._safe_windows(since, midpoint)
-        yield from self._safe_windows(midpoint + dt.timedelta(days=1), until)
+        yield from self._safe_windows(since, midpoint, should_stop=should_stop)
+        yield from self._safe_windows(
+            midpoint + dt.timedelta(days=1),
+            until,
+            should_stop=should_stop,
+        )
 
     def _fetch_counted_window(
-        self, cursor: DecpCursor, *, planned_total: int
+        self,
+        cursor: DecpCursor,
+        *,
+        planned_total: int,
+        should_stop: Callable[[], None] | None = None,
     ) -> Iterator[dict]:
         remaining = planned_total
         current = cursor
         while remaining:
             limit = min(PAGE_SIZE, remaining)
-            page, observed_total = self._fetch_payload(current, limit=limit)
+            page, observed_total = self._fetch_payload(
+                current,
+                limit=limit,
+                should_stop=should_stop,
+            )
             if observed_total is not None and observed_total != planned_total:
                 raise DecpWindowLimitError("DECP window changed during pagination")
             if len(page) != limit:
                 raise DecpWindowLimitError("DECP window became incomplete during pagination")
-            yield from page
+            for record in page:
+                if should_stop is not None:
+                    should_stop()
+                yield record
             current = current.next_page(limit)
             remaining -= limit
 
         if cursor.until is None:
             raise ValueError("DECP counted acquisition requires a bounded until date")
-        observed_total = self.count_contracts(cursor.since, until=cursor.until)
+        observed_total = self.count_contracts(
+            cursor.since,
+            until=cursor.until,
+            should_stop=should_stop,
+        )
         if observed_total != planned_total:
             raise DecpWindowLimitError("DECP window changed after count planning")
 
@@ -175,12 +214,21 @@ class DecpClient:
         *,
         until: dt.date | None = None,
         max_records: int | None = None,
+        should_stop: Callable[[], None] | None = None,
     ) -> Iterator[dict]:
         if until is None:
             raise ValueError("DECP production acquisition requires a bounded until date")
         seen = 0
-        for cursor, planned_total in self._safe_windows(since, until):
-            for record in self._fetch_counted_window(cursor, planned_total=planned_total):
+        for cursor, planned_total in self._safe_windows(
+            since,
+            until,
+            should_stop=should_stop,
+        ):
+            for record in self._fetch_counted_window(
+                cursor,
+                planned_total=planned_total,
+                should_stop=should_stop,
+            ):
                 yield record
                 seen += 1
                 if max_records is not None and seen >= max_records:

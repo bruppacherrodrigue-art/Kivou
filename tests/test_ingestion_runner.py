@@ -18,8 +18,9 @@ from signals.ingestion.sources import (
     AcquisitionResult,
     BoampSource,
     DecpSource,
+    SourceWindow,
 )
-from signals.ingestion.state import advance_checkpoint, load_checkpoint, start_run
+from signals.ingestion.state import advance_checkpoint, load_checkpoint, load_run, start_run
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import (
     contract_award,
@@ -38,8 +39,10 @@ class SourceStub:
         self.error = error
         self.windows = []
 
-    def acquire(self, window, *, retrieved_at, max_records=None):
+    def acquire(self, window, *, retrieved_at, max_records=None, should_stop=None):
         self.windows.append(window)
+        if should_stop is not None:
+            should_stop()
         if self.error:
             raise self.error
         return AcquisitionResult(
@@ -383,13 +386,21 @@ def test_malformed_boamp_retains_the_previous_successful_checkpoint(tmp_path):
 
 
 class _DecpFailureAfterDurableCandidate:
-    def fetch_contracts_since(self, since, *, until=None, max_records=None):
+    def fetch_contracts_since(
+        self, since, *, until=None, max_records=None, should_stop=None
+    ):
+        if should_stop is not None:
+            should_stop()
         yield LINKED_DECP
         raise DecpWindowLimitError("later DECP child window changed")
 
 
 class _DecpReplayWithBoundaryDuplicate:
-    def fetch_contracts_since(self, since, *, until=None, max_records=None):
+    def fetch_contracts_since(
+        self, since, *, until=None, max_records=None, should_stop=None
+    ):
+        if should_stop is not None:
+            should_stop()
         yield LINKED_DECP
         yield LINKED_DECP
 
@@ -517,3 +528,251 @@ def test_decp_count_fetch_drift_is_source_limit_and_does_not_advance_checkpoint(
     assert checkpoint is not None
     assert checkpoint.window_end == previous_end
     assert stored == 1
+
+
+class DailyDecpSourceStub:
+    source = "decp"
+
+    def __init__(self, *, fail_on: dt.date | None = None):
+        self.fail_on = fail_on
+        self.windows = []
+
+    def acquire(
+        self,
+        window,
+        *,
+        retrieved_at,
+        max_records=None,
+        should_stop=None,
+    ):
+        self.windows.append(window)
+        if should_stop is not None:
+            should_stop()
+        if window.since == self.fail_on:
+            raise DecpWindowLimitError("daily window changed")
+        return AcquisitionResult(
+            source="decp",
+            publications=(),
+            fetched=1,
+            accepted=1,
+            rejected=0,
+            complete=True,
+            cursor_after={"window_end": window.until.isoformat()},
+        )
+
+
+def test_decp_quota_checkpoints_each_daily_unit_and_exits_successfully_with_pending_work(
+    tmp_path,
+):
+    engine = _engine(tmp_path)
+    source = DailyDecpSourceStub()
+
+    result = IngestionRunner(
+        engine,
+        sources={"decp": source},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+    ).run(
+        RunOptions(
+            sources=("decp",),
+            decp_max_windows_per_run=2,
+            decp_overlap_days=2,
+        )
+    )
+
+    assert result.exit_code == 0
+    assert result.outcomes[0].status == "success"
+    assert result.outcomes[0].work_pending is True
+    assert source.windows == [
+        SourceWindow(dt.date(2026, 8, 17), dt.date(2026, 8, 17)),
+        SourceWindow(dt.date(2026, 8, 18), dt.date(2026, 8, 18)),
+    ]
+    with engine.connect() as connection:
+        checkpoint = load_checkpoint(connection, source="decp")
+        run = connection.execute(sa.select(ingestion_run)).one()
+    assert checkpoint is not None
+    assert checkpoint.cursor == {
+        "version": 1,
+        "cycle_end": "2026-08-19",
+        "next_window_start": "2026-08-19",
+    }
+    assert checkpoint.window_end == dt.datetime(2026, 8, 18, tzinfo=dt.UTC)
+    assert run.status == "success"
+    assert run.records_fetched == 2
+
+
+def test_decp_failure_retains_the_checkpoint_from_the_previous_daily_unit(tmp_path):
+    engine = _engine(tmp_path)
+    source = DailyDecpSourceStub(fail_on=dt.date(2026, 8, 18))
+
+    result = IngestionRunner(
+        engine,
+        sources={"decp": source},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+    ).run(
+        RunOptions(
+            sources=("decp",),
+            decp_max_windows_per_run=3,
+            decp_overlap_days=2,
+        )
+    )
+
+    assert result.exit_code == 1
+    assert result.outcomes[0].error_category == "source_limit"
+    assert result.outcomes[0].counters.records_fetched == 1
+    with engine.connect() as connection:
+        checkpoint = load_checkpoint(connection, source="decp")
+        run = connection.execute(sa.select(ingestion_run)).one()
+    assert checkpoint is not None
+    assert checkpoint.cursor["next_window_start"] == "2026-08-18"
+    assert checkpoint.window_end == dt.datetime(2026, 8, 17, tzinfo=dt.UTC)
+    assert run.status == "failed"
+    assert run.checkpoint_after["cursor"]["next_window_start"] == "2026-08-18"
+
+
+class _SingleRecordDecpClient:
+    def fetch_contracts_since(
+        self, since, *, until=None, max_records=None, should_stop=None
+    ):
+        if should_stop is not None:
+            should_stop()
+        yield LINKED_DECP
+
+
+def test_decp_daily_replay_is_idempotent_across_new_overlap_cycles(tmp_path):
+    engine = _engine(tmp_path)
+    source = DecpSource(_SingleRecordDecpClient())
+    first_at = NOW
+    second_at = NOW + dt.timedelta(days=1)
+
+    first = IngestionRunner(
+        engine,
+        sources={"decp": source},
+        pipeline=IngestionPipeline(engine),
+        clock=lambda: first_at,
+    ).run(
+        RunOptions(
+            sources=("decp",),
+            decp_max_windows_per_run=2,
+            decp_overlap_days=1,
+        )
+    )
+    second = IngestionRunner(
+        engine,
+        sources={"decp": source},
+        pipeline=IngestionPipeline(engine),
+        clock=lambda: second_at,
+    ).run(
+        RunOptions(
+            sources=("decp",),
+            decp_max_windows_per_run=3,
+            decp_overlap_days=1,
+        )
+    )
+
+    assert first.exit_code == second.exit_code == 0
+    with engine.connect() as connection:
+        counts = tuple(
+            connection.execute(sa.select(sa.func.count()).select_from(table)).scalar_one()
+            for table in (source_event, contract_award, opportunity_representation)
+        )
+        checkpoint = load_checkpoint(connection, source="decp")
+    assert counts == (1, 1, 1)
+    assert checkpoint is not None
+    assert checkpoint.window_end == second_at
+
+
+def test_decp_deadline_is_a_successful_bounded_pass_and_keeps_the_unit_for_replay(
+    tmp_path,
+):
+    engine = _engine(tmp_path)
+    source = DailyDecpSourceStub()
+    instants = iter((0.0, 0.0, 6.0))
+
+    result = IngestionRunner(
+        engine,
+        sources={"decp": source},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+        monotonic=lambda: next(instants),
+    ).run(
+        RunOptions(
+            sources=("decp",),
+            decp_time_budget_seconds=5,
+            decp_overlap_days=1,
+        )
+    )
+
+    assert result.exit_code == 0
+    assert result.outcomes[0].status == "success"
+    assert result.outcomes[0].work_pending is True
+    with engine.connect() as connection:
+        checkpoint = load_checkpoint(connection, source="decp")
+        run = connection.execute(sa.select(ingestion_run)).one()
+    assert checkpoint is not None
+    assert checkpoint.cursor["next_window_start"] == "2026-08-18"
+    assert checkpoint.window_end is None
+    assert run.status == "success"
+
+
+def test_decp_termination_is_terminal_and_never_leaves_the_run_running(tmp_path):
+    engine = _engine(tmp_path)
+
+    result = IngestionRunner(
+        engine,
+        sources={"decp": DailyDecpSourceStub()},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+        cancel_requested=lambda: True,
+    ).run(
+        RunOptions(sources=("decp",), decp_overlap_days=1)
+    )
+
+    assert result.exit_code == 1
+    assert result.outcomes[0].status == "failed"
+    assert result.outcomes[0].error_category == "terminated"
+    with engine.connect() as connection:
+        run_id = connection.execute(sa.select(ingestion_run.c.run_id)).scalar_one()
+        run = load_run(connection, run_id=run_id)
+    assert run.status == "failed"
+    assert run.finished_at == NOW
+    assert run.error_category == "terminated"
+
+
+def test_runner_reconciles_stale_decp_runs_immediately_before_starting(tmp_path):
+    engine = _engine(tmp_path)
+    with engine.begin() as connection:
+        start_run(
+            connection,
+            source="decp",
+            started_at=NOW - dt.timedelta(hours=2),
+            dry_run=False,
+            run_id="orphaned",
+        )
+
+    result = IngestionRunner(
+        engine,
+        sources={"decp": DailyDecpSourceStub()},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+    ).run(
+        RunOptions(
+            sources=("decp",),
+            decp_max_windows_per_run=1,
+            decp_overlap_days=1,
+            ingestion_stale_run_seconds=3600,
+        )
+    )
+
+    assert result.exit_code == 0
+    with engine.connect() as connection:
+        rows = connection.execute(
+            sa.select(
+                ingestion_run.c.run_id,
+                ingestion_run.c.status,
+                ingestion_run.c.error_category,
+            ).order_by(ingestion_run.c.started_at)
+        ).all()
+    assert rows[0] == ("orphaned", "failed", "stale_run_reconciled")
+    assert rows[1].status == "success"

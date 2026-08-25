@@ -3,6 +3,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import logging
+from collections.abc import Callable
 from typing import Any, Protocol
 
 from signals.connectors.boamp import (
@@ -229,6 +230,7 @@ class DecpSource:
         *,
         retrieved_at: dt.datetime,
         max_records: int | None = None,
+        should_stop: Callable[[], None] | None = None,
     ) -> AcquisitionResult:
         probe = max_records + 1 if max_records is not None else None
         publications: list[AcquiredPublication] = []
@@ -236,7 +238,10 @@ class DecpSource:
         complete = True
         try:
             for record in self.client.fetch_contracts_since(
-                window.since, until=window.until, max_records=probe
+                window.since,
+                until=window.until,
+                max_records=probe,
+                should_stop=should_stop,
             ):
                 if max_records is not None and fetched >= max_records:
                     complete = False

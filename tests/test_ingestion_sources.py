@@ -79,7 +79,16 @@ class MalformedBoampStub:
 
 
 class DecpStub:
-    def fetch_contracts_since(self, since, *, until=None, max_records=None):
+    def fetch_contracts_since(
+        self,
+        since,
+        *,
+        until=None,
+        max_records=None,
+        should_stop=None,
+    ):
+        if should_stop is not None:
+            should_stop()
         records = [LINKED_DECP]
         yield from records if max_records is None else records[:max_records]
 
@@ -241,3 +250,41 @@ def test_an_explicit_since_is_never_rewritten_by_checkpoint_policy():
         "decp", checkpoint_end=None, until=NOW, explicit_since=explicit
     )
     assert window == SourceWindow(explicit, NOW.date())
+
+
+def test_decp_stop_is_reported_with_only_the_completed_acquisition_progress() -> None:
+    calls = 0
+
+    class StopRequested(RuntimeError):
+        category = "terminated"
+
+    class PartiallyStoppedDecpStub:
+        def fetch_contracts_since(
+            self,
+            since,
+            *,
+            until=None,
+            max_records=None,
+            should_stop=None,
+        ):
+            nonlocal calls
+            yield LINKED_DECP
+            calls += 1
+            assert should_stop is not None
+            should_stop()
+
+    def stop() -> None:
+        raise StopRequested("termination requested")
+
+    with pytest.raises(AcquisitionFailure) as raised:
+        DecpSource(PartiallyStoppedDecpStub()).acquire(
+            WINDOW,
+            retrieved_at=NOW,
+            should_stop=stop,
+        )
+
+    assert calls == 1
+    assert raised.value.category == "terminated"
+    assert raised.value.partial.fetched == 1
+    assert raised.value.partial.accepted == 1
+    assert raised.value.partial.complete is False

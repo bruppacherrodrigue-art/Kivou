@@ -176,6 +176,39 @@ def fail_checkpoint(
     return result
 
 
+def save_checkpoint_cursor(
+    connection: sa.Connection,
+    *,
+    source: SourceName,
+    cursor: dict[str, Any],
+    updated_at: dt.datetime,
+) -> Checkpoint:
+    connection.execute(
+        sa.update(ingestion_checkpoint)
+        .where(ingestion_checkpoint.c.source == source)
+        .values(cursor=cursor, updated_at=updated_at)
+    )
+    result = load_checkpoint(connection, source=source)
+    assert result is not None
+    return result
+
+
+def complete_checkpoint_pass(
+    connection: sa.Connection,
+    *,
+    source: SourceName,
+    completed_at: dt.datetime,
+) -> Checkpoint:
+    connection.execute(
+        sa.update(ingestion_checkpoint)
+        .where(ingestion_checkpoint.c.source == source)
+        .values(status="success", updated_at=completed_at)
+    )
+    result = load_checkpoint(connection, source=source)
+    assert result is not None
+    return result
+
+
 def _safe_message(message: str | None) -> str | None:
     if message is None:
         return None
