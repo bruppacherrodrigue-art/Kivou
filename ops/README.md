@@ -1,8 +1,9 @@
 # Runtime d'exploitation Kivou
 
 Ce dossier ne contient que ce qui doit être **versionné pour être reproductible**.
-Aujourd'hui : la sauvegarde PostgreSQL (RTL-03 / #39) et le runtime des alertes
-transactionnelles (RTL-05).
+Aujourd'hui : la sauvegarde PostgreSQL (RTL-03 / #39), le runtime des alertes
+transactionnelles (RTL-05) et l'outillage de rotation expurgée des secrets de
+staging (#81).
 
 > Un service systemd qui appelle un fichier absent de la branche déployable
 > échoue au premier déploiement propre. C'est exactement ce qu'a révélé #39 :
@@ -154,3 +155,40 @@ migration `0023` n'est exécuté que si la procédure de release le décide
 explicitement ; il conserve l'historique antérieur des livraisons. Si aucun
 timer antérieur n'existait, les deux commandes `cp` sont omises et les unités
 restent simplement désactivées.
+
+## Hygiène des secrets de staging (#81)
+
+La procédure complète est
+[`docs/runbooks/09-staging-secret-rotation.md`](../docs/runbooks/09-staging-secret-rotation.md).
+Elle reste strictement limitée au staging et ne contient aucune valeur réelle.
+
+`bin/kivou_secret_hygiene.py` expose un seul CLI et deux sous-commandes :
+
+- `replace-env` remplace atomiquement les quatre variables autorisées, conserve
+  toutes les autres lignes ainsi que uid, gid et mode du fichier cible, puis
+  publie seulement deux compteurs ;
+- `audit-journal` lit un flux de journal sur stdin, compare en mémoire une ou
+  plusieurs générations de valeurs et publie seulement
+  `secret_values_checked`, `matching_lines` et `matching_occurrences`. Une
+  correspondance rend le code de sortie non nul.
+
+Les deux commandes lisent les valeurs uniquement depuis des fichiers `0600`
+réguliers et non symboliques. Elles refusent les noms hors allowlist, doublons,
+valeurs vides ou multilignes et ne rendent jamais une exception contenant une
+valeur. Les arguments ne portent que des chemins :
+
+```bash
+sudo /usr/bin/python3.12 ops/bin/kivou_secret_hygiene.py \
+  replace-env \
+  --values-file /run/kivou-secret-rotation/new.values \
+  --target /etc/kivou/staging.env
+sudo journalctl --all --no-pager -o cat | \
+  sudo /usr/bin/python3.12 ops/bin/kivou_secret_hygiene.py \
+  audit-journal \
+  /run/kivou-secret-rotation/old.values \
+  /run/kivou-secret-rotation/new.values
+```
+
+Toute simulation applicative qui dépend des secrets déployés doit rester une
+unité transitoire `systemd-run` avec
+`--property=EnvironmentFile=/etc/kivou/staging.env`, comme pour les alertes.

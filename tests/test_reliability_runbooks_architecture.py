@@ -12,6 +12,7 @@ RUNBOOKS = (
     "06-vps-database-restart.md",
     "07-staging-to-production-promotion.md",
     "08-acquisition-shadow-provider-connectivity.md",
+    "09-staging-secret-rotation.md",
 )
 
 
