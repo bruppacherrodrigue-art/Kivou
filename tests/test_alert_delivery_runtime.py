@@ -443,9 +443,14 @@ def test_inaccessible_signal_is_suppressed_while_the_rest_of_the_batch_sends(
 
 
 def test_permanent_recipient_refusal_blocks_new_rows_and_is_controlled(
-    app, engine, mailer
+    app, engine, mailer, monkeypatch
 ) -> None:
     _, keys = subscriber(app, engine, count=12)
+    emitted: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "signals.alerts.job.emit_delivery_event",
+        lambda **payload: emitted.append(payload),
+    )
     mailer.fail_with = failure("smtp_recipient_refused", retryable=False)
 
     first = cycle(engine, mailer, now=NOW)
@@ -466,6 +471,15 @@ def test_permanent_recipient_refusal_blocks_new_rows_and_is_controlled(
     assert [item.result for item in third.outcomes] == ["recipient_refused"]
     assert not second.has_current_incident
     assert not third.has_current_incident
+    assert len(emitted) == MAXIMUM_SIGNALS_PER_EMAIL
+    assert {event["signal_ref"] for event in emitted} == {
+        row.signal_key for row in rows
+    }
+    for event in emitted:
+        assert event["status"] == "failed"
+        assert event["code"] == "smtp_recipient_refused"
+        assert event["retryable"] is False
+        assert event["attempt"] == 1
 
 
 def test_generic_terminal_smtp_failure_does_not_install_a_recipient_block(
