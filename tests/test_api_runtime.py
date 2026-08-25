@@ -30,10 +30,23 @@ import pathlib
 import pytest
 import sqlalchemy as sa
 from billing_helpers import BILLING_RETURN_URLS
+from fastapi.testclient import TestClient
+from test_campaign_webhooks import SECRET, _event, _queued
 
 from signals.api.config import ApiConfig
+from signals.campaigns.contracts import ResponseIngressCapability
+from signals.campaigns.webhooks import InstantlyWebhookService
+from signals.persistence.schema import acquisition_provider_event
 
 MODULE = "signals.api.asgi"
+INSTANTLY_ENV = {
+    "KIVOU_INSTANTLY_WEBHOOK_SECRET": "synthetic-webhook-secret",
+    "KIVOU_INSTANTLY_WORKSPACE_REF": "workspace:test",
+    "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY": "synthetic-webhook-fingerprint-key",
+    "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION": "webhook-key-v1",
+    "KIVOU_SUPPRESSION_IDENTITY_KEY": "synthetic-suppression-identity-key",
+    "KIVOU_SUPPRESSION_IDENTITY_KEY_VERSION": "suppression-key-v1",
+}
 
 
 @pytest.fixture
@@ -52,11 +65,133 @@ def base_environment(monkeypatch: pytest.MonkeyPatch, sqlite_url: str) -> None:
         "SMTP_HOST",
         "SMTP_FROM_EMAIL",
         "KIVOU_PUBLIC_APP_URL",
+        *INSTANTLY_ENV,
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("KIVOU_DATABASE_URL", sqlite_url)
     monkeypatch.setenv("KIVOU_ALLOWED_ORIGIN", "https://staging.kivou.test")
     monkeypatch.setenv("KIVOU_STRIPE_MODE", "test")
+
+
+def _configure_instantly(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name, value in INSTANTLY_ENV.items():
+        monkeypatch.setenv(name, value)
+
+
+# ─── configuration Instantly atomique et expurgée ────────────────────────────
+
+
+def test_absent_instantly_group_keeps_ingress_disabled(base_environment) -> None:
+    config = ApiConfig.from_environment()
+
+    assert config.instantly_webhook_configured is False
+    assert config.instantly_webhook_secret is None
+
+
+@pytest.mark.parametrize("present_name", tuple(INSTANTLY_ENV))
+def test_partial_instantly_group_refuses_startup_without_values(
+    base_environment,
+    monkeypatch: pytest.MonkeyPatch,
+    present_name: str,
+) -> None:
+    monkeypatch.setenv(present_name, INSTANTLY_ENV[present_name])
+
+    with pytest.raises(ValueError) as captured:
+        ApiConfig.from_environment()
+
+    rendered = str(captured.value)
+    assert "configuration webhook Instantly incomplète" in rendered
+    for value in INSTANTLY_ENV.values():
+        assert value not in rendered
+
+
+def test_complete_instantly_group_is_repr_safe(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configure_instantly(monkeypatch)
+
+    config = ApiConfig.from_environment()
+
+    assert config.instantly_webhook_configured is True
+    rendered = repr(config)
+    assert "synthetic-webhook-secret" not in rendered
+    assert "synthetic-webhook-fingerprint-key" not in rendered
+    assert "synthetic-suppression-identity-key" not in rendered
+
+
+@pytest.mark.parametrize(
+    "secret_name",
+    (
+        "KIVOU_INSTANTLY_WEBHOOK_SECRET",
+        "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY",
+        "KIVOU_SUPPRESSION_IDENTITY_KEY",
+    ),
+)
+def test_short_instantly_secrets_refuse_startup_without_echo(
+    base_environment,
+    monkeypatch: pytest.MonkeyPatch,
+    secret_name: str,
+) -> None:
+    _configure_instantly(monkeypatch)
+    supplied = "s3cret"
+    monkeypatch.setenv(secret_name, supplied)
+
+    with pytest.raises(ValueError) as captured:
+        ApiConfig.from_environment()
+
+    rendered = str(captured.value)
+    assert secret_name in rendered
+    assert supplied not in rendered
+
+
+@pytest.mark.parametrize(
+    ("name", "supplied"),
+    (
+        ("KIVOU_INSTANTLY_WORKSPACE_REF", "w" * 129),
+        ("KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION", "f" * 65),
+        ("KIVOU_SUPPRESSION_IDENTITY_KEY_VERSION", "s" * 65),
+    ),
+)
+def test_instantly_identity_fields_are_bounded_without_echo(
+    base_environment,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    supplied: str,
+) -> None:
+    _configure_instantly(monkeypatch)
+    monkeypatch.setenv(name, supplied)
+
+    with pytest.raises(ValueError) as captured:
+        ApiConfig.from_environment()
+
+    rendered = str(captured.value)
+    assert name in rendered
+    assert supplied not in rendered
+
+
+@pytest.mark.parametrize(
+    ("name", "supplied"),
+    (
+        ("KIVOU_INSTANTLY_WORKSPACE_REF", " workspace:test "),
+        ("KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION", " webhook-key-v1 "),
+        ("KIVOU_SUPPRESSION_IDENTITY_KEY_VERSION", " suppression-key-v1 "),
+    ),
+)
+def test_instantly_identity_fields_reject_ambiguous_whitespace_without_echo(
+    base_environment,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    supplied: str,
+) -> None:
+    _configure_instantly(monkeypatch)
+    monkeypatch.setenv(name, supplied)
+
+    with pytest.raises(ValueError) as captured:
+        ApiConfig.from_environment()
+
+    rendered = str(captured.value)
+    assert name in rendered
+    assert supplied not in rendered
 
 
 # ─── l'import reste inerte ────────────────────────────────────────────────────
@@ -136,6 +271,95 @@ def test_starting_the_application_runs_no_migration(base_environment, sqlite_url
     with engine.connect() as connection:
         tables = sa.inspect(connection).get_table_names()
     assert tables == [], "le démarrage a créé des tables : une migration a couru"
+
+
+# ─── composition de l'ingress Instantly ───────────────────────────────────────
+
+
+def test_absent_instantly_group_returns_service_unavailable(base_environment) -> None:
+    module = importlib.import_module(MODULE)
+
+    app = module.build_application()
+    response = TestClient(app).post("/webhooks/instantly", json={})
+
+    assert app.state.instantly_webhook_service is None
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "instantly_webhook_unavailable"
+
+
+def test_complete_instantly_group_wires_none_capability_without_network(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configure_instantly(monkeypatch)
+
+    def forbidden_network(*args: object, **kwargs: object) -> None:
+        raise AssertionError("production composition attempted network I/O")
+
+    monkeypatch.setattr("socket.socket.connect", forbidden_network)
+    module = importlib.import_module(MODULE)
+
+    app = module.build_application()
+    service = app.state.instantly_webhook_service
+
+    assert isinstance(service, InstantlyWebhookService)
+    assert service._response_capability is ResponseIngressCapability.NONE
+    assert service._response_ingress is None
+
+
+def test_production_instantly_webhook_persists_and_replays_without_network(
+    base_environment,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    engine, _, result = _queued(tmp_path)
+    monkeypatch.setenv("KIVOU_DATABASE_URL", str(engine.url))
+    _configure_instantly(monkeypatch)
+
+    def forbidden_network(*args: object, **kwargs: object) -> None:
+        raise AssertionError("webhook ingress attempted network I/O")
+
+    monkeypatch.setattr("socket.socket.connect", forbidden_network)
+    module = importlib.import_module(MODULE)
+    app = module.build_application()
+    client = TestClient(app)
+    payload = _event(result)
+
+    invalid_secret = client.post(
+        "/webhooks/instantly",
+        json=payload,
+        headers={"x-kivou-instantly-secret": "wrong"},
+    )
+    with app.state.engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_provider_event)
+        ) == 0
+
+    first = client.post(
+        "/webhooks/instantly",
+        json=payload,
+        headers={"x-kivou-instantly-secret": SECRET},
+    )
+    replay = client.post(
+        "/webhooks/instantly",
+        json=payload,
+        headers={"x-kivou-instantly-secret": SECRET},
+    )
+    unknown_workspace = client.post(
+        "/webhooks/instantly",
+        json={**payload, "workspace": "workspace:other"},
+        headers={"x-kivou-instantly-secret": SECRET},
+    )
+
+    assert invalid_secret.status_code == 401
+    assert first.status_code == 200
+    assert first.json()["replayed"] is False
+    assert replay.status_code == 200
+    assert replay.json()["replayed"] is True
+    assert unknown_workspace.status_code == 422
+    with app.state.engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_provider_event)
+        ) == 1
 
 
 # ─── passerelle Stripe ────────────────────────────────────────────────────────

@@ -42,6 +42,12 @@ ALERT_MAX_ATTEMPTS_ENV = "KIVOU_ALERT_MAX_ATTEMPTS"
 ALERT_RETRY_BASE_SECONDS_ENV = "KIVOU_ALERT_RETRY_BASE_SECONDS"
 INSTANTLY_WEBHOOK_SECRET_ENV = "KIVOU_INSTANTLY_WEBHOOK_SECRET"
 INSTANTLY_WEBHOOK_WORKSPACE_ENV = "KIVOU_INSTANTLY_WORKSPACE_REF"
+INSTANTLY_WEBHOOK_FINGERPRINT_KEY_ENV = "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY"
+INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION_ENV = (
+    "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION"
+)
+SUPPRESSION_IDENTITY_KEY_ENV = "KIVOU_SUPPRESSION_IDENTITY_KEY"
+SUPPRESSION_IDENTITY_KEY_VERSION_ENV = "KIVOU_SUPPRESSION_IDENTITY_KEY_VERSION"
 ATTRIBUTION_HMAC_KEY_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY"
 ATTRIBUTION_HMAC_KEY_VERSION_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
 COCKPIT_OPERATOR_ACCOUNT_IDS_ENV = "KIVOU_COCKPIT_OPERATOR_ACCOUNT_IDS"
@@ -145,8 +151,14 @@ class ApiConfig:
     alert_retry_base: dt.timedelta = DEFAULT_ALERT_RETRY_BASE
 
     # SPEC-026 — absent by default: the provider-specific route fails closed.
-    instantly_webhook_secret: str | None = None
+    instantly_webhook_secret: str | None = dataclasses.field(default=None, repr=False)
     instantly_webhook_workspace_ref: str | None = None
+    instantly_webhook_fingerprint_key: bytes | None = dataclasses.field(
+        default=None, repr=False
+    )
+    instantly_webhook_fingerprint_key_version: str | None = None
+    suppression_identity_key: bytes | None = dataclasses.field(default=None, repr=False)
+    suppression_identity_key_version: str | None = None
 
     # SPEC-028 — both absent by default. The secret is attribution integrity,
     # never authentication, and is excluded from dataclass repr.
@@ -163,6 +175,21 @@ class ApiConfig:
     @property
     def stripe_livemode(self) -> bool:
         return self.stripe_mode == "live"
+
+    @property
+    def instantly_webhook_configured(self) -> bool:
+        """The complete local ingress boundary is available, or none of it is."""
+        return all(
+            value is not None
+            for value in (
+                self.instantly_webhook_secret,
+                self.instantly_webhook_workspace_ref,
+                self.instantly_webhook_fingerprint_key,
+                self.instantly_webhook_fingerprint_key_version,
+                self.suppression_identity_key,
+                self.suppression_identity_key_version,
+            )
+        )
 
     @property
     def alerts_configured(self) -> bool:
@@ -246,6 +273,7 @@ class ApiConfig:
             )
         if attribution_key_raw is not None and len(attribution_key_raw.encode()) < 16:
             raise ValueError(f"{ATTRIBUTION_HMAC_KEY_ENV} est trop courte")
+        instantly = _instantly_webhook_environment()
         acquisition_environment = resolve_acquisition_environment()
         return cls(
             session_ttl=_duration(SESSION_TTL_ENV, DEFAULT_SESSION_TTL),
@@ -296,10 +324,12 @@ class ApiConfig:
                     maximum=86400,
                 )
             ),
-            instantly_webhook_secret=os.environ.get(INSTANTLY_WEBHOOK_SECRET_ENV) or None,
-            instantly_webhook_workspace_ref=(
-                os.environ.get(INSTANTLY_WEBHOOK_WORKSPACE_ENV) or None
-            ),
+            instantly_webhook_secret=instantly[0],
+            instantly_webhook_workspace_ref=instantly[1],
+            instantly_webhook_fingerprint_key=instantly[2],
+            instantly_webhook_fingerprint_key_version=instantly[3],
+            suppression_identity_key=instantly[4],
+            suppression_identity_key_version=instantly[5],
             attribution_hmac_key=(
                 attribution_key_raw.encode("utf-8") if attribution_key_raw else None
             ),
@@ -309,6 +339,62 @@ class ApiConfig:
             ),
             acquisition_environment=acquisition_environment,
         )
+
+
+def _instantly_webhook_environment() -> tuple[
+    str | None,
+    str | None,
+    bytes | None,
+    str | None,
+    bytes | None,
+    str | None,
+]:
+    """Read one atomic ingress group without ever rendering supplied values."""
+    names = (
+        INSTANTLY_WEBHOOK_SECRET_ENV,
+        INSTANTLY_WEBHOOK_WORKSPACE_ENV,
+        INSTANTLY_WEBHOOK_FINGERPRINT_KEY_ENV,
+        INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION_ENV,
+        SUPPRESSION_IDENTITY_KEY_ENV,
+        SUPPRESSION_IDENTITY_KEY_VERSION_ENV,
+    )
+    values = tuple(os.environ.get(name) or None for name in names)
+    if not any(values):
+        return (None, None, None, None, None, None)
+    missing = [name for name, value in zip(names, values, strict=True) if value is None]
+    if missing:
+        raise ValueError(
+            "configuration webhook Instantly incomplète : "
+            f"{', '.join(missing)} doivent être définies avec le groupe complet"
+        )
+
+    secret, workspace, fingerprint_key, fingerprint_version, suppression_key, suppression_version = (
+        value for value in values if value is not None
+    )
+    for name, value in (
+        (INSTANTLY_WEBHOOK_SECRET_ENV, secret),
+        (INSTANTLY_WEBHOOK_FINGERPRINT_KEY_ENV, fingerprint_key),
+        (SUPPRESSION_IDENTITY_KEY_ENV, suppression_key),
+    ):
+        if len(value.encode("utf-8")) < 16:
+            raise ValueError(f"{name} doit contenir au moins 16 octets")
+    for name, value, maximum in (
+        (INSTANTLY_WEBHOOK_WORKSPACE_ENV, workspace, 128),
+        (INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION_ENV, fingerprint_version, 64),
+        (SUPPRESSION_IDENTITY_KEY_VERSION_ENV, suppression_version, 64),
+    ):
+        if value != value.strip():
+            raise ValueError(f"{name} ne doit pas contenir d'espaces périphériques")
+        if len(value) > maximum:
+            raise ValueError(f"{name} dépasse la longueur maximale autorisée")
+    return (
+        secret,
+        workspace,
+        fingerprint_key.encode("utf-8"),
+        fingerprint_version,
+        suppression_key.encode("utf-8"),
+        suppression_version,
+    )
 
 
 def _optional_url(name: str) -> str | None:
