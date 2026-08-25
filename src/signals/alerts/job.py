@@ -84,7 +84,10 @@ class CycleReport:
             outcome.result in {"unknown_delivery_state", "persistence_failed"}
             or (
                 outcome.result == "failed"
-                and outcome.detail != "smtp_recipient_refused"
+                and not (
+                    outcome.detail == "smtp_recipient_refused"
+                    and outcome.retryable is False
+                )
             )
             for outcome in self.outcomes
         )

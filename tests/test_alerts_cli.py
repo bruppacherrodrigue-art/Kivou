@@ -89,6 +89,27 @@ def test_only_current_execution_incidents_return_nonzero(
     monkeypatch.setattr(cli, "run_alert_cycle", lambda *args, **kwargs: failed)
     assert main(["--now", NOW.isoformat()]) == 1
 
+    inconsistent_refusal = CycleReport(
+        accounts_considered=1,
+        outcomes=(
+            AlertOutcome(
+                "acc_test",
+                "daily",
+                "failed",
+                1,
+                "smtp_recipient_refused",
+                True,
+                1,
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "run_alert_cycle",
+        lambda *args, **kwargs: inconsistent_refusal,
+    )
+    assert main(["--now", NOW.isoformat()]) == 1
+
 
 @pytest.mark.parametrize(
     "outcome",
