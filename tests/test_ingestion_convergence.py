@@ -179,6 +179,20 @@ def test_decp_cursor_rejects_incoherent_intra_day_offsets() -> None:
             "offset": 1,
             "window_total": None,
         },
+        {
+            "version": 2,
+            "cycle_end": "2026-08-25",
+            "next_window_start": "2026-08-24",
+            "offset": 1.5,
+            "window_total": 5,
+        },
+        {
+            "version": 2,
+            "cycle_end": "2026-08-25",
+            "next_window_start": "2026-08-24",
+            "offset": 1,
+            "window_total": 5.5,
+        },
     ):
         with pytest.raises(ValueError, match="DECP"):
             plan_decp_cycle(

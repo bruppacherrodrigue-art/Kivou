@@ -34,7 +34,7 @@ class DecpCursor:
     def __post_init__(self) -> None:
         if self.until is not None and self.until < self.since:
             raise ValueError("invalid DECP window")
-        if self.offset < 0:
+        if not isinstance(self.offset, int) or isinstance(self.offset, bool) or self.offset < 0:
             raise ValueError("negative DECP offset")
 
     def next_page(self, size: int = PAGE_SIZE) -> DecpCursor:
@@ -258,12 +258,19 @@ class DecpClient:
         idempotent. A mutation during the bounded slice fails closed and leaves
         the durable cursor untouched for the next run.
         """
-        if isinstance(offset, bool) or offset < 0:
+        if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
             raise ValueError("DECP batch offset must be non-negative")
-        if batch_size <= 0 or batch_size > PAGE_SIZE:
+        if (
+            not isinstance(batch_size, int)
+            or isinstance(batch_size, bool)
+            or batch_size <= 0
+            or batch_size > PAGE_SIZE
+        ):
             raise ValueError(f"DECP batch size must be between 1 and {PAGE_SIZE}")
         if expected_total is not None and (
-            isinstance(expected_total, bool) or expected_total < 0
+            not isinstance(expected_total, int)
+            or isinstance(expected_total, bool)
+            or expected_total < 0
         ):
             raise ValueError("DECP expected total must be non-negative")
         if offset and expected_total is None:

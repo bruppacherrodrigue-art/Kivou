@@ -21,10 +21,12 @@ class DecpCycleCursor:
     def __post_init__(self) -> None:
         if self.next_window_start > self.cycle_end + dt.timedelta(days=1):
             raise ValueError("DECP cursor advanced beyond its cycle")
-        if isinstance(self.offset, bool) or self.offset < 0:
+        if not isinstance(self.offset, int) or isinstance(self.offset, bool) or self.offset < 0:
             raise ValueError("DECP cursor offset must be non-negative")
         if self.window_total is not None and (
-            isinstance(self.window_total, bool) or self.window_total < 0
+            not isinstance(self.window_total, int)
+            or isinstance(self.window_total, bool)
+            or self.window_total < 0
         ):
             raise ValueError("DECP cursor window total must be non-negative")
         if self.offset and self.window_total is None:
@@ -137,9 +139,13 @@ def advance_decp_batch(
         raise ValueError("DECP convergence units must stay inside one calendar day")
     if completed_window.since != cursor.next_window_start:
         raise ValueError("DECP convergence batch does not match its cursor")
-    if isinstance(next_offset, bool) or next_offset < 0:
+    if not isinstance(next_offset, int) or isinstance(next_offset, bool) or next_offset < 0:
         raise ValueError("DECP next offset must be non-negative")
-    if isinstance(window_total, bool) or window_total < 0:
+    if (
+        not isinstance(window_total, int)
+        or isinstance(window_total, bool)
+        or window_total < 0
+    ):
         raise ValueError("DECP window total must be non-negative")
     if next_offset > window_total:
         raise ValueError("DECP next offset exceeds its window total")
