@@ -59,8 +59,13 @@ _ENVIRONMENT_NAMES = (
 class WebhookRuntimeConfigurationError(ValueError):
     """Machine-safe configuration failure which never includes secret values."""
 
-    def __init__(self, code: str = "WEBHOOK_NOT_CONFIGURED") -> None:
-        super().__init__(code)
+    def __init__(
+        self,
+        code: str = "WEBHOOK_NOT_CONFIGURED",
+        *,
+        message: str | None = None,
+    ) -> None:
+        super().__init__(message or code)
         self.code = code
 
 
@@ -83,22 +88,39 @@ class InstantlyWebhookRuntimeConfiguration:
 
 def _required(source: Mapping[str, str], name: str, *, maximum: int) -> str:
     value = source.get(name)
-    if value is None:
-        raise WebhookRuntimeConfigurationError()
-    normalized = value.strip()
-    if not normalized or len(normalized) > maximum:
-        raise WebhookRuntimeConfigurationError()
-    return normalized
+    if value is None or not value:
+        raise WebhookRuntimeConfigurationError(
+            message=(
+                "configuration webhook Instantly incomplète : "
+                f"{name} doit être définie avec le groupe complet"
+            )
+        )
+    if value != value.strip():
+        raise WebhookRuntimeConfigurationError(
+            message=f"{name} ne doit pas contenir d'espaces périphériques"
+        )
+    if len(value) > maximum:
+        raise WebhookRuntimeConfigurationError(
+            message=f"{name} dépasse la longueur maximale autorisée"
+        )
+    return value
 
 
 def _secret(source: Mapping[str, str], name: str) -> bytes:
     value = _required(source, name, maximum=4_096).encode("utf-8")
     if len(value) < 16:
-        raise WebhookRuntimeConfigurationError()
+        raise WebhookRuntimeConfigurationError(
+            message=f"{name} doit contenir au moins 16 octets"
+        )
     return value
 
 
-def _retained_keys(source: Mapping[str, str], name: str) -> dict[str, bytes]:
+def _retained_keys(
+    source: Mapping[str, str],
+    name: str,
+    *,
+    version_maximum: int,
+) -> dict[str, bytes]:
     raw = source.get(name)
     if raw is None or not raw.strip():
         return {}
@@ -110,15 +132,17 @@ def _retained_keys(source: Mapping[str, str], name: str) -> dict[str, bytes]:
         for version, secret in parsed.items():
             if (
                 not isinstance(version, str)
-                or not version.strip()
-                or len(version.strip()) > 100
+                or not version
+                or version != version.strip()
+                or len(version) > version_maximum
                 or not isinstance(secret, str)
+                or secret != secret.strip()
             ):
                 raise TypeError
             encoded = secret.encode("utf-8")
             if len(encoded) < 16 or len(encoded) > 4_096:
                 raise ValueError
-            retained[version.strip()] = encoded
+            retained[version] = encoded
         return dict(sorted(retained.items()))
     except (json.JSONDecodeError, TypeError, ValueError):
         raise WebhookRuntimeConfigurationError() from None
@@ -129,10 +153,15 @@ def _keyring_values(
     *,
     version_name: str,
     key_name: str,
+    version_maximum: int,
     retained_name: str | None = None,
 ) -> tuple[str, dict[str, bytes]]:
-    version = _required(source, version_name, maximum=100)
-    retained = _retained_keys(source, retained_name) if retained_name else {}
+    version = _required(source, version_name, maximum=version_maximum)
+    retained = (
+        _retained_keys(source, retained_name, version_maximum=version_maximum)
+        if retained_name
+        else {}
+    )
     if version in retained:
         raise WebhookRuntimeConfigurationError()
     retained[version] = _secret(source, key_name)
@@ -161,30 +190,36 @@ def load_instantly_webhook_runtime_config(
     try:
         secret = _required(source, WEBHOOK_SECRET_ENV, maximum=4_096)
         if len(secret.encode("utf-8")) < 16:
-            raise WebhookRuntimeConfigurationError()
+            raise WebhookRuntimeConfigurationError(
+                message=f"{WEBHOOK_SECRET_ENV} doit contenir au moins 16 octets"
+            )
         workspace = _required(source, WEBHOOK_WORKSPACE_ENV, maximum=128)
         fingerprint_version, fingerprint_keys = _keyring_values(
             source,
             version_name=WEBHOOK_FINGERPRINT_VERSION_ENV,
             key_name=WEBHOOK_FINGERPRINT_KEY_ENV,
+            version_maximum=64,
             retained_name=WEBHOOK_FINGERPRINT_RETAINED_ENV,
         )
         suppression_version, suppression_keys = _keyring_values(
             source,
             version_name=SUPPRESSION_VERSION_ENV,
             key_name=SUPPRESSION_KEY_ENV,
+            version_maximum=64,
             retained_name=SUPPRESSION_RETAINED_ENV,
         )
         source_version, source_keys = _keyring_values(
             source,
             version_name=RESPONSE_SOURCE_VERSION_ENV,
             key_name=RESPONSE_SOURCE_KEY_ENV,
+            version_maximum=100,
             retained_name=RESPONSE_SOURCE_RETAINED_ENV,
         )
         content_version, content_keys = _keyring_values(
             source,
             version_name=RESPONSE_CONTENT_VERSION_ENV,
             key_name=RESPONSE_CONTENT_KEY_ENV,
+            version_maximum=100,
             retained_name=RESPONSE_CONTENT_RETAINED_ENV,
         )
         return InstantlyWebhookRuntimeConfiguration(

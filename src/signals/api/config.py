@@ -14,6 +14,7 @@ import re
 from urllib.parse import urlsplit
 
 from signals.campaigns.runtime_webhook import (
+    InstantlyWebhookRuntimeConfiguration,
     load_instantly_webhook_runtime_config,
 )
 
@@ -44,14 +45,6 @@ SMTP_REPLY_TO_ENV = "SMTP_REPLY_TO_EMAIL"
 ALERT_LEASE_SECONDS_ENV = "KIVOU_ALERT_LEASE_SECONDS"
 ALERT_MAX_ATTEMPTS_ENV = "KIVOU_ALERT_MAX_ATTEMPTS"
 ALERT_RETRY_BASE_SECONDS_ENV = "KIVOU_ALERT_RETRY_BASE_SECONDS"
-INSTANTLY_WEBHOOK_SECRET_ENV = "KIVOU_INSTANTLY_WEBHOOK_SECRET"
-INSTANTLY_WEBHOOK_WORKSPACE_ENV = "KIVOU_INSTANTLY_WORKSPACE_REF"
-INSTANTLY_WEBHOOK_FINGERPRINT_KEY_ENV = "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY"
-INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION_ENV = (
-    "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION"
-)
-SUPPRESSION_IDENTITY_KEY_ENV = "KIVOU_SUPPRESSION_HMAC_KEY"
-SUPPRESSION_IDENTITY_KEY_VERSION_ENV = "KIVOU_SUPPRESSION_HMAC_KEY_VERSION"
 ATTRIBUTION_HMAC_KEY_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY"
 ATTRIBUTION_HMAC_KEY_VERSION_ENV = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
 COCKPIT_OPERATOR_ACCOUNT_IDS_ENV = "KIVOU_COCKPIT_OPERATOR_ACCOUNT_IDS"
@@ -277,13 +270,9 @@ class ApiConfig:
             )
         if attribution_key_raw is not None and len(attribution_key_raw.encode()) < 16:
             raise ValueError(f"{ATTRIBUTION_HMAC_KEY_ENV} est trop courte")
-        instantly = _instantly_webhook_environment()
-        # ApiConfig owns the route authentication values, while the shared
-        # webhook runtime owns the complete cryptographic bundle. Validate both
-        # boundaries before the ASGI entry point opens its database so a legacy
-        # six-field deployment can never report itself as configured and then
-        # fail later during service composition.
-        load_instantly_webhook_runtime_config(required=False)
+        instantly = _api_webhook_values(
+            load_instantly_webhook_runtime_config(required=False)
+        )
         acquisition_environment = resolve_acquisition_environment()
         return cls(
             session_ttl=_duration(SESSION_TTL_ENV, DEFAULT_SESSION_TTL),
@@ -351,7 +340,9 @@ class ApiConfig:
         )
 
 
-def _instantly_webhook_environment() -> tuple[
+def _api_webhook_values(
+    configuration: InstantlyWebhookRuntimeConfiguration | None,
+) -> tuple[
     str | None,
     str | None,
     bytes | None,
@@ -359,50 +350,17 @@ def _instantly_webhook_environment() -> tuple[
     bytes | None,
     str | None,
 ]:
-    """Read one atomic ingress group without ever rendering supplied values."""
-    names = (
-        INSTANTLY_WEBHOOK_SECRET_ENV,
-        INSTANTLY_WEBHOOK_WORKSPACE_ENV,
-        INSTANTLY_WEBHOOK_FINGERPRINT_KEY_ENV,
-        INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION_ENV,
-        SUPPRESSION_IDENTITY_KEY_ENV,
-        SUPPRESSION_IDENTITY_KEY_VERSION_ENV,
-    )
-    values = tuple(os.environ.get(name) or None for name in names)
-    if not any(values):
+    """Project the shared validated bundle onto route authentication fields."""
+    if configuration is None:
         return (None, None, None, None, None, None)
-    missing = [name for name, value in zip(names, values, strict=True) if value is None]
-    if missing:
-        raise ValueError(
-            "configuration webhook Instantly incomplète : "
-            f"{', '.join(missing)} doivent être définies avec le groupe complet"
-        )
-
-    secret, workspace, fingerprint_key, fingerprint_version, suppression_key, suppression_version = (
-        value for value in values if value is not None
-    )
-    for name, value in (
-        (INSTANTLY_WEBHOOK_SECRET_ENV, secret),
-        (INSTANTLY_WEBHOOK_FINGERPRINT_KEY_ENV, fingerprint_key),
-        (SUPPRESSION_IDENTITY_KEY_ENV, suppression_key),
-    ):
-        if len(value.encode("utf-8")) < 16:
-            raise ValueError(f"{name} doit contenir au moins 16 octets")
-    for name, value, maximum in (
-        (INSTANTLY_WEBHOOK_WORKSPACE_ENV, workspace, 128),
-        (INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION_ENV, fingerprint_version, 64),
-        (SUPPRESSION_IDENTITY_KEY_VERSION_ENV, suppression_version, 64),
-    ):
-        if value != value.strip():
-            raise ValueError(f"{name} ne doit pas contenir d'espaces périphériques")
-        if len(value) > maximum:
-            raise ValueError(f"{name} dépasse la longueur maximale autorisée")
+    fingerprint_version = configuration.fingerprint_keyring.current_key_version
+    suppression_version = configuration.suppression_keyring.current_key_version
     return (
-        secret,
-        workspace,
-        fingerprint_key.encode("utf-8"),
+        configuration.provider_webhook_secret,
+        configuration.provider_workspace_ref,
+        configuration.fingerprint_keyring.keys[fingerprint_version],
         fingerprint_version,
-        suppression_key.encode("utf-8"),
+        configuration.suppression_keyring.keys[suppression_version],
         suppression_version,
     )
 

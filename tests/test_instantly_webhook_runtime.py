@@ -108,6 +108,28 @@ def test_api_config_rejects_the_legacy_six_field_subset(
         ApiConfig.from_environment()
 
 
+@pytest.mark.parametrize(
+    ("name", "invalid_value"),
+    (
+        ("KIVOU_INSTANTLY_WORKSPACE_REF", " workspace:test "),
+        ("KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION", "f" * 65),
+        ("KIVOU_SUPPRESSION_HMAC_KEY_VERSION", "s" * 65),
+    ),
+)
+def test_shared_webhook_loader_rejects_values_the_api_rejects(
+    name: str,
+    invalid_value: str,
+) -> None:
+    environment = _environment()
+    environment[name] = invalid_value
+
+    with pytest.raises(WebhookRuntimeConfigurationError) as error:
+        load_instantly_webhook_runtime_config(environment, required=True)
+
+    assert error.value.code == "WEBHOOK_NOT_CONFIGURED"
+    assert invalid_value not in str(error.value)
+
+
 def test_suppression_keyring_is_bounded_to_current_plus_seven_retained() -> None:
     environment = _environment()
     environment["KIVOU_SUPPRESSION_RETAINED_KEYS_JSON"] = "{" + ",".join(
