@@ -17,8 +17,8 @@ from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeConfig,
     AcquisitionRuntimeDeployment,
     AcquisitionRuntimeLimits,
-    RuntimeQaScope,
     AcquisitionRuntimeStage,
+    RuntimeQaScope,
 )
 from signals.campaigns.contracts import CampaignDeploymentConfig
 from signals.campaigns.service import CampaignService
