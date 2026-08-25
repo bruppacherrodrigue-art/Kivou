@@ -165,6 +165,7 @@ class IngestionRunner:
     ):
         for attempt in range(3):
             try:
+                self._check_cancellation()
                 arguments = {
                     "retrieved_at": started,
                     "max_records": options.max_records,
@@ -204,9 +205,12 @@ class IngestionRunner:
             )
         return previous, run_id
 
-    def _check_decp_stop(self, *, deadline: float | None) -> None:
+    def _check_cancellation(self) -> None:
         if self.cancel_requested():
             raise IngestionTerminated("ingestion termination requested")
+
+    def _check_decp_stop(self, *, deadline: float | None) -> None:
+        self._check_cancellation()
         if deadline is not None and self.monotonic() >= deadline:
             raise BoundedPassComplete("DECP pass time budget reached")
 
@@ -460,6 +464,7 @@ class IngestionRunner:
                 except AcquisitionFailure as error:
                     acquisition = error.partial
                     acquisition_error = error
+                self._check_cancellation()
                 if options.dry_run:
                     if acquisition_error is not None:
                         raise acquisition_error
@@ -482,6 +487,7 @@ class IngestionRunner:
                         "selected source window was bounded before exhaustion"
                     )
                 for publication in acquisition.publications:
+                    self._check_cancellation()
                     try:
                         item = self.pipeline.process(
                             publication,
@@ -569,6 +575,8 @@ class IngestionRunner:
                         error_category=category,
                     )
                 )
+                if category == IngestionTerminated.category:
+                    break
         return RunOutcome(
             tuple(outcomes),
             exit_code=0 if all(item.status in {"success", "dry_run"} for item in outcomes) else 1,

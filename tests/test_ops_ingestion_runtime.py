@@ -54,10 +54,10 @@ def test_decp_service_hardening_keeps_network_database_and_runtime_access() -> N
     assert "KIVOU_DATABASE_URL=" not in body
 
 
-def test_decp_timer_preserves_the_audited_twelve_hour_cadence() -> None:
+def test_decp_timer_runs_often_enough_for_two_daily_windows_to_converge() -> None:
     body = TIMER.read_text(encoding="utf-8")
 
-    assert "OnCalendar=*-*-* 00,12:35:00" in body
+    assert "OnCalendar=hourly" in body
     assert "Persistent=true" in body
     assert "RandomizedDelaySec=300" in body
     assert "Unit=kivou-ingest-decp.service" in body

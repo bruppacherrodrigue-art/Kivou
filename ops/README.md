@@ -170,8 +170,9 @@ Les limites viennent de `/etc/kivou/staging.env` :
 `KIVOU_DECP_OVERLAP_DAYS` et `KIVOU_INGESTION_STALE_RUN_SECONDS`. Elles doivent
 toutes être des entiers strictement positifs. Le verrou hôte vit dans
 `/run/kivou`, créé par `RuntimeDirectory`; une contention normale est un succès
-sans seconde exécution. Le timer conserve la cadence staging auditée de douze
-heures et utilise `Persistent=true`.
+sans seconde exécution. Le timer est horaire et utilise `Persistent=true` : à
+deux journées maximum par passage, cette cadence reste supérieure à la journée
+qui s'ajoute au corpus et permet au cycle de recouvrement de converger.
 
 ### Installation et passage manuel
 

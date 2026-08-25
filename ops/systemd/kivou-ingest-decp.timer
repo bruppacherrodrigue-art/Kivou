@@ -1,8 +1,8 @@
 [Unit]
-Description=Kivou — déclenchement DECP toutes les douze heures
+Description=Kivou — déclenchement horaire de la convergence DECP
 
 [Timer]
-OnCalendar=*-*-* 00,12:35:00
+OnCalendar=hourly
 Persistent=true
 RandomizedDelaySec=300
 AccuracySec=60

@@ -776,3 +776,33 @@ def test_runner_reconciles_stale_decp_runs_immediately_before_starting(tmp_path)
         ).all()
     assert rows[0] == ("orphaned", "failed", "stale_run_reconciled")
     assert rows[1].status == "success"
+
+
+def test_sigterm_cancellation_also_terminalizes_a_non_decp_source(tmp_path):
+    engine = _engine(tmp_path)
+    cancelled = False
+
+    class CancellingSource(SourceStub):
+        def acquire(self, window, *, retrieved_at, max_records=None):
+            nonlocal cancelled
+            cancelled = True
+            return super().acquire(
+                window,
+                retrieved_at=retrieved_at,
+                max_records=max_records,
+            )
+
+    result = IngestionRunner(
+        engine,
+        sources={"boamp": CancellingSource("boamp")},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+        cancel_requested=lambda: cancelled,
+    ).run(RunOptions(sources=("boamp",)))
+
+    assert result.exit_code == 1
+    assert result.outcomes[0].error_category == "terminated"
+    with engine.connect() as connection:
+        row = connection.execute(sa.select(ingestion_run)).one()
+    assert row.status == "failed"
+    assert row.finished_at is not None
