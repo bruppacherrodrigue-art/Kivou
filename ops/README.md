@@ -1,8 +1,8 @@
 # Runtime d'exploitation Kivou
 
 Ce dossier ne contient que ce qui doit être **versionné pour être reproductible**.
-Aujourd'hui : la sauvegarde PostgreSQL (RTL-03 / #39) et le runtime des alertes
-transactionnelles (RTL-05).
+Aujourd'hui : la sauvegarde PostgreSQL (RTL-03 / #39), le runtime des alertes
+transactionnelles (RTL-05) et l'ingestion DECP bornée (#77).
 
 > Un service systemd qui appelle un fichier absent de la branche déployable
 > échoue au premier déploiement propre. C'est exactement ce qu'a révélé #39 :
