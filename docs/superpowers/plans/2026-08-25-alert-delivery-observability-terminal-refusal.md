@@ -289,9 +289,8 @@ uv run pytest \
 
 ```bash
 uv run ruff check src/signals/runtime_events.py src/signals/accounts/reset_delivery.py src/signals/alerts src/signals/api/asgi.py src/signals/engagement src/signals/persistence/migrations/versions/0025_alert_recipient_context.py tests/test_runtime_events.py tests/test_smtp_gateway.py tests/test_alert_delivery_runtime.py tests/test_alerts_cycle.py tests/test_alerts_cli.py tests/test_alert_recipient_context_migration.py
-uv run alembic heads
-uv run alembic upgrade 0024_scheduled_plan_change:0025_alert_recipient_context --sql
-uv run alembic downgrade 0025_alert_recipient_context:0024_scheduled_plan_change --sql
+uv run python -c 'from alembic.script import ScriptDirectory; from signals.persistence.database import alembic_config, create_database_engine; scripts = ScriptDirectory.from_config(alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))); assert scripts.get_heads() == ["0025_alert_recipient_context"]; assert scripts.get_revision("0025_alert_recipient_context").down_revision == "0024_scheduled_plan_change"'
+uv run pytest tests/test_alert_recipient_context_migration.py::test_postgresql_offline_sql_is_additive_and_never_classifies_history -q
 git diff --check 7253c3a...HEAD
 git status --short
 ```

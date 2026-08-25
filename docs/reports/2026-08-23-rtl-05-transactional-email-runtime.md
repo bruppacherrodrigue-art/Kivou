@@ -154,11 +154,12 @@ revendiquer une livraison exactement une fois.
 
 La migration additive `0025_alert_recipient_context`, enfant direct de
 `0024_scheduled_plan_change`, ajoute à chaque ligne de livraison une empreinte
-SHA-256 de son contexte destinataire. Seul le digest est persisté. Son entrée
-canonique comprend le compte, l'adresse normalisée, la version de préférence
-et la signature d'éligibilité effective — plan, cadence et droits courants.
-L'upgrade ne classe ni ne réécrit l'historique à partir des anciens textes
-d'erreur ; upgrade et downgrade conservent les lignes historiques.
+SHA-256 de son contexte destinataire. La ligne de livraison ne persiste que ce
+digest ; l'adresse reste dans la préférence existante et n'est pas dupliquée.
+Son entrée canonique comprend le compte, l'adresse normalisée, la version de
+préférence et la signature d'éligibilité effective — plan, cadence et droits
+courants. L'upgrade ne classe ni ne réécrit l'historique à partir des anciens
+textes d'erreur ; upgrade et downgrade conservent les lignes historiques.
 
 Seul `smtp_recipient_refused`, produit par un refus RCPT permanent et
 univoque, installe un bloc terminal. Un `EXISTS` exact sur le compte,
@@ -166,8 +167,9 @@ l'empreinte, l'état terminal, le code structuré et `retryable=false` est éval
 avant toute création d'un nouveau lot. Les `4xx` destinataire restent
 rejouables dans le budget et constituent un incident courant ; un `5xx`
 générique, une erreur d'authentification, TLS ou timeout ne créent pas ce bloc.
-Un ancien lot ambigu dont l'empreinte est absente ou diffère est supprimé sans
-être envoyé à la nouvelle adresse.
+Un ancien lot ambigu dont l'empreinte est absente ou diffère est conservé dans
+l'historique mais terminalisé en `suppressed`, sans être envoyé à la nouvelle
+adresse.
 
 Le bloc ne se réarme qu'après un changement matériel vérifiable du contexte :
 adresse, version de préférence ou éligibilité effective. Un `PATCH` sémantique
@@ -187,10 +189,11 @@ Les codes de sortie du job distinguent les situations opérables :
 - `5` : exception technique inattendue arrêtée à la frontière du processus.
 
 Les états terminaux historiques n'affectent jamais le code des cycles
-suivants. L'unité systemd existante collecte déjà la sortie standard et
-d'erreur de l'ASGI et du CLI : aucune modification d'unité n'est nécessaire
-pour ce complément. Aucun déploiement, envoi SMTP réel, accès staging ou
-action GitHub n'a été effectué pendant sa réalisation.
+suivants. `kivou-alerts.service` collecte déjà stdout/stderr du CLI ; l'ASGI
+écrit le même canal sur stderr du processus Uvicorn. Aucune modification des
+unités versionnées n'est nécessaire pour ce complément. Aucun déploiement,
+envoi SMTP réel, accès staging ou action GitHub n'a été effectué pendant sa
+réalisation.
 
 ## Runtime versionné
 
@@ -268,8 +271,8 @@ Avant tout envoi, et seulement après autorisation explicite séparée :
 2. lancer et vérifier une sauvegarde staging ;
 3. contrôler que `KIVOU_PUBLIC_APP_URL` vaut l'origine staging attendue et que
    les variables SMTP/TLS/timeout sont présentes, sans afficher leurs valeurs ;
-4. appliquer `0023` par la couche de migration applicative puis contrôler la
-   révision ;
+4. appliquer toutes les migrations par la couche applicative jusqu'à la tête
+   `0025_alert_recipient_context`, puis contrôler cette révision ;
 5. créer `/srv/kivou/run`, installer et vérifier les unités sans activer le
    timer ;
 6. exécuter `python -m signals.alerts --dry-run` ;
@@ -294,18 +297,22 @@ doivent entrer dans les preuves.
    versionné ne précédait celui-ci ;
 3. restaurer le SHA applicatif précédent ;
 4. redémarrer l'API et vérifier le reset sans effectuer d'envoi non autorisé ;
-5. ne downgrader `0023` que si la procédure de release le décide explicitement ;
+5. ne downgrader `0025` vers `0024` que si la procédure de release le décide
+   explicitement ; le downgrade séparé de `0023` reste réservé au rollback du
+   runtime transactionnel complet ;
 6. si le downgrade n'est pas sûr dans le contexte réel, restaurer la sauvegarde
    selon la procédure PostgreSQL validée.
 
-Le downgrade `0023` supprime uniquement les colonnes et le lease ajoutés par ce
-chantier. Les colonnes historiques de livraison restent présentes ; une
-restauration complète reste l'autorité en cas d'incident de migration.
+Le downgrade `0025` supprime seulement l'index et la colonne d'empreinte, sans
+supprimer les lignes historiques. Le downgrade séparé de `0023` supprime les
+colonnes et le lease du runtime transactionnel complet ; une restauration
+reste l'autorité en cas d'incident de migration.
 
 ## Gates restant avant production
 
 - fusion dans `main` et CI verte sur le SHA final de `main` ;
-- sauvegarde staging vérifiée puis migration `0023` réelle ;
+- sauvegarde staging vérifiée puis migration réelle jusqu'à la tête
+  `0025_alert_recipient_context` ;
 - installation et activation staging du service et du timer ;
 - reset réel réussi sur la boîte contrôlée ;
 - alerte réelle réussie, lien profond, préférence, non-duplication et reprise
