@@ -348,8 +348,10 @@ sudo systemctl reload nginx
 ```
 
 Si le second test échoue, ne pas recharger : appliquer immédiatement le rollback
-ci-dessous. Ne pas remplacer le lien `sites-enabled/kivou` s'il pointe déjà vers
-`sites-available/kivou`; le renommage conserve cette cible stable.
+ci-dessous. Si le reload échoue, restaurer également le snapshot puis tester de
+nouveau ; le processus nginx antérieur doit rester l'autorité. Ne pas remplacer
+le lien `sites-enabled/kivou` s'il pointe déjà vers `sites-available/kivou`; le
+renommage conserve cette cible stable.
 
 ### Preuve HTTP non mutante
 
