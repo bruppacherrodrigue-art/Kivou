@@ -255,9 +255,11 @@ La validation CI-équivalente locale donne :
 - frontend build : vert, avec l'avertissement de taille de chunk Vite déjà
   non bloquant ;
 - `systemd-analyze verify` : les deux unités valides sans avertissement ;
-- migration `0023` : downgrade/ré-upgrade SQLite et SQL PostgreSQL hors ligne
-  couverts par la matrice ciblée ;
-- revue indépendante finale : aucun constat Critical, Important ou Minor.
+- migrations `0023` et `0025` : downgrade/ré-upgrade SQLite et SQL PostgreSQL
+  hors ligne couverts par leurs matrices ciblées ;
+- revues indépendantes : aucun constat Critical ; les constats Important sur
+  la frontière CLI, l'émission post-commit, la procédure `0025` et la
+  construction du moteur ont été corrigés.
 
 Aucun script shell n'est ajouté ; `shellcheck` n'est pas installé localement et
 n'est pas applicable à ce changement. Aucun test n'a contacté un endpoint SMTP
