@@ -19,6 +19,7 @@ from signals.persistence.schema import (
     acquisition_runtime_lease,
     acquisition_runtime_observation,
     acquisition_runtime_stage,
+    acquisition_runtime_stage_attempt,
 )
 
 PREVIOUS = "0024_scheduled_plan_change"
@@ -29,6 +30,7 @@ RUNTIME_TABLES = {
     acquisition_runtime_observation.name,
     acquisition_runtime_cycle.name,
     acquisition_runtime_stage.name,
+    acquisition_runtime_stage_attempt.name,
 }
 
 
@@ -115,6 +117,8 @@ def test_acquisition_runtime_postgresql_sql_is_bounded_and_secret_free(capsys) -
         assert f"drop table {table_name}" in downgrade_sql
     assert "add column transport_recipient_identity" in upgrade_sql
     assert "add column transport_recipient_key_version" in upgrade_sql
+    assert "create index ix_campaign_member_transport_identity" in upgrade_sql
+    assert "drop index ix_campaign_member_transport_identity" in downgrade_sql
     assert "drop column transport_recipient_identity" in downgrade_sql
     for forbidden in (
         "raw_payload",

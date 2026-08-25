@@ -6,7 +6,9 @@ import datetime as dt
 import hashlib
 import json
 from collections.abc import Callable, Mapping
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
+from typing import Protocol
 
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
@@ -23,6 +25,12 @@ class AcquisitionRegistryConfigurationError(RuntimeError):
     """The local executable registry is incomplete or has unknown stages."""
 
 
+class RuntimeExecutionGuard(Protocol):
+    """Hold the durable runtime fence across one business side effect."""
+
+    def protect(self) -> AbstractContextManager[dt.datetime]: ...
+
+
 @dataclass(frozen=True)
 class AcquisitionActionContext:
     stage: AcquisitionRuntimeStage
@@ -30,6 +38,7 @@ class AcquisitionActionContext:
     cycle: RuntimeCycleSnapshot
     stage_snapshot: RuntimeStageSnapshot
     allow_qa_provider_mutations: bool
+    guard: RuntimeExecutionGuard
     at: dt.datetime
 
 
@@ -67,6 +76,7 @@ class AcquisitionActionRegistry:
         *,
         stage_snapshot: RuntimeStageSnapshot,
         allow_qa_provider_mutations: bool,
+        guard: RuntimeExecutionGuard | None,
         at: dt.datetime,
     ) -> RuntimeActionResult:
         observed_at = require_aware(at)
@@ -88,6 +98,11 @@ class AcquisitionActionRegistry:
                 status=RuntimeStageStatus.WAITING,
                 reason_codes=("QA_PROVIDER_MUTATION_NOT_AUTHORIZED",),
             )
+        if guard is None:
+            return RuntimeActionResult(
+                status=RuntimeStageStatus.BLOCKED,
+                reason_codes=("RUNTIME_FENCE_MISSING",),
+            )
         return self._handlers[stage](
             AcquisitionActionContext(
                 stage=stage,
@@ -95,6 +110,7 @@ class AcquisitionActionRegistry:
                 cycle=cycle,
                 stage_snapshot=stage_snapshot,
                 allow_qa_provider_mutations=allow_qa_provider_mutations,
+                guard=guard,
                 at=observed_at,
             )
         )
@@ -105,4 +121,5 @@ __all__ = [
     "AcquisitionActionHandler",
     "AcquisitionActionRegistry",
     "AcquisitionRegistryConfigurationError",
+    "RuntimeExecutionGuard",
 ]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from contextlib import contextmanager
 from dataclasses import replace
 from decimal import Decimal
 from types import SimpleNamespace
@@ -37,6 +38,7 @@ from signals.acquisition_runtime.domain import (
     SqlAcquisitionDomainTruth,
     deterministic_attempt_identity,
 )
+from signals.acquisition_runtime.registry import AcquisitionActionContext
 from signals.campaigns.contracts import (
     CampaignDeploymentBlocked,
     CampaignPacingExceeded,
@@ -56,12 +58,28 @@ QA_TRANSPORT_IDENTITY = "9" * 64
 QA_TRANSPORT_KEY_VERSION = "runtime-qa-v1"
 
 
+class FakeExecutionGuard:
+    def __init__(self, *times: dt.datetime) -> None:
+        self._times = iter(times or (NOW,))
+        self.checkpoints: list[dt.datetime] = []
+
+    @contextmanager
+    def protect(self):
+        try:
+            observed_at = next(self._times)
+        except StopIteration:
+            observed_at = self.checkpoints[-1]
+        self.checkpoints.append(observed_at)
+        yield observed_at
+
+
 def _context(
     stage: AcquisitionRuntimeStage,
     *,
     attempt: int = 1,
     allow_provider: bool = False,
-) -> SimpleNamespace:
+    guard: FakeExecutionGuard | None = None,
+) -> AcquisitionActionContext:
     cycle = RuntimeCycleSnapshot(
         cycle_ref="cycle-qa-001",
         opportunity_key="signal-qa-001",
@@ -85,12 +103,13 @@ def _context(
         estimated_cost=Decimal("0"),
         reason_codes=("QA_TEST",),
     )
-    return SimpleNamespace(
+    return AcquisitionActionContext(
         stage=stage,
         cycle=cycle,
         stage_snapshot=snapshot,
         proposal=proposal,
         allow_qa_provider_mutations=allow_provider,
+        guard=guard or FakeExecutionGuard(),
         at=NOW,
     )
 
@@ -203,9 +222,17 @@ class FakeTruth:
 class FakeApprovals:
     def __init__(self) -> None:
         self.calls: list[tuple[AcquisitionRuntimeStage, str | None]] = []
+        self.action_fingerprints: list[str | None] = []
 
-    def consume_for(self, context, *, opportunity_id):
+    def consume_for(
+        self,
+        context,
+        *,
+        opportunity_id,
+        action_fingerprint=None,
+    ):
         self.calls.append((context.stage, opportunity_id))
+        self.action_fingerprints.append(action_fingerprint)
         return ()
 
 
@@ -471,7 +498,10 @@ def test_full_domain_cycle_composes_each_existing_stage_without_network() -> Non
         ProviderOperationKind.ADD_LEAD,
     ]
     assert ProviderOperationKind.ACTIVATE_CAMPAIGN not in worker.calls
-    assert [stage for stage, _ in approvals.calls] == list(AcquisitionRuntimeStage)[1:9]
+    assert [stage for stage, _ in approvals.calls] == [
+        *list(AcquisitionRuntimeStage)[1:8],
+        *([AcquisitionRuntimeStage.PROVIDER_HANDOFF] * 4),
+    ]
     rendered = repr(tuple(outcome.result_refs for outcome in outcomes))
     assert "@" not in rendered
     assert "payload" not in rendered.casefold()
@@ -710,6 +740,52 @@ def test_retryable_provider_uses_fresh_deterministic_attempt_on_retry() -> None:
     assert authorizations.calls[0][1] != authorizations.calls[1][1]
 
 
+class StartedSupplier(FakeSupplierService):
+    def discover(self, *args, **kwargs):
+        self.calls += 1
+        return SimpleNamespace(
+            decision=SimpleNamespace(
+                executable=True,
+                status=PolicyStatus.APPROVED,
+            ),
+            run=SimpleNamespace(
+                status="STARTED",
+                started_at=NOW,
+                retry_after=None,
+                error_category=None,
+            ),
+            opportunity_ids=(),
+        )
+
+
+def test_started_apollo_run_reuses_same_attempt_until_bounded_deadline() -> None:
+    truth = FakeTruth()
+    supplier = StartedSupplier(truth)
+    authorizations = FakeAuthorizations()
+    actions, _, _ = _actions(truth)
+    actions._supplier = supplier
+    actions._authorizations = authorizations
+    context = _context(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY)
+
+    first = actions.discover_supplier(context)
+    replay = actions.discover_supplier(context)
+
+    assert first.disposition is KivouDomainDisposition.WAITING
+    assert first.replay_same_attempt is True
+    assert first.retry_at == NOW + dt.timedelta(minutes=1)
+    assert replay == first
+    assert authorizations.calls[0][1] == authorizations.calls[1][1]
+
+    exhausted = actions.discover_supplier(
+        _context(
+            AcquisitionRuntimeStage.SUPPLIER_DISCOVERY,
+            guard=FakeExecutionGuard(NOW + dt.timedelta(minutes=11)),
+        )
+    )
+    assert exhausted.disposition is KivouDomainDisposition.FAILED
+    assert exhausted.reason_codes == ("APOLLO_RUN_RECOVERY_EXHAUSTED",)
+
+
 class WaitingCampaignWorker(FakeCampaignWorker):
     def __init__(self, truth: FakeTruth, state: ProviderOperationState) -> None:
         super().__init__(truth)
@@ -767,6 +843,174 @@ def test_provider_429_or_timeout_state_waits_without_activation(
     assert outcome.disposition is KivouDomainDisposition.WAITING
     assert worker.calls == [ProviderOperationKind.CREATE_CAMPAIGN]
     assert ProviderOperationKind.ACTIVATE_CAMPAIGN not in worker.calls
+
+
+def test_provider_retry_after_waits_before_approval_or_worker_dispatch() -> None:
+    retry_at = NOW + dt.timedelta(minutes=5)
+    truth = FakeTruth()
+    truth.current_opportunity = OpportunityTruth(
+        opportunity_id="opportunity-qa-001",
+        state=AcquisitionState.SEND,
+        supplier_ref="supplier-qa-001",
+        contact_ref="contact-qa-001",
+        campaign_ref="campaign-qa-001",
+        decision=Decision.SEND,
+    )
+    truth.current_campaign = CampaignTruth(
+        campaign_ref="campaign-qa-001", member_ref="member-qa-001"
+    )
+    truth.operations = tuple(
+        ProviderOperationTruth(
+            operation_ref=f"operation-{kind.value.lower()}",
+            kind=kind,
+            state=(
+                ProviderOperationState.RETRYABLE_FAILED
+                if kind is ProviderOperationKind.CREATE_CAMPAIGN
+                else ProviderOperationState.PLANNED
+            ),
+            retry_at=(
+                retry_at
+                if kind is ProviderOperationKind.CREATE_CAMPAIGN
+                else None
+            ),
+        )
+        for kind in (
+            ProviderOperationKind.CREATE_CAMPAIGN,
+            ProviderOperationKind.CONFIGURE_CAMPAIGN,
+            ProviderOperationKind.ADD_LEAD,
+        )
+    )
+    actions, worker, approvals = _actions(truth)
+
+    outcome = actions.handoff_provider(
+        _context(AcquisitionRuntimeStage.PROVIDER_HANDOFF, allow_provider=True)
+    )
+
+    assert outcome.disposition is KivouDomainDisposition.WAITING
+    assert outcome.retry_at == retry_at
+    assert worker.calls == []
+    assert approvals.calls == []
+
+
+def test_provider_operations_receive_fresh_fenced_time_between_mutations() -> None:
+    truth = FakeTruth()
+    truth.current_opportunity = OpportunityTruth(
+        opportunity_id="opportunity-qa-001",
+        state=AcquisitionState.SEND,
+        supplier_ref="supplier-qa-001",
+        contact_ref="contact-qa-001",
+        campaign_ref="campaign-qa-001",
+        decision=Decision.SEND,
+    )
+    truth.current_campaign = CampaignTruth(
+        campaign_ref="campaign-qa-001", member_ref="member-qa-001"
+    )
+    truth.operations = tuple(
+        ProviderOperationTruth(
+            operation_ref=f"operation-{kind.value.lower()}",
+            kind=kind,
+            state=ProviderOperationState.PLANNED,
+        )
+        for kind in (
+            ProviderOperationKind.CREATE_CAMPAIGN,
+            ProviderOperationKind.CONFIGURE_CAMPAIGN,
+            ProviderOperationKind.ADD_LEAD,
+        )
+    )
+
+    class TimedWorker(FakeCampaignWorker):
+        def __init__(self, current_truth: FakeTruth) -> None:
+            super().__init__(current_truth)
+            self.times: list[dt.datetime] = []
+
+        def process(self, operation_ref: str, now: dt.datetime):
+            self.times.append(now)
+            return super().process(operation_ref, now)
+
+    times = tuple(NOW + dt.timedelta(seconds=index) for index in range(1, 5))
+    guard = FakeExecutionGuard(*times)
+    worker = TimedWorker(truth)
+    actions, _, _ = _actions(truth, worker=worker)
+
+    outcome = actions.handoff_provider(
+        _context(
+            AcquisitionRuntimeStage.PROVIDER_HANDOFF,
+            allow_provider=True,
+            guard=guard,
+        )
+    )
+
+    assert outcome.disposition is KivouDomainDisposition.COMPLETE
+    assert worker.times == list(times[-3:])
+    assert len(guard.checkpoints) == 4
+
+
+def test_provider_binding_drift_requires_a_new_approval_before_mutation() -> None:
+    truth = FakeTruth()
+    truth.current_opportunity = OpportunityTruth(
+        opportunity_id="opportunity-qa-001",
+        state=AcquisitionState.SEND,
+        supplier_ref="supplier-qa-001",
+        contact_ref="contact-qa-001",
+        campaign_ref="campaign-qa-001",
+        decision=Decision.SEND,
+    )
+    truth.current_campaign = CampaignTruth(
+        campaign_ref="campaign-qa-001", member_ref="member-qa-001"
+    )
+    truth.operations = tuple(
+        ProviderOperationTruth(
+            operation_ref=f"operation-{kind.value.lower()}",
+            kind=kind,
+            state=ProviderOperationState.PLANNED,
+            desired_request_fingerprint=f"{index}" * 64,
+        )
+        for index, kind in enumerate(
+            (
+                ProviderOperationKind.CREATE_CAMPAIGN,
+                ProviderOperationKind.CONFIGURE_CAMPAIGN,
+                ProviderOperationKind.ADD_LEAD,
+            ),
+            start=1,
+        )
+    )
+
+    class DriftApproval(FakeApprovals):
+        def consume_for(
+            self,
+            context,
+            *,
+            opportunity_id,
+            action_fingerprint=None,
+        ):
+            result = super().consume_for(
+                context,
+                opportunity_id=opportunity_id,
+                action_fingerprint=action_fingerprint,
+            )
+            if len(self.calls) == 1:
+                operations = list(truth.operations)
+                operations[0] = replace(
+                    operations[0],
+                    desired_request_fingerprint="9" * 64,
+                )
+                truth.operations = tuple(operations)
+                return result
+            raise DomainApprovalRequired
+
+    actions, worker, _ = _actions(truth)
+    approvals = DriftApproval()
+    actions._approvals = approvals
+
+    outcome = actions.handoff_provider(
+        _context(AcquisitionRuntimeStage.PROVIDER_HANDOFF, allow_provider=True)
+    )
+
+    assert outcome.disposition is KivouDomainDisposition.WAITING
+    assert outcome.reason_codes == ("HUMAN_APPROVAL_REQUIRED",)
+    assert len(approvals.action_fingerprints) == 2
+    assert approvals.action_fingerprints[0] != approvals.action_fingerprints[1]
+    assert worker.calls == []
 
 
 def test_provider_handoff_refuses_any_activation_operation() -> None:
@@ -916,7 +1160,8 @@ def _truth_database():
         (
             "CREATE TABLE acquisition_provider_operation ("
             "operation_ref TEXT PRIMARY KEY, kind TEXT, state TEXT, campaign_ref TEXT, "
-            "member_ref TEXT, created_at DATETIME)"
+            "member_ref TEXT, desired_request_fingerprint TEXT, retry_after DATETIME, "
+            "created_at DATETIME)"
         ),
         (
             "CREATE TABLE acquisition_response_evaluation ("
@@ -999,12 +1244,14 @@ def test_sql_truth_reads_only_current_durable_domain_refs() -> None:
             connection.execute(
                 sa.text(
                     "INSERT INTO acquisition_provider_operation VALUES "
-                    "(:ref, :kind, 'CONFIRMED', 'campaign-1', :member, :now)"
+                    "(:ref, :kind, 'CONFIRMED', 'campaign-1', :member, :fingerprint, "
+                    "NULL, :now)"
                 ),
                 {
                     "ref": f"operation-{index}",
                     "kind": kind.value,
                     "member": "member-1" if kind is ProviderOperationKind.ADD_LEAD else None,
+                    "fingerprint": f"{index}" * 64,
                     "now": NOW,
                 },
             )

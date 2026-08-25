@@ -145,7 +145,7 @@ class ApiConfig:
     alert_retry_base: dt.timedelta = DEFAULT_ALERT_RETRY_BASE
 
     # SPEC-026 — absent by default: the provider-specific route fails closed.
-    instantly_webhook_secret: str | None = None
+    instantly_webhook_secret: str | None = dataclasses.field(default=None, repr=False)
     instantly_webhook_workspace_ref: str | None = None
 
     # SPEC-028 — both absent by default. The secret is attribution integrity,

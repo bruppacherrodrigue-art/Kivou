@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+from collections.abc import Callable
 from enum import StrEnum
 from typing import Protocol
 
@@ -87,6 +88,7 @@ class CampaignWorker:
         deployment: CampaignDeploymentConfig,
         worker_ref: str,
         recipient_override: CampaignRecipientOverride | None = None,
+        clock: Callable[[], dt.datetime] | None = None,
     ) -> None:
         self._engine = engine
         self._provider = provider
@@ -94,6 +96,7 @@ class CampaignWorker:
         self._deployment = deployment
         self._worker_ref = worker_ref
         self._recipient_override = recipient_override
+        self._clock = clock
         self._store = CampaignStore(engine)
 
     def process(self, operation_ref: str, now: dt.datetime) -> ProviderOperationState:
@@ -102,10 +105,11 @@ class CampaignWorker:
             return existing.state
         if existing.state is ProviderOperationState.RECONCILE_REQUIRED:
             return self._reconcile(existing, now)
+        claim_at = self._now(now)
         claimed = self._store.claim_operation(
             operation_ref,
             worker_ref=self._worker_ref,
-            now=now,
+            now=claim_at,
             lease_seconds=60,
         )
         if (
@@ -117,18 +121,19 @@ class CampaignWorker:
             self._store.set_operation_state(
                 operation_ref,
                 ProviderOperationState.PLANNED,
-                now=now,
+                now=self._now(claim_at),
                 error_code="DEPENDENCY_NOT_CONFIRMED",
             )
             return ProviderOperationState.PLANNED
         remote_attempted = False
         try:
             if claimed.kind is ProviderOperationKind.CREATE_CAMPAIGN:
+                policy_at = self._now(claim_at)
                 self._service.require_provider_mutation(
                     claimed.kind,
                     claimed.campaign_ref,
                     member_ref=None,
-                    captured_at=now,
+                    captured_at=policy_at,
                 )
                 campaign, _, config = self._context(claimed.campaign_ref)
                 remote_attempted = True
@@ -149,17 +154,19 @@ class CampaignWorker:
                         InstantlyErrorCode.REMOTE_STATE_CONFLICT,
                         reconciliation_required=True,
                     )
+                post_policy_at = self._now(policy_at)
                 self._service.require_provider_mutation(
                     claimed.kind,
                     claimed.campaign_ref,
                     member_ref=None,
-                    captured_at=now,
+                    captured_at=post_policy_at,
                 )
+                persistence_at = self._now(post_policy_at)
                 self._store.bind_provider_campaign(
                     claimed.campaign_ref,
                     provider_campaign_id=remote.provider_campaign_id,
                     current_config_fingerprint=None,
-                    now=now,
+                    now=persistence_at,
                 )
                 result_fp = semantic_fingerprint(
                     {
@@ -171,16 +178,17 @@ class CampaignWorker:
                 self._store.set_operation_state(
                     operation_ref,
                     ProviderOperationState.CONFIRMED,
-                    now=now,
+                    now=self._now(persistence_at),
                     provider_identity=remote.provider_campaign_id,
                     provider_result_fingerprint=result_fp,
                 )
             elif claimed.kind is ProviderOperationKind.CONFIGURE_CAMPAIGN:
+                policy_at = self._now(claim_at)
                 self._service.require_provider_mutation(
                     claimed.kind,
                     claimed.campaign_ref,
                     member_ref=None,
-                    captured_at=now,
+                    captured_at=policy_at,
                 )
                 campaign, _, config = self._context(claimed.campaign_ref)
                 provider_id = campaign["provider_campaign_id"]
@@ -191,35 +199,38 @@ class CampaignWorker:
                     readback.normalized_config, config
                 ):
                     raise RuntimeError("provider campaign readback conflict")
+                post_policy_at = self._now(policy_at)
                 self._service.require_provider_mutation(
                     claimed.kind,
                     claimed.campaign_ref,
                     member_ref=None,
-                    captured_at=now,
+                    captured_at=post_policy_at,
                 )
+                persistence_at = self._now(post_policy_at)
                 self._store.bind_provider_campaign(
                     claimed.campaign_ref,
                     provider_campaign_id=provider_id,
                     current_config_fingerprint=campaign[
                         "desired_provider_config_fingerprint"
                     ],
-                    now=now,
+                    now=persistence_at,
                 )
                 self._store.set_operation_state(
                     operation_ref,
                     ProviderOperationState.CONFIRMED,
-                    now=now,
+                    now=self._now(persistence_at),
                     provider_identity=provider_id,
                     provider_result_fingerprint=campaign[
                         "desired_provider_config_fingerprint"
                     ],
                 )
             elif claimed.kind is ProviderOperationKind.ADD_LEAD:
+                policy_at = self._now(claim_at)
                 self._service.require_provider_mutation(
                     claimed.kind,
                     claimed.campaign_ref,
                     member_ref=claimed.member_ref,
-                    captured_at=now,
+                    captured_at=policy_at,
                 )
                 campaign, member, _ = self._context(
                     claimed.campaign_ref, member_ref=claimed.member_ref
@@ -266,39 +277,42 @@ class CampaignWorker:
                     }
                 )
                 try:
+                    post_policy_at = self._now(policy_at)
                     self._service.require_provider_mutation(
                         claimed.kind,
                         claimed.campaign_ref,
                         member_ref=claimed.member_ref,
-                        captured_at=now,
+                        captured_at=post_policy_at,
                     )
                 except CampaignInputChanged:
+                    persistence_at = self._now(post_policy_at)
                     self._service.stop_after_provider_exposure(
                         claimed.campaign_ref,
                         claimed.member_ref,
                         provider_lead_id=provider_lead_id,
                         binding_fingerprint=binding,
-                        captured_at=now,
+                        captured_at=persistence_at,
                     )
                     self._store.set_operation_state(
                         operation_ref,
                         ProviderOperationState.CONFIRMED,
-                        now=now,
+                        now=self._now(persistence_at),
                         provider_identity=provider_lead_id,
                         provider_result_fingerprint=binding,
                         error_code="POST_PROVIDER_AUTHORIZATION_CHANGED",
                     )
                     return ProviderOperationState.CONFIRMED
+                persistence_at = self._now(post_policy_at)
                 self._store.bind_provider_lead(
                     claimed.member_ref,
                     provider_lead_id=provider_lead_id,
                     binding_fingerprint=binding,
-                    now=now,
+                    now=persistence_at,
                 )
                 self._store.set_operation_state(
                     operation_ref,
                     ProviderOperationState.CONFIRMED,
-                    now=now,
+                    now=self._now(persistence_at),
                     provider_identity=provider_lead_id,
                     provider_result_fingerprint=binding,
                 )
@@ -404,6 +418,7 @@ class CampaignWorker:
             else:
                 raise RuntimeError("operation kind is not implemented by the scheduling worker")
         except InstantlyProviderError as error:
+            failure_at = self._now(claim_at)
             unknown_after_mutation = remote_attempted and error.code in {
                 InstantlyErrorCode.TIMEOUT,
                 InstantlyErrorCode.NETWORK,
@@ -424,7 +439,7 @@ class CampaignWorker:
             else:
                 state = ProviderOperationState.RETRYABLE_FAILED
             retry_after = (
-                now + dt.timedelta(seconds=error.retry_after_seconds)
+                failure_at + dt.timedelta(seconds=error.retry_after_seconds)
                 if state is ProviderOperationState.RETRYABLE_FAILED
                 and error.retry_after_seconds is not None
                 else None
@@ -432,12 +447,13 @@ class CampaignWorker:
             self._store.set_operation_state(
                 operation_ref,
                 state,
-                now=now,
+                now=failure_at,
                 error_code=error.code.value,
                 retry_after=retry_after,
             )
             return state
         except CampaignInputChanged:
+            failure_at = self._now(claim_at)
             if (
                 not remote_attempted
                 and claimed.kind is ProviderOperationKind.ADD_LEAD
@@ -446,7 +462,7 @@ class CampaignWorker:
                 self._service.stop_before_provider_exposure(
                     claimed.campaign_ref,
                     claimed.member_ref,
-                    captured_at=now,
+                    captured_at=failure_at,
                 )
             state = (
                 ProviderOperationState.RECONCILE_REQUIRED
@@ -456,7 +472,7 @@ class CampaignWorker:
             self._store.set_operation_state(
                 operation_ref,
                 state,
-                now=now,
+                now=failure_at,
                 error_code="CAMPAIGN_INPUT_CHANGED",
             )
             if remote_attempted and claimed.kind is ProviderOperationKind.ACTIVATE_CAMPAIGN:
@@ -469,10 +485,11 @@ class CampaignWorker:
                         "desired_provider_config_fingerprint"
                     ],
                     correlation_id=f"activation-drift:{claimed.campaign_ref}",
-                    now=now,
+                    now=self._now(failure_at),
                 )
             raise
         except Exception:
+            failure_at = self._now(claim_at)
             state = (
                 ProviderOperationState.RECONCILE_REQUIRED
                 if remote_attempted
@@ -481,11 +498,17 @@ class CampaignWorker:
             self._store.set_operation_state(
                 operation_ref,
                 state,
-                now=now,
+                now=failure_at,
                 error_code="REMOTE_STATE_CONFLICT",
             )
             raise
         return ProviderOperationState.CONFIRMED
+
+    def _now(self, fallback: dt.datetime) -> dt.datetime:
+        value = self._clock() if self._clock is not None else fallback
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError("campaign worker clock must be timezone-aware")
+        return value.astimezone(dt.UTC)
 
     def plan_step_2_release(self, campaign_ref: str, now: dt.datetime) -> str:
         """Create durable Step-2 release work only after the live safety check."""

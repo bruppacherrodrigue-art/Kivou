@@ -52,6 +52,20 @@ def base_environment(monkeypatch: pytest.MonkeyPatch, sqlite_url: str) -> None:
         "SMTP_HOST",
         "SMTP_FROM_EMAIL",
         "KIVOU_PUBLIC_APP_URL",
+        "KIVOU_INSTANTLY_WEBHOOK_SECRET",
+        "KIVOU_INSTANTLY_WORKSPACE_REF",
+        "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION",
+        "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY",
+        "KIVOU_INSTANTLY_WEBHOOK_RETAINED_FINGERPRINT_KEYS_JSON",
+        "KIVOU_SUPPRESSION_HMAC_KEY_VERSION",
+        "KIVOU_SUPPRESSION_HMAC_KEY",
+        "KIVOU_SUPPRESSION_RETAINED_KEYS_JSON",
+        "KIVOU_RESPONSE_SOURCE_HMAC_KEY_VERSION",
+        "KIVOU_RESPONSE_SOURCE_HMAC_KEY",
+        "KIVOU_RESPONSE_SOURCE_RETAINED_KEYS_JSON",
+        "KIVOU_RESPONSE_CONTENT_HMAC_KEY_VERSION",
+        "KIVOU_RESPONSE_CONTENT_HMAC_KEY",
+        "KIVOU_RESPONSE_CONTENT_RETAINED_KEYS_JSON",
     ):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("KIVOU_DATABASE_URL", sqlite_url)
@@ -147,6 +161,98 @@ def test_without_a_stripe_key_no_gateway_is_wired(base_environment):
     module = importlib.import_module(MODULE)
     app = module.build_application()
     assert app.state.stripe_gateway is None
+
+
+def test_without_webhook_crypto_no_instantly_ingress_is_wired(base_environment):
+    module = importlib.import_module(MODULE)
+    app = module.build_application()
+    assert app.state.instantly_webhook_service is None
+
+
+def test_partial_webhook_crypto_fails_application_construction(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("KIVOU_INSTANTLY_WEBHOOK_SECRET", "synthetic-partial-secret")
+    module = importlib.import_module(MODULE)
+    opened: list[bool] = []
+
+    def forbidden_engine(**_kwargs):
+        opened.append(True)
+        raise AssertionError("partial webhook configuration opened the database")
+
+    monkeypatch.setattr(module, "create_database_engine", forbidden_engine)
+    with pytest.raises(ValueError, match="WEBHOOK_NOT_CONFIGURED"):
+        module.build_application()
+    assert opened == []
+
+
+def test_build_application_wires_signed_spec027_safety_ingress_and_persists_finalized(
+    base_environment, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    from fastapi.testclient import TestClient
+    from test_campaign_webhooks import RECEIVED, _official_events, _queued
+    from test_campaign_worker import _ControlledRecipientOverride
+
+    from signals.persistence.schema import (
+        acquisition_provider_event,
+        acquisition_response_evaluation,
+    )
+
+    engine, _, _ = _queued(
+        tmp_path, recipient_override=_ControlledRecipientOverride()
+    )
+    values = {
+        "KIVOU_INSTANTLY_WEBHOOK_SECRET": "synthetic-route-secret",
+        "KIVOU_INSTANTLY_WORKSPACE_REF": "workspace:test",
+        "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION": "event-v1",
+        "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY": "synthetic-event-secret",
+        "KIVOU_SUPPRESSION_HMAC_KEY_VERSION": "key-v1",
+        "KIVOU_SUPPRESSION_HMAC_KEY": "campaign-test-key",
+        "KIVOU_RESPONSE_SOURCE_HMAC_KEY_VERSION": "source-v1",
+        "KIVOU_RESPONSE_SOURCE_HMAC_KEY": "synthetic-source-secret",
+        "KIVOU_RESPONSE_CONTENT_HMAC_KEY_VERSION": "content-v1",
+        "KIVOU_RESPONSE_CONTENT_HMAC_KEY": "synthetic-content-secret",
+    }
+    for name, value in values.items():
+        monkeypatch.setenv(name, value)
+    module = importlib.import_module(MODULE)
+    monkeypatch.setattr(module, "create_database_engine", lambda **_kwargs: engine)
+    monkeypatch.setattr(
+        "signals.api.routes_webhooks.request_now", lambda _request: RECEIVED
+    )
+    client = TestClient(module.build_application())
+    payload = {
+        **_official_events()["auto_reply_received"],
+        "lead_email": "qa-controlled@example.com",
+    }
+
+    rejected = client.post(
+        "/webhooks/instantly",
+        json=payload,
+        headers={"x-kivou-instantly-secret": "invalid-secret"},
+    )
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_provider_event)
+        ) == 0
+    accepted = client.post(
+        "/webhooks/instantly",
+        json=payload,
+        headers={"x-kivou-instantly-secret": values["KIVOU_INSTANTLY_WEBHOOK_SECRET"]},
+    )
+
+    assert rejected.status_code == 401
+    assert accepted.status_code == 200
+    with engine.connect() as connection:
+        event_count = connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_provider_event)
+        )
+        evaluation = connection.execute(
+            sa.select(acquisition_response_evaluation)
+        ).mappings().one()
+    assert event_count == 1
+    assert evaluation["processing_state"] == "FINALIZED"
+    assert evaluation["classification"] == "AUTO_REPLY"
 
 
 def test_a_configured_test_key_produces_a_gateway(

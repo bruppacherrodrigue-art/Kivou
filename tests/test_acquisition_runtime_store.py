@@ -101,6 +101,7 @@ def test_runtime_schema_is_bounded_and_contains_no_recipient_or_payload_fields()
         "observed_cost",
         "reason_codes",
         "retry_at",
+        "replay_same_attempt",
         "started_at",
         "completed_at",
         "updated_at",
@@ -112,7 +113,9 @@ def test_runtime_schema_is_bounded_and_contains_no_recipient_or_payload_fields()
         "status",
         "reserved_cost",
         "observed_cost",
+        "proposal",
         "retry_at",
+        "replay_same_attempt",
         "completed_at",
     }
     names = {
@@ -194,6 +197,38 @@ def test_expired_owner_cannot_mutate_after_fenced_lease_reclaim(tmp_path) -> Non
         at=reclaimed_at,
     )
     assert snapshot.status is RuntimeStageStatus.RUNNING
+
+
+def test_business_action_guard_rejects_old_generation_after_reclaim(tmp_path) -> None:
+    store = AcquisitionRuntimeStore(_engine(tmp_path))
+    original = store.acquire_lease(
+        "owner-a",
+        acquired_at=NOW,
+        lease_seconds=120,
+    )
+    assert original.fencing_token is not None
+    stale_guard = store.execution_guard(
+        "owner-a",
+        fencing_token=original.fencing_token,
+        lease_seconds=120,
+    )
+    current = store.acquire_lease(
+        "owner-b",
+        acquired_at=NOW + dt.timedelta(seconds=121),
+        lease_seconds=120,
+    )
+    assert current.fencing_token is not None
+
+    with pytest.raises(AcquisitionRuntimeConflict), stale_guard.protect():
+        raise AssertionError("stale fenced action must not start")
+
+    current_guard = store.execution_guard(
+        "owner-b",
+        fencing_token=current.fencing_token,
+        lease_seconds=120,
+    )
+    with current_guard.protect() as observed_at:
+        assert observed_at == NOW + dt.timedelta(seconds=121)
 
 
 def test_concurrent_lease_acquisition_has_exactly_one_owner(tmp_path) -> None:
@@ -401,6 +436,71 @@ def test_new_attempt_preserves_partial_result_references_for_resume(tmp_path) ->
     assert resumed.result_refs == ("supplier-run-001",)
 
 
+def test_indeterminate_provider_checkpoint_replays_same_attempt_and_cost(tmp_path) -> None:
+    store = AcquisitionRuntimeStore(_engine(tmp_path))
+    fence = _fence(store)
+    cycle = store.resume_or_create_cycle(
+        **fence,
+        opportunity_keys=("signal-001",),
+        config_fingerprint="3" * 64,
+        at=NOW,
+    )
+    stage = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
+    first = store.begin_stage(cycle.cycle_ref, stage, **fence, at=NOW)
+    reservation = store.reserve_stage_cost(
+        cycle.cycle_ref,
+        stage,
+        first,
+        Decimal("1"),
+        maximum_cycle_cost=Decimal("5"),
+        **fence,
+        at=NOW,
+    )
+    assert reservation.created is True
+    store.finish_stage(
+        cycle.cycle_ref,
+        stage,
+        RuntimeActionResult(
+            status=RuntimeStageStatus.WAITING,
+            reserved_cost=Decimal("1"),
+            reason_codes=("SUPPLIER_PROVIDER_INDETERMINATE",),
+            retry_at=NOW + dt.timedelta(minutes=1),
+            replay_same_attempt=True,
+        ),
+        **fence,
+        at=NOW,
+    )
+
+    deferred = store.begin_stage(
+        cycle.cycle_ref,
+        stage,
+        **fence,
+        at=NOW + dt.timedelta(seconds=30),
+    )
+    replay = store.begin_stage(
+        cycle.cycle_ref,
+        stage,
+        **fence,
+        at=NOW + dt.timedelta(minutes=1),
+    )
+    replay_reservation = store.reserve_stage_cost(
+        cycle.cycle_ref,
+        stage,
+        replay,
+        Decimal("1"),
+        maximum_cycle_cost=Decimal("5"),
+        **fence,
+        at=NOW + dt.timedelta(minutes=1),
+    )
+
+    assert deferred.status is RuntimeStageStatus.WAITING
+    assert deferred.replay_same_attempt is True
+    assert replay.status is RuntimeStageStatus.RUNNING
+    assert replay.attempt_ref == first.attempt_ref
+    assert replay_reservation.created is False
+    assert replay_reservation.total_cycle_cost == Decimal("1")
+
+
 def test_retry_attempt_costs_are_immutable_and_cumulative(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
     fence = _fence(store)
@@ -458,6 +558,73 @@ def test_retry_attempt_costs_are_immutable_and_cumulative(tmp_path) -> None:
     assert [row["status"] for row in attempts] == ["WAITING", "SUCCEEDED"]
 
 
+def test_running_cost_three_reservation_replays_without_double_count(tmp_path) -> None:
+    store = AcquisitionRuntimeStore(_engine(tmp_path))
+    fence = _fence(store)
+    cycle = store.resume_or_create_cycle(
+        **fence,
+        opportunity_keys=("signal-001",),
+        config_fingerprint="8" * 64,
+        at=NOW,
+    )
+    stage = AcquisitionRuntimeStage.CONTACT_DISCOVERY
+    snapshot = store.begin_stage(cycle.cycle_ref, stage, **fence, at=NOW)
+    first = store.reserve_stage_cost(
+        cycle.cycle_ref,
+        stage,
+        snapshot,
+        Decimal("3"),
+        maximum_cycle_cost=Decimal("5"),
+        **fence,
+        at=NOW,
+    )
+    proposal = RuntimeProposal(
+        plan_ref="plan-contact-001",
+        action_index=0,
+        command=stage.command,
+        target_ref=cycle.cycle_ref,
+        argument_fingerprint="8" * 64,
+        estimated_cost=Decimal("3"),
+        reason_codes=("QA_RUNTIME_STEP",),
+    )
+    store.bind_stage_proposal(
+        cycle.cycle_ref,
+        stage,
+        snapshot,
+        proposal,
+        **fence,
+        at=NOW,
+    )
+
+    replay_snapshot = store.begin_stage(
+        cycle.cycle_ref,
+        stage,
+        **fence,
+        at=NOW + dt.timedelta(seconds=1),
+    )
+    replay = store.reserve_stage_cost(
+        cycle.cycle_ref,
+        stage,
+        replay_snapshot,
+        Decimal("3"),
+        maximum_cycle_cost=Decimal("5"),
+        **fence,
+        at=NOW + dt.timedelta(seconds=1),
+    )
+
+    assert first.created is True
+    assert first.total_cycle_cost == Decimal("3")
+    assert replay.created is False
+    assert replay.total_cycle_cost == Decimal("3")
+    assert replay.proposal == proposal
+    with store.engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(
+                acquisition_runtime_stage_attempt
+            )
+        ) == 1
+
+
 def test_crash_after_business_commit_before_runtime_checkpoint_reuses_attempt(
     tmp_path,
 ) -> None:
@@ -490,9 +657,10 @@ def test_crash_after_business_commit_before_runtime_checkpoint_reuses_attempt(
             *,
             stage_snapshot,
             allow_qa_provider_mutations,
+            guard,
             at,
         ):
-            del stage, proposal, cycle, allow_qa_provider_mutations, at
+            del stage, proposal, cycle, allow_qa_provider_mutations, guard, at
             attempt_ref = stage_snapshot.attempt_ref
             observed_attempts.append(attempt_ref)
             if attempt_ref not in committed_attempts:

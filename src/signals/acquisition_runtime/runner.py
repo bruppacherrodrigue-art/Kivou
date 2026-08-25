@@ -20,17 +20,28 @@ from signals.acquisition_runtime.contracts import (
     RuntimeRunRequest,
     RuntimeRunResult,
     RuntimeRunStatus,
+    RuntimeStageReservation,
     RuntimeStageSnapshot,
     RuntimeStageStatus,
     require_aware,
 )
 from signals.acquisition_runtime.events import emit_acquisition_runtime_event
+from signals.acquisition_runtime.registry import RuntimeExecutionGuard
+from signals.acquisition_runtime.supervisor import KIVOU_STAGE_COSTS
 
 
 class RuntimeCycleStore(Protocol):
     def acquire_lease(
         self, owner_ref: str, *, acquired_at: dt.datetime, lease_seconds: int
     ) -> RuntimeLeaseResult: ...
+
+    def execution_guard(
+        self,
+        owner_ref: str,
+        *,
+        fencing_token: int,
+        lease_seconds: int,
+    ) -> RuntimeExecutionGuard: ...
 
     def resume_or_create_cycle(
         self,
@@ -87,12 +98,25 @@ class RuntimeCycleStore(Protocol):
         cycle_ref: str,
         stage: AcquisitionRuntimeStage,
         stage_snapshot: RuntimeStageSnapshot,
+        reserved_cost: Decimal,
+        *,
+        maximum_cycle_cost: Decimal,
+        owner_ref: str,
+        fencing_token: int,
+        at: dt.datetime,
+    ) -> RuntimeStageReservation: ...
+
+    def bind_stage_proposal(
+        self,
+        cycle_ref: str,
+        stage: AcquisitionRuntimeStage,
+        stage_snapshot: RuntimeStageSnapshot,
         proposal: RuntimeProposal,
         *,
         owner_ref: str,
         fencing_token: int,
         at: dt.datetime,
-    ) -> None: ...
+    ) -> RuntimeProposal: ...
 
     def heartbeat_lease(
         self,
@@ -143,6 +167,7 @@ class RuntimeActionRegistry(Protocol):
         *,
         stage_snapshot: RuntimeStageSnapshot,
         allow_qa_provider_mutations: bool,
+        guard: RuntimeExecutionGuard,
         at: dt.datetime,
     ) -> RuntimeActionResult: ...
 
@@ -192,6 +217,11 @@ class AcquisitionRuntimeRunner:
             return RuntimeRunResult(status=RuntimeRunStatus.ALREADY_RUNNING)
         assert lease.fencing_token is not None
         fencing_token = lease.fencing_token
+        execution_guard = self.store.execution_guard(
+            request.owner_ref,
+            fencing_token=fencing_token,
+            lease_seconds=self._lease_seconds,
+        )
         self._event(
             action="lease",
             status="started",
@@ -368,17 +398,7 @@ class AcquisitionRuntimeRunner:
                     attempt=stage_snapshot.attempt_count,
                 )
                 proposal: RuntimeProposal | None = None
-                remaining_cost = self._maximum_cost - spent
-                if remaining_cost <= 0 and current_stage in {
-                    AcquisitionRuntimeStage.SUPPLIER_DISCOVERY,
-                    AcquisitionRuntimeStage.CONTACT_DISCOVERY,
-                    AcquisitionRuntimeStage.COMPANY_RESEARCH,
-                }:
-                    action_result = RuntimeActionResult(
-                        status=RuntimeStageStatus.BLOCKED,
-                        reason_codes=("CYCLE_BUDGET_EXCEEDED",),
-                    )
-                elif (
+                if (
                     current_stage is AcquisitionRuntimeStage.PROVIDER_HANDOFF
                     and not request.allow_qa_provider_mutations
                 ):
@@ -394,12 +414,12 @@ class AcquisitionRuntimeRunner:
                             "spent_cost": spent,
                         }
                     )
-                    proposal, action_result = self._execute_stage(
+                    proposal, action_result, spent = self._execute_stage(
                         current_stage,
                         stage_cycle,
                         stage_snapshot=stage_snapshot,
-                        remaining_cost=remaining_cost,
                         request=request,
+                        execution_guard=execution_guard,
                         fencing_token=fencing_token,
                         at=now,
                     )
@@ -427,10 +447,6 @@ class AcquisitionRuntimeRunner:
                     action_result,
                 )
                 if action_result.status is RuntimeStageStatus.SUCCEEDED:
-                    spent += max(
-                        action_result.reserved_cost,
-                        action_result.observed_cost,
-                    )
                     continue
                 stopped = self._stop_result(
                     cycle.cycle_ref,
@@ -594,14 +610,55 @@ class AcquisitionRuntimeRunner:
         cycle: RuntimeCycleSnapshot,
         *,
         stage_snapshot: RuntimeStageSnapshot,
-        remaining_cost: Decimal,
         request: RuntimeRunRequest,
+        execution_guard: RuntimeExecutionGuard,
         fencing_token: int,
         at: dt.datetime,
-    ) -> tuple[RuntimeProposal, RuntimeActionResult]:
-        proposal = self.supervisor.propose(
-            stage, cycle, remaining_cost=remaining_cost, at=at
+    ) -> tuple[RuntimeProposal | None, RuntimeActionResult, Decimal]:
+        envelope = KIVOU_STAGE_COSTS[stage]
+        reservation = self.store.reserve_stage_cost(
+            cycle.cycle_ref,
+            stage,
+            stage_snapshot,
+            envelope,
+            maximum_cycle_cost=self._maximum_cost,
+            owner_ref=request.owner_ref,
+            fencing_token=fencing_token,
+            at=at,
         )
+        if not reservation.accepted:
+            return (
+                None,
+                RuntimeActionResult(
+                    status=RuntimeStageStatus.BLOCKED,
+                    reason_codes=("CYCLE_BUDGET_EXCEEDED",),
+                ),
+                reservation.total_cycle_cost,
+            )
+        remaining_before_current = (
+            self._maximum_cost
+            - reservation.total_cycle_cost
+            + reservation.reserved_cost
+        )
+        proposal = reservation.proposal
+        if proposal is None:
+            proposal = self.supervisor.propose(
+                stage,
+                cycle.model_copy(
+                    update={"spent_cost": reservation.total_cycle_cost}
+                ),
+                remaining_cost=remaining_before_current,
+                at=at,
+            )
+            proposal = self.store.bind_stage_proposal(
+                cycle.cycle_ref,
+                stage,
+                stage_snapshot,
+                proposal,
+                owner_ref=request.owner_ref,
+                fencing_token=fencing_token,
+                at=at,
+            )
         if proposal.command != stage.command:
             return (
                 proposal,
@@ -609,33 +666,27 @@ class AcquisitionRuntimeRunner:
                     status=RuntimeStageStatus.BLOCKED,
                     reason_codes=("SUPERVISOR_ACTION_MISMATCH",),
                 ),
+                reservation.total_cycle_cost,
             )
-        if proposal.estimated_cost > remaining_cost:
+        if proposal.estimated_cost != envelope:
             return (
                 proposal,
                 RuntimeActionResult(
                     status=RuntimeStageStatus.BLOCKED,
                     reason_codes=("CYCLE_BUDGET_EXCEEDED",),
                 ),
+                reservation.total_cycle_cost,
             )
-        self.store.reserve_stage_cost(
-            cycle.cycle_ref,
-            stage,
-            stage_snapshot,
-            proposal,
-            owner_ref=request.owner_ref,
-            fencing_token=fencing_token,
-            at=at,
-        )
         result = self.registry.execute(
             stage,
             proposal,
             cycle,
             stage_snapshot=stage_snapshot,
             allow_qa_provider_mutations=request.allow_qa_provider_mutations,
+            guard=execution_guard,
             at=at,
         )
-        if result.observed_cost > remaining_cost:
+        if result.observed_cost > remaining_before_current:
             return (
                 proposal,
                 result.model_copy(
@@ -645,10 +696,17 @@ class AcquisitionRuntimeRunner:
                         "reason_codes": ("OBSERVED_CYCLE_COST_EXCEEDED",),
                     }
                 ),
+                reservation.total_cycle_cost,
             )
         return (
             proposal,
             result.model_copy(update={"reserved_cost": proposal.estimated_cost}),
+            max(
+                reservation.total_cycle_cost,
+                reservation.total_cycle_cost
+                - reservation.reserved_cost
+                + result.observed_cost,
+            ),
         )
 
     def _stop_result(

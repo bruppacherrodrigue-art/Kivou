@@ -40,6 +40,12 @@ from signals.acquisition_runtime.execution import (
     build_runtime_execution_composition,
     load_runtime_link_config,
 )
+from signals.campaigns.runtime_webhook import (
+    InstantlyWebhookRuntimeConfiguration,
+    build_instantly_webhook_service,
+)
+from signals.campaigns.webhooks import WebhookFingerprintKeyring
+from signals.compliance.suppression import SuppressionIdentityKeyring
 from signals.persistence.database import create_database_engine
 from signals.persistence.schema import (
     METADATA,
@@ -53,6 +59,7 @@ from signals.persistence.schema import (
     policy_evaluation,
 )
 from signals.policy.store import PolicyStore
+from signals.responses.contracts import ContentFingerprintKeyring
 from signals.supervisor.contracts import ProposedAction, SupervisorPlan
 from signals.supervisor.pin import load_hermes_pin
 from signals.supervisor.profile import PROFILE_VERSION
@@ -234,6 +241,31 @@ def _links() -> RuntimeLinkConfiguration:
     )
 
 
+def _webhook_configuration(
+    *, workspace: str = "workspace-qa"
+) -> InstantlyWebhookRuntimeConfiguration:
+    return InstantlyWebhookRuntimeConfiguration(
+        provider_webhook_secret="synthetic-webhook-route-secret",
+        provider_workspace_ref=workspace,
+        fingerprint_keyring=WebhookFingerprintKeyring(
+            current_key_version="event-v1",
+            keys={"event-v1": b"synthetic-event-secret"},
+        ),
+        suppression_keyring=SuppressionIdentityKeyring(
+            current_key_version="suppression-v1",
+            keys={"suppression-v1": b"synthetic-suppression-secret"},
+        ),
+        response_source_keyring=ContentFingerprintKeyring(
+            current_key_version="source-v1",
+            keys={"source-v1": b"synthetic-source-secret"},
+        ),
+        response_content_keyring=ContentFingerprintKeyring(
+            current_key_version="content-v1",
+            keys={"content-v1": b"synthetic-content-secret"},
+        ),
+    )
+
+
 def test_execute_runtime_run_once_has_the_closed_cli_signature() -> None:
     assert tuple(inspect.signature(execute_runtime_run_once).parameters) == (
         "allow_qa_provider_mutations",
@@ -294,7 +326,7 @@ def test_production_dependency_probe_reports_real_bounded_component_readiness(
         instantly_provider=instantly,
         connectivity=_connectivity_config(tmp_path),
         hermes_runtime=ClosedFakeHermes(),
-        webhook_ready=True,
+        webhook_configuration=_webhook_configuration(),
     )
 
     dependencies = probe.check(observed_at=NOW)
@@ -315,7 +347,7 @@ def test_production_dependency_probe_keeps_provider_failures_component_scoped(
         instantly_provider=ProbeInstantlyProvider(mailbox_ready=False),
         connectivity=_connectivity_config(tmp_path),
         hermes_runtime=ClosedFakeHermes(),
-        webhook_ready=False,
+        webhook_configuration=None,
     )
 
     dependencies = {
@@ -347,12 +379,14 @@ def test_default_root_composition_constructs_real_domains_without_network(
         company_research=provider,
         identity=provider,
     )
+    webhook_configuration = _webhook_configuration()
 
     composition = build_runtime_execution_composition(
         engine=engine,
         runtime_config=_runtime_config(),
         connectivity_config=_connectivity_config(tmp_path),
         links=_links(),
+        webhook_configuration=webhook_configuration,
         apollo=apollo,
         instantly_provider=provider,
         hermes_runtime=ClosedFakeHermes(),
@@ -368,6 +402,17 @@ def test_default_root_composition_constructs_real_domains_without_network(
     assert len(composition.config_fingerprint) == 64
     assert QA_RECIPIENT not in repr(composition)
     assert QA_KEY not in repr(composition)
+    expected_identity = webhook_configuration.suppression_keyring.identities_for_email(
+        QA_RECIPIENT
+    )[webhook_configuration.suppression_keyring.current_key_version]
+    assert composition.domain.actions._qa_transport_binding == (
+        expected_identity,
+        webhook_configuration.suppression_keyring.current_key_version,
+    )
+    api_ingress = build_instantly_webhook_service(engine, webhook_configuration)
+    assert api_ingress._suppression_keyring.identities_for_email(QA_RECIPIENT)[
+        webhook_configuration.suppression_keyring.current_key_version
+    ] == expected_identity
     engine.dispose()
 
 
@@ -385,6 +430,7 @@ def test_policy_window_changes_do_not_change_durable_cycle_identity(tmp_path) ->
         "runtime_config": _runtime_config(),
         "connectivity_config": _connectivity_config(tmp_path),
         "links": _links(),
+        "webhook_configuration": _webhook_configuration(),
         "apollo": apollo,
         "instantly_provider": provider,
         "hermes_runtime": ClosedFakeHermes(),
@@ -438,6 +484,7 @@ def test_runtime_scope_must_equal_the_live_operator_policy_scope(tmp_path) -> No
             runtime_config=mismatched,
             connectivity_config=_connectivity_config(tmp_path),
             links=_links(),
+            webhook_configuration=_webhook_configuration(),
             apollo=apollo,
             instantly_provider=provider,
             hermes_runtime=ClosedFakeHermes(),
@@ -478,6 +525,7 @@ def test_fake_full_cycle_uses_real_store_registry_runner_and_closed_supervisor(
         runtime_config=_runtime_config(),
         connectivity_config=_connectivity_config(tmp_path),
         links=_links(),
+        webhook_configuration=_webhook_configuration(),
         apollo=apollo,
         instantly_provider=provider,
         hermes_runtime=hermes,
@@ -497,4 +545,34 @@ def test_fake_full_cycle_uses_real_store_registry_runner_and_closed_supervisor(
     assert executed == list(AcquisitionRuntimeStage)
     assert hermes.commands == [stage.command for stage in AcquisitionRuntimeStage]
     assert composition.store.read_runtime_observation() is not None
+    engine.dispose()
+
+
+def test_runtime_rejects_webhook_workspace_different_from_provider_workspace(
+    tmp_path,
+) -> None:
+    engine = _engine()
+    provider = NoNetworkProvider()
+    apollo = ApolloComponents(
+        organization_search=provider,
+        contact_discovery=provider,
+        company_research=provider,
+        identity=provider,
+    )
+
+    with pytest.raises(RuntimeExecutionConfigurationError) as error:
+        build_runtime_execution_composition(
+            engine=engine,
+            runtime_config=_runtime_config(),
+            connectivity_config=_connectivity_config(tmp_path),
+            links=_links(),
+            webhook_configuration=_webhook_configuration(
+                workspace="workspace-other"
+            ),
+            apollo=apollo,
+            instantly_provider=provider,
+            hermes_runtime=ClosedFakeHermes(),
+            clock=lambda: NOW,
+        )
+    assert error.value.code == "WEBHOOK_INGRESS_NOT_CONFIGURED"
     engine.dispose()

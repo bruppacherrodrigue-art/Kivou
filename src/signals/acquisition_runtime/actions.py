@@ -51,6 +51,7 @@ class KivouDomainOutcome(BaseModel):
     observed_cost: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("50"))
     reason_codes: tuple[MachineCode, ...] = Field(default=(), max_length=16)
     retry_at: dt.datetime | None = None
+    replay_same_attempt: bool = False
 
     @model_validator(mode="after")
     def require_machine_reason_for_non_complete(self) -> KivouDomainOutcome:
@@ -64,6 +65,13 @@ class KivouDomainOutcome(BaseModel):
                 raise ValueError("domain retry_at must be timezone-aware")
             if self.disposition is not KivouDomainDisposition.WAITING:
                 raise ValueError("only a waiting domain outcome can carry retry_at")
+        if self.replay_same_attempt and (
+            self.disposition is not KivouDomainDisposition.WAITING
+            or self.retry_at is None
+        ):
+            raise ValueError(
+                "same-attempt replay requires one bounded waiting deadline"
+            )
         return self
 
     def to_runtime_result(self) -> RuntimeActionResult:
@@ -74,6 +82,7 @@ class KivouDomainOutcome(BaseModel):
             observed_cost=self.observed_cost,
             reason_codes=self.reason_codes,
             retry_at=self.retry_at,
+            replay_same_attempt=self.replay_same_attempt,
         )
 
 

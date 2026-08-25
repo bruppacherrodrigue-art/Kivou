@@ -168,7 +168,13 @@ class FakeInstantly:
         return {"id": provider_lead_id, "status": 2}
 
 
-def _planned(tmp_path, *, recipient_override=None, **provider_options):
+def _planned(
+    tmp_path,
+    *,
+    recipient_override=None,
+    worker_clock=None,
+    **provider_options,
+):
     engine, opportunity_id, _, _ = _prepared(tmp_path)
     PolicyStore(engine).append_control(
         control(
@@ -222,8 +228,50 @@ def _planned(tmp_path, *, recipient_override=None, **provider_options):
         deployment=deployment,
         worker_ref="worker:test",
         recipient_override=recipient_override,
+        clock=worker_clock,
     )
     return engine, opportunity_id, service, provider, worker, result
+
+
+def test_runtime_worker_refreshes_clock_before_claim_and_policy_checks(tmp_path) -> None:
+    instants = iter(
+        NOW + dt.timedelta(seconds=offset)
+        for offset in range(10, 30)
+    )
+    engine, _, service, _, worker, _ = _planned(
+        tmp_path,
+        worker_clock=lambda: next(instants),
+    )
+    observed: list[dt.datetime] = []
+    original = service.require_provider_mutation
+
+    def capture(*args, captured_at, **kwargs):
+        observed.append(captured_at)
+        return original(*args, captured_at=captured_at, **kwargs)
+
+    service.require_provider_mutation = capture
+    operation_ref = _operation(
+        engine,
+        ProviderOperationKind.CREATE_CAMPAIGN,
+    )["operation_ref"]
+
+    state = worker.process(operation_ref, NOW)
+
+    assert state is ProviderOperationState.CONFIRMED
+    assert observed == [
+        NOW + dt.timedelta(seconds=11),
+        NOW + dt.timedelta(seconds=12),
+    ]
+    with engine.connect() as connection:
+        operation = connection.execute(
+            sa.select(acquisition_provider_operation).where(
+                acquisition_provider_operation.c.operation_ref == operation_ref
+            )
+        ).mappings().one()
+    assert operation["started_at"].replace(tzinfo=dt.UTC) == (
+        NOW + dt.timedelta(seconds=10)
+    )
+    assert operation["confirmed_at"].replace(tzinfo=dt.UTC) > observed[-1]
 
 
 class _ControlledRecipientOverride:

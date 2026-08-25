@@ -6,7 +6,7 @@ import datetime as dt
 import hashlib
 import hmac
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Protocol
 from zoneinfo import ZoneInfo
@@ -81,7 +81,7 @@ def validate_webhook_subscription(
 @dataclass(frozen=True)
 class WebhookFingerprintKeyring:
     current_key_version: str
-    keys: dict[str, bytes]
+    keys: dict[str, bytes] = field(repr=False)
 
     def __post_init__(self) -> None:
         if self.current_key_version not in self.keys or not self.keys[self.current_key_version]:
@@ -273,26 +273,56 @@ class InstantlyWebhookService:
             member = None
             if payload.lead_email_transient is not None:
                 normalized = payload.lead_email_transient
-                candidates = connection.execute(
-                    sa.select(
-                        acquisition_campaign_member,
-                        acquisition_contact.c.business_email.label(
-                            "discovered_business_email"
-                        ),
-                    )
-                    .join(
-                        acquisition_contact,
-                        acquisition_contact.c.contact_ref
-                        == acquisition_campaign_member.c.contact_ref,
-                    )
-                    .where(
-                        acquisition_campaign_member.c.campaign_ref
-                        == campaign["campaign_ref"]
-                    )
-                ).mappings().all()
                 identities = self._suppression_keyring.identities_for_email(
                     normalized
                 )
+                transport_bindings = tuple(
+                    sa.and_(
+                        acquisition_campaign_member.c.transport_recipient_key_version
+                        == version,
+                        acquisition_campaign_member.c.transport_recipient_identity
+                        == identity,
+                    )
+                    for version, identity in identities.items()
+                )
+                candidates = connection.execute(
+                    sa.select(acquisition_campaign_member)
+                    .where(
+                        acquisition_campaign_member.c.campaign_ref
+                        == campaign["campaign_ref"],
+                        sa.or_(*transport_bindings),
+                    )
+                    .limit(2)
+                ).mappings().all()
+                if not candidates:
+                    candidates = connection.execute(
+                        sa.select(
+                            acquisition_campaign_member,
+                            acquisition_contact.c.business_email.label(
+                                "discovered_business_email"
+                            ),
+                        )
+                        .join(
+                            acquisition_contact,
+                            acquisition_contact.c.contact_ref
+                            == acquisition_campaign_member.c.contact_ref,
+                        )
+                        .where(
+                            acquisition_campaign_member.c.campaign_ref
+                            == campaign["campaign_ref"],
+                            acquisition_campaign_member.c.transport_recipient_identity.is_(
+                                None
+                            ),
+                            acquisition_campaign_member.c.transport_recipient_key_version.is_(
+                                None
+                            ),
+                            sa.func.lower(
+                                sa.func.trim(acquisition_contact.c.business_email)
+                            )
+                            == normalized,
+                        )
+                        .limit(2)
+                    ).mappings().all()
                 matching = [
                     candidate
                     for candidate in candidates

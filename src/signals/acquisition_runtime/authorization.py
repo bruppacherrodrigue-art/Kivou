@@ -246,8 +246,8 @@ class AcquisitionRuntimeApprovalStore:
                 acquisition_runtime_approval.c.expires_at > observed_at,
             )
         statement = statement.order_by(
-            acquisition_runtime_approval.c.requested_at,
-            acquisition_runtime_approval.c.approval_id,
+            acquisition_runtime_approval.c.requested_at.desc(),
+            acquisition_runtime_approval.c.approval_id.desc(),
         ).limit(limit)
         with self.engine.connect() as connection:
             return tuple(

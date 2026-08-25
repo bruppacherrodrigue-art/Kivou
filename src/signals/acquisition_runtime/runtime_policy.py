@@ -503,6 +503,7 @@ class DurableRuntimeApprovalProvider:
         context: AcquisitionActionContext,
         *,
         opportunity_id: str | None,
+        action_fingerprint: str | None = None,
     ) -> tuple[ApprovalGrant, ...]:
         if context.stage not in _APPROVAL_STAGES:
             return ()
@@ -510,7 +511,11 @@ class DurableRuntimeApprovalProvider:
             raise RuntimePolicyConfigurationError("APPROVAL_TARGET_MISSING")
         control = self._policy.get_effective_control(require_aware(context.at))
         scope = _exact_scope(control)
-        action = self._approval_action(context, opportunity_id=opportunity_id)
+        action = self._approval_action(
+            context,
+            opportunity_id=opportunity_id,
+            explicit_action_fingerprint=action_fingerprint,
+        )
         if action is None:
             return ()
         target_ref, action_fingerprint = action
@@ -554,11 +559,20 @@ class DurableRuntimeApprovalProvider:
         context: AcquisitionActionContext,
         *,
         opportunity_id: str,
+        explicit_action_fingerprint: str | None,
     ) -> tuple[str, str] | None:
         if context.stage is AcquisitionRuntimeStage.PROVIDER_HANDOFF:
+            if explicit_action_fingerprint is None:
+                raise RuntimePolicyConfigurationError(
+                    "PROVIDER_APPROVAL_BINDING_MISSING"
+                )
             return (
                 f"acquisition-opportunity:{opportunity_id}",
-                context.proposal.argument_fingerprint,
+                explicit_action_fingerprint,
+            )
+        if explicit_action_fingerprint is not None:
+            raise RuntimePolicyConfigurationError(
+                "UNEXPECTED_APPROVAL_BINDING"
             )
         with self._engine.connect() as connection:
             row = connection.execute(

@@ -240,6 +240,7 @@ def upgrade() -> None:
         sa.Column("observed_cost", sa.Numeric(12, 6), nullable=False),
         sa.Column("reason_codes", sa.JSON, nullable=False),
         sa.Column("retry_at", sa.DateTime(timezone=True)),
+        sa.Column("replay_same_attempt", sa.Boolean(), nullable=False),
         sa.Column("started_at", sa.DateTime(timezone=True)),
         sa.Column("completed_at", sa.DateTime(timezone=True)),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -276,6 +277,11 @@ def upgrade() -> None:
             "retry_at IS NULL OR status = 'WAITING'",
             name="ck_acquisition_runtime_stage_retry",
         ),
+        sa.CheckConstraint(
+            "replay_same_attempt IS FALSE OR "
+            "(status = 'WAITING' AND retry_at IS NOT NULL)",
+            name="ck_acquisition_runtime_stage_replay",
+        ),
     )
     op.create_index(
         "ix_acquisition_runtime_stage_status",
@@ -295,7 +301,9 @@ def upgrade() -> None:
         sa.Column("status", sa.String(16), nullable=False),
         sa.Column("reserved_cost", sa.Numeric(12, 6), nullable=False),
         sa.Column("observed_cost", sa.Numeric(12, 6), nullable=False),
+        sa.Column("proposal", sa.JSON()),
         sa.Column("retry_at", sa.DateTime(timezone=True)),
+        sa.Column("replay_same_attempt", sa.Boolean(), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True)),
         sa.CheckConstraint(
             "stage IN ('SIGNAL_SEED', 'SUPPLIER_DISCOVERY', 'CONTACT_DISCOVERY', "
@@ -326,6 +334,11 @@ def upgrade() -> None:
             "retry_at IS NULL OR status = 'WAITING'",
             name="ck_acquisition_runtime_attempt_retry",
         ),
+        sa.CheckConstraint(
+            "replay_same_attempt IS FALSE OR "
+            "(status = 'WAITING' AND retry_at IS NOT NULL)",
+            name="ck_acquisition_runtime_attempt_replay",
+        ),
     )
     op.create_index(
         "ix_acquisition_runtime_attempt_cycle",
@@ -342,9 +355,22 @@ def upgrade() -> None:
             "(transport_recipient_identity IS NOT NULL AND "
             "transport_recipient_key_version IS NOT NULL)",
         )
+    op.create_index(
+        "ix_campaign_member_transport_identity",
+        "acquisition_campaign_member",
+        [
+            "campaign_ref",
+            "transport_recipient_key_version",
+            "transport_recipient_identity",
+        ],
+    )
 
 
 def downgrade() -> None:
+    op.drop_index(
+        "ix_campaign_member_transport_identity",
+        table_name="acquisition_campaign_member",
+    )
     with op.batch_alter_table("acquisition_campaign_member") as batch:
         batch.drop_constraint(
             "ck_campaign_member_transport_identity",

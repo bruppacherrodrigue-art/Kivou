@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from decimal import Decimal
 
@@ -16,11 +17,13 @@ from signals.acquisition_runtime.contracts import (
     RuntimeRunRequest,
     RuntimeRunStatus,
     RuntimeStageDependency,
+    RuntimeStageReservation,
     RuntimeStageSnapshot,
     RuntimeStageStatus,
     expected_runtime_registry_identity,
 )
 from signals.acquisition_runtime.runner import AcquisitionRuntimeRunner
+from signals.acquisition_runtime.supervisor import KIVOU_STAGE_COSTS
 from signals.supervisor.pin import load_hermes_pin
 
 NOW = dt.datetime(2026, 8, 25, 12, tzinfo=dt.UTC)
@@ -48,10 +51,26 @@ class FakeStore:
     proposals: dict[AcquisitionRuntimeStage, RuntimeProposal | None] = field(
         default_factory=dict
     )
+    reservations: dict[
+        tuple[AcquisitionRuntimeStage, int],
+        tuple[Decimal, RuntimeProposal | None],
+    ] = field(default_factory=dict)
 
     def acquire_lease(self, owner_ref, *, acquired_at, lease_seconds):
         self.events.append(("lease", owner_ref, acquired_at, lease_seconds))
         return self.lease
+
+    def execution_guard(self, owner_ref, *, fencing_token, lease_seconds):
+        store = self
+
+        class Guard:
+            @contextmanager
+            def protect(self):
+                assert owner_ref == "runtime-owner-001" and fencing_token == 1
+                store.events.append(("guard", owner_ref, lease_seconds))
+                yield NOW
+
+        return Guard()
 
     def resume_or_create_cycle(
         self,
@@ -99,6 +118,53 @@ class FakeStore:
         cycle_ref,
         stage,
         stage_snapshot,
+        reserved_cost,
+        *,
+        maximum_cycle_cost,
+        owner_ref,
+        fencing_token,
+        at,
+    ):
+        assert owner_ref == "runtime-owner-001" and fencing_token == 1
+        key = (stage, stage_snapshot.attempt_count)
+        existing = self.reservations.get(key)
+        reserved_total = sum(
+            (value[0] for value in self.reservations.values()),
+            start=Decimal("0"),
+        )
+        base_cost = self.cycle.spent_cost - reserved_total
+        total_before = base_cost + sum(
+            (value[0] for current, value in self.reservations.items() if current != key),
+            start=Decimal("0"),
+        )
+        accepted = total_before + reserved_cost <= maximum_cycle_cost
+        if accepted and existing is None:
+            self.reservations[key] = (reserved_cost, None)
+        total = total_before + (reserved_cost if accepted else Decimal("0"))
+        self.cycle = self.cycle.model_copy(update={"spent_cost": total})
+        self.events.append(
+            (
+                "reserve",
+                cycle_ref,
+                stage,
+                stage_snapshot.attempt_count,
+                reserved_cost,
+                at,
+            )
+        )
+        return RuntimeStageReservation(
+            accepted=accepted,
+            created=accepted and existing is None,
+            reserved_cost=reserved_cost,
+            total_cycle_cost=total,
+            proposal=existing[1] if existing is not None else None,
+        )
+
+    def bind_stage_proposal(
+        self,
+        cycle_ref,
+        stage,
+        stage_snapshot,
         proposal,
         *,
         owner_ref,
@@ -106,16 +172,13 @@ class FakeStore:
         at,
     ):
         assert owner_ref == "runtime-owner-001" and fencing_token == 1
-        self.events.append(
-            (
-                "reserve",
-                cycle_ref,
-                stage,
-                stage_snapshot.attempt_count,
-                proposal.estimated_cost,
-                at,
-            )
-        )
+        key = (stage, stage_snapshot.attempt_count)
+        reserved, existing = self.reservations[key]
+        assert reserved == proposal.estimated_cost
+        assert existing is None or existing == proposal
+        self.reservations[key] = (reserved, proposal)
+        self.events.append(("bind_plan", cycle_ref, stage, proposal.plan_ref, at))
+        return proposal
 
     def heartbeat_lease(
         self, owner_ref, *, fencing_token, at, lease_seconds
@@ -159,10 +222,13 @@ class FakeStore:
 class FakeSupervisor:
     proposals: dict[AcquisitionRuntimeStage, RuntimeProposal]
     calls: list[AcquisitionRuntimeStage] = field(default_factory=list)
+    events: list[tuple[object, ...]] | None = None
 
     def propose(self, stage, cycle, *, remaining_cost, at):
         del cycle, remaining_cost, at
         self.calls.append(stage)
+        if self.events is not None:
+            self.events.append(("propose", stage))
         return self.proposals[stage]
 
 
@@ -180,9 +246,11 @@ class FakeRegistry:
         *,
         stage_snapshot=None,
         allow_qa_provider_mutations,
+        guard,
         at,
     ):
         del cycle, at
+        assert guard is not None
         self.stage_snapshots.append(stage_snapshot)
         self.calls.append(
             (stage, proposal.command, allow_qa_provider_mutations)
@@ -194,7 +262,7 @@ def _proposal(
     stage: AcquisitionRuntimeStage,
     *,
     command: str | None = None,
-    cost: Decimal = Decimal("0.25"),
+    cost: Decimal | None = None,
 ) -> RuntimeProposal:
     return RuntimeProposal(
         plan_ref=f"plan-{stage.value.lower()}",
@@ -202,7 +270,7 @@ def _proposal(
         command=command or stage.command,
         target_ref="runtime-target-001",
         argument_fingerprint="a" * 64,
-        estimated_cost=cost,
+        estimated_cost=(KIVOU_STAGE_COSTS[stage] if cost is None else cost),
         reason_codes=("QA_RUNTIME_STEP",),
         evidence_refs=("evidence-001",),
     )
@@ -247,7 +315,11 @@ def _runner(
         stage: RuntimeActionResult(
             status=RuntimeStageStatus.SUCCEEDED,
             result_refs=(f"result-{stage.value.lower()}",),
-            observed_cost=Decimal("0.10"),
+            observed_cost=(
+                Decimal("0.10")
+                if KIVOU_STAGE_COSTS[stage] > 0
+                else Decimal("0")
+            ),
             reason_codes=("STEP_COMPLETE",),
         )
         for stage in active_stages
@@ -255,7 +327,7 @@ def _runner(
     proposals = proposals or {stage: _proposal(stage) for stage in active_stages}
     arguments = {
         "store": store,
-        "supervisor": FakeSupervisor(proposals),
+        "supervisor": FakeSupervisor(proposals, events=store.events),
         "registry": FakeRegistry(outcomes),
         "allowed_opportunity_keys": ("opportunity-001",),
         "config_fingerprint": "f" * 64,
@@ -482,6 +554,62 @@ def test_runner_passes_durable_stage_attempt_to_the_action_registry() -> None:
     )
 
 
+def test_cost_envelope_is_durable_before_hermes_is_called() -> None:
+    stage = AcquisitionRuntimeStage.CONTACT_DISCOVERY
+    store = FakeStore(
+        cycle=DEFAULT_CYCLE.model_copy(update={"next_stage": stage})
+    )
+    runner = _runner(
+        store,
+        outcomes={
+            stage: RuntimeActionResult(
+                status=RuntimeStageStatus.WAITING,
+                reason_codes=("CHECKPOINT_REQUIRED",),
+            )
+        },
+        proposals={stage: _proposal(stage)},
+    )
+
+    runner.run_once(_request())
+
+    reserve_index = next(
+        index for index, event in enumerate(store.events) if event[0] == "reserve"
+    )
+    propose_index = next(
+        index for index, event in enumerate(store.events) if event[0] == "propose"
+    )
+    assert reserve_index < propose_index
+    assert store.events[reserve_index][4] == Decimal("3")
+
+
+def test_replay_uses_persisted_plan_without_calling_hermes_again() -> None:
+    stage = AcquisitionRuntimeStage.CONTACT_DISCOVERY
+    proposal = _proposal(stage)
+    store = FakeStore(
+        cycle=DEFAULT_CYCLE.model_copy(
+            update={"next_stage": stage, "spent_cost": Decimal("3")}
+        ),
+        reservations={(stage, 1): (Decimal("3"), proposal)},
+    )
+    runner = _runner(
+        store,
+        outcomes={
+            stage: RuntimeActionResult(
+                status=RuntimeStageStatus.WAITING,
+                reason_codes=("CHECKPOINT_REQUIRED",),
+            )
+        },
+        proposals={stage: proposal},
+    )
+
+    result = runner.run_once(_request())
+
+    assert result.status is RuntimeRunStatus.WAITING
+    assert runner.supervisor.calls == []
+    assert runner.registry.calls == [(stage, stage.command, False)]
+    assert store.cycle.spent_cost == Decimal("3")
+
+
 def test_waiting_result_is_durable_and_current_run_exits_cleanly() -> None:
     stage = AcquisitionRuntimeStage.CONTACT_DISCOVERY
     store = FakeStore(
@@ -614,7 +742,7 @@ def test_retry_before_durable_deadline_skips_hermes_registry_and_new_cost() -> N
     assert not any(event[0] == "reserve" for event in store.events)
 
 
-def test_success_reserves_the_greater_of_estimated_and_observed_cycle_cost() -> None:
+def test_cumulative_durable_envelopes_block_before_next_expensive_stage() -> None:
     first = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
     second = AcquisitionRuntimeStage.CONTACT_DISCOVERY
     store = FakeStore(
@@ -630,10 +758,10 @@ def test_success_reserves_the_greater_of_estimated_and_observed_cycle_cost() -> 
             second: RuntimeActionResult(status=RuntimeStageStatus.SUCCEEDED),
         },
         proposals={
-            first: _proposal(first, cost=Decimal("3")),
-            second: _proposal(second, cost=Decimal("3")),
+            first: _proposal(first),
+            second: _proposal(second),
         },
-        maximum_cost="5",
+        maximum_cost="3",
     )
 
     result = runner.run_once(_request())

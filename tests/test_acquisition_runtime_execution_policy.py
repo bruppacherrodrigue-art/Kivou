@@ -183,6 +183,7 @@ def _context(
             attempt_count=attempt,
         ),
         allow_qa_provider_mutations=True,
+        guard=object(),
         at=at,
     )
 
@@ -317,6 +318,7 @@ def test_sql_readiness_requires_durable_stage_truth_and_live_dependency_probes()
                 observed_cost=Decimal("0"),
                 reason_codes=[],
                 retry_at=None,
+                replay_same_attempt=False,
                 started_at=NOW,
                 completed_at=NOW,
                 updated_at=NOW,
@@ -489,14 +491,20 @@ def test_provider_handoff_requires_its_own_durable_one_shot_approval() -> None:
     engine = _engine()
     provider = DurableRuntimeApprovalProvider(engine, approval_ttl_seconds=1800)
     context = _context(AcquisitionRuntimeStage.PROVIDER_HANDOFF)
+    provider_binding = "b" * 64
 
     with pytest.raises(DomainApprovalRequired, match="HUMAN_APPROVAL_REQUIRED"):
-        provider.consume_for(context, opportunity_id=OPPORTUNITY_ID)
+        provider.consume_for(
+            context,
+            opportunity_id=OPPORTUNITY_ID,
+            action_fingerprint=provider_binding,
+        )
 
     pending = AcquisitionRuntimeApprovalStore(engine).list_approvals()
     assert len(pending) == 1
     assert pending[0].binding.command == "execute_provider_operations"
-    assert pending[0].binding.action_fingerprint == context.proposal.argument_fingerprint
+    assert pending[0].binding.action_fingerprint == provider_binding
+    assert pending[0].binding.action_fingerprint != context.proposal.argument_fingerprint
     assert pending[0].binding.target_ref == (
         f"acquisition-opportunity:{OPPORTUNITY_ID}"
     )

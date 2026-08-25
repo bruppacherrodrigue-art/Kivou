@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import json
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from functools import wraps
 from typing import Protocol
@@ -152,6 +153,8 @@ class ProviderOperationTruth:
     operation_ref: str
     kind: ProviderOperationKind
     state: ProviderOperationState
+    desired_request_fingerprint: str = "0" * 64
+    retry_at: dt.datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -199,6 +202,7 @@ class RuntimeApprovalProvider(Protocol):
         context: AcquisitionActionContext,
         *,
         opportunity_id: str | None,
+        action_fingerprint: str | None = None,
     ) -> tuple[ApprovalGrant, ...]: ...
 
 
@@ -616,6 +620,8 @@ class SqlAcquisitionDomainTruth:
                         acquisition_provider_operation.c.operation_ref,
                         acquisition_provider_operation.c.kind,
                         acquisition_provider_operation.c.state,
+                        acquisition_provider_operation.c.desired_request_fingerprint,
+                        acquisition_provider_operation.c.retry_after,
                     )
                     .where(
                         acquisition_provider_operation.c.campaign_ref == campaign_ref,
@@ -634,6 +640,12 @@ class SqlAcquisitionDomainTruth:
                 operation_ref=row["operation_ref"],
                 kind=ProviderOperationKind(row["kind"]),
                 state=ProviderOperationState(row["state"]),
+                desired_request_fingerprint=row["desired_request_fingerprint"],
+                retry_at=(
+                    _aware_time(row["retry_after"])
+                    if row["retry_after"] is not None
+                    else None
+                ),
             )
             for row in rows
         )
@@ -802,19 +814,28 @@ class AcquisitionDomainActions:
                 ("opportunity", existing.opportunity_id),
                 ("supplier", existing.supplier_ref),
             )
-        identity = deterministic_attempt_identity(context.stage_snapshot)
-        approvals = self._approvals.consume_for(context, opportunity_id=None)
-        call = self._authorizations.supplier(context, identity, approvals)
         try:
-            result = self._supplier.discover(
-                context.cycle.opportunity_key,
-                self._targeting,
-                call.authorization,
-                evaluated_at=context.at,
-                budget_usage=call.budget_usage,
-                discovery_run_id=identity.run_id,
-                correlation_id=identity.correlation_id,
-            )
+            with context.guard.protect() as observed_at:
+                fresh_context = replace(context, at=observed_at)
+                identity = deterministic_attempt_identity(context.stage_snapshot)
+                approvals = self._approvals.consume_for(
+                    fresh_context,
+                    opportunity_id=None,
+                )
+                call = self._authorizations.supplier(
+                    fresh_context,
+                    identity,
+                    approvals,
+                )
+                result = self._supplier.discover(
+                    context.cycle.opportunity_key,
+                    self._targeting,
+                    call.authorization,
+                    evaluated_at=observed_at,
+                    budget_usage=call.budget_usage,
+                    discovery_run_id=identity.run_id,
+                    correlation_id=identity.correlation_id,
+                )
         except SupplierSearchNotActionable:
             return _suppressed("SUPPLIER_NEED_NOT_ACTIONABLE")
         except DomainTransientFailure as error:
@@ -832,6 +853,12 @@ class AcquisitionDomainActions:
         status = _value(getattr(run, "status", None))
         if status == "SEARCH_TOO_BROAD":
             return _blocked("SUPPLIER_SEARCH_TOO_BROAD")
+        if status == "STARTED":
+            return _started_run_checkpoint(
+                run,
+                observed_at=observed_at,
+                code="SUPPLIER_PROVIDER_INDETERMINATE",
+            )
         if _retryable_run(run):
             return _waiting(
                 "SUPPLIER_PROVIDER_RETRYABLE",
@@ -848,16 +875,22 @@ class AcquisitionDomainActions:
             return opportunity
         if opportunity.contact_ref is not None:
             return _complete(("contact", opportunity.contact_ref))
-        identity, call = self._authorized("contact", context, opportunity.opportunity_id)
         try:
-            result = self._contact.find(
-                opportunity.opportunity_id,
-                call.authorization,
-                evaluated_at=context.at,
-                budget_usage=call.budget_usage,
-                contact_discovery_run_id=identity.run_id,
-                correlation_id=identity.correlation_id,
-            )
+            with context.guard.protect() as observed_at:
+                fresh_context = replace(context, at=observed_at)
+                identity, call = self._authorized(
+                    "contact",
+                    fresh_context,
+                    opportunity.opportunity_id,
+                )
+                result = self._contact.find(
+                    opportunity.opportunity_id,
+                    call.authorization,
+                    evaluated_at=observed_at,
+                    budget_usage=call.budget_usage,
+                    contact_discovery_run_id=identity.run_id,
+                    correlation_id=identity.correlation_id,
+                )
         except DomainTransientFailure as error:
             return _waiting(error.code, retry_at=error.retry_at)
         policy = _policy_outcome(getattr(result, "decision", None))
@@ -872,6 +905,12 @@ class AcquisitionDomainActions:
             return _suppressed("VERIFIED_CONTACT_NOT_FOUND")
         if status == "CONTACT_SEARCH_TOO_BROAD":
             return _blocked("CONTACT_SEARCH_TOO_BROAD")
+        if status == "STARTED":
+            return _started_run_checkpoint(
+                run,
+                observed_at=observed_at,
+                code="CONTACT_PROVIDER_INDETERMINATE",
+            )
         if _retryable_run(run):
             return _waiting(
                 "CONTACT_PROVIDER_RETRYABLE",
@@ -887,16 +926,22 @@ class AcquisitionDomainActions:
         profile_ref = self._truth.company_profile_ref(opportunity.opportunity_id)
         if profile_ref is not None:
             return _complete(("company", profile_ref))
-        identity, call = self._authorized("company", context, opportunity.opportunity_id)
         try:
-            result = self._company.research(
-                opportunity.opportunity_id,
-                call.authorization,
-                evaluated_at=context.at,
-                budget_usage=call.budget_usage,
-                company_research_run_id=identity.run_id,
-                correlation_id=identity.correlation_id,
-            )
+            with context.guard.protect() as observed_at:
+                fresh_context = replace(context, at=observed_at)
+                identity, call = self._authorized(
+                    "company",
+                    fresh_context,
+                    opportunity.opportunity_id,
+                )
+                result = self._company.research(
+                    opportunity.opportunity_id,
+                    call.authorization,
+                    evaluated_at=observed_at,
+                    budget_usage=call.budget_usage,
+                    company_research_run_id=identity.run_id,
+                    correlation_id=identity.correlation_id,
+                )
         except DomainTransientFailure as error:
             return _waiting(error.code, retry_at=error.retry_at)
         policy = _policy_outcome(getattr(result, "decision", None))
@@ -906,6 +951,12 @@ class AcquisitionDomainActions:
         if profile_ref is not None:
             return _complete(("company", profile_ref))
         run = getattr(result, "run", None)
+        if _value(getattr(run, "status", None)) == "STARTED":
+            return _started_run_checkpoint(
+                run,
+                observed_at=observed_at,
+                code="COMPANY_PROVIDER_INDETERMINATE",
+            )
         if _retryable_run(run):
             return _waiting(
                 "COMPANY_PROVIDER_RETRYABLE",
@@ -921,13 +972,19 @@ class AcquisitionDomainActions:
         existing = self._truth.decision(opportunity.opportunity_id)
         if existing is not None:
             return _decision_outcome(existing)
-        identity, call = self._authorized("decision", context, opportunity.opportunity_id)
         try:
-            result = self._decision.evaluate(
-                opportunity.opportunity_id,
-                call.authorization,
-                budget_usage=call.budget_usage,
-            )
+            with context.guard.protect() as observed_at:
+                fresh_context = replace(context, at=observed_at)
+                identity, call = self._authorized(
+                    "decision",
+                    fresh_context,
+                    opportunity.opportunity_id,
+                )
+                result = self._decision.evaluate(
+                    opportunity.opportunity_id,
+                    call.authorization,
+                    budget_usage=call.budget_usage,
+                )
         except DomainTransientFailure as error:
             return _waiting(error.code, retry_at=error.retry_at)
         policy = _policy_outcome(getattr(result, "decision", None))
@@ -960,16 +1017,22 @@ class AcquisitionDomainActions:
             and existing.policy_status is PolicyStatus.APPROVAL_REQUIRED
         ):
             return _personalization_outcome(existing)
-        _identity, call = self._authorized("personalization", context, opportunity.opportunity_id)
-        if call.language not in {"fr", "en"}:
-            return _blocked("PERSONALIZATION_LANGUAGE_NOT_CONFIGURED")
         try:
-            self._personalization.personalize(
-                opportunity.opportunity_id,
-                call.language,
-                call.authorization,
-                budget_usage=call.budget_usage,
-            )
+            with context.guard.protect() as observed_at:
+                fresh_context = replace(context, at=observed_at)
+                _identity, call = self._authorized(
+                    "personalization",
+                    fresh_context,
+                    opportunity.opportunity_id,
+                )
+                if call.language not in {"fr", "en"}:
+                    return _blocked("PERSONALIZATION_LANGUAGE_NOT_CONFIGURED")
+                self._personalization.personalize(
+                    opportunity.opportunity_id,
+                    call.language,
+                    call.authorization,
+                    budget_usage=call.budget_usage,
+                )
         except PersonalizationDecisionNoLongerEligible:
             return _suppressed("PERSONALIZATION_NO_LONGER_ELIGIBLE")
         except DomainTransientFailure as error:
@@ -987,13 +1050,19 @@ class AcquisitionDomainActions:
         existing = self._truth.compliance(opportunity.opportunity_id)
         if existing is not None:
             return _compliance_outcome(existing)
-        _identity, call = self._authorized("compliance", context, opportunity.opportunity_id)
         try:
-            self._compliance.assess(
-                opportunity.opportunity_id,
-                call.authorization,
-                budget_usage=call.budget_usage,
-            )
+            with context.guard.protect() as observed_at:
+                fresh_context = replace(context, at=observed_at)
+                _identity, call = self._authorized(
+                    "compliance",
+                    fresh_context,
+                    opportunity.opportunity_id,
+                )
+                self._compliance.assess(
+                    opportunity.opportunity_id,
+                    call.authorization,
+                    budget_usage=call.budget_usage,
+                )
         except DomainTransientFailure as error:
             return _waiting(error.code, retry_at=error.retry_at)
         observed = self._truth.compliance(opportunity.opportunity_id)
@@ -1012,13 +1081,19 @@ class AcquisitionDomainActions:
                 ("campaign", existing.campaign_ref),
                 ("member", existing.member_ref),
             )
-        _identity, call = self._authorized("campaign", context, opportunity.opportunity_id)
         try:
-            result = self._campaign.schedule(
-                opportunity.opportunity_id,
-                call.authorization,
-                budget_usage=call.budget_usage,
-            )
+            with context.guard.protect() as observed_at:
+                fresh_context = replace(context, at=observed_at)
+                _identity, call = self._authorized(
+                    "campaign",
+                    fresh_context,
+                    opportunity.opportunity_id,
+                )
+                result = self._campaign.schedule(
+                    opportunity.opportunity_id,
+                    call.authorization,
+                    budget_usage=call.budget_usage,
+                )
         except CampaignPacingExceeded:
             return _waiting("CAMPAIGN_PACING_LIMIT_REACHED")
         except CampaignDeploymentBlocked:
@@ -1046,52 +1121,83 @@ class AcquisitionDomainActions:
         opportunity = self._required_opportunity(context)
         if isinstance(opportunity, KivouDomainOutcome):
             return opportunity
-        self._approvals.consume_for(
-            context,
-            opportunity_id=opportunity.opportunity_id,
-        )
-        campaign = self._truth.campaign(opportunity.opportunity_id)
-        if campaign is None:
-            return _blocked("CAMPAIGN_NOT_PLANNED")
-        stored_binding = (
-            campaign.transport_recipient_identity,
-            campaign.transport_recipient_key_version,
-        )
-        if stored_binding != (None, None) and stored_binding != self._qa_transport_binding:
-            return _blocked("QA_TRANSPORT_BINDING_MISMATCH")
-        operations = self._truth.provider_operations(campaign.campaign_ref, campaign.member_ref)
         required = (
             ProviderOperationKind.CREATE_CAMPAIGN,
             ProviderOperationKind.CONFIGURE_CAMPAIGN,
             ProviderOperationKind.ADD_LEAD,
         )
-        if not operations:
-            return _waiting("PROVIDER_OPERATIONS_NOT_PLANNED")
-        if (
-            len(operations) != len(required)
-            or len(operations) > self._provider_cap
-            or tuple(sorted(item.kind.value for item in operations))
-            != tuple(sorted(item.value for item in required))
-        ):
-            return _blocked("PROVIDER_OPERATION_SET_UNSAFE")
-        ordered = sorted(
-            operations,
-            key=lambda item: (
-                ProviderOperationKind.CREATE_CAMPAIGN,
-                ProviderOperationKind.CONFIGURE_CAMPAIGN,
-                ProviderOperationKind.ADD_LEAD,
-            ).index(item.kind),
-        )
-        for operation in ordered:
-            if operation.state is ProviderOperationState.CONFIRMED:
-                continue
-            try:
-                state = self._worker.process(operation.operation_ref, context.at)
-            except DomainTransientFailure as error:
-                return _waiting(error.code, retry_at=error.retry_at)
-            disposition = _provider_state_outcome(state)
-            if disposition is not None:
-                return disposition
+        with context.guard.protect() as observed_at:
+            fresh_context = replace(context, at=observed_at)
+            loaded = self._provider_handoff_truth(
+                opportunity.opportunity_id,
+                required=required,
+            )
+            if isinstance(loaded, KivouDomainOutcome):
+                return loaded
+            campaign, ordered, action_fingerprint = loaded
+            deferred = _provider_retry_checkpoint(ordered, observed_at)
+            if deferred is not None:
+                return deferred
+            self._approvals.consume_for(
+                fresh_context,
+                opportunity_id=opportunity.opportunity_id,
+                action_fingerprint=action_fingerprint,
+            )
+        for expected_operation in ordered:
+            with context.guard.protect() as observed_at:
+                fresh_context = replace(context, at=observed_at)
+                loaded = self._provider_handoff_truth(
+                    opportunity.opportunity_id,
+                    required=required,
+                )
+                if isinstance(loaded, KivouDomainOutcome):
+                    return loaded
+                campaign, current, current_fingerprint = loaded
+                if current_fingerprint != action_fingerprint:
+                    self._approvals.consume_for(
+                        fresh_context,
+                        opportunity_id=opportunity.opportunity_id,
+                        action_fingerprint=current_fingerprint,
+                    )
+                    action_fingerprint = current_fingerprint
+                deferred = _provider_retry_checkpoint(current, observed_at)
+                if deferred is not None:
+                    return deferred
+                operation = next(
+                    item
+                    for item in current
+                    if item.operation_ref == expected_operation.operation_ref
+                )
+                self._approvals.consume_for(
+                    fresh_context,
+                    opportunity_id=opportunity.opportunity_id,
+                    action_fingerprint=action_fingerprint,
+                )
+                if operation.state is ProviderOperationState.CONFIRMED:
+                    continue
+                try:
+                    state = self._worker.process(
+                        operation.operation_ref,
+                        observed_at,
+                    )
+                except DomainTransientFailure as error:
+                    return _waiting(error.code, retry_at=error.retry_at)
+                disposition = _provider_state_outcome(state)
+                if disposition is not None:
+                    refreshed = self._truth.provider_operations(
+                        campaign.campaign_ref,
+                        campaign.member_ref,
+                    )
+                    retry = next(
+                        (
+                            item.retry_at
+                            for item in refreshed
+                            if item.operation_ref == operation.operation_ref
+                            and item.retry_at is not None
+                        ),
+                        None,
+                    )
+                    return disposition.model_copy(update={"retry_at": retry})
         observed = self._truth.provider_operations(campaign.campaign_ref, campaign.member_ref)
         if (
             len(observed) != len(required)
@@ -1108,6 +1214,47 @@ class AcquisitionDomainActions:
         ) != self._qa_transport_binding:
             return _blocked("QA_TRANSPORT_BINDING_MISMATCH")
         return _complete(*(("provider-operation", item.operation_ref) for item in observed))
+
+    def _provider_handoff_truth(
+        self,
+        opportunity_id: str,
+        *,
+        required: tuple[ProviderOperationKind, ...],
+    ) -> tuple[CampaignTruth, tuple[ProviderOperationTruth, ...], str] | KivouDomainOutcome:
+        campaign = self._truth.campaign(opportunity_id)
+        if campaign is None:
+            return _blocked("CAMPAIGN_NOT_PLANNED")
+        stored_binding = (
+            campaign.transport_recipient_identity,
+            campaign.transport_recipient_key_version,
+        )
+        if stored_binding != (None, None) and stored_binding != self._qa_transport_binding:
+            return _blocked("QA_TRANSPORT_BINDING_MISMATCH")
+        operations = self._truth.provider_operations(
+            campaign.campaign_ref,
+            campaign.member_ref,
+        )
+        if not operations:
+            return _waiting("PROVIDER_OPERATIONS_NOT_PLANNED")
+        if (
+            len(operations) != len(required)
+            or len(operations) > self._provider_cap
+            or tuple(sorted(item.kind.value for item in operations))
+            != tuple(sorted(item.value for item in required))
+        ):
+            return _blocked("PROVIDER_OPERATION_SET_UNSAFE")
+        ordered = tuple(
+            sorted(
+                operations,
+                key=lambda item: required.index(item.kind),
+            )
+        )
+        action_fingerprint = _provider_approval_fingerprint(
+            campaign,
+            ordered,
+            qa_transport_binding=self._qa_transport_binding,
+        )
+        return campaign, ordered, action_fingerprint
 
     @_closed_domain_action
     def observe_response(self, context: AcquisitionActionContext) -> KivouDomainOutcome:
@@ -1167,6 +1314,62 @@ def _value(value: object) -> str | None:
     return str(value)
 
 
+def _aware_time(value: dt.datetime) -> dt.datetime:
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=dt.UTC)
+    return value.astimezone(dt.UTC)
+
+
+def _provider_retry_checkpoint(
+    operations: tuple[ProviderOperationTruth, ...],
+    observed_at: dt.datetime,
+) -> KivouDomainOutcome | None:
+    retry_at = max(
+        (
+            item.retry_at
+            for item in operations
+            if item.state is ProviderOperationState.RETRYABLE_FAILED
+            and item.retry_at is not None
+            and item.retry_at > observed_at
+        ),
+        default=None,
+    )
+    return (
+        _waiting("PROVIDER_OPERATION_RETRYABLE", retry_at=retry_at)
+        if retry_at is not None
+        else None
+    )
+
+
+def _provider_approval_fingerprint(
+    campaign: CampaignTruth,
+    operations: tuple[ProviderOperationTruth, ...],
+    *,
+    qa_transport_binding: tuple[str, str],
+) -> str:
+    canonical = json.dumps(
+        {
+            "campaign_ref": campaign.campaign_ref,
+            "kind": "acquisition-runtime-provider-handoff-v1",
+            "member_ref": campaign.member_ref,
+            "operations": [
+                {
+                    "desired_request_fingerprint": item.desired_request_fingerprint,
+                    "kind": item.kind.value,
+                    "operation_ref": item.operation_ref,
+                }
+                for item in operations
+            ],
+            "qa_transport_recipient_identity": qa_transport_binding[0],
+            "qa_transport_recipient_key_version": qa_transport_binding[1],
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
 def _opaque(kind: str, value: str) -> str:
     digest = hashlib.sha256(f"acquisition-runtime-result-v1\0{kind}\0{value}".encode()).hexdigest()
     return f"{kind}:{digest}"
@@ -1180,12 +1383,16 @@ def _complete(*refs: tuple[str, str]) -> KivouDomainOutcome:
 
 
 def _waiting(
-    code: str, *, retry_at: dt.datetime | None = None
+    code: str,
+    *,
+    retry_at: dt.datetime | None = None,
+    replay_same_attempt: bool = False,
 ) -> KivouDomainOutcome:
     return KivouDomainOutcome(
         disposition=KivouDomainDisposition.WAITING,
         reason_codes=(code,),
         retry_at=retry_at,
+        replay_same_attempt=replay_same_attempt,
     )
 
 
@@ -1246,7 +1453,26 @@ def _retryable_run(run: object | None) -> bool:
             "server_error",
             "timeout",
         }
-        or _value(getattr(run, "status", None)) == "STARTED"
+    )
+
+
+def _started_run_checkpoint(
+    run: object,
+    *,
+    observed_at: dt.datetime,
+    code: str,
+) -> KivouDomainOutcome:
+    started_at = getattr(run, "started_at", None)
+    if not isinstance(started_at, dt.datetime):
+        return _failed("APOLLO_RUN_RECOVERY_METADATA_MISSING")
+    started_at = _aware_time(started_at)
+    deadline = started_at + dt.timedelta(minutes=10)
+    if observed_at >= deadline:
+        return _failed("APOLLO_RUN_RECOVERY_EXHAUSTED")
+    return _waiting(
+        code,
+        retry_at=min(observed_at + dt.timedelta(minutes=1), deadline),
+        replay_same_attempt=True,
     )
 
 

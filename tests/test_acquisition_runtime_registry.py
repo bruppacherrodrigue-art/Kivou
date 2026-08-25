@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+from contextlib import contextmanager
 from decimal import Decimal
 
 import pytest
@@ -36,6 +37,16 @@ STAGE_SNAPSHOT = RuntimeStageSnapshot(
     attempt_count=1,
     result_refs=("prior-result-001",),
 )
+
+
+class Guard:
+    def __init__(self) -> None:
+        self.checkpoints = 0
+
+    @contextmanager
+    def protect(self):
+        self.checkpoints += 1
+        yield NOW
 
 
 def _proposal(stage: AcquisitionRuntimeStage, **updates) -> RuntimeProposal:
@@ -87,6 +98,7 @@ def test_registry_executes_only_the_exact_stage_command_and_target() -> None:
         CYCLE,
         stage_snapshot=STAGE_SNAPSHOT.model_copy(update={"stage": stage}),
         allow_qa_provider_mutations=False,
+        guard=Guard(),
         at=NOW,
     )
 
@@ -115,6 +127,7 @@ def test_registry_uses_the_opaque_cycle_ref_not_the_public_opportunity_key() -> 
             attempt_count=1,
         ),
         allow_qa_provider_mutations=False,
+        guard=Guard(),
         at=NOW,
     )
 
@@ -156,6 +169,7 @@ def test_registry_fails_closed_before_handler(
             update={"stage": AcquisitionRuntimeStage.DECISION}
         ),
         allow_qa_provider_mutations=False,
+        guard=Guard(),
         at=NOW,
     )
 
@@ -175,11 +189,32 @@ def test_provider_handoff_requires_current_explicit_qa_authorization() -> None:
         CYCLE,
         stage_snapshot=STAGE_SNAPSHOT.model_copy(update={"stage": stage}),
         allow_qa_provider_mutations=False,
+        guard=Guard(),
         at=NOW,
     )
 
     assert result.status is RuntimeStageStatus.WAITING
     assert result.reason_codes == ("QA_PROVIDER_MUTATION_NOT_AUTHORIZED",)
+    assert calls == []
+
+
+def test_registry_fails_closed_without_a_runtime_fencing_guard() -> None:
+    calls: list[AcquisitionActionContext] = []
+    registry = AcquisitionActionRegistry(_handlers(calls))
+    stage = AcquisitionRuntimeStage.SIGNAL_SEED
+
+    result = registry.execute(
+        stage,
+        _proposal(stage),
+        CYCLE,
+        stage_snapshot=STAGE_SNAPSHOT,
+        allow_qa_provider_mutations=False,
+        guard=None,
+        at=NOW,
+    )
+
+    assert result.status is RuntimeStageStatus.BLOCKED
+    assert result.reason_codes == ("RUNTIME_FENCE_MISSING",)
     assert calls == []
 
 

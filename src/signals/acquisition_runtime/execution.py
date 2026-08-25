@@ -72,8 +72,11 @@ from signals.campaigns.instantly import (
     InstantlyMailboxReadinessSource,
     InstantlyProvider,
 )
+from signals.campaigns.runtime_webhook import (
+    InstantlyWebhookRuntimeConfiguration,
+    load_instantly_webhook_runtime_config,
+)
 from signals.compliance.contracts import SenderComplianceConfig
-from signals.compliance.suppression import SuppressionIdentityKeyring
 from signals.conversion.link import AttributionLinkBuilder
 from signals.conversion.token import AttributionTokenKeyring
 from signals.decision_engine.policy import semantic_fingerprint
@@ -166,7 +169,7 @@ class ProductionRuntimeDependencyProbe:
         instantly_provider: InstantlyProvider,
         connectivity: AcquisitionConnectivityConfig,
         hermes_runtime: object,
-        webhook_ready: bool,
+        webhook_configuration: InstantlyWebhookRuntimeConfiguration | None,
     ) -> None:
         self._apollo = apollo
         self._instantly = InstantlyConnectivityProbe(
@@ -178,7 +181,12 @@ class ProductionRuntimeDependencyProbe:
         )
         self._connectivity = connectivity
         self._hermes = hermes_runtime
-        self._webhook_ready = webhook_ready
+        self._webhook_ready = bool(
+            webhook_configuration is not None
+            and webhook_configuration.response_ingress_ready
+            and webhook_configuration.provider_workspace_ref
+            == connectivity.deployment.instantly_workspace_ref
+        )
 
     def check(
         self,
@@ -410,6 +418,7 @@ def _configuration_fingerprint(
     runtime_config: AcquisitionRuntimeConfig,
     connectivity_config: AcquisitionConnectivityConfig,
     links: RuntimeLinkConfiguration,
+    webhook_configuration: InstantlyWebhookRuntimeConfiguration,
     sender: SenderComplianceConfig,
     campaign: CampaignDeploymentConfig,
     registry_identity: str,
@@ -421,6 +430,19 @@ def _configuration_fingerprint(
             "connectivity": connectivity_config.deployment.model_dump(mode="json"),
             "public_app_url": links.public_app_url,
             "attribution_key_version": links.attribution_key_version,
+            "webhook_workspace_ref": webhook_configuration.provider_workspace_ref,
+            "webhook_fingerprint_key_versions": sorted(
+                webhook_configuration.fingerprint_keyring.keys
+            ),
+            "suppression_key_versions": sorted(
+                webhook_configuration.suppression_keyring.keys
+            ),
+            "response_source_key_versions": sorted(
+                webhook_configuration.response_source_keyring.keys
+            ),
+            "response_content_key_versions": sorted(
+                webhook_configuration.response_content_keyring.keys
+            ),
             "sender_config_fingerprint": sender.config_fingerprint,
             "campaign": campaign.model_dump(mode="json"),
             "registry_identity": registry_identity,
@@ -475,6 +497,7 @@ def build_runtime_execution_composition(
     runtime_config: AcquisitionRuntimeConfig,
     connectivity_config: AcquisitionConnectivityConfig,
     links: RuntimeLinkConfiguration,
+    webhook_configuration: InstantlyWebhookRuntimeConfiguration,
     clock: Callable[[], dt.datetime],
     client: httpx.Client | None = None,
     apollo: ApolloComponents | None = None,
@@ -493,6 +516,12 @@ def build_runtime_execution_composition(
     observed_at = now.astimezone(dt.UTC)
     if len(runtime_config.deployment.allowed_opportunity_keys) != 1:
         raise RuntimeExecutionConfigurationError("QA_SIGNAL_SCOPE_NOT_EXACT")
+    if (
+        not webhook_configuration.response_ingress_ready
+        or webhook_configuration.provider_workspace_ref
+        != connectivity_config.deployment.instantly_workspace_ref
+    ):
+        raise RuntimeExecutionConfigurationError("WEBHOOK_INGRESS_NOT_CONFIGURED")
     control = PolicyStore(engine).get_effective_control(observed_at)
     scope = _exact_scope(control, runtime_config.deployment.qa_scope)
     sender_config, campaign_deployment = _campaign_configuration(
@@ -516,14 +545,7 @@ def build_runtime_execution_composition(
             api_key=connectivity_config.apollo_api_key.get_secret_value(),
             client=client,
         )
-    suppression_keyring = SuppressionIdentityKeyring(
-        current_key_version=runtime_config.deployment.qa_recipient_key_version,
-        keys={
-            runtime_config.deployment.qa_recipient_key_version: (
-                runtime_config.qa_recipient_hmac_key.get_secret_value().encode("utf-8")
-            )
-        },
-    )
+    suppression_keyring = webhook_configuration.suppression_keyring
     link_builder = AttributionLinkBuilder(
         public_site_url=links.public_app_url,
         keyring=AttributionTokenKeyring(
@@ -545,6 +567,7 @@ def build_runtime_execution_composition(
         runtime_config=runtime_config,
         connectivity_config=connectivity_config,
         links=links,
+        webhook_configuration=webhook_configuration,
         sender=sender_config,
         campaign=campaign_deployment,
         registry_identity=empty_registry.identity,
@@ -636,6 +659,8 @@ def execute_runtime_run_once(
     connectivity_config = load_connectivity_config()
     validate_hermes_shadow_config(connectivity_config)
     links = load_runtime_link_config()
+    webhook_configuration = load_instantly_webhook_runtime_config(required=True)
+    assert webhook_configuration is not None
     engine = create_database_engine()
     try:
         with httpx.Client(timeout=10.0, follow_redirects=False) as client:
@@ -653,6 +678,7 @@ def execute_runtime_run_once(
                 runtime_config=runtime_config,
                 connectivity_config=connectivity_config,
                 links=links,
+                webhook_configuration=webhook_configuration,
                 apollo=apollo,
                 instantly_provider=instantly,
                 hermes_runtime=hermes,
@@ -661,7 +687,7 @@ def execute_runtime_run_once(
                     instantly_provider=instantly,
                     connectivity=connectivity_config,
                     hermes_runtime=hermes,
-                    webhook_ready=False,
+                    webhook_configuration=webhook_configuration,
                 ),
                 clock=lambda: dt.datetime.now(dt.UTC),
             )

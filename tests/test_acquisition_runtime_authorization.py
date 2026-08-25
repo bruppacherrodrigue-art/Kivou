@@ -126,6 +126,54 @@ def test_request_is_pending_durable_and_exact_replay_is_idempotent(tmp_path) -> 
     assert row["consumed_by_ref"] is None
 
 
+def test_pending_approval_listing_is_recent_first_and_ignores_expired_backlog(
+    tmp_path,
+) -> None:
+    store, binding = _prepared_store(tmp_path)
+    base = binding.model_dump(mode="python")
+    for index in range(101):
+        store.request_approval(
+            RuntimeApprovalBinding.model_validate(
+                {
+                    **base,
+                    "request_ref": f"expired-request-{index:03d}",
+                    "requested_at": NOW - dt.timedelta(hours=2),
+                    "expires_at": NOW - dt.timedelta(hours=1),
+                }
+            )
+        )
+    older = store.request_approval(
+        RuntimeApprovalBinding.model_validate(
+            {
+                **base,
+                "request_ref": "active-request-older",
+                "requested_at": NOW + dt.timedelta(minutes=1),
+                "expires_at": NOW + dt.timedelta(hours=1),
+            }
+        )
+    )
+    newer = store.request_approval(
+        RuntimeApprovalBinding.model_validate(
+            {
+                **base,
+                "request_ref": "active-request-newer",
+                "requested_at": NOW + dt.timedelta(minutes=2),
+                "expires_at": NOW + dt.timedelta(hours=1),
+            }
+        )
+    )
+
+    rows = store.list_approvals(
+        status=RuntimeApprovalStatus.PENDING,
+        at=NOW + dt.timedelta(minutes=3),
+    )
+
+    assert [row.approval_id for row in rows] == [
+        newer.approval_id,
+        older.approval_id,
+    ]
+
+
 def test_request_replay_rejects_any_binding_drift(tmp_path) -> None:
     store, binding = _prepared_store(tmp_path)
     store.request_approval(binding)

@@ -317,6 +317,7 @@ class RuntimeStageSnapshot(_FrozenModel):
     attempt_count: int = Field(ge=1)
     result_refs: tuple[OpaqueRef, ...] = Field(default=(), max_length=16)
     retry_at: dt.datetime | None = None
+    replay_same_attempt: bool = False
 
     @model_validator(mode="after")
     def valid_retry_checkpoint(self) -> RuntimeStageSnapshot:
@@ -324,6 +325,12 @@ class RuntimeStageSnapshot(_FrozenModel):
             require_aware(self.retry_at)
             if self.status is not RuntimeStageStatus.WAITING:
                 raise ValueError("only a waiting runtime stage can carry retry_at")
+        if self.replay_same_attempt and (
+            self.status is not RuntimeStageStatus.WAITING or self.retry_at is None
+        ):
+            raise ValueError(
+                "same-attempt replay requires one bounded waiting deadline"
+            )
         return self
 
     @property
@@ -351,6 +358,25 @@ class RuntimeProposal(_FrozenModel):
     evidence_refs: tuple[OpaqueRef, ...] = Field(default=(), max_length=16)
 
 
+class RuntimeStageReservation(_FrozenModel):
+    accepted: bool
+    created: bool
+    reserved_cost: Decimal = Field(ge=0, le=Decimal("50"))
+    total_cycle_cost: Decimal = Field(ge=0, le=Decimal("50"))
+    proposal: RuntimeProposal | None = None
+
+    @model_validator(mode="after")
+    def coherent_reservation(self) -> RuntimeStageReservation:
+        if self.created and not self.accepted:
+            raise ValueError("a rejected reservation cannot be created")
+        if self.proposal is not None:
+            if not self.accepted:
+                raise ValueError("a rejected reservation cannot carry a proposal")
+            if self.proposal.estimated_cost != self.reserved_cost:
+                raise ValueError("proposal cost must equal its durable reservation")
+        return self
+
+
 class RuntimeActionResult(_FrozenModel):
     status: RuntimeStageStatus
     result_refs: tuple[OpaqueRef, ...] = Field(default=(), max_length=16)
@@ -358,6 +384,7 @@ class RuntimeActionResult(_FrozenModel):
     observed_cost: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("50"))
     reason_codes: tuple[MachineCode, ...] = Field(default=(), max_length=16)
     retry_at: dt.datetime | None = None
+    replay_same_attempt: bool = False
 
     @model_validator(mode="after")
     def terminal_or_waiting(self) -> RuntimeActionResult:
@@ -369,6 +396,12 @@ class RuntimeActionResult(_FrozenModel):
             require_aware(self.retry_at)
             if self.status is not RuntimeStageStatus.WAITING:
                 raise ValueError("only a waiting runtime result can carry retry_at")
+        if self.replay_same_attempt and (
+            self.status is not RuntimeStageStatus.WAITING or self.retry_at is None
+        ):
+            raise ValueError(
+                "same-attempt replay requires one bounded waiting deadline"
+            )
         return self
 
 

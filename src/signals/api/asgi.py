@@ -43,6 +43,10 @@ from signals.alerts.gateway import SmtpAlertGateway, SmtpConfiguration
 from signals.api.app import create_app
 from signals.api.config import ApiConfig
 from signals.billing.gateway import StripeApiGateway
+from signals.campaigns.runtime_webhook import (
+    build_instantly_webhook_service,
+    load_instantly_webhook_runtime_config,
+)
 from signals.persistence.database import create_database_engine
 
 
@@ -55,12 +59,18 @@ def build_application() -> FastAPI:
     client plutôt que d'être remplacée en silence.
     """
     config = ApiConfig.from_environment()
+    webhook_configuration = load_instantly_webhook_runtime_config(required=False)
     engine = create_database_engine(pool_pre_ping=True)
     return create_app(
         engine,
         config,
         stripe_gateway=_stripe_gateway(config),
         password_reset_delivery=_password_reset_delivery(config),
+        instantly_webhook_service=(
+            build_instantly_webhook_service(engine, webhook_configuration)
+            if webhook_configuration is not None
+            else None
+        ),
     )
 
 

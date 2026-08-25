@@ -118,6 +118,7 @@ def build_acquisition_domain_composition(
         deployment=campaign_deployment,
         worker_ref="acquisition-runtime-worker",
         recipient_override=recipient_override,
+        clock=clock,
     )
     actions = AcquisitionDomainActions(
         truth=SqlAcquisitionDomainTruth(engine),

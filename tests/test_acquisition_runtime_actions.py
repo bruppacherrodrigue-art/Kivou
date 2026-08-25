@@ -117,6 +117,7 @@ def _context(stage: AcquisitionRuntimeStage) -> AcquisitionActionContext:
         allow_qa_provider_mutations=(
             stage is AcquisitionRuntimeStage.PROVIDER_HANDOFF
         ),
+        guard=object(),
         at=NOW,
     )
 

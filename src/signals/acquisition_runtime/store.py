@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+from collections.abc import Iterator
+from contextlib import contextmanager
+from dataclasses import dataclass
 from decimal import Decimal
 
 import sqlalchemy as sa
@@ -20,6 +23,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeLeaseResult,
     RuntimeProposal,
     RuntimeStageDependency,
+    RuntimeStageReservation,
     RuntimeStageSnapshot,
     RuntimeStageStatus,
     require_aware,
@@ -45,6 +49,50 @@ class AcquisitionRuntimeConflict(RuntimeError):
     """A durable runtime transition no longer matches its expected state."""
 
 
+@dataclass(frozen=True)
+class AcquisitionRuntimeExecutionGuard:
+    """Fence one business action while its provider and persistence complete."""
+
+    store: AcquisitionRuntimeStore
+    owner_ref: str
+    fencing_token: int
+    lease_seconds: int
+
+    @contextmanager
+    def protect(self) -> Iterator[dt.datetime]:
+        with self.store.engine.begin() as connection:
+            row = self.store._lease_row(connection)
+            fallback = _aware(row["heartbeat_at"]) if row["heartbeat_at"] else None
+            observed_at = self.store._database_now(
+                connection,
+                fallback=fallback,
+            )
+            if (
+                row["owner_ref"] != self.owner_ref
+                or row["generation"] != self.fencing_token
+                or row["expires_at"] is None
+                or _aware(row["expires_at"]) <= observed_at
+            ):
+                raise AcquisitionRuntimeConflict(
+                    "runtime business action lost its fencing lease"
+                )
+            connection.execute(
+                sa.update(acquisition_runtime_lease)
+                .where(
+                    acquisition_runtime_lease.c.lease_name == LEASE_NAME,
+                    acquisition_runtime_lease.c.owner_ref == self.owner_ref,
+                    acquisition_runtime_lease.c.generation == self.fencing_token,
+                )
+                .values(
+                    heartbeat_at=observed_at,
+                    expires_at=(
+                        observed_at + dt.timedelta(seconds=self.lease_seconds)
+                    ),
+                )
+            )
+            yield observed_at
+
+
 def _aware(value: dt.datetime) -> dt.datetime:
     if value.tzinfo is None:
         value = value.replace(tzinfo=dt.UTC)
@@ -60,6 +108,20 @@ class AcquisitionRuntimeStore:
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
 
+    def execution_guard(
+        self,
+        owner_ref: str,
+        *,
+        fencing_token: int,
+        lease_seconds: int,
+    ) -> AcquisitionRuntimeExecutionGuard:
+        return AcquisitionRuntimeExecutionGuard(
+            store=self,
+            owner_ref=owner_ref,
+            fencing_token=fencing_token,
+            lease_seconds=lease_seconds,
+        )
+
     def acquire_lease(
         self,
         owner_ref: str,
@@ -68,7 +130,6 @@ class AcquisitionRuntimeStore:
         lease_seconds: int,
     ) -> RuntimeLeaseResult:
         acquired_at = require_aware(acquired_at)
-        expires_at = acquired_at + dt.timedelta(seconds=lease_seconds)
         with self.engine.begin() as connection:
             insert_if_absent(
                 connection,
@@ -83,16 +144,17 @@ class AcquisitionRuntimeStore:
                 },
                 index_elements=[acquisition_runtime_lease.c.lease_name],
             )
-            row = connection.execute(
-                sa.select(acquisition_runtime_lease)
-                .where(acquisition_runtime_lease.c.lease_name == LEASE_NAME)
-                .with_for_update()
-            ).mappings().one()
+            row = self._lease_row(connection)
+            observed_at = self._database_now(
+                connection,
+                fallback=acquired_at,
+            )
+            expires_at = observed_at + dt.timedelta(seconds=lease_seconds)
             previous_owner = row["owner_ref"]
             previous_expiry = row["expires_at"]
             expired = (
                 previous_expiry is not None
-                and _aware(previous_expiry) <= acquired_at
+                and _aware(previous_expiry) <= observed_at
             )
             eligible = previous_owner in {None, owner_ref} or expired
             if not eligible:
@@ -106,8 +168,8 @@ class AcquisitionRuntimeStore:
                 )
                 .values(
                     owner_ref=owner_ref,
-                    acquired_at=acquired_at,
-                    heartbeat_at=acquired_at,
+                    acquired_at=observed_at,
+                    heartbeat_at=observed_at,
                     expires_at=expires_at,
                     generation=generation,
                 )
@@ -135,17 +197,26 @@ class AcquisitionRuntimeStore:
     ) -> None:
         at = require_aware(at)
         with self.engine.begin() as connection:
+            row = self._lease_row(connection)
+            observed_at = self._database_now(connection, fallback=at)
+            if (
+                row["owner_ref"] != owner_ref
+                or row["generation"] != fencing_token
+                or row["expires_at"] is None
+                or _aware(row["expires_at"]) <= observed_at
+            ):
+                raise AcquisitionRuntimeConflict("runtime lease ownership was lost")
             updated = connection.execute(
                 sa.update(acquisition_runtime_lease)
                 .where(
                     acquisition_runtime_lease.c.lease_name == LEASE_NAME,
                     acquisition_runtime_lease.c.owner_ref == owner_ref,
                     acquisition_runtime_lease.c.generation == fencing_token,
-                    acquisition_runtime_lease.c.expires_at > at,
+                    acquisition_runtime_lease.c.expires_at > observed_at,
                 )
                 .values(
-                    heartbeat_at=at,
-                    expires_at=at + dt.timedelta(seconds=lease_seconds),
+                    heartbeat_at=observed_at,
+                    expires_at=observed_at + dt.timedelta(seconds=lease_seconds),
                 )
                 .returning(acquisition_runtime_lease.c.lease_name)
             ).first()
@@ -364,6 +435,68 @@ class AcquisitionRuntimeStore:
                 raise AcquisitionRuntimeConflict("terminal runtime stage cannot restart")
             if row["status"] == RuntimeStageStatus.RUNNING.value:
                 return self._stage_snapshot(row)
+            if (
+                row["status"] == RuntimeStageStatus.WAITING.value
+                and row["replay_same_attempt"]
+            ):
+                attempt = connection.execute(
+                    sa.select(acquisition_runtime_stage_attempt)
+                    .where(
+                        acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
+                        acquisition_runtime_stage_attempt.c.stage == stage.value,
+                        acquisition_runtime_stage_attempt.c.attempt_count
+                        == row["attempt_count"],
+                    )
+                    .with_for_update()
+                ).mappings().one()
+                if (
+                    attempt["status"] != RuntimeStageStatus.WAITING.value
+                    or not attempt["replay_same_attempt"]
+                ):
+                    raise AcquisitionRuntimeConflict(
+                        "runtime same-attempt replay checkpoint drifted"
+                    )
+                connection.execute(
+                    sa.update(acquisition_runtime_stage_attempt)
+                    .where(
+                        acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
+                        acquisition_runtime_stage_attempt.c.stage == stage.value,
+                        acquisition_runtime_stage_attempt.c.attempt_count
+                        == row["attempt_count"],
+                    )
+                    .values(
+                        status=RuntimeStageStatus.RUNNING.value,
+                        retry_at=None,
+                        replay_same_attempt=False,
+                        completed_at=None,
+                    )
+                )
+                updated = connection.execute(
+                    sa.update(acquisition_runtime_stage)
+                    .where(
+                        acquisition_runtime_stage.c.cycle_ref == cycle_ref,
+                        acquisition_runtime_stage.c.stage == stage.value,
+                    )
+                    .values(
+                        status=RuntimeStageStatus.RUNNING.value,
+                        reason_codes=[],
+                        retry_at=None,
+                        replay_same_attempt=False,
+                        completed_at=None,
+                        updated_at=at,
+                    )
+                    .returning(acquisition_runtime_stage)
+                ).mappings().one()
+                connection.execute(
+                    sa.update(acquisition_runtime_cycle)
+                    .where(acquisition_runtime_cycle.c.cycle_ref == cycle_ref)
+                    .values(
+                        status=RuntimeCycleStatus.RUNNING.value,
+                        last_reason_code=None,
+                        updated_at=at,
+                    )
+                )
+                return self._stage_snapshot(updated)
             updated = connection.execute(
                 sa.update(acquisition_runtime_stage)
                 .where(
@@ -380,6 +513,7 @@ class AcquisitionRuntimeStore:
                     observed_cost=Decimal("0"),
                     reason_codes=[],
                     retry_at=None,
+                    replay_same_attempt=False,
                     started_at=at,
                     completed_at=None,
                     updated_at=at,
@@ -404,13 +538,14 @@ class AcquisitionRuntimeStore:
         cycle_ref: str,
         stage: AcquisitionRuntimeStage,
         stage_snapshot: RuntimeStageSnapshot,
-        proposal: RuntimeProposal,
+        reserved_cost: Decimal,
         *,
+        maximum_cycle_cost: Decimal,
         owner_ref: str,
         fencing_token: int,
         at: dt.datetime,
-    ) -> None:
-        """Reserve one attempt before any provider/domain action can execute."""
+    ) -> RuntimeStageReservation:
+        """Atomically reserve one deterministic envelope before Hermes or providers."""
 
         at = require_aware(at)
         with self.engine.begin() as connection:
@@ -421,19 +556,63 @@ class AcquisitionRuntimeStore:
                 at=at,
             )
             row = self._stage(connection, cycle_ref, stage)
+            self._cycle(connection, cycle_ref)
             if (
                 row["status"] != RuntimeStageStatus.RUNNING.value
                 or row["attempt_count"] != stage_snapshot.attempt_count
             ):
                 raise AcquisitionRuntimeConflict("runtime attempt cannot reserve cost")
+            attempt = connection.execute(
+                sa.select(acquisition_runtime_stage_attempt)
+                .where(
+                    acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
+                    acquisition_runtime_stage_attempt.c.stage == stage.value,
+                    acquisition_runtime_stage_attempt.c.attempt_count
+                    == stage_snapshot.attempt_count,
+                )
+                .with_for_update()
+            ).mappings().one_or_none()
+            if attempt is not None:
+                if (
+                    attempt["status"] != RuntimeStageStatus.RUNNING.value
+                    or Decimal(attempt["reserved_cost"]) != reserved_cost
+                    or Decimal(attempt["observed_cost"]) != Decimal("0")
+                    or attempt["retry_at"] is not None
+                    or attempt["completed_at"] is not None
+                ):
+                    raise AcquisitionRuntimeConflict(
+                        "runtime attempt reservation is not replay safe"
+                    )
+                total = self._spent_cost(connection, cycle_ref)
+                return RuntimeStageReservation(
+                    accepted=True,
+                    created=False,
+                    reserved_cost=reserved_cost,
+                    total_cycle_cost=total,
+                    proposal=(
+                        RuntimeProposal.model_validate(attempt["proposal"])
+                        if attempt["proposal"] is not None
+                        else None
+                    ),
+                )
+            total_before = self._spent_cost(connection, cycle_ref)
+            if total_before + reserved_cost > maximum_cycle_cost:
+                return RuntimeStageReservation(
+                    accepted=False,
+                    created=False,
+                    reserved_cost=reserved_cost,
+                    total_cycle_cost=total_before,
+                )
             values = {
                 "cycle_ref": cycle_ref,
                 "stage": stage.value,
                 "attempt_count": stage_snapshot.attempt_count,
                 "status": RuntimeStageStatus.RUNNING.value,
-                "reserved_cost": proposal.estimated_cost,
+                "reserved_cost": reserved_cost,
                 "observed_cost": Decimal("0"),
+                "proposal": None,
                 "retry_at": None,
+                "replay_same_attempt": False,
                 "completed_at": None,
             }
             inserted = insert_if_absent(
@@ -447,24 +626,93 @@ class AcquisitionRuntimeStore:
                 ],
             )
             if not inserted:
-                attempt = connection.execute(
-                    sa.select(acquisition_runtime_stage_attempt).where(
-                        acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
-                        acquisition_runtime_stage_attempt.c.stage == stage.value,
-                        acquisition_runtime_stage_attempt.c.attempt_count
-                        == stage_snapshot.attempt_count,
-                    )
-                ).mappings().one()
-                if (
-                    attempt["status"] != RuntimeStageStatus.RUNNING.value
-                    or Decimal(attempt["reserved_cost"]) != proposal.estimated_cost
-                    or Decimal(attempt["observed_cost"]) != Decimal("0")
-                    or attempt["retry_at"] is not None
-                    or attempt["completed_at"] is not None
-                ):
+                raise AcquisitionRuntimeConflict(
+                    "runtime attempt reservation raced its fencing transaction"
+                )
+            connection.execute(
+                sa.update(acquisition_runtime_stage)
+                .where(
+                    acquisition_runtime_stage.c.cycle_ref == cycle_ref,
+                    acquisition_runtime_stage.c.stage == stage.value,
+                )
+                .values(
+                    reserved_cost=reserved_cost,
+                    updated_at=at,
+                )
+            )
+            connection.execute(
+                sa.update(acquisition_runtime_cycle)
+                .where(acquisition_runtime_cycle.c.cycle_ref == cycle_ref)
+                .values(
+                    spent_cost=total_before + reserved_cost,
+                    updated_at=at,
+                )
+            )
+            return RuntimeStageReservation(
+                accepted=True,
+                created=True,
+                reserved_cost=reserved_cost,
+                total_cycle_cost=total_before + reserved_cost,
+            )
+
+    def bind_stage_proposal(
+        self,
+        cycle_ref: str,
+        stage: AcquisitionRuntimeStage,
+        stage_snapshot: RuntimeStageSnapshot,
+        proposal: RuntimeProposal,
+        *,
+        owner_ref: str,
+        fencing_token: int,
+        at: dt.datetime,
+    ) -> RuntimeProposal:
+        at = require_aware(at)
+        with self.engine.begin() as connection:
+            self._require_active_lease(
+                connection,
+                owner_ref,
+                fencing_token=fencing_token,
+                at=at,
+            )
+            row = self._stage(connection, cycle_ref, stage)
+            attempt = connection.execute(
+                sa.select(acquisition_runtime_stage_attempt)
+                .where(
+                    acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
+                    acquisition_runtime_stage_attempt.c.stage == stage.value,
+                    acquisition_runtime_stage_attempt.c.attempt_count
+                    == stage_snapshot.attempt_count,
+                )
+                .with_for_update()
+            ).mappings().one()
+            if (
+                row["status"] != RuntimeStageStatus.RUNNING.value
+                or row["attempt_count"] != stage_snapshot.attempt_count
+                or attempt["status"] != RuntimeStageStatus.RUNNING.value
+                or Decimal(attempt["reserved_cost"]) != proposal.estimated_cost
+            ):
+                raise AcquisitionRuntimeConflict(
+                    "runtime proposal does not match its reserved attempt"
+                )
+            stored = attempt["proposal"]
+            if stored is not None:
+                replay = RuntimeProposal.model_validate(stored)
+                if replay != proposal:
                     raise AcquisitionRuntimeConflict(
-                        "runtime attempt reservation is not replay safe"
+                        "runtime proposal changed during replay"
                     )
+                return replay
+            encoded = proposal.model_dump(mode="json")
+            connection.execute(
+                sa.update(acquisition_runtime_stage_attempt)
+                .where(
+                    acquisition_runtime_stage_attempt.c.cycle_ref == cycle_ref,
+                    acquisition_runtime_stage_attempt.c.stage == stage.value,
+                    acquisition_runtime_stage_attempt.c.attempt_count
+                    == stage_snapshot.attempt_count,
+                )
+                .values(proposal=encoded)
+            )
             connection.execute(
                 sa.update(acquisition_runtime_stage)
                 .where(
@@ -475,15 +723,10 @@ class AcquisitionRuntimeStore:
                     plan_ref=proposal.plan_ref,
                     command=proposal.command,
                     argument_fingerprint=proposal.argument_fingerprint,
-                    reserved_cost=proposal.estimated_cost,
                     updated_at=at,
                 )
             )
-            connection.execute(
-                sa.update(acquisition_runtime_cycle)
-                .where(acquisition_runtime_cycle.c.cycle_ref == cycle_ref)
-                .values(spent_cost=self._spent_cost(connection, cycle_ref), updated_at=at)
-            )
+            return proposal
 
     def finish_stage(
         self,
@@ -527,7 +770,13 @@ class AcquisitionRuntimeStore:
                         "status": result.status.value,
                         "reserved_cost": reserved_cost,
                         "observed_cost": result.observed_cost,
+                        "proposal": (
+                            proposal.model_dump(mode="json")
+                            if proposal is not None
+                            else None
+                        ),
                         "retry_at": result.retry_at,
+                        "replay_same_attempt": result.replay_same_attempt,
                         "completed_at": at,
                     },
                     index_elements=[
@@ -546,6 +795,14 @@ class AcquisitionRuntimeStore:
                     raise AcquisitionRuntimeConflict(
                         "runtime attempt reserved cost changed"
                     )
+                if proposal is not None and (
+                    attempt["proposal"] is None
+                    or RuntimeProposal.model_validate(attempt["proposal"])
+                    != proposal
+                ):
+                    raise AcquisitionRuntimeConflict(
+                        "runtime attempt proposal changed"
+                    )
                 connection.execute(
                     sa.update(acquisition_runtime_stage_attempt)
                     .where(
@@ -560,6 +817,7 @@ class AcquisitionRuntimeStore:
                         status=result.status.value,
                         observed_cost=result.observed_cost,
                         retry_at=result.retry_at,
+                        replay_same_attempt=result.replay_same_attempt,
                         completed_at=at,
                     )
                 )
@@ -583,6 +841,7 @@ class AcquisitionRuntimeStore:
                     observed_cost=result.observed_cost,
                     reason_codes=list(result.reason_codes),
                     retry_at=result.retry_at,
+                    replay_same_attempt=result.replay_same_attempt,
                     completed_at=at,
                     updated_at=at,
                 )
@@ -694,6 +953,7 @@ class AcquisitionRuntimeStore:
                     "observed_cost": Decimal("0"),
                     "reason_codes": [],
                     "retry_at": None,
+                    "replay_same_attempt": False,
                     "started_at": None,
                     "completed_at": None,
                     "updated_at": at,
@@ -736,6 +996,7 @@ class AcquisitionRuntimeStore:
             retry_at=(
                 _aware(row["retry_at"]) if row["retry_at"] is not None else None
             ),
+            replay_same_attempt=bool(row["replay_same_attempt"]),
         )
 
     @staticmethod
@@ -788,20 +1049,46 @@ class AcquisitionRuntimeStore:
         fencing_token: int,
         at: dt.datetime,
     ) -> None:
-        owned = connection.scalar(
-            sa.select(sa.func.count())
-            .select_from(acquisition_runtime_lease)
-            .where(
-                acquisition_runtime_lease.c.lease_name == LEASE_NAME,
-                acquisition_runtime_lease.c.owner_ref == owner_ref,
-                acquisition_runtime_lease.c.generation == fencing_token,
-                acquisition_runtime_lease.c.expires_at > at,
-            )
+        row = AcquisitionRuntimeStore._lease_row(connection)
+        observed_at = AcquisitionRuntimeStore._database_now(
+            connection,
+            fallback=at,
         )
-        if owned != 1:
+        if (
+            row["owner_ref"] != owner_ref
+            or row["generation"] != fencing_token
+            or row["expires_at"] is None
+            or _aware(row["expires_at"]) <= observed_at
+        ):
             raise AcquisitionRuntimeConflict(
                 "runtime observation requires the active lease owner"
             )
+
+    @staticmethod
+    def _lease_row(connection: Connection) -> RowMapping:
+        row = connection.execute(
+            sa.select(acquisition_runtime_lease)
+            .where(acquisition_runtime_lease.c.lease_name == LEASE_NAME)
+            .with_for_update()
+        ).mappings().one_or_none()
+        if row is None:
+            raise AcquisitionRuntimeConflict("runtime lease is unavailable")
+        return row
+
+    @staticmethod
+    def _database_now(
+        connection: Connection,
+        *,
+        fallback: dt.datetime | None,
+    ) -> dt.datetime:
+        if connection.dialect.name == "postgresql":
+            value = connection.scalar(sa.select(sa.func.current_timestamp()))
+            if not isinstance(value, dt.datetime):
+                raise AcquisitionRuntimeConflict("database clock is unavailable")
+            return _aware(value)
+        if fallback is None:
+            raise AcquisitionRuntimeConflict("runtime lease clock is unavailable")
+        return require_aware(fallback)
 
     @staticmethod
     def _capability_values(
