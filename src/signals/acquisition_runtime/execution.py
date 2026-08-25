@@ -9,6 +9,7 @@ import os
 import uuid
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from typing import Protocol
 from urllib.parse import urlsplit
 
 import httpx
@@ -22,7 +23,12 @@ from signals.acquisition_connectivity.config import (
     load_connectivity_config,
     validate_hermes_shadow_config,
 )
-from signals.acquisition_connectivity.contracts import AcquisitionConnectivityConfig
+from signals.acquisition_connectivity.contracts import (
+    AcquisitionConnectivityConfig,
+    ConnectivityErrorCode,
+    ConnectivityFailure,
+)
+from signals.acquisition_connectivity.instantly import InstantlyConnectivityProbe
 from signals.acquisition_runtime.composition import (
     AcquisitionDomainComposition,
     build_acquisition_domain_composition,
@@ -33,7 +39,9 @@ from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
     RuntimeActionResult,
     RuntimeCapabilityEvidence,
+    RuntimeDependencyState,
     RuntimeHermesIdentityEvidence,
+    RuntimeQaScope,
     RuntimeRunRequest,
     RuntimeRunResult,
     RuntimeStageDependency,
@@ -48,6 +56,7 @@ from signals.acquisition_runtime.runtime_policy import (
     DurableRuntimeApprovalProvider,
     LiveRuntimePolicyAuthorizationFactory,
     RuntimePolicyConfigurationError,
+    SqlRuntimePolicyReadinessSource,
 )
 from signals.acquisition_runtime.store import AcquisitionRuntimeStore
 from signals.acquisition_runtime.supervisor import AcquisitionHermesSupervisor
@@ -74,7 +83,7 @@ from signals.policy.store import PolicyStore
 from signals.supervisor.contracts import SupervisorLimits
 from signals.supervisor.hermes import HermesSupervisorAdapter
 from signals.supervisor.pin import load_hermes_pin
-from signals.supervisor.runtime import SupervisorSettings
+from signals.supervisor.runtime import HealthState, SupervisorSettings
 from signals.supplier_discovery.contracts import SupplierTargetingConfig
 
 _PUBLIC_APP_URL = "KIVOU_PUBLIC_APP_URL"
@@ -100,12 +109,14 @@ class RuntimeLinkConfiguration:
         parsed = urlsplit(self.public_app_url)
         if (
             parsed.scheme != "https"
-            or not parsed.hostname
+            or parsed.hostname != "staging.kivou.eu"
+            or parsed.port is not None
             or parsed.username
             or parsed.password
             or parsed.path not in {"", "/"}
             or parsed.query
             or parsed.fragment
+            or self.public_app_url.rstrip("/") != "https://staging.kivou.eu"
             or len(self.attribution_hmac_key) < 16
             or not self.attribution_key_version
             or len(self.attribution_key_version) > 100
@@ -118,6 +129,130 @@ class DomainCompositionSurface:
     """Narrow structural surface used by the executable root."""
 
     handlers: Mapping[AcquisitionRuntimeStage, AcquisitionActionHandler]
+
+
+class RuntimeDependencyProbe(Protocol):
+    def check(
+        self,
+        *,
+        observed_at: dt.datetime,
+    ) -> tuple[RuntimeStageDependency, ...]: ...
+
+
+class FailClosedRuntimeDependencyProbe:
+    def check(
+        self,
+        *,
+        observed_at: dt.datetime,
+    ) -> tuple[RuntimeStageDependency, ...]:
+        del observed_at
+        return tuple(
+            RuntimeStageDependency(
+                stage=stage,
+                status=RuntimeDependencyState.NOT_READY,
+                reason_codes=("DEPENDENCY_PROBE_NOT_CONFIGURED",),
+            )
+            for stage in AcquisitionRuntimeStage
+        )
+
+
+class ProductionRuntimeDependencyProbe:
+    """Read-only bounded probes; provider details never cross this boundary."""
+
+    def __init__(
+        self,
+        *,
+        apollo: ApolloComponents,
+        instantly_provider: InstantlyProvider,
+        connectivity: AcquisitionConnectivityConfig,
+        hermes_runtime: object,
+        webhook_ready: bool,
+    ) -> None:
+        self._apollo = apollo
+        self._instantly = InstantlyConnectivityProbe(
+            provider=instantly_provider,
+            mailbox_readiness=InstantlyMailboxReadinessSource(
+                instantly_provider,
+                require_sending_gap=False,
+            ),
+        )
+        self._connectivity = connectivity
+        self._hermes = hermes_runtime
+        self._webhook_ready = webhook_ready
+
+    def check(
+        self,
+        *,
+        observed_at: dt.datetime,
+    ) -> tuple[RuntimeStageDependency, ...]:
+        observed_at = observed_at.astimezone(dt.UTC)
+        apollo_reason: str | None = None
+        instantly_reason: str | None = None
+        hermes_reason: str | None = None
+        try:
+            self._apollo.identity.check()
+        except Exception:  # noqa: BLE001 - provider detail is secret/private
+            apollo_reason = "APOLLO_DEPENDENCY_NOT_READY"
+        try:
+            self._instantly.check(
+                self._connectivity.deployment,
+                observed_at=observed_at,
+            )
+        except ConnectivityFailure as error:
+            instantly_reason = (
+                "MAILBOX_DEPENDENCY_NOT_READY"
+                if error.code is ConnectivityErrorCode.MAILBOX_NOT_READY
+                else "INSTANTLY_DEPENDENCY_NOT_READY"
+            )
+        except Exception:  # noqa: BLE001 - provider detail is secret/private
+            instantly_reason = "INSTANTLY_DEPENDENCY_NOT_READY"
+        try:
+            health = self._hermes.health()
+            pin = load_hermes_pin()
+            if (
+                health.state is not HealthState.AVAILABLE
+                or health.hermes_version != pin.version
+                or health.source_commit != pin.commit
+                or health.executable_tools != ()
+            ):
+                hermes_reason = "HERMES_DEPENDENCY_NOT_READY"
+        except Exception:  # noqa: BLE001 - provider detail is secret/private
+            hermes_reason = "HERMES_DEPENDENCY_NOT_READY"
+
+        apollo_stages = {
+            AcquisitionRuntimeStage.SUPPLIER_DISCOVERY,
+            AcquisitionRuntimeStage.CONTACT_DISCOVERY,
+            AcquisitionRuntimeStage.COMPANY_RESEARCH,
+        }
+        instantly_stages = {
+            AcquisitionRuntimeStage.CAMPAIGN,
+            AcquisitionRuntimeStage.PROVIDER_HANDOFF,
+        }
+        webhook_stages = {
+            AcquisitionRuntimeStage.RESPONSE,
+            AcquisitionRuntimeStage.ATTRIBUTION_CONVERSION,
+        }
+        dependencies: list[RuntimeStageDependency] = []
+        for stage in AcquisitionRuntimeStage:
+            reasons = [value for value in (hermes_reason,) if value is not None]
+            if stage in apollo_stages and apollo_reason is not None:
+                reasons.append(apollo_reason)
+            if stage in instantly_stages and instantly_reason is not None:
+                reasons.append(instantly_reason)
+            if stage in webhook_stages and not self._webhook_ready:
+                reasons.append("WEBHOOK_INGRESS_NOT_READY")
+            dependencies.append(
+                RuntimeStageDependency(
+                    stage=stage,
+                    status=(
+                        RuntimeDependencyState.NOT_READY
+                        if reasons
+                        else RuntimeDependencyState.READY
+                    ),
+                    reason_codes=tuple(dict.fromkeys(reasons)),
+                )
+            )
+        return tuple(dependencies)
 
 
 @dataclass(frozen=True)
@@ -154,13 +289,19 @@ def load_runtime_link_config(
         raise RuntimeExecutionConfigurationError("LINKS_NOT_CONFIGURED") from None
 
 
-def _exact_scope(control: PolicyControlSnapshot) -> Scope:
+def _exact_scope(
+    control: PolicyControlSnapshot,
+    qa_scope: RuntimeQaScope,
+) -> Scope:
     if not (
         len(control.allowed_countries) == 1
         and len(control.allowed_languages) == 1
         and len(control.allowed_wedges) == 1
         and control.allowed_countries[0] in {"CH", "FR"}
         and control.allowed_languages[0] in {"fr", "en"}
+        and control.allowed_countries[0] == qa_scope.country
+        and control.allowed_languages[0] == qa_scope.language
+        and control.allowed_wedges[0] == qa_scope.wedge
     ):
         raise RuntimePolicyConfigurationError("POLICY_SCOPE_NOT_EXACT")
     return Scope(
@@ -269,7 +410,6 @@ def _configuration_fingerprint(
     runtime_config: AcquisitionRuntimeConfig,
     connectivity_config: AcquisitionConnectivityConfig,
     links: RuntimeLinkConfiguration,
-    control: PolicyControlSnapshot,
     sender: SenderComplianceConfig,
     campaign: CampaignDeploymentConfig,
     registry_identity: str,
@@ -281,7 +421,6 @@ def _configuration_fingerprint(
             "connectivity": connectivity_config.deployment.model_dump(mode="json"),
             "public_app_url": links.public_app_url,
             "attribution_key_version": links.attribution_key_version,
-            "policy_snapshot_fingerprint": control.snapshot_fingerprint,
             "sender_config_fingerprint": sender.config_fingerprint,
             "campaign": campaign.model_dump(mode="json"),
             "registry_identity": registry_identity,
@@ -289,7 +428,11 @@ def _configuration_fingerprint(
     )
 
 
-def _runtime_capability(registry: AcquisitionActionRegistry) -> RuntimeCapabilityEvidence:
+def _runtime_capability(
+    registry: AcquisitionActionRegistry,
+    *,
+    dependencies: tuple[RuntimeStageDependency, ...],
+) -> RuntimeCapabilityEvidence:
     pin = load_hermes_pin()
     return RuntimeCapabilityEvidence(
         environment="STAGING",
@@ -305,10 +448,7 @@ def _runtime_capability(registry: AcquisitionActionRegistry) -> RuntimeCapabilit
         registry_identity=registry.identity,
         native_tools=0,
         commands=registry.commands,
-        dependencies=tuple(
-            RuntimeStageDependency(stage=stage, status="READY")
-            for stage in AcquisitionRuntimeStage
-        ),
+        dependencies=dependencies,
     )
 
 
@@ -340,6 +480,7 @@ def build_runtime_execution_composition(
     apollo: ApolloComponents | None = None,
     instantly_provider: InstantlyProvider | None = None,
     hermes_runtime: object | None = None,
+    dependency_probe: RuntimeDependencyProbe | None = None,
     domain_builder: Callable[..., AcquisitionDomainComposition] = (
         build_acquisition_domain_composition
     ),
@@ -353,7 +494,7 @@ def build_runtime_execution_composition(
     if len(runtime_config.deployment.allowed_opportunity_keys) != 1:
         raise RuntimeExecutionConfigurationError("QA_SIGNAL_SCOPE_NOT_EXACT")
     control = PolicyStore(engine).get_effective_control(observed_at)
-    scope = _exact_scope(control)
+    scope = _exact_scope(control, runtime_config.deployment.qa_scope)
     sender_config, campaign_deployment = _campaign_configuration(
         connectivity_config,
         links=links,
@@ -404,17 +545,24 @@ def build_runtime_execution_composition(
         runtime_config=runtime_config,
         connectivity_config=connectivity_config,
         links=links,
-        control=control,
         sender=sender_config,
         campaign=campaign_deployment,
         registry_identity=empty_registry.identity,
     )
+    dependencies = (dependency_probe or FailClosedRuntimeDependencyProbe()).check(
+        observed_at=observed_at,
+    )
+    runtime_revision = f"runtime-{config_fingerprint[:32]}"
     authorization_factory = LiveRuntimePolicyAuthorizationFactory(
         engine,
-        runtime_revision=f"runtime-{config_fingerprint[:32]}",
+        runtime_revision=runtime_revision,
         qa_signal_ref=(
             "procurement-opportunity:"
             + runtime_config.deployment.allowed_opportunity_keys[0]
+        ),
+        readiness=SqlRuntimePolicyReadinessSource(
+            engine,
+            dependencies=dependencies,
         ),
     )
     approval_provider = DurableRuntimeApprovalProvider(
@@ -445,11 +593,12 @@ def build_runtime_execution_composition(
     registry = AcquisitionActionRegistry(domain.handlers)
     if registry.identity != empty_registry.identity:
         raise RuntimeExecutionConfigurationError("REGISTRY_IDENTITY_MISMATCH")
+    supervisor_runtime = hermes_runtime or _default_hermes_runtime(connectivity_config)
     supervisor = AcquisitionHermesSupervisor(
-        hermes_runtime or _default_hermes_runtime(connectivity_config),
+        supervisor_runtime,
         registry=registry,
     )
-    capability = _runtime_capability(registry)
+    capability = _runtime_capability(registry, dependencies=dependencies)
     store = AcquisitionRuntimeStore(engine)
     limits = runtime_config.deployment.limits
     runner = AcquisitionRuntimeRunner(
@@ -498,6 +647,7 @@ def execute_runtime_run_once(
                 api_key=connectivity_config.instantly_api_key.get_secret_value(),
                 client=client,
             )
+            hermes = _default_hermes_runtime(connectivity_config)
             composition = build_runtime_execution_composition(
                 engine=engine,
                 runtime_config=runtime_config,
@@ -505,6 +655,14 @@ def execute_runtime_run_once(
                 links=links,
                 apollo=apollo,
                 instantly_provider=instantly,
+                hermes_runtime=hermes,
+                dependency_probe=ProductionRuntimeDependencyProbe(
+                    apollo=apollo,
+                    instantly_provider=instantly,
+                    connectivity=connectivity_config,
+                    hermes_runtime=hermes,
+                    webhook_ready=False,
+                ),
                 clock=lambda: dt.datetime.now(dt.UTC),
             )
             return composition.runner.run_once(

@@ -240,6 +240,7 @@ def _runner(
     maximum_wall_seconds=900,
     clock=lambda: NOW,
     event_sink=None,
+    runtime_capability=None,
 ):
     active_stages = tuple(AcquisitionRuntimeStage)
     outcomes = outcomes or {
@@ -261,7 +262,7 @@ def _runner(
         "maximum_cycle_cost": Decimal(maximum_cost),
         "maximum_wall_seconds": maximum_wall_seconds,
         "lease_seconds": 1200,
-        "runtime_capability": _capability(),
+        "runtime_capability": runtime_capability or _capability(),
         "clock": clock,
     }
     if event_sink is not None:
@@ -287,6 +288,39 @@ def test_normal_lease_contention_is_clean_already_running_without_cycle_work() -
     assert result.status is RuntimeRunStatus.ALREADY_RUNNING
     assert result.exit_code == 0
     assert [event[0] for event in store.events] == ["lease"]
+
+
+def test_not_ready_dependency_is_observed_then_blocks_before_cycle_or_action() -> None:
+    capability = _capability().model_copy(
+        update={
+            "dependencies": tuple(
+                RuntimeStageDependency(
+                    stage=stage,
+                    status=(
+                        "NOT_READY"
+                        if stage is AcquisitionRuntimeStage.COMPANY_RESEARCH
+                        else "READY"
+                    ),
+                    reason_codes=(
+                        ("APOLLO_DEPENDENCY_NOT_READY",)
+                        if stage is AcquisitionRuntimeStage.COMPANY_RESEARCH
+                        else ()
+                    ),
+                )
+                for stage in AcquisitionRuntimeStage
+            )
+        }
+    )
+    store = FakeStore()
+
+    result = _runner(store, runtime_capability=capability).run_once(_request())
+
+    assert result.status is RuntimeRunStatus.BLOCKED
+    assert result.stage is AcquisitionRuntimeStage.COMPANY_RESEARCH
+    assert result.reason_code == "APOLLO_DEPENDENCY_NOT_READY"
+    assert result.exit_code == 1
+    assert not any(event[0] == "cycle" for event in store.events)
+    assert not any(event[0] == "begin" for event in store.events)
 
 
 def test_runtime_events_follow_their_durable_transitions() -> None:

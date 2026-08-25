@@ -13,6 +13,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeCapabilityEvidence,
     RuntimeCycleSnapshot,
     RuntimeCycleStatus,
+    RuntimeDependencyState,
     RuntimeHealthObservation,
     RuntimeLeaseResult,
     RuntimeProposal,
@@ -207,6 +208,27 @@ class AcquisitionRuntimeRunner:
                 fencing_token=fencing_token,
                 at=now,
             )
+            unavailable = next(
+                (
+                    dependency
+                    for dependency in self._runtime_capability.dependencies
+                    if dependency.status is RuntimeDependencyState.NOT_READY
+                ),
+                None,
+            )
+            if unavailable is not None:
+                reason = unavailable.reason_codes[0]
+                self._event(
+                    action="cycle",
+                    status="blocked",
+                    code=reason,
+                    stage=unavailable.stage.value,
+                )
+                return RuntimeRunResult(
+                    status=RuntimeRunStatus.BLOCKED,
+                    stage=unavailable.stage,
+                    reason_code=reason,
+                )
             cycle = self.store.resume_or_create_cycle(
                 owner_ref=request.owner_ref,
                 fencing_token=fencing_token,

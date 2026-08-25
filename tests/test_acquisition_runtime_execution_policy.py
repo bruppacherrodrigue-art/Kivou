@@ -15,7 +15,9 @@ from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
     RuntimeCycleSnapshot,
     RuntimeCycleStatus,
+    RuntimeDependencyState,
     RuntimeProposal,
+    RuntimeStageDependency,
     RuntimeStageSnapshot,
 )
 from signals.acquisition_runtime.domain import (
@@ -26,6 +28,7 @@ from signals.acquisition_runtime.registry import AcquisitionActionContext
 from signals.acquisition_runtime.runtime_policy import (
     DurableRuntimeApprovalProvider,
     LiveRuntimePolicyAuthorizationFactory,
+    SqlRuntimePolicyReadinessSource,
 )
 from signals.company_research.contracts import CompanyResearchAuthorizationInput
 from signals.contact_discovery.contracts import ContactAuthorizationInput
@@ -36,12 +39,16 @@ from signals.persistence.schema import (
     acquisition_policy_snapshot,
     acquisition_runtime_approval,
     acquisition_runtime_cycle,
+    acquisition_runtime_stage,
     policy_evaluation,
 )
 from signals.policy.contracts import (
     POLICY_VERSION,
     ApprovalPurpose,
     AutonomyMode,
+    EvidenceReadiness,
+    EvidenceStatus,
+    OperationalReadiness,
     PolicyDecision,
     PolicyStatus,
 )
@@ -50,6 +57,28 @@ from signals.supplier_discovery.contracts import DiscoveryAuthorizationInput
 
 NOW = dt.datetime(2026, 8, 25, 14, tzinfo=dt.UTC)
 OPPORTUNITY_ID = "opportunity-qa-001"
+
+
+class ReadyPolicyInputs:
+    def evidence(self, context, *, required_claims, observed_at):
+        del context
+        return EvidenceReadiness(
+            status=EvidenceStatus.READY,
+            claims=required_claims,
+            assessment_version="tested-durable-evidence-v1",
+            observed_at=observed_at,
+        )
+
+    def operational(
+        self,
+        context,
+        *,
+        control,
+        runtime_revision,
+        observed_at,
+    ):
+        del context, control, observed_at
+        return OperationalReadiness(runtime_revision=runtime_revision)
 
 
 def _engine(*, allowed_countries: tuple[str, ...] = ("CH",)) -> sa.Engine:
@@ -61,6 +90,7 @@ def _engine(*, allowed_countries: tuple[str, ...] = ("CH",)) -> sa.Engine:
             acquisition_policy_snapshot,
             policy_evaluation,
             acquisition_runtime_cycle,
+            acquisition_runtime_stage,
             acquisition_runtime_approval,
         ],
     )
@@ -199,6 +229,7 @@ def test_live_factory_builds_native_authorizations_from_current_policy() -> None
         engine,
         runtime_revision="runtime-config:001",
         qa_signal_ref="procurement-opportunity:signal-qa-001",
+        readiness=ReadyPolicyInputs(),
     )
     supplier_context = _context(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY)
     supplier_identity = deterministic_attempt_identity(
@@ -244,6 +275,127 @@ def test_live_factory_builds_native_authorizations_from_current_policy() -> None
         "SUPPLIER_SEARCH_PROFILE",
     }
     assert supplier.budget_usage.cost_used == Decimal("0")
+    engine.dispose()
+
+
+def test_live_factory_defaults_to_unknown_evidence_and_operational_readiness() -> None:
+    engine = _engine()
+    context = _context(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY)
+
+    authorization = LiveRuntimePolicyAuthorizationFactory(
+        engine,
+        runtime_revision="runtime-config:001",
+        qa_signal_ref="procurement-opportunity:signal-qa-001",
+    ).supplier(context, deterministic_attempt_identity(context.stage_snapshot), ())
+
+    assert authorization.authorization.evidence.status is EvidenceStatus.UNKNOWN
+    assert authorization.authorization.evidence.claims == ()
+    assert authorization.authorization.operational.provider_quota.value == "UNKNOWN"
+    assert authorization.authorization.operational.mailbox_quota.value == "UNKNOWN"
+    assert authorization.authorization.operational.send_window.value == "UNKNOWN"
+    assert (
+        authorization.authorization.operational.provider_control_plane.value
+        == "UNKNOWN"
+    )
+    engine.dispose()
+
+
+def test_sql_readiness_requires_durable_stage_truth_and_live_dependency_probes() -> None:
+    engine = _engine()
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(acquisition_runtime_stage).values(
+                cycle_ref="cycle-qa-001",
+                stage=AcquisitionRuntimeStage.SIGNAL_SEED.value,
+                status="SUCCEEDED",
+                attempt_count=1,
+                plan_ref="plan-signal-seed",
+                command=AcquisitionRuntimeStage.SIGNAL_SEED.command,
+                argument_fingerprint="a" * 64,
+                result_refs=["public-evidence-001"],
+                reserved_cost=Decimal("0"),
+                observed_cost=Decimal("0"),
+                reason_codes=[],
+                retry_at=None,
+                started_at=NOW,
+                completed_at=NOW,
+                updated_at=NOW,
+            )
+        )
+    dependencies = tuple(
+        RuntimeStageDependency(
+            stage=stage,
+            status=RuntimeDependencyState.READY,
+        )
+        for stage in AcquisitionRuntimeStage
+    )
+    source = SqlRuntimePolicyReadinessSource(
+        engine,
+        dependencies=dependencies,
+    )
+    context = _context(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY)
+
+    evidence = source.evidence(
+        context,
+        required_claims=("PUBLIC_OPPORTUNITY",),
+        observed_at=NOW,
+    )
+    operational = source.operational(
+        context,
+        control=PolicyStore(engine).get_effective_control(NOW),
+        runtime_revision="runtime-config:001",
+        observed_at=NOW,
+    )
+
+    assert evidence.status is EvidenceStatus.READY
+    assert evidence.claims == ("PUBLIC_OPPORTUNITY",)
+    assert operational.provider_quota.value == "READY"
+    assert operational.mailbox_quota.value == "UNKNOWN"
+    engine.dispose()
+
+
+def test_sql_readiness_keeps_mailbox_quota_and_kill_switch_fail_closed() -> None:
+    engine = _engine()
+    dependencies = tuple(
+        RuntimeStageDependency(
+            stage=stage,
+            status=(
+                RuntimeDependencyState.NOT_READY
+                if stage is AcquisitionRuntimeStage.CAMPAIGN
+                else RuntimeDependencyState.READY
+            ),
+            reason_codes=(
+                ("MAILBOX_DEPENDENCY_NOT_READY",)
+                if stage is AcquisitionRuntimeStage.CAMPAIGN
+                else ()
+            ),
+        )
+        for stage in AcquisitionRuntimeStage
+    )
+    source = SqlRuntimePolicyReadinessSource(
+        engine,
+        dependencies=dependencies,
+    )
+    control_snapshot = PolicyStore(engine).get_effective_control(NOW)
+
+    mailbox = source.operational(
+        _context(AcquisitionRuntimeStage.CAMPAIGN),
+        control=control_snapshot,
+        runtime_revision="runtime-config:001",
+        observed_at=NOW,
+    )
+    killed = source.operational(
+        _context(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY),
+        control=control_snapshot.model_copy(update={"kill_switch": True}),
+        runtime_revision="runtime-config:001",
+        observed_at=NOW,
+    )
+
+    assert mailbox.provider_quota.value == "UNKNOWN"
+    assert mailbox.mailbox_quota.value == "UNKNOWN"
+    assert mailbox.send_window.value == "UNKNOWN"
+    assert killed.provider_quota.value == "UNKNOWN"
+    assert killed.provider_control_plane.value == "UNKNOWN"
     engine.dispose()
 
 

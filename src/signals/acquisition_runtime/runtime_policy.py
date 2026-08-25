@@ -6,6 +6,7 @@ import datetime as dt
 import hashlib
 import json
 from decimal import Decimal
+from typing import Protocol
 
 import sqlalchemy as sa
 from sqlalchemy.engine import Engine, RowMapping
@@ -16,7 +17,12 @@ from signals.acquisition_runtime.authorization import (
     RuntimeApprovalBinding,
     RuntimeApprovalStatus,
 )
-from signals.acquisition_runtime.contracts import AcquisitionRuntimeStage, require_aware
+from signals.acquisition_runtime.contracts import (
+    AcquisitionRuntimeStage,
+    RuntimeDependencyState,
+    RuntimeStageDependency,
+    require_aware,
+)
 from signals.acquisition_runtime.domain import (
     AuthorizedCall,
     DomainApprovalRequired,
@@ -29,7 +35,11 @@ from signals.company_research.contracts import CompanyResearchAuthorizationInput
 from signals.compliance.contracts import ComplianceAuthorizationInput
 from signals.contact_discovery.contracts import ContactAuthorizationInput
 from signals.decision_engine.contracts import DecisionAuthorizationInput
-from signals.persistence.schema import acquisition_runtime_approval, policy_evaluation
+from signals.persistence.schema import (
+    acquisition_runtime_approval,
+    acquisition_runtime_stage,
+    policy_evaluation,
+)
 from signals.policy.contracts import (
     ApprovalGrant,
     ApprovalPurpose,
@@ -42,6 +52,7 @@ from signals.policy.contracts import (
     PolicyControlSnapshot,
     PolicyStatus,
     Scope,
+    WindowState,
 )
 from signals.policy.registry import COMMAND_POLICIES
 from signals.policy.store import PolicyStore
@@ -60,6 +71,151 @@ _APPROVAL_STAGES = frozenset(
 
 class RuntimePolicyConfigurationError(RuntimeError):
     """A safe machine-only failure at the live Policy composition boundary."""
+
+
+class RuntimePolicyReadinessSource(Protocol):
+    def evidence(
+        self,
+        context: AcquisitionActionContext,
+        *,
+        required_claims: tuple[str, ...],
+        observed_at: dt.datetime,
+    ) -> EvidenceReadiness: ...
+
+    def operational(
+        self,
+        context: AcquisitionActionContext,
+        *,
+        control: PolicyControlSnapshot,
+        runtime_revision: str,
+        observed_at: dt.datetime,
+    ) -> OperationalReadiness: ...
+
+
+class FailClosedRuntimePolicyReadiness:
+    """Default boundary: unknown inputs never become executable readiness."""
+
+    def evidence(
+        self,
+        context: AcquisitionActionContext,
+        *,
+        required_claims: tuple[str, ...],
+        observed_at: dt.datetime,
+    ) -> EvidenceReadiness:
+        del context, required_claims
+        return EvidenceReadiness(
+            status=EvidenceStatus.UNKNOWN,
+            claims=(),
+            assessment_version="acquisition-runtime-evidence-unknown-v1",
+            observed_at=require_aware(observed_at),
+        )
+
+    def operational(
+        self,
+        context: AcquisitionActionContext,
+        *,
+        control: PolicyControlSnapshot,
+        runtime_revision: str,
+        observed_at: dt.datetime,
+    ) -> OperationalReadiness:
+        del context, control, observed_at
+        return OperationalReadiness(
+            runtime_revision=runtime_revision,
+            provider_quota="UNKNOWN",
+            mailbox_quota="UNKNOWN",
+            send_window=WindowState.UNKNOWN,
+            provider_control_plane="UNKNOWN",
+        )
+
+
+class SqlRuntimePolicyReadinessSource(FailClosedRuntimePolicyReadiness):
+    """Derive readiness only from durable stage truth and bounded probes."""
+
+    def __init__(
+        self,
+        engine: Engine,
+        *,
+        dependencies: tuple[RuntimeStageDependency, ...],
+    ) -> None:
+        self._engine = engine
+        self._dependencies = {item.stage: item for item in dependencies}
+        if set(self._dependencies) != set(AcquisitionRuntimeStage):
+            raise RuntimePolicyConfigurationError("RUNTIME_DEPENDENCIES_INCOMPLETE")
+
+    def evidence(
+        self,
+        context: AcquisitionActionContext,
+        *,
+        required_claims: tuple[str, ...],
+        observed_at: dt.datetime,
+    ) -> EvidenceReadiness:
+        observed_at = require_aware(observed_at)
+        preceding = tuple(AcquisitionRuntimeStage)[: tuple(AcquisitionRuntimeStage).index(context.stage)]
+        with self._engine.connect() as connection:
+            rows = connection.execute(
+                sa.select(
+                    acquisition_runtime_stage.c.stage,
+                    acquisition_runtime_stage.c.status,
+                    acquisition_runtime_stage.c.result_refs,
+                ).where(
+                    acquisition_runtime_stage.c.cycle_ref == context.cycle.cycle_ref,
+                    acquisition_runtime_stage.c.stage.in_(
+                        tuple(stage.value for stage in preceding)
+                    ),
+                )
+            ).mappings().all()
+        by_stage = {row["stage"]: row for row in rows}
+        durable = bool(preceding) and all(
+            (row := by_stage.get(stage.value)) is not None
+            and row["status"] == "SUCCEEDED"
+            and bool(row["result_refs"])
+            for stage in preceding
+        )
+        if not durable:
+            return super().evidence(
+                context,
+                required_claims=required_claims,
+                observed_at=observed_at,
+            )
+        return EvidenceReadiness(
+            status=EvidenceStatus.READY,
+            claims=required_claims,
+            assessment_version="acquisition-runtime-durable-stages-v1",
+            observed_at=observed_at,
+        )
+
+    def operational(
+        self,
+        context: AcquisitionActionContext,
+        *,
+        control: PolicyControlSnapshot,
+        runtime_revision: str,
+        observed_at: dt.datetime,
+    ) -> OperationalReadiness:
+        require_aware(observed_at)
+        dependency = self._dependencies[context.stage]
+        if (
+            dependency.status is RuntimeDependencyState.NOT_READY
+            or control.kill_switch
+            or control.read_only
+        ):
+            return super().operational(
+                context,
+                control=control,
+                runtime_revision=runtime_revision,
+                observed_at=observed_at,
+            )
+        send_capable = context.stage in {
+            AcquisitionRuntimeStage.CAMPAIGN,
+            AcquisitionRuntimeStage.PROVIDER_HANDOFF,
+        }
+        return OperationalReadiness(
+            runtime_revision=runtime_revision,
+            provider_quota="READY",
+            mailbox_quota="READY" if send_capable else "UNKNOWN",
+            send_window=WindowState.OPEN if send_capable else WindowState.UNKNOWN,
+            provider_control_plane="AVAILABLE",
+        )
 
 
 def _exact_scope(control: PolicyControlSnapshot) -> Scope:
@@ -92,9 +248,9 @@ def _common_authorization(
     control: PolicyControlSnapshot,
     runtime_revision: str,
     qa_signal_ref: str,
+    evidence: EvidenceReadiness,
+    operational: OperationalReadiness,
 ) -> dict[str, object]:
-    profile = COMMAND_POLICIES[context.stage.command]
-    observed_at = require_aware(context.at)
     return {
         "evaluation_id": identity.evaluation_id,
         "request_id": identity.request_id,
@@ -103,19 +259,8 @@ def _common_authorization(
         "qa_signal_ref": qa_signal_ref,
         "scope": _exact_scope(control),
         "currency": control.currency,
-        "evidence": EvidenceReadiness(
-            status=EvidenceStatus.READY,
-            claims=profile.required_evidence,
-            assessment_version="acquisition-runtime-evidence-v1",
-            observed_at=observed_at,
-        ),
-        "operational": OperationalReadiness(
-            runtime_revision=runtime_revision,
-            provider_quota="READY",
-            mailbox_quota="READY",
-            send_window="OPEN",
-            provider_control_plane="AVAILABLE",
-        ),
+        "evidence": evidence,
+        "operational": operational,
         "expected_policy_version": control.policy_version,
         "approval_grants": approvals,
         "supervisor_plan_id": context.proposal.plan_ref,
@@ -134,6 +279,7 @@ class LiveRuntimePolicyAuthorizationFactory:
         *,
         runtime_revision: str,
         qa_signal_ref: str,
+        readiness: RuntimePolicyReadinessSource | None = None,
     ) -> None:
         if not runtime_revision or len(runtime_revision) > 100:
             raise RuntimePolicyConfigurationError("RUNTIME_REVISION_INVALID")
@@ -146,6 +292,7 @@ class LiveRuntimePolicyAuthorizationFactory:
         self._policy = PolicyStore(engine)
         self._runtime_revision = runtime_revision
         self._qa_signal_ref = qa_signal_ref
+        self._readiness = readiness or FailClosedRuntimePolicyReadiness()
 
     def supplier(
         self,
@@ -282,6 +429,19 @@ class LiveRuntimePolicyAuthorizationFactory:
         approvals: tuple[ApprovalGrant, ...],
     ) -> tuple[dict[str, object], BudgetUsage]:
         control = self._policy.get_effective_control(require_aware(context.at))
+        observed_at = require_aware(context.at)
+        profile = COMMAND_POLICIES[context.stage.command]
+        evidence = self._readiness.evidence(
+            context,
+            required_claims=profile.required_evidence,
+            observed_at=observed_at,
+        )
+        operational = self._readiness.operational(
+            context,
+            control=control,
+            runtime_revision=self._runtime_revision,
+            observed_at=observed_at,
+        )
         common = _common_authorization(
             context=context,
             identity=identity,
@@ -289,6 +449,8 @@ class LiveRuntimePolicyAuthorizationFactory:
             control=control,
             runtime_revision=self._runtime_revision,
             qa_signal_ref=self._qa_signal_ref,
+            evidence=evidence,
+            operational=operational,
         )
         common["compliance"] = self._unknown_compliance(context.at)
         return common, self._budget_usage(context.at)
