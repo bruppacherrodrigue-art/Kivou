@@ -30,8 +30,13 @@ import pathlib
 import pytest
 import sqlalchemy as sa
 from billing_helpers import BILLING_RETURN_URLS
+from fastapi.testclient import TestClient
+from test_campaign_webhooks import SECRET, _event, _queued
 
 from signals.api.config import ApiConfig
+from signals.campaigns.contracts import ResponseIngressCapability
+from signals.campaigns.webhooks import InstantlyWebhookService
+from signals.persistence.schema import acquisition_provider_event
 
 MODULE = "signals.api.asgi"
 INSTANTLY_ENV = {
@@ -241,6 +246,95 @@ def test_starting_the_application_runs_no_migration(base_environment, sqlite_url
     with engine.connect() as connection:
         tables = sa.inspect(connection).get_table_names()
     assert tables == [], "le démarrage a créé des tables : une migration a couru"
+
+
+# ─── composition de l'ingress Instantly ───────────────────────────────────────
+
+
+def test_absent_instantly_group_returns_service_unavailable(base_environment) -> None:
+    module = importlib.import_module(MODULE)
+
+    app = module.build_application()
+    response = TestClient(app).post("/webhooks/instantly", json={})
+
+    assert app.state.instantly_webhook_service is None
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "instantly_webhook_unavailable"
+
+
+def test_complete_instantly_group_wires_none_capability_without_network(
+    base_environment, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _configure_instantly(monkeypatch)
+
+    def forbidden_network(*args: object, **kwargs: object) -> None:
+        raise AssertionError("production composition attempted network I/O")
+
+    monkeypatch.setattr("socket.socket.connect", forbidden_network)
+    module = importlib.import_module(MODULE)
+
+    app = module.build_application()
+    service = app.state.instantly_webhook_service
+
+    assert isinstance(service, InstantlyWebhookService)
+    assert service._response_capability is ResponseIngressCapability.NONE
+    assert service._response_ingress is None
+
+
+def test_production_instantly_webhook_persists_and_replays_without_network(
+    base_environment,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: pathlib.Path,
+) -> None:
+    engine, _, result = _queued(tmp_path)
+    monkeypatch.setenv("KIVOU_DATABASE_URL", str(engine.url))
+    _configure_instantly(monkeypatch)
+
+    def forbidden_network(*args: object, **kwargs: object) -> None:
+        raise AssertionError("webhook ingress attempted network I/O")
+
+    monkeypatch.setattr("socket.socket.connect", forbidden_network)
+    module = importlib.import_module(MODULE)
+    app = module.build_application()
+    client = TestClient(app)
+    payload = _event(result)
+
+    invalid_secret = client.post(
+        "/webhooks/instantly",
+        json=payload,
+        headers={"x-kivou-instantly-secret": "wrong"},
+    )
+    with app.state.engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_provider_event)
+        ) == 0
+
+    first = client.post(
+        "/webhooks/instantly",
+        json=payload,
+        headers={"x-kivou-instantly-secret": SECRET},
+    )
+    replay = client.post(
+        "/webhooks/instantly",
+        json=payload,
+        headers={"x-kivou-instantly-secret": SECRET},
+    )
+    unknown_workspace = client.post(
+        "/webhooks/instantly",
+        json={**payload, "workspace": "workspace:other"},
+        headers={"x-kivou-instantly-secret": SECRET},
+    )
+
+    assert invalid_secret.status_code == 401
+    assert first.status_code == 200
+    assert first.json()["replayed"] is False
+    assert replay.status_code == 200
+    assert replay.json()["replayed"] is True
+    assert unknown_workspace.status_code == 422
+    with app.state.engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_provider_event)
+        ) == 1
 
 
 # ─── passerelle Stripe ────────────────────────────────────────────────────────
