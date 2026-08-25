@@ -34,6 +34,10 @@ class CommandPolicy:
 
 
 COMMAND_POLICIES = {
+    "resolve_signal_seed": CommandPolicy(
+        risk_class=RiskClass.READ_ONLY,
+        target_scope=TargetScope.EITHER,
+    ),
     "discover_suppliers": CommandPolicy(
         risk_class=RiskClass.PREPARATORY,
         target_scope=TargetScope.SIGNAL,
@@ -122,6 +126,27 @@ COMMAND_POLICIES = {
         requires_control_plane=True,
         requires_compliance=True,
     ),
+    "execute_provider_operations": CommandPolicy(
+        risk_class=RiskClass.COMMERCIAL_MUTATION,
+        target_scope=TargetScope.OPPORTUNITY,
+        required_evidence=(
+            "ACQUISITION_DECISION",
+            "PUBLIC_EVIDENCE",
+            "VERIFIED_CONTACT",
+            "ACQUISITION_PROSPECT_PREBUILD",
+            "PERSONALIZATION_ARTIFACT",
+            "COMPLIANCE_ASSESSMENT",
+            "CAMPAIGN_PLAN",
+            "MAILBOX_READINESS",
+            "SEND_WINDOW",
+        ),
+        uses_budget=True,
+        uses_volume=True,
+        uses_provider_quota=True,
+        uses_send_controls=True,
+        requires_control_plane=True,
+        requires_compliance=True,
+    ),
     "pause_campaign": CommandPolicy(
         RiskClass.RISK_REDUCTION, TargetScope.EITHER, requires_control_plane=True
     ),
@@ -132,6 +157,10 @@ COMMAND_POLICIES = {
         uses_budget=True,
         uses_provider_quota=True,
         requires_control_plane=True,
+    ),
+    "reconcile_conversion": CommandPolicy(
+        risk_class=RiskClass.PREPARATORY,
+        target_scope=TargetScope.OPPORTUNITY,
     ),
     "reallocate_volume": CommandPolicy(
         risk_class=RiskClass.COMMERCIAL_MUTATION,

@@ -134,7 +134,7 @@ def test_registry_covers_all_supervisor_commands_without_callables() -> None:
     assert set(COMMAND_POLICIES) == set(ALLOWED_COMMANDS)
     assert {
         command for command, profile in COMMAND_POLICIES.items() if profile.requires_compliance
-    } == {"schedule_campaign"}
+    } == {"execute_provider_operations", "schedule_campaign"}
     assert all(
         not callable(value)
         for profile in COMMAND_POLICIES.values()
