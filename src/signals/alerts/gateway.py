@@ -211,6 +211,10 @@ class SmtpAlertGateway:
             code = _single_recipient_status(error.recipients)
             if code is None:
                 raise AlertDeliveryError(
+                    "smtp_recipient_refusal_unclassified", retryable=True
+                ) from error
+            if 500 <= code < 600:
+                raise AlertDeliveryError(
                     "smtp_recipient_refused", retryable=False
                 ) from error
             raise AlertDeliveryError(
