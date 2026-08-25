@@ -134,6 +134,64 @@ et un `Message-ID` nouveaux, puis tente une nouvelle remise. Le statut HTTP et
 le corps restent identiques pour une adresse connue ou inconnue ; les logs ne
 contiennent que le code d'échec sûr.
 
+## Complément opérationnel #78 et #79 — 25 août 2026
+
+Le canal `signals.runtime_events` expose désormais les résultats de livraison
+sous forme de JSON compact, un événement par signal d'alerte et un événement
+pour chaque tentative de reset. Son handler dédié est installé de manière
+idempotente par les seuls points d'entrée ASGI et CLI ; il ne modifie ni le
+root logger, ni les handlers de facturation. Le journal contient uniquement le
+canal, le statut, un code court allowlisté, le caractère rejouable, le numéro
+de tentative et, pour une alerte, les références opaques du compte et du
+signal. Adresse e-mail, jeton, corps, URL, IP, texte d'exception, secret et
+empreinte de contexte n'y entrent jamais.
+
+Un événement `submitted` signifie seulement que le serveur SMTP a accepté la
+soumission. Il ne prouve ni la remise au serveur destinataire ni la lecture du
+message. La perte d'une réponse après soumission reste un état ambigu ; les
+retries continuent d'utiliser le `Message-ID` déterministe existant, sans
+revendiquer une livraison exactement une fois.
+
+La migration additive `0025_alert_recipient_context`, enfant direct de
+`0024_scheduled_plan_change`, ajoute à chaque ligne de livraison une empreinte
+SHA-256 de son contexte destinataire. Seul le digest est persisté. Son entrée
+canonique comprend le compte, l'adresse normalisée, la version de préférence
+et la signature d'éligibilité effective — plan, cadence et droits courants.
+L'upgrade ne classe ni ne réécrit l'historique à partir des anciens textes
+d'erreur ; upgrade et downgrade conservent les lignes historiques.
+
+Seul `smtp_recipient_refused`, produit par un refus RCPT permanent et
+univoque, installe un bloc terminal. Un `EXISTS` exact sur le compte,
+l'empreinte, l'état terminal, le code structuré et `retryable=false` est évalué
+avant toute création d'un nouveau lot. Les `4xx` destinataire restent
+rejouables dans le budget et constituent un incident courant ; un `5xx`
+générique, une erreur d'authentification, TLS ou timeout ne créent pas ce bloc.
+Un ancien lot ambigu dont l'empreinte est absente ou diffère est supprimé sans
+être envoyé à la nouvelle adresse.
+
+Le bloc ne se réarme qu'après un changement matériel vérifiable du contexte :
+adresse, version de préférence ou éligibilité effective. Un `PATCH` sémantique
+sans changement ne touche pas `updated_at` et ne contourne donc pas le bloc.
+L'empreinte lie aussi le refus au compte ; un refus sur un compte n'en bloque
+pas un autre.
+
+Les codes de sortie du job distinguent les situations opérables :
+
+- `0` : succès, contention/no-op/bloc déjà connu, ou nouveau refus RCPT
+  permanent correctement journalisé et terminalisé ;
+- `1` : incident de livraison connu apparu pendant le cycle courant, notamment
+  un `450` encore rejouable ou un échec terminal générique ;
+- `2` : configuration invalide ;
+- `3` : état de livraison SMTP ambigu apparu pendant le cycle courant ;
+- `4` : échec de persistance apparu pendant le cycle courant ;
+- `5` : exception technique inattendue arrêtée à la frontière du processus.
+
+Les états terminaux historiques n'affectent jamais le code des cycles
+suivants. L'unité systemd existante collecte déjà la sortie standard et
+d'erreur de l'ASGI et du CLI : aucune modification d'unité n'est nécessaire
+pour ce complément. Aucun déploiement, envoi SMTP réel, accès staging ou
+action GitHub n'a été effectué pendant sa réalisation.
+
 ## Runtime versionné
 
 `ops/systemd/kivou-alerts.service` charge le même environnement et le même
