@@ -13,6 +13,11 @@ import kivou_secret_hygiene as hygiene
 import psycopg
 
 _ROLE_NAME = "kivou_app"
+_DATABASE_PATH = "/kivou_staging"
+_LOCAL_DATABASE_HOSTS = frozenset({"127.0.0.1", "localhost", "::1"})
+_ALLOWED_SSL_MODES = frozenset(
+    {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"}
+)
 
 
 class _SafeFailure(Exception):
@@ -49,12 +54,25 @@ def _extract_database_url(environment_text: str) -> str:
 def _postgres_urls(old_url: str, new_password: str) -> tuple[str, str]:
     try:
         parsed = urllib.parse.urlsplit(old_url)
+        connection_options = urllib.parse.parse_qsl(
+            parsed.query,
+            keep_blank_values=True,
+            strict_parsing=True,
+        )
         if parsed.scheme not in {"postgres", "postgresql", "postgresql+psycopg"}:
             raise hygiene._InvalidInput
         if (
             parsed.username != _ROLE_NAME
             or parsed.password is None
-            or parsed.hostname is None
+            or parsed.hostname not in _LOCAL_DATABASE_HOSTS
+            or parsed.path != _DATABASE_PATH
+            or parsed.port not in (None, 5432)
+        ):
+            raise hygiene._InvalidInput
+        if connection_options and (
+            len(connection_options) != 1
+            or connection_options[0][0] != "sslmode"
+            or connection_options[0][1] not in _ALLOWED_SSL_MODES
         ):
             raise hygiene._InvalidInput
         if parsed.fragment or "@" not in parsed.netloc:
@@ -130,6 +148,7 @@ def _rotate_postgres_password(
         require_complete=False,
         allow_empty=True,
     )
+    hygiene._validate_new_values(values)
     new_password = _generate_postgres_password()
     if (
         not new_password

@@ -166,7 +166,9 @@ Elle reste strictement limitée au staging et ne contient aucune valeur réelle.
 Python et expose trois sous-commandes :
 
 - `set-secret` lit une valeur fournisseur autorisée par saisie masquée sur
-  `/dev/tty`, puis met à jour atomiquement le fichier partiel sans écho ;
+  `/dev/tty`, exige un alphabet ASCII non ambigu pour `EnvironmentFile=` et une
+  clé Stripe `sk_test_` ou `rk_test_`, puis met à jour atomiquement le fichier
+  partiel sans écho ;
 - `replace-env` remplace atomiquement les quatre variables autorisées, conserve
   toutes les autres lignes ainsi que uid, gid et mode du fichier cible, puis
   publie seulement deux compteurs ;
@@ -200,12 +202,18 @@ sudo /usr/bin/python3.12 ops/bin/kivou_secret_hygiene.py \
   replace-env \
   --values-file /run/kivou-secret-rotation/new.values \
   --target /etc/kivou/staging.env
-sudo journalctl --all --no-pager -o cat | \
-  sudo /usr/bin/python3.12 ops/bin/kivou_secret_hygiene.py \
-  audit-journal \
-  /run/kivou-secret-rotation/old.values \
-  /run/kivou-secret-rotation/new.values
+sudo /bin/bash -o pipefail -c '
+  /usr/bin/journalctl --all --no-pager --output=export |
+    /usr/bin/python3.12 \
+      /srv/kivou/app/ops/bin/kivou_secret_hygiene.py \
+      audit-journal \
+      /run/kivou-secret-rotation/old.values \
+      /run/kivou-secret-rotation/new.values
+'
 ```
+
+Le format export couvre tous les champs journald, dont `_CMDLINE`, et `pipefail`
+interdit de valider un audit si la lecture du journal a échoué.
 
 Toute simulation applicative qui dépend des secrets déployés doit rester une
 unité transitoire `systemd-run` avec

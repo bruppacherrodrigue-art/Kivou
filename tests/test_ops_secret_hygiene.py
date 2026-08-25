@@ -53,7 +53,7 @@ FAKE_OLD_ROLE_PASSWORD = "FAKE-old-role-password-81"
 FAKE_NEW_ROLE_PASSWORD = "FAKE new/role:password@81"
 FAKE_OLD_ROLE_URL = (
     "postgresql+psycopg://kivou_app:"
-    f"{FAKE_OLD_ROLE_PASSWORD}@db.invalid:5432/kivou_staging?sslmode=require"
+    f"{FAKE_OLD_ROLE_PASSWORD}@127.0.0.1:5432/kivou_staging?sslmode=require"
 )
 
 
@@ -341,6 +341,38 @@ def test_replace_env_replaces_all_secrets_atomically_and_preserves_metadata(
     assert body.endswith("\n\n")
 
 
+def test_legacy_ambiguous_provider_value_is_auditable_but_never_rewritten(
+    tmp_path: pathlib.Path,
+) -> None:
+    ambiguous_value = "FAKE ambiguous-provider-81"
+    replacements = {**FAKE_NEW_SECRETS, "SMTP_PASSWORD": ambiguous_value}
+    values_file = _write_values(tmp_path / "old.values", replacements)
+    target = _write_values(tmp_path / "staging.env", FAKE_OLD_SECRETS)
+    original_content = target.read_text(encoding="utf-8")
+    before = target.stat()
+
+    audit_result = _run_cli("audit-journal", values_file, stdin="clean journal\n")
+
+    assert audit_result.returncode == 0
+    assert json.loads(audit_result.stdout) == {
+        "matching_lines": 0,
+        "matching_occurrences": 0,
+        "secret_values_checked": 4,
+    }
+    assert audit_result.stderr == ""
+    assert ambiguous_value not in audit_result.stdout + audit_result.stderr
+
+    result = _run_cli("replace-env", "--values-file", values_file, "--target", target)
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == "error=invalid_input\n"
+    assert ambiguous_value not in result.stdout + result.stderr
+    assert target.read_text(encoding="utf-8") == original_content
+    after = target.stat()
+    assert (after.st_dev, after.st_ino) == (before.st_dev, before.st_ino)
+
+
 def test_set_secret_reads_three_provider_values_from_tty_without_echo(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -380,11 +412,33 @@ def test_set_secret_reads_three_provider_values_from_tty_without_echo(
         )
 
 
-def test_set_secret_rejects_a_live_stripe_key_without_echoing_it(
+def test_set_secret_accepts_a_restricted_stripe_test_key_without_echo(
     tmp_path: pathlib.Path,
 ) -> None:
     values_file = _write_values(tmp_path / "new.values", content="")
-    live_value = "sk_" + "live_FAKE_review_81"
+    restricted_value = "rk_" + "test_FAKE_restricted_81"
+
+    result, tty_output = _run_cli_with_tty(
+        "set-secret",
+        "STRIPE_SECRET_KEY",
+        "--values-file",
+        values_file,
+        secret=restricted_value,
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert restricted_value not in tty_output + result.stdout + result.stderr
+    assert _assignments(values_file) == {"STRIPE_SECRET_KEY": restricted_value}
+
+
+@pytest.mark.parametrize("key_prefix", ("sk_", "rk_"))
+def test_set_secret_rejects_live_stripe_keys_without_echoing_them(
+    tmp_path: pathlib.Path,
+    key_prefix: str,
+) -> None:
+    values_file = _write_values(tmp_path / "new.values", content="")
+    live_value = key_prefix + "live_FAKE_review_81"
 
     result, tty_output = _run_cli_with_tty(
         "set-secret",
@@ -399,6 +453,62 @@ def test_set_secret_rejects_a_live_stripe_key_without_echoing_it(
     assert result.stderr == "error=invalid_input\n"
     assert live_value not in tty_output + result.stdout + result.stderr
     assert values_file.read_text(encoding="utf-8") == ""
+
+
+@pytest.mark.parametrize(
+    "unsafe_value",
+    (
+        " FAKE-leading-81",
+        "FAKE-trailing-81 ",
+        "FAKE interior-81",
+        "FAKE'quote-81",
+        'FAKE"quote-81',
+        "FAKE\\slash-81",
+        "FAKE\ttab-81",
+        "FAKE\x01control-81",
+        "FAKÉ-non-ascii-81",
+        "FAKE`ambiguous-81",
+    ),
+)
+def test_set_secret_rejects_ambiguous_unquoted_systemd_values_without_leak(
+    tmp_path: pathlib.Path,
+    unsafe_value: str,
+) -> None:
+    values_file = _write_values(tmp_path / "new.values", content="")
+
+    result, tty_output = _run_cli_with_tty(
+        "set-secret",
+        "SMTP_PASSWORD",
+        "--values-file",
+        values_file,
+        secret=unsafe_value,
+    )
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == "error=invalid_input\n"
+    assert unsafe_value not in tty_output + result.stdout + result.stderr
+    assert values_file.read_text(encoding="utf-8") == ""
+
+
+def test_set_secret_accepts_unquoted_systemd_safe_token_punctuation(
+    tmp_path: pathlib.Path,
+) -> None:
+    values_file = _write_values(tmp_path / "new.values", content="")
+    safe_value = "Az09._~!#$%&()*+,-/:;<=>?@[]^_{|}"
+
+    result, tty_output = _run_cli_with_tty(
+        "set-secret",
+        "SMTP_PASSWORD",
+        "--values-file",
+        values_file,
+        secret=safe_value,
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert safe_value not in tty_output + result.stdout + result.stderr
+    assert _assignments(values_file) == {"SMTP_PASSWORD": safe_value}
 
 
 class _RecordingPasswordProtocol:
@@ -616,6 +726,84 @@ def test_rotate_postgres_keeps_candidate_when_database_state_is_unknown(
         (b"kivou_app", FAKE_NEW_ROLE_PASSWORD.encode())
     ]
     assert connection.closed
+
+
+@pytest.mark.parametrize(
+    "invalid_url",
+    (
+        pytest.param(
+            "postgresql://kivou_app:FAKE-old-role-password-81@"
+            "db.production.invalid:5432/kivou_staging",
+            id="production-host",
+        ),
+        pytest.param(
+            "postgresql://kivou_app:FAKE-old-role-password-81@"
+            "127.0.0.1:5432/kivou_production",
+            id="production-database",
+        ),
+        pytest.param(
+            "postgresql://kivou_app:FAKE-old-role-password-81@"
+            "localhost:5433/kivou_staging",
+            id="nonstandard-port",
+        ),
+        pytest.param(
+            "postgresql://kivou_app:FAKE-old-role-password-81@"
+            "127.0.0.1:5432/kivou_staging?host=db.production.invalid",
+            id="query-host-override",
+        ),
+    ),
+)
+def test_rotate_postgres_rejects_non_staging_or_nonlocal_urls_before_mutation(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    invalid_url: str,
+) -> None:
+    module = _load_postgres_module()
+    old_env = tmp_path / "staging.env"
+    old_env.write_text(f"KIVOU_DATABASE_URL={invalid_url}\n", encoding="utf-8")
+    old_env.chmod(0o600)
+    original_content = "".join(
+        f"{name}={FAKE_NEW_SECRETS[name]}\n" for name in PROVIDER_SECRET_NAMES
+    )
+    values_file = _write_values(tmp_path / "new.values", content=original_content)
+    before = values_file.stat()
+    connector_calls: list[str] = []
+
+    def connector(url: str, *, autocommit: bool) -> _RecordingPasswordConnection:
+        del autocommit
+        connector_calls.append(url)
+        return _RecordingPasswordConnection(_RecordingPasswordProtocol())
+
+    monkeypatch.setattr(module, "_connect_postgres", connector)
+    monkeypatch.setattr(
+        module,
+        "_generate_postgres_password",
+        lambda: FAKE_NEW_ROLE_PASSWORD,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(POSTGRES_SCRIPT),
+            "--old-env-file",
+            str(old_env),
+            "--values-file",
+            str(values_file),
+        ],
+    )
+
+    return_code = _call_main(module)
+
+    captured = capsys.readouterr()
+    assert return_code != 0
+    assert captured.out == ""
+    assert captured.err == "error=invalid_input\n"
+    assert FAKE_OLD_ROLE_PASSWORD not in captured.out + captured.err
+    assert connector_calls == []
+    assert values_file.read_text(encoding="utf-8") == original_content
+    after = values_file.stat()
+    assert (after.st_dev, after.st_ino) == (before.st_dev, before.st_ino)
 
 
 def test_postgres_rotator_parser_redacts_unexpected_secret_arguments(
@@ -893,6 +1081,9 @@ def test_runbook_uses_executable_masked_provider_and_local_postgres_rotation() -
         "PGconn.change_password",
         "/dev/tty",
         "saisie masquée",
+        "`sk_test_` ou `rk_test_`",
+        "ASCII",
+        "sans espace, guillemet ni barre oblique inverse",
         "sudo awk -F=",
     ):
         assert command_fragment in body

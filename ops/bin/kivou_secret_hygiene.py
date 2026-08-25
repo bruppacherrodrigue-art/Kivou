@@ -9,6 +9,7 @@ import json
 import os
 import pathlib
 import stat
+import string
 import sys
 import tempfile
 import warnings
@@ -22,6 +23,9 @@ SECRET_NAMES = (
 _SECRET_NAME_SET = frozenset(SECRET_NAMES)
 _PROVIDER_SECRET_NAMES = SECRET_NAMES[1:]
 _PROTECTED_MODE = 0o600
+_SAFE_UNQUOTED_PROVIDER_CHARACTERS = frozenset(
+    string.ascii_letters + string.digits + "._~!#$%&()*+,-/:;<=>?@[]^_{|}"
+)
 
 
 class _SafeFailure(Exception):
@@ -128,14 +132,21 @@ def _validate_provider_secret(name: str, value: str) -> None:
         raise _InvalidInput
     if (
         not value
-        or not value.strip()
-        or any(character in value for character in "\x00\r\n")
+        or any(character not in _SAFE_UNQUOTED_PROVIDER_CHARACTERS for character in value)
     ):
         raise _InvalidInput
-    if name == "STRIPE_SECRET_KEY" and not value.startswith("sk_test_"):
+    if name == "STRIPE_SECRET_KEY" and not value.startswith(
+        ("sk_test_", "rk_test_")
+    ):
         raise _InvalidInput
     if name == "STRIPE_WEBHOOK_SECRET" and not value.startswith("whsec_"):
         raise _InvalidInput
+
+
+def _validate_new_values(values: dict[str, str]) -> None:
+    for name in _PROVIDER_SECRET_NAMES:
+        if name in values:
+            _validate_provider_secret(name, values[name])
 
 
 def _rewrite_target(target_text: str, replacements: dict[str, str]) -> tuple[str, int]:
@@ -218,6 +229,7 @@ def _emit_counters(counters: dict[str, int]) -> None:
 def _replace_env(values_file: pathlib.Path, target: pathlib.Path) -> int:
     values_text, _values_metadata = _read_protected_file(values_file)
     replacements = _parse_values(values_text, require_complete=True)
+    _validate_new_values(replacements)
     target_text, target_metadata = _read_protected_file(target)
     replacement_text, line_count = _rewrite_target(target_text, replacements)
     _atomic_replace(target, replacement_text, target_metadata)
@@ -233,6 +245,7 @@ def _replace_env(values_file: pathlib.Path, target: pathlib.Path) -> int:
 def _set_secret(name: str, values_file: pathlib.Path) -> int:
     values_text, metadata = _read_protected_file(values_file)
     values = _parse_values(values_text, require_complete=False, allow_empty=True)
+    _validate_new_values(values)
     value = _read_secret_from_tty(name)
     _validate_provider_secret(name, value)
     if value in values.values():

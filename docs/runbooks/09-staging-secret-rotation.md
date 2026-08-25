@@ -72,6 +72,29 @@ sudo install -o root -g root -m 0600 /dev/null \
   /run/kivou-secret-rotation/new.values
 ```
 
+Inventorier aussi les sauvegardes historiques ciblées sans lire leur contenu.
+Le fichier NUL-delimited reste dans le tmpfs root-only ; la commande refuse tout
+élément correspondant qui ne serait pas un fichier régulier non symbolique et ne
+publie que leur nombre :
+
+```bash
+sudo /bin/bash -o pipefail -c '
+  shopt -s nullglob
+  legacy_backups=(/etc/kivou/staging.env.bak-*)
+  /usr/bin/install -o root -g root -m 0600 /dev/null \
+    /run/kivou-secret-rotation/legacy-backups.paths
+  for path in "${legacy_backups[@]}"; do
+    [[ -f "$path" && ! -L "$path" ]] || exit 1
+    printf "%s\0" "$path" >> \
+      /run/kivou-secret-rotation/legacy-backups.paths
+  done
+  printf "legacy_backup_files=%d\n" "${#legacy_backups[@]}"
+'
+```
+
+Conserver ce compte pour la validation finale. Ne supprimer encore aucune de ces
+sauvegardes : elles restent disponibles pour le Rollback pendant la fenêtre.
+
 Valider la structure de `old.values` avec un journal vide. La sortie autorisée
 est uniquement un objet de trois compteurs, dont
 `secret_values_checked=4`, `matching_lines=0` et
@@ -137,6 +160,14 @@ Les trois invites sont respectivement la saisie masquée du nouveau mot de passe
 `STRIPE_WEBHOOK_SECRET` TEST. Ne jamais rediriger ces invites, utiliser `echo`,
 les lancer avec `systemd-run`, ni copier leur saisie dans une variable de shell.
 Un échec laisse le fichier précédent intact et ne révèle aucune valeur.
+
+La clé API Stripe TEST commence par `sk_test_` ou `rk_test_` ; tout préfixe LIVE
+est refusé. Pour garantir une relecture identique par `EnvironmentFile=`, les
+trois valeurs fournisseur doivent utiliser l'alphabet ASCII URL/token sûr. Elles
+restent sans espace, guillemet ni barre oblique inverse, sans contrôle et sans
+caractère non ASCII. Le CLI refuse toute autre saisie sans tenter de la citer :
+obtenir alors du fournisseur une nouvelle valeur compatible, sans contournement
+manuel.
 
 Tourner ensuite localement le mot de passe PostgreSQL du rôle fixe `kivou_app`.
 Cette commande utilise l'environnement actuellement authentifié comme ancienne
@@ -284,13 +315,20 @@ valeurs. Les valeurs sont lues depuis les deux fichiers `0600`, conservées
 uniquement en mémoire et jamais transmises à l'outil de lecture du journal :
 
 ```bash
-sudo journalctl --all --no-pager -o cat | \
-  sudo /usr/bin/python3.12 \
-  /srv/kivou/app/ops/bin/kivou_secret_hygiene.py \
-  audit-journal \
-  /run/kivou-secret-rotation/old.values \
-  /run/kivou-secret-rotation/new.values
+sudo /bin/bash -o pipefail -c '
+  /usr/bin/journalctl --all --no-pager --output=export |
+    /usr/bin/python3.12 \
+      /srv/kivou/app/ops/bin/kivou_secret_hygiene.py \
+      audit-journal \
+      /run/kivou-secret-rotation/old.values \
+      /run/kivou-secret-rotation/new.values
+'
 ```
+
+Le format `--output=export` soumet tous les champs persistés, notamment
+`MESSAGE`, `_EXE` et `_CMDLINE`, au même scan. `/bin/bash -o pipefail -c` rend
+l'ensemble non-zéro si `journalctl` échoue, si le CLI refuse une entrée ou si une
+correspondance est trouvée ; une sortie partielle n'est jamais une preuve.
 
 Le CLI sort exactement `secret_values_checked`, `matching_lines` et
 `matching_occurrences`, tous numériques. Il retourne non-zéro si une occurrence
@@ -302,16 +340,43 @@ Si un compteur de correspondance est non nul, ne jamais chercher la valeur à la
 main. Identifier les unités par fenêtres temporelles et compteurs, corriger la
 source, refaire rotation/purge, puis relancer l'audit complet.
 
-## 7. Détruire les copies temporaires
+## 7. Détruire les copies temporaires et sauvegardes historiques
 
 Après validation complète et audit à zéro, détruire les deux jeux de valeurs et
-la sauvegarde root-only, démonter le tmpfs, puis retirer le point de montage :
+la sauvegarde root-only. Dernier point de décision Rollback avant suppression :
+si une preuve précédente manque ou a échoué, exécuter le Rollback maintenant et
+ne lancer aucune commande de cette section.
+
+Supprimer ensuite tous les fichiers correspondant au motif exact inventorié,
+après une nouvelle validation de type. Ne jamais élargir la cible à `/etc/kivou`
+ou à un autre motif. La commande réévalue le motif exact pour inclure toute copie
+créée pendant la fenêtre, puis prouve numériquement qu'il n'en reste aucune :
+
+```bash
+sudo /bin/bash -o pipefail -c '
+  shopt -s nullglob
+  legacy_backups=(/etc/kivou/staging.env.bak-*)
+  for path in "${legacy_backups[@]}"; do
+    [[ -f "$path" && ! -L "$path" ]] || exit 1
+  done
+  if ((${#legacy_backups[@]})); then
+    rm -- "${legacy_backups[@]}"
+  fi
+  legacy_backups=(/etc/kivou/staging.env.bak-*)
+  printf "legacy_backup_files=%d\n" "${#legacy_backups[@]}"
+  ((${#legacy_backups[@]} == 0))
+'
+```
+
+Exiger exactement `legacy_backup_files=0`. Détruire enfin l'inventaire, les
+fichiers du tmpfs, démonter le tmpfs, puis retirer le point de montage :
 
 ```bash
 sudo rm -- \
   /run/kivou-secret-rotation/old.values \
   /run/kivou-secret-rotation/new.values \
-  /run/kivou-secret-rotation/staging.env.backup
+  /run/kivou-secret-rotation/staging.env.backup \
+  /run/kivou-secret-rotation/legacy-backups.paths
 sudo umount /run/kivou-secret-rotation
 sudo rmdir /run/kivou-secret-rotation
 ```
@@ -333,8 +398,9 @@ et la destruction des fichiers :
 5. redémarrer et revalider dans l'ordre PostgreSQL, API, sauvegarde/ingestions,
    SMTP, Stripe TEST ;
 6. restaurer exactement les états de timer enregistrés avant la fenêtre ;
-7. faire rotation/purge de journald, auditer les deux jeux de valeurs, puis
-   détruire les trois fichiers et le tmpfs comme en section 7.
+7. faire rotation/purge de journald et auditer les deux jeux de valeurs ; ne
+   passer à la suppression ciblée et au tmpfs de la section 7 qu'après le succès
+   complet de ce Rollback.
 
 Après un changement PostgreSQL réussi, l'ancien fichier n'est plus un rollback
 valide tant qu'un DBA n'a pas explicitement retourné le rôle vers l'ancien mot de
