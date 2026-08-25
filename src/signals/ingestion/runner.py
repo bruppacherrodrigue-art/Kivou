@@ -28,6 +28,7 @@ from signals.ingestion.state import (
     save_checkpoint_cursor,
     start_run,
 )
+from signals.ingestion.ted_convergence import plan_ted_cycle
 
 SOURCE_ORDER: tuple[SourceName, ...] = ("simap", "boamp", "decp", "ted")
 
@@ -43,6 +44,8 @@ class RunOptions:
     decp_batch_size: int = DECP_PAGE_SIZE
     decp_time_budget_seconds: float | None = None
     decp_overlap_days: int = 30
+    ted_max_records_per_run: int = 500
+    ted_time_budget_seconds: float = 1200
     ingestion_stale_run_seconds: int = 3600
 
 
@@ -165,7 +168,8 @@ class IngestionRunner:
         *,
         should_stop: Callable[[], None] | None = None,
     ):
-        for attempt in range(3):
+        max_attempts = 1 if source.source == "ted" and options.dry_run else 3
+        for attempt in range(max_attempts):
             try:
                 self._check_cancellation()
                 arguments = {
@@ -179,7 +183,10 @@ class IngestionRunner:
             # failure into one failed source outcome while the other sources run.
             except Exception as error:
                 category = _category(error)
-                if category not in {"timeout", "network", "server_error"} or attempt == 2:
+                if (
+                    category not in {"timeout", "network", "server_error"}
+                    or attempt == max_attempts - 1
+                ):
                     raise
                 self.sleep(float(2**attempt))
         raise AssertionError("bounded retry loop exhausted")  # pragma: no cover
@@ -247,6 +254,211 @@ class IngestionRunner:
         self._check_cancellation()
         if deadline is not None and self.monotonic() >= deadline:
             raise BoundedPassComplete("DECP pass time budget reached")
+
+    def _check_ted_stop(self, *, deadline: float | None) -> None:
+        self._check_cancellation()
+        if deadline is not None and self.monotonic() >= deadline:
+            raise BoundedPassComplete("TED pass time budget reached")
+
+    @staticmethod
+    def _ted_window_end(
+        *,
+        previous: dt.datetime | None,
+        cycle_until: dt.date,
+        requested_until: dt.datetime,
+    ) -> dt.datetime:
+        candidate = (
+            requested_until
+            if cycle_until == requested_until.date()
+            else dt.datetime.combine(cycle_until, dt.time.min, tzinfo=dt.UTC)
+        )
+        return max(previous, candidate) if previous is not None else candidate
+
+    def _run_ted(
+        self,
+        *,
+        source: ProductionSource,
+        options: RunOptions,
+        started: dt.datetime,
+        until: dt.datetime,
+    ) -> SourceOutcome:
+        previous, run_id = self._start_persisted_run(
+            source="ted",
+            started_at=started,
+            stale_after_seconds=options.ingestion_stale_run_seconds,
+        )
+        deadline = self.monotonic() + options.ted_time_budget_seconds
+        total = IngestionCounters()
+        acquisition = None
+        unit_pipeline = PipelineResult()
+        unit_accounted = True
+        work_pending = False
+        try:
+            window = checkpoint_window(
+                "ted",
+                checkpoint_end=previous.window_end if previous else None,
+                until=until,
+                explicit_since=options.since,
+            )
+            cursor = plan_ted_cycle(
+                cursor=previous.cursor if previous else None,
+                window=window,
+                page_size=source.page_size,
+            )
+            with self.engine.begin() as connection:
+                save_checkpoint_cursor(
+                    connection,
+                    source="ted",
+                    cursor=cursor.as_dict(),
+                    updated_at=started,
+                )
+
+            record_limit = options.ted_max_records_per_run
+            if options.max_records is not None:
+                record_limit = min(record_limit, options.max_records)
+
+            while not cursor.complete:
+                if total.records_accepted >= record_limit:
+                    work_pending = True
+                    break
+                self._check_ted_stop(deadline=deadline)
+                acquisition = None
+                unit_pipeline = PipelineResult()
+                unit_accounted = False
+                acquisition_error = None
+                try:
+                    unit = source.acquire_unit(cursor, retrieved_at=started)
+                    acquisition = unit.acquisition
+                except AcquisitionFailure as error:
+                    acquisition = error.partial
+                    acquisition_error = error
+
+                acquisition_category = (
+                    _category(acquisition_error) if acquisition_error is not None else None
+                )
+                if acquisition_error is not None:
+                    total = _add_counters(
+                        total,
+                        _counters(acquisition, unit_pipeline, category=acquisition_category),
+                    )
+                    unit_accounted = True
+                    raise acquisition_error
+
+                for publication in acquisition.publications:
+                    try:
+                        item = self.pipeline.process(
+                            publication,
+                            as_of=until.date(),
+                            persisted_at=started,
+                        )
+                    except PipelineFailure as error:
+                        unit_pipeline = _add_pipeline(unit_pipeline, error.partial)
+                        raise
+                    unit_pipeline = _add_pipeline(unit_pipeline, item)
+
+                total = _add_counters(total, _counters(acquisition, unit_pipeline))
+                unit_accounted = True
+                cursor = unit.cursor_after
+                unit_finished = self.clock()
+                with self.engine.begin() as connection:
+                    if cursor.complete:
+                        advance_checkpoint(
+                            connection,
+                            source="ted",
+                            cursor=cursor.as_dict(),
+                            window_end=self._ted_window_end(
+                                previous=previous.window_end if previous else None,
+                                cycle_until=cursor.cycle_until,
+                                requested_until=until,
+                            ),
+                            completed_at=unit_finished,
+                        )
+                    else:
+                        save_checkpoint_cursor(
+                            connection,
+                            source="ted",
+                            cursor=cursor.as_dict(),
+                            updated_at=unit_finished,
+                        )
+                self._check_cancellation()
+
+            finished = self.clock()
+            with self.engine.begin() as connection:
+                checkpoint = complete_checkpoint_pass(
+                    connection,
+                    source="ted",
+                    completed_at=finished,
+                )
+                finish_run(
+                    connection,
+                    run_id=run_id,
+                    finished_at=finished,
+                    status="success",
+                    counters=total,
+                    checkpoint_after=checkpoint,
+                )
+            return SourceOutcome(
+                "ted",
+                "success",
+                total,
+                (finished - started).total_seconds(),
+                work_pending=work_pending,
+            )
+        except BoundedPassComplete:
+            finished = self.clock()
+            with self.engine.begin() as connection:
+                checkpoint = complete_checkpoint_pass(
+                    connection,
+                    source="ted",
+                    completed_at=finished,
+                )
+                finish_run(
+                    connection,
+                    run_id=run_id,
+                    finished_at=finished,
+                    status="success",
+                    counters=total,
+                    checkpoint_after=checkpoint,
+                )
+            return SourceOutcome(
+                "ted",
+                "success",
+                total,
+                (finished - started).total_seconds(),
+                work_pending=True,
+            )
+        except Exception as error:  # noqa: BLE001
+            category = _category(error)
+            if not unit_accounted:
+                total = _add_counters(
+                    total,
+                    _counters(acquisition, unit_pipeline, category=category),
+                )
+            finished = self.clock()
+            with self.engine.begin() as connection:
+                retained_checkpoint = fail_checkpoint(
+                    connection,
+                    source="ted",
+                    failed_at=finished,
+                )
+                finish_run(
+                    connection,
+                    run_id=run_id,
+                    finished_at=finished,
+                    status="rate_limited" if category == "rate_limited" else "failed",
+                    counters=total,
+                    checkpoint_after=retained_checkpoint,
+                    error_category=category,
+                    error_message=str(error),
+                )
+            return SourceOutcome(
+                "ted",
+                "rate_limited" if category == "rate_limited" else "failed",
+                total,
+                (finished - started).total_seconds(),
+                error_category=category,
+                work_pending=True,
+            )
 
     def _run_decp(
         self,
@@ -479,6 +691,10 @@ class IngestionRunner:
             raise ValueError("DECP time budget must be positive")
         if options.decp_overlap_days < 1:
             raise ValueError("DECP overlap must be positive")
+        if options.ted_max_records_per_run < 1:
+            raise ValueError("TED max records must be positive")
+        if options.ted_time_budget_seconds <= 0:
+            raise ValueError("TED time budget must be positive")
         if options.ingestion_stale_run_seconds < 1:
             raise ValueError("ingestion stale-run threshold must be positive")
         validation_now = self.clock()
@@ -497,6 +713,21 @@ class IngestionRunner:
                 until = until.replace(tzinfo=dt.UTC)
             if source_name == "decp" and not options.dry_run:
                 outcome = self._run_decp(
+                    source=source,
+                    options=options,
+                    started=started,
+                    until=until,
+                )
+                outcomes.append(outcome)
+                if outcome.error_category == IngestionTerminated.category:
+                    break
+                continue
+            if (
+                source_name == "ted"
+                and not options.dry_run
+                and hasattr(source, "acquire_unit")
+            ):
+                outcome = self._run_ted(
                     source=source,
                     options=options,
                     started=started,

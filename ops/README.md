@@ -2,7 +2,7 @@
 
 Ce dossier ne contient que ce qui doit être **versionné pour être reproductible**.
 Aujourd'hui : la sauvegarde PostgreSQL (RTL-03 / #39), le runtime des alertes
-transactionnelles (RTL-05), l'ingestion DECP bornée (#77) et l'outillage de
+transactionnelles (RTL-05), les ingestions DECP (#77) et TED (#82) bornées et l'outillage de
 rotation expurgée des secrets de staging (#81).
 
 > Un service systemd qui appelle un fichier absent de la branche déployable
@@ -227,6 +227,91 @@ sudo systemctl reset-failed kivou-ingest-decp.service
 
 Restaurer ensuite le SHA applicatif précédent. Ce correctif ne crée aucune
 migration et son rollback ne modifie aucune donnée métier.
+
+## Ingestion TED bornée (#82)
+
+`kivou-ingest-ted.service` exécute une seule convergence TED séquentielle. La
+recherche et chaque téléchargement XML partagent la même cadence conservative.
+Les réponses `202`, `429` et `5xx`, ainsi que les erreurs réseau, utilisent un
+backoff exponentiel borné ; `Retry-After` est respecté lorsqu'il demande une
+attente plus longue qui reste dans le budget total. Aucune réponse fournisseur
+brute n'est inscrite dans le journal ou dans la base.
+
+Le curseur versionné vit dans `ingestion_checkpoint`. Il fixe la fenêtre, la
+page, `pending_publication_numbers` et l'index suivant. La page de recherche est
+checkpointée avant son premier XML, puis chaque notice n'avance l'index qu'après
+la persistance idempotente. Un arrêt peut donc rejouer au plus une notice ; il
+ne repart pas de `cursor=null`. Le quota de notices et le budget de vingt minutes
+terminent proprement un passage avec `status=success` et `pending=1`. Une limite
+fournisseur épuisée reste un échec `rate_limited` non nul, avec la progression
+déjà finalisée conservée.
+
+Les cinq limites strictement positives viennent de
+`/etc/kivou/staging.env` : `KIVOU_TED_REQUEST_INTERVAL_SECONDS`,
+`KIVOU_TED_MAX_ATTEMPTS`, `KIVOU_TED_MAX_RETRY_SECONDS`,
+`KIVOU_TED_MAX_RECORDS_PER_RUN` et `KIVOU_TED_TIME_BUDGET_SECONDS`.
+
+### Installation et preuve manuelle obligatoire
+
+Le fichier timer est versionné mais cette installation ne l'active pas. **Ne pas activer le timer avant** qu'un passage manuel complet ait réussi et que le
+curseur ait avancé.
+
+```bash
+sudo install -o root -g root -m 644 \
+  ops/systemd/kivou-ingest-ted.service \
+  ops/systemd/kivou-ingest-ted.timer \
+  /etc/systemd/system/
+sudo systemd-analyze verify \
+  /etc/systemd/system/kivou-ingest-ted.service \
+  /etc/systemd/system/kivou-ingest-ted.timer
+sudo systemctl daemon-reload
+systemctl is-enabled kivou-ingest-ted.timer  # attendu avant preuve : disabled
+sudo systemctl start kivou-ingest-ted.service
+sudo systemctl status kivou-ingest-ted.service --no-pager
+```
+
+Comparer ensuite uniquement les états et compteurs opérationnels :
+
+```sql
+SELECT source, cursor, window_end, status, last_completed_at
+FROM ingestion_checkpoint WHERE source = 'ted';
+SELECT status, error_category, count(*)
+FROM ingestion_run WHERE source = 'ted'
+GROUP BY status, error_category ORDER BY status, error_category;
+SELECT source, status, window_end
+FROM ingestion_checkpoint WHERE source IN ('simap', 'boamp');
+```
+
+SIMAP et BOAMP doivent rester en succès. Après cette preuve manuelle seulement :
+
+```bash
+sudo systemctl enable --now kivou-ingest-ted.timer
+systemctl list-timers kivou-ingest-ted.timer --no-pager
+systemctl is-enabled kivou-ingest-ted.timer
+sudo journalctl -u kivou-ingest-ted.service -n 50 --no-pager
+```
+
+Vérifier un déclenchement systemd, puis le déclenchement planifié suivant. Les
+deux passages doivent finir sans exécution `running` orpheline, le curseur doit
+avancer et `systemctl is-enabled` doit rester `enabled`. Le journal attendu ne
+contient qu'une ligne `source=ted`, des compteurs, `status`, `pending` et
+`duration`, jamais un XML ou une réponse HTTP.
+
+### Rollback
+
+```bash
+sudo systemctl disable --now kivou-ingest-ted.timer
+sudo systemctl stop kivou-ingest-ted.service
+sudo install -o root -g root -m 644 \
+  /chemin/rollback/kivou-ingest-ted.service \
+  /chemin/rollback/kivou-ingest-ted.timer \
+  /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl reset-failed kivou-ingest-ted.service
+```
+
+Restaurer ensuite le SHA applicatif précédent. Aucune migration n'est associée
+à #82 ; le rollback ne supprime ni curseur, ni fait public, ni signal.
 
 ## Hygiène des secrets de staging (#81)
 

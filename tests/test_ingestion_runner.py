@@ -10,6 +10,7 @@ import sqlalchemy as sa
 from feed_helpers import LINKED_BOAMP, LINKED_DECP
 
 from signals.connectors.decp import DecpBatch, DecpClient, DecpWindowLimitError
+from signals.connectors.ted import NoticeRef, TedClient
 from signals.connectors.ted.errors import TedHttpError
 from signals.ingestion.pipeline import IngestionPipeline, PipelineFailure, PipelineResult
 from signals.ingestion.runner import IngestionRunner, RunOptions
@@ -20,6 +21,7 @@ from signals.ingestion.sources import (
     DecpAcquisitionBatch,
     DecpSource,
     SourceWindow,
+    TedSource,
 )
 from signals.ingestion.state import advance_checkpoint, load_checkpoint, load_run, start_run
 from signals.persistence.database import create_database_engine, migrate_to_latest
@@ -32,6 +34,7 @@ from signals.persistence.schema import (
 )
 
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
+TED_FIXTURES = pathlib.Path(__file__).parent / "fixtures" / "ted"
 
 
 class SourceStub:
@@ -180,6 +183,38 @@ def test_dry_run_normalizes_without_writing_runtime_or_business_state(tmp_path):
         )
 
 
+def test_ted_dry_run_does_not_multiply_the_client_retry_budget(tmp_path):
+    engine = _engine(tmp_path)
+    attempts = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(503)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        source = TedSource(
+            TedClient(
+                client=http_client,
+                request_interval_seconds=0,
+                max_attempts=4,
+                max_retry_seconds=30,
+                sleep=lambda _: None,
+            )
+        )
+        result = IngestionRunner(
+            engine,
+            sources={"ted": source},
+            pipeline=PipelineStub(),
+            clock=lambda: NOW,
+            sleep=lambda _: None,
+        ).run(RunOptions(sources=("ted",), max_records=1, dry_run=True))
+
+    assert attempts == 4
+    assert result.exit_code == 1
+    assert result.outcomes[0].error_category == "server_error"
+
+
 def test_the_runner_never_imports_or_invokes_the_alert_job():
     source = pathlib.Path("src/signals/ingestion/runner.py").read_text(encoding="utf-8")
     assert "signals.alerts" not in source
@@ -208,6 +243,245 @@ def test_ted_accepted_but_not_ready_is_a_bounded_transient_failure(tmp_path):
         checkpoint = load_checkpoint(connection, source="ted")
     assert checkpoint is not None
     assert checkpoint.window_end is None
+
+
+class _TedUnitClient:
+    def __init__(
+        self,
+        publication_numbers,
+        *,
+        fail_once_on: str | None = None,
+        after_fetch=None,
+    ):
+        self.publication_numbers = tuple(publication_numbers)
+        self.fail_once_on = fail_once_on
+        self.after_fetch = after_fetch
+        self.search_calls = []
+        self.fetch_calls = []
+
+    def search(self, query, *, limit=25, page=1):
+        self.search_calls.append((limit, page))
+        start = (page - 1) * limit
+        selected = self.publication_numbers[start : start + limit]
+        return [NoticeRef(number) for number in selected], len(self.publication_numbers)
+
+    def fetch_notice_xml(self, publication_number):
+        self.fetch_calls.append(publication_number)
+        if self.fail_once_on == publication_number:
+            self.fail_once_on = None
+            raise TedHttpError("limited", status_code=429, category="rate_limited")
+        if self.after_fetch is not None:
+            self.after_fetch(publication_number)
+        return (TED_FIXTURES / f"{publication_number}.xml").read_bytes()
+
+
+def test_ted_search_page_is_durable_before_a_download_429(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    client = _TedUnitClient(("565942-2026", "550374-2026"), fail_once_on="565942-2026")
+
+    result = IngestionRunner(
+        engine,
+        sources={"ted": TedSource(client, page_size=2)},
+        pipeline=IngestionPipeline(engine),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("ted",), ted_max_records_per_run=10))
+
+    assert result.exit_code == 1
+    assert result.outcomes[0].status == "rate_limited"
+    with engine.connect() as connection:
+        checkpoint = load_checkpoint(connection, source="ted")
+        run = connection.execute(sa.select(ingestion_run)).one()
+    assert checkpoint is not None
+    assert checkpoint.cursor is not None
+    assert checkpoint.cursor["pending_publication_numbers"] == [
+        "565942-2026",
+        "550374-2026",
+    ]
+    assert checkpoint.cursor["next_index"] == 0
+    assert checkpoint.window_end is None
+    assert run.records_fetched == 2
+    assert run.rate_limited_count == 1
+
+
+def test_ted_resume_keeps_completed_notices_and_creates_no_duplicates(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    client = _TedUnitClient(("565942-2026", "550374-2026"), fail_once_on="550374-2026")
+    source = TedSource(client, page_size=2)
+
+    first = IngestionRunner(
+        engine,
+        sources={"ted": source},
+        pipeline=IngestionPipeline(engine),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("ted",), ted_max_records_per_run=10))
+    with engine.connect() as connection:
+        after_failure = load_checkpoint(connection, source="ted")
+        first_count = connection.execute(
+            sa.select(sa.func.count()).select_from(source_event)
+        ).scalar_one()
+
+    second = IngestionRunner(
+        engine,
+        sources={"ted": source},
+        pipeline=IngestionPipeline(engine),
+        clock=lambda: NOW + dt.timedelta(hours=1),
+    ).run(RunOptions(sources=("ted",), ted_max_records_per_run=10))
+
+    assert first.exit_code == 1
+    assert after_failure is not None
+    assert after_failure.cursor["next_index"] == 1
+    assert first_count == 1
+    assert second.exit_code == 0
+    assert client.search_calls == [(2, 1)]
+    assert client.fetch_calls == ["565942-2026", "550374-2026", "550374-2026"]
+    with engine.connect() as connection:
+        checkpoint = load_checkpoint(connection, source="ted")
+        event_count = connection.execute(
+            sa.select(sa.func.count()).select_from(source_event)
+        ).scalar_one()
+        distinct_events = connection.execute(
+            sa.select(sa.func.count(sa.distinct(source_event.c.source_notice_id)))
+            .where(source_event.c.source_system == "ted")
+        ).scalar_one()
+    assert checkpoint is not None
+    assert checkpoint.cursor["complete"] is True
+    assert checkpoint.window_end == NOW + dt.timedelta(hours=1)
+    assert event_count == distinct_events == 2
+
+
+def test_ted_record_budget_is_a_successful_resumable_pass(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    client = _TedUnitClient(("565942-2026", "550374-2026"))
+
+    result = IngestionRunner(
+        engine,
+        sources={"ted": TedSource(client, page_size=2)},
+        pipeline=IngestionPipeline(engine),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("ted",), ted_max_records_per_run=1))
+
+    assert result.exit_code == 0
+    assert result.outcomes[0].status == "success"
+    assert result.outcomes[0].work_pending is True
+    assert result.outcomes[0].counters.records_accepted == 1
+    assert client.fetch_calls == ["565942-2026"]
+    with engine.connect() as connection:
+        checkpoint = load_checkpoint(connection, source="ted")
+    assert checkpoint is not None
+    assert checkpoint.cursor["next_index"] == 1
+    assert checkpoint.window_end is None
+
+
+def test_ted_time_budget_checkpoints_the_last_completed_notice(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    expired = False
+
+    def expire_after_fetch(_publication_number) -> None:
+        nonlocal expired
+        expired = True
+
+    client = _TedUnitClient(
+        ("565942-2026", "550374-2026"),
+        after_fetch=expire_after_fetch,
+    )
+    result = IngestionRunner(
+        engine,
+        sources={"ted": TedSource(client, page_size=2)},
+        pipeline=IngestionPipeline(engine),
+        clock=lambda: NOW,
+        monotonic=lambda: 6.0 if expired else 0.0,
+    ).run(
+        RunOptions(
+            sources=("ted",),
+            ted_max_records_per_run=10,
+            ted_time_budget_seconds=5,
+        )
+    )
+
+    assert result.exit_code == 0
+    assert result.outcomes[0].work_pending is True
+    assert client.fetch_calls == ["565942-2026"]
+    with engine.connect() as connection:
+        checkpoint = load_checkpoint(connection, source="ted")
+    assert checkpoint is not None
+    assert checkpoint.cursor["next_index"] == 1
+
+
+def test_ted_sigterm_after_a_notice_checkpoints_then_terminalizes(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    cancelled = False
+
+    def cancel_after_fetch(_publication_number) -> None:
+        nonlocal cancelled
+        cancelled = True
+
+    client = _TedUnitClient(
+        ("565942-2026", "550374-2026"),
+        after_fetch=cancel_after_fetch,
+    )
+    result = IngestionRunner(
+        engine,
+        sources={"ted": TedSource(client, page_size=2)},
+        pipeline=IngestionPipeline(engine),
+        clock=lambda: NOW,
+        cancel_requested=lambda: cancelled,
+    ).run(RunOptions(sources=("ted",), ted_max_records_per_run=10))
+
+    assert result.exit_code == 1
+    assert result.outcomes[0].error_category == "terminated"
+    with engine.connect() as connection:
+        checkpoint = load_checkpoint(connection, source="ted")
+        run = connection.execute(sa.select(ingestion_run)).one()
+    assert checkpoint is not None
+    assert checkpoint.cursor["next_index"] == 1
+    assert run.status == "failed"
+    assert run.finished_at is not None
+
+
+def test_ted_replay_after_post_persistence_failure_is_idempotent(tmp_path) -> None:
+    engine = _engine(tmp_path)
+    client = _TedUnitClient(("550374-2026",))
+    real_pipeline = IngestionPipeline(engine)
+
+    class FailAfterFirstPersistence:
+        def __init__(self) -> None:
+            self.failed = False
+
+        def process(self, publication, *, as_of, persisted_at):
+            item = real_pipeline.process(
+                publication,
+                as_of=as_of,
+                persisted_at=persisted_at,
+            )
+            if not self.failed:
+                self.failed = True
+                raise PipelineFailure(RuntimeError("after persistence"), partial=item)
+            return item
+
+    pipeline = FailAfterFirstPersistence()
+    first = IngestionRunner(
+        engine,
+        sources={"ted": TedSource(client, page_size=1)},
+        pipeline=pipeline,
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("ted",), ted_max_records_per_run=10))
+    second = IngestionRunner(
+        engine,
+        sources={"ted": TedSource(client, page_size=1)},
+        pipeline=pipeline,
+        clock=lambda: NOW + dt.timedelta(hours=1),
+    ).run(RunOptions(sources=("ted",), ted_max_records_per_run=10))
+
+    assert first.exit_code == 1
+    assert second.exit_code == 0
+    assert client.search_calls == [(1, 1)]
+    assert client.fetch_calls == ["550374-2026", "550374-2026"]
+    with engine.connect() as connection:
+        counts = tuple(
+            connection.execute(sa.select(sa.func.count()).select_from(table)).scalar_one()
+            for table in (source_event, contract_award, opportunity_representation)
+        )
+    assert counts == (1, 1, 1)
 
 
 def test_invalid_source_window_is_isolated_and_later_sources_are_attempted(tmp_path):

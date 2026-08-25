@@ -18,9 +18,11 @@ from signals.ingestion.sources import (
     DecpSource,
     SimapSource,
     SourceWindow,
+    TedAcquisitionFailure,
     TedSource,
     checkpoint_window,
 )
+from signals.ingestion.ted_convergence import plan_ted_cycle
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 NOW = dt.datetime(2026, 8, 19, 10, tzinfo=dt.UTC)
@@ -169,6 +171,89 @@ def test_ted_failure_carries_the_records_already_fetched_and_normalized():
     assert raised.value.partial.accepted == 1
     assert len(raised.value.partial.publications) == 1
     assert raised.value.status_code == 429
+
+
+def test_ted_unit_searches_one_page_without_downloading_xml() -> None:
+    class UnitTedStub:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def search(self, query, *, limit=25, page=1):
+            self.calls.append(("search", limit, page))
+            return [NoticeRef("565942-2026"), NoticeRef("550374-2026")], 3
+
+        def fetch_notice_xml(self, publication_number):
+            self.calls.append(("xml", publication_number))
+            raise AssertionError("search unit must not download XML")
+
+    client = UnitTedStub()
+    cursor = plan_ted_cycle(cursor=None, window=WINDOW, page_size=2)
+
+    unit = TedSource(client).acquire_unit(cursor, retrieved_at=NOW)
+
+    assert client.calls == [("search", 2, 1)]
+    assert unit.acquisition.fetched == 2
+    assert unit.acquisition.accepted == 0
+    assert unit.acquisition.publications == ()
+    assert unit.cursor_after.pending_publication_numbers == (
+        "565942-2026",
+        "550374-2026",
+    )
+    assert unit.cursor_after.next_index == 0
+    assert unit.cursor_after.more_pages is True
+
+
+def test_ted_unit_downloads_and_normalizes_exactly_one_pending_notice() -> None:
+    class UnitTedStub:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def search(self, query, *, limit=25, page=1):
+            self.calls.append(("search", limit, page))
+            return [NoticeRef("565942-2026"), NoticeRef("550374-2026")], 2
+
+        def fetch_notice_xml(self, publication_number):
+            self.calls.append(("xml", publication_number))
+            return (FIXTURES / "ted" / f"{publication_number}.xml").read_bytes()
+
+    client = UnitTedStub()
+    source = TedSource(client)
+    fresh = plan_ted_cycle(cursor=None, window=WINDOW, page_size=2)
+    searched = source.acquire_unit(fresh, retrieved_at=NOW).cursor_after
+
+    unit = source.acquire_unit(searched, retrieved_at=NOW)
+
+    assert client.calls == [
+        ("search", 2, 1),
+        ("xml", "565942-2026"),
+    ]
+    assert unit.acquisition.fetched == 0
+    assert unit.acquisition.accepted == 1
+    assert len(unit.acquisition.publications) == 1
+    assert unit.acquisition.publications[0].event.provenance.source_system == "ted"
+    assert unit.cursor_after.next_index == 1
+
+
+def test_ted_unit_failure_retains_the_exact_unfinished_cursor() -> None:
+    class LimitedTedStub:
+        def search(self, query, *, limit=25, page=1):
+            return [NoticeRef("limited-2026")], 1
+
+        def fetch_notice_xml(self, publication_number):
+            raise TedHttpError("limited", status_code=429, category="rate_limited")
+
+    source = TedSource(LimitedTedStub())
+    fresh = plan_ted_cycle(cursor=None, window=WINDOW, page_size=1)
+    searched = source.acquire_unit(fresh, retrieved_at=NOW).cursor_after
+
+    with pytest.raises(TedAcquisitionFailure) as raised:
+        source.acquire_unit(searched, retrieved_at=NOW)
+
+    assert raised.value.cursor_after == searched
+    assert raised.value.partial.fetched == 0
+    assert raised.value.partial.accepted == 0
+    assert raised.value.partial.publications == ()
+    assert raised.value.category == "rate_limited"
 
 
 def test_a_maximum_record_probe_is_explicitly_incomplete_when_more_data_exists():
