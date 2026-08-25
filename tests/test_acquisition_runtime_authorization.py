@@ -63,7 +63,15 @@ def _prepared_store(
         tables.append(approval_table)
     METADATA.create_all(engine, tables=tables)
     runtime = AcquisitionRuntimeStore(engine)
+    lease = runtime.acquire_lease(
+        "test-owner",
+        acquired_at=NOW,
+        lease_seconds=120,
+    )
+    assert lease.fencing_token is not None
     cycle = runtime.resume_or_create_cycle(
+        owner_ref="test-owner",
+        fencing_token=lease.fencing_token,
         opportunity_keys=("signal-qa-001",),
         config_fingerprint="1" * 64,
         at=NOW,

@@ -19,7 +19,7 @@ from signals.acquisition_runtime.actions import (
     KivouDomainDisposition,
     KivouDomainOutcome,
 )
-from signals.acquisition_runtime.contracts import RuntimeStageSnapshot
+from signals.acquisition_runtime.contracts import RuntimeQaScope, RuntimeStageSnapshot
 from signals.acquisition_runtime.registry import AcquisitionActionContext
 from signals.campaigns.contracts import (
     CampaignAuthorizationInput,
@@ -129,6 +129,7 @@ class DecisionTruth:
 class PersonalizationTruth:
     artifact_ref: str
     disposition: PersonalizationDisposition
+    policy_status: PolicyStatus = PolicyStatus.APPROVED
 
 
 @dataclass(frozen=True)
@@ -142,6 +143,8 @@ class ComplianceTruth:
 class CampaignTruth:
     campaign_ref: str
     member_ref: str
+    transport_recipient_identity: str | None = None
+    transport_recipient_key_version: str | None = None
 
 
 @dataclass(frozen=True)
@@ -160,14 +163,27 @@ class ResponseTruth:
 class DomainTransientFailure(RuntimeError):
     """A bounded retryable condition without provider response text."""
 
-    def __init__(self, code: str = "DOMAIN_RETRYABLE") -> None:
+    def __init__(
+        self,
+        code: str = "DOMAIN_RETRYABLE",
+        *,
+        retry_at: dt.datetime | None = None,
+    ) -> None:
         safe_code = code if re.fullmatch(r"[A-Z0-9][A-Z0-9_:-]{0,99}", code) else "DOMAIN_RETRYABLE"
         super().__init__(safe_code)
         self.code = safe_code
+        self.retry_at = retry_at
 
 
 class DomainAmbiguousFailure(RuntimeError):
     """Persisted business truth contains more than one eligible runtime target."""
+
+
+class DomainApprovalRequired(RuntimeError):
+    """A durable, exact human approval request exists but is not consumable yet."""
+
+    def __init__(self) -> None:
+        super().__init__("HUMAN_APPROVAL_REQUIRED")
 
 
 @dataclass(frozen=True)
@@ -263,6 +279,7 @@ type DomainAuthorization = (
 
 class AcquisitionDomainTruth(Protocol):
     def resolve_seed(self, opportunity_key: str) -> tuple[str, ...]: ...
+    def signal_country(self, opportunity_key: str) -> str | None: ...
     def opportunity(self, opportunity_key: str) -> OpportunityTruth | None: ...
     def company_profile_ref(self, opportunity_id: str) -> str | None: ...
     def decision(self, opportunity_id: str) -> DecisionTruth | None: ...
@@ -272,8 +289,12 @@ class AcquisitionDomainTruth(Protocol):
     def provider_operations(
         self, campaign_ref: str, member_ref: str
     ) -> tuple[ProviderOperationTruth, ...]: ...
-    def response(self, opportunity_id: str) -> ResponseTruth | None: ...
-    def conversion_refs(self, opportunity_id: str) -> tuple[str, ...]: ...
+    def response(
+        self, opportunity_id: str, campaign: CampaignTruth
+    ) -> ResponseTruth | None: ...
+    def conversion_refs(
+        self, opportunity_id: str, campaign: CampaignTruth
+    ) -> tuple[str, ...]: ...
 
 
 class _SupplierService(Protocol):
@@ -368,6 +389,8 @@ def _closed_domain_action[ActionOwnerT](
     def execute(owner: ActionOwnerT, context: AcquisitionActionContext) -> KivouDomainOutcome:
         try:
             return action(owner, context)
+        except DomainApprovalRequired:
+            return _waiting("HUMAN_APPROVAL_REQUIRED")
         except DomainAmbiguousFailure:
             return _blocked("DOMAIN_TRUTH_AMBIGUOUS")
         except DomainTransientFailure:
@@ -397,6 +420,18 @@ class SqlAcquisitionDomainTruth:
         ):
             raise DomainAmbiguousFailure("public acquisition seed is malformed")
         return refs
+
+    def signal_country(self, opportunity_key: str) -> str | None:
+        try:
+            seed = self._seed_resolver(self.engine, opportunity_key)
+        except AcquisitionSeedNotFound:
+            return None
+        country = getattr(
+            getattr(getattr(seed, "event", None), "provenance", None),
+            "source_country",
+            None,
+        )
+        return str(country) if country in {"CH", "FR"} else None
 
     def opportunity(self, opportunity_key: str) -> OpportunityTruth | None:
         signal_ref = f"procurement-opportunity:{opportunity_key}"
@@ -479,6 +514,7 @@ class SqlAcquisitionDomainTruth:
                     sa.select(
                         acquisition_personalization_artifact.c.personalization_artifact_id,
                         acquisition_personalization_artifact.c.disposition,
+                        acquisition_personalization_artifact.c.policy_status,
                     )
                     .where(
                         acquisition_personalization_artifact.c.acquisition_opportunity_id
@@ -498,6 +534,7 @@ class SqlAcquisitionDomainTruth:
         return PersonalizationTruth(
             artifact_ref=row["personalization_artifact_id"],
             disposition=PersonalizationDisposition(row["disposition"]),
+            policy_status=PolicyStatus(row["policy_status"]),
         )
 
     def compliance(self, opportunity_id: str) -> ComplianceTruth | None:
@@ -537,6 +574,8 @@ class SqlAcquisitionDomainTruth:
                     sa.select(
                         acquisition_campaign_member.c.campaign_ref,
                         acquisition_campaign_member.c.member_ref,
+                        acquisition_campaign_member.c.transport_recipient_identity,
+                        acquisition_campaign_member.c.transport_recipient_key_version,
                     )
                     .where(
                         acquisition_campaign_member.c.acquisition_opportunity_id == opportunity_id
@@ -557,6 +596,8 @@ class SqlAcquisitionDomainTruth:
         return CampaignTruth(
             campaign_ref=rows[0]["campaign_ref"],
             member_ref=rows[0]["member_ref"],
+            transport_recipient_identity=rows[0]["transport_recipient_identity"],
+            transport_recipient_key_version=rows[0]["transport_recipient_key_version"],
         )
 
     def provider_operations(
@@ -597,7 +638,9 @@ class SqlAcquisitionDomainTruth:
             for row in rows
         )
 
-    def response(self, opportunity_id: str) -> ResponseTruth | None:
+    def response(
+        self, opportunity_id: str, campaign: CampaignTruth
+    ) -> ResponseTruth | None:
         with self.engine.connect() as connection:
             row = (
                 connection.execute(
@@ -608,6 +651,10 @@ class SqlAcquisitionDomainTruth:
                     .where(
                         acquisition_response_evaluation.c.acquisition_opportunity_id
                         == opportunity_id,
+                        acquisition_response_evaluation.c.campaign_ref
+                        == campaign.campaign_ref,
+                        acquisition_response_evaluation.c.member_ref
+                        == campaign.member_ref,
                         acquisition_response_evaluation.c.processing_state == "FINALIZED",
                     )
                     .order_by(
@@ -626,14 +673,20 @@ class SqlAcquisitionDomainTruth:
             classification=row["classification"],
         )
 
-    def conversion_refs(self, opportunity_id: str) -> tuple[str, ...]:
+    def conversion_refs(
+        self, opportunity_id: str, campaign: CampaignTruth
+    ) -> tuple[str, ...]:
         with self.engine.connect() as connection:
             journeys = (
                 connection.execute(
                     sa.select(acquisition_conversion_journey.c.journey_ref)
                     .where(
                         acquisition_conversion_journey.c.acquisition_opportunity_id
-                        == opportunity_id
+                        == opportunity_id,
+                        acquisition_conversion_journey.c.campaign_ref
+                        == campaign.campaign_ref,
+                        acquisition_conversion_journey.c.member_ref
+                        == campaign.member_ref,
                     )
                     .order_by(
                         acquisition_conversion_journey.c.created_at.desc(),
@@ -650,7 +703,14 @@ class SqlAcquisitionDomainTruth:
                 raise DomainAmbiguousFailure("multiple conversion journeys")
             event_ref = connection.execute(
                 sa.select(acquisition_conversion_event.c.conversion_event_ref)
-                .where(acquisition_conversion_event.c.journey_ref == journeys[0])
+                .where(
+                    acquisition_conversion_event.c.journey_ref == journeys[0],
+                    acquisition_conversion_event.c.acquisition_opportunity_id
+                    == opportunity_id,
+                    acquisition_conversion_event.c.campaign_ref
+                    == campaign.campaign_ref,
+                    acquisition_conversion_event.c.member_ref == campaign.member_ref,
+                )
                 .order_by(
                     acquisition_conversion_event.c.recorded_at.desc(),
                     acquisition_conversion_event.c.conversion_event_ref.desc(),
@@ -678,6 +738,9 @@ class AcquisitionDomainActions:
         authorization_factory: RuntimePolicyAuthorizationFactory,
         approval_provider: RuntimeApprovalProvider,
         maximum_provider_operations: int,
+        qa_transport_recipient_identity: str,
+        qa_transport_recipient_key_version: str,
+        qa_scope: RuntimeQaScope,
         targeting: SupplierTargetingConfig | None = None,
     ) -> None:
         if not 1 <= maximum_provider_operations <= 4:
@@ -705,6 +768,18 @@ class AcquisitionDomainActions:
         self._authorizations = authorization_factory
         self._approvals = approval_provider
         self._provider_cap = maximum_provider_operations
+        if re.fullmatch(r"[0-9a-f]{64}", qa_transport_recipient_identity) is None:
+            raise ValueError("QA transport recipient identity must be a SHA-256 HMAC")
+        if (
+            not qa_transport_recipient_key_version
+            or len(qa_transport_recipient_key_version) > 64
+        ):
+            raise ValueError("QA transport recipient key version is invalid")
+        self._qa_transport_binding = (
+            qa_transport_recipient_identity,
+            qa_transport_recipient_key_version,
+        )
+        self._qa_scope = qa_scope
         self._targeting = selected_targeting
 
     @_closed_domain_action
@@ -712,9 +787,11 @@ class AcquisitionDomainActions:
         try:
             refs = self._truth.resolve_seed(context.cycle.opportunity_key)
         except DomainTransientFailure as error:
-            return _waiting(error.code)
+            return _waiting(error.code, retry_at=error.retry_at)
         if not refs:
             return _blocked("SIGNAL_SEED_NOT_FOUND")
+        if self._truth.signal_country(context.cycle.opportunity_key) != self._qa_scope.country:
+            return _blocked("QA_SCOPE_SIGNAL_MISMATCH")
         return _complete(*(("public", ref) for ref in refs))
 
     @_closed_domain_action
@@ -741,7 +818,7 @@ class AcquisitionDomainActions:
         except SupplierSearchNotActionable:
             return _suppressed("SUPPLIER_NEED_NOT_ACTIONABLE")
         except DomainTransientFailure as error:
-            return _waiting(error.code)
+            return _waiting(error.code, retry_at=error.retry_at)
         policy = _policy_outcome(getattr(result, "decision", None))
         if policy is not None:
             return policy
@@ -756,7 +833,10 @@ class AcquisitionDomainActions:
         if status == "SEARCH_TOO_BROAD":
             return _blocked("SUPPLIER_SEARCH_TOO_BROAD")
         if _retryable_run(run):
-            return _waiting("SUPPLIER_PROVIDER_RETRYABLE")
+            return _waiting(
+                "SUPPLIER_PROVIDER_RETRYABLE",
+                retry_at=getattr(run, "retry_after", None),
+            )
         if status in {"SUCCESS", "PARTIAL"}:
             return _suppressed("SUPPLIER_NOT_FOUND")
         return _failed("SUPPLIER_DISCOVERY_FAILED")
@@ -779,7 +859,7 @@ class AcquisitionDomainActions:
                 correlation_id=identity.correlation_id,
             )
         except DomainTransientFailure as error:
-            return _waiting(error.code)
+            return _waiting(error.code, retry_at=error.retry_at)
         policy = _policy_outcome(getattr(result, "decision", None))
         if policy is not None:
             return policy
@@ -793,7 +873,10 @@ class AcquisitionDomainActions:
         if status == "CONTACT_SEARCH_TOO_BROAD":
             return _blocked("CONTACT_SEARCH_TOO_BROAD")
         if _retryable_run(run):
-            return _waiting("CONTACT_PROVIDER_RETRYABLE")
+            return _waiting(
+                "CONTACT_PROVIDER_RETRYABLE",
+                retry_at=getattr(run, "retry_after", None),
+            )
         return _failed("CONTACT_DISCOVERY_FAILED")
 
     @_closed_domain_action
@@ -815,7 +898,7 @@ class AcquisitionDomainActions:
                 correlation_id=identity.correlation_id,
             )
         except DomainTransientFailure as error:
-            return _waiting(error.code)
+            return _waiting(error.code, retry_at=error.retry_at)
         policy = _policy_outcome(getattr(result, "decision", None))
         if policy is not None:
             return policy
@@ -824,7 +907,10 @@ class AcquisitionDomainActions:
             return _complete(("company", profile_ref))
         run = getattr(result, "run", None)
         if _retryable_run(run):
-            return _waiting("COMPANY_PROVIDER_RETRYABLE")
+            return _waiting(
+                "COMPANY_PROVIDER_RETRYABLE",
+                retry_at=getattr(run, "retry_after", None),
+            )
         return _failed("COMPANY_RESEARCH_FAILED")
 
     @_closed_domain_action
@@ -843,7 +929,7 @@ class AcquisitionDomainActions:
                 budget_usage=call.budget_usage,
             )
         except DomainTransientFailure as error:
-            return _waiting(error.code)
+            return _waiting(error.code, retry_at=error.retry_at)
         policy = _policy_outcome(getattr(result, "decision", None))
         if policy is not None:
             return policy
@@ -869,7 +955,10 @@ class AcquisitionDomainActions:
         if isinstance(opportunity, KivouDomainOutcome):
             return opportunity
         existing = self._truth.personalization(opportunity.opportunity_id)
-        if existing is not None:
+        if existing is not None and not (
+            existing.disposition is PersonalizationDisposition.POLICY_BLOCKED
+            and existing.policy_status is PolicyStatus.APPROVAL_REQUIRED
+        ):
             return _personalization_outcome(existing)
         _identity, call = self._authorized("personalization", context, opportunity.opportunity_id)
         if call.language not in {"fr", "en"}:
@@ -884,7 +973,7 @@ class AcquisitionDomainActions:
         except PersonalizationDecisionNoLongerEligible:
             return _suppressed("PERSONALIZATION_NO_LONGER_ELIGIBLE")
         except DomainTransientFailure as error:
-            return _waiting(error.code)
+            return _waiting(error.code, retry_at=error.retry_at)
         observed = self._truth.personalization(opportunity.opportunity_id)
         if observed is None:
             return _failed("PERSONALIZATION_RESULT_MISSING")
@@ -906,7 +995,7 @@ class AcquisitionDomainActions:
                 budget_usage=call.budget_usage,
             )
         except DomainTransientFailure as error:
-            return _waiting(error.code)
+            return _waiting(error.code, retry_at=error.retry_at)
         observed = self._truth.compliance(opportunity.opportunity_id)
         if observed is None:
             return _failed("COMPLIANCE_RESULT_MISSING")
@@ -939,7 +1028,7 @@ class AcquisitionDomainActions:
         except CampaignInputChanged:
             return _waiting("CAMPAIGN_INPUT_CHANGED")
         except DomainTransientFailure as error:
-            return _waiting(error.code)
+            return _waiting(error.code, retry_at=error.retry_at)
         if getattr(result, "disposition", None) == "POLICY_BLOCKED":
             return _blocked("CAMPAIGN_POLICY_BLOCKED")
         observed = self._truth.campaign(opportunity.opportunity_id)
@@ -957,18 +1046,33 @@ class AcquisitionDomainActions:
         opportunity = self._required_opportunity(context)
         if isinstance(opportunity, KivouDomainOutcome):
             return opportunity
+        self._approvals.consume_for(
+            context,
+            opportunity_id=opportunity.opportunity_id,
+        )
         campaign = self._truth.campaign(opportunity.opportunity_id)
         if campaign is None:
             return _blocked("CAMPAIGN_NOT_PLANNED")
+        stored_binding = (
+            campaign.transport_recipient_identity,
+            campaign.transport_recipient_key_version,
+        )
+        if stored_binding != (None, None) and stored_binding != self._qa_transport_binding:
+            return _blocked("QA_TRANSPORT_BINDING_MISMATCH")
         operations = self._truth.provider_operations(campaign.campaign_ref, campaign.member_ref)
-        required = {
+        required = (
             ProviderOperationKind.CREATE_CAMPAIGN,
             ProviderOperationKind.CONFIGURE_CAMPAIGN,
             ProviderOperationKind.ADD_LEAD,
-        }
+        )
         if not operations:
             return _waiting("PROVIDER_OPERATIONS_NOT_PLANNED")
-        if len(operations) > self._provider_cap or {item.kind for item in operations} != required:
+        if (
+            len(operations) != len(required)
+            or len(operations) > self._provider_cap
+            or tuple(sorted(item.kind.value for item in operations))
+            != tuple(sorted(item.value for item in required))
+        ):
             return _blocked("PROVIDER_OPERATION_SET_UNSAFE")
         ordered = sorted(
             operations,
@@ -984,13 +1088,25 @@ class AcquisitionDomainActions:
             try:
                 state = self._worker.process(operation.operation_ref, context.at)
             except DomainTransientFailure as error:
-                return _waiting(error.code)
+                return _waiting(error.code, retry_at=error.retry_at)
             disposition = _provider_state_outcome(state)
             if disposition is not None:
                 return disposition
         observed = self._truth.provider_operations(campaign.campaign_ref, campaign.member_ref)
+        if (
+            len(observed) != len(required)
+            or tuple(sorted(item.kind.value for item in observed))
+            != tuple(sorted(item.value for item in required))
+        ):
+            return _blocked("PROVIDER_OPERATION_SET_UNSAFE")
         if any(item.state is not ProviderOperationState.CONFIRMED for item in observed):
             return _waiting("PROVIDER_OPERATIONS_INCOMPLETE")
+        rebound = self._truth.campaign(opportunity.opportunity_id)
+        if rebound is None or (
+            rebound.transport_recipient_identity,
+            rebound.transport_recipient_key_version,
+        ) != self._qa_transport_binding:
+            return _blocked("QA_TRANSPORT_BINDING_MISMATCH")
         return _complete(*(("provider-operation", item.operation_ref) for item in observed))
 
     @_closed_domain_action
@@ -998,7 +1114,10 @@ class AcquisitionDomainActions:
         opportunity = self._required_opportunity(context)
         if isinstance(opportunity, KivouDomainOutcome):
             return opportunity
-        response = self._truth.response(opportunity.opportunity_id)
+        campaign = self._truth.campaign(opportunity.opportunity_id)
+        if campaign is None:
+            return _blocked("CAMPAIGN_NOT_PLANNED")
+        response = self._truth.response(opportunity.opportunity_id, campaign)
         if response is None:
             return _waiting("RESPONSE_NOT_OBSERVED")
         return _complete(("response", response.response_ref))
@@ -1008,7 +1127,10 @@ class AcquisitionDomainActions:
         opportunity = self._required_opportunity(context)
         if isinstance(opportunity, KivouDomainOutcome):
             return opportunity
-        refs = self._truth.conversion_refs(opportunity.opportunity_id)
+        campaign = self._truth.campaign(opportunity.opportunity_id)
+        if campaign is None:
+            return _blocked("CAMPAIGN_NOT_PLANNED")
+        refs = self._truth.conversion_refs(opportunity.opportunity_id, campaign)
         if len(refs) < 2:
             return _waiting("ATTRIBUTION_CONVERSION_NOT_OBSERVED")
         return _complete(*(("conversion", ref) for ref in refs))
@@ -1057,10 +1179,13 @@ def _complete(*refs: tuple[str, str]) -> KivouDomainOutcome:
     )
 
 
-def _waiting(code: str) -> KivouDomainOutcome:
+def _waiting(
+    code: str, *, retry_at: dt.datetime | None = None
+) -> KivouDomainOutcome:
     return KivouDomainOutcome(
         disposition=KivouDomainDisposition.WAITING,
         reason_codes=(code,),
+        retry_at=retry_at,
     )
 
 
@@ -1100,7 +1225,7 @@ def _policy_status_outcome(status: str | None) -> KivouDomainOutcome:
     if status == PolicyStatus.COMPLIANCE_BLOCKED.value:
         return _blocked("POLICY_COMPLIANCE_BLOCKED")
     if status == PolicyStatus.APPROVAL_REQUIRED.value:
-        return _blocked("POLICY_APPROVAL_REQUIRED")
+        return _waiting("POLICY_APPROVAL_REQUIRED")
     if status == PolicyStatus.INSUFFICIENT_EVIDENCE.value:
         return _blocked("POLICY_EVIDENCE_INSUFFICIENT")
     return _blocked("POLICY_DENIED")
@@ -1140,6 +1265,8 @@ def _decision_outcome(truth: DecisionTruth) -> KivouDomainOutcome:
 def _personalization_outcome(truth: PersonalizationTruth) -> KivouDomainOutcome:
     if truth.disposition is PersonalizationDisposition.READY:
         return _complete(("personalization", truth.artifact_ref))
+    if truth.policy_status is PolicyStatus.APPROVAL_REQUIRED:
+        return _waiting("POLICY_APPROVAL_REQUIRED")
     return _blocked("PERSONALIZATION_POLICY_BLOCKED")
 
 
@@ -1174,6 +1301,7 @@ __all__ = [
     "ComplianceTruth",
     "DecisionTruth",
     "DomainAmbiguousFailure",
+    "DomainApprovalRequired",
     "DomainAttemptIdentity",
     "DomainTransientFailure",
     "OpportunityTruth",

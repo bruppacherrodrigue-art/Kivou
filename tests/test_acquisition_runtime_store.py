@@ -19,13 +19,17 @@ from signals.acquisition_runtime.contracts import (
     RuntimeStageStatus,
 )
 from signals.acquisition_runtime.runner import AcquisitionRuntimeRunner
-from signals.acquisition_runtime.store import AcquisitionRuntimeStore
+from signals.acquisition_runtime.store import (
+    AcquisitionRuntimeConflict,
+    AcquisitionRuntimeStore,
+)
 from signals.persistence.schema import (
     METADATA,
     acquisition_runtime_cycle,
     acquisition_runtime_lease,
     acquisition_runtime_observation,
     acquisition_runtime_stage,
+    acquisition_runtime_stage_attempt,
 )
 
 NOW = dt.datetime(2026, 8, 25, 12, tzinfo=dt.UTC)
@@ -44,9 +48,23 @@ def _engine(tmp_path) -> sa.Engine:
             acquisition_runtime_cycle,
             acquisition_runtime_observation,
             acquisition_runtime_stage,
+            acquisition_runtime_stage_attempt,
         ],
     )
     return engine
+
+
+def _fence(store: AcquisitionRuntimeStore) -> dict[str, object]:
+    lease = store.acquire_lease(
+        "test-owner",
+        acquired_at=NOW,
+        lease_seconds=7_200,
+    )
+    assert lease.fencing_token is not None
+    return {
+        "owner_ref": "test-owner",
+        "fencing_token": lease.fencing_token,
+    }
 
 
 def test_runtime_schema_is_bounded_and_contains_no_recipient_or_payload_fields() -> None:
@@ -82,9 +100,20 @@ def test_runtime_schema_is_bounded_and_contains_no_recipient_or_payload_fields()
         "reserved_cost",
         "observed_cost",
         "reason_codes",
+        "retry_at",
         "started_at",
         "completed_at",
         "updated_at",
+    }
+    assert {column.name for column in acquisition_runtime_stage_attempt.c} == {
+        "cycle_ref",
+        "stage",
+        "attempt_count",
+        "status",
+        "reserved_cost",
+        "observed_cost",
+        "retry_at",
+        "completed_at",
     }
     names = {
         column.name
@@ -92,6 +121,7 @@ def test_runtime_schema_is_bounded_and_contains_no_recipient_or_payload_fields()
             acquisition_runtime_lease,
             acquisition_runtime_cycle,
             acquisition_runtime_stage,
+            acquisition_runtime_stage_attempt,
         )
         for column in table.c
     }
@@ -119,6 +149,51 @@ def test_sequential_lease_contention_and_expired_reclaim(tmp_path) -> None:
     assert first.owned is True and first.reclaimed is False
     assert blocked.owned is False and blocked.reclaimed is False
     assert reclaimed.owned is True and reclaimed.reclaimed is True
+    assert first.fencing_token == 1
+    assert blocked.fencing_token is None
+    assert reclaimed.fencing_token == 2
+
+
+def test_expired_owner_cannot_mutate_after_fenced_lease_reclaim(tmp_path) -> None:
+    store = AcquisitionRuntimeStore(_engine(tmp_path))
+    original = store.acquire_lease(
+        "owner-a",
+        acquired_at=NOW,
+        lease_seconds=120,
+    )
+    assert original.fencing_token is not None
+    cycle = store.resume_or_create_cycle(
+        owner_ref="owner-a",
+        fencing_token=original.fencing_token,
+        opportunity_keys=("signal-001",),
+        config_fingerprint="6" * 64,
+        at=NOW,
+    )
+    reclaimed_at = NOW + dt.timedelta(seconds=121)
+    current = store.acquire_lease(
+        "owner-b",
+        acquired_at=reclaimed_at,
+        lease_seconds=120,
+    )
+    assert current.fencing_token is not None
+
+    with pytest.raises(AcquisitionRuntimeConflict):
+        store.begin_stage(
+            cycle.cycle_ref,
+            AcquisitionRuntimeStage.SIGNAL_SEED,
+            owner_ref="owner-a",
+            fencing_token=original.fencing_token,
+            at=reclaimed_at,
+        )
+
+    snapshot = store.begin_stage(
+        cycle.cycle_ref,
+        AcquisitionRuntimeStage.SIGNAL_SEED,
+        owner_ref="owner-b",
+        fencing_token=current.fencing_token,
+        at=reclaimed_at,
+    )
+    assert snapshot.status is RuntimeStageStatus.RUNNING
 
 
 def test_concurrent_lease_acquisition_has_exactly_one_owner(tmp_path) -> None:
@@ -139,11 +214,14 @@ def test_concurrent_lease_acquisition_has_exactly_one_owner(tmp_path) -> None:
 
 def test_cycle_creation_is_deterministic_and_replay_safe(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
+    fence = _fence(store)
 
     first = store.resume_or_create_cycle(
+        **fence,
         opportunity_keys=("signal-001",), config_fingerprint="a" * 64, at=NOW
     )
     replay = store.resume_or_create_cycle(
+        **fence,
         opportunity_keys=("signal-001",),
         config_fingerprint="a" * 64,
         at=NOW + dt.timedelta(seconds=1),
@@ -158,7 +236,9 @@ def test_cycle_creation_is_deterministic_and_replay_safe(tmp_path) -> None:
 
 def test_stage_checkpoint_advances_and_cost_is_reserved_durably(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
+    fence = _fence(store)
     cycle = store.resume_or_create_cycle(
+        **fence,
         opportunity_keys=("signal-001",), config_fingerprint="b" * 64, at=NOW
     )
     first = AcquisitionRuntimeStage.SIGNAL_SEED
@@ -179,9 +259,17 @@ def test_stage_checkpoint_advances_and_cost_is_reserved_durably(tmp_path) -> Non
         reason_codes=("QA_RUNTIME_STEP",),
     )
 
-    store.begin_stage(cycle.cycle_ref, first, at=NOW)
-    store.finish_stage(cycle.cycle_ref, first, result, proposal=proposal, at=NOW)
+    store.begin_stage(cycle.cycle_ref, first, **fence, at=NOW)
+    store.finish_stage(
+        cycle.cycle_ref,
+        first,
+        result,
+        **fence,
+        proposal=proposal,
+        at=NOW,
+    )
     resumed = store.resume_or_create_cycle(
+        **fence,
         opportunity_keys=("signal-001",), config_fingerprint="b" * 64, at=NOW
     )
 
@@ -204,19 +292,25 @@ def test_stage_checkpoint_advances_and_cost_is_reserved_durably(tmp_path) -> Non
 
 def test_interrupted_running_stage_resumes_without_duplicate_cycle(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
+    fence = _fence(store)
     cycle = store.resume_or_create_cycle(
+        **fence,
         opportunity_keys=("signal-001",), config_fingerprint="c" * 64, at=NOW
     )
     stage = AcquisitionRuntimeStage.SIGNAL_SEED
-    store.begin_stage(cycle.cycle_ref, stage, at=NOW)
+    store.begin_stage(cycle.cycle_ref, stage, **fence, at=NOW)
 
     resumed = store.resume_or_create_cycle(
+        **fence,
         opportunity_keys=("signal-001",),
         config_fingerprint="c" * 64,
         at=NOW + dt.timedelta(minutes=30),
     )
     store.begin_stage(
-        cycle.cycle_ref, stage, at=NOW + dt.timedelta(minutes=30)
+        cycle.cycle_ref,
+        stage,
+        **fence,
+        at=NOW + dt.timedelta(minutes=30),
     )
 
     assert resumed.cycle_ref == cycle.cycle_ref
@@ -235,15 +329,18 @@ def test_running_stage_restart_reuses_same_deterministic_attempt_identity(
     tmp_path,
 ) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
+    fence = _fence(store)
     cycle = store.resume_or_create_cycle(
+        **fence,
         opportunity_keys=("signal-001",), config_fingerprint="e" * 64, at=NOW
     )
     stage = AcquisitionRuntimeStage.SIGNAL_SEED
 
-    first = store.begin_stage(cycle.cycle_ref, stage, at=NOW)
+    first = store.begin_stage(cycle.cycle_ref, stage, **fence, at=NOW)
     restarted = store.begin_stage(
         cycle.cycle_ref,
         stage,
+        **fence,
         at=NOW + dt.timedelta(minutes=30),
     )
 
@@ -262,11 +359,13 @@ def test_running_stage_restart_reuses_same_deterministic_attempt_identity(
 
 def test_new_attempt_preserves_partial_result_references_for_resume(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
+    fence = _fence(store)
     cycle = store.resume_or_create_cycle(
+        **fence,
         opportunity_keys=("signal-001",), config_fingerprint="f" * 64, at=NOW
     )
     stage = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
-    first = store.begin_stage(cycle.cycle_ref, stage, at=NOW)
+    first = store.begin_stage(cycle.cycle_ref, stage, **fence, at=NOW)
     store.finish_stage(
         cycle.cycle_ref,
         stage,
@@ -274,20 +373,89 @@ def test_new_attempt_preserves_partial_result_references_for_resume(tmp_path) ->
             status=RuntimeStageStatus.WAITING,
             result_refs=("supplier-run-001",),
             reason_codes=("PROVIDER_RETRY_DUE",),
+            retry_at=NOW + dt.timedelta(minutes=15),
         ),
+        **fence,
         at=NOW,
     )
 
+    deferred = store.begin_stage(
+        cycle.cycle_ref,
+        stage,
+        **fence,
+        at=NOW + dt.timedelta(minutes=5),
+    )
     resumed = store.begin_stage(
         cycle.cycle_ref,
         stage,
+        **fence,
         at=NOW + dt.timedelta(minutes=30),
     )
 
+    assert deferred.status is RuntimeStageStatus.WAITING
+    assert deferred.attempt_count == 1
+    assert deferred.retry_at == NOW + dt.timedelta(minutes=15)
     assert resumed.status is RuntimeStageStatus.RUNNING
     assert resumed.attempt_count == 2
     assert resumed.attempt_ref != first.attempt_ref
     assert resumed.result_refs == ("supplier-run-001",)
+
+
+def test_retry_attempt_costs_are_immutable_and_cumulative(tmp_path) -> None:
+    store = AcquisitionRuntimeStore(_engine(tmp_path))
+    fence = _fence(store)
+    cycle = store.resume_or_create_cycle(
+        **fence,
+        opportunity_keys=("signal-001",), config_fingerprint="7" * 64, at=NOW
+    )
+    stage = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
+    store.begin_stage(cycle.cycle_ref, stage, **fence, at=NOW)
+    store.finish_stage(
+        cycle.cycle_ref,
+        stage,
+        RuntimeActionResult(
+            status=RuntimeStageStatus.WAITING,
+            reserved_cost=Decimal("1.25"),
+            observed_cost=Decimal("1.00"),
+            reason_codes=("PROVIDER_RETRY_DUE",),
+        ),
+        **fence,
+        at=NOW,
+    )
+    store.begin_stage(
+        cycle.cycle_ref,
+        stage,
+        **fence,
+        at=NOW + dt.timedelta(minutes=1),
+    )
+    store.finish_stage(
+        cycle.cycle_ref,
+        stage,
+        RuntimeActionResult(
+            status=RuntimeStageStatus.SUCCEEDED,
+            reserved_cost=Decimal("0.75"),
+            observed_cost=Decimal("0.50"),
+        ),
+        **fence,
+        at=NOW + dt.timedelta(minutes=1),
+    )
+
+    resumed = store.resume_or_create_cycle(
+        **fence,
+        opportunity_keys=("signal-001",),
+        config_fingerprint="7" * 64,
+        at=NOW + dt.timedelta(minutes=2),
+    )
+    with store.engine.connect() as connection:
+        attempts = connection.execute(
+            sa.select(acquisition_runtime_stage_attempt)
+            .where(acquisition_runtime_stage_attempt.c.cycle_ref == cycle.cycle_ref)
+            .order_by(acquisition_runtime_stage_attempt.c.attempt_count)
+        ).mappings().all()
+
+    assert resumed.spent_cost == Decimal("2.00")
+    assert [row["attempt_count"] for row in attempts] == [1, 2]
+    assert [row["status"] for row in attempts] == ["WAITING", "SUCCEEDED"]
 
 
 def test_crash_after_business_commit_before_runtime_checkpoint_reuses_attempt(
@@ -370,17 +538,21 @@ def test_crash_after_business_commit_before_runtime_checkpoint_reuses_attempt(
 
 def test_suppressed_cycle_is_terminal_and_not_reopened(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
+    fence = _fence(store)
     cycle = store.resume_or_create_cycle(
+        **fence,
         opportunity_keys=("signal-001",), config_fingerprint="d" * 64, at=NOW
     )
     store.finish_cycle(
         cycle.cycle_ref,
         RuntimeCycleStatus.SUPPRESSED,
+        **fence,
         at=NOW,
         reason_code="QA_ELIGIBILITY_REVOKED",
     )
 
     replay = store.resume_or_create_cycle(
+        **fence,
         opportunity_keys=("signal-001",),
         config_fingerprint="d" * 64,
         at=NOW + dt.timedelta(hours=1),

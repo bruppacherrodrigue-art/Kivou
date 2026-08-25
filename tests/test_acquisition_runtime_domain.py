@@ -15,6 +15,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeCycleSnapshot,
     RuntimeCycleStatus,
     RuntimeProposal,
+    RuntimeQaScope,
     RuntimeStageSnapshot,
 )
 from signals.acquisition_runtime.domain import (
@@ -24,6 +25,7 @@ from signals.acquisition_runtime.domain import (
     ComplianceTruth,
     DecisionTruth,
     DomainAmbiguousFailure,
+    DomainApprovalRequired,
     DomainAttemptIdentity,
     DomainTransientFailure,
     OpportunityTruth,
@@ -50,6 +52,8 @@ from signals.supplier_discovery.contracts import SupplierSearchNotActionable
 from signals.supplier_discovery.seed import AcquisitionSeedNotFound
 
 NOW = dt.datetime(2026, 8, 25, 12, tzinfo=dt.UTC)
+QA_TRANSPORT_IDENTITY = "9" * 64
+QA_TRANSPORT_KEY_VERSION = "runtime-qa-v1"
 
 
 def _context(
@@ -146,6 +150,10 @@ class FakeTruth:
         assert opportunity_key == "signal-qa-001"
         return self.seed
 
+    def signal_country(self, opportunity_key: str) -> str:
+        assert opportunity_key == "signal-qa-001"
+        return "CH"
+
     def opportunity(self, opportunity_key: str) -> OpportunityTruth | None:
         assert opportunity_key == "signal-qa-001"
         return self.current_opportunity
@@ -177,12 +185,18 @@ class FakeTruth:
         assert member_ref == "member-qa-001"
         return self.operations
 
-    def response(self, opportunity_id: str) -> ResponseTruth | None:
+    def response(
+        self, opportunity_id: str, campaign: CampaignTruth
+    ) -> ResponseTruth | None:
         assert opportunity_id == "opportunity-qa-001"
+        assert campaign == self.current_campaign
         return self.current_response
 
-    def conversion_refs(self, opportunity_id: str) -> tuple[str, ...]:
+    def conversion_refs(
+        self, opportunity_id: str, campaign: CampaignTruth
+    ) -> tuple[str, ...]:
         assert opportunity_id == "opportunity-qa-001"
+        assert campaign == self.current_campaign
         return self.conversion
 
 
@@ -385,6 +399,12 @@ class FakeCampaignWorker:
         self.calls.append(operations[index].kind)
         operations[index] = replace(operations[index], state=ProviderOperationState.CONFIRMED)
         self.truth.operations = tuple(operations)
+        if operations[index].kind is ProviderOperationKind.ADD_LEAD:
+            self.truth.current_campaign = replace(
+                self.truth.current_campaign,
+                transport_recipient_identity=QA_TRANSPORT_IDENTITY,
+                transport_recipient_key_version=QA_TRANSPORT_KEY_VERSION,
+            )
         return ProviderOperationState.CONFIRMED
 
 
@@ -409,6 +429,11 @@ def _actions(
         authorization_factory=FakeAuthorizations(),
         approval_provider=approvals,
         maximum_provider_operations=3,
+        qa_transport_recipient_identity=QA_TRANSPORT_IDENTITY,
+        qa_transport_recipient_key_version=QA_TRANSPORT_KEY_VERSION,
+        qa_scope=RuntimeQaScope(
+            country="CH", language="fr", wedge="construction"
+        ),
     )
     return actions, campaign_worker, approvals
 
@@ -446,7 +471,7 @@ def test_full_domain_cycle_composes_each_existing_stage_without_network() -> Non
         ProviderOperationKind.ADD_LEAD,
     ]
     assert ProviderOperationKind.ACTIVATE_CAMPAIGN not in worker.calls
-    assert [stage for stage, _ in approvals.calls] == list(AcquisitionRuntimeStage)[1:8]
+    assert [stage for stage, _ in approvals.calls] == list(AcquisitionRuntimeStage)[1:9]
     rendered = repr(tuple(outcome.result_refs for outcome in outcomes))
     assert "@" not in rendered
     assert "payload" not in rendered.casefold()
@@ -462,6 +487,19 @@ def test_full_domain_cycle_composes_each_existing_stage_without_network() -> Non
     )
 
 
+def test_signal_seed_fails_closed_when_public_country_differs_from_qa_scope() -> None:
+    truth = FakeTruth()
+    truth.signal_country = lambda _key: "FR"
+    actions, _, _ = _actions(truth)
+
+    outcome = actions.resolve_signal_seed(
+        _context(AcquisitionRuntimeStage.SIGNAL_SEED)
+    )
+
+    assert outcome.disposition is KivouDomainDisposition.BLOCKED
+    assert outcome.reason_codes == ("QA_SCOPE_SIGNAL_MISMATCH",)
+
+
 def test_response_and_conversion_wait_then_converge_from_durable_truth() -> None:
     truth = FakeTruth()
     truth.current_opportunity = OpportunityTruth(
@@ -471,6 +509,12 @@ def test_response_and_conversion_wait_then_converge_from_durable_truth() -> None
         contact_ref="contact-qa-001",
         campaign_ref="campaign-qa-001",
         decision=Decision.SEND,
+    )
+    truth.current_campaign = CampaignTruth(
+        campaign_ref="campaign-qa-001",
+        member_ref="member-qa-001",
+        transport_recipient_identity=QA_TRANSPORT_IDENTITY,
+        transport_recipient_key_version=QA_TRANSPORT_KEY_VERSION,
     )
     actions, _, _ = _actions(truth)
 
@@ -531,7 +575,7 @@ def test_decision_no_send_is_suppressed_and_review_is_blocked(
     assert outcome.reason_codes == (reason,)
 
 
-def test_durable_policy_blocked_decision_never_converges_as_send() -> None:
+def test_durable_approval_required_decision_waits_and_never_converges_as_send() -> None:
     truth = FakeTruth()
     truth.current_opportunity = OpportunityTruth(
         opportunity_id="opportunity-qa-001",
@@ -549,8 +593,42 @@ def test_durable_policy_blocked_decision_never_converges_as_send() -> None:
 
     outcome = actions.decide(_context(AcquisitionRuntimeStage.DECISION, attempt=2))
 
-    assert outcome.disposition is KivouDomainDisposition.BLOCKED
+    assert outcome.disposition is KivouDomainDisposition.WAITING
     assert outcome.reason_codes == ("POLICY_APPROVAL_REQUIRED",)
+
+
+def test_approval_blocked_personalization_reenters_exact_durable_review() -> None:
+    class PendingApproval(FakeApprovals):
+        def consume_for(self, context, *, opportunity_id):
+            super().consume_for(context, opportunity_id=opportunity_id)
+            raise DomainApprovalRequired
+
+    truth = FakeTruth()
+    truth.current_opportunity = OpportunityTruth(
+        opportunity_id="opportunity-qa-001",
+        state=AcquisitionState.SEND,
+        supplier_ref="supplier-qa-001",
+        contact_ref="contact-qa-001",
+        decision=Decision.SEND,
+    )
+    truth.current_personalization = PersonalizationTruth(
+        artifact_ref="personalization-blocked-qa-001",
+        disposition=PersonalizationDisposition.POLICY_BLOCKED,
+        policy_status=PolicyStatus.APPROVAL_REQUIRED,
+    )
+    actions, _, _ = _actions(truth)
+    approvals = PendingApproval()
+    actions._approvals = approvals
+
+    outcome = actions.personalize(
+        _context(AcquisitionRuntimeStage.PERSONALIZATION, attempt=2)
+    )
+
+    assert outcome.disposition is KivouDomainDisposition.WAITING
+    assert outcome.reason_codes == ("HUMAN_APPROVAL_REQUIRED",)
+    assert approvals.calls == [
+        (AcquisitionRuntimeStage.PERSONALIZATION, "opportunity-qa-001")
+    ]
 
 
 @pytest.mark.parametrize("state", ("REVIEW_REQUIRED", "BLOCKED"))
@@ -627,6 +705,8 @@ def test_retryable_provider_uses_fresh_deterministic_attempt_on_retry() -> None:
 
     assert first.disposition is KivouDomainDisposition.WAITING
     assert retry.disposition is KivouDomainDisposition.WAITING
+    assert first.retry_at == NOW + dt.timedelta(minutes=1)
+    assert retry.retry_at == NOW + dt.timedelta(minutes=1)
     assert authorizations.calls[0][1] != authorizations.calls[1][1]
 
 
@@ -720,6 +800,84 @@ def test_provider_handoff_refuses_any_activation_operation() -> None:
     assert worker.calls == []
 
 
+def test_provider_handoff_refuses_duplicate_required_operations() -> None:
+    truth = FakeTruth()
+    truth.current_opportunity = OpportunityTruth(
+        opportunity_id="opportunity-qa-001",
+        state=AcquisitionState.SEND,
+        supplier_ref="supplier-qa-001",
+        contact_ref="contact-qa-001",
+        campaign_ref="campaign-qa-001",
+        decision=Decision.SEND,
+    )
+    truth.current_campaign = CampaignTruth(
+        campaign_ref="campaign-qa-001", member_ref="member-qa-001"
+    )
+    truth.operations = tuple(
+        ProviderOperationTruth(
+            operation_ref=f"operation-{index}",
+            kind=kind,
+            state=ProviderOperationState.CONFIRMED,
+        )
+        for index, kind in enumerate(
+            (
+                ProviderOperationKind.CREATE_CAMPAIGN,
+                ProviderOperationKind.CONFIGURE_CAMPAIGN,
+                ProviderOperationKind.ADD_LEAD,
+                ProviderOperationKind.ADD_LEAD,
+            )
+        )
+    )
+    actions, worker, _ = _actions(truth)
+
+    outcome = actions.handoff_provider(
+        _context(AcquisitionRuntimeStage.PROVIDER_HANDOFF, allow_provider=True)
+    )
+
+    assert outcome.disposition is KivouDomainDisposition.BLOCKED
+    assert outcome.reason_codes == ("PROVIDER_OPERATION_SET_UNSAFE",)
+    assert worker.calls == []
+
+
+def test_confirmed_provider_operations_require_the_exact_qa_transport_binding() -> None:
+    truth = FakeTruth()
+    truth.current_opportunity = OpportunityTruth(
+        opportunity_id="opportunity-qa-001",
+        state=AcquisitionState.SEND,
+        supplier_ref="supplier-qa-001",
+        contact_ref="contact-qa-001",
+        campaign_ref="campaign-qa-001",
+        decision=Decision.SEND,
+    )
+    truth.current_campaign = CampaignTruth(
+        campaign_ref="campaign-qa-001",
+        member_ref="member-qa-001",
+        transport_recipient_identity="8" * 64,
+        transport_recipient_key_version="stale-key-v1",
+    )
+    truth.operations = tuple(
+        ProviderOperationTruth(
+            operation_ref=f"operation-{kind.value.lower()}",
+            kind=kind,
+            state=ProviderOperationState.CONFIRMED,
+        )
+        for kind in (
+            ProviderOperationKind.CREATE_CAMPAIGN,
+            ProviderOperationKind.CONFIGURE_CAMPAIGN,
+            ProviderOperationKind.ADD_LEAD,
+        )
+    )
+    actions, worker, _ = _actions(truth)
+
+    outcome = actions.handoff_provider(
+        _context(AcquisitionRuntimeStage.PROVIDER_HANDOFF, allow_provider=True)
+    )
+
+    assert outcome.disposition is KivouDomainDisposition.BLOCKED
+    assert outcome.reason_codes == ("QA_TRANSPORT_BINDING_MISMATCH",)
+    assert worker.calls == []
+
+
 def _truth_database():
     engine = sa.create_engine("sqlite+pysqlite:///:memory:")
     statements = (
@@ -741,7 +899,8 @@ def _truth_database():
         (
             "CREATE TABLE acquisition_personalization_artifact ("
             "personalization_artifact_id TEXT PRIMARY KEY, "
-            "acquisition_opportunity_id TEXT, disposition TEXT, created_at DATETIME)"
+            "acquisition_opportunity_id TEXT, disposition TEXT, policy_status TEXT, "
+            "created_at DATETIME)"
         ),
         (
             "CREATE TABLE acquisition_compliance_assessment ("
@@ -751,7 +910,8 @@ def _truth_database():
         (
             "CREATE TABLE acquisition_campaign_member ("
             "member_ref TEXT PRIMARY KEY, campaign_ref TEXT, "
-            "acquisition_opportunity_id TEXT, created_at DATETIME)"
+            "acquisition_opportunity_id TEXT, transport_recipient_identity TEXT, "
+            "transport_recipient_key_version TEXT, created_at DATETIME)"
         ),
         (
             "CREATE TABLE acquisition_provider_operation ("
@@ -761,16 +921,18 @@ def _truth_database():
         (
             "CREATE TABLE acquisition_response_evaluation ("
             "response_evaluation_id TEXT PRIMARY KEY, acquisition_opportunity_id TEXT, "
-            "classification TEXT, processing_state TEXT, finalized_at DATETIME)"
+            "campaign_ref TEXT, member_ref TEXT, classification TEXT, "
+            "processing_state TEXT, finalized_at DATETIME)"
         ),
         (
             "CREATE TABLE acquisition_conversion_journey ("
             "journey_ref TEXT PRIMARY KEY, acquisition_opportunity_id TEXT, "
-            "created_at DATETIME)"
+            "campaign_ref TEXT, member_ref TEXT, created_at DATETIME)"
         ),
         (
             "CREATE TABLE acquisition_conversion_event ("
             "conversion_event_ref TEXT PRIMARY KEY, journey_ref TEXT, "
+            "acquisition_opportunity_id TEXT, campaign_ref TEXT, member_ref TEXT, "
             "recorded_at DATETIME)"
         ),
     )
@@ -805,7 +967,7 @@ def test_sql_truth_reads_only_current_durable_domain_refs() -> None:
         connection.execute(
             sa.text(
                 "INSERT INTO acquisition_personalization_artifact VALUES "
-                "('personalization-1', 'opp-1', 'READY', :now)"
+                "('personalization-1', 'opp-1', 'READY', 'APPROVED', :now)"
             ),
             {"now": NOW},
         )
@@ -819,9 +981,13 @@ def test_sql_truth_reads_only_current_durable_domain_refs() -> None:
         connection.execute(
             sa.text(
                 "INSERT INTO acquisition_campaign_member VALUES "
-                "('member-1', 'campaign-1', 'opp-1', :now)"
+                "('member-1', 'campaign-1', 'opp-1', :identity, :version, :now)"
             ),
-            {"now": NOW},
+            {
+                "identity": QA_TRANSPORT_IDENTITY,
+                "version": QA_TRANSPORT_KEY_VERSION,
+                "now": NOW,
+            },
         )
         for index, kind in enumerate(
             (
@@ -845,22 +1011,48 @@ def test_sql_truth_reads_only_current_durable_domain_refs() -> None:
         connection.execute(
             sa.text(
                 "INSERT INTO acquisition_response_evaluation VALUES "
-                "('response-1', 'opp-1', 'POSITIVE', 'FINALIZED', :now)"
+                "('response-1', 'opp-1', 'campaign-1', 'member-1', "
+                "'POSITIVE', 'FINALIZED', :now)"
             ),
             {"now": NOW},
         )
         connection.execute(
             sa.text(
-                "INSERT INTO acquisition_conversion_journey VALUES ('journey-1', 'opp-1', :now)"
+                "INSERT INTO acquisition_response_evaluation VALUES "
+                "('response-stale', 'opp-1', 'campaign-stale', 'member-stale', "
+                "'POSITIVE', 'FINALIZED', :later)"
+            ),
+            {"later": NOW + dt.timedelta(minutes=1)},
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO acquisition_conversion_journey VALUES "
+                "('journey-1', 'opp-1', 'campaign-1', 'member-1', :now)"
+            ),
+            {"now": NOW},
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO acquisition_conversion_journey VALUES "
+                "('journey-stale', 'opp-1', 'campaign-stale', 'member-stale', :later)"
+            ),
+            {"later": NOW + dt.timedelta(minutes=1)},
+        )
+        connection.execute(
+            sa.text(
+                "INSERT INTO acquisition_conversion_event VALUES "
+                "('conversion-1', 'journey-1', 'opp-1', 'campaign-1', "
+                "'member-1', :now)"
             ),
             {"now": NOW},
         )
         connection.execute(
             sa.text(
                 "INSERT INTO acquisition_conversion_event VALUES "
-                "('conversion-1', 'journey-1', :now)"
+                "('conversion-stale-binding', 'journey-1', 'opp-1', "
+                "'campaign-stale', 'member-stale', :later)"
             ),
-            {"now": NOW},
+            {"later": NOW + dt.timedelta(minutes=1)},
         )
     truth = SqlAcquisitionDomainTruth(
         engine,
@@ -888,14 +1080,23 @@ def test_sql_truth_reads_only_current_durable_domain_refs() -> None:
     assert truth.compliance("opp-1") == ComplianceTruth(
         "compliance-1", ComplianceDisposition.RECORDED, "ALLOWED"
     )
-    assert truth.campaign("opp-1") == CampaignTruth("campaign-1", "member-1")
+    campaign = CampaignTruth(
+        "campaign-1",
+        "member-1",
+        QA_TRANSPORT_IDENTITY,
+        QA_TRANSPORT_KEY_VERSION,
+    )
+    assert truth.campaign("opp-1") == campaign
     assert [item.kind for item in truth.provider_operations("campaign-1", "member-1")] == [
         ProviderOperationKind.CREATE_CAMPAIGN,
         ProviderOperationKind.CONFIGURE_CAMPAIGN,
         ProviderOperationKind.ADD_LEAD,
     ]
-    assert truth.response("opp-1") == ResponseTruth("response-1", "POSITIVE")
-    assert truth.conversion_refs("opp-1") == ("journey-1", "conversion-1")
+    assert truth.response("opp-1", campaign) == ResponseTruth("response-1", "POSITIVE")
+    assert truth.conversion_refs("opp-1", campaign) == (
+        "journey-1",
+        "conversion-1",
+    )
 
 
 def test_sql_truth_refuses_ambiguous_opportunities_or_campaign_members() -> None:

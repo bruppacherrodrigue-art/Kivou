@@ -285,11 +285,14 @@ class AcquisitionRuntimeConfig(_FrozenModel):
 class RuntimeLeaseResult(_FrozenModel):
     owned: bool
     reclaimed: bool
+    fencing_token: int | None = Field(default=None, ge=1)
 
     @model_validator(mode="after")
     def reclaimed_requires_ownership(self) -> RuntimeLeaseResult:
         if self.reclaimed and not self.owned:
             raise ValueError("only an acquired runtime lease can be reclaimed")
+        if self.owned != (self.fencing_token is not None):
+            raise ValueError("owned runtime leases require exactly one fencing token")
         return self
 
 
@@ -313,6 +316,15 @@ class RuntimeStageSnapshot(_FrozenModel):
     status: RuntimeStageStatus
     attempt_count: int = Field(ge=1)
     result_refs: tuple[OpaqueRef, ...] = Field(default=(), max_length=16)
+    retry_at: dt.datetime | None = None
+
+    @model_validator(mode="after")
+    def valid_retry_checkpoint(self) -> RuntimeStageSnapshot:
+        if self.retry_at is not None:
+            require_aware(self.retry_at)
+            if self.status is not RuntimeStageStatus.WAITING:
+                raise ValueError("only a waiting runtime stage can carry retry_at")
+        return self
 
     @property
     def attempt_ref(self) -> str:
@@ -345,6 +357,7 @@ class RuntimeActionResult(_FrozenModel):
     reserved_cost: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("50"))
     observed_cost: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("50"))
     reason_codes: tuple[MachineCode, ...] = Field(default=(), max_length=16)
+    retry_at: dt.datetime | None = None
 
     @model_validator(mode="after")
     def terminal_or_waiting(self) -> RuntimeActionResult:
@@ -352,6 +365,10 @@ class RuntimeActionResult(_FrozenModel):
             raise ValueError("an action result must checkpoint a bounded disposition")
         if self.status is not RuntimeStageStatus.SUCCEEDED and not self.reason_codes:
             raise ValueError("non-success runtime results require a machine reason")
+        if self.retry_at is not None:
+            require_aware(self.retry_at)
+            if self.status is not RuntimeStageStatus.WAITING:
+                raise ValueError("only a waiting runtime result can carry retry_at")
         return self
 
 

@@ -34,6 +34,8 @@ class RuntimeCycleStore(Protocol):
     def resume_or_create_cycle(
         self,
         *,
+        owner_ref: str,
+        fencing_token: int,
         opportunity_keys: tuple[str, ...],
         config_fingerprint: str,
         at: dt.datetime,
@@ -44,6 +46,7 @@ class RuntimeCycleStore(Protocol):
         owner_ref: str,
         capability: RuntimeCapabilityEvidence,
         *,
+        fencing_token: int,
         at: dt.datetime,
     ) -> RuntimeHealthObservation: ...
 
@@ -52,11 +55,18 @@ class RuntimeCycleStore(Protocol):
         owner_ref: str,
         cycle_ref: str,
         *,
+        fencing_token: int,
         at: dt.datetime,
     ) -> RuntimeHealthObservation: ...
 
     def begin_stage(
-        self, cycle_ref: str, stage: AcquisitionRuntimeStage, *, at: dt.datetime
+        self,
+        cycle_ref: str,
+        stage: AcquisitionRuntimeStage,
+        *,
+        owner_ref: str,
+        fencing_token: int,
+        at: dt.datetime,
     ) -> RuntimeStageSnapshot: ...
 
     def finish_stage(
@@ -65,12 +75,31 @@ class RuntimeCycleStore(Protocol):
         stage: AcquisitionRuntimeStage,
         result: RuntimeActionResult,
         *,
+        owner_ref: str,
+        fencing_token: int,
         at: dt.datetime,
         proposal: RuntimeProposal | None = None,
     ) -> None: ...
 
+    def reserve_stage_cost(
+        self,
+        cycle_ref: str,
+        stage: AcquisitionRuntimeStage,
+        stage_snapshot: RuntimeStageSnapshot,
+        proposal: RuntimeProposal,
+        *,
+        owner_ref: str,
+        fencing_token: int,
+        at: dt.datetime,
+    ) -> None: ...
+
     def heartbeat_lease(
-        self, owner_ref: str, *, at: dt.datetime, lease_seconds: int
+        self,
+        owner_ref: str,
+        *,
+        fencing_token: int,
+        at: dt.datetime,
+        lease_seconds: int,
     ) -> None: ...
 
     def finish_cycle(
@@ -78,11 +107,19 @@ class RuntimeCycleStore(Protocol):
         cycle_ref: str,
         status: RuntimeCycleStatus,
         *,
+        owner_ref: str,
+        fencing_token: int,
         at: dt.datetime,
         reason_code: str | None = None,
     ) -> None: ...
 
-    def release_lease(self, owner_ref: str, *, at: dt.datetime) -> None: ...
+    def release_lease(
+        self,
+        owner_ref: str,
+        *,
+        fencing_token: int,
+        at: dt.datetime,
+    ) -> None: ...
 
 
 class RuntimeSupervisor(Protocol):
@@ -152,6 +189,8 @@ class AcquisitionRuntimeRunner:
                 code="LEASE_HELD",
             )
             return RuntimeRunResult(status=RuntimeRunStatus.ALREADY_RUNNING)
+        assert lease.fencing_token is not None
+        fencing_token = lease.fencing_token
         self._event(
             action="lease",
             status="started",
@@ -165,9 +204,12 @@ class AcquisitionRuntimeRunner:
             self.store.record_runtime_observation(
                 request.owner_ref,
                 self._runtime_capability,
+                fencing_token=fencing_token,
                 at=now,
             )
             cycle = self.store.resume_or_create_cycle(
+                owner_ref=request.owner_ref,
+                fencing_token=fencing_token,
                 opportunity_keys=self._opportunities,
                 config_fingerprint=self._config_fingerprint,
                 at=now,
@@ -175,6 +217,7 @@ class AcquisitionRuntimeRunner:
             self.store.record_cycle_observation(
                 request.owner_ref,
                 cycle.cycle_ref,
+                fencing_token=fencing_token,
                 at=now,
             )
             self._event(
@@ -205,11 +248,16 @@ class AcquisitionRuntimeRunner:
                         cycle_ref=cycle.cycle_ref,
                     )
                 self.store.finish_cycle(
-                    cycle.cycle_ref, RuntimeCycleStatus.SUCCEEDED, at=now
+                    cycle.cycle_ref,
+                    RuntimeCycleStatus.SUCCEEDED,
+                    owner_ref=request.owner_ref,
+                    fencing_token=fencing_token,
+                    at=now,
                 )
                 self.store.record_cycle_observation(
                     request.owner_ref,
                     cycle.cycle_ref,
+                    fencing_token=fencing_token,
                     at=now,
                 )
                 self._emit_cycle(
@@ -231,12 +279,15 @@ class AcquisitionRuntimeRunner:
                     self.store.finish_cycle(
                         cycle.cycle_ref,
                         RuntimeCycleStatus.WAITING,
+                        owner_ref=request.owner_ref,
+                        fencing_token=fencing_token,
                         at=now,
                         reason_code="CYCLE_TIME_BUDGET_REACHED",
                     )
                     self.store.record_cycle_observation(
                         request.owner_ref,
                         cycle.cycle_ref,
+                        fencing_token=fencing_token,
                         at=now,
                     )
                     self._emit_cycle(
@@ -251,12 +302,39 @@ class AcquisitionRuntimeRunner:
                         reason_code="CYCLE_TIME_BUDGET_REACHED",
                     )
                 stage_snapshot = self.store.begin_stage(
-                    cycle.cycle_ref, current_stage, at=now
+                    cycle.cycle_ref,
+                    current_stage,
+                    owner_ref=request.owner_ref,
+                    fencing_token=fencing_token,
+                    at=now,
                 )
                 current_attempt = stage_snapshot.attempt_count
+                if (
+                    stage_snapshot.status is RuntimeStageStatus.WAITING
+                    and stage_snapshot.retry_at is not None
+                    and stage_snapshot.retry_at > now
+                ):
+                    self.store.record_cycle_observation(
+                        request.owner_ref,
+                        cycle.cycle_ref,
+                        fencing_token=fencing_token,
+                        at=now,
+                    )
+                    self._emit_cycle(
+                        cycle.cycle_ref,
+                        RuntimeRunStatus.WAITING,
+                        "STAGE_RETRY_NOT_DUE",
+                    )
+                    return RuntimeRunResult(
+                        status=RuntimeRunStatus.WAITING,
+                        cycle_ref=cycle.cycle_ref,
+                        stage=current_stage,
+                        reason_code="STAGE_RETRY_NOT_DUE",
+                    )
                 self.store.record_cycle_observation(
                     request.owner_ref,
                     cycle.cycle_ref,
+                    fencing_token=fencing_token,
                     at=now,
                 )
                 self._event(
@@ -268,7 +346,17 @@ class AcquisitionRuntimeRunner:
                     attempt=stage_snapshot.attempt_count,
                 )
                 proposal: RuntimeProposal | None = None
-                if (
+                remaining_cost = self._maximum_cost - spent
+                if remaining_cost <= 0 and current_stage in {
+                    AcquisitionRuntimeStage.SUPPLIER_DISCOVERY,
+                    AcquisitionRuntimeStage.CONTACT_DISCOVERY,
+                    AcquisitionRuntimeStage.COMPANY_RESEARCH,
+                }:
+                    action_result = RuntimeActionResult(
+                        status=RuntimeStageStatus.BLOCKED,
+                        reason_codes=("CYCLE_BUDGET_EXCEEDED",),
+                    )
+                elif (
                     current_stage is AcquisitionRuntimeStage.PROVIDER_HANDOFF
                     and not request.allow_qa_provider_mutations
                 ):
@@ -277,26 +365,39 @@ class AcquisitionRuntimeRunner:
                         reason_codes=("QA_PROVIDER_MUTATION_NOT_AUTHORIZED",),
                     )
                 else:
+                    stage_cycle = cycle.model_copy(
+                        update={
+                            "status": RuntimeCycleStatus.RUNNING,
+                            "next_stage": current_stage,
+                            "spent_cost": spent,
+                        }
+                    )
                     proposal, action_result = self._execute_stage(
                         current_stage,
-                        cycle,
+                        stage_cycle,
                         stage_snapshot=stage_snapshot,
-                        remaining_cost=self._maximum_cost - spent,
+                        remaining_cost=remaining_cost,
                         request=request,
+                        fencing_token=fencing_token,
                         at=now,
                     )
+                checkpoint_at = self._now()
+                self.store.heartbeat_lease(
+                    request.owner_ref,
+                    fencing_token=fencing_token,
+                    at=checkpoint_at,
+                    lease_seconds=self._lease_seconds,
+                )
                 self.store.finish_stage(
                     cycle.cycle_ref,
                     current_stage,
                     action_result,
+                    owner_ref=request.owner_ref,
+                    fencing_token=fencing_token,
                     proposal=proposal,
-                    at=now,
+                    at=checkpoint_at,
                 )
-                self.store.heartbeat_lease(
-                    request.owner_ref,
-                    at=now,
-                    lease_seconds=self._lease_seconds,
-                )
+                now = checkpoint_at
                 self._emit_stage(
                     cycle.cycle_ref,
                     current_stage,
@@ -310,11 +411,17 @@ class AcquisitionRuntimeRunner:
                     )
                     continue
                 stopped = self._stop_result(
-                    cycle.cycle_ref, current_stage, action_result, at=now
+                    cycle.cycle_ref,
+                    current_stage,
+                    action_result,
+                    owner_ref=request.owner_ref,
+                    fencing_token=fencing_token,
+                    at=now,
                 )
                 self.store.record_cycle_observation(
                     request.owner_ref,
                     cycle.cycle_ref,
+                    fencing_token=fencing_token,
                     at=now,
                 )
                 self._emit_cycle(
@@ -324,11 +431,16 @@ class AcquisitionRuntimeRunner:
                 )
                 return stopped
             self.store.finish_cycle(
-                cycle.cycle_ref, RuntimeCycleStatus.SUCCEEDED, at=now
+                cycle.cycle_ref,
+                RuntimeCycleStatus.SUCCEEDED,
+                owner_ref=request.owner_ref,
+                fencing_token=fencing_token,
+                at=now,
             )
             self.store.record_cycle_observation(
                 request.owner_ref,
                 cycle.cycle_ref,
+                fencing_token=fencing_token,
                 at=now,
             )
             self._emit_cycle(
@@ -348,17 +460,25 @@ class AcquisitionRuntimeRunner:
                 reason_codes=("CURRENT_RUN_INTERRUPTED",),
             )
             self.store.finish_stage(
-                cycle.cycle_ref, current_stage, cancelled, at=now
+                cycle.cycle_ref,
+                current_stage,
+                cancelled,
+                owner_ref=request.owner_ref,
+                fencing_token=fencing_token,
+                at=now,
             )
             self.store.finish_cycle(
                 cycle.cycle_ref,
                 RuntimeCycleStatus.CANCELLED,
+                owner_ref=request.owner_ref,
+                fencing_token=fencing_token,
                 at=now,
                 reason_code="CURRENT_RUN_INTERRUPTED",
             )
             self.store.record_cycle_observation(
                 request.owner_ref,
                 cycle.cycle_ref,
+                fencing_token=fencing_token,
                 at=now,
             )
             self._emit_stage(
@@ -386,17 +506,25 @@ class AcquisitionRuntimeRunner:
                 )
                 if current_stage is not None and current_attempt > 0:
                     self.store.finish_stage(
-                        cycle.cycle_ref, current_stage, failed, at=now
+                        cycle.cycle_ref,
+                        current_stage,
+                        failed,
+                        owner_ref=request.owner_ref,
+                        fencing_token=fencing_token,
+                        at=now,
                     )
                 self.store.finish_cycle(
                     cycle.cycle_ref,
                     RuntimeCycleStatus.FAILED,
+                    owner_ref=request.owner_ref,
+                    fencing_token=fencing_token,
                     at=now,
                     reason_code="CURRENT_RUN_TECHNICAL_FAILURE",
                 )
                 self.store.record_cycle_observation(
                     request.owner_ref,
                     cycle.cycle_ref,
+                    fencing_token=fencing_token,
                     at=now,
                 )
                 if current_stage is not None and current_attempt > 0:
@@ -427,7 +555,11 @@ class AcquisitionRuntimeRunner:
                 reason_code="CURRENT_RUN_TECHNICAL_FAILURE",
             )
         finally:
-            self.store.release_lease(request.owner_ref, at=now)
+            self.store.release_lease(
+                request.owner_ref,
+                fencing_token=fencing_token,
+                at=now,
+            )
             self._event(
                 action="lease",
                 status="released",
@@ -442,6 +574,7 @@ class AcquisitionRuntimeRunner:
         stage_snapshot: RuntimeStageSnapshot,
         remaining_cost: Decimal,
         request: RuntimeRunRequest,
+        fencing_token: int,
         at: dt.datetime,
     ) -> tuple[RuntimeProposal, RuntimeActionResult]:
         proposal = self.supervisor.propose(
@@ -463,6 +596,15 @@ class AcquisitionRuntimeRunner:
                     reason_codes=("CYCLE_BUDGET_EXCEEDED",),
                 ),
             )
+        self.store.reserve_stage_cost(
+            cycle.cycle_ref,
+            stage,
+            stage_snapshot,
+            proposal,
+            owner_ref=request.owner_ref,
+            fencing_token=fencing_token,
+            at=at,
+        )
         result = self.registry.execute(
             stage,
             proposal,
@@ -493,6 +635,8 @@ class AcquisitionRuntimeRunner:
         stage: AcquisitionRuntimeStage,
         action_result: RuntimeActionResult,
         *,
+        owner_ref: str,
+        fencing_token: int,
         at: dt.datetime,
     ) -> RuntimeRunResult:
         mappings = {
@@ -520,7 +664,12 @@ class AcquisitionRuntimeRunner:
         cycle_status, run_status = mappings[action_result.status]
         reason = action_result.reason_codes[0]
         self.store.finish_cycle(
-            cycle_ref, cycle_status, at=at, reason_code=reason
+            cycle_ref,
+            cycle_status,
+            owner_ref=owner_ref,
+            fencing_token=fencing_token,
+            at=at,
+            reason_code=reason,
         )
         return RuntimeRunResult(
             status=run_status,

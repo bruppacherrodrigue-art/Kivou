@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 from collections.abc import Callable, Mapping
 from decimal import Decimal
 from enum import StrEnum
@@ -49,6 +50,7 @@ class KivouDomainOutcome(BaseModel):
     reserved_cost: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("50"))
     observed_cost: Decimal = Field(default=Decimal("0"), ge=0, le=Decimal("50"))
     reason_codes: tuple[MachineCode, ...] = Field(default=(), max_length=16)
+    retry_at: dt.datetime | None = None
 
     @model_validator(mode="after")
     def require_machine_reason_for_non_complete(self) -> KivouDomainOutcome:
@@ -57,6 +59,11 @@ class KivouDomainOutcome(BaseModel):
             and not self.reason_codes
         ):
             raise ValueError("non-complete domain outcome requires a machine reason")
+        if self.retry_at is not None:
+            if self.retry_at.tzinfo is None or self.retry_at.utcoffset() is None:
+                raise ValueError("domain retry_at must be timezone-aware")
+            if self.disposition is not KivouDomainDisposition.WAITING:
+                raise ValueError("only a waiting domain outcome can carry retry_at")
         return self
 
     def to_runtime_result(self) -> RuntimeActionResult:
@@ -66,6 +73,7 @@ class KivouDomainOutcome(BaseModel):
             reserved_cost=self.reserved_cost,
             observed_cost=self.observed_cost,
             reason_codes=self.reason_codes,
+            retry_at=self.retry_at,
         )
 
 

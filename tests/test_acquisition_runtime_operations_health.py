@@ -68,13 +68,21 @@ def _seed_runtime(
     cycle_status: RuntimeCycleStatus = RuntimeCycleStatus.SUCCEEDED,
 ) -> None:
     store = AcquisitionRuntimeStore(engine)
-    store.acquire_lease(OWNER, acquired_at=observed_at, lease_seconds=600)
+    lease = store.acquire_lease(
+        OWNER,
+        acquired_at=observed_at,
+        lease_seconds=600,
+    )
+    assert lease.fencing_token is not None
+    fence = {"owner_ref": OWNER, "fencing_token": lease.fencing_token}
     store.record_runtime_observation(
         OWNER,
         runtime_capability or capability(),
+        fencing_token=lease.fencing_token,
         at=observed_at,
     )
     cycle = store.resume_or_create_cycle(
+        **fence,
         opportunity_keys=("qa-opportunity-1",),
         config_fingerprint="2" * 64,
         at=observed_at,
@@ -83,18 +91,20 @@ def _seed_runtime(
     if cycle_status is RuntimeCycleStatus.SUCCEEDED:
         for stage in AcquisitionRuntimeStage:
             cursor += dt.timedelta(milliseconds=1)
-            store.begin_stage(cycle.cycle_ref, stage, at=cursor)
+            store.begin_stage(cycle.cycle_ref, stage, **fence, at=cursor)
             cursor += dt.timedelta(milliseconds=1)
             store.finish_stage(
                 cycle.cycle_ref,
                 stage,
                 RuntimeActionResult(status=RuntimeStageStatus.SUCCEEDED),
+                **fence,
                 at=cursor,
             )
         cursor += dt.timedelta(milliseconds=1)
         store.finish_cycle(
             cycle.cycle_ref,
             RuntimeCycleStatus.SUCCEEDED,
+            **fence,
             at=cursor,
         )
     elif cycle_status is RuntimeCycleStatus.FAILED:
@@ -102,6 +112,7 @@ def _seed_runtime(
         store.finish_cycle(
             cycle.cycle_ref,
             RuntimeCycleStatus.FAILED,
+            **fence,
             at=cursor,
             reason_code="CONTROLLED_FAILURE",
         )
@@ -110,6 +121,7 @@ def _seed_runtime(
         store.begin_stage(
             cycle.cycle_ref,
             AcquisitionRuntimeStage.SIGNAL_SEED,
+            **fence,
             at=cursor,
         )
     elif cycle_status is RuntimeCycleStatus.WAITING:
@@ -117,6 +129,7 @@ def _seed_runtime(
         store.finish_cycle(
             cycle.cycle_ref,
             RuntimeCycleStatus.WAITING,
+            **fence,
             at=cursor,
             reason_code="CONTROLLED_WAIT",
         )
@@ -125,6 +138,7 @@ def _seed_runtime(
         store.begin_stage(
             cycle.cycle_ref,
             AcquisitionRuntimeStage.SIGNAL_SEED,
+            **fence,
             at=cursor,
         )
         cursor += dt.timedelta(milliseconds=1)
@@ -135,10 +149,20 @@ def _seed_runtime(
                 status=RuntimeStageStatus.SUPPRESSED,
                 reason_codes=("CONTROLLED_SUPPRESSION",),
             ),
+            **fence,
             at=cursor,
         )
-    store.record_cycle_observation(OWNER, cycle.cycle_ref, at=cursor)
-    store.release_lease(OWNER, at=cursor)
+    store.record_cycle_observation(
+        OWNER,
+        cycle.cycle_ref,
+        fencing_token=lease.fencing_token,
+        at=cursor,
+    )
+    store.release_lease(
+        OWNER,
+        fencing_token=lease.fencing_token,
+        at=cursor,
+    )
 
 
 def _ready_service(engine) -> OperationsReadService:

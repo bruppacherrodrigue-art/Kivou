@@ -21,7 +21,16 @@ def _pending(tmp_path):
     url = f"sqlite+pysqlite:///{tmp_path / 'runtime-approval-cli.db'}"
     engine = create_database_engine(url)
     METADATA.create_all(engine)
-    cycle = AcquisitionRuntimeStore(engine).resume_or_create_cycle(
+    runtime = AcquisitionRuntimeStore(engine)
+    lease = runtime.acquire_lease(
+        "test-owner",
+        acquired_at=NOW,
+        lease_seconds=120,
+    )
+    assert lease.fencing_token is not None
+    cycle = runtime.resume_or_create_cycle(
+        owner_ref="test-owner",
+        fencing_token=lease.fencing_token,
         opportunity_keys=("signal-qa-001",),
         config_fingerprint="c" * 64,
         at=NOW,

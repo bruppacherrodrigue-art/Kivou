@@ -241,14 +241,22 @@ def test_missing_durable_runtime_observation_reads_as_absent(tmp_path) -> None:
 
 def test_owned_runtime_observation_survives_lease_release(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
-    store.acquire_lease("owner-qa-001", acquired_at=NOW, lease_seconds=120)
+    lease = store.acquire_lease(
+        "owner-qa-001", acquired_at=NOW, lease_seconds=120
+    )
+    assert lease.fencing_token is not None
 
     recorded = store.record_runtime_observation(
         "owner-qa-001",
         capability(),
+        fencing_token=lease.fencing_token,
         at=NOW,
     )
-    store.release_lease("owner-qa-001", at=NOW + dt.timedelta(seconds=1))
+    store.release_lease(
+        "owner-qa-001",
+        fencing_token=lease.fencing_token,
+        at=NOW + dt.timedelta(seconds=1),
+    )
     persisted = AcquisitionRuntimeStore(store.engine).read_runtime_observation()
 
     assert persisted == recorded
@@ -262,27 +270,42 @@ def test_owned_runtime_observation_survives_lease_release(tmp_path) -> None:
 
 def test_only_the_current_lease_owner_can_advance_runtime_health(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
-    store.acquire_lease("owner-qa-001", acquired_at=NOW, lease_seconds=120)
+    lease = store.acquire_lease(
+        "owner-qa-001", acquired_at=NOW, lease_seconds=120
+    )
+    assert lease.fencing_token is not None
 
     with pytest.raises(AcquisitionRuntimeConflict):
         store.record_runtime_observation(
             "owner-qa-other",
             capability(),
+            fencing_token=lease.fencing_token,
             at=NOW,
         )
     with pytest.raises(AcquisitionRuntimeConflict):
         store.record_runtime_observation(
             "owner-qa-001",
             capability(),
+            fencing_token=lease.fencing_token,
             at=NOW + dt.timedelta(seconds=120),
         )
 
 
 def test_cycle_heartbeat_uses_the_durable_cycle_status_and_timestamp(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
-    store.acquire_lease("owner-qa-001", acquired_at=NOW, lease_seconds=120)
-    store.record_runtime_observation("owner-qa-001", capability(), at=NOW)
+    lease = store.acquire_lease(
+        "owner-qa-001", acquired_at=NOW, lease_seconds=120
+    )
+    assert lease.fencing_token is not None
+    store.record_runtime_observation(
+        "owner-qa-001",
+        capability(),
+        fencing_token=lease.fencing_token,
+        at=NOW,
+    )
     cycle = store.resume_or_create_cycle(
+        owner_ref="owner-qa-001",
+        fencing_token=lease.fencing_token,
         opportunity_keys=("signal-qa-001",),
         config_fingerprint="f" * 64,
         at=NOW + dt.timedelta(seconds=1),
@@ -290,15 +313,22 @@ def test_cycle_heartbeat_uses_the_durable_cycle_status_and_timestamp(tmp_path) -
     store.begin_stage(
         cycle.cycle_ref,
         AcquisitionRuntimeStage.SIGNAL_SEED,
+        owner_ref="owner-qa-001",
+        fencing_token=lease.fencing_token,
         at=NOW + dt.timedelta(seconds=2),
     )
 
     observed = store.record_cycle_observation(
         "owner-qa-001",
         cycle.cycle_ref,
+        fencing_token=lease.fencing_token,
         at=NOW + dt.timedelta(seconds=2),
     )
-    store.release_lease("owner-qa-001", at=NOW + dt.timedelta(seconds=3))
+    store.release_lease(
+        "owner-qa-001",
+        fencing_token=lease.fencing_token,
+        at=NOW + dt.timedelta(seconds=3),
+    )
 
     assert observed.heartbeat_at == NOW + dt.timedelta(seconds=2)
     assert observed.last_cycle_ref == cycle.cycle_ref
@@ -309,10 +339,14 @@ def test_cycle_heartbeat_uses_the_durable_cycle_status_and_timestamp(tmp_path) -
 
 def test_observation_time_cannot_move_backwards(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
-    store.acquire_lease("owner-qa-001", acquired_at=NOW, lease_seconds=120)
+    lease = store.acquire_lease(
+        "owner-qa-001", acquired_at=NOW, lease_seconds=120
+    )
+    assert lease.fencing_token is not None
     store.record_runtime_observation(
         "owner-qa-001",
         capability(),
+        fencing_token=lease.fencing_token,
         at=NOW + dt.timedelta(seconds=2),
     )
 
@@ -320,6 +354,7 @@ def test_observation_time_cannot_move_backwards(tmp_path) -> None:
         store.record_runtime_observation(
             "owner-qa-001",
             capability(),
+            fencing_token=lease.fencing_token,
             at=NOW + dt.timedelta(seconds=1),
         )
 
@@ -328,28 +363,51 @@ def test_new_run_clears_the_previous_cycle_until_current_cycle_is_bound(
     tmp_path,
 ) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
-    store.acquire_lease("owner-qa-001", acquired_at=NOW, lease_seconds=120)
-    store.record_runtime_observation("owner-qa-001", capability(), at=NOW)
+    lease = store.acquire_lease(
+        "owner-qa-001", acquired_at=NOW, lease_seconds=120
+    )
+    assert lease.fencing_token is not None
+    store.record_runtime_observation(
+        "owner-qa-001",
+        capability(),
+        fencing_token=lease.fencing_token,
+        at=NOW,
+    )
     cycle = store.resume_or_create_cycle(
+        owner_ref="owner-qa-001",
+        fencing_token=lease.fencing_token,
         opportunity_keys=("signal-qa-001",),
         config_fingerprint="f" * 64,
         at=NOW,
     )
-    store.record_cycle_observation("owner-qa-001", cycle.cycle_ref, at=NOW)
-    store.release_lease("owner-qa-001", at=NOW)
+    store.record_cycle_observation(
+        "owner-qa-001",
+        cycle.cycle_ref,
+        fencing_token=lease.fencing_token,
+        at=NOW,
+    )
+    store.release_lease(
+        "owner-qa-001", fencing_token=lease.fencing_token, at=NOW
+    )
 
     next_run_at = NOW + dt.timedelta(minutes=1)
-    store.acquire_lease(
+    next_lease = store.acquire_lease(
         "owner-qa-002",
         acquired_at=next_run_at,
         lease_seconds=120,
     )
+    assert next_lease.fencing_token is not None
     refreshed = store.record_runtime_observation(
         "owner-qa-002",
         capability(),
+        fencing_token=next_lease.fencing_token,
         at=next_run_at,
     )
-    store.release_lease("owner-qa-002", at=next_run_at)
+    store.release_lease(
+        "owner-qa-002",
+        fencing_token=next_lease.fencing_token,
+        at=next_run_at,
+    )
 
     assert refreshed.last_cycle_ref is None
     assert refreshed.last_cycle_status is None
@@ -358,8 +416,16 @@ def test_new_run_clears_the_previous_cycle_until_current_cycle_is_bound(
 
 def test_tampered_capability_fingerprint_fails_closed_on_read(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
-    store.acquire_lease("owner-qa-001", acquired_at=NOW, lease_seconds=120)
-    store.record_runtime_observation("owner-qa-001", capability(), at=NOW)
+    lease = store.acquire_lease(
+        "owner-qa-001", acquired_at=NOW, lease_seconds=120
+    )
+    assert lease.fencing_token is not None
+    store.record_runtime_observation(
+        "owner-qa-001",
+        capability(),
+        fencing_token=lease.fencing_token,
+        at=NOW,
+    )
     with store.engine.begin() as connection:
         connection.execute(
             sa.text(

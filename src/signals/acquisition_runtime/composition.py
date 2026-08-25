@@ -13,6 +13,7 @@ from signals.acquisition_runtime.actions import build_kivou_stage_handlers
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeConfig,
     AcquisitionRuntimeStage,
+    RuntimeRunResult,
 )
 from signals.acquisition_runtime.domain import (
     AcquisitionDomainActions,
@@ -106,16 +107,17 @@ def build_acquisition_domain_composition(
         clock=clock,
         attribution_link_builder=attribution_link_builder,
     )
+    recipient_override = StagingQaRecipientOverride(
+        runtime_config,
+        transport_keyring=suppression_keyring,
+    )
     campaign_worker = CampaignWorker(
         engine,
         provider=instantly_provider,
         campaign_service=campaign_service,
         deployment=campaign_deployment,
         worker_ref="acquisition-runtime-worker",
-        recipient_override=StagingQaRecipientOverride(
-            runtime_config,
-            transport_keyring=suppression_keyring,
-        ),
+        recipient_override=recipient_override,
     )
     actions = AcquisitionDomainActions(
         truth=SqlAcquisitionDomainTruth(engine),
@@ -130,6 +132,13 @@ def build_acquisition_domain_composition(
         authorization_factory=authorization_factory,
         approval_provider=approval_provider,
         maximum_provider_operations=(runtime_config.deployment.limits.maximum_provider_operations),
+        qa_transport_recipient_identity=(
+            recipient_override.transport_recipient_identity
+        ),
+        qa_transport_recipient_key_version=(
+            recipient_override.transport_key_version
+        ),
+        qa_scope=runtime_config.deployment.qa_scope,
         targeting=targeting,
     )
     return AcquisitionDomainComposition(
@@ -149,4 +158,18 @@ def build_acquisition_domain_composition(
 __all__ = [
     "AcquisitionDomainComposition",
     "build_acquisition_domain_composition",
+    "execute_runtime_run_once",
 ]
+
+
+def execute_runtime_run_once(
+    *,
+    allow_qa_provider_mutations: bool,
+) -> RuntimeRunResult:
+    """Load the fail-closed executable root lazily to avoid import cycles."""
+
+    from signals.acquisition_runtime.execution import (
+        execute_runtime_run_once as execute,
+    )
+
+    return execute(allow_qa_provider_mutations=allow_qa_provider_mutations)

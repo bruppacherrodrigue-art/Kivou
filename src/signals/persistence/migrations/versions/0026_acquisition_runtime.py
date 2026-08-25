@@ -235,6 +235,7 @@ def upgrade() -> None:
         sa.Column("reserved_cost", sa.Numeric(12, 6), nullable=False),
         sa.Column("observed_cost", sa.Numeric(12, 6), nullable=False),
         sa.Column("reason_codes", sa.JSON, nullable=False),
+        sa.Column("retry_at", sa.DateTime(timezone=True)),
         sa.Column("started_at", sa.DateTime(timezone=True)),
         sa.Column("completed_at", sa.DateTime(timezone=True)),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -267,11 +268,65 @@ def upgrade() -> None:
             "AND started_at IS NOT NULL AND completed_at IS NOT NULL)",
             name="ck_acquisition_runtime_stage_lifecycle",
         ),
+        sa.CheckConstraint(
+            "retry_at IS NULL OR status = 'WAITING'",
+            name="ck_acquisition_runtime_stage_retry",
+        ),
     )
     op.create_index(
         "ix_acquisition_runtime_stage_status",
         "acquisition_runtime_stage",
         ["status", "updated_at"],
+    )
+    op.create_table(
+        "acquisition_runtime_stage_attempt",
+        sa.Column(
+            "cycle_ref",
+            sa.String(64),
+            sa.ForeignKey("acquisition_runtime_cycle.cycle_ref", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column("stage", sa.String(32), primary_key=True),
+        sa.Column("attempt_count", sa.Integer, primary_key=True),
+        sa.Column("status", sa.String(16), nullable=False),
+        sa.Column("reserved_cost", sa.Numeric(12, 6), nullable=False),
+        sa.Column("observed_cost", sa.Numeric(12, 6), nullable=False),
+        sa.Column("retry_at", sa.DateTime(timezone=True)),
+        sa.Column("completed_at", sa.DateTime(timezone=True)),
+        sa.CheckConstraint(
+            "stage IN ('SIGNAL_SEED', 'SUPPLIER_DISCOVERY', 'CONTACT_DISCOVERY', "
+            "'COMPANY_RESEARCH', 'DECISION', 'PERSONALIZATION', 'COMPLIANCE', "
+            "'CAMPAIGN', 'PROVIDER_HANDOFF', 'RESPONSE', "
+            "'ATTRIBUTION_CONVERSION')",
+            name="ck_acquisition_runtime_attempt_stage",
+        ),
+        sa.CheckConstraint(
+            "status IN ('RUNNING', 'WAITING', 'SUCCEEDED', 'BLOCKED', 'FAILED', "
+            "'SUPPRESSED', 'CANCELLED')",
+            name="ck_acquisition_runtime_attempt_status",
+        ),
+        sa.CheckConstraint(
+            "attempt_count >= 1",
+            name="ck_acquisition_runtime_attempt_count",
+        ),
+        sa.CheckConstraint(
+            "reserved_cost >= 0 AND observed_cost >= 0",
+            name="ck_acquisition_runtime_attempt_cost",
+        ),
+        sa.CheckConstraint(
+            "(status = 'RUNNING' AND completed_at IS NULL) OR "
+            "(status <> 'RUNNING' AND completed_at IS NOT NULL)",
+            name="ck_acquisition_runtime_attempt_lifecycle",
+        ),
+        sa.CheckConstraint(
+            "retry_at IS NULL OR status = 'WAITING'",
+            name="ck_acquisition_runtime_attempt_retry",
+        ),
+    )
+    op.create_index(
+        "ix_acquisition_runtime_attempt_cycle",
+        "acquisition_runtime_stage_attempt",
+        ["cycle_ref", "completed_at"],
     )
     with op.batch_alter_table("acquisition_campaign_member") as batch:
         batch.add_column(sa.Column("transport_recipient_identity", sa.String(64)))
@@ -293,6 +348,11 @@ def downgrade() -> None:
         )
         batch.drop_column("transport_recipient_key_version")
         batch.drop_column("transport_recipient_identity")
+    op.drop_index(
+        "ix_acquisition_runtime_attempt_cycle",
+        table_name="acquisition_runtime_stage_attempt",
+    )
+    op.drop_table("acquisition_runtime_stage_attempt")
     op.drop_index(
         "ix_acquisition_runtime_stage_status",
         table_name="acquisition_runtime_stage",

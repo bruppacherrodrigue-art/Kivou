@@ -2301,6 +2301,7 @@ acquisition_runtime_stage = sa.Table(
     sa.Column("reserved_cost", sa.Numeric(12, 6), nullable=False),
     sa.Column("observed_cost", sa.Numeric(12, 6), nullable=False),
     sa.Column("reason_codes", sa.JSON, nullable=False),
+    sa.Column("retry_at", sa.DateTime(timezone=True)),
     sa.Column("started_at", sa.DateTime(timezone=True)),
     sa.Column("completed_at", sa.DateTime(timezone=True)),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -2330,5 +2331,64 @@ acquisition_runtime_stage = sa.Table(
         "AND started_at IS NOT NULL AND completed_at IS NOT NULL)",
         name="ck_acquisition_runtime_stage_lifecycle",
     ),
+    sa.CheckConstraint(
+        "retry_at IS NULL OR status = 'WAITING'",
+        name="ck_acquisition_runtime_stage_retry",
+    ),
     sa.Index("ix_acquisition_runtime_stage_status", "status", "updated_at"),
+)
+
+
+# Immutable cost ledger: the mutable stage checkpoint keeps only the latest
+# attempt, while every finalized attempt remains chargeable across retries.
+acquisition_runtime_stage_attempt = sa.Table(
+    "acquisition_runtime_stage_attempt",
+    METADATA,
+    sa.Column(
+        "cycle_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_runtime_cycle.cycle_ref", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("stage", sa.String(32), primary_key=True),
+    sa.Column("attempt_count", sa.Integer, primary_key=True),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("reserved_cost", sa.Numeric(12, 6), nullable=False),
+    sa.Column("observed_cost", sa.Numeric(12, 6), nullable=False),
+    sa.Column("retry_at", sa.DateTime(timezone=True)),
+    sa.Column("completed_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "stage IN ('SIGNAL_SEED', 'SUPPLIER_DISCOVERY', 'CONTACT_DISCOVERY', "
+        "'COMPANY_RESEARCH', 'DECISION', 'PERSONALIZATION', 'COMPLIANCE', "
+        "'CAMPAIGN', 'PROVIDER_HANDOFF', 'RESPONSE', "
+        "'ATTRIBUTION_CONVERSION')",
+        name="ck_acquisition_runtime_attempt_stage",
+    ),
+    sa.CheckConstraint(
+        "status IN ('RUNNING', 'WAITING', 'SUCCEEDED', 'BLOCKED', 'FAILED', "
+        "'SUPPRESSED', 'CANCELLED')",
+        name="ck_acquisition_runtime_attempt_status",
+    ),
+    sa.CheckConstraint(
+        "attempt_count >= 1",
+        name="ck_acquisition_runtime_attempt_count",
+    ),
+    sa.CheckConstraint(
+        "reserved_cost >= 0 AND observed_cost >= 0",
+        name="ck_acquisition_runtime_attempt_cost",
+    ),
+    sa.CheckConstraint(
+        "(status = 'RUNNING' AND completed_at IS NULL) OR "
+        "(status <> 'RUNNING' AND completed_at IS NOT NULL)",
+        name="ck_acquisition_runtime_attempt_lifecycle",
+    ),
+    sa.CheckConstraint(
+        "retry_at IS NULL OR status = 'WAITING'",
+        name="ck_acquisition_runtime_attempt_retry",
+    ),
+    sa.Index(
+        "ix_acquisition_runtime_attempt_cycle",
+        "cycle_ref",
+        "completed_at",
+    ),
 )

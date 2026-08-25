@@ -37,7 +37,11 @@ DEFAULT_CYCLE = RuntimeCycleSnapshot(
 @dataclass
 class FakeStore:
     lease: RuntimeLeaseResult = field(
-        default_factory=lambda: RuntimeLeaseResult(owned=True, reclaimed=False)
+        default_factory=lambda: RuntimeLeaseResult(
+            owned=True,
+            reclaimed=False,
+            fencing_token=1,
+        )
     )
     cycle: RuntimeCycleSnapshot = field(default_factory=lambda: DEFAULT_CYCLE)
     events: list[tuple[object, ...]] = field(default_factory=list)
@@ -49,11 +53,23 @@ class FakeStore:
         self.events.append(("lease", owner_ref, acquired_at, lease_seconds))
         return self.lease
 
-    def resume_or_create_cycle(self, *, opportunity_keys, config_fingerprint, at):
+    def resume_or_create_cycle(
+        self,
+        *,
+        owner_ref,
+        fencing_token,
+        opportunity_keys,
+        config_fingerprint,
+        at,
+    ):
+        assert owner_ref == "runtime-owner-001" and fencing_token == 1
         self.events.append(("cycle", opportunity_keys, config_fingerprint, at))
         return self.cycle
 
-    def begin_stage(self, cycle_ref, stage, *, at):
+    def begin_stage(
+        self, cycle_ref, stage, *, owner_ref, fencing_token, at
+    ):
+        assert owner_ref == "runtime-owner-001" and fencing_token == 1
         self.events.append(("begin", cycle_ref, stage, at))
         return RuntimeStageSnapshot(
             cycle_ref=cycle_ref,
@@ -63,25 +79,79 @@ class FakeStore:
             result_refs=("prior-result-001",),
         )
 
-    def finish_stage(self, cycle_ref, stage, result, *, at, proposal=None):
+    def finish_stage(
+        self,
+        cycle_ref,
+        stage,
+        result,
+        *,
+        owner_ref,
+        fencing_token,
+        at,
+        proposal=None,
+    ):
+        assert owner_ref == "runtime-owner-001" and fencing_token == 1
         self.proposals[stage] = proposal
         self.events.append(("finish", cycle_ref, stage, result.status, at))
 
-    def heartbeat_lease(self, owner_ref, *, at, lease_seconds):
+    def reserve_stage_cost(
+        self,
+        cycle_ref,
+        stage,
+        stage_snapshot,
+        proposal,
+        *,
+        owner_ref,
+        fencing_token,
+        at,
+    ):
+        assert owner_ref == "runtime-owner-001" and fencing_token == 1
+        self.events.append(
+            (
+                "reserve",
+                cycle_ref,
+                stage,
+                stage_snapshot.attempt_count,
+                proposal.estimated_cost,
+                at,
+            )
+        )
+
+    def heartbeat_lease(
+        self, owner_ref, *, fencing_token, at, lease_seconds
+    ):
+        assert owner_ref == "runtime-owner-001" and fencing_token == 1
         self.events.append(("heartbeat", owner_ref, at, lease_seconds))
 
-    def finish_cycle(self, cycle_ref, status, *, at, reason_code=None):
+    def finish_cycle(
+        self,
+        cycle_ref,
+        status,
+        *,
+        owner_ref,
+        fencing_token,
+        at,
+        reason_code=None,
+    ):
+        assert owner_ref == "runtime-owner-001" and fencing_token == 1
         self.events.append(("finish_cycle", cycle_ref, status, at, reason_code))
 
-    def release_lease(self, owner_ref, *, at):
+    def release_lease(self, owner_ref, *, fencing_token, at):
+        assert owner_ref == "runtime-owner-001" and fencing_token == 1
         self.events.append(("release", owner_ref, at))
 
-    def record_runtime_observation(self, owner_ref, capability, *, at):
+    def record_runtime_observation(
+        self, owner_ref, capability, *, fencing_token, at
+    ):
+        assert owner_ref == "runtime-owner-001" and fencing_token == 1
         self.events.append(
             ("observe_runtime", owner_ref, capability.fingerprint, at)
         )
 
-    def record_cycle_observation(self, owner_ref, cycle_ref, *, at):
+    def record_cycle_observation(
+        self, owner_ref, cycle_ref, *, fencing_token, at
+    ):
+        assert owner_ref == "runtime-owner-001" and fencing_token == 1
         self.events.append(("observe_cycle", owner_ref, cycle_ref, at))
 
 
@@ -455,6 +525,61 @@ def test_proposal_cannot_exceed_remaining_cycle_budget() -> None:
     assert runner.registry.calls == []
 
 
+def test_durably_exhausted_retry_budget_blocks_before_supervisor_or_registry() -> None:
+    stage = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
+    store = FakeStore(
+        cycle=DEFAULT_CYCLE.model_copy(
+            update={"next_stage": stage, "spent_cost": Decimal("5")}
+        )
+    )
+    runner = _runner(store, maximum_cost="5")
+
+    result = runner.run_once(_request())
+
+    assert result.status is RuntimeRunStatus.BLOCKED
+    assert result.reason_code == "CYCLE_BUDGET_EXCEEDED"
+    assert runner.supervisor.calls == []
+    assert runner.registry.calls == []
+
+
+def test_retry_before_durable_deadline_skips_hermes_registry_and_new_cost() -> None:
+    stage = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
+
+    @dataclass
+    class DeferredStore(FakeStore):
+        def begin_stage(
+            self,
+            cycle_ref,
+            selected_stage,
+            *,
+            owner_ref,
+            fencing_token,
+            at,
+        ):
+            assert owner_ref == "runtime-owner-001" and fencing_token == 1
+            self.events.append(("begin", cycle_ref, selected_stage, at))
+            return RuntimeStageSnapshot(
+                cycle_ref=cycle_ref,
+                stage=selected_stage,
+                status=RuntimeStageStatus.WAITING,
+                attempt_count=1,
+                retry_at=NOW + dt.timedelta(minutes=5),
+            )
+
+    store = DeferredStore(
+        cycle=DEFAULT_CYCLE.model_copy(update={"next_stage": stage})
+    )
+    runner = _runner(store)
+
+    result = runner.run_once(_request())
+
+    assert result.status is RuntimeRunStatus.WAITING
+    assert result.reason_code == "STAGE_RETRY_NOT_DUE"
+    assert runner.supervisor.calls == []
+    assert runner.registry.calls == []
+    assert not any(event[0] == "reserve" for event in store.events)
+
+
 def test_success_reserves_the_greater_of_estimated_and_observed_cycle_cost() -> None:
     first = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
     second = AcquisitionRuntimeStage.CONTACT_DISCOVERY
@@ -535,7 +660,16 @@ def test_current_execution_failure_is_nonzero_but_history_is_not_replayed() -> N
 
 def test_failure_before_stage_ownership_does_not_invent_a_stage_transition() -> None:
     class BeginFailureStore(FakeStore):
-        def begin_stage(self, cycle_ref, stage, *, at):
+        def begin_stage(
+            self,
+            cycle_ref,
+            stage,
+            *,
+            owner_ref,
+            fencing_token,
+            at,
+        ):
+            assert owner_ref == "runtime-owner-001" and fencing_token == 1
             self.events.append(("begin_failed", cycle_ref, stage, at))
             raise RuntimeError("private-provider-marker")
 
@@ -619,7 +753,14 @@ def test_technical_exception_terminalizes_current_run_without_exception_text() -
 def test_wall_clock_budget_stops_before_starting_another_stage() -> None:
     first = AcquisitionRuntimeStage.SIGNAL_SEED
     second = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
-    times = iter((NOW, NOW, NOW + dt.timedelta(seconds=61)))
+    times = iter(
+        (
+            NOW,
+            NOW,
+            NOW + dt.timedelta(seconds=61),
+            NOW + dt.timedelta(seconds=61),
+        )
+    )
     store = FakeStore()
     runner = _runner(
         store,
