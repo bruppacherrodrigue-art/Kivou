@@ -2150,6 +2150,63 @@ acquisition_runtime_cycle = sa.Table(
 )
 
 
+acquisition_runtime_observation = sa.Table(
+    "acquisition_runtime_observation",
+    METADATA,
+    sa.Column("runtime_name", sa.String(64), primary_key=True),
+    sa.Column("capability_fingerprint", sa.String(64), nullable=False),
+    sa.Column("environment", sa.String(16), nullable=False),
+    sa.Column("mode", sa.String(16), nullable=False),
+    sa.Column("qa_only", sa.Boolean, nullable=False),
+    sa.Column("hermes_repository", sa.String(256), nullable=False),
+    sa.Column("hermes_tag", sa.String(256), nullable=False),
+    sa.Column("hermes_commit", sa.String(40), nullable=False),
+    sa.Column("hermes_version", sa.String(256), nullable=False),
+    sa.Column("hermes_python_contract", sa.String(256), nullable=False),
+    sa.Column("registry_identity", sa.String(64), nullable=False),
+    sa.Column("native_tools", sa.Integer, nullable=False),
+    sa.Column("commands", sa.JSON, nullable=False),
+    sa.Column("dependencies", sa.JSON, nullable=False),
+    sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("heartbeat_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column(
+        "last_cycle_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_runtime_cycle.cycle_ref", ondelete="RESTRICT"),
+    ),
+    sa.Column("last_cycle_status", sa.String(16)),
+    sa.Column("last_cycle_at", sa.DateTime(timezone=True)),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint(
+        "runtime_name = 'acquisition-run-once'",
+        name="ck_acquisition_runtime_observation_name",
+    ),
+    sa.CheckConstraint(
+        "environment = 'STAGING' AND mode = 'SHADOW' "
+        "AND qa_only IS TRUE AND native_tools = 0",
+        name="ck_acquisition_runtime_observation_boundary",
+    ),
+    sa.CheckConstraint(
+        "observed_at <= heartbeat_at AND heartbeat_at <= updated_at",
+        name="ck_acquisition_runtime_observation_timeline",
+    ),
+    sa.CheckConstraint(
+        "(last_cycle_ref IS NULL AND last_cycle_status IS NULL "
+        "AND last_cycle_at IS NULL) OR "
+        "(last_cycle_ref IS NOT NULL AND last_cycle_status IS NOT NULL "
+        "AND last_cycle_at IS NOT NULL AND last_cycle_at <= heartbeat_at)",
+        name="ck_acquisition_runtime_observation_cycle",
+    ),
+    sa.CheckConstraint(
+        "last_cycle_status IS NULL OR last_cycle_status IN "
+        "('PENDING', 'RUNNING', 'WAITING', 'SUCCEEDED', 'BLOCKED', "
+        "'FAILED', 'SUPPRESSED', 'CANCELLED')",
+        name="ck_acquisition_runtime_observation_cycle_status",
+    ),
+    sa.Index("ix_acquisition_runtime_observation_heartbeat", "heartbeat_at"),
+)
+
+
 acquisition_runtime_approval = sa.Table(
     "acquisition_runtime_approval",
     METADATA,

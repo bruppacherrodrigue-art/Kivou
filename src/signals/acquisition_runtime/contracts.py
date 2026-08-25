@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import json
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
@@ -36,10 +37,25 @@ MachineCode = Annotated[
 CommandName = Annotated[
     str, StringConstraints(pattern=r"^[a-z][a-z0-9_]{0,63}$")
 ]
+BoundedRuntimeText = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True,
+        min_length=1,
+        max_length=256,
+        pattern=r"^[^\s\x00-\x1f]+$",
+    ),
+]
+CommitFingerprint = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
 
 
 class RuntimeExecutionMode(StrEnum):
     SHADOW = "SHADOW"
+
+
+class RuntimeDependencyState(StrEnum):
+    READY = "READY"
+    NOT_READY = "NOT_READY"
 
 
 class AcquisitionRuntimeStage(StrEnum):
@@ -109,6 +125,103 @@ class RuntimeRunStatus(StrEnum):
 
 class _FrozenModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, str_strip_whitespace=True)
+
+
+class RuntimeHermesIdentityEvidence(_FrozenModel):
+    repository: BoundedRuntimeText
+    tag: BoundedRuntimeText
+    commit: CommitFingerprint
+    version: BoundedRuntimeText
+    python_contract: BoundedRuntimeText
+
+
+class RuntimeStageDependency(_FrozenModel):
+    stage: AcquisitionRuntimeStage
+    status: RuntimeDependencyState
+    reason_codes: tuple[MachineCode, ...] = Field(default=(), max_length=8)
+
+    @model_validator(mode="after")
+    def reason_matches_status(self) -> RuntimeStageDependency:
+        if self.status is RuntimeDependencyState.NOT_READY and not self.reason_codes:
+            raise ValueError("unavailable runtime dependencies require a reason")
+        if self.status is RuntimeDependencyState.READY and self.reason_codes:
+            raise ValueError("ready runtime dependencies have no failure reason")
+        return self
+
+
+class RuntimeCapabilityEvidence(_FrozenModel):
+    environment: Literal["STAGING"]
+    mode: Literal[RuntimeExecutionMode.SHADOW] = RuntimeExecutionMode.SHADOW
+    qa_only: Literal[True]
+    hermes: RuntimeHermesIdentityEvidence
+    registry_identity: Fingerprint
+    native_tools: Literal[0] = 0
+    commands: tuple[CommandName, ...] = Field(min_length=11, max_length=11)
+    dependencies: tuple[RuntimeStageDependency, ...] = Field(
+        min_length=11,
+        max_length=11,
+    )
+
+    @model_validator(mode="after")
+    def closed_registry_and_dependencies(self) -> RuntimeCapabilityEvidence:
+        expected_stages = tuple(AcquisitionRuntimeStage)
+        if self.commands != tuple(stage.command for stage in expected_stages):
+            raise ValueError("runtime command registry identity drifted")
+        if tuple(item.stage for item in self.dependencies) != expected_stages:
+            raise ValueError("runtime dependencies must cover every stage exactly once")
+        return self
+
+    @property
+    def fingerprint(self) -> str:
+        encoded = json.dumps(
+            self.model_dump(mode="json"),
+            ensure_ascii=True,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+class RuntimeHealthObservation(_FrozenModel):
+    capability: RuntimeCapabilityEvidence
+    observed_at: dt.datetime
+    heartbeat_at: dt.datetime
+    last_cycle_ref: OpaqueRef | None = None
+    last_cycle_status: RuntimeCycleStatus | None = None
+    last_cycle_at: dt.datetime | None = None
+
+    @model_validator(mode="after")
+    def coherent_timeline(self) -> RuntimeHealthObservation:
+        observed_at = require_aware(self.observed_at)
+        heartbeat_at = require_aware(self.heartbeat_at)
+        if heartbeat_at < observed_at:
+            raise ValueError("runtime heartbeat cannot predate its observation")
+        cycle_fields = (
+            self.last_cycle_ref,
+            self.last_cycle_status,
+            self.last_cycle_at,
+        )
+        if any(item is None for item in cycle_fields) and any(
+            item is not None for item in cycle_fields
+        ):
+            raise ValueError("runtime cycle observation must be complete")
+        if self.last_cycle_at is not None:
+            last_cycle_at = require_aware(self.last_cycle_at)
+            if last_cycle_at > heartbeat_at:
+                raise ValueError("runtime cycle observation cannot follow heartbeat")
+        return self
+
+
+def expected_runtime_registry_identity() -> str:
+    canonical = json.dumps(
+        [
+            {"stage": stage.value, "command": stage.command}
+            for stage in AcquisitionRuntimeStage
+        ],
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 class AcquisitionRuntimeLimits(_FrozenModel):
@@ -267,15 +380,21 @@ __all__ = [
     "AcquisitionRuntimeLimits",
     "AcquisitionRuntimeStage",
     "RuntimeActionResult",
+    "RuntimeCapabilityEvidence",
     "RuntimeCycleSnapshot",
     "RuntimeCycleStatus",
+    "RuntimeDependencyState",
     "RuntimeExecutionMode",
+    "RuntimeHealthObservation",
+    "RuntimeHermesIdentityEvidence",
     "RuntimeLeaseResult",
     "RuntimeProposal",
     "RuntimeRunRequest",
     "RuntimeRunResult",
     "RuntimeRunStatus",
+    "RuntimeStageDependency",
     "RuntimeStageSnapshot",
     "RuntimeStageStatus",
+    "expected_runtime_registry_identity",
     "require_aware",
 ]

@@ -77,7 +77,9 @@ def test_detailed_ops_endpoints_reuse_internal_allowlist_and_default_deny(tmp_pa
     assert operator.get("/internal/acquisition-ops/incidents?limit=101").status_code == 422
 
 
-def test_correct_local_runtime_can_be_observed_without_network_or_readiness_upgrade(tmp_path) -> None:
+def test_process_local_runtime_injections_cannot_upgrade_durable_readiness(
+    tmp_path,
+) -> None:
     engine = _engine(tmp_path)
     pin = load_hermes_pin()
     service = OperationsReadService(
@@ -96,12 +98,13 @@ def test_correct_local_runtime_can_be_observed_without_network_or_readiness_upgr
     health = service.health(observed_at=NOW)
     readiness = service.readiness(evaluated_at=NOW)
 
-    assert health.hermes_runtime == "READY"
-    assert health.supervisor_loop == "READY"
-    assert readiness.h_a_runtime.status == "READY"
+    assert health.hermes_runtime == "NOT_READY"
+    assert health.supervisor_loop == "NOT_READY"
+    assert "RUNTIME_OBSERVATION_UNAVAILABLE" in health.reason_codes
+    assert readiness.h_a_runtime.status == "NOT_READY"
     assert readiness.h_d_shadow.status == "INSUFFICIENT_EVIDENCE"
     assert readiness.h_e_capped.status == "NOT_READY"
-    assert readiness.highest_safe_mode == "ASSISTED"
+    assert readiness.highest_safe_mode == "SHADOW"
 
 
 def test_environment_identity_is_explicit_and_defaults_unconfigured(monkeypatch) -> None:

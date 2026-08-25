@@ -10,8 +10,10 @@ from typing import Protocol
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
     RuntimeActionResult,
+    RuntimeCapabilityEvidence,
     RuntimeCycleSnapshot,
     RuntimeCycleStatus,
+    RuntimeHealthObservation,
     RuntimeLeaseResult,
     RuntimeProposal,
     RuntimeRunRequest,
@@ -35,6 +37,22 @@ class RuntimeCycleStore(Protocol):
         config_fingerprint: str,
         at: dt.datetime,
     ) -> RuntimeCycleSnapshot: ...
+
+    def record_runtime_observation(
+        self,
+        owner_ref: str,
+        capability: RuntimeCapabilityEvidence,
+        *,
+        at: dt.datetime,
+    ) -> RuntimeHealthObservation: ...
+
+    def record_cycle_observation(
+        self,
+        owner_ref: str,
+        cycle_ref: str,
+        *,
+        at: dt.datetime,
+    ) -> RuntimeHealthObservation: ...
 
     def begin_stage(
         self, cycle_ref: str, stage: AcquisitionRuntimeStage, *, at: dt.datetime
@@ -102,6 +120,7 @@ class AcquisitionRuntimeRunner:
         maximum_cycle_cost: Decimal,
         maximum_wall_seconds: int,
         lease_seconds: int,
+        runtime_capability: RuntimeCapabilityEvidence,
         clock: Callable[[], dt.datetime],
     ) -> None:
         self.store = store
@@ -112,6 +131,7 @@ class AcquisitionRuntimeRunner:
         self._maximum_cost = maximum_cycle_cost
         self._maximum_wall = dt.timedelta(seconds=maximum_wall_seconds)
         self._lease_seconds = lease_seconds
+        self._runtime_capability = runtime_capability
         self._clock = clock
 
     def run_once(self, request: RuntimeRunRequest) -> RuntimeRunResult:
@@ -128,9 +148,19 @@ class AcquisitionRuntimeRunner:
         cycle: RuntimeCycleSnapshot | None = None
         current_stage: AcquisitionRuntimeStage | None = None
         try:
+            self.store.record_runtime_observation(
+                request.owner_ref,
+                self._runtime_capability,
+                at=now,
+            )
             cycle = self.store.resume_or_create_cycle(
                 opportunity_keys=self._opportunities,
                 config_fingerprint=self._config_fingerprint,
+                at=now,
+            )
+            self.store.record_cycle_observation(
+                request.owner_ref,
+                cycle.cycle_ref,
                 at=now,
             )
             if cycle.next_stage is None:
@@ -146,6 +176,11 @@ class AcquisitionRuntimeRunner:
                     )
                 self.store.finish_cycle(
                     cycle.cycle_ref, RuntimeCycleStatus.SUCCEEDED, at=now
+                )
+                self.store.record_cycle_observation(
+                    request.owner_ref,
+                    cycle.cycle_ref,
+                    at=now,
                 )
                 return RuntimeRunResult(
                     status=RuntimeRunStatus.COMPLETED,
@@ -163,6 +198,11 @@ class AcquisitionRuntimeRunner:
                         at=now,
                         reason_code="CYCLE_TIME_BUDGET_REACHED",
                     )
+                    self.store.record_cycle_observation(
+                        request.owner_ref,
+                        cycle.cycle_ref,
+                        at=now,
+                    )
                     return RuntimeRunResult(
                         status=RuntimeRunStatus.WAITING,
                         cycle_ref=cycle.cycle_ref,
@@ -171,6 +211,11 @@ class AcquisitionRuntimeRunner:
                     )
                 stage_snapshot = self.store.begin_stage(
                     cycle.cycle_ref, current_stage, at=now
+                )
+                self.store.record_cycle_observation(
+                    request.owner_ref,
+                    cycle.cycle_ref,
+                    at=now,
                 )
                 proposal: RuntimeProposal | None = None
                 if (
@@ -208,11 +253,22 @@ class AcquisitionRuntimeRunner:
                         action_result.observed_cost,
                     )
                     continue
-                return self._stop_result(
+                stopped = self._stop_result(
                     cycle.cycle_ref, current_stage, action_result, at=now
                 )
+                self.store.record_cycle_observation(
+                    request.owner_ref,
+                    cycle.cycle_ref,
+                    at=now,
+                )
+                return stopped
             self.store.finish_cycle(
                 cycle.cycle_ref, RuntimeCycleStatus.SUCCEEDED, at=now
+            )
+            self.store.record_cycle_observation(
+                request.owner_ref,
+                cycle.cycle_ref,
+                at=now,
             )
             return RuntimeRunResult(
                 status=RuntimeRunStatus.COMPLETED,
@@ -234,6 +290,11 @@ class AcquisitionRuntimeRunner:
                 at=now,
                 reason_code="CURRENT_RUN_INTERRUPTED",
             )
+            self.store.record_cycle_observation(
+                request.owner_ref,
+                cycle.cycle_ref,
+                at=now,
+            )
             return RuntimeRunResult(
                 status=RuntimeRunStatus.CANCELLED,
                 cycle_ref=cycle.cycle_ref,
@@ -254,6 +315,11 @@ class AcquisitionRuntimeRunner:
                     RuntimeCycleStatus.FAILED,
                     at=now,
                     reason_code="CURRENT_RUN_TECHNICAL_FAILURE",
+                )
+                self.store.record_cycle_observation(
+                    request.owner_ref,
+                    cycle.cycle_ref,
+                    at=now,
                 )
                 return RuntimeRunResult(
                     status=RuntimeRunStatus.FAILED,

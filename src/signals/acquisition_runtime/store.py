@@ -12,10 +12,14 @@ from sqlalchemy.engine import Connection, Engine, RowMapping
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
     RuntimeActionResult,
+    RuntimeCapabilityEvidence,
     RuntimeCycleSnapshot,
     RuntimeCycleStatus,
+    RuntimeHealthObservation,
+    RuntimeHermesIdentityEvidence,
     RuntimeLeaseResult,
     RuntimeProposal,
+    RuntimeStageDependency,
     RuntimeStageSnapshot,
     RuntimeStageStatus,
     require_aware,
@@ -24,10 +28,12 @@ from signals.persistence.conflicts import insert_if_absent
 from signals.persistence.schema import (
     acquisition_runtime_cycle,
     acquisition_runtime_lease,
+    acquisition_runtime_observation,
     acquisition_runtime_stage,
 )
 
 LEASE_NAME = "acquisition-run-once"
+RUNTIME_OBSERVATION_NAME = "acquisition-run-once"
 _TERMINAL_CYCLES = {
     RuntimeCycleStatus.SUCCEEDED.value,
     RuntimeCycleStatus.SUPPRESSED.value,
@@ -157,6 +163,107 @@ class AcquisitionRuntimeStore:
                     expires_at=None,
                 )
             )
+
+    def record_runtime_observation(
+        self,
+        owner_ref: str,
+        capability: RuntimeCapabilityEvidence,
+        *,
+        at: dt.datetime,
+    ) -> RuntimeHealthObservation:
+        at = require_aware(at)
+        values = self._capability_values(capability)
+        with self.engine.begin() as connection:
+            self._require_active_lease(connection, owner_ref, at=at)
+            inserted = insert_if_absent(
+                connection,
+                acquisition_runtime_observation,
+                {
+                    "runtime_name": RUNTIME_OBSERVATION_NAME,
+                    **values,
+                    "observed_at": at,
+                    "heartbeat_at": at,
+                    "last_cycle_ref": None,
+                    "last_cycle_status": None,
+                    "last_cycle_at": None,
+                    "updated_at": at,
+                },
+                index_elements=[acquisition_runtime_observation.c.runtime_name],
+            )
+            if not inserted:
+                updated = connection.execute(
+                    sa.update(acquisition_runtime_observation)
+                    .where(
+                        acquisition_runtime_observation.c.runtime_name
+                        == RUNTIME_OBSERVATION_NAME,
+                        acquisition_runtime_observation.c.heartbeat_at <= at,
+                    )
+                    .values(
+                        **values,
+                        observed_at=at,
+                        heartbeat_at=at,
+                        last_cycle_ref=None,
+                        last_cycle_status=None,
+                        last_cycle_at=None,
+                        updated_at=at,
+                    )
+                    .returning(acquisition_runtime_observation.c.runtime_name)
+                ).first()
+                if updated is None:
+                    raise AcquisitionRuntimeConflict(
+                        "runtime observation timestamp moved backwards"
+                    )
+            row = self._runtime_observation_row(connection)
+            return self._runtime_observation(row)
+
+    def record_cycle_observation(
+        self,
+        owner_ref: str,
+        cycle_ref: str,
+        *,
+        at: dt.datetime,
+    ) -> RuntimeHealthObservation:
+        at = require_aware(at)
+        with self.engine.begin() as connection:
+            self._require_active_lease(connection, owner_ref, at=at)
+            self._runtime_observation_row(connection)
+            cycle = self._cycle(connection, cycle_ref)
+            cycle_at = _aware(cycle["updated_at"])
+            if cycle_at > at:
+                raise AcquisitionRuntimeConflict(
+                    "runtime cycle observation follows its heartbeat"
+                )
+            updated = connection.execute(
+                sa.update(acquisition_runtime_observation)
+                .where(
+                    acquisition_runtime_observation.c.runtime_name
+                    == RUNTIME_OBSERVATION_NAME,
+                    acquisition_runtime_observation.c.heartbeat_at <= at,
+                )
+                .values(
+                    heartbeat_at=at,
+                    last_cycle_ref=cycle_ref,
+                    last_cycle_status=cycle["status"],
+                    last_cycle_at=cycle_at,
+                    updated_at=at,
+                )
+                .returning(acquisition_runtime_observation)
+            ).mappings().one_or_none()
+            if updated is None:
+                raise AcquisitionRuntimeConflict(
+                    "runtime cycle observation timestamp moved backwards"
+                )
+            return self._runtime_observation(updated)
+
+    def read_runtime_observation(self) -> RuntimeHealthObservation | None:
+        with self.engine.connect() as connection:
+            row = connection.execute(
+                sa.select(acquisition_runtime_observation).where(
+                    acquisition_runtime_observation.c.runtime_name
+                    == RUNTIME_OBSERVATION_NAME
+                )
+            ).mappings().one_or_none()
+        return None if row is None else self._runtime_observation(row)
 
     def resume_or_create_cycle(
         self,
@@ -465,6 +572,101 @@ class AcquisitionRuntimeStore:
         )
 
     @staticmethod
+    def _require_active_lease(
+        connection: Connection,
+        owner_ref: str,
+        *,
+        at: dt.datetime,
+    ) -> None:
+        owned = connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(acquisition_runtime_lease)
+            .where(
+                acquisition_runtime_lease.c.lease_name == LEASE_NAME,
+                acquisition_runtime_lease.c.owner_ref == owner_ref,
+                acquisition_runtime_lease.c.expires_at > at,
+            )
+        )
+        if owned != 1:
+            raise AcquisitionRuntimeConflict(
+                "runtime observation requires the active lease owner"
+            )
+
+    @staticmethod
+    def _capability_values(
+        capability: RuntimeCapabilityEvidence,
+    ) -> dict[str, object]:
+        return {
+            "capability_fingerprint": capability.fingerprint,
+            "environment": capability.environment,
+            "mode": capability.mode.value,
+            "qa_only": capability.qa_only,
+            "hermes_repository": capability.hermes.repository,
+            "hermes_tag": capability.hermes.tag,
+            "hermes_commit": capability.hermes.commit,
+            "hermes_version": capability.hermes.version,
+            "hermes_python_contract": capability.hermes.python_contract,
+            "registry_identity": capability.registry_identity,
+            "native_tools": capability.native_tools,
+            "commands": list(capability.commands),
+            "dependencies": [
+                item.model_dump(mode="json") for item in capability.dependencies
+            ],
+        }
+
+    @staticmethod
+    def _runtime_observation_row(connection: Connection) -> RowMapping:
+        row = connection.execute(
+            sa.select(acquisition_runtime_observation)
+            .where(
+                acquisition_runtime_observation.c.runtime_name
+                == RUNTIME_OBSERVATION_NAME
+            )
+            .with_for_update()
+        ).mappings().one_or_none()
+        if row is None:
+            raise AcquisitionRuntimeConflict("runtime observation is unavailable")
+        return row
+
+    @staticmethod
+    def _runtime_observation(row: RowMapping) -> RuntimeHealthObservation:
+        capability = RuntimeCapabilityEvidence(
+            environment=row["environment"],
+            mode=row["mode"],
+            qa_only=row["qa_only"],
+            hermes=RuntimeHermesIdentityEvidence(
+                repository=row["hermes_repository"],
+                tag=row["hermes_tag"],
+                commit=row["hermes_commit"],
+                version=row["hermes_version"],
+                python_contract=row["hermes_python_contract"],
+            ),
+            registry_identity=row["registry_identity"],
+            native_tools=row["native_tools"],
+            commands=tuple(row["commands"]),
+            dependencies=tuple(
+                RuntimeStageDependency.model_validate(item)
+                for item in row["dependencies"]
+            ),
+        )
+        if capability.fingerprint != row["capability_fingerprint"]:
+            raise AcquisitionRuntimeConflict(
+                "runtime capability fingerprint mismatch"
+            )
+        return RuntimeHealthObservation(
+            capability=capability,
+            observed_at=_aware(row["observed_at"]),
+            heartbeat_at=_aware(row["heartbeat_at"]),
+            last_cycle_ref=row["last_cycle_ref"],
+            last_cycle_status=row["last_cycle_status"],
+            last_cycle_at=(
+                _aware(row["last_cycle_at"])
+                if row["last_cycle_at"] is not None
+                else None
+            ),
+        )
+
+    @staticmethod
     def _next_stage_after(
         stage: AcquisitionRuntimeStage,
         status: RuntimeStageStatus,
@@ -479,6 +681,7 @@ class AcquisitionRuntimeStore:
 
 __all__ = [
     "LEASE_NAME",
+    "RUNTIME_OBSERVATION_NAME",
     "AcquisitionRuntimeConflict",
     "AcquisitionRuntimeStore",
 ]

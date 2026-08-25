@@ -17,6 +17,7 @@ from signals.persistence.schema import (
     acquisition_runtime_approval,
     acquisition_runtime_cycle,
     acquisition_runtime_lease,
+    acquisition_runtime_observation,
     acquisition_runtime_stage,
 )
 
@@ -25,6 +26,7 @@ HEAD = "0026_acquisition_runtime"
 RUNTIME_TABLES = {
     acquisition_runtime_approval.name,
     acquisition_runtime_lease.name,
+    acquisition_runtime_observation.name,
     acquisition_runtime_cycle.name,
     acquisition_runtime_stage.name,
 }

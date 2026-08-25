@@ -7,16 +7,21 @@ from decimal import Decimal
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
     RuntimeActionResult,
+    RuntimeCapabilityEvidence,
     RuntimeCycleSnapshot,
     RuntimeCycleStatus,
+    RuntimeHermesIdentityEvidence,
     RuntimeLeaseResult,
     RuntimeProposal,
     RuntimeRunRequest,
     RuntimeRunStatus,
+    RuntimeStageDependency,
     RuntimeStageSnapshot,
     RuntimeStageStatus,
+    expected_runtime_registry_identity,
 )
 from signals.acquisition_runtime.runner import AcquisitionRuntimeRunner
+from signals.supervisor.pin import load_hermes_pin
 
 NOW = dt.datetime(2026, 8, 25, 12, tzinfo=dt.UTC)
 DEFAULT_CYCLE = RuntimeCycleSnapshot(
@@ -70,6 +75,14 @@ class FakeStore:
 
     def release_lease(self, owner_ref, *, at):
         self.events.append(("release", owner_ref, at))
+
+    def record_runtime_observation(self, owner_ref, capability, *, at):
+        self.events.append(
+            ("observe_runtime", owner_ref, capability.fingerprint, at)
+        )
+
+    def record_cycle_observation(self, owner_ref, cycle_ref, *, at):
+        self.events.append(("observe_cycle", owner_ref, cycle_ref, at))
 
 
 @dataclass
@@ -125,6 +138,29 @@ def _proposal(
     )
 
 
+def _capability() -> RuntimeCapabilityEvidence:
+    pin = load_hermes_pin()
+    return RuntimeCapabilityEvidence(
+        environment="STAGING",
+        mode="SHADOW",
+        qa_only=True,
+        hermes=RuntimeHermesIdentityEvidence(
+            repository=pin.repository,
+            tag=pin.tag,
+            commit=pin.commit,
+            version=pin.version,
+            python_contract=pin.python,
+        ),
+        registry_identity=expected_runtime_registry_identity(),
+        native_tools=0,
+        commands=tuple(stage.command for stage in AcquisitionRuntimeStage),
+        dependencies=tuple(
+            RuntimeStageDependency(stage=stage, status="READY")
+            for stage in AcquisitionRuntimeStage
+        ),
+    )
+
+
 def _runner(
     store,
     *,
@@ -154,6 +190,7 @@ def _runner(
         maximum_cycle_cost=Decimal(maximum_cost),
         maximum_wall_seconds=maximum_wall_seconds,
         lease_seconds=1200,
+        runtime_capability=_capability(),
         clock=clock,
     )
 
@@ -204,11 +241,24 @@ def test_full_cycle_checkpoints_each_stage_before_the_next_action() -> None:
     assert result.status is RuntimeRunStatus.COMPLETED
     assert result.exit_code == 0
     names = [event[0] for event in store.events]
-    assert names[0:2] == ["lease", "cycle"]
+    assert names[0:4] == [
+        "lease",
+        "observe_runtime",
+        "cycle",
+        "observe_cycle",
+    ]
     for stage in AcquisitionRuntimeStage:
         begin = store.events.index(next(e for e in store.events if e[:3] == ("begin", "cycle-001", stage)))
         finish = store.events.index(next(e for e in store.events if e[:3] == ("finish", "cycle-001", stage)))
-        assert begin < finish
+        observed_running = store.events.index(
+            next(
+                e
+                for e in store.events[begin + 1 :]
+                if e[:3] == ("observe_cycle", "runtime-owner-001", "cycle-001")
+            ),
+            begin + 1,
+        )
+        assert begin < observed_running < finish
         following = list(AcquisitionRuntimeStage)
         index = following.index(stage)
         if index + 1 < len(following):
@@ -217,7 +267,7 @@ def test_full_cycle_checkpoints_each_stage_before_the_next_action() -> None:
                 next(e for e in store.events if e[:3] == ("begin", "cycle-001", next_stage))
             )
             assert finish < next_begin
-    assert names[-2:] == ["finish_cycle", "release"]
+    assert names[-3:] == ["finish_cycle", "observe_cycle", "release"]
     assert all(store.proposals[stage] is not None for stage in AcquisitionRuntimeStage)
 
 

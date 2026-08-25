@@ -7,6 +7,7 @@ from decimal import Decimal
 
 import pytest
 import sqlalchemy as sa
+from test_acquisition_runtime_health import capability
 
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
@@ -23,6 +24,7 @@ from signals.persistence.schema import (
     METADATA,
     acquisition_runtime_cycle,
     acquisition_runtime_lease,
+    acquisition_runtime_observation,
     acquisition_runtime_stage,
 )
 
@@ -40,6 +42,7 @@ def _engine(tmp_path) -> sa.Engine:
         tables=[
             acquisition_runtime_lease,
             acquisition_runtime_cycle,
+            acquisition_runtime_observation,
             acquisition_runtime_stage,
         ],
     )
@@ -342,6 +345,7 @@ def test_crash_after_business_commit_before_runtime_checkpoint_reuses_attempt(
         maximum_cycle_cost=Decimal("5"),
         maximum_wall_seconds=900,
         lease_seconds=1200,
+        runtime_capability=capability(),
         clock=lambda: NOW,
     )
     request = RuntimeRunRequest(owner_ref="runtime-owner-001")
