@@ -206,7 +206,7 @@ def test_missing_configuration_fails_closed_with_a_safe_code(
     assert "smtp.kivou.test" not in rendered
 
 
-def test_runtime_failure_never_prints_exception_or_configuration_values(
+def test_database_failure_is_persistence_and_never_prints_sensitive_values(
     monkeypatch, configured_runtime, capsys
 ) -> None:
     smtp_secret = "smtp-" + "private-value"
@@ -223,13 +223,31 @@ def test_runtime_failure_never_prints_exception_or_configuration_values(
 
     monkeypatch.setattr(cli, "run_alert_cycle", fail)
 
+    assert main(["--now", NOW.isoformat()]) == 4
+    captured = capsys.readouterr()
+    rendered = captured.out + captured.err
+    assert "persistence_failed" in rendered
+    assert recipient not in rendered
+    assert smtp_secret not in rendered
+    assert "OperationalError" not in rendered
+
+
+def test_runtime_failure_is_distinct_and_never_prints_sensitive_values(
+    monkeypatch, configured_runtime, capsys
+) -> None:
+    private_value = "private-runtime-value"
+
+    def fail(*_args, **_kwargs):
+        raise RuntimeError(private_value)
+
+    monkeypatch.setattr(cli, "run_alert_cycle", fail)
+
     assert main(["--now", NOW.isoformat()]) == 5
     captured = capsys.readouterr()
     rendered = captured.out + captured.err
     assert "runtime_failed" in rendered
-    assert recipient not in rendered
-    assert smtp_secret not in rendered
-    assert "OperationalError" not in rendered
+    assert private_value not in rendered
+    assert "RuntimeError" not in rendered
 
 
 def test_invalid_now_is_reported_without_echoing_input(configured_runtime, capsys) -> None:

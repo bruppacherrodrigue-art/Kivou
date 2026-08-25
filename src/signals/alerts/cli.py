@@ -13,6 +13,8 @@ import argparse
 import datetime as dt
 import sys
 
+import sqlalchemy as sa
+
 from signals.alerts.gateway import SmtpAlertGateway, SmtpConfiguration
 from signals.alerts.job import CycleReport, run_alert_cycle
 from signals.api.config import ApiConfig
@@ -117,6 +119,9 @@ def main(argv: list[str] | None = None) -> int:
             retry_base=config.alert_retry_base,
             max_attempts=config.alert_max_attempts,
         )
+    except sa.exc.SQLAlchemyError:
+        print("persistence_failed", file=sys.stderr)
+        return EXIT_PERSISTENCE_INCIDENT
     except Exception:  # noqa: BLE001 - sanitized process boundary, never exception text
         print("runtime_failed", file=sys.stderr)
         return EXIT_RUNTIME_INCIDENT
