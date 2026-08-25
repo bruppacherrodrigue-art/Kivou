@@ -14,7 +14,15 @@ from signals.acquisition_runtime.authorization import (
     ApprovalError,
     RuntimeApprovalStatus,
 )
+from signals.acquisition_runtime.config import (
+    RuntimeConfigurationError,
+    load_runtime_config,
+)
 from signals.api.config import resolve_acquisition_environment
+from signals.operations.qa_policy_window import (
+    RuntimeQaPolicyWindowController,
+    RuntimeQaPolicyWindowError,
+)
 from signals.operations.safety_controller import SafetyController
 from signals.operations.service import OperationsReadService
 from signals.persistence.database import create_database_engine
@@ -43,6 +51,19 @@ def _parser() -> argparse.ArgumentParser:
     )
     approve.add_argument("--approval-id", required=True)
     approve.add_argument("--actor-ref", required=True)
+    open_window = commands.add_parser(
+        "open-runtime-qa-policy-window",
+        help="append one bounded STAGING-only ASSISTED QA authority",
+    )
+    open_window.add_argument("--expires-at", required=True)
+    open_window.add_argument("--actor-ref", required=True)
+    open_window.add_argument("--reason-code", required=True)
+    close_window = commands.add_parser(
+        "close-runtime-qa-policy-window",
+        help="append safe SHADOW authority after a controlled QA cycle",
+    )
+    close_window.add_argument("--actor-ref", required=True)
+    close_window.add_argument("--reason-code", required=True)
     stop = commands.add_parser(
         "activate-kill-switch",
         help="append SHADOW + kill-switch + READ ONLY Policy authority",
@@ -62,9 +83,49 @@ def main(argv: list[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     now = _now(arguments.now)
     engine = create_database_engine(arguments.database_url)
-    service = OperationsReadService(
-        engine, environment_identity=resolve_acquisition_environment()
-    )
+    if arguments.command in {
+        "open-runtime-qa-policy-window",
+        "close-runtime-qa-policy-window",
+    }:
+        try:
+            controller = RuntimeQaPolicyWindowController(engine)
+            runtime_config = load_runtime_config()
+            if arguments.command == "open-runtime-qa-policy-window":
+                control = controller.open(
+                    at=now,
+                    expires_at=_now(arguments.expires_at),
+                    actor_ref=arguments.actor_ref,
+                    reason_code=arguments.reason_code,
+                    runtime_config=runtime_config,
+                )
+                print(
+                    "runtime_qa_policy_window status=OPEN "
+                    f"control_revision={control.control_revision} "
+                    f"expires_at={control.expires_at.isoformat()}"
+                )
+            else:
+                control = controller.close(
+                    at=now,
+                    actor_ref=arguments.actor_ref,
+                    reason_code=arguments.reason_code,
+                    runtime_config=runtime_config,
+                )
+                print(
+                    "runtime_qa_policy_window status=CLOSED "
+                    f"control_revision={control.control_revision} "
+                    "autonomy=SHADOW read_only=true kill_switch=false"
+                )
+        except (
+            RuntimeConfigurationError,
+            RuntimeQaPolicyWindowError,
+            ValidationError,
+            ValueError,
+        ):
+            print("runtime_qa_policy_window_invalid", file=sys.stderr)
+            return 2
+        return 0
+    environment = resolve_acquisition_environment()
+    service = OperationsReadService(engine, environment_identity=environment)
     if arguments.command == "list-runtime-approvals":
         approvals = AcquisitionRuntimeApprovalStore(engine).list_approvals(
             status=RuntimeApprovalStatus.PENDING,
