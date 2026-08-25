@@ -350,6 +350,8 @@ def build_runtime_execution_composition(
     if now.tzinfo is None or now.utcoffset() is None:
         raise RuntimeExecutionConfigurationError("CLOCK_NOT_CONFIGURED")
     observed_at = now.astimezone(dt.UTC)
+    if len(runtime_config.deployment.allowed_opportunity_keys) != 1:
+        raise RuntimeExecutionConfigurationError("QA_SIGNAL_SCOPE_NOT_EXACT")
     control = PolicyStore(engine).get_effective_control(observed_at)
     scope = _exact_scope(control)
     sender_config, campaign_deployment = _campaign_configuration(
@@ -410,6 +412,10 @@ def build_runtime_execution_composition(
     authorization_factory = LiveRuntimePolicyAuthorizationFactory(
         engine,
         runtime_revision=f"runtime-{config_fingerprint[:32]}",
+        qa_signal_ref=(
+            "procurement-opportunity:"
+            + runtime_config.deployment.allowed_opportunity_keys[0]
+        ),
     )
     approval_provider = DurableRuntimeApprovalProvider(
         engine,

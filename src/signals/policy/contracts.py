@@ -281,6 +281,7 @@ class PolicyControlSnapshot(Contract):
     shadow_target_mode: AutonomyMode | None = None
     read_only: bool
     kill_switch: bool
+    qa_signal_ref: StableRef | None = None
     allowed_commands: tuple[CommandName, ...] = Field(max_length=32)
     allowed_countries: tuple[ShortCode, ...] = Field(default=(), max_length=64)
     allowed_languages: tuple[ShortCode, ...] = Field(default=(), max_length=64)
@@ -326,6 +327,7 @@ class PolicySnapshot(Contract):
     shadow_target_mode: AutonomyMode | None = None
     read_only: bool
     kill_switch: bool
+    qa_signal_ref: StableRef | None = None
     allowed_commands: tuple[CommandName, ...] = Field(max_length=32)
     allowed_countries: tuple[ShortCode, ...] = Field(default=(), max_length=64)
     allowed_languages: tuple[ShortCode, ...] = Field(default=(), max_length=64)
@@ -355,6 +357,7 @@ class PolicyRequest(Contract):
     command: CommandName
     target_ref: StableRef
     acquisition_opportunity_id: Identifier | None = None
+    qa_signal_ref: StableRef | None = None
     expected_opportunity_version: int | None = Field(default=None, ge=1)
     actor_type: Annotated[str, StringConstraints(pattern=r"^(SYSTEM|HERMES|HUMAN|EXTERNAL)$")]
     actor_ref: StableRef | None = None

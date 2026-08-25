@@ -30,7 +30,7 @@ from signals.policy.store import PolicyStore
 
 PREVIOUS = "0007_acquisition_event_store"
 HEAD = "0008_policy_gateway"
-CURRENT_HEAD = "0024_scheduled_plan_change"
+CURRENT_HEAD = "0026_acquisition_runtime"
 
 
 def control(revision: int, **overrides: object) -> PolicyControlSnapshot:
@@ -121,6 +121,26 @@ def test_snapshot_selection_uses_highest_eligible_revision_and_survives_restart(
     store.append_control(control(4, kill_switch=True))
     assert PolicyStore(engine).get_effective_control(NOW).control_revision == 4
     assert PolicyStore(engine).get_effective_control(NOW).kill_switch is True
+
+
+def test_gateway_captures_and_enforces_durable_qa_signal_authority(engine) -> None:
+    expected = "procurement-opportunity:qa-signal-001"
+    PolicyStore(engine).append_control(control(1, qa_signal_ref=expected))
+
+    accepted = PolicyGateway(engine).prepare(
+        request(qa_signal_ref=expected),
+        evaluated_at=NOW,
+        budget_usage=BudgetUsage(),
+    )
+    rejected = PolicyGateway(engine).prepare(
+        request(evaluation_id="eval-qa-mismatch", qa_signal_ref=None),
+        evaluated_at=NOW,
+        budget_usage=BudgetUsage(),
+    )
+
+    assert accepted.decision.status.value == "APPROVED"
+    assert rejected.decision.status.value == "DENIED"
+    assert "qa_signal_scope_mismatch" in rejected.decision.reason_codes
 
 
 def test_snapshot_append_is_monotonic_and_missing_control_fails_closed(engine) -> None:

@@ -198,6 +198,7 @@ def test_live_factory_builds_native_authorizations_from_current_policy() -> None
     factory = LiveRuntimePolicyAuthorizationFactory(
         engine,
         runtime_revision="runtime-config:001",
+        qa_signal_ref="procurement-opportunity:signal-qa-001",
     )
     supplier_context = _context(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY)
     supplier_identity = deterministic_attempt_identity(
@@ -230,6 +231,9 @@ def test_live_factory_builds_native_authorizations_from_current_policy() -> None
         "wedge": "construction",
     }
     assert supplier.authorization.actor_type == "HERMES"
+    assert supplier.authorization.qa_signal_ref == (
+        "procurement-opportunity:signal-qa-001"
+    )
     assert supplier.authorization.supervisor_plan_id == supplier_context.proposal.plan_ref
     assert supplier.authorization.expected_policy_version == POLICY_VERSION
     assert supplier.authorization.operational.runtime_revision == "runtime-config:001"
@@ -249,7 +253,9 @@ def test_live_factory_fails_closed_when_policy_scope_is_ambiguous() -> None:
 
     with pytest.raises(RuntimeError, match="POLICY_SCOPE_NOT_EXACT"):
         LiveRuntimePolicyAuthorizationFactory(
-            engine, runtime_revision="runtime-config:001"
+            engine,
+            runtime_revision="runtime-config:001",
+            qa_signal_ref="procurement-opportunity:signal-qa-001",
         ).supplier(context, deterministic_attempt_identity(context.stage_snapshot), ())
     engine.dispose()
 

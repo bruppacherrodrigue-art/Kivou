@@ -20,6 +20,10 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.add_column(
+        "acquisition_policy_snapshot",
+        sa.Column("qa_signal_ref", sa.String(256), nullable=True),
+    )
     op.create_table(
         "acquisition_runtime_lease",
         sa.Column("lease_name", sa.String(64), primary_key=True),
@@ -374,3 +378,4 @@ def downgrade() -> None:
     )
     op.drop_table("acquisition_runtime_cycle")
     op.drop_table("acquisition_runtime_lease")
+    op.drop_column("acquisition_policy_snapshot", "qa_signal_ref")

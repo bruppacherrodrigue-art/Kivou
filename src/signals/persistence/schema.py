@@ -441,6 +441,7 @@ acquisition_policy_snapshot = sa.Table(
     sa.Column("shadow_target_mode", sa.String(32)),
     sa.Column("read_only", sa.Boolean, nullable=False),
     sa.Column("kill_switch", sa.Boolean, nullable=False),
+    sa.Column("qa_signal_ref", sa.String(256)),
     sa.Column("allowed_commands", sa.JSON, nullable=False),
     sa.Column("allowed_countries", sa.JSON, nullable=False),
     sa.Column("allowed_languages", sa.JSON, nullable=False),

@@ -91,6 +91,7 @@ def _common_authorization(
     approvals: tuple[ApprovalGrant, ...],
     control: PolicyControlSnapshot,
     runtime_revision: str,
+    qa_signal_ref: str,
 ) -> dict[str, object]:
     profile = COMMAND_POLICIES[context.stage.command]
     observed_at = require_aware(context.at)
@@ -99,6 +100,7 @@ def _common_authorization(
         "request_id": identity.request_id,
         "actor_type": "HERMES",
         "actor_ref": "kivou-acquisition-runtime",
+        "qa_signal_ref": qa_signal_ref,
         "scope": _exact_scope(control),
         "currency": control.currency,
         "evidence": EvidenceReadiness(
@@ -126,12 +128,24 @@ def _common_authorization(
 class LiveRuntimePolicyAuthorizationFactory:
     """Build exact native DTOs from the effective persisted Policy snapshot."""
 
-    def __init__(self, engine: Engine, *, runtime_revision: str) -> None:
+    def __init__(
+        self,
+        engine: Engine,
+        *,
+        runtime_revision: str,
+        qa_signal_ref: str,
+    ) -> None:
         if not runtime_revision or len(runtime_revision) > 100:
             raise RuntimePolicyConfigurationError("RUNTIME_REVISION_INVALID")
+        if (
+            not qa_signal_ref.startswith("procurement-opportunity:")
+            or len(qa_signal_ref) > 256
+        ):
+            raise RuntimePolicyConfigurationError("QA_SIGNAL_REF_INVALID")
         self._engine = engine
         self._policy = PolicyStore(engine)
         self._runtime_revision = runtime_revision
+        self._qa_signal_ref = qa_signal_ref
 
     def supplier(
         self,
@@ -274,6 +288,7 @@ class LiveRuntimePolicyAuthorizationFactory:
             approvals=approvals,
             control=control,
             runtime_revision=self._runtime_revision,
+            qa_signal_ref=self._qa_signal_ref,
         )
         common["compliance"] = self._unknown_compliance(context.at)
         return common, self._budget_usage(context.at)

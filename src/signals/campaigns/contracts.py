@@ -284,6 +284,7 @@ class CampaignAuthorizationInput(CampaignContract):
     ]
     actor_type: Annotated[str, StringConstraints(pattern=r"^(SYSTEM|HERMES|HUMAN)$")]
     actor_ref: StableRef | None = None
+    qa_signal_ref: StableRef | None = None
     scope: Scope
     currency: Currency
     evidence: EvidenceReadiness

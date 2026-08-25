@@ -119,6 +119,12 @@ def evaluate_policy(
         }
     )
     positive_mutation = bool(profile and profile.risk_class is RiskClass.COMMERCIAL_MUTATION)
+    if (
+        snapshot.qa_signal_ref is not None
+        and request.qa_signal_ref != snapshot.qa_signal_ref
+    ):
+        primary = PolicyStatus.DENIED
+        reasons.append("qa_signal_scope_mismatch")
     if snapshot.kill_switch and not safe_under_hard_stop:
         primary = PolicyStatus.DENIED
         reasons.append("kill_switch_active")

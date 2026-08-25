@@ -1539,6 +1539,7 @@ class CampaignService:
             expected_opportunity_version=expected_version,
             actor_type=authorization.actor_type,
             actor_ref=authorization.actor_ref,
+            qa_signal_ref=authorization.qa_signal_ref,
             canonical_arguments=json.dumps(
                 {
                     "campaign_input_fingerprint": preview.input_fingerprint,

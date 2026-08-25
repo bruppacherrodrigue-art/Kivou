@@ -270,6 +270,7 @@ class DiscoveryAuthorizationInput(DiscoveryContract):
     ]
     actor_type: Annotated[str, StringConstraints(pattern=r"^(SYSTEM|HERMES|HUMAN)$")]
     actor_ref: StableRef | None = None
+    qa_signal_ref: StableRef | None = None
     scope: Scope
     proposed_cost: Decimal = Field(ge=0)
     currency: Currency

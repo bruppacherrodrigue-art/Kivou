@@ -98,6 +98,7 @@ class SupplierDiscoveryService:
             expected_opportunity_version=None,
             actor_type=authorization.actor_type,
             actor_ref=authorization.actor_ref,
+            qa_signal_ref=authorization.qa_signal_ref,
             canonical_arguments=canonical_arguments,
             action_fingerprint=action_fingerprint,
             scope=authorization.scope,
