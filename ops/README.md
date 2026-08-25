@@ -233,13 +233,16 @@ webhooks exacts et le préfixe `^~ /a/`. Elle ne relaie aucun `/internal/*` et n
 contient aucun catch-all backend : une nouvelle route FastAPI exige une revue de
 `tests/test_ops_nginx_routes.py` et du gabarit avant de devenir publique.
 
-Les six variables `KIVOU_INSTANTLY_*` et `KIVOU_SUPPRESSION_IDENTITY_*` décrites
-dans `.env.example` sont un groupe atomique. Toutes absentes, le webhook répond
-503 ; partiellement présentes, l'API refuse de démarrer sans imprimer leurs
-valeurs. Avant de remplacer une version de clé déjà utilisée, vérifier les
-versions référencées dans les événements et suppressions durables. Le câblage
-actuel ne retient qu'une version : une rotation exige d'abord un keyring de
-déploiement capable de conserver les anciennes clés.
+Les six variables `KIVOU_INSTANTLY_WEBHOOK_SECRET`,
+`KIVOU_INSTANTLY_WORKSPACE_REF`, `KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY`,
+`KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION`,
+`KIVOU_SUPPRESSION_IDENTITY_KEY` et `KIVOU_SUPPRESSION_IDENTITY_KEY_VERSION`
+décrites dans `.env.example` sont un groupe atomique. Toutes absentes, le
+webhook répond 503 ; partiellement présentes, l'API refuse de démarrer sans
+imprimer leurs valeurs. Avant de remplacer une version de clé déjà utilisée,
+vérifier les versions référencées dans les événements et suppressions durables.
+Le câblage actuel ne retient qu'une version : une rotation exige d'abord un
+keyring de déploiement capable de conserver les anciennes clés.
 
 ### Préparer et valider le candidat
 
@@ -249,6 +252,7 @@ de fichiers que les destinations finales : les renommages de publication y sont
 atomiques.
 
 ```bash
+set -euo pipefail
 KIVOU_STAGING_HOST=staging.kivou.eu
 case "$KIVOU_STAGING_HOST" in
   (*[!a-z0-9.-]*|'') printf '%s\n' 'hôte staging invalide' >&2; exit 64 ;;
@@ -295,6 +299,7 @@ configuration jusqu'au `reload` final. Le second `nginx -t` valide exactement
 les chemins qui seront relus par le processus actif.
 
 ```bash
+set -euo pipefail
 KIVOU_NGINX_BACKUP=$(sudo mktemp -d /etc/nginx/.kivou-backup.XXXXXX)
 sudo chmod 700 "$KIVOU_NGINX_BACKUP"
 if sudo test -e /etc/nginx/kivou-proxy-params.conf; then
@@ -379,11 +384,15 @@ répertoire de sauvegarde plutôt que le supprimer conserve une récupération
 possible. Tester avant de recharger.
 
 ```bash
+set -euo pipefail
 if sudo test -e "$KIVOU_NGINX_BACKUP/proxy.absent"; then
   sudo test ! -e /etc/nginx/kivou-proxy-params.conf ||
     sudo mv /etc/nginx/kivou-proxy-params.conf "$KIVOU_NGINX_BACKUP/installed-proxy"
 else
-  sudo cp -a "$KIVOU_NGINX_BACKUP/proxy" /etc/nginx/kivou-proxy-params.conf
+  sudo cp -a "$KIVOU_NGINX_BACKUP/proxy" \
+    /etc/nginx/kivou-proxy-params.conf.rollback
+  sudo mv -f /etc/nginx/kivou-proxy-params.conf.rollback \
+    /etc/nginx/kivou-proxy-params.conf
 fi
 if sudo test -e "$KIVOU_NGINX_BACKUP/security.absent"; then
   sudo test ! -e /etc/nginx/kivou-security-headers.conf ||
@@ -391,6 +400,8 @@ if sudo test -e "$KIVOU_NGINX_BACKUP/security.absent"; then
       "$KIVOU_NGINX_BACKUP/installed-security"
 else
   sudo cp -a "$KIVOU_NGINX_BACKUP/security" \
+    /etc/nginx/kivou-security-headers.conf.rollback
+  sudo mv -f /etc/nginx/kivou-security-headers.conf.rollback \
     /etc/nginx/kivou-security-headers.conf
 fi
 if sudo test -e "$KIVOU_NGINX_BACKUP/limits.absent"; then
@@ -398,13 +409,19 @@ if sudo test -e "$KIVOU_NGINX_BACKUP/limits.absent"; then
     sudo mv /etc/nginx/conf.d/kivou-limits.conf \
       "$KIVOU_NGINX_BACKUP/installed-limits"
 else
-  sudo cp -a "$KIVOU_NGINX_BACKUP/limits" /etc/nginx/conf.d/kivou-limits.conf
+  sudo cp -a "$KIVOU_NGINX_BACKUP/limits" \
+    /etc/nginx/conf.d/kivou-limits.conf.rollback
+  sudo mv -f /etc/nginx/conf.d/kivou-limits.conf.rollback \
+    /etc/nginx/conf.d/kivou-limits.conf
 fi
 if sudo test -e "$KIVOU_NGINX_BACKUP/site.absent"; then
   sudo test ! -e /etc/nginx/sites-available/kivou ||
     sudo mv /etc/nginx/sites-available/kivou "$KIVOU_NGINX_BACKUP/installed-site"
 else
-  sudo cp -a "$KIVOU_NGINX_BACKUP/site" /etc/nginx/sites-available/kivou
+  sudo cp -a "$KIVOU_NGINX_BACKUP/site" \
+    /etc/nginx/sites-available/kivou.rollback
+  sudo mv -f /etc/nginx/sites-available/kivou.rollback \
+    /etc/nginx/sites-available/kivou
 fi
 
 sudo nginx -t
