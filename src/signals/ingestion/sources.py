@@ -72,6 +72,15 @@ class AcquisitionResult:
     rejection_reasons: dict[str, int] = dataclasses.field(default_factory=dict)
 
 
+@dataclasses.dataclass(frozen=True)
+class DecpAcquisitionBatch:
+    acquisition: AcquisitionResult
+    next_offset: int
+    window_total: int
+    day_complete: bool
+    reset: bool
+
+
 class AcquisitionFailure(RuntimeError):
     """A source failure carrying acquisition progress for durable audit."""
 
@@ -268,6 +277,60 @@ class DecpSource:
             rejected=0,
             complete=complete,
             window=window,
+        )
+
+    def acquire_batch(
+        self,
+        window: SourceWindow,
+        *,
+        retrieved_at: dt.datetime,
+        offset: int,
+        expected_total: int | None,
+        batch_size: int,
+        should_stop: Callable[[], None] | None = None,
+    ) -> DecpAcquisitionBatch:
+        if window.since != window.until:
+            raise ValueError("DECP batch acquisition requires one calendar day")
+        publications: list[AcquiredPublication] = []
+        fetched = 0
+        try:
+            if should_stop is not None:
+                should_stop()
+            batch = self.client.fetch_contract_batch(
+                window.since,
+                offset=offset,
+                expected_total=expected_total,
+                batch_size=batch_size,
+            )
+            for record in batch.records:
+                fetched += 1
+                event, award = parse_contract(record, retrieved_at=retrieved_at)
+                publications.append(AcquiredPublication(event, (award,)))
+        except Exception as error:
+            raise AcquisitionFailure(
+                error,
+                partial=_result(
+                    self.source,
+                    publications,
+                    fetched=fetched,
+                    rejected=0,
+                    complete=False,
+                    window=window,
+                ),
+            ) from error
+        return DecpAcquisitionBatch(
+            acquisition=_result(
+                self.source,
+                publications,
+                fetched=fetched,
+                rejected=0,
+                complete=batch.day_complete,
+                window=window,
+            ),
+            next_offset=batch.next_offset,
+            window_total=batch.window_total,
+            day_complete=batch.day_complete,
+            reset=batch.reset,
         )
 
 

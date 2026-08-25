@@ -8,6 +8,7 @@ import pathlib
 import pytest
 from feed_helpers import LINKED_BOAMP, LINKED_DECP
 
+from signals.connectors.decp import DecpBatch
 from signals.connectors.simap import PublicationRef
 from signals.connectors.ted import NoticeRef
 from signals.connectors.ted.errors import TedHttpError
@@ -288,3 +289,42 @@ def test_decp_stop_is_reported_with_only_the_completed_acquisition_progress() ->
     assert raised.value.partial.fetched == 1
     assert raised.value.partial.accepted == 1
     assert raised.value.partial.complete is False
+
+
+def test_decp_source_normalizes_one_resumable_batch_and_preserves_its_progress() -> None:
+    class BatchDecpStub:
+        def fetch_contract_batch(
+            self,
+            day,
+            *,
+            offset,
+            expected_total,
+            batch_size,
+        ):
+            assert day == WINDOW.since
+            assert offset == 2
+            assert expected_total == 5
+            assert batch_size == 1
+            return DecpBatch(
+                records=(LINKED_DECP,),
+                next_offset=3,
+                window_total=5,
+                day_complete=False,
+                reset=False,
+            )
+
+    batch = DecpSource(BatchDecpStub()).acquire_batch(
+        SourceWindow(WINDOW.since, WINDOW.since),
+        retrieved_at=NOW,
+        offset=2,
+        expected_total=5,
+        batch_size=1,
+    )
+
+    assert batch.acquisition.fetched == 1
+    assert batch.acquisition.accepted == 1
+    assert len(batch.acquisition.publications) == 1
+    assert batch.next_offset == 3
+    assert batch.window_total == 5
+    assert batch.day_complete is False
+    assert batch.reset is False
