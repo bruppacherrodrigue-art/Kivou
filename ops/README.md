@@ -218,3 +218,200 @@ interdit de valider un audit si la lecture du journal a échoué.
 Toute simulation applicative qui dépend des secrets déployés doit rester une
 unité transitoire `systemd-run` avec
 `--property=EnvironmentFile=/etc/kivou/staging.env`, comme pour les alertes.
+
+## Reverse proxy public de staging (#84)
+
+Les quatre fichiers sous `ops/nginx/` forment un seul candidat versionné :
+
+- `kivou-staging.conf` porte la liste blanche publique et le repli SPA ;
+- `kivou-limits.conf` déclare les zones de débit au niveau `http` ;
+- `kivou-proxy-params.conf` conserve l'hôte, l'origine et les adresses relayées ;
+- `kivou-security-headers.conf` centralise CSP, HSTS et les autres en-têtes.
+
+La liste blanche relaie les groupes SaaS actuels, dont `/companies`, les deux
+webhooks exacts et le préfixe `^~ /a/`. Elle ne relaie aucun `/internal/*` et ne
+contient aucun catch-all backend : une nouvelle route FastAPI exige une revue de
+`tests/test_ops_nginx_routes.py` et du gabarit avant de devenir publique.
+
+Les six variables `KIVOU_INSTANTLY_*` et `KIVOU_SUPPRESSION_IDENTITY_*` décrites
+dans `.env.example` sont un groupe atomique. Toutes absentes, le webhook répond
+503 ; partiellement présentes, l'API refuse de démarrer sans imprimer leurs
+valeurs. Avant de remplacer une version de clé déjà utilisée, vérifier les
+versions référencées dans les événements et suppressions durables. Le câblage
+actuel ne retient qu'une version : une rotation exige d'abord un keyring de
+déploiement capable de conserver les anciennes clés.
+
+### Préparer et valider le candidat
+
+Définir l'hôte explicitement et refuser tout caractère qui pourrait modifier le
+gabarit. Le répertoire candidat est créé sous `/etc/nginx`, sur le même système
+de fichiers que les destinations finales : les renommages de publication y sont
+atomiques.
+
+```bash
+KIVOU_STAGING_HOST=staging.kivou.eu
+case "$KIVOU_STAGING_HOST" in
+  (*[!a-z0-9.-]*|'') printf '%s\n' 'hôte staging invalide' >&2; exit 64 ;;
+esac
+
+KIVOU_NGINX_CANDIDATE=$(sudo mktemp -d /etc/nginx/.kivou-candidate.XXXXXX)
+sudo chmod 700 "$KIVOU_NGINX_CANDIDATE"
+sudo install -o root -g root -m 644 \
+  ops/nginx/kivou-limits.conf \
+  ops/nginx/kivou-proxy-params.conf \
+  ops/nginx/kivou-security-headers.conf \
+  "$KIVOU_NGINX_CANDIDATE/"
+
+sed \
+  -e "s/STAGING_HOST/$KIVOU_STAGING_HOST/g" \
+  -e "s#/etc/nginx/kivou-proxy-params.conf#$KIVOU_NGINX_CANDIDATE/kivou-proxy-params.conf#g" \
+  -e "s#/etc/nginx/kivou-security-headers.conf#$KIVOU_NGINX_CANDIDATE/kivou-security-headers.conf#g" \
+  ops/nginx/kivou-staging.conf |
+  sudo tee "$KIVOU_NGINX_CANDIDATE/kivou-staging.test.conf" >/dev/null
+
+sudo tee "$KIVOU_NGINX_CANDIDATE/nginx.conf" >/dev/null <<EOF
+pid $KIVOU_NGINX_CANDIDATE/nginx.pid;
+error_log stderr;
+events {}
+http {
+    include /etc/nginx/mime.types;
+    include $KIVOU_NGINX_CANDIDATE/kivou-limits.conf;
+    include $KIVOU_NGINX_CANDIDATE/kivou-staging.test.conf;
+}
+EOF
+
+sudo nginx -t -c "$KIVOU_NGINX_CANDIDATE/nginx.conf"
+```
+
+Ce premier `nginx -t` lit les quatre fichiers candidats ensemble. Il utilise les
+certificats déjà déclarés pour l'hôte ; une absence de certificat est donc un
+échec réel de précondition, pas une raison de publier sans validation.
+
+### Sauvegarder, publier puis recharger
+
+La sauvegarde précède toute publication. Les fichiers `.new` sont écrits puis
+renommés dans leur répertoire final ; nginx continue d'exécuter son ancienne
+configuration jusqu'au `reload` final. Le second `nginx -t` valide exactement
+les chemins qui seront relus par le processus actif.
+
+```bash
+KIVOU_NGINX_BACKUP=$(sudo mktemp -d /etc/nginx/.kivou-backup.XXXXXX)
+sudo chmod 700 "$KIVOU_NGINX_BACKUP"
+if sudo test -e /etc/nginx/kivou-proxy-params.conf; then
+  sudo cp -a /etc/nginx/kivou-proxy-params.conf "$KIVOU_NGINX_BACKUP/proxy"
+else
+  sudo touch "$KIVOU_NGINX_BACKUP/proxy.absent"
+fi
+if sudo test -e /etc/nginx/kivou-security-headers.conf; then
+  sudo cp -a /etc/nginx/kivou-security-headers.conf "$KIVOU_NGINX_BACKUP/security"
+else
+  sudo touch "$KIVOU_NGINX_BACKUP/security.absent"
+fi
+if sudo test -e /etc/nginx/conf.d/kivou-limits.conf; then
+  sudo cp -a /etc/nginx/conf.d/kivou-limits.conf "$KIVOU_NGINX_BACKUP/limits"
+else
+  sudo touch "$KIVOU_NGINX_BACKUP/limits.absent"
+fi
+if sudo test -e /etc/nginx/sites-available/kivou; then
+  sudo cp -a /etc/nginx/sites-available/kivou "$KIVOU_NGINX_BACKUP/site"
+else
+  sudo touch "$KIVOU_NGINX_BACKUP/site.absent"
+fi
+
+sudo install -o root -g root -m 644 \
+  ops/nginx/kivou-proxy-params.conf /etc/nginx/kivou-proxy-params.conf.new
+sudo install -o root -g root -m 644 \
+  ops/nginx/kivou-security-headers.conf /etc/nginx/kivou-security-headers.conf.new
+sudo install -o root -g root -m 644 \
+  ops/nginx/kivou-limits.conf /etc/nginx/conf.d/kivou-limits.conf.new
+sed "s/STAGING_HOST/$KIVOU_STAGING_HOST/g" ops/nginx/kivou-staging.conf |
+  sudo tee /etc/nginx/sites-available/kivou.new >/dev/null
+sudo chown root:root /etc/nginx/sites-available/kivou.new
+sudo chmod 644 /etc/nginx/sites-available/kivou.new
+
+sudo mv -f /etc/nginx/kivou-proxy-params.conf.new \
+  /etc/nginx/kivou-proxy-params.conf
+sudo mv -f /etc/nginx/kivou-security-headers.conf.new \
+  /etc/nginx/kivou-security-headers.conf
+sudo mv -f /etc/nginx/conf.d/kivou-limits.conf.new \
+  /etc/nginx/conf.d/kivou-limits.conf
+sudo mv -f /etc/nginx/sites-available/kivou.new \
+  /etc/nginx/sites-available/kivou
+
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Si le second test échoue, ne pas recharger : appliquer immédiatement le rollback
+ci-dessous. Ne pas remplacer le lien `sites-enabled/kivou` s'il pointe déjà vers
+`sites-available/kivou`; le renommage conserve cette cible stable.
+
+### Preuve HTTP non mutante
+
+Une fois l'API redémarrée avec le groupe Instantly complet, un secret
+délibérément faux doit être refusé par FastAPI en JSON. Il ne peut ni lier une
+campagne ni écrire un événement. Un token d'attribution invalide doit produire
+le 404 JSON de l'application, sans cookie et sans HTML SPA.
+
+```bash
+curl --silent --show-error --include \
+  --request POST "https://$KIVOU_STAGING_HOST/webhooks/instantly" \
+  --header 'content-type: application/json' \
+  --header 'x-kivou-instantly-secret: deliberately-wrong-synthetic-value' \
+  --data '{}'
+# Attendu : 401, application/json, code invalid_instantly_webhook_secret.
+
+curl --silent --show-error --include \
+  "https://$KIVOU_STAGING_HOST/a/bogus-token"
+# Attendu : 404, application/json, code attribution_not_found,
+# aucun Set-Cookie et aucun <!doctype html>.
+```
+
+La preuve 200/replay du webhook et la preuve 303/cookie d'attribution utilisent
+une base jetable dans les tests. Ne pas fabriquer ces preuves sur staging : un
+webhook métier valide écrit durablement et demande une autorisation distincte.
+
+### Rollback
+
+Le rollback restaure uniquement les fichiers qui existaient dans la sauvegarde.
+Si un fichier avait été créé par cette installation, le déplacer dans le
+répertoire de sauvegarde plutôt que le supprimer conserve une récupération
+possible. Tester avant de recharger.
+
+```bash
+if sudo test -e "$KIVOU_NGINX_BACKUP/proxy.absent"; then
+  sudo test ! -e /etc/nginx/kivou-proxy-params.conf ||
+    sudo mv /etc/nginx/kivou-proxy-params.conf "$KIVOU_NGINX_BACKUP/installed-proxy"
+else
+  sudo cp -a "$KIVOU_NGINX_BACKUP/proxy" /etc/nginx/kivou-proxy-params.conf
+fi
+if sudo test -e "$KIVOU_NGINX_BACKUP/security.absent"; then
+  sudo test ! -e /etc/nginx/kivou-security-headers.conf ||
+    sudo mv /etc/nginx/kivou-security-headers.conf \
+      "$KIVOU_NGINX_BACKUP/installed-security"
+else
+  sudo cp -a "$KIVOU_NGINX_BACKUP/security" \
+    /etc/nginx/kivou-security-headers.conf
+fi
+if sudo test -e "$KIVOU_NGINX_BACKUP/limits.absent"; then
+  sudo test ! -e /etc/nginx/conf.d/kivou-limits.conf ||
+    sudo mv /etc/nginx/conf.d/kivou-limits.conf \
+      "$KIVOU_NGINX_BACKUP/installed-limits"
+else
+  sudo cp -a "$KIVOU_NGINX_BACKUP/limits" /etc/nginx/conf.d/kivou-limits.conf
+fi
+if sudo test -e "$KIVOU_NGINX_BACKUP/site.absent"; then
+  sudo test ! -e /etc/nginx/sites-available/kivou ||
+    sudo mv /etc/nginx/sites-available/kivou "$KIVOU_NGINX_BACKUP/installed-site"
+else
+  sudo cp -a "$KIVOU_NGINX_BACKUP/site" /etc/nginx/sites-available/kivou
+fi
+
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+Il n'existe aucune migration à annuler pour #84. Le rollback retire l'exposition
+des routes ; il ne supprime jamais les événements métier déjà reçus. Conserver
+les répertoires candidat et sauvegarde jusqu'à validation, puis les archiver ou
+les retirer selon la politique d'exploitation de l'hôte.
