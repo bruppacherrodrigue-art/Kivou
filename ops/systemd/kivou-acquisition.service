@@ -10,6 +10,7 @@ User=kivou
 Group=kivou
 WorkingDirectory=/srv/kivou/app
 EnvironmentFile=/etc/kivou/staging.env
+EnvironmentFile=/etc/kivou/acquisition-shadow.env
 EnvironmentFile=/etc/kivou/acquisition-runtime.env
 RuntimeDirectory=kivou
 RuntimeDirectoryMode=0700

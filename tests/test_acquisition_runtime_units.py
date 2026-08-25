@@ -20,6 +20,7 @@ def test_acquisition_service_is_one_bounded_shadow_orchestrator() -> None:
     assert "Group=kivou" in service
     assert "WorkingDirectory=/srv/kivou/app" in service
     assert "EnvironmentFile=/etc/kivou/staging.env" in service
+    assert "EnvironmentFile=/etc/kivou/acquisition-shadow.env" in service
     assert "EnvironmentFile=/etc/kivou/acquisition-runtime.env" in service
     assert service.count("ExecStart=") == 1
     assert (
@@ -80,6 +81,12 @@ def test_runbook_keeps_timer_non_mutating_and_manual_provider_gate_explicit() ->
     assert "python -m signals.operations health" in runbook
     assert "python -m signals.operations readiness" in runbook
     assert "activate-kill-switch" in runbook
+    assert (
+        runbook.count(
+            "--property=EnvironmentFile=/etc/kivou/acquisition-shadow.env"
+        )
+        >= 2
+    )
     assert "systemctl disable --now kivou-acquisition.timer" in runbook
     assert "0026_acquisition_runtime" in runbook
     assert "client" not in runbook.casefold()

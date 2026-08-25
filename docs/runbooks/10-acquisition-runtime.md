@@ -72,6 +72,7 @@ sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
   --property=EnvironmentFile=/etc/kivou/staging.env \
+  --property=EnvironmentFile=/etc/kivou/acquisition-shadow.env \
   --property=EnvironmentFile=/etc/kivou/acquisition-runtime.env \
   /srv/kivou/app/.venv/bin/python -m signals.acquisition_runtime run-once
 sudo systemd-run --wait --collect --pipe \
@@ -89,6 +90,7 @@ sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
   --property=EnvironmentFile=/etc/kivou/staging.env \
+  --property=EnvironmentFile=/etc/kivou/acquisition-shadow.env \
   --property=EnvironmentFile=/etc/kivou/acquisition-runtime.env \
   /srv/kivou/app/.venv/bin/python -m signals.acquisition_runtime run-once \
   --allow-qa-provider-mutations
