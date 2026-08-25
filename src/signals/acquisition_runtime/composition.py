@@ -1,0 +1,176 @@
+"""Production composition for one bounded acquisition runtime cycle."""
+
+from __future__ import annotations
+
+import datetime as dt
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
+
+from sqlalchemy.engine import Engine
+
+from signals.acquisition_connectivity.apollo import ApolloComponents
+from signals.acquisition_runtime.actions import build_kivou_stage_handlers
+from signals.acquisition_runtime.contracts import (
+    AcquisitionRuntimeConfig,
+    AcquisitionRuntimeStage,
+    RuntimeRunResult,
+)
+from signals.acquisition_runtime.domain import (
+    AcquisitionDomainActions,
+    RuntimeApprovalProvider,
+    RuntimePolicyAuthorizationFactory,
+    SqlAcquisitionDomainTruth,
+)
+from signals.acquisition_runtime.registry import AcquisitionActionHandler
+from signals.acquisition_runtime.transport import StagingQaRecipientOverride
+from signals.campaigns.contracts import CampaignDeploymentConfig
+from signals.campaigns.instantly import InstantlyProvider
+from signals.campaigns.service import CampaignService, MailboxReadinessSource
+from signals.campaigns.worker import CampaignWorker
+from signals.company_research.service import CompanyResearchService
+from signals.compliance.contracts import SenderComplianceConfig
+from signals.compliance.service import ComplianceService
+from signals.compliance.suppression import SuppressionIdentityKeyring
+from signals.contact_discovery.service import ContactDiscoveryService
+from signals.conversion.link import AttributionLinkBuilder
+from signals.decision_engine.service import DecisionEngineService
+from signals.personalization.service import PersonalizationService
+from signals.supplier_discovery.contracts import SupplierTargetingConfig
+from signals.supplier_discovery.service import SupplierDiscoveryService
+
+
+@dataclass(frozen=True)
+class AcquisitionDomainComposition:
+    """Keep native services and their closed handlers alive for one run."""
+
+    actions: AcquisitionDomainActions
+    handlers: Mapping[AcquisitionRuntimeStage, AcquisitionActionHandler]
+    supplier_service: SupplierDiscoveryService
+    contact_service: ContactDiscoveryService
+    company_service: CompanyResearchService
+    decision_service: DecisionEngineService
+    personalization_service: PersonalizationService
+    compliance_service: ComplianceService
+    campaign_service: CampaignService
+    campaign_worker: CampaignWorker
+
+
+def build_acquisition_domain_composition(
+    *,
+    engine: Engine,
+    runtime_config: AcquisitionRuntimeConfig,
+    apollo: ApolloComponents,
+    instantly_provider: InstantlyProvider,
+    authorization_factory: RuntimePolicyAuthorizationFactory,
+    approval_provider: RuntimeApprovalProvider,
+    targeting: SupplierTargetingConfig,
+    suppression_keyring: SuppressionIdentityKeyring,
+    sender_config: SenderComplianceConfig,
+    campaign_deployment: CampaignDeploymentConfig,
+    mailbox_readiness: MailboxReadinessSource,
+    attribution_link_builder: AttributionLinkBuilder,
+    clock: Callable[[], dt.datetime],
+) -> AcquisitionDomainComposition:
+    """Wire existing domains; construction performs no provider operation."""
+
+    if targeting.max_pages != 1 or targeting.per_page != 1 or targeting.candidate_cap != 1:
+        raise ValueError("runtime supplier discovery is capped at one candidate")
+    supplier_service = SupplierDiscoveryService(
+        engine,
+        provider=apollo.organization_search,
+        clock=clock,
+    )
+    contact_service = ContactDiscoveryService(
+        engine,
+        provider=apollo.contact_discovery,
+        clock=clock,
+    )
+    company_service = CompanyResearchService(
+        engine,
+        provider=apollo.company_research,
+        clock=clock,
+    )
+    decision_service = DecisionEngineService(engine, clock=clock)
+    personalization_service = PersonalizationService(engine, clock=clock)
+    compliance_service = ComplianceService(
+        engine,
+        keyring=suppression_keyring,
+        sender_config=sender_config,
+        clock=clock,
+    )
+    campaign_service = CampaignService(
+        engine,
+        keyring=suppression_keyring,
+        sender_config=sender_config,
+        deployment=campaign_deployment,
+        mailbox_readiness=mailbox_readiness,
+        clock=clock,
+        attribution_link_builder=attribution_link_builder,
+    )
+    recipient_override = StagingQaRecipientOverride(
+        runtime_config,
+        transport_keyring=suppression_keyring,
+    )
+    campaign_worker = CampaignWorker(
+        engine,
+        provider=instantly_provider,
+        campaign_service=campaign_service,
+        deployment=campaign_deployment,
+        worker_ref="acquisition-runtime-worker",
+        recipient_override=recipient_override,
+        clock=clock,
+    )
+    actions = AcquisitionDomainActions(
+        truth=SqlAcquisitionDomainTruth(engine),
+        supplier_service=supplier_service,
+        contact_service=contact_service,
+        company_service=company_service,
+        decision_service=decision_service,
+        personalization_service=personalization_service,
+        compliance_service=compliance_service,
+        campaign_service=campaign_service,
+        campaign_worker=campaign_worker,
+        authorization_factory=authorization_factory,
+        approval_provider=approval_provider,
+        maximum_provider_operations=(runtime_config.deployment.limits.maximum_provider_operations),
+        qa_transport_recipient_identity=(
+            recipient_override.transport_recipient_identity
+        ),
+        qa_transport_recipient_key_version=(
+            recipient_override.transport_key_version
+        ),
+        qa_scope=runtime_config.deployment.qa_scope,
+        targeting=targeting,
+    )
+    return AcquisitionDomainComposition(
+        actions=actions,
+        handlers=build_kivou_stage_handlers(actions),
+        supplier_service=supplier_service,
+        contact_service=contact_service,
+        company_service=company_service,
+        decision_service=decision_service,
+        personalization_service=personalization_service,
+        compliance_service=compliance_service,
+        campaign_service=campaign_service,
+        campaign_worker=campaign_worker,
+    )
+
+
+__all__ = [
+    "AcquisitionDomainComposition",
+    "build_acquisition_domain_composition",
+    "execute_runtime_run_once",
+]
+
+
+def execute_runtime_run_once(
+    *,
+    allow_qa_provider_mutations: bool,
+) -> RuntimeRunResult:
+    """Load the fail-closed executable root lazily to avoid import cycles."""
+
+    from signals.acquisition_runtime.execution import (
+        execute_runtime_run_once as execute,
+    )
+
+    return execute(allow_qa_provider_mutations=allow_qa_provider_mutations)

@@ -27,7 +27,8 @@ COMPANY = "0022_saas_company_profile"
 #: direct de COMPANY, et écraser ce lien ferait passer un test faux.
 EMAIL = "0023_transactional_email_runtime"
 SCHEDULED_PLAN = "0024_scheduled_plan_change"
-LATEST = "0025_alert_recipient_context"
+ALERT_RECIPIENT_CONTEXT = "0025_alert_recipient_context"
+LATEST = "0026_acquisition_runtime"
 TABLES = (
     acquisition_campaign,
     acquisition_campaign_member,
@@ -47,7 +48,8 @@ def test_campaign_migration_is_linear_and_adds_exactly_four_tables(tmp_path) -> 
     assert set(sa.inspect(engine).get_table_names()) - before == {table.name for table in TABLES}
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == SCHEDULED_PLAN
+    assert scripts.get_revision(LATEST).down_revision == ALERT_RECIPIENT_CONTEXT
+    assert scripts.get_revision(ALERT_RECIPIENT_CONTEXT).down_revision == SCHEDULED_PLAN
     assert scripts.get_revision(SCHEDULED_PLAN).down_revision == EMAIL
     assert scripts.get_revision(EMAIL).down_revision == COMPANY
     assert scripts.get_revision(COMPANY).down_revision == RELIABILITY
@@ -124,14 +126,18 @@ def test_campaign_upgrade_downgrade_reupgrade_and_schema_parity(tmp_path) -> Non
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'roundtrip.db'}")
     config = alembic_config(engine)
     command.upgrade(config, PREVIOUS)
-    command.upgrade(config, HEAD)
+    # Compare against the current declared schema only after every additive
+    # migration has run. Migration 0026 extends campaign members with bounded
+    # transport identity fields; stopping at 0016 would intentionally expose
+    # the historical, smaller table instead.
+    command.upgrade(config, LATEST)
     inspector = sa.inspect(engine)
 
     for table in TABLES:
         assert {column["name"] for column in inspector.get_columns(table.name)} == {
             column.name for column in table.columns
         }
-    assert current_revision(engine) == HEAD
+    assert current_revision(engine) == LATEST
     assert {item["name"] for item in inspector.get_unique_constraints("acquisition_campaign")} == {
         "uq_campaign_group_generation",
         "uq_campaign_provider_id",
@@ -155,8 +161,8 @@ def test_campaign_upgrade_downgrade_reupgrade_and_schema_parity(tmp_path) -> Non
     }
     assert current_revision(engine) == COMPLIANCE
 
-    command.upgrade(config, HEAD)
-    assert current_revision(engine) == HEAD
+    command.upgrade(config, LATEST)
+    assert current_revision(engine) == LATEST
 
 
 def test_campaign_postgresql_offline_sql_has_exactly_four_tables(capsys) -> None:

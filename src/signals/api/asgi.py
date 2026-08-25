@@ -36,7 +36,6 @@ endroit.
 
 from __future__ import annotations
 
-import sqlalchemy as sa
 from fastapi import FastAPI
 
 from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
@@ -44,9 +43,10 @@ from signals.alerts.gateway import SmtpAlertGateway, SmtpConfiguration
 from signals.api.app import create_app
 from signals.api.config import ApiConfig
 from signals.billing.gateway import StripeApiGateway
-from signals.campaigns.contracts import ResponseIngressCapability
-from signals.campaigns.webhooks import InstantlyWebhookService, WebhookFingerprintKeyring
-from signals.compliance.suppression import SuppressionIdentityKeyring
+from signals.campaigns.runtime_webhook import (
+    build_instantly_webhook_service,
+    load_instantly_webhook_runtime_config,
+)
 from signals.persistence.database import create_database_engine
 from signals.runtime_events import configure_runtime_event_logging
 
@@ -61,44 +61,18 @@ def build_application() -> FastAPI:
     """
     configure_runtime_event_logging()
     config = ApiConfig.from_environment()
+    webhook_configuration = load_instantly_webhook_runtime_config(required=False)
     engine = create_database_engine(pool_pre_ping=True)
     return create_app(
         engine,
         config,
         stripe_gateway=_stripe_gateway(config),
         password_reset_delivery=_password_reset_delivery(config),
-        instantly_webhook_service=_instantly_webhook_service(engine, config),
-    )
-
-
-def _instantly_webhook_service(
-    engine: sa.Engine, config: ApiConfig
-) -> InstantlyWebhookService | None:
-    """Compose authenticated ingress locally without enabling response handling."""
-    if not config.instantly_webhook_configured:
-        return None
-    workspace = config.instantly_webhook_workspace_ref
-    fingerprint_key = config.instantly_webhook_fingerprint_key
-    fingerprint_version = config.instantly_webhook_fingerprint_key_version
-    suppression_key = config.suppression_identity_key
-    suppression_version = config.suppression_identity_key_version
-    assert workspace is not None
-    assert fingerprint_key is not None
-    assert fingerprint_version is not None
-    assert suppression_key is not None
-    assert suppression_version is not None
-    return InstantlyWebhookService(
-        engine,
-        provider_workspace_ref=workspace,
-        fingerprint_keyring=WebhookFingerprintKeyring(
-            current_key_version=fingerprint_version,
-            keys={fingerprint_version: fingerprint_key},
+        instantly_webhook_service=(
+            build_instantly_webhook_service(engine, webhook_configuration)
+            if webhook_configuration is not None
+            else None
         ),
-        suppression_keyring=SuppressionIdentityKeyring(
-            current_key_version=suppression_version,
-            keys={suppression_version: suppression_key},
-        ),
-        response_ingress_capability=ResponseIngressCapability.NONE,
     )
 
 

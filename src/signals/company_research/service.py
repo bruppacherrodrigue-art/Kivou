@@ -39,7 +39,7 @@ from signals.company_research.store import CompanyResearchStore
 from signals.persistence.schema import acquisition_supplier
 from signals.policy.contracts import BudgetUsage, PolicyRequest
 from signals.policy.gateway import PolicyGateway
-from signals.policy.store import PolicyStore
+from signals.policy.store import PolicyStore, decision_from_row
 from signals.supplier_discovery.contracts import SupplierRecord
 from signals.supplier_discovery.store import SupplierDiscoveryStore
 
@@ -150,6 +150,65 @@ class CompanyResearchService:
         if not ownership.owned:
             return CompanyResearchServiceResult(decision=decision, run=ownership.run)
         return self._execute(ownership.run, supplier, contact, decision)
+
+    def resume_started(
+        self,
+        run_id: str,
+        *,
+        authorize_recovery: Callable[[], None],
+    ) -> CompanyResearchServiceResult | None:
+        """Replay one indeterminate exact-ID lookup from durable Policy truth."""
+
+        try:
+            run = self._companies.get_run(run_id)
+        except sa.exc.NoResultFound:
+            return None
+        decision = self._durable_decision(run)
+        if run.status is not CompanyResearchRunStatus.STARTED:
+            return CompanyResearchServiceResult(decision=decision, run=run)
+        authorize_recovery()
+        ownership = self._companies.claim_recovery(run_id)
+        if not ownership.owned:
+            return CompanyResearchServiceResult(
+                decision=decision,
+                run=ownership.run,
+            )
+        opportunity = self._acquisition.get_opportunity(
+            ownership.run.acquisition_opportunity_id
+        )
+        supplier = self._suppliers.get_supplier(ownership.run.supplier_ref)
+        contact = self._companies.get_contact_binding(ownership.run.contact_ref)
+        self._require_post_policy(opportunity, ownership.run)
+        self._require_bindings(opportunity, supplier, contact)
+        return self._execute(ownership.run, supplier, contact, decision)
+
+    def _durable_decision(self, run):
+        profile = build_company_research_profile(
+            str(run.research_profile["provider_organization_id"])
+        )
+        expected_action = policy_action_fingerprint(
+            profile,
+            acquisition_opportunity_id=run.acquisition_opportunity_id,
+            supplier_ref=run.supplier_ref,
+            contact_ref=run.contact_ref,
+        )
+        with self._engine.connect() as connection:
+            row = self._policy_store.evaluation_row(
+                connection, run.policy_evaluation_id
+            )
+        if row is None or not (
+            row["acquisition_opportunity_id"] == run.acquisition_opportunity_id
+            and row["command"] == "enrich_company"
+            and row["target_ref"]
+            == self._expected_target(run.acquisition_opportunity_id)
+            and row["action_fingerprint"] == expected_action
+            and run.research_profile_fingerprint == profile.profile_fingerprint
+        ):
+            raise CompanyResearchRunIdentityConflict(run.policy_evaluation_id)
+        decision = decision_from_row(row)
+        if not decision.executable:
+            raise CompanyResearchRunIdentityConflict(run.policy_evaluation_id)
+        return decision
 
     def _execute(self, run, supplier, contact, decision) -> CompanyResearchServiceResult:
         profile = build_company_research_profile(supplier.provider_organization_id)
@@ -358,6 +417,7 @@ class CompanyResearchService:
             expected_opportunity_version=expected_version,
             actor_type=authorization.actor_type,
             actor_ref=authorization.actor_ref,
+            qa_signal_ref=authorization.qa_signal_ref,
             canonical_arguments=arguments,
             action_fingerprint=action_fingerprint,
             scope=authorization.scope,

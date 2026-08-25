@@ -441,6 +441,7 @@ acquisition_policy_snapshot = sa.Table(
     sa.Column("shadow_target_mode", sa.String(32)),
     sa.Column("read_only", sa.Boolean, nullable=False),
     sa.Column("kill_switch", sa.Boolean, nullable=False),
+    sa.Column("qa_signal_ref", sa.String(256)),
     sa.Column("allowed_commands", sa.JSON, nullable=False),
     sa.Column("allowed_countries", sa.JSON, nullable=False),
     sa.Column("allowed_languages", sa.JSON, nullable=False),
@@ -570,6 +571,12 @@ supplier_discovery_run = sa.Table(
     sa.Column("candidate_cap", sa.Integer, nullable=False),
     sa.Column("planned_provider_credit_units", sa.Integer, nullable=False),
     sa.Column("pages_requested", sa.Integer, nullable=False),
+    sa.Column(
+        "recovery_provider_calls",
+        sa.Integer,
+        nullable=False,
+        server_default=sa.text("0"),
+    ),
     sa.Column("provider_credit_units_observed", sa.Integer),
     sa.Column("provider_total_entries", sa.Integer),
     sa.Column("partial_results_only", sa.Boolean),
@@ -604,6 +611,10 @@ supplier_discovery_run = sa.Table(
     sa.CheckConstraint(
         "planned_provider_credit_units >= 0 AND pages_requested >= 0",
         name="ck_supplier_discovery_run_credit_counts",
+    ),
+    sa.CheckConstraint(
+        "recovery_provider_calls >= 0 AND recovery_provider_calls <= 1",
+        name="ck_supplier_discovery_run_recovery_calls",
     ),
     sa.CheckConstraint(
         "provider_credit_units_observed IS NULL OR provider_credit_units_observed >= 0",
@@ -716,6 +727,12 @@ contact_discovery_run = sa.Table(
     sa.Column("per_page", sa.Integer, nullable=False),
     sa.Column("max_enrichment_attempts", sa.Integer, nullable=False),
     sa.Column("people_search_requests", sa.Integer, nullable=False),
+    sa.Column(
+        "recovery_provider_calls",
+        sa.Integer,
+        nullable=False,
+        server_default=sa.text("0"),
+    ),
     sa.Column("provider_total_entries", sa.Integer),
     sa.Column("search_results_returned", sa.Integer, nullable=False),
     sa.Column("search_results_truncated", sa.Boolean, nullable=False),
@@ -754,6 +771,10 @@ contact_discovery_run = sa.Table(
         "AND candidates_eligible >= 0 AND candidates_rejected >= 0 "
         "AND enrichment_attempts >= 0",
         name="ck_contact_run_counters",
+    ),
+    sa.CheckConstraint(
+        "recovery_provider_calls >= 0 AND recovery_provider_calls <= 1",
+        name="ck_contact_run_recovery_calls",
     ),
     sa.CheckConstraint(
         "provider_total_entries IS NULL OR provider_total_entries >= 0",
@@ -901,6 +922,12 @@ company_research_run = sa.Table(
     sa.Column("planned_provider_credit_units", sa.Integer, nullable=False),
     sa.Column("observed_provider_credit_units", sa.Integer),
     sa.Column("provider_calls", sa.Integer, nullable=False),
+    sa.Column(
+        "recovery_provider_calls",
+        sa.Integer,
+        nullable=False,
+        server_default=sa.text("0"),
+    ),
     sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("completed_at", sa.DateTime(timezone=True)),
     sa.Column("status", sa.String(16), nullable=False, index=True),
@@ -921,6 +948,10 @@ company_research_run = sa.Table(
     sa.CheckConstraint(
         "planned_provider_credit_units = 1 AND provider_calls >= 0 AND provider_calls <= 1",
         name="ck_company_run_call_bound",
+    ),
+    sa.CheckConstraint(
+        "recovery_provider_calls >= 0 AND recovery_provider_calls <= 1",
+        name="ck_company_run_recovery_calls",
     ),
     sa.CheckConstraint(
         "observed_provider_credit_units IS NULL OR observed_provider_credit_units >= 0",
@@ -1383,6 +1414,8 @@ acquisition_campaign_member = sa.Table(
     sa.Column("mailbox_readiness_fingerprint", sa.String(64), nullable=False),
     sa.Column("provider_lead_id", sa.String(128)),
     sa.Column("provider_binding_fingerprint", sa.String(64)),
+    sa.Column("transport_recipient_identity", sa.String(64)),
+    sa.Column("transport_recipient_key_version", sa.String(64)),
     sa.Column("step_1_execution_date", sa.Date, nullable=False),
     sa.Column("step_1_authorization_deadline", sa.DateTime(timezone=True), nullable=False),
     sa.Column("step_2_execution_date", sa.Date, nullable=False),
@@ -1420,7 +1453,20 @@ acquisition_campaign_member = sa.Table(
         "AND step_2_due_at IS NOT NULL)",
         name="ck_campaign_member_timing_write",
     ),
+    sa.CheckConstraint(
+        "(transport_recipient_identity IS NULL AND "
+        "transport_recipient_key_version IS NULL) OR "
+        "(transport_recipient_identity IS NOT NULL AND "
+        "transport_recipient_key_version IS NOT NULL)",
+        name="ck_campaign_member_transport_identity",
+    ),
     sa.Index("ix_campaign_member_campaign_state", "campaign_ref", "execution_state"),
+    sa.Index(
+        "ix_campaign_member_transport_identity",
+        "campaign_ref",
+        "transport_recipient_key_version",
+        "transport_recipient_identity",
+    ),
 )
 
 
@@ -2073,4 +2119,326 @@ acquisition_dead_letter = sa.Table(
     ),
     sa.Index("ix_dead_letter_status_created", "status", "created_at"),
     sa.Index("ix_dead_letter_work", "work_type", "work_ref"),
+)
+
+
+# The acquisition runtime keeps orchestration metadata only. Provider payloads,
+# recipients and message content remain in their existing bounded domain stores.
+acquisition_runtime_lease = sa.Table(
+    "acquisition_runtime_lease",
+    METADATA,
+    sa.Column("lease_name", sa.String(64), primary_key=True),
+    sa.Column("owner_ref", sa.String(256)),
+    sa.Column("acquired_at", sa.DateTime(timezone=True)),
+    sa.Column("heartbeat_at", sa.DateTime(timezone=True)),
+    sa.Column("expires_at", sa.DateTime(timezone=True)),
+    sa.Column("generation", sa.Integer, nullable=False),
+    sa.CheckConstraint("generation >= 0", name="ck_acquisition_runtime_lease_generation"),
+    sa.CheckConstraint(
+        "(owner_ref IS NULL AND acquired_at IS NULL AND heartbeat_at IS NULL "
+        "AND expires_at IS NULL) OR "
+        "(owner_ref IS NOT NULL AND acquired_at IS NOT NULL "
+        "AND heartbeat_at IS NOT NULL AND expires_at IS NOT NULL "
+        "AND acquired_at <= heartbeat_at AND heartbeat_at < expires_at)",
+        name="ck_acquisition_runtime_lease_lifecycle",
+    ),
+)
+
+
+acquisition_runtime_cycle = sa.Table(
+    "acquisition_runtime_cycle",
+    METADATA,
+    sa.Column("cycle_ref", sa.String(64), primary_key=True),
+    sa.Column("opportunity_key", sa.String(256), nullable=False),
+    sa.Column("config_fingerprint", sa.String(64), nullable=False),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("next_stage", sa.String(32)),
+    sa.Column("spent_cost", sa.Numeric(12, 6), nullable=False),
+    sa.Column("last_reason_code", sa.String(100)),
+    sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("completed_at", sa.DateTime(timezone=True)),
+    sa.UniqueConstraint(
+        "opportunity_key",
+        "config_fingerprint",
+        name="uq_acquisition_runtime_cycle_config_opportunity",
+    ),
+    sa.CheckConstraint(
+        "status IN ('PENDING', 'RUNNING', 'WAITING', 'SUCCEEDED', 'BLOCKED', "
+        "'FAILED', 'SUPPRESSED', 'CANCELLED')",
+        name="ck_acquisition_runtime_cycle_status",
+    ),
+    sa.CheckConstraint(
+        "next_stage IS NULL OR next_stage IN "
+        "('SIGNAL_SEED', 'SUPPLIER_DISCOVERY', 'CONTACT_DISCOVERY', "
+        "'COMPANY_RESEARCH', 'DECISION', 'PERSONALIZATION', 'COMPLIANCE', "
+        "'CAMPAIGN', 'PROVIDER_HANDOFF', 'RESPONSE', "
+        "'ATTRIBUTION_CONVERSION')",
+        name="ck_acquisition_runtime_cycle_next_stage",
+    ),
+    sa.CheckConstraint("spent_cost >= 0", name="ck_acquisition_runtime_cycle_cost"),
+    sa.CheckConstraint(
+        "(status IN ('SUCCEEDED', 'SUPPRESSED') AND completed_at IS NOT NULL "
+        "AND next_stage IS NULL) OR "
+        "(status NOT IN ('SUCCEEDED', 'SUPPRESSED') AND completed_at IS NULL)",
+        name="ck_acquisition_runtime_cycle_lifecycle",
+    ),
+    sa.Index("ix_acquisition_runtime_cycle_status", "status", "updated_at"),
+)
+
+
+acquisition_runtime_observation = sa.Table(
+    "acquisition_runtime_observation",
+    METADATA,
+    sa.Column("runtime_name", sa.String(64), primary_key=True),
+    sa.Column("capability_fingerprint", sa.String(64), nullable=False),
+    sa.Column("environment", sa.String(16), nullable=False),
+    sa.Column("mode", sa.String(16), nullable=False),
+    sa.Column("qa_only", sa.Boolean, nullable=False),
+    sa.Column("hermes_repository", sa.String(256), nullable=False),
+    sa.Column("hermes_tag", sa.String(256), nullable=False),
+    sa.Column("hermes_commit", sa.String(40), nullable=False),
+    sa.Column("hermes_version", sa.String(256), nullable=False),
+    sa.Column("hermes_python_contract", sa.String(256), nullable=False),
+    sa.Column("registry_identity", sa.String(64), nullable=False),
+    sa.Column("native_tools", sa.Integer, nullable=False),
+    sa.Column("commands", sa.JSON, nullable=False),
+    sa.Column("dependencies", sa.JSON, nullable=False),
+    sa.Column("observed_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("heartbeat_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column(
+        "last_cycle_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_runtime_cycle.cycle_ref", ondelete="RESTRICT"),
+    ),
+    sa.Column("last_cycle_status", sa.String(16)),
+    sa.Column("last_cycle_at", sa.DateTime(timezone=True)),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint(
+        "runtime_name = 'acquisition-run-once'",
+        name="ck_acquisition_runtime_observation_name",
+    ),
+    sa.CheckConstraint(
+        "environment = 'STAGING' AND mode = 'SHADOW' "
+        "AND qa_only IS TRUE AND native_tools = 0",
+        name="ck_acquisition_runtime_observation_boundary",
+    ),
+    sa.CheckConstraint(
+        "observed_at <= heartbeat_at AND heartbeat_at <= updated_at",
+        name="ck_acquisition_runtime_observation_timeline",
+    ),
+    sa.CheckConstraint(
+        "(last_cycle_ref IS NULL AND last_cycle_status IS NULL "
+        "AND last_cycle_at IS NULL) OR "
+        "(last_cycle_ref IS NOT NULL AND last_cycle_status IS NOT NULL "
+        "AND last_cycle_at IS NOT NULL AND last_cycle_at <= heartbeat_at)",
+        name="ck_acquisition_runtime_observation_cycle",
+    ),
+    sa.CheckConstraint(
+        "last_cycle_status IS NULL OR last_cycle_status IN "
+        "('PENDING', 'RUNNING', 'WAITING', 'SUCCEEDED', 'BLOCKED', "
+        "'FAILED', 'SUPPRESSED', 'CANCELLED')",
+        name="ck_acquisition_runtime_observation_cycle_status",
+    ),
+    sa.Index("ix_acquisition_runtime_observation_heartbeat", "heartbeat_at"),
+)
+
+
+acquisition_runtime_approval = sa.Table(
+    "acquisition_runtime_approval",
+    METADATA,
+    sa.Column("approval_id", sa.String(64), primary_key=True),
+    sa.Column("request_ref", sa.String(256), nullable=False, unique=True),
+    sa.Column(
+        "cycle_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_runtime_cycle.cycle_ref", ondelete="RESTRICT"),
+        nullable=False,
+    ),
+    sa.Column("stage", sa.String(32), nullable=False),
+    sa.Column("purpose", sa.String(32), nullable=False),
+    sa.Column("command", sa.String(64), nullable=False),
+    sa.Column("target_ref", sa.String(256), nullable=False),
+    sa.Column("acquisition_opportunity_id", sa.String(256), nullable=False),
+    sa.Column("action_fingerprint", sa.String(64), nullable=False),
+    sa.Column("policy_version", sa.String(256), nullable=False),
+    sa.Column("policy_snapshot_id", sa.String(256), nullable=False),
+    sa.Column("control_revision", sa.Integer, nullable=False),
+    sa.Column("scope_fingerprint", sa.String(64), nullable=False),
+    sa.Column("binding_fingerprint", sa.String(64), nullable=False),
+    sa.Column("state", sa.String(16), nullable=False),
+    sa.Column("requested_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("approved_by_actor_ref", sa.String(256)),
+    sa.Column("approved_at", sa.DateTime(timezone=True)),
+    sa.Column("consumed_by_ref", sa.String(256)),
+    sa.Column("consumed_at", sa.DateTime(timezone=True)),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint(
+        "stage IN ('SIGNAL_SEED', 'SUPPLIER_DISCOVERY', 'CONTACT_DISCOVERY', "
+        "'COMPANY_RESEARCH', 'DECISION', 'PERSONALIZATION', 'COMPLIANCE', "
+        "'CAMPAIGN', 'PROVIDER_HANDOFF', 'RESPONSE', "
+        "'ATTRIBUTION_CONVERSION')",
+        name="ck_acquisition_runtime_approval_stage",
+    ),
+    sa.CheckConstraint(
+        "purpose IN ('ACTION', 'COMPLIANCE_REVIEW')",
+        name="ck_acquisition_runtime_approval_purpose",
+    ),
+    sa.CheckConstraint(
+        "state IN ('PENDING', 'APPROVED', 'CONSUMED')",
+        name="ck_acquisition_runtime_approval_state",
+    ),
+    sa.CheckConstraint(
+        "control_revision >= 1",
+        name="ck_acquisition_runtime_approval_revision",
+    ),
+    sa.CheckConstraint(
+        "requested_at < expires_at AND updated_at >= requested_at",
+        name="ck_acquisition_runtime_approval_window",
+    ),
+    sa.CheckConstraint(
+        "(state = 'PENDING' AND approved_by_actor_ref IS NULL "
+        "AND approved_at IS NULL AND consumed_by_ref IS NULL "
+        "AND consumed_at IS NULL) OR "
+        "(state = 'APPROVED' AND approved_by_actor_ref IS NOT NULL "
+        "AND approved_at IS NOT NULL AND requested_at <= approved_at "
+        "AND approved_at < expires_at AND consumed_by_ref IS NULL "
+        "AND consumed_at IS NULL) OR "
+        "(state = 'CONSUMED' AND approved_by_actor_ref IS NOT NULL "
+        "AND approved_at IS NOT NULL AND consumed_by_ref IS NOT NULL "
+        "AND consumed_at IS NOT NULL AND requested_at <= approved_at "
+        "AND approved_at <= consumed_at AND consumed_at < expires_at)",
+        name="ck_acquisition_runtime_approval_lifecycle",
+    ),
+    sa.Index(
+        "ix_acquisition_runtime_approval_state_expiry",
+        "state",
+        "expires_at",
+    ),
+)
+
+
+acquisition_runtime_stage = sa.Table(
+    "acquisition_runtime_stage",
+    METADATA,
+    sa.Column(
+        "cycle_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_runtime_cycle.cycle_ref", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("stage", sa.String(32), primary_key=True),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("attempt_count", sa.Integer, nullable=False),
+    sa.Column("plan_ref", sa.String(256)),
+    sa.Column("command", sa.String(64)),
+    sa.Column("argument_fingerprint", sa.String(64)),
+    sa.Column("result_refs", sa.JSON, nullable=False),
+    sa.Column("reserved_cost", sa.Numeric(12, 6), nullable=False),
+    sa.Column("observed_cost", sa.Numeric(12, 6), nullable=False),
+    sa.Column("reason_codes", sa.JSON, nullable=False),
+    sa.Column("retry_at", sa.DateTime(timezone=True)),
+    sa.Column("replay_same_attempt", sa.Boolean, nullable=False),
+    sa.Column("started_at", sa.DateTime(timezone=True)),
+    sa.Column("completed_at", sa.DateTime(timezone=True)),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    sa.CheckConstraint(
+        "stage IN ('SIGNAL_SEED', 'SUPPLIER_DISCOVERY', 'CONTACT_DISCOVERY', "
+        "'COMPANY_RESEARCH', 'DECISION', 'PERSONALIZATION', 'COMPLIANCE', "
+        "'CAMPAIGN', 'PROVIDER_HANDOFF', 'RESPONSE', "
+        "'ATTRIBUTION_CONVERSION')",
+        name="ck_acquisition_runtime_stage_name",
+    ),
+    sa.CheckConstraint(
+        "status IN ('PENDING', 'RUNNING', 'WAITING', 'SUCCEEDED', 'BLOCKED', "
+        "'FAILED', 'SUPPRESSED', 'CANCELLED')",
+        name="ck_acquisition_runtime_stage_status",
+    ),
+    sa.CheckConstraint("attempt_count >= 0", name="ck_acquisition_runtime_stage_attempts"),
+    sa.CheckConstraint(
+        "reserved_cost >= 0 AND observed_cost >= 0",
+        name="ck_acquisition_runtime_stage_cost",
+    ),
+    sa.CheckConstraint(
+        "(status = 'PENDING' AND attempt_count = 0 AND started_at IS NULL "
+        "AND completed_at IS NULL) OR "
+        "(status = 'RUNNING' AND attempt_count >= 1 AND started_at IS NOT NULL "
+        "AND completed_at IS NULL) OR "
+        "(status NOT IN ('PENDING', 'RUNNING') AND attempt_count >= 1 "
+        "AND started_at IS NOT NULL AND completed_at IS NOT NULL)",
+        name="ck_acquisition_runtime_stage_lifecycle",
+    ),
+    sa.CheckConstraint(
+        "retry_at IS NULL OR status = 'WAITING'",
+        name="ck_acquisition_runtime_stage_retry",
+    ),
+    sa.CheckConstraint(
+        "replay_same_attempt IS FALSE OR "
+        "(status = 'WAITING' AND retry_at IS NOT NULL)",
+        name="ck_acquisition_runtime_stage_replay",
+    ),
+    sa.Index("ix_acquisition_runtime_stage_status", "status", "updated_at"),
+)
+
+
+# Immutable cost ledger: the mutable stage checkpoint keeps only the latest
+# attempt, while every finalized attempt remains chargeable across retries.
+acquisition_runtime_stage_attempt = sa.Table(
+    "acquisition_runtime_stage_attempt",
+    METADATA,
+    sa.Column(
+        "cycle_ref",
+        sa.String(64),
+        sa.ForeignKey("acquisition_runtime_cycle.cycle_ref", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("stage", sa.String(32), primary_key=True),
+    sa.Column("attempt_count", sa.Integer, primary_key=True),
+    sa.Column("status", sa.String(16), nullable=False),
+    sa.Column("reserved_cost", sa.Numeric(12, 6), nullable=False),
+    sa.Column("observed_cost", sa.Numeric(12, 6), nullable=False),
+    sa.Column("proposal", sa.JSON),
+    sa.Column("retry_at", sa.DateTime(timezone=True)),
+    sa.Column("replay_same_attempt", sa.Boolean, nullable=False),
+    sa.Column("completed_at", sa.DateTime(timezone=True)),
+    sa.CheckConstraint(
+        "stage IN ('SIGNAL_SEED', 'SUPPLIER_DISCOVERY', 'CONTACT_DISCOVERY', "
+        "'COMPANY_RESEARCH', 'DECISION', 'PERSONALIZATION', 'COMPLIANCE', "
+        "'CAMPAIGN', 'PROVIDER_HANDOFF', 'RESPONSE', "
+        "'ATTRIBUTION_CONVERSION')",
+        name="ck_acquisition_runtime_attempt_stage",
+    ),
+    sa.CheckConstraint(
+        "status IN ('RUNNING', 'WAITING', 'SUCCEEDED', 'BLOCKED', 'FAILED', "
+        "'SUPPRESSED', 'CANCELLED')",
+        name="ck_acquisition_runtime_attempt_status",
+    ),
+    sa.CheckConstraint(
+        "attempt_count >= 1",
+        name="ck_acquisition_runtime_attempt_count",
+    ),
+    sa.CheckConstraint(
+        "reserved_cost >= 0 AND observed_cost >= 0",
+        name="ck_acquisition_runtime_attempt_cost",
+    ),
+    sa.CheckConstraint(
+        "(status = 'RUNNING' AND completed_at IS NULL) OR "
+        "(status <> 'RUNNING' AND completed_at IS NOT NULL)",
+        name="ck_acquisition_runtime_attempt_lifecycle",
+    ),
+    sa.CheckConstraint(
+        "retry_at IS NULL OR status = 'WAITING'",
+        name="ck_acquisition_runtime_attempt_retry",
+    ),
+    sa.CheckConstraint(
+        "replay_same_attempt IS FALSE OR "
+        "(status = 'WAITING' AND retry_at IS NOT NULL)",
+        name="ck_acquisition_runtime_attempt_replay",
+    ),
+    sa.Index(
+        "ix_acquisition_runtime_attempt_cycle",
+        "cycle_ref",
+        "completed_at",
+    ),
 )

@@ -1,0 +1,209 @@
+from __future__ import annotations
+
+import datetime as dt
+
+from signals.acquisition_runtime.authorization import (
+    AcquisitionRuntimeApprovalStore,
+    RuntimeApprovalBinding,
+    RuntimeApprovalStatus,
+)
+from signals.acquisition_runtime.contracts import AcquisitionRuntimeStage
+from signals.acquisition_runtime.store import AcquisitionRuntimeStore
+from signals.operations.cli import main
+from signals.persistence.database import create_database_engine
+from signals.persistence.schema import METADATA
+from signals.policy.contracts import POLICY_VERSION, ApprovalPurpose
+
+NOW = dt.datetime(2026, 8, 25, 12, tzinfo=dt.UTC)
+
+
+def _pending(tmp_path):
+    url = f"sqlite+pysqlite:///{tmp_path / 'runtime-approval-cli.db'}"
+    engine = create_database_engine(url)
+    METADATA.create_all(engine)
+    runtime = AcquisitionRuntimeStore(engine)
+    lease = runtime.acquire_lease(
+        "test-owner",
+        acquired_at=NOW,
+        lease_seconds=120,
+    )
+    assert lease.fencing_token is not None
+    cycle = runtime.resume_or_create_cycle(
+        owner_ref="test-owner",
+        fencing_token=lease.fencing_token,
+        opportunity_keys=("signal-qa-001",),
+        config_fingerprint="c" * 64,
+        at=NOW,
+    )
+    store = AcquisitionRuntimeApprovalStore(engine)
+    snapshot = store.request_approval(
+        RuntimeApprovalBinding(
+            request_ref="request-qa-001",
+            cycle_ref=cycle.cycle_ref,
+            stage=AcquisitionRuntimeStage.CAMPAIGN,
+            purpose=ApprovalPurpose.ACTION,
+            command=AcquisitionRuntimeStage.CAMPAIGN.command,
+            target_ref="private-target-marker",
+            acquisition_opportunity_id="private-opportunity-marker",
+            action_fingerprint="a" * 64,
+            policy_version=POLICY_VERSION,
+            policy_snapshot_id="policy-snapshot-qa-001",
+            control_revision=1,
+            scope_fingerprint="b" * 64,
+            requested_at=NOW,
+            expires_at=NOW + dt.timedelta(minutes=30),
+        )
+    )
+    return url, store, snapshot
+
+
+def test_operator_lists_only_bounded_pending_approval_metadata(tmp_path, capsys) -> None:
+    url, _store, pending = _pending(tmp_path)
+
+    result = main(
+        [
+            "--database-url",
+            url,
+            "--now",
+            (NOW + dt.timedelta(minutes=1)).isoformat(),
+            "list-runtime-approvals",
+        ]
+    )
+
+    assert result == 0
+    output = capsys.readouterr().out
+    assert "runtime_approvals pending=1" in output
+    assert f"approval_id={pending.approval_id}" in output
+    assert "stage=CAMPAIGN" in output
+    assert "command=schedule_campaign" in output
+    assert "target_ref=private-target-marker" in output
+    assert "policy_snapshot_id=policy-snapshot-qa-001" in output
+    assert "control_revision=1" in output
+    assert f"action_fingerprint={'a' * 64}" in output
+    assert "status=PENDING" in output
+    assert "expires_at=2026-08-25T12:30:00+00:00" in output
+    assert "private-opportunity-marker" not in output
+
+
+def test_operator_expired_pending_rows_never_hide_an_active_approval(
+    tmp_path, capsys
+) -> None:
+    url, store, first_expired = _pending(tmp_path)
+    base = first_expired.binding.model_dump(mode="python")
+    for index in range(100):
+        store.request_approval(
+            RuntimeApprovalBinding.model_validate(
+                {
+                    **base,
+                    "request_ref": f"request-expired-{index:03d}",
+                    "requested_at": NOW - dt.timedelta(hours=2),
+                    "expires_at": NOW - dt.timedelta(hours=1),
+                }
+            )
+        )
+    active = store.request_approval(
+        RuntimeApprovalBinding.model_validate(
+            {
+                **base,
+                "request_ref": "request-active-after-expired-backlog",
+                "requested_at": NOW + dt.timedelta(minutes=30),
+                "expires_at": NOW + dt.timedelta(hours=2),
+            }
+        )
+    )
+
+    result = main(
+        [
+            "--database-url",
+            url,
+            "--now",
+            (NOW + dt.timedelta(hours=1)).isoformat(),
+            "list-runtime-approvals",
+        ]
+    )
+
+    assert result == 0
+    output = capsys.readouterr().out
+    assert "runtime_approvals pending=1" in output
+    assert f"approval_id={active.approval_id}" in output
+    assert f"approval_id={first_expired.approval_id}" not in output
+
+
+def test_operator_approves_one_exact_request_with_an_explicit_actor(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    url, store, pending = _pending(tmp_path)
+    monkeypatch.setenv("KIVOU_DATABASE_URL", url)
+
+    result = main(
+        [
+            "approve-runtime-approval",
+            "--approval-id",
+            pending.approval_id,
+            "--actor-ref",
+            "operator-qa-001",
+        ],
+        clock=lambda: NOW + dt.timedelta(minutes=1),
+    )
+
+    assert result == 0
+    output = capsys.readouterr().out
+    assert output == (
+        f"runtime_approval approval_id={pending.approval_id} stage=CAMPAIGN status=APPROVED\n"
+    )
+    rows = store.list_approvals(status=RuntimeApprovalStatus.APPROVED)
+    assert len(rows) == 1
+    assert rows[0].approved_by_actor_ref == "operator-qa-001"
+
+
+def test_invalid_operator_values_fail_closed_without_reflection(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    url, _store, _pending_snapshot = _pending(tmp_path)
+    marker = "private@example.test"
+    monkeypatch.setenv("KIVOU_DATABASE_URL", url)
+
+    result = main(
+        [
+            "approve-runtime-approval",
+            "--approval-id",
+            marker,
+            "--actor-ref",
+            marker,
+        ],
+        clock=lambda: NOW + dt.timedelta(minutes=1),
+    )
+
+    assert result == 2
+    streams = capsys.readouterr()
+    assert streams.out == ""
+    assert streams.err == "runtime_approval_invalid\n"
+    assert marker not in streams.err
+
+
+def test_approval_mutation_refuses_operator_database_and_clock_authority(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    url, _store, pending = _pending(tmp_path)
+    monkeypatch.setenv("KIVOU_DATABASE_URL", url)
+
+    result = main(
+        [
+            "--database-url",
+            url,
+            "--now",
+            NOW.isoformat(),
+            "approve-runtime-approval",
+            "--approval-id",
+            pending.approval_id,
+            "--actor-ref",
+            "operator-qa-001",
+        ],
+        clock=lambda: NOW,
+    )
+
+    assert result == 2
+    streams = capsys.readouterr()
+    assert streams.out == ""
+    assert streams.err == "runtime_approval_invalid\n"
+    assert url not in streams.err

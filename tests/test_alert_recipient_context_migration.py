@@ -17,6 +17,7 @@ from signals.persistence.database import (
 
 PREVIOUS = "0024_scheduled_plan_change"
 HEAD = "0025_alert_recipient_context"
+LATEST = "0026_acquisition_runtime"
 COLUMN = "recipient_context_fingerprint"
 INDEX = "ix_signal_alert_delivery_recipient_context_refusal"
 NOW = dt.datetime(2026, 8, 25, 10, 0, tzinfo=dt.UTC)
@@ -101,7 +102,7 @@ def history(engine: sa.Engine) -> list[tuple[object, ...]]:
         ]
 
 
-def test_0025_is_the_single_additive_head_and_matches_metadata(tmp_path) -> None:
+def test_0025_is_additive_and_precedes_the_runtime_head(tmp_path) -> None:
     engine = engine_at_previous(tmp_path)
     before = history(engine)
     config = alembic_config(engine)
@@ -109,8 +110,9 @@ def test_0025_is_the_single_additive_head_and_matches_metadata(tmp_path) -> None
     command.upgrade(config, HEAD)
 
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == [LATEST]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
+    assert scripts.get_revision(LATEST).down_revision == HEAD
     assert current_revision(engine) == HEAD
     inspector = sa.inspect(engine)
     columns = {item["name"] for item in inspector.get_columns(signal_alert_delivery.name)}

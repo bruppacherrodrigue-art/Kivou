@@ -16,6 +16,9 @@ ALLOWED_COMMANDS: frozenset[str] = frozenset(
         "reallocate_volume",
         "request_human_review",
         "generate_weekly_report",
+        "resolve_signal_seed",
+        "execute_provider_operations",
+        "reconcile_conversion",
     }
 )
 

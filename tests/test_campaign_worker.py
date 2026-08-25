@@ -168,7 +168,13 @@ class FakeInstantly:
         return {"id": provider_lead_id, "status": 2}
 
 
-def _planned(tmp_path, **provider_options):
+def _planned(
+    tmp_path,
+    *,
+    recipient_override=None,
+    worker_clock=None,
+    **provider_options,
+):
     engine, opportunity_id, _, _ = _prepared(tmp_path)
     PolicyStore(engine).append_control(
         control(
@@ -221,8 +227,102 @@ def _planned(tmp_path, **provider_options):
         campaign_service=service,
         deployment=deployment,
         worker_ref="worker:test",
+        recipient_override=recipient_override,
+        clock=worker_clock,
     )
     return engine, opportunity_id, service, provider, worker, result
+
+
+def test_runtime_worker_refreshes_clock_before_claim_and_policy_checks(tmp_path) -> None:
+    instants = iter(
+        NOW + dt.timedelta(seconds=offset)
+        for offset in range(10, 30)
+    )
+    engine, _, service, _, worker, _ = _planned(
+        tmp_path,
+        worker_clock=lambda: next(instants),
+    )
+    observed: list[dt.datetime] = []
+    original = service.require_provider_mutation
+
+    def capture(*args, captured_at, **kwargs):
+        observed.append(captured_at)
+        return original(*args, captured_at=captured_at, **kwargs)
+
+    service.require_provider_mutation = capture
+    operation_ref = _operation(
+        engine,
+        ProviderOperationKind.CREATE_CAMPAIGN,
+    )["operation_ref"]
+
+    state = worker.process(operation_ref, NOW)
+
+    assert state is ProviderOperationState.CONFIRMED
+    assert observed == [
+        NOW + dt.timedelta(seconds=11),
+        NOW + dt.timedelta(seconds=12),
+    ]
+    with engine.connect() as connection:
+        operation = connection.execute(
+            sa.select(acquisition_provider_operation).where(
+                acquisition_provider_operation.c.operation_ref == operation_ref
+            )
+        ).mappings().one()
+    assert operation["started_at"].replace(tzinfo=dt.UTC) == (
+        NOW + dt.timedelta(seconds=10)
+    )
+    assert operation["confirmed_at"].replace(tzinfo=dt.UTC) > observed[-1]
+
+
+class _ControlledRecipientOverride:
+    def __init__(self) -> None:
+        self.observed: list[str] = []
+        keyring = _keyring()
+        self.transport_key_version = keyring.current_key_version
+        self.transport_recipient_identity = keyring.identities_for_email(
+            "qa-controlled@example.com"
+        )[keyring.current_key_version]
+
+    def resolve(self, discovered_email: str) -> str:
+        self.observed.append(discovered_email)
+        return "qa-controlled@example.com"
+
+
+def test_staging_recipient_override_never_exposes_discovered_address_to_provider(
+    tmp_path,
+) -> None:
+    override = _ControlledRecipientOverride()
+    engine, _, _, provider, worker, _ = _planned(
+        tmp_path,
+        recipient_override=override,
+        add_timeout=True,
+    )
+    worker.process(
+        _operation(engine, ProviderOperationKind.CREATE_CAMPAIGN)["operation_ref"],
+        NOW,
+    )
+    worker.process(
+        _operation(engine, ProviderOperationKind.CONFIGURE_CAMPAIGN)["operation_ref"],
+        NOW,
+    )
+    add_ref = _operation(engine, ProviderOperationKind.ADD_LEAD)["operation_ref"]
+
+    first = worker.process(add_ref, NOW)
+    replay = worker.process(add_ref, NOW + dt.timedelta(seconds=1))
+
+    with engine.connect() as connection:
+        discovered = connection.scalar(sa.select(acquisition_contact.c.business_email))
+        member = connection.execute(sa.select(acquisition_campaign_member)).mappings().one()
+    assert discovered != "qa-controlled@example.com"
+    assert override.observed == [discovered, discovered]
+    assert first is ProviderOperationState.RECONCILE_REQUIRED
+    assert replay is ProviderOperationState.CONFIRMED
+    assert provider.add_calls == 1
+    assert provider.leads[0]["email"] == "qa-controlled@example.com"
+    assert discovered not in repr(provider.leads)
+    assert member["transport_recipient_identity"] == override.transport_recipient_identity
+    assert member["transport_recipient_key_version"] == override.transport_key_version
+    assert "qa-controlled@example.com" not in repr(dict(member))
 
 
 def _operation(engine, kind: ProviderOperationKind):

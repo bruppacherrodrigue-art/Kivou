@@ -23,7 +23,7 @@ from signals.contact_discovery.contracts import (
 from signals.contact_discovery.service import ContactDiscoveryService
 from signals.contact_discovery.store import ContactDiscoveryStore
 from signals.persistence.database import alembic_config, create_database_engine
-from signals.persistence.schema import acquisition_contact
+from signals.persistence.schema import acquisition_contact, policy_evaluation
 from signals.policy.contracts import (
     POLICY_VERSION,
     AutonomyMode,
@@ -73,6 +73,21 @@ class FakeProvider:
         if value is None:
             return None
         return value.model_copy(update={"provider_observed_at": observed_at})
+
+
+class CrashAfterStartedContactStore(ContactDiscoveryStore):
+    """Expose the durable pre-provider crash boundary exercised by the runtime."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._interrupt_once = True
+
+    def start_run(self, start):
+        ownership = super().start_run(start)
+        if self._interrupt_once and ownership.owned:
+            self._interrupt_once = False
+            raise InterruptedError
+        return ownership
 
 
 def _candidate(person_id="person-1", *, title="Sales Director", name="ACME S.A.", position=0):
@@ -228,6 +243,46 @@ def test_existing_run_replay_precedes_actionability_and_calls_no_provider(contex
 
     assert replay.run.contact_discovery_run_id == first.run.contact_discovery_run_id
     assert replay_provider.search_calls == replay_provider.enrich_calls == 0
+
+
+def test_started_run_recovery_reuses_policy_run_and_calls_apollo_once(context) -> None:
+    engine, _, _, opportunity_id = context
+    store = CrashAfterStartedContactStore(engine, clock=TickClock())
+    provider = FakeProvider(_page(_candidate()), [_enriched()])
+    service = ContactDiscoveryService(
+        engine,
+        provider=provider,
+        contact_store=store,
+        clock=TickClock(),
+    )
+
+    with pytest.raises(InterruptedError):
+        _find(service, opportunity_id)
+
+    started = store.get_run("contact-run-1")
+    assert started.status is ContactRunStatus.STARTED
+    assert started.recovery_provider_calls == 0
+    assert provider.search_calls == provider.enrich_calls == 0
+    revalidations: list[str] = []
+
+    recovered = service.resume_started(
+        started.contact_discovery_run_id,
+        authorize_recovery=lambda: revalidations.append("current-policy"),
+    )
+
+    assert recovered is not None
+    assert recovered.run.status is ContactRunStatus.SUCCESS
+    assert recovered.run.contact_discovery_run_id == started.contact_discovery_run_id
+    assert recovered.run.policy_evaluation_id == started.policy_evaluation_id
+    assert recovered.run.recovery_provider_calls == 1
+    assert provider.search_calls == provider.enrich_calls == 1
+    assert revalidations == ["current-policy"]
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(policy_evaluation)
+            .where(policy_evaluation.c.evaluation_id == started.policy_evaluation_id)
+        ) == 1
 
 
 @pytest.mark.parametrize(

@@ -115,6 +115,7 @@ class CompanyResearchStore:
             "planned_provider_credit_units": 1,
             "observed_provider_credit_units": None,
             "provider_calls": 0,
+            "recovery_provider_calls": 0,
             "started_at": start.started_at,
             "completed_at": None,
             "status": CompanyResearchRunStatus.STARTED.value,
@@ -177,6 +178,38 @@ class CompanyResearchStore:
             ):
                 raise CompanyResearchRunAlreadyStarted(by_policy["company_research_run_id"])
             return CompanyResearchRunOwnership(_run(by_policy), owned)
+
+    def claim_recovery(self, run_id: str) -> CompanyResearchRunOwnership:
+        """Claim the single bounded provider replay for an indeterminate run."""
+
+        with self._engine.begin() as connection:
+            claimed = (
+                connection.execute(
+                    sa.update(company_research_run)
+                    .where(
+                        company_research_run.c.company_research_run_id == run_id,
+                        company_research_run.c.status
+                        == CompanyResearchRunStatus.STARTED.value,
+                        company_research_run.c.recovery_provider_calls == 0,
+                    )
+                    .values(recovery_provider_calls=1)
+                    .returning(company_research_run)
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if claimed is not None:
+                return CompanyResearchRunOwnership(_run(claimed), True)
+            row = (
+                connection.execute(
+                    sa.select(company_research_run).where(
+                        company_research_run.c.company_research_run_id == run_id
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            return CompanyResearchRunOwnership(_run(row), False)
 
     @staticmethod
     def _insert_run_if_absent(connection: Connection, values: dict[str, object]) -> bool:

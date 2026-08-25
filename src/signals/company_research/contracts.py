@@ -287,6 +287,7 @@ class CompanyResearchRunRecord(CompanyResearchContract):
     planned_provider_credit_units: Literal[1]
     observed_provider_credit_units: int | None = Field(default=None, ge=0)
     provider_calls: int = Field(ge=0, le=1)
+    recovery_provider_calls: int = Field(ge=0, le=1)
     started_at: dt.datetime
     completed_at: dt.datetime | None = None
     status: CompanyResearchRunStatus
@@ -310,6 +311,7 @@ class CompanyResearchAuthorizationInput(CompanyResearchContract):
     ]
     actor_type: Annotated[str, StringConstraints(pattern=r"^(SYSTEM|HERMES|HUMAN)$")]
     actor_ref: StableRef | None = None
+    qa_signal_ref: StableRef | None = None
     scope: Scope
     proposed_cost: Decimal = Field(ge=0)
     currency: Currency

@@ -110,6 +110,31 @@ def discovery_service(engine, provider) -> SupplierDiscoveryService:
     )
 
 
+class CrashAfterStartedRunStore(SupplierDiscoveryStore):
+    """Model a process death after Policy/run persistence, before Apollo."""
+
+    def __init__(self, engine) -> None:
+        super().__init__(engine)
+        self._armed = True
+
+    def start_run(self, start):
+        ownership = super().start_run(start)
+        if ownership.owned and self._armed:
+            self._armed = False
+            raise InterruptedError
+        return ownership
+
+
+class InterruptingProvider:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def search_page(self, profile, *, page, observed_at):
+        del profile, page, observed_at
+        self.calls += 1
+        raise InterruptedError
+
+
 def authorization(evaluation_id: str = "eval-discovery-1") -> DiscoveryAuthorizationInput:
     return DiscoveryAuthorizationInput(
         evaluation_id=evaluation_id,
@@ -204,6 +229,130 @@ def test_same_policy_evaluation_returns_existing_run_without_second_provider_cal
     )
     assert provider.calls == 1
     assert replay.run == first.run
+
+
+def test_started_run_resumes_same_durable_policy_and_run_without_re_evaluation(
+    engine,
+) -> None:
+    auth = authorization("eval-recover-started")
+    crashing = SupplierDiscoveryService(
+        engine,
+        provider=FakeProvider([page(candidate())]),
+        supplier_store=CrashAfterStartedRunStore(engine),
+        profile_resolver=profile_resolver,
+        clock=lambda: NOW,
+    )
+
+    with pytest.raises(InterruptedError):
+        crashing.discover(
+            "public-1",
+            targeting(),
+            auth,
+            evaluated_at=NOW,
+            budget_usage=BudgetUsage(),
+            discovery_run_id="run-recover-started",
+            correlation_id="corr-recover-started",
+        )
+
+    provider = FakeProvider(
+        [page(candidate(observed_at=NOW + dt.timedelta(hours=2)))]
+    )
+    recovered = SupplierDiscoveryService(
+        engine,
+        provider=provider,
+        profile_resolver=profile_resolver,
+        clock=lambda: NOW + dt.timedelta(hours=2),
+    ).resume_started("run-recover-started", authorize_recovery=lambda: None)
+
+    assert recovered is not None
+    assert recovered.decision.evaluation_id == auth.evaluation_id
+    assert recovered.run is not None
+    assert recovered.run.discovery_run_id == "run-recover-started"
+    assert recovered.run.status is DiscoveryRunStatus.SUCCESS
+    assert recovered.run.recovery_provider_calls == 1
+    assert provider.calls == 1
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 1
+
+
+def test_started_run_revalidates_current_policy_before_claiming_provider_recovery(
+    engine,
+) -> None:
+    crashing = SupplierDiscoveryService(
+        engine,
+        provider=FakeProvider([page(candidate())]),
+        supplier_store=CrashAfterStartedRunStore(engine),
+        profile_resolver=profile_resolver,
+        clock=lambda: NOW,
+    )
+    with pytest.raises(InterruptedError):
+        crashing.discover(
+            "public-1",
+            targeting(),
+            authorization("eval-revalidate-started"),
+            evaluated_at=NOW,
+            budget_usage=BudgetUsage(),
+            discovery_run_id="run-revalidate-started",
+            correlation_id="corr-revalidate-started",
+        )
+
+    provider = FakeProvider([page(candidate())])
+    recovering = SupplierDiscoveryService(
+        engine,
+        provider=provider,
+        profile_resolver=profile_resolver,
+        clock=lambda: NOW,
+    )
+
+    def refuse_current_policy() -> None:
+        raise PermissionError("current policy closed")
+
+    with pytest.raises(PermissionError, match="current policy closed"):
+        recovering.resume_started(
+            "run-revalidate-started",
+            authorize_recovery=refuse_current_policy,
+        )
+
+    started = SupplierDiscoveryStore(engine).get_run("run-revalidate-started")
+    assert started.status is DiscoveryRunStatus.STARTED
+    assert started.recovery_provider_calls == 0
+    assert provider.calls == 0
+
+
+def test_provider_acceptance_ambiguity_allows_one_recovery_but_never_a_third_call(
+    engine,
+) -> None:
+    provider = InterruptingProvider()
+    service = SupplierDiscoveryService(
+        engine,
+        provider=provider,
+        profile_resolver=profile_resolver,
+        clock=lambda: NOW,
+    )
+
+    with pytest.raises(InterruptedError):
+        service.discover(
+            "public-1",
+            targeting(),
+            authorization("eval-ambiguous-started"),
+            evaluated_at=NOW,
+            budget_usage=BudgetUsage(),
+            discovery_run_id="run-ambiguous-started",
+            correlation_id="corr-ambiguous-started",
+        )
+    with pytest.raises(InterruptedError):
+        service.resume_started(
+            "run-ambiguous-started", authorize_recovery=lambda: None
+        )
+
+    replay = service.resume_started(
+        "run-ambiguous-started", authorize_recovery=lambda: None
+    )
+
+    assert replay is not None and replay.run is not None
+    assert replay.run.status is DiscoveryRunStatus.STARTED
+    assert replay.run.recovery_provider_calls == 1
+    assert provider.calls == 2
 
 
 def test_discovery_run_id_collision_never_calls_provider_for_second_policy(engine) -> None:

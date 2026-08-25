@@ -7,7 +7,7 @@ import hashlib
 import hmac
 import json
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal
@@ -339,7 +339,7 @@ class ResponseFinalization(ResponseContract):
 @dataclass(frozen=True)
 class ContentFingerprintKeyring:
     current_key_version: str
-    keys: dict[str, bytes]
+    keys: dict[str, bytes] = field(repr=False)
 
     def __post_init__(self) -> None:
         if self.current_key_version not in self.keys or not self.keys[self.current_key_version]:

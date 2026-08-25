@@ -390,16 +390,25 @@ webhooks exacts et le préfixe `^~ /a/`. Elle ne relaie aucun `/internal/*` et n
 contient aucun catch-all backend : une nouvelle route FastAPI exige une revue de
 `tests/test_ops_nginx_routes.py` et du gabarit avant de devenir publique.
 
-Les six variables `KIVOU_INSTANTLY_WEBHOOK_SECRET`,
+Les dix variables requises `KIVOU_INSTANTLY_WEBHOOK_SECRET`,
 `KIVOU_INSTANTLY_WORKSPACE_REF`, `KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY`,
 `KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION`,
-`KIVOU_SUPPRESSION_IDENTITY_KEY` et `KIVOU_SUPPRESSION_IDENTITY_KEY_VERSION`
-décrites dans `.env.example` sont un groupe atomique. Toutes absentes, le
-webhook répond 503 ; partiellement présentes, l'API refuse de démarrer sans
-imprimer leurs valeurs. Avant de remplacer une version de clé déjà utilisée,
-vérifier les versions référencées dans les événements et suppressions durables.
-Le câblage actuel ne retient qu'une version : une rotation exige d'abord un
-keyring de déploiement capable de conserver les anciennes clés.
+`KIVOU_SUPPRESSION_HMAC_KEY`, `KIVOU_SUPPRESSION_HMAC_KEY_VERSION`,
+`KIVOU_RESPONSE_SOURCE_HMAC_KEY`, `KIVOU_RESPONSE_SOURCE_HMAC_KEY_VERSION`,
+`KIVOU_RESPONSE_CONTENT_HMAC_KEY` et
+`KIVOU_RESPONSE_CONTENT_HMAC_KEY_VERSION` décrites dans `.env.example` forment
+un groupe atomique. Toutes absentes, le webhook répond 503 ; partiellement
+présentes, l'API refuse de démarrer sans imprimer leurs valeurs.
+
+Les quatre variables facultatives de rétention
+`KIVOU_INSTANTLY_WEBHOOK_RETAINED_FINGERPRINT_KEYS_JSON`,
+`KIVOU_SUPPRESSION_RETAINED_KEYS_JSON`,
+`KIVOU_RESPONSE_SOURCE_RETAINED_KEYS_JSON` et
+`KIVOU_RESPONSE_CONTENT_RETAINED_KEYS_JSON` portent des objets JSON bornés à
+huit versions par keyring, clé courante comprise. Avant de remplacer une
+version déjà référencée par des événements ou suppressions durables, conserver
+son secret dans le keyring correspondant ; la rotation ne réinterprète jamais
+l'historique avec une nouvelle clé.
 
 ### Préparer et valider le candidat
 

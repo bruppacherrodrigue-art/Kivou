@@ -130,11 +130,43 @@ def grant(purpose: ApprovalPurpose, req: PolicyRequest, snap: PolicySnapshot) ->
     )
 
 
+@pytest.mark.parametrize(
+    "request_ref",
+    (None, "procurement-opportunity:other-signal"),
+)
+def test_qa_signal_authority_fails_closed_when_request_is_absent_or_different(
+    request_ref: str | None,
+) -> None:
+    expected = "procurement-opportunity:qa-signal-001"
+
+    decision = evaluate_policy(
+        request(qa_signal_ref=request_ref),
+        snapshot(qa_signal_ref=expected),
+        NOW,
+    )
+
+    assert decision.status is PolicyStatus.DENIED
+    assert decision.executable is False
+    assert "qa_signal_scope_mismatch" in decision.reason_codes
+
+
+def test_qa_signal_authority_accepts_only_the_exact_bound_request() -> None:
+    expected = "procurement-opportunity:qa-signal-001"
+
+    decision = evaluate_policy(
+        request(qa_signal_ref=expected),
+        snapshot(qa_signal_ref=expected),
+        NOW,
+    )
+
+    assert "qa_signal_scope_mismatch" not in decision.reason_codes
+
+
 def test_registry_covers_all_supervisor_commands_without_callables() -> None:
     assert set(COMMAND_POLICIES) == set(ALLOWED_COMMANDS)
     assert {
         command for command, profile in COMMAND_POLICIES.items() if profile.requires_compliance
-    } == {"schedule_campaign"}
+    } == {"execute_provider_operations", "schedule_campaign"}
     assert all(
         not callable(value)
         for profile in COMMAND_POLICIES.values()

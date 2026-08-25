@@ -435,6 +435,7 @@ class ComplianceService:
             expected_opportunity_version=expected_version,
             actor_type=authorization.actor_type,
             actor_ref=authorization.actor_ref,
+            qa_signal_ref=authorization.qa_signal_ref,
             canonical_arguments=_canonical(
                 {
                     "compliance_input_fingerprint": values["input_fingerprint"],
@@ -667,6 +668,7 @@ class ComplianceService:
             expected_opportunity_version=expected_version,
             actor_type=authorization.actor_type,
             actor_ref=authorization.actor_ref,
+            qa_signal_ref=authorization.qa_signal_ref,
             canonical_arguments=_canonical(
                 {
                     "compliance_input_fingerprint": existing["input_fingerprint"],
