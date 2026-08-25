@@ -21,6 +21,12 @@ from signals.connectors.simap.client import AWARD_PUB_TYPE_FILTERS
 from signals.connectors.ted import TedClient
 from signals.connectors.ted import extract as extract_ted
 from signals.ingestion.model import SourceName
+from signals.ingestion.ted_convergence import (
+    TedCycleCursor,
+    advance_ted_notice,
+    current_ted_publication_number,
+    record_ted_search_page,
+)
 
 OVERLAP_DAYS: dict[SourceName, int] = {
     "simap": 3,
@@ -81,6 +87,12 @@ class DecpAcquisitionBatch:
     reset: bool
 
 
+@dataclasses.dataclass(frozen=True)
+class TedAcquisitionUnit:
+    acquisition: AcquisitionResult
+    cursor_after: TedCycleCursor
+
+
 class AcquisitionFailure(RuntimeError):
     """A source failure carrying acquisition progress for durable audit."""
 
@@ -96,6 +108,18 @@ class AcquisitionFailure(RuntimeError):
     @property
     def status_code(self) -> Any:
         return getattr(self.cause, "status_code", None)
+
+
+class TedAcquisitionFailure(AcquisitionFailure):
+    def __init__(
+        self,
+        cause: Exception,
+        *,
+        partial: AcquisitionResult,
+        cursor_after: TedCycleCursor,
+    ) -> None:
+        super().__init__(cause, partial=partial)
+        self.cursor_after = cursor_after
 
 
 class ProductionSource(Protocol):
@@ -418,6 +442,80 @@ class TedSource:
         self.page_size = page_size
         self.max_pages = max_pages
 
+    @staticmethod
+    def _query(window: SourceWindow) -> str:
+        return (
+            "form-type=result "
+            f"AND publication-date>={window.since.strftime('%Y%m%d')} "
+            f"AND publication-date<={window.until.strftime('%Y%m%d')} "
+            "SORT BY publication-number DESC"
+        )
+
+    @staticmethod
+    def _unit_result(
+        *,
+        publications: tuple[AcquiredPublication, ...] = (),
+        fetched: int,
+        cursor_after: TedCycleCursor,
+    ) -> AcquisitionResult:
+        return AcquisitionResult(
+            source="ted",
+            publications=publications,
+            fetched=fetched,
+            accepted=len(publications),
+            rejected=0,
+            complete=cursor_after.complete,
+            cursor_after=cursor_after.as_dict(),
+        )
+
+    def acquire_unit(
+        self,
+        cursor: TedCycleCursor,
+        *,
+        retrieved_at: dt.datetime,
+    ) -> TedAcquisitionUnit:
+        try:
+            publication_number = current_ted_publication_number(cursor)
+            if publication_number is None:
+                rows, total = self.client.search(
+                    self._query(SourceWindow(cursor.cycle_since, cursor.cycle_until)),
+                    limit=cursor.page_size,
+                    page=cursor.page,
+                )
+                next_cursor = record_ted_search_page(
+                    cursor,
+                    publication_numbers=tuple(row.publication_number for row in rows),
+                    total=total,
+                )
+                return TedAcquisitionUnit(
+                    acquisition=self._unit_result(
+                        fetched=len(rows),
+                        cursor_after=next_cursor,
+                    ),
+                    cursor_after=next_cursor,
+                )
+
+            extraction = extract_ted(
+                self.client.fetch_notice_xml(publication_number),
+                retrieved_at=retrieved_at,
+            )
+            publication = AcquiredPublication(extraction.event, extraction.awards)
+            next_cursor = advance_ted_notice(cursor)
+            return TedAcquisitionUnit(
+                acquisition=self._unit_result(
+                    publications=(publication,),
+                    fetched=0,
+                    cursor_after=next_cursor,
+                ),
+                cursor_after=next_cursor,
+            )
+        except Exception as error:
+            raise TedAcquisitionFailure(
+                error,
+                partial=self._unit_result(fetched=0, cursor_after=cursor),
+                cursor_after=cursor,
+            ) from error
+
     def acquire(
         self,
         window: SourceWindow,
@@ -425,12 +523,7 @@ class TedSource:
         retrieved_at: dt.datetime,
         max_records: int | None = None,
     ) -> AcquisitionResult:
-        query = (
-            "form-type=result "
-            f"AND publication-date>={window.since.strftime('%Y%m%d')} "
-            f"AND publication-date<={window.until.strftime('%Y%m%d')} "
-            "SORT BY publication-number DESC"
-        )
+        query = self._query(window)
         refs = []
         publications: list[AcquiredPublication] = []
         complete = True
@@ -486,10 +579,21 @@ class TedSource:
         )
 
 
-def production_sources() -> dict[SourceName, ProductionSource]:
+def production_sources(
+    *,
+    ted_request_interval_seconds: float = 1.0,
+    ted_max_attempts: int = 4,
+    ted_max_retry_seconds: float = 120.0,
+) -> dict[SourceName, ProductionSource]:
     return {
         "simap": SimapSource(SimapClient()),
         "boamp": BoampSource(BoampClient()),
         "decp": DecpSource(DecpClient()),
-        "ted": TedSource(TedClient()),
+        "ted": TedSource(
+            TedClient(
+                request_interval_seconds=ted_request_interval_seconds,
+                max_attempts=ted_max_attempts,
+                max_retry_seconds=ted_max_retry_seconds,
+            )
+        ),
     }

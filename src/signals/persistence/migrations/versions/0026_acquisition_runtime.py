@@ -1,11 +1,7 @@
 """Add the bounded acquisition runtime and QA transport identity binding.
 
 Revision ID: 0026_acquisition_runtime
-Revises: 0024_scheduled_plan_change
-
-The temporary parent is the current branch head. Before publication this
-migration is rebased logically onto the transactional-delivery migration so
-the deployed Alembic history remains strictly linear.
+Revises: 0025_alert_recipient_context
 """
 
 from __future__ import annotations
@@ -14,7 +10,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0026_acquisition_runtime"
-down_revision = "0024_scheduled_plan_change"
+down_revision = "0025_alert_recipient_context"
 branch_labels = None
 depends_on = None
 

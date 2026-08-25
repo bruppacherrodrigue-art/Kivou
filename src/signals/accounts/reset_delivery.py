@@ -26,15 +26,13 @@ voir la note sur l'énumération de comptes plus bas.
 from __future__ import annotations
 
 import datetime as dt
-import logging
 from email.utils import make_msgid
 from typing import Protocol
 from urllib.parse import urlsplit
 
 from signals.alerts.gateway import AlertDeliveryError, AlertDeliveryGateway, AlertMessage
+from signals.runtime_events import emit_delivery_event
 from signals.transactional_email.links import reset_url as reset_link
-
-LOGGER = logging.getLogger("signals.accounts.reset_delivery")
 
 RESET_COPY_VERSION = "kivou-reset-copy-v0.1"
 
@@ -201,6 +199,26 @@ class SmtpPasswordResetDelivery:
         try:
             self._gateway.send(message)
         except AlertDeliveryError as error:
-            LOGGER.warning("remise du lien de réinitialisation échouée : %s", error.code)
+            emit_delivery_event(
+                channel="password_reset",
+                status="failed",
+                code=error.code,
+                retryable=error.retryable,
+                attempt=1,
+            )
         except Exception:  # noqa: BLE001 — voir la note de classe
-            LOGGER.warning("remise du lien de réinitialisation échouée : unexpected_error")
+            emit_delivery_event(
+                channel="password_reset",
+                status="failed",
+                code="unexpected_error",
+                retryable=False,
+                attempt=1,
+            )
+        else:
+            emit_delivery_event(
+                channel="password_reset",
+                status="submitted",
+                code="smtp_submission_accepted",
+                retryable=False,
+                attempt=1,
+            )

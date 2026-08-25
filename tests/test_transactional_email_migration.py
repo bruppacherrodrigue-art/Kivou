@@ -21,7 +21,7 @@ PREVIOUS = "0022_saas_company_profile"
 #: La migration que CE fichier décrit. Elle n'est plus la tête depuis 0024,
 #: mais reste un pas ADDITIF unique depuis son parent — ce que ce test prouve.
 HEAD = "0023_transactional_email_runtime"
-CURRENT_HEAD = "0024_scheduled_plan_change"
+CURRENT_HEAD = "0026_acquisition_runtime"
 LEASE_TABLE = "signal_alert_job_lease"
 NOW = dt.datetime(2026, 8, 23, 10, 0, tzinfo=dt.UTC)
 
@@ -76,7 +76,12 @@ def seeded_previous_schema(
 
 def read_delivery(engine):
     with engine.connect() as connection:
-        return connection.execute(sa.select(signal_alert_delivery)).one()
+        columns_at_0023 = tuple(
+            column
+            for column in signal_alert_delivery.c
+            if column.name != "recipient_context_fingerprint"
+        )
+        return connection.execute(sa.select(*columns_at_0023)).one()
 
 
 def read_status(engine) -> str:
@@ -117,6 +122,8 @@ def test_migrated_schema_matches_declared_delivery_runtime_schema(tmp_path) -> N
         declared_columns = {
             column["name"] for column in sa.inspect(core).get_columns(table_name)
         }
+        if table_name == signal_alert_delivery.name:
+            declared_columns.remove("recipient_context_fingerprint")
         assert migrated_columns == declared_columns
 
     checks = sa.inspect(migrated).get_check_constraints(signal_alert_delivery.name)

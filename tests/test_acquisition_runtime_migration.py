@@ -22,7 +22,7 @@ from signals.persistence.schema import (
     acquisition_runtime_stage_attempt,
 )
 
-PREVIOUS = "0024_scheduled_plan_change"
+PREVIOUS = "0025_alert_recipient_context"
 HEAD = "0026_acquisition_runtime"
 RUNTIME_TABLES = {
     acquisition_runtime_approval.name,

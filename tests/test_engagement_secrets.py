@@ -109,6 +109,10 @@ def test_the_delivery_table_stores_no_credential_and_no_address():
     from signals.engagement.schema import signal_alert_delivery
 
     columns = {column.name for column in signal_alert_delivery.columns}
+    context = signal_alert_delivery.c.recipient_context_fingerprint
+    assert context.type.length == 64
+    assert context.name.endswith("_fingerprint")
+    columns.remove(context.name)
     for forbidden in ("password", "credential", "smtp", "recipient", "email", "trace", "stack"):
         assert not any(forbidden in name for name in columns), forbidden
     assert "last_error_code" in columns
@@ -131,6 +135,10 @@ def test_the_transactional_runtime_tables_store_no_private_mail_data():
     )
     for table in (signal_alert_delivery, signal_alert_job_lease):
         columns = {column.name for column in table.columns}
+        if table is signal_alert_delivery:
+            # Hash only: the address and the inputs used to bind eligibility
+            # remain outside this table and outside operational logs.
+            columns.remove("recipient_context_fingerprint")
         for marker in forbidden:
             assert not any(marker in name for name in columns), (table.name, marker)
 

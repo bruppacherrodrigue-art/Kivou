@@ -48,6 +48,7 @@ from signals.campaigns.runtime_webhook import (
     load_instantly_webhook_runtime_config,
 )
 from signals.persistence.database import create_database_engine
+from signals.runtime_events import configure_runtime_event_logging
 
 
 def build_application() -> FastAPI:
@@ -58,6 +59,7 @@ def build_application() -> FastAPI:
     cette vérification, la première requête après la coupure échoue chez un
     client plutôt que d'être remplacée en silence.
     """
+    configure_runtime_event_logging()
     config = ApiConfig.from_environment()
     webhook_configuration = load_instantly_webhook_runtime_config(required=False)
     engine = create_database_engine(pool_pre_ping=True)

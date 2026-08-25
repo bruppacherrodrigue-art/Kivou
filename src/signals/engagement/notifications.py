@@ -120,15 +120,27 @@ def update_preference(
     """Change ce que le client demande, et rien d'autre."""
     # L'appel initialise la préférence si elle n'existe pas encore : on ne met
     # pas à jour une ligne absente.
-    preference(connection, account_id=account_id, now=now)
-    values: dict[str, object] = {"updated_at": now}
-    if email_enabled is not None:
-        values["email_enabled"] = email_enabled
-    if notification_email is not None:
-        values["notification_email"] = validate_email(notification_email)
+    current = preference(connection, account_id=account_id, now=now)
+    requested_enabled = (
+        current.email_enabled if email_enabled is None else email_enabled
+    )
+    requested_email = (
+        current.notification_email
+        if notification_email is None
+        else validate_email(notification_email)
+    )
+    if (
+        requested_enabled == current.email_enabled
+        and requested_email == current.notification_email
+    ):
+        return current
     connection.execute(
         sa.update(account_notification_preference)
         .where(account_notification_preference.c.account_id == account_id)
-        .values(**values)
+        .values(
+            email_enabled=requested_enabled,
+            notification_email=requested_email,
+            updated_at=now,
+        )
     )
     return preference(connection, account_id=account_id, now=now)
