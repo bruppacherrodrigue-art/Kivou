@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import datetime as dt
 
+import sqlalchemy as sa
+
 from signals.ingestion.model import IngestionCounters
 from signals.ingestion.state import (
     advance_checkpoint,
@@ -9,9 +11,11 @@ from signals.ingestion.state import (
     finish_run,
     load_checkpoint,
     load_run,
+    reconcile_stale_runs,
     start_run,
 )
 from signals.persistence.database import create_database_engine, migrate_to_latest
+from signals.persistence.schema import ingestion_run, source_event
 
 UTC = dt.UTC
 
@@ -154,3 +158,91 @@ def test_starting_again_reads_the_durable_success_window(tmp_path):
     assert restarted.window_end == completed
     assert restarted.last_started_at == completed + dt.timedelta(hours=1)
     assert restarted.status == "running"
+
+
+def test_stale_running_rows_are_terminalized_without_deleting_audit_or_business_rows(
+    tmp_path,
+):
+    engine = _engine(tmp_path)
+    now = dt.datetime(2026, 8, 25, 9, tzinfo=UTC)
+    stale_started = now - dt.timedelta(hours=2)
+    recent_started = now - dt.timedelta(minutes=5)
+    completed_started = now - dt.timedelta(days=1)
+
+    with engine.begin() as connection:
+        connection.execute(
+            source_event.insert().values(
+                event_key="decp:retained-business-row:v1",
+                source_system="decp",
+                source_notice_id="retained-business-row",
+                notice_version="v1",
+                source_country="FR",
+                source_procedure_id=None,
+                source_url=None,
+                event_type="award",
+                published_at_raw="2026-08-24",
+                published_on=dt.date(2026, 8, 24),
+                published_precision="day",
+                discovered_at=completed_started,
+                procedure_buyers=[],
+                created_at=completed_started,
+            )
+        )
+        stale_id = start_run(
+            connection,
+            source="decp",
+            started_at=stale_started,
+            dry_run=False,
+            run_id="stale-decp",
+        )
+        recent_id = start_run(
+            connection,
+            source="decp",
+            started_at=recent_started,
+            dry_run=False,
+            run_id="recent-decp",
+        )
+        completed_id = start_run(
+            connection,
+            source="decp",
+            started_at=completed_started,
+            dry_run=False,
+            run_id="completed-decp",
+        )
+        finish_run(
+            connection,
+            run_id=completed_id,
+            finished_at=completed_started + dt.timedelta(minutes=1),
+            status="success",
+            counters=IngestionCounters(records_fetched=3),
+        )
+
+        reconciled = reconcile_stale_runs(
+            connection,
+            source="decp",
+            stale_before=now - dt.timedelta(hours=1),
+            reconciled_at=now,
+        )
+
+    with engine.connect() as connection:
+        stale = load_run(connection, run_id=stale_id)
+        recent = load_run(connection, run_id=recent_id)
+        completed = load_run(connection, run_id=completed_id)
+        run_count = connection.execute(
+            sa.select(sa.func.count()).select_from(ingestion_run)
+        ).scalar_one()
+        event_count = connection.execute(
+            sa.select(sa.func.count()).select_from(source_event)
+        ).scalar_one()
+
+    assert reconciled == 1
+    assert stale.status == "failed"
+    assert stale.finished_at == now
+    assert stale.error_category == "stale_run_reconciled"
+    assert stale.error_message is None
+    assert recent.status == "running"
+    assert recent.finished_at is None
+    assert completed.status == "success"
+    assert completed.records_fetched == 3
+    assert run_count == 3
+    assert event_count == 1

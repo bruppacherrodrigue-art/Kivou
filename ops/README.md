@@ -2,8 +2,8 @@
 
 Ce dossier ne contient que ce qui doit être **versionné pour être reproductible**.
 Aujourd'hui : la sauvegarde PostgreSQL (RTL-03 / #39), le runtime des alertes
-transactionnelles (RTL-05) et l'outillage de rotation expurgée des secrets de
-staging (#81).
+transactionnelles (RTL-05), l'ingestion DECP bornée (#77) et l'outillage de
+rotation expurgée des secrets de staging (#81).
 
 > Un service systemd qui appelle un fichier absent de la branche déployable
 > échoue au premier déploiement propre. C'est exactement ce qu'a révélé #39 :
@@ -155,6 +155,78 @@ migration `0023` n'est exécuté que si la procédure de release le décide
 explicitement ; il conserve l'historique antérieur des livraisons. Si aucun
 timer antérieur n'existait, les deux commandes `cp` sont omises et les unités
 restent simplement désactivées.
+
+## Ingestion DECP bornée (#77)
+
+`kivou-ingest-decp.service` traite DECP par lots bornés à l'intérieur de journées
+calendaires. Le curseur versionné conserve le jour, le total observé et l'offset intra-journée
+dans `ingestion_checkpoint` après chaque lot persisté. Lorsque le
+jour est épuisé, le curseur avance au lendemain avec un offset nul. Un quota ou
+le budget de vingt minutes termine le passage avec succès et laisse explicitement
+du travail pour le prochain déclenchement. Une variation du total fournisseur
+réinitialise le jour à l'offset zéro ; le rejeu reste idempotent. Une mutation
+pendant un lot échoue en mode fermé sans avancer le curseur. Avant chaque démarrage,
+les anciennes lignes
+`running` sont fermées avec le code machine `stale_run_reconciled`, sans effacer
+les faits publics, les rapprochements ni les signaux déjà produits.
+
+Les limites viennent de `/etc/kivou/staging.env` :
+`KIVOU_DECP_MAX_WINDOWS_PER_RUN`, `KIVOU_DECP_BATCH_SIZE`,
+`KIVOU_DECP_TIME_BUDGET_SECONDS`,
+`KIVOU_DECP_OVERLAP_DAYS` et `KIVOU_INGESTION_STALE_RUN_SECONDS`. Elles doivent
+toutes être des entiers strictement positifs. Le verrou hôte vit dans
+`/run/kivou`, créé par `RuntimeDirectory`; une contention normale est un succès
+sans seconde exécution. `MAX_WINDOWS` reste le quota strict de journées
+finalisées ; les lots d'une même journée ne le consomment pas. Le timer est
+horaire et utilise `Persistent=true` ; chaque déclenchement reprend exactement
+l'offset durable du précédent passage.
+
+### Installation et passage manuel
+
+```bash
+sudo install -o root -g root -m 644 \
+  ops/systemd/kivou-ingest-decp.service \
+  ops/systemd/kivou-ingest-decp.timer \
+  /etc/systemd/system/
+sudo systemd-analyze verify \
+  /etc/systemd/system/kivou-ingest-decp.service \
+  /etc/systemd/system/kivou-ingest-decp.timer
+sudo systemctl daemon-reload
+sudo systemctl start kivou-ingest-decp.service
+sudo systemctl status kivou-ingest-decp.service --no-pager
+sudo systemctl enable --now kivou-ingest-decp.timer
+systemctl list-timers kivou-ingest-decp.timer --no-pager
+```
+
+Après deux déclenchements, vérifier le curseur, les statuts et les durées sans
+afficher de donnée client ni de secret :
+
+```sql
+SELECT source, cursor, window_end, status, last_completed_at
+FROM ingestion_checkpoint WHERE source = 'decp';
+SELECT status, error_category, count(*)
+FROM ingestion_run WHERE source = 'decp'
+GROUP BY status, error_category ORDER BY status, error_category;
+```
+
+Le journal attendu contient une ligne synthétique `source=decp`, des compteurs,
+`status`, `pending` et `duration`; il ne contient aucun payload fournisseur.
+
+### Rollback
+
+```bash
+sudo systemctl disable --now kivou-ingest-decp.timer
+sudo systemctl stop kivou-ingest-decp.service
+sudo install -o root -g root -m 644 \
+  /chemin/rollback/kivou-ingest-decp.service \
+  /chemin/rollback/kivou-ingest-decp.timer \
+  /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl reset-failed kivou-ingest-decp.service
+```
+
+Restaurer ensuite le SHA applicatif précédent. Ce correctif ne crée aucune
+migration et son rollback ne modifie aucune donnée métier.
 
 ## Hygiène des secrets de staging (#81)
 
