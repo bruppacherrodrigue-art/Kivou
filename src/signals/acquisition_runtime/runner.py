@@ -276,6 +276,14 @@ class AcquisitionRuntimeRunner:
             allow_qa_provider_mutations=request.allow_qa_provider_mutations,
             at=at,
         )
+        if result.observed_cost > remaining_cost:
+            return result.model_copy(
+                update={
+                    "status": RuntimeStageStatus.FAILED,
+                    "reserved_cost": proposal.estimated_cost,
+                    "reason_codes": ("OBSERVED_CYCLE_COST_EXCEEDED",),
+                }
+            )
         return result.model_copy(
             update={"reserved_cost": proposal.estimated_cost}
         )

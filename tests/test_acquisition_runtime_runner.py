@@ -284,6 +284,36 @@ def test_success_reserves_the_greater_of_estimated_and_observed_cycle_cost() -> 
     assert runner.registry.calls == [(first, first.command, False)]
 
 
+def test_observed_cost_overrun_is_a_current_execution_failure() -> None:
+    stage = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
+    store = FakeStore(
+        cycle=DEFAULT_CYCLE.model_copy(update={"next_stage": stage})
+    )
+    runner = _runner(
+        store,
+        outcomes={
+            stage: RuntimeActionResult(
+                status=RuntimeStageStatus.SUCCEEDED,
+                observed_cost=Decimal("5.01"),
+            )
+        },
+        proposals={stage: _proposal(stage, cost=Decimal("1"))},
+        maximum_cost="5",
+    )
+
+    result = runner.run_once(_request())
+
+    assert result.status is RuntimeRunStatus.FAILED
+    assert result.reason_code == "OBSERVED_CYCLE_COST_EXCEEDED"
+    assert (
+        "finish",
+        "cycle-001",
+        stage,
+        RuntimeStageStatus.FAILED,
+        NOW,
+    ) in store.events
+
+
 def test_current_execution_failure_is_nonzero_but_history_is_not_replayed() -> None:
     stage = AcquisitionRuntimeStage.COMPANY_RESEARCH
     store = FakeStore(
