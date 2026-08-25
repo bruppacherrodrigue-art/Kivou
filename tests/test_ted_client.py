@@ -304,6 +304,36 @@ def test_retry_does_not_sleep_past_the_total_duration_bound() -> None:
     assert clock.sleeps == []
 
 
+def test_retry_deadline_bounds_the_http_attempt_itself() -> None:
+    clock = FakeTime()
+    timeouts: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        timeout = request.extensions["timeout"]["read"]
+        timeouts.append(timeout)
+        clock.elapsed += min(10.0, timeout)
+        raise httpx.ReadTimeout("simulated slow response", request=request)
+
+    with (
+        client_with(
+            handler,
+            timeout=30,
+            request_interval_seconds=0,
+            max_attempts=4,
+            max_retry_seconds=5,
+            sleep=clock.sleep,
+            monotonic=clock.monotonic,
+            wall_clock=clock.now,
+        ) as client,
+        pytest.raises(TedHttpError) as raised,
+    ):
+        client.search("form-type=result")
+
+    assert raised.value.category == "timeout"
+    assert timeouts == [5.0]
+    assert clock.elapsed == 5.0
+
+
 def test_transient_network_failure_retries_then_recovers() -> None:
     clock = FakeTime()
     attempts = 0

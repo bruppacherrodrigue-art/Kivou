@@ -101,6 +101,7 @@ class TedClient:
         self._client = client or httpx.Client(
             timeout=timeout, headers=self._headers, follow_redirects=True
         )
+        self._request_timeout_seconds = timeout
         self._request_interval_seconds = request_interval_seconds
         self._max_attempts = max_attempts
         self._max_retry_seconds = max_retry_seconds
@@ -187,11 +188,19 @@ class TedClient:
                 response: httpx.Response | None = None
                 cause: httpx.HTTPError | None = None
                 try:
+                    remaining_seconds = deadline - self._monotonic()
+                    if remaining_seconds <= 0:
+                        raise TedHttpError(
+                            "requête TED interrompue par la durée maximale",
+                            url=url,
+                            category="timeout",
+                        )
                     response = self._client.request(
                         method,
                         url,
                         headers=headers,
                         json=json,
+                        timeout=min(self._request_timeout_seconds, remaining_seconds),
                     )
                 except httpx.HTTPError as error:
                     cause = error

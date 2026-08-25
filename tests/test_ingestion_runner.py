@@ -10,7 +10,7 @@ import sqlalchemy as sa
 from feed_helpers import LINKED_BOAMP, LINKED_DECP
 
 from signals.connectors.decp import DecpBatch, DecpClient, DecpWindowLimitError
-from signals.connectors.ted import NoticeRef
+from signals.connectors.ted import NoticeRef, TedClient
 from signals.connectors.ted.errors import TedHttpError
 from signals.ingestion.pipeline import IngestionPipeline, PipelineFailure, PipelineResult
 from signals.ingestion.runner import IngestionRunner, RunOptions
@@ -181,6 +181,38 @@ def test_dry_run_normalizes_without_writing_runtime_or_business_state(tmp_path):
             connection.execute(sa.select(sa.func.count()).select_from(ingestion_checkpoint)).scalar()
             == 0
         )
+
+
+def test_ted_dry_run_does_not_multiply_the_client_retry_budget(tmp_path):
+    engine = _engine(tmp_path)
+    attempts = 0
+
+    def handler(_: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        return httpx.Response(503)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as http_client:
+        source = TedSource(
+            TedClient(
+                client=http_client,
+                request_interval_seconds=0,
+                max_attempts=4,
+                max_retry_seconds=30,
+                sleep=lambda _: None,
+            )
+        )
+        result = IngestionRunner(
+            engine,
+            sources={"ted": source},
+            pipeline=PipelineStub(),
+            clock=lambda: NOW,
+            sleep=lambda _: None,
+        ).run(RunOptions(sources=("ted",), max_records=1, dry_run=True))
+
+    assert attempts == 4
+    assert result.exit_code == 1
+    assert result.outcomes[0].error_category == "server_error"
 
 
 def test_the_runner_never_imports_or_invokes_the_alert_job():

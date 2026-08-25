@@ -168,7 +168,8 @@ class IngestionRunner:
         *,
         should_stop: Callable[[], None] | None = None,
     ):
-        for attempt in range(3):
+        max_attempts = 1 if source.source == "ted" and options.dry_run else 3
+        for attempt in range(max_attempts):
             try:
                 self._check_cancellation()
                 arguments = {
@@ -182,7 +183,10 @@ class IngestionRunner:
             # failure into one failed source outcome while the other sources run.
             except Exception as error:
                 category = _category(error)
-                if category not in {"timeout", "network", "server_error"} or attempt == 2:
+                if (
+                    category not in {"timeout", "network", "server_error"}
+                    or attempt == max_attempts - 1
+                ):
                     raise
                 self.sleep(float(2**attempt))
         raise AssertionError("bounded retry loop exhausted")  # pragma: no cover
