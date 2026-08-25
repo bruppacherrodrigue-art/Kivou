@@ -169,6 +169,31 @@ def test_instantly_identity_fields_are_bounded_without_echo(
     assert supplied not in rendered
 
 
+@pytest.mark.parametrize(
+    ("name", "supplied"),
+    (
+        ("KIVOU_INSTANTLY_WORKSPACE_REF", " workspace:test "),
+        ("KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION", " webhook-key-v1 "),
+        ("KIVOU_SUPPRESSION_IDENTITY_KEY_VERSION", " suppression-key-v1 "),
+    ),
+)
+def test_instantly_identity_fields_reject_ambiguous_whitespace_without_echo(
+    base_environment,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    supplied: str,
+) -> None:
+    _configure_instantly(monkeypatch)
+    monkeypatch.setenv(name, supplied)
+
+    with pytest.raises(ValueError) as captured:
+        ApiConfig.from_environment()
+
+    rendered = str(captured.value)
+    assert name in rendered
+    assert supplied not in rendered
+
+
 # ─── l'import reste inerte ────────────────────────────────────────────────────
 
 

@@ -383,6 +383,8 @@ def _instantly_webhook_environment() -> tuple[
         (INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION_ENV, fingerprint_version, 64),
         (SUPPRESSION_IDENTITY_KEY_VERSION_ENV, suppression_version, 64),
     ):
+        if value != value.strip():
+            raise ValueError(f"{name} ne doit pas contenir d'espaces périphériques")
         if len(value) > maximum:
             raise ValueError(f"{name} dépasse la longueur maximale autorisée")
     return (
