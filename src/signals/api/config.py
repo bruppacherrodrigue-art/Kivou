@@ -13,6 +13,10 @@ import os
 import re
 from urllib.parse import urlsplit
 
+from signals.campaigns.runtime_webhook import (
+    load_instantly_webhook_runtime_config,
+)
+
 SESSION_COOKIE_NAME = "kivou_session"
 ATTRIBUTION_COOKIE_NAME = "kivou_attribution"
 
@@ -274,6 +278,12 @@ class ApiConfig:
         if attribution_key_raw is not None and len(attribution_key_raw.encode()) < 16:
             raise ValueError(f"{ATTRIBUTION_HMAC_KEY_ENV} est trop courte")
         instantly = _instantly_webhook_environment()
+        # ApiConfig owns the route authentication values, while the shared
+        # webhook runtime owns the complete cryptographic bundle. Validate both
+        # boundaries before the ASGI entry point opens its database so a legacy
+        # six-field deployment can never report itself as configured and then
+        # fail later during service composition.
+        load_instantly_webhook_runtime_config(required=False)
         acquisition_environment = resolve_acquisition_environment()
         return cls(
             session_ttl=_duration(SESSION_TTL_ENV, DEFAULT_SESSION_TTL),

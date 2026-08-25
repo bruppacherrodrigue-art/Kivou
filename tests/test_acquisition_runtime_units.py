@@ -11,6 +11,7 @@ RUNBOOK = ROOT / "docs/runbooks/10-acquisition-runtime.md"
 RUNTIME_ENV = ROOT / "ops/examples/acquisition-runtime.env.example"
 RUNTIME_CONFIG = ROOT / "ops/examples/acquisition-runtime.json.example"
 ENV_EXAMPLE = ROOT / ".env.example"
+OPS_README = ROOT / "ops/README.md"
 
 
 def test_acquisition_service_is_one_bounded_shadow_orchestrator() -> None:
@@ -89,7 +90,14 @@ def test_runbook_keeps_timer_non_mutating_and_manual_provider_gate_explicit() ->
     assert runbook.count("--property=RuntimeMaxSec=20min") >= 2
     assert runbook.count("/usr/bin/flock --verbose --nonblock") >= 2
     assert "journalctl -u kivou-acquisition.service" in runbook
-    assert "alembic downgrade 0025_alert_recipient_context" in runbook
+    assert "from alembic import command" in runbook
+    assert "alembic_config" in runbook
+    assert "create_database_engine" in runbook
+    assert 'command.downgrade(config, "0025_alert_recipient_context")' in runbook
+    assert "/srv/kivou/app/.venv/bin/alembic" not in runbook
+    assert runbook.index("command.downgrade") < runbook.index(
+        "Restaurer ensuite l’artefact applicatif précédent"
+    )
     assert runbook.count("--property=EnvironmentFile=/etc/kivou/acquisition-shadow.env") >= 2
     assert "systemctl disable --now kivou-acquisition.timer" in runbook
     assert "0026_acquisition_runtime" in runbook
@@ -110,3 +118,24 @@ def test_manual_runtime_commands_create_the_host_lock_directory() -> None:
 
     assert runbook.count("--property=RuntimeDirectory=kivou") >= 2
     assert runbook.count("--property=RuntimeDirectoryMode=0700") >= 2
+
+
+def test_operations_runbook_documents_the_full_atomic_webhook_bundle() -> None:
+    section = OPS_README.read_text(encoding="utf-8").split(
+        "## Reverse proxy public de staging (#84)", 1
+    )[1]
+    required = {
+        "KIVOU_INSTANTLY_WEBHOOK_SECRET",
+        "KIVOU_INSTANTLY_WORKSPACE_REF",
+        "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY",
+        "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION",
+        "KIVOU_SUPPRESSION_HMAC_KEY",
+        "KIVOU_SUPPRESSION_HMAC_KEY_VERSION",
+        "KIVOU_RESPONSE_SOURCE_HMAC_KEY",
+        "KIVOU_RESPONSE_SOURCE_HMAC_KEY_VERSION",
+        "KIVOU_RESPONSE_CONTENT_HMAC_KEY",
+        "KIVOU_RESPONSE_CONTENT_HMAC_KEY_VERSION",
+    }
+
+    assert all(name in section for name in required)
+    assert "KIVOU_SUPPRESSION_IDENTITY_KEY" not in section

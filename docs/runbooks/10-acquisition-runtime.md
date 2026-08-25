@@ -201,19 +201,37 @@ sudo rm /etc/systemd/system/kivou-acquisition.service \
 sudo systemctl daemon-reload
 ```
 
-Restaurer ensuite l’artefact applicatif précédent. Le downgrade de
-`0026_acquisition_runtime` n’est exécuté que si la procédure de release le
-décide explicitement et avant tout nouveau cycle à conserver. Il ne justifie
-jamais de supprimer les tables métier des moteurs existants. Les opérations
-Instantly déjà acceptées sont réconciliées avant toute nouvelle tentative.
+Le downgrade de `0026_acquisition_runtime` n’est exécuté que si la procédure de
+release le décide explicitement et si aucun cycle runtime ne doit être
+conservé. Il ne justifie jamais de supprimer les tables métier des moteurs
+existants. Les opérations Instantly déjà acceptées sont réconciliées avant
+toute nouvelle tentative.
 
-Après sauvegarde, timer arrêté et confirmation qu’aucun cycle runtime ne doit
-être conservé, le downgrade exact d’une révision est :
+Après sauvegarde et avec l’artefact courant encore présent, le downgrade exact
+d’une révision utilise la configuration Alembic programmatique du dépôt. Le
+binaire `alembic` seul n’est pas utilisable : aucun `alembic.ini` ne porte le
+`script_location` ni la connexion protégée.
 
 ```bash
 sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
   --property=EnvironmentFile=/etc/kivou/staging.env \
-  /srv/kivou/app/.venv/bin/alembic downgrade 0025_alert_recipient_context
+  /srv/kivou/app/.venv/bin/python -c '
+from alembic import command
+from signals.persistence.database import alembic_config, create_database_engine
+engine = create_database_engine(pool_pre_ping=True)
+try:
+    config = alembic_config(engine)
+    command.downgrade(config, "0025_alert_recipient_context")
+finally:
+    engine.dispose()
+'
 ```
+
+Vérifier ensuite que `alembic_version` vaut `0025_alert_recipient_context`.
+Restaurer le code avant ce contrôle supprimerait précisément la migration
+`0026` nécessaire pour l’annuler.
+
+Restaurer ensuite l’artefact applicatif précédent et conserver le timer
+désactivé jusqu’au smoke test du rollback.

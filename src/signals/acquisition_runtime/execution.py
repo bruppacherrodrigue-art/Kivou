@@ -177,10 +177,7 @@ class ProductionRuntimeDependencyProbe:
         self._apollo = apollo
         self._instantly = InstantlyConnectivityProbe(
             provider=instantly_provider,
-            mailbox_readiness=InstantlyMailboxReadinessSource(
-                instantly_provider,
-                require_sending_gap=False,
-            ),
+            mailbox_readiness=InstantlyMailboxReadinessSource(instantly_provider),
         )
         self._connectivity = connectivity
         self._hermes = hermes_runtime
@@ -616,10 +613,7 @@ def build_runtime_execution_composition(
         suppression_keyring=suppression_keyring,
         sender_config=sender_config,
         campaign_deployment=campaign_deployment,
-        mailbox_readiness=InstantlyMailboxReadinessSource(
-            provider,
-            require_sending_gap=False,
-        ),
+        mailbox_readiness=InstantlyMailboxReadinessSource(provider),
         attribution_link_builder=link_builder,
         clock=clock,
     )

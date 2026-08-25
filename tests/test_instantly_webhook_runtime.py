@@ -87,6 +87,27 @@ def test_api_config_never_renders_the_webhook_authentication_secret() -> None:
     assert "synthetic-route-secret" not in repr(config)
 
 
+def test_api_config_rejects_the_legacy_six_field_subset(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    environment = _environment()
+    core_names = {
+        "KIVOU_INSTANTLY_WEBHOOK_SECRET",
+        "KIVOU_INSTANTLY_WORKSPACE_REF",
+        "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION",
+        "KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY",
+        "KIVOU_SUPPRESSION_HMAC_KEY_VERSION",
+        "KIVOU_SUPPRESSION_HMAC_KEY",
+    }
+    for name in environment:
+        monkeypatch.delenv(name, raising=False)
+    for name in core_names:
+        monkeypatch.setenv(name, environment[name])
+
+    with pytest.raises(ValueError):
+        ApiConfig.from_environment()
+
+
 def test_suppression_keyring_is_bounded_to_current_plus_seven_retained() -> None:
     environment = _environment()
     environment["KIVOU_SUPPRESSION_RETAINED_KEYS_JSON"] = "{" + ",".join(
