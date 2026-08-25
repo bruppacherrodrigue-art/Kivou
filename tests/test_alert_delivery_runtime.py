@@ -788,3 +788,38 @@ def test_preference_suppression_emits_the_terminal_delivery_state(
             "attempt": 1,
         }
     ]
+
+
+def test_suppression_event_waits_for_the_database_commit(
+    app, engine, mailer, monkeypatch
+) -> None:
+    client, _ = subscriber(app, engine)
+    mailer.fail_with = failure("smtp_450", retryable=True)
+    cycle(engine, mailer, now=NOW)
+    client.patch("/notification-preferences", json={"email_enabled": False})
+    recorded: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "signals.alerts.job.emit_delivery_event",
+        lambda **payload: recorded.append(payload),
+    )
+    commit_attempts = 0
+
+    def fail_account_commit(_connection) -> None:
+        nonlocal commit_attempts
+        commit_attempts += 1
+        if commit_attempts == 2:
+            raise sa.exc.OperationalError(
+                "COMMIT",
+                {},
+                RuntimeError("synthetic commit failure"),
+            )
+
+    sa.event.listen(engine, "commit", fail_account_commit)
+    try:
+        with pytest.raises(sa.exc.OperationalError):
+            cycle(engine, mailer, now=NOW + RETRY_BASE)
+    finally:
+        sa.event.remove(engine, "commit", fail_account_commit)
+
+    assert commit_attempts >= 2
+    assert recorded == []

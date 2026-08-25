@@ -28,9 +28,11 @@ ce cas reste explicitement ambigu et peut produire un doublon borné.
 
 from __future__ import annotations
 
+import contextlib
 import dataclasses
 import datetime as dt
 import secrets
+from collections.abc import Iterator
 
 import sqlalchemy as sa
 
@@ -262,6 +264,16 @@ def _recipient_context_fingerprint(
     )
 
 
+@dataclasses.dataclass(frozen=True)
+class _PendingDeliveryEvent:
+    batch: delivery.DeliveryBatch
+    status: str
+    code: str
+    retryable: bool
+    attempt: int | None = None
+    signal_keys: tuple[str, ...] | None = None
+
+
 def _emit_batch_delivery(
     batch: delivery.DeliveryBatch,
     *,
@@ -280,6 +292,48 @@ def _emit_batch_delivery(
             code=code,
             retryable=retryable,
             attempt=batch.attempt_count if attempt is None else attempt,
+        )
+
+
+def _defer_batch_delivery(
+    pending: list[_PendingDeliveryEvent],
+    batch: delivery.DeliveryBatch,
+    *,
+    status: str,
+    code: str,
+    retryable: bool,
+    attempt: int | None = None,
+    signal_keys: tuple[str, ...] | None = None,
+) -> None:
+    pending.append(
+        _PendingDeliveryEvent(
+            batch=batch,
+            status=status,
+            code=code,
+            retryable=retryable,
+            attempt=attempt,
+            signal_keys=signal_keys,
+        )
+    )
+
+
+@contextlib.contextmanager
+def _transaction_with_delivery_events(
+    engine: sa.Engine,
+) -> Iterator[tuple[sa.Connection, list[_PendingDeliveryEvent]]]:
+    """Publish transition events only after their transaction commits."""
+
+    pending: list[_PendingDeliveryEvent] = []
+    with engine.begin() as connection:
+        yield connection, pending
+    for event in pending:
+        _emit_batch_delivery(
+            event.batch,
+            status=event.status,
+            code=event.code,
+            retryable=event.retryable,
+            attempt=event.attempt,
+            signal_keys=event.signal_keys,
         )
 
 
@@ -352,7 +406,10 @@ def _run_for_account(
     retry_base: dt.timedelta,
     max_attempts: int,
 ) -> AlertOutcome:
-    with engine.begin() as connection:
+    with _transaction_with_delivery_events(engine) as (
+        connection,
+        pending_events,
+    ):
         state = billing.billing_state(connection, account_id=account_id)
         cadence = state.entitlements.alert_cadence
         batch = delivery.next_due_batch(connection, account_id=account_id, now=now)
@@ -366,7 +423,8 @@ def _run_for_account(
                     cadence=cadence,
                     now=now,
                 )
-                _emit_batch_delivery(
+                _defer_batch_delivery(
+                    pending_events,
                     batch,
                     status="suppressed",
                     code="entitlement_lost",
@@ -394,7 +452,8 @@ def _run_for_account(
                     cadence=cadence,
                     now=now,
                 )
-                _emit_batch_delivery(
+                _defer_batch_delivery(
+                    pending_events,
                     batch,
                     status="suppressed",
                     code="notifications_disabled",
@@ -434,7 +493,8 @@ def _run_for_account(
                 cadence=cadence,
                 now=now,
             )
-            _emit_batch_delivery(
+            _defer_batch_delivery(
+                pending_events,
                 batch,
                 status="suppressed",
                 code=reason_code,
@@ -507,7 +567,8 @@ def _run_for_account(
         if not public_app_url:
             # §22 — un lien cassé est pire qu'un e-mail non envoyé. Les signaux
             # restent en file et partiront quand l'URL sera configurée.
-            _emit_batch_delivery(
+            _defer_batch_delivery(
+                pending_events,
                 batch,
                 status="blocked",
                 code="public_app_url_missing",
@@ -540,7 +601,8 @@ def _run_for_account(
                 cadence=cadence,
                 now=now,
             )
-            _emit_batch_delivery(
+            _defer_batch_delivery(
+                pending_events,
                 batch,
                 status="suppressed",
                 code="signal_inaccessible",
@@ -577,7 +639,8 @@ def _run_for_account(
                     "retryable": False,
                 },
             )
-            _emit_batch_delivery(
+            _defer_batch_delivery(
+                pending_events,
                 batch,
                 status=terminal_status,
                 code="attempt_budget_exhausted",
