@@ -78,9 +78,15 @@ def test_runbook_keeps_timer_non_mutating_and_manual_provider_gate_explicit() ->
     assert "--allow-qa-provider-mutations" in runbook
     assert "list-runtime-approvals" in runbook
     assert "approve-runtime-approval" in runbook
+    assert "open-runtime-qa-policy-window" in runbook
+    assert "close-runtime-qa-policy-window" in runbook
     assert "python -m signals.operations health" in runbook
     assert "python -m signals.operations readiness" in runbook
     assert "activate-kill-switch" in runbook
+    assert runbook.count("--property=RuntimeMaxSec=20min") >= 2
+    assert runbook.count("/usr/bin/flock --verbose --nonblock") >= 2
+    assert "journalctl -u kivou-acquisition.service" in runbook
+    assert "alembic downgrade 0025_alert_recipient_context" in runbook
     assert (
         runbook.count(
             "--property=EnvironmentFile=/etc/kivou/acquisition-shadow.env"

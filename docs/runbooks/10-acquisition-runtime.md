@@ -62,9 +62,16 @@ nul. Le lease expiré est repris depuis le premier stage durable non terminal.
 
 ## Approbation humaine et preuve fournisseur QA
 
-Arrêter temporairement le timer, exécuter d’abord sans mutation, puis inspecter
-la demande durable et son contexte métier avant de l’approuver. Les commandes
-ne rendent que des identifiants opaques, des états et des codes machine.
+Arrêter temporairement le timer, ouvrir une fenêtre Policy QA de trente minutes
+au maximum, puis exécuter d’abord sans mutation. Inspecter chaque demande
+durable et son contexte métier avant de l’approuver. Les commandes ne rendent
+que des identifiants opaques, des états et des codes machine.
+
+La séquence ci-dessous est un bloc opératoire `try/finally` : dès que la fenêtre
+est ouverte, la commande `close-runtime-qa-policy-window` et le redémarrage du
+timer sont obligatoires, même si une commande intermédiaire échoue. L’expiration
+de la fenêtre restaure en plus l’ancien contrôle comme sécurité passive. Remplacer
+les instants et références opaques, jamais par une adresse ou un secret.
 
 ```bash
 sudo systemctl stop kivou-acquisition.timer
@@ -72,8 +79,20 @@ sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
   --property=EnvironmentFile=/etc/kivou/staging.env \
+  --property=EnvironmentFile=/etc/kivou/acquisition-runtime.env \
+  /srv/kivou/app/.venv/bin/python -m signals.operations \
+  open-runtime-qa-policy-window \
+  --expires-at YYYY-MM-DDTHH:MM:SS+00:00 \
+  --actor-ref OPAQUE_ACTOR --reason-code QA_E2E_PROOF
+sudo systemd-run --wait --collect --pipe \
+  --uid=kivou --gid=kivou \
+  --working-directory=/srv/kivou/app \
+  --property=RuntimeMaxSec=20min \
+  --property=EnvironmentFile=/etc/kivou/staging.env \
   --property=EnvironmentFile=/etc/kivou/acquisition-shadow.env \
   --property=EnvironmentFile=/etc/kivou/acquisition-runtime.env \
+  /usr/bin/flock --verbose --nonblock --conflict-exit-code 0 \
+  /run/kivou/acquisition.lock \
   /srv/kivou/app/.venv/bin/python -m signals.acquisition_runtime run-once
 sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
@@ -89,13 +108,30 @@ sudo systemd-run --wait --collect --pipe \
 sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
+  --property=RuntimeMaxSec=20min \
   --property=EnvironmentFile=/etc/kivou/staging.env \
   --property=EnvironmentFile=/etc/kivou/acquisition-shadow.env \
   --property=EnvironmentFile=/etc/kivou/acquisition-runtime.env \
+  /usr/bin/flock --verbose --nonblock --conflict-exit-code 0 \
+  /run/kivou/acquisition.lock \
   /srv/kivou/app/.venv/bin/python -m signals.acquisition_runtime run-once \
   --allow-qa-provider-mutations
+sudo systemd-run --wait --collect --pipe \
+  --uid=kivou --gid=kivou \
+  --working-directory=/srv/kivou/app \
+  --property=EnvironmentFile=/etc/kivou/staging.env \
+  --property=EnvironmentFile=/etc/kivou/acquisition-runtime.env \
+  /srv/kivou/app/.venv/bin/python -m signals.operations \
+  close-runtime-qa-policy-window \
+  --actor-ref OPAQUE_ACTOR --reason-code QA_E2E_PROOF_COMPLETE
 sudo systemctl start kivou-acquisition.timer
 ```
+
+Répéter uniquement le triplet `list-runtime-approvals`, approbation exacte,
+`run-once` si le cycle s’arrête sur une nouvelle approbation. Le runtime contient
+au plus trois points de revue humaine ; ne jamais approuver en masse ni réutiliser
+une approbation consommée. Une dérive des opérations ou de la liaison QA crée une
+nouvelle demande et interdit la mutation.
 
 L’autorisation processus ne remplace ni Policy, ni l’approbation one-shot, ni
 la liaison QA. Le worker limite l’opération Instantly au brouillon contrôlé
@@ -128,6 +164,14 @@ le registre fermé, zéro outil natif, Policy et toutes les dépendances du cycl
 La readiness autonome reste honnêtement bornée : un cycle QA/SHADOW sain ne
 constitue pas une autorisation de production.
 
+Les événements opératoires restent bornés à des codes machine et références
+opaques. Cette lecture ne doit révéler ni adresse, ni contenu, ni payload :
+
+```bash
+sudo journalctl -u kivou-acquisition.service \
+  --since "today" --output=short-iso --no-pager
+```
+
 ## Rollback
 
 ```bash
@@ -143,3 +187,14 @@ Restaurer ensuite l’artefact applicatif précédent. Le downgrade de
 décide explicitement et avant tout nouveau cycle à conserver. Il ne justifie
 jamais de supprimer les tables métier des moteurs existants. Les opérations
 Instantly déjà acceptées sont réconciliées avant toute nouvelle tentative.
+
+Après sauvegarde, timer arrêté et confirmation qu’aucun cycle runtime ne doit
+être conservé, le downgrade exact d’une révision est :
+
+```bash
+sudo systemd-run --wait --collect --pipe \
+  --uid=kivou --gid=kivou \
+  --working-directory=/srv/kivou/app \
+  --property=EnvironmentFile=/etc/kivou/staging.env \
+  /srv/kivou/app/.venv/bin/alembic downgrade 0025_alert_recipient_context
+```
