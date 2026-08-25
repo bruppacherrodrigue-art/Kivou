@@ -28,6 +28,7 @@ from signals.operations.contracts import (
 from signals.operations.health import evaluate_health, verify_hermes_runtime
 from signals.operations.readiness import evaluate_readiness
 from signals.operations.store import OperationsStore
+from signals.policy.contracts import AutonomyMode
 from signals.policy.store import PolicyStore
 
 RUNTIME_OBSERVATION_MAX_AGE = dt.timedelta(minutes=90)
@@ -179,7 +180,7 @@ class OperationsReadService:
             h_e = h_e.model_copy(
                 update={"reason_codes": tuple(sorted({*h_e.reason_codes, "CRITICAL_BREAKER_OPEN"}))}
             )
-        return evaluate_readiness(
+        readiness = evaluate_readiness(
             base.model_copy(
                 update={
                     "h_a_runtime": h_a,
@@ -188,6 +189,16 @@ class OperationsReadService:
                 }
             )
         )
+        if runtime.evidence_refs:
+            readiness = readiness.model_copy(
+                update={
+                    "highest_safe_mode": AutonomyMode.SHADOW,
+                    "blockers": tuple(
+                        sorted({*readiness.blockers, "QA_SHADOW_RUNTIME_ONLY"})
+                    ),
+                }
+            )
+        return readiness
 
     def _runtime_evidence(self, *, observed_at: dt.datetime) -> _RuntimeEvidenceState:
         try:
@@ -231,12 +242,19 @@ class OperationsReadService:
             reasons.append("RUNTIME_OBSERVATION_STALE")
 
         execution = HealthStatus.READY
-        if any(
-            item.status is RuntimeDependencyState.NOT_READY
+        unavailable_dependencies = tuple(
+            item
             for item in observation.capability.dependencies
-        ):
+            if item.status is RuntimeDependencyState.NOT_READY
+        )
+        if unavailable_dependencies:
             execution = HealthStatus.NOT_READY
             reasons.append("RUNTIME_DEPENDENCY_UNAVAILABLE")
+            reasons.extend(
+                code
+                for item in unavailable_dependencies
+                for code in item.reason_codes
+            )
         if observation.last_cycle_at is None:
             execution = HealthStatus.NOT_READY
             reasons.append("RUNTIME_LAST_CYCLE_UNOBSERVED")

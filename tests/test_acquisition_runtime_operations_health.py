@@ -190,7 +190,8 @@ def test_fresh_durable_runtime_and_shadow_policy_are_the_only_runtime_authority(
     assert health.status is HealthStatus.READY
     assert readiness.h_a_runtime.status == "READY"
     assert readiness.h_c_policy.status == "READY"
-    assert readiness.highest_safe_mode is AutonomyMode.ASSISTED
+    assert readiness.highest_safe_mode is AutonomyMode.SHADOW
+    assert "QA_SHADOW_RUNTIME_ONLY" in readiness.blockers
     assert "acquisition-runtime-observation-v1" in readiness.evidence_refs
 
 
@@ -248,6 +249,7 @@ def test_missing_required_dependency_prevents_ready(tmp_path) -> None:
 
     assert health.campaign_execution is HealthStatus.NOT_READY
     assert "RUNTIME_DEPENDENCY_UNAVAILABLE" in health.reason_codes
+    assert "DEPENDENCY_UNAVAILABLE" in health.reason_codes
     assert readiness.h_a_runtime.status == "NOT_READY"
     assert readiness.highest_safe_mode is AutonomyMode.SHADOW
 
