@@ -68,9 +68,13 @@ def test_operator_lists_only_bounded_pending_approval_metadata(
     assert "runtime_approvals pending=1" in output
     assert f"approval_id={pending.approval_id}" in output
     assert "stage=CAMPAIGN" in output
+    assert "command=schedule_campaign" in output
+    assert "target_ref=private-target-marker" in output
+    assert "policy_snapshot_id=policy-snapshot-qa-001" in output
+    assert "control_revision=1" in output
+    assert f"action_fingerprint={'a' * 64}" in output
     assert "status=PENDING" in output
     assert "expires_at=2026-08-25T12:30:00+00:00" in output
-    assert "private-target-marker" not in output
     assert "private-opportunity-marker" not in output
 
 

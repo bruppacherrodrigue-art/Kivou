@@ -74,6 +74,11 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"approval_id={approval.approval_id} "
                 f"stage={approval.binding.stage.value} "
+                f"command={approval.binding.command} "
+                f"target_ref={approval.binding.target_ref} "
+                f"action_fingerprint={approval.binding.action_fingerprint} "
+                f"policy_snapshot_id={approval.binding.policy_snapshot_id} "
+                f"control_revision={approval.binding.control_revision} "
                 f"status={approval.status.value} "
                 f"expires_at={approval.binding.expires_at.isoformat()}"
             )
