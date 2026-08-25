@@ -319,8 +319,16 @@ def test_reset_delivery_failure_logs_only_a_safe_code(caplog, error_code: str) -
     )
     delivery.deliver(email=address, locale="fr", reset_token=reset_value)
 
-    rendered = caplog.text
-    assert error_code in rendered
+    payload = caplog.records[-1].runtime_event
+    assert payload == {
+        "event": "delivery",
+        "channel": "password_reset",
+        "status": "failed",
+        "code": error_code,
+        "retryable": False,
+        "attempt": 1,
+    }
+    rendered = str(payload)
     for forbidden in (reset_value, address, smtp_secret, "Traceback"):
         assert forbidden not in rendered
 

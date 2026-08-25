@@ -44,6 +44,7 @@ from signals.api.app import create_app
 from signals.api.config import ApiConfig
 from signals.billing.gateway import StripeApiGateway
 from signals.persistence.database import create_database_engine
+from signals.runtime_events import configure_runtime_event_logging
 
 
 def build_application() -> FastAPI:
@@ -54,6 +55,7 @@ def build_application() -> FastAPI:
     cette vérification, la première requête après la coupure échoue chez un
     client plutôt que d'être remplacée en silence.
     """
+    configure_runtime_event_logging()
     config = ApiConfig.from_environment()
     engine = create_database_engine(pool_pre_ping=True)
     return create_app(

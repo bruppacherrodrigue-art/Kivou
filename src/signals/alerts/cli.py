@@ -17,6 +17,7 @@ from signals.alerts.gateway import SmtpAlertGateway, SmtpConfiguration
 from signals.alerts.job import CycleReport, run_alert_cycle
 from signals.api.config import ApiConfig
 from signals.persistence.database import create_database_engine
+from signals.runtime_events import configure_runtime_event_logging
 
 
 class _SafeArgumentParser(argparse.ArgumentParser):
@@ -57,6 +58,7 @@ def summarize(report: CycleReport) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
+    configure_runtime_event_logging()
     parser = _SafeArgumentParser(prog="kivou-alerts", description="Cycle d'alerte Kivou")
     parser.add_argument(
         "--now",
