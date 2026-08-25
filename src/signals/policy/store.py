@@ -116,6 +116,69 @@ class PolicyStore:
                 sa.insert(acquisition_policy_snapshot).values(_control_values(control))
             )
 
+    def append_control_if_latest(
+        self,
+        control: PolicyControlSnapshot,
+        *,
+        expected_latest_revision: int | None,
+    ) -> bool:
+        """Append one control only while the observed durable head is unchanged.
+
+        The unique revision constraint is the final cross-process arbiter. A
+        concurrent writer therefore returns ``False`` on both SQLite and
+        PostgreSQL instead of being mistaken for a successful transition.
+        """
+
+        try:
+            with self._engine.begin() as connection:
+                maximum = connection.scalar(
+                    sa.select(sa.func.max(acquisition_policy_snapshot.c.control_revision))
+                )
+                next_revision = 1 if maximum is None else maximum + 1
+                if maximum != expected_latest_revision or control.control_revision != next_revision:
+                    return False
+                connection.execute(
+                    sa.insert(acquisition_policy_snapshot).values(_control_values(control))
+                )
+            return True
+        except sa.exc.IntegrityError:
+            return False
+
+    def get_latest_control(self) -> PolicyControlSnapshot:
+        """Return the durable revision head, including future or expired rows."""
+
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    sa.select(acquisition_policy_snapshot)
+                    .order_by(acquisition_policy_snapshot.c.control_revision.desc())
+                    .limit(1)
+                )
+                .mappings()
+                .one_or_none()
+            )
+        if row is None:
+            raise PolicyControlUnavailable("no persisted policy control snapshot")
+        return _control_from_row(row)
+
+    def get_previous_control(self, control_revision: int) -> PolicyControlSnapshot:
+        """Return the immediate durable predecessor of one control revision."""
+
+        with self._engine.connect() as connection:
+            row = (
+                connection.execute(
+                    sa.select(acquisition_policy_snapshot)
+                    .where(acquisition_policy_snapshot.c.control_revision < control_revision)
+                    .order_by(acquisition_policy_snapshot.c.control_revision.desc())
+                    .limit(1)
+                )
+                .mappings()
+                .one_or_none()
+            )
+        if row is None:
+            raise PolicyControlUnavailable("no previous policy control snapshot")
+        return _control_from_row(row)
+
     def get_effective_control(self, at: dt.datetime) -> PolicyControlSnapshot:
         if at.tzinfo is None or at.utcoffset() is None:
             raise ValueError("selection timestamp must be timezone-aware")
@@ -146,8 +209,7 @@ class PolicyStore:
             row = (
                 connection.execute(
                     sa.select(acquisition_policy_snapshot).where(
-                        acquisition_policy_snapshot.c.policy_snapshot_id
-                        == policy_snapshot_id
+                        acquisition_policy_snapshot.c.policy_snapshot_id == policy_snapshot_id
                     )
                 )
                 .mappings()
@@ -172,9 +234,7 @@ class PolicyStore:
         )
 
     @staticmethod
-    def insert_evaluation_if_absent(
-        connection: Connection, values: dict[str, object]
-    ) -> bool:
+    def insert_evaluation_if_absent(connection: Connection, values: dict[str, object]) -> bool:
         """Atomically own one evaluation id without exposing uniqueness races.
 
         #63 — la décision passait par `rowcount`, qui ne peut pas la rendre : sur

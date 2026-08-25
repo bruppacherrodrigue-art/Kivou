@@ -7,6 +7,10 @@ campagne ni envoyer un message à un prospect. Une preuve fournisseur contrôlé
 reste une opération manuelle, approuvée et limitée à l’identité QA liée par
 HMAC.
 
+Les commandes mutantes lisent exclusivement `KIVOU_DATABASE_URL` depuis
+l’`EnvironmentFile` protégé et utilisent l’horloge UTC du serveur. Elles
+refusent les options opérateur `--database-url` et `--now`.
+
 ## Préconditions
 
 - le SHA déployé provient de `main` et la migration
@@ -71,7 +75,7 @@ La séquence ci-dessous est un bloc opératoire `try/finally` : dès que la fen�
 est ouverte, la commande `close-runtime-qa-policy-window` et le redémarrage du
 timer sont obligatoires, même si une commande intermédiaire échoue. L’expiration
 de la fenêtre restaure en plus l’ancien contrôle comme sécurité passive. Remplacer
-les instants et références opaques, jamais par une adresse ou un secret.
+uniquement les références opaques, jamais par une adresse ou un secret.
 
 ```bash
 sudo systemctl stop kivou-acquisition.timer
@@ -82,7 +86,7 @@ sudo systemd-run --wait --collect --pipe \
   --property=EnvironmentFile=/etc/kivou/acquisition-runtime.env \
   /srv/kivou/app/.venv/bin/python -m signals.operations \
   open-runtime-qa-policy-window \
-  --expires-at YYYY-MM-DDTHH:MM:SS+00:00 \
+  --duration-seconds 1800 \
   --actor-ref OPAQUE_ACTOR --reason-code QA_E2E_PROOF
 sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \

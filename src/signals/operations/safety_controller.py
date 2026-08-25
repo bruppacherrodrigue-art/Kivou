@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import datetime as dt
 
-import sqlalchemy as sa
 from pydantic import ValidationError
 from sqlalchemy.engine import Engine
 
@@ -13,6 +12,7 @@ from signals.policy.contracts import AutonomyMode, PolicyControlSnapshot
 from signals.policy.store import PolicyStore
 
 SAFETY_CONTROLLER_REF = "kivou-safety-controller"
+MAX_CONTROL_APPEND_ATTEMPTS = 3
 
 _NEXT_SAFER = {
     AutonomyMode.ADAPTIVE_SCALE: AutonomyMode.AUTONOMOUS_CAPPED,
@@ -22,50 +22,59 @@ _NEXT_SAFER = {
 }
 
 
+class SafetyControlConflict(RuntimeError):
+    """The bounded append-only safety transition lost every durable CAS."""
+
+
 class SafetyController:
     def __init__(self, engine: Engine) -> None:
         self._engine = engine
         self._policy = PolicyStore(engine)
 
-    def downgrade(
-        self, *, at: dt.datetime, reason_codes: tuple[str, ...]
-    ) -> PolicyControlSnapshot:
-        current = self._policy.get_effective_control(at)
-        if (
-            current.created_by_actor_ref == SAFETY_CONTROLLER_REF
-            and current.reason_codes == reason_codes
-        ):
-            return current
-        target = _NEXT_SAFER[current.autonomy_mode]
-        if target is current.autonomy_mode:
-            return current
-        return self._append_safer(
-            current,
-            at=at,
-            target=target,
-            kill_switch=current.kill_switch,
-            read_only=current.read_only,
-            reason_codes=reason_codes,
-        )
+    def downgrade(self, *, at: dt.datetime, reason_codes: tuple[str, ...]) -> PolicyControlSnapshot:
+        for _attempt in range(MAX_CONTROL_APPEND_ATTEMPTS):
+            current = self._policy.get_effective_control(at)
+            if (
+                current.created_by_actor_ref == SAFETY_CONTROLLER_REF
+                and current.reason_codes == reason_codes
+            ):
+                return current
+            target = _NEXT_SAFER[current.autonomy_mode]
+            if target is current.autonomy_mode:
+                return current
+            replacement = self._append_safer(
+                current,
+                at=at,
+                target=target,
+                kill_switch=current.kill_switch,
+                read_only=current.read_only,
+                reason_codes=reason_codes,
+            )
+            if replacement is not None:
+                return replacement
+        raise SafetyControlConflict("policy safety control changed concurrently")
 
     def critical_stop(
         self, *, at: dt.datetime, reason_codes: tuple[str, ...]
     ) -> PolicyControlSnapshot:
-        current = self._policy.get_effective_control(at)
-        if (
-            current.autonomy_mode is AutonomyMode.SHADOW
-            and current.kill_switch
-            and current.read_only
-        ):
-            return current
-        return self._append_safer(
-            current,
-            at=at,
-            target=AutonomyMode.SHADOW,
-            kill_switch=True,
-            read_only=True,
-            reason_codes=reason_codes,
-        )
+        for _attempt in range(MAX_CONTROL_APPEND_ATTEMPTS):
+            current = self._policy.get_effective_control(at)
+            if self._is_exact_critical_stop(current):
+                return current
+            replacement = self._append_safer(
+                current,
+                at=at,
+                target=AutonomyMode.SHADOW,
+                kill_switch=True,
+                read_only=True,
+                reason_codes=reason_codes,
+            )
+            if replacement is not None:
+                return replacement
+            winner = self._policy.get_effective_control(at)
+            if self._is_exact_critical_stop(winner):
+                return winner
+        raise SafetyControlConflict("policy critical stop changed concurrently")
 
     def _append_safer(
         self,
@@ -76,19 +85,25 @@ class SafetyController:
         kill_switch: bool,
         read_only: bool,
         reason_codes: tuple[str, ...],
-    ) -> PolicyControlSnapshot:
+    ) -> PolicyControlSnapshot | None:
+        latest = self._policy.get_latest_control()
+        revision = latest.control_revision + 1
         payload = {
             "previous": current.policy_snapshot_id,
+            "durable_head": latest.policy_snapshot_id,
+            "control_revision": revision,
             "target": target.value,
             "kill_switch": kill_switch,
             "read_only": read_only,
             "reason_codes": reason_codes,
+            "effective_at": at.isoformat(),
         }
-        fingerprint = canonical_fingerprint("policy-safety-control:v1", payload)
-        replacement = current.model_copy(
-            update={
+        fingerprint = canonical_fingerprint("policy-safety-control:v2", payload)
+        values = current.model_dump(mode="python")
+        values.update(
+            {
                 "policy_snapshot_id": fingerprint,
-                "control_revision": current.control_revision + 1,
+                "control_revision": revision,
                 "autonomy_mode": target,
                 "shadow_target_mode": (
                     AutonomyMode.ASSISTED if target is AutonomyMode.SHADOW else None
@@ -105,23 +120,22 @@ class SafetyController:
             }
         )
         try:
-            replacement = PolicyControlSnapshot.model_validate(replacement)
-            self._policy.append_control(replacement)
+            replacement = PolicyControlSnapshot.model_validate(values)
+        except (ValueError, ValidationError):
+            raise SafetyControlConflict("policy safety control is invalid") from None
+        if self._policy.append_control_if_latest(
+            replacement,
+            expected_latest_revision=latest.control_revision,
+        ):
             return replacement
-        except (ValueError, ValidationError, sa.exc.IntegrityError):
-            # A concurrent safety controller may have appended the same or a safer
-            # authority. Re-read current truth and never overwrite its winner.
-            winner = self._policy.get_effective_control(at)
-            if self._at_or_below(winner.autonomy_mode, target):
-                return winner
-            raise
+        return None
 
     @staticmethod
-    def _at_or_below(current: AutonomyMode, target: AutonomyMode) -> bool:
-        order = {
-            AutonomyMode.SHADOW: 0,
-            AutonomyMode.ASSISTED: 1,
-            AutonomyMode.AUTONOMOUS_CAPPED: 2,
-            AutonomyMode.ADAPTIVE_SCALE: 3,
-        }
-        return order[current] <= order[target]
+    def _is_exact_critical_stop(control: PolicyControlSnapshot) -> bool:
+        return (
+            control.autonomy_mode is AutonomyMode.SHADOW
+            and control.shadow_target_mode is AutonomyMode.ASSISTED
+            and control.kill_switch
+            and control.read_only
+            and control.expires_at is None
+        )

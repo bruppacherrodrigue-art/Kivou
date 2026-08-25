@@ -57,9 +57,7 @@ def _pending(tmp_path):
     return url, store, snapshot
 
 
-def test_operator_lists_only_bounded_pending_approval_metadata(
-    tmp_path, capsys
-) -> None:
+def test_operator_lists_only_bounded_pending_approval_metadata(tmp_path, capsys) -> None:
     url, _store, pending = _pending(tmp_path)
 
     result = main(
@@ -88,51 +86,48 @@ def test_operator_lists_only_bounded_pending_approval_metadata(
 
 
 def test_operator_approves_one_exact_request_with_an_explicit_actor(
-    tmp_path, capsys
+    tmp_path, monkeypatch, capsys
 ) -> None:
     url, store, pending = _pending(tmp_path)
+    monkeypatch.setenv("KIVOU_DATABASE_URL", url)
 
     result = main(
         [
-            "--database-url",
-            url,
-            "--now",
-            (NOW + dt.timedelta(minutes=1)).isoformat(),
             "approve-runtime-approval",
             "--approval-id",
             pending.approval_id,
             "--actor-ref",
             "operator-qa-001",
-        ]
+        ],
+        clock=lambda: NOW + dt.timedelta(minutes=1),
     )
 
     assert result == 0
     output = capsys.readouterr().out
     assert output == (
-        f"runtime_approval approval_id={pending.approval_id} "
-        "stage=CAMPAIGN status=APPROVED\n"
+        f"runtime_approval approval_id={pending.approval_id} stage=CAMPAIGN status=APPROVED\n"
     )
     rows = store.list_approvals(status=RuntimeApprovalStatus.APPROVED)
     assert len(rows) == 1
     assert rows[0].approved_by_actor_ref == "operator-qa-001"
 
 
-def test_invalid_operator_values_fail_closed_without_reflection(tmp_path, capsys) -> None:
+def test_invalid_operator_values_fail_closed_without_reflection(
+    tmp_path, monkeypatch, capsys
+) -> None:
     url, _store, _pending_snapshot = _pending(tmp_path)
     marker = "private@example.test"
+    monkeypatch.setenv("KIVOU_DATABASE_URL", url)
 
     result = main(
         [
-            "--database-url",
-            url,
-            "--now",
-            (NOW + dt.timedelta(minutes=1)).isoformat(),
             "approve-runtime-approval",
             "--approval-id",
             marker,
             "--actor-ref",
             marker,
-        ]
+        ],
+        clock=lambda: NOW + dt.timedelta(minutes=1),
     )
 
     assert result == 2
@@ -140,3 +135,31 @@ def test_invalid_operator_values_fail_closed_without_reflection(tmp_path, capsys
     assert streams.out == ""
     assert streams.err == "runtime_approval_invalid\n"
     assert marker not in streams.err
+
+
+def test_approval_mutation_refuses_operator_database_and_clock_authority(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    url, _store, pending = _pending(tmp_path)
+    monkeypatch.setenv("KIVOU_DATABASE_URL", url)
+
+    result = main(
+        [
+            "--database-url",
+            url,
+            "--now",
+            NOW.isoformat(),
+            "approve-runtime-approval",
+            "--approval-id",
+            pending.approval_id,
+            "--actor-ref",
+            "operator-qa-001",
+        ],
+        clock=lambda: NOW,
+    )
+
+    assert result == 2
+    streams = capsys.readouterr()
+    assert streams.out == ""
+    assert streams.err == "runtime_approval_invalid\n"
+    assert url not in streams.err

@@ -19,6 +19,12 @@ from signals.acquisition_runtime.contracts import (
 )
 from signals.api.config import resolve_acquisition_environment
 from signals.operations.contracts import canonical_fingerprint
+from signals.operations.safety_controller import SAFETY_CONTROLLER_REF
+from signals.persistence.schema import (
+    contract_award,
+    opportunity_representation,
+    source_event,
+)
 from signals.policy.contracts import (
     AutonomyMode,
     PolicyControlSnapshot,
@@ -29,8 +35,10 @@ from signals.policy.store import PolicyStore
 MAXIMUM_QA_WINDOW = dt.timedelta(minutes=30)
 MAXIMUM_QA_COST = Decimal("5")
 QA_DAILY_VOLUME = 1
+MAX_CONTROL_APPEND_ATTEMPTS = 3
 QA_WINDOW_OPENED = "ACQUISITION_RUNTIME_QA_WINDOW_OPEN"
 QA_WINDOW_CLOSED = "ACQUISITION_RUNTIME_QA_WINDOW_CLOSED"
+RECOVERABLE_STOP_REASON = "OPERATOR_QA_STOP"
 RUNTIME_COMMANDS = tuple(stage.command for stage in AcquisitionRuntimeStage)
 
 _OPAQUE_REF = TypeAdapter(OpaqueRef)
@@ -44,6 +52,7 @@ class RuntimeQaPolicyWindowError(RuntimeError):
 @dataclass(frozen=True)
 class _QaAuthority:
     opportunity_key: str
+    signal_ref: str
     country: str
     language: str
     wedge: str
@@ -60,6 +69,7 @@ class RuntimeQaPolicyWindowController:
     """
 
     def __init__(self, engine: Engine) -> None:
+        self._engine = engine
         self._policy = PolicyStore(engine)
 
     def open(
@@ -73,6 +83,7 @@ class RuntimeQaPolicyWindowController:
     ) -> PolicyControlSnapshot:
         self._require_staging()
         authority = self._authority(runtime_config)
+        self._verify_public_authority(authority)
         at = self._instant(at)
         expires_at = self._instant(expires_at)
         actor = self._actor(actor_ref)
@@ -80,31 +91,34 @@ class RuntimeQaPolicyWindowController:
         if not at < expires_at <= at + MAXIMUM_QA_WINDOW:
             raise RuntimeQaPolicyWindowError("runtime QA policy expiry is invalid")
 
-        current = self._current(at)
-        self._require_chf(current)
-        if self._same_open_window(
-            current,
-            authority=authority,
-            at=at,
-            expires_at=expires_at,
-            actor_ref=actor,
-            reason_code=reason,
-        ):
-            return current
-        if current.autonomy_mode is not AutonomyMode.SHADOW or not current.read_only:
-            raise RuntimeQaPolicyWindowError("runtime QA policy cannot be opened")
-
-        return self._append(
-            current,
-            authority=authority,
-            at=at,
-            expires_at=expires_at,
-            actor_ref=actor,
-            reason_codes=(QA_WINDOW_OPENED, reason),
-            autonomy_mode=AutonomyMode.ASSISTED,
-            shadow_target_mode=None,
-            read_only=False,
-        )
+        for _attempt in range(MAX_CONTROL_APPEND_ATTEMPTS):
+            current = self._current(at)
+            self._require_chf(current)
+            if self._same_open_window(
+                current,
+                authority=authority,
+                at=at,
+                expires_at=expires_at,
+                actor_ref=actor,
+                reason_code=reason,
+            ):
+                return current
+            if current.autonomy_mode is not AutonomyMode.SHADOW or not current.read_only:
+                raise RuntimeQaPolicyWindowError("runtime QA policy cannot be opened")
+            replacement = self._append(
+                current,
+                authority=authority,
+                at=at,
+                expires_at=expires_at,
+                actor_ref=actor,
+                reason_codes=(QA_WINDOW_OPENED, reason),
+                autonomy_mode=AutonomyMode.ASSISTED,
+                shadow_target_mode=None,
+                read_only=False,
+            )
+            if replacement is not None:
+                return replacement
+        raise RuntimeQaPolicyWindowError("runtime QA policy authority changed concurrently")
 
     def close(
         self,
@@ -119,29 +133,32 @@ class RuntimeQaPolicyWindowController:
         at = self._instant(at)
         actor = self._actor(actor_ref)
         reason = self._reason(reason_code)
-        current = self._current(at)
-        self._require_chf(current)
-        if self._same_closed_window(current, authority=authority):
-            return current
-        if current.autonomy_mode is AutonomyMode.ASSISTED:
-            if not self._same_qa_authority(current, authority=authority) or (
-                QA_WINDOW_OPENED not in current.reason_codes
-            ):
-                raise RuntimeQaPolicyWindowError("runtime QA policy authority is unrelated")
-        elif current.autonomy_mode is not AutonomyMode.SHADOW or not current.read_only:
-            raise RuntimeQaPolicyWindowError("runtime QA policy authority is unsafe")
-
-        return self._append(
-            current,
-            authority=authority,
-            at=at,
-            expires_at=None,
-            actor_ref=actor,
-            reason_codes=(QA_WINDOW_CLOSED, reason),
-            autonomy_mode=AutonomyMode.SHADOW,
-            shadow_target_mode=AutonomyMode.ASSISTED,
-            read_only=True,
-        )
+        for _attempt in range(MAX_CONTROL_APPEND_ATTEMPTS):
+            current = self._current(at)
+            self._require_chf(current)
+            if self._same_closed_window(current, authority=authority):
+                return current
+            if current.autonomy_mode is AutonomyMode.ASSISTED:
+                if not self._same_qa_authority(current, authority=authority) or (
+                    QA_WINDOW_OPENED not in current.reason_codes
+                ):
+                    raise RuntimeQaPolicyWindowError("runtime QA policy authority is unrelated")
+            elif not self._recoverable_qa_stop(current, authority=authority):
+                raise RuntimeQaPolicyWindowError("runtime QA policy authority is unsafe")
+            replacement = self._append(
+                current,
+                authority=authority,
+                at=at,
+                expires_at=None,
+                actor_ref=actor,
+                reason_codes=(QA_WINDOW_CLOSED, reason),
+                autonomy_mode=AutonomyMode.SHADOW,
+                shadow_target_mode=AutonomyMode.ASSISTED,
+                read_only=True,
+            )
+            if replacement is not None:
+                return replacement
+        raise RuntimeQaPolicyWindowError("runtime QA policy authority changed concurrently")
 
     def _append(
         self,
@@ -155,13 +172,16 @@ class RuntimeQaPolicyWindowController:
         autonomy_mode: AutonomyMode,
         shadow_target_mode: AutonomyMode | None,
         read_only: bool,
-    ) -> PolicyControlSnapshot:
+    ) -> PolicyControlSnapshot | None:
+        latest = self._latest()
+        revision = latest.control_revision + 1
         fingerprint = canonical_fingerprint(
-            "acquisition-runtime-qa-policy-window:v2",
+            "acquisition-runtime-qa-policy-window:v3",
             {
                 "previous": current.policy_snapshot_id,
-                "control_revision": current.control_revision + 1,
-                "opportunity_key": authority.opportunity_key,
+                "durable_head": latest.policy_snapshot_id,
+                "control_revision": revision,
+                "qa_signal_ref": authority.signal_ref,
                 "autonomy_mode": autonomy_mode.value,
                 "shadow_target_mode": (shadow_target_mode.value if shadow_target_mode else None),
                 "read_only": read_only,
@@ -182,11 +202,12 @@ class RuntimeQaPolicyWindowController:
         values.update(
             {
                 "policy_snapshot_id": fingerprint,
-                "control_revision": current.control_revision + 1,
+                "control_revision": revision,
                 "autonomy_mode": autonomy_mode,
                 "shadow_target_mode": shadow_target_mode,
                 "read_only": read_only,
                 "kill_switch": False,
+                "qa_signal_ref": authority.signal_ref,
                 "allowed_commands": RUNTIME_COMMANDS,
                 "allowed_countries": (authority.country,),
                 "allowed_languages": (authority.language,),
@@ -205,37 +226,96 @@ class RuntimeQaPolicyWindowController:
         )
         try:
             replacement = PolicyControlSnapshot.model_validate(values)
-            self._policy.append_control(replacement)
-        except (ValidationError, ValueError, sa.exc.IntegrityError):
-            winner = self._current(at)
-            if winner.snapshot_fingerprint == fingerprint:
-                return winner
-            raise RuntimeQaPolicyWindowError(
-                "runtime QA policy authority changed concurrently"
-            ) from None
+        except (ValidationError, ValueError):
+            raise RuntimeQaPolicyWindowError("runtime QA policy authority is invalid") from None
+        try:
+            if self._policy.append_control_if_latest(
+                replacement,
+                expected_latest_revision=latest.control_revision,
+            ):
+                return replacement
         except sa.exc.SQLAlchemyError:
             raise RuntimeQaPolicyWindowError("runtime QA policy authority is unavailable") from None
-        return replacement
+        return None
 
-    @staticmethod
-    def _authority(runtime_config: AcquisitionRuntimeConfig) -> _QaAuthority:
+    def _authority(self, runtime_config: AcquisitionRuntimeConfig) -> _QaAuthority:
         deployment = runtime_config.deployment
         if runtime_config.environment != "STAGING" or len(deployment.allowed_opportunity_keys) != 1:
             raise RuntimeQaPolicyWindowError("runtime QA policy requires one exact opportunity")
         scope = deployment.qa_scope
+        opportunity_key = deployment.allowed_opportunity_keys[0]
         return _QaAuthority(
-            opportunity_key=deployment.allowed_opportunity_keys[0],
+            opportunity_key=opportunity_key,
+            signal_ref=f"procurement-opportunity:{opportunity_key}",
             country=scope.country,
             language=scope.language,
             wedge=scope.wedge,
             cost_cap=min(deployment.limits.maximum_cycle_cost, MAXIMUM_QA_COST),
         )
 
+    def _verify_public_authority(self, authority: _QaAuthority) -> None:
+        query = (
+            sa.select(source_event.c.source_country)
+            .select_from(
+                opportunity_representation.join(
+                    contract_award,
+                    opportunity_representation.c.award_key == contract_award.c.award_key,
+                ).join(
+                    source_event,
+                    contract_award.c.event_key == source_event.c.event_key,
+                )
+            )
+            .where(opportunity_representation.c.opportunity_key == authority.opportunity_key)
+            .distinct()
+            .order_by(source_event.c.source_country)
+        )
+        try:
+            with self._engine.connect() as connection:
+                countries = tuple(connection.scalars(query).all())
+        except sa.exc.SQLAlchemyError:
+            raise RuntimeQaPolicyWindowError(
+                "runtime QA public opportunity is unavailable"
+            ) from None
+        if countries != (authority.country,):
+            raise RuntimeQaPolicyWindowError(
+                "runtime QA public opportunity does not match its exact scope"
+            )
+
     def _current(self, at: dt.datetime) -> PolicyControlSnapshot:
         try:
             return self._policy.get_effective_control(at)
         except (PolicyControlUnavailable, sa.exc.SQLAlchemyError, ValueError):
             raise RuntimeQaPolicyWindowError("runtime QA policy authority is unavailable") from None
+
+    def _latest(self) -> PolicyControlSnapshot:
+        try:
+            return self._policy.get_latest_control()
+        except (PolicyControlUnavailable, sa.exc.SQLAlchemyError, ValueError):
+            raise RuntimeQaPolicyWindowError("runtime QA policy authority is unavailable") from None
+
+    def _recoverable_qa_stop(
+        self,
+        control: PolicyControlSnapshot,
+        *,
+        authority: _QaAuthority,
+    ) -> bool:
+        if not (
+            control.autonomy_mode is AutonomyMode.SHADOW
+            and control.shadow_target_mode is AutonomyMode.ASSISTED
+            and control.read_only
+            and control.kill_switch
+            and control.expires_at is None
+            and control.created_by_actor_type == "SYSTEM"
+            and control.created_by_actor_ref == SAFETY_CONTROLLER_REF
+            and control.reason_codes == (RECOVERABLE_STOP_REASON,)
+            and self._same_qa_authority(control, authority=authority)
+        ):
+            return False
+        try:
+            previous = self._policy.get_previous_control(control.control_revision)
+        except (PolicyControlUnavailable, sa.exc.SQLAlchemyError, ValueError):
+            return False
+        return self._same_closed_window(previous, authority=authority)
 
     @staticmethod
     def _require_chf(control: PolicyControlSnapshot) -> None:
@@ -280,6 +360,7 @@ class RuntimeQaPolicyWindowController:
     ) -> bool:
         return (
             control.allowed_commands == RUNTIME_COMMANDS
+            and control.qa_signal_ref == authority.signal_ref
             and control.allowed_countries == (authority.country,)
             and control.allowed_languages == (authority.language,)
             and control.allowed_wedges == (authority.wedge,)
@@ -325,6 +406,7 @@ class RuntimeQaPolicyWindowController:
             and not control.kill_switch
             and cls._same_qa_authority(control, authority=authority)
             and control.expires_at is None
+            and control.created_by_actor_type == "HUMAN"
             and QA_WINDOW_CLOSED in control.reason_codes
         )
 
