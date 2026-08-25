@@ -133,10 +133,10 @@ git commit -m "fix(email): classify permanent RCPT refusals"
 - [ ] **Step 1: Write failing terminal-refusal tests**
 
 Cover more than five eligible signals and multiple later cycles: one SMTP
-attempt, exactly the original maximum-five delivery rows, and no new row after
-the refusal. Assert the first refusal is persisted/logged but produces no
-`CycleReport` incident. Assert a generic SMTP 550 still produces a current
-incident and does not install the exact block.
+attempt, exactly the original per-message maximum of delivery rows, and no new
+row after the refusal. Assert the first refusal is persisted/logged but
+produces no `CycleReport` incident. Assert a generic SMTP 550 still produces a
+current incident and does not install the exact block.
 
 - [ ] **Step 2: Write failing context-change tests**
 
