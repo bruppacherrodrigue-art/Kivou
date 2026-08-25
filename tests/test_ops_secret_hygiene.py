@@ -21,6 +21,7 @@ import pytest
 
 REPOSITORY = pathlib.Path(__file__).resolve().parents[1]
 SCRIPT = REPOSITORY / "ops/bin/kivou_secret_hygiene.py"
+POSTGRES_SCRIPT = REPOSITORY / "ops/bin/kivou_rotate_postgres_secret.py"
 RUNBOOK = REPOSITORY / "docs/runbooks/09-staging-secret-rotation.md"
 OPERATIONS = REPOSITORY / "ops/README.md"
 
@@ -69,15 +70,19 @@ def _write_values(
     return path
 
 
-def _load_hygiene_module() -> types.ModuleType:
+def _load_postgres_module() -> types.ModuleType:
     specification = importlib.util.spec_from_file_location(
-        "kivou_secret_hygiene_under_test",
-        SCRIPT,
+        "kivou_rotate_postgres_secret_under_test",
+        POSTGRES_SCRIPT,
     )
     assert specification is not None
     assert specification.loader is not None
     module = importlib.util.module_from_spec(specification)
-    specification.loader.exec_module(module)
+    sys.path.insert(0, str(POSTGRES_SCRIPT.parent))
+    try:
+        specification.loader.exec_module(module)
+    finally:
+        sys.path.pop(0)
     return module
 
 
@@ -103,6 +108,23 @@ def _run_cli(
     return subprocess.run(
         [sys.executable, str(SCRIPT), *(str(argument) for argument in arguments)],
         input=stdin,
+        text=True,
+        capture_output=True,
+        check=False,
+        timeout=timeout,
+    )
+
+
+def _run_postgres_cli(
+    *arguments: str | pathlib.Path,
+    timeout: float = 10,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            sys.executable,
+            str(POSTGRES_SCRIPT),
+            *(str(argument) for argument in arguments),
+        ],
         text=True,
         capture_output=True,
         check=False,
@@ -404,7 +426,7 @@ def test_rotate_postgres_writes_candidate_before_protocol_password_change(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    module = _load_hygiene_module()
+    module = _load_postgres_module()
     old_env = tmp_path / "staging.env"
     old_env.write_text(
         f"KIVOU_DATABASE_URL={FAKE_OLD_ROLE_URL}\nOTHER_SETTING=preserved\n",
@@ -437,8 +459,7 @@ def test_rotate_postgres_writes_candidate_before_protocol_password_change(
         sys,
         "argv",
         [
-            str(SCRIPT),
-            "rotate-postgres-password",
+            str(POSTGRES_SCRIPT),
             "--old-env-file",
             str(old_env),
             "--values-file",
@@ -488,7 +509,7 @@ def test_rotate_postgres_restores_values_file_when_old_authentication_fails(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    module = _load_hygiene_module()
+    module = _load_postgres_module()
     old_env = tmp_path / "staging.env"
     old_env.write_text(f"KIVOU_DATABASE_URL={FAKE_OLD_ROLE_URL}\n", encoding="utf-8")
     old_env.chmod(0o600)
@@ -516,8 +537,7 @@ def test_rotate_postgres_restores_values_file_when_old_authentication_fails(
         sys,
         "argv",
         [
-            str(SCRIPT),
-            "rotate-postgres-password",
+            str(POSTGRES_SCRIPT),
             "--old-env-file",
             str(old_env),
             "--values-file",
@@ -542,7 +562,7 @@ def test_rotate_postgres_keeps_candidate_when_database_state_is_unknown(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    module = _load_hygiene_module()
+    module = _load_postgres_module()
     old_env = tmp_path / "staging.env"
     old_env.write_text(f"KIVOU_DATABASE_URL={FAKE_OLD_ROLE_URL}\n", encoding="utf-8")
     old_env.chmod(0o600)
@@ -571,8 +591,7 @@ def test_rotate_postgres_keeps_candidate_when_database_state_is_unknown(
         sys,
         "argv",
         [
-            str(SCRIPT),
-            "rotate-postgres-password",
+            str(POSTGRES_SCRIPT),
             "--old-env-file",
             str(old_env),
             "--values-file",
@@ -597,6 +616,26 @@ def test_rotate_postgres_keeps_candidate_when_database_state_is_unknown(
         (b"kivou_app", FAKE_NEW_ROLE_PASSWORD.encode())
     ]
     assert connection.closed
+
+
+def test_postgres_rotator_parser_redacts_unexpected_secret_arguments(
+    tmp_path: pathlib.Path,
+) -> None:
+    old_env = _write_values(tmp_path / "staging.env", FAKE_OLD_SECRETS)
+    values_file = _write_values(tmp_path / "new.values", FAKE_NEW_SECRETS)
+
+    result = _run_postgres_cli(
+        "--old-env-file",
+        old_env,
+        "--values-file",
+        values_file,
+        FAKE_NEW_ROLE_PASSWORD,
+    )
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == "error=invalid_arguments\n"
+    assert FAKE_NEW_ROLE_PASSWORD not in result.stdout + result.stderr
 
 
 @pytest.mark.parametrize(
@@ -743,11 +782,33 @@ def test_cli_is_stdlib_only_streaming_and_durable_atomic_replace() -> None:
             imported_roots.add(node.module.split(".", 1)[0])
 
     assert imported_roots <= sys.stdlib_module_names | {"__future__"}
+    assert "importlib" not in imported_roots
+    assert "importlib" not in body
+    assert "psycopg" not in body
+    assert "rotate-postgres-password" not in body
     assert "for line in sys.stdin:" in body
     assert "sys.stdin.read(" not in body
     assert "tempfile.mkstemp(" in body
     assert "os.replace(" in body
     assert body.count("os.fsync(") >= 2
+
+
+def test_postgres_rotator_uses_a_static_psycopg_import_and_shared_safe_io() -> None:
+    body = POSTGRES_SCRIPT.read_text(encoding="utf-8")
+    tree = ast.parse(body)
+    imported_roots: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.split(".", 1)[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.split(".", 1)[0])
+
+    assert "psycopg" in imported_roots
+    assert "kivou_secret_hygiene" in imported_roots
+    assert "importlib" not in imported_roots
+    assert "PASSWORD %s" not in body
+    assert "cursor.execute" not in body
+    assert "change_password(" in body
 
 
 def test_operator_docs_forbid_secret_bearing_process_arguments() -> None:
@@ -825,7 +886,7 @@ def test_runbook_uses_executable_masked_provider_and_local_postgres_rotation() -
         "set-secret SMTP_PASSWORD",
         "set-secret STRIPE_SECRET_KEY",
         "set-secret STRIPE_WEBHOOK_SECRET",
-        "rotate-postgres-password",
+        "kivou_rotate_postgres_secret.py",
         "--old-env-file /etc/kivou/staging.env",
         "/srv/kivou/app/.venv/bin/python",
         "ALTER ROLE",
@@ -835,6 +896,7 @@ def test_runbook_uses_executable_masked_provider_and_local_postgres_rotation() -
         "sudo awk -F=",
     ):
         assert command_fragment in body
+    assert "rotate-postgres-password" not in body
 
 
 def test_ops_readme_points_operators_to_the_counter_only_cli_and_runbook() -> None:
@@ -842,8 +904,9 @@ def test_ops_readme_points_operators_to_the_counter_only_cli_and_runbook() -> No
 
     assert "09-staging-secret-rotation.md" in body
     assert "kivou_secret_hygiene.py" in body
+    assert "kivou_rotate_postgres_secret.py" in body
     assert "replace-env" in body
     assert "audit-journal" in body
     assert "set-secret" in body
-    assert "rotate-postgres-password" in body
+    assert "rotate-postgres-password" not in body
     assert "valeurs uniquement depuis des fichiers `0600`" in body

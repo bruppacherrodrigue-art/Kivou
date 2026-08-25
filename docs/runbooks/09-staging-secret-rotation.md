@@ -144,13 +144,15 @@ connexion et complète elle-même `new.values` :
 
 ```bash
 sudo /srv/kivou/app/.venv/bin/python \
-  /srv/kivou/app/ops/bin/kivou_secret_hygiene.py \
-  rotate-postgres-password \
+  /srv/kivou/app/ops/bin/kivou_rotate_postgres_secret.py \
   --old-env-file /etc/kivou/staging.env \
   --values-file /run/kivou-secret-rotation/new.values
 ```
 
-Le CLI génère le nouveau mot de passe en mémoire, écrit d'abord la nouvelle
+Ce rotateur distinct importe Psycopg explicitement depuis l'environnement virtuel
+du projet ; le CLI d'hygiène général reste strictement limité à la bibliothèque
+standard Python. Le rotateur génère le nouveau mot de passe en mémoire, écrit
+d'abord la nouvelle
 `KIVOU_DATABASE_URL` candidate dans `new.values` par remplacement atomique, puis
 ouvre la connexion avec l'ancienne URL lue en mémoire. La sémantique PostgreSQL
 `ALTER ROLE` passe exclusivement par `PGconn.change_password`/`PQchangePassword` :

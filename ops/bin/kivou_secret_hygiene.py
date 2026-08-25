@@ -5,15 +5,12 @@ from __future__ import annotations
 
 import argparse
 import getpass
-import importlib
 import json
 import os
 import pathlib
-import secrets
 import stat
 import sys
 import tempfile
-import urllib.parse
 import warnings
 
 SECRET_NAMES = (
@@ -33,14 +30,6 @@ class _SafeFailure(Exception):
 
 class _InvalidInput(_SafeFailure):
     """An intentionally detail-free input failure."""
-
-
-class _DatabaseUpdateFailed(_SafeFailure):
-    code = "database_update_failed"
-
-
-class _DatabaseStateUnknown(_SafeFailure):
-    code = "database_state_unknown"
 
 
 class _SafeArgumentParser(argparse.ArgumentParser):
@@ -147,82 +136,6 @@ def _validate_provider_secret(name: str, value: str) -> None:
         raise _InvalidInput
     if name == "STRIPE_WEBHOOK_SECRET" and not value.startswith("whsec_"):
         raise _InvalidInput
-
-
-def _extract_database_url(environment_text: str) -> str:
-    database_url: str | None = None
-    for line in environment_text.splitlines():
-        name, separator, value = line.partition("=")
-        if separator and name == "KIVOU_DATABASE_URL":
-            if database_url is not None or not value or not value.strip():
-                raise _InvalidInput
-            database_url = value
-    if database_url is None:
-        raise _InvalidInput
-    return database_url
-
-
-def _postgres_urls(old_url: str, new_password: str) -> tuple[str, str]:
-    try:
-        parsed = urllib.parse.urlsplit(old_url)
-        if parsed.scheme not in {"postgres", "postgresql", "postgresql+psycopg"}:
-            raise _InvalidInput
-        if parsed.username != "kivou_app" or parsed.password is None or parsed.hostname is None:
-            raise _InvalidInput
-        if parsed.fragment or "@" not in parsed.netloc:
-            raise _InvalidInput
-        raw_userinfo, raw_hostinfo = parsed.netloc.rsplit("@", 1)
-        raw_username = raw_userinfo.split(":", 1)[0]
-        candidate_netloc = (
-            f"{raw_username}:{urllib.parse.quote(new_password, safe='')}@{raw_hostinfo}"
-        )
-        candidate_url = urllib.parse.urlunsplit(
-            parsed._replace(netloc=candidate_netloc)
-        )
-        connection_url = urllib.parse.urlunsplit(parsed._replace(scheme="postgresql"))
-    except (TypeError, ValueError):
-        raise _InvalidInput from None
-    return candidate_url, connection_url
-
-
-def _generate_postgres_password() -> str:
-    return secrets.token_urlsafe(48)
-
-
-def _connect_postgres(url: str, *, autocommit: bool) -> object:
-    psycopg = importlib.import_module("psycopg")
-    return psycopg.connect(url, autocommit=autocommit)
-
-
-def _close_without_error(resource: object | None) -> None:
-    if resource is None:
-        return
-    try:
-        resource.close()
-    except Exception:  # noqa: BLE001 - close errors may contain connection secrets
-        return
-
-
-def _alter_postgres_role(connection_url: str, new_password: str) -> None:
-    connection: object | None = None
-    try:
-        try:
-            connection = _connect_postgres(connection_url, autocommit=True)
-        except Exception:  # noqa: BLE001 - driver errors may contain the old URL
-            raise _DatabaseUpdateFailed from None
-
-        try:
-            password_protocol = connection.pgconn
-            change_password = password_protocol.change_password
-        except (AttributeError, TypeError):
-            raise _DatabaseUpdateFailed from None
-
-        try:
-            change_password(b"kivou_app", new_password.encode("utf-8"))
-        except Exception:  # noqa: BLE001 - protocol errors may contain credentials
-            raise _DatabaseStateUnknown from None
-    finally:
-        _close_without_error(connection)
 
 
 def _rewrite_target(target_text: str, replacements: dict[str, str]) -> tuple[str, int]:
@@ -335,47 +248,6 @@ def _set_secret(name: str, values_file: pathlib.Path) -> int:
     return 0
 
 
-def _rotate_postgres_password(
-    old_env_file: pathlib.Path,
-    values_file: pathlib.Path,
-) -> int:
-    old_environment_text, old_metadata = _read_protected_file(old_env_file)
-    values_text, values_metadata = _read_protected_file(values_file)
-    if (old_metadata.st_dev, old_metadata.st_ino) == (
-        values_metadata.st_dev,
-        values_metadata.st_ino,
-    ):
-        raise _InvalidInput
-
-    old_url = _extract_database_url(old_environment_text)
-    values = _parse_values(values_text, require_complete=False, allow_empty=True)
-    new_password = _generate_postgres_password()
-    if (
-        not new_password
-        or not new_password.strip()
-        or any(character in new_password for character in "\x00\r\n")
-        or new_password in values.values()
-    ):
-        raise _InvalidInput
-    candidate_url, connection_url = _postgres_urls(old_url, new_password)
-    values["KIVOU_DATABASE_URL"] = candidate_url
-    _atomic_replace(values_file, _serialize_values(values), values_metadata)
-
-    try:
-        _alter_postgres_role(connection_url, new_password)
-    except _DatabaseUpdateFailed:
-        _atomic_replace(values_file, values_text, values_metadata)
-        raise
-
-    _emit_counters(
-        {
-            "database_password_rotated": 1,
-            "secret_values_present": len(values),
-        }
-    )
-    return 0
-
-
 def _audit_journal(values_files: list[pathlib.Path]) -> int:
     secret_values: list[str] = []
     seen_values: set[str] = set()
@@ -421,18 +293,6 @@ def _parser() -> argparse.ArgumentParser:
     set_secret_parser.add_argument("name", choices=_PROVIDER_SECRET_NAMES)
     set_secret_parser.add_argument("--values-file", required=True, type=pathlib.Path)
 
-    rotate_postgres_parser = subcommands.add_parser("rotate-postgres-password")
-    rotate_postgres_parser.add_argument(
-        "--old-env-file",
-        required=True,
-        type=pathlib.Path,
-    )
-    rotate_postgres_parser.add_argument(
-        "--values-file",
-        required=True,
-        type=pathlib.Path,
-    )
-
     audit_parser = subcommands.add_parser("audit-journal")
     audit_parser.add_argument("values_files", nargs="+", type=pathlib.Path)
     return parser
@@ -445,11 +305,6 @@ def main() -> int:
             return _replace_env(arguments.values_file, arguments.target)
         if arguments.command == "set-secret":
             return _set_secret(arguments.name, arguments.values_file)
-        if arguments.command == "rotate-postgres-password":
-            return _rotate_postgres_password(
-                arguments.old_env_file,
-                arguments.values_file,
-            )
         return _audit_journal(arguments.values_files)
     except _SafeFailure as error:
         sys.stderr.write(f"error={error.code}\n")
