@@ -14,7 +14,7 @@
   "qa_recipient_key_version": "qa-recipient-key-v1",
   "qa_provider_mutations_capable": true,
   "limits": {
-    "maximum_cycle_cost": "5.00",
+    "maximum_cycle_cost": "10.00",
     "maximum_suppliers": 1,
     "maximum_contacts": 1,
     "maximum_provider_operations": 3,

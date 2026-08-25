@@ -200,7 +200,7 @@ def _runtime_config() -> AcquisitionRuntimeConfig:
             qa_recipient_key_version="qa-runtime-v1",
             qa_provider_mutations_capable=True,
             limits=AcquisitionRuntimeLimits(
-                maximum_cycle_cost=Decimal("5"),
+                maximum_cycle_cost=Decimal("10"),
                 maximum_provider_operations=3,
                 maximum_wall_seconds=600,
                 lease_seconds=900,
@@ -490,6 +490,47 @@ def test_runtime_scope_must_equal_the_live_operator_policy_scope(tmp_path) -> No
             hermes_runtime=ClosedFakeHermes(),
             clock=lambda: NOW,
         )
+    engine.dispose()
+
+
+def test_runtime_rejects_budget_below_the_bounded_apollo_recovery_envelope(
+    tmp_path,
+) -> None:
+    engine = _engine()
+    provider = NoNetworkProvider()
+    apollo = ApolloComponents(
+        organization_search=provider,
+        contact_discovery=provider,
+        company_research=provider,
+        identity=provider,
+    )
+    configured = _runtime_config()
+    undersized = configured.model_copy(
+        update={
+            "deployment": configured.deployment.model_copy(
+                update={
+                    "limits": configured.deployment.limits.model_copy(
+                        update={"maximum_cycle_cost": Decimal("5")}
+                    )
+                }
+            )
+        }
+    )
+
+    with pytest.raises(RuntimeExecutionConfigurationError) as error:
+        build_runtime_execution_composition(
+            engine=engine,
+            runtime_config=undersized,
+            connectivity_config=_connectivity_config(tmp_path),
+            links=_links(),
+            webhook_configuration=_webhook_configuration(),
+            apollo=apollo,
+            instantly_provider=provider,
+            hermes_runtime=ClosedFakeHermes(),
+            clock=lambda: NOW,
+        )
+
+    assert error.value.code == "RUNTIME_RECOVERY_COST_ENVELOPE_TOO_SMALL"
     engine.dispose()
 
 

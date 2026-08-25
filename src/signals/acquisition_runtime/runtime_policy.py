@@ -20,6 +20,7 @@ from signals.acquisition_runtime.authorization import (
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
     RuntimeDependencyState,
+    RuntimeQaScope,
     RuntimeStageDependency,
     require_aware,
 )
@@ -27,6 +28,7 @@ from signals.acquisition_runtime.domain import (
     AuthorizedCall,
     DomainApprovalRequired,
     DomainAttemptIdentity,
+    DomainPolicyRevalidationBlocked,
 )
 from signals.acquisition_runtime.registry import AcquisitionActionContext
 from signals.acquisition_runtime.supervisor import KIVOU_STAGE_COSTS
@@ -43,6 +45,7 @@ from signals.persistence.schema import (
 from signals.policy.contracts import (
     ApprovalGrant,
     ApprovalPurpose,
+    AutonomyMode,
     BudgetUsage,
     ComplianceAssessment,
     ComplianceState,
@@ -50,6 +53,7 @@ from signals.policy.contracts import (
     EvidenceStatus,
     OperationalReadiness,
     PolicyControlSnapshot,
+    PolicyControlUnavailable,
     PolicyStatus,
     Scope,
     WindowState,
@@ -279,6 +283,7 @@ class LiveRuntimePolicyAuthorizationFactory:
         *,
         runtime_revision: str,
         qa_signal_ref: str,
+        qa_scope: RuntimeQaScope,
         readiness: RuntimePolicyReadinessSource | None = None,
     ) -> None:
         if not runtime_revision or len(runtime_revision) > 100:
@@ -292,7 +297,34 @@ class LiveRuntimePolicyAuthorizationFactory:
         self._policy = PolicyStore(engine)
         self._runtime_revision = runtime_revision
         self._qa_signal_ref = qa_signal_ref
+        self._qa_scope = qa_scope
         self._readiness = readiness or FailClosedRuntimePolicyReadiness()
+
+    def revalidate_provider_recovery(
+        self,
+        context: AcquisitionActionContext,
+        *,
+        opportunity_id: str | None,
+    ) -> None:
+        """Check current authority without replaying an old Policy evaluation."""
+
+        del opportunity_id
+        try:
+            control = self._policy.get_effective_control(require_aware(context.at))
+        except (PolicyControlUnavailable, sa.exc.SQLAlchemyError, ValueError) as error:
+            raise DomainPolicyRevalidationBlocked from error
+        scope = self._qa_scope
+        if not (
+            control.autonomy_mode is AutonomyMode.ASSISTED
+            and not control.kill_switch
+            and not control.read_only
+            and control.qa_signal_ref == self._qa_signal_ref
+            and context.stage.command in control.allowed_commands
+            and control.allowed_countries == (scope.country,)
+            and control.allowed_languages == (scope.language,)
+            and control.allowed_wedges == (scope.wedge,)
+        ):
+            raise DomainPolicyRevalidationBlocked
 
     def supplier(
         self,

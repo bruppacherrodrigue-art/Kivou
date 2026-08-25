@@ -100,6 +100,7 @@ class SupplierDiscoveryStore:
             "candidate_cap": profile.candidate_cap,
             "planned_provider_credit_units": profile.max_pages,
             "pages_requested": 0,
+            "recovery_provider_calls": 0,
             "provider_credit_units_observed": None,
             "provider_total_entries": None,
             "partial_results_only": None,
@@ -155,6 +156,40 @@ class SupplierDiscoveryStore:
             ):
                 raise DiscoveryAlreadyStarted(row["discovery_run_id"])
             return RunOwnership(_run_record(row), owned)
+
+    def claim_recovery(self, discovery_run_id: str) -> RunOwnership:
+        """Claim the single bounded provider replay for an indeterminate run."""
+
+        with self._engine.begin() as connection:
+            claimed = (
+                connection.execute(
+                    sa.update(supplier_discovery_run)
+                    .where(
+                        supplier_discovery_run.c.discovery_run_id
+                        == discovery_run_id,
+                        supplier_discovery_run.c.status
+                        == DiscoveryRunStatus.STARTED.value,
+                        supplier_discovery_run.c.recovery_provider_calls == 0,
+                    )
+                    .values(recovery_provider_calls=1)
+                    .returning(supplier_discovery_run)
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if claimed is not None:
+                return RunOwnership(_run_record(claimed), True)
+            row = (
+                connection.execute(
+                    sa.select(supplier_discovery_run).where(
+                        supplier_discovery_run.c.discovery_run_id
+                        == discovery_run_id
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            return RunOwnership(_run_record(row), False)
 
     def finish_run(
         self,

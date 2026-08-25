@@ -219,6 +219,55 @@ def test_fresh_durable_runtime_and_shadow_policy_are_the_only_runtime_authority(
     assert "acquisition-runtime-observation-v1" in readiness.evidence_refs
 
 
+def test_timer_revalidates_a_completed_cycle_without_making_health_stale(
+    tmp_path,
+) -> None:
+    engine = _engine(tmp_path, "timer-revalidation.db")
+    service = _ready_service(engine)
+    replayed_at = NOW + dt.timedelta(hours=2)
+    store = AcquisitionRuntimeStore(engine)
+    lease = store.acquire_lease(
+        OWNER,
+        acquired_at=replayed_at,
+        lease_seconds=600,
+    )
+    assert lease.fencing_token is not None
+    fence = {
+        "owner_ref": OWNER,
+        "fencing_token": lease.fencing_token,
+    }
+    store.record_runtime_observation(
+        OWNER,
+        capability(),
+        fencing_token=lease.fencing_token,
+        at=replayed_at,
+    )
+    cycle = store.resume_or_create_cycle(
+        **fence,
+        opportunity_keys=("qa-opportunity-1",),
+        config_fingerprint="2" * 64,
+        at=replayed_at,
+    )
+    assert cycle.status is RuntimeCycleStatus.SUCCEEDED
+    store.record_cycle_observation(
+        OWNER,
+        cycle.cycle_ref,
+        fencing_token=lease.fencing_token,
+        at=replayed_at,
+    )
+    store.release_lease(
+        OWNER,
+        fencing_token=lease.fencing_token,
+        at=replayed_at,
+    )
+
+    health = service.health(observed_at=replayed_at)
+
+    assert health.status is HealthStatus.READY
+    assert health.campaign_execution is HealthStatus.READY
+    assert "RUNTIME_LAST_CYCLE_STALE" not in health.reason_codes
+
+
 def test_stale_observation_fails_closed_even_when_policy_is_ready(tmp_path) -> None:
     engine = _engine(tmp_path, "stale.db")
     PolicyStore(engine).append_control(_control())

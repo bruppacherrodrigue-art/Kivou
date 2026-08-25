@@ -20,6 +20,27 @@ depends_on = None
 
 
 def upgrade() -> None:
+    for table_name, constraint_name in (
+        (
+            "supplier_discovery_run",
+            "ck_supplier_discovery_run_recovery_calls",
+        ),
+        ("contact_discovery_run", "ck_contact_run_recovery_calls"),
+        ("company_research_run", "ck_company_run_recovery_calls"),
+    ):
+        with op.batch_alter_table(table_name) as batch:
+            batch.add_column(
+                sa.Column(
+                    "recovery_provider_calls",
+                    sa.Integer(),
+                    nullable=False,
+                    server_default="0",
+                )
+            )
+            batch.create_check_constraint(
+                constraint_name,
+                "recovery_provider_calls >= 0 AND recovery_provider_calls <= 1",
+            )
     op.add_column(
         "acquisition_policy_snapshot",
         sa.Column("qa_signal_ref", sa.String(256), nullable=True),
@@ -405,3 +426,14 @@ def downgrade() -> None:
     op.drop_table("acquisition_runtime_cycle")
     op.drop_table("acquisition_runtime_lease")
     op.drop_column("acquisition_policy_snapshot", "qa_signal_ref")
+    for table_name, constraint_name in (
+        ("company_research_run", "ck_company_run_recovery_calls"),
+        ("contact_discovery_run", "ck_contact_run_recovery_calls"),
+        (
+            "supplier_discovery_run",
+            "ck_supplier_discovery_run_recovery_calls",
+        ),
+    ):
+        with op.batch_alter_table(table_name) as batch:
+            batch.drop_constraint(constraint_name, type_="check")
+            batch.drop_column("recovery_provider_calls")

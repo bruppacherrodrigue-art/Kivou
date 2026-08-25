@@ -42,7 +42,7 @@ def _document(**updates: object) -> dict[str, object]:
         "qa_recipient_key_version": "qa-recipient-key-v1",
         "qa_provider_mutations_capable": True,
         "limits": {
-            "maximum_cycle_cost": "5.00",
+            "maximum_cycle_cost": "10.00",
             "maximum_suppliers": 1,
             "maximum_contacts": 1,
             "maximum_provider_operations": 4,
@@ -99,7 +99,7 @@ def test_loads_strict_staging_shadow_config_and_redacts_recipient(tmp_path) -> N
     assert config.deployment.mode is RuntimeExecutionMode.SHADOW
     assert config.deployment.allowed_opportunity_keys == ("opportunity-qa-001",)
     assert config.qa_recipient.get_secret_value() == QA_RECIPIENT
-    assert config.deployment.limits.maximum_cycle_cost == 5
+    assert config.deployment.limits.maximum_cycle_cost == 10
     rendered = repr(config)
     assert QA_RECIPIENT not in rendered
     assert QA_KEY not in rendered

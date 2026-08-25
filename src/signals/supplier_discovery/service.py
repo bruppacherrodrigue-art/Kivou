@@ -14,10 +14,12 @@ from signals.acquisition.contracts import AcquisitionError, ActorType, EventType
 from signals.acquisition.store import AcquisitionStore
 from signals.policy.contracts import BudgetUsage, PolicyRequest
 from signals.policy.gateway import PolicyGateway
+from signals.policy.store import PolicyStore, decision_from_row
 from signals.supplier_discovery.contracts import (
     ApolloOrganizationCandidate,
     ApolloProviderError,
     DiscoveryAuthorizationInput,
+    DiscoveryRunIdentityConflict,
     DiscoveryRunStart,
     DiscoveryRunStatus,
     DiscoveryServiceResult,
@@ -66,6 +68,7 @@ class SupplierDiscoveryService:
         self._suppliers = supplier_store or SupplierDiscoveryStore(engine)
         self._acquisition = acquisition_store or AcquisitionStore(engine)
         self._profile_resolver = profile_resolver or self._resolve_persisted_profile
+        self._policy_store = PolicyStore(engine)
         self._clock = clock
 
     def discover(
@@ -137,6 +140,59 @@ class SupplierDiscoveryService:
         )
         if not ownership.owned:
             return DiscoveryServiceResult(decision=decision, run=ownership.run)
+
+        return self._execute(ownership.run, profile, decision)
+
+    def resume_started(
+        self,
+        discovery_run_id: str,
+        *,
+        authorize_recovery: Callable[[], None],
+    ) -> DiscoveryServiceResult | None:
+        """Replay an indeterminate Apollo run once, without recalculating Policy."""
+
+        try:
+            run = self._suppliers.get_run(discovery_run_id)
+        except sa.exc.NoResultFound:
+            return None
+        decision = self._durable_decision(run)
+        if run.status is not DiscoveryRunStatus.STARTED:
+            return DiscoveryServiceResult(decision=decision, run=run)
+        authorize_recovery()
+        ownership = self._suppliers.claim_recovery(discovery_run_id)
+        if not ownership.owned:
+            return DiscoveryServiceResult(decision=decision, run=ownership.run)
+        profile = SupplierSearchProfile.model_validate(ownership.run.search_profile)
+        return self._execute(ownership.run, profile, decision)
+
+    def _durable_decision(self, run):
+        profile = SupplierSearchProfile.model_validate(run.search_profile)
+        canonical_arguments = _canonical_json(
+            {"profile": profile.model_dump(mode="json"), "provider": "apollo"}
+        )
+        expected_fingerprint = hashlib.sha256(canonical_arguments.encode()).hexdigest()
+        with self._engine.connect() as connection:
+            row = self._policy_store.evaluation_row(
+                connection, run.policy_evaluation_id
+            )
+        if row is None or not (
+            row["command"] == "discover_suppliers"
+            and row["target_ref"] == run.signal_ref
+            and row["action_fingerprint"] == expected_fingerprint
+            and run.provider_request_fingerprint == expected_fingerprint
+        ):
+            raise DiscoveryRunIdentityConflict(
+                "supplier recovery policy binding changed"
+            )
+        decision = decision_from_row(row)
+        if not decision.executable:
+            raise DiscoveryRunIdentityConflict(
+                "supplier recovery policy was not executable"
+            )
+        return decision
+
+    def _execute(self, run, profile, decision) -> DiscoveryServiceResult:
+        discovery_run_id = run.discovery_run_id
 
         counters: dict[str, object] = {
             "pages_requested": 0,

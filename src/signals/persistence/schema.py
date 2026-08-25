@@ -571,6 +571,12 @@ supplier_discovery_run = sa.Table(
     sa.Column("candidate_cap", sa.Integer, nullable=False),
     sa.Column("planned_provider_credit_units", sa.Integer, nullable=False),
     sa.Column("pages_requested", sa.Integer, nullable=False),
+    sa.Column(
+        "recovery_provider_calls",
+        sa.Integer,
+        nullable=False,
+        server_default=sa.text("0"),
+    ),
     sa.Column("provider_credit_units_observed", sa.Integer),
     sa.Column("provider_total_entries", sa.Integer),
     sa.Column("partial_results_only", sa.Boolean),
@@ -605,6 +611,10 @@ supplier_discovery_run = sa.Table(
     sa.CheckConstraint(
         "planned_provider_credit_units >= 0 AND pages_requested >= 0",
         name="ck_supplier_discovery_run_credit_counts",
+    ),
+    sa.CheckConstraint(
+        "recovery_provider_calls >= 0 AND recovery_provider_calls <= 1",
+        name="ck_supplier_discovery_run_recovery_calls",
     ),
     sa.CheckConstraint(
         "provider_credit_units_observed IS NULL OR provider_credit_units_observed >= 0",
@@ -717,6 +727,12 @@ contact_discovery_run = sa.Table(
     sa.Column("per_page", sa.Integer, nullable=False),
     sa.Column("max_enrichment_attempts", sa.Integer, nullable=False),
     sa.Column("people_search_requests", sa.Integer, nullable=False),
+    sa.Column(
+        "recovery_provider_calls",
+        sa.Integer,
+        nullable=False,
+        server_default=sa.text("0"),
+    ),
     sa.Column("provider_total_entries", sa.Integer),
     sa.Column("search_results_returned", sa.Integer, nullable=False),
     sa.Column("search_results_truncated", sa.Boolean, nullable=False),
@@ -755,6 +771,10 @@ contact_discovery_run = sa.Table(
         "AND candidates_eligible >= 0 AND candidates_rejected >= 0 "
         "AND enrichment_attempts >= 0",
         name="ck_contact_run_counters",
+    ),
+    sa.CheckConstraint(
+        "recovery_provider_calls >= 0 AND recovery_provider_calls <= 1",
+        name="ck_contact_run_recovery_calls",
     ),
     sa.CheckConstraint(
         "provider_total_entries IS NULL OR provider_total_entries >= 0",
@@ -902,6 +922,12 @@ company_research_run = sa.Table(
     sa.Column("planned_provider_credit_units", sa.Integer, nullable=False),
     sa.Column("observed_provider_credit_units", sa.Integer),
     sa.Column("provider_calls", sa.Integer, nullable=False),
+    sa.Column(
+        "recovery_provider_calls",
+        sa.Integer,
+        nullable=False,
+        server_default=sa.text("0"),
+    ),
     sa.Column("started_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("completed_at", sa.DateTime(timezone=True)),
     sa.Column("status", sa.String(16), nullable=False, index=True),
@@ -922,6 +948,10 @@ company_research_run = sa.Table(
     sa.CheckConstraint(
         "planned_provider_credit_units = 1 AND provider_calls >= 0 AND provider_calls <= 1",
         name="ck_company_run_call_bound",
+    ),
+    sa.CheckConstraint(
+        "recovery_provider_calls >= 0 AND recovery_provider_calls <= 1",
+        name="ck_company_run_recovery_calls",
     ),
     sa.CheckConstraint(
         "observed_provider_credit_units IS NULL OR observed_provider_credit_units >= 0",

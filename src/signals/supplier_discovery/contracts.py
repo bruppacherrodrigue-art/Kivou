@@ -239,6 +239,7 @@ class DiscoveryRunRecord(DiscoveryContract):
     candidate_cap: int
     planned_provider_credit_units: int
     pages_requested: int
+    recovery_provider_calls: int = Field(ge=0, le=1)
     provider_credit_units_observed: int | None = Field(default=None, ge=0)
     provider_total_entries: int | None = Field(default=None, ge=0)
     partial_results_only: bool | None = None

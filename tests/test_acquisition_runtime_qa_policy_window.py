@@ -127,7 +127,7 @@ def _runtime_config(
     *,
     opportunity_keys: tuple[str, ...] = ("opportunity-qa-001",),
     scope: RuntimeQaScope | None = None,
-    maximum_cycle_cost: Decimal = Decimal("5"),
+    maximum_cycle_cost: Decimal = Decimal("10"),
 ) -> AcquisitionRuntimeConfig:
     return AcquisitionRuntimeConfig(
         environment="STAGING",
@@ -288,7 +288,7 @@ def test_open_window_installs_exact_qa_scope_fixed_caps_and_runtime_commands(
     assert opened.allowed_languages == ("fr",)
     assert opened.allowed_wedges == ("construction",)
     assert opened.currency == before.currency == "CHF"
-    assert opened.daily_cost_cap == Decimal("5")
+    assert opened.daily_cost_cap == Decimal("10")
     assert opened.daily_volume_cap == 1
     assert opened.effective_at == NOW
     assert opened.expires_at == NOW + dt.timedelta(minutes=30)
@@ -534,7 +534,7 @@ def test_close_appends_safe_shadow_authority_and_is_idempotent(tmp_path) -> None
     assert closed.allowed_languages == ("fr",)
     assert closed.allowed_wedges == ("construction",)
     assert closed.currency == "CHF"
-    assert closed.daily_cost_cap == Decimal("5")
+    assert closed.daily_cost_cap == Decimal("10")
     assert closed.daily_volume_cap == 1
     assert closed.expires_at is None
     assert closed.created_by_actor_type == "HUMAN"

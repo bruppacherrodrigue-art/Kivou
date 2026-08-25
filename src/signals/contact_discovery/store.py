@@ -114,6 +114,7 @@ class ContactDiscoveryStore:
             "per_page": profile.per_page,
             "max_enrichment_attempts": profile.max_enrichment_attempts,
             "people_search_requests": 0,
+            "recovery_provider_calls": 0,
             "provider_total_entries": None,
             "search_results_returned": 0,
             "search_results_truncated": False,
@@ -171,6 +172,37 @@ class ContactDiscoveryStore:
             ):
                 raise ContactRunAlreadyStarted(by_policy["contact_discovery_run_id"])
             return ContactRunOwnership(_run(by_policy), owned)
+
+    def claim_recovery(self, run_id: str) -> ContactRunOwnership:
+        """Claim the single bounded provider replay for an indeterminate run."""
+
+        with self._engine.begin() as connection:
+            claimed = (
+                connection.execute(
+                    sa.update(contact_discovery_run)
+                    .where(
+                        contact_discovery_run.c.contact_discovery_run_id == run_id,
+                        contact_discovery_run.c.status == ContactRunStatus.STARTED.value,
+                        contact_discovery_run.c.recovery_provider_calls == 0,
+                    )
+                    .values(recovery_provider_calls=1)
+                    .returning(contact_discovery_run)
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if claimed is not None:
+                return ContactRunOwnership(_run(claimed), True)
+            row = (
+                connection.execute(
+                    sa.select(contact_discovery_run).where(
+                        contact_discovery_run.c.contact_discovery_run_id == run_id
+                    )
+                )
+                .mappings()
+                .one()
+            )
+            return ContactRunOwnership(_run(row), False)
 
     def finish_run(
         self,

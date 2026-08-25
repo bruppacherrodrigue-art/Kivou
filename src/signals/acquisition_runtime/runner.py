@@ -491,39 +491,42 @@ class AcquisitionRuntimeRunner:
                 cycle_ref=cycle.cycle_ref,
             )
         except InterruptedError:
-            if cycle is None or current_stage is None:
+            if cycle is None or current_stage is None or current_attempt <= 0:
                 raise
-            cancelled = RuntimeActionResult(
-                status=RuntimeStageStatus.CANCELLED,
+            checkpoint_at = self._now()
+            waiting = RuntimeActionResult(
+                status=RuntimeStageStatus.WAITING,
                 reason_codes=("CURRENT_RUN_INTERRUPTED",),
+                retry_at=checkpoint_at + dt.timedelta(minutes=1),
+                replay_same_attempt=True,
             )
             self.store.finish_stage(
                 cycle.cycle_ref,
                 current_stage,
-                cancelled,
+                waiting,
                 owner_ref=request.owner_ref,
                 fencing_token=fencing_token,
-                at=now,
+                at=checkpoint_at,
             )
             self.store.finish_cycle(
                 cycle.cycle_ref,
-                RuntimeCycleStatus.CANCELLED,
+                RuntimeCycleStatus.WAITING,
                 owner_ref=request.owner_ref,
                 fencing_token=fencing_token,
-                at=now,
+                at=checkpoint_at,
                 reason_code="CURRENT_RUN_INTERRUPTED",
             )
             self.store.record_cycle_observation(
                 request.owner_ref,
                 cycle.cycle_ref,
                 fencing_token=fencing_token,
-                at=now,
+                at=checkpoint_at,
             )
             self._emit_stage(
                 cycle.cycle_ref,
                 current_stage,
                 current_attempt,
-                cancelled,
+                waiting,
             )
             self._emit_cycle(
                 cycle.cycle_ref,

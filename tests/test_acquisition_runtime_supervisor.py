@@ -145,7 +145,7 @@ def test_allowed_hermes_plan_becomes_one_fingerprinted_kivou_action() -> None:
     assert proposal.action_index == 0
     assert proposal.command == AcquisitionRuntimeStage.SUPPLIER_DISCOVERY.command
     assert proposal.target_ref == CYCLE.cycle_ref
-    assert proposal.estimated_cost == Decimal("1")
+    assert proposal.estimated_cost == Decimal("2")
     assert len(proposal.argument_fingerprint) == 64
     assert proposal.reason_codes == ("HERMES_CLOSED_PROPOSAL",)
     assert proposal.evidence_refs == (proposal.argument_fingerprint,)
@@ -156,7 +156,7 @@ def test_allowed_hermes_plan_becomes_one_fingerprinted_kivou_action() -> None:
     assert context.available_commands == (
         AcquisitionRuntimeStage.SUPPLIER_DISCOVERY.command,
     )
-    assert context.budget.maximum_cycle_cost == Decimal("1")
+    assert context.budget.maximum_cycle_cost == Decimal("2")
     assert len(context.opportunities) == 1
     assert context.opportunities[0].object_ref == CYCLE.cycle_ref
     assert context.opportunities[0].kivou_analysis.opportunity_key == CYCLE.cycle_ref
@@ -180,9 +180,9 @@ def test_stage_costs_are_kivou_owned_deterministic_and_bounded() -> None:
     assert set(KIVOU_STAGE_COSTS) == set(AcquisitionRuntimeStage)
     assert KIVOU_STAGE_COSTS == {
         AcquisitionRuntimeStage.SIGNAL_SEED: Decimal("0"),
-        AcquisitionRuntimeStage.SUPPLIER_DISCOVERY: Decimal("1"),
-        AcquisitionRuntimeStage.CONTACT_DISCOVERY: Decimal("3"),
-        AcquisitionRuntimeStage.COMPANY_RESEARCH: Decimal("1"),
+        AcquisitionRuntimeStage.SUPPLIER_DISCOVERY: Decimal("2"),
+        AcquisitionRuntimeStage.CONTACT_DISCOVERY: Decimal("6"),
+        AcquisitionRuntimeStage.COMPANY_RESEARCH: Decimal("2"),
         AcquisitionRuntimeStage.DECISION: Decimal("0"),
         AcquisitionRuntimeStage.PERSONALIZATION: Decimal("0"),
         AcquisitionRuntimeStage.COMPLIANCE: Decimal("0"),
@@ -191,7 +191,7 @@ def test_stage_costs_are_kivou_owned_deterministic_and_bounded() -> None:
         AcquisitionRuntimeStage.RESPONSE: Decimal("0"),
         AcquisitionRuntimeStage.ATTRIBUTION_CONVERSION: Decimal("0"),
     }
-    assert sum(KIVOU_STAGE_COSTS.values(), start=Decimal("0")) == Decimal("5")
+    assert sum(KIVOU_STAGE_COSTS.values(), start=Decimal("0")) == Decimal("10")
 
 
 @pytest.mark.parametrize(
@@ -199,7 +199,7 @@ def test_stage_costs_are_kivou_owned_deterministic_and_bounded() -> None:
     (
         (_plan(command="run_shell"), "command"),
         (_plan(target_ref="other-cycle"), "target"),
-        (_plan(action_cost="1.01"), "cost"),
+        (_plan(action_cost="2.01"), "cost"),
         (_plan(actions=0), "exactly one"),
         (_plan(actions=2), "exactly one"),
         (_plan(supervisor_version="hermes-agent-other"), "version"),

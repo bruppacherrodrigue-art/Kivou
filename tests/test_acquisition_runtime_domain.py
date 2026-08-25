@@ -248,6 +248,9 @@ class FakeAuthorizations:
             language=language,
         )
 
+    def revalidate_provider_recovery(self, context, *, opportunity_id):
+        del context, opportunity_id
+
     def supplier(self, context, identity, approvals):
         return self._call("supplier", identity, approvals)
 
@@ -275,6 +278,10 @@ class FakeSupplierService:
         self.truth = truth
         self.calls = 0
 
+    def resume_started(self, discovery_run_id, *, authorize_recovery):
+        del discovery_run_id
+        del authorize_recovery
+
     def discover(self, opportunity_key, targeting, authorization, **kwargs):
         self.calls += 1
         assert targeting.max_pages == 1
@@ -296,6 +303,10 @@ class FakeContactService:
     def __init__(self, truth: FakeTruth) -> None:
         self.truth = truth
 
+    def resume_started(self, run_id, *, authorize_recovery):
+        del run_id
+        del authorize_recovery
+
     def find(self, opportunity_id, authorization, **kwargs):
         self.truth.current_opportunity = replace(
             self.truth.current_opportunity,
@@ -311,6 +322,10 @@ class FakeContactService:
 class FakeCompanyService:
     def __init__(self, truth: FakeTruth) -> None:
         self.truth = truth
+
+    def resume_started(self, run_id, *, authorize_recovery):
+        del run_id
+        del authorize_recovery
 
     def research(self, opportunity_id, authorization, **kwargs):
         self.truth.profile_ref = "profile-qa-001"
@@ -783,7 +798,7 @@ def test_started_apollo_run_reuses_same_attempt_until_bounded_deadline() -> None
         )
     )
     assert exhausted.disposition is KivouDomainDisposition.FAILED
-    assert exhausted.reason_codes == ("APOLLO_RUN_RECOVERY_EXHAUSTED",)
+    assert exhausted.reason_codes == ("APOLLO_PROVIDER_OUTCOME_AMBIGUOUS",)
 
 
 class WaitingCampaignWorker(FakeCampaignWorker):
@@ -1406,7 +1421,10 @@ def test_supplier_need_becoming_non_actionable_is_suppressed() -> None:
     def not_actionable(*args, **kwargs):
         raise SupplierSearchNotActionable
 
-    actions._supplier = SimpleNamespace(discover=not_actionable)
+    actions._supplier = SimpleNamespace(
+        resume_started=lambda *args, **kwargs: None,
+        discover=not_actionable,
+    )
 
     outcome = actions.discover_supplier(_context(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY))
 

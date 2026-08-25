@@ -17,11 +17,13 @@ from signals.acquisition_runtime.contracts import (
     RuntimeCycleStatus,
     RuntimeDependencyState,
     RuntimeProposal,
+    RuntimeQaScope,
     RuntimeStageDependency,
     RuntimeStageSnapshot,
 )
 from signals.acquisition_runtime.domain import (
     DomainApprovalRequired,
+    DomainPolicyRevalidationBlocked,
     deterministic_attempt_identity,
 )
 from signals.acquisition_runtime.registry import AcquisitionActionContext
@@ -57,6 +59,7 @@ from signals.supplier_discovery.contracts import DiscoveryAuthorizationInput
 
 NOW = dt.datetime(2026, 8, 25, 14, tzinfo=dt.UTC)
 OPPORTUNITY_ID = "opportunity-qa-001"
+QA_SCOPE = RuntimeQaScope(country="CH", language="fr", wedge="construction")
 
 
 class ReadyPolicyInputs:
@@ -81,7 +84,11 @@ class ReadyPolicyInputs:
         return OperationalReadiness(runtime_revision=runtime_revision)
 
 
-def _engine(*, allowed_countries: tuple[str, ...] = ("CH",)) -> sa.Engine:
+def _engine(
+    *,
+    allowed_countries: tuple[str, ...] = ("CH",),
+    control_overrides: dict[str, object] | None = None,
+) -> sa.Engine:
     engine = create_database_engine("sqlite+pysqlite:///:memory:")
     METADATA.create_all(
         engine,
@@ -94,15 +101,15 @@ def _engine(*, allowed_countries: tuple[str, ...] = ("CH",)) -> sa.Engine:
             acquisition_runtime_approval,
         ],
     )
-    PolicyStore(engine).append_control(
-        control(
-            1,
-            autonomy_mode=AutonomyMode.ASSISTED,
-            allowed_countries=allowed_countries,
-            allowed_commands=tuple(stage.command for stage in AcquisitionRuntimeStage),
-            effective_at=NOW - dt.timedelta(hours=1),
-        )
-    )
+    overrides: dict[str, object] = {
+        "autonomy_mode": AutonomyMode.ASSISTED,
+        "allowed_countries": allowed_countries,
+        "allowed_commands": tuple(stage.command for stage in AcquisitionRuntimeStage),
+        "effective_at": NOW - dt.timedelta(hours=1),
+        "qa_signal_ref": "procurement-opportunity:signal-qa-001",
+    }
+    overrides.update(control_overrides or {})
+    PolicyStore(engine).append_control(control(1, **overrides))
     with engine.begin() as connection:
         connection.execute(
             sa.insert(acquisition_opportunity).values(
@@ -230,6 +237,7 @@ def test_live_factory_builds_native_authorizations_from_current_policy() -> None
         engine,
         runtime_revision="runtime-config:001",
         qa_signal_ref="procurement-opportunity:signal-qa-001",
+        qa_scope=QA_SCOPE,
         readiness=ReadyPolicyInputs(),
     )
     supplier_context = _context(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY)
@@ -279,6 +287,60 @@ def test_live_factory_builds_native_authorizations_from_current_policy() -> None
     engine.dispose()
 
 
+def test_provider_recovery_revalidates_current_exact_qa_policy_authority() -> None:
+    engine = _engine()
+    factory = LiveRuntimePolicyAuthorizationFactory(
+        engine,
+        runtime_revision="runtime-config:001",
+        qa_signal_ref="procurement-opportunity:signal-qa-001",
+        qa_scope=QA_SCOPE,
+    )
+
+    factory.revalidate_provider_recovery(
+        _context(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY),
+        opportunity_id=None,
+    )
+
+    engine.dispose()
+
+
+@pytest.mark.parametrize(
+    "control_overrides",
+    [
+        {"kill_switch": True},
+        {"read_only": True},
+        {
+            "autonomy_mode": AutonomyMode.SHADOW,
+            "shadow_target_mode": AutonomyMode.ASSISTED,
+        },
+        {"qa_signal_ref": "procurement-opportunity:another-signal"},
+        {"allowed_commands": ("enrich_company",)},
+        {"allowed_countries": ("FR",)},
+        {"allowed_languages": ("en",)},
+        {"allowed_wedges": ("software",)},
+        {"expires_at": NOW - dt.timedelta(seconds=1)},
+    ],
+)
+def test_provider_recovery_fails_closed_when_current_qa_policy_is_not_exact(
+    control_overrides: dict[str, object],
+) -> None:
+    engine = _engine(control_overrides=control_overrides)
+    factory = LiveRuntimePolicyAuthorizationFactory(
+        engine,
+        runtime_revision="runtime-config:001",
+        qa_signal_ref="procurement-opportunity:signal-qa-001",
+        qa_scope=QA_SCOPE,
+    )
+
+    with pytest.raises(DomainPolicyRevalidationBlocked):
+        factory.revalidate_provider_recovery(
+            _context(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY),
+            opportunity_id=None,
+        )
+
+    engine.dispose()
+
+
 def test_live_factory_defaults_to_unknown_evidence_and_operational_readiness() -> None:
     engine = _engine()
     context = _context(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY)
@@ -287,6 +349,7 @@ def test_live_factory_defaults_to_unknown_evidence_and_operational_readiness() -
         engine,
         runtime_revision="runtime-config:001",
         qa_signal_ref="procurement-opportunity:signal-qa-001",
+        qa_scope=QA_SCOPE,
     ).supplier(context, deterministic_attempt_identity(context.stage_snapshot), ())
 
     assert authorization.authorization.evidence.status is EvidenceStatus.UNKNOWN
@@ -410,6 +473,7 @@ def test_live_factory_fails_closed_when_policy_scope_is_ambiguous() -> None:
             engine,
             runtime_revision="runtime-config:001",
             qa_signal_ref="procurement-opportunity:signal-qa-001",
+            qa_scope=QA_SCOPE,
         ).supplier(context, deterministic_attempt_identity(context.stage_snapshot), ())
     engine.dispose()
 

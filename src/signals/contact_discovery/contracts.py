@@ -262,6 +262,7 @@ class ContactRunRecord(ContactDiscoveryContract):
     per_page: int
     max_enrichment_attempts: int
     people_search_requests: int = Field(ge=0)
+    recovery_provider_calls: int = Field(ge=0, le=1)
     provider_total_entries: int | None = Field(default=None, ge=0)
     search_results_returned: int = Field(ge=0)
     search_results_truncated: bool

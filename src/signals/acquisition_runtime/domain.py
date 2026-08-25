@@ -189,6 +189,10 @@ class DomainApprovalRequired(RuntimeError):
         super().__init__("HUMAN_APPROVAL_REQUIRED")
 
 
+class DomainPolicyRevalidationBlocked(RuntimeError):
+    """Live Policy no longer permits an indeterminate provider recovery."""
+
+
 @dataclass(frozen=True)
 class AuthorizedCall[AuthorizationT]:
     authorization: AuthorizationT
@@ -208,6 +212,13 @@ class RuntimeApprovalProvider(Protocol):
 
 class RuntimePolicyAuthorizationFactory(Protocol):
     """Build native domain authorizations from live Policy/approval evidence."""
+
+    def revalidate_provider_recovery(
+        self,
+        context: AcquisitionActionContext,
+        *,
+        opportunity_id: str | None,
+    ) -> None: ...
 
     def supplier(
         self,
@@ -302,6 +313,13 @@ class AcquisitionDomainTruth(Protocol):
 
 
 class _SupplierService(Protocol):
+    def resume_started(
+        self,
+        discovery_run_id: str,
+        *,
+        authorize_recovery: Callable[[], None],
+    ) -> DiscoveryServiceResult | None: ...
+
     def discover(
         self,
         opportunity_key: str,
@@ -316,6 +334,13 @@ class _SupplierService(Protocol):
 
 
 class _ContactService(Protocol):
+    def resume_started(
+        self,
+        run_id: str,
+        *,
+        authorize_recovery: Callable[[], None],
+    ) -> ContactDiscoveryServiceResult | None: ...
+
     def find(
         self,
         opportunity_id: str,
@@ -329,6 +354,13 @@ class _ContactService(Protocol):
 
 
 class _CompanyService(Protocol):
+    def resume_started(
+        self,
+        run_id: str,
+        *,
+        authorize_recovery: Callable[[], None],
+    ) -> CompanyResearchServiceResult | None: ...
+
     def research(
         self,
         opportunity_id: str,
@@ -395,6 +427,8 @@ def _closed_domain_action[ActionOwnerT](
             return action(owner, context)
         except DomainApprovalRequired:
             return _waiting("HUMAN_APPROVAL_REQUIRED")
+        except DomainPolicyRevalidationBlocked:
+            return _blocked("POLICY_PROVIDER_RECOVERY_BLOCKED")
         except DomainAmbiguousFailure:
             return _blocked("DOMAIN_TRUTH_AMBIGUOUS")
         except DomainTransientFailure:
@@ -814,28 +848,40 @@ class AcquisitionDomainActions:
                 ("opportunity", existing.opportunity_id),
                 ("supplier", existing.supplier_ref),
             )
+        identity = deterministic_attempt_identity(context.stage_snapshot)
         try:
             with context.guard.protect() as observed_at:
                 fresh_context = replace(context, at=observed_at)
-                identity = deterministic_attempt_identity(context.stage_snapshot)
-                approvals = self._approvals.consume_for(
-                    fresh_context,
-                    opportunity_id=None,
+                result = self._supplier.resume_started(
+                    identity.run_id,
+                    authorize_recovery=lambda: (
+                        self._authorizations.revalidate_provider_recovery(
+                            fresh_context,
+                            opportunity_id=None,
+                        )
+                    ),
                 )
-                call = self._authorizations.supplier(
-                    fresh_context,
-                    identity,
-                    approvals,
-                )
-                result = self._supplier.discover(
-                    context.cycle.opportunity_key,
-                    self._targeting,
-                    call.authorization,
-                    evaluated_at=observed_at,
-                    budget_usage=call.budget_usage,
-                    discovery_run_id=identity.run_id,
-                    correlation_id=identity.correlation_id,
-                )
+            if result is None:
+                with context.guard.protect() as observed_at:
+                    fresh_context = replace(context, at=observed_at)
+                    approvals = self._approvals.consume_for(
+                        fresh_context,
+                        opportunity_id=None,
+                    )
+                    call = self._authorizations.supplier(
+                        fresh_context,
+                        identity,
+                        approvals,
+                    )
+                    result = self._supplier.discover(
+                        context.cycle.opportunity_key,
+                        self._targeting,
+                        call.authorization,
+                        evaluated_at=observed_at,
+                        budget_usage=call.budget_usage,
+                        discovery_run_id=identity.run_id,
+                        correlation_id=identity.correlation_id,
+                    )
         except SupplierSearchNotActionable:
             return _suppressed("SUPPLIER_NEED_NOT_ACTIONABLE")
         except DomainTransientFailure as error:
@@ -875,22 +921,35 @@ class AcquisitionDomainActions:
             return opportunity
         if opportunity.contact_ref is not None:
             return _complete(("contact", opportunity.contact_ref))
+        identity = deterministic_attempt_identity(context.stage_snapshot)
         try:
             with context.guard.protect() as observed_at:
                 fresh_context = replace(context, at=observed_at)
-                identity, call = self._authorized(
-                    "contact",
-                    fresh_context,
-                    opportunity.opportunity_id,
+                result = self._contact.resume_started(
+                    identity.run_id,
+                    authorize_recovery=lambda: (
+                        self._authorizations.revalidate_provider_recovery(
+                            fresh_context,
+                            opportunity_id=opportunity.opportunity_id,
+                        )
+                    ),
                 )
-                result = self._contact.find(
-                    opportunity.opportunity_id,
-                    call.authorization,
-                    evaluated_at=observed_at,
-                    budget_usage=call.budget_usage,
-                    contact_discovery_run_id=identity.run_id,
-                    correlation_id=identity.correlation_id,
-                )
+            if result is None:
+                with context.guard.protect() as observed_at:
+                    fresh_context = replace(context, at=observed_at)
+                    identity, call = self._authorized(
+                        "contact",
+                        fresh_context,
+                        opportunity.opportunity_id,
+                    )
+                    result = self._contact.find(
+                        opportunity.opportunity_id,
+                        call.authorization,
+                        evaluated_at=observed_at,
+                        budget_usage=call.budget_usage,
+                        contact_discovery_run_id=identity.run_id,
+                        correlation_id=identity.correlation_id,
+                    )
         except DomainTransientFailure as error:
             return _waiting(error.code, retry_at=error.retry_at)
         policy = _policy_outcome(getattr(result, "decision", None))
@@ -926,22 +985,35 @@ class AcquisitionDomainActions:
         profile_ref = self._truth.company_profile_ref(opportunity.opportunity_id)
         if profile_ref is not None:
             return _complete(("company", profile_ref))
+        identity = deterministic_attempt_identity(context.stage_snapshot)
         try:
             with context.guard.protect() as observed_at:
                 fresh_context = replace(context, at=observed_at)
-                identity, call = self._authorized(
-                    "company",
-                    fresh_context,
-                    opportunity.opportunity_id,
+                result = self._company.resume_started(
+                    identity.run_id,
+                    authorize_recovery=lambda: (
+                        self._authorizations.revalidate_provider_recovery(
+                            fresh_context,
+                            opportunity_id=opportunity.opportunity_id,
+                        )
+                    ),
                 )
-                result = self._company.research(
-                    opportunity.opportunity_id,
-                    call.authorization,
-                    evaluated_at=observed_at,
-                    budget_usage=call.budget_usage,
-                    company_research_run_id=identity.run_id,
-                    correlation_id=identity.correlation_id,
-                )
+            if result is None:
+                with context.guard.protect() as observed_at:
+                    fresh_context = replace(context, at=observed_at)
+                    identity, call = self._authorized(
+                        "company",
+                        fresh_context,
+                        opportunity.opportunity_id,
+                    )
+                    result = self._company.research(
+                        opportunity.opportunity_id,
+                        call.authorization,
+                        evaluated_at=observed_at,
+                        budget_usage=call.budget_usage,
+                        company_research_run_id=identity.run_id,
+                        correlation_id=identity.correlation_id,
+                    )
         except DomainTransientFailure as error:
             return _waiting(error.code, retry_at=error.retry_at)
         policy = _policy_outcome(getattr(result, "decision", None))
@@ -1468,7 +1540,7 @@ def _started_run_checkpoint(
     started_at = _aware_time(started_at)
     deadline = started_at + dt.timedelta(minutes=10)
     if observed_at >= deadline:
-        return _failed("APOLLO_RUN_RECOVERY_EXHAUSTED")
+        return _failed("APOLLO_PROVIDER_OUTCOME_AMBIGUOUS")
     return _waiting(
         code,
         retry_at=min(observed_at + dt.timedelta(minutes=1), deadline),

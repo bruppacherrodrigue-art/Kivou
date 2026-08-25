@@ -55,6 +55,7 @@ class FakeStore:
         tuple[AcquisitionRuntimeStage, int],
         tuple[Decimal, RuntimeProposal | None],
     ] = field(default_factory=dict)
+    finished_results: list[RuntimeActionResult] = field(default_factory=list)
 
     def acquire_lease(self, owner_ref, *, acquired_at, lease_seconds):
         self.events.append(("lease", owner_ref, acquired_at, lease_seconds))
@@ -111,6 +112,7 @@ class FakeStore:
     ):
         assert owner_ref == "runtime-owner-001" and fencing_token == 1
         self.proposals[stage] = proposal
+        self.finished_results.append(result)
         self.events.append(("finish", cycle_ref, stage, result.status, at))
 
     def reserve_stage_cost(
@@ -304,7 +306,7 @@ def _runner(
     *,
     outcomes=None,
     proposals=None,
-    maximum_cost="5",
+    maximum_cost="10",
     maximum_wall_seconds=900,
     clock=lambda: NOW,
     event_sink=None,
@@ -579,7 +581,7 @@ def test_cost_envelope_is_durable_before_hermes_is_called() -> None:
         index for index, event in enumerate(store.events) if event[0] == "propose"
     )
     assert reserve_index < propose_index
-    assert store.events[reserve_index][4] == Decimal("3")
+    assert store.events[reserve_index][4] == Decimal("6")
 
 
 def test_replay_uses_persisted_plan_without_calling_hermes_again() -> None:
@@ -587,9 +589,9 @@ def test_replay_uses_persisted_plan_without_calling_hermes_again() -> None:
     proposal = _proposal(stage)
     store = FakeStore(
         cycle=DEFAULT_CYCLE.model_copy(
-            update={"next_stage": stage, "spent_cost": Decimal("3")}
+            update={"next_stage": stage, "spent_cost": Decimal("6")}
         ),
-        reservations={(stage, 1): (Decimal("3"), proposal)},
+        reservations={(stage, 1): (Decimal("6"), proposal)},
     )
     runner = _runner(
         store,
@@ -607,7 +609,7 @@ def test_replay_uses_persisted_plan_without_calling_hermes_again() -> None:
     assert result.status is RuntimeRunStatus.WAITING
     assert runner.supervisor.calls == []
     assert runner.registry.calls == [(stage, stage.command, False)]
-    assert store.cycle.spent_cost == Decimal("3")
+    assert store.cycle.spent_cost == Decimal("6")
 
 
 def test_waiting_result_is_durable_and_current_run_exits_cleanly() -> None:
@@ -671,13 +673,13 @@ def test_proposal_cannot_exceed_remaining_cycle_budget() -> None:
     stage = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
     store = FakeStore(
         cycle=DEFAULT_CYCLE.model_copy(
-            update={"next_stage": stage, "spent_cost": Decimal("4.90")}
+            update={"next_stage": stage, "spent_cost": Decimal("9.90")}
         )
     )
     runner = _runner(
         store,
         outcomes={stage: RuntimeActionResult(status=RuntimeStageStatus.SUCCEEDED)},
-        proposals={stage: _proposal(stage, cost=Decimal("0.11"))},
+        proposals={stage: _proposal(stage)},
     )
 
     result = runner.run_once(_request())
@@ -784,7 +786,7 @@ def test_observed_cost_overrun_is_a_current_execution_failure() -> None:
                 observed_cost=Decimal("5.01"),
             )
         },
-        proposals={stage: _proposal(stage, cost=Decimal("1"))},
+        proposals={stage: _proposal(stage, cost=Decimal("2"))},
         maximum_cost="5",
     )
 
@@ -869,7 +871,7 @@ def test_suppressed_eligibility_is_terminal_without_provider_failure() -> None:
     assert result.reason_code == "QA_ELIGIBILITY_REVOKED"
 
 
-def test_interruption_cancels_current_stage_and_always_releases_lease() -> None:
+def test_interruption_checkpoints_same_attempt_waiting_and_always_releases_lease() -> None:
     stage = AcquisitionRuntimeStage.PERSONALIZATION
     store = FakeStore(
         cycle=DEFAULT_CYCLE.model_copy(update={"next_stage": stage})
@@ -886,8 +888,44 @@ def test_interruption_cancels_current_stage_and_always_releases_lease() -> None:
 
     assert result.status is RuntimeRunStatus.CANCELLED
     assert result.exit_code == 1
-    assert ("finish", "cycle-001", stage, RuntimeStageStatus.CANCELLED, NOW) in store.events
+    assert ("finish", "cycle-001", stage, RuntimeStageStatus.WAITING, NOW) in store.events
+    checkpoint = store.finished_results[-1]
+    assert checkpoint.retry_at == NOW + dt.timedelta(minutes=1)
+    assert checkpoint.replay_same_attempt is True
     assert store.events[-1][0] == "release"
+
+
+def test_interrupted_provider_stage_reuses_attempt_proposal_and_reservation() -> None:
+    stage = AcquisitionRuntimeStage.ATTRIBUTION_CONVERSION
+    store = FakeStore(
+        cycle=DEFAULT_CYCLE.model_copy(update={"next_stage": stage})
+    )
+
+    class InterruptingRegistry(FakeRegistry):
+        def execute(self, *args, **kwargs):
+            super().execute(*args, **kwargs)
+            raise InterruptedError
+
+    first = _runner(store, outcomes={}, proposals={stage: _proposal(stage)})
+    first.registry = InterruptingRegistry(
+        {stage: RuntimeActionResult(status=RuntimeStageStatus.SUCCEEDED)}
+    )
+
+    interrupted = first.run_once(_request())
+    assert interrupted.status is RuntimeRunStatus.CANCELLED
+
+    completed = _runner(
+        store,
+        outcomes={stage: RuntimeActionResult(status=RuntimeStageStatus.SUCCEEDED)},
+        proposals={stage: _proposal(stage)},
+        clock=lambda: NOW + dt.timedelta(minutes=2),
+    )
+    result = completed.run_once(_request())
+
+    assert result.status is RuntimeRunStatus.COMPLETED
+    assert tuple(store.reservations) == ((stage, 1),)
+    assert completed.supervisor.calls == []
+    assert completed.registry.stage_snapshots[-1].attempt_count == 1
 
 
 def test_technical_exception_terminalizes_current_run_without_exception_text() -> None:

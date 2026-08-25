@@ -35,6 +35,7 @@ from signals.persistence.schema import (
     acquisition_company_profile,
     acquisition_contact,
     acquisition_supplier,
+    policy_evaluation,
 )
 from signals.policy.contracts import (
     POLICY_VERSION,
@@ -80,6 +81,21 @@ class FakeProvider:
         if self.error is not None:
             raise self.error
         return self.observation
+
+
+class CrashAfterStartedCompanyStore(CompanyResearchStore):
+    """Expose the durable pre-provider crash boundary exercised by the runtime."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._interrupt_once = True
+
+    def start_run(self, start):
+        ownership = super().start_run(start)
+        if self._interrupt_once and ownership.owned:
+            self._interrupt_once = False
+            raise InterruptedError
+        return ownership
 
 
 def _observation(**updates):
@@ -237,6 +253,46 @@ def test_success_persists_profile_and_advances_workflow_atomically(context) -> N
     assert result.decision.evaluated_at <= result.run.started_at
     assert result.run.started_at <= result.profile.provider_observed_at
     assert result.profile.provider_observed_at <= result.run.completed_at
+
+
+def test_started_run_recovery_reuses_policy_run_and_calls_apollo_once(context) -> None:
+    engine, _, _, _, opportunity_id = context
+    store = CrashAfterStartedCompanyStore(engine, clock=TickClock())
+    provider = FakeProvider()
+    service = CompanyResearchService(
+        engine,
+        provider=provider,
+        company_store=store,
+        clock=TickClock(),
+    )
+
+    with pytest.raises(InterruptedError):
+        _research(service, opportunity_id)
+
+    started = store.get_run("company-run-1")
+    assert started.status is CompanyResearchRunStatus.STARTED
+    assert started.recovery_provider_calls == 0
+    assert provider.calls == 0
+    revalidations: list[str] = []
+
+    recovered = service.resume_started(
+        started.company_research_run_id,
+        authorize_recovery=lambda: revalidations.append("current-policy"),
+    )
+
+    assert recovered is not None
+    assert recovered.run.status is CompanyResearchRunStatus.SUCCESS
+    assert recovered.run.company_research_run_id == started.company_research_run_id
+    assert recovered.run.policy_evaluation_id == started.policy_evaluation_id
+    assert recovered.run.recovery_provider_calls == 1
+    assert provider.calls == 1
+    assert revalidations == ["current-policy"]
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count())
+            .select_from(policy_evaluation)
+            .where(policy_evaluation.c.evaluation_id == started.policy_evaluation_id)
+        ) == 1
 
 
 def test_limited_optional_fields_still_advance_with_explicit_gaps(context) -> None:

@@ -41,9 +41,11 @@ from signals.supervisor.runtime import (
 
 _STAGE_COSTS: dict[AcquisitionRuntimeStage, Decimal] = {
     AcquisitionRuntimeStage.SIGNAL_SEED: Decimal("0"),
-    AcquisitionRuntimeStage.SUPPLIER_DISCOVERY: Decimal("1"),
-    AcquisitionRuntimeStage.CONTACT_DISCOVERY: Decimal("3"),
-    AcquisitionRuntimeStage.COMPANY_RESEARCH: Decimal("1"),
+    # Each Apollo envelope covers the ordinary call plus at most one native
+    # recovery call when provider acceptance was ambiguous after interruption.
+    AcquisitionRuntimeStage.SUPPLIER_DISCOVERY: Decimal("2"),
+    AcquisitionRuntimeStage.CONTACT_DISCOVERY: Decimal("6"),
+    AcquisitionRuntimeStage.COMPANY_RESEARCH: Decimal("2"),
     AcquisitionRuntimeStage.DECISION: Decimal("0"),
     AcquisitionRuntimeStage.PERSONALIZATION: Decimal("0"),
     AcquisitionRuntimeStage.COMPLIANCE: Decimal("0"),

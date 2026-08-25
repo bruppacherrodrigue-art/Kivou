@@ -59,7 +59,10 @@ from signals.acquisition_runtime.runtime_policy import (
     SqlRuntimePolicyReadinessSource,
 )
 from signals.acquisition_runtime.store import AcquisitionRuntimeStore
-from signals.acquisition_runtime.supervisor import AcquisitionHermesSupervisor
+from signals.acquisition_runtime.supervisor import (
+    KIVOU_STAGE_COSTS,
+    AcquisitionHermesSupervisor,
+)
 from signals.campaigns.contracts import (
     CampaignDeploymentConfig,
     FooterCatalog,
@@ -516,6 +519,12 @@ def build_runtime_execution_composition(
     observed_at = now.astimezone(dt.UTC)
     if len(runtime_config.deployment.allowed_opportunity_keys) != 1:
         raise RuntimeExecutionConfigurationError("QA_SIGNAL_SCOPE_NOT_EXACT")
+    if runtime_config.deployment.limits.maximum_cycle_cost < sum(
+        KIVOU_STAGE_COSTS.values()
+    ):
+        raise RuntimeExecutionConfigurationError(
+            "RUNTIME_RECOVERY_COST_ENVELOPE_TOO_SMALL"
+        )
     if (
         not webhook_configuration.response_ingress_ready
         or webhook_configuration.provider_workspace_ref
@@ -583,6 +592,7 @@ def build_runtime_execution_composition(
             "procurement-opportunity:"
             + runtime_config.deployment.allowed_opportunity_keys[0]
         ),
+        qa_scope=runtime_config.deployment.qa_scope,
         readiness=SqlRuntimePolicyReadinessSource(
             engine,
             dependencies=dependencies,

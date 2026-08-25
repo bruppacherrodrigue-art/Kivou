@@ -339,7 +339,7 @@ class AcquisitionRuntimeStore:
                     heartbeat_at=at,
                     last_cycle_ref=cycle_ref,
                     last_cycle_status=cycle["status"],
-                    last_cycle_at=cycle_at,
+                    last_cycle_at=at,
                     updated_at=at,
                 )
                 .returning(acquisition_runtime_observation)
@@ -573,6 +573,62 @@ class AcquisitionRuntimeStore:
                 .with_for_update()
             ).mappings().one_or_none()
             if attempt is not None:
+                unreserved_interruption = (
+                    attempt["status"] == RuntimeStageStatus.RUNNING.value
+                    and Decimal(attempt["reserved_cost"]) == Decimal("0")
+                    and reserved_cost > Decimal("0")
+                    and Decimal(attempt["observed_cost"]) == Decimal("0")
+                    and attempt["proposal"] is None
+                    and attempt["retry_at"] is None
+                    and attempt["completed_at"] is None
+                )
+                if unreserved_interruption:
+                    total_before = self._spent_cost(connection, cycle_ref)
+                    if total_before + reserved_cost > maximum_cycle_cost:
+                        return RuntimeStageReservation(
+                            accepted=False,
+                            created=False,
+                            reserved_cost=reserved_cost,
+                            total_cycle_cost=total_before,
+                        )
+                    connection.execute(
+                        sa.update(acquisition_runtime_stage_attempt)
+                        .where(
+                            acquisition_runtime_stage_attempt.c.cycle_ref
+                            == cycle_ref,
+                            acquisition_runtime_stage_attempt.c.stage
+                            == stage.value,
+                            acquisition_runtime_stage_attempt.c.attempt_count
+                            == stage_snapshot.attempt_count,
+                            acquisition_runtime_stage_attempt.c.status
+                            == RuntimeStageStatus.RUNNING.value,
+                            acquisition_runtime_stage_attempt.c.reserved_cost
+                            == Decimal("0"),
+                        )
+                        .values(reserved_cost=reserved_cost)
+                    )
+                    connection.execute(
+                        sa.update(acquisition_runtime_stage)
+                        .where(
+                            acquisition_runtime_stage.c.cycle_ref == cycle_ref,
+                            acquisition_runtime_stage.c.stage == stage.value,
+                        )
+                        .values(reserved_cost=reserved_cost, updated_at=at)
+                    )
+                    connection.execute(
+                        sa.update(acquisition_runtime_cycle)
+                        .where(acquisition_runtime_cycle.c.cycle_ref == cycle_ref)
+                        .values(
+                            spent_cost=total_before + reserved_cost,
+                            updated_at=at,
+                        )
+                    )
+                    return RuntimeStageReservation(
+                        accepted=True,
+                        created=True,
+                        reserved_cost=reserved_cost,
+                        total_cycle_cost=total_before + reserved_cost,
+                    )
                 if (
                     attempt["status"] != RuntimeStageStatus.RUNNING.value
                     or Decimal(attempt["reserved_cost"]) != reserved_cost

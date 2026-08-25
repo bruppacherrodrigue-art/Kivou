@@ -28,6 +28,7 @@ from signals.contact_discovery.contracts import (
     ContactRunIdentityConflict,
     ContactRunStart,
     ContactRunStatus,
+    DecisionMakerSearchProfile,
 )
 from signals.contact_discovery.identity import contact_ref_for
 from signals.contact_discovery.profile import build_decision_maker_profile
@@ -36,7 +37,7 @@ from signals.contact_discovery.ranking import classify_title, rank_candidates
 from signals.contact_discovery.store import ContactDiscoveryStore
 from signals.policy.contracts import BudgetUsage, PolicyRequest
 from signals.policy.gateway import PolicyGateway
-from signals.policy.store import PolicyStore
+from signals.policy.store import PolicyStore, decision_from_row
 from signals.supplier_discovery.store import SupplierDiscoveryStore
 
 
@@ -138,6 +139,53 @@ class ContactDiscoveryService:
         if not ownership.owned:
             return ContactDiscoveryServiceResult(decision=decision, run=ownership.run)
         return self._execute(ownership.run, profile, decision)
+
+    def resume_started(
+        self,
+        run_id: str,
+        *,
+        authorize_recovery: Callable[[], None],
+    ) -> ContactDiscoveryServiceResult | None:
+        """Replay one indeterminate Apollo contact run from durable Policy truth."""
+
+        try:
+            run = self._contacts.get_run(run_id)
+        except sa.exc.NoResultFound:
+            return None
+        decision = self._durable_decision(run)
+        if run.status is not ContactRunStatus.STARTED:
+            return ContactDiscoveryServiceResult(decision=decision, run=run)
+        authorize_recovery()
+        ownership = self._contacts.claim_recovery(run_id)
+        if not ownership.owned:
+            return ContactDiscoveryServiceResult(
+                decision=decision,
+                run=ownership.run,
+            )
+        profile = DecisionMakerSearchProfile.model_validate(
+            ownership.run.search_profile
+        )
+        return self._execute(ownership.run, profile, decision)
+
+    def _durable_decision(self, run):
+        profile = DecisionMakerSearchProfile.model_validate(run.search_profile)
+        with self._engine.connect() as connection:
+            row = self._policy_store.evaluation_row(
+                connection, run.policy_evaluation_id
+            )
+        if row is None or not (
+            row["acquisition_opportunity_id"] == run.acquisition_opportunity_id
+            and row["command"] == "find_decision_makers"
+            and row["target_ref"]
+            == self._expected_target(run.acquisition_opportunity_id)
+            and row["action_fingerprint"] == run.provider_request_fingerprint
+            and run.search_profile_fingerprint == profile.profile_fingerprint
+        ):
+            raise ContactRunIdentityConflict(run.policy_evaluation_id)
+        decision = decision_from_row(row)
+        if not decision.executable:
+            raise ContactRunIdentityConflict(run.policy_evaluation_id)
+        return decision
 
     def _execute(self, run, profile, decision) -> ContactDiscoveryServiceResult:
         search_observed_at = self._now()

@@ -501,6 +501,52 @@ def test_indeterminate_provider_checkpoint_replays_same_attempt_and_cost(tmp_pat
     assert replay_reservation.total_cycle_cost == Decimal("1")
 
 
+def test_interruption_before_reservation_can_bind_cost_on_same_attempt(tmp_path) -> None:
+    store = AcquisitionRuntimeStore(_engine(tmp_path))
+    fence = _fence(store)
+    cycle = store.resume_or_create_cycle(
+        **fence,
+        opportunity_keys=("signal-001",),
+        config_fingerprint="4" * 64,
+        at=NOW,
+    )
+    stage = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
+    first = store.begin_stage(cycle.cycle_ref, stage, **fence, at=NOW)
+    store.finish_stage(
+        cycle.cycle_ref,
+        stage,
+        RuntimeActionResult(
+            status=RuntimeStageStatus.WAITING,
+            reason_codes=("CURRENT_RUN_INTERRUPTED",),
+            retry_at=NOW + dt.timedelta(minutes=1),
+            replay_same_attempt=True,
+        ),
+        **fence,
+        at=NOW,
+    )
+
+    replay = store.begin_stage(
+        cycle.cycle_ref,
+        stage,
+        **fence,
+        at=NOW + dt.timedelta(minutes=1),
+    )
+    reservation = store.reserve_stage_cost(
+        cycle.cycle_ref,
+        stage,
+        replay,
+        Decimal("2"),
+        maximum_cycle_cost=Decimal("10"),
+        **fence,
+        at=NOW + dt.timedelta(minutes=1),
+    )
+
+    assert replay.attempt_ref == first.attempt_ref
+    assert reservation.accepted is True
+    assert reservation.created is True
+    assert reservation.total_cycle_cost == Decimal("2")
+
+
 def test_retry_attempt_costs_are_immutable_and_cumulative(tmp_path) -> None:
     store = AcquisitionRuntimeStore(_engine(tmp_path))
     fence = _fence(store)
