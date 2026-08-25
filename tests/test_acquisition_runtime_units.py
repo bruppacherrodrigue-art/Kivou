@@ -83,7 +83,8 @@ def test_runbook_keeps_timer_non_mutating_and_manual_provider_gate_explicit() ->
     assert "close-runtime-qa-policy-window" in runbook
     assert "--duration-seconds 1800" in runbook
     assert "--expires-at" not in runbook
-    assert "--database-url` et `--now" in runbook
+    assert "refusent tout remplacement en ligne de commande de la base" in runbook
+    assert "--database-url" not in runbook
     assert "python -m signals.operations health" in runbook
     assert "python -m signals.operations readiness" in runbook
     assert "activate-kill-switch" in runbook
@@ -100,6 +101,7 @@ def test_runbook_keeps_timer_non_mutating_and_manual_provider_gate_explicit() ->
     )
     assert runbook.count("--property=EnvironmentFile=/etc/kivou/acquisition-shadow.env") >= 2
     assert "systemctl disable --now kivou-acquisition.timer" in runbook
+    assert runbook.count("systemctl enable --now kivou-acquisition.timer") == 1
     assert "0026_acquisition_runtime" in runbook
     assert "client" not in runbook.casefold()
     assert "prospect" in runbook.casefold()

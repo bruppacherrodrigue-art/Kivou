@@ -13,6 +13,7 @@ RUNBOOKS = (
     "07-staging-to-production-promotion.md",
     "08-acquisition-shadow-provider-connectivity.md",
     "09-staging-secret-rotation.md",
+    "10-acquisition-runtime.md",
 )
 SECRET_ROTATION_RUNBOOK = Path("docs/runbooks/09-staging-secret-rotation.md")
 OPERATIONS_README = Path("ops/README.md")
@@ -21,7 +22,10 @@ OPERATIONS_README = Path("ops/README.md")
 def test_exact_safe_runbook_set_has_no_secret_or_destructive_examples() -> None:
     root = Path("docs/runbooks")
     assert tuple(sorted(path.name for path in root.glob("*.md"))) == RUNBOOKS
-    text = "\n".join((root / name).read_text(encoding="utf-8") for name in RUNBOOKS)
+    bodies = {
+        name: (root / name).read_text(encoding="utf-8") for name in RUNBOOKS
+    }
+    text = "\n".join(bodies.values())
     for forbidden in (
         "rm -rf",
         "DROP TABLE",
@@ -32,10 +36,19 @@ def test_exact_safe_runbook_set_has_no_secret_or_destructive_examples() -> None:
         "Bearer ",
         "password=",
         "api_key=",
-        "systemctl enable",
         "docker exec",
     ):
         assert forbidden not in text
+    for name, body in bodies.items():
+        enable_lines = tuple(
+            line.strip() for line in body.splitlines() if "systemctl enable" in line
+        )
+        if name == "10-acquisition-runtime.md":
+            assert enable_lines == (
+                "sudo systemctl enable --now kivou-acquisition.timer",
+            )
+        else:
+            assert enable_lines == ()
     assert "uv run python -m signals.operations" in text
     assert "uv run python -m signals.supervisor health" in text
 

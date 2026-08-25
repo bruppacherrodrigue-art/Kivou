@@ -9,7 +9,7 @@ HMAC.
 
 Les commandes mutantes lisent exclusivement `KIVOU_DATABASE_URL` depuis
 l’`EnvironmentFile` protégé et utilisent l’horloge UTC du serveur. Elles
-refusent les options opérateur `--database-url` et `--now`.
+refusent tout remplacement en ligne de commande de la base ou de l’horloge.
 
 ## Préconditions
 
