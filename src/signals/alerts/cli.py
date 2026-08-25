@@ -99,10 +99,21 @@ def main(argv: list[str] | None = None) -> int:
         )
         if now.tzinfo is None:
             now = now.replace(tzinfo=dt.UTC)
-        engine = create_database_engine()
     except (RuntimeError, ValueError):
         print("configuration_invalid", file=sys.stderr)
         return EXIT_CONFIGURATION
+
+    try:
+        engine = create_database_engine()
+    except sa.exc.SQLAlchemyError:
+        print("persistence_failed", file=sys.stderr)
+        return EXIT_PERSISTENCE_INCIDENT
+    except (RuntimeError, ValueError):
+        print("configuration_invalid", file=sys.stderr)
+        return EXIT_CONFIGURATION
+    except Exception:  # noqa: BLE001 - sanitized process boundary, never exception text
+        print("runtime_failed", file=sys.stderr)
+        return EXIT_RUNTIME_INCIDENT
 
     if arguments.dry_run:
         print("status=dry_run no_delivery_attempted=true")

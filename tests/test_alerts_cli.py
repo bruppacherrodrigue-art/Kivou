@@ -206,6 +206,65 @@ def test_missing_configuration_fails_closed_with_a_safe_code(
     assert "smtp.kivou.test" not in rendered
 
 
+def test_engine_creation_database_failure_is_persistence_and_secret_safe(
+    monkeypatch, configured_runtime, capsys
+) -> None:
+    private_value = "private-engine-database-value"
+
+    def fail():
+        raise sa.exc.OperationalError(
+            "CONNECT",
+            {},
+            RuntimeError(private_value),
+        )
+
+    monkeypatch.setattr(cli, "create_database_engine", fail)
+
+    assert main(["--now", NOW.isoformat()]) == 4
+    captured = capsys.readouterr()
+    rendered = captured.out + captured.err
+    assert "persistence_failed" in rendered
+    assert private_value not in rendered
+    assert "OperationalError" not in rendered
+
+
+def test_engine_creation_unexpected_failure_is_runtime_and_secret_safe(
+    monkeypatch, configured_runtime, capsys
+) -> None:
+    private_value = "private-engine-runtime-value"
+
+    def fail():
+        raise LookupError(private_value)
+
+    monkeypatch.setattr(cli, "create_database_engine", fail)
+
+    assert main(["--now", NOW.isoformat()]) == 5
+    captured = capsys.readouterr()
+    rendered = captured.out + captured.err
+    assert "runtime_failed" in rendered
+    assert private_value not in rendered
+    assert "LookupError" not in rendered
+
+
+@pytest.mark.parametrize("error_type", [RuntimeError, ValueError])
+def test_engine_creation_configuration_failures_remain_configuration_errors(
+    monkeypatch, configured_runtime, capsys, error_type
+) -> None:
+    private_value = "private-engine-configuration-value"
+
+    def fail():
+        raise error_type(private_value)
+
+    monkeypatch.setattr(cli, "create_database_engine", fail)
+
+    assert main(["--now", NOW.isoformat()]) == 2
+    captured = capsys.readouterr()
+    rendered = captured.out + captured.err
+    assert "configuration_invalid" in rendered
+    assert private_value not in rendered
+    assert error_type.__name__ not in rendered
+
+
 def test_database_failure_is_persistence_and_never_prints_sensitive_values(
     monkeypatch, configured_runtime, capsys
 ) -> None:
