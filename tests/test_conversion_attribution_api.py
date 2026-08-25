@@ -55,7 +55,10 @@ def test_bad_token_sets_no_cookie_and_token_grants_no_session(tmp_path) -> None:
 
     invalid = client.get(f"/a/{token.raw_token}x", follow_redirects=False)
     assert invalid.status_code == 404
+    assert invalid.headers["content-type"].startswith("application/json")
+    assert invalid.json()["detail"]["code"] == "attribution_not_found"
     assert "set-cookie" not in invalid.headers
+    assert "<!doctype html>" not in invalid.text.lower()
 
     accepted = client.get(f"/a/{token.raw_token}", follow_redirects=False)
     assert accepted.status_code == 303

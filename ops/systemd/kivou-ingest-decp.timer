@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — déclenchement horaire de la convergence DECP
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=60
+Unit=kivou-ingest-decp.service
+
+[Install]
+WantedBy=timers.target

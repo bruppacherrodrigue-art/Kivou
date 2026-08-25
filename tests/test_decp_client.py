@@ -245,3 +245,109 @@ def test_decp_network_and_malformed_payload_are_typed():
     with pytest.raises(DecpHttpError) as caught:
         DecpClient(client=malformed).fetch_page(DecpCursor(since=dt.date(2026, 8, 1)))
     assert caught.value.category == "malformed"
+
+
+def test_decp_stop_callback_prevents_the_next_provider_request() -> None:
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"total_count": 1, "results": [{"id": "one"}]})
+
+    class StopRequested(RuntimeError):
+        pass
+
+    def stop() -> None:
+        raise StopRequested("bounded pass ended")
+
+    client = DecpClient(client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    with pytest.raises(StopRequested, match="bounded pass ended"):
+        list(
+            client.fetch_contracts_since(
+                dt.date(2026, 8, 25),
+                until=dt.date(2026, 8, 25),
+                should_stop=stop,
+            )
+        )
+
+    assert requests == []
+
+
+def test_decp_batch_resumes_at_an_intra_day_offset_and_is_strictly_bounded() -> None:
+    day = dt.date(2026, 8, 25)
+    requests: list[tuple[dt.date, dt.date, int, int]] = []
+    client = DecpClient(
+        client=httpx.Client(
+            transport=_partition_transport({(day, day): 5}, requests)
+        )
+    )
+
+    batch = client.fetch_contract_batch(
+        day,
+        offset=2,
+        expected_total=5,
+        batch_size=2,
+    )
+
+    assert [record["id"] for record in batch.records] == [
+        "2026-08-25:2026-08-25:2",
+        "2026-08-25:2026-08-25:3",
+    ]
+    assert batch.next_offset == 4
+    assert batch.window_total == 5
+    assert batch.day_complete is False
+    assert batch.reset is False
+    assert requests == [
+        (day, day, 0, 1),
+        (day, day, 2, 2),
+        (day, day, 0, 1),
+    ]
+
+
+def test_decp_batch_resets_idempotently_when_the_day_total_changed() -> None:
+    day = dt.date(2026, 8, 25)
+    requests: list[tuple[dt.date, dt.date, int, int]] = []
+    client = DecpClient(
+        client=httpx.Client(
+            transport=_partition_transport({(day, day): 4}, requests)
+        )
+    )
+
+    batch = client.fetch_contract_batch(
+        day,
+        offset=3,
+        expected_total=5,
+        batch_size=2,
+    )
+
+    assert [record["id"] for record in batch.records] == [
+        "2026-08-25:2026-08-25:0",
+        "2026-08-25:2026-08-25:1",
+    ]
+    assert batch.next_offset == 2
+    assert batch.window_total == 4
+    assert batch.day_complete is False
+    assert batch.reset is True
+    assert requests[1] == (day, day, 0, 2)
+
+
+def test_decp_batch_rejects_an_offset_beyond_the_observed_day() -> None:
+    day = dt.date(2026, 8, 25)
+    requests: list[tuple[dt.date, dt.date, int, int]] = []
+    client = DecpClient(
+        client=httpx.Client(
+            transport=_partition_transport({(day, day): 3}, requests)
+        )
+    )
+
+    with pytest.raises(DecpWindowLimitError, match="offset") as caught:
+        client.fetch_contract_batch(
+            day,
+            offset=4,
+            expected_total=3,
+            batch_size=2,
+        )
+
+    assert caught.value.category == "source_limit"
+    assert requests == [(day, day, 0, 1)]

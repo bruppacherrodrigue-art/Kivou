@@ -10,10 +10,18 @@ class TedError(Exception):
 class TedHttpError(TedError):
     """L'API ou le site TED a répondu autrement qu'attendu."""
 
-    def __init__(self, message: str, *, status_code: int | None = None, url: str | None = None):
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        url: str | None = None,
+        category: str | None = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.url = url
+        self.category = category
 
 
 class TedParseError(TedError):
