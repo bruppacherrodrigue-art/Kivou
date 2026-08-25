@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import subprocess
+import sys
+import textwrap
 from collections.abc import Callable
 
 import pytest
@@ -128,3 +131,45 @@ def test_invalid_arguments_never_reflect_their_value(capsys) -> None:
     streams = capsys.readouterr()
     assert streams.err == "status=INVALID_ARGUMENTS\n"
     assert "provider-secret-marker" not in streams.err
+
+
+def test_sigterm_interrupts_the_cycle_and_restores_the_process_handler() -> None:
+    script = textwrap.dedent(
+        """
+        import os
+        import signal
+
+        from signals.acquisition_runtime.cli import main
+        from signals.acquisition_runtime.contracts import RuntimeRunResult, RuntimeRunStatus
+
+        previous_handler = signal.getsignal(signal.SIGTERM)
+
+        def execute(_allow: bool) -> RuntimeRunResult:
+            try:
+                os.kill(os.getpid(), signal.SIGTERM)
+            except InterruptedError:
+                return RuntimeRunResult(
+                    status=RuntimeRunStatus.CANCELLED,
+                    cycle_ref="cycle-001",
+                    reason_code="PROCESS_TERMINATED",
+                )
+            raise AssertionError("SIGTERM must interrupt the active runtime call")
+
+        exit_code = main(["run-once"], execute=execute)
+        assert signal.getsignal(signal.SIGTERM) is previous_handler
+        raise SystemExit(exit_code)
+        """
+    )
+
+    completed = subprocess.run(
+        [sys.executable, "-c", script],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 1
+    assert completed.stdout == (
+        "status=CANCELLED cycle_ref=cycle-001 reason=PROCESS_TERMINATED\n"
+    )
+    assert completed.stderr == ""

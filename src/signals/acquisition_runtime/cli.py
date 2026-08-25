@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import signal
 import sys
 from collections.abc import Callable
 
@@ -64,14 +65,22 @@ def main(
     arguments = _parser().parse_args(argv)
     assert arguments.command == "run-once"
     run = execute or _default_execute
+
+    def interrupt_runtime(_signum: int, _frame: object) -> None:
+        raise InterruptedError("acquisition runtime termination requested")
+
+    previous_sigterm = signal.signal(signal.SIGTERM, interrupt_runtime)
     try:
-        result = run(bool(arguments.allow_qa_provider_mutations))
-    except (RuntimeError, ValueError):
-        print("status=CONFIGURATION_INVALID", file=sys.stderr)
-        return 2
-    except Exception:  # noqa: BLE001 - no provider/config detail crosses the CLI
-        print("status=RUNTIME_FAILED", file=sys.stderr)
-        return 1
+        try:
+            result = run(bool(arguments.allow_qa_provider_mutations))
+        except (RuntimeError, ValueError):
+            print("status=CONFIGURATION_INVALID", file=sys.stderr)
+            return 2
+        except Exception:  # noqa: BLE001 - no provider/config detail crosses the CLI
+            print("status=RUNTIME_FAILED", file=sys.stderr)
+            return 1
+    finally:
+        signal.signal(signal.SIGTERM, previous_sigterm)
     print(_summary(result))
     return result.exit_code
 
