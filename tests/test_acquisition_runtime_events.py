@@ -96,4 +96,3 @@ def test_logging_configuration_is_idempotent_and_does_not_propagate() -> None:
     assert first is second
     assert len(first.handlers) == 1
     assert first.propagate is False
-
