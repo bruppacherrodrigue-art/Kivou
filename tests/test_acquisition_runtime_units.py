@@ -95,3 +95,18 @@ def test_runbook_keeps_timer_non_mutating_and_manual_provider_gate_explicit() ->
     assert "0026_acquisition_runtime" in runbook
     assert "client" not in runbook.casefold()
     assert "prospect" in runbook.casefold()
+
+
+def test_manual_policy_window_commands_load_the_staging_acquisition_environment() -> None:
+    runbook = RUNBOOK.read_text(encoding="utf-8")
+
+    assert runbook.count(
+        "--property=EnvironmentFile=/etc/kivou/acquisition-shadow.env"
+    ) >= 4
+
+
+def test_manual_runtime_commands_create_the_host_lock_directory() -> None:
+    runbook = RUNBOOK.read_text(encoding="utf-8")
+
+    assert runbook.count("--property=RuntimeDirectory=kivou") >= 2
+    assert runbook.count("--property=RuntimeDirectoryMode=0700") >= 2

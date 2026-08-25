@@ -85,6 +85,50 @@ def test_operator_lists_only_bounded_pending_approval_metadata(tmp_path, capsys)
     assert "private-opportunity-marker" not in output
 
 
+def test_operator_expired_pending_rows_never_hide_an_active_approval(
+    tmp_path, capsys
+) -> None:
+    url, store, first_expired = _pending(tmp_path)
+    base = first_expired.binding.model_dump(mode="python")
+    for index in range(100):
+        store.request_approval(
+            RuntimeApprovalBinding.model_validate(
+                {
+                    **base,
+                    "request_ref": f"request-expired-{index:03d}",
+                    "requested_at": NOW - dt.timedelta(hours=2),
+                    "expires_at": NOW - dt.timedelta(hours=1),
+                }
+            )
+        )
+    active = store.request_approval(
+        RuntimeApprovalBinding.model_validate(
+            {
+                **base,
+                "request_ref": "request-active-after-expired-backlog",
+                "requested_at": NOW + dt.timedelta(minutes=30),
+                "expires_at": NOW + dt.timedelta(hours=2),
+            }
+        )
+    )
+
+    result = main(
+        [
+            "--database-url",
+            url,
+            "--now",
+            (NOW + dt.timedelta(hours=1)).isoformat(),
+            "list-runtime-approvals",
+        ]
+    )
+
+    assert result == 0
+    output = capsys.readouterr().out
+    assert "runtime_approvals pending=1" in output
+    assert f"approval_id={active.approval_id}" in output
+    assert f"approval_id={first_expired.approval_id}" not in output
+
+
 def test_operator_approves_one_exact_request_with_an_explicit_actor(
     tmp_path, monkeypatch, capsys
 ) -> None:

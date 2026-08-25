@@ -83,6 +83,7 @@ sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
   --property=EnvironmentFile=/etc/kivou/staging.env \
+  --property=EnvironmentFile=/etc/kivou/acquisition-shadow.env \
   --property=EnvironmentFile=/etc/kivou/acquisition-runtime.env \
   /srv/kivou/app/.venv/bin/python -m signals.operations \
   open-runtime-qa-policy-window \
@@ -91,6 +92,8 @@ sudo systemd-run --wait --collect --pipe \
 sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
+  --property=RuntimeDirectory=kivou \
+  --property=RuntimeDirectoryMode=0700 \
   --property=RuntimeMaxSec=20min \
   --property=EnvironmentFile=/etc/kivou/staging.env \
   --property=EnvironmentFile=/etc/kivou/acquisition-shadow.env \
@@ -112,6 +115,8 @@ sudo systemd-run --wait --collect --pipe \
 sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
+  --property=RuntimeDirectory=kivou \
+  --property=RuntimeDirectoryMode=0700 \
   --property=RuntimeMaxSec=20min \
   --property=EnvironmentFile=/etc/kivou/staging.env \
   --property=EnvironmentFile=/etc/kivou/acquisition-shadow.env \
@@ -124,6 +129,7 @@ sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
   --property=EnvironmentFile=/etc/kivou/staging.env \
+  --property=EnvironmentFile=/etc/kivou/acquisition-shadow.env \
   --property=EnvironmentFile=/etc/kivou/acquisition-runtime.env \
   /srv/kivou/app/.venv/bin/python -m signals.operations \
   close-runtime-qa-policy-window \

@@ -225,6 +225,7 @@ class AcquisitionRuntimeApprovalStore:
         self,
         *,
         status: RuntimeApprovalStatus | None = None,
+        at: dt.datetime | None = None,
         limit: int = 100,
     ) -> tuple[RuntimeApprovalSnapshot, ...]:
         """Return bounded approval metadata for the internal operator CLI."""
@@ -235,6 +236,14 @@ class AcquisitionRuntimeApprovalStore:
         if status is not None:
             statement = statement.where(
                 acquisition_runtime_approval.c.state == status.value
+            )
+        if status is RuntimeApprovalStatus.PENDING:
+            if at is None:
+                raise ValueError("pending runtime approvals require an observation time")
+            observed_at = require_aware(at)
+            statement = statement.where(
+                acquisition_runtime_approval.c.requested_at <= observed_at,
+                acquisition_runtime_approval.c.expires_at > observed_at,
             )
         statement = statement.order_by(
             acquisition_runtime_approval.c.requested_at,

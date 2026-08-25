@@ -242,6 +242,7 @@ def main(
     if arguments.command == "list-runtime-approvals":
         approvals = AcquisitionRuntimeApprovalStore(engine).list_approvals(
             status=RuntimeApprovalStatus.PENDING,
+            at=now,
         )
         print(f"runtime_approvals pending={len(approvals)}")
         for approval in approvals:
