@@ -19,6 +19,12 @@ from signals.api.config import ApiConfig
 from signals.persistence.database import create_database_engine
 from signals.runtime_events import configure_runtime_event_logging
 
+EXIT_DELIVERY_INCIDENT = 1
+EXIT_CONFIGURATION = 2
+EXIT_AMBIGUOUS_DELIVERY = 3
+EXIT_PERSISTENCE_INCIDENT = 4
+EXIT_RUNTIME_INCIDENT = 5
+
 
 class _SafeArgumentParser(argparse.ArgumentParser):
     """Reject invalid arguments without reflecting possibly secret values."""
@@ -57,6 +63,17 @@ def summarize(report: CycleReport) -> str:
     )
 
 
+def exit_status(report: CycleReport) -> int:
+    results = {outcome.result for outcome in report.outcomes}
+    if "persistence_failed" in results:
+        return EXIT_PERSISTENCE_INCIDENT
+    if "unknown_delivery_state" in results:
+        return EXIT_AMBIGUOUS_DELIVERY
+    if report.has_current_incident:
+        return EXIT_DELIVERY_INCIDENT
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     configure_runtime_event_logging()
     parser = _SafeArgumentParser(prog="kivou-alerts", description="Cycle d'alerte Kivou")
@@ -83,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
         engine = create_database_engine()
     except (RuntimeError, ValueError):
         print("configuration_invalid", file=sys.stderr)
-        return 2
+        return EXIT_CONFIGURATION
 
     if arguments.dry_run:
         print("status=dry_run no_delivery_attempted=true")
@@ -102,9 +119,9 @@ def main(argv: list[str] | None = None) -> int:
         )
     except Exception:  # noqa: BLE001 - sanitized process boundary, never exception text
         print("runtime_failed", file=sys.stderr)
-        return 1
+        return EXIT_RUNTIME_INCIDENT
     print(summarize(report))
-    return 1 if report.has_current_incident else 0
+    return exit_status(report)
 
 
 if __name__ == "__main__":  # pragma: no cover - point d'entrée

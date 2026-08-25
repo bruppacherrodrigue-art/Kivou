@@ -90,6 +90,89 @@ def test_only_current_execution_incidents_return_nonzero(
     assert main(["--now", NOW.isoformat()]) == 1
 
 
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        AlertOutcome("acc_test", "daily", "blocked", 1, "public_app_url_missing"),
+        AlertOutcome(
+            "acc_test",
+            "daily",
+            "failed",
+            1,
+            "smtp_recipient_refused",
+            False,
+            1,
+        ),
+        AlertOutcome(
+            "acc_test",
+            "daily",
+            "recipient_refused",
+            0,
+            "smtp_recipient_refused",
+            False,
+            0,
+        ),
+    ],
+)
+def test_controlled_block_and_permanent_refusal_exit_zero(
+    monkeypatch, configured_runtime, outcome
+) -> None:
+    monkeypatch.setattr(
+        cli,
+        "run_alert_cycle",
+        lambda *args, **kwargs: CycleReport(1, (outcome,)),
+    )
+
+    assert main(["--now", NOW.isoformat()]) == 0
+
+
+@pytest.mark.parametrize(
+    ("outcome", "expected"),
+    [
+        (
+            AlertOutcome(
+                "acc_test", "daily", "failed", 1, "smtp_450", True, 1
+            ),
+            1,
+        ),
+        (
+            AlertOutcome(
+                "acc_test",
+                "daily",
+                "unknown_delivery_state",
+                1,
+                "unknown_delivery_state",
+                True,
+                1,
+            ),
+            3,
+        ),
+        (
+            AlertOutcome(
+                "acc_test",
+                "daily",
+                "persistence_failed",
+                1,
+                "delivery_state_persistence_failed",
+                True,
+                1,
+            ),
+            4,
+        ),
+    ],
+)
+def test_current_delivery_incident_categories_have_distinct_nonzero_statuses(
+    monkeypatch, configured_runtime, outcome, expected
+) -> None:
+    monkeypatch.setattr(
+        cli,
+        "run_alert_cycle",
+        lambda *args, **kwargs: CycleReport(1, (outcome,)),
+    )
+
+    assert main(["--now", NOW.isoformat()]) == expected
+
+
 def test_missing_configuration_fails_closed_with_a_safe_code(
     monkeypatch, configured_runtime, capsys
 ) -> None:
@@ -119,7 +202,7 @@ def test_runtime_failure_never_prints_exception_or_configuration_values(
 
     monkeypatch.setattr(cli, "run_alert_cycle", fail)
 
-    assert main(["--now", NOW.isoformat()]) == 1
+    assert main(["--now", NOW.isoformat()]) == 5
     captured = capsys.readouterr()
     rendered = captured.out + captured.err
     assert "runtime_failed" in rendered
