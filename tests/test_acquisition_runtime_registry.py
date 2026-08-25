@@ -11,6 +11,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeCycleSnapshot,
     RuntimeCycleStatus,
     RuntimeProposal,
+    RuntimeStageSnapshot,
     RuntimeStageStatus,
 )
 from signals.acquisition_runtime.registry import (
@@ -27,6 +28,13 @@ CYCLE = RuntimeCycleSnapshot(
     next_stage=AcquisitionRuntimeStage.SIGNAL_SEED,
     spent_cost=Decimal("0"),
     started_at=NOW,
+)
+STAGE_SNAPSHOT = RuntimeStageSnapshot(
+    cycle_ref=CYCLE.cycle_ref,
+    stage=AcquisitionRuntimeStage.SIGNAL_SEED,
+    status=RuntimeStageStatus.RUNNING,
+    attempt_count=1,
+    result_refs=("prior-result-001",),
 )
 
 
@@ -77,6 +85,7 @@ def test_registry_executes_only_the_exact_stage_command_and_target() -> None:
         stage,
         _proposal(stage),
         CYCLE,
+        stage_snapshot=STAGE_SNAPSHOT.model_copy(update={"stage": stage}),
         allow_qa_provider_mutations=False,
         at=NOW,
     )
@@ -85,6 +94,8 @@ def test_registry_executes_only_the_exact_stage_command_and_target() -> None:
     assert len(calls) == 1
     assert calls[0].stage is stage
     assert calls[0].cycle == CYCLE
+    assert calls[0].stage_snapshot.attempt_ref
+    assert calls[0].stage_snapshot.result_refs == ("prior-result-001",)
     assert calls[0].allow_qa_provider_mutations is False
 
 
@@ -117,6 +128,9 @@ def test_registry_fails_closed_before_handler(
         AcquisitionRuntimeStage.DECISION,
         proposal,
         CYCLE,
+        stage_snapshot=STAGE_SNAPSHOT.model_copy(
+            update={"stage": AcquisitionRuntimeStage.DECISION}
+        ),
         allow_qa_provider_mutations=False,
         at=NOW,
     )
@@ -135,6 +149,7 @@ def test_provider_handoff_requires_current_explicit_qa_authorization() -> None:
         stage,
         _proposal(stage),
         CYCLE,
+        stage_snapshot=STAGE_SNAPSHOT.model_copy(update={"stage": stage}),
         allow_qa_provider_mutations=False,
         at=NOW,
     )
@@ -152,4 +167,3 @@ def test_registry_identity_is_deterministic_and_contains_no_callable_repr() -> N
     assert len(first.identity) == 64
     assert first.commands == tuple(stage.command for stage in AcquisitionRuntimeStage)
     assert "handler" not in repr(first)
-

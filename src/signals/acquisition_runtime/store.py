@@ -16,6 +16,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeCycleStatus,
     RuntimeLeaseResult,
     RuntimeProposal,
+    RuntimeStageSnapshot,
     RuntimeStageStatus,
     require_aware,
 )
@@ -198,7 +199,7 @@ class AcquisitionRuntimeStore:
         stage: AcquisitionRuntimeStage,
         *,
         at: dt.datetime,
-    ) -> None:
+    ) -> RuntimeStageSnapshot:
         at = require_aware(at)
         with self.engine.begin() as connection:
             row = self._stage(connection, cycle_ref, stage)
@@ -207,7 +208,9 @@ class AcquisitionRuntimeStore:
                 RuntimeStageStatus.SUPPRESSED.value,
             }:
                 raise AcquisitionRuntimeConflict("terminal runtime stage cannot restart")
-            connection.execute(
+            if row["status"] == RuntimeStageStatus.RUNNING.value:
+                return self._stage_snapshot(row)
+            updated = connection.execute(
                 sa.update(acquisition_runtime_stage)
                 .where(
                     acquisition_runtime_stage.c.cycle_ref == cycle_ref,
@@ -219,7 +222,6 @@ class AcquisitionRuntimeStore:
                     plan_ref=None,
                     command=None,
                     argument_fingerprint=None,
-                    result_refs=[],
                     reserved_cost=Decimal("0"),
                     observed_cost=Decimal("0"),
                     reason_codes=[],
@@ -227,7 +229,8 @@ class AcquisitionRuntimeStore:
                     completed_at=None,
                     updated_at=at,
                 )
-            )
+                .returning(acquisition_runtime_stage)
+            ).mappings().one()
             connection.execute(
                 sa.update(acquisition_runtime_cycle)
                 .where(acquisition_runtime_cycle.c.cycle_ref == cycle_ref)
@@ -239,6 +242,7 @@ class AcquisitionRuntimeStore:
                     updated_at=at,
                 )
             )
+            return self._stage_snapshot(updated)
 
     def finish_stage(
         self,
@@ -402,6 +406,16 @@ class AcquisitionRuntimeStore:
             ),
             spent_cost=Decimal(row["spent_cost"]),
             started_at=_aware(row["started_at"]),
+        )
+
+    @staticmethod
+    def _stage_snapshot(row: RowMapping) -> RuntimeStageSnapshot:
+        return RuntimeStageSnapshot(
+            cycle_ref=row["cycle_ref"],
+            stage=AcquisitionRuntimeStage(row["stage"]),
+            status=RuntimeStageStatus(row["status"]),
+            attempt_count=row["attempt_count"],
+            result_refs=tuple(row["result_refs"]),
         )
 
     @staticmethod

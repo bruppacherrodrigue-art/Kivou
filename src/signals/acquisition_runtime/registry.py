@@ -13,6 +13,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeActionResult,
     RuntimeCycleSnapshot,
     RuntimeProposal,
+    RuntimeStageSnapshot,
     RuntimeStageStatus,
     require_aware,
 )
@@ -27,6 +28,7 @@ class AcquisitionActionContext:
     stage: AcquisitionRuntimeStage
     proposal: RuntimeProposal
     cycle: RuntimeCycleSnapshot
+    stage_snapshot: RuntimeStageSnapshot
     allow_qa_provider_mutations: bool
     at: dt.datetime
 
@@ -63,6 +65,7 @@ class AcquisitionActionRegistry:
         proposal: RuntimeProposal,
         cycle: RuntimeCycleSnapshot,
         *,
+        stage_snapshot: RuntimeStageSnapshot,
         allow_qa_provider_mutations: bool,
         at: dt.datetime,
     ) -> RuntimeActionResult:
@@ -90,6 +93,7 @@ class AcquisitionActionRegistry:
                 stage=stage,
                 proposal=proposal,
                 cycle=cycle,
+                stage_snapshot=stage_snapshot,
                 allow_qa_provider_mutations=allow_qa_provider_mutations,
                 at=observed_at,
             )

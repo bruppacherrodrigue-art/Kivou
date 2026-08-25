@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 
+import pytest
 import sqlalchemy as sa
 
 from signals.acquisition_runtime.contracts import (
@@ -11,8 +13,11 @@ from signals.acquisition_runtime.contracts import (
     RuntimeActionResult,
     RuntimeCycleStatus,
     RuntimeProposal,
+    RuntimeRunRequest,
+    RuntimeRunStatus,
     RuntimeStageStatus,
 )
+from signals.acquisition_runtime.runner import AcquisitionRuntimeRunner
 from signals.acquisition_runtime.store import AcquisitionRuntimeStore
 from signals.persistence.schema import (
     METADATA,
@@ -220,7 +225,143 @@ def test_interrupted_running_stage_resumes_without_duplicate_cycle(tmp_path) -> 
                 acquisition_runtime_stage.c.stage == stage.value,
             )
         ).mappings().one()
-    assert row["attempt_count"] == 2
+    assert row["attempt_count"] == 1
+
+
+def test_running_stage_restart_reuses_same_deterministic_attempt_identity(
+    tmp_path,
+) -> None:
+    store = AcquisitionRuntimeStore(_engine(tmp_path))
+    cycle = store.resume_or_create_cycle(
+        opportunity_keys=("signal-001",), config_fingerprint="e" * 64, at=NOW
+    )
+    stage = AcquisitionRuntimeStage.SIGNAL_SEED
+
+    first = store.begin_stage(cycle.cycle_ref, stage, at=NOW)
+    restarted = store.begin_stage(
+        cycle.cycle_ref,
+        stage,
+        at=NOW + dt.timedelta(minutes=30),
+    )
+
+    assert first.status is RuntimeStageStatus.RUNNING
+    assert first.attempt_count == 1
+    assert restarted == first
+    assert restarted.attempt_ref == first.attempt_ref
+    material = (
+        "acquisition-runtime-attempt-v1\0"
+        f"{cycle.cycle_ref}\0{stage.value}\0{first.attempt_count}"
+    )
+    assert restarted.attempt_ref == hashlib.sha256(
+        material.encode("utf-8")
+    ).hexdigest()
+
+
+def test_new_attempt_preserves_partial_result_references_for_resume(tmp_path) -> None:
+    store = AcquisitionRuntimeStore(_engine(tmp_path))
+    cycle = store.resume_or_create_cycle(
+        opportunity_keys=("signal-001",), config_fingerprint="f" * 64, at=NOW
+    )
+    stage = AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
+    first = store.begin_stage(cycle.cycle_ref, stage, at=NOW)
+    store.finish_stage(
+        cycle.cycle_ref,
+        stage,
+        RuntimeActionResult(
+            status=RuntimeStageStatus.WAITING,
+            result_refs=("supplier-run-001",),
+            reason_codes=("PROVIDER_RETRY_DUE",),
+        ),
+        at=NOW,
+    )
+
+    resumed = store.begin_stage(
+        cycle.cycle_ref,
+        stage,
+        at=NOW + dt.timedelta(minutes=30),
+    )
+
+    assert resumed.status is RuntimeStageStatus.RUNNING
+    assert resumed.attempt_count == 2
+    assert resumed.attempt_ref != first.attempt_ref
+    assert resumed.result_refs == ("supplier-run-001",)
+
+
+def test_crash_after_business_commit_before_runtime_checkpoint_reuses_attempt(
+    tmp_path,
+) -> None:
+    store = AcquisitionRuntimeStore(_engine(tmp_path))
+    committed_attempts: set[str] = set()
+    observed_attempts: list[str] = []
+
+    class SimulatedProcessCrash(BaseException):
+        pass
+
+    class Supervisor:
+        def propose(self, stage, cycle, *, remaining_cost, at):
+            del remaining_cost, at
+            return RuntimeProposal(
+                plan_ref="plan-crash-resume",
+                action_index=0,
+                command=stage.command,
+                target_ref=cycle.opportunity_key,
+                argument_fingerprint="1" * 64,
+                estimated_cost=Decimal("0"),
+                reason_codes=("QA_RUNTIME_STEP",),
+            )
+
+    class Registry:
+        def execute(
+            self,
+            stage,
+            proposal,
+            cycle,
+            *,
+            stage_snapshot,
+            allow_qa_provider_mutations,
+            at,
+        ):
+            del stage, proposal, cycle, allow_qa_provider_mutations, at
+            attempt_ref = stage_snapshot.attempt_ref
+            observed_attempts.append(attempt_ref)
+            if attempt_ref not in committed_attempts:
+                committed_attempts.add(attempt_ref)
+                raise SimulatedProcessCrash
+            return RuntimeActionResult(
+                status=RuntimeStageStatus.WAITING,
+                result_refs=(f"committed-{attempt_ref}",),
+                reason_codes=("NEXT_STAGE_NOT_DUE",),
+            )
+
+    runner = AcquisitionRuntimeRunner(
+        store=store,
+        supervisor=Supervisor(),
+        registry=Registry(),
+        allowed_opportunity_keys=("signal-001",),
+        config_fingerprint="9" * 64,
+        maximum_cycle_cost=Decimal("5"),
+        maximum_wall_seconds=900,
+        lease_seconds=1200,
+        clock=lambda: NOW,
+    )
+    request = RuntimeRunRequest(owner_ref="runtime-owner-001")
+
+    with pytest.raises(SimulatedProcessCrash):
+        runner.run_once(request)
+    resumed = runner.run_once(request)
+
+    assert resumed.status is RuntimeRunStatus.WAITING
+    assert len(committed_attempts) == 1
+    assert observed_attempts == [observed_attempts[0], observed_attempts[0]]
+    with store.engine.connect() as connection:
+        row = connection.execute(
+            sa.select(acquisition_runtime_stage).where(
+                acquisition_runtime_stage.c.stage
+                == AcquisitionRuntimeStage.SIGNAL_SEED.value
+            )
+        ).mappings().one()
+    assert row["attempt_count"] == 1
+    assert row["result_refs"] == [f"committed-{observed_attempts[0]}"]
 
 
 def test_suppressed_cycle_is_terminal_and_not_reopened(tmp_path) -> None:

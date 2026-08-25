@@ -13,6 +13,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeProposal,
     RuntimeRunRequest,
     RuntimeRunStatus,
+    RuntimeStageSnapshot,
     RuntimeStageStatus,
 )
 from signals.acquisition_runtime.runner import AcquisitionRuntimeRunner
@@ -49,6 +50,13 @@ class FakeStore:
 
     def begin_stage(self, cycle_ref, stage, *, at):
         self.events.append(("begin", cycle_ref, stage, at))
+        return RuntimeStageSnapshot(
+            cycle_ref=cycle_ref,
+            stage=stage,
+            status=RuntimeStageStatus.RUNNING,
+            attempt_count=1,
+            result_refs=("prior-result-001",),
+        )
 
     def finish_stage(self, cycle_ref, stage, result, *, at, proposal=None):
         self.proposals[stage] = proposal
@@ -79,9 +87,20 @@ class FakeSupervisor:
 class FakeRegistry:
     outcomes: dict[AcquisitionRuntimeStage, RuntimeActionResult]
     calls: list[tuple[AcquisitionRuntimeStage, str, bool]] = field(default_factory=list)
+    stage_snapshots: list[RuntimeStageSnapshot | None] = field(default_factory=list)
 
-    def execute(self, stage, proposal, cycle, *, allow_qa_provider_mutations, at):
+    def execute(
+        self,
+        stage,
+        proposal,
+        cycle,
+        *,
+        stage_snapshot=None,
+        allow_qa_provider_mutations,
+        at,
+    ):
         del cycle, at
+        self.stage_snapshots.append(stage_snapshot)
         self.calls.append(
             (stage, proposal.command, allow_qa_provider_mutations)
         )
@@ -200,6 +219,31 @@ def test_full_cycle_checkpoints_each_stage_before_the_next_action() -> None:
             assert finish < next_begin
     assert names[-2:] == ["finish_cycle", "release"]
     assert all(store.proposals[stage] is not None for stage in AcquisitionRuntimeStage)
+
+
+def test_runner_passes_durable_stage_attempt_to_the_action_registry() -> None:
+    stage = AcquisitionRuntimeStage.SIGNAL_SEED
+    store = FakeStore()
+    runner = _runner(
+        store,
+        outcomes={
+            stage: RuntimeActionResult(
+                status=RuntimeStageStatus.WAITING,
+                reason_codes=("CHECKPOINT_REQUIRED",),
+            )
+        },
+        proposals={stage: _proposal(stage)},
+    )
+
+    runner.run_once(_request())
+
+    assert runner.registry.stage_snapshots[0] == RuntimeStageSnapshot(
+        cycle_ref="cycle-001",
+        stage=stage,
+        status=RuntimeStageStatus.RUNNING,
+        attempt_count=1,
+        result_refs=("prior-result-001",),
+    )
 
 
 def test_waiting_result_is_durable_and_current_run_exits_cleanly() -> None:

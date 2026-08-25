@@ -17,6 +17,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeRunRequest,
     RuntimeRunResult,
     RuntimeRunStatus,
+    RuntimeStageSnapshot,
     RuntimeStageStatus,
     require_aware,
 )
@@ -37,7 +38,7 @@ class RuntimeCycleStore(Protocol):
 
     def begin_stage(
         self, cycle_ref: str, stage: AcquisitionRuntimeStage, *, at: dt.datetime
-    ) -> None: ...
+    ) -> RuntimeStageSnapshot: ...
 
     def finish_stage(
         self,
@@ -83,6 +84,7 @@ class RuntimeActionRegistry(Protocol):
         proposal: RuntimeProposal,
         cycle: RuntimeCycleSnapshot,
         *,
+        stage_snapshot: RuntimeStageSnapshot,
         allow_qa_provider_mutations: bool,
         at: dt.datetime,
     ) -> RuntimeActionResult: ...
@@ -167,7 +169,9 @@ class AcquisitionRuntimeRunner:
                         stage=current_stage,
                         reason_code="CYCLE_TIME_BUDGET_REACHED",
                     )
-                self.store.begin_stage(cycle.cycle_ref, current_stage, at=now)
+                stage_snapshot = self.store.begin_stage(
+                    cycle.cycle_ref, current_stage, at=now
+                )
                 proposal: RuntimeProposal | None = None
                 if (
                     current_stage is AcquisitionRuntimeStage.PROVIDER_HANDOFF
@@ -181,6 +185,7 @@ class AcquisitionRuntimeRunner:
                     proposal, action_result = self._execute_stage(
                         current_stage,
                         cycle,
+                        stage_snapshot=stage_snapshot,
                         remaining_cost=self._maximum_cost - spent,
                         request=request,
                         at=now,
@@ -268,6 +273,7 @@ class AcquisitionRuntimeRunner:
         stage: AcquisitionRuntimeStage,
         cycle: RuntimeCycleSnapshot,
         *,
+        stage_snapshot: RuntimeStageSnapshot,
         remaining_cost: Decimal,
         request: RuntimeRunRequest,
         at: dt.datetime,
@@ -295,6 +301,7 @@ class AcquisitionRuntimeRunner:
             stage,
             proposal,
             cycle,
+            stage_snapshot=stage_snapshot,
             allow_qa_provider_mutations=request.allow_qa_provider_mutations,
             at=at,
         )

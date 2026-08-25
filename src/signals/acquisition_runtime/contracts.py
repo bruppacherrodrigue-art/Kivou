@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 from decimal import Decimal
 from enum import StrEnum
 from pathlib import Path
@@ -184,6 +185,22 @@ class RuntimeCycleSnapshot(_FrozenModel):
         return self
 
 
+class RuntimeStageSnapshot(_FrozenModel):
+    cycle_ref: OpaqueRef
+    stage: AcquisitionRuntimeStage
+    status: RuntimeStageStatus
+    attempt_count: int = Field(ge=1)
+    result_refs: tuple[OpaqueRef, ...] = Field(default=(), max_length=16)
+
+    @property
+    def attempt_ref(self) -> str:
+        material = (
+            "acquisition-runtime-attempt-v1\0"
+            f"{self.cycle_ref}\0{self.stage.value}\0{self.attempt_count}"
+        )
+        return hashlib.sha256(material.encode("utf-8")).hexdigest()
+
+
 class RuntimeRunRequest(_FrozenModel):
     owner_ref: OpaqueRef
     allow_qa_provider_mutations: bool = False
@@ -258,6 +275,7 @@ __all__ = [
     "RuntimeRunRequest",
     "RuntimeRunResult",
     "RuntimeRunStatus",
+    "RuntimeStageSnapshot",
     "RuntimeStageStatus",
     "require_aware",
 ]
