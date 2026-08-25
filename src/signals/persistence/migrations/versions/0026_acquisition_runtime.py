@@ -88,6 +88,78 @@ def upgrade() -> None:
         ["status", "updated_at"],
     )
     op.create_table(
+        "acquisition_runtime_approval",
+        sa.Column("approval_id", sa.String(64), primary_key=True),
+        sa.Column("request_ref", sa.String(256), nullable=False, unique=True),
+        sa.Column(
+            "cycle_ref",
+            sa.String(64),
+            sa.ForeignKey("acquisition_runtime_cycle.cycle_ref", ondelete="RESTRICT"),
+            nullable=False,
+        ),
+        sa.Column("stage", sa.String(32), nullable=False),
+        sa.Column("purpose", sa.String(32), nullable=False),
+        sa.Column("command", sa.String(64), nullable=False),
+        sa.Column("target_ref", sa.String(256), nullable=False),
+        sa.Column("acquisition_opportunity_id", sa.String(256), nullable=False),
+        sa.Column("action_fingerprint", sa.String(64), nullable=False),
+        sa.Column("policy_version", sa.String(256), nullable=False),
+        sa.Column("policy_snapshot_id", sa.String(256), nullable=False),
+        sa.Column("control_revision", sa.Integer, nullable=False),
+        sa.Column("scope_fingerprint", sa.String(64), nullable=False),
+        sa.Column("binding_fingerprint", sa.String(64), nullable=False),
+        sa.Column("state", sa.String(16), nullable=False),
+        sa.Column("requested_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("expires_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("approved_by_actor_ref", sa.String(256)),
+        sa.Column("approved_at", sa.DateTime(timezone=True)),
+        sa.Column("consumed_by_ref", sa.String(256)),
+        sa.Column("consumed_at", sa.DateTime(timezone=True)),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.CheckConstraint(
+            "stage IN ('SIGNAL_SEED', 'SUPPLIER_DISCOVERY', 'CONTACT_DISCOVERY', "
+            "'COMPANY_RESEARCH', 'DECISION', 'PERSONALIZATION', 'COMPLIANCE', "
+            "'CAMPAIGN', 'PROVIDER_HANDOFF', 'RESPONSE', "
+            "'ATTRIBUTION_CONVERSION')",
+            name="ck_acquisition_runtime_approval_stage",
+        ),
+        sa.CheckConstraint(
+            "purpose IN ('ACTION', 'COMPLIANCE_REVIEW')",
+            name="ck_acquisition_runtime_approval_purpose",
+        ),
+        sa.CheckConstraint(
+            "state IN ('PENDING', 'APPROVED', 'CONSUMED')",
+            name="ck_acquisition_runtime_approval_state",
+        ),
+        sa.CheckConstraint(
+            "control_revision >= 1",
+            name="ck_acquisition_runtime_approval_revision",
+        ),
+        sa.CheckConstraint(
+            "requested_at < expires_at AND updated_at >= requested_at",
+            name="ck_acquisition_runtime_approval_window",
+        ),
+        sa.CheckConstraint(
+            "(state = 'PENDING' AND approved_by_actor_ref IS NULL "
+            "AND approved_at IS NULL AND consumed_by_ref IS NULL "
+            "AND consumed_at IS NULL) OR "
+            "(state = 'APPROVED' AND approved_by_actor_ref IS NOT NULL "
+            "AND approved_at IS NOT NULL AND requested_at <= approved_at "
+            "AND approved_at < expires_at AND consumed_by_ref IS NULL "
+            "AND consumed_at IS NULL) OR "
+            "(state = 'CONSUMED' AND approved_by_actor_ref IS NOT NULL "
+            "AND approved_at IS NOT NULL AND consumed_by_ref IS NOT NULL "
+            "AND consumed_at IS NOT NULL AND requested_at <= approved_at "
+            "AND approved_at <= consumed_at AND consumed_at < expires_at)",
+            name="ck_acquisition_runtime_approval_lifecycle",
+        ),
+    )
+    op.create_index(
+        "ix_acquisition_runtime_approval_state_expiry",
+        "acquisition_runtime_approval",
+        ["state", "expires_at"],
+    )
+    op.create_table(
         "acquisition_runtime_stage",
         sa.Column(
             "cycle_ref",
@@ -168,6 +240,11 @@ def downgrade() -> None:
         table_name="acquisition_runtime_stage",
     )
     op.drop_table("acquisition_runtime_stage")
+    op.drop_index(
+        "ix_acquisition_runtime_approval_state_expiry",
+        table_name="acquisition_runtime_approval",
+    )
+    op.drop_table("acquisition_runtime_approval")
     op.drop_index(
         "ix_acquisition_runtime_cycle_status",
         table_name="acquisition_runtime_cycle",

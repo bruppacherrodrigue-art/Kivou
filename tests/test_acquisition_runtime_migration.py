@@ -14,6 +14,7 @@ from signals.persistence.database import (
 from signals.persistence.schema import (
     METADATA,
     acquisition_campaign_member,
+    acquisition_runtime_approval,
     acquisition_runtime_cycle,
     acquisition_runtime_lease,
     acquisition_runtime_stage,
@@ -22,6 +23,7 @@ from signals.persistence.schema import (
 PREVIOUS = "0024_scheduled_plan_change"
 HEAD = "0026_acquisition_runtime"
 RUNTIME_TABLES = {
+    acquisition_runtime_approval.name,
     acquisition_runtime_lease.name,
     acquisition_runtime_cycle.name,
     acquisition_runtime_stage.name,
