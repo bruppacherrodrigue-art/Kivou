@@ -32,9 +32,11 @@ import sqlalchemy as sa
 from signals.billing import catalogue
 from signals.billing.gateway import (
     CheckoutSession,
+    PlanChangePaymentFailed,
     PortalSession,
     StripeCustomer,
     StripePrice,
+    StripeScheduledChange,
     StripeSubscriptionState,
 )
 from signals.billing.service import synchronize_subscription
@@ -175,6 +177,20 @@ class FakeStripe:
     customer_calls: list[dict[str, Any]] = dataclasses.field(default_factory=list)
     checkout_calls: list[dict[str, Any]] = dataclasses.field(default_factory=list)
     portal_calls: list[dict[str, Any]] = dataclasses.field(default_factory=list)
+    #: #29 — les changements de formule, pour que les tests lisent ce que Stripe
+    #: a réellement reçu plutôt que ce qu'on espère lui avoir envoyé.
+    price_changes: list[dict[str, Any]] = dataclasses.field(default_factory=list)
+    scheduled_changes: list[dict[str, Any]] = dataclasses.field(default_factory=list)
+    #: L'HISTORIQUE des programmations, clés d'idempotence comprises. Distinct
+    #: de `scheduled_changes`, qui ne retient que l'état courant : c'est cet
+    #: historique qui prouve qu'un rejeu n'a pas produit deux opérations.
+    schedule_calls: list[dict[str, Any]] = dataclasses.field(default_factory=list)
+    #: Pilotage : simule un prorata refusé par la banque.
+    fail_price_change: bool = False
+    #: Pilotage : fait échouer TOUTE lecture. Sert à prouver qu'un endpoint est
+    #: purement local — une dépendance réseau oubliée devient un échec, pas une
+    #: lenteur invisible en test.
+    forbid_reads: bool = False
     _counter: int = 0
     _by_idempotency_key: dict[str, StripeCustomer] = dataclasses.field(default_factory=dict)
     _sessions_by_key: dict[str, CheckoutSession] = dataclasses.field(default_factory=dict)
@@ -186,6 +202,7 @@ class FakeStripe:
     # ── protocole StripeGateway ──────────────────────────────────────────────
 
     def price_for_lookup_key(self, lookup_key: str) -> StripePrice | None:
+        self._guard_read("price_for_lookup_key")
         return self.prices.get(lookup_key)
 
     def create_customer(
@@ -237,8 +254,100 @@ class FakeStripe:
         )
         return PortalSession(url=f"https://billing.stripe.test/{customer_id}")
 
+    def _guard_read(self, verb: str) -> None:
+        if self.forbid_reads:
+            raise AssertionError(f"appel réseau interdit dans ce test : {verb}")
+
     def fetch_subscription(self, subscription_id: str) -> StripeSubscriptionState | None:
+        self._guard_read("fetch_subscription")
         return self.subscriptions.get(subscription_id)
+
+    # ── changement de formule (#29) ──────────────────────────────────────────
+
+    def _price_of(self, price_id: str) -> StripePrice:
+        for price in self.prices.values():
+            if price.price_id == price_id:
+                return price
+        raise AssertionError(f"prix hors catalogue de test : {price_id}")
+
+    def change_subscription_price(
+        self, *, subscription_id: str, price_id: str, idempotency_key: str
+    ) -> StripeSubscriptionState:
+        """Stripe REFUSE la modification si le prorata n'est pas encaissé.
+
+        Le double reproduit ce comportement — c'est lui qui garantit qu'un
+        paiement échoué n'accorde aucun droit, et le simuler autrement
+        rendrait le test complaisant.
+        """
+        if self.fail_price_change:
+            raise PlanChangePaymentFailed("prorata refusé (double de test)")
+        self.price_changes.append(
+            {
+                "subscription_id": subscription_id,
+                "price_id": price_id,
+                "idempotency_key": idempotency_key,
+            }
+        )
+        current = self.subscriptions[subscription_id]
+        price = self._price_of(price_id)
+        updated = dataclasses.replace(
+            current,
+            price_id=price.price_id,
+            product_id=price.product_id,
+            lookup_key=price.lookup_key,
+            currency=price.currency,
+        )
+        self.subscriptions[subscription_id] = updated
+        return updated
+
+    def schedule_subscription_price(
+        self, *, subscription_id: str, price_id: str, idempotency_key: str
+    ) -> StripeScheduledChange:
+        self.schedule_calls.append(
+            {
+                "subscription_id": subscription_id,
+                "price_id": price_id,
+                "idempotency_key": idempotency_key,
+            }
+        )
+        current = self.subscriptions[subscription_id]
+        price = self._price_of(price_id)
+        # L'échéance est la FIN de la période déjà payée : c'est exactement ce
+        # que la première phase d'un `SubscriptionSchedule` porte.
+        effective_at = current.current_period_end
+        self.scheduled_changes = [
+            {
+                "subscription_id": subscription_id,
+                "price_id": price_id,
+                "lookup_key": price.lookup_key,
+                "effective_at": effective_at,
+            }
+        ]
+        return StripeScheduledChange(
+            schedule_id=f"sub_sched_{subscription_id}",
+            lookup_key=price.lookup_key,
+            currency=price.currency,
+            effective_at=effective_at,
+            livemode=self.livemode,
+        )
+
+    def pending_plan_change(self, *, subscription_id: str) -> StripeScheduledChange | None:
+        self._guard_read("pending_plan_change")
+        for scheduled in self.scheduled_changes:
+            if scheduled["subscription_id"] == subscription_id:
+                return StripeScheduledChange(
+                    schedule_id=f"sub_sched_{subscription_id}",
+                    lookup_key=scheduled["lookup_key"],
+                    currency=self.subscriptions[subscription_id].currency,
+                    effective_at=scheduled["effective_at"],
+                    livemode=self.livemode,
+                )
+        return None
+
+    def release_pending_plan_change(self, *, subscription_id: str) -> None:
+        self.scheduled_changes = [
+            s for s in self.scheduled_changes if s["subscription_id"] != subscription_id
+        ]
 
     def verify_event(self, *, payload: bytes, signature: str, secret: str):
         from signals.billing.gateway import verify_event

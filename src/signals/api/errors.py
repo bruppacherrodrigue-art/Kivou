@@ -63,6 +63,13 @@ ERROR_CODES: tuple[str, ...] = (
     "cockpit_forbidden",
     # SPEC-031 — detailed operational state uses the same internal allowlist.
     "acquisition_ops_forbidden",
+    # RTL-04 / #29 — changement de formule. `plan_change_unavailable` couvre
+    # volontairement plusieurs causes : les distinguer renseignerait sur l'état
+    # de facturation d'un compte par un canal qui n'a pas à le faire.
+    "plan_change_unavailable",
+    "plan_change_same_plan",
+    "plan_change_none_scheduled",
+    "plan_change_payment_failed",
 )
 
 

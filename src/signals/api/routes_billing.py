@@ -11,6 +11,7 @@ par le serveur, depuis une clé de recherche approuvée (§32).
 from __future__ import annotations
 
 import datetime as dt
+import logging
 from typing import Any, Literal
 
 from fastapi import APIRouter, Request
@@ -18,13 +19,27 @@ from pydantic import BaseModel, ConfigDict
 
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
-from signals.billing import attempts, catalogue, checkout, discovery, service
+from signals.billing import attempts, catalogue, checkout, discovery, plan_change, service
 from signals.billing import gateway as gateway_errors
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 PlanChoice = Literal["essential", "pro", "scale"]
 CurrencyChoice = Literal["chf", "eur"]
+
+
+class PlanChangeRequest(BaseModel):
+    """§32 — une FORMULE, jamais un prix.
+
+    `extra="forbid"` : un `price_id` glissé dans le corps fait échouer la
+    requête en 422 au lieu d'être ignoré en silence. Le serveur résout
+    lui-même le Price autorisé depuis la formule et la devise DU CONTRAT.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    plan: PlanChoice
 
 
 class CheckoutRequest(BaseModel):
@@ -89,6 +104,18 @@ def billing_status(request: Request) -> dict[str, Any]:
         action = service.billing_action(connection, account_id=session.account_id)
         grants = discovery.grants(connection, account_id=session.account_id)
         remaining = discovery.remaining_slots(connection, account_id=session.account_id)
+        # #29 — l'écran doit pouvoir dire « vous descendrez le 1er » sans
+        # laisser croire que c'est déjà fait : `plan_code` ci-dessus reste la
+        # formule PAYÉE, celle qui ouvre les droits jusqu'au terme.
+        # #29 — l'écran doit pouvoir dire « vous descendrez le 1er » sans
+        # laisser croire que c'est déjà fait : `plan_code` ci-dessus reste la
+        # formule PAYÉE, celle qui ouvre les droits jusqu'au terme.
+        #
+        # Lecture LOCALE. L'état programmé est persisté à sa création et
+        # réconcilié au webhook de bascule : cette réponse ne dépend d'aucun
+        # appel réseau, et le tableau de bord peut la consulter deux fois sans
+        # importer la latence de Stripe dans un parcours financier.
+        pending = plan_change.scheduled_plan_change(connection, account_id=session.account_id)
         over_limit = service.over_limit_icps(
             connection,
             account_id=session.account_id,
@@ -107,6 +134,7 @@ def billing_status(request: Request) -> dict[str, Any]:
         "scheduled_cancellation_at": _iso(state.scheduled_cancellation_at),
         "payment_issue": state.payment_issue,
         "billing_action": action,
+        "scheduled_plan_change": pending,
         "entitlements": catalogue.customer_safe_entitlements(state.entitlements),
         "discovery": {
             "granted_signal_count": len(grants),
@@ -122,6 +150,67 @@ def billing_status(request: Request) -> dict[str, Any]:
 
 def _iso(value: dt.datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
+
+
+@router.post("/billing/plan")
+def change_plan(payload: PlanChangeRequest, request: Request) -> dict[str, Any]:
+    """Monte ou descend la formule d'un compte DÉJÀ abonné.
+
+    Ce n'est pas un point d'entrée d'achat : sans abonnement gérable, il refuse.
+    Ouvrir un paiement ici créerait le second abonnement que tout le reste du
+    module s'emploie à rendre impossible.
+    """
+    enforce_origin(request, request.app.state.config)
+    gateway = _billing_gateway(request)
+    now = request_now(request)
+    config = request.app.state.config
+
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        try:
+            outcome = plan_change.request_plan_change(
+                connection,
+                gateway,
+                account_id=session.account_id,
+                target_plan=payload.plan,
+                now=now,
+                expect_livemode=config.stripe_livemode,
+            )
+        except gateway_errors.PlanChangePaymentFailed as error:
+            # 402 — le prorata n'a pas été encaissé. Stripe a refusé la
+            # modification, donc l'abonnement est resté sur son ancienne
+            # formule : aucun droit supérieur n'a été accordé.
+            raise api_error(
+                402,
+                "plan_change_payment_failed",
+                "le paiement du changement de formule a échoué",
+            ) from error
+        except (plan_change.PlanChangeSamePlan, plan_change.PlanChangeUnavailable) as error:
+            raise api_error(409, error.code, "changement de formule impossible") from error
+
+    return outcome.as_payload()
+
+
+@router.delete("/billing/plan")
+def cancel_plan_change(request: Request) -> dict[str, Any]:
+    """Annule un changement PROGRAMMÉ. L'abonnement, lui, reste."""
+    enforce_origin(request, request.app.state.config)
+    gateway = _billing_gateway(request)
+    now = request_now(request)
+
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        try:
+            plan_change.cancel_scheduled_plan_change(
+                connection, gateway, account_id=session.account_id, now=now
+            )
+        except (
+            plan_change.PlanChangeNoneScheduled,
+            plan_change.PlanChangeUnavailable,
+        ) as error:
+            raise api_error(409, error.code, "aucun changement à annuler") from error
+
+    return {"cancelled": True}
 
 
 @router.post("/billing/checkout")

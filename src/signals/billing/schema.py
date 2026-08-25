@@ -149,6 +149,17 @@ billing_subscription = sa.Table(
     # §17 — l'horodatage de l'événement Stripe qui a produit cet état. Un
     # événement plus ancien qui arrive après ne doit pas faire reculer l'état.
     sa.Column("last_stripe_event_created_at", sa.DateTime(timezone=True)),
+    # #29 — le changement de formule PROGRAMMÉ, écrit après confirmation du
+    # schedule par Stripe. `plan_code` ci-dessus reste la formule PAYÉE, celle
+    # qui ouvre les droits jusqu'au terme : les confondre reviendrait à retirer
+    # au client ce qu'il a déjà réglé.
+    sa.Column("scheduled_plan_code", sa.String(32)),
+    sa.Column("scheduled_plan_change_at", sa.DateTime(timezone=True)),
+    sa.Column("stripe_schedule_id", sa.String(128)),
+    # Monotone : il numérote les changements et donne à chacun une clé
+    # d'idempotence distincte. Sans lui, A → B → A → B rejouerait la clé de la
+    # première opération et Stripe rendrait sa réponse en cache.
+    sa.Column("plan_change_sequence", sa.Integer, nullable=False, server_default="0"),
     sa.Column("livemode", sa.Boolean, nullable=False),
     *_timestamps(),
 )

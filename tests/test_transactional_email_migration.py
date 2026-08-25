@@ -18,7 +18,10 @@ from signals.persistence.database import (
 from signals.persistence.schema import METADATA
 
 PREVIOUS = "0022_saas_company_profile"
+#: La migration que CE fichier décrit. Elle n'est plus la tête depuis 0024,
+#: mais reste un pas ADDITIF unique depuis son parent — ce que ce test prouve.
 HEAD = "0023_transactional_email_runtime"
+CURRENT_HEAD = "0024_scheduled_plan_change"
 LEASE_TABLE = "signal_alert_job_lease"
 NOW = dt.datetime(2026, 8, 23, 10, 0, tzinfo=dt.UTC)
 
@@ -94,7 +97,7 @@ def test_transactional_email_migration_is_the_single_additive_head(tmp_path) -> 
 
     assert set(sa.inspect(engine).get_table_names()) - before == {LEASE_TABLE}
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
     assert (pathlib.Path(scripts.versions) / "0023_transactional_email_runtime.py").is_file()
 

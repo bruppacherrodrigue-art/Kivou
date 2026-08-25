@@ -119,6 +119,30 @@ class StripeSubscriptionState:
 
 
 @dataclasses.dataclass(frozen=True)
+class StripeScheduledChange:
+    """Un changement de formule DÉJÀ programmé chez Stripe.
+
+    `lookup_key` plutôt que `price_id` : c'est la référence stable que le
+    catalogue Kivou sait traduire en plan. Un `price_...` change avec la
+    tarification et ne décrit aucun droit (§4).
+    """
+
+    schedule_id: str
+    lookup_key: str | None
+    currency: str | None
+    effective_at: dt.datetime | None
+    livemode: bool
+
+
+class PlanChangePaymentFailed(StripeGatewayError):
+    """Le prorata d'une montée en formule n'a pas pu être encaissé.
+
+    Distinguer ce cas est ce qui empêche d'accorder les droits supérieurs à
+    quelqu'un dont le paiement vient d'échouer.
+    """
+
+
+@dataclasses.dataclass(frozen=True)
 class CheckoutSession:
     session_id: str
     url: str | None
@@ -213,6 +237,18 @@ class StripeGateway(Protocol):
 
     def fetch_subscription(self, subscription_id: str) -> StripeSubscriptionState | None: ...
 
+    def change_subscription_price(
+        self, *, subscription_id: str, price_id: str, idempotency_key: str
+    ) -> StripeSubscriptionState: ...
+
+    def schedule_subscription_price(
+        self, *, subscription_id: str, price_id: str, idempotency_key: str
+    ) -> StripeScheduledChange: ...
+
+    def pending_plan_change(self, *, subscription_id: str) -> StripeScheduledChange | None: ...
+
+    def release_pending_plan_change(self, *, subscription_id: str) -> None: ...
+
     def verify_event(self, *, payload: bytes, signature: str, secret: str) -> StripeEvent: ...
 
 
@@ -223,6 +259,75 @@ def _instant(value: Any) -> dt.datetime | None:
     if isinstance(value, dt.datetime):
         return value if value.tzinfo else value.replace(tzinfo=dt.UTC)
     return dt.datetime.fromtimestamp(int(value), tz=dt.UTC)
+
+
+#: Les codes par lesquels Stripe dit « le paiement n'est pas allé au bout ».
+#: Tout le reste remonte tel quel : avaler une erreur inconnue reviendrait à
+#: décider, sans savoir, que le client peut passer.
+_PAYMENT_INCOMPLETE_CODES: frozenset[str] = frozenset(
+    {
+        "subscription_payment_intent_requires_action",
+        "invoice_payment_intent_requires_action",
+        "card_declined",
+    }
+)
+
+
+def _schedule_id(value: Any) -> str:
+    """L'identifiant d'un schedule, qu'il soit développé ou non."""
+    return value if isinstance(value, str) else _get(value, "id")
+
+
+def _phase_price(phase: Any) -> str | None:
+    """Le Price porté par une phase de schedule."""
+    items = _get(phase, "items") or []
+    if not items:
+        return None
+    price = _get(items[0], "price")
+    return price if isinstance(price, str) else _get(price, "id")
+
+
+#: Le Price des phases doit être DÉVELOPPÉ : sans cela Stripe ne rend qu'un
+#: `price_...`, dont Kivou ne sait rien tirer — la clé de recherche est la
+#: seule référence que le catalogue traduit en formule (§4).
+_SCHEDULE_EXPAND: list[str] = ["phases.items.price"]
+
+
+def _scheduled_change(schedule: Any) -> StripeScheduledChange | None:
+    """La phase À VENIR d'un schedule, traduite. `None` s'il n'y en a pas.
+
+    La phase à venir est celle qui commence APRÈS la phase courante — et non
+    « la deuxième de la liste ». Les phases déjà jouées restent dans l'objet :
+    prendre `phases[1]` annonçait encore « vous passerez à Essential le … »
+    des semaines après que la bascule avait eu lieu. Défaut trouvé en Test
+    Clock, invisible hors ligne.
+    """
+    phases = _get(schedule, "phases") or []
+    current = _get(schedule, "current_phase")
+    boundary = _get(current, "end_date") if current is not None else None
+    if not phases or boundary is None:
+        return None
+    upcoming = next(
+        (
+            phase
+            for phase in phases
+            if _get(phase, "start_date") is not None and _get(phase, "start_date") >= boundary
+        ),
+        None,
+    )
+    if upcoming is None:
+        return None
+    items = _get(upcoming, "items") or []
+    price = _get(items[0], "price") if items else None
+    return StripeScheduledChange(
+        schedule_id=_get(schedule, "id"),
+        # Un Price non développé reste un identifiant opaque : on rend `None`
+        # plutôt qu'une supposition, et l'appelant refusera par défaut fermé.
+        lookup_key=_get(price, "lookup_key") if not isinstance(price, str) else None,
+        currency=_get(price, "currency") if not isinstance(price, str) else None,
+        effective_at=_instant(boundary),
+        livemode=bool(_get(schedule, "livemode", False)),
+    )
 
 
 def _first_item(subscription: Any) -> Any:
@@ -439,6 +544,152 @@ class StripeApiGateway:
         except self._stripe.InvalidRequestError:
             return None
         return subscription_state(subscription)
+
+    # ── changement de formule (#29) ──────────────────────────────────────────
+    #
+    # Kivou garde un Product par formule — la modélisation que Stripe
+    # recommande, et celle qui évite de migrer les abonnements LIVE. Le
+    # Customer Portal ne sait alors PAS programmer un downgrade : il ne le fait
+    # qu'entre Prices d'un MÊME Product. D'où ces quatre verbes côté serveur.
+
+    def change_subscription_price(
+        self, *, subscription_id: str, price_id: str, idempotency_key: str
+    ) -> StripeSubscriptionState:
+        """Monte la formule TOUT DE SUITE, en facturant le prorata.
+
+        `payment_behavior="error_if_incomplete"` est la garantie qui compte :
+        si le prorata ne peut pas être encaissé, Stripe REFUSE la modification
+        et l'abonnement reste sur son ancienne formule. Sans cela, un paiement
+        échoué laisserait le client avec les droits supérieurs et une facture
+        impayée — exactement ce que §29 interdit.
+        """
+        subscription = self._client.subscriptions.retrieve(subscription_id)
+        item = _first_item(subscription)
+        if item is None:
+            raise StripeGatewayError("abonnement sans ligne facturable")
+        try:
+            updated = self._client.subscriptions.update(
+                subscription_id,
+                params={
+                    "items": [{"id": _get(item, "id"), "price": price_id}],
+                    "proration_behavior": "always_invoice",
+                    "payment_behavior": "error_if_incomplete",
+                    "expand": ["items.data.price"],
+                },
+                options={"idempotency_key": idempotency_key},
+            )
+        except self._stripe.CardError as error:
+            raise PlanChangePaymentFailed("prorata refusé") from error
+        except self._stripe.InvalidRequestError as error:
+            # Stripe rend `subscription_payment_intent_requires_action` ici
+            # quand une authentification est nécessaire : sans elle, rien n'est
+            # payé, donc rien n'est accordé.
+            if _get(error, "code") in _PAYMENT_INCOMPLETE_CODES:
+                raise PlanChangePaymentFailed("paiement du prorata incomplet") from error
+            raise
+        return subscription_state(updated)
+
+    def schedule_subscription_price(
+        self, *, subscription_id: str, price_id: str, idempotency_key: str
+    ) -> StripeScheduledChange:
+        """Programme la descente de formule à la FIN de la période déjà payée.
+
+        Un `SubscriptionSchedule` créé `from_subscription` reprend la période
+        courante en première phase ; la seconde porte la nouvelle formule.
+        `end_behavior="release"` rend ensuite l'abonnement à lui-même : le
+        schedule ne doit pas survivre à la transition qu'il existait pour faire.
+        """
+        subscription = self._client.subscriptions.retrieve(subscription_id)
+        existing = _get(subscription, "schedule")
+        schedule = (
+            self._client.subscription_schedules.retrieve(
+                _schedule_id(existing), params={"expand": _SCHEDULE_EXPAND}
+            )
+            if existing
+            else self._client.subscription_schedules.create(
+                params={"from_subscription": subscription_id, "expand": _SCHEDULE_EXPAND},
+                options={"idempotency_key": idempotency_key},
+            )
+        )
+        phases = _get(schedule, "phases") or []
+        if not phases:
+            raise StripeGatewayError("schedule sans phase courante")
+        current = phases[0]
+        updated = self._client.subscription_schedules.update(
+            _get(schedule, "id"),
+            # La clé DÉRIVÉE, et non la clé brute : Stripe scope l'idempotence
+            # au compte, pas à l'endpoint. Réutiliser telle quelle la clé du
+            # `create` ferait rendre à cet `update` la réponse du `create`.
+            #
+            # Sans clé du tout, l'idempotence n'aurait protégé que la première
+            # programmation : dès qu'un schedule existe, c'est cet `update` qui
+            # agit, et un rejeu réappliquerait une cible périmée par-dessus le
+            # choix le plus récent du client.
+            options={"idempotency_key": f"{idempotency_key}:phases"},
+            params={
+                "end_behavior": "release",
+                "phases": [
+                    {
+                        "items": [
+                            {"price": _phase_price(current), "quantity": 1},
+                        ],
+                        "start_date": _get(current, "start_date"),
+                        "end_date": _get(current, "end_date"),
+                    },
+                    {
+                        "items": [{"price": price_id, "quantity": 1}],
+                        # `iterations` n'existe plus : l'API attend `duration`.
+                        # Une phase finale SANS durée ne se termine jamais, donc
+                        # `end_behavior=release` ne se déclencherait pas et
+                        # l'abonnement resterait piloté par un schedule fantôme.
+                        "duration": self._billing_duration(price_id),
+                    },
+                ],
+                "expand": _SCHEDULE_EXPAND,
+            },
+        )
+        return _scheduled_change(updated)
+
+    def _billing_duration(self, price_id: str) -> dict[str, Any]:
+        """La durée d'UN cycle du prix visé.
+
+        Lue sur le prix plutôt que codée en dur : le catalogue est mensuel
+        aujourd'hui, et un plan annuel introduit un jour ferait silencieusement
+        durer la phase un mois au lieu d'un an.
+        """
+        price = self._client.prices.retrieve(price_id)
+        recurring = _get(price, "recurring")
+        interval = _get(recurring, "interval")
+        if interval is None:
+            raise StripeGatewayError("prix non récurrent : aucune durée de phase")
+        return {"interval": interval, "interval_count": _get(recurring, "interval_count", 1) or 1}
+
+    def pending_plan_change(self, *, subscription_id: str) -> StripeScheduledChange | None:
+        """Le changement programmé, s'il y en a un. `None` sinon — jamais une supposition."""
+        try:
+            subscription = self._client.subscriptions.retrieve(subscription_id)
+        except self._stripe.InvalidRequestError:
+            return None
+        existing = _get(subscription, "schedule")
+        if not existing:
+            return None
+        schedule = self._client.subscription_schedules.retrieve(
+            _schedule_id(existing), params={"expand": _SCHEDULE_EXPAND}
+        )
+        return _scheduled_change(schedule)
+
+    def release_pending_plan_change(self, *, subscription_id: str) -> None:
+        """Annule le changement programmé en RELÂCHANT l'abonnement.
+
+        `release` laisse l'abonnement en place et supprime les phases à venir.
+        Annuler le schedule lui-même annulerait l'abonnement avec — la
+        différence entre « je me ravise » et « je résilie ».
+        """
+        subscription = self._client.subscriptions.retrieve(subscription_id)
+        existing = _get(subscription, "schedule")
+        if not existing:
+            return
+        self._client.subscription_schedules.release(_schedule_id(existing))
 
     def verify_event(self, *, payload: bytes, signature: str, secret: str) -> StripeEvent:
         return verify_event(payload=payload, signature=signature, secret=secret)
