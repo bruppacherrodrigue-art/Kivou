@@ -121,6 +121,60 @@ def test_alert_selection_continues_after_the_first_feed_page(
     assert offsets == [0, 50]
 
 
+def test_alert_selection_stops_paginating_once_it_holds_enough_signals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une page qui suffit doit être la DERNIÈRE requête, pas la première de dix.
+
+    `feed_page` n'est pas un curseur : chaque appel relance la requête complète
+    bornée au plafond de balayage, réévalue la fraîcheur de toutes les lignes et
+    résout l'identité de tout l'ensemble candidat. Continuer après avoir de quoi
+    remplir le lot multiplie ce travail par le nombre de pages — pour jeter le
+    surplus juste après.
+
+    Le test compte les REQUÊTES, pas le résultat : sans l'arrêt, la sélection
+    reste correcte et seul le coût explose, donc rien d'autre ne le trahirait.
+    """
+    items = tuple(
+        types.SimpleNamespace(signal=types.SimpleNamespace(signal_key=f"sig-{index:03d}"))
+        for index in range(500)
+    )
+    offsets: list[int] = []
+    access = types.SimpleNamespace(
+        entitlements=types.SimpleNamespace(feed_access=True, max_active_icps=1),
+        is_unlocked=lambda _item: True,
+    )
+
+    monkeypatch.setattr(alert_job, "feed_access", lambda *_args, **_kwargs: access)
+    monkeypatch.setattr(
+        alert_job.billing,
+        "feedable_target_icps",
+        lambda *_args, **_kwargs: ("icp-current",),
+    )
+    monkeypatch.setattr(alert_job, "_registered_deliveries", lambda *_args, **_kwargs: set())
+
+    def page(*_args, offset=0, limit=50, **_kwargs):
+        offsets.append(offset)
+        selected = items[offset : offset + limit]
+        return types.SimpleNamespace(
+            items=selected,
+            limit=limit,
+            offset=offset,
+            has_more=offset + limit < len(items),
+        )
+
+    monkeypatch.setattr(alert_job.feed_query, "feed_page", page)
+
+    selected = alert_job.eligible_signals(
+        object(), account_id="acc-current", as_of=NOW.date(), limit=10
+    )
+
+    assert offsets == [0], f"une seule page suffisait, {len(offsets)} ont été demandées"
+    assert [item.signal.signal_key for item in selected] == [
+        f"sig-{index:03d}" for index in range(10)
+    ]
+
+
 def test_retry_revalidation_looks_up_its_keys_beyond_the_feed_scan_cap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -645,6 +699,27 @@ def test_the_deep_link_resolves_to_the_browser_signal_route(app, engine, mailer)
     assert "/app/signals/" in link
 
 
+def test_the_email_shows_where_to_stop_receiving_alerts(app, engine, mailer):
+    """Le pied de page PROMET des préférences : il doit dire où elles sont.
+
+    Sans le lien, le message annonce « modifiez vos préférences de notification »
+    puis n'affiche rien — une promesse creuse. Un envoi automatisé sans porte de
+    sortie visible se fait classer indésirable, et le destinataire n'a aucun
+    moyen d'arrêter les alertes depuis le message lui-même.
+
+    L'en-tête `List-Unsubscribe` doit désigner le MÊME endroit : deux
+    destinations différentes feraient suivre au destinataire un lien qui ne le
+    désabonne pas.
+    """
+    subscriber(app, engine, plan="scale", count=1)
+    cycle(engine, mailer)
+
+    attendu = f"{PUBLIC_APP_URL}/app/notifications"
+    message = mailer.last
+    assert attendu in message.text_body, "le pied de page ne dit pas où aller"
+    assert message.preferences_url == attendu, "l'en-tête et le pied de page divergent"
+
+
 def test_the_email_never_dumps_evidence(app, engine, mailer):
     subscriber(app, engine, plan="scale", count=2)
     cycle(engine, mailer)
@@ -764,3 +839,57 @@ def test_the_job_reads_no_hidden_clock():
         source = inspect.getsource(module)
         for forbidden in ("date.today()", "datetime.now(", "utcnow("):
             assert forbidden not in source, f"{module.__name__} : {forbidden}"
+
+
+# ─── Décision produit — `suppressed` est TERMINAL ─────────────────────────────
+
+
+def test_a_suppressed_alert_is_never_resurrected_but_future_ones_still_ship(
+    app, engine, mailer
+):
+    """Réactiver ses notifications ne ressuscite pas les anciens messages.
+
+    Décision produit, pas conséquence d'implémentation : un signal supprimé
+    parce que le client avait coupé ses alertes reste supprimé, même s'il est
+    encore dans la fenêtre de fraîcheur. Le ressusciter enverrait un message
+    décidé dans un contexte que le client a lui-même quitté.
+
+    Ce que la décision NE dit PAS : que le compte cesse d'être alerté. Sans
+    cette seconde moitié, couper puis rallumer ses alertes une seule fois les
+    désactiverait pour toujours.
+    """
+    client, _ = subscriber(app, engine, plan="pro", count=2)
+
+    # Un cycle sans URL publique MET EN FILE sans envoyer : c'est l'état de
+    # départ du scénario — des alertes dues, pas encore parties.
+    assert [o.result for o in cycle(engine, mailer, url=None).outcomes] == ["blocked"]
+    en_attente = {row.signal_key for row in deliveries(engine)}
+    assert len(en_attente) == 2, "les deux signaux doivent être en file"
+
+    # Le client coupe ses alertes : le cycle suivant les supprime.
+    assert (
+        client.patch("/notification-preferences", json={"email_enabled": False}).status_code == 200
+    )
+    # Le cycle rend `suppressed` — et non `notifications_disabled` — quand il
+    # supprime réellement des lignes dues, ce qui distingue « rien à faire » de
+    # « quelque chose vient d'être terminalisé ».
+    assert [o.result for o in cycle(engine, mailer).outcomes] == ["suppressed"]
+    assert mailer.sent == []
+    statuts = {row.signal_key: row.status for row in deliveries(engine)}
+    assert set(statuts) == en_attente
+    assert set(statuts.values()) == {"suppressed"}, f"attendu suppressed, vu {statuts}"
+
+    # Il se ravise le lendemain : les anciens ne reviennent pas.
+    assert (
+        client.patch("/notification-preferences", json={"email_enabled": True}).status_code == 200
+    )
+    cycle(engine, mailer, now=NOW + dt.timedelta(days=1))
+    for message in mailer.sent:
+        for signal_key in en_attente:
+            assert signal_key not in message.text_body, (
+                "un message supprimé ne doit jamais être renvoyé"
+            )
+    apres = {row.signal_key: row.status for row in deliveries(engine)}
+    assert all(apres[key] == "suppressed" for key in en_attente), (
+        "la suppression est TERMINALE : elle ne repasse pas en file"
+    )

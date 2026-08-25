@@ -50,7 +50,7 @@ from signals.feed import policy as feed_policy
 from signals.feed import query as feed_query
 from signals.feed import view as feed_view
 from signals.recency.claim import LANGUAGES
-from signals.transactional_email.links import signal_url
+from signals.transactional_email.links import preferences_url, signal_url
 
 
 @dataclasses.dataclass(frozen=True)
@@ -126,6 +126,8 @@ def _accessible_signals(
     account_id: str,
     as_of: dt.date,
     signal_keys: tuple[str, ...] | None = None,
+    enough: int | None = None,
+    exclude: frozenset[str] = frozenset(),
 ) -> list:
     access = feed_access(connection, account_id=account_id, as_of=as_of)
     if not access.entitlements.feed_access:
@@ -157,6 +159,17 @@ def _accessible_signals(
             ):
                 exact.append(item)
         return exact
+    # `feed_page` n'est PAS un curseur incrémental : chaque appel relance la
+    # requête complète bornée au plafond de balayage, réévalue la fraîcheur de
+    # toutes les lignes et résout l'identité de tout l'ensemble candidat, avant
+    # de trancher en Python. Boucler jusqu'au bout multipliait donc ce travail
+    # par le nombre de pages — jusqu'à dix balayages complets par compte et par
+    # cycle — pour ne retenir au plus qu'une poignée de signaux.
+    #
+    # `enough` dit combien de signaux ENVOYABLES suffisent : dès qu'on les a,
+    # la pagination s'arrête. Les signaux déjà engagés dans un lot sont écartés
+    # ici plutôt qu'après, sans quoi une page entière de doublons donnerait
+    # l'illusion d'avoir atteint le quota.
     unlocked: list = []
     offset = 0
     while True:
@@ -172,7 +185,13 @@ def _accessible_signals(
         unlocked.extend(item for item in page.items if access.is_unlocked(item))
         if not page.has_more:
             return unlocked
+        if enough is not None and _sendable_count(unlocked, exclude=exclude) >= enough:
+            return unlocked
         offset += page.limit
+
+
+def _sendable_count(items: list, *, exclude: frozenset[str]) -> int:
+    return sum(1 for item in items if item.signal.signal_key not in exclude)
 
 
 def eligible_signals(
@@ -191,6 +210,8 @@ def eligible_signals(
             connection,
             account_id=account_id,
             as_of=as_of,
+            enough=limit,
+            exclude=registered,
         )
         if item.signal.signal_key not in registered
     ]
@@ -432,12 +453,18 @@ def _run_for_account(
             for item in items
         ]
         assert preference.notification_email is not None
+        # `public_app_url` est garanti non nul ici : l'absence est traitée plus
+        # haut par `public_app_url_missing`, avant toute construction de lot.
+        preferences_link = preferences_url(public_app_url)
         message = AlertMessage(
             to_email=preference.notification_email,
             subject=content.subject(len(lines), lang=lang),
-            text_body=content.render_text(lines, lang=lang),
+            text_body=content.render_text(
+                lines, lang=lang, preferences_link=preferences_link
+            ),
             message_id=batch.message_id,
             language=lang,
+            preferences_url=preferences_link,
         )
 
     # L'envoi a lieu HORS transaction : garder une transaction ouverte pendant
