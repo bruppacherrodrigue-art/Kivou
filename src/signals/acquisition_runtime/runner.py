@@ -23,6 +23,7 @@ from signals.acquisition_runtime.contracts import (
     RuntimeStageStatus,
     require_aware,
 )
+from signals.acquisition_runtime.events import emit_acquisition_runtime_event
 
 
 class RuntimeCycleStore(Protocol):
@@ -122,6 +123,7 @@ class AcquisitionRuntimeRunner:
         lease_seconds: int,
         runtime_capability: RuntimeCapabilityEvidence,
         clock: Callable[[], dt.datetime],
+        event_sink: Callable[..., None] = emit_acquisition_runtime_event,
     ) -> None:
         self.store = store
         self.supervisor = supervisor
@@ -133,6 +135,7 @@ class AcquisitionRuntimeRunner:
         self._lease_seconds = lease_seconds
         self._runtime_capability = runtime_capability
         self._clock = clock
+        self._event = event_sink
 
     def run_once(self, request: RuntimeRunRequest) -> RuntimeRunResult:
         now = self._now()
@@ -143,10 +146,21 @@ class AcquisitionRuntimeRunner:
             lease_seconds=self._lease_seconds,
         )
         if not lease.owned:
+            self._event(
+                action="lease",
+                status="already_running",
+                code="LEASE_HELD",
+            )
             return RuntimeRunResult(status=RuntimeRunStatus.ALREADY_RUNNING)
+        self._event(
+            action="lease",
+            status="started",
+            code="LEASE_ACQUIRED",
+        )
 
         cycle: RuntimeCycleSnapshot | None = None
         current_stage: AcquisitionRuntimeStage | None = None
+        current_attempt = 0
         try:
             self.store.record_runtime_observation(
                 request.owner_ref,
@@ -163,13 +177,29 @@ class AcquisitionRuntimeRunner:
                 cycle.cycle_ref,
                 at=now,
             )
+            self._event(
+                action="cycle",
+                status="started",
+                code="CYCLE_RESUMED",
+                cycle_ref=cycle.cycle_ref,
+            )
             if cycle.next_stage is None:
                 if cycle.status is RuntimeCycleStatus.SUPPRESSED:
+                    self._emit_cycle(
+                        cycle.cycle_ref,
+                        RuntimeRunStatus.SUPPRESSED,
+                        "CYCLE_SUPPRESSED",
+                    )
                     return RuntimeRunResult(
                         status=RuntimeRunStatus.SUPPRESSED,
                         cycle_ref=cycle.cycle_ref,
                     )
                 if cycle.status is RuntimeCycleStatus.SUCCEEDED:
+                    self._emit_cycle(
+                        cycle.cycle_ref,
+                        RuntimeRunStatus.COMPLETED,
+                        "CYCLE_SUCCEEDED",
+                    )
                     return RuntimeRunResult(
                         status=RuntimeRunStatus.COMPLETED,
                         cycle_ref=cycle.cycle_ref,
@@ -182,6 +212,11 @@ class AcquisitionRuntimeRunner:
                     cycle.cycle_ref,
                     at=now,
                 )
+                self._emit_cycle(
+                    cycle.cycle_ref,
+                    RuntimeRunStatus.COMPLETED,
+                    "CYCLE_SUCCEEDED",
+                )
                 return RuntimeRunResult(
                     status=RuntimeRunStatus.COMPLETED,
                     cycle_ref=cycle.cycle_ref,
@@ -190,6 +225,7 @@ class AcquisitionRuntimeRunner:
             start = stages.index(cycle.next_stage)
             spent = cycle.spent_cost
             for current_stage in stages[start:]:
+                current_attempt = 0
                 now = self._now()
                 if now - started_at >= self._maximum_wall:
                     self.store.finish_cycle(
@@ -203,6 +239,11 @@ class AcquisitionRuntimeRunner:
                         cycle.cycle_ref,
                         at=now,
                     )
+                    self._emit_cycle(
+                        cycle.cycle_ref,
+                        RuntimeRunStatus.WAITING,
+                        "CYCLE_TIME_BUDGET_REACHED",
+                    )
                     return RuntimeRunResult(
                         status=RuntimeRunStatus.WAITING,
                         cycle_ref=cycle.cycle_ref,
@@ -212,10 +253,19 @@ class AcquisitionRuntimeRunner:
                 stage_snapshot = self.store.begin_stage(
                     cycle.cycle_ref, current_stage, at=now
                 )
+                current_attempt = stage_snapshot.attempt_count
                 self.store.record_cycle_observation(
                     request.owner_ref,
                     cycle.cycle_ref,
                     at=now,
+                )
+                self._event(
+                    action="stage",
+                    status="started",
+                    code="STAGE_STARTED",
+                    cycle_ref=cycle.cycle_ref,
+                    stage=current_stage.value,
+                    attempt=stage_snapshot.attempt_count,
                 )
                 proposal: RuntimeProposal | None = None
                 if (
@@ -247,6 +297,12 @@ class AcquisitionRuntimeRunner:
                     at=now,
                     lease_seconds=self._lease_seconds,
                 )
+                self._emit_stage(
+                    cycle.cycle_ref,
+                    current_stage,
+                    stage_snapshot.attempt_count,
+                    action_result,
+                )
                 if action_result.status is RuntimeStageStatus.SUCCEEDED:
                     spent += max(
                         action_result.reserved_cost,
@@ -261,6 +317,11 @@ class AcquisitionRuntimeRunner:
                     cycle.cycle_ref,
                     at=now,
                 )
+                self._emit_cycle(
+                    cycle.cycle_ref,
+                    stopped.status,
+                    stopped.reason_code or "CYCLE_STOPPED",
+                )
                 return stopped
             self.store.finish_cycle(
                 cycle.cycle_ref, RuntimeCycleStatus.SUCCEEDED, at=now
@@ -269,6 +330,11 @@ class AcquisitionRuntimeRunner:
                 request.owner_ref,
                 cycle.cycle_ref,
                 at=now,
+            )
+            self._emit_cycle(
+                cycle.cycle_ref,
+                RuntimeRunStatus.COMPLETED,
+                "CYCLE_SUCCEEDED",
             )
             return RuntimeRunResult(
                 status=RuntimeRunStatus.COMPLETED,
@@ -295,6 +361,17 @@ class AcquisitionRuntimeRunner:
                 cycle.cycle_ref,
                 at=now,
             )
+            self._emit_stage(
+                cycle.cycle_ref,
+                current_stage,
+                current_attempt,
+                cancelled,
+            )
+            self._emit_cycle(
+                cycle.cycle_ref,
+                RuntimeRunStatus.CANCELLED,
+                "CURRENT_RUN_INTERRUPTED",
+            )
             return RuntimeRunResult(
                 status=RuntimeRunStatus.CANCELLED,
                 cycle_ref=cycle.cycle_ref,
@@ -302,14 +379,15 @@ class AcquisitionRuntimeRunner:
                 reason_code="CURRENT_RUN_INTERRUPTED",
             )
         except Exception:  # noqa: BLE001 - provider/configuration detail is private
-            if cycle is not None and current_stage is not None:
+            if cycle is not None:
                 failed = RuntimeActionResult(
                     status=RuntimeStageStatus.FAILED,
                     reason_codes=("CURRENT_RUN_TECHNICAL_FAILURE",),
                 )
-                self.store.finish_stage(
-                    cycle.cycle_ref, current_stage, failed, at=now
-                )
+                if current_stage is not None and current_attempt > 0:
+                    self.store.finish_stage(
+                        cycle.cycle_ref, current_stage, failed, at=now
+                    )
                 self.store.finish_cycle(
                     cycle.cycle_ref,
                     RuntimeCycleStatus.FAILED,
@@ -321,18 +399,40 @@ class AcquisitionRuntimeRunner:
                     cycle.cycle_ref,
                     at=now,
                 )
+                if current_stage is not None and current_attempt > 0:
+                    self._emit_stage(
+                        cycle.cycle_ref,
+                        current_stage,
+                        current_attempt,
+                        failed,
+                    )
+                self._emit_cycle(
+                    cycle.cycle_ref,
+                    RuntimeRunStatus.FAILED,
+                    "CURRENT_RUN_TECHNICAL_FAILURE",
+                )
                 return RuntimeRunResult(
                     status=RuntimeRunStatus.FAILED,
                     cycle_ref=cycle.cycle_ref,
                     stage=current_stage,
                     reason_code="CURRENT_RUN_TECHNICAL_FAILURE",
                 )
+            self._event(
+                action="cycle",
+                status="failed",
+                code="CURRENT_RUN_TECHNICAL_FAILURE",
+            )
             return RuntimeRunResult(
                 status=RuntimeRunStatus.FAILED,
                 reason_code="CURRENT_RUN_TECHNICAL_FAILURE",
             )
         finally:
             self.store.release_lease(request.owner_ref, at=now)
+            self._event(
+                action="lease",
+                status="released",
+                code="LEASE_RELEASED",
+            )
 
     def _execute_stage(
         self,
@@ -431,6 +531,46 @@ class AcquisitionRuntimeRunner:
 
     def _now(self) -> dt.datetime:
         return require_aware(self._clock())
+
+    def _emit_stage(
+        self,
+        cycle_ref: str,
+        stage: AcquisitionRuntimeStage,
+        attempt: int,
+        result: RuntimeActionResult,
+    ) -> None:
+        status = result.status.value.casefold()
+        code = (
+            result.reason_codes[0]
+            if result.reason_codes
+            else "STAGE_SUCCEEDED"
+        )
+        self._event(
+            action="stage",
+            status=status,
+            code=code,
+            cycle_ref=cycle_ref,
+            stage=stage.value,
+            attempt=attempt,
+        )
+
+    def _emit_cycle(
+        self,
+        cycle_ref: str,
+        status: RuntimeRunStatus,
+        code: str,
+    ) -> None:
+        normalized = (
+            "succeeded"
+            if status is RuntimeRunStatus.COMPLETED
+            else status.value.casefold()
+        )
+        self._event(
+            action="cycle",
+            status=normalized,
+            code=code,
+            cycle_ref=cycle_ref,
+        )
 
 
 __all__ = ["AcquisitionRuntimeRunner"]

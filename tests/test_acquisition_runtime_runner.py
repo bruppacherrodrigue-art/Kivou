@@ -169,6 +169,7 @@ def _runner(
     maximum_cost="5",
     maximum_wall_seconds=900,
     clock=lambda: NOW,
+    event_sink=None,
 ):
     active_stages = tuple(AcquisitionRuntimeStage)
     outcomes = outcomes or {
@@ -181,17 +182,22 @@ def _runner(
         for stage in active_stages
     }
     proposals = proposals or {stage: _proposal(stage) for stage in active_stages}
+    arguments = {
+        "store": store,
+        "supervisor": FakeSupervisor(proposals),
+        "registry": FakeRegistry(outcomes),
+        "allowed_opportunity_keys": ("opportunity-001",),
+        "config_fingerprint": "f" * 64,
+        "maximum_cycle_cost": Decimal(maximum_cost),
+        "maximum_wall_seconds": maximum_wall_seconds,
+        "lease_seconds": 1200,
+        "runtime_capability": _capability(),
+        "clock": clock,
+    }
+    if event_sink is not None:
+        arguments["event_sink"] = event_sink
     return AcquisitionRuntimeRunner(
-        store=store,
-        supervisor=FakeSupervisor(proposals),
-        registry=FakeRegistry(outcomes),
-        allowed_opportunity_keys=("opportunity-001",),
-        config_fingerprint="f" * 64,
-        maximum_cycle_cost=Decimal(maximum_cost),
-        maximum_wall_seconds=maximum_wall_seconds,
-        lease_seconds=1200,
-        runtime_capability=_capability(),
-        clock=clock,
+        **arguments,
     )
 
 
@@ -211,6 +217,82 @@ def test_normal_lease_contention_is_clean_already_running_without_cycle_work() -
     assert result.status is RuntimeRunStatus.ALREADY_RUNNING
     assert result.exit_code == 0
     assert [event[0] for event in store.events] == ["lease"]
+
+
+def test_runtime_events_follow_their_durable_transitions() -> None:
+    stage = AcquisitionRuntimeStage.CONTACT_DISCOVERY
+    store = FakeStore(
+        cycle=DEFAULT_CYCLE.model_copy(update={"next_stage": stage})
+    )
+
+    def capture(**payload):
+        store.events.append(("runtime_event", payload))
+
+    runner = _runner(
+        store,
+        outcomes={
+            stage: RuntimeActionResult(
+                status=RuntimeStageStatus.WAITING,
+                reason_codes=("PROVIDER_RETRY_DUE",),
+            )
+        },
+        proposals={stage: _proposal(stage)},
+        event_sink=capture,
+    )
+
+    result = runner.run_once(_request())
+
+    assert result.status is RuntimeRunStatus.WAITING
+    emitted = [event[1] for event in store.events if event[0] == "runtime_event"]
+    assert emitted == [
+        {
+            "action": "lease",
+            "status": "started",
+            "code": "LEASE_ACQUIRED",
+        },
+        {
+            "action": "cycle",
+            "status": "started",
+            "code": "CYCLE_RESUMED",
+            "cycle_ref": "cycle-001",
+        },
+        {
+            "action": "stage",
+            "status": "started",
+            "code": "STAGE_STARTED",
+            "cycle_ref": "cycle-001",
+            "stage": stage.value,
+            "attempt": 1,
+        },
+        {
+            "action": "stage",
+            "status": "waiting",
+            "code": "PROVIDER_RETRY_DUE",
+            "cycle_ref": "cycle-001",
+            "stage": stage.value,
+            "attempt": 1,
+        },
+        {
+            "action": "cycle",
+            "status": "waiting",
+            "code": "PROVIDER_RETRY_DUE",
+            "cycle_ref": "cycle-001",
+        },
+        {
+            "action": "lease",
+            "status": "released",
+            "code": "LEASE_RELEASED",
+        },
+    ]
+    finish_index = next(
+        index for index, event in enumerate(store.events) if event[0] == "finish"
+    )
+    waiting_event_index = next(
+        index
+        for index, event in enumerate(store.events)
+        if event[0] == "runtime_event" and event[1]["status"] == "waiting"
+    )
+    assert finish_index < waiting_event_index
 
 
 def test_terminal_suppressed_cycle_is_not_reclassified_as_success() -> None:
@@ -448,6 +530,24 @@ def test_current_execution_failure_is_nonzero_but_history_is_not_replayed() -> N
     assert result.status is RuntimeRunStatus.FAILED
     assert result.exit_code == 1
     assert result.reason_code == "PROVIDER_TIMEOUT"
+    assert store.events[-1][0] == "release"
+
+
+def test_failure_before_stage_ownership_does_not_invent_a_stage_transition() -> None:
+    class BeginFailureStore(FakeStore):
+        def begin_stage(self, cycle_ref, stage, *, at):
+            self.events.append(("begin_failed", cycle_ref, stage, at))
+            raise RuntimeError("private-provider-marker")
+
+    store = BeginFailureStore()
+    runner = _runner(store)
+
+    result = runner.run_once(_request())
+
+    assert result.status is RuntimeRunStatus.FAILED
+    assert result.reason_code == "CURRENT_RUN_TECHNICAL_FAILURE"
+    assert not any(event[0] == "finish" for event in store.events)
+    assert any(event[0] == "finish_cycle" for event in store.events)
     assert store.events[-1][0] == "release"
 
 

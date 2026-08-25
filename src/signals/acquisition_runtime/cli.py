@@ -7,6 +7,7 @@ import sys
 from collections.abc import Callable
 
 from signals.acquisition_runtime.contracts import RuntimeRunResult
+from signals.acquisition_runtime.events import configure_acquisition_runtime_logging
 
 RuntimeExecutor = Callable[[bool], RuntimeRunResult]
 
@@ -59,6 +60,7 @@ def main(
     *,
     execute: RuntimeExecutor | None = None,
 ) -> int:
+    configure_acquisition_runtime_logging()
     arguments = _parser().parse_args(argv)
     assert arguments.command == "run-once"
     run = execute or _default_execute

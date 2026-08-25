@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 import pytest
 
+from signals.acquisition_runtime import cli
 from signals.acquisition_runtime.cli import main
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
@@ -40,6 +41,21 @@ def test_run_once_defaults_to_non_mutating_shadow_mode(capsys) -> None:
         "status=WAITING cycle_ref=cycle-001 stage=PROVIDER_HANDOFF "
         "reason=QA_PROVIDER_MUTATION_NOT_AUTHORIZED\n"
     )
+
+
+def test_process_boundary_configures_closed_runtime_logging(monkeypatch) -> None:
+    configured: list[bool] = []
+    monkeypatch.setattr(
+        cli,
+        "configure_acquisition_runtime_logging",
+        lambda: configured.append(True),
+    )
+    execute, _calls = _execute(
+        RuntimeRunResult(status=RuntimeRunStatus.ALREADY_RUNNING)
+    )
+
+    assert main(["run-once"], execute=execute) == 0
+    assert configured == [True]
 
 
 def test_manual_provider_flag_is_explicit_and_current(capsys) -> None:
