@@ -176,6 +176,20 @@ def test_tracked_nginx_templates_have_balanced_directive_syntax() -> None:
         assert depth == 0, f"{path}: unbalanced directive block"
 
 
+def test_nginx_template_header_delegates_installation_to_atomic_runbook() -> None:
+    header = "\n".join(_site_text().splitlines()[:20])
+
+    assert "ops/README.md" in header
+    assert "sudo tee /etc/nginx/sites-available/kivou" not in header
+
+
+def test_http_redirect_uses_the_canonical_host_not_the_request_host() -> None:
+    site = _site_text()
+
+    assert "return 301 https://STAGING_HOST$request_uri;" in site
+    assert "return 301 https://$host$request_uri;" not in site
+
+
 def test_every_reviewed_public_route_reaches_fastapi_and_private_routes_do_not() -> None:
     proxy_locations = _proxy_locations()
 
