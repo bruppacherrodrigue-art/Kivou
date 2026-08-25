@@ -7,17 +7,32 @@ from typing import Any
 
 from signals.ingestion.sources import SourceWindow
 
-DECP_CYCLE_CURSOR_VERSION = 1
+DECP_CYCLE_CURSOR_VERSION = 2
+DECP_LEGACY_CYCLE_CURSOR_VERSION = 1
 
 
 @dataclasses.dataclass(frozen=True)
 class DecpCycleCursor:
     cycle_end: dt.date
     next_window_start: dt.date
+    offset: int = 0
+    window_total: int | None = None
 
     def __post_init__(self) -> None:
         if self.next_window_start > self.cycle_end + dt.timedelta(days=1):
             raise ValueError("DECP cursor advanced beyond its cycle")
+        if isinstance(self.offset, bool) or self.offset < 0:
+            raise ValueError("DECP cursor offset must be non-negative")
+        if self.window_total is not None and (
+            isinstance(self.window_total, bool) or self.window_total < 0
+        ):
+            raise ValueError("DECP cursor window total must be non-negative")
+        if self.offset and self.window_total is None:
+            raise ValueError("DECP cursor offset requires a window total")
+        if self.window_total is not None and self.offset > self.window_total:
+            raise ValueError("DECP cursor offset exceeds its window total")
+        if self.complete and (self.offset != 0 or self.window_total is not None):
+            raise ValueError("completed DECP cursor cannot retain intra-day progress")
 
     @property
     def complete(self) -> bool:
@@ -28,23 +43,35 @@ class DecpCycleCursor:
             "version": DECP_CYCLE_CURSOR_VERSION,
             "cycle_end": self.cycle_end.isoformat(),
             "next_window_start": self.next_window_start.isoformat(),
+            "offset": self.offset,
+            "window_total": self.window_total,
         }
 
 
 def _stored_decp_cursor(value: Mapping[str, Any] | None) -> DecpCycleCursor | None:
     if value is None or "version" not in value:
         return None
-    if value.get("version") != DECP_CYCLE_CURSOR_VERSION:
+    version = value.get("version")
+    if version not in {DECP_LEGACY_CYCLE_CURSOR_VERSION, DECP_CYCLE_CURSOR_VERSION}:
         raise ValueError("unsupported DECP convergence cursor version")
     try:
         cycle_end = dt.date.fromisoformat(str(value["cycle_end"]))
         next_window_start = dt.date.fromisoformat(str(value["next_window_start"]))
+        offset = 0 if version == DECP_LEGACY_CYCLE_CURSOR_VERSION else value["offset"]
+        window_total = (
+            None if version == DECP_LEGACY_CYCLE_CURSOR_VERSION else value["window_total"]
+        )
     except (KeyError, TypeError, ValueError) as error:
         raise ValueError("invalid DECP convergence cursor") from error
-    return DecpCycleCursor(
-        cycle_end=cycle_end,
-        next_window_start=next_window_start,
-    )
+    try:
+        return DecpCycleCursor(
+            cycle_end=cycle_end,
+            next_window_start=next_window_start,
+            offset=offset,
+            window_total=window_total,
+        )
+    except (TypeError, ValueError) as error:
+        raise ValueError("invalid DECP convergence cursor") from error
 
 
 def plan_decp_cycle(
@@ -93,6 +120,41 @@ def advance_decp_cycle(
     return dataclasses.replace(
         cursor,
         next_window_start=cursor.next_window_start + dt.timedelta(days=1),
+        offset=0,
+        window_total=None,
+    )
+
+
+def advance_decp_batch(
+    cursor: DecpCycleCursor,
+    completed_window: SourceWindow,
+    *,
+    next_offset: int,
+    window_total: int,
+    day_complete: bool,
+) -> DecpCycleCursor:
+    if completed_window.since != completed_window.until:
+        raise ValueError("DECP convergence units must stay inside one calendar day")
+    if completed_window.since != cursor.next_window_start:
+        raise ValueError("DECP convergence batch does not match its cursor")
+    if isinstance(next_offset, bool) or next_offset < 0:
+        raise ValueError("DECP next offset must be non-negative")
+    if isinstance(window_total, bool) or window_total < 0:
+        raise ValueError("DECP window total must be non-negative")
+    if next_offset > window_total:
+        raise ValueError("DECP next offset exceeds its window total")
+    if day_complete:
+        if next_offset != window_total:
+            raise ValueError("complete DECP day must exhaust its window total")
+        return advance_decp_cycle(cursor, completed_window)
+    if next_offset == 0 or next_offset == window_total:
+        raise ValueError("partial DECP day must retain positive remaining progress")
+    if cursor.window_total == window_total and next_offset <= cursor.offset:
+        raise ValueError("DECP batch did not advance its cursor")
+    return dataclasses.replace(
+        cursor,
+        offset=next_offset,
+        window_total=window_total,
     )
 
 

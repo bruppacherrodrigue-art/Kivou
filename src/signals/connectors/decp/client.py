@@ -43,6 +43,15 @@ class DecpCursor:
         return dataclasses.replace(self, offset=self.offset + size)
 
 
+@dataclasses.dataclass(frozen=True)
+class DecpBatch:
+    records: tuple[dict[str, Any], ...]
+    next_offset: int
+    window_total: int
+    day_complete: bool
+    reset: bool
+
+
 def decp_query(cursor: DecpCursor, *, limit: int = PAGE_SIZE) -> dict[str, Any]:
     if limit <= 0 or limit > PAGE_SIZE:
         raise ValueError("invalid DECP page limit")
@@ -233,3 +242,72 @@ class DecpClient:
                 seen += 1
                 if max_records is not None and seen >= max_records:
                     return
+
+    def fetch_contract_batch(
+        self,
+        day: dt.date,
+        *,
+        offset: int,
+        expected_total: int | None,
+        batch_size: int,
+    ) -> DecpBatch:
+        """Fetch one stable, bounded slice of a single DECP publication day.
+
+        A changed total invalidates offset pagination. In that case acquisition
+        restarts at offset zero; the publication pipeline makes that reset
+        idempotent. A mutation during the bounded slice fails closed and leaves
+        the durable cursor untouched for the next run.
+        """
+        if isinstance(offset, bool) or offset < 0:
+            raise ValueError("DECP batch offset must be non-negative")
+        if batch_size <= 0 or batch_size > PAGE_SIZE:
+            raise ValueError(f"DECP batch size must be between 1 and {PAGE_SIZE}")
+        if expected_total is not None and (
+            isinstance(expected_total, bool) or expected_total < 0
+        ):
+            raise ValueError("DECP expected total must be non-negative")
+        if offset and expected_total is None:
+            raise ValueError("DECP resumed batch requires an expected total")
+
+        observed_total = self.count_contracts(day, until=day)
+        if observed_total >= DECP_RESULT_CEILING:
+            raise DecpWindowLimitError(
+                f"DECP day {day.isoformat()} contains {observed_total} records at the provider ceiling"
+            )
+
+        reset = expected_total is not None and observed_total != expected_total
+        effective_offset = 0 if reset else offset
+        if effective_offset > observed_total:
+            raise DecpWindowLimitError(
+                "DECP batch offset exceeds the observed daily result count"
+            )
+        if effective_offset == observed_total:
+            return DecpBatch(
+                records=(),
+                next_offset=observed_total,
+                window_total=observed_total,
+                day_complete=True,
+                reset=reset,
+            )
+
+        limit = min(batch_size, observed_total - effective_offset)
+        records, page_total = self._fetch_payload(
+            DecpCursor(since=day, until=day, offset=effective_offset),
+            limit=limit,
+        )
+        if page_total != observed_total:
+            raise DecpWindowLimitError("DECP window changed during bounded acquisition")
+        if len(records) != limit:
+            raise DecpWindowLimitError("DECP bounded acquisition became incomplete")
+        final_total = self.count_contracts(day, until=day)
+        if final_total != observed_total:
+            raise DecpWindowLimitError("DECP window changed after bounded acquisition")
+
+        next_offset = effective_offset + len(records)
+        return DecpBatch(
+            records=tuple(records),
+            next_offset=next_offset,
+            window_total=observed_total,
+            day_complete=next_offset == observed_total,
+            reset=reset,
+        )
