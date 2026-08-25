@@ -35,6 +35,9 @@ class FakeStore:
     )
     cycle: RuntimeCycleSnapshot = field(default_factory=lambda: DEFAULT_CYCLE)
     events: list[tuple[object, ...]] = field(default_factory=list)
+    proposals: dict[AcquisitionRuntimeStage, RuntimeProposal | None] = field(
+        default_factory=dict
+    )
 
     def acquire_lease(self, owner_ref, *, acquired_at, lease_seconds):
         self.events.append(("lease", owner_ref, acquired_at, lease_seconds))
@@ -47,7 +50,8 @@ class FakeStore:
     def begin_stage(self, cycle_ref, stage, *, at):
         self.events.append(("begin", cycle_ref, stage, at))
 
-    def finish_stage(self, cycle_ref, stage, result, *, at):
+    def finish_stage(self, cycle_ref, stage, result, *, at, proposal=None):
+        self.proposals[stage] = proposal
         self.events.append(("finish", cycle_ref, stage, result.status, at))
 
     def heartbeat_lease(self, owner_ref, *, at, lease_seconds):
@@ -153,6 +157,25 @@ def test_normal_lease_contention_is_clean_already_running_without_cycle_work() -
     assert [event[0] for event in store.events] == ["lease"]
 
 
+def test_terminal_suppressed_cycle_is_not_reclassified_as_success() -> None:
+    store = FakeStore(
+        cycle=DEFAULT_CYCLE.model_copy(
+            update={
+                "status": RuntimeCycleStatus.SUPPRESSED,
+                "next_stage": None,
+            }
+        )
+    )
+    runner = _runner(store)
+
+    result = runner.run_once(_request())
+
+    assert result.status is RuntimeRunStatus.SUPPRESSED
+    assert result.exit_code == 0
+    assert not any(event[0] == "finish_cycle" for event in store.events)
+    assert store.events[-1][0] == "release"
+
+
 def test_full_cycle_checkpoints_each_stage_before_the_next_action() -> None:
     store = FakeStore()
     runner = _runner(store)
@@ -176,6 +199,7 @@ def test_full_cycle_checkpoints_each_stage_before_the_next_action() -> None:
             )
             assert finish < next_begin
     assert names[-2:] == ["finish_cycle", "release"]
+    assert all(store.proposals[stage] is not None for stage in AcquisitionRuntimeStage)
 
 
 def test_waiting_result_is_durable_and_current_run_exits_cleanly() -> None:

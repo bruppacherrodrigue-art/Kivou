@@ -46,6 +46,7 @@ class RuntimeCycleStore(Protocol):
         result: RuntimeActionResult,
         *,
         at: dt.datetime,
+        proposal: RuntimeProposal | None = None,
     ) -> None: ...
 
     def heartbeat_lease(
@@ -131,6 +132,16 @@ class AcquisitionRuntimeRunner:
                 at=now,
             )
             if cycle.next_stage is None:
+                if cycle.status is RuntimeCycleStatus.SUPPRESSED:
+                    return RuntimeRunResult(
+                        status=RuntimeRunStatus.SUPPRESSED,
+                        cycle_ref=cycle.cycle_ref,
+                    )
+                if cycle.status is RuntimeCycleStatus.SUCCEEDED:
+                    return RuntimeRunResult(
+                        status=RuntimeRunStatus.COMPLETED,
+                        cycle_ref=cycle.cycle_ref,
+                    )
                 self.store.finish_cycle(
                     cycle.cycle_ref, RuntimeCycleStatus.SUCCEEDED, at=now
                 )
@@ -157,6 +168,7 @@ class AcquisitionRuntimeRunner:
                         reason_code="CYCLE_TIME_BUDGET_REACHED",
                     )
                 self.store.begin_stage(cycle.cycle_ref, current_stage, at=now)
+                proposal: RuntimeProposal | None = None
                 if (
                     current_stage is AcquisitionRuntimeStage.PROVIDER_HANDOFF
                     and not request.allow_qa_provider_mutations
@@ -166,7 +178,7 @@ class AcquisitionRuntimeRunner:
                         reason_codes=("QA_PROVIDER_MUTATION_NOT_AUTHORIZED",),
                     )
                 else:
-                    action_result = self._execute_stage(
+                    proposal, action_result = self._execute_stage(
                         current_stage,
                         cycle,
                         remaining_cost=self._maximum_cost - spent,
@@ -174,7 +186,11 @@ class AcquisitionRuntimeRunner:
                         at=now,
                     )
                 self.store.finish_stage(
-                    cycle.cycle_ref, current_stage, action_result, at=now
+                    cycle.cycle_ref,
+                    current_stage,
+                    action_result,
+                    proposal=proposal,
+                    at=now,
                 )
                 self.store.heartbeat_lease(
                     request.owner_ref,
@@ -255,19 +271,25 @@ class AcquisitionRuntimeRunner:
         remaining_cost: Decimal,
         request: RuntimeRunRequest,
         at: dt.datetime,
-    ) -> RuntimeActionResult:
+    ) -> tuple[RuntimeProposal, RuntimeActionResult]:
         proposal = self.supervisor.propose(
             stage, cycle, remaining_cost=remaining_cost, at=at
         )
         if proposal.command != stage.command:
-            return RuntimeActionResult(
-                status=RuntimeStageStatus.BLOCKED,
-                reason_codes=("SUPERVISOR_ACTION_MISMATCH",),
+            return (
+                proposal,
+                RuntimeActionResult(
+                    status=RuntimeStageStatus.BLOCKED,
+                    reason_codes=("SUPERVISOR_ACTION_MISMATCH",),
+                ),
             )
         if proposal.estimated_cost > remaining_cost:
-            return RuntimeActionResult(
-                status=RuntimeStageStatus.BLOCKED,
-                reason_codes=("CYCLE_BUDGET_EXCEEDED",),
+            return (
+                proposal,
+                RuntimeActionResult(
+                    status=RuntimeStageStatus.BLOCKED,
+                    reason_codes=("CYCLE_BUDGET_EXCEEDED",),
+                ),
             )
         result = self.registry.execute(
             stage,
@@ -277,15 +299,19 @@ class AcquisitionRuntimeRunner:
             at=at,
         )
         if result.observed_cost > remaining_cost:
-            return result.model_copy(
-                update={
-                    "status": RuntimeStageStatus.FAILED,
-                    "reserved_cost": proposal.estimated_cost,
-                    "reason_codes": ("OBSERVED_CYCLE_COST_EXCEEDED",),
-                }
+            return (
+                proposal,
+                result.model_copy(
+                    update={
+                        "status": RuntimeStageStatus.FAILED,
+                        "reserved_cost": proposal.estimated_cost,
+                        "reason_codes": ("OBSERVED_CYCLE_COST_EXCEEDED",),
+                    }
+                ),
             )
-        return result.model_copy(
-            update={"reserved_cost": proposal.estimated_cost}
+        return (
+            proposal,
+            result.model_copy(update={"reserved_cost": proposal.estimated_cost}),
         )
 
     def _stop_result(
