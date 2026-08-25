@@ -13,6 +13,11 @@ dans `parser.py` et n'a jamais besoin de ce module.
 
 from __future__ import annotations
 
+import datetime as dt
+import email.utils
+import threading
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Self
 
@@ -24,6 +29,7 @@ SEARCH_URL = "https://api.ted.europa.eu/v3/notices/search"
 NOTICE_XML_URL = "https://ted.europa.eu/en/notice/{publication_number}/xml"
 
 USER_AGENT_DEFAULT = "award-signals/0.1 (+https://github.com/; TED data reuse)"
+RETRYABLE_STATUS_CODES = frozenset({202, 429})
 
 # Champs demandés à la recherche : le strict nécessaire pour identifier une
 # notice et aller chercher son XML. Le contenu métier vient du XML, pas d'ici.
@@ -72,7 +78,19 @@ class TedClient:
         timeout: float = 30.0,
         user_agent: str = USER_AGENT_DEFAULT,
         client: httpx.Client | None = None,
+        request_interval_seconds: float = 1.0,
+        max_attempts: int = 4,
+        max_retry_seconds: float = 120.0,
+        sleep: Callable[[float], None] = time.sleep,
+        monotonic: Callable[[], float] = time.monotonic,
+        wall_clock: Callable[[], dt.datetime] | None = None,
     ) -> None:
+        if request_interval_seconds < 0:
+            raise ValueError("TED request interval cannot be negative")
+        if max_attempts < 1:
+            raise ValueError("TED max attempts must be positive")
+        if max_retry_seconds <= 0:
+            raise ValueError("TED max retry duration must be positive")
         self.search_url = search_url
         self.notice_xml_url = notice_xml_url
         self._owns_client = client is None
@@ -83,6 +101,14 @@ class TedClient:
         self._client = client or httpx.Client(
             timeout=timeout, headers=self._headers, follow_redirects=True
         )
+        self._request_interval_seconds = request_interval_seconds
+        self._max_attempts = max_attempts
+        self._max_retry_seconds = max_retry_seconds
+        self._sleep = sleep
+        self._monotonic = monotonic
+        self._wall_clock = wall_clock or (lambda: dt.datetime.now(tz=dt.UTC))
+        self._request_lock = threading.Lock()
+        self._last_request_started: float | None = None
 
     def __enter__(self) -> Self:
         return self
@@ -93,6 +119,122 @@ class TedClient:
     def close(self) -> None:
         if self._owns_client:
             self._client.close()
+
+    @staticmethod
+    def _category(status_code: int | None, error: BaseException | None = None) -> str:
+        if status_code == 429:
+            return "rate_limited"
+        if status_code == 202 or (status_code is not None and status_code >= 500):
+            return "server_error"
+        if status_code in (401, 403):
+            return "unauthorized"
+        if status_code is not None and status_code >= 400:
+            return "client_error"
+        if isinstance(error, httpx.TimeoutException):
+            return "timeout"
+        return "network"
+
+    @staticmethod
+    def _retryable_status(status_code: int) -> bool:
+        return status_code in RETRYABLE_STATUS_CODES or status_code >= 500
+
+    def _retry_after_seconds(self, response: httpx.Response) -> float | None:
+        raw = response.headers.get("Retry-After")
+        if raw is None:
+            return None
+        try:
+            return max(0.0, float(raw))
+        except ValueError:
+            try:
+                parsed = email.utils.parsedate_to_datetime(raw)
+            except (TypeError, ValueError, OverflowError):
+                return None
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=dt.UTC)
+            now = self._wall_clock()
+            if now.tzinfo is None:
+                now = now.replace(tzinfo=dt.UTC)
+            return max(0.0, (parsed - now).total_seconds())
+
+    def _pace(self, *, deadline: float) -> None:
+        if self._last_request_started is None:
+            return
+        now = self._monotonic()
+        delay = self._last_request_started + self._request_interval_seconds - now
+        if delay <= 0:
+            return
+        if now + delay > deadline:
+            raise TedHttpError(
+                "requête TED interrompue par la durée maximale",
+                category="timeout",
+            )
+        self._sleep(delay)
+
+    def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        operation: str,
+        headers: dict[str, str],
+        json: dict[str, Any] | None = None,
+    ) -> httpx.Response:
+        with self._request_lock:
+            deadline = self._monotonic() + self._max_retry_seconds
+            for attempt in range(1, self._max_attempts + 1):
+                self._pace(deadline=deadline)
+                self._last_request_started = self._monotonic()
+                response: httpx.Response | None = None
+                cause: httpx.HTTPError | None = None
+                try:
+                    response = self._client.request(
+                        method,
+                        url,
+                        headers=headers,
+                        json=json,
+                    )
+                except httpx.HTTPError as error:
+                    cause = error
+
+                if response is not None and response.status_code == 200:
+                    return response
+
+                status_code = response.status_code if response is not None else None
+                category = self._category(status_code, cause)
+                if operation == "recherche":
+                    message = (
+                        f"recherche TED en échec ({status_code})"
+                        if status_code is not None
+                        else "recherche TED injoignable"
+                    )
+                else:
+                    message = (
+                        f"XML TED indisponible ({status_code})"
+                        if status_code is not None
+                        else "XML TED injoignable"
+                    )
+                failure = TedHttpError(
+                    message,
+                    status_code=status_code,
+                    url=url,
+                    category=category,
+                )
+                retryable = cause is not None or (
+                    status_code is not None and self._retryable_status(status_code)
+                )
+                if not retryable or attempt == self._max_attempts:
+                    raise failure from cause
+
+                exponential_delay = float(min(30, 2 ** (attempt - 1)))
+                provider_delay = (
+                    self._retry_after_seconds(response) if response is not None else None
+                )
+                delay = max(exponential_delay, provider_delay or 0.0)
+                now = self._monotonic()
+                if now + delay > deadline:
+                    raise failure from cause
+                self._sleep(delay)
+        raise AssertionError("bounded TED retry loop exhausted")  # pragma: no cover
 
     # ─── Recherche ──────────────────────────────────────────────────────────────
 
@@ -113,20 +255,13 @@ class TedClient:
             "scope": "ALL",
             "paginationMode": "PAGE_NUMBER",
         }
-        try:
-            response = self._client.post(
-                self.search_url,
-                json=payload,
-                headers={**self._headers, "Accept": "application/json"},
-            )
-        except httpx.HTTPError as exc:
-            raise TedHttpError(f"recherche TED injoignable : {exc}", url=self.search_url) from exc
-        if response.status_code != 200:
-            raise TedHttpError(
-                f"recherche TED en échec ({response.status_code}) : {response.text[:300]}",
-                status_code=response.status_code,
-                url=self.search_url,
-            )
+        response = self._request(
+            "POST",
+            self.search_url,
+            operation="recherche",
+            json=payload,
+            headers={**self._headers, "Accept": "application/json"},
+        )
         body = response.json()
         rows = body.get("notices") or []
         return [NoticeRef.from_row(row) for row in rows], int(body.get("totalNoticeCount", 0))
@@ -156,14 +291,10 @@ class TedClient:
 
     def fetch_notice_xml(self, publication_number: str) -> bytes:
         url = self.notice_xml_url.format(publication_number=publication_number)
-        try:
-            response = self._client.get(url, headers={**self._headers, "Accept": "application/xml"})
-        except httpx.HTTPError as exc:
-            raise TedHttpError(f"XML TED injoignable : {exc}", url=url) from exc
-        if response.status_code != 200:
-            raise TedHttpError(
-                f"XML TED indisponible ({response.status_code}) pour {publication_number}",
-                status_code=response.status_code,
-                url=url,
-            )
+        response = self._request(
+            "GET",
+            url,
+            operation="XML",
+            headers={**self._headers, "Accept": "application/xml"},
+        )
         return response.content

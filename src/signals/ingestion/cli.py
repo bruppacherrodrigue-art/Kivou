@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import math
 import os
 import signal
 import threading
@@ -18,12 +19,22 @@ DECP_BATCH_SIZE_ENV = "KIVOU_DECP_BATCH_SIZE"
 DECP_TIME_BUDGET_ENV = "KIVOU_DECP_TIME_BUDGET_SECONDS"
 DECP_OVERLAP_DAYS_ENV = "KIVOU_DECP_OVERLAP_DAYS"
 INGESTION_STALE_RUN_ENV = "KIVOU_INGESTION_STALE_RUN_SECONDS"
+TED_REQUEST_INTERVAL_ENV = "KIVOU_TED_REQUEST_INTERVAL_SECONDS"
+TED_MAX_ATTEMPTS_ENV = "KIVOU_TED_MAX_ATTEMPTS"
+TED_MAX_RETRY_ENV = "KIVOU_TED_MAX_RETRY_SECONDS"
+TED_MAX_RECORDS_ENV = "KIVOU_TED_MAX_RECORDS_PER_RUN"
+TED_TIME_BUDGET_ENV = "KIVOU_TED_TIME_BUDGET_SECONDS"
 
 DEFAULT_DECP_MAX_WINDOWS_PER_RUN = 2
 DEFAULT_DECP_BATCH_SIZE = DECP_PAGE_SIZE
 DEFAULT_DECP_TIME_BUDGET_SECONDS = 1200
 DEFAULT_DECP_OVERLAP_DAYS = 30
 DEFAULT_INGESTION_STALE_RUN_SECONDS = 3600
+DEFAULT_TED_REQUEST_INTERVAL_SECONDS = 1.0
+DEFAULT_TED_MAX_ATTEMPTS = 4
+DEFAULT_TED_MAX_RETRY_SECONDS = 120.0
+DEFAULT_TED_MAX_RECORDS_PER_RUN = 500
+DEFAULT_TED_TIME_BUDGET_SECONDS = 1200
 
 
 def summarize(outcome: SourceOutcome) -> str:
@@ -65,6 +76,26 @@ def _environment_positive_integer(name: str, default: int) -> int:
         raise SystemExit(f"{name} must be a positive integer") from error
 
 
+def _positive_number(value: str) -> float:
+    try:
+        parsed = float(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("must be a positive number") from error
+    if not math.isfinite(parsed) or parsed <= 0:
+        raise argparse.ArgumentTypeError("must be a positive number")
+    return parsed
+
+
+def _environment_positive_number(name: str, default: float) -> float:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    try:
+        return _positive_number(raw)
+    except argparse.ArgumentTypeError as error:
+        raise SystemExit(f"{name} must be a positive number") from error
+
+
 def _decp_batch_size(value: str) -> int:
     parsed = _positive_integer(value)
     if parsed > DECP_PAGE_SIZE:
@@ -100,6 +131,11 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--decp-batch-size", type=_decp_batch_size)
     run.add_argument("--decp-time-budget-seconds", type=_positive_integer)
     run.add_argument("--decp-overlap-days", type=_positive_integer)
+    run.add_argument("--ted-request-interval-seconds", type=_positive_number)
+    run.add_argument("--ted-max-attempts", type=_positive_integer)
+    run.add_argument("--ted-max-retry-seconds", type=_positive_number)
+    run.add_argument("--ted-max-records-per-run", type=_positive_integer)
+    run.add_argument("--ted-time-budget-seconds", type=_positive_integer)
     run.add_argument("--ingestion-stale-run-seconds", type=_positive_integer)
     return parser
 
@@ -125,6 +161,29 @@ def main(argv: list[str] | None = None) -> int:
         INGESTION_STALE_RUN_ENV,
         DEFAULT_INGESTION_STALE_RUN_SECONDS,
     )
+    ted_request_interval = (
+        arguments.ted_request_interval_seconds
+        or _environment_positive_number(
+            TED_REQUEST_INTERVAL_ENV,
+            DEFAULT_TED_REQUEST_INTERVAL_SECONDS,
+        )
+    )
+    ted_max_attempts = arguments.ted_max_attempts or _environment_positive_integer(
+        TED_MAX_ATTEMPTS_ENV,
+        DEFAULT_TED_MAX_ATTEMPTS,
+    )
+    ted_max_retry = arguments.ted_max_retry_seconds or _environment_positive_number(
+        TED_MAX_RETRY_ENV,
+        DEFAULT_TED_MAX_RETRY_SECONDS,
+    )
+    ted_max_records = arguments.ted_max_records_per_run or _environment_positive_integer(
+        TED_MAX_RECORDS_ENV,
+        DEFAULT_TED_MAX_RECORDS_PER_RUN,
+    )
+    ted_time_budget = arguments.ted_time_budget_seconds or _environment_positive_integer(
+        TED_TIME_BUDGET_ENV,
+        DEFAULT_TED_TIME_BUDGET_SECONDS,
+    )
 
     cancellation = threading.Event()
 
@@ -134,7 +193,11 @@ def main(argv: list[str] | None = None) -> int:
     previous_sigterm = signal.signal(signal.SIGTERM, request_termination)
     sources = {}
     try:
-        sources = production_sources()
+        sources = production_sources(
+            ted_request_interval_seconds=ted_request_interval,
+            ted_max_attempts=ted_max_attempts,
+            ted_max_retry_seconds=ted_max_retry,
+        )
         selected = tuple(arguments.source or ("simap", "boamp", "decp", "ted"))
         engine = create_database_engine()
         pipeline = IngestionPipeline(engine, linker=FranceLinker())
@@ -154,6 +217,8 @@ def main(argv: list[str] | None = None) -> int:
                 decp_batch_size=decp_batch_size,
                 decp_time_budget_seconds=decp_time_budget,
                 decp_overlap_days=decp_overlap_days,
+                ted_max_records_per_run=ted_max_records,
+                ted_time_budget_seconds=ted_time_budget,
                 ingestion_stale_run_seconds=stale_run_seconds,
             )
         )

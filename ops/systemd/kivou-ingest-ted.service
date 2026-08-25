@@ -1,0 +1,33 @@
+[Unit]
+Description=Kivou — ingestion TED bornée
+Documentation=file:/srv/kivou/app/ops/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/staging.env
+RuntimeDirectory=kivou
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 0 /run/kivou/ingest-ted.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source ted
+TimeoutStartSec=25min
+TimeoutStopSec=90s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-ingest-ted
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=/run/kivou

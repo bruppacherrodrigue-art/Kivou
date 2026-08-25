@@ -49,7 +49,9 @@ def test_cli_dispatches_selected_sources_and_returns_runner_exit_code(monkeypatc
             return RunOutcome((outcome,), exit_code=1)
 
     monkeypatch.setattr("signals.ingestion.cli.create_database_engine", lambda: object())
-    monkeypatch.setattr("signals.ingestion.cli.production_sources", lambda: {"ted": object()})
+    monkeypatch.setattr(
+        "signals.ingestion.cli.production_sources", lambda **kwargs: {"ted": object()}
+    )
     monkeypatch.setattr("signals.ingestion.cli.IngestionPipeline", lambda engine, linker: object())
     monkeypatch.setattr("signals.ingestion.cli.IngestionRunner", RunnerStub)
 
@@ -90,7 +92,9 @@ def test_decp_runtime_limits_come_from_positive_environment_values(monkeypatch):
     monkeypatch.setenv("KIVOU_DECP_OVERLAP_DAYS", "14")
     monkeypatch.setenv("KIVOU_INGESTION_STALE_RUN_SECONDS", "7200")
     monkeypatch.setattr("signals.ingestion.cli.create_database_engine", lambda: object())
-    monkeypatch.setattr("signals.ingestion.cli.production_sources", lambda: {"decp": object()})
+    monkeypatch.setattr(
+        "signals.ingestion.cli.production_sources", lambda **kwargs: {"decp": object()}
+    )
     monkeypatch.setattr("signals.ingestion.cli.IngestionPipeline", lambda engine, linker: object())
     monkeypatch.setattr("signals.ingestion.cli.IngestionRunner", RunnerStub)
 
@@ -124,7 +128,9 @@ def test_cli_decp_limits_override_the_environment(monkeypatch):
     ):
         monkeypatch.setenv(name, "99")
     monkeypatch.setattr("signals.ingestion.cli.create_database_engine", lambda: object())
-    monkeypatch.setattr("signals.ingestion.cli.production_sources", lambda: {"decp": object()})
+    monkeypatch.setattr(
+        "signals.ingestion.cli.production_sources", lambda **kwargs: {"decp": object()}
+    )
     monkeypatch.setattr("signals.ingestion.cli.IngestionPipeline", lambda engine, linker: object())
     monkeypatch.setattr("signals.ingestion.cli.IngestionRunner", RunnerStub)
 
@@ -189,6 +195,77 @@ def test_decp_batch_size_rejects_values_above_the_provider_page_size(
         main(["run", "--source", "decp"])
 
 
+def test_ted_runtime_limits_configure_the_client_and_runner(monkeypatch) -> None:
+    captured = {}
+
+    class RunnerStub:
+        def __init__(self, engine, *, sources, pipeline, **kwargs):
+            pass
+
+        def run(self, options):
+            captured["options"] = options
+            return RunOutcome((), exit_code=0)
+
+    def sources_factory(**kwargs):
+        captured["source_options"] = kwargs
+        return {"ted": object()}
+
+    monkeypatch.setenv("KIVOU_TED_REQUEST_INTERVAL_SECONDS", "1.5")
+    monkeypatch.setenv("KIVOU_TED_MAX_ATTEMPTS", "5")
+    monkeypatch.setenv("KIVOU_TED_MAX_RETRY_SECONDS", "90")
+    monkeypatch.setenv("KIVOU_TED_MAX_RECORDS_PER_RUN", "400")
+    monkeypatch.setenv("KIVOU_TED_TIME_BUDGET_SECONDS", "1000")
+    monkeypatch.setattr("signals.ingestion.cli.create_database_engine", lambda: object())
+    monkeypatch.setattr("signals.ingestion.cli.production_sources", sources_factory)
+    monkeypatch.setattr("signals.ingestion.cli.IngestionPipeline", lambda engine, linker: object())
+    monkeypatch.setattr("signals.ingestion.cli.IngestionRunner", RunnerStub)
+
+    assert main(["run", "--source", "ted"]) == 0
+    assert captured["source_options"] == {
+        "ted_request_interval_seconds": 1.5,
+        "ted_max_attempts": 5,
+        "ted_max_retry_seconds": 90.0,
+    }
+    assert captured["options"].ted_max_records_per_run == 400
+    assert captured["options"].ted_time_budget_seconds == 1000
+
+
+@pytest.mark.parametrize(
+    "name",
+    (
+        "KIVOU_TED_MAX_ATTEMPTS",
+        "KIVOU_TED_MAX_RECORDS_PER_RUN",
+        "KIVOU_TED_TIME_BUDGET_SECONDS",
+    ),
+)
+@pytest.mark.parametrize("value", ("0", "-1", "invalid"))
+def test_ted_integer_environment_rejects_non_positive_values(
+    monkeypatch,
+    name,
+    value,
+) -> None:
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(SystemExit, match="must be a positive integer"):
+        main(["run", "--source", "ted"])
+
+
+@pytest.mark.parametrize(
+    "name",
+    ("KIVOU_TED_REQUEST_INTERVAL_SECONDS", "KIVOU_TED_MAX_RETRY_SECONDS"),
+)
+@pytest.mark.parametrize("value", ("0", "-1", "invalid"))
+def test_ted_float_environment_rejects_non_positive_values(
+    monkeypatch,
+    name,
+    value,
+) -> None:
+    monkeypatch.setenv(name, value)
+
+    with pytest.raises(SystemExit, match="must be a positive number"):
+        main(["run", "--source", "ted"])
+
+
 def test_cli_sigterm_requests_terminal_runner_cancellation_and_restores_handler(
     monkeypatch,
     capsys,
@@ -224,7 +301,9 @@ def test_cli_sigterm_requests_terminal_runner_cancellation_and_restores_handler(
 
     monkeypatch.setattr("signals.ingestion.cli.signal.signal", install_handler)
     monkeypatch.setattr("signals.ingestion.cli.create_database_engine", lambda: object())
-    monkeypatch.setattr("signals.ingestion.cli.production_sources", lambda: {"decp": object()})
+    monkeypatch.setattr(
+        "signals.ingestion.cli.production_sources", lambda **kwargs: {"decp": object()}
+    )
     monkeypatch.setattr("signals.ingestion.cli.IngestionPipeline", lambda engine, linker: object())
     monkeypatch.setattr("signals.ingestion.cli.IngestionRunner", RunnerStub)
 
