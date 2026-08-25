@@ -2,7 +2,8 @@
 
 Ce dossier ne contient que ce qui doit être **versionné pour être reproductible**.
 Aujourd'hui : la sauvegarde PostgreSQL (RTL-03 / #39), le runtime des alertes
-transactionnelles (RTL-05) et l'ingestion DECP bornée (#77).
+transactionnelles (RTL-05), l'ingestion DECP bornée (#77) et l'outillage de
+rotation expurgée des secrets de staging (#81).
 
 > Un service systemd qui appelle un fichier absent de la branche déployable
 > échoue au premier déploiement propre. C'est exactement ce qu'a révélé #39 :
@@ -226,3 +227,66 @@ sudo systemctl reset-failed kivou-ingest-decp.service
 
 Restaurer ensuite le SHA applicatif précédent. Ce correctif ne crée aucune
 migration et son rollback ne modifie aucune donnée métier.
+
+## Hygiène des secrets de staging (#81)
+
+La procédure complète est
+[`docs/runbooks/09-staging-secret-rotation.md`](../docs/runbooks/09-staging-secret-rotation.md).
+Elle reste strictement limitée au staging et ne contient aucune valeur réelle.
+
+`bin/kivou_secret_hygiene.py` reste entièrement limité à la bibliothèque standard
+Python et expose trois sous-commandes :
+
+- `set-secret` lit une valeur fournisseur autorisée par saisie masquée sur
+  `/dev/tty`, exige un alphabet ASCII non ambigu pour `EnvironmentFile=` et une
+  clé Stripe `sk_test_` ou `rk_test_`, puis met à jour atomiquement le fichier
+  partiel sans écho ;
+- `replace-env` remplace atomiquement les quatre variables autorisées, conserve
+  toutes les autres lignes ainsi que uid, gid et mode du fichier cible, puis
+  publie seulement deux compteurs ;
+- `audit-journal` lit un flux de journal sur stdin, compare en mémoire une ou
+  plusieurs générations complètes de quatre valeurs et publie seulement
+  `secret_values_checked`, `matching_lines` et `matching_occurrences`. Une
+  correspondance rend le code de sortie non nul.
+
+`bin/kivou_rotate_postgres_secret.py` est un second petit exécutable. Il importe
+Psycopg statiquement depuis l'environnement virtuel du projet, réutilise les
+primitives de lecture `0600` et de remplacement atomique du CLI d'hygiène,
+génère en mémoire le nouveau mot de passe du rôle `kivou_app`, écrit d'abord la
+candidate, puis utilise le protocole libpq sans placer de secret dans les
+arguments ou les sorties.
+
+Les commandes lisent les valeurs uniquement depuis des fichiers `0600`
+réguliers et non symboliques. Elles refusent les noms hors allowlist, doublons,
+valeurs vides ou multilignes et ne rendent jamais une exception contenant une
+valeur. Les arguments ne portent que des chemins et, pour la saisie masquée, un
+nom de clé autorisé :
+
+```bash
+sudo /usr/bin/python3.12 ops/bin/kivou_secret_hygiene.py \
+  set-secret SMTP_PASSWORD \
+  --values-file /run/kivou-secret-rotation/new.values
+sudo /srv/kivou/app/.venv/bin/python \
+  /srv/kivou/app/ops/bin/kivou_rotate_postgres_secret.py \
+  --old-env-file /etc/kivou/staging.env \
+  --values-file /run/kivou-secret-rotation/new.values
+sudo /usr/bin/python3.12 ops/bin/kivou_secret_hygiene.py \
+  replace-env \
+  --values-file /run/kivou-secret-rotation/new.values \
+  --target /etc/kivou/staging.env
+sudo /bin/bash -o pipefail -c '
+  /usr/bin/journalctl --all --no-pager --output=export |
+    /usr/bin/python3.12 \
+      /srv/kivou/app/ops/bin/kivou_secret_hygiene.py \
+      audit-journal \
+      /run/kivou-secret-rotation/old.values \
+      /run/kivou-secret-rotation/new.values
+'
+```
+
+Le format export couvre tous les champs journald, dont `_CMDLINE`, et `pipefail`
+interdit de valider un audit si la lecture du journal a échoué.
+
+Toute simulation applicative qui dépend des secrets déployés doit rester une
+unité transitoire `systemd-run` avec
+`--property=EnvironmentFile=/etc/kivou/staging.env`, comme pour les alertes.
