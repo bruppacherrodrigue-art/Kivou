@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import email
 import smtplib
 import socket
@@ -87,6 +88,10 @@ class RecordingSmtp:
     started_tls = 0
     send_failure: Exception | None = None
     tls_failure: Exception | None = None
+    login_failure: BaseException | None = None
+    #: Chaque fermeture observée, dans l'ordre. Une socket laissée ouverte
+    #: n'apparaît nulle part — c'est précisément ce qu'on veut voir manquer.
+    closed: ClassVar[list[str]] = []
 
     @classmethod
     def reset(cls) -> None:
@@ -95,6 +100,15 @@ class RecordingSmtp:
         cls.started_tls = 0
         cls.send_failure = None
         cls.tls_failure = None
+        cls.login_failure = None
+        cls.closed = []
+
+    def quit(self):
+        type(self).closed.append("quit")
+        return 221, b"bye"
+
+    def close(self):
+        type(self).closed.append("close")
 
     def __init__(self, host, port, *, timeout):
         self.calls.append((host, port, timeout))
@@ -113,6 +127,8 @@ class RecordingSmtp:
 
     def login(self, username, password):
         self.logins.append((username, password))
+        if self.login_failure is not None:
+            raise self.login_failure
 
     def send_message(self, message):
         if self.send_failure is not None:
@@ -285,3 +301,117 @@ def test_smtp_configuration_repr_never_contains_the_password() -> None:
     configured = configuration(password="smtp-secret-never-render")
 
     assert "smtp-secret-never-render" not in repr(configured)
+
+
+# ─── Désinscription ───────────────────────────────────────────────────────────
+
+
+def unsubscribable_message() -> AlertMessage:
+    return dataclasses.replace(
+        sample_message(),
+        preferences_url="https://staging.kivou.eu/app/notifications",
+    )
+
+
+def test_an_alert_carries_a_list_unsubscribe_header(starttls_server) -> None:
+    """Un envoi automatisé sans porte de sortie visible se fait classer indésirable.
+
+    L'en-tête et le pied de page doivent désigner le MÊME endroit, sans quoi le
+    destinataire suit un lien qui ne le désabonne pas.
+    """
+    gateway = SmtpAlertGateway(
+        configuration(host="127.0.0.1", port=starttls_server.port),
+        ssl_context=starttls_server.client_context,
+    )
+
+    gateway.send(unsubscribable_message())
+
+    parsed = email.message_from_bytes(starttls_server.messages[0])
+    assert parsed["List-Unsubscribe"] == "<https://staging.kivou.eu/app/notifications>"
+
+
+def test_no_one_click_unsubscribe_is_promised(starttls_server) -> None:
+    """`List-Unsubscribe-Post` fait exécuter la désinscription SANS ouvrir la page.
+
+    L'annoncer sans point d'entrée dédié la ferait échouer en silence, et le
+    destinataire croirait s'être désabonné — pire que de ne rien promettre.
+    """
+    gateway = SmtpAlertGateway(
+        configuration(host="127.0.0.1", port=starttls_server.port),
+        ssl_context=starttls_server.client_context,
+    )
+
+    gateway.send(unsubscribable_message())
+
+    parsed = email.message_from_bytes(starttls_server.messages[0])
+    assert parsed["List-Unsubscribe-Post"] is None
+
+
+def test_a_message_without_preferences_sets_no_unsubscribe_header(starttls_server) -> None:
+    """Un en-tête vide vaut mieux qu'un en-tête qui pointe nulle part."""
+    gateway = SmtpAlertGateway(
+        configuration(host="127.0.0.1", port=starttls_server.port),
+        ssl_context=starttls_server.client_context,
+    )
+
+    gateway.send(sample_message())
+
+    parsed = email.message_from_bytes(starttls_server.messages[0])
+    assert parsed["List-Unsubscribe"] is None
+
+
+# ─── La socket doit être refermée même quand la connexion échoue ──────────────
+
+
+def test_a_rejected_login_closes_the_socket(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Un mot de passe SMTP erroné ne doit pas laisser une session TLS ouverte.
+
+    Le `finally` ne couvre que la phase d'ENVOI. Un échec pendant la connexion
+    sortait par une autre porte : dans un processus ASGI de longue durée, chaque
+    demande de réinitialisation en fuyait une, jusqu'à épuiser le plafond de
+    connexions simultanées du fournisseur et les descripteurs du processus.
+    """
+    RecordingSmtp.login_failure = smtplib.SMTPAuthenticationError(535, b"private response")
+    monkeypatch.setattr(smtplib, "SMTP", RecordingSmtp)
+
+    with pytest.raises(AlertDeliveryError) as raised:
+        SmtpAlertGateway(
+            configuration(username="sender@kivou.eu", password="smtp-secret")
+        ).send(sample_message())
+
+    assert raised.value.code == "smtp_authentication_failed"
+    assert raised.value.retryable is False
+    assert RecordingSmtp.closed == ["quit"], "la socket est restée ouverte"
+
+
+def test_a_failed_starttls_closes_the_socket(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Un serveur qui refuse STARTTLS laisse une socket en clair à refermer."""
+    RecordingSmtp.tls_failure = smtplib.SMTPNotSupportedError("private response")
+    monkeypatch.setattr(smtplib, "SMTP", RecordingSmtp)
+
+    with pytest.raises(AlertDeliveryError) as raised:
+        SmtpAlertGateway(configuration()).send(sample_message())
+
+    assert raised.value.code == "smtp_tls_failed"
+    assert RecordingSmtp.closed == ["quit"], "la socket est restée ouverte"
+
+
+def test_an_unforeseen_failure_closes_the_socket_before_propagating(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Toute sortie referme la socket — y compris celles qu'on n'a pas prévues.
+
+    L'énumération des exceptions SMTP ne peut pas être exhaustive : une
+    interruption, un `MemoryError` ou une erreur d'une version future de
+    `smtplib` doivent laisser le transport propre. L'exception elle-même
+    continue de se propager telle quelle : refermer n'est pas rattraper.
+    """
+    RecordingSmtp.login_failure = KeyboardInterrupt()
+    monkeypatch.setattr(smtplib, "SMTP", RecordingSmtp)
+
+    with pytest.raises(KeyboardInterrupt):
+        SmtpAlertGateway(
+            configuration(username="sender@kivou.eu", password="smtp-secret")
+        ).send(sample_message())
+
+    assert RecordingSmtp.closed == ["quit"], "la socket est restée ouverte"

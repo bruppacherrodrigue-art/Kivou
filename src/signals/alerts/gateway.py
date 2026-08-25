@@ -65,6 +65,10 @@ class AlertMessage:
     text_body: str
     message_id: str
     language: str
+    #: La page de préférences du compte. Sert à la fois le pied de page et
+    #: l'en-tête `List-Unsubscribe` : les deux doivent désigner le même endroit,
+    #: sans quoi le destinataire suit un lien qui ne le désabonne pas.
+    preferences_url: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -144,9 +148,18 @@ class SmtpAlertGateway:
             email["Reply-To"] = configuration.reply_to_email
         # Un en-tête de désinscription est attendu d'un envoi automatisé, et il
         # pointe vers les préférences du compte — pas vers un traqueur.
+        #
+        # PAS de `List-Unsubscribe-Post` : cet en-tête promet une désinscription
+        # « en un clic », que le client de messagerie exécute SANS ouvrir la
+        # page. L'annoncer sans point d'entrée dédié ferait échouer la
+        # désinscription en silence, ce qui est pire que de ne rien promettre —
+        # le destinataire croirait s'être désabonné.
+        if message.preferences_url:
+            email["List-Unsubscribe"] = f"<{message.preferences_url}>"
         email["Auto-Submitted"] = "auto-generated"
         email.set_content(message.text_body)
 
+        server: smtplib.SMTP | None = None
         try:
             if configuration.tls_mode == "implicit_tls":
                 server = smtplib.SMTP_SSL(
@@ -167,15 +180,30 @@ class SmtpAlertGateway:
         except smtplib.SMTPAuthenticationError as error:
             # Non rejouable : réessayer avec les mêmes identifiants échouera
             # pareil, et multiplierait les tentatives d'authentification.
+            _close(server)
             raise AlertDeliveryError("smtp_authentication_failed", retryable=False) from error
         except (smtplib.SMTPNotSupportedError, ssl.SSLError) as error:
+            _close(server)
             raise AlertDeliveryError("smtp_tls_failed", retryable=False) from error
         except smtplib.SMTPResponseException as error:
             raise AlertDeliveryError(
                 f"smtp_{error.smtp_code}", retryable=400 <= error.smtp_code < 500
             ) from error
         except (smtplib.SMTPServerDisconnected, TimeoutError, OSError) as error:
+            _close(server)
             raise AlertDeliveryError("smtp_unavailable", retryable=True) from error
+        except BaseException:
+            # Toute sortie de ce bloc doit refermer la socket. Un échec de
+            # `starttls` ou de `login` laissait sinon une session TLS ouverte
+            # jusqu'au ramasse-miettes : dans un processus ASGI de longue durée,
+            # chaque demande de réinitialisation avec un mot de passe SMTP
+            # erroné en fuyait une, jusqu'à épuiser le plafond de connexions
+            # simultanées du fournisseur et les descripteurs du processus.
+            _close(server)
+            raise
+        else:
+            if server is None:  # pragma: no cover - garde de cohérence
+                raise AlertDeliveryError("smtp_unavailable", retryable=True)
 
         try:
             server.send_message(email)
