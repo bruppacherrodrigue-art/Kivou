@@ -49,6 +49,9 @@ volume : il couvre le chemin Apollo normal (`1 + 3 + 1`) et au plus une reprise
 native de chacun de ces appels après interruption. Une réponse réseau perdue
 laisse l'acceptation fournisseur ambiguë ; la garantie est donc *at-least-once*
 dans cette fenêtre, avec un seul replay durable et jamais de troisième appel.
+Si ce replay reste ambigu, le cycle demeure `WAITING` sur le même attempt et la
+même réservation, sans nouvel appel fournisseur. Le health expose
+`APOLLO_PROVIDER_OUTCOME_AMBIGUOUS` jusqu'à intervention opérateur.
 
 ## Installation du runtime
 

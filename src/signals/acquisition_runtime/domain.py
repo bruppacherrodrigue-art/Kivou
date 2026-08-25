@@ -1540,7 +1540,11 @@ def _started_run_checkpoint(
     started_at = _aware_time(started_at)
     deadline = started_at + dt.timedelta(minutes=10)
     if observed_at >= deadline:
-        return _failed("APOLLO_PROVIDER_OUTCOME_AMBIGUOUS")
+        return _waiting(
+            "APOLLO_PROVIDER_OUTCOME_AMBIGUOUS",
+            retry_at=observed_at + dt.timedelta(hours=1),
+            replay_same_attempt=True,
+        )
     return _waiting(
         code,
         retry_at=min(observed_at + dt.timedelta(minutes=1), deadline),

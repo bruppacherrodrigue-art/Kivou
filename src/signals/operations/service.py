@@ -264,6 +264,14 @@ class OperationsReadService:
         elif observation.last_cycle_status is not RuntimeCycleStatus.SUCCEEDED:
             execution = HealthStatus.NOT_READY
             reasons.append(f"RUNTIME_LAST_CYCLE_{observation.last_cycle_status.value}")
+            if observation.last_cycle_ref is not None:
+                try:
+                    reason = self._runtime_store.read_cycle_reason_code(
+                        observation.last_cycle_ref
+                    )
+                except sa.exc.SQLAlchemyError:
+                    reason = None
+                reasons.append(reason or "RUNTIME_LAST_CYCLE_REASON_UNAVAILABLE")
         if hermes.status is not HealthStatus.READY or (
             observation.capability.registry_identity != expected_runtime_registry_identity()
         ):

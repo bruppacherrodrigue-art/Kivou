@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -43,6 +44,7 @@ _TERMINAL_CYCLES = {
     RuntimeCycleStatus.SUCCEEDED.value,
     RuntimeCycleStatus.SUPPRESSED.value,
 }
+_MACHINE_REASON = re.compile(r"[A-Z][A-Z0-9_]{0,127}")
 
 
 class AcquisitionRuntimeConflict(RuntimeError):
@@ -359,6 +361,21 @@ class AcquisitionRuntimeStore:
                 )
             ).mappings().one_or_none()
         return None if row is None else self._runtime_observation(row)
+
+    def read_cycle_reason_code(self, cycle_ref: str) -> str | None:
+        """Return one bounded machine reason without exposing arbitrary row text."""
+
+        with self.engine.connect() as connection:
+            value = connection.scalar(
+                sa.select(acquisition_runtime_cycle.c.last_reason_code).where(
+                    acquisition_runtime_cycle.c.cycle_ref == cycle_ref
+                )
+            )
+        if value is None:
+            return None
+        if not isinstance(value, str) or _MACHINE_REASON.fullmatch(value) is None:
+            return "RUNTIME_CYCLE_REASON_INVALID"
+        return value
 
     def resume_or_create_cycle(
         self,

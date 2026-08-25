@@ -116,6 +116,15 @@ def _seed_runtime(
             at=cursor,
             reason_code="CONTROLLED_FAILURE",
         )
+    elif cycle_status is RuntimeCycleStatus.WAITING:
+        cursor += dt.timedelta(milliseconds=1)
+        store.finish_cycle(
+            cycle.cycle_ref,
+            RuntimeCycleStatus.WAITING,
+            **fence,
+            at=cursor,
+            reason_code="APOLLO_PROVIDER_OUTCOME_AMBIGUOUS",
+        )
     elif cycle_status is RuntimeCycleStatus.RUNNING:
         cursor += dt.timedelta(milliseconds=1)
         store.begin_stage(
@@ -352,6 +361,20 @@ def test_failed_last_cycle_prevents_ready_but_remains_bounded(tmp_path) -> None:
 
     assert health.campaign_execution is HealthStatus.NOT_READY
     assert "RUNTIME_LAST_CYCLE_FAILED" in health.reason_codes
+
+
+def test_ambiguous_apollo_wait_is_visible_as_a_machine_reason_in_health(
+    tmp_path,
+) -> None:
+    engine = _engine(tmp_path, "runtime-ambiguous-apollo.sqlite")
+    PolicyStore(engine).append_control(_control())
+    _seed_runtime(engine, cycle_status=RuntimeCycleStatus.WAITING)
+
+    health = OperationsReadService(engine).health(observed_at=NOW)
+
+    assert health.campaign_execution is HealthStatus.NOT_READY
+    assert "RUNTIME_LAST_CYCLE_WAITING" in health.reason_codes
+    assert "APOLLO_PROVIDER_OUTCOME_AMBIGUOUS" in health.reason_codes
     assert "CONTROLLED_FAILURE" not in health.model_dump_json()
 
 

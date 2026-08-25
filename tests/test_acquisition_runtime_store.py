@@ -18,11 +18,13 @@ from signals.acquisition_runtime.contracts import (
     RuntimeRunStatus,
     RuntimeStageStatus,
 )
+from signals.acquisition_runtime.domain import deterministic_attempt_identity
 from signals.acquisition_runtime.runner import AcquisitionRuntimeRunner
 from signals.acquisition_runtime.store import (
     AcquisitionRuntimeConflict,
     AcquisitionRuntimeStore,
 )
+from signals.acquisition_runtime.supervisor import KIVOU_STAGE_COSTS
 from signals.persistence.schema import (
     METADATA,
     acquisition_runtime_cycle,
@@ -748,6 +750,130 @@ def test_crash_after_business_commit_before_runtime_checkpoint_reuses_attempt(
         ).mappings().one()
     assert row["attempt_count"] == 1
     assert row["result_refs"] == [f"committed-{observed_attempts[0]}"]
+
+
+def test_timer_keeps_ambiguous_apollo_recovery_on_one_attempt_and_reservation(
+    tmp_path,
+) -> None:
+    store = AcquisitionRuntimeStore(_engine(tmp_path))
+    current_time = NOW
+
+    class Supervisor:
+        def __init__(self) -> None:
+            self.calls: list[AcquisitionRuntimeStage] = []
+
+        def propose(self, stage, cycle, *, remaining_cost, at):
+            del cycle, remaining_cost, at
+            self.calls.append(stage)
+            return RuntimeProposal(
+                plan_ref=f"plan-{stage.value.lower()}",
+                action_index=0,
+                command=stage.command,
+                target_ref="signal-001",
+                argument_fingerprint="2" * 64,
+                estimated_cost=KIVOU_STAGE_COSTS[stage],
+                reason_codes=("QA_RUNTIME_STEP",),
+            )
+
+    class Registry:
+        def __init__(self) -> None:
+            self.provider_calls = 0
+            self.supplier_attempt_refs: list[str] = []
+            self.supplier_run_ids: list[str] = []
+
+        def execute(
+            self,
+            stage,
+            proposal,
+            cycle,
+            *,
+            stage_snapshot,
+            allow_qa_provider_mutations,
+            guard,
+            at,
+        ):
+            del proposal, cycle, allow_qa_provider_mutations, guard
+            if stage is AcquisitionRuntimeStage.SIGNAL_SEED:
+                return RuntimeActionResult(
+                    status=RuntimeStageStatus.SUCCEEDED,
+                    result_refs=("public:seed",),
+                )
+            assert stage is AcquisitionRuntimeStage.SUPPLIER_DISCOVERY
+            self.supplier_attempt_refs.append(stage_snapshot.attempt_ref)
+            self.supplier_run_ids.append(
+                deterministic_attempt_identity(stage_snapshot).run_id
+            )
+            if self.provider_calls < 2:
+                self.provider_calls += 1
+                raise InterruptedError
+            return RuntimeActionResult(
+                status=RuntimeStageStatus.WAITING,
+                reason_codes=("APOLLO_PROVIDER_OUTCOME_AMBIGUOUS",),
+                retry_at=at + dt.timedelta(hours=1),
+                replay_same_attempt=True,
+            )
+
+    supervisor = Supervisor()
+    registry = Registry()
+    runner = AcquisitionRuntimeRunner(
+        store=store,
+        supervisor=supervisor,
+        registry=registry,
+        allowed_opportunity_keys=("signal-001",),
+        config_fingerprint="a" * 64,
+        maximum_cycle_cost=Decimal("10"),
+        maximum_wall_seconds=900,
+        lease_seconds=1200,
+        runtime_capability=capability(),
+        clock=lambda: current_time,
+    )
+    request = RuntimeRunRequest(owner_ref="runtime-owner-001")
+
+    first = runner.run_once(request)
+    current_time = NOW + dt.timedelta(minutes=2)
+    recovery = runner.run_once(request)
+    current_time = NOW + dt.timedelta(minutes=12)
+    after_deadline = runner.run_once(request)
+    current_time = NOW + dt.timedelta(hours=2)
+    later_timer = runner.run_once(request)
+
+    assert [
+        first.status,
+        recovery.status,
+        after_deadline.status,
+        later_timer.status,
+    ] == [
+        RuntimeRunStatus.CANCELLED,
+        RuntimeRunStatus.CANCELLED,
+        RuntimeRunStatus.WAITING,
+        RuntimeRunStatus.WAITING,
+    ]
+    assert registry.provider_calls == 2
+    assert len(set(registry.supplier_attempt_refs)) == 1
+    assert len(set(registry.supplier_run_ids)) == 1
+    assert supervisor.calls.count(AcquisitionRuntimeStage.SUPPLIER_DISCOVERY) == 1
+    with store.engine.connect() as connection:
+        stage = connection.execute(
+            sa.select(acquisition_runtime_stage).where(
+                acquisition_runtime_stage.c.stage
+                == AcquisitionRuntimeStage.SUPPLIER_DISCOVERY.value
+            )
+        ).mappings().one()
+        attempts = connection.execute(
+            sa.select(acquisition_runtime_stage_attempt).where(
+                acquisition_runtime_stage_attempt.c.stage
+                == AcquisitionRuntimeStage.SUPPLIER_DISCOVERY.value
+            )
+        ).mappings().all()
+        cycle = connection.execute(
+            sa.select(acquisition_runtime_cycle)
+        ).mappings().one()
+    assert stage["attempt_count"] == 1
+    assert stage["status"] == RuntimeStageStatus.WAITING.value
+    assert stage["reason_codes"] == ["APOLLO_PROVIDER_OUTCOME_AMBIGUOUS"]
+    assert len(attempts) == 1
+    assert Decimal(attempts[0]["reserved_cost"]) == Decimal("2")
+    assert Decimal(cycle["spent_cost"]) == Decimal("2")
 
 
 def test_suppressed_cycle_is_terminal_and_not_reopened(tmp_path) -> None:

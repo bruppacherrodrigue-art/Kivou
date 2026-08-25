@@ -773,7 +773,7 @@ class StartedSupplier(FakeSupplierService):
         )
 
 
-def test_started_apollo_run_reuses_same_attempt_until_bounded_deadline() -> None:
+def test_started_apollo_run_remains_same_attempt_after_bounded_recovery() -> None:
     truth = FakeTruth()
     supplier = StartedSupplier(truth)
     authorizations = FakeAuthorizations()
@@ -797,8 +797,10 @@ def test_started_apollo_run_reuses_same_attempt_until_bounded_deadline() -> None
             guard=FakeExecutionGuard(NOW + dt.timedelta(minutes=11)),
         )
     )
-    assert exhausted.disposition is KivouDomainDisposition.FAILED
+    assert exhausted.disposition is KivouDomainDisposition.WAITING
     assert exhausted.reason_codes == ("APOLLO_PROVIDER_OUTCOME_AMBIGUOUS",)
+    assert exhausted.replay_same_attempt is True
+    assert exhausted.retry_at == NOW + dt.timedelta(hours=1, minutes=11)
 
 
 class WaitingCampaignWorker(FakeCampaignWorker):

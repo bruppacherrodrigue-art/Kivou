@@ -23,6 +23,8 @@ acquisition health/readiness.
   call and at most one native recovery call before dispatch. A lost response
   can make provider acceptance ambiguous; Kivou is therefore at-least-once in
   that narrow crash window, never exactly-once, and permits no third call.
+  An exhausted recovery remains a durable same-attempt `WAITING` checkpoint;
+  health reports `APOLLO_PROVIDER_OUTCOME_AMBIGUOUS` for operator intervention.
 - Hermes may propose only closed Kivou action names. It never receives a shell,
   filesystem, network or arbitrary Python tool. Kivou revalidates Policy before
   dispatching any proposed action.
