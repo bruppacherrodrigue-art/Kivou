@@ -17,8 +17,10 @@ Les quatre valeurs concernées sont exactement :
 Une valeur secrète ne doit jamais apparaître dans `argv`, une commande
 `sudo env`, un argument de `grep` ou `rg`, un terminal, le `shell history`, Git,
 GitHub, une issue, une PR, un ticket, la sortie CI ou journald. Ne jamais la
-copier-coller dans une commande. Les commandes ci-dessous ne transportent que
-des chemins, des noms de variables et des compteurs.
+copier-coller dans une commande. La seule saisie interactive autorisée ci-dessous
+passe par `/dev/tty` avec l'écho désactivé : les frappes n'apparaissent donc pas
+dans le terminal. Les commandes ne transportent que des chemins et des noms de
+variables ; les sorties ne contiennent que des compteurs.
 
 Tout dry-run qui dépend de la configuration déployée passe exclusivement par
 `systemd-run` avec
@@ -100,29 +102,79 @@ Ordre d'arrêt : déclencheurs, jobs, puis API.
 Ne pas modifier Policy, le kill switch, le mode SHADOW, les migrations ou les
 données pendant cette fenêtre.
 
-## 3. Effectuer les rotations fournisseur
+## 3. Effectuer les rotations fournisseur et PostgreSQL
 
-Effectuer les opérations depuis les consoles ou API fournisseur approuvées,
-uniquement dans les comptes staging/TEST, dans cet ordre :
+Effectuer d'abord les opérations depuis les consoles fournisseur approuvées,
+uniquement dans les comptes staging/TEST : mot de passe SMTP, clé restreinte
+Stripe TEST, puis secret de signature du webhook Stripe TEST. Quand le fournisseur
+permet deux identifiants simultanés, créer le nouveau, valider Kivou, puis révoquer
+l'ancien. Quand une rotation invalide immédiatement l'ancien identifiant,
+conserver les consommateurs arrêtés jusqu'au remplacement atomique.
 
-1. mot de passe du rôle PostgreSQL de staging ;
-2. mot de passe du compte SMTP de staging ;
-3. clé restreinte Stripe TEST utilisée par l'API ;
-4. secret de signature du webhook Stripe TEST de staging.
+Après chaque rotation, lancer exactement la commande correspondante ci-dessous.
+Le nom de clé et le chemin sont les seuls arguments. Le CLI lit la valeur depuis
+`/dev/tty` avec `getpass` ; cette saisie masquée n'a aucun fallback sans écho. Il
+met à jour `new.values` par remplacement atomique et ne sort que deux compteurs
+numériques :
 
-Quand le fournisseur permet deux identifiants simultanés, créer le nouveau,
-valider Kivou, puis révoquer l'ancien. Quand une rotation invalide immédiatement
-l'ancien identifiant, conserver les consommateurs arrêtés jusqu'au remplacement
-atomique.
+```bash
+sudo /usr/bin/python3.12 \
+  /srv/kivou/app/ops/bin/kivou_secret_hygiene.py \
+  set-secret SMTP_PASSWORD \
+  --values-file /run/kivou-secret-rotation/new.values
+sudo /usr/bin/python3.12 \
+  /srv/kivou/app/ops/bin/kivou_secret_hygiene.py \
+  set-secret STRIPE_SECRET_KEY \
+  --values-file /run/kivou-secret-rotation/new.values
+sudo /usr/bin/python3.12 \
+  /srv/kivou/app/ops/bin/kivou_secret_hygiene.py \
+  set-secret STRIPE_WEBHOOK_SECRET \
+  --values-file /run/kivou-secret-rotation/new.values
+```
 
-Le canal fournisseur approuvé doit écrire directement les quatre enregistrements
-complets dans `/run/kivou-secret-rotation/new.values`. Il ne doit ni les rendre
-au terminal, ni les placer dans une variable de shell, ni les transmettre en
-argument. Si le canal disponible ne sait pas écrire dans ce fichier root-only,
-la rotation est bloquée : ne pas improviser de copie manuelle.
+Les trois invites sont respectivement la saisie masquée du nouveau mot de passe
+`SMTP_PASSWORD`, de la nouvelle `STRIPE_SECRET_KEY` TEST et du nouveau
+`STRIPE_WEBHOOK_SECRET` TEST. Ne jamais rediriger ces invites, utiliser `echo`,
+les lancer avec `systemd-run`, ni copier leur saisie dans une variable de shell.
+Un échec laisse le fichier précédent intact et ne révèle aucune valeur.
+
+Tourner ensuite localement le mot de passe PostgreSQL du rôle fixe `kivou_app`.
+Cette commande utilise l'environnement actuellement authentifié comme ancienne
+connexion et complète elle-même `new.values` :
+
+```bash
+sudo /srv/kivou/app/.venv/bin/python \
+  /srv/kivou/app/ops/bin/kivou_secret_hygiene.py \
+  rotate-postgres-password \
+  --old-env-file /etc/kivou/staging.env \
+  --values-file /run/kivou-secret-rotation/new.values
+```
+
+Le CLI génère le nouveau mot de passe en mémoire, écrit d'abord la nouvelle
+`KIVOU_DATABASE_URL` candidate dans `new.values` par remplacement atomique, puis
+ouvre la connexion avec l'ancienne URL lue en mémoire. La sémantique PostgreSQL
+`ALTER ROLE` passe exclusivement par `PGconn.change_password`/`PQchangePassword` :
+libpq chiffre le mot de passe côté client avant de l'envoyer par le protocole. Il
+n'existe donc ni URL de base en `argv`, ni SQL contenant le mot de passe brut, ni
+valeur dans stdout, stderr ou journald. Ne pas remplacer cet appel par
+`ALTER ROLE ... PASSWORD %s` : les paramètres liés côté serveur ne sont pas
+acceptés pour cette commande utility.
+
+Si l'ancienne connexion échoue avant toute demande de changement, le CLI rend
+`error=database_update_failed` et restaure atomiquement le fichier à ses trois
+valeurs fournisseur. Corriger l'accès ancien puis relancer. Si la connexion est
+perdue pendant la demande, il rend `error=database_state_unknown` et conserve la
+candidate complète pour récupération : ne pas remplacer `staging.env`, ne pas
+réessayer à l'aveugle et conserver les consommateurs arrêtés. Un DBA autorisé
+doit alors déterminer, sans publier de valeur, si l'ancien ou le candidat
+s'authentifie ; garder le candidat s'il est actif, relancer depuis l'ancien s'il
+est encore actif, ou effectuer une rotation vers l'avant si aucun état n'est
+prouvé.
 
 Une fois les quatre rotations préparées, forcer à nouveau le propriétaire et le
-mode, puis valider le fichier par un audit vide. Seuls les compteurs sont lus :
+mode, puis valider le fichier complet par un audit vide. `audit-journal` exige
+exactement les quatre clés dans chaque fichier fourni. Seuls les compteurs sont
+lus :
 
 ```bash
 sudo chown root:root /run/kivou-secret-rotation/new.values
@@ -273,7 +325,8 @@ et la destruction des fichiers :
 1. arrêter à nouveau timers, jobs et API dans l'ordre de la section 2 ;
 2. réactiver les anciens identifiants côté fournisseur quand c'est possible ;
 3. restaurer les quatre anciennes valeurs avec `replace-env`, en prenant
-   `/run/kivou-secret-rotation/old.values` comme fichier de valeurs ;
+   `/run/kivou-secret-rotation/old.values` comme fichier de valeurs, uniquement
+   si l'ancien mot de passe PostgreSQL est encore prouvé actif ;
 4. vérifier de nouveau `root:kivou` et `0600` ;
 5. redémarrer et revalider dans l'ordre PostgreSQL, API, sauvegarde/ingestions,
    SMTP, Stripe TEST ;
@@ -281,8 +334,12 @@ et la destruction des fichiers :
 7. faire rotation/purge de journald, auditer les deux jeux de valeurs, puis
    détruire les trois fichiers et le tmpfs comme en section 7.
 
-Si un fournisseur ne permet pas de réactiver l'ancien identifiant, ne pas
-restaurer un fichier devenu faux. Effectuer une nouvelle rotation vers l'avant,
-reconstruire un fichier complet `new.values`, puis reprendre à la section 4.
-Le rollback ne justifie jamais une valeur PRODUCTION/LIVE, une copie persistante
-ou une exposition de secret.
+Après un changement PostgreSQL réussi, l'ancien fichier n'est plus un rollback
+valide tant qu'un DBA n'a pas explicitement retourné le rôle vers l'ancien mot de
+passe. Après `database_state_unknown`, la candidate est volontairement conservée
+et aucun des deux jeux n'est supposé actif. Si PostgreSQL ou un fournisseur ne
+permet pas de prouver ou réactiver l'ancien identifiant, ne pas restaurer un
+fichier devenu faux : effectuer une rotation vers l'avant, reconstruire un
+fichier complet `new.values`, puis reprendre à la section 4. Le rollback ne
+justifie jamais une valeur PRODUCTION/LIVE, une copie persistante ou une
+exposition de secret.

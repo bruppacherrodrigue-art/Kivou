@@ -162,22 +162,36 @@ La procédure complète est
 [`docs/runbooks/09-staging-secret-rotation.md`](../docs/runbooks/09-staging-secret-rotation.md).
 Elle reste strictement limitée au staging et ne contient aucune valeur réelle.
 
-`bin/kivou_secret_hygiene.py` expose un seul CLI et deux sous-commandes :
+`bin/kivou_secret_hygiene.py` expose un seul CLI et quatre sous-commandes :
 
+- `set-secret` lit une valeur fournisseur autorisée par saisie masquée sur
+  `/dev/tty`, puis met à jour atomiquement le fichier partiel sans écho ;
+- `rotate-postgres-password` génère en mémoire le nouveau mot de passe du rôle
+  `kivou_app`, écrit d'abord la candidate, puis utilise la connexion actuelle et
+  le protocole libpq sans placer de secret dans les arguments ou les sorties ;
 - `replace-env` remplace atomiquement les quatre variables autorisées, conserve
   toutes les autres lignes ainsi que uid, gid et mode du fichier cible, puis
   publie seulement deux compteurs ;
 - `audit-journal` lit un flux de journal sur stdin, compare en mémoire une ou
-  plusieurs générations de valeurs et publie seulement
+  plusieurs générations complètes de quatre valeurs et publie seulement
   `secret_values_checked`, `matching_lines` et `matching_occurrences`. Une
   correspondance rend le code de sortie non nul.
 
-Les deux commandes lisent les valeurs uniquement depuis des fichiers `0600`
+Les quatre commandes lisent les valeurs uniquement depuis des fichiers `0600`
 réguliers et non symboliques. Elles refusent les noms hors allowlist, doublons,
 valeurs vides ou multilignes et ne rendent jamais une exception contenant une
-valeur. Les arguments ne portent que des chemins :
+valeur. Les arguments ne portent que des chemins et, pour la saisie masquée, un
+nom de clé autorisé :
 
 ```bash
+sudo /usr/bin/python3.12 ops/bin/kivou_secret_hygiene.py \
+  set-secret SMTP_PASSWORD \
+  --values-file /run/kivou-secret-rotation/new.values
+sudo /srv/kivou/app/.venv/bin/python \
+  /srv/kivou/app/ops/bin/kivou_secret_hygiene.py \
+  rotate-postgres-password \
+  --old-env-file /etc/kivou/staging.env \
+  --values-file /run/kivou-secret-rotation/new.values
 sudo /usr/bin/python3.12 ops/bin/kivou_secret_hygiene.py \
   replace-env \
   --values-file /run/kivou-secret-rotation/new.values \

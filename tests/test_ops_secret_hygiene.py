@@ -1,13 +1,21 @@
 from __future__ import annotations
 
 import ast
+import errno
+import fcntl
+import importlib.util
 import json
 import os
 import pathlib
 import re
+import select
 import stat
 import subprocess
 import sys
+import termios
+import time
+import types
+import urllib.parse
 
 import pytest
 
@@ -39,6 +47,13 @@ FAKE_NEW_SECRETS = {
     "STRIPE_WEBHOOK_SECRET": "whsec_FAKE_new_81",
 }
 ALL_FAKE_VALUES = (*FAKE_OLD_SECRETS.values(), *FAKE_NEW_SECRETS.values())
+PROVIDER_SECRET_NAMES = SECRET_NAMES[1:]
+FAKE_OLD_ROLE_PASSWORD = "FAKE-old-role-password-81"
+FAKE_NEW_ROLE_PASSWORD = "FAKE new/role:password@81"
+FAKE_OLD_ROLE_URL = (
+    "postgresql+psycopg://kivou_app:"
+    f"{FAKE_OLD_ROLE_PASSWORD}@db.invalid:5432/kivou_staging?sslmode=require"
+)
 
 
 def _write_values(
@@ -54,6 +69,32 @@ def _write_values(
     return path
 
 
+def _load_hygiene_module() -> types.ModuleType:
+    specification = importlib.util.spec_from_file_location(
+        "kivou_secret_hygiene_under_test",
+        SCRIPT,
+    )
+    assert specification is not None
+    assert specification.loader is not None
+    module = importlib.util.module_from_spec(specification)
+    specification.loader.exec_module(module)
+    return module
+
+
+def _assignments(path: pathlib.Path) -> dict[str, str]:
+    return dict(
+        line.split("=", 1)
+        for line in path.read_text(encoding="utf-8").splitlines()
+    )
+
+
+def _call_main(module: types.ModuleType) -> int:
+    try:
+        return module.main()
+    except SystemExit as error:
+        return int(error.code)
+
+
 def _run_cli(
     *arguments: str | pathlib.Path,
     stdin: str = "",
@@ -67,6 +108,84 @@ def _run_cli(
         check=False,
         timeout=timeout,
     )
+
+
+def _run_cli_with_tty(
+    *arguments: str | pathlib.Path,
+    secret: str,
+    timeout: float = 5,
+) -> tuple[subprocess.CompletedProcess[str], str]:
+    master_descriptor, slave_descriptor = os.openpty()
+
+    def establish_controlling_tty() -> None:
+        os.setsid()
+        fcntl.ioctl(slave_descriptor, termios.TIOCSCTTY, 0)
+
+    process = subprocess.Popen(
+        [sys.executable, str(SCRIPT), *(str(argument) for argument in arguments)],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        pass_fds=(slave_descriptor,),
+        preexec_fn=establish_controlling_tty,  # noqa: PLW1509 - isolated test process
+    )
+    os.close(slave_descriptor)
+    tty_chunks: list[bytes] = []
+    deadline = time.monotonic() + timeout
+    prompt_seen = False
+    try:
+        while process.poll() is None and time.monotonic() < deadline:
+            readable, _, _ = select.select(
+                [master_descriptor],
+                [],
+                [],
+                min(0.1, max(0.0, deadline - time.monotonic())),
+            )
+            if not readable:
+                continue
+            try:
+                chunk = os.read(master_descriptor, 4096)
+            except OSError as error:
+                if error.errno == errno.EIO:
+                    break
+                raise
+            if not chunk:
+                break
+            tty_chunks.append(chunk)
+            if b":" in b"".join(tty_chunks):
+                prompt_seen = True
+                break
+
+        if prompt_seen:
+            os.write(master_descriptor, secret.encode() + b"\n")
+        stdout, stderr = process.communicate(timeout=max(0.1, deadline - time.monotonic()))
+
+        while True:
+            readable, _, _ = select.select([master_descriptor], [], [], 0)
+            if not readable:
+                break
+            try:
+                chunk = os.read(master_descriptor, 4096)
+            except OSError as error:
+                if error.errno == errno.EIO:
+                    break
+                raise
+            if not chunk:
+                break
+            tty_chunks.append(chunk)
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+        os.close(master_descriptor)
+
+    result = subprocess.CompletedProcess(
+        process.args,
+        process.returncode,
+        stdout.decode(encoding="utf-8", errors="replace"),
+        stderr.decode(encoding="utf-8", errors="replace"),
+    )
+    return result, b"".join(tty_chunks).decode(encoding="utf-8", errors="replace")
 
 
 def _assert_no_fake_value(result: subprocess.CompletedProcess[str]) -> None:
@@ -126,6 +245,30 @@ def test_audit_journal_accepts_multiple_value_files_and_succeeds_when_clean(
     _assert_no_fake_value(result)
 
 
+def test_audit_journal_requires_every_values_file_to_contain_all_four_names(
+    tmp_path: pathlib.Path,
+) -> None:
+    complete_file = _write_values(tmp_path / "old.values", FAKE_OLD_SECRETS)
+    incomplete_file = _write_values(
+        tmp_path / "new.values",
+        content="".join(
+            f"{name}={FAKE_NEW_SECRETS[name]}\n" for name in SECRET_NAMES[:-1]
+        ),
+    )
+
+    result = _run_cli(
+        "audit-journal",
+        complete_file,
+        incomplete_file,
+        stdin="clean\n",
+    )
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == "error=invalid_input\n"
+    _assert_no_fake_value(result)
+
+
 def test_replace_env_replaces_all_secrets_atomically_and_preserves_metadata(
     tmp_path: pathlib.Path,
 ) -> None:
@@ -174,6 +317,286 @@ def test_replace_env_replaces_all_secrets_atomically_and_preserves_metadata(
     assert "KIVOU_PUBLIC_ORIGIN=https://staging.invalid\n" in body
     assert "UNRELATED=value=with=equals\n" in body
     assert body.endswith("\n\n")
+
+
+def test_set_secret_reads_three_provider_values_from_tty_without_echo(
+    tmp_path: pathlib.Path,
+) -> None:
+    values_file = _write_values(tmp_path / "new.values", content="")
+    expected: dict[str, str] = {}
+
+    for expected_count, name in enumerate(PROVIDER_SECRET_NAMES, start=1):
+        value = FAKE_NEW_SECRETS[name]
+        before = values_file.stat()
+
+        result, tty_output = _run_cli_with_tty(
+            "set-secret",
+            name,
+            "--values-file",
+            values_file,
+            secret=value,
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stderr == ""
+        assert json.loads(result.stdout) == {
+            "secret_values_present": expected_count,
+            "secret_values_stored": 1,
+        }
+        assert value not in tty_output
+        _assert_no_fake_value(result)
+
+        after = values_file.stat()
+        assert (after.st_uid, after.st_gid) == (before.st_uid, before.st_gid)
+        assert stat.S_IMODE(after.st_mode) == 0o600
+        assert (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino)
+        expected[name] = value
+        assert values_file.read_text(encoding="utf-8") == "".join(
+            f"{secret_name}={expected[secret_name]}\n"
+            for secret_name in SECRET_NAMES
+            if secret_name in expected
+        )
+
+
+def test_set_secret_rejects_a_live_stripe_key_without_echoing_it(
+    tmp_path: pathlib.Path,
+) -> None:
+    values_file = _write_values(tmp_path / "new.values", content="")
+    live_value = "sk_" + "live_FAKE_review_81"
+
+    result, tty_output = _run_cli_with_tty(
+        "set-secret",
+        "STRIPE_SECRET_KEY",
+        "--values-file",
+        values_file,
+        secret=live_value,
+    )
+
+    assert result.returncode != 0
+    assert result.stdout == ""
+    assert result.stderr == "error=invalid_input\n"
+    assert live_value not in tty_output + result.stdout + result.stderr
+    assert values_file.read_text(encoding="utf-8") == ""
+
+
+class _RecordingPasswordProtocol:
+    def __init__(self, *, failure: Exception | None = None) -> None:
+        self.failure = failure
+        self.password_changes: list[tuple[bytes, bytes]] = []
+
+    def change_password(self, role: bytes, password: bytes) -> None:
+        self.password_changes.append((role, password))
+        if self.failure is not None:
+            raise self.failure
+
+
+class _RecordingPasswordConnection:
+    def __init__(self, protocol: _RecordingPasswordProtocol) -> None:
+        self.pgconn = protocol
+        self.closed = False
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_rotate_postgres_writes_candidate_before_protocol_password_change(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_hygiene_module()
+    old_env = tmp_path / "staging.env"
+    old_env.write_text(
+        f"KIVOU_DATABASE_URL={FAKE_OLD_ROLE_URL}\nOTHER_SETTING=preserved\n",
+        encoding="utf-8",
+    )
+    old_env.chmod(0o600)
+    provider_content = "".join(
+        f"{name}={FAKE_NEW_SECRETS[name]}\n" for name in PROVIDER_SECRET_NAMES
+    )
+    values_file = _write_values(tmp_path / "new.values", content=provider_content)
+    before = values_file.stat()
+    protocol = _RecordingPasswordProtocol()
+    connection = _RecordingPasswordConnection(protocol)
+    connector_calls: list[tuple[str, bool]] = []
+
+    def connector(url: str, *, autocommit: bool) -> _RecordingPasswordConnection:
+        connector_calls.append((url, autocommit))
+        candidate = _assignments(values_file)["KIVOU_DATABASE_URL"]
+        candidate_password = urllib.parse.urlsplit(candidate).password or ""
+        assert urllib.parse.unquote(candidate_password) == FAKE_NEW_ROLE_PASSWORD
+        return connection
+
+    monkeypatch.setattr(module, "_connect_postgres", connector)
+    monkeypatch.setattr(
+        module,
+        "_generate_postgres_password",
+        lambda: FAKE_NEW_ROLE_PASSWORD,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(SCRIPT),
+            "rotate-postgres-password",
+            "--old-env-file",
+            str(old_env),
+            "--values-file",
+            str(values_file),
+        ],
+    )
+
+    return_code = _call_main(module)
+
+    captured = capsys.readouterr()
+    assert return_code == 0
+    assert captured.err == ""
+    assert json.loads(captured.out) == {
+        "database_password_rotated": 1,
+        "secret_values_present": 4,
+    }
+    for secret in (*ALL_FAKE_VALUES, FAKE_OLD_ROLE_PASSWORD, FAKE_NEW_ROLE_PASSWORD):
+        assert secret not in captured.out + captured.err
+
+    assert len(connector_calls) == 1
+    connection_url, autocommit = connector_calls[0]
+    parsed_connection_url = urllib.parse.urlsplit(connection_url)
+    assert parsed_connection_url.scheme == "postgresql"
+    assert parsed_connection_url.username == "kivou_app"
+    assert parsed_connection_url.password == FAKE_OLD_ROLE_PASSWORD
+    assert autocommit is True
+    assert protocol.password_changes == [
+        (b"kivou_app", FAKE_NEW_ROLE_PASSWORD.encode())
+    ]
+    assert connection.closed
+
+    after = values_file.stat()
+    assert (after.st_uid, after.st_gid) == (before.st_uid, before.st_gid)
+    assert stat.S_IMODE(after.st_mode) == 0o600
+    assert (after.st_dev, after.st_ino) != (before.st_dev, before.st_ino)
+    stored = _assignments(values_file)
+    assert tuple(stored) == SECRET_NAMES
+    stored_password = urllib.parse.urlsplit(stored["KIVOU_DATABASE_URL"]).password or ""
+    assert urllib.parse.unquote(stored_password) == FAKE_NEW_ROLE_PASSWORD
+    for name in PROVIDER_SECRET_NAMES:
+        assert stored[name] == FAKE_NEW_SECRETS[name]
+    assert old_env.read_text(encoding="utf-8").endswith("OTHER_SETTING=preserved\n")
+
+
+def test_rotate_postgres_restores_values_file_when_old_authentication_fails(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_hygiene_module()
+    old_env = tmp_path / "staging.env"
+    old_env.write_text(f"KIVOU_DATABASE_URL={FAKE_OLD_ROLE_URL}\n", encoding="utf-8")
+    old_env.chmod(0o600)
+    original_content = "".join(
+        f"{name}={FAKE_NEW_SECRETS[name]}\n" for name in PROVIDER_SECRET_NAMES
+    )
+    values_file = _write_values(tmp_path / "new.values", content=original_content)
+
+    def connector(url: str, *, autocommit: bool) -> _RecordingPasswordConnection:
+        del url, autocommit
+        candidate = _assignments(values_file)["KIVOU_DATABASE_URL"]
+        candidate_password = urllib.parse.urlsplit(candidate).password or ""
+        assert urllib.parse.unquote(candidate_password) == FAKE_NEW_ROLE_PASSWORD
+        raise ConnectionError(
+            f"rejected old={FAKE_OLD_ROLE_PASSWORD} new={FAKE_NEW_ROLE_PASSWORD}"
+        )
+
+    monkeypatch.setattr(module, "_connect_postgres", connector)
+    monkeypatch.setattr(
+        module,
+        "_generate_postgres_password",
+        lambda: FAKE_NEW_ROLE_PASSWORD,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(SCRIPT),
+            "rotate-postgres-password",
+            "--old-env-file",
+            str(old_env),
+            "--values-file",
+            str(values_file),
+        ],
+    )
+
+    return_code = _call_main(module)
+
+    captured = capsys.readouterr()
+    assert return_code != 0
+    assert captured.out == ""
+    assert captured.err == "error=database_update_failed\n"
+    for secret in (*ALL_FAKE_VALUES, FAKE_OLD_ROLE_PASSWORD, FAKE_NEW_ROLE_PASSWORD):
+        assert secret not in captured.out + captured.err
+    assert values_file.read_text(encoding="utf-8") == original_content
+    assert not list(tmp_path.glob(f".{values_file.name}.*"))
+
+
+def test_rotate_postgres_keeps_candidate_when_database_state_is_unknown(
+    tmp_path: pathlib.Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    module = _load_hygiene_module()
+    old_env = tmp_path / "staging.env"
+    old_env.write_text(f"KIVOU_DATABASE_URL={FAKE_OLD_ROLE_URL}\n", encoding="utf-8")
+    old_env.chmod(0o600)
+    original_content = "".join(
+        f"{name}={FAKE_NEW_SECRETS[name]}\n" for name in PROVIDER_SECRET_NAMES
+    )
+    values_file = _write_values(tmp_path / "new.values", content=original_content)
+    protocol = _RecordingPasswordProtocol(
+        failure=ConnectionError(
+            f"connection lost old={FAKE_OLD_ROLE_PASSWORD} new={FAKE_NEW_ROLE_PASSWORD}"
+        )
+    )
+    connection = _RecordingPasswordConnection(protocol)
+
+    def connector(url: str, *, autocommit: bool) -> _RecordingPasswordConnection:
+        del url, autocommit
+        return connection
+
+    monkeypatch.setattr(module, "_connect_postgres", connector)
+    monkeypatch.setattr(
+        module,
+        "_generate_postgres_password",
+        lambda: FAKE_NEW_ROLE_PASSWORD,
+    )
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            str(SCRIPT),
+            "rotate-postgres-password",
+            "--old-env-file",
+            str(old_env),
+            "--values-file",
+            str(values_file),
+        ],
+    )
+
+    return_code = _call_main(module)
+
+    captured = capsys.readouterr()
+    assert return_code != 0
+    assert captured.out == ""
+    assert captured.err == "error=database_state_unknown\n"
+    for secret in (*ALL_FAKE_VALUES, FAKE_OLD_ROLE_PASSWORD, FAKE_NEW_ROLE_PASSWORD):
+        assert secret not in captured.out + captured.err
+    stored = _assignments(values_file)
+    stored_password = urllib.parse.urlsplit(stored["KIVOU_DATABASE_URL"]).password or ""
+    assert urllib.parse.unquote(stored_password) == FAKE_NEW_ROLE_PASSWORD
+    for name in PROVIDER_SECRET_NAMES:
+        assert stored[name] == FAKE_NEW_SECRETS[name]
+    assert protocol.password_changes == [
+        (b"kivou_app", FAKE_NEW_ROLE_PASSWORD.encode())
+    ]
+    assert connection.closed
 
 
 @pytest.mark.parametrize(
@@ -395,6 +818,25 @@ def test_runbook_versions_the_complete_staging_only_rotation_and_rollback() -> N
         assert forbidden_channel in lower
 
 
+def test_runbook_uses_executable_masked_provider_and_local_postgres_rotation() -> None:
+    body = RUNBOOK.read_text(encoding="utf-8")
+
+    for command_fragment in (
+        "set-secret SMTP_PASSWORD",
+        "set-secret STRIPE_SECRET_KEY",
+        "set-secret STRIPE_WEBHOOK_SECRET",
+        "rotate-postgres-password",
+        "--old-env-file /etc/kivou/staging.env",
+        "/srv/kivou/app/.venv/bin/python",
+        "ALTER ROLE",
+        "PGconn.change_password",
+        "/dev/tty",
+        "saisie masquée",
+        "sudo awk -F=",
+    ):
+        assert command_fragment in body
+
+
 def test_ops_readme_points_operators_to_the_counter_only_cli_and_runbook() -> None:
     body = OPERATIONS.read_text(encoding="utf-8")
 
@@ -402,4 +844,6 @@ def test_ops_readme_points_operators_to_the_counter_only_cli_and_runbook() -> No
     assert "kivou_secret_hygiene.py" in body
     assert "replace-env" in body
     assert "audit-journal" in body
+    assert "set-secret" in body
+    assert "rotate-postgres-password" in body
     assert "valeurs uniquement depuis des fichiers `0600`" in body
