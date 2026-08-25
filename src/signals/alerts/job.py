@@ -648,11 +648,12 @@ def _run_for_account(
                     },
                 )
         except (sa.exc.SQLAlchemyError, delivery.DeliveryStateConflict):
+            will_retry = batch.attempt_count < max_attempts
             _emit_batch_delivery(
                 batch,
                 status="persistence_failed",
                 code="delivery_state_persistence_failed",
-                retryable=True,
+                retryable=will_retry,
             )
             return AlertOutcome(
                 account_id,
@@ -660,7 +661,7 @@ def _run_for_account(
                 "persistence_failed",
                 len(batch.signal_keys),
                 "delivery_state_persistence_failed",
-                True,
+                will_retry,
                 batch.attempt_count,
             )
         will_retry = batch.attempt_count < max_attempts
@@ -704,11 +705,12 @@ def _run_for_account(
                     },
                 )
         except (sa.exc.SQLAlchemyError, delivery.DeliveryStateConflict):
+            will_retry = batch.attempt_count < max_attempts
             _emit_batch_delivery(
                 batch,
                 status="persistence_failed",
                 code="delivery_state_persistence_failed",
-                retryable=True,
+                retryable=will_retry,
             )
             return AlertOutcome(
                 account_id,
@@ -716,7 +718,7 @@ def _run_for_account(
                 "persistence_failed",
                 len(batch.signal_keys),
                 "delivery_state_persistence_failed",
-                True,
+                will_retry,
                 batch.attempt_count,
             )
         will_retry = error.retryable and batch.attempt_count < max_attempts
@@ -755,11 +757,12 @@ def _run_for_account(
                 },
             )
     except (sa.exc.SQLAlchemyError, delivery.DeliveryStateConflict):
+        will_retry = batch.attempt_count < max_attempts
         _emit_batch_delivery(
             batch,
             status="persistence_failed",
             code="delivery_state_persistence_failed",
-            retryable=True,
+            retryable=will_retry,
         )
         return AlertOutcome(
             account_id,
@@ -767,7 +770,7 @@ def _run_for_account(
             "persistence_failed",
             len(batch.signal_keys),
             "delivery_state_persistence_failed",
-            True,
+            will_retry,
             batch.attempt_count,
         )
     _emit_batch_delivery(

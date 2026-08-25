@@ -352,6 +352,38 @@ def test_post_accept_persistence_failure_documents_possible_duplicate(
     assert deliveries(engine)[0].status == "sent"
 
 
+def test_persistence_failure_event_respects_the_attempt_budget(
+    app, engine, mailer, monkeypatch
+) -> None:
+    subscriber(app, engine)
+    recorded: list[dict[str, object]] = []
+
+    def persistence_failure(*_args, **_kwargs):
+        raise sa.exc.OperationalError("UPDATE", {}, RuntimeError("synthetic"))
+
+    monkeypatch.setattr("signals.alerts.delivery.mark_sent", persistence_failure)
+    monkeypatch.setattr(
+        "signals.alerts.job.emit_delivery_event",
+        lambda **payload: recorded.append(payload),
+    )
+
+    report = run_alert_cycle(
+        engine,
+        mailer,
+        now=NOW,
+        public_app_url=PUBLIC_APP_URL,
+        delivery_lease_ttl=DELIVERY_LEASE,
+        retry_base=RETRY_BASE,
+        max_attempts=1,
+    )
+
+    assert report.outcomes[0].result == "persistence_failed"
+    assert report.outcomes[0].retryable is False
+    assert recorded[0]["status"] == "persistence_failed"
+    assert recorded[0]["retryable"] is False
+    assert recorded[0]["attempt"] == 1
+
+
 def test_normal_global_lease_contention_returns_already_running(app, engine, mailer) -> None:
     subscriber(app, engine)
     with engine.begin() as connection:
@@ -690,12 +722,25 @@ def test_alert_submission_emits_one_safe_json_event_per_signal(
 
     assert report.signals_sent == 2
     payloads = [json.loads(line) for line in stream.getvalue().splitlines()]
+    fingerprints = {
+        row.recipient_context_fingerprint for row in deliveries(engine)
+    }
     assert len(payloads) == 2
     assert {payload["signal_ref"] for payload in payloads} == set(keys)
     assert {payload["account_ref"] for payload in payloads} == {
         account_of(client)
     }
     for payload in payloads:
+        assert set(payload) == {
+            "event",
+            "channel",
+            "account_ref",
+            "signal_ref",
+            "status",
+            "code",
+            "retryable",
+            "attempt",
+        }
         assert payload["event"] == "delivery"
         assert payload["channel"] == "alert"
         assert payload["status"] == "submitted"
@@ -709,6 +754,7 @@ def test_alert_submission_emits_one_safe_json_event_per_signal(
         PUBLIC_APP_URL,
         mailer.last.text_body,
         mailer.last.message_id,
+        *fingerprints,
         "Traceback",
         "Exception",
     ):
