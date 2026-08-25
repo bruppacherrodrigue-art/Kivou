@@ -18,6 +18,7 @@ def isolated_runtime_logger():
     previous_handlers = logger.handlers[:]
     previous_level = logger.level
     previous_propagate = logger.propagate
+    previous_disabled = logger.disabled
     logger.handlers.clear()
     try:
         yield logger
@@ -27,6 +28,7 @@ def isolated_runtime_logger():
         logger.handlers[:] = previous_handlers
         logger.setLevel(previous_level)
         logger.propagate = previous_propagate
+        logger.disabled = previous_disabled
 
 
 def _configured_environment(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
@@ -62,12 +64,14 @@ def test_runtime_handler_is_dedicated_and_idempotent(isolated_runtime_logger) ->
     root_handlers = root.handlers[:]
     billing_handlers = billing.handlers[:]
     stream = io.StringIO()
+    isolated_runtime_logger.disabled = True
 
     first = configure_runtime_event_logging(stream=stream)
     second = configure_runtime_event_logging(stream=stream)
 
     assert first is second is isolated_runtime_logger
     assert len(_runtime_handlers(first)) == 1
+    assert first.disabled is False
     assert first.propagate is False
     assert root.handlers == root_handlers
     assert billing.handlers == billing_handlers

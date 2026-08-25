@@ -39,6 +39,7 @@ def configure_runtime_event_logging(*, stream: TextIO | None = None) -> logging.
 
     logger = logging.getLogger(LOGGER_NAME)
     logger.setLevel(logging.INFO)
+    logger.disabled = False
     logger.propagate = False
     if not any(getattr(handler, _HANDLER_MARKER, False) for handler in logger.handlers):
         handler = logging.StreamHandler(stream or sys.stderr)
