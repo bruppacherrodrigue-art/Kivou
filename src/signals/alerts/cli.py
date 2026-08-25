@@ -13,10 +13,19 @@ import argparse
 import datetime as dt
 import sys
 
+import sqlalchemy as sa
+
 from signals.alerts.gateway import SmtpAlertGateway, SmtpConfiguration
 from signals.alerts.job import CycleReport, run_alert_cycle
 from signals.api.config import ApiConfig
 from signals.persistence.database import create_database_engine
+from signals.runtime_events import configure_runtime_event_logging
+
+EXIT_DELIVERY_INCIDENT = 1
+EXIT_CONFIGURATION = 2
+EXIT_AMBIGUOUS_DELIVERY = 3
+EXIT_PERSISTENCE_INCIDENT = 4
+EXIT_RUNTIME_INCIDENT = 5
 
 
 class _SafeArgumentParser(argparse.ArgumentParser):
@@ -56,7 +65,19 @@ def summarize(report: CycleReport) -> str:
     )
 
 
+def exit_status(report: CycleReport) -> int:
+    results = {outcome.result for outcome in report.outcomes}
+    if "persistence_failed" in results:
+        return EXIT_PERSISTENCE_INCIDENT
+    if "unknown_delivery_state" in results:
+        return EXIT_AMBIGUOUS_DELIVERY
+    if report.has_current_incident:
+        return EXIT_DELIVERY_INCIDENT
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
+    configure_runtime_event_logging()
     parser = _SafeArgumentParser(prog="kivou-alerts", description="Cycle d'alerte Kivou")
     parser.add_argument(
         "--now",
@@ -78,10 +99,21 @@ def main(argv: list[str] | None = None) -> int:
         )
         if now.tzinfo is None:
             now = now.replace(tzinfo=dt.UTC)
-        engine = create_database_engine()
     except (RuntimeError, ValueError):
         print("configuration_invalid", file=sys.stderr)
-        return 2
+        return EXIT_CONFIGURATION
+
+    try:
+        engine = create_database_engine()
+    except sa.exc.SQLAlchemyError:
+        print("persistence_failed", file=sys.stderr)
+        return EXIT_PERSISTENCE_INCIDENT
+    except (RuntimeError, ValueError):
+        print("configuration_invalid", file=sys.stderr)
+        return EXIT_CONFIGURATION
+    except Exception:  # noqa: BLE001 - sanitized process boundary, never exception text
+        print("runtime_failed", file=sys.stderr)
+        return EXIT_RUNTIME_INCIDENT
 
     if arguments.dry_run:
         print("status=dry_run no_delivery_attempted=true")
@@ -98,11 +130,14 @@ def main(argv: list[str] | None = None) -> int:
             retry_base=config.alert_retry_base,
             max_attempts=config.alert_max_attempts,
         )
+    except sa.exc.SQLAlchemyError:
+        print("persistence_failed", file=sys.stderr)
+        return EXIT_PERSISTENCE_INCIDENT
     except Exception:  # noqa: BLE001 - sanitized process boundary, never exception text
         print("runtime_failed", file=sys.stderr)
-        return 1
+        return EXIT_RUNTIME_INCIDENT
     print(summarize(report))
-    return 1 if report.has_current_incident else 0
+    return exit_status(report)
 
 
 if __name__ == "__main__":  # pragma: no cover - point d'entrée

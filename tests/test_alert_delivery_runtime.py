@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import datetime as dt
+import io
+import json
+import logging
 import pathlib
 
 import pytest
@@ -25,8 +28,10 @@ from signals.alerts.delivery import logical_batch_key, mark_sent
 from signals.alerts.gateway import UncertainDelivery
 from signals.alerts.job import run_alert_cycle
 from signals.alerts.lease import acquire, release
+from signals.alerts.policy import MAXIMUM_SIGNALS_PER_EMAIL
 from signals.engagement.schema import signal_alert_delivery
 from signals.persistence.schema import materialized_signal
+from signals.runtime_events import configure_runtime_event_logging
 
 RETRY_BASE = dt.timedelta(minutes=15)
 DELIVERY_LEASE = dt.timedelta(minutes=30)
@@ -38,8 +43,13 @@ def engine(tmp_path: pathlib.Path):
 
 
 @pytest.fixture
-def app(engine):
-    return make_app(engine, Clock())
+def clock() -> Clock:
+    return Clock()
+
+
+@pytest.fixture
+def app(engine, clock):
+    return make_app(engine, clock)
 
 
 @pytest.fixture
@@ -342,6 +352,38 @@ def test_post_accept_persistence_failure_documents_possible_duplicate(
     assert deliveries(engine)[0].status == "sent"
 
 
+def test_persistence_failure_event_respects_the_attempt_budget(
+    app, engine, mailer, monkeypatch
+) -> None:
+    subscriber(app, engine)
+    recorded: list[dict[str, object]] = []
+
+    def persistence_failure(*_args, **_kwargs):
+        raise sa.exc.OperationalError("UPDATE", {}, RuntimeError("synthetic"))
+
+    monkeypatch.setattr("signals.alerts.delivery.mark_sent", persistence_failure)
+    monkeypatch.setattr(
+        "signals.alerts.job.emit_delivery_event",
+        lambda **payload: recorded.append(payload),
+    )
+
+    report = run_alert_cycle(
+        engine,
+        mailer,
+        now=NOW,
+        public_app_url=PUBLIC_APP_URL,
+        delivery_lease_ttl=DELIVERY_LEASE,
+        retry_base=RETRY_BASE,
+        max_attempts=1,
+    )
+
+    assert report.outcomes[0].result == "persistence_failed"
+    assert report.outcomes[0].retryable is False
+    assert recorded[0]["status"] == "persistence_failed"
+    assert recorded[0]["retryable"] is False
+    assert recorded[0]["attempt"] == 1
+
+
 def test_normal_global_lease_contention_returns_already_running(app, engine, mailer) -> None:
     subscriber(app, engine)
     with engine.begin() as connection:
@@ -430,3 +472,354 @@ def test_inaccessible_signal_is_suppressed_while_the_rest_of_the_batch_sends(
         "reason_code": "signal_inaccessible",
         "signal_count": 1,
     }
+
+
+def test_permanent_recipient_refusal_blocks_new_rows_and_is_controlled(
+    app, engine, mailer, monkeypatch
+) -> None:
+    _, keys = subscriber(app, engine, count=12)
+    emitted: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "signals.alerts.job.emit_delivery_event",
+        lambda **payload: emitted.append(payload),
+    )
+    mailer.fail_with = failure("smtp_recipient_refused", retryable=False)
+
+    first = cycle(engine, mailer, now=NOW)
+    second = cycle(engine, mailer, now=NOW + dt.timedelta(hours=1))
+    third = cycle(engine, mailer, now=NOW + dt.timedelta(days=1))
+
+    rows = deliveries(engine)
+    assert len(keys) > 5
+    assert mailer.attempts == 1
+    assert len(rows) == MAXIMUM_SIGNALS_PER_EMAIL
+    assert {row.status for row in rows} == {"failed"}
+    assert {row.last_error_code for row in rows} == {"smtp_recipient_refused"}
+    assert len({row.recipient_context_fingerprint for row in rows}) == 1
+    assert rows[0].recipient_context_fingerprint is not None
+    assert [item.result for item in first.outcomes] == ["failed"]
+    assert not first.has_current_incident
+    assert [item.result for item in second.outcomes] == ["recipient_refused"]
+    assert [item.result for item in third.outcomes] == ["recipient_refused"]
+    assert not second.has_current_incident
+    assert not third.has_current_incident
+    assert len(emitted) == MAXIMUM_SIGNALS_PER_EMAIL
+    assert {event["signal_ref"] for event in emitted} == {
+        row.signal_key for row in rows
+    }
+    for event in emitted:
+        assert event["status"] == "failed"
+        assert event["code"] == "smtp_recipient_refused"
+        assert event["retryable"] is False
+        assert event["attempt"] == 1
+
+
+def test_generic_terminal_smtp_failure_does_not_install_a_recipient_block(
+    app, engine, mailer
+) -> None:
+    subscriber(app, engine, count=12)
+    mailer.fail_with = failure("smtp_550", retryable=False)
+
+    first = cycle(engine, mailer, now=NOW)
+    second = cycle(engine, mailer, now=NOW + dt.timedelta(hours=1))
+
+    assert first.has_current_incident
+    assert [item.detail for item in first.outcomes] == ["smtp_550"]
+    assert not second.has_current_incident
+    assert second.signals_sent == 2
+    assert mailer.attempts == 2
+    assert len(deliveries(engine)) == 12
+
+
+def test_semantic_preference_noop_preserves_timestamp_and_recipient_block(
+    app, engine, mailer, clock
+) -> None:
+    client, _ = subscriber(app, engine, count=12)
+    mailer.fail_with = failure("smtp_recipient_refused", retryable=False)
+    cycle(engine, mailer, now=NOW)
+    before = client.get("/notification-preferences").json()
+    stored_fingerprint = deliveries(engine)[0].recipient_context_fingerprint
+
+    clock.advance(dt.timedelta(hours=1))
+    response = client.patch(
+        "/notification-preferences",
+        json={
+            "email_enabled": before["email_enabled"],
+            "notification_email": before["notification_email"].upper(),
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["updated_at"] == before["updated_at"]
+
+    report = cycle(engine, mailer, now=NOW + dt.timedelta(hours=1))
+
+    assert [item.result for item in report.outcomes] == ["recipient_refused"]
+    assert mailer.attempts == 1
+    assert len(deliveries(engine)) == MAXIMUM_SIGNALS_PER_EMAIL
+    assert {row.recipient_context_fingerprint for row in deliveries(engine)} == {
+        stored_fingerprint
+    }
+
+
+def test_changed_notification_address_rearms_only_future_signals(
+    app, engine, mailer, clock
+) -> None:
+    client, _ = subscriber(app, engine, count=11)
+    mailer.fail_with = failure("smtp_recipient_refused", retryable=False)
+    cycle(engine, mailer, now=NOW)
+    refused_fingerprint = deliveries(engine)[0].recipient_context_fingerprint
+
+    clock.advance(dt.timedelta(minutes=1))
+    response = client.patch(
+        "/notification-preferences",
+        json={"notification_email": "new-alerts@negoce-romand.ch"},
+    )
+    assert response.status_code == 200
+
+    report = cycle(engine, mailer, now=NOW + dt.timedelta(hours=1))
+
+    assert report.signals_sent == 1
+    assert mailer.attempts == 2
+    assert mailer.last.to_email == "new-alerts@negoce-romand.ch"
+    rows = deliveries(engine)
+    assert len(rows) == 11
+    sent = next(row for row in rows if row.status == "sent")
+    assert sent.recipient_context_fingerprint != refused_fingerprint
+    assert {row.status for row in rows if row.signal_key != sent.signal_key} == {
+        "failed"
+    }
+
+
+def test_changed_preference_version_rearms_future_signals(
+    app, engine, mailer, clock
+) -> None:
+    client, _ = subscriber(app, engine, count=11)
+    mailer.fail_with = failure("smtp_recipient_refused", retryable=False)
+    cycle(engine, mailer, now=NOW)
+    refused_fingerprint = deliveries(engine)[0].recipient_context_fingerprint
+
+    clock.advance(dt.timedelta(minutes=1))
+    assert (
+        client.patch(
+            "/notification-preferences", json={"email_enabled": False}
+        ).status_code
+        == 200
+    )
+    clock.advance(dt.timedelta(minutes=1))
+    assert (
+        client.patch(
+            "/notification-preferences", json={"email_enabled": True}
+        ).status_code
+        == 200
+    )
+
+    report = cycle(engine, mailer, now=NOW + dt.timedelta(hours=1))
+
+    assert report.signals_sent == 1
+    sent = next(row for row in deliveries(engine) if row.status == "sent")
+    assert sent.recipient_context_fingerprint != refused_fingerprint
+    assert mailer.attempts == 2
+
+
+def test_changed_eligibility_plan_and_cadence_rearm_future_signals(
+    app, engine, mailer
+) -> None:
+    client, _ = subscriber(app, engine, count=11, plan="scale")
+    mailer.fail_with = failure("smtp_recipient_refused", retryable=False)
+    cycle(engine, mailer, now=NOW)
+    refused_fingerprint = deliveries(engine)[0].recipient_context_fingerprint
+
+    pay(engine, client, plan="pro", now=NOW + dt.timedelta(minutes=1))
+    report = cycle(engine, mailer, now=NOW + dt.timedelta(days=1))
+
+    assert report.signals_sent == 1
+    sent = next(row for row in deliveries(engine) if row.status == "sent")
+    assert sent.cadence == "daily"
+    assert sent.recipient_context_fingerprint != refused_fingerprint
+    assert mailer.attempts == 2
+
+
+def test_recipient_refusal_is_strictly_isolated_between_accounts(
+    app, engine, mailer
+) -> None:
+    subscriber(app, engine, count=11)
+    mailer.fail_with = failure("smtp_recipient_refused", retryable=False)
+    cycle(engine, mailer, now=NOW)
+
+    bob = signed_up(app, "bob@materiaux-leman.ch")
+    bob_icp = icp_of(bob, "Materiaux")
+    pay(engine, bob, plan="scale")
+    bob_key = seed(engine, bob_icp, count=1)[0]
+
+    report = cycle(engine, mailer, now=NOW + dt.timedelta(hours=1))
+
+    assert report.signals_sent == 1
+    assert mailer.attempts == 2
+    assert mailer.last.to_email == "bob@materiaux-leman.ch"
+    assert bob_key in mailer.last.text_body
+
+
+def test_ambiguous_batch_is_never_resent_to_a_changed_address(
+    app, engine, mailer, clock
+) -> None:
+    client, _ = subscriber(app, engine, count=2)
+    mailer.fail_with = UncertainDelivery()
+    first = cycle(engine, mailer, now=NOW)
+    assert first.has_current_incident
+    original = deliveries(engine)
+    original_fingerprint = original[0].recipient_context_fingerprint
+
+    clock.advance(dt.timedelta(minutes=1))
+    assert (
+        client.patch(
+            "/notification-preferences",
+            json={"notification_email": "changed@negoce-romand.ch"},
+        ).status_code
+        == 200
+    )
+    retry = cycle(engine, mailer, now=NOW + RETRY_BASE)
+
+    assert not retry.has_current_incident
+    assert mailer.attempts == 1
+    rows = deliveries(engine)
+    assert {row.status for row in rows} == {"suppressed"}
+    assert {row.suppression_reason_code for row in rows} == {
+        "recipient_context_changed"
+    }
+    assert {row.recipient_context_fingerprint for row in rows} == {
+        original_fingerprint
+    }
+
+    icp = client.get("/target-icps").json()[0]["target_icp_id"]
+    new_key = seed(engine, icp, count=1, offset=2)[0]
+    fresh = cycle(engine, mailer, now=NOW + RETRY_BASE + dt.timedelta(minutes=1))
+
+    assert fresh.signals_sent == 1
+    assert mailer.attempts == 2
+    assert mailer.last.to_email == "changed@negoce-romand.ch"
+    assert new_key in mailer.last.text_body
+
+
+def test_alert_submission_emits_one_safe_json_event_per_signal(
+    app, engine, mailer
+) -> None:
+    client, keys = subscriber(app, engine, count=2)
+    logger = logging.getLogger("signals.runtime_events")
+    previous_handlers = logger.handlers[:]
+    previous_level = logger.level
+    previous_propagate = logger.propagate
+    stream = io.StringIO()
+    logger.handlers.clear()
+    configure_runtime_event_logging(stream=stream)
+    try:
+        report = cycle(engine, mailer, now=NOW)
+    finally:
+        for handler in logger.handlers:
+            handler.close()
+        logger.handlers[:] = previous_handlers
+        logger.setLevel(previous_level)
+        logger.propagate = previous_propagate
+
+    assert report.signals_sent == 2
+    payloads = [json.loads(line) for line in stream.getvalue().splitlines()]
+    fingerprints = {
+        row.recipient_context_fingerprint for row in deliveries(engine)
+    }
+    assert len(payloads) == 2
+    assert {payload["signal_ref"] for payload in payloads} == set(keys)
+    assert {payload["account_ref"] for payload in payloads} == {
+        account_of(client)
+    }
+    for payload in payloads:
+        assert set(payload) == {
+            "event",
+            "channel",
+            "account_ref",
+            "signal_ref",
+            "status",
+            "code",
+            "retryable",
+            "attempt",
+        }
+        assert payload["event"] == "delivery"
+        assert payload["channel"] == "alert"
+        assert payload["status"] == "submitted"
+        assert payload["code"] == "smtp_submission_accepted"
+        assert payload["retryable"] is False
+        assert payload["attempt"] == 1
+
+    rendered = stream.getvalue()
+    for forbidden in (
+        "alice@negoce-romand.ch",
+        PUBLIC_APP_URL,
+        mailer.last.text_body,
+        mailer.last.message_id,
+        *fingerprints,
+        "Traceback",
+        "Exception",
+    ):
+        assert forbidden not in rendered
+
+
+def test_preference_suppression_emits_the_terminal_delivery_state(
+    app, engine, mailer, monkeypatch
+) -> None:
+    client, keys = subscriber(app, engine)
+    recorded: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "signals.alerts.job.emit_delivery_event",
+        lambda **payload: recorded.append(payload),
+    )
+    mailer.fail_with = failure("smtp_450", retryable=True)
+    cycle(engine, mailer, now=NOW)
+    recorded.clear()
+    client.patch("/notification-preferences", json={"email_enabled": False})
+
+    cycle(engine, mailer, now=NOW + RETRY_BASE)
+
+    assert recorded == [
+        {
+            "channel": "alert",
+            "account_ref": account_of(client),
+            "signal_ref": keys[0],
+            "status": "suppressed",
+            "code": "notifications_disabled",
+            "retryable": False,
+            "attempt": 1,
+        }
+    ]
+
+
+def test_suppression_event_waits_for_the_database_commit(
+    app, engine, mailer, monkeypatch
+) -> None:
+    client, _ = subscriber(app, engine)
+    mailer.fail_with = failure("smtp_450", retryable=True)
+    cycle(engine, mailer, now=NOW)
+    client.patch("/notification-preferences", json={"email_enabled": False})
+    recorded: list[dict[str, object]] = []
+    monkeypatch.setattr(
+        "signals.alerts.job.emit_delivery_event",
+        lambda **payload: recorded.append(payload),
+    )
+    commit_attempts = 0
+
+    def fail_account_commit(_connection) -> None:
+        nonlocal commit_attempts
+        commit_attempts += 1
+        if commit_attempts == 2:
+            raise sa.exc.OperationalError(
+                "COMMIT",
+                {},
+                RuntimeError("synthetic commit failure"),
+            )
+
+    sa.event.listen(engine, "commit", fail_account_commit)
+    try:
+        with pytest.raises(sa.exc.OperationalError):
+            cycle(engine, mailer, now=NOW + RETRY_BASE)
+    finally:
+        sa.event.remove(engine, "commit", fail_account_commit)
+
+    assert commit_attempts >= 2
+    assert recorded == []

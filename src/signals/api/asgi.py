@@ -48,6 +48,7 @@ from signals.campaigns.contracts import ResponseIngressCapability
 from signals.campaigns.webhooks import InstantlyWebhookService, WebhookFingerprintKeyring
 from signals.compliance.suppression import SuppressionIdentityKeyring
 from signals.persistence.database import create_database_engine
+from signals.runtime_events import configure_runtime_event_logging
 
 
 def build_application() -> FastAPI:
@@ -58,6 +59,7 @@ def build_application() -> FastAPI:
     cette vérification, la première requête après la coupure échoue chez un
     client plutôt que d'être remplacée en silence.
     """
+    configure_runtime_event_logging()
     config = ApiConfig.from_environment()
     engine = create_database_engine(pool_pre_ping=True)
     return create_app(

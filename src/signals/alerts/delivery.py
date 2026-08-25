@@ -17,6 +17,8 @@ SUPPRESSION_REASON_CODES: frozenset[str] = frozenset(
     {
         "entitlement_lost",
         "notifications_disabled",
+        "recipient_context_changed",
+        "recipient_context_unverifiable",
         "signal_inaccessible",
     }
 )
@@ -32,6 +34,7 @@ class DeliveryBatch:
     signal_keys: tuple[str, ...]
     batch_key: str
     message_id: str
+    recipient_context_fingerprint: str | None
     attempt_count: int
     status: str
 
@@ -45,6 +48,28 @@ def logical_batch_key(account_id: str, signal_keys: Iterable[str]) -> str:
     return hashlib.sha256(canonical.encode()).hexdigest()[:40]
 
 
+def context_fingerprint(
+    *,
+    account_id: str,
+    normalized_email: str,
+    preference_version: dt.datetime,
+    eligibility_signature: Sequence[str],
+) -> str:
+    """Hash the exact, verifiable context without exposing any of its inputs."""
+
+    canonical = json.dumps(
+        [
+            account_id,
+            normalized_email,
+            preference_version.astimezone(dt.UTC).isoformat(timespec="microseconds"),
+            list(eligibility_signature),
+        ],
+        ensure_ascii=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
 def retry_delay(base: dt.timedelta, attempt_count: int) -> dt.timedelta:
     exponent = max(0, attempt_count - 1)
     return min(base * (2**exponent), dt.timedelta(days=1))
@@ -56,6 +81,7 @@ def queue_batch(
     account_id: str,
     signal_keys: Iterable[str],
     cadence: str,
+    recipient_context_fingerprint: str,
     now: dt.datetime,
 ) -> DeliveryBatch | None:
     """Persist one new logical batch without changing an existing retry batch."""
@@ -96,6 +122,7 @@ def queue_batch(
             .values(
                 batch_key=batch_key,
                 delivery_message_id=delivery_message_id,
+                recipient_context_fingerprint=recipient_context_fingerprint,
                 updated_at=now,
             )
         )
@@ -106,6 +133,7 @@ def queue_batch(
                 signal_key=signal_key,
                 status="queued",
                 cadence=cadence,
+                recipient_context_fingerprint=recipient_context_fingerprint,
                 batch_key=batch_key,
                 delivery_message_id=delivery_message_id,
                 queued_at=now,
@@ -119,6 +147,7 @@ def queue_batch(
         signal_keys=accepted,
         batch_key=batch_key,
         message_id=delivery_message_id,
+        recipient_context_fingerprint=recipient_context_fingerprint,
         attempt_count=0,
         status="queued",
     )
@@ -151,6 +180,7 @@ def next_due_batch(
         sa.select(
             signal_alert_delivery.c.batch_key,
             signal_alert_delivery.c.delivery_message_id,
+            signal_alert_delivery.c.recipient_context_fingerprint,
         )
         .where(
             signal_alert_delivery.c.account_id == account_id,
@@ -172,6 +202,7 @@ def next_due_batch(
             signal_alert_delivery.c.signal_key,
             signal_alert_delivery.c.attempt_count,
             signal_alert_delivery.c.status,
+            signal_alert_delivery.c.recipient_context_fingerprint,
         )
         .where(
             signal_alert_delivery.c.account_id == account_id,
@@ -187,11 +218,17 @@ def next_due_batch(
     statuses = {row.status for row in rows}
     if len(statuses) != 1:
         raise DeliveryStateConflict(candidate.batch_key)
+    fingerprints = {row.recipient_context_fingerprint for row in rows}
+    if len(fingerprints) != 1 or fingerprints != {
+        candidate.recipient_context_fingerprint
+    }:
+        raise DeliveryStateConflict(candidate.batch_key)
     return DeliveryBatch(
         account_id=account_id,
         signal_keys=tuple(row.signal_key for row in rows),
         batch_key=candidate.batch_key,
         message_id=candidate.delivery_message_id,
+        recipient_context_fingerprint=fingerprints.pop(),
         attempt_count=max(row.attempt_count for row in rows),
         status=statuses.pop(),
     )
@@ -368,6 +405,31 @@ def mark_suppressed(
         raise DeliveryStateConflict(batch.batch_key)
 
 
+def has_permanent_recipient_refusal(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    recipient_context_fingerprint: str,
+) -> bool:
+    """Whether this exact account/context has a structured terminal RCPT refusal."""
+
+    return bool(
+        connection.scalar(
+            sa.select(
+                sa.exists().where(
+                    signal_alert_delivery.c.account_id == account_id,
+                    signal_alert_delivery.c.recipient_context_fingerprint
+                    == recipient_context_fingerprint,
+                    signal_alert_delivery.c.status == "failed",
+                    signal_alert_delivery.c.retryable.is_(False),
+                    signal_alert_delivery.c.last_error_code
+                    == "smtp_recipient_refused",
+                )
+            )
+        )
+    )
+
+
 def _mark_unsuccessful(
     connection: sa.Connection,
     *,
@@ -405,11 +467,18 @@ def _owned_rows(
     signal_keys: Sequence[str] | None = None,
 ) -> tuple[sa.ColumnElement[bool], ...]:
     keys = tuple(signal_keys) if signal_keys is not None else batch.signal_keys
+    context_owner = (
+        signal_alert_delivery.c.recipient_context_fingerprint.is_(None)
+        if batch.recipient_context_fingerprint is None
+        else signal_alert_delivery.c.recipient_context_fingerprint
+        == batch.recipient_context_fingerprint
+    )
     return (
         signal_alert_delivery.c.account_id == batch.account_id,
         signal_alert_delivery.c.signal_key.in_(keys),
         signal_alert_delivery.c.batch_key == batch.batch_key,
         signal_alert_delivery.c.delivery_message_id == batch.message_id,
+        context_owner,
     )
 
 

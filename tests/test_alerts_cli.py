@@ -89,6 +89,110 @@ def test_only_current_execution_incidents_return_nonzero(
     monkeypatch.setattr(cli, "run_alert_cycle", lambda *args, **kwargs: failed)
     assert main(["--now", NOW.isoformat()]) == 1
 
+    inconsistent_refusal = CycleReport(
+        accounts_considered=1,
+        outcomes=(
+            AlertOutcome(
+                "acc_test",
+                "daily",
+                "failed",
+                1,
+                "smtp_recipient_refused",
+                True,
+                1,
+            ),
+        ),
+    )
+    monkeypatch.setattr(
+        cli,
+        "run_alert_cycle",
+        lambda *args, **kwargs: inconsistent_refusal,
+    )
+    assert main(["--now", NOW.isoformat()]) == 1
+
+
+@pytest.mark.parametrize(
+    "outcome",
+    [
+        AlertOutcome("acc_test", "daily", "blocked", 1, "public_app_url_missing"),
+        AlertOutcome(
+            "acc_test",
+            "daily",
+            "failed",
+            1,
+            "smtp_recipient_refused",
+            False,
+            1,
+        ),
+        AlertOutcome(
+            "acc_test",
+            "daily",
+            "recipient_refused",
+            0,
+            "smtp_recipient_refused",
+            False,
+            0,
+        ),
+    ],
+)
+def test_controlled_block_and_permanent_refusal_exit_zero(
+    monkeypatch, configured_runtime, outcome
+) -> None:
+    monkeypatch.setattr(
+        cli,
+        "run_alert_cycle",
+        lambda *args, **kwargs: CycleReport(1, (outcome,)),
+    )
+
+    assert main(["--now", NOW.isoformat()]) == 0
+
+
+@pytest.mark.parametrize(
+    ("outcome", "expected"),
+    [
+        (
+            AlertOutcome(
+                "acc_test", "daily", "failed", 1, "smtp_450", True, 1
+            ),
+            1,
+        ),
+        (
+            AlertOutcome(
+                "acc_test",
+                "daily",
+                "unknown_delivery_state",
+                1,
+                "unknown_delivery_state",
+                True,
+                1,
+            ),
+            3,
+        ),
+        (
+            AlertOutcome(
+                "acc_test",
+                "daily",
+                "persistence_failed",
+                1,
+                "delivery_state_persistence_failed",
+                True,
+                1,
+            ),
+            4,
+        ),
+    ],
+)
+def test_current_delivery_incident_categories_have_distinct_nonzero_statuses(
+    monkeypatch, configured_runtime, outcome, expected
+) -> None:
+    monkeypatch.setattr(
+        cli,
+        "run_alert_cycle",
+        lambda *args, **kwargs: CycleReport(1, (outcome,)),
+    )
+
+    assert main(["--now", NOW.isoformat()]) == expected
+
 
 def test_missing_configuration_fails_closed_with_a_safe_code(
     monkeypatch, configured_runtime, capsys
@@ -102,7 +206,66 @@ def test_missing_configuration_fails_closed_with_a_safe_code(
     assert "smtp.kivou.test" not in rendered
 
 
-def test_runtime_failure_never_prints_exception_or_configuration_values(
+def test_engine_creation_database_failure_is_persistence_and_secret_safe(
+    monkeypatch, configured_runtime, capsys
+) -> None:
+    private_value = "private-engine-database-value"
+
+    def fail():
+        raise sa.exc.OperationalError(
+            "CONNECT",
+            {},
+            RuntimeError(private_value),
+        )
+
+    monkeypatch.setattr(cli, "create_database_engine", fail)
+
+    assert main(["--now", NOW.isoformat()]) == 4
+    captured = capsys.readouterr()
+    rendered = captured.out + captured.err
+    assert "persistence_failed" in rendered
+    assert private_value not in rendered
+    assert "OperationalError" not in rendered
+
+
+def test_engine_creation_unexpected_failure_is_runtime_and_secret_safe(
+    monkeypatch, configured_runtime, capsys
+) -> None:
+    private_value = "private-engine-runtime-value"
+
+    def fail():
+        raise LookupError(private_value)
+
+    monkeypatch.setattr(cli, "create_database_engine", fail)
+
+    assert main(["--now", NOW.isoformat()]) == 5
+    captured = capsys.readouterr()
+    rendered = captured.out + captured.err
+    assert "runtime_failed" in rendered
+    assert private_value not in rendered
+    assert "LookupError" not in rendered
+
+
+@pytest.mark.parametrize("error_type", [RuntimeError, ValueError])
+def test_engine_creation_configuration_failures_remain_configuration_errors(
+    monkeypatch, configured_runtime, capsys, error_type
+) -> None:
+    private_value = "private-engine-configuration-value"
+
+    def fail():
+        raise error_type(private_value)
+
+    monkeypatch.setattr(cli, "create_database_engine", fail)
+
+    assert main(["--now", NOW.isoformat()]) == 2
+    captured = capsys.readouterr()
+    rendered = captured.out + captured.err
+    assert "configuration_invalid" in rendered
+    assert private_value not in rendered
+    assert error_type.__name__ not in rendered
+
+
+def test_database_failure_is_persistence_and_never_prints_sensitive_values(
     monkeypatch, configured_runtime, capsys
 ) -> None:
     smtp_secret = "smtp-" + "private-value"
@@ -119,13 +282,31 @@ def test_runtime_failure_never_prints_exception_or_configuration_values(
 
     monkeypatch.setattr(cli, "run_alert_cycle", fail)
 
-    assert main(["--now", NOW.isoformat()]) == 1
+    assert main(["--now", NOW.isoformat()]) == 4
     captured = capsys.readouterr()
     rendered = captured.out + captured.err
-    assert "runtime_failed" in rendered
+    assert "persistence_failed" in rendered
     assert recipient not in rendered
     assert smtp_secret not in rendered
     assert "OperationalError" not in rendered
+
+
+def test_runtime_failure_is_distinct_and_never_prints_sensitive_values(
+    monkeypatch, configured_runtime, capsys
+) -> None:
+    private_value = "private-runtime-value"
+
+    def fail(*_args, **_kwargs):
+        raise RuntimeError(private_value)
+
+    monkeypatch.setattr(cli, "run_alert_cycle", fail)
+
+    assert main(["--now", NOW.isoformat()]) == 5
+    captured = capsys.readouterr()
+    rendered = captured.out + captured.err
+    assert "runtime_failed" in rendered
+    assert private_value not in rendered
+    assert "RuntimeError" not in rendered
 
 
 def test_invalid_now_is_reported_without_echoing_input(configured_runtime, capsys) -> None:
