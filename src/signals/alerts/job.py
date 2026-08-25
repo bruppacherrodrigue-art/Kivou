@@ -35,6 +35,7 @@ import secrets
 import sqlalchemy as sa
 
 from signals.accounts.schema import account
+from signals.accounts.service import normalize_email
 from signals.alerts import content, delivery, lease, policy
 from signals.alerts.gateway import (
     AlertDeliveryError,
@@ -50,6 +51,7 @@ from signals.feed import policy as feed_policy
 from signals.feed import query as feed_query
 from signals.feed import view as feed_view
 from signals.recency.claim import LANGUAGES
+from signals.runtime_events import emit_delivery_event
 from signals.transactional_email.links import preferences_url, signal_url
 
 
@@ -62,6 +64,8 @@ class AlertOutcome:
     result: str
     signal_count: int = 0
     detail: str | None = None
+    retryable: bool | None = None
+    attempt: int = 0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -77,8 +81,11 @@ class CycleReport:
     @property
     def has_current_incident(self) -> bool:
         return any(
-            outcome.result
-            in {"failed", "unknown_delivery_state", "persistence_failed"}
+            outcome.result in {"unknown_delivery_state", "persistence_failed"}
+            or (
+                outcome.result == "failed"
+                and outcome.detail != "smtp_recipient_refused"
+            )
             for outcome in self.outcomes
         )
 
@@ -222,6 +229,57 @@ def _language(locale: str | None) -> str:
     return locale if locale in LANGUAGES else "fr"
 
 
+def _recipient_context_fingerprint(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    state: billing.BillingState,
+    preference: notifications.NotificationPreference,
+    cadence: str,
+) -> str:
+    assert preference.notification_email is not None
+    feedable_icps = billing.feedable_target_icps(
+        connection,
+        account_id=account_id,
+        limit=state.entitlements.max_active_icps,
+    )
+    eligibility_signature = (
+        f"plan:{state.plan_code}",
+        f"subscription:{state.subscription_status or 'none'}",
+        f"cadence:{cadence}",
+        f"feed_access:{int(state.entitlements.feed_access)}",
+        f"max_active_icps:{state.entitlements.max_active_icps}",
+        *(f"target_icp:{target_icp_id}" for target_icp_id in sorted(feedable_icps)),
+    )
+    return delivery.context_fingerprint(
+        account_id=account_id,
+        normalized_email=normalize_email(preference.notification_email),
+        preference_version=preference.updated_at,
+        eligibility_signature=eligibility_signature,
+    )
+
+
+def _emit_batch_delivery(
+    batch: delivery.DeliveryBatch,
+    *,
+    status: str,
+    code: str,
+    retryable: bool,
+    attempt: int | None = None,
+    signal_keys: tuple[str, ...] | None = None,
+) -> None:
+    for signal_key in signal_keys or batch.signal_keys:
+        emit_delivery_event(
+            channel="alert",
+            account_ref=batch.account_id,
+            signal_ref=signal_key,
+            status=status,
+            code=code,
+            retryable=retryable,
+            attempt=batch.attempt_count if attempt is None else attempt,
+        )
+
+
 def run_alert_cycle(
     engine: sa.Engine,
     gateway: AlertDeliveryGateway,
@@ -305,12 +363,20 @@ def _run_for_account(
                     cadence=cadence,
                     now=now,
                 )
+                _emit_batch_delivery(
+                    batch,
+                    status="suppressed",
+                    code="entitlement_lost",
+                    retryable=False,
+                )
                 return AlertOutcome(
                     account_id,
                     cadence,
                     "suppressed",
                     len(batch.signal_keys),
                     "entitlement_lost",
+                    False,
+                    batch.attempt_count,
                 )
             return AlertOutcome(account_id, cadence, "not_eligible")
 
@@ -325,14 +391,61 @@ def _run_for_account(
                     cadence=cadence,
                     now=now,
                 )
+                _emit_batch_delivery(
+                    batch,
+                    status="suppressed",
+                    code="notifications_disabled",
+                    retryable=False,
+                )
                 return AlertOutcome(
                     account_id,
                     cadence,
                     "suppressed",
                     len(batch.signal_keys),
                     "notifications_disabled",
+                    False,
+                    batch.attempt_count,
                 )
             return AlertOutcome(account_id, cadence, "notifications_disabled")
+
+        recipient_context_fingerprint = _recipient_context_fingerprint(
+            connection,
+            account_id=account_id,
+            state=state,
+            preference=preference,
+            cadence=cadence,
+        )
+        if batch is not None and (
+            batch.recipient_context_fingerprint != recipient_context_fingerprint
+        ):
+            reason_code = (
+                "recipient_context_unverifiable"
+                if batch.recipient_context_fingerprint is None
+                else "recipient_context_changed"
+            )
+            _suppress(
+                connection,
+                batch=batch,
+                signal_keys=batch.signal_keys,
+                reason_code=reason_code,
+                cadence=cadence,
+                now=now,
+            )
+            _emit_batch_delivery(
+                batch,
+                status="suppressed",
+                code=reason_code,
+                retryable=False,
+            )
+            return AlertOutcome(
+                account_id,
+                cadence,
+                "suppressed",
+                len(batch.signal_keys),
+                reason_code,
+                False,
+                batch.attempt_count,
+            )
 
         if batch is None:
             if not policy.is_due(
@@ -344,6 +457,21 @@ def _run_for_account(
                 now=now,
             ):
                 return AlertOutcome(account_id, cadence, "not_due")
+
+            if delivery.has_permanent_recipient_refusal(
+                connection,
+                account_id=account_id,
+                recipient_context_fingerprint=recipient_context_fingerprint,
+            ):
+                return AlertOutcome(
+                    account_id,
+                    cadence,
+                    "recipient_refused",
+                    0,
+                    "smtp_recipient_refused",
+                    False,
+                    0,
+                )
 
             new_items = eligible_signals(
                 connection,
@@ -358,6 +486,7 @@ def _run_for_account(
                 account_id=account_id,
                 signal_keys=(item.signal.signal_key for item in new_items),
                 cadence=cadence,
+                recipient_context_fingerprint=recipient_context_fingerprint,
                 now=now,
             )
             if batch is None:
@@ -375,12 +504,20 @@ def _run_for_account(
         if not public_app_url:
             # §22 — un lien cassé est pire qu'un e-mail non envoyé. Les signaux
             # restent en file et partiront quand l'URL sera configurée.
+            _emit_batch_delivery(
+                batch,
+                status="blocked",
+                code="public_app_url_missing",
+                retryable=False,
+            )
             return AlertOutcome(
                 account_id,
                 cadence,
                 "blocked",
                 len(batch.signal_keys),
                 "public_app_url_missing",
+                False,
+                batch.attempt_count,
             )
 
         accessible = _accessible_signals(
@@ -400,6 +537,13 @@ def _run_for_account(
                 cadence=cadence,
                 now=now,
             )
+            _emit_batch_delivery(
+                batch,
+                status="suppressed",
+                code="signal_inaccessible",
+                retryable=False,
+                signal_keys=inaccessible,
+            )
         accessible_keys = tuple(key for key in batch.signal_keys if key in by_key)
         if not accessible_keys:
             return AlertOutcome(
@@ -408,6 +552,8 @@ def _run_for_account(
                 "suppressed",
                 len(inaccessible),
                 "signal_inaccessible",
+                False,
+                batch.attempt_count,
             )
         batch = dataclasses.replace(batch, signal_keys=accessible_keys)
         if batch.attempt_count >= max_attempts:
@@ -428,12 +574,20 @@ def _run_for_account(
                     "retryable": False,
                 },
             )
+            _emit_batch_delivery(
+                batch,
+                status=terminal_status,
+                code="attempt_budget_exhausted",
+                retryable=False,
+            )
             return AlertOutcome(
                 account_id,
                 cadence,
                 terminal_status,
                 len(batch.signal_keys),
                 "attempt_budget_exhausted",
+                False,
+                batch.attempt_count,
             )
         batch = delivery.mark_sending(
             connection,
@@ -494,19 +648,36 @@ def _run_for_account(
                     },
                 )
         except (sa.exc.SQLAlchemyError, delivery.DeliveryStateConflict):
+            _emit_batch_delivery(
+                batch,
+                status="persistence_failed",
+                code="delivery_state_persistence_failed",
+                retryable=True,
+            )
             return AlertOutcome(
                 account_id,
                 cadence,
                 "persistence_failed",
                 len(batch.signal_keys),
                 "delivery_state_persistence_failed",
+                True,
+                batch.attempt_count,
             )
+        will_retry = batch.attempt_count < max_attempts
+        _emit_batch_delivery(
+            batch,
+            status="unknown_delivery_state",
+            code=error.code,
+            retryable=will_retry,
+        )
         return AlertOutcome(
             account_id,
             cadence,
             "unknown_delivery_state",
             len(batch.signal_keys),
             error.code,
+            will_retry,
+            batch.attempt_count,
         )
     except AlertDeliveryError as error:
         try:
@@ -533,19 +704,36 @@ def _run_for_account(
                     },
                 )
         except (sa.exc.SQLAlchemyError, delivery.DeliveryStateConflict):
+            _emit_batch_delivery(
+                batch,
+                status="persistence_failed",
+                code="delivery_state_persistence_failed",
+                retryable=True,
+            )
             return AlertOutcome(
                 account_id,
                 cadence,
                 "persistence_failed",
                 len(batch.signal_keys),
                 "delivery_state_persistence_failed",
+                True,
+                batch.attempt_count,
             )
+        will_retry = error.retryable and batch.attempt_count < max_attempts
+        _emit_batch_delivery(
+            batch,
+            status="failed",
+            code=error.code,
+            retryable=will_retry,
+        )
         return AlertOutcome(
             account_id,
             cadence,
             "failed",
             len(batch.signal_keys),
             error.code,
+            will_retry,
+            batch.attempt_count,
         )
 
     try:
@@ -567,14 +755,36 @@ def _run_for_account(
                 },
             )
     except (sa.exc.SQLAlchemyError, delivery.DeliveryStateConflict):
+        _emit_batch_delivery(
+            batch,
+            status="persistence_failed",
+            code="delivery_state_persistence_failed",
+            retryable=True,
+        )
         return AlertOutcome(
             account_id,
             cadence,
             "persistence_failed",
             len(batch.signal_keys),
             "delivery_state_persistence_failed",
+            True,
+            batch.attempt_count,
         )
-    return AlertOutcome(account_id, cadence, "sent", len(batch.signal_keys))
+    _emit_batch_delivery(
+        batch,
+        status="submitted",
+        code="smtp_submission_accepted",
+        retryable=False,
+    )
+    return AlertOutcome(
+        account_id,
+        cadence,
+        "sent",
+        len(batch.signal_keys),
+        "smtp_submission_accepted",
+        False,
+        batch.attempt_count,
+    )
 
 
 def _suppress(
