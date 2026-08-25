@@ -33,7 +33,7 @@ No persistence schema or migration changes are needed.
 - Modify: `src/signals/api/config.py`
 - Modify: `.env.example`
 
-- [ ] **Step 1: Write configuration tests before production changes**
+- [x] **Step 1: Write configuration tests before production changes**
 
 Add constants for all six environment names to the fixture cleanup and tests equivalent to:
 
@@ -74,7 +74,7 @@ def test_complete_instantly_group_is_repr_safe(base_environment, monkeypatch):
     assert "synthetic-suppression-identity-key" not in rendered
 ```
 
-- [ ] **Step 2: Run the new tests and capture the expected RED**
+- [x] **Step 2: Run the new tests and capture the expected RED**
 
 Run:
 
@@ -87,7 +87,7 @@ uv run pytest -q \
 
 Expected: failure because the four new environment variables, the group validation, and `instantly_webhook_configured` do not exist; the current webhook secret also appears in `ApiConfig.__repr__`.
 
-- [ ] **Step 3: Implement the smallest all-or-nothing config group**
+- [x] **Step 3: Implement the smallest all-or-nothing config group**
 
 Add environment constants and dataclass fields equivalent to:
 
@@ -123,7 +123,7 @@ def instantly_webhook_configured(self) -> bool:
 
 Read the six values once. If all are absent, return all `None`; if some are absent, raise a names-only `ValueError`; require secret key byte strings to be at least 16 bytes and versions/workspace to be bounded non-empty values. Do not include the supplied values in any error. Document that all six variables are required together in `.env.example`.
 
-- [ ] **Step 4: Run focused and baseline tests GREEN**
+- [x] **Step 4: Run focused and baseline tests GREEN**
 
 Run:
 
@@ -134,7 +134,7 @@ uv run ruff check src/signals/api/config.py tests/test_api_runtime.py
 
 Expected: all runtime tests pass and Ruff exits 0.
 
-- [ ] **Step 5: Commit the green cycle**
+- [x] **Step 5: Commit the green cycle**
 
 ```bash
 git add src/signals/api/config.py tests/test_api_runtime.py .env.example
@@ -147,7 +147,7 @@ git commit -m "fix(api): fail closed on partial Instantly ingress config"
 - Modify: `tests/test_api_runtime.py`
 - Modify: `src/signals/api/asgi.py`
 
-- [ ] **Step 1: Write production-composition tests**
+- [x] **Step 1: Write production-composition tests**
 
 Add tests that use `build_application()` rather than injecting the service manually:
 
@@ -183,7 +183,7 @@ Add one migrated SQLite fixture built through the existing campaign test helpers
 - an authenticated unknown campaign/workspace returns 422 with no new event;
 - no real socket/provider request is attempted.
 
-- [ ] **Step 2: Run the tests and capture RED**
+- [x] **Step 2: Run the tests and capture RED**
 
 Run:
 
@@ -196,7 +196,7 @@ uv run pytest -q \
 
 Expected: the absent case remains 503, while complete configuration still leaves `app.state.instantly_webhook_service` as `None`, so composition and valid-ingress assertions fail.
 
-- [ ] **Step 3: Implement the minimal ASGI factory**
+- [x] **Step 3: Implement the minimal ASGI factory**
 
 Add a pure constructor and pass it into `create_app`:
 
@@ -231,7 +231,7 @@ def _instantly_webhook_service(
 
 Build the engine once, pass the same engine to this factory and `create_app`, and do not construct an Instantly API adapter, response worker, response ingress, or webhook subscription.
 
-- [ ] **Step 4: Run focused and neighboring tests GREEN**
+- [x] **Step 4: Run focused and neighboring tests GREEN**
 
 Run:
 
@@ -242,7 +242,7 @@ uv run ruff check src/signals/api/asgi.py tests/test_api_runtime.py
 
 Expected: production composition, persistent replay, route hardening, and existing campaign webhook tests all pass; Ruff exits 0.
 
-- [ ] **Step 5: Commit the green cycle**
+- [x] **Step 5: Commit the green cycle**
 
 ```bash
 git add src/signals/api/asgi.py tests/test_api_runtime.py
@@ -258,7 +258,7 @@ git commit -m "fix(api): compose local Instantly webhook ingress"
 - Create: `ops/nginx/kivou-proxy-params.conf`
 - Create: `ops/nginx/kivou-security-headers.conf`
 
-- [ ] **Step 1: Write the route inventory and parser tests first**
+- [x] **Step 1: Write the route inventory and parser tests first**
 
 In `tests/test_ops_nginx_routes.py`, recursively descend FastAPI `_IncludedRouter.original_router.routes`, apply every include prefix, and compare the exact `(method, path)` set against two explicit constants:
 
@@ -302,7 +302,7 @@ assert_location(
 
 Also assert `/companies` is in the public API group, `/internal` is absent from all proxy selectors, proxy blocks contain `include /etc/nginx/kivou-proxy-params.conf` and never `try_files`, the four rate zones retain 5/3/120/300 requests per minute, overflow is 429, and shared proxy/security files retain the existing headers/timeouts/CSP/HSTS.
 
-- [ ] **Step 2: Run the nginx tests and capture RED**
+- [x] **Step 2: Run the nginx tests and capture RED**
 
 Run:
 
@@ -312,7 +312,7 @@ uv run pytest -q tests/test_ops_nginx_routes.py
 
 Expected: failure because `ops/nginx/` is absent from the branch.
 
-- [ ] **Step 3: Restore and resynchronize the four templates**
+- [x] **Step 3: Restore and resynchronize the four templates**
 
 Use commit `31457e9` only as the behavioral reference. Restore its limits, proxy parameters, security headers, TLS/ACME/static/SPA behavior, then synchronize the backend allowlist with the current route inventory:
 
@@ -344,7 +344,7 @@ location ^~ /a/ {
 
 Keep exact auth/reset locations so nginx chooses the stricter limits. Do not add an `/internal` selector or a catch-all backend proxy. Malformed `/a/...` paths must reach FastAPI and return JSON 404 instead of the SPA.
 
-- [ ] **Step 4: Run parser/inventory tests GREEN and syntax validation**
+- [x] **Step 4: Run parser/inventory tests GREEN and syntax validation**
 
 Run:
 
@@ -355,7 +355,7 @@ uv run ruff check tests/test_ops_nginx_routes.py
 
 Then, if `nginx` is installed, create a temporary prefix with dummy certificate files and the tracked includes, substitute `STAGING_HOST`, and run `nginx -t -p <temporary-prefix> -c <temporary-nginx.conf>`. If nginx is unavailable or TLS certificate parsing prevents an isolated check, record that explicitly and rely on the parser test plus `git diff 31457e9 -- ops/nginx` review; never mutate `/etc/nginx`.
 
-- [ ] **Step 5: Commit the green cycle**
+- [x] **Step 5: Commit the green cycle**
 
 ```bash
 git add tests/test_ops_nginx_routes.py ops/nginx
@@ -368,7 +368,7 @@ git commit -m "fix(ops): relay reviewed public routes through nginx"
 - Modify: `tests/test_conversion_attribution_api.py`
 - Modify: `ops/README.md`
 
-- [ ] **Step 1: Tighten attribution assertions**
+- [x] **Step 1: Tighten attribution assertions**
 
 Extend the bad-token test before documentation changes:
 
@@ -382,7 +382,7 @@ assert "<!doctype html>" not in invalid.text.lower()
 
 The existing valid-click test must continue to prove 303, fixed `/signup`, `no-store`, `HttpOnly`, `Secure`, `SameSite=lax`, and `Path=/auth/signup`.
 
-- [ ] **Step 2: Run the HTTP evidence tests**
+- [x] **Step 2: Run the HTTP evidence tests**
 
 Run:
 
@@ -396,7 +396,7 @@ uv run pytest -q \
 
 Expected: all four characterization tests pass without production changes; they explicitly pin the behavior that nginx must expose.
 
-- [ ] **Step 3: Document atomic install, validation, reload, and rollback**
+- [x] **Step 3: Document atomic install, validation, reload, and rollback**
 
 Add a dedicated nginx section to `ops/README.md` that:
 
@@ -409,7 +409,7 @@ Add a dedicated nginx section to `ops/README.md` that:
 - rolls back the snapshot, reruns `nginx -t`, then reloads;
 - states that no migration or durable event deletion is part of rollback.
 
-- [ ] **Step 4: Run focused validation and commit**
+- [x] **Step 4: Run focused validation and commit**
 
 Run:
 
@@ -439,7 +439,7 @@ git commit -m "docs(ops): add atomic nginx deployment rollback"
 **Files:**
 - Review: all files changed since base `7253c3a`
 
-- [ ] **Step 1: Verify the complete scoped suite freshly**
+- [x] **Step 1: Verify the complete scoped suite freshly**
 
 Run:
 
@@ -461,7 +461,7 @@ git diff --stat 7253c3a..HEAD
 git log --oneline 7253c3a..HEAD
 ```
 
-- [ ] **Step 2: Auto-review Critical and Important findings**
+- [x] **Step 2: Auto-review Critical and Important findings**
 
 Review the complete diff for:
 
@@ -475,7 +475,7 @@ Review the complete diff for:
 
 Fix every Critical or Important finding with another RED/GREEN cycle and a focused commit, then rerun the full scoped verification.
 
-- [ ] **Step 3: Prove branch state without external mutation**
+- [x] **Step 3: Prove branch state without external mutation**
 
 Run:
 
@@ -486,3 +486,24 @@ git log --oneline 7253c3a..HEAD
 ```
 
 Expected: branch `fix/staging-nginx-public-routes`, no uncommitted changes, multiple small local commits, no push, no staging/provider/GitHub mutation, and no migration.
+
+## Execution evidence
+
+- Baseline before implementation: `tests/test_api_runtime.py` — 23 passed.
+- Config RED: 8 expected failures for missing atomic-group behavior; bounds RED:
+  6 expected failures; whitespace RED: 3 expected failures.
+- Composition RED after correcting the existing API error envelope assertion:
+  absent configuration passed, while the two configured production-factory
+  tests failed because the service was still `None`.
+- nginx RED: the FastAPI inventory passed and four template tests failed only
+  because `ops/nginx/*.conf` did not exist.
+- GREEN checkpoints: 37 config/runtime tests, 75 runtime plus campaign webhook
+  tests, 6 nginx parser/inventory tests, and 4 HTTP characterization tests.
+- Final fresh scope: 90 passed; Ruff reported `All checks passed`; every Bash
+  block in `ops/README.md` passed `bash -n`; `git diff --check` passed.
+- `nginx -t` was not executable locally because nginx is not installed. The
+  fallback required by the plan passed: directive-balance/location parser tests
+  plus a direct diff against `31457e9`, limited to `/companies`, removal of the
+  stale public `/health`, the two new reviewed locations, and related comments.
+- No migration, push, staging access, provider call, GitHub mutation, or secret
+  value was introduced during implementation.
