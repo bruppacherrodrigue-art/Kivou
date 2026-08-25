@@ -157,22 +157,28 @@ restent simplement désactivées.
 
 ## Ingestion DECP bornée (#77)
 
-`kivou-ingest-decp.service` traite DECP par journées calendaires. Le curseur
-versionné est écrit dans `ingestion_checkpoint` après chaque journée complète ;
-un quota ou le budget de vingt minutes termine le passage avec succès et laisse
-explicitement du travail pour le prochain déclenchement. Une journée interrompue
-est rejouée de façon idempotente. Avant chaque démarrage, les anciennes lignes
+`kivou-ingest-decp.service` traite DECP par lots bornés à l'intérieur de journées
+calendaires. Le curseur versionné conserve le jour, le total observé et l'offset intra-journée
+dans `ingestion_checkpoint` après chaque lot persisté. Lorsque le
+jour est épuisé, le curseur avance au lendemain avec un offset nul. Un quota ou
+le budget de vingt minutes termine le passage avec succès et laisse explicitement
+du travail pour le prochain déclenchement. Une variation du total fournisseur
+réinitialise le jour à l'offset zéro ; le rejeu reste idempotent. Une mutation
+pendant un lot échoue en mode fermé sans avancer le curseur. Avant chaque démarrage,
+les anciennes lignes
 `running` sont fermées avec le code machine `stale_run_reconciled`, sans effacer
 les faits publics, les rapprochements ni les signaux déjà produits.
 
 Les limites viennent de `/etc/kivou/staging.env` :
-`KIVOU_DECP_MAX_WINDOWS_PER_RUN`, `KIVOU_DECP_TIME_BUDGET_SECONDS`,
+`KIVOU_DECP_MAX_WINDOWS_PER_RUN`, `KIVOU_DECP_BATCH_SIZE`,
+`KIVOU_DECP_TIME_BUDGET_SECONDS`,
 `KIVOU_DECP_OVERLAP_DAYS` et `KIVOU_INGESTION_STALE_RUN_SECONDS`. Elles doivent
 toutes être des entiers strictement positifs. Le verrou hôte vit dans
 `/run/kivou`, créé par `RuntimeDirectory`; une contention normale est un succès
-sans seconde exécution. Le timer est horaire et utilise `Persistent=true` : à
-deux journées maximum par passage, cette cadence reste supérieure à la journée
-qui s'ajoute au corpus et permet au cycle de recouvrement de converger.
+sans seconde exécution. `MAX_WINDOWS` reste le quota strict de journées
+finalisées ; les lots d'une même journée ne le consomment pas. Le timer est
+horaire et utilise `Persistent=true` ; chaque déclenchement reprend exactement
+l'offset durable du précédent passage.
 
 ### Installation et passage manuel
 

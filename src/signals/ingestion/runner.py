@@ -8,8 +8,9 @@ from typing import Any
 
 import sqlalchemy as sa
 
+from signals.connectors.decp import PAGE_SIZE as DECP_PAGE_SIZE
 from signals.ingestion.convergence import (
-    advance_decp_cycle,
+    advance_decp_batch,
     decp_checkpoint_high_water,
     next_decp_window,
     plan_decp_cycle,
@@ -39,6 +40,7 @@ class RunOptions:
     max_records: int | None = None
     dry_run: bool = False
     decp_max_windows_per_run: int | None = None
+    decp_batch_size: int = DECP_PAGE_SIZE
     decp_time_budget_seconds: float | None = None
     decp_overlap_days: int = 30
     ingestion_stale_run_seconds: int = 3600
@@ -205,6 +207,38 @@ class IngestionRunner:
             )
         return previous, run_id
 
+    def _acquire_decp_batch(
+        self,
+        source: ProductionSource,
+        window: Any,
+        options: RunOptions,
+        started: dt.datetime,
+        *,
+        offset: int,
+        expected_total: int | None,
+        batch_size: int,
+        deadline: float | None,
+    ):
+        for attempt in range(3):
+            try:
+                if attempt:
+                    self._check_decp_stop(deadline=deadline)
+                else:
+                    self._check_cancellation()
+                return source.acquire_batch(
+                    window,
+                    retrieved_at=started,
+                    offset=offset,
+                    expected_total=expected_total,
+                    batch_size=batch_size,
+                )
+            except Exception as error:
+                category = _category(error)
+                if category not in {"timeout", "network", "server_error"} or attempt == 2:
+                    raise
+                self.sleep(float(2**attempt))
+        raise AssertionError("bounded retry loop exhausted")  # pragma: no cover
+
     def _check_cancellation(self) -> None:
         if self.cancel_requested():
             raise IngestionTerminated("ingestion termination requested")
@@ -261,19 +295,36 @@ class IngestionRunner:
                 ):
                     work_pending = True
                     break
+                if (
+                    options.max_records is not None
+                    and total.records_fetched >= options.max_records
+                ):
+                    work_pending = True
+                    break
+                remaining_records = (
+                    options.max_records - total.records_fetched
+                    if options.max_records is not None
+                    else options.decp_batch_size
+                )
+                batch_size = min(options.decp_batch_size, remaining_records)
                 acquisition = None
+                batch = None
                 unit_pipeline = PipelineResult()
                 unit_accounted = False
                 self._check_decp_stop(deadline=deadline)
                 acquisition_error = None
                 try:
-                    acquisition = self._acquire(
+                    batch = self._acquire_decp_batch(
                         source,
                         window,
                         options,
                         started,
-                        should_stop=lambda: self._check_decp_stop(deadline=deadline),
+                        offset=cursor.offset,
+                        expected_total=cursor.window_total,
+                        batch_size=batch_size,
+                        deadline=deadline,
                     )
+                    acquisition = batch.acquisition
                 except AcquisitionFailure as error:
                     acquisition = error.partial
                     acquisition_error = error
@@ -286,12 +337,7 @@ class IngestionRunner:
                     IngestionTerminated.category,
                 }:
                     raise acquisition_error
-                if not acquisition.complete and acquisition_error is None:
-                    raise IncompleteSourceWindow(
-                        "selected DECP daily window was bounded before exhaustion"
-                    )
                 for publication in acquisition.publications:
-                    self._check_decp_stop(deadline=deadline)
                     try:
                         item = self.pipeline.process(
                             publication,
@@ -311,22 +357,39 @@ class IngestionRunner:
                 if acquisition_error is not None:
                     raise acquisition_error
 
-                cursor = advance_decp_cycle(cursor, window)
-                unit_finished = self.clock()
-                high_water = decp_checkpoint_high_water(
-                    previous=previous.window_end if previous else None,
-                    completed_window=window,
-                    requested_until=until,
+                assert batch is not None
+                cursor = advance_decp_batch(
+                    cursor,
+                    window,
+                    next_offset=batch.next_offset,
+                    window_total=batch.window_total,
+                    day_complete=batch.day_complete,
                 )
+                unit_finished = self.clock()
                 with self.engine.begin() as connection:
-                    advance_checkpoint(
-                        connection,
-                        source="decp",
-                        cursor=cursor.as_dict(),
-                        window_end=high_water,
-                        completed_at=unit_finished,
-                    )
-                completed_windows += 1
+                    if batch.day_complete:
+                        high_water = decp_checkpoint_high_water(
+                            previous=previous.window_end if previous else None,
+                            completed_window=window,
+                            requested_until=until,
+                        )
+                        advance_checkpoint(
+                            connection,
+                            source="decp",
+                            cursor=cursor.as_dict(),
+                            window_end=high_water,
+                            completed_at=unit_finished,
+                        )
+                    else:
+                        save_checkpoint_cursor(
+                            connection,
+                            source="decp",
+                            cursor=cursor.as_dict(),
+                            updated_at=unit_finished,
+                        )
+                if batch.day_complete:
+                    completed_windows += 1
+                self._check_cancellation()
 
             finished = self.clock()
             with self.engine.begin() as connection:
@@ -410,6 +473,8 @@ class IngestionRunner:
     def run(self, options: RunOptions) -> RunOutcome:
         if options.decp_max_windows_per_run is not None and options.decp_max_windows_per_run < 1:
             raise ValueError("DECP max windows must be positive")
+        if options.decp_batch_size < 1 or options.decp_batch_size > DECP_PAGE_SIZE:
+            raise ValueError(f"DECP batch size must be between 1 and {DECP_PAGE_SIZE}")
         if options.decp_time_budget_seconds is not None and options.decp_time_budget_seconds <= 0:
             raise ValueError("DECP time budget must be positive")
         if options.decp_overlap_days < 1:

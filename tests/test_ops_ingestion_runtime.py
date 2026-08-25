@@ -68,9 +68,11 @@ def test_application_budget_is_shorter_than_the_systemd_timeout() -> None:
     environment = ENVIRONMENT.read_text(encoding="utf-8")
 
     assert "KIVOU_DECP_MAX_WINDOWS_PER_RUN=2" in environment
+    assert "KIVOU_DECP_BATCH_SIZE=100" in environment
     assert "KIVOU_DECP_TIME_BUDGET_SECONDS=1200" in environment
     assert "KIVOU_DECP_OVERLAP_DAYS=30" in environment
     assert "KIVOU_INGESTION_STALE_RUN_SECONDS=3600" in environment
+    assert 1200 < 25 * 60
 
 
 def test_decp_operations_document_install_manual_proof_and_rollback() -> None:
@@ -82,6 +84,8 @@ def test_decp_operations_document_install_manual_proof_and_rollback() -> None:
     assert "systemctl start kivou-ingest-decp.service" in body
     assert "ingestion_checkpoint" in body
     assert "stale_run_reconciled" in body
+    assert "offset intra-journée" in body
+    assert "KIVOU_DECP_BATCH_SIZE" in body
     assert "systemctl disable --now kivou-ingest-decp.timer" in body
     assert "source /etc/kivou/staging.env" not in body
 

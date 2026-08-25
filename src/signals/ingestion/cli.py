@@ -6,6 +6,7 @@ import os
 import signal
 import threading
 
+from signals.connectors.decp import PAGE_SIZE as DECP_PAGE_SIZE
 from signals.ingestion.france import FranceLinker
 from signals.ingestion.pipeline import IngestionPipeline
 from signals.ingestion.runner import IngestionRunner, RunOptions, SourceOutcome
@@ -13,11 +14,13 @@ from signals.ingestion.sources import production_sources
 from signals.persistence.database import create_database_engine
 
 DECP_MAX_WINDOWS_ENV = "KIVOU_DECP_MAX_WINDOWS_PER_RUN"
+DECP_BATCH_SIZE_ENV = "KIVOU_DECP_BATCH_SIZE"
 DECP_TIME_BUDGET_ENV = "KIVOU_DECP_TIME_BUDGET_SECONDS"
 DECP_OVERLAP_DAYS_ENV = "KIVOU_DECP_OVERLAP_DAYS"
 INGESTION_STALE_RUN_ENV = "KIVOU_INGESTION_STALE_RUN_SECONDS"
 
 DEFAULT_DECP_MAX_WINDOWS_PER_RUN = 2
+DEFAULT_DECP_BATCH_SIZE = DECP_PAGE_SIZE
 DEFAULT_DECP_TIME_BUDGET_SECONDS = 1200
 DEFAULT_DECP_OVERLAP_DAYS = 30
 DEFAULT_INGESTION_STALE_RUN_SECONDS = 3600
@@ -62,6 +65,23 @@ def _environment_positive_integer(name: str, default: int) -> int:
         raise SystemExit(f"{name} must be a positive integer") from error
 
 
+def _decp_batch_size(value: str) -> int:
+    parsed = _positive_integer(value)
+    if parsed > DECP_PAGE_SIZE:
+        raise argparse.ArgumentTypeError(f"must be at most {DECP_PAGE_SIZE}")
+    return parsed
+
+
+def _environment_decp_batch_size() -> int:
+    raw = os.environ.get(DECP_BATCH_SIZE_ENV)
+    if raw is None:
+        return DEFAULT_DECP_BATCH_SIZE
+    try:
+        return _decp_batch_size(raw)
+    except argparse.ArgumentTypeError as error:
+        raise SystemExit(f"{DECP_BATCH_SIZE_ENV} {error}") from error
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m signals.ingestion")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -77,6 +97,7 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--max-records", type=int)
     run.add_argument("--dry-run", action="store_true")
     run.add_argument("--decp-max-windows-per-run", type=_positive_integer)
+    run.add_argument("--decp-batch-size", type=_decp_batch_size)
     run.add_argument("--decp-time-budget-seconds", type=_positive_integer)
     run.add_argument("--decp-overlap-days", type=_positive_integer)
     run.add_argument("--ingestion-stale-run-seconds", type=_positive_integer)
@@ -91,6 +112,7 @@ def main(argv: list[str] | None = None) -> int:
         DECP_MAX_WINDOWS_ENV,
         DEFAULT_DECP_MAX_WINDOWS_PER_RUN,
     )
+    decp_batch_size = arguments.decp_batch_size or _environment_decp_batch_size()
     decp_time_budget = arguments.decp_time_budget_seconds or _environment_positive_integer(
         DECP_TIME_BUDGET_ENV,
         DEFAULT_DECP_TIME_BUDGET_SECONDS,
@@ -129,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_records=arguments.max_records,
                 dry_run=arguments.dry_run,
                 decp_max_windows_per_run=decp_max_windows,
+                decp_batch_size=decp_batch_size,
                 decp_time_budget_seconds=decp_time_budget,
                 decp_overlap_days=decp_overlap_days,
                 ingestion_stale_run_seconds=stale_run_seconds,

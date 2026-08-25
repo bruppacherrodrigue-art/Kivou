@@ -85,6 +85,7 @@ def test_decp_runtime_limits_come_from_positive_environment_values(monkeypatch):
             return RunOutcome((), exit_code=0)
 
     monkeypatch.setenv("KIVOU_DECP_MAX_WINDOWS_PER_RUN", "4")
+    monkeypatch.setenv("KIVOU_DECP_BATCH_SIZE", "75")
     monkeypatch.setenv("KIVOU_DECP_TIME_BUDGET_SECONDS", "900")
     monkeypatch.setenv("KIVOU_DECP_OVERLAP_DAYS", "14")
     monkeypatch.setenv("KIVOU_INGESTION_STALE_RUN_SECONDS", "7200")
@@ -96,6 +97,7 @@ def test_decp_runtime_limits_come_from_positive_environment_values(monkeypatch):
     assert main(["run", "--source", "decp"]) == 0
     options = captured["options"]
     assert options.decp_max_windows_per_run == 4
+    assert options.decp_batch_size == 75
     assert options.decp_time_budget_seconds == 900
     assert options.decp_overlap_days == 14
     assert options.ingestion_stale_run_seconds == 7200
@@ -115,6 +117,7 @@ def test_cli_decp_limits_override_the_environment(monkeypatch):
 
     for name in (
         "KIVOU_DECP_MAX_WINDOWS_PER_RUN",
+        "KIVOU_DECP_BATCH_SIZE",
         "KIVOU_DECP_TIME_BUDGET_SECONDS",
         "KIVOU_DECP_OVERLAP_DAYS",
         "KIVOU_INGESTION_STALE_RUN_SECONDS",
@@ -133,6 +136,8 @@ def test_cli_decp_limits_override_the_environment(monkeypatch):
                 "decp",
                 "--decp-max-windows-per-run",
                 "3",
+                "--decp-batch-size",
+                "50",
                 "--decp-time-budget-seconds",
                 "600",
                 "--decp-overlap-days",
@@ -145,6 +150,7 @@ def test_cli_decp_limits_override_the_environment(monkeypatch):
     )
     options = captured["options"]
     assert options.decp_max_windows_per_run == 3
+    assert options.decp_batch_size == 50
     assert options.decp_time_budget_seconds == 600
     assert options.decp_overlap_days == 7
     assert options.ingestion_stale_run_seconds == 1800
@@ -154,6 +160,7 @@ def test_cli_decp_limits_override_the_environment(monkeypatch):
     "name",
     [
         "KIVOU_DECP_MAX_WINDOWS_PER_RUN",
+        "KIVOU_DECP_BATCH_SIZE",
         "KIVOU_DECP_TIME_BUDGET_SECONDS",
         "KIVOU_DECP_OVERLAP_DAYS",
         "KIVOU_INGESTION_STALE_RUN_SECONDS",
@@ -168,6 +175,17 @@ def test_decp_runtime_environment_rejects_non_positive_values(
     monkeypatch.setenv(name, value)
 
     with pytest.raises(SystemExit, match="must be a positive integer"):
+        main(["run", "--source", "decp"])
+
+
+@pytest.mark.parametrize("value", ["101", "1000"])
+def test_decp_batch_size_rejects_values_above_the_provider_page_size(
+    monkeypatch,
+    value,
+):
+    monkeypatch.setenv("KIVOU_DECP_BATCH_SIZE", value)
+
+    with pytest.raises(SystemExit, match="at most 100"):
         main(["run", "--source", "decp"])
 
 
