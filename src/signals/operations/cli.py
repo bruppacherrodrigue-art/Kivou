@@ -5,7 +5,15 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import re
+import sys
 
+from pydantic import ValidationError
+
+from signals.acquisition_runtime.authorization import (
+    AcquisitionRuntimeApprovalStore,
+    ApprovalError,
+    RuntimeApprovalStatus,
+)
 from signals.api.config import resolve_acquisition_environment
 from signals.operations.safety_controller import SafetyController
 from signals.operations.service import OperationsReadService
@@ -25,6 +33,16 @@ def _parser() -> argparse.ArgumentParser:
     commands.add_parser("readiness", help="read H-A…H-G autonomy readiness")
     commands.add_parser("incidents", help="list bounded operational incident refs")
     commands.add_parser("dead-letters", help="list bounded dead-letter refs")
+    commands.add_parser(
+        "list-runtime-approvals",
+        help="list bounded pending runtime approval metadata",
+    )
+    approve = commands.add_parser(
+        "approve-runtime-approval",
+        help="approve one exact durable runtime request",
+    )
+    approve.add_argument("--approval-id", required=True)
+    approve.add_argument("--actor-ref", required=True)
     stop = commands.add_parser(
         "activate-kill-switch",
         help="append SHADOW + kill-switch + READ ONLY Policy authority",
@@ -47,6 +65,34 @@ def main(argv: list[str] | None = None) -> int:
     service = OperationsReadService(
         engine, environment_identity=resolve_acquisition_environment()
     )
+    if arguments.command == "list-runtime-approvals":
+        approvals = AcquisitionRuntimeApprovalStore(engine).list_approvals(
+            status=RuntimeApprovalStatus.PENDING,
+        )
+        print(f"runtime_approvals pending={len(approvals)}")
+        for approval in approvals:
+            print(
+                f"approval_id={approval.approval_id} "
+                f"stage={approval.binding.stage.value} "
+                f"status={approval.status.value} "
+                f"expires_at={approval.binding.expires_at.isoformat()}"
+            )
+        return 0
+    if arguments.command == "approve-runtime-approval":
+        try:
+            approval = AcquisitionRuntimeApprovalStore(engine).approve(
+                arguments.approval_id,
+                approved_by_actor_ref=arguments.actor_ref,
+                at=now,
+            )
+        except (ApprovalError, ValidationError, ValueError):
+            print("runtime_approval_invalid", file=sys.stderr)
+            return 2
+        print(
+            f"runtime_approval approval_id={approval.approval_id} "
+            f"stage={approval.binding.stage.value} status={approval.status.value}"
+        )
+        return 0
     if arguments.command == "health":
         health = service.health(observed_at=now)
         print(

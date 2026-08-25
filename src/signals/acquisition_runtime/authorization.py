@@ -221,6 +221,31 @@ class AcquisitionRuntimeApprovalStore:
                 raise ApprovalStateConflict(approval_id)
             return _grant(row)
 
+    def list_approvals(
+        self,
+        *,
+        status: RuntimeApprovalStatus | None = None,
+        limit: int = 100,
+    ) -> tuple[RuntimeApprovalSnapshot, ...]:
+        """Return bounded approval metadata for the internal operator CLI."""
+
+        if not 1 <= limit <= 100:
+            raise ValueError("runtime approval limit must be between 1 and 100")
+        statement = sa.select(acquisition_runtime_approval)
+        if status is not None:
+            statement = statement.where(
+                acquisition_runtime_approval.c.state == status.value
+            )
+        statement = statement.order_by(
+            acquisition_runtime_approval.c.requested_at,
+            acquisition_runtime_approval.c.approval_id,
+        ).limit(limit)
+        with self.engine.connect() as connection:
+            return tuple(
+                _snapshot(row)
+                for row in connection.execute(statement).mappings().all()
+            )
+
 
 def _approval_id(request_ref: str) -> str:
     material = f"acquisition-runtime-approval-v1\0{request_ref}"
