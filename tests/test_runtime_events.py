@@ -175,10 +175,13 @@ def test_runtime_event_schema_has_no_arbitrary_data_escape_hatch() -> None:
 def test_formatter_rejects_direct_pii_payloads(
     isolated_runtime_logger,
 ) -> None:
-    from signals.runtime_events import configure_runtime_event_logging
+    from signals.runtime_events import (
+        configure_runtime_event_logging,
+        emit_delivery_event,
+    )
 
     private_email = "direct-private-recipient@kivou.test"
-    private_token = "direct-private-token"
+    private_token = "direct_private_token"
     stream = io.StringIO()
     logger = configure_runtime_event_logging(stream=stream)
 
@@ -190,10 +193,9 @@ def test_formatter_rejects_direct_pii_payloads(
                 "event": "delivery",
                 "channel": "alert",
                 "status": "failed",
-                "code": private_email,
+                "code": private_token,
                 "retryable": False,
                 "attempt": 1,
-                "token": private_token,
             }
         },
     )
@@ -208,6 +210,20 @@ def test_formatter_rejects_direct_pii_payloads(
         "status": "failed",
     }
     assert private_email not in stream.getvalue()
+    assert private_token not in stream.getvalue()
+
+    stream.seek(0)
+    stream.truncate()
+    emit_delivery_event(
+        channel="alert",
+        status="failed",
+        code=private_token,
+        retryable=False,
+        attempt=1,
+    )
+
+    payload = json.loads(stream.getvalue())
+    assert payload["code"] == "invalid_runtime_value"
     assert private_token not in stream.getvalue()
 
 

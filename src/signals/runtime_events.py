@@ -15,8 +15,41 @@ from typing import TextIO
 
 LOGGER_NAME = "signals.runtime_events"
 _HANDLER_MARKER = "_kivou_runtime_events"
-_SAFE_CODE = re.compile(r"^[a-z0-9_]{1,64}$")
 _SAFE_REF = re.compile(r"^[A-Za-z0-9_:-]{1,128}$")
+_SMTP_STATUS_CODE = re.compile(r"^smtp_[1-5][0-9]{2}$")
+_SAFE_CHANNELS = frozenset({"alert", "password_reset", "invalid_runtime_value"})
+_SAFE_STATUSES = frozenset(
+    {
+        "blocked",
+        "failed",
+        "persistence_failed",
+        "submitted",
+        "suppressed",
+        "unknown_delivery_state",
+        "invalid_runtime_value",
+    }
+)
+_SAFE_CODES = frozenset(
+    {
+        "attempt_budget_exhausted",
+        "delivery_state_persistence_failed",
+        "entitlement_lost",
+        "invalid_runtime_value",
+        "notifications_disabled",
+        "public_app_url_missing",
+        "recipient_context_changed",
+        "recipient_context_unverifiable",
+        "signal_inaccessible",
+        "smtp_authentication_failed",
+        "smtp_recipient_refusal_unclassified",
+        "smtp_recipient_refused",
+        "smtp_submission_accepted",
+        "smtp_tls_failed",
+        "smtp_unavailable",
+        "unexpected_error",
+        "unknown_delivery_state",
+    }
+)
 _REQUIRED_KEYS = frozenset(
     {"event", "channel", "status", "code", "retryable", "attempt"}
 )
@@ -64,9 +97,9 @@ def emit_delivery_event(
 
     payload: dict[str, str | bool | int] = {
         "event": "delivery",
-        "channel": _safe_code(channel),
-        "status": _safe_code(status),
-        "code": _safe_code(code),
+        "channel": _safe_member(channel, _SAFE_CHANNELS),
+        "status": _safe_member(status, _SAFE_STATUSES),
+        "code": _safe_delivery_code(code),
         "retryable": bool(retryable),
         "attempt": max(0, int(attempt)),
     }
@@ -77,12 +110,20 @@ def emit_delivery_event(
     logging.getLogger(LOGGER_NAME).info("delivery", extra={"runtime_event": payload})
 
 
-def _safe_code(value: str) -> str:
+def _safe_member(value: str, allowed: frozenset[str]) -> str:
     return (
         value
-        if isinstance(value, str) and _SAFE_CODE.fullmatch(value)
+        if isinstance(value, str) and value in allowed
         else "invalid_runtime_value"
     )
+
+
+def _safe_delivery_code(value: str) -> str:
+    if isinstance(value, str) and (
+        value in _SAFE_CODES or _SMTP_STATUS_CODE.fullmatch(value)
+    ):
+        return value
+    return "invalid_runtime_value"
 
 
 def _safe_ref(value: str) -> str:
@@ -99,9 +140,12 @@ def _validated_payload(value: object) -> dict[str, str | bool | int]:
     if isinstance(value, dict) and _REQUIRED_KEYS <= value.keys() <= _ALLOWED_KEYS:
         attempt = value["attempt"]
         retryable = value["retryable"]
-        codes_are_safe = all(
-            isinstance(value[key], str) and _SAFE_CODE.fullmatch(value[key])
-            for key in ("channel", "status", "code")
+        codes_are_safe = (
+            isinstance(value["channel"], str)
+            and value["channel"] in _SAFE_CHANNELS
+            and isinstance(value["status"], str)
+            and value["status"] in _SAFE_STATUSES
+            and _safe_delivery_code(value["code"]) == value["code"]
         )
         refs_are_safe = all(
             key not in value
