@@ -54,8 +54,10 @@ def _official_events() -> dict[str, dict[str, object]]:
     return json.loads(FIXTURE_PATH.read_text())["events"]
 
 
-def _queued(tmp_path):
-    engine, opportunity_id, campaign_service, _provider, worker, result = _planned(tmp_path)
+def _queued(tmp_path, *, recipient_override=None):
+    engine, opportunity_id, campaign_service, _provider, worker, result = _planned(
+        tmp_path, recipient_override=recipient_override
+    )
     worker.process(_operation(engine, ProviderOperationKind.CREATE_CAMPAIGN)["operation_ref"], RECEIVED)
     worker.process(_operation(engine, ProviderOperationKind.CONFIGURE_CAMPAIGN)["operation_ref"], RECEIVED)
     worker.process(_operation(engine, ProviderOperationKind.ADD_LEAD)["operation_ref"], RECEIVED)
@@ -646,6 +648,58 @@ def test_unmatched_transient_email_binding_fails_safe(tmp_path) -> None:
         assert connection.scalar(
             sa.select(sa.func.count()).select_from(acquisition_provider_event)
         ) == 0
+
+
+def test_qa_transport_identity_binds_webhook_without_persisting_address(tmp_path) -> None:
+    from test_campaign_worker import _ControlledRecipientOverride
+
+    override = _ControlledRecipientOverride()
+    engine, opportunity_id, result = _queued(
+        tmp_path, recipient_override=override
+    )
+
+    outcome = _service(engine).ingest(
+        _event(result, lead_email="qa-controlled@example.com"),
+        received_at=RECEIVED,
+    )
+
+    assert outcome.replayed is False
+    assert AcquisitionStore(engine).get_opportunity(opportunity_id).state is AcquisitionState.SENT
+    with engine.connect() as connection:
+        member = connection.execute(sa.select(acquisition_campaign_member)).mappings().one()
+        provider_event = connection.execute(sa.select(acquisition_provider_event)).mappings().one()
+    assert member["transport_recipient_identity"] == override.transport_recipient_identity
+    assert member["transport_recipient_key_version"] == override.transport_key_version
+    assert "qa-controlled@example.com" not in repr(dict(member))
+    assert "qa-controlled@example.com" not in repr(dict(provider_event))
+
+
+def test_qa_unsubscribe_never_suppresses_discovered_real_contact(tmp_path) -> None:
+    from test_campaign_worker import _ControlledRecipientOverride
+
+    engine, _, result = _queued(
+        tmp_path, recipient_override=_ControlledRecipientOverride()
+    )
+
+    outcome = _service(engine).ingest(
+        _event(
+            result,
+            event_type="lead_unsubscribed",
+            email_id="provider-qa-unsubscribe-1",
+            lead_email="qa-controlled@example.com",
+        ),
+        received_at=RECEIVED,
+    )
+
+    with engine.connect() as connection:
+        member = connection.execute(sa.select(acquisition_campaign_member)).mappings().one()
+        suppression_count = connection.scalar(
+            sa.select(sa.func.count()).select_from(acquisition_contact_suppression)
+        )
+    assert outcome.incident_code == "QA_TRANSPORT_SUPPRESSION_NOT_PROPAGATED"
+    assert suppression_count == 0
+    assert member["execution_state"] == "STOPPED"
+    assert member["sequence_state"] == "STOPPED"
 
 
 def test_unsubscribe_creates_hard_suppression_before_stopping_sequence(tmp_path) -> None:

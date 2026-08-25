@@ -1383,6 +1383,8 @@ acquisition_campaign_member = sa.Table(
     sa.Column("mailbox_readiness_fingerprint", sa.String(64), nullable=False),
     sa.Column("provider_lead_id", sa.String(128)),
     sa.Column("provider_binding_fingerprint", sa.String(64)),
+    sa.Column("transport_recipient_identity", sa.String(64)),
+    sa.Column("transport_recipient_key_version", sa.String(64)),
     sa.Column("step_1_execution_date", sa.Date, nullable=False),
     sa.Column("step_1_authorization_deadline", sa.DateTime(timezone=True), nullable=False),
     sa.Column("step_2_execution_date", sa.Date, nullable=False),
@@ -1419,6 +1421,13 @@ acquisition_campaign_member = sa.Table(
         "(sequence_timing_fingerprint IS NOT NULL AND step_1_sent_at IS NOT NULL "
         "AND step_2_due_at IS NOT NULL)",
         name="ck_campaign_member_timing_write",
+    ),
+    sa.CheckConstraint(
+        "(transport_recipient_identity IS NULL AND "
+        "transport_recipient_key_version IS NULL) OR "
+        "(transport_recipient_identity IS NOT NULL AND "
+        "transport_recipient_key_version IS NOT NULL)",
+        name="ck_campaign_member_transport_identity",
     ),
     sa.Index("ix_campaign_member_campaign_state", "campaign_ref", "execution_state"),
 )

@@ -274,7 +274,12 @@ class InstantlyWebhookService:
             if payload.lead_email_transient is not None:
                 normalized = payload.lead_email_transient
                 candidates = connection.execute(
-                    sa.select(acquisition_campaign_member)
+                    sa.select(
+                        acquisition_campaign_member,
+                        acquisition_contact.c.business_email.label(
+                            "discovered_business_email"
+                        ),
+                    )
                     .join(
                         acquisition_contact,
                         acquisition_contact.c.contact_ref
@@ -282,14 +287,24 @@ class InstantlyWebhookService:
                     )
                     .where(
                         acquisition_campaign_member.c.campaign_ref
-                        == campaign["campaign_ref"],
-                        sa.func.lower(sa.func.trim(acquisition_contact.c.business_email))
-                        == normalized,
+                        == campaign["campaign_ref"]
                     )
                 ).mappings().all()
-                if len(candidates) == 1:
-                    member = candidates[0]
-                elif len(candidates) > 1:
+                identities = self._suppression_keyring.identities_for_email(
+                    normalized
+                )
+                matching = [
+                    candidate
+                    for candidate in candidates
+                    if self._matches_transport_identity(
+                        candidate,
+                        normalized_email=normalized,
+                        identities=identities,
+                    )
+                ]
+                if len(matching) == 1:
+                    member = matching[0]
+                elif len(matching) > 1:
                     raise WebhookBindingError("provider lead identity is ambiguous")
             member_required = payload.event_type is not None and payload.event_type not in {
                 ProviderEventType.CAMPAIGN_COMPLETED,
@@ -340,15 +355,18 @@ class InstantlyWebhookService:
                 )
             elif payload.event_type is ProviderEventType.LEAD_UNSUBSCRIBED:
                 assert member is not None
-                evidence_ref = f"suppression-evidence:{fingerprint}"
-                self._suppressions.record_for_contact_in_transaction(
-                    connection,
-                    member["contact_ref"],
-                    source=SuppressionSource.UNSUBSCRIBE,
-                    reason_code=SuppressionReasonCode.UNSUBSCRIBED,
-                    evidence_ref=evidence_ref,
-                    received_at=payload.timestamp,
-                )
+                if member["transport_recipient_identity"] is None:
+                    evidence_ref = f"suppression-evidence:{fingerprint}"
+                    self._suppressions.record_for_contact_in_transaction(
+                        connection,
+                        member["contact_ref"],
+                        source=SuppressionSource.UNSUBSCRIBE,
+                        reason_code=SuppressionReasonCode.UNSUBSCRIBED,
+                        evidence_ref=evidence_ref,
+                        received_at=payload.timestamp,
+                    )
+                else:
+                    incident = "QA_TRANSPORT_SUPPRESSION_NOT_PROPAGATED"
                 self._stop_member(
                     connection,
                     campaign,
@@ -439,6 +457,27 @@ class InstantlyWebhookService:
                 incident_code=incident,
                 response_ref=response_ref,
             )
+
+    @staticmethod
+    def _matches_transport_identity(
+        candidate,
+        *,
+        normalized_email: str,
+        identities: dict[str, str],
+    ) -> bool:
+        stored_identity = candidate["transport_recipient_identity"]
+        stored_version = candidate["transport_recipient_key_version"]
+        if stored_identity is None and stored_version is None:
+            return (
+                normalize_business_email(candidate["discovered_business_email"])
+                == normalized_email
+            )
+        if stored_identity is None or stored_version is None:
+            raise WebhookBindingError("transport recipient binding is incomplete")
+        observed = identities.get(stored_version)
+        if observed is None:
+            raise WebhookBindingError("transport recipient key is unavailable")
+        return hmac.compare_digest(observed, stored_identity)
 
     def _fingerprints(self, payload: InstantlyWebhookPayload) -> dict[str, str]:
         stable: dict[str, object] = {

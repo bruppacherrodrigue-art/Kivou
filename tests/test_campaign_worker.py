@@ -168,7 +168,7 @@ class FakeInstantly:
         return {"id": provider_lead_id, "status": 2}
 
 
-def _planned(tmp_path, **provider_options):
+def _planned(tmp_path, *, recipient_override=None, **provider_options):
     engine, opportunity_id, _, _ = _prepared(tmp_path)
     PolicyStore(engine).append_control(
         control(
@@ -221,8 +221,60 @@ def _planned(tmp_path, **provider_options):
         campaign_service=service,
         deployment=deployment,
         worker_ref="worker:test",
+        recipient_override=recipient_override,
     )
     return engine, opportunity_id, service, provider, worker, result
+
+
+class _ControlledRecipientOverride:
+    def __init__(self) -> None:
+        self.observed: list[str] = []
+        keyring = _keyring()
+        self.transport_key_version = keyring.current_key_version
+        self.transport_recipient_identity = keyring.identities_for_email(
+            "qa-controlled@example.com"
+        )[keyring.current_key_version]
+
+    def resolve(self, discovered_email: str) -> str:
+        self.observed.append(discovered_email)
+        return "qa-controlled@example.com"
+
+
+def test_staging_recipient_override_never_exposes_discovered_address_to_provider(
+    tmp_path,
+) -> None:
+    override = _ControlledRecipientOverride()
+    engine, _, _, provider, worker, _ = _planned(
+        tmp_path,
+        recipient_override=override,
+        add_timeout=True,
+    )
+    worker.process(
+        _operation(engine, ProviderOperationKind.CREATE_CAMPAIGN)["operation_ref"],
+        NOW,
+    )
+    worker.process(
+        _operation(engine, ProviderOperationKind.CONFIGURE_CAMPAIGN)["operation_ref"],
+        NOW,
+    )
+    add_ref = _operation(engine, ProviderOperationKind.ADD_LEAD)["operation_ref"]
+
+    first = worker.process(add_ref, NOW)
+    replay = worker.process(add_ref, NOW + dt.timedelta(seconds=1))
+
+    with engine.connect() as connection:
+        discovered = connection.scalar(sa.select(acquisition_contact.c.business_email))
+        member = connection.execute(sa.select(acquisition_campaign_member)).mappings().one()
+    assert discovered != "qa-controlled@example.com"
+    assert override.observed == [discovered, discovered]
+    assert first is ProviderOperationState.RECONCILE_REQUIRED
+    assert replay is ProviderOperationState.CONFIRMED
+    assert provider.add_calls == 1
+    assert provider.leads[0]["email"] == "qa-controlled@example.com"
+    assert discovered not in repr(provider.leads)
+    assert member["transport_recipient_identity"] == override.transport_recipient_identity
+    assert member["transport_recipient_key_version"] == override.transport_key_version
+    assert "qa-controlled@example.com" not in repr(dict(member))
 
 
 def _operation(engine, kind: ProviderOperationKind):

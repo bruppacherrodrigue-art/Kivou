@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import datetime as dt
+import re
 from enum import StrEnum
+from typing import Protocol
 
 import sqlalchemy as sa
+from pydantic import EmailStr, TypeAdapter
 
 from signals.campaigns.contracts import (
     CampaignDeploymentConfig,
@@ -37,6 +40,15 @@ from signals.persistence.schema import (
 class SendAuthorization(StrEnum):
     AUTHORIZED = "AUTHORIZED"
     UNAUTHORIZED = "UNAUTHORIZED"
+
+
+class CampaignRecipientOverride(Protocol):
+    """Resolve the transport-only recipient without changing contact truth."""
+
+    transport_recipient_identity: str
+    transport_key_version: str
+
+    def resolve(self, discovered_email: str) -> str: ...
 
 
 def classify_email_sent(
@@ -74,12 +86,14 @@ class CampaignWorker:
         campaign_service: CampaignService,
         deployment: CampaignDeploymentConfig,
         worker_ref: str,
+        recipient_override: CampaignRecipientOverride | None = None,
     ) -> None:
         self._engine = engine
         self._provider = provider
         self._service = campaign_service
         self._deployment = deployment
         self._worker_ref = worker_ref
+        self._recipient_override = recipient_override
         self._store = CampaignStore(engine)
 
     def process(self, operation_ref: str, now: dt.datetime) -> ProviderOperationState:
@@ -1008,8 +1022,21 @@ class CampaignWorker:
         )
         if envelope.envelope_fingerprint != member["envelope_fingerprint"]:
             raise CampaignInputChanged("provider envelope differs from authorized envelope")
+        discovered_email = str(contact.business_email)
+        recipient = (
+            self._recipient_override.resolve(discovered_email)
+            if self._recipient_override is not None
+            else discovered_email
+        )
+        recipient = str(TypeAdapter(EmailStr).validate_python(recipient)).casefold()
+        if self._recipient_override is not None:
+            self._bind_transport_recipient_identity(
+                str(member["member_ref"]),
+                identity=self._recipient_override.transport_recipient_identity,
+                key_version=self._recipient_override.transport_key_version,
+            )
         return {
-            "email": contact.business_email,
+            "email": recipient,
             "custom_variables": {
                 **envelope.custom_variables,
                 "kivou_follow_up": envelope.follow_up_body,
@@ -1017,6 +1044,42 @@ class CampaignWorker:
             },
             "skip_if_in_workspace": True,
         }
+
+    def _bind_transport_recipient_identity(
+        self,
+        member_ref: str,
+        *,
+        identity: str,
+        key_version: str,
+    ) -> None:
+        if re.fullmatch(r"[0-9a-f]{64}", identity) is None:
+            raise CampaignInputChanged("transport recipient identity is invalid")
+        if (
+            not key_version
+            or len(key_version) > 64
+            or key_version != key_version.strip()
+        ):
+            raise CampaignInputChanged("transport recipient key version is invalid")
+        with self._engine.begin() as connection:
+            current = connection.execute(
+                sa.select(
+                    acquisition_campaign_member.c.transport_recipient_identity,
+                    acquisition_campaign_member.c.transport_recipient_key_version,
+                )
+                .where(acquisition_campaign_member.c.member_ref == member_ref)
+                .with_for_update()
+            ).one()
+            if current[0] is None and current[1] is None:
+                connection.execute(
+                    sa.update(acquisition_campaign_member)
+                    .where(acquisition_campaign_member.c.member_ref == member_ref)
+                    .values(
+                        transport_recipient_identity=identity,
+                        transport_recipient_key_version=key_version,
+                    )
+                )
+            elif current != (identity, key_version):
+                raise CampaignInputChanged("transport recipient binding changed")
 
     @staticmethod
     def _lead_binding_matches(
