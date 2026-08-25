@@ -43,7 +43,7 @@ def _proposal(stage: AcquisitionRuntimeStage, **updates) -> RuntimeProposal:
         "plan_ref": "plan-001",
         "action_index": 0,
         "command": stage.command,
-        "target_ref": "signal-001",
+        "target_ref": "cycle-001",
         "argument_fingerprint": "a" * 64,
         "estimated_cost": Decimal("0.25"),
         "reason_codes": ("QA_RUNTIME_STEP",),
@@ -97,6 +97,30 @@ def test_registry_executes_only_the_exact_stage_command_and_target() -> None:
     assert calls[0].stage_snapshot.attempt_ref
     assert calls[0].stage_snapshot.result_refs == ("prior-result-001",)
     assert calls[0].allow_qa_provider_mutations is False
+
+
+def test_registry_uses_the_opaque_cycle_ref_not_the_public_opportunity_key() -> None:
+    calls: list[AcquisitionActionContext] = []
+    registry = AcquisitionActionRegistry(_handlers(calls))
+    stage = AcquisitionRuntimeStage.SIGNAL_SEED
+
+    result = registry.execute(
+        stage,
+        _proposal(stage, target_ref=CYCLE.opportunity_key),
+        CYCLE,
+        stage_snapshot=RuntimeStageSnapshot(
+            cycle_ref=CYCLE.cycle_ref,
+            stage=stage,
+            status=RuntimeStageStatus.RUNNING,
+            attempt_count=1,
+        ),
+        allow_qa_provider_mutations=False,
+        at=NOW,
+    )
+
+    assert result.status is RuntimeStageStatus.BLOCKED
+    assert result.reason_codes == ("REGISTRY_TARGET_MISMATCH",)
+    assert calls == []
 
 
 @pytest.mark.parametrize(

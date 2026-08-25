@@ -75,7 +75,7 @@ class AcquisitionActionRegistry:
                 status=RuntimeStageStatus.BLOCKED,
                 reason_codes=("REGISTRY_COMMAND_MISMATCH",),
             )
-        if proposal.target_ref != cycle.opportunity_key:
+        if proposal.target_ref != cycle.cycle_ref:
             return RuntimeActionResult(
                 status=RuntimeStageStatus.BLOCKED,
                 reason_codes=("REGISTRY_TARGET_MISMATCH",),
