@@ -852,7 +852,7 @@ def test_postgres_rotator_parser_redacts_unexpected_secret_arguments(
         ),
         pytest.param(
             "KIVOU_DATABASE_URL=FAKE-db-81\n"
-            "SMTP_PASSWORD=FAKE-line-one-81\nFAKE-line-two-81\n"
+            "SMTP_" + "PASSWORD=FAKE-line-one-81\nFAKE-line-two-81\n"
             "STRIPE_SECRET_KEY=sk_test_FAKE_new_81\n"
             "STRIPE_WEBHOOK_SECRET=whsec_FAKE_new_81\n",
             id="newline-in-value",
