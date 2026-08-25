@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — déclenchement DECP toutes les douze heures
+
+[Timer]
+OnCalendar=*-*-* 00,12:35:00
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=60
+Unit=kivou-ingest-decp.service
+
+[Install]
+WantedBy=timers.target
