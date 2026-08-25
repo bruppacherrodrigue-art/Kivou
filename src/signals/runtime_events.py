@@ -17,20 +17,15 @@ LOGGER_NAME = "signals.runtime_events"
 _HANDLER_MARKER = "_kivou_runtime_events"
 _SAFE_CODE = re.compile(r"^[a-z0-9_]{1,64}$")
 _SAFE_REF = re.compile(r"^[A-Za-z0-9_:-]{1,128}$")
+_REQUIRED_KEYS = frozenset(
+    {"event", "channel", "status", "code", "retryable", "attempt"}
+)
+_ALLOWED_KEYS = _REQUIRED_KEYS | {"account_ref", "signal_ref"}
 
 
 class _CompactJsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        payload = getattr(record, "runtime_event", None)
-        if not isinstance(payload, dict):
-            payload = {
-                "event": "delivery",
-                "channel": "runtime",
-                "status": "failed",
-                "code": "invalid_runtime_event",
-                "retryable": False,
-                "attempt": 0,
-            }
+        payload = _validated_payload(getattr(record, "runtime_event", None))
         return json.dumps(
             payload,
             ensure_ascii=True,
@@ -82,8 +77,51 @@ def emit_delivery_event(
 
 
 def _safe_code(value: str) -> str:
-    return value if _SAFE_CODE.fullmatch(value) else "invalid_runtime_value"
+    return (
+        value
+        if isinstance(value, str) and _SAFE_CODE.fullmatch(value)
+        else "invalid_runtime_value"
+    )
 
 
 def _safe_ref(value: str) -> str:
-    return value if _SAFE_REF.fullmatch(value) else "invalid_ref"
+    return (
+        value
+        if isinstance(value, str) and _SAFE_REF.fullmatch(value)
+        else "invalid_ref"
+    )
+
+
+def _validated_payload(value: object) -> dict[str, str | bool | int]:
+    """Copy only a complete, typed event; direct logger calls cannot leak data."""
+
+    if isinstance(value, dict) and _REQUIRED_KEYS <= value.keys() <= _ALLOWED_KEYS:
+        attempt = value["attempt"]
+        retryable = value["retryable"]
+        codes_are_safe = all(
+            isinstance(value[key], str) and _SAFE_CODE.fullmatch(value[key])
+            for key in ("channel", "status", "code")
+        )
+        refs_are_safe = all(
+            key not in value
+            or (isinstance(value[key], str) and _SAFE_REF.fullmatch(value[key]))
+            for key in ("account_ref", "signal_ref")
+        )
+        if (
+            value["event"] == "delivery"
+            and codes_are_safe
+            and refs_are_safe
+            and isinstance(retryable, bool)
+            and isinstance(attempt, int)
+            and not isinstance(attempt, bool)
+            and attempt >= 0
+        ):
+            return {key: value[key] for key in value}
+    return {
+        "event": "delivery",
+        "channel": "runtime",
+        "status": "failed",
+        "code": "invalid_runtime_event",
+        "retryable": False,
+        "attempt": 0,
+    }
