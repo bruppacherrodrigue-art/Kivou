@@ -37,6 +37,7 @@ def _document(**updates: object) -> dict[str, object]:
         "mode": "SHADOW",
         "qa_only": True,
         "allowed_opportunity_keys": ["opportunity-qa-001"],
+        "qa_scope": {"country": "CH", "language": "fr", "wedge": "construction"},
         "qa_recipient_identity_hmac": _recipient_hmac(),
         "qa_recipient_key_version": "qa-recipient-key-v1",
         "qa_provider_mutations_capable": True,

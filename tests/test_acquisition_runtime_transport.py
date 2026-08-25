@@ -33,6 +33,11 @@ def _config(tmp_path):
                 "mode": "SHADOW",
                 "qa_only": True,
                 "allowed_opportunity_keys": ["signal-qa-001"],
+                "qa_scope": {
+                    "country": "CH",
+                    "language": "fr",
+                    "wedge": "construction",
+                },
                 "qa_recipient_identity_hmac": binding,
                 "qa_recipient_key_version": "qa-recipient-key-v1",
                 "qa_provider_mutations_capable": True,

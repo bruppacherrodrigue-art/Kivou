@@ -17,6 +17,7 @@ from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeConfig,
     AcquisitionRuntimeDeployment,
     AcquisitionRuntimeLimits,
+    RuntimeQaScope,
     AcquisitionRuntimeStage,
 )
 from signals.campaigns.contracts import CampaignDeploymentConfig
@@ -66,6 +67,9 @@ def _runtime_config() -> AcquisitionRuntimeConfig:
         deployment=AcquisitionRuntimeDeployment(
             qa_only=True,
             allowed_opportunity_keys=("signal-qa-001",),
+            qa_scope=RuntimeQaScope(
+                country="CH", language="fr", wedge="construction"
+            ),
             qa_recipient_identity_hmac=binding,
             qa_recipient_key_version="runtime-qa-v1",
             qa_provider_mutations_capable=True,

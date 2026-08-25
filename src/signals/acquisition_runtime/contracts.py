@@ -239,6 +239,14 @@ class AcquisitionRuntimeLimits(_FrozenModel):
         return self
 
 
+class RuntimeQaScope(_FrozenModel):
+    """Exact operator-owned scope; no runtime heuristic may derive it."""
+
+    country: Literal["CH", "FR"]
+    language: Literal["fr", "en"]
+    wedge: OpaqueRef
+
+
 class AcquisitionRuntimeDeployment(_FrozenModel):
     schema_version: Literal["acquisition-runtime-v1"] = (
         ACQUISITION_RUNTIME_SCHEMA_VERSION
@@ -246,6 +254,7 @@ class AcquisitionRuntimeDeployment(_FrozenModel):
     mode: Literal[RuntimeExecutionMode.SHADOW] = RuntimeExecutionMode.SHADOW
     qa_only: Literal[True]
     allowed_opportunity_keys: tuple[OpaqueRef, ...] = Field(min_length=1, max_length=8)
+    qa_scope: RuntimeQaScope
     qa_recipient_identity_hmac: Fingerprint = Field(repr=False)
     qa_recipient_key_version: OpaqueRef
     qa_provider_mutations_capable: Literal[True]
@@ -389,6 +398,7 @@ __all__ = [
     "RuntimeHermesIdentityEvidence",
     "RuntimeLeaseResult",
     "RuntimeProposal",
+    "RuntimeQaScope",
     "RuntimeRunRequest",
     "RuntimeRunResult",
     "RuntimeRunStatus",
