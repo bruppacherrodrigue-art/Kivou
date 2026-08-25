@@ -301,20 +301,37 @@ pour compatibilité, mais ils ne sont plus l'autorité : la configuration l'est.
 
 ### Le rapport
 
+> **Correction (2026-08-24, RTL-05).** Cette section annonçait que
+> `KIVOU_PUBLIC_APP_URL` **devait inclure** le préfixe `/app`. C'est FAUX, et
+> la consigne était dangereuse. Elle décrivait un constructeur qui n'existe
+> plus : `signal_url()` ajoute lui-même `/app`. La variable désigne la **racine
+> publique du site**. Le texte d'origine est conservé ci-dessous, barré, parce
+> que staging portait exactement la valeur qu'il recommandait.
+
 ```text
 Route navigateur du signal :   /app/signals/{signal_key}
-Construction du job d'alerte : {KIVOU_PUBLIC_APP_URL}/signals/{signal_key}
+Construction réelle du job :   {KIVOU_PUBLIC_APP_URL}/app/signals/{signal_key}
 ```
 
-La base **doit donc inclure le préfixe `/app`** :
+La base **ne doit donc PAS inclure** le préfixe `/app` :
 
 ```bash
-KIVOU_PUBLIC_APP_URL=https://kivou.eu/app
-  → https://kivou.eu/app/signals/{signal_key}
+KIVOU_PUBLIC_APP_URL=https://kivou.eu
+  → https://kivou.eu/app/signals/{signal_key}   ✅
+  → https://kivou.eu/reset-password?token=…     ✅
+  → https://kivou.eu/app/notifications          ✅
+
+KIVOU_PUBLIC_APP_URL=https://kivou.eu/app       ❌ ce que recommandait ce rapport
+  → https://kivou.eu/app/app/signals/{clé}      préfixe dupliqué
+  → https://kivou.eu/app/reset-password         route INEXISTANTE
 ```
 
-Une base sans `/app` produirait `https://kivou.eu/signals/{clé}`, qui tombe à
-côté du signal annoncé.
+~~Une base sans `/app` produirait `https://kivou.eu/signals/{clé}`, qui tombe à
+côté du signal annoncé.~~ Les routes sont **asymétriques** : `/reset-password`
+vit à la racine, `/app/signals/{clé}` et `/app/notifications` sous `/app`. Aucune
+valeur unique de préfixe ne peut donc être portée par la variable — c'est le
+backend qui ajoute la bonne route à chaque usage. La valeur exacte est
+`https://kivou.eu` en production et `https://staging.kivou.eu` en staging.
 
 ### Ce qui a été fait
 

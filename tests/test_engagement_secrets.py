@@ -114,6 +114,27 @@ def test_the_delivery_table_stores_no_credential_and_no_address():
     assert "last_error_code" in columns
 
 
+def test_the_transactional_runtime_tables_store_no_private_mail_data():
+    from signals.engagement.schema import signal_alert_delivery, signal_alert_job_lease
+
+    forbidden = (
+        "password",
+        "credential",
+        "smtp",
+        "recipient",
+        "email",
+        "token",
+        "trace",
+        "stack",
+        "body",
+        "raw_payload",
+    )
+    for table in (signal_alert_delivery, signal_alert_job_lease):
+        columns = {column.name for column in table.columns}
+        for marker in forbidden:
+            assert not any(marker in name for name in columns), (table.name, marker)
+
+
 def test_no_smtp_secret_is_ever_rendered_by_the_api(tmp_path):
     """La configuration porte le mot de passe ; aucune réponse ne le montre."""
     from engagement_helpers import Clock, icp_of, make_app, make_engine, signed_up

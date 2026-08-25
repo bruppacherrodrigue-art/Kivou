@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import datetime as dt
 import pathlib
+import types
 
 import pytest
 import sqlalchemy as sa
@@ -39,6 +40,7 @@ from engagement_helpers import (
 )
 from feed_helpers import RESEARCH_ICP_ID, SIMAP_RICH, materialize, materialize_simap, simap_award
 
+from signals.alerts import job as alert_job
 from signals.alerts import policy, run_alert_cycle
 from signals.alerts.gateway import UncertainDelivery, message_id
 from signals.engagement.schema import signal_alert_delivery
@@ -72,6 +74,144 @@ def cycle(engine, mailer, *, now: dt.datetime = NOW, url: str | None = PUBLIC_AP
 def deliveries(engine) -> list[sa.Row]:
     with engine.connect() as connection:
         return connection.execute(sa.select(signal_alert_delivery)).all()
+
+
+def test_alert_selection_continues_after_the_first_feed_page(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    items = tuple(
+        types.SimpleNamespace(signal=types.SimpleNamespace(signal_key=f"sig-{index:02d}"))
+        for index in range(51)
+    )
+    offsets: list[int] = []
+    access = types.SimpleNamespace(
+        entitlements=types.SimpleNamespace(feed_access=True, max_active_icps=1),
+        is_unlocked=lambda _item: True,
+    )
+
+    monkeypatch.setattr(alert_job, "feed_access", lambda *_args, **_kwargs: access)
+    monkeypatch.setattr(
+        alert_job.billing,
+        "feedable_target_icps",
+        lambda *_args, **_kwargs: ("icp-current",),
+    )
+    monkeypatch.setattr(
+        alert_job,
+        "_registered_deliveries",
+        lambda *_args, **_kwargs: {item.signal.signal_key for item in items[:50]},
+    )
+
+    def page(*_args, offset=0, limit=50, **_kwargs):
+        offsets.append(offset)
+        selected = items[offset : offset + limit]
+        return types.SimpleNamespace(
+            items=selected,
+            limit=limit,
+            offset=offset,
+            has_more=offset + limit < len(items),
+        )
+
+    monkeypatch.setattr(alert_job.feed_query, "feed_page", page)
+
+    selected = alert_job.eligible_signals(
+        object(), account_id="acc-current", as_of=NOW.date(), limit=10
+    )
+
+    assert [item.signal.signal_key for item in selected] == ["sig-50"]
+    assert offsets == [0, 50]
+
+
+def test_alert_selection_stops_paginating_once_it_holds_enough_signals(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une page qui suffit doit être la DERNIÈRE requête, pas la première de dix.
+
+    `feed_page` n'est pas un curseur : chaque appel relance la requête complète
+    bornée au plafond de balayage, réévalue la fraîcheur de toutes les lignes et
+    résout l'identité de tout l'ensemble candidat. Continuer après avoir de quoi
+    remplir le lot multiplie ce travail par le nombre de pages — pour jeter le
+    surplus juste après.
+
+    Le test compte les REQUÊTES, pas le résultat : sans l'arrêt, la sélection
+    reste correcte et seul le coût explose, donc rien d'autre ne le trahirait.
+    """
+    items = tuple(
+        types.SimpleNamespace(signal=types.SimpleNamespace(signal_key=f"sig-{index:03d}"))
+        for index in range(500)
+    )
+    offsets: list[int] = []
+    access = types.SimpleNamespace(
+        entitlements=types.SimpleNamespace(feed_access=True, max_active_icps=1),
+        is_unlocked=lambda _item: True,
+    )
+
+    monkeypatch.setattr(alert_job, "feed_access", lambda *_args, **_kwargs: access)
+    monkeypatch.setattr(
+        alert_job.billing,
+        "feedable_target_icps",
+        lambda *_args, **_kwargs: ("icp-current",),
+    )
+    monkeypatch.setattr(alert_job, "_registered_deliveries", lambda *_args, **_kwargs: set())
+
+    def page(*_args, offset=0, limit=50, **_kwargs):
+        offsets.append(offset)
+        selected = items[offset : offset + limit]
+        return types.SimpleNamespace(
+            items=selected,
+            limit=limit,
+            offset=offset,
+            has_more=offset + limit < len(items),
+        )
+
+    monkeypatch.setattr(alert_job.feed_query, "feed_page", page)
+
+    selected = alert_job.eligible_signals(
+        object(), account_id="acc-current", as_of=NOW.date(), limit=10
+    )
+
+    assert offsets == [0], f"une seule page suffisait, {len(offsets)} ont été demandées"
+    assert [item.signal.signal_key for item in selected] == [
+        f"sig-{index:03d}" for index in range(10)
+    ]
+
+
+def test_retry_revalidation_looks_up_its_keys_beyond_the_feed_scan_cap(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    item = types.SimpleNamespace(
+        signal=types.SimpleNamespace(signal_key="sig-501"),
+        display=object(),
+        status="recent_award",
+    )
+    access = types.SimpleNamespace(
+        entitlements=types.SimpleNamespace(feed_access=True, max_active_icps=1),
+        is_unlocked=lambda _item: True,
+    )
+    monkeypatch.setattr(alert_job, "feed_access", lambda *_args, **_kwargs: access)
+    monkeypatch.setattr(
+        alert_job.billing,
+        "feedable_target_icps",
+        lambda *_args, **_kwargs: ("icp-current",),
+    )
+    monkeypatch.setattr(
+        alert_job.feed_query,
+        "owned_signal",
+        lambda *_args, signal_key, **_kwargs: item if signal_key == "sig-501" else None,
+    )
+    monkeypatch.setattr(
+        alert_job.feed_query,
+        "feed_page",
+        lambda *_args, **_kwargs: pytest.fail("retry revalidation used the scan-capped feed"),
+    )
+
+    selected = alert_job._accessible_signals(
+        object(),
+        account_id="acc-current",
+        as_of=NOW.date(),
+        signal_keys=("sig-501",),
+    )
+
+    assert selected == [item]
 
 
 def subscriber(app, engine, *, plan: str, count: int = 1, email: str = "alice@negoce-romand.ch"):
@@ -417,8 +557,10 @@ def test_a_known_delivery_failure_stays_retryable(app, engine, mailer):
     assert {row.last_error_code for row in rows} == {"smtp_451"}
     assert {row.attempt_count for row in rows} == {1}
 
-    # Le cycle suivant réessaie, et réussit.
-    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=5)).signals_sent == 2
+    # Le backoff est durable : pas de rejeu précoce, puis reprise à l'échéance.
+    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=5)).signals_sent == 0
+    assert mailer.attempts == 1
+    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=15)).signals_sent == 2
     assert {row.status for row in deliveries(engine)} == {"sent"}
 
 
@@ -432,6 +574,13 @@ def test_an_uncertain_delivery_is_never_blindly_resent(app, engine, mailer):
     rows = deliveries(engine)
     assert {row.status for row in rows} == {"unknown_delivery_state"}
     assert {row.last_error_code for row in rows} == {"unknown_delivery_state"}
+    assert {row.retryable for row in rows} == {True}
+    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=14)).signals_sent == 0
+    assert mailer.attempts == 1
+
+    identifier = rows[0].delivery_message_id
+    assert cycle(engine, mailer, now=NOW + dt.timedelta(minutes=15)).signals_sent == 1
+    assert mailer.last.message_id == identifier
 
 
 def test_a_failure_never_consumes_the_accounts_turn(app, engine, mailer):
@@ -450,7 +599,13 @@ def test_no_exception_trace_or_credential_reaches_the_database(app, engine, mail
     cycle(engine, mailer)
 
     body = str([dict(row._mapping) for row in deliveries(engine)])
-    for forbidden in ("Traceback", "password", "smtplib", "login", "@"):
+    for forbidden in (
+        "Traceback",
+        "password",
+        "smtplib",
+        "login",
+        "alice@negoce-romand.ch",
+    ):
         assert forbidden not in body, forbidden
 
 
@@ -522,16 +677,15 @@ def test_the_email_contains_a_deep_link_to_each_signal(app, engine, mailer):
 
     body = mailer.last.text_body
     for key in keys:
-        assert f"{PUBLIC_APP_URL}/signals/{key}" in body
+        assert f"{PUBLIC_APP_URL}/app/signals/{key}" in body
 
 
 def test_the_deep_link_resolves_to_the_browser_signal_route(app, engine, mailer):
     """CLOSEOUT §3 — le lien reçu par e-mail doit ouvrir la route du navigateur.
 
-    Le job construit `{base}/signals/{clé}` ; le routeur client sert
-    `/app/signals/{clé}`. La configuration de déploiement est donc responsable
-    d'inclure `/app` dans la base, et ce test épingle la valeur attendue pour
-    qu'un changement de préfixe ne casse pas les liens en silence.
+    La configuration fournit seulement l'origine. Le constructeur serveur
+    ajoute `/app/signals/{clé}` afin que le déploiement ne puisse ni omettre ni
+    dupliquer le préfixe du routeur.
 
     Aucune sémantique d'alerte n'est modifiée ici : seule la FORME de la base
     est vérifiée.
@@ -539,10 +693,31 @@ def test_the_deep_link_resolves_to_the_browser_signal_route(app, engine, mailer)
     _, keys = subscriber(app, engine, plan="scale", count=1)
     cycle(engine, mailer)
 
-    link = f"{PUBLIC_APP_URL}/signals/{keys[0]}"
+    link = f"{PUBLIC_APP_URL}/app/signals/{keys[0]}"
     assert link in mailer.last.text_body
     # C'est bien la route cliente, pas la route publique.
     assert "/app/signals/" in link
+
+
+def test_the_email_shows_where_to_stop_receiving_alerts(app, engine, mailer):
+    """Le pied de page PROMET des préférences : il doit dire où elles sont.
+
+    Sans le lien, le message annonce « modifiez vos préférences de notification »
+    puis n'affiche rien — une promesse creuse. Un envoi automatisé sans porte de
+    sortie visible se fait classer indésirable, et le destinataire n'a aucun
+    moyen d'arrêter les alertes depuis le message lui-même.
+
+    L'en-tête `List-Unsubscribe` doit désigner le MÊME endroit : deux
+    destinations différentes feraient suivre au destinataire un lien qui ne le
+    désabonne pas.
+    """
+    subscriber(app, engine, plan="scale", count=1)
+    cycle(engine, mailer)
+
+    attendu = f"{PUBLIC_APP_URL}/app/notifications"
+    message = mailer.last
+    assert attendu in message.text_body, "le pied de page ne dit pas où aller"
+    assert message.preferences_url == attendu, "l'en-tête et le pied de page divergent"
 
 
 def test_the_email_never_dumps_evidence(app, engine, mailer):
@@ -664,3 +839,57 @@ def test_the_job_reads_no_hidden_clock():
         source = inspect.getsource(module)
         for forbidden in ("date.today()", "datetime.now(", "utcnow("):
             assert forbidden not in source, f"{module.__name__} : {forbidden}"
+
+
+# ─── Décision produit — `suppressed` est TERMINAL ─────────────────────────────
+
+
+def test_a_suppressed_alert_is_never_resurrected_but_future_ones_still_ship(
+    app, engine, mailer
+):
+    """Réactiver ses notifications ne ressuscite pas les anciens messages.
+
+    Décision produit, pas conséquence d'implémentation : un signal supprimé
+    parce que le client avait coupé ses alertes reste supprimé, même s'il est
+    encore dans la fenêtre de fraîcheur. Le ressusciter enverrait un message
+    décidé dans un contexte que le client a lui-même quitté.
+
+    Ce que la décision NE dit PAS : que le compte cesse d'être alerté. Sans
+    cette seconde moitié, couper puis rallumer ses alertes une seule fois les
+    désactiverait pour toujours.
+    """
+    client, _ = subscriber(app, engine, plan="pro", count=2)
+
+    # Un cycle sans URL publique MET EN FILE sans envoyer : c'est l'état de
+    # départ du scénario — des alertes dues, pas encore parties.
+    assert [o.result for o in cycle(engine, mailer, url=None).outcomes] == ["blocked"]
+    en_attente = {row.signal_key for row in deliveries(engine)}
+    assert len(en_attente) == 2, "les deux signaux doivent être en file"
+
+    # Le client coupe ses alertes : le cycle suivant les supprime.
+    assert (
+        client.patch("/notification-preferences", json={"email_enabled": False}).status_code == 200
+    )
+    # Le cycle rend `suppressed` — et non `notifications_disabled` — quand il
+    # supprime réellement des lignes dues, ce qui distingue « rien à faire » de
+    # « quelque chose vient d'être terminalisé ».
+    assert [o.result for o in cycle(engine, mailer).outcomes] == ["suppressed"]
+    assert mailer.sent == []
+    statuts = {row.signal_key: row.status for row in deliveries(engine)}
+    assert set(statuts) == en_attente
+    assert set(statuts.values()) == {"suppressed"}, f"attendu suppressed, vu {statuts}"
+
+    # Il se ravise le lendemain : les anciens ne reviennent pas.
+    assert (
+        client.patch("/notification-preferences", json={"email_enabled": True}).status_code == 200
+    )
+    cycle(engine, mailer, now=NOW + dt.timedelta(days=1))
+    for message in mailer.sent:
+        for signal_key in en_attente:
+            assert signal_key not in message.text_body, (
+                "un message supprimé ne doit jamais être renvoyé"
+            )
+    apres = {row.signal_key: row.status for row in deliveries(engine)}
+    assert all(apres[key] == "suppressed" for key in en_attente), (
+        "la suppression est TERMINALE : elle ne repasse pas en file"
+    )

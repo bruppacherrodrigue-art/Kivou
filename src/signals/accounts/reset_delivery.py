@@ -29,9 +29,10 @@ import datetime as dt
 import logging
 from email.utils import make_msgid
 from typing import Protocol
-from urllib.parse import quote, urlsplit
+from urllib.parse import urlsplit
 
 from signals.alerts.gateway import AlertDeliveryError, AlertDeliveryGateway, AlertMessage
+from signals.transactional_email.links import reset_url as reset_link
 
 LOGGER = logging.getLogger("signals.accounts.reset_delivery")
 
@@ -86,23 +87,6 @@ def _duration(ttl: dt.timedelta, language: str) -> str:
     if minutes % 60 == 0:
         return HOURS[language].format(count=minutes // 60)
     return MINUTES[language].format(count=minutes)
-
-
-def reset_link(site_url: str, reset_token: str) -> str:
-    """L'URL exacte que sert le frontend.
-
-    Le contrat vient du routeur client — `<Route path="reset-password">` à la
-    RACINE du site, et `useSearchParams().get('token')`. Ce n'est donc PAS
-    `public_app_url`, qui pointe sur `/app` : un lien construit à partir de la
-    base des alertes donnerait `…/app/reset-password`, une adresse que le
-    routeur ne connaît pas, et le lien reçu par e-mail tomberait sur une page
-    introuvable.
-
-    Le jeton est encodé : il est produit par `secrets`, donc sûr en URL, mais
-    laisser passer une valeur brute dans une chaîne de requête est le genre de
-    raccourci qui casse le jour où la génération change.
-    """
-    return f"{site_url.rstrip('/')}/reset-password?token={quote(reset_token, safe='')}"
 
 
 def _domain(site_url: str) -> str:

@@ -360,6 +360,7 @@ def test_no_client_facing_analytics_endpoint_exists(alice):
 def test_the_event_vocabulary_is_closed_and_declared():
     assert "signal_contacted" in PRODUCT_EVENT_TYPES
     assert "alert_sent" in PRODUCT_EVENT_TYPES
+    assert "alert_suppressed" in PRODUCT_EVENT_TYPES
     assert len(PRODUCT_EVENT_TYPES) == len(set(PRODUCT_EVENT_TYPES))
 
 

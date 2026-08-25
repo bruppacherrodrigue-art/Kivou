@@ -129,6 +129,16 @@ Ne jamais inventer une identité juridique, un numéro IDE/TVA, un registre, une
 
 **Gate :** un utilisateur reçoit effectivement les e-mails attendus et peut contrôler ses préférences.
 
+**État au 24 août 2026 : livré en PR brouillon ; validation staging en attente.**
+
+- origine publique HTTPS, SMTP explicite, liens transactionnels FR/EN et reset
+  à usage unique validés localement ;
+- alertes account-scoped avec lease durable, retry borné, suppression après
+  perte de droits et protection contre les doublons déterministes ;
+- service et timer systemd versionnés, mais non installés sur staging ;
+- aucun envoi réel, aucune écriture DNS et aucune action production effectués ;
+- SPF/DKIM/DMARC et les deux messages réels restent des gates staging.
+
 ### RTL-06 — Fiche entreprise et coordonnées vérifiées
 
 **Priorité : P0-PRODUCT**

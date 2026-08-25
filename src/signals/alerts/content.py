@@ -42,11 +42,13 @@ GREETING: dict[str, str] = {
 FOOTER: dict[str, str] = {
     "fr": (
         "Les faits publiés et leurs sources sont vérifiables sur chaque signal.\n"
-        "Pour ne plus recevoir ces alertes, modifiez vos préférences de notification."
+        "Pour ne plus recevoir ces alertes, modifiez vos préférences de notification :\n"
+        "{preferences}"
     ),
     "en": (
         "Published facts and their sources are verifiable on each signal.\n"
-        "To stop receiving these alerts, change your notification preferences."
+        "To stop receiving these alerts, change your notification preferences:\n"
+        "{preferences}"
     ),
 }
 
@@ -108,8 +110,13 @@ def _truncate(text: str, limit: int = 120) -> str:
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
 
-def render_text(lines: list[AlertLine], *, lang: str) -> str:
-    """Le corps en texte simple. Pas de HTML, pas de pixel, pas de traqueur."""
+def render_text(lines: list[AlertLine], *, lang: str, preferences_link: str) -> str:
+    """Le corps en texte simple. Pas de HTML, pas de pixel, pas de traqueur.
+
+    Le lien de préférences est OBLIGATOIRE : annoncer « modifiez vos préférences »
+    sans dire où revient à ne rien proposer, et un envoi automatisé sans porte de
+    sortie visible se fait classer indésirable.
+    """
     feed_copy.check_language(lang)
     blocks = [GREETING[lang], ""]
     for index, line in enumerate(lines, start=1):
@@ -124,5 +131,5 @@ def render_text(lines: list[AlertLine], *, lang: str) -> str:
             blocks.append(f"   {NEEDS_LABEL[lang]} : {', '.join(line.needs)}")
         blocks.append(f"   {line.url}")
         blocks.append("")
-    blocks.append(FOOTER[lang])
+    blocks.append(FOOTER[lang].format(preferences=preferences_link))
     return "\n".join(blocks)

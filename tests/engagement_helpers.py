@@ -53,11 +53,9 @@ SIGNAL_SOURCES: tuple[tuple[str, str, int], ...] = (
 #: L'avis SIMAP riche en besoins plausibles — celui qui rend un digest complet.
 RICH_SOURCE_INDEX = 2
 
-#: CLOSEOUT §3 — la base des liens profonds inclut le préfixe `/app` du routeur
-#: navigateur : le job d'alerte construit `{base}/signals/{clé}`, et la route
-#: cliente est `/app/signals/{clé}`. Une base sans `/app` produirait un lien qui
-#: tombe sur la route publique et non sur le signal. Domaine synthétique.
-PUBLIC_APP_URL = "https://kivou.test/app"
+#: RTL-05 — la configuration est une origine, sans chemin. Le constructeur
+#: serveur ajoute la route protégée `/app/signals/{clé}`.
+PUBLIC_APP_URL = "https://kivou.test"
 
 
 class Clock:
@@ -79,10 +77,12 @@ class FakeMailer:
     """Une passerelle d'e-mail déterministe : elle garde ce qu'on lui donne."""
 
     sent: list[AlertMessage] = dataclasses.field(default_factory=list)
+    attempts: int = 0
     #: Erreur à lever au prochain envoi, pour éprouver les chemins d'échec.
     fail_with: Exception | None = None
 
     def send(self, message: AlertMessage) -> DeliveryResult:
+        self.attempts += 1
         if self.fail_with is not None:
             error, self.fail_with = self.fail_with, None
             raise error

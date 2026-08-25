@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import datetime as dt
 import pathlib
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 import sqlalchemy as sa
@@ -19,6 +21,7 @@ from argon2 import PasswordHasher
 from argon2.low_level import Type
 from fastapi.testclient import TestClient
 
+from signals.accounts import service as account_service
 from signals.accounts.passwords import (
     MINIMUM_PASSWORD_LENGTH,
     hash_password,
@@ -248,6 +251,44 @@ def test_a_reset_token_works_exactly_once(client: TestClient, delivery: Recordin
     assert second.status_code == 400
 
 
+def test_a_reset_token_can_only_be_claimed_by_one_concurrent_confirmation(
+    client: TestClient,
+    engine,
+    clock: Clock,
+    delivery: RecordingDelivery,
+) -> None:
+    signup(client)
+    request_reset(client)
+    token = delivery.last_token
+    start = threading.Barrier(2)
+
+    def confirm(password: str) -> tuple[str, str]:
+        start.wait(timeout=5)
+        try:
+            with engine.begin() as connection:
+                account_service.confirm_password_reset(
+                    connection,
+                    reset_token=token,
+                    new_password=password,
+                    now=clock.now,
+                )
+        except account_service.InvalidResetToken:
+            return "invalid", password
+        return "accepted", password
+
+    passwords = ("premier-mot-de-passe-concurrent", "second-mot-de-passe-concurrent")
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        outcomes = list(pool.map(confirm, passwords))
+
+    assert sorted(result for result, _password in outcomes) == ["accepted", "invalid"]
+    accepted_password = next(
+        password for result, password in outcomes if result == "accepted"
+    )
+    with engine.connect() as connection:
+        stored_hash = connection.execute(sa.select(auth_user.c.password_hash)).scalar_one()
+    assert verify_password(stored_hash, accepted_password)
+
+
 def test_a_password_reset_invalidates_every_existing_session(
     client: TestClient, delivery: RecordingDelivery
 ):
@@ -280,6 +321,75 @@ def test_the_new_password_works_and_the_old_one_does_not(
         ).status_code
         == 200
     )
+
+
+def test_a_second_reset_request_invalidates_the_first_undelivered_token(
+    engine, clock: Clock
+) -> None:
+    from urllib.parse import parse_qs, urlsplit
+
+    from signals.accounts.reset_delivery import SmtpPasswordResetDelivery
+    from signals.alerts.gateway import AlertDeliveryError, DeliveryResult
+
+    class FailOnceGateway:
+        def __init__(self) -> None:
+            self.attempted = []
+            self.accepted = []
+
+        def send(self, message):
+            self.attempted.append(message)
+            if len(self.attempted) == 1:
+                raise AlertDeliveryError("smtp_unavailable", retryable=True)
+            self.accepted.append(message)
+            return DeliveryResult(provider_message_id=message.message_id)
+
+    gateway = FailOnceGateway()
+    reset_delivery = SmtpPasswordResetDelivery(
+        gateway,
+        site_url="https://staging.kivou.test",
+        ttl=dt.timedelta(hours=1),
+    )
+    app = create_app(
+        engine,
+        ApiConfig(
+            password_reset_ttl=dt.timedelta(hours=1),
+            cookie_secure=False,
+            allowed_origin=ORIGIN,
+        ),
+        now_override=clock,
+        password_reset_delivery=reset_delivery,
+    )
+    browser = TestClient(app, headers={"Origin": ORIGIN})
+    signup(browser)
+
+    assert request_reset(browser).status_code == 202
+    assert request_reset(browser).status_code == 202
+    assert len(gateway.attempted) == 2
+    assert len(gateway.accepted) == 1
+    assert gateway.attempted[0].message_id != gateway.attempted[1].message_id
+
+    def token_at(index: int) -> str:
+        link = next(
+            line
+            for line in gateway.attempted[index].text_body.splitlines()
+            if line.startswith("https://")
+        )
+        return parse_qs(urlsplit(link).query)["token"][0]
+
+    first_token = token_at(0)
+    second_token = token_at(1)
+    first = browser.post(
+        "/auth/password-reset/confirm",
+        json={"reset_token": first_token, "new_password": "premier-mot-de-passe-refuse"},
+    )
+    second = browser.post(
+        "/auth/password-reset/confirm",
+        json={"reset_token": second_token, "new_password": "second-mot-de-passe-accepte"},
+    )
+
+    assert first.status_code == 400
+    assert first.json()["detail"]["code"] == "invalid_reset_token"
+    assert second.status_code == 200
 
 
 # ─── 11, 12 — inscription ──────────────────────────────────────────────────────

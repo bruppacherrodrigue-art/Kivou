@@ -339,6 +339,18 @@ def request_password_reset(
 
     user_id, locale = row
     raw = new_token()
+    # Une nouvelle demande remplace toutes les précédentes. Si un premier
+    # e-mail n'est pas parti, l'utilisateur peut redemander sans laisser un
+    # ancien jeton latent devenir utilisable plus tard. `used_at` conserve
+    # l'historique sans stocker le jeton en clair ni supprimer de ligne.
+    connection.execute(
+        sa.update(password_reset)
+        .where(
+            password_reset.c.user_id == user_id,
+            password_reset.c.used_at.is_(None),
+        )
+        .values(used_at=now)
+    )
     connection.execute(
         sa.insert(password_reset).values(
             reset_id=_identifier("rst"),
@@ -359,28 +371,27 @@ def confirm_password_reset(
     Une réinitialisation sert précisément quand on soupçonne un accès
     illégitime : laisser vivre les sessions existantes annulerait l'opération.
     """
-    row = connection.execute(
-        sa.select(
-            password_reset.c.reset_id,
-            password_reset.c.user_id,
-            password_reset.c.expires_at,
-            password_reset.c.used_at,
-        ).where(password_reset.c.token_hash == token_hash(reset_token))
-    ).one_or_none()
-    if row is None:
-        raise InvalidResetToken("jeton de réinitialisation invalide")
-
-    reset_id, user_id, expires_at, used_at = row
-    if used_at is not None or _aware(expires_at) <= now:
+    # L'UPDATE conditionnel est la prise atomique du jeton. PostgreSQL
+    # sérialise deux concurrents sur cette ligne ; après le commit du gagnant,
+    # le perdant ne modifie aucune ligne. SQLite prend son verrou d'écriture
+    # avant le calcul Argon2. Toute erreur ultérieure annule aussi cette prise.
+    user_id = connection.execute(
+        sa.update(password_reset)
+        .where(
+            password_reset.c.token_hash == token_hash(reset_token),
+            password_reset.c.used_at.is_(None),
+            password_reset.c.expires_at > now,
+        )
+        .values(used_at=now)
+        .returning(password_reset.c.user_id)
+    ).scalar_one_or_none()
+    if user_id is None:
         raise InvalidResetToken("jeton de réinitialisation invalide")
 
     connection.execute(
         sa.update(auth_user)
         .where(auth_user.c.user_id == user_id)
         .values(password_hash=hash_password(new_password), updated_at=now)
-    )
-    connection.execute(
-        sa.update(password_reset).where(password_reset.c.reset_id == reset_id).values(used_at=now)
     )
     revoke_all_sessions(connection, user_id=user_id, now=now)
     return user_id
