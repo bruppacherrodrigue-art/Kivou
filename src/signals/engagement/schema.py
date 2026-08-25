@@ -190,6 +190,10 @@ signal_alert_delivery = sa.Table(
         name="ck_alert_delivery_status",
     ),
     sa.Column("cadence", sa.String(16), nullable=False),
+    # Empreinte du contexte destinataire au moment où le lot est créé. Elle
+    # lie le lot à une adresse/préférence/droit vérifiables sans persister une
+    # seconde copie de l'adresse ni journaliser les entrées de l'empreinte.
+    sa.Column("recipient_context_fingerprint", sa.String(64)),
     sa.Column("batch_key", sa.String(64), index=True),
     sa.Column("delivery_message_id", sa.String(255)),
     sa.Column("queued_at", sa.DateTime(timezone=True), nullable=False),
@@ -207,6 +211,14 @@ signal_alert_delivery = sa.Table(
     sa.Column("suppressed_at", sa.DateTime(timezone=True)),
     sa.Column("suppression_reason_code", sa.String(64)),
     *_timestamps(),
+)
+
+sa.Index(
+    "ix_signal_alert_delivery_recipient_context_refusal",
+    signal_alert_delivery.c.account_id,
+    signal_alert_delivery.c.recipient_context_fingerprint,
+    signal_alert_delivery.c.status,
+    signal_alert_delivery.c.last_error_code,
 )
 
 

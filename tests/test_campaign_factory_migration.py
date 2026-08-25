@@ -26,7 +26,8 @@ COMPANY = "0022_saas_company_profile"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de COMPANY, et écraser ce lien ferait passer un test faux.
 EMAIL = "0023_transactional_email_runtime"
-LATEST = "0024_scheduled_plan_change"
+SCHEDULED_PLAN = "0024_scheduled_plan_change"
+LATEST = "0025_alert_recipient_context"
 TABLES = (
     acquisition_campaign,
     acquisition_campaign_member,
@@ -46,7 +47,8 @@ def test_campaign_migration_is_linear_and_adds_exactly_four_tables(tmp_path) -> 
     assert set(sa.inspect(engine).get_table_names()) - before == {table.name for table in TABLES}
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == EMAIL
+    assert scripts.get_revision(LATEST).down_revision == SCHEDULED_PLAN
+    assert scripts.get_revision(SCHEDULED_PLAN).down_revision == EMAIL
     assert scripts.get_revision(EMAIL).down_revision == COMPANY
     assert scripts.get_revision(COMPANY).down_revision == RELIABILITY
     assert scripts.get_revision(RELIABILITY).down_revision == LEARNING
