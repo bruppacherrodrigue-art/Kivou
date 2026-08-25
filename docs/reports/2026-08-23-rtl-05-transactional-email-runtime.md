@@ -43,10 +43,24 @@ sont :
 - `KIVOU_ALERT_MAX_ATTEMPTS` ;
 - `KIVOU_ALERT_RETRY_BASE_SECONDS`.
 
-`KIVOU_PUBLIC_APP_URL` est une origine HTTPS stricte, identique à
-`KIVOU_ALLOWED_ORIGIN`, sans chemin, identifiants, query string ni fragment.
-Les routes de reset, signal et préférences sont ajoutées exclusivement par le
-backend.
+`KIVOU_PUBLIC_APP_URL` est la **racine publique du site** en HTTPS : sans
+chemin, identifiants, query string ni fragment — `https://staging.kivou.eu`,
+jamais `https://staging.kivou.eu/app`. Les routes sont ajoutées exclusivement
+par le backend, et elles sont **asymétriques** : `/reset-password` vit à la
+racine, `/app/signals/{clé}` et `/app/notifications` sous `/app`. Un préfixe
+`/app` dans la variable produirait donc `…/app/reset-password` — une route
+inexistante, donc un client incapable de changer son mot de passe.
+
+`KIVOU_ALLOWED_ORIGIN` est **facultative** : un déploiement même origine n'a
+pas à la déclarer. Quand elle est présente, l'accord avec `KIVOU_PUBLIC_APP_URL`
+est strict, et la valeur `*` est refusée.
+
+Une configuration SMTP **incomplète** rend l'e-mail indisponible, jamais l'API :
+`ApiConfig.from_environment()` est ce que construit `asgi.build_application()`,
+donc lever à cet endroit emporterait le feed, la facturation et
+l'authentification avec le transport. Le défaut fermé demeure là où il compte —
+`smtp_host` reste `None`, aucun envoi n'est tenté, et aucun mode de chiffrement
+n'est supposé.
 
 ## Prestataire et transport audités
 

@@ -133,9 +133,13 @@ class ApiConfig:
     smtp_password: str | None = dataclasses.field(default=None, repr=False)
     smtp_from_email: str | None = None
     smtp_from_name: str = "Kivou"
-    smtp_tls_mode: str = "starttls"
+    #: `None` quand la configuration est incomplète : aucun mode n'est SUPPOSÉ.
+    smtp_tls_mode: str | None = "starttls"
     smtp_timeout_seconds: int = DEFAULT_SMTP_TIMEOUT_SECONDS
     smtp_reply_to_email: str | None = None
+    #: Code MACHINE expliquant pourquoi l'e-mail est indisponible, `None` quand
+    #: il l'est. Ni valeur ni identifiant : il part dans un journal.
+    smtp_unavailable_reason: str | None = None
     alert_lease_ttl: dt.timedelta = DEFAULT_ALERT_LEASE_TTL
     alert_max_attempts: int = DEFAULT_ALERT_MAX_ATTEMPTS
     alert_retry_base: dt.timedelta = DEFAULT_ALERT_RETRY_BASE
@@ -269,6 +273,7 @@ class ApiConfig:
             smtp_tls_mode=smtp["tls_mode"],
             smtp_timeout_seconds=smtp["timeout_seconds"],
             smtp_reply_to_email=smtp["reply_to_email"],
+            smtp_unavailable_reason=smtp.get("unavailable_reason"),
             alert_lease_ttl=dt.timedelta(
                 seconds=_bounded_integer(
                     ALERT_LEASE_SECONDS_ENV,
@@ -326,6 +331,20 @@ def _optional_url(name: str) -> str | None:
 
 
 def _public_origin(name: str, *, allowed_origin: str | None) -> str | None:
+    """La racine publique du site — origine nue, sans chemin.
+
+    Les constructeurs de liens ajoutent eux-mêmes ce qu'il faut, et les routes
+    sont ASYMÉTRIQUES : `/reset-password` vit à la racine, `/app/signals/…` et
+    `/app/notifications` sous `/app`. Accepter ici un préfixe `/app` produirait
+    donc `…/app/reset-password` — un lien de réinitialisation mort — et
+    `…/app/app/signals/…`. Un client ne pourrait plus changer son mot de passe,
+    et rien dans les tests ne le dirait.
+
+    `KIVOU_ALLOWED_ORIGIN` est FACULTATIVE : un déploiement même origine n'a pas
+    à la déclarer. Quand elle existe, l'accord est strict, et `*` est refusé —
+    il reviendrait à laisser n'importe quelle origine se faire passer pour
+    l'application.
+    """
     value = os.environ.get(name)
     if not value:
         return None
@@ -339,10 +358,17 @@ def _public_origin(name: str, *, allowed_origin: str | None) -> str | None:
         or parsed.fragment
         or parsed.path not in {"", "/"}
     ):
-        raise ValueError(f"{name} doit être une origine https absolue sans chemin")
+        raise ValueError(
+            f"{name} doit être la racine publique en https, sans chemin, "
+            "sans identifiants, sans paramètre ni fragment"
+        )
     normalized = f"https://{parsed.netloc}"
-    if allowed_origin is None or normalized != allowed_origin.rstrip("/"):
-        raise ValueError(f"{name} doit correspondre à l'origine autorisée")
+    if allowed_origin is not None:
+        declared = allowed_origin.rstrip("/")
+        if declared == "*":
+            raise ValueError("KIVOU_ALLOWED_ORIGIN ne peut pas valoir '*'")
+        if normalized != declared:
+            raise ValueError(f"{name} doit correspondre à l'origine autorisée")
     return normalized
 
 
@@ -412,7 +438,28 @@ def _smtp_environment(*, public_origin: str | None) -> dict[str, object]:
         if value is None
     ]
     if missing:
-        raise ValueError(f"configuration SMTP incomplète : {', '.join(missing)}")
+        # Une configuration SMTP incomplète rend l'E-MAIL indisponible, jamais
+        # l'API. Lever ici empêchait le démarrage de tout le service — feed,
+        # facturation, authentification comprises — pour un transport
+        # accessoire, et transformait une variable oubliée en panne totale.
+        #
+        # Le motif est un code MACHINE nommant les variables absentes : ni
+        # valeur, ni identifiant, puisqu'il partira dans un journal.
+        return {
+            "host": None,
+            "port": 587,
+            "username": None,
+            "password": None,
+            "from_email": None,
+            "from_name": "Kivou",
+            # Pas de repli sur STARTTLS : supposer un mode de chiffrement que
+            # l'exploitant n'a pas déclaré reviendrait à choisir sa sécurité à
+            # sa place. `host` étant `None`, aucun envoi n'aura lieu.
+            "tls_mode": None,
+            "timeout_seconds": DEFAULT_SMTP_TIMEOUT_SECONDS,
+            "reply_to_email": None,
+            "unavailable_reason": "smtp_configuration_incomplete:" + ",".join(sorted(missing)),
+        }
 
     username = os.environ.get(SMTP_USERNAME_ENV) or None
     password = os.environ.get(SMTP_PASSWORD_ENV) or None

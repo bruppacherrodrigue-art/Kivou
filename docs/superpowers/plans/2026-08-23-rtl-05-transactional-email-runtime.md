@@ -180,6 +180,13 @@ Wire the helper from `ApiConfig.from_environment()` after parsing
 but change its documented meaning to the normalized origin. Make
 `public_site_url` a compatibility property returning that same origin.
 
+> **Correction (2026-08-24), appliquée après l'audit de la PR.** Ce plan traite
+> `KIVOU_ALLOWED_ORIGIN` comme OBLIGATOIRE. Livré, elle est **facultative** — un
+> déploiement même origine n'a pas à la déclarer — mais reste stricte dès
+> qu'elle existe, et `*` est refusé. De même, une configuration SMTP incomplète
+> ne lève plus : elle rend l'e-mail indisponible sans emporter l'API. L'autorité
+> opérationnelle est `docs/reports/2026-08-23-rtl-05-transactional-email-runtime.md`.
+
 - [x] **Step 4: Write failing SMTP-contract tests**
 
 Cover complete, absent and partial configuration, credential pairing, timeout,

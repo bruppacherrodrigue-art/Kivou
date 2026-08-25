@@ -179,14 +179,29 @@ def test_alert_job_lease_outlives_the_versioned_service_timeout(
 
 
 @pytest.mark.parametrize("missing", ["SMTP_HOST", "SMTP_FROM_EMAIL", "SMTP_TLS_MODE"])
-def test_partial_smtp_configuration_fails_closed(
+def test_partial_smtp_configuration_disables_email_without_stopping_the_api(
     monkeypatch: pytest.MonkeyPatch, missing: str
 ) -> None:
+    """Une variable SMTP absente rend l'E-MAIL indisponible, jamais l'API.
+
+    Ce test affirmait l'inverse — un échec fermé au démarrage. Il tombait juste
+    tant qu'on ne regardait que l'e-mail ; mais `ApiConfig.from_environment()`
+    est ce que construit `asgi.build_application()`, donc lever ici emportait
+    le feed, la facturation et l'authentification avec le transport. Staging
+    portait précisément une de ces configurations : le déploiement aurait été
+    une panne totale, pas une dégradation.
+
+    Le défaut fermé demeure là où il compte : `host` reste `None`, donc AUCUN
+    envoi n'est tenté, et aucun mode de chiffrement n'est supposé.
+    """
     configure_complete_smtp(monkeypatch)
     monkeypatch.delenv(missing)
 
-    with pytest.raises(ValueError, match="configuration SMTP incomplète"):
-        ApiConfig.from_environment()
+    config = ApiConfig.from_environment()
+
+    assert config.smtp_host is None, "aucun envoi ne doit être possible"
+    assert config.smtp_unavailable_reason is not None
+    assert missing in config.smtp_unavailable_reason
 
 
 def test_username_and_password_are_required_as_a_pair(
@@ -199,7 +214,7 @@ def test_username_and_password_are_required_as_a_pair(
         ApiConfig.from_environment()
 
 
-@pytest.mark.parametrize("mode", ["none", "tls", "false", ""])
+@pytest.mark.parametrize("mode", ["none", "tls", "false"])
 def test_smtp_refuses_an_unencrypted_or_implicit_mode_name(
     monkeypatch: pytest.MonkeyPatch, mode: str
 ) -> None:
@@ -208,6 +223,25 @@ def test_smtp_refuses_an_unencrypted_or_implicit_mode_name(
 
     with pytest.raises(ValueError, match="SMTP_TLS_MODE"):
         ApiConfig.from_environment()
+
+
+def test_an_empty_tls_mode_is_treated_as_absent_not_as_a_bad_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Une variable vide n'est pas un mode mal orthographié : elle est absente.
+
+    La distinction compte : un nom DÉCLARÉ mais invalide reste une erreur
+    bruyante — l'exploitant a exprimé une intention fausse. Une variable vide,
+    elle, n'exprime rien, et ne doit pas emporter l'API avec elle.
+    """
+    configure_complete_smtp(monkeypatch)
+    monkeypatch.setenv("SMTP_TLS_MODE", "")
+
+    config = ApiConfig.from_environment()
+
+    assert config.smtp_host is None
+    assert config.smtp_tls_mode is None, "aucun mode n'est supposé"
+    assert "SMTP_TLS_MODE" in (config.smtp_unavailable_reason or "")
 
 
 def test_smtp_accepts_explicit_implicit_tls(monkeypatch: pytest.MonkeyPatch) -> None:
