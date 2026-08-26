@@ -682,7 +682,6 @@ sudo systemd-run \
   --no-access-log \
   --timeout-keep-alive 20
 
-sudo systemctl is-active --quiet kivou-api-green.service
 /usr/bin/sudo -u kivou -- /usr/bin/env -i PATH=/usr/bin:/bin \
   "$KIVOU_RELEASE_DIR/ops/bin/kivou-api-readiness.sh" \
   kivou-api-green.service 8001
@@ -804,7 +803,6 @@ sudo mv -f /etc/systemd/system/kivou-api.service.new \
   /etc/systemd/system/kivou-api.service
 sudo systemctl daemon-reload
 sudo systemctl restart kivou-api.service
-sudo systemctl is-active --quiet kivou-api.service
 /usr/bin/sudo -u kivou -- /usr/bin/env -i PATH=/usr/bin:/bin \
   "$KIVOU_RELEASE_DIR/ops/bin/kivou-api-readiness.sh" \
   kivou-api.service 8000
@@ -858,7 +856,9 @@ awk 'NF != 2 || $1 != "200" || $2 != "401" {bad=1} END {exit bad}' \
   "$KIVOU_PUBLIC_MONITOR_LOG"
 sudo install -o root -g root -m 600 "$KIVOU_PUBLIC_MONITOR_LOG" \
   "$KIVOU_EVIDENCE_DIR/public-status.codes"
-sudo systemctl show kivou-api-green.service --no-pager \
+/usr/bin/sudo --non-interactive -- \
+  /usr/bin/timeout --foreground 2 /usr/bin/systemctl \
+  show kivou-api-green.service --no-pager \
   --property=ActiveState --property=SubState |
   sudo tee "$KIVOU_EVIDENCE_DIR/green-final-state" >/dev/null
 sudo systemctl stop kivou-api-green.service
@@ -1159,22 +1159,27 @@ test "$(sudo -u kivou awk 'NF && $1 !~ /^#/ {print}' \
   "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-closed.conf")" = \
   "return 503;"
 
+kivou_bounded_systemctl_read() {
+  /usr/bin/sudo --non-interactive -- \
+    /usr/bin/timeout --foreground 2 /usr/bin/systemctl "$@"
+}
 kivou_validate_recovery_green_unit() {
   KIVOU_GREEN_UNIT_TO_VALIDATE=$1
-  test "$(sudo systemctl show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
+  test "$(kivou_bounded_systemctl_read show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
     --property=WorkingDirectory --value)" = "$KIVOU_SECURITY_RELEASE"
-  sudo systemctl show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
+  kivou_bounded_systemctl_read show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
     --property=ExecStart --value |
     grep --fixed-strings --quiet -- \
       "$KIVOU_SECURITY_RELEASE/.venv/bin/uvicorn"
-  sudo systemctl show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
+  kivou_bounded_systemctl_read show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
     --property=ExecStart --value |
     grep --fixed-strings --quiet -- '--no-access-log'
 }
-if sudo systemctl is-active --quiet kivou-api-green.service; then
+if kivou_bounded_systemctl_read is-active --quiet \
+  kivou-api-green.service; then
   KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-green.service
   kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"
-elif sudo systemctl is-active --quiet \
+elif kivou_bounded_systemctl_read is-active --quiet \
   kivou-api-rollback-green.service; then
   KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service
   kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"
@@ -1184,8 +1189,10 @@ else
   sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT" || true
   sudo systemctl reset-failed kivou-api-green.service || true
   sudo systemctl reset-failed "$KIVOU_ROLLBACK_GREEN_UNIT" || true
-  ! sudo systemctl is-active --quiet kivou-api-green.service
-  ! sudo systemctl is-active --quiet "$KIVOU_ROLLBACK_GREEN_UNIT"
+  ! kivou_bounded_systemctl_read is-active --quiet \
+    kivou-api-green.service
+  ! kivou_bounded_systemctl_read is-active --quiet \
+    "$KIVOU_ROLLBACK_GREEN_UNIT"
   test -z "$(sudo ss --no-header --listening --tcp 'sport = :8001')"
   sudo systemd-run \
     --unit="$KIVOU_ROLLBACK_GREEN_UNIT" \
@@ -1217,7 +1224,6 @@ else
     --forwarded-allow-ips 127.0.0.1 --no-server-header --no-access-log \
     --timeout-keep-alive 20
 fi
-sudo systemctl is-active --quiet "$KIVOU_ROLLBACK_GREEN_UNIT"
 /usr/bin/sudo -u kivou -- /usr/bin/env -i PATH=/usr/bin:/bin \
   "$KIVOU_SECURITY_RELEASE/ops/bin/kivou-api-readiness.sh" \
   "$KIVOU_ROLLBACK_GREEN_UNIT" 8001

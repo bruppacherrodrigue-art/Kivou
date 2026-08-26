@@ -720,11 +720,14 @@ def test_rollback_keeps_the_security_floor_and_switches_only_the_application() -
     _assert_in_order(
         shell,
         '. /dev/stdin <<<"$KIVOU_STATE_CONTENT"',
+        "kivou_bounded_systemctl_read()",
+        "/usr/bin/timeout --foreground 2 /usr/bin/systemctl",
         "kivou_validate_recovery_green_unit()",
-        "if sudo systemctl is-active --quiet kivou-api-green.service; then",
+        "if kivou_bounded_systemctl_read is-active --quiet",
+        "kivou-api-green.service; then",
         "KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-green.service",
         'kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"',
-        "elif sudo systemctl is-active --quiet",
+        "elif kivou_bounded_systemctl_read is-active --quiet",
         "kivou-api-rollback-green.service; then",
         "KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service",
         'kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"',
@@ -734,8 +737,8 @@ def test_rollback_keeps_the_security_floor_and_switches_only_the_application() -
         'sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT"',
         "sudo systemctl reset-failed kivou-api-green.service",
         'sudo systemctl reset-failed "$KIVOU_ROLLBACK_GREEN_UNIT"',
-        "! sudo systemctl is-active --quiet kivou-api-green.service",
-        '! sudo systemctl is-active --quiet "$KIVOU_ROLLBACK_GREEN_UNIT"',
+        "! kivou_bounded_systemctl_read is-active --quiet",
+        '! kivou_bounded_systemctl_read is-active --quiet',
         "sport = :8001",
         '--unit="$KIVOU_ROLLBACK_GREEN_UNIT"',
         "fi",
@@ -760,6 +763,14 @@ def test_rollback_keeps_the_security_floor_and_switches_only_the_application() -
         )
         == 1
     )
+
+
+def test_api_rollout_never_uses_an_unbounded_systemd_state_read() -> None:
+    body = _runbook()
+
+    assert "sudo systemctl is-active" not in body
+    assert "sudo systemctl show" not in body
+    assert "/usr/bin/timeout --foreground 2 /usr/bin/systemctl" in body
 
 
 def test_runbook_forbids_mutating_or_secret_bearing_expansion() -> None:
