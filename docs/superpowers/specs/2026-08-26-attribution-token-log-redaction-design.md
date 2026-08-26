@@ -70,6 +70,12 @@ of adding a second log destination.
 Both servers contain explicit sensitive locations for `/a/` and
 `/reset-password`.
 
+Each of the four locations includes the same root-owned runtime gate. The
+versioned open candidate is inert; the versioned closed candidate contains only
+`return 503`. Swapping that one small fragment atomically and reloading nginx
+can therefore close every sensitive link without changing the rest of the SaaS
+or restoring an unsafe configuration.
+
 On HTTPS:
 
 - `/a/` retains its rate limit and FastAPI proxy;
@@ -119,6 +125,7 @@ The implementation is confined to:
 - `ops/nginx/kivou-staging.conf` for both server-level access logs and the four
   HTTP/HTTPS sensitive locations;
 - a new sensitive-link security-header fragment under `ops/nginx/`;
+- versioned open and closed sensitive-link gate fragments under `ops/nginx/`;
 - `ops/systemd/kivou-api.service` for the reproducible uvicorn command;
 - focused nginx/systemd contract tests;
 - an exact blue/green deployment and security-preserving rollback procedure in
@@ -179,11 +186,13 @@ prove:
 7. all four sensitive locations emit exactly one `no-referrer` policy;
 8. sensitive and ordinary security fragments have identical directives except
    for referrer policy;
-9. ordinary API/static/SPA locations retain their current routing and cache
+9. every sensitive location includes the same runtime gate, whose open and
+   closed candidates are respectively inert and exactly `return 503`;
+10. ordinary API/static/SPA locations retain their current routing and cache
    contracts;
-10. the versioned API unit matches the deployed runtime contract and contains
+11. the versioned API unit matches the deployed runtime contract and contains
     exactly one `--no-access-log` flag without disabling error logs;
-11. the runbook contains an executable atomic transition and a rollback that
+12. the runbook contains an executable atomic transition and a rollback that
     never restores raw logging.
 
 The focused tests run first. The final PR head then runs the standard backend
@@ -245,9 +254,9 @@ files are a security floor, not application state.
   restart port 8000 while green carries traffic, validate it, then switch the
   safe proxy back to 8000.
 - If either sensitive location fails functionally, publish a validated
-  fail-closed candidate that keeps its safe access format, `no-referrer` header
-  and suppressed error log but returns 503 for that location. Never fall back
-  to a location with the ordinary referrer policy.
+  closed-gate candidate. It keeps the safe access format, `no-referrer` header
+  and suppressed error log but returns 503 before proxy or static handling.
+  Never fall back to a location with the ordinary referrer policy.
 - If a safe nginx candidate fails `nginx -t`, do not reload it and do not run a
   valid sensitive-link proof. The previous process remains authoritative.
 - If a post-reload failure cannot retain the safe logging floor, close the two
