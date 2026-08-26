@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import re
+import shlex
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNBOOK = ROOT / "ops" / "README.md"
@@ -44,6 +47,19 @@ def _only_shell_block(body: str) -> str:
 
 def _logical_shell(shell: str) -> str:
     return re.sub(r"[ \t]*\\\n[ \t]*", " ", shell)
+
+
+def _publication_command_tokens(
+    logical_shell: str,
+) -> tuple[tuple[int, tuple[str, ...]], ...]:
+    commands: list[tuple[int, tuple[str, ...]]] = []
+    offset = 0
+    for raw_line in logical_shell.splitlines(keepends=True):
+        line = raw_line.rstrip("\n")
+        if line.startswith(("sudo install ", "sudo mv -f ")):
+            commands.append((offset, tuple(shlex.split(line))))
+        offset += len(raw_line)
+    return tuple(commands)
 
 
 def _assert_fresh_recovery_state(shell: str) -> None:
@@ -504,34 +520,65 @@ def test_fresh_rollback_rebuilds_the_complete_safe_nginx_bundle() -> None:
         '"return 503;"',
     )
 
-    recovered_live_paths: set[str] = set()
-    stage_positions: list[int] = []
-    move_positions: list[int] = []
-    for source, mode, staged, live in publications:
-        install = (
-            f'sudo install -o root -g root -m {mode} '
-            f'"$KIVOU_SECURITY_RELEASE/{source}" {staged}'
-        )
-        move = f"sudo mv -f {staged} {live}"
-        assert logical.count(install) == 1
-        assert logical.count(move) == 1
-        recovered_live_paths.add(live)
-        stage_positions.append(logical.index(install))
-        move_positions.append(logical.index(move))
+    def assert_publications(
+        candidate_logical: str,
+    ) -> tuple[set[str], list[int], list[int]]:
+        recovered: set[str] = set()
+        stages: list[int] = []
+        moves: list[int] = []
+        commands = _publication_command_tokens(candidate_logical)
+        for source, mode, staged, live in publications:
+            install = (
+                "sudo",
+                "install",
+                "-o",
+                "root",
+                "-g",
+                "root",
+                "-m",
+                mode,
+                f"$KIVOU_SECURITY_RELEASE/{source}",
+                staged,
+            )
+            move = ("sudo", "mv", "-f", staged, live)
+            install_positions = [
+                position for position, tokens in commands if tokens == install
+            ]
+            move_positions_for_file = [
+                position for position, tokens in commands if tokens == move
+            ]
+            assert len(install_positions) == 1
+            assert len(move_positions_for_file) == 1
+            recovered.add(live)
+            stages.append(install_positions[0])
+            moves.append(move_positions_for_file[0])
+        return recovered, stages, moves
+
+    recovered_live_paths, stage_positions, move_positions = assert_publications(
+        logical
+    )
 
     site_stage = (
         '"$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-staging.conf" | '
         "sudo tee /etc/nginx/sites-available/kivou.new >/dev/null"
     )
     site_move = (
-        "sudo mv -f /etc/nginx/sites-available/kivou.new "
-        "/etc/nginx/sites-available/kivou"
+        "sudo",
+        "mv",
+        "-f",
+        "/etc/nginx/sites-available/kivou.new",
+        "/etc/nginx/sites-available/kivou",
     )
     assert logical.count(site_stage) == 1
-    assert logical.count(site_move) == 1
+    site_move_positions = [
+        position
+        for position, tokens in _publication_command_tokens(logical)
+        if tokens == site_move
+    ]
+    assert len(site_move_positions) == 1
     recovered_live_paths.add("/etc/nginx/sites-available/kivou")
     stage_positions.append(logical.index(site_stage))
-    move_positions.append(logical.index(site_move))
+    move_positions.append(site_move_positions[0])
 
     expected_live_paths = {live for _, _, _, live in publications} | {
         "/etc/nginx/sites-available/kivou"
@@ -547,10 +594,16 @@ def test_fresh_rollback_rebuilds_the_complete_safe_nginx_bundle() -> None:
         "sudo nginx -t",
         "sudo systemctl reload nginx",
     )
-    for missing_before_recovery in expected_live_paths:
-        live_before = expected_live_paths - {missing_before_recovery}
-        assert live_before | recovered_live_paths == expected_live_paths
     assert recovered_live_paths == expected_live_paths
+    for _, _, staged, _ in publications:
+        mutant = logical.replace(
+            f" {staged}\n",
+            f" {staged}.broken\n",
+            1,
+        )
+        assert mutant != logical
+        with pytest.raises(AssertionError):
+            assert_publications(mutant)
     assert "KIVOU_NGINX_CANDIDATE" not in recovery
     assert "KIVOU_EVIDENCE_DIR" not in recovery
     assert "le vieux processus nginx" in rollback
