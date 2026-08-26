@@ -217,6 +217,14 @@ def _directives(text: str) -> tuple[str, ...]:
     )
 
 
+def _header_directives(path: Path) -> tuple[str, ...]:
+    return tuple(
+        directive
+        for directive in _directives(path.read_text())
+        if directive.startswith("add_header ")
+    )
+
+
 def _directives_starting_with(text: str, prefix: str) -> tuple[str, ...]:
     return tuple(
         directive
@@ -321,6 +329,208 @@ def test_tracked_nginx_templates_have_balanced_directive_syntax() -> None:
             depth += code.count("{") - code.count("}")
             assert depth >= 0, f"{path}:{line_number}: unexpected closing brace"
         assert depth == 0, f"{path}: unbalanced directive block"
+
+
+def test_sensitive_headers_change_only_the_referrer_policy() -> None:
+    ordinary_path = NGINX_DIR / "kivou-security-headers.conf"
+    sensitive_path = NGINX_DIR / "kivou-sensitive-link-security-headers.conf"
+    assert sensitive_path.is_file(), f"missing nginx fragment: {sensitive_path}"
+
+    ordinary = _header_directives(ordinary_path)
+    sensitive = _header_directives(sensitive_path)
+    ordinary_policy = (
+        'add_header Referrer-Policy "strict-origin-when-cross-origin" always;'
+    )
+    sensitive_policy = 'add_header Referrer-Policy "no-referrer" always;'
+
+    assert ordinary.count(ordinary_policy) == 1
+    assert ordinary.count(sensitive_policy) == 0
+    assert sensitive.count(ordinary_policy) == 0
+    assert sensitive.count(sensitive_policy) == 1
+    assert sensitive == tuple(
+        sensitive_policy
+        if directive.startswith("add_header Referrer-Policy ")
+        else directive
+        for directive in ordinary
+    )
+
+
+def test_sensitive_link_gate_candidates_are_inert_or_fail_closed() -> None:
+    candidates = (
+        ("kivou-sensitive-links-open.conf", ()),
+        ("kivou-sensitive-links-closed.conf", ("return 503;",)),
+    )
+
+    for filename, expected in candidates:
+        path = NGINX_DIR / filename
+        assert path.is_file(), f"missing nginx fragment: {path}"
+        assert _directives(path.read_text()) == expected
+
+
+def test_both_servers_gate_explicit_sensitive_locations_first() -> None:
+    gate = "include /etc/nginx/kivou-sensitive-links-gate.conf;"
+
+    for listen_directive in ("listen 80;", "listen 443 ssl http2;"):
+        server = _only_server(listen_directive)
+        for selector in ("^~ /a/", "= /reset-password"):
+            location = _only_location(server, selector)
+            directives = _directives(location.body)
+
+            assert directives.count(gate) == 1
+            assert directives[0] == gate
+
+
+def test_http_sensitive_locations_redirect_without_leaking_referrers_or_errors() -> None:
+    http = _only_server("listen 80;")
+    gate = "include /etc/nginx/kivou-sensitive-links-gate.conf;"
+    no_referrer = 'add_header Referrer-Policy "no-referrer" always;'
+    suppressed_error_log = "error_log /dev/null crit;"
+    canonical_redirect = "return 301 https://STAGING_HOST$request_uri;"
+
+    for selector in ("^~ /a/", "= /reset-password"):
+        location = _only_location(http, selector)
+        directives = _directives(location.body)
+
+        for expected in (
+            gate,
+            no_referrer,
+            suppressed_error_log,
+            canonical_redirect,
+        ):
+            assert directives.count(expected) == 1
+        assert not any(
+            directive.startswith(("proxy_pass ", "try_files "))
+            for directive in directives
+        )
+
+
+def test_https_attribution_is_sensitive_and_preserves_its_proxy_contract() -> None:
+    https = _only_server("listen 443 ssl http2;")
+    attribution = _only_location(https, "^~ /a/")
+    directives = _directives(attribution.body)
+
+    for expected in (
+        "include /etc/nginx/kivou-sensitive-links-gate.conf;",
+        "limit_req zone=kivou_api burst=40 nodelay;",
+        "include /etc/nginx/kivou-sensitive-link-security-headers.conf;",
+        "error_log /dev/null crit;",
+        "proxy_pass http://127.0.0.1:8000;",
+        "include /etc/nginx/kivou-proxy-params.conf;",
+    ):
+        assert directives.count(expected) == 1
+    assert _directives_starting_with(
+        attribution.body, "proxy_hide_header "
+    ) == ("proxy_hide_header Referrer-Policy;",)
+    assert not any(
+        directive.startswith("try_files ") for directive in directives
+    )
+
+
+def test_https_reset_page_is_sensitive_no_cache_and_not_a_generic_spa_route() -> None:
+    https = _only_server("listen 443 ssl http2;")
+    reset = _only_location(https, "= /reset-password")
+    directives = _directives(reset.body)
+
+    for expected in (
+        "include /etc/nginx/kivou-sensitive-links-gate.conf;",
+        "include /etc/nginx/kivou-sensitive-link-security-headers.conf;",
+        'add_header Cache-Control "no-cache" always;',
+        "error_log /dev/null crit;",
+    ):
+        assert directives.count(expected) == 1
+    assert _directives_starting_with(reset.body, "try_files ") == (
+        "try_files /index.html =404;",
+    )
+    assert not any(
+        directive.startswith("proxy_pass ") for directive in directives
+    )
+    assert "include /etc/nginx/kivou-proxy-params.conf;" not in directives
+
+
+def test_sensitive_locations_have_one_effective_no_referrer_policy() -> None:
+    sensitive_path = NGINX_DIR / "kivou-sensitive-link-security-headers.conf"
+    assert sensitive_path.is_file(), f"missing nginx fragment: {sensitive_path}"
+
+    sensitive_include = (
+        "include /etc/nginx/kivou-sensitive-link-security-headers.conf;"
+    )
+    ordinary_include = "include /etc/nginx/kivou-security-headers.conf;"
+    sensitive_headers = _header_directives(sensitive_path)
+    expected_policy = 'add_header Referrer-Policy "no-referrer" always;'
+    locations: list[LocationBlock] = []
+
+    for listen_directive in ("listen 80;", "listen 443 ssl http2;"):
+        server = _only_server(listen_directive)
+        locations.extend(
+            _only_location(server, selector)
+            for selector in ("^~ /a/", "= /reset-password")
+        )
+
+    for location in locations:
+        directives = _directives(location.body)
+        effective_headers = tuple(
+            directive
+            for directive in directives
+            if directive.startswith("add_header ")
+        )
+        if sensitive_include in directives:
+            effective_headers += sensitive_headers
+        policies = tuple(
+            directive
+            for directive in effective_headers
+            if directive.startswith("add_header Referrer-Policy ")
+        )
+
+        assert ordinary_include not in directives
+        assert policies == (expected_policy,)
+
+    https = _only_server("listen 443 ssl http2;")
+    attribution = _only_location(https, "^~ /a/")
+    assert _directives_starting_with(
+        attribution.body, "proxy_hide_header Referrer-Policy"
+    ) == ("proxy_hide_header Referrer-Policy;",)
+
+
+def test_sensitive_routes_leave_ordinary_location_contracts_unchanged() -> None:
+    http = _only_server("listen 80;")
+    https = _only_server("listen 443 ssl http2;")
+    ordinary_include = "include /etc/nginx/kivou-security-headers.conf;"
+
+    assert _directives(
+        _only_location(http, "/.well-known/acme-challenge/").body
+    ) == ("root /var/www/certbot;",)
+    assert _directives(_only_location(http, "/").body) == (
+        "return 301 https://STAGING_HOST$request_uri;",
+    )
+    assert _directives(_only_location(https, "/assets/").body) == (
+        ordinary_include,
+        'add_header Cache-Control "public, max-age=31536000, immutable" always;',
+        "try_files $uri =404;",
+    )
+    assert _directives(_only_location(https, "/brand/").body) == (
+        ordinary_include,
+        'add_header Cache-Control "public, max-age=2592000" always;',
+        "try_files $uri =404;",
+    )
+    assert _directives(_only_location(https, "= /index.html").body) == (
+        ordinary_include,
+        'add_header Cache-Control "no-cache" always;',
+    )
+    assert _directives(_only_location(https, "/").body) == (
+        "try_files $uri $uri/ /index.html;",
+    )
+
+    for location in _proxy_locations():
+        if location.selector == "^~ /a/":
+            continue
+        directives = _directives(location.body)
+        assert not any(
+            "kivou-sensitive-link" in directive for directive in directives
+        )
+        assert not any(
+            directive.startswith("error_log /dev/null")
+            for directive in directives
+        )
 
 
 def test_nginx_template_header_delegates_installation_to_atomic_runbook() -> None:
