@@ -249,6 +249,95 @@ def test_green_runtime_matches_the_versioned_service_and_is_proven_directly() ->
     assert 'test "$KIVOU_GREEN_ME_STATUS" = 401' in shell
 
 
+def test_bounded_readiness_precedes_every_direct_api_probe() -> None:
+    body = _runbook()
+    green = _logical_shell(
+        _only_shell_block(
+            _subsection(body, "### Démarrer et prouver le runtime vert sur 8001")
+        )
+    )
+    normal = _logical_shell(
+        _only_shell_block(
+            _subsection(body, "### Basculer l'application pendant le monitor public")
+        )
+    )
+    rollback = _logical_shell(
+        _only_shell_block(
+            _subsection(body, "### Rollback applicatif préservant la sécurité")
+        )
+    )
+
+    _assert_in_order(
+        green,
+        "sudo systemd-run",
+        '"$KIVOU_RELEASE_DIR/ops/bin/kivou-api-readiness.sh" '
+        "kivou-api-green.service 8001",
+        "http://127.0.0.1:8001/openapi.json",
+        "http://127.0.0.1:8001/me",
+    )
+    _assert_in_order(
+        normal,
+        "sudo systemctl restart kivou-api.service",
+        '"$KIVOU_RELEASE_DIR/ops/bin/kivou-api-readiness.sh" '
+        "kivou-api.service 8000",
+        "http://127.0.0.1:8000/openapi.json",
+        "http://127.0.0.1:8000/me",
+    )
+    _assert_in_order(
+        rollback,
+        '--unit="$KIVOU_ROLLBACK_GREEN_UNIT"',
+        '"$KIVOU_SECURITY_RELEASE/ops/bin/kivou-api-readiness.sh" '
+        '"$KIVOU_ROLLBACK_GREEN_UNIT" 8001',
+        "http://127.0.0.1:8001/openapi.json",
+        "http://127.0.0.1:8001/me",
+        "sudo systemctl restart kivou-api.service",
+        '"$KIVOU_SECURITY_RELEASE/ops/bin/kivou-api-readiness.sh" '
+        "kivou-api.service 8000",
+        "http://127.0.0.1:8000/openapi.json",
+        "http://127.0.0.1:8000/me",
+    )
+    assert rollback.count("ops/bin/kivou-api-readiness.sh") == 2
+
+
+def test_readiness_helper_has_an_exact_unprivileged_execution_boundary() -> None:
+    body = _logical_shell(_runbook())
+    helper = (
+        ROOT / "ops" / "bin" / "kivou-api-readiness.sh"
+    ).read_text(encoding="utf-8")
+    closed_environment = (
+        "/usr/bin/sudo -u kivou -- /usr/bin/env -i PATH=/usr/bin:/bin "
+    )
+
+    assert "sudo" not in helper
+    assert "timeout --foreground 1 systemctl is-active --quiet" in helper
+    assert body.count(closed_environment) == 4
+    assert body.count(
+        closed_environment
+        + '"$KIVOU_RELEASE_DIR/ops/bin/kivou-api-readiness.sh"'
+    ) == 2
+    assert body.count(
+        closed_environment
+        + '"$KIVOU_SECURITY_RELEASE/ops/bin/kivou-api-readiness.sh"'
+    ) == 2
+
+
+def test_every_direct_local_api_probe_has_connect_and_total_timeouts() -> None:
+    logical = _logical_shell(_runbook())
+    local_probes = tuple(
+        line
+        for line in logical.splitlines()
+        if re.search(r"127\.0\.0\.1:800[01]/(?:openapi\.json|me)", line)
+    )
+
+    assert len(local_probes) == 8
+    for probe in local_probes:
+        assert "curl" in probe
+        assert "--connect-timeout 1" in probe
+        assert "--max-time 2" in probe
+        assert "=$(curl" in probe
+        assert ") || exit 1" in probe
+
+
 def test_snapshot_is_unique_root_only_and_evidence_only() -> None:
     body = _runbook()
     snapshot = _subsection(

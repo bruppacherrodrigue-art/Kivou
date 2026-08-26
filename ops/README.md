@@ -639,6 +639,13 @@ durcissement, deux workers et exactement --no-access-log. Elle exécute
 l'exécutable et le répertoire de la release revue ; aucune variable secrète
 n'est développée par le shell.
 
+Le helper versionné `ops/bin/kivou-api-readiness.sh` ne contient aucun `sudo`.
+Il s'exécute comme `kivou` avec un environnement fermé, vérifie que l'unité
+reste active et attend `/openapi.json = 200` pendant cinq tentatives au maximum.
+Chaque lecture systemd et chaque requête HTTP est bornée à une seconde ; quatre
+pauses d'une seconde séparent les tentatives. Une unité inactive, un échec curl
+ou une expiration retourne un code non nul ; il n'existe aucun retry infini.
+
 ~~~bash
 sudo systemd-run \
   --unit=kivou-api-green \
@@ -676,10 +683,16 @@ sudo systemd-run \
   --timeout-keep-alive 20
 
 sudo systemctl is-active --quiet kivou-api-green.service
-KIVOU_GREEN_OPENAPI_STATUS=$(curl --silent --output /dev/null \
-  --write-out '%{http_code}' http://127.0.0.1:8001/openapi.json)
-KIVOU_GREEN_ME_STATUS=$(curl --silent --output /dev/null \
-  --write-out '%{http_code}' http://127.0.0.1:8001/me)
+/usr/bin/sudo -u kivou -- /usr/bin/env -i PATH=/usr/bin:/bin \
+  "$KIVOU_RELEASE_DIR/ops/bin/kivou-api-readiness.sh" \
+  kivou-api-green.service 8001
+KIVOU_GREEN_OPENAPI_STATUS=$(curl --silent \
+  --connect-timeout 1 --max-time 2 --output /dev/null \
+  --write-out '%{http_code}' \
+  http://127.0.0.1:8001/openapi.json) || exit 1
+KIVOU_GREEN_ME_STATUS=$(curl --silent \
+  --connect-timeout 1 --max-time 2 --output /dev/null \
+  --write-out '%{http_code}' http://127.0.0.1:8001/me) || exit 1
 test "$KIVOU_GREEN_OPENAPI_STATUS" = 200
 test "$KIVOU_GREEN_ME_STATUS" = 401
 printf 'green_openapi_status=%s\ngreen_me_status=%s\n' \
@@ -792,11 +805,17 @@ sudo mv -f /etc/systemd/system/kivou-api.service.new \
 sudo systemctl daemon-reload
 sudo systemctl restart kivou-api.service
 sudo systemctl is-active --quiet kivou-api.service
+/usr/bin/sudo -u kivou -- /usr/bin/env -i PATH=/usr/bin:/bin \
+  "$KIVOU_RELEASE_DIR/ops/bin/kivou-api-readiness.sh" \
+  kivou-api.service 8000
 
-KIVOU_NORMAL_OPENAPI_STATUS=$(curl --silent --output /dev/null \
-  --write-out '%{http_code}' http://127.0.0.1:8000/openapi.json)
-KIVOU_NORMAL_ME_STATUS=$(curl --silent --output /dev/null \
-  --write-out '%{http_code}' http://127.0.0.1:8000/me)
+KIVOU_NORMAL_OPENAPI_STATUS=$(curl --silent \
+  --connect-timeout 1 --max-time 2 --output /dev/null \
+  --write-out '%{http_code}' \
+  http://127.0.0.1:8000/openapi.json) || exit 1
+KIVOU_NORMAL_ME_STATUS=$(curl --silent \
+  --connect-timeout 1 --max-time 2 --output /dev/null \
+  --write-out '%{http_code}' http://127.0.0.1:8000/me) || exit 1
 test "$KIVOU_NORMAL_OPENAPI_STATUS" = 200
 test "$KIVOU_NORMAL_ME_STATUS" = 401
 
@@ -1199,10 +1218,19 @@ else
     --timeout-keep-alive 20
 fi
 sudo systemctl is-active --quiet "$KIVOU_ROLLBACK_GREEN_UNIT"
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-  http://127.0.0.1:8001/openapi.json)" = 200
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-  http://127.0.0.1:8001/me)" = 401
+/usr/bin/sudo -u kivou -- /usr/bin/env -i PATH=/usr/bin:/bin \
+  "$KIVOU_SECURITY_RELEASE/ops/bin/kivou-api-readiness.sh" \
+  "$KIVOU_ROLLBACK_GREEN_UNIT" 8001
+KIVOU_ROLLBACK_GREEN_OPENAPI_STATUS=$(curl --silent \
+  --connect-timeout 1 --max-time 2 \
+  --output /dev/null --write-out '%{http_code}' \
+  http://127.0.0.1:8001/openapi.json) || exit 1
+KIVOU_ROLLBACK_GREEN_ME_STATUS=$(curl --silent \
+  --connect-timeout 1 --max-time 2 \
+  --output /dev/null --write-out '%{http_code}' \
+  http://127.0.0.1:8001/me) || exit 1
+test "$KIVOU_ROLLBACK_GREEN_OPENAPI_STATUS" = 200
+test "$KIVOU_ROLLBACK_GREEN_ME_STATUS" = 401
 
 sudo install -o root -g root -m 644 \
   "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-proxy-params.conf" \
@@ -1270,10 +1298,19 @@ sudo mv -f /etc/systemd/system/kivou-api.service.new \
   /etc/systemd/system/kivou-api.service
 sudo systemctl daemon-reload
 sudo systemctl restart kivou-api.service
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-  http://127.0.0.1:8000/openapi.json)" = 200
-test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
-  http://127.0.0.1:8000/me)" = 401
+/usr/bin/sudo -u kivou -- /usr/bin/env -i PATH=/usr/bin:/bin \
+  "$KIVOU_SECURITY_RELEASE/ops/bin/kivou-api-readiness.sh" \
+  kivou-api.service 8000
+KIVOU_ROLLBACK_NORMAL_OPENAPI_STATUS=$(curl --silent \
+  --connect-timeout 1 --max-time 2 \
+  --output /dev/null --write-out '%{http_code}' \
+  http://127.0.0.1:8000/openapi.json) || exit 1
+KIVOU_ROLLBACK_NORMAL_ME_STATUS=$(curl --silent \
+  --connect-timeout 1 --max-time 2 \
+  --output /dev/null --write-out '%{http_code}' \
+  http://127.0.0.1:8000/me) || exit 1
+test "$KIVOU_ROLLBACK_NORMAL_OPENAPI_STATUS" = 200
+test "$KIVOU_ROLLBACK_NORMAL_ME_STATUS" = 401
 
 KIVOU_API_PORT=8000
 sed \
