@@ -209,3 +209,74 @@ def test_runbook_contains_pin_provisioning_permissions_smoke_and_rollback() -> N
         "KIVOU_INSTANTLY_API_KEY=",
     ):
         assert forbidden not in text
+
+
+def test_runbook_has_collision_safe_backup_and_executable_airmail_rollback() -> None:
+    text = RUNBOOK.read_text(encoding="utf-8")
+    unique_backup = (
+        'kivou_airmail_backup="$(sudo mktemp '
+        '/etc/kivou/acquisition-shadow.json.rollback.XXXXXXXX)"'
+    )
+    root_only_copy = (
+        "sudo install -m 0600 -o root -g root \\\n"
+        '  /etc/kivou/acquisition-shadow.json "$kivou_airmail_backup"'
+    )
+    backup_stat = (
+        "sudo stat -c '%a %U %G %n' \"$kivou_airmail_backup\""
+    )
+    backup_verify = (
+        "test \"$(sudo stat -c '%a %U %G' \"$kivou_airmail_backup\")\" "
+        "= '600 root root'"
+    )
+    failed_copy_cleanup = 'sudo rm -f -- "$kivou_airmail_backup"'
+    backup_record = "Record the exact printed backup path"
+    rollback_candidate = (
+        "sudo install -m 0640 -o root -g kivou \\\n"
+        '  "$kivou_airmail_backup" \\\n'
+        "  /etc/kivou/acquisition-shadow.json.rollback.next"
+    )
+    rollback_validation_target = (
+        'Path("/etc/kivou/acquisition-shadow.json.rollback.next").read_text('
+        'encoding="utf-8")'
+    )
+    rollback_move = (
+        "sudo mv -T /etc/kivou/acquisition-shadow.json.rollback.next \\\n"
+        "  /etc/kivou/acquisition-shadow.json"
+    )
+    live_verify = (
+        "test \"$(sudo stat -c '%a %U %G' "
+        "/etc/kivou/acquisition-shadow.json)\" = '640 root kivou'"
+    )
+    older_code = (
+        "Only after that live-file verification may code that predates the "
+        "optional field be deployed."
+    )
+
+    required_in_order = (
+        unique_backup,
+        root_only_copy,
+        failed_copy_cleanup,
+        backup_stat,
+        backup_verify,
+        backup_record,
+        rollback_candidate,
+        rollback_move,
+        live_verify,
+        older_code,
+    )
+    positions = [text.index(required) for required in required_in_order]
+    assert positions == sorted(positions)
+    assert 'test -n "$kivou_airmail_backup"' in text
+    rollback_validation = text[
+        text.index(rollback_candidate) : text.index(rollback_move)
+    ]
+    assert "sudo -u kivou" in rollback_validation
+    assert (
+        "ShadowConnectivityDocument.model_validate_json" in rollback_validation
+    )
+    assert rollback_validation_target in rollback_validation
+    assert (
+        "sudo install -m 0640 -o root -g kivou \\\n"
+        "  /etc/kivou/acquisition-shadow.json \\\n"
+        "  /etc/kivou/acquisition-shadow.json.rollback"
+    ) not in text

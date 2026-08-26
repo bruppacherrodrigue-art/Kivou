@@ -136,14 +136,33 @@ provider classification blocks readiness. The protected cadence is Kivou
 operator configuration; it is not an Instantly observation and must not be
 inferred from a normalized response.
 
-Preserve a pre-change copy. Prepare and validate a sibling file, then rename it
-over the live file so the change is atomic on the same filesystem while
-retaining `root:kivou` ownership and mode `0640`:
+Create a collision-safe, root-only pre-change backup before preparing the new
+JSON. If the copy into the unique `mktemp` path fails, remove only that exact
+non-empty path and stop; never continue with the blank file created by
+`mktemp`:
 
 ```bash
-sudo install -m 0640 -o root -g kivou \
-  /etc/kivou/acquisition-shadow.json \
-  /etc/kivou/acquisition-shadow.json.rollback
+kivou_airmail_backup="$(sudo mktemp /etc/kivou/acquisition-shadow.json.rollback.XXXXXXXX)"
+if ! sudo install -m 0600 -o root -g root \
+  /etc/kivou/acquisition-shadow.json "$kivou_airmail_backup"; then
+  if test -n "$kivou_airmail_backup"; then
+    sudo rm -f -- "$kivou_airmail_backup"
+  fi
+  unset kivou_airmail_backup
+  echo 'Protected JSON backup copy failed; stop the rollout.' >&2
+  exit 1
+fi
+sudo stat -c '%a %U %G %n' "$kivou_airmail_backup"
+test "$(sudo stat -c '%a %U %G' "$kivou_airmail_backup")" = '600 root root'
+```
+
+Record the exact printed backup path in the operator change log. Do not replace
+it with a guessed path, a glob, or the newest matching file. Prepare and
+validate a sibling candidate, then rename it over the live file so the change
+is atomic on the same filesystem while retaining `root:kivou` ownership and
+mode `0640`:
+
+```bash
 sudo install -m 0640 -o root -g kivou \
   /etc/kivou/acquisition-shadow.json \
   /etc/kivou/acquisition-shadow.json.next
@@ -158,10 +177,30 @@ sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json
 ```
 
 This procedure changes only protected Kivou configuration. It does not
-authorize a provider write, a smoke invocation, a timer, or email sending. To
-roll back to code that predates the optional field, atomically restore the
-protected JSON backup first, verify `root:kivou` and `0640`, and only then deploy
-the older code.
+authorize a provider write, a smoke invocation, a timer, or email sending.
+
+To roll back, first restore `kivou_airmail_backup` from the exact path recorded
+in the operator change log if this is a later protected root session. Verify
+that exact root-only backup again; do not select one with a glob. Install it as
+a `root:kivou` mode `0640` sibling, validate the sibling with the still-deployed
+compatible Kivou code as `kivou`, and atomically replace the live JSON:
+
+```bash
+sudo stat -c '%a %U %G %n' "$kivou_airmail_backup"
+test "$(sudo stat -c '%a %U %G' "$kivou_airmail_backup")" = '600 root root'
+sudo install -m 0640 -o root -g kivou \
+  "$kivou_airmail_backup" \
+  /etc/kivou/acquisition-shadow.json.rollback.next
+sudo -u kivou /srv/kivou/app/.venv/bin/python -c \
+  'from pathlib import Path; from signals.acquisition_connectivity.contracts import ShadowConnectivityDocument; ShadowConnectivityDocument.model_validate_json(Path("/etc/kivou/acquisition-shadow.json.rollback.next").read_text(encoding="utf-8"))'
+sudo mv -T /etc/kivou/acquisition-shadow.json.rollback.next \
+  /etc/kivou/acquisition-shadow.json
+sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json
+test "$(sudo stat -c '%a %U %G' /etc/kivou/acquisition-shadow.json)" = '640 root kivou'
+```
+
+Any failed validation or metadata check stops the rollback before the atomic
+move. Only after that live-file verification may code that predates the optional field be deployed.
 
 The JSON must retain its exact schema version, exactly three distinct opaque
 mailbox refs, and exactly three distinct provider account email bindings. The
