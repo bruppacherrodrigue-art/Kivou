@@ -163,17 +163,27 @@ is atomic on the same filesystem while retaining `root:kivou` ownership and
 mode `0640`:
 
 ```bash
+# Fail closed: prepare and switch the forward candidate.
+(
+  set -euo pipefail
 sudo install -m 0640 -o root -g kivou \
   /etc/kivou/acquisition-shadow.json \
-  /etc/kivou/acquisition-shadow.json.next
-sudoedit /etc/kivou/acquisition-shadow.json.next
+  /etc/kivou/acquisition-shadow.json.next &&
+sudoedit /etc/kivou/acquisition-shadow.json.next &&
 sudo -u kivou /srv/kivou/app/.venv/bin/python -c \
-  'from pathlib import Path; from signals.acquisition_connectivity.contracts import ShadowConnectivityDocument; ShadowConnectivityDocument.model_validate_json(Path("/etc/kivou/acquisition-shadow.json.next").read_text(encoding="utf-8"))'
-sudo chown root:kivou /etc/kivou/acquisition-shadow.json.next
-sudo chmod 0640 /etc/kivou/acquisition-shadow.json.next
+  'from pathlib import Path; from signals.acquisition_connectivity.contracts import ShadowConnectivityDocument; ShadowConnectivityDocument.model_validate_json(Path("/etc/kivou/acquisition-shadow.json.next").read_text(encoding="utf-8"))' &&
+sudo chown root:kivou /etc/kivou/acquisition-shadow.json.next &&
+sudo chmod 0640 /etc/kivou/acquisition-shadow.json.next &&
+sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json.next &&
+test "$(sudo stat -c '%a %U %G' /etc/kivou/acquisition-shadow.json.next)" = '640 root kivou' &&
 sudo mv -T /etc/kivou/acquisition-shadow.json.next \
-  /etc/kivou/acquisition-shadow.json
-sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json
+  /etc/kivou/acquisition-shadow.json &&
+sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json &&
+test "$(sudo stat -c '%a %U %G' /etc/kivou/acquisition-shadow.json)" = '640 root kivou'
+) || {
+  echo 'Forward AirMail JSON switch failed; stop and inspect protected configuration.' >&2
+  exit 1
+}
 ```
 
 This procedure changes only protected Kivou configuration. It does not
@@ -186,17 +196,26 @@ a `root:kivou` mode `0640` sibling, validate the sibling with the still-deployed
 compatible Kivou code as `kivou`, and atomically replace the live JSON:
 
 ```bash
-sudo stat -c '%a %U %G %n' "$kivou_airmail_backup"
-test "$(sudo stat -c '%a %U %G' "$kivou_airmail_backup")" = '600 root root'
+# Fail closed: restore the recorded protected backup.
+(
+  set -euo pipefail
+sudo stat -c '%a %U %G %n' "$kivou_airmail_backup" &&
+test "$(sudo stat -c '%a %U %G' "$kivou_airmail_backup")" = '600 root root' &&
 sudo install -m 0640 -o root -g kivou \
   "$kivou_airmail_backup" \
-  /etc/kivou/acquisition-shadow.json.rollback.next
+  /etc/kivou/acquisition-shadow.json.rollback.next &&
 sudo -u kivou /srv/kivou/app/.venv/bin/python -c \
-  'from pathlib import Path; from signals.acquisition_connectivity.contracts import ShadowConnectivityDocument; ShadowConnectivityDocument.model_validate_json(Path("/etc/kivou/acquisition-shadow.json.rollback.next").read_text(encoding="utf-8"))'
+  'from pathlib import Path; from signals.acquisition_connectivity.contracts import ShadowConnectivityDocument; ShadowConnectivityDocument.model_validate_json(Path("/etc/kivou/acquisition-shadow.json.rollback.next").read_text(encoding="utf-8"))' &&
+sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json.rollback.next &&
+test "$(sudo stat -c '%a %U %G' /etc/kivou/acquisition-shadow.json.rollback.next)" = '640 root kivou' &&
 sudo mv -T /etc/kivou/acquisition-shadow.json.rollback.next \
-  /etc/kivou/acquisition-shadow.json
-sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json
+  /etc/kivou/acquisition-shadow.json &&
+sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json &&
 test "$(sudo stat -c '%a %U %G' /etc/kivou/acquisition-shadow.json)" = '640 root kivou'
+) || {
+  echo 'AirMail JSON rollback failed; older code remains blocked.' >&2
+  exit 1
+}
 ```
 
 Any failed validation or metadata check stops the rollback before the atomic

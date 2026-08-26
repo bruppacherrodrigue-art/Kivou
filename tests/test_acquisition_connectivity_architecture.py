@@ -239,6 +239,23 @@ def test_runbook_has_collision_safe_backup_and_executable_airmail_rollback() -> 
         'Path("/etc/kivou/acquisition-shadow.json.rollback.next").read_text('
         'encoding="utf-8")'
     )
+    forward_validation_target = (
+        'Path("/etc/kivou/acquisition-shadow.json.next").read_text('
+        'encoding="utf-8")'
+    )
+    forward_candidate_verify = (
+        "test \"$(sudo stat -c '%a %U %G' "
+        "/etc/kivou/acquisition-shadow.json.next)\" = '640 root kivou'"
+    )
+    rollback_candidate_verify = (
+        "test \"$(sudo stat -c '%a %U %G' "
+        "/etc/kivou/acquisition-shadow.json.rollback.next)\" "
+        "= '640 root kivou'"
+    )
+    forward_move = (
+        "sudo mv -T /etc/kivou/acquisition-shadow.json.next \\\n"
+        "  /etc/kivou/acquisition-shadow.json"
+    )
     rollback_move = (
         "sudo mv -T /etc/kivou/acquisition-shadow.json.rollback.next \\\n"
         "  /etc/kivou/acquisition-shadow.json"
@@ -261,7 +278,6 @@ def test_runbook_has_collision_safe_backup_and_executable_airmail_rollback() -> 
         backup_record,
         rollback_candidate,
         rollback_move,
-        live_verify,
         older_code,
     )
     positions = [text.index(required) for required in required_in_order]
@@ -280,3 +296,49 @@ def test_runbook_has_collision_safe_backup_and_executable_airmail_rollback() -> 
         "  /etc/kivou/acquisition-shadow.json \\\n"
         "  /etc/kivou/acquisition-shadow.json.rollback"
     ) not in text
+
+    forward_marker = "# Fail closed: prepare and switch the forward candidate."
+    rollback_marker = "# Fail closed: restore the recorded protected backup."
+    forward_start = text.index(forward_marker)
+    forward_handler = text.index(") || {", forward_start)
+    forward_end = text.index("}\n", forward_handler) + 2
+    forward_block = text[forward_start:forward_handler]
+    forward_failure = text[forward_handler:forward_end]
+    assert "set -euo pipefail" in forward_block
+    assert "ShadowConnectivityDocument.model_validate_json" in forward_block
+    forward_positions = [
+        forward_block.index(required)
+        for required in (
+            forward_validation_target,
+            forward_candidate_verify,
+            forward_move,
+            live_verify,
+        )
+    ]
+    assert forward_positions == sorted(forward_positions)
+    assert forward_block.count("&&") >= 8
+    assert "Forward AirMail JSON switch failed" in forward_failure
+    assert "exit 1" in forward_failure
+
+    rollback_start = text.index(rollback_marker, forward_end)
+    rollback_handler = text.index(") || {", rollback_start)
+    rollback_end = text.index("}\n", rollback_handler) + 2
+    rollback_block = text[rollback_start:rollback_handler]
+    rollback_failure = text[rollback_handler:rollback_end]
+    assert "set -euo pipefail" in rollback_block
+    assert "ShadowConnectivityDocument.model_validate_json" in rollback_block
+    rollback_positions = [
+        rollback_block.index(required)
+        for required in (
+            backup_verify,
+            rollback_validation_target,
+            rollback_candidate_verify,
+            rollback_move,
+            live_verify,
+        )
+    ]
+    assert rollback_positions == sorted(rollback_positions)
+    assert rollback_block.count("&&") >= 7
+    assert "AirMail JSON rollback failed" in rollback_failure
+    assert "exit 1" in rollback_failure
+    assert text.index(older_code) > rollback_end
