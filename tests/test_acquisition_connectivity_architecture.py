@@ -381,16 +381,10 @@ def test_runbook_requires_strict_runtime_dependencies_ready_before_qa() -> None:
         "--property=EnvironmentFile=/etc/kivou/staging.env",
         "--property=EnvironmentFile=/etc/kivou/acquisition-shadow.env",
         "--property=EnvironmentFile=/etc/kivou/acquisition-runtime.env",
-        "load_connectivity_config",
-        "validate_hermes_shadow_config",
-        "ProductionRuntimeDependencyProbe",
-        "HttpInstantlyProvider",
-        "load_instantly_webhook_runtime_config",
-        "probe.check(observed_at=dt.datetime.now(dt.UTC))",
-        "tuple(item.stage for item in dependencies)",
-        "tuple(AcquisitionRuntimeStage)",
-        "item.status is not RuntimeDependencyState.READY",
-        'print("status=READY dependency_count=11")',
+        (
+            "/srv/kivou/app/.venv/bin/python "
+            "-m signals.acquisition_runtime check-dependencies"
+        ),
     )
     positions = [gate_block.index(value) for value in required]
     assert positions == sorted(positions)
@@ -399,6 +393,10 @@ def test_runbook_requires_strict_runtime_dependencies_ready_before_qa() -> None:
     assert "run-once" not in gate_block
     assert "--allow-qa-provider-mutations" not in gate_block
     assert "python -m signals.acquisition_connectivity check" not in gate_block
+    assert "ProductionRuntimeDependencyProbe" not in gate_block
+    assert "_default_hermes_runtime" not in gate_block
+    assert "get_secret_value" not in gate_block
+    assert "/srv/kivou/app/.venv/bin/python -c" not in gate_block
     assert (
         "A connectivity-smoke PASS does not satisfy this strict gate" in text
     )

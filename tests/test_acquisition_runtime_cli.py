@@ -11,8 +11,10 @@ from signals.acquisition_runtime import cli
 from signals.acquisition_runtime.cli import main
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeStage,
+    RuntimeDependencyState,
     RuntimeRunResult,
     RuntimeRunStatus,
+    RuntimeStageDependency,
 )
 
 
@@ -24,6 +26,103 @@ def _execute(result: RuntimeRunResult) -> tuple[Callable[[bool], RuntimeRunResul
         return result
 
     return run, calls
+
+
+def _ready_dependencies() -> tuple[RuntimeStageDependency, ...]:
+    return tuple(
+        RuntimeStageDependency(
+            stage=stage,
+            status=RuntimeDependencyState.READY,
+        )
+        for stage in AcquisitionRuntimeStage
+    )
+
+
+def test_check_dependencies_reports_exact_ready_and_does_not_run_cycle(capsys) -> None:
+    execute, run_calls = _execute(
+        RuntimeRunResult(status=RuntimeRunStatus.ALREADY_RUNNING)
+    )
+    check_calls: list[bool] = []
+
+    def check_dependencies() -> tuple[RuntimeStageDependency, ...]:
+        check_calls.append(True)
+        return _ready_dependencies()
+
+    exit_code = main(
+        ["check-dependencies"],
+        execute=execute,
+        check_dependencies=check_dependencies,
+    )
+
+    assert exit_code == 0
+    assert run_calls == []
+    assert check_calls == [True]
+    streams = capsys.readouterr()
+    assert streams.out == "status=READY dependency_count=11\n"
+    assert streams.err == ""
+
+
+@pytest.mark.parametrize(
+    "dependencies",
+    (
+        _ready_dependencies()[:-1],
+        tuple(
+            RuntimeStageDependency(
+                stage=stage,
+                status=(
+                    RuntimeDependencyState.NOT_READY
+                    if stage is AcquisitionRuntimeStage.CAMPAIGN
+                    else RuntimeDependencyState.READY
+                ),
+                reason_codes=(
+                    ("MAILBOX_DEPENDENCY_NOT_READY",)
+                    if stage is AcquisitionRuntimeStage.CAMPAIGN
+                    else ()
+                ),
+            )
+            for stage in AcquisitionRuntimeStage
+        ),
+    ),
+)
+def test_check_dependencies_rejects_incomplete_or_not_ready_coverage(
+    dependencies: tuple[RuntimeStageDependency, ...],
+    capsys,
+) -> None:
+    exit_code = main(
+        ["check-dependencies"],
+        check_dependencies=lambda: dependencies,
+    )
+
+    assert exit_code == 1
+    streams = capsys.readouterr()
+    assert streams.out == "status=NOT_READY\n"
+    assert streams.err == ""
+
+
+@pytest.mark.parametrize(
+    "error",
+    (
+        ImportError("private-import-marker"),
+        OSError("private-provider-marker"),
+        RuntimeError("private-config-marker"),
+    ),
+)
+def test_check_dependencies_sanitizes_every_failure(error, capsys) -> None:
+    def check_dependencies() -> tuple[RuntimeStageDependency, ...]:
+        raise error
+
+    assert (
+        main(
+            ["check-dependencies"],
+            check_dependencies=check_dependencies,
+        )
+        == 1
+    )
+    streams = capsys.readouterr()
+    assert streams.out == "status=NOT_READY\n"
+    assert streams.err == ""
+    assert "private-" not in streams.out
+    assert "private-" not in streams.err
 
 
 def test_run_once_defaults_to_non_mutating_shadow_mode(capsys) -> None:

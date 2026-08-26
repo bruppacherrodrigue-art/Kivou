@@ -678,6 +678,37 @@ def _owner_ref() -> str:
     return "runtime-owner:" + hashlib.sha256(uuid.uuid4().bytes).hexdigest()
 
 
+def execute_runtime_dependency_check(
+    *,
+    clock: Callable[[], dt.datetime] | None = None,
+) -> tuple[RuntimeStageDependency, ...]:
+    """Run only the fresh, read-only production dependency probes."""
+
+    connectivity = load_connectivity_config()
+    validate_hermes_shadow_config(connectivity)
+    webhook_configuration = load_instantly_webhook_runtime_config(required=True)
+    if webhook_configuration is None:
+        raise RuntimeExecutionConfigurationError("WEBHOOK_NOT_CONFIGURED")
+    observed_at = (clock or (lambda: dt.datetime.now(dt.UTC)))()
+    with httpx.Client(timeout=10.0, follow_redirects=False) as client:
+        apollo = build_apollo_components(
+            api_key=connectivity.apollo_api_key.get_secret_value(),
+            client=client,
+        )
+        instantly = HttpInstantlyProvider(
+            api_key=connectivity.instantly_api_key.get_secret_value(),
+            client=client,
+        )
+        hermes = _default_hermes_runtime(connectivity)
+        return ProductionRuntimeDependencyProbe(
+            apollo=apollo,
+            instantly_provider=instantly,
+            connectivity=connectivity,
+            hermes_runtime=hermes,
+            webhook_configuration=webhook_configuration,
+        ).check(observed_at=observed_at)
+
+
 def execute_runtime_run_once(
     *,
     allow_qa_provider_mutations: bool,
@@ -733,6 +764,7 @@ __all__ = [
     "RuntimeExecutionConfigurationError",
     "RuntimeLinkConfiguration",
     "build_runtime_execution_composition",
+    "execute_runtime_dependency_check",
     "execute_runtime_run_once",
     "load_runtime_link_config",
 ]

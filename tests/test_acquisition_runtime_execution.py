@@ -19,6 +19,7 @@ from signals.acquisition_connectivity.contracts import (
     ShadowConnectivityDocument,
     ShadowMailboxBinding,
 )
+from signals.acquisition_runtime import execution as runtime_execution
 from signals.acquisition_runtime.composition import execute_runtime_run_once
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeConfig,
@@ -344,6 +345,115 @@ def test_production_dependency_probe_reports_real_bounded_component_readiness(
     assert all(
         item.status is RuntimeDependencyState.READY for item in dependencies
     )
+
+
+def test_public_dependency_check_uses_fresh_production_probe_without_store(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    connectivity = _connectivity_config(tmp_path)
+    webhook = _webhook_configuration()
+    apollo = object()
+    instantly = object()
+    hermes = object()
+    calls: list[str] = []
+
+    class ReadOnlyClient:
+        def __enter__(self):
+            calls.append("client-enter")
+            return self
+
+        def __exit__(self, *_args):
+            calls.append("client-exit")
+
+    class CapturingProductionProbe:
+        def __init__(self, **arguments) -> None:
+            assert arguments == {
+                "apollo": apollo,
+                "instantly_provider": instantly,
+                "connectivity": connectivity,
+                "hermes_runtime": hermes,
+                "webhook_configuration": webhook,
+            }
+            assert {
+                binding.managed_airmail_sending_gap_minutes
+                for binding in connectivity.deployment.mailboxes
+            } == {10}
+            calls.append("probe-created")
+
+        def check(self, *, observed_at):
+            assert observed_at == NOW
+            calls.append("probe-checked")
+            return tuple(
+                RuntimeStageDependency(
+                    stage=stage,
+                    status=RuntimeDependencyState.READY,
+                )
+                for stage in AcquisitionRuntimeStage
+            )
+
+    monkeypatch.setattr(
+        runtime_execution,
+        "load_connectivity_config",
+        lambda: connectivity,
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "validate_hermes_shadow_config",
+        lambda loaded: calls.append(
+            "config-validated" if loaded is connectivity else "wrong-config"
+        ),
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "load_instantly_webhook_runtime_config",
+        lambda *, required: webhook if required else None,
+    )
+    monkeypatch.setattr(
+        runtime_execution.httpx,
+        "Client",
+        lambda **_kwargs: ReadOnlyClient(),
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "build_apollo_components",
+        lambda **_kwargs: apollo,
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "HttpInstantlyProvider",
+        lambda **_kwargs: instantly,
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "_default_hermes_runtime",
+        lambda loaded: hermes if loaded is connectivity else None,
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "ProductionRuntimeDependencyProbe",
+        CapturingProductionProbe,
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "create_database_engine",
+        lambda: pytest.fail("dependency check must not create a durable store"),
+    )
+
+    dependencies = runtime_execution.execute_runtime_dependency_check(
+        clock=lambda: NOW,
+    )
+
+    assert tuple(item.stage for item in dependencies) == tuple(
+        AcquisitionRuntimeStage
+    )
+    assert calls == [
+        "config-validated",
+        "client-enter",
+        "probe-created",
+        "probe-checked",
+        "client-exit",
+    ]
 
 
 def test_dependency_probe_keeps_missing_managed_gap_not_ready(tmp_path) -> None:
