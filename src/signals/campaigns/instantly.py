@@ -822,6 +822,20 @@ def _effective_sending_gap_minutes(
     return int(provider_gap)
 
 
+def _normalize_mailbox_state(
+    value: object,
+    *,
+    numeric_states: Mapping[int, str],
+) -> str:
+    if isinstance(value, int) and not isinstance(value, bool):
+        official_state = numeric_states.get(value, "")
+    elif isinstance(value, str):
+        official_state = value
+    else:
+        official_state = ""
+    return official_state.strip().casefold().replace(" ", "_")
+
+
 def normalize_mailbox_readiness(
     raw: object,
     *,
@@ -839,23 +853,27 @@ def normalize_mailbox_readiness(
             sending_gap_seconds=0,
             observed_at=observed_at,
         )
-    official_status = {
-        1: "active",
-        2: "paused",
-        3: "maintenance",
-        -1: "connection_error",
-        -2: "soft_bounce_error",
-        -3: "sending_error",
-    }.get(raw.get("status"), raw.get("status", ""))
-    official_warmup = {
-        0: "paused",
-        1: "active",
-        -1: "banned",
-        -2: "spam_folder_unknown",
-        -3: "permanent_suspension",
-    }.get(raw.get("warmup_status"), raw.get("warmup_status", ""))
-    status = str(official_status).strip().casefold().replace(" ", "_")
-    warmup = str(official_warmup).strip().casefold().replace(" ", "_")
+    status = _normalize_mailbox_state(
+        raw.get("status"),
+        numeric_states={
+            1: "active",
+            2: "paused",
+            3: "maintenance",
+            -1: "connection_error",
+            -2: "soft_bounce_error",
+            -3: "sending_error",
+        },
+    )
+    warmup = _normalize_mailbox_state(
+        raw.get("warmup_status"),
+        numeric_states={
+            0: "paused",
+            1: "active",
+            -1: "banned",
+            -2: "spam_folder_unknown",
+            -3: "permanent_suspension",
+        },
+    )
     tracking = (
         str(raw.get("tracking_domain_status", "")).strip().casefold().replace(" ", "_")
     )

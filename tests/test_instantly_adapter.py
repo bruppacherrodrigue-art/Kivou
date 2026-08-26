@@ -557,6 +557,34 @@ def test_strict_managed_airmail_uses_exact_protected_gap_when_provider_omits_it(
     assert result.sending_gap_seconds == 600
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("status", True),
+        ("status", 1.0),
+        ("warmup_status", True),
+        ("warmup_status", 1.0),
+    ],
+    ids=[
+        "bool-status",
+        "float-status",
+        "bool-warmup-status",
+        "float-warmup-status",
+    ],
+)
+def test_managed_airmail_rejects_non_strict_numeric_mailbox_states(
+    field: str,
+    value: object,
+) -> None:
+    result = normalize_mailbox_readiness(
+        _managed_airmail_account(**{field: value}),
+        observed_at=READINESS_NOW,
+        managed_airmail_sending_gap_minutes=10,
+    )
+
+    assert result.state is MailboxReadinessState.UNKNOWN
+
+
 def test_managed_airmail_without_protected_gap_remains_unknown() -> None:
     result = normalize_mailbox_readiness(
         _managed_airmail_account(),
