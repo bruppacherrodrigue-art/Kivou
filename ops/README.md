@@ -1163,6 +1163,17 @@ kivou_bounded_systemctl_read() {
   /usr/bin/sudo --non-interactive -- \
     /usr/bin/timeout --foreground 2 /usr/bin/systemctl "$@"
 }
+kivou_read_unit_state() {
+  /usr/bin/sudo -u kivou -- /usr/bin/env -i PATH=/usr/bin:/bin \
+    "$KIVOU_SECURITY_RELEASE/ops/bin/kivou-api-readiness.sh" \
+    --state "$1"
+}
+kivou_state_is_stopped() {
+  case "$1" in
+    (inactive | failed | absent) ;;
+    (*) return 1 ;;
+  esac
+}
 kivou_validate_recovery_green_unit() {
   KIVOU_GREEN_UNIT_TO_VALIDATE=$1
   test "$(kivou_bounded_systemctl_read show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
@@ -1175,24 +1186,42 @@ kivou_validate_recovery_green_unit() {
     --property=ExecStart --value |
     grep --fixed-strings --quiet -- '--no-access-log'
 }
-if kivou_bounded_systemctl_read is-active --quiet \
-  kivou-api-green.service; then
+KIVOU_GREEN_UNIT_STATE=$(kivou_read_unit_state \
+  kivou-api-green.service) || exit 1
+KIVOU_ROLLBACK_GREEN_UNIT_STATE=$(kivou_read_unit_state \
+  kivou-api-rollback-green.service) || exit 1
+if [[ "$KIVOU_GREEN_UNIT_STATE" == active ]]; then
+  kivou_state_is_stopped "$KIVOU_ROLLBACK_GREEN_UNIT_STATE"
   KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-green.service
   kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"
-elif kivou_bounded_systemctl_read is-active --quiet \
-  kivou-api-rollback-green.service; then
+elif [[ "$KIVOU_ROLLBACK_GREEN_UNIT_STATE" == active ]]; then
+  kivou_state_is_stopped "$KIVOU_GREEN_UNIT_STATE"
   KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service
   kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"
 else
+  kivou_state_is_stopped "$KIVOU_GREEN_UNIT_STATE"
+  kivou_state_is_stopped "$KIVOU_ROLLBACK_GREEN_UNIT_STATE"
   KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service
-  sudo systemctl stop kivou-api-green.service || true
-  sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT" || true
-  sudo systemctl reset-failed kivou-api-green.service || true
-  sudo systemctl reset-failed "$KIVOU_ROLLBACK_GREEN_UNIT" || true
-  ! kivou_bounded_systemctl_read is-active --quiet \
-    kivou-api-green.service
-  ! kivou_bounded_systemctl_read is-active --quiet \
-    "$KIVOU_ROLLBACK_GREEN_UNIT"
+  if [[ "$KIVOU_GREEN_UNIT_STATE" != absent ]]; then
+    sudo systemctl stop kivou-api-green.service
+    if [[ "$KIVOU_GREEN_UNIT_STATE" == failed ]]; then
+      sudo systemctl reset-failed kivou-api-green.service
+    fi
+  fi
+  if [[ "$KIVOU_ROLLBACK_GREEN_UNIT_STATE" != absent ]]; then
+    sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT"
+    if [[ "$KIVOU_ROLLBACK_GREEN_UNIT_STATE" == failed ]]; then
+      sudo systemctl reset-failed "$KIVOU_ROLLBACK_GREEN_UNIT"
+    fi
+  fi
+  KIVOU_GREEN_UNIT_STATE=$(kivou_read_unit_state \
+    kivou-api-green.service) || exit 1
+  KIVOU_ROLLBACK_GREEN_UNIT_STATE=$(kivou_read_unit_state \
+    kivou-api-rollback-green.service) || exit 1
+  case "$KIVOU_GREEN_UNIT_STATE:$KIVOU_ROLLBACK_GREEN_UNIT_STATE" in
+    (inactive:inactive | inactive:absent | absent:inactive | absent:absent) ;;
+    (*) exit 1 ;;
+  esac
   test -z "$(sudo ss --no-header --listening --tcp 'sport = :8001')"
   sudo systemd-run \
     --unit="$KIVOU_ROLLBACK_GREEN_UNIT" \

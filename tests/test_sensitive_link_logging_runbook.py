@@ -296,7 +296,7 @@ def test_bounded_readiness_precedes_every_direct_api_probe() -> None:
         "http://127.0.0.1:8000/openapi.json",
         "http://127.0.0.1:8000/me",
     )
-    assert rollback.count("ops/bin/kivou-api-readiness.sh") == 2
+    assert rollback.count("ops/bin/kivou-api-readiness.sh") == 3
 
 
 def test_readiness_helper_has_an_exact_unprivileged_execution_boundary() -> None:
@@ -310,7 +310,7 @@ def test_readiness_helper_has_an_exact_unprivileged_execution_boundary() -> None
 
     assert "sudo" not in helper
     assert "timeout --foreground 1 systemctl is-active --quiet" in helper
-    assert body.count(closed_environment) == 4
+    assert body.count(closed_environment) == 5
     assert body.count(
         closed_environment
         + '"$KIVOU_RELEASE_DIR/ops/bin/kivou-api-readiness.sh"'
@@ -318,7 +318,7 @@ def test_readiness_helper_has_an_exact_unprivileged_execution_boundary() -> None
     assert body.count(
         closed_environment
         + '"$KIVOU_SECURITY_RELEASE/ops/bin/kivou-api-readiness.sh"'
-    ) == 2
+    ) == 3
 
 
 def test_every_direct_local_api_probe_has_connect_and_total_timeouts() -> None:
@@ -722,23 +722,26 @@ def test_rollback_keeps_the_security_floor_and_switches_only_the_application() -
         '. /dev/stdin <<<"$KIVOU_STATE_CONTENT"',
         "kivou_bounded_systemctl_read()",
         "/usr/bin/timeout --foreground 2 /usr/bin/systemctl",
+        "kivou_read_unit_state()",
+        "--state",
         "kivou_validate_recovery_green_unit()",
-        "if kivou_bounded_systemctl_read is-active --quiet",
-        "kivou-api-green.service; then",
+        "KIVOU_GREEN_UNIT_STATE=$(kivou_read_unit_state",
+        "KIVOU_ROLLBACK_GREEN_UNIT_STATE=$(kivou_read_unit_state",
+        'if [[ "$KIVOU_GREEN_UNIT_STATE" == active ]]; then',
         "KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-green.service",
         'kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"',
-        "elif kivou_bounded_systemctl_read is-active --quiet",
-        "kivou-api-rollback-green.service; then",
+        'elif [[ "$KIVOU_ROLLBACK_GREEN_UNIT_STATE" == active ]]; then',
         "KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service",
         'kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"',
         "else",
         "KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service",
         "sudo systemctl stop kivou-api-green.service",
-        'sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT"',
         "sudo systemctl reset-failed kivou-api-green.service",
+        'sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT"',
         'sudo systemctl reset-failed "$KIVOU_ROLLBACK_GREEN_UNIT"',
-        "! kivou_bounded_systemctl_read is-active --quiet",
-        '! kivou_bounded_systemctl_read is-active --quiet',
+        "KIVOU_GREEN_UNIT_STATE=$(kivou_read_unit_state",
+        "KIVOU_ROLLBACK_GREEN_UNIT_STATE=$(kivou_read_unit_state",
+        "inactive:inactive | inactive:absent | absent:inactive | absent:absent",
         "sport = :8001",
         '--unit="$KIVOU_ROLLBACK_GREEN_UNIT"',
         "fi",
@@ -771,6 +774,23 @@ def test_api_rollout_never_uses_an_unbounded_systemd_state_read() -> None:
     assert "sudo systemctl is-active" not in body
     assert "sudo systemctl show" not in body
     assert "/usr/bin/timeout --foreground 2 /usr/bin/systemctl" in body
+
+
+def test_rollback_reads_both_unit_states_before_any_mutation() -> None:
+    body = _runbook()
+    rollback = _subsection(body, "### Rollback applicatif préservant la sécurité")
+    shell = _only_shell_block(rollback)
+
+    _assert_in_order(
+        shell,
+        "KIVOU_GREEN_UNIT_STATE=$(kivou_read_unit_state",
+        ") || exit 1",
+        "KIVOU_ROLLBACK_GREEN_UNIT_STATE=$(kivou_read_unit_state",
+        ") || exit 1",
+        "sudo systemctl stop",
+        "sudo systemd-run",
+        "previous application release",
+    )
 
 
 def test_runbook_forbids_mutating_or_secret_bearing_expansion() -> None:

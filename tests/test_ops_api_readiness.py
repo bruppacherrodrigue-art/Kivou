@@ -58,6 +58,18 @@ def _run_helper(environment: dict[str, str]) -> subprocess.CompletedProcess[str]
     )
 
 
+def _read_unit_state(environment: dict[str, str]) -> subprocess.CompletedProcess[str]:
+    assert READINESS_HELPER.is_file()
+    return subprocess.run(
+        [str(READINESS_HELPER), "--state", "kivou-api-green.service"],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=environment,
+        timeout=2,
+    )
+
+
 def test_api_readiness_is_bounded_and_fails_after_five_attempts(
     tmp_path: Path,
 ) -> None:
@@ -150,6 +162,60 @@ def test_api_readiness_bounds_the_service_state_check(tmp_path: Path) -> None:
     assert result.stderr == (
         "api_readiness=service_inactive unit=kivou-api.service attempt=1\n"
     )
+    call_log = calls.read_text(encoding="utf-8").splitlines()
+    assert call_log.count("systemctl") == 1
+    assert call_log.count("curl") == 0
+
+
+def test_api_unit_state_read_fails_closed_on_systemd_timeout(tmp_path: Path) -> None:
+    environment, calls = _fake_environment(
+        tmp_path,
+        "#!/bin/sh\n"
+        "printf 'systemctl\\n' >>\"$KIVOU_TEST_CALLS\"\n"
+        "exec /bin/sleep 5\n",
+    )
+
+    try:
+        result = _read_unit_state(environment)
+    except subprocess.TimeoutExpired:
+        pytest.fail("the unit state read exceeded its finite bound")
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert result.stderr == (
+        "api_unit_state=unavailable unit=kivou-api-green.service\n"
+    )
+    call_log = calls.read_text(encoding="utf-8").splitlines()
+    assert call_log.count("systemctl") == 1
+    assert call_log.count("curl") == 0
+
+
+@pytest.mark.parametrize(
+    ("systemd_state", "expected_state"),
+    (
+        ("loaded\\nactive", "active"),
+        ("loaded\\ninactive", "inactive"),
+        ("loaded\\nfailed", "failed"),
+        ("not-found\\ninactive", "absent"),
+    ),
+)
+def test_api_unit_state_read_classifies_only_known_states(
+    tmp_path: Path,
+    systemd_state: str,
+    expected_state: str,
+) -> None:
+    environment, calls = _fake_environment(
+        tmp_path,
+        "#!/bin/sh\n"
+        "printf 'systemctl\\n' >>\"$KIVOU_TEST_CALLS\"\n"
+        f"printf '{systemd_state}\\n'\n",
+    )
+
+    result = _read_unit_state(environment)
+
+    assert result.returncode == 0
+    assert result.stdout == f"{expected_state}\n"
+    assert result.stderr == ""
     call_log = calls.read_text(encoding="utf-8").splitlines()
     assert call_log.count("systemctl") == 1
     assert call_log.count("curl") == 0

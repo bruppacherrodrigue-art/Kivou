@@ -2,6 +2,43 @@
 
 set -euo pipefail
 
+kivou_api_unit_is_allowed() {
+  case "$1" in
+    (kivou-api.service | \
+      kivou-api-green.service | \
+      kivou-api-rollback-green.service) ;;
+    (*) return 1 ;;
+  esac
+}
+
+if [[ $# -eq 2 && "$1" == "--state" ]]; then
+  KIVOU_API_READY_UNIT=$2
+  if ! kivou_api_unit_is_allowed "$KIVOU_API_READY_UNIT"; then
+    printf '%s\n' 'api_readiness=invalid_arguments' >&2
+    exit 64
+  fi
+  if ! KIVOU_API_UNIT_RAW_STATE=$(timeout --foreground 1 systemctl show \
+    "$KIVOU_API_READY_UNIT" --property=LoadState --property=ActiveState \
+    --value); then
+    printf 'api_unit_state=unavailable unit=%s\n' \
+      "$KIVOU_API_READY_UNIT" >&2
+    exit 1
+  fi
+  case "$KIVOU_API_UNIT_RAW_STATE" in
+    ($'loaded\nactive') KIVOU_API_UNIT_STATE=active ;;
+    ($'loaded\ninactive') KIVOU_API_UNIT_STATE=inactive ;;
+    ($'loaded\nfailed') KIVOU_API_UNIT_STATE=failed ;;
+    ($'not-found\ninactive') KIVOU_API_UNIT_STATE=absent ;;
+    (*)
+      printf 'api_unit_state=unavailable unit=%s\n' \
+        "$KIVOU_API_READY_UNIT" >&2
+      exit 1
+      ;;
+  esac
+  printf '%s\n' "$KIVOU_API_UNIT_STATE"
+  exit 0
+fi
+
 if [[ $# -ne 2 ]]; then
   printf '%s\n' 'api_readiness=invalid_arguments' >&2
   exit 64
