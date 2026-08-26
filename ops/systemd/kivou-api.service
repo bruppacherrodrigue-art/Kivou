@@ -1,0 +1,40 @@
+[Unit]
+# Copie de l'unité active auditée sur staging : dépendances et documentation
+# restent versionnées avec le même contrat que le processus effectivement servi.
+Description=Kivou API (FastAPI/uvicorn)
+Documentation=https://github.com/bruppacherrodrigue-art/Kivou
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+# Reproduction versionnée de l'unité active auditée sur staging. Uvicorn reste
+# lié au loopback, derrière le seul proxy de confiance, avec deux workers.
+Type=exec
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/staging.env
+ExecStart=/srv/kivou/app/.venv/bin/uvicorn signals.api.asgi:app --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-server-header --no-access-log --timeout-keep-alive 20
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-api
+
+# Nginx conserve l'unique journal d'accès public expurgé. Les erreurs Uvicorn,
+# les événements applicatifs et stderr restent dans journald.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/srv/kivou/run
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

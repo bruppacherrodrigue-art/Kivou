@@ -378,27 +378,24 @@ unité transitoire `systemd-run` avec
 
 ## Reverse proxy public de staging (#84)
 
-Les quatre fichiers sous `ops/nginx/` forment un seul candidat versionné :
+Cette procédure installe ensemble le journal nginx expurgé, les quatre routes
+sensibles, le runtime API sans journal d'accès Uvicorn et un rollback qui ne
+descend jamais sous cette limite. Elle s'exécute depuis un shell de connexion
+sur kivou-staging. La reprise et le rollback utilisent un état root-only fixe :
+ils restent autonomes si le shell initial disparaît après une erreur.
 
-- `kivou-staging.conf` porte la liste blanche publique et le repli SPA ;
-- `kivou-limits.conf` déclare les zones de débit au niveau `http` ;
-- `kivou-proxy-params.conf` conserve l'hôte, l'origine et les adresses relayées ;
-- `kivou-security-headers.conf` centralise CSP, HSTS et les autres en-têtes.
-
-La liste blanche relaie les groupes SaaS actuels, dont `/companies`, les deux
-webhooks exacts et le préfixe `^~ /a/`. Elle ne relaie aucun `/internal/*` et ne
-contient aucun catch-all backend : une nouvelle route FastAPI exige une revue de
-`tests/test_ops_nginx_routes.py` et du gabarit avant de devenir publique.
-
-Les dix variables requises `KIVOU_INSTANTLY_WEBHOOK_SECRET`,
-`KIVOU_INSTANTLY_WORKSPACE_REF`, `KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY`,
+Le runtime webhook Instantly conserve son groupe de configuration atomique :
+`KIVOU_INSTANTLY_WEBHOOK_SECRET`, `KIVOU_INSTANTLY_WORKSPACE_REF`,
+`KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY`,
 `KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION`,
 `KIVOU_SUPPRESSION_HMAC_KEY`, `KIVOU_SUPPRESSION_HMAC_KEY_VERSION`,
-`KIVOU_RESPONSE_SOURCE_HMAC_KEY`, `KIVOU_RESPONSE_SOURCE_HMAC_KEY_VERSION`,
+`KIVOU_RESPONSE_SOURCE_HMAC_KEY`,
+`KIVOU_RESPONSE_SOURCE_HMAC_KEY_VERSION`,
 `KIVOU_RESPONSE_CONTENT_HMAC_KEY` et
-`KIVOU_RESPONSE_CONTENT_HMAC_KEY_VERSION` décrites dans `.env.example` forment
-un groupe atomique. Toutes absentes, le webhook répond 503 ; partiellement
-présentes, l'API refuse de démarrer sans imprimer leurs valeurs.
+`KIVOU_RESPONSE_CONTENT_HMAC_KEY_VERSION`. Les dix variables sont lues depuis
+le fichier d'environnement protégé par systemd, jamais depuis ce runbook :
+toutes absentes, le webhook répond 503 ; partiellement présentes, l'API refuse
+de démarrer sans imprimer leurs valeurs.
 
 Les quatre variables facultatives de rétention
 `KIVOU_INSTANTLY_WEBHOOK_RETAINED_FINGERPRINT_KEYS_JSON`,
@@ -410,34 +407,143 @@ version déjà référencée par des événements ou suppressions durables, cons
 son secret dans le keyring correspondant ; la rotation ne réinterprète jamais
 l'historique avec une nouvelle clé.
 
-### Préparer et valider le candidat
+No migration, provider call, e-mail, production action, or secret argument belongs to this procedure.
+Les seules substitutions du gabarit de site sont STAGING_HOST et
+KIVOU_API_PORT. Aucune valeur de /etc/kivou/staging.env n'est chargée dans le
+shell ou placée dans argv.
 
-Définir l'hôte explicitement et refuser tout caractère qui pourrait modifier le
-gabarit. Le répertoire candidat est créé sous `/etc/nginx`, sur le même système
-de fichiers que les destinations finales : les renommages de publication y sont
-atomiques.
+### Préparer la release exacte et le candidat nginx isolé
 
-```bash
+Valider l'hôte, n'accepter que le port vert 8001 ou le port normal 8000, puis
+saisir le SHA main préalablement revu. Le fetch ne modifie ni l'arbre déployé ni
+le lien /srv/kivou/app. La deploy key read-only côté GitHub ne doit disposer
+d'aucun droit d'écriture sur le dépôt.
+
+~~~bash
 set -euo pipefail
 KIVOU_STAGING_HOST=staging.kivou.eu
+KIVOU_API_PORT=8001
+
 case "$KIVOU_STAGING_HOST" in
   (*[!a-z0-9.-]*|'') printf '%s\n' 'hôte staging invalide' >&2; exit 64 ;;
+  (*) ;;
+esac
+case "$KIVOU_API_PORT" in
+  (8000|8001) ;;
+  (*) printf '%s\n' 'port API hors liste revue' >&2; exit 64 ;;
 esac
 
+# set KIVOU_RELEASE_SHA to the reviewed main SHA
+printf '%s' 'SHA main revu (40 hex): ' >/dev/tty
+IFS= read -r KIVOU_RELEASE_SHA </dev/tty
+printf '%s\n' "$KIVOU_RELEASE_SHA" | grep -Eq '^[0-9a-f]{40}$'
+
+KIVOU_RELEASE_REMOTE=git@github.com:bruppacherrodrigue-art/Kivou.git
+KIVOU_DEPLOY_KEY=/srv/kivou/.ssh/github_deploy
+test "$(sudo stat -c '%U:%G:%a' "$KIVOU_DEPLOY_KEY")" = "kivou:kivou:600"
+KIVOU_KNOWN_HOSTS=/etc/nginx/kivou-github-known-hosts
+KIVOU_KNOWN_HOSTS_NEW=/etc/nginx/kivou-github-known-hosts.new
+sudo test -d /etc/nginx
+sudo -u kivou test ! -w /etc/nginx
+sudo install -o root -g root -m 644 /dev/null "$KIVOU_KNOWN_HOSTS_NEW"
+printf '%s\n' \
+  'github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl' |
+  sudo tee "$KIVOU_KNOWN_HOSTS_NEW" >/dev/null
+test "$(sudo ssh-keygen -lf "$KIVOU_KNOWN_HOSTS_NEW" -E sha256 |
+  awk '{print $2}')" = \
+  'SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU'
+sudo mv -f "$KIVOU_KNOWN_HOSTS_NEW" "$KIVOU_KNOWN_HOSTS"
+sudo test -f "$KIVOU_KNOWN_HOSTS"
+sudo test ! -L "$KIVOU_KNOWN_HOSTS"
+test "$(sudo stat -c '%U:%G:%a' "$KIVOU_KNOWN_HOSTS")" = "root:root:644"
+sudo -u kivou test -r "$KIVOU_KNOWN_HOSTS"
+sudo -u kivou test ! -w "$KIVOU_KNOWN_HOSTS"
+test "$(sudo ssh-keygen -lf "$KIVOU_KNOWN_HOSTS" -E sha256 |
+  awk '{print $2}')" = \
+  'SHA256:+DiY3wvvV6TuJJhbpZisF/zLDA0zPMSvHdkr4UvCOqU'
+kivou_git() {
+  sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
+    GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+    /usr/bin/git "$@"
+}
+KIVOU_GIT_SSH_COMMAND="/usr/bin/ssh -F /dev/null -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$KIVOU_KNOWN_HOSTS -o GlobalKnownHostsFile=/dev/null -i $KIVOU_DEPLOY_KEY"
+KIVOU_REMOTE_MAIN_SHA=$(sudo -u kivou /usr/bin/env -i \
+  HOME=/srv/kivou PATH=/usr/bin:/bin \
+  GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+  GIT_SSH_COMMAND="$KIVOU_GIT_SSH_COMMAND" \
+  /usr/bin/git ls-remote --exit-code "$KIVOU_RELEASE_REMOTE" refs/heads/main |
+  awk '$2 == "refs/heads/main" {print $1}')
+test "$KIVOU_REMOTE_MAIN_SHA" = "$KIVOU_RELEASE_SHA"
+
+KIVOU_RELEASE_UTC=$(date -u +%Y%m%dT%H%M%SZ)
+KIVOU_RELEASE_SHORT=$(printf '%s' "$KIVOU_RELEASE_SHA" | cut -c1-12)
+KIVOU_RELEASE_DIR=/srv/kivou/releases/backend-$KIVOU_RELEASE_UTC-$KIVOU_RELEASE_SHORT
+sudo install -o kivou -g kivou -m 755 -d /srv/kivou/releases
+sudo test ! -e "$KIVOU_RELEASE_DIR"
+kivou_git init --quiet --initial-branch=main "$KIVOU_RELEASE_DIR"
+kivou_git -C "$KIVOU_RELEASE_DIR" remote add origin \
+  "$KIVOU_RELEASE_REMOTE"
+sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
+  GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+  GIT_SSH_COMMAND="$KIVOU_GIT_SSH_COMMAND" \
+  /usr/bin/git -C "$KIVOU_RELEASE_DIR" fetch --no-tags origin \
+  +refs/heads/main:refs/kivou-rollout/reviewed-main
+test "$(kivou_git -C "$KIVOU_RELEASE_DIR" \
+  rev-parse refs/kivou-rollout/reviewed-main)" = "$KIVOU_RELEASE_SHA"
+kivou_git -C "$KIVOU_RELEASE_DIR" \
+  cat-file -e "$KIVOU_RELEASE_SHA^{commit}"
+kivou_git -C "$KIVOU_RELEASE_DIR" checkout --detach "$KIVOU_RELEASE_SHA"
+test "$(kivou_git -C "$KIVOU_RELEASE_DIR" remote get-url origin)" = \
+  "$KIVOU_RELEASE_REMOTE"
+test "$(kivou_git -C "$KIVOU_RELEASE_DIR" rev-parse HEAD)" = \
+  "$KIVOU_RELEASE_SHA"
+# git status --porcelain must remain empty before and after dependency sync.
+test -z "$(kivou_git -C "$KIVOU_RELEASE_DIR" status --porcelain)"
+sudo -u kivou /usr/bin/env --chdir="$KIVOU_RELEASE_DIR" \
+  /usr/local/bin/uv sync --frozen --extra server --extra postgres
+test -z "$(kivou_git -C "$KIVOU_RELEASE_DIR" status --porcelain)"
+~~~
+
+Le candidat vit sous /etc/nginx, appartient à root et contient les six fragments
+immuables de la release revue. Le fragment ouvert est copié séparément comme
+gate actif en mode 600 ; les autres fichiers restent en mode 644. Les quatre
+chemins include du site sont rendus vers ce répertoire, puis nginx lit le
+fragment http limits et le site rendu dans une configuration isolée.
+
+~~~bash
 KIVOU_NGINX_CANDIDATE=$(sudo mktemp -d /etc/nginx/.kivou-candidate.XXXXXX)
 sudo chmod 700 "$KIVOU_NGINX_CANDIDATE"
 sudo install -o root -g root -m 644 \
-  ops/nginx/kivou-limits.conf \
-  ops/nginx/kivou-proxy-params.conf \
-  ops/nginx/kivou-security-headers.conf \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-limits.conf" \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-proxy-params.conf" \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-security-headers.conf" \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-sensitive-link-security-headers.conf" \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-sensitive-links-open.conf" \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-sensitive-links-closed.conf" \
   "$KIVOU_NGINX_CANDIDATE/"
+sudo install -o root -g root -m 600 \
+  "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-open.conf" \
+  "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-gate.conf"
+KIVOU_REVIEWED_OPEN_SHA=$(kivou_git -C "$KIVOU_RELEASE_DIR" show \
+  "$KIVOU_RELEASE_SHA:ops/nginx/kivou-sensitive-links-open.conf" |
+  sha256sum | awk '{print $1}')
+KIVOU_CANDIDATE_OPEN_SHA=$(sudo sha256sum \
+  "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-gate.conf" |
+  awk '{print $1}')
+test "$KIVOU_CANDIDATE_OPEN_SHA" = "$KIVOU_REVIEWED_OPEN_SHA"
+test -z "$(sudo awk 'NF && $1 !~ /^#/ {print}' \
+  "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-gate.conf")"
 
 sed \
   -e "s/STAGING_HOST/$KIVOU_STAGING_HOST/g" \
+  -e "s/KIVOU_API_PORT/$KIVOU_API_PORT/g" \
   -e "s#/etc/nginx/kivou-proxy-params.conf#$KIVOU_NGINX_CANDIDATE/kivou-proxy-params.conf#g" \
   -e "s#/etc/nginx/kivou-security-headers.conf#$KIVOU_NGINX_CANDIDATE/kivou-security-headers.conf#g" \
-  ops/nginx/kivou-staging.conf |
+  -e "s#/etc/nginx/kivou-sensitive-link-security-headers.conf#$KIVOU_NGINX_CANDIDATE/kivou-sensitive-link-security-headers.conf#g" \
+  -e "s#/etc/nginx/kivou-sensitive-links-gate.conf#$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-gate.conf#g" \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-staging.conf" |
   sudo tee "$KIVOU_NGINX_CANDIDATE/kivou-staging.test.conf" >/dev/null
+sudo chmod 644 "$KIVOU_NGINX_CANDIDATE/kivou-staging.test.conf"
 
 sudo tee "$KIVOU_NGINX_CANDIDATE/nginx.conf" >/dev/null <<EOF
 pid $KIVOU_NGINX_CANDIDATE/nginx.pid;
@@ -449,154 +555,741 @@ http {
     include $KIVOU_NGINX_CANDIDATE/kivou-staging.test.conf;
 }
 EOF
-
+sudo chmod 644 "$KIVOU_NGINX_CANDIDATE/nginx.conf"
 sudo nginx -t -c "$KIVOU_NGINX_CANDIDATE/nginx.conf"
-```
+~~~
 
-Ce premier `nginx -t` lit les quatre fichiers candidats ensemble. Il utilise les
-certificats déjà déclarés pour l'hôte ; une absence de certificat est donc un
-échec réel de précondition, pas une raison de publier sans validation.
+Ce test est obligatoire avant toute publication. Il valide le port 8001, les
+certificats existants et toutes les inclusions sans toucher au nginx actif.
 
-### Sauvegarder, publier puis recharger
+### Capturer la preuve antérieure sans en faire un rollback
 
-La sauvegarde précède toute publication. Les fichiers `.new` sont écrits puis
-renommés dans leur répertoire final ; nginx continue d'exécuter son ancienne
-configuration jusqu'au `reload` final. Le second `nginx -t` valide exactement
-les chemins qui seront relus par le processus actif.
+Après la validation isolée et avant toute mutation live, capturer la
+configuration active, le gate ou son absence, la cible applicative et l'unité.
+Le snapshot unique est EVIDENCE ONLY. L'état de reprise fixe ne contient que
+quatre valeurs non secrètes validées, shell-quotées et publiées atomiquement
+en root:root 600.
 
-```bash
-set -euo pipefail
-KIVOU_NGINX_BACKUP=$(sudo mktemp -d /etc/nginx/.kivou-backup.XXXXXX)
-sudo chmod 700 "$KIVOU_NGINX_BACKUP"
-if sudo test -e /etc/nginx/kivou-proxy-params.conf; then
-  sudo cp -a /etc/nginx/kivou-proxy-params.conf "$KIVOU_NGINX_BACKUP/proxy"
+~~~bash
+KIVOU_PREVIOUS_RELEASE=$(sudo readlink -f /srv/kivou/app)
+case "$KIVOU_PREVIOUS_RELEASE" in
+  (/srv/kivou/releases/backend-*) ;;
+  (*) exit 69 ;;
+esac
+sudo test -d "$KIVOU_PREVIOUS_RELEASE"
+KIVOU_SECURITY_RELEASE=$KIVOU_RELEASE_DIR
+case "$KIVOU_SECURITY_RELEASE" in
+  (/srv/kivou/releases/backend-*) ;;
+  (*) exit 69 ;;
+esac
+test "$(kivou_git -C "$KIVOU_SECURITY_RELEASE" rev-parse HEAD)" = \
+  "$KIVOU_RELEASE_SHA"
+test -z "$(kivou_git -C "$KIVOU_SECURITY_RELEASE" status --porcelain)"
+
+KIVOU_EVIDENCE_DIR=$(sudo mktemp -d /etc/nginx/.kivou-evidence.XXXXXX)
+sudo chmod 700 "$KIVOU_EVIDENCE_DIR"
+sudo cp -a /etc/nginx/sites-available/kivou \
+  "$KIVOU_EVIDENCE_DIR/kivou.site"
+sudo cp -a /etc/nginx/conf.d/kivou-limits.conf \
+  "$KIVOU_EVIDENCE_DIR/kivou-limits.conf"
+sudo cp -a /etc/nginx/kivou-proxy-params.conf \
+  "$KIVOU_EVIDENCE_DIR/kivou-proxy-params.conf"
+sudo cp -a /etc/nginx/kivou-security-headers.conf \
+  "$KIVOU_EVIDENCE_DIR/kivou-security-headers.conf"
+if sudo test -e /etc/nginx/kivou-sensitive-links-gate.conf; then
+  sudo cp -a /etc/nginx/kivou-sensitive-links-gate.conf \
+    "$KIVOU_EVIDENCE_DIR/kivou-sensitive-links-gate.conf"
 else
-  sudo touch "$KIVOU_NGINX_BACKUP/proxy.absent"
+  sudo touch "$KIVOU_EVIDENCE_DIR/kivou-sensitive-links-gate.absent"
 fi
-if sudo test -e /etc/nginx/kivou-security-headers.conf; then
-  sudo cp -a /etc/nginx/kivou-security-headers.conf "$KIVOU_NGINX_BACKUP/security"
-else
-  sudo touch "$KIVOU_NGINX_BACKUP/security.absent"
-fi
-if sudo test -e /etc/nginx/conf.d/kivou-limits.conf; then
-  sudo cp -a /etc/nginx/conf.d/kivou-limits.conf "$KIVOU_NGINX_BACKUP/limits"
-else
-  sudo touch "$KIVOU_NGINX_BACKUP/limits.absent"
-fi
-if sudo test -e /etc/nginx/sites-available/kivou; then
-  sudo cp -a /etc/nginx/sites-available/kivou "$KIVOU_NGINX_BACKUP/site"
-else
-  sudo touch "$KIVOU_NGINX_BACKUP/site.absent"
-fi
+printf '%s\n' "$KIVOU_PREVIOUS_RELEASE" |
+  sudo tee "$KIVOU_EVIDENCE_DIR/app-target" >/dev/null
+printf '%s\n' "$KIVOU_SECURITY_RELEASE" |
+  sudo tee "$KIVOU_EVIDENCE_DIR/reviewed-release-target" >/dev/null
+sudo cp -a /etc/systemd/system/kivou-api.service \
+  "$KIVOU_EVIDENCE_DIR/kivou-api.service"
+sudo chmod -R go-rwx "$KIVOU_EVIDENCE_DIR"
 
+KIVOU_ROLLOUT_STATE=/etc/kivou/kivou-safe-rollout.state
+KIVOU_ROLLOUT_STATE_NEW=/etc/kivou/kivou-safe-rollout.state.new
+sudo test -d /etc/kivou
+sudo -u kivou test ! -w /etc/kivou
+sudo install -o root -g root -m 600 /dev/null "$KIVOU_ROLLOUT_STATE_NEW"
+{
+  printf 'KIVOU_STAGING_HOST=%q\n' "$KIVOU_STAGING_HOST"
+  printf 'KIVOU_SECURITY_RELEASE=%q\n' "$KIVOU_SECURITY_RELEASE"
+  printf 'KIVOU_PREVIOUS_RELEASE=%q\n' "$KIVOU_PREVIOUS_RELEASE"
+  printf 'KIVOU_RELEASE_SHA=%q\n' "$KIVOU_RELEASE_SHA"
+} | sudo tee "$KIVOU_ROLLOUT_STATE_NEW" >/dev/null
+test "$(sudo stat -c '%U:%G:%a' "$KIVOU_ROLLOUT_STATE_NEW")" = \
+  "root:root:600"
+sudo mv -f "$KIVOU_ROLLOUT_STATE_NEW" "$KIVOU_ROLLOUT_STATE"
+test "$(sudo stat -c '%U:%G:%a' "$KIVOU_ROLLOUT_STATE")" = \
+  "root:root:600"
+~~~
+
+Ces fichiers de preuve peuvent contenir l'ancien format de log ou l'ancienne
+unité et ne sont jamais des sources de restauration. L'état fixe ne contient
+aucun secret et sert uniquement aux blocs autonomes de reprise.
+
+### Démarrer et prouver le runtime vert sur 8001
+
+La transient unit reprend le fichier d'environnement protégé, le même
+durcissement, deux workers et exactement --no-access-log. Elle exécute
+l'exécutable et le répertoire de la release revue ; aucune variable secrète
+n'est développée par le shell.
+
+~~~bash
+sudo systemd-run \
+  --unit=kivou-api-green \
+  --collect \
+  --property=Type=exec \
+  --property=User=kivou \
+  --property=Group=kivou \
+  --property=WorkingDirectory="$KIVOU_RELEASE_DIR" \
+  --property=EnvironmentFile=/etc/kivou/staging.env \
+  --property=Restart=on-failure \
+  --property=RestartSec=5s \
+  --property=StandardOutput=journal \
+  --property=StandardError=journal \
+  --property=SyslogIdentifier=kivou-api-green \
+  --property=NoNewPrivileges=yes \
+  --property=PrivateTmp=yes \
+  --property=ProtectSystem=strict \
+  --property=ProtectHome=yes \
+  --property=ReadWritePaths=/srv/kivou/run \
+  --property=ProtectKernelTunables=yes \
+  --property=ProtectKernelModules=yes \
+  --property=ProtectControlGroups=yes \
+  --property=RestrictSUIDSGID=yes \
+  --property=RestrictNamespaces=yes \
+  --property=LockPersonality=yes \
+  --property=MemoryDenyWriteExecute=yes \
+  -- "$KIVOU_RELEASE_DIR/.venv/bin/uvicorn" signals.api.asgi:app \
+  --host 127.0.0.1 \
+  --port 8001 \
+  --workers 2 \
+  --proxy-headers \
+  --forwarded-allow-ips 127.0.0.1 \
+  --no-server-header \
+  --no-access-log \
+  --timeout-keep-alive 20
+
+sudo systemctl is-active --quiet kivou-api-green.service
+KIVOU_GREEN_OPENAPI_STATUS=$(curl --silent --output /dev/null \
+  --write-out '%{http_code}' http://127.0.0.1:8001/openapi.json)
+KIVOU_GREEN_ME_STATUS=$(curl --silent --output /dev/null \
+  --write-out '%{http_code}' http://127.0.0.1:8001/me)
+test "$KIVOU_GREEN_OPENAPI_STATUS" = 200
+test "$KIVOU_GREEN_ME_STATUS" = 401
+printf 'green_openapi_status=%s\ngreen_me_status=%s\n' \
+  "$KIVOU_GREEN_OPENAPI_STATUS" "$KIVOU_GREEN_ME_STATUS"
+~~~
+
+### Publier le bundle sûr puis effectuer le single public reload to green
+
+Chaque fichier est créé avec install dans le même répertoire que sa destination,
+puis renommé par mv. Le gate actif reste en mode 600 ; les fragments immuables,
+limits et le site sont en mode 644. Nginx continue d'utiliser l'ancien bundle
+jusqu'au test live réussi et au single public reload to green.
+
+~~~bash
 sudo install -o root -g root -m 644 \
-  ops/nginx/kivou-proxy-params.conf /etc/nginx/kivou-proxy-params.conf.new
+  "$KIVOU_NGINX_CANDIDATE/kivou-proxy-params.conf" \
+  /etc/nginx/kivou-proxy-params.conf.new
+sudo mv -f /etc/nginx/kivou-proxy-params.conf.new /etc/nginx/kivou-proxy-params.conf
 sudo install -o root -g root -m 644 \
-  ops/nginx/kivou-security-headers.conf /etc/nginx/kivou-security-headers.conf.new
+  "$KIVOU_NGINX_CANDIDATE/kivou-security-headers.conf" \
+  /etc/nginx/kivou-security-headers.conf.new
 sudo install -o root -g root -m 644 \
-  ops/nginx/kivou-limits.conf /etc/nginx/conf.d/kivou-limits.conf.new
-sed "s/STAGING_HOST/$KIVOU_STAGING_HOST/g" ops/nginx/kivou-staging.conf |
+  "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-link-security-headers.conf" \
+  /etc/nginx/kivou-sensitive-link-security-headers.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-open.conf" \
+  /etc/nginx/kivou-sensitive-links-open.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-closed.conf" \
+  /etc/nginx/kivou-sensitive-links-closed.conf.new
+sudo install -o root -g root -m 600 \
+  "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-open.conf" \
+  /etc/nginx/kivou-sensitive-links-gate.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_NGINX_CANDIDATE/kivou-limits.conf" \
+  /etc/nginx/conf.d/kivou-limits.conf.new
+sed \
+  -e "s/STAGING_HOST/$KIVOU_STAGING_HOST/g" \
+  -e "s/KIVOU_API_PORT/$KIVOU_API_PORT/g" \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-staging.conf" |
   sudo tee /etc/nginx/sites-available/kivou.new >/dev/null
 sudo chown root:root /etc/nginx/sites-available/kivou.new
 sudo chmod 644 /etc/nginx/sites-available/kivou.new
 
+sudo mv -f /etc/nginx/kivou-security-headers.conf.new /etc/nginx/kivou-security-headers.conf
+sudo mv -f /etc/nginx/kivou-sensitive-link-security-headers.conf.new \
+  /etc/nginx/kivou-sensitive-link-security-headers.conf
+sudo mv -f /etc/nginx/kivou-sensitive-links-open.conf.new \
+  /etc/nginx/kivou-sensitive-links-open.conf
+sudo mv -f /etc/nginx/kivou-sensitive-links-closed.conf.new \
+  /etc/nginx/kivou-sensitive-links-closed.conf
+sudo mv -f /etc/nginx/kivou-sensitive-links-gate.conf.new /etc/nginx/kivou-sensitive-links-gate.conf
+sudo mv -f /etc/nginx/conf.d/kivou-limits.conf.new /etc/nginx/conf.d/kivou-limits.conf
+sudo mv -f /etc/nginx/sites-available/kivou.new /etc/nginx/sites-available/kivou
+
+sudo nginx -t
+# single public reload to green
+sudo systemctl reload nginx
+~~~
+
+### Basculer l'application pendant le monitor public
+
+Le monitor démarre après le routage vers green et reste actif pendant la
+création du lien unique, son renommage atomique, l'installation de l'unité, le
+daemon-reload, le restart de l'API normale et le retour final du proxy. Il ne
+journalise que des codes HTTP.
+
+~~~bash
+KIVOU_PUBLIC_MONITOR_LOG=$(mktemp /tmp/kivou-public-status.XXXXXX)
+KIVOU_PUBLIC_MONITOR_STOP=$(mktemp /tmp/kivou-public-stop.XXXXXX)
+chmod 600 "$KIVOU_PUBLIC_MONITOR_LOG" "$KIVOU_PUBLIC_MONITOR_STOP"
+kivou_public_sample() {
+  KIVOU_PUBLIC_ROOT_STATUS=$(curl --silent --connect-timeout 3 --max-time 5 \
+    --output /dev/null \
+    --write-out '%{http_code}' "https://$KIVOU_STAGING_HOST/" || true)
+  KIVOU_PUBLIC_ME_STATUS=$(curl --silent --connect-timeout 3 --max-time 5 \
+    --output /dev/null \
+    --write-out '%{http_code}' "https://$KIVOU_STAGING_HOST/me" || true)
+  test -n "$KIVOU_PUBLIC_ROOT_STATUS" || KIVOU_PUBLIC_ROOT_STATUS=000
+  test -n "$KIVOU_PUBLIC_ME_STATUS" || KIVOU_PUBLIC_ME_STATUS=000
+  printf '%s %s\n' "$KIVOU_PUBLIC_ROOT_STATUS" "$KIVOU_PUBLIC_ME_STATUS"
+}
+KIVOU_PUBLIC_FIRST_SAMPLE=$(kivou_public_sample)
+test "$KIVOU_PUBLIC_FIRST_SAMPLE" = "200 401"
+printf '%s\n' "$KIVOU_PUBLIC_FIRST_SAMPLE" >"$KIVOU_PUBLIC_MONITOR_LOG"
+(
+  while test ! -s "$KIVOU_PUBLIC_MONITOR_STOP"; do
+    kivou_public_sample
+    sleep 1
+  done
+) >>"$KIVOU_PUBLIC_MONITOR_LOG" & KIVOU_PUBLIC_MONITOR_PID=$!
+kivou_stop_public_monitor() {
+  printf '%s\n' stop >"$KIVOU_PUBLIC_MONITOR_STOP"
+  wait "$KIVOU_PUBLIC_MONITOR_PID" || true
+}
+trap kivou_stop_public_monitor EXIT
+
+KIVOU_APP_NEXT_DIR=$(sudo mktemp -d /srv/kivou/.kivou-app-next.XXXXXX)
+KIVOU_APP_NEXT="$KIVOU_APP_NEXT_DIR/app.next"
+sudo ln -s "$KIVOU_RELEASE_DIR" "$KIVOU_APP_NEXT"
+test "$(sudo readlink -f "$KIVOU_APP_NEXT")" = "$KIVOU_RELEASE_DIR"
+sudo test -L /srv/kivou/app
+sudo mv -Tf "$KIVOU_APP_NEXT" /srv/kivou/app
+
+sudo install -o root -g root -m 644 \
+  "$KIVOU_RELEASE_DIR/ops/systemd/kivou-api.service" \
+  /etc/systemd/system/kivou-api.service.new
+sudo mv -f /etc/systemd/system/kivou-api.service.new \
+  /etc/systemd/system/kivou-api.service
+sudo systemctl daemon-reload
+sudo systemctl restart kivou-api.service
+sudo systemctl is-active --quiet kivou-api.service
+
+KIVOU_NORMAL_OPENAPI_STATUS=$(curl --silent --output /dev/null \
+  --write-out '%{http_code}' http://127.0.0.1:8000/openapi.json)
+KIVOU_NORMAL_ME_STATUS=$(curl --silent --output /dev/null \
+  --write-out '%{http_code}' http://127.0.0.1:8000/me)
+test "$KIVOU_NORMAL_OPENAPI_STATUS" = 200
+test "$KIVOU_NORMAL_ME_STATUS" = 401
+
+KIVOU_API_PORT=8000
+case "$KIVOU_API_PORT" in
+  (8000|8001) ;;
+  (*) printf '%s\n' 'port API hors liste revue' >&2; exit 64 ;;
+esac
+sed \
+  -e "s/STAGING_HOST/$KIVOU_STAGING_HOST/g" \
+  -e "s/KIVOU_API_PORT/$KIVOU_API_PORT/g" \
+  -e "s#/etc/nginx/kivou-proxy-params.conf#$KIVOU_NGINX_CANDIDATE/kivou-proxy-params.conf#g" \
+  -e "s#/etc/nginx/kivou-security-headers.conf#$KIVOU_NGINX_CANDIDATE/kivou-security-headers.conf#g" \
+  -e "s#/etc/nginx/kivou-sensitive-link-security-headers.conf#$KIVOU_NGINX_CANDIDATE/kivou-sensitive-link-security-headers.conf#g" \
+  -e "s#/etc/nginx/kivou-sensitive-links-gate.conf#$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-gate.conf#g" \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-staging.conf" |
+  sudo tee "$KIVOU_NGINX_CANDIDATE/kivou-staging.test.conf" >/dev/null
+sudo nginx -t -c "$KIVOU_NGINX_CANDIDATE/nginx.conf"
+
+sed \
+  -e "s/STAGING_HOST/$KIVOU_STAGING_HOST/g" \
+  -e "s/KIVOU_API_PORT/$KIVOU_API_PORT/g" \
+  "$KIVOU_RELEASE_DIR/ops/nginx/kivou-staging.conf" |
+  sudo tee /etc/nginx/sites-available/kivou.new >/dev/null
+sudo chown root:root /etc/nginx/sites-available/kivou.new
+sudo chmod 644 /etc/nginx/sites-available/kivou.new
+sudo mv -f /etc/nginx/sites-available/kivou.new /etc/nginx/sites-available/kivou
+sudo nginx -t
+sudo systemctl reload nginx
+
+KIVOU_FINAL_PUBLIC_SAMPLE=$(kivou_public_sample)
+test "$KIVOU_FINAL_PUBLIC_SAMPLE" = "200 401"
+kill -0 "$KIVOU_PUBLIC_MONITOR_PID"
+printf '%s\n' stop >"$KIVOU_PUBLIC_MONITOR_STOP"
+wait "$KIVOU_PUBLIC_MONITOR_PID"
+trap - EXIT
+test -s "$KIVOU_PUBLIC_MONITOR_LOG"
+# all public monitor status pairs must be 200 401
+awk 'NF != 2 || $1 != "200" || $2 != "401" {bad=1} END {exit bad}' \
+  "$KIVOU_PUBLIC_MONITOR_LOG"
+sudo install -o root -g root -m 600 "$KIVOU_PUBLIC_MONITOR_LOG" \
+  "$KIVOU_EVIDENCE_DIR/public-status.codes"
+sudo systemctl show kivou-api-green.service --no-pager \
+  --property=ActiveState --property=SubState |
+  sudo tee "$KIVOU_EVIDENCE_DIR/green-final-state" >/dev/null
+sudo systemctl stop kivou-api-green.service
+printf 'normal_openapi_status=%s\nnormal_me_status=%s\npublic_root_status=200\npublic_me_status=401\n' \
+  "$KIVOU_NORMAL_OPENAPI_STATUS" "$KIVOU_NORMAL_ME_STATUS"
+~~~
+
+### Prouver les chemins sensibles sans exposer les marqueurs
+
+La preuve enregistre des offsets et un curseur journald juste avant les requêtes.
+Elle exerce HTTP et HTTPS pour attribution et reset, puis un vrai asset avec
+l'URL reset synthétique comme Referer. Referrer-Policy: no-referrer doit
+apparaître exactement une fois sur chacune des quatre réponses sensibles. Aucun
+contenu de requête, réponse ou log n'est imprimé. Only numeric or coded output is emitted.
+
+~~~bash
+KIVOU_ACCESS_OFFSET=$(sudo stat -c %s /var/log/nginx/access.log)
+KIVOU_ERROR_OFFSET=$(sudo stat -c %s /var/log/nginx/error.log)
+KIVOU_JOURNAL_CURSOR=$(sudo journalctl -u kivou-api.service -n 0 \
+  --show-cursor --no-pager | sed -n 's/^-- cursor: //p')
+test -n "$KIVOU_JOURNAL_CURSOR"
+
+KIVOU_SYNTHETIC_ATTRIBUTION_MARKER=$(printf 'synthetic-attr-%s-%s' \
+  "$(date -u +%Y%m%dT%H%M%S)" "$$")
+KIVOU_SYNTHETIC_RESET_MARKER=$(printf 'synthetic-reset-%s-%s' \
+  "$(date -u +%Y%m%dT%H%M%S)" "$$")
+
+kivou_probe_sensitive() {
+  KIVOU_PROBE_RESPONSE=$(curl --silent --max-time 15 \
+    --dump-header - --output /dev/null \
+    --write-out 'kivou_status=%{http_code}\n' "$1")
+  KIVOU_PROBE_STATUS=$(printf '%s\n' "$KIVOU_PROBE_RESPONSE" |
+    sed -n 's/^kivou_status=//p')
+  KIVOU_PROBE_POLICY_COUNT=$(printf '%s\n' "$KIVOU_PROBE_RESPONSE" |
+    awk 'tolower($0) ~ /^referrer-policy:[[:space:]]*no-referrer\r?$/ {n++}
+         END {print n+0}')
+}
+
+kivou_probe_sensitive \
+  "http://$KIVOU_STAGING_HOST/a/$KIVOU_SYNTHETIC_ATTRIBUTION_MARKER"
+KIVOU_HTTP_ATTR_STATUS=$KIVOU_PROBE_STATUS
+KIVOU_HTTP_ATTR_POLICY_COUNT=$KIVOU_PROBE_POLICY_COUNT
+
+kivou_probe_sensitive \
+  "https://$KIVOU_STAGING_HOST/a/$KIVOU_SYNTHETIC_ATTRIBUTION_MARKER"
+KIVOU_HTTPS_ATTR_STATUS=$KIVOU_PROBE_STATUS
+KIVOU_HTTPS_ATTR_POLICY_COUNT=$KIVOU_PROBE_POLICY_COUNT
+
+kivou_probe_sensitive \
+  "http://$KIVOU_STAGING_HOST/reset-password?token=$KIVOU_SYNTHETIC_RESET_MARKER"
+KIVOU_HTTP_RESET_STATUS=$KIVOU_PROBE_STATUS
+KIVOU_HTTP_RESET_POLICY_COUNT=$KIVOU_PROBE_POLICY_COUNT
+
+kivou_probe_sensitive \
+  "https://$KIVOU_STAGING_HOST/reset-password?token=$KIVOU_SYNTHETIC_RESET_MARKER"
+KIVOU_HTTPS_RESET_STATUS=$KIVOU_PROBE_STATUS
+KIVOU_HTTPS_RESET_POLICY_COUNT=$KIVOU_PROBE_POLICY_COUNT
+
+KIVOU_ASSET_PATH=$(curl --silent "https://$KIVOU_STAGING_HOST/" |
+  sed -n 's#.*src="\(/assets/[^"]*\)".*#\1#p' | head -n 1)
+case "$KIVOU_ASSET_PATH" in
+  (/assets/*) ;;
+  (*) exit 69 ;;
+esac
+KIVOU_ASSET_STATUS=$(curl --silent --output /dev/null \
+  --write-out '%{http_code}' \
+  --referer "https://$KIVOU_STAGING_HOST/reset-password?token=$KIVOU_SYNTHETIC_RESET_MARKER" \
+  "https://$KIVOU_STAGING_HOST$KIVOU_ASSET_PATH")
+test "$KIVOU_ASSET_STATUS" = 200
+
+kivou_new_access() {
+  sudo test "$(sudo stat -c %s /var/log/nginx/access.log)" -ge \
+    "$KIVOU_ACCESS_OFFSET"
+  sudo tail -c "+$((KIVOU_ACCESS_OFFSET + 1))" /var/log/nginx/access.log
+}
+kivou_new_error() {
+  sudo test "$(sudo stat -c %s /var/log/nginx/error.log)" -ge \
+    "$KIVOU_ERROR_OFFSET"
+  sudo tail -c "+$((KIVOU_ERROR_OFFSET + 1))" /var/log/nginx/error.log
+}
+kivou_new_journal() {
+  sudo journalctl -u kivou-api.service \
+    --after-cursor "$KIVOU_JOURNAL_CURSOR" --no-pager --output=cat
+}
+
+KIVOU_MARKER_OCCURRENCES=$(
+  { kivou_new_access; kivou_new_error; kivou_new_journal; } |
+    awk -v a="$KIVOU_SYNTHETIC_ATTRIBUTION_MARKER" \
+        -v r="$KIVOU_SYNTHETIC_RESET_MARKER" '
+      {
+        line=$0
+        while ((at=index(line, a)) > 0) {
+          total++
+          line=substr(line, at+length(a))
+        }
+        line=$0
+        while ((rt=index(line, r)) > 0) {
+          total++
+          line=substr(line, rt+length(r))
+        }
+      }
+      END {print total+0}
+    '
+)
+KIVOU_SANITIZED_ATTRIBUTION_COUNT=$(kivou_new_access |
+  awk 'index($0, "/a/[redacted]") {n++} END {print n+0}')
+KIVOU_SANITIZED_RESET_COUNT=$(kivou_new_access |
+  awk 'index($0, "/reset-password") {n++} END {print n+0}')
+
+test "$KIVOU_HTTP_ATTR_STATUS" = 301
+test "$KIVOU_HTTPS_ATTR_STATUS" = 404
+test "$KIVOU_HTTP_RESET_STATUS" = 301
+test "$KIVOU_HTTPS_RESET_STATUS" = 200
+test "$KIVOU_HTTP_ATTR_POLICY_COUNT" = 1
+test "$KIVOU_HTTPS_ATTR_POLICY_COUNT" = 1
+test "$KIVOU_HTTP_RESET_POLICY_COUNT" = 1
+test "$KIVOU_HTTPS_RESET_POLICY_COUNT" = 1
+test "$KIVOU_MARKER_OCCURRENCES" = 0
+test "$KIVOU_SANITIZED_ATTRIBUTION_COUNT" -ge 2
+test "$KIVOU_SANITIZED_RESET_COUNT" -ge 2
+
+printf '%s\n' \
+  "http_attribution_status=$KIVOU_HTTP_ATTR_STATUS" \
+  "https_attribution_status=$KIVOU_HTTPS_ATTR_STATUS" \
+  "http_reset_status=$KIVOU_HTTP_RESET_STATUS" \
+  "https_reset_status=$KIVOU_HTTPS_RESET_STATUS" \
+  "asset_status=$KIVOU_ASSET_STATUS" \
+  'marker_occurrences=0' \
+  "sanitized_attribution_count=$KIVOU_SANITIZED_ATTRIBUTION_COUNT" \
+  "sanitized_reset_count=$KIVOU_SANITIZED_RESET_COUNT" \
+  'http_attribution_referrer_policy_count=1' \
+  'https_attribution_referrer_policy_count=1' \
+  'http_reset_referrer_policy_count=1' \
+  'https_reset_referrer_policy_count=1' \
+  'synthetic_proof=PASS'
+~~~
+
+Only after synthetic_proof=PASS may a separately authorized valid attribution proof run.
+For that separate proof, the real token stays entirely in process memory: it is
+never assigned to KIVOU_VALID_ATTRIBUTION_TOKEN, written to a file, passed in
+argv, or printed. The #93 proof reuses an already delivered link; no new reset e-mail is needed.
+
+### Fermer atomiquement les liens sensibles
+
+Si un invariant sensible est incertain, installer le candidat fermé comme gate
+actif avant toute autre action. kivou-sensitive-links-closed.conf doit contenir
+exactement return 503; et le fragment actif doit rester en mode 600.
+
+~~~bash
+set -euo pipefail
+sudo install -o root -g root -m 600 \
+  /etc/nginx/kivou-sensitive-links-closed.conf \
+  /etc/nginx/kivou-sensitive-links-gate.conf.new
+test "$(sudo awk 'NF && $1 !~ /^#/ {print}' \
+  /etc/nginx/kivou-sensitive-links-gate.conf.new)" = "return 503;"
+sudo mv -f /etc/nginx/kivou-sensitive-links-gate.conf.new \
+  /etc/nginx/kivou-sensitive-links-gate.conf
+sudo nginx -t
+sudo systemctl reload nginx
+~~~
+
+### Réouvrir atomiquement les liens sensibles
+
+Depuis un nouveau shell, recharger l'état root-only puis réouvrir uniquement
+après rétablissement et preuve. Le candidat open vient de la release de
+sécurité revue, doit lui être identique et rester sans directive active.
+
+~~~bash
+set -euo pipefail
+KIVOU_ROLLOUT_STATE=/etc/kivou/kivou-safe-rollout.state
+sudo test -d /etc/kivou
+sudo -u kivou test ! -w /etc/kivou
+sudo test -f "$KIVOU_ROLLOUT_STATE"
+sudo test ! -L "$KIVOU_ROLLOUT_STATE"
+test "$(sudo stat -c '%U:%G:%a' "$KIVOU_ROLLOUT_STATE")" = \
+  "root:root:600"
+unset KIVOU_STAGING_HOST KIVOU_SECURITY_RELEASE \
+  KIVOU_PREVIOUS_RELEASE KIVOU_RELEASE_SHA
+KIVOU_STATE_CONTENT=$(sudo cat "$KIVOU_ROLLOUT_STATE")
+. /dev/stdin <<<"$KIVOU_STATE_CONTENT"
+unset KIVOU_STATE_CONTENT
+case "$KIVOU_STAGING_HOST" in
+  (*[!a-z0-9.-]*|'') exit 69 ;;
+  (*) ;;
+esac
+case "$KIVOU_SECURITY_RELEASE" in
+  (/srv/kivou/releases/backend-*) ;;
+  (*) exit 69 ;;
+esac
+case "$KIVOU_PREVIOUS_RELEASE" in
+  (/srv/kivou/releases/backend-*) ;;
+  (*) exit 69 ;;
+esac
+printf '%s\n' "$KIVOU_RELEASE_SHA" | grep -Eq '^[0-9a-f]{40}$'
+sudo test -d "$KIVOU_SECURITY_RELEASE"
+sudo test -d "$KIVOU_PREVIOUS_RELEASE"
+kivou_git() {
+  sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
+    GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+    /usr/bin/git "$@"
+}
+test "$(kivou_git -C "$KIVOU_SECURITY_RELEASE" rev-parse HEAD)" = \
+  "$KIVOU_RELEASE_SHA"
+test -z "$(kivou_git -C "$KIVOU_SECURITY_RELEASE" status --porcelain)"
+
+KIVOU_REVIEWED_OPEN_SHA=$(kivou_git -C "$KIVOU_SECURITY_RELEASE" show \
+  "$KIVOU_RELEASE_SHA:ops/nginx/kivou-sensitive-links-open.conf" |
+  sha256sum | awk '{print $1}')
+sudo install -o root -g root -m 600 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-open.conf" \
+  /etc/nginx/kivou-sensitive-links-gate.conf.new
+KIVOU_OPEN_GATE_SHA=$(sudo sha256sum \
+  /etc/nginx/kivou-sensitive-links-gate.conf.new | awk '{print $1}')
+test "$KIVOU_OPEN_GATE_SHA" = "$KIVOU_REVIEWED_OPEN_SHA"
+test -z "$(sudo awk 'NF && $1 !~ /^#/ {print}' \
+  /etc/nginx/kivou-sensitive-links-gate.conf.new)"
+sudo mv -f /etc/nginx/kivou-sensitive-links-gate.conf.new \
+  /etc/nginx/kivou-sensitive-links-gate.conf
+sudo nginx -t
+sudo systemctl reload nginx
+~~~
+
+### Rollback applicatif préservant la sécurité
+
+Le safe nginx bundle, le gate et l'unité versionnée avec --no-access-log sont le
+security floor. Les captures antérieures sont EVIDENCE ONLY. Never restore the old nginx access format or the old API unit.
+Le rollback commute uniquement vers la previous application release enregistrée.
+Si le routage sûr ne peut pas être conservé, exécuter d'abord la fermeture
+atomique avec kivou-sensitive-links-closed.conf et garder le reste de staging
+disponible.
+
+Relancer green avec la release de sécurité enregistrée, valider 8001, puis
+rendre et republier depuis cette release l'intégralité du bundle sûr vers 8001
+avant de toucher au lien applicatif. Toutes les sources sont validées et tous
+les fichiers .new sont prêts avant le premier mv ; le vieux processus nginx
+continue de servir jusqu'au nginx-t réussi puis au reload unique de reprise.
+La commande est idempotente et reprend exactement le durcissement déjà audité.
+
+~~~bash
+set -euo pipefail
+KIVOU_ROLLOUT_STATE=/etc/kivou/kivou-safe-rollout.state
+sudo test -d /etc/kivou
+sudo -u kivou test ! -w /etc/kivou
+sudo test -f "$KIVOU_ROLLOUT_STATE"
+sudo test ! -L "$KIVOU_ROLLOUT_STATE"
+test "$(sudo stat -c '%U:%G:%a' "$KIVOU_ROLLOUT_STATE")" = \
+  "root:root:600"
+unset KIVOU_STAGING_HOST KIVOU_SECURITY_RELEASE \
+  KIVOU_PREVIOUS_RELEASE KIVOU_RELEASE_SHA
+KIVOU_STATE_CONTENT=$(sudo cat "$KIVOU_ROLLOUT_STATE")
+. /dev/stdin <<<"$KIVOU_STATE_CONTENT"
+unset KIVOU_STATE_CONTENT
+case "$KIVOU_STAGING_HOST" in
+  (*[!a-z0-9.-]*|'') exit 69 ;;
+  (*) ;;
+esac
+case "$KIVOU_SECURITY_RELEASE" in
+  (/srv/kivou/releases/backend-*) ;;
+  (*) exit 69 ;;
+esac
+case "$KIVOU_PREVIOUS_RELEASE" in
+  (/srv/kivou/releases/backend-*) ;;
+  (*) exit 69 ;;
+esac
+printf '%s\n' "$KIVOU_RELEASE_SHA" | grep -Eq '^[0-9a-f]{40}$'
+sudo test -d "$KIVOU_SECURITY_RELEASE"
+sudo test -d "$KIVOU_PREVIOUS_RELEASE"
+kivou_git() {
+  sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
+    GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+    /usr/bin/git "$@"
+}
+test "$(kivou_git -C "$KIVOU_SECURITY_RELEASE" rev-parse HEAD)" = \
+  "$KIVOU_RELEASE_SHA"
+test -z "$(kivou_git -C "$KIVOU_SECURITY_RELEASE" status --porcelain)"
+KIVOU_SAFE_NGINX_SOURCE_PATHS=(
+  "ops/nginx/kivou-limits.conf"
+  "ops/nginx/kivou-proxy-params.conf"
+  "ops/nginx/kivou-security-headers.conf"
+  "ops/nginx/kivou-sensitive-link-security-headers.conf"
+  "ops/nginx/kivou-sensitive-links-open.conf"
+  "ops/nginx/kivou-sensitive-links-closed.conf"
+  "ops/nginx/kivou-staging.conf"
+)
+for KIVOU_SAFE_NGINX_SOURCE_PATH in \
+  "${KIVOU_SAFE_NGINX_SOURCE_PATHS[@]}"; do
+  KIVOU_GIT_SOURCE_SHA=$(kivou_git -C "$KIVOU_SECURITY_RELEASE" show \
+    "$KIVOU_RELEASE_SHA:$KIVOU_SAFE_NGINX_SOURCE_PATH" |
+    sha256sum | awk '{print $1}')
+  KIVOU_WORKTREE_SOURCE_SHA=$(sudo -u kivou sha256sum \
+    "$KIVOU_SECURITY_RELEASE/$KIVOU_SAFE_NGINX_SOURCE_PATH" |
+    awk '{print $1}')
+  test "$KIVOU_WORKTREE_SOURCE_SHA" = "$KIVOU_GIT_SOURCE_SHA"
+done
+test -z "$(sudo -u kivou awk 'NF && $1 !~ /^#/ {print}' \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-open.conf")"
+test "$(sudo -u kivou awk 'NF && $1 !~ /^#/ {print}' \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-closed.conf")" = \
+  "return 503;"
+
+kivou_validate_recovery_green_unit() {
+  KIVOU_GREEN_UNIT_TO_VALIDATE=$1
+  test "$(sudo systemctl show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
+    --property=WorkingDirectory --value)" = "$KIVOU_SECURITY_RELEASE"
+  sudo systemctl show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
+    --property=ExecStart --value |
+    grep --fixed-strings --quiet -- \
+      "$KIVOU_SECURITY_RELEASE/.venv/bin/uvicorn"
+  sudo systemctl show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
+    --property=ExecStart --value |
+    grep --fixed-strings --quiet -- '--no-access-log'
+}
+if sudo systemctl is-active --quiet kivou-api-green.service; then
+  KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-green.service
+  kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"
+elif sudo systemctl is-active --quiet \
+  kivou-api-rollback-green.service; then
+  KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service
+  kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"
+else
+  KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service
+  sudo systemctl stop kivou-api-green.service || true
+  sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT" || true
+  sudo systemctl reset-failed kivou-api-green.service || true
+  sudo systemctl reset-failed "$KIVOU_ROLLBACK_GREEN_UNIT" || true
+  ! sudo systemctl is-active --quiet kivou-api-green.service
+  ! sudo systemctl is-active --quiet "$KIVOU_ROLLBACK_GREEN_UNIT"
+  test -z "$(sudo ss --no-header --listening --tcp 'sport = :8001')"
+  sudo systemd-run \
+    --unit="$KIVOU_ROLLBACK_GREEN_UNIT" \
+    --collect \
+    --property=Type=exec \
+    --property=User=kivou \
+    --property=Group=kivou \
+    --property=WorkingDirectory="$KIVOU_SECURITY_RELEASE" \
+    --property=EnvironmentFile=/etc/kivou/staging.env \
+    --property=Restart=on-failure \
+    --property=RestartSec=5s \
+    --property=StandardOutput=journal \
+    --property=StandardError=journal \
+    --property=SyslogIdentifier=kivou-api-rollback-green \
+    --property=NoNewPrivileges=yes \
+    --property=PrivateTmp=yes \
+    --property=ProtectSystem=strict \
+    --property=ProtectHome=yes \
+    --property=ReadWritePaths=/srv/kivou/run \
+    --property=ProtectKernelTunables=yes \
+    --property=ProtectKernelModules=yes \
+    --property=ProtectControlGroups=yes \
+    --property=RestrictSUIDSGID=yes \
+    --property=RestrictNamespaces=yes \
+    --property=LockPersonality=yes \
+    --property=MemoryDenyWriteExecute=yes \
+    -- "$KIVOU_SECURITY_RELEASE/.venv/bin/uvicorn" signals.api.asgi:app \
+    --host 127.0.0.1 --port 8001 --workers 2 --proxy-headers \
+    --forwarded-allow-ips 127.0.0.1 --no-server-header --no-access-log \
+    --timeout-keep-alive 20
+fi
+sudo systemctl is-active --quiet "$KIVOU_ROLLBACK_GREEN_UNIT"
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+  http://127.0.0.1:8001/openapi.json)" = 200
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+  http://127.0.0.1:8001/me)" = 401
+
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-proxy-params.conf" \
+  /etc/nginx/kivou-proxy-params.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-security-headers.conf" \
+  /etc/nginx/kivou-security-headers.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-link-security-headers.conf" \
+  /etc/nginx/kivou-sensitive-link-security-headers.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-open.conf" \
+  /etc/nginx/kivou-sensitive-links-open.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-closed.conf" \
+  /etc/nginx/kivou-sensitive-links-closed.conf.new
+sudo install -o root -g root -m 600 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-closed.conf" \
+  /etc/nginx/kivou-sensitive-links-gate.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-limits.conf" \
+  /etc/nginx/conf.d/kivou-limits.conf.new
+KIVOU_API_PORT=8001
+sed \
+  -e "s/STAGING_HOST/$KIVOU_STAGING_HOST/g" \
+  -e "s/KIVOU_API_PORT/$KIVOU_API_PORT/g" \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-staging.conf" | \
+  sudo tee /etc/nginx/sites-available/kivou.new >/dev/null
+sudo chown root:root /etc/nginx/sites-available/kivou.new
+sudo chmod 644 /etc/nginx/sites-available/kivou.new
+test "$(sudo awk 'NF && $1 !~ /^#/ {print}' \
+  /etc/nginx/kivou-sensitive-links-gate.conf.new)" = "return 503;"
 sudo mv -f /etc/nginx/kivou-proxy-params.conf.new \
   /etc/nginx/kivou-proxy-params.conf
 sudo mv -f /etc/nginx/kivou-security-headers.conf.new \
   /etc/nginx/kivou-security-headers.conf
+sudo mv -f /etc/nginx/kivou-sensitive-link-security-headers.conf.new \
+  /etc/nginx/kivou-sensitive-link-security-headers.conf
+sudo mv -f /etc/nginx/kivou-sensitive-links-open.conf.new \
+  /etc/nginx/kivou-sensitive-links-open.conf
+sudo mv -f /etc/nginx/kivou-sensitive-links-closed.conf.new \
+  /etc/nginx/kivou-sensitive-links-closed.conf
+sudo mv -f /etc/nginx/kivou-sensitive-links-gate.conf.new \
+  /etc/nginx/kivou-sensitive-links-gate.conf
 sudo mv -f /etc/nginx/conf.d/kivou-limits.conf.new \
   /etc/nginx/conf.d/kivou-limits.conf
 sudo mv -f /etc/nginx/sites-available/kivou.new \
   /etc/nginx/sites-available/kivou
-
 sudo nginx -t
 sudo systemctl reload nginx
-```
 
-Si le second test échoue, ne pas recharger : appliquer immédiatement le rollback
-ci-dessous. Si le reload échoue, restaurer également le snapshot puis tester de
-nouveau ; le processus nginx antérieur doit rester l'autorité. Ne pas remplacer
-le lien `sites-enabled/kivou` s'il pointe déjà vers `sites-available/kivou`; le
-renommage conserve cette cible stable.
+# Switch only to the recorded previous application release.
+KIVOU_ROLLBACK_NEXT_DIR=$(sudo mktemp -d \
+  /srv/kivou/.kivou-rollback-next.XXXXXX)
+KIVOU_ROLLBACK_NEXT="$KIVOU_ROLLBACK_NEXT_DIR/app.next"
+sudo ln -s "$KIVOU_PREVIOUS_RELEASE" "$KIVOU_ROLLBACK_NEXT"
+test "$(sudo readlink -f "$KIVOU_ROLLBACK_NEXT")" = \
+  "$KIVOU_PREVIOUS_RELEASE"
+sudo mv -Tf "$KIVOU_ROLLBACK_NEXT" /srv/kivou/app
 
-### Preuve HTTP non mutante
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/systemd/kivou-api.service" \
+  /etc/systemd/system/kivou-api.service.new
+sudo mv -f /etc/systemd/system/kivou-api.service.new \
+  /etc/systemd/system/kivou-api.service
+sudo systemctl daemon-reload
+sudo systemctl restart kivou-api.service
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+  http://127.0.0.1:8000/openapi.json)" = 200
+test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+  http://127.0.0.1:8000/me)" = 401
 
-Une fois l'API redémarrée avec le groupe Instantly complet, un secret
-délibérément faux doit être refusé par FastAPI en JSON. Il ne peut ni lier une
-campagne ni écrire un événement. Un token d'attribution invalide doit produire
-le 404 JSON de l'application, sans cookie et sans HTML SPA.
-
-```bash
-curl --silent --show-error --include \
-  --request POST "https://$KIVOU_STAGING_HOST/webhooks/instantly" \
-  --header 'content-type: application/json' \
-  --header 'x-kivou-instantly-secret: deliberately-wrong-synthetic-value' \
-  --data '{}'
-# Attendu : 401, application/json, code invalid_instantly_webhook_secret.
-
-curl --silent --show-error --include \
-  "https://$KIVOU_STAGING_HOST/a/bogus-token"
-# Attendu : 404, application/json, code attribution_not_found,
-# aucun Set-Cookie et aucun <!doctype html>.
-```
-
-La preuve 200/replay du webhook et la preuve 303/cookie d'attribution utilisent
-une base jetable dans les tests. Ne pas fabriquer ces preuves sur staging : un
-webhook métier valide écrit durablement et demande une autorisation distincte.
-
-### Rollback
-
-Le rollback restaure uniquement les fichiers qui existaient dans la sauvegarde.
-Si un fichier avait été créé par cette installation, le déplacer dans le
-répertoire de sauvegarde plutôt que le supprimer conserve une récupération
-possible. Tester avant de recharger.
-
-```bash
-set -euo pipefail
-if sudo test -e "$KIVOU_NGINX_BACKUP/proxy.absent"; then
-  sudo test ! -e /etc/nginx/kivou-proxy-params.conf ||
-    sudo mv /etc/nginx/kivou-proxy-params.conf "$KIVOU_NGINX_BACKUP/installed-proxy"
-else
-  sudo cp -a "$KIVOU_NGINX_BACKUP/proxy" \
-    /etc/nginx/kivou-proxy-params.conf.rollback
-  sudo mv -f /etc/nginx/kivou-proxy-params.conf.rollback \
-    /etc/nginx/kivou-proxy-params.conf
-fi
-if sudo test -e "$KIVOU_NGINX_BACKUP/security.absent"; then
-  sudo test ! -e /etc/nginx/kivou-security-headers.conf ||
-    sudo mv /etc/nginx/kivou-security-headers.conf \
-      "$KIVOU_NGINX_BACKUP/installed-security"
-else
-  sudo cp -a "$KIVOU_NGINX_BACKUP/security" \
-    /etc/nginx/kivou-security-headers.conf.rollback
-  sudo mv -f /etc/nginx/kivou-security-headers.conf.rollback \
-    /etc/nginx/kivou-security-headers.conf
-fi
-if sudo test -e "$KIVOU_NGINX_BACKUP/limits.absent"; then
-  sudo test ! -e /etc/nginx/conf.d/kivou-limits.conf ||
-    sudo mv /etc/nginx/conf.d/kivou-limits.conf \
-      "$KIVOU_NGINX_BACKUP/installed-limits"
-else
-  sudo cp -a "$KIVOU_NGINX_BACKUP/limits" \
-    /etc/nginx/conf.d/kivou-limits.conf.rollback
-  sudo mv -f /etc/nginx/conf.d/kivou-limits.conf.rollback \
-    /etc/nginx/conf.d/kivou-limits.conf
-fi
-if sudo test -e "$KIVOU_NGINX_BACKUP/site.absent"; then
-  sudo test ! -e /etc/nginx/sites-available/kivou ||
-    sudo mv /etc/nginx/sites-available/kivou "$KIVOU_NGINX_BACKUP/installed-site"
-else
-  sudo cp -a "$KIVOU_NGINX_BACKUP/site" \
-    /etc/nginx/sites-available/kivou.rollback
-  sudo mv -f /etc/nginx/sites-available/kivou.rollback \
-    /etc/nginx/sites-available/kivou
-fi
-
+KIVOU_API_PORT=8000
+sed \
+  -e "s/STAGING_HOST/$KIVOU_STAGING_HOST/g" \
+  -e "s/KIVOU_API_PORT/$KIVOU_API_PORT/g" \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-staging.conf" |
+  sudo tee /etc/nginx/sites-available/kivou.new >/dev/null
+sudo chown root:root /etc/nginx/sites-available/kivou.new
+sudo chmod 644 /etc/nginx/sites-available/kivou.new
+sudo mv -f /etc/nginx/sites-available/kivou.new \
+  /etc/nginx/sites-available/kivou
 sudo nginx -t
 sudo systemctl reload nginx
-```
+sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT"
+~~~
 
-Il n'existe aucune migration à annuler pour #84. Le rollback retire l'exposition
-des routes ; il ne supprime jamais les événements métier déjà reçus. Conserver
-les répertoires candidat et sauvegarde jusqu'à validation, puis les archiver ou
-les retirer selon la politique d'exploitation de l'hôte.
+Aucun fichier du snapshot ne revient en position active. Le security floor reste
+le bundle nginx expurgé, le gate validé et l'unité API sans journal d'accès,
+même lorsque l'application précédente est restaurée.
