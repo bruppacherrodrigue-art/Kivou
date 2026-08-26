@@ -13,6 +13,7 @@ from signals.campaigns.instantly import (
     INSTANTLY_V2_BASE_URL,
     HttpInstantlyProvider,
     InstantlyErrorCode,
+    InstantlyMailboxReadinessSource,
     InstantlyProviderError,
     build_provider_campaign_config,
     normalize_mailbox_readiness,
@@ -24,6 +25,7 @@ from signals.campaigns.instantly import (
 OFFICIAL_FIXTURE = json.loads(
     (Path(__file__).parent / "fixtures" / "instantly_v2_contract_v1.json").read_text()
 )
+READINESS_NOW = dt.datetime(2026, 8, 26, 8, tzinfo=dt.UTC)
 
 
 def _provider(handler) -> HttpInstantlyProvider:
@@ -507,6 +509,247 @@ def test_oversized_provider_stream_stops_at_the_configured_read_bound() -> None:
 
     assert caught.value.code is InstantlyErrorCode.MALFORMED_RESPONSE
     assert stream.chunks_read == 5
+
+
+def _managed_airmail_account(**updates: object) -> dict[str, object]:
+    raw: dict[str, object] = {
+        "status": 1,
+        "warmup_status": 1,
+        "setup_pending": False,
+        "daily_limit": 20,
+        "tracking_domain_status": "CTD_ACTIVE",
+        "provider_code": 8,
+        "is_managed_account": True,
+    }
+    raw.update(updates)
+    return raw
+
+
+def test_mailbox_readiness_adapter_preserves_airmail_facts_and_real_omission() -> None:
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                **_managed_airmail_account(),
+                "email": "private@example.invalid",
+                "signature": "private-provider-value",
+                "smtp_password": "private-provider-secret",
+            },
+        )
+
+    result = _provider(handler).get_mailbox_readiness("sender@example.invalid")
+
+    assert result == _managed_airmail_account()
+    assert "sending_gap" not in result
+    assert "email" not in result
+    assert "signature" not in result
+    assert "smtp_password" not in result
+
+
+def test_strict_managed_airmail_uses_exact_protected_gap_when_provider_omits_it() -> None:
+    result = normalize_mailbox_readiness(
+        _managed_airmail_account(),
+        observed_at=READINESS_NOW,
+        managed_airmail_sending_gap_minutes=10,
+    )
+
+    assert result.state is MailboxReadinessState.READY
+    assert result.sending_gap_seconds == 600
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("status", True),
+        ("status", 1.0),
+        ("warmup_status", True),
+        ("warmup_status", 1.0),
+    ],
+    ids=[
+        "bool-status",
+        "float-status",
+        "bool-warmup-status",
+        "float-warmup-status",
+    ],
+)
+def test_managed_airmail_rejects_non_strict_numeric_mailbox_states(
+    field: str,
+    value: object,
+) -> None:
+    result = normalize_mailbox_readiness(
+        _managed_airmail_account(**{field: value}),
+        observed_at=READINESS_NOW,
+        managed_airmail_sending_gap_minutes=10,
+    )
+
+    assert result.state is MailboxReadinessState.UNKNOWN
+
+
+def test_managed_airmail_without_protected_gap_remains_unknown() -> None:
+    result = normalize_mailbox_readiness(
+        _managed_airmail_account(),
+        observed_at=READINESS_NOW,
+    )
+
+    assert result.state is MailboxReadinessState.UNKNOWN
+    assert result.sending_gap_seconds == 0
+
+
+@pytest.mark.parametrize(
+    ("changes", "removed_key"),
+    [
+        ({"provider_code": 7}, None),
+        ({"provider_code": True}, None),
+        ({"provider_code": "8"}, None),
+        ({"provider_code": None}, None),
+        ({}, "provider_code"),
+        ({"is_managed_account": False}, None),
+        ({"is_managed_account": 1}, None),
+        ({"is_managed_account": None}, None),
+        ({}, "is_managed_account"),
+        ({"sending_gap": None}, None),
+        ({"sending_gap": "10"}, None),
+        ({"sending_gap": 20}, None),
+    ],
+    ids=[
+        "wrong-provider-code",
+        "bool-provider-code",
+        "string-provider-code",
+        "null-provider-code",
+        "missing-provider-code",
+        "unmanaged-account",
+        "int-managed-marker",
+        "null-managed-marker",
+        "missing-managed-marker",
+        "null-provider-gap",
+        "malformed-provider-gap",
+        "conflicting-provider-gap",
+    ],
+)
+def test_managed_airmail_gap_fails_closed_without_exact_provider_proof(
+    changes: dict[str, object],
+    removed_key: str | None,
+) -> None:
+    raw = _managed_airmail_account(**changes)
+    if removed_key is not None:
+        raw.pop(removed_key)
+
+    result = normalize_mailbox_readiness(
+        raw,
+        observed_at=READINESS_NOW,
+        managed_airmail_sending_gap_minutes=10,
+    )
+
+    assert result.state is MailboxReadinessState.UNKNOWN
+    assert result.sending_gap_seconds == 0
+
+
+def test_matching_provider_gap_remains_authoritative() -> None:
+    result = normalize_mailbox_readiness(
+        _managed_airmail_account(sending_gap=10),
+        observed_at=READINESS_NOW,
+        managed_airmail_sending_gap_minutes=10,
+    )
+
+    assert result.state is MailboxReadinessState.READY
+    assert result.sending_gap_seconds == 600
+
+
+class _ReadinessProvider:
+    def __init__(self) -> None:
+        self.lookups: list[str] = []
+
+    def get_mailbox_readiness(self, provider_account_id: str) -> dict[str, object]:
+        self.lookups.append(provider_account_id)
+        return _managed_airmail_account()
+
+
+def test_readiness_source_binds_cadence_to_one_casefolded_account() -> None:
+    provider = _ReadinessProvider()
+    configured_gaps = {"SENDER-ONE@EXAMPLE.INVALID": 10}
+    source = InstantlyMailboxReadinessSource(
+        provider,
+        managed_airmail_sending_gaps=configured_gaps,
+    )
+    configured_gaps["SENDER-ONE@EXAMPLE.INVALID"] = 20
+
+    matching = source.get("sender-one@example.invalid", observed_at=READINESS_NOW)
+    other = source.get("sender-two@example.invalid", observed_at=READINESS_NOW)
+
+    assert matching.state is MailboxReadinessState.READY
+    assert matching.sending_gap_seconds == 600
+    assert other.state is MailboxReadinessState.UNKNOWN
+    assert provider.lookups == [
+        "sender-one@example.invalid",
+        "sender-two@example.invalid",
+    ]
+
+
+def test_readiness_source_rejects_cadence_map_for_connectivity_opt_out() -> None:
+    provider = _ReadinessProvider()
+
+    with pytest.raises(ValueError, match="strict send-readiness"):
+        InstantlyMailboxReadinessSource(
+            provider,
+            require_sending_gap=False,
+            managed_airmail_sending_gaps={"sender@example.invalid": 10},
+        )
+
+    assert provider.lookups == []
+
+
+@pytest.mark.parametrize(
+    "configured_gaps",
+    [
+        {"sender@example.invalid": 0},
+        {"sender@example.invalid": -1},
+        {"sender@example.invalid": 1_441},
+        {"sender@example.invalid": True},
+        {"sender@example.invalid": "10"},
+        {"": 10},
+        {"   ": 10},
+        {8: 10},
+        {"x" * 321: 10},
+    ],
+    ids=[
+        "zero-gap",
+        "negative-gap",
+        "oversized-gap",
+        "bool-gap",
+        "string-gap",
+        "empty-account",
+        "blank-account",
+        "non-string-account",
+        "oversized-account",
+    ],
+)
+def test_readiness_source_rejects_invalid_map_before_provider_io(
+    configured_gaps: dict[object, object],
+) -> None:
+    provider = _ReadinessProvider()
+
+    with pytest.raises(ValueError):
+        InstantlyMailboxReadinessSource(
+            provider,
+            managed_airmail_sending_gaps=configured_gaps,  # type: ignore[arg-type]
+        )
+
+    assert provider.lookups == []
+
+
+def test_readiness_source_rejects_duplicate_normalized_binding_before_provider_io() -> None:
+    provider = _ReadinessProvider()
+
+    with pytest.raises(ValueError, match="duplicated"):
+        InstantlyMailboxReadinessSource(
+            provider,
+            managed_airmail_sending_gaps={
+                "SENDER@EXAMPLE.INVALID": 10,
+                " sender@example.invalid ": 20,
+            },
+        )
+
+    assert provider.lookups == []
 
 
 @pytest.mark.parametrize(

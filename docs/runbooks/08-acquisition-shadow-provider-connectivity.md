@@ -122,6 +122,110 @@ sudoedit /etc/kivou/acquisition-shadow.env
 sudoedit /etc/kivou/acquisition-shadow.json
 ```
 
+### Managed AirMail cadence rollout
+
+Deploy an approved compatible Kivou revision that accepts the optional
+`managed_airmail_sending_gap_minutes` field before adding that field to the
+protected JSON. For each bound account, use the field only after a fresh
+read-only Instantly account `GET` proves that `provider_code` is exactly integer
+`8` (not a boolean or string), `is_managed_account` is exactly `true`, and the
+actual provider response omits the `sending_gap` property. A `sending_gap`
+property present as null or malformed, a valid provider cadence that conflicts
+with the protected cadence, or any missing, malformed, unmanaged, or different
+provider classification blocks readiness. The protected cadence is Kivou
+operator configuration; it is not an Instantly observation and must not be
+inferred from a normalized response.
+
+Create a collision-safe, root-only pre-change backup before preparing the new
+JSON. If the copy into the unique `mktemp` path fails, remove only that exact
+non-empty path and stop; never continue with the blank file created by
+`mktemp`:
+
+```bash
+kivou_airmail_backup=
+# Fail closed: create and verify the root-only backup.
+{
+  set -euo pipefail
+kivou_airmail_backup="$(sudo mktemp /etc/kivou/acquisition-shadow.json.rollback.XXXXXXXX)" &&
+sudo install -m 0600 -o root -g root \
+  /etc/kivou/acquisition-shadow.json "$kivou_airmail_backup" &&
+sudo stat -c '%a %U %G %n' "$kivou_airmail_backup" &&
+test "$(sudo stat -c '%a %U %G' "$kivou_airmail_backup")" = '600 root root'
+} || {
+  if test -n "$kivou_airmail_backup"; then
+    sudo rm -f -- "$kivou_airmail_backup"
+  fi
+  unset kivou_airmail_backup
+  echo 'Protected JSON backup creation or verification failed; stop the rollout.' >&2
+  exit 1
+}
+```
+
+Record the exact printed backup path in the operator change log. Do not replace
+it with a guessed path, a glob, or the newest matching file. Prepare and
+validate a sibling candidate, then rename it over the live file so the change
+is atomic on the same filesystem while retaining `root:kivou` ownership and
+mode `0640`:
+
+```bash
+# Fail closed: prepare and switch the forward candidate.
+(
+  set -euo pipefail
+sudo install -m 0640 -o root -g kivou \
+  /etc/kivou/acquisition-shadow.json \
+  /etc/kivou/acquisition-shadow.json.next &&
+sudoedit /etc/kivou/acquisition-shadow.json.next &&
+sudo -u kivou /srv/kivou/app/.venv/bin/python -c \
+  'from pathlib import Path; from signals.acquisition_connectivity.contracts import ShadowConnectivityDocument; ShadowConnectivityDocument.model_validate_json(Path("/etc/kivou/acquisition-shadow.json.next").read_text(encoding="utf-8"))' &&
+sudo chown root:kivou /etc/kivou/acquisition-shadow.json.next &&
+sudo chmod 0640 /etc/kivou/acquisition-shadow.json.next &&
+sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json.next &&
+test "$(sudo stat -c '%a %U %G' /etc/kivou/acquisition-shadow.json.next)" = '640 root kivou' &&
+sudo mv -T /etc/kivou/acquisition-shadow.json.next \
+  /etc/kivou/acquisition-shadow.json &&
+sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json &&
+test "$(sudo stat -c '%a %U %G' /etc/kivou/acquisition-shadow.json)" = '640 root kivou'
+) || {
+  echo 'Forward AirMail JSON switch failed; stop and inspect protected configuration.' >&2
+  exit 1
+}
+```
+
+This procedure changes only protected Kivou configuration. It does not
+authorize a provider write, a smoke invocation, a timer, or email sending.
+
+To roll back, first restore `kivou_airmail_backup` from the exact path recorded
+in the operator change log if this is a later protected root session. Verify
+that exact root-only backup again; do not select one with a glob. Install it as
+a `root:kivou` mode `0640` sibling, validate the sibling with the still-deployed
+compatible Kivou code as `kivou`, and atomically replace the live JSON:
+
+```bash
+# Fail closed: restore the recorded protected backup.
+(
+  set -euo pipefail
+sudo stat -c '%a %U %G %n' "$kivou_airmail_backup" &&
+test "$(sudo stat -c '%a %U %G' "$kivou_airmail_backup")" = '600 root root' &&
+sudo install -m 0640 -o root -g kivou \
+  "$kivou_airmail_backup" \
+  /etc/kivou/acquisition-shadow.json.rollback.next &&
+sudo -u kivou /srv/kivou/app/.venv/bin/python -c \
+  'from pathlib import Path; from signals.acquisition_connectivity.contracts import ShadowConnectivityDocument; ShadowConnectivityDocument.model_validate_json(Path("/etc/kivou/acquisition-shadow.json.rollback.next").read_text(encoding="utf-8"))' &&
+sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json.rollback.next &&
+test "$(sudo stat -c '%a %U %G' /etc/kivou/acquisition-shadow.json.rollback.next)" = '640 root kivou' &&
+sudo mv -T /etc/kivou/acquisition-shadow.json.rollback.next \
+  /etc/kivou/acquisition-shadow.json &&
+sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json &&
+test "$(sudo stat -c '%a %U %G' /etc/kivou/acquisition-shadow.json)" = '640 root kivou'
+) || {
+  echo 'AirMail JSON rollback failed; older code remains blocked.' >&2
+  exit 1
+}
+```
+
+Any failed validation or metadata check stops the rollback before the atomic
+move. Only after that live-file verification may code that predates the optional field be deployed.
+
 The JSON must retain its exact schema version, exactly three distinct opaque
 mailbox refs, and exactly three distinct provider account email bindings. The
 tracked examples are not deployable credentials.
@@ -169,6 +273,37 @@ sudo systemd-run --wait --pipe \
 Confirm the effective durable control is exactly STAGING, SHADOW, READ ONLY,
 kill-switched, and at volume cap zero. An ambiguous or missing control blocks the
 smoke.
+
+### Strict read-only runtime dependency READY gate
+
+A connectivity-smoke PASS does not satisfy this strict gate because the manual
+connectivity composition permits an omitted provider sending gap. Before any
+bounded QA Acquisition proof, run the production runtime dependency probe
+directly. It performs only the existing bounded read-only identity, account,
+Hermes health, and configuration checks; it does not run a runtime cycle or
+authorize a provider mutation:
+
+```bash
+# Strict read-only runtime dependency READY gate.
+(
+  set -euo pipefail
+sudo systemd-run --wait --collect --pipe \
+  --uid=kivou --gid=kivou \
+  --working-directory=/srv/kivou/app \
+  --property=EnvironmentFile=/etc/kivou/staging.env \
+  --property=EnvironmentFile=/etc/kivou/acquisition-shadow.env \
+  --property=EnvironmentFile=/etc/kivou/acquisition-runtime.env \
+  /srv/kivou/app/.venv/bin/python -m signals.acquisition_runtime check-dependencies
+) || {
+  echo 'Strict runtime dependency readiness failed; stop before bounded QA.' >&2
+  exit 1
+}
+```
+
+Continue only on exit zero with the exact bounded line
+`status=READY dependency_count=11`. This proves all eleven dependency stages,
+including the strict campaign mailbox path, used fresh facts and reported
+`READY`; it does not authorize the later QA cycle or any provider write.
 
 ## 6. Install the static oneshot
 

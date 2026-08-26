@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+from collections.abc import Mapping
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Protocol
 from urllib.parse import quote
 
@@ -669,8 +671,10 @@ class HttpInstantlyProvider:
             "daily_limit",
             "sending_gap",
             "tracking_domain_status",
+            "provider_code",
+            "is_managed_account",
         }
-        return {key: value.get(key) for key in allowed}
+        return {key: value[key] for key in allowed if key in value}
 
     def get_current_workspace_ref(self) -> str:
         """Return only the documented current-workspace identity bound to the key."""
@@ -765,11 +769,79 @@ class HttpInstantlyProvider:
         )
 
 
+def _strict_bounded_int(value: object, *, minimum: int, maximum: int) -> bool:
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and minimum <= value <= maximum
+    )
+
+
+def _effective_sending_gap_minutes(
+    raw: dict[str, object],
+    *,
+    require_sending_gap: bool,
+    managed_airmail_sending_gap_minutes: int | None,
+) -> int | None:
+    provider_gap_present = "sending_gap" in raw
+    provider_gap = raw.get("sending_gap")
+    provider_gap_valid = _strict_bounded_int(
+        provider_gap,
+        minimum=0,
+        maximum=1_440,
+    )
+    configured_gap_valid = (
+        managed_airmail_sending_gap_minutes is None
+        or _strict_bounded_int(
+            managed_airmail_sending_gap_minutes,
+            minimum=1,
+            maximum=1_440,
+        )
+    )
+    if not configured_gap_valid:
+        return None
+    if managed_airmail_sending_gap_minutes is None:
+        if provider_gap_present:
+            return int(provider_gap) if provider_gap_valid else None
+        return None if require_sending_gap else 0
+    if not require_sending_gap:
+        return None
+    provider_code = raw.get("provider_code")
+    managed_airmail = (
+        isinstance(provider_code, int)
+        and not isinstance(provider_code, bool)
+        and provider_code == 8
+        and raw.get("is_managed_account") is True
+    )
+    if not managed_airmail:
+        return None
+    if not provider_gap_present:
+        return managed_airmail_sending_gap_minutes
+    if not provider_gap_valid or provider_gap != managed_airmail_sending_gap_minutes:
+        return None
+    return int(provider_gap)
+
+
+def _normalize_mailbox_state(
+    value: object,
+    *,
+    numeric_states: Mapping[int, str],
+) -> str:
+    if isinstance(value, int) and not isinstance(value, bool):
+        official_state = numeric_states.get(value, "")
+    elif isinstance(value, str):
+        official_state = value
+    else:
+        official_state = ""
+    return official_state.strip().casefold().replace(" ", "_")
+
+
 def normalize_mailbox_readiness(
     raw: object,
     *,
     observed_at: dt.datetime,
     require_sending_gap: bool = True,
+    managed_airmail_sending_gap_minutes: int | None = None,
 ) -> MailboxReadiness:
     """Map only bounded V2 account facts and fail closed on incomplete state."""
     if observed_at.tzinfo is None or observed_at.utcoffset() is None:
@@ -781,51 +853,52 @@ def normalize_mailbox_readiness(
             sending_gap_seconds=0,
             observed_at=observed_at,
         )
-    official_status = {
-        1: "active",
-        2: "paused",
-        3: "maintenance",
-        -1: "connection_error",
-        -2: "soft_bounce_error",
-        -3: "sending_error",
-    }.get(raw.get("status"), raw.get("status", ""))
-    official_warmup = {
-        0: "paused",
-        1: "active",
-        -1: "banned",
-        -2: "spam_folder_unknown",
-        -3: "permanent_suspension",
-    }.get(raw.get("warmup_status"), raw.get("warmup_status", ""))
-    status = str(official_status).strip().casefold().replace(" ", "_")
-    warmup = str(official_warmup).strip().casefold().replace(" ", "_")
+    status = _normalize_mailbox_state(
+        raw.get("status"),
+        numeric_states={
+            1: "active",
+            2: "paused",
+            3: "maintenance",
+            -1: "connection_error",
+            -2: "soft_bounce_error",
+            -3: "sending_error",
+        },
+    )
+    warmup = _normalize_mailbox_state(
+        raw.get("warmup_status"),
+        numeric_states={
+            0: "paused",
+            1: "active",
+            -1: "banned",
+            -2: "spam_folder_unknown",
+            -3: "permanent_suspension",
+        },
+    )
     tracking = (
         str(raw.get("tracking_domain_status", "")).strip().casefold().replace(" ", "_")
     )
     setup_pending = raw.get("setup_pending")
     daily_limit = raw.get("daily_limit")
-    sending_gap = raw.get("sending_gap")
     valid_daily_limit = (
         isinstance(daily_limit, int)
         and not isinstance(daily_limit, bool)
         and 0 <= daily_limit <= 100_000
     )
-    valid_sending_gap = (
-        isinstance(sending_gap, int)
-        and not isinstance(sending_gap, bool)
-        and 0 <= sending_gap <= 1_440
+    normalized_sending_gap = _effective_sending_gap_minutes(
+        raw,
+        require_sending_gap=require_sending_gap,
+        managed_airmail_sending_gap_minutes=managed_airmail_sending_gap_minutes,
     )
     if (
         not isinstance(setup_pending, bool)
         or not valid_daily_limit
-        or (require_sending_gap and not valid_sending_gap)
-        or (sending_gap is not None and not valid_sending_gap)
+        or normalized_sending_gap is None
     ):
         state = MailboxReadinessState.UNKNOWN
         normalized_daily_limit = 0
         normalized_sending_gap = 0
     else:
         normalized_daily_limit = int(daily_limit)
-        normalized_sending_gap = int(sending_gap) if valid_sending_gap else 0
         if status in {
             "connection_error",
             "soft_bounce_error",
@@ -880,13 +953,36 @@ class InstantlyMailboxReadinessSource:
         provider: InstantlyProvider,
         *,
         require_sending_gap: bool = True,
+        managed_airmail_sending_gaps: Mapping[str, int] | None = None,
     ) -> None:
+        source = managed_airmail_sending_gaps or {}
+        normalized: dict[str, int] = {}
+        for account, gap in source.items():
+            if (
+                not isinstance(account, str)
+                or not account.strip()
+                or len(account.strip()) > 320
+            ):
+                raise ValueError("managed AirMail account binding is invalid")
+            if not _strict_bounded_int(gap, minimum=1, maximum=1_440):
+                raise ValueError("managed AirMail cadence is invalid")
+            key = account.strip().casefold()
+            if key in normalized:
+                raise ValueError("managed AirMail account binding is duplicated")
+            normalized[key] = gap
+        if normalized and not require_sending_gap:
+            raise ValueError("managed AirMail cadence requires strict send-readiness")
         self._provider = provider
         self._require_sending_gap = require_sending_gap
+        self._managed_airmail_sending_gaps = MappingProxyType(normalized)
 
     def get(self, provider_account_id: str, *, observed_at: dt.datetime) -> MailboxReadiness:
+        account_key = provider_account_id.strip().casefold()
         return normalize_mailbox_readiness(
             self._provider.get_mailbox_readiness(provider_account_id),
             observed_at=observed_at,
             require_sending_gap=self._require_sending_gap,
+            managed_airmail_sending_gap_minutes=(
+                self._managed_airmail_sending_gaps.get(account_key)
+            ),
         )

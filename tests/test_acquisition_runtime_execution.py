@@ -19,6 +19,7 @@ from signals.acquisition_connectivity.contracts import (
     ShadowConnectivityDocument,
     ShadowMailboxBinding,
 )
+from signals.acquisition_runtime import execution as runtime_execution
 from signals.acquisition_runtime.composition import execute_runtime_run_once
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeConfig,
@@ -40,6 +41,7 @@ from signals.acquisition_runtime.execution import (
     build_runtime_execution_composition,
     load_runtime_link_config,
 )
+from signals.campaigns.contracts import MailboxReadinessState
 from signals.campaigns.runtime_webhook import (
     InstantlyWebhookRuntimeConfiguration,
     build_instantly_webhook_service,
@@ -110,8 +112,9 @@ class ProbeInstantlyProvider:
             "warmup_status": 1,
             "setup_pending": False,
             "daily_limit": 3,
-            "sending_gap": 10,
             "tracking_domain_status": "active",
+            "provider_code": 8,
+            "is_managed_account": True,
         }
 
 
@@ -211,7 +214,11 @@ def _runtime_config() -> AcquisitionRuntimeConfig:
     )
 
 
-def _connectivity_config(tmp_path) -> AcquisitionConnectivityConfig:
+def _connectivity_config(
+    tmp_path,
+    *,
+    managed_gap: int | None = 10,
+) -> AcquisitionConnectivityConfig:
     return AcquisitionConnectivityConfig(
         environment="STAGING",
         shadow_config_path=tmp_path / "shadow.json",
@@ -226,6 +233,7 @@ def _connectivity_config(tmp_path) -> AcquisitionConnectivityConfig:
                 ShadowMailboxBinding(
                     mailbox_ref=f"mailbox-qa-{index}",
                     provider_account_id=f"sender-{index}@example.com",
+                    managed_airmail_sending_gap_minutes=managed_gap,
                 )
                 for index in range(1, 4)
             ),
@@ -339,6 +347,131 @@ def test_production_dependency_probe_reports_real_bounded_component_readiness(
     )
 
 
+def test_public_dependency_check_uses_fresh_production_probe_without_store(
+    monkeypatch,
+    tmp_path,
+) -> None:
+    connectivity = _connectivity_config(tmp_path)
+    webhook = _webhook_configuration()
+    apollo = object()
+    instantly = object()
+    hermes = object()
+    calls: list[str] = []
+
+    class ReadOnlyClient:
+        def __enter__(self):
+            calls.append("client-enter")
+            return self
+
+        def __exit__(self, *_args):
+            calls.append("client-exit")
+
+    class CapturingProductionProbe:
+        def __init__(self, **arguments) -> None:
+            assert arguments == {
+                "apollo": apollo,
+                "instantly_provider": instantly,
+                "connectivity": connectivity,
+                "hermes_runtime": hermes,
+                "webhook_configuration": webhook,
+            }
+            assert {
+                binding.managed_airmail_sending_gap_minutes
+                for binding in connectivity.deployment.mailboxes
+            } == {10}
+            calls.append("probe-created")
+
+        def check(self, *, observed_at):
+            assert observed_at == NOW
+            calls.append("probe-checked")
+            return tuple(
+                RuntimeStageDependency(
+                    stage=stage,
+                    status=RuntimeDependencyState.READY,
+                )
+                for stage in AcquisitionRuntimeStage
+            )
+
+    monkeypatch.setattr(
+        runtime_execution,
+        "load_connectivity_config",
+        lambda: connectivity,
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "validate_hermes_shadow_config",
+        lambda loaded: calls.append(
+            "config-validated" if loaded is connectivity else "wrong-config"
+        ),
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "load_instantly_webhook_runtime_config",
+        lambda *, required: webhook if required else None,
+    )
+    monkeypatch.setattr(
+        runtime_execution.httpx,
+        "Client",
+        lambda **_kwargs: ReadOnlyClient(),
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "build_apollo_components",
+        lambda **_kwargs: apollo,
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "HttpInstantlyProvider",
+        lambda **_kwargs: instantly,
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "_default_hermes_runtime",
+        lambda loaded: hermes if loaded is connectivity else None,
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "ProductionRuntimeDependencyProbe",
+        CapturingProductionProbe,
+    )
+    monkeypatch.setattr(
+        runtime_execution,
+        "create_database_engine",
+        lambda: pytest.fail("dependency check must not create a durable store"),
+    )
+
+    dependencies = runtime_execution.execute_runtime_dependency_check(
+        clock=lambda: NOW,
+    )
+
+    assert tuple(item.stage for item in dependencies) == tuple(
+        AcquisitionRuntimeStage
+    )
+    assert calls == [
+        "config-validated",
+        "client-enter",
+        "probe-created",
+        "probe-checked",
+        "client-exit",
+    ]
+
+
+def test_dependency_probe_keeps_missing_managed_gap_not_ready(tmp_path) -> None:
+    probe = ProductionRuntimeDependencyProbe(
+        apollo=SimpleNamespace(identity=ProbeApolloIdentity()),
+        instantly_provider=ProbeInstantlyProvider(),
+        connectivity=_connectivity_config(tmp_path, managed_gap=None),
+        hermes_runtime=ClosedFakeHermes(),
+        webhook_configuration=_webhook_configuration(),
+    )
+
+    dependencies = {item.stage: item for item in probe.check(observed_at=NOW)}
+
+    assert dependencies[AcquisitionRuntimeStage.CAMPAIGN].reason_codes == (
+        "MAILBOX_DEPENDENCY_NOT_READY",
+    )
+
+
 def test_production_dependency_probe_keeps_provider_failures_component_scoped(
     tmp_path,
 ) -> None:
@@ -366,6 +499,40 @@ def test_production_dependency_probe_keeps_provider_failures_component_scoped(
     assert dependencies[AcquisitionRuntimeStage.RESPONSE].reason_codes == (
         "WEBHOOK_INGRESS_NOT_READY",
     )
+
+
+def test_runtime_campaign_source_uses_the_same_managed_airmail_binding(
+    tmp_path,
+) -> None:
+    engine = _engine()
+    provider = ProbeInstantlyProvider()
+    apollo = ApolloComponents(
+        organization_search=NoNetworkProvider(),
+        contact_discovery=NoNetworkProvider(),
+        company_research=NoNetworkProvider(),
+        identity=NoNetworkProvider(),
+    )
+    composition = build_runtime_execution_composition(
+        engine=engine,
+        runtime_config=_runtime_config(),
+        connectivity_config=_connectivity_config(tmp_path),
+        links=_links(),
+        webhook_configuration=_webhook_configuration(),
+        apollo=apollo,
+        instantly_provider=provider,
+        hermes_runtime=ClosedFakeHermes(),
+        dependency_probe=ReadyDependencyProbe(),
+        clock=lambda: NOW,
+    )
+
+    readiness = composition.domain.campaign_service._mailbox_readiness.get(
+        "SENDER-1@EXAMPLE.COM",
+        observed_at=NOW,
+    )
+
+    assert readiness.state is MailboxReadinessState.READY
+    assert readiness.sending_gap_seconds == 600
+    engine.dispose()
 
 
 def test_default_root_composition_constructs_real_domains_without_network(
@@ -451,6 +618,48 @@ def test_policy_window_changes_do_not_change_durable_cycle_identity(tmp_path) ->
     after = build_runtime_execution_composition(**arguments)
 
     assert after.config_fingerprint == before.config_fingerprint
+    engine.dispose()
+
+
+def test_managed_airmail_cadence_changes_runtime_and_mailbox_fingerprints(
+    tmp_path,
+) -> None:
+    engine = _engine()
+    provider = NoNetworkProvider()
+    apollo = ApolloComponents(
+        organization_search=provider,
+        contact_discovery=provider,
+        company_research=provider,
+        identity=provider,
+    )
+    common = {
+        "engine": engine,
+        "runtime_config": _runtime_config(),
+        "links": _links(),
+        "webhook_configuration": _webhook_configuration(),
+        "apollo": apollo,
+        "instantly_provider": provider,
+        "hermes_runtime": ClosedFakeHermes(),
+        "dependency_probe": ReadyDependencyProbe(),
+        "clock": lambda: NOW,
+    }
+    before = build_runtime_execution_composition(
+        **common,
+        connectivity_config=_connectivity_config(tmp_path, managed_gap=10),
+    )
+    after = build_runtime_execution_composition(
+        **common,
+        connectivity_config=_connectivity_config(tmp_path, managed_gap=20),
+    )
+    before_mailbox = (
+        before.domain.campaign_service._deployment.mailbox_catalog.entries[0]
+    )
+    after_mailbox = (
+        after.domain.campaign_service._deployment.mailbox_catalog.entries[0]
+    )
+
+    assert before.config_fingerprint != after.config_fingerprint
+    assert before_mailbox.config_fingerprint != after_mailbox.config_fingerprint
     engine.dispose()
 
 

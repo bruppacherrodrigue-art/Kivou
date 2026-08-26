@@ -63,6 +63,9 @@ class _DeploymentModel(BaseModel):
 class ShadowMailboxBinding(_DeploymentModel):
     mailbox_ref: OpaqueRef
     provider_account_id: ProviderAccountEmail = Field(repr=False)
+    managed_airmail_sending_gap_minutes: int | None = Field(
+        default=None, strict=True, ge=1, le=1_440
+    )
 
 
 class ShadowConnectivityDocument(_DeploymentModel):

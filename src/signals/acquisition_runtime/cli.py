@@ -1,4 +1,4 @@
-"""Sanitized process boundary for one bounded acquisition runtime cycle."""
+"""Sanitized process boundary for the bounded acquisition runtime."""
 
 from __future__ import annotations
 
@@ -7,10 +7,17 @@ import signal
 import sys
 from collections.abc import Callable
 
-from signals.acquisition_runtime.contracts import RuntimeRunResult
+from signals.acquisition_runtime.contracts import (
+    AcquisitionRuntimeStage,
+    RuntimeDependencyState,
+    RuntimeRunResult,
+    RuntimeStageDependency,
+)
 from signals.acquisition_runtime.events import configure_acquisition_runtime_logging
 
 RuntimeExecutor = Callable[[bool], RuntimeRunResult]
+RuntimeDependencyExecutor = Callable[[], tuple[RuntimeStageDependency, ...]]
+_EXPECTED_DEPENDENCY_COUNT = 11
 
 
 class _SafeArgumentParser(argparse.ArgumentParser):
@@ -34,6 +41,10 @@ def _parser() -> _SafeArgumentParser:
         action="store_true",
         help="manual staging-only gate; durable Policy and approval still apply",
     )
+    commands.add_parser(
+        "check-dependencies",
+        help="run fresh read-only production dependency probes",
+    )
     return parser
 
 
@@ -42,6 +53,28 @@ def _default_execute(allow_qa_provider_mutations: bool) -> RuntimeRunResult:
 
     return execute_runtime_run_once(
         allow_qa_provider_mutations=allow_qa_provider_mutations
+    )
+
+
+def _default_check_dependencies() -> tuple[RuntimeStageDependency, ...]:
+    from signals.acquisition_runtime.execution import (
+        execute_runtime_dependency_check,
+    )
+
+    return execute_runtime_dependency_check()
+
+
+def _all_dependencies_ready(
+    dependencies: tuple[RuntimeStageDependency, ...],
+) -> bool:
+    expected_stages = tuple(AcquisitionRuntimeStage)
+    return (
+        len(expected_stages) == _EXPECTED_DEPENDENCY_COUNT
+        and tuple(item.stage for item in dependencies) == expected_stages
+        and all(
+            item.status is RuntimeDependencyState.READY
+            for item in dependencies
+        )
     )
 
 
@@ -60,9 +93,23 @@ def main(
     argv: list[str] | None = None,
     *,
     execute: RuntimeExecutor | None = None,
+    check_dependencies: RuntimeDependencyExecutor | None = None,
 ) -> int:
     configure_acquisition_runtime_logging()
     arguments = _parser().parse_args(argv)
+    if arguments.command == "check-dependencies":
+        check = check_dependencies or _default_check_dependencies
+        try:
+            dependencies = check()
+            ready = _all_dependencies_ready(dependencies)
+        except Exception:  # noqa: BLE001 - no provider/config detail crosses the CLI
+            ready = False
+        if not ready:
+            print("status=NOT_READY")
+            return 1
+        print(f"status=READY dependency_count={_EXPECTED_DEPENDENCY_COUNT}")
+        return 0
+
     assert arguments.command == "run-once"
     run = execute or _default_execute
 

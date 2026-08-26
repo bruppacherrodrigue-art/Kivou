@@ -134,6 +134,10 @@ def test_redacted_deployment_examples_are_strict_and_secret_free() -> None:
         OPS_JSON.read_text(encoding="utf-8")
     )
     assert len(deployment.mailboxes) == 3
+    assert [
+        mailbox.managed_airmail_sending_gap_minutes
+        for mailbox in deployment.mailboxes
+    ] == [10, 10, 10]
     assert json.loads(HERMES_CONFIG.read_text(encoding="utf-8")) == (
         HERMES_SHADOW_MODEL_CONFIG
     )
@@ -205,3 +209,195 @@ def test_runbook_contains_pin_provisioning_permissions_smoke_and_rollback() -> N
         "KIVOU_INSTANTLY_API_KEY=",
     ):
         assert forbidden not in text
+
+
+def test_runbook_has_collision_safe_backup_and_executable_airmail_rollback() -> None:
+    text = RUNBOOK.read_text(encoding="utf-8")
+    unique_backup = (
+        'kivou_airmail_backup="$(sudo mktemp '
+        '/etc/kivou/acquisition-shadow.json.rollback.XXXXXXXX)"'
+    )
+    root_only_copy = (
+        "sudo install -m 0600 -o root -g root \\\n"
+        '  /etc/kivou/acquisition-shadow.json "$kivou_airmail_backup"'
+    )
+    backup_stat = (
+        "sudo stat -c '%a %U %G %n' \"$kivou_airmail_backup\""
+    )
+    backup_verify = (
+        "test \"$(sudo stat -c '%a %U %G' \"$kivou_airmail_backup\")\" "
+        "= '600 root root'"
+    )
+    failed_copy_cleanup = 'sudo rm -f -- "$kivou_airmail_backup"'
+    backup_record = "Record the exact printed backup path"
+    rollback_candidate = (
+        "sudo install -m 0640 -o root -g kivou \\\n"
+        '  "$kivou_airmail_backup" \\\n'
+        "  /etc/kivou/acquisition-shadow.json.rollback.next"
+    )
+    rollback_validation_target = (
+        'Path("/etc/kivou/acquisition-shadow.json.rollback.next").read_text('
+        'encoding="utf-8")'
+    )
+    forward_validation_target = (
+        'Path("/etc/kivou/acquisition-shadow.json.next").read_text('
+        'encoding="utf-8")'
+    )
+    forward_candidate_verify = (
+        "test \"$(sudo stat -c '%a %U %G' "
+        "/etc/kivou/acquisition-shadow.json.next)\" = '640 root kivou'"
+    )
+    rollback_candidate_verify = (
+        "test \"$(sudo stat -c '%a %U %G' "
+        "/etc/kivou/acquisition-shadow.json.rollback.next)\" "
+        "= '640 root kivou'"
+    )
+    forward_move = (
+        "sudo mv -T /etc/kivou/acquisition-shadow.json.next \\\n"
+        "  /etc/kivou/acquisition-shadow.json"
+    )
+    rollback_move = (
+        "sudo mv -T /etc/kivou/acquisition-shadow.json.rollback.next \\\n"
+        "  /etc/kivou/acquisition-shadow.json"
+    )
+    live_verify = (
+        "test \"$(sudo stat -c '%a %U %G' "
+        "/etc/kivou/acquisition-shadow.json)\" = '640 root kivou'"
+    )
+    older_code = (
+        "Only after that live-file verification may code that predates the "
+        "optional field be deployed."
+    )
+
+    required_in_order = (
+        unique_backup,
+        root_only_copy,
+        backup_stat,
+        backup_verify,
+        failed_copy_cleanup,
+        backup_record,
+        rollback_candidate,
+        rollback_move,
+        older_code,
+    )
+    positions = [text.index(required) for required in required_in_order]
+    assert positions == sorted(positions)
+    assert 'test -n "$kivou_airmail_backup"' in text
+    rollback_validation = text[
+        text.index(rollback_candidate) : text.index(rollback_move)
+    ]
+    assert "sudo -u kivou" in rollback_validation
+    assert (
+        "ShadowConnectivityDocument.model_validate_json" in rollback_validation
+    )
+    assert rollback_validation_target in rollback_validation
+    assert (
+        "sudo install -m 0640 -o root -g kivou \\\n"
+        "  /etc/kivou/acquisition-shadow.json \\\n"
+        "  /etc/kivou/acquisition-shadow.json.rollback"
+    ) not in text
+
+    forward_marker = "# Fail closed: prepare and switch the forward candidate."
+    rollback_marker = "# Fail closed: restore the recorded protected backup."
+    backup_marker = "# Fail closed: create and verify the root-only backup."
+    backup_start = text.index(backup_marker)
+    backup_handler = text.index("} || {", backup_start)
+    backup_end = text.index("}\n", backup_handler) + 2
+    backup_block = text[backup_start:backup_handler]
+    backup_failure = text[backup_handler:backup_end]
+    assert "set -euo pipefail" in backup_block
+    backup_positions = [
+        backup_block.index(required)
+        for required in (
+            unique_backup,
+            root_only_copy,
+            backup_stat,
+            backup_verify,
+        )
+    ]
+    assert backup_positions == sorted(backup_positions)
+    assert backup_block.count("&&") >= 3
+    assert failed_copy_cleanup in backup_failure
+    assert "Protected JSON backup creation or verification failed" in backup_failure
+    assert "exit 1" in backup_failure
+    assert backup_end < text.index(backup_record) < text.index(forward_marker)
+
+    forward_start = text.index(forward_marker)
+    forward_handler = text.index(") || {", forward_start)
+    forward_end = text.index("}\n", forward_handler) + 2
+    forward_block = text[forward_start:forward_handler]
+    forward_failure = text[forward_handler:forward_end]
+    assert "set -euo pipefail" in forward_block
+    assert "ShadowConnectivityDocument.model_validate_json" in forward_block
+    forward_positions = [
+        forward_block.index(required)
+        for required in (
+            forward_validation_target,
+            forward_candidate_verify,
+            forward_move,
+            live_verify,
+        )
+    ]
+    assert forward_positions == sorted(forward_positions)
+    assert forward_block.count("&&") >= 8
+    assert "Forward AirMail JSON switch failed" in forward_failure
+    assert "exit 1" in forward_failure
+
+    rollback_start = text.index(rollback_marker, forward_end)
+    rollback_handler = text.index(") || {", rollback_start)
+    rollback_end = text.index("}\n", rollback_handler) + 2
+    rollback_block = text[rollback_start:rollback_handler]
+    rollback_failure = text[rollback_handler:rollback_end]
+    assert "set -euo pipefail" in rollback_block
+    assert "ShadowConnectivityDocument.model_validate_json" in rollback_block
+    rollback_positions = [
+        rollback_block.index(required)
+        for required in (
+            backup_verify,
+            rollback_validation_target,
+            rollback_candidate_verify,
+            rollback_move,
+            live_verify,
+        )
+    ]
+    assert rollback_positions == sorted(rollback_positions)
+    assert rollback_block.count("&&") >= 7
+    assert "AirMail JSON rollback failed" in rollback_failure
+    assert "exit 1" in rollback_failure
+    assert text.index(older_code) > rollback_end
+
+
+def test_runbook_requires_strict_runtime_dependencies_ready_before_qa() -> None:
+    text = RUNBOOK.read_text(encoding="utf-8")
+    marker = "# Strict read-only runtime dependency READY gate."
+    gate_start = text.index(marker)
+    gate_handler = text.index(") || {", gate_start)
+    gate_end = text.index("}\n", gate_handler) + 2
+    gate_block = text[gate_start:gate_handler]
+    gate_failure = text[gate_handler:gate_end]
+
+    required = (
+        "set -euo pipefail",
+        "--property=EnvironmentFile=/etc/kivou/staging.env",
+        "--property=EnvironmentFile=/etc/kivou/acquisition-shadow.env",
+        "--property=EnvironmentFile=/etc/kivou/acquisition-runtime.env",
+        (
+            "/srv/kivou/app/.venv/bin/python "
+            "-m signals.acquisition_runtime check-dependencies"
+        ),
+    )
+    positions = [gate_block.index(value) for value in required]
+    assert positions == sorted(positions)
+    assert "Strict runtime dependency readiness failed" in gate_failure
+    assert "exit 1" in gate_failure
+    assert "run-once" not in gate_block
+    assert "--allow-qa-provider-mutations" not in gate_block
+    assert "python -m signals.acquisition_connectivity check" not in gate_block
+    assert "ProductionRuntimeDependencyProbe" not in gate_block
+    assert "_default_hermes_runtime" not in gate_block
+    assert "get_secret_value" not in gate_block
+    assert "/srv/kivou/app/.venv/bin/python -c" not in gate_block
+    assert (
+        "A connectivity-smoke PASS does not satisfy this strict gate" in text
+    )
+    assert gate_end < text.index("## 7. Manual smoke")

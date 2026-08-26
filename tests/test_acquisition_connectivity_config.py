@@ -68,6 +68,57 @@ def test_complete_configuration_is_strict_and_keeps_secrets_opaque(tmp_path: Pat
     assert "one@example.com" not in repr(config)
 
 
+@pytest.mark.parametrize("gap_minutes", [1, 10, 1_440])
+def test_managed_airmail_sending_gap_minutes_accepts_strict_bounded_integers(
+    tmp_path: Path, gap_minutes: int
+) -> None:
+    mailboxes = _deployment()["mailboxes"]
+    mailboxes[0] = {
+        **mailboxes[0],
+        "managed_airmail_sending_gap_minutes": gap_minutes,
+    }
+
+    config = load_connectivity_config(
+        _environment(tmp_path, _deployment(mailboxes=mailboxes))
+    )
+
+    assert (
+        config.deployment.mailboxes[0].managed_airmail_sending_gap_minutes
+        == gap_minutes
+    )
+
+
+@pytest.mark.parametrize("gap_minutes", [0, -1, 1_441, True, "10", 10.0])
+def test_managed_airmail_sending_gap_minutes_rejects_invalid_values_without_identity_leakage(
+    tmp_path: Path, gap_minutes: object
+) -> None:
+    mailboxes = _deployment()["mailboxes"]
+    mailboxes[0] = {
+        **mailboxes[0],
+        "managed_airmail_sending_gap_minutes": gap_minutes,
+    }
+
+    with pytest.raises(ConnectivityFailure) as caught:
+        load_connectivity_config(
+            _environment(tmp_path, _deployment(mailboxes=mailboxes))
+        )
+
+    assert caught.value.code is ConnectivityErrorCode.NOT_CONFIGURED
+    assert "mailbox-staging-01" not in str(caught.value)
+    assert "@" not in str(caught.value)
+
+
+def test_old_v1_document_loads_with_managed_airmail_sending_gap_minutes_unset(
+    tmp_path: Path,
+) -> None:
+    config = load_connectivity_config(_environment(tmp_path))
+
+    assert all(
+        mailbox.managed_airmail_sending_gap_minutes is None
+        for mailbox in config.deployment.mailboxes
+    )
+
+
 def test_required_environment_vocabulary_is_exact() -> None:
     assert REQUIRED_ENVIRONMENT_VARIABLES == (
         "KIVOU_ACQUISITION_ENVIRONMENT",

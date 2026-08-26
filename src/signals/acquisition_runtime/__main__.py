@@ -1,4 +1,4 @@
-"""Module entry point for one bounded acquisition runtime cycle."""
+"""Module entry point for bounded acquisition runtime commands."""
 
 from signals.acquisition_runtime.cli import main
 
