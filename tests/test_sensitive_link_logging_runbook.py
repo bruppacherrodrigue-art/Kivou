@@ -26,6 +26,22 @@ def _assert_in_order(body: str, *needles: str) -> None:
         cursor = body.index(needle, cursor + 1)
 
 
+def _shell_blocks(body: str) -> tuple[str, ...]:
+    return tuple(
+        re.findall(
+            r"^~~~bash\n(.*?)^~~~$",
+            body,
+            flags=re.MULTILINE | re.DOTALL,
+        )
+    )
+
+
+def _only_shell_block(body: str) -> str:
+    blocks = _shell_blocks(body)
+    assert len(blocks) == 1, f"expected one shell block, got {len(blocks)}"
+    return blocks[0]
+
+
 def test_runbook_validates_host_and_only_the_two_reviewed_api_ports() -> None:
     body = _runbook()
 
@@ -103,10 +119,12 @@ def test_runbook_builds_an_exact_clean_reviewed_release_as_kivou() -> None:
 
 def test_green_runtime_matches_the_versioned_service_and_is_proven_directly() -> None:
     body = _runbook()
+    green = _subsection(body, "### Démarrer et prouver le runtime vert sur 8001")
+    shell = _only_shell_block(green)
 
     _assert_in_order(
-        body,
-        "sudo nginx -t -c",
+        shell,
+        "sudo systemd-run",
         "--unit=kivou-api-green",
         "--property=EnvironmentFile=/etc/kivou/staging.env",
         "--port 8001",
@@ -129,9 +147,10 @@ def test_green_runtime_matches_the_versioned_service_and_is_proven_directly() ->
         "LockPersonality=yes",
         "MemoryDenyWriteExecute=yes",
     ):
-        assert hardening in body
-    assert 'test "$KIVOU_GREEN_OPENAPI_STATUS" = 200' in body
-    assert 'test "$KIVOU_GREEN_ME_STATUS" = 401' in body
+        assert shell.count(f"--property={hardening}") == 1
+    assert shell.count("--no-access-log") == 1
+    assert 'test "$KIVOU_GREEN_OPENAPI_STATUS" = 200' in shell
+    assert 'test "$KIVOU_GREEN_ME_STATUS" = 401' in shell
 
 
 def test_snapshot_is_unique_root_only_and_evidence_only() -> None:
@@ -247,19 +266,21 @@ def test_gate_close_and_open_are_atomic_validated_transitions() -> None:
     body = _runbook()
     close = _subsection(body, "### Fermer atomiquement les liens sensibles")
     reopen = _subsection(body, "### Réouvrir atomiquement les liens sensibles")
+    close_shell = _only_shell_block(close)
+    reopen_shell = _only_shell_block(reopen)
 
     _assert_in_order(
-        close,
-        "kivou-sensitive-links-closed.conf",
-        "return 503;",
-        "/etc/nginx/kivou-sensitive-links-gate.conf.new",
+        close_shell,
+        "/etc/nginx/kivou-sensitive-links-closed.conf",
+        'test "$(sudo awk',
+        '/etc/nginx/kivou-sensitive-links-gate.conf.new)" = "return 503;"',
         "sudo mv -f",
         "sudo nginx -t",
         "sudo systemctl reload nginx",
     )
     _assert_in_order(
-        reopen,
-        "kivou-sensitive-links-open.conf",
+        reopen_shell,
+        "/etc/nginx/kivou-sensitive-links-open.conf",
         "/etc/nginx/kivou-sensitive-links-gate.conf.new",
         "sudo mv -f",
         "sudo nginx -t",
@@ -270,6 +291,7 @@ def test_gate_close_and_open_are_atomic_validated_transitions() -> None:
 def test_rollback_keeps_the_security_floor_and_switches_only_the_application() -> None:
     body = _runbook()
     rollback = _subsection(body, "### Rollback applicatif préservant la sécurité")
+    shell = _only_shell_block(rollback)
 
     for required in (
         "security floor",
@@ -281,7 +303,7 @@ def test_rollback_keeps_the_security_floor_and_switches_only_the_application() -
     ):
         assert required in rollback
     _assert_in_order(
-        rollback,
+        shell,
         "if sudo systemctl is-active --quiet kivou-api-green.service; then",
         'WorkingDirectory --value)" = "$KIVOU_SECURITY_RELEASE"',
         "else",
@@ -299,6 +321,17 @@ def test_rollback_keeps_the_security_floor_and_switches_only_the_application() -
         "http://127.0.0.1:8000/openapi.json",
         "KIVOU_API_PORT=8000",
         'sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT"',
+    )
+    reviewed_unit = '"$KIVOU_SECURITY_RELEASE/ops/systemd/kivou-api.service"'
+    evidence_unit = '"$KIVOU_EVIDENCE_DIR/kivou-api.service"'
+    assert shell.count(reviewed_unit) == 1
+    assert evidence_unit not in shell
+    assert (
+        shell.count(
+            "--forwarded-allow-ips 127.0.0.1 --no-server-header "
+            "--no-access-log"
+        )
+        == 1
     )
 
 
