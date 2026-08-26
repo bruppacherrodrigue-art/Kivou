@@ -272,9 +272,9 @@ def test_runbook_has_collision_safe_backup_and_executable_airmail_rollback() -> 
     required_in_order = (
         unique_backup,
         root_only_copy,
-        failed_copy_cleanup,
         backup_stat,
         backup_verify,
+        failed_copy_cleanup,
         backup_record,
         rollback_candidate,
         rollback_move,
@@ -299,6 +299,29 @@ def test_runbook_has_collision_safe_backup_and_executable_airmail_rollback() -> 
 
     forward_marker = "# Fail closed: prepare and switch the forward candidate."
     rollback_marker = "# Fail closed: restore the recorded protected backup."
+    backup_marker = "# Fail closed: create and verify the root-only backup."
+    backup_start = text.index(backup_marker)
+    backup_handler = text.index("} || {", backup_start)
+    backup_end = text.index("}\n", backup_handler) + 2
+    backup_block = text[backup_start:backup_handler]
+    backup_failure = text[backup_handler:backup_end]
+    assert "set -euo pipefail" in backup_block
+    backup_positions = [
+        backup_block.index(required)
+        for required in (
+            unique_backup,
+            root_only_copy,
+            backup_stat,
+            backup_verify,
+        )
+    ]
+    assert backup_positions == sorted(backup_positions)
+    assert backup_block.count("&&") >= 3
+    assert failed_copy_cleanup in backup_failure
+    assert "Protected JSON backup creation or verification failed" in backup_failure
+    assert "exit 1" in backup_failure
+    assert backup_end < text.index(backup_record) < text.index(forward_marker)
+
     forward_start = text.index(forward_marker)
     forward_handler = text.index(") || {", forward_start)
     forward_end = text.index("}\n", forward_handler) + 2
@@ -342,3 +365,41 @@ def test_runbook_has_collision_safe_backup_and_executable_airmail_rollback() -> 
     assert "AirMail JSON rollback failed" in rollback_failure
     assert "exit 1" in rollback_failure
     assert text.index(older_code) > rollback_end
+
+
+def test_runbook_requires_strict_runtime_dependencies_ready_before_qa() -> None:
+    text = RUNBOOK.read_text(encoding="utf-8")
+    marker = "# Strict read-only runtime dependency READY gate."
+    gate_start = text.index(marker)
+    gate_handler = text.index(") || {", gate_start)
+    gate_end = text.index("}\n", gate_handler) + 2
+    gate_block = text[gate_start:gate_handler]
+    gate_failure = text[gate_handler:gate_end]
+
+    required = (
+        "set -euo pipefail",
+        "--property=EnvironmentFile=/etc/kivou/staging.env",
+        "--property=EnvironmentFile=/etc/kivou/acquisition-shadow.env",
+        "--property=EnvironmentFile=/etc/kivou/acquisition-runtime.env",
+        "load_connectivity_config",
+        "validate_hermes_shadow_config",
+        "ProductionRuntimeDependencyProbe",
+        "HttpInstantlyProvider",
+        "load_instantly_webhook_runtime_config",
+        "probe.check(observed_at=dt.datetime.now(dt.UTC))",
+        "tuple(item.stage for item in dependencies)",
+        "tuple(AcquisitionRuntimeStage)",
+        "item.status is not RuntimeDependencyState.READY",
+        'print("status=READY dependency_count=11")',
+    )
+    positions = [gate_block.index(value) for value in required]
+    assert positions == sorted(positions)
+    assert "Strict runtime dependency readiness failed" in gate_failure
+    assert "exit 1" in gate_failure
+    assert "run-once" not in gate_block
+    assert "--allow-qa-provider-mutations" not in gate_block
+    assert "python -m signals.acquisition_connectivity check" not in gate_block
+    assert (
+        "A connectivity-smoke PASS does not satisfy this strict gate" in text
+    )
+    assert gate_end < text.index("## 7. Manual smoke")

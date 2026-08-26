@@ -142,18 +142,23 @@ non-empty path and stop; never continue with the blank file created by
 `mktemp`:
 
 ```bash
-kivou_airmail_backup="$(sudo mktemp /etc/kivou/acquisition-shadow.json.rollback.XXXXXXXX)"
-if ! sudo install -m 0600 -o root -g root \
-  /etc/kivou/acquisition-shadow.json "$kivou_airmail_backup"; then
+kivou_airmail_backup=
+# Fail closed: create and verify the root-only backup.
+{
+  set -euo pipefail
+kivou_airmail_backup="$(sudo mktemp /etc/kivou/acquisition-shadow.json.rollback.XXXXXXXX)" &&
+sudo install -m 0600 -o root -g root \
+  /etc/kivou/acquisition-shadow.json "$kivou_airmail_backup" &&
+sudo stat -c '%a %U %G %n' "$kivou_airmail_backup" &&
+test "$(sudo stat -c '%a %U %G' "$kivou_airmail_backup")" = '600 root root'
+} || {
   if test -n "$kivou_airmail_backup"; then
     sudo rm -f -- "$kivou_airmail_backup"
   fi
   unset kivou_airmail_backup
-  echo 'Protected JSON backup copy failed; stop the rollout.' >&2
+  echo 'Protected JSON backup creation or verification failed; stop the rollout.' >&2
   exit 1
-fi
-sudo stat -c '%a %U %G %n' "$kivou_airmail_backup"
-test "$(sudo stat -c '%a %U %G' "$kivou_airmail_backup")" = '600 root root'
+}
 ```
 
 Record the exact printed backup path in the operator change log. Do not replace
@@ -268,6 +273,86 @@ sudo systemd-run --wait --pipe \
 Confirm the effective durable control is exactly STAGING, SHADOW, READ ONLY,
 kill-switched, and at volume cap zero. An ambiguous or missing control blocks the
 smoke.
+
+### Strict read-only runtime dependency READY gate
+
+A connectivity-smoke PASS does not satisfy this strict gate because the manual
+connectivity composition permits an omitted provider sending gap. Before any
+bounded QA Acquisition proof, run the production runtime dependency probe
+directly. It performs only the existing bounded read-only identity, account,
+Hermes health, and configuration checks; it does not run a runtime cycle or
+authorize a provider mutation:
+
+```bash
+# Strict read-only runtime dependency READY gate.
+(
+  set -euo pipefail
+sudo systemd-run --wait --collect --pipe \
+  --uid=kivou --gid=kivou \
+  --working-directory=/srv/kivou/app \
+  --property=EnvironmentFile=/etc/kivou/staging.env \
+  --property=EnvironmentFile=/etc/kivou/acquisition-shadow.env \
+  --property=EnvironmentFile=/etc/kivou/acquisition-runtime.env \
+  /srv/kivou/app/.venv/bin/python -c '
+import datetime as dt
+
+import httpx
+
+from signals.acquisition_connectivity.apollo import build_apollo_components
+from signals.acquisition_connectivity.config import (
+    load_connectivity_config,
+    validate_hermes_shadow_config,
+)
+from signals.acquisition_runtime.contracts import (
+    AcquisitionRuntimeStage,
+    RuntimeDependencyState,
+)
+from signals.acquisition_runtime.execution import (
+    ProductionRuntimeDependencyProbe,
+    _default_hermes_runtime,
+)
+from signals.campaigns.instantly import HttpInstantlyProvider
+from signals.campaigns.runtime_webhook import load_instantly_webhook_runtime_config
+
+connectivity = load_connectivity_config()
+validate_hermes_shadow_config(connectivity)
+webhook = load_instantly_webhook_runtime_config(required=True)
+if webhook is None:
+    raise SystemExit("status=NOT_READY")
+with httpx.Client(timeout=10.0, follow_redirects=False) as client:
+    apollo = build_apollo_components(
+        api_key=connectivity.apollo_api_key.get_secret_value(),
+        client=client,
+    )
+    instantly = HttpInstantlyProvider(
+        api_key=connectivity.instantly_api_key.get_secret_value(),
+        client=client,
+    )
+    hermes = _default_hermes_runtime(connectivity)
+    probe = ProductionRuntimeDependencyProbe(
+        apollo=apollo,
+        instantly_provider=instantly,
+        connectivity=connectivity,
+        hermes_runtime=hermes,
+        webhook_configuration=webhook,
+    )
+    dependencies = probe.check(observed_at=dt.datetime.now(dt.UTC))
+if tuple(item.stage for item in dependencies) != tuple(AcquisitionRuntimeStage):
+    raise SystemExit("status=NOT_READY")
+if any(item.status is not RuntimeDependencyState.READY for item in dependencies):
+    raise SystemExit("status=NOT_READY")
+print("status=READY dependency_count=11")
+'
+) || {
+  echo 'Strict runtime dependency readiness failed; stop before bounded QA.' >&2
+  exit 1
+}
+```
+
+Continue only on exit zero with the exact bounded line
+`status=READY dependency_count=11`. This proves all eleven dependency stages,
+including the strict campaign mailbox path, used fresh facts and reported
+`READY`; it does not authorize the later QA cycle or any provider write.
 
 ## 6. Install the static oneshot
 
