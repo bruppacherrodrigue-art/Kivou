@@ -343,6 +343,7 @@ def test_sensitive_headers_change_only_the_referrer_policy() -> None:
     )
     sensitive_policy = 'add_header Referrer-Policy "no-referrer" always;'
 
+    assert _directives(sensitive_path.read_text()) == sensitive
     assert ordinary.count(ordinary_policy) == 1
     assert ordinary.count(sensitive_policy) == 0
     assert sensitive.count(ordinary_policy) == 0
