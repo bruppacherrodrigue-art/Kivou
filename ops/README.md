@@ -1049,8 +1049,11 @@ atomique avec kivou-sensitive-links-closed.conf et garder le reste de staging
 disponible.
 
 Relancer green avec la release de sécurité enregistrée, valider 8001, puis
-rendre et publier le même site sûr vers 8001 avant de toucher au lien
-applicatif. La commande reprend exactement le durcissement déjà audité.
+rendre et republier depuis cette release l'intégralité du bundle sûr vers 8001
+avant de toucher au lien applicatif. Toutes les sources sont validées et tous
+les fichiers .new sont prêts avant le premier mv ; le vieux processus nginx
+continue de servir jusqu'au nginx-t réussi puis au reload unique de reprise.
+La commande est idempotente et reprend exactement le durcissement déjà audité.
 
 ~~~bash
 set -euo pipefail
@@ -1089,24 +1092,59 @@ kivou_git() {
 test "$(kivou_git -C "$KIVOU_SECURITY_RELEASE" rev-parse HEAD)" = \
   "$KIVOU_RELEASE_SHA"
 test -z "$(kivou_git -C "$KIVOU_SECURITY_RELEASE" status --porcelain)"
+KIVOU_SAFE_NGINX_SOURCE_PATHS=(
+  "ops/nginx/kivou-limits.conf"
+  "ops/nginx/kivou-proxy-params.conf"
+  "ops/nginx/kivou-security-headers.conf"
+  "ops/nginx/kivou-sensitive-link-security-headers.conf"
+  "ops/nginx/kivou-sensitive-links-open.conf"
+  "ops/nginx/kivou-sensitive-links-closed.conf"
+  "ops/nginx/kivou-staging.conf"
+)
+for KIVOU_SAFE_NGINX_SOURCE_PATH in \
+  "${KIVOU_SAFE_NGINX_SOURCE_PATHS[@]}"; do
+  KIVOU_GIT_SOURCE_SHA=$(kivou_git -C "$KIVOU_SECURITY_RELEASE" show \
+    "$KIVOU_RELEASE_SHA:$KIVOU_SAFE_NGINX_SOURCE_PATH" |
+    sha256sum | awk '{print $1}')
+  KIVOU_WORKTREE_SOURCE_SHA=$(sudo -u kivou sha256sum \
+    "$KIVOU_SECURITY_RELEASE/$KIVOU_SAFE_NGINX_SOURCE_PATH" |
+    awk '{print $1}')
+  test "$KIVOU_WORKTREE_SOURCE_SHA" = "$KIVOU_GIT_SOURCE_SHA"
+done
+test -z "$(sudo -u kivou awk 'NF && $1 !~ /^#/ {print}' \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-open.conf")"
+test "$(sudo -u kivou awk 'NF && $1 !~ /^#/ {print}' \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-closed.conf")" = \
+  "return 503;"
 
-if sudo systemctl is-active --quiet kivou-api-green.service; then
-  KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-green.service
-  test "$(sudo systemctl show "$KIVOU_ROLLBACK_GREEN_UNIT" \
+kivou_validate_recovery_green_unit() {
+  KIVOU_GREEN_UNIT_TO_VALIDATE=$1
+  test "$(sudo systemctl show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
     --property=WorkingDirectory --value)" = "$KIVOU_SECURITY_RELEASE"
-  sudo systemctl show "$KIVOU_ROLLBACK_GREEN_UNIT" \
+  sudo systemctl show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
     --property=ExecStart --value |
     grep --fixed-strings --quiet -- \
       "$KIVOU_SECURITY_RELEASE/.venv/bin/uvicorn"
-  sudo systemctl show "$KIVOU_ROLLBACK_GREEN_UNIT" \
+  sudo systemctl show "$KIVOU_GREEN_UNIT_TO_VALIDATE" \
     --property=ExecStart --value |
     grep --fixed-strings --quiet -- '--no-access-log'
+}
+if sudo systemctl is-active --quiet kivou-api-green.service; then
+  KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-green.service
+  kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"
+elif sudo systemctl is-active --quiet \
+  kivou-api-rollback-green.service; then
+  KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service
+  kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"
 else
+  KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service
   sudo systemctl stop kivou-api-green.service || true
+  sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT" || true
   sudo systemctl reset-failed kivou-api-green.service || true
+  sudo systemctl reset-failed "$KIVOU_ROLLBACK_GREEN_UNIT" || true
   ! sudo systemctl is-active --quiet kivou-api-green.service
+  ! sudo systemctl is-active --quiet "$KIVOU_ROLLBACK_GREEN_UNIT"
   test -z "$(sudo ss --no-header --listening --tcp 'sport = :8001')"
-  KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green-$(date -u +%Y%m%dT%H%M%S)-$$.service
   sudo systemd-run \
     --unit="$KIVOU_ROLLBACK_GREEN_UNIT" \
     --collect \
@@ -1143,14 +1181,51 @@ test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
 test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
   http://127.0.0.1:8001/me)" = 401
 
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-proxy-params.conf" \
+  /etc/nginx/kivou-proxy-params.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-security-headers.conf" \
+  /etc/nginx/kivou-security-headers.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-link-security-headers.conf" \
+  /etc/nginx/kivou-sensitive-link-security-headers.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-open.conf" \
+  /etc/nginx/kivou-sensitive-links-open.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-closed.conf" \
+  /etc/nginx/kivou-sensitive-links-closed.conf.new
+sudo install -o root -g root -m 600 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-sensitive-links-closed.conf" \
+  /etc/nginx/kivou-sensitive-links-gate.conf.new
+sudo install -o root -g root -m 644 \
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-limits.conf" \
+  /etc/nginx/conf.d/kivou-limits.conf.new
 KIVOU_API_PORT=8001
 sed \
   -e "s/STAGING_HOST/$KIVOU_STAGING_HOST/g" \
   -e "s/KIVOU_API_PORT/$KIVOU_API_PORT/g" \
-  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-staging.conf" |
+  "$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-staging.conf" | \
   sudo tee /etc/nginx/sites-available/kivou.new >/dev/null
 sudo chown root:root /etc/nginx/sites-available/kivou.new
 sudo chmod 644 /etc/nginx/sites-available/kivou.new
+test "$(sudo awk 'NF && $1 !~ /^#/ {print}' \
+  /etc/nginx/kivou-sensitive-links-gate.conf.new)" = "return 503;"
+sudo mv -f /etc/nginx/kivou-proxy-params.conf.new \
+  /etc/nginx/kivou-proxy-params.conf
+sudo mv -f /etc/nginx/kivou-security-headers.conf.new \
+  /etc/nginx/kivou-security-headers.conf
+sudo mv -f /etc/nginx/kivou-sensitive-link-security-headers.conf.new \
+  /etc/nginx/kivou-sensitive-link-security-headers.conf
+sudo mv -f /etc/nginx/kivou-sensitive-links-open.conf.new \
+  /etc/nginx/kivou-sensitive-links-open.conf
+sudo mv -f /etc/nginx/kivou-sensitive-links-closed.conf.new \
+  /etc/nginx/kivou-sensitive-links-closed.conf
+sudo mv -f /etc/nginx/kivou-sensitive-links-gate.conf.new \
+  /etc/nginx/kivou-sensitive-links-gate.conf
+sudo mv -f /etc/nginx/conf.d/kivou-limits.conf.new \
+  /etc/nginx/conf.d/kivou-limits.conf
 sudo mv -f /etc/nginx/sites-available/kivou.new \
   /etc/nginx/sites-available/kivou
 sudo nginx -t

@@ -42,6 +42,10 @@ def _only_shell_block(body: str) -> str:
     return blocks[0]
 
 
+def _logical_shell(shell: str) -> str:
+    return re.sub(r"[ \t]*\\\n[ \t]*", " ", shell)
+
+
 def _assert_fresh_recovery_state(shell: str) -> None:
     _assert_in_order(
         shell,
@@ -96,7 +100,8 @@ def test_runbook_renders_every_fragment_and_the_open_gate_before_publication() -
     )
 
     for fragment in tracked_fragments:
-        assert fragment in body
+        source = f'"$KIVOU_RELEASE_DIR/ops/nginx/{fragment}"'
+        assert candidate_shell.count(source) == 1
     for substitution in (
         "s/STAGING_HOST/$KIVOU_STAGING_HOST/g",
         "s/KIVOU_API_PORT/$KIVOU_API_PORT/g",
@@ -105,7 +110,7 @@ def test_runbook_renders_every_fragment_and_the_open_gate_before_publication() -
         "s#/etc/nginx/kivou-sensitive-link-security-headers.conf#",
         "s#/etc/nginx/kivou-sensitive-links-gate.conf#",
     ):
-        assert substitution in body
+        assert candidate_shell.count(substitution) == 1
 
     _assert_in_order(
         body,
@@ -114,7 +119,12 @@ def test_runbook_renders_every_fragment_and_the_open_gate_before_publication() -
         "sudo nginx -t -c",
         "/etc/nginx/kivou-proxy-params.conf.new",
     )
-    assert "include $KIVOU_NGINX_CANDIDATE/kivou-limits.conf;" in body
+    assert (
+        candidate_shell.count(
+            "include $KIVOU_NGINX_CANDIDATE/kivou-limits.conf;"
+        )
+        == 1
+    )
     _assert_in_order(
         candidate_shell,
         'git -C "$KIVOU_RELEASE_DIR" show',
@@ -418,6 +428,138 @@ def test_gate_close_and_open_are_atomic_validated_transitions() -> None:
     assert 'sha256sum "$KIVOU_REVIEWED_OPEN"' not in reopen_shell
 
 
+def test_fresh_rollback_rebuilds_the_complete_safe_nginx_bundle() -> None:
+    body = _runbook()
+    rollback = _subsection(body, "### Rollback applicatif préservant la sécurité")
+    shell = _only_shell_block(rollback)
+    recovery = shell.split("# Switch only to the recorded previous", 1)[0]
+    logical = _logical_shell(recovery)
+    source_paths = (
+        "ops/nginx/kivou-limits.conf",
+        "ops/nginx/kivou-proxy-params.conf",
+        "ops/nginx/kivou-security-headers.conf",
+        "ops/nginx/kivou-sensitive-link-security-headers.conf",
+        "ops/nginx/kivou-sensitive-links-open.conf",
+        "ops/nginx/kivou-sensitive-links-closed.conf",
+        "ops/nginx/kivou-staging.conf",
+    )
+    publications = (
+        (
+            source_paths[1],
+            "644",
+            "/etc/nginx/kivou-proxy-params.conf.new",
+            "/etc/nginx/kivou-proxy-params.conf",
+        ),
+        (
+            source_paths[2],
+            "644",
+            "/etc/nginx/kivou-security-headers.conf.new",
+            "/etc/nginx/kivou-security-headers.conf",
+        ),
+        (
+            source_paths[3],
+            "644",
+            "/etc/nginx/kivou-sensitive-link-security-headers.conf.new",
+            "/etc/nginx/kivou-sensitive-link-security-headers.conf",
+        ),
+        (
+            source_paths[4],
+            "644",
+            "/etc/nginx/kivou-sensitive-links-open.conf.new",
+            "/etc/nginx/kivou-sensitive-links-open.conf",
+        ),
+        (
+            source_paths[5],
+            "644",
+            "/etc/nginx/kivou-sensitive-links-closed.conf.new",
+            "/etc/nginx/kivou-sensitive-links-closed.conf",
+        ),
+        (
+            source_paths[5],
+            "600",
+            "/etc/nginx/kivou-sensitive-links-gate.conf.new",
+            "/etc/nginx/kivou-sensitive-links-gate.conf",
+        ),
+        (
+            source_paths[0],
+            "644",
+            "/etc/nginx/conf.d/kivou-limits.conf.new",
+            "/etc/nginx/conf.d/kivou-limits.conf",
+        ),
+    )
+    manifest = recovery.split("KIVOU_SAFE_NGINX_SOURCE_PATHS=(", 1)[1].split(
+        "\n)", 1
+    )[0]
+
+    assert tuple(re.findall(r'^\s*"([^"]+)"$', manifest, re.MULTILINE)) == source_paths
+    _assert_in_order(
+        logical,
+        "for KIVOU_SAFE_NGINX_SOURCE_PATH in",
+        'show "$KIVOU_RELEASE_SHA:$KIVOU_SAFE_NGINX_SOURCE_PATH"',
+        'sha256sum "$KIVOU_SECURITY_RELEASE/$KIVOU_SAFE_NGINX_SOURCE_PATH"',
+        'test "$KIVOU_WORKTREE_SOURCE_SHA" = "$KIVOU_GIT_SOURCE_SHA"',
+        "test -z",
+        'kivou-sensitive-links-open.conf")',
+        'kivou-sensitive-links-closed.conf")',
+        '"return 503;"',
+    )
+
+    recovered_live_paths: set[str] = set()
+    stage_positions: list[int] = []
+    move_positions: list[int] = []
+    for source, mode, staged, live in publications:
+        install = (
+            f'sudo install -o root -g root -m {mode} '
+            f'"$KIVOU_SECURITY_RELEASE/{source}" {staged}'
+        )
+        move = f"sudo mv -f {staged} {live}"
+        assert logical.count(install) == 1
+        assert logical.count(move) == 1
+        recovered_live_paths.add(live)
+        stage_positions.append(logical.index(install))
+        move_positions.append(logical.index(move))
+
+    site_stage = (
+        '"$KIVOU_SECURITY_RELEASE/ops/nginx/kivou-staging.conf" | '
+        "sudo tee /etc/nginx/sites-available/kivou.new >/dev/null"
+    )
+    site_move = (
+        "sudo mv -f /etc/nginx/sites-available/kivou.new "
+        "/etc/nginx/sites-available/kivou"
+    )
+    assert logical.count(site_stage) == 1
+    assert logical.count(site_move) == 1
+    recovered_live_paths.add("/etc/nginx/sites-available/kivou")
+    stage_positions.append(logical.index(site_stage))
+    move_positions.append(logical.index(site_move))
+
+    expected_live_paths = {live for _, _, _, live in publications} | {
+        "/etc/nginx/sites-available/kivou"
+    }
+    assert max(stage_positions) < min(move_positions)
+    assert max(move_positions) < logical.index("sudo nginx -t")
+    _assert_in_order(
+        recovery,
+        "KIVOU_API_PORT=8001",
+        "s/STAGING_HOST/$KIVOU_STAGING_HOST/g",
+        "s/KIVOU_API_PORT/$KIVOU_API_PORT/g",
+        'gate.conf.new)" = "return 503;"',
+        "sudo nginx -t",
+        "sudo systemctl reload nginx",
+    )
+    for missing_before_recovery in expected_live_paths:
+        live_before = expected_live_paths - {missing_before_recovery}
+        assert live_before | recovered_live_paths == expected_live_paths
+    assert recovered_live_paths == expected_live_paths
+    assert "KIVOU_NGINX_CANDIDATE" not in recovery
+    assert "KIVOU_EVIDENCE_DIR" not in recovery
+    assert "le vieux processus nginx" in rollback
+    assert "continue de servir jusqu'au nginx-t réussi" in rollback
+    for live in expected_live_paths:
+        assert f"test -e {live}" not in recovery
+        assert f"cp -a {live}" not in recovery
+
+
 def test_rollback_keeps_the_security_floor_and_switches_only_the_application() -> None:
     body = _runbook()
     rollback = _subsection(body, "### Rollback applicatif préservant la sécurité")
@@ -436,14 +578,23 @@ def test_rollback_keeps_the_security_floor_and_switches_only_the_application() -
     _assert_in_order(
         shell,
         '. /dev/stdin <<<"$KIVOU_STATE_CONTENT"',
+        "kivou_validate_recovery_green_unit()",
         "if sudo systemctl is-active --quiet kivou-api-green.service; then",
-        'WorkingDirectory --value)" = "$KIVOU_SECURITY_RELEASE"',
+        "KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-green.service",
+        'kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"',
+        "elif sudo systemctl is-active --quiet",
+        "kivou-api-rollback-green.service; then",
+        "KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service",
+        'kivou_validate_recovery_green_unit "$KIVOU_ROLLBACK_GREEN_UNIT"',
         "else",
+        "KIVOU_ROLLBACK_GREEN_UNIT=kivou-api-rollback-green.service",
         "sudo systemctl stop kivou-api-green.service",
+        'sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT"',
         "sudo systemctl reset-failed kivou-api-green.service",
+        'sudo systemctl reset-failed "$KIVOU_ROLLBACK_GREEN_UNIT"',
         "! sudo systemctl is-active --quiet kivou-api-green.service",
+        '! sudo systemctl is-active --quiet "$KIVOU_ROLLBACK_GREEN_UNIT"',
         "sport = :8001",
-        "kivou-api-rollback-green-",
         '--unit="$KIVOU_ROLLBACK_GREEN_UNIT"',
         "fi",
         "previous application release",
