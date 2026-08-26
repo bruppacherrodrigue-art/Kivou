@@ -1,7 +1,7 @@
 # Acquisition AirMail managed cadence readiness design
 
 Date: 2026-08-26
-Status: approved conversational design; written specification review pending
+Status: approved design; implementation pending
 Authoritative repository base: `2a859158778f5070a74a3288f26694d84cae785a`
 Target: `kivou-staging` Acquisition runtime only
 Tracking issue: #83
