@@ -1,5 +1,7 @@
 # Sensitive Link Token Log Redaction Implementation Plan
 
+Status: implementation complete; local validation passed; PR pending
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Prevent attribution and password-reset bearer tokens from entering nginx or Uvicorn logs while preserving public routing, operational evidence, atomic staging rollout, and a security-preserving rollback.

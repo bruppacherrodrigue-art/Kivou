@@ -1,6 +1,6 @@
 # Sensitive link token log redaction
 
-Status: approved design; implementation pending
+Status: approved design; implementation complete in PR
 
 Date: 2026-08-26
 
