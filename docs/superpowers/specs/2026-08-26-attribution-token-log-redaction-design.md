@@ -1,6 +1,6 @@
 # Sensitive link token log redaction
 
-Status: approved core design; reset-link scope review pending
+Status: revised design; review pending
 
 Date: 2026-08-26
 
@@ -8,208 +8,259 @@ Scope: staging audit blocker #84 and reset-link follow-up #93
 
 ## Problem
 
-The public attribution endpoint deliberately carries an opaque bearer token in
-`GET /a/{token}`. Nginx and uvicorn currently write the complete request target
-to their access logs. A valid attribution token would therefore be copied into
-both `/var/log/nginx/access.log` and the `kivou-api` journal before FastAPI can
-validate it.
+Two public links carry opaque bearer tokens in their request target:
 
-The password-reset link carries its opaque bearer token in
-`GET /reset-password?token=...`. This frontend route currently inherits nginx's
-combined access format, so its first real use would copy the token into the
-nginx access log. A counter-only staging audit found zero current reset-token
-targets in nginx and uvicorn logs: this is a confirmed latent defect, not an
-existing disclosed value.
+- attribution: `GET /a/{token}`;
+- password reset: `GET /reset-password?token=...`.
 
-The nginx route itself is correct: it reaches FastAPI, invalid tokens return the
-application JSON 404, and the SPA fallback is not involved. The missing
-boundary is log minimization. A valid 303/cookie staging proof and any further
-real reset proof must not run until that boundary is deployed and verified.
+Nginx currently inherits the combined access format, which records the complete
+request and referer. Uvicorn independently records the complete target for the
+attribution request proxied to FastAPI. A valid attribution click would
+therefore copy its token into nginx and journald. The first real reset click
+would copy its token into nginx.
+
+A counter-only staging audit found no real reset-token target in current logs.
+The attribution route was exercised only with a deliberately invalid synthetic
+marker. No valid token was read or published during discovery.
+
+The reset page creates a second-order risk: with
+`Referrer-Policy: strict-origin-when-cross-origin`, same-origin asset requests
+may carry the complete reset URL in `Referer`. Merely sanitizing the first page
+request would leave that token available to later access or error logs.
 
 ## Decision
 
-Redact attribution request targets at both logging layers and reset-link query
-targets at nginx. Keep normal access logging for every other route.
+Nginx becomes the sole public HTTP access-log authority. It keeps bounded
+operational evidence while excluding query strings, referers, request headers
+and sensitive path values. Uvicorn's duplicate access logger is disabled by the
+versioned API service. Application, runtime-event and service error logs remain
+enabled.
 
-### Nginx
+This infrastructure-owned boundary is simpler and more durable than depending
+on uvicorn's private `LogRecord` tuple shape.
 
-Define two dedicated log formats in the versioned HTTP-level nginx fragment.
-For attribution and reset-link requests they may record only operational fields
-that cannot contain the raw target:
+## Nginx access-log contract
 
-- remote address;
-- timestamp;
-- request method;
-- the literal path `/a/[redacted]` or
-  `/reset-password?token=[redacted]`, selected by the exact location;
-- HTTP protocol;
-- response status;
-- response size and duration.
+Define at HTTP scope:
 
-The format must not reference `$request`, `$request_uri`, `$uri`, `$args`, a
-referer, or any request header. The exact `location ^~ /a/` and
-`location = /reset-password` each use their own fixed format in the existing
-nginx access log.
+1. a `map` from normalized `$uri` to a safe path:
+   - every value beginning `/a/` becomes the literal `/a/[redacted]`;
+   - every other value remains normalized `$uri`;
+2. one `escape=json` log format containing only:
+   - remote address;
+   - timestamp;
+   - request method;
+   - safe mapped path;
+   - HTTP protocol;
+   - response status;
+   - response size;
+   - request duration.
 
-Nginx error messages cannot be given a custom format and can include the raw
-request when rate limiting or an upstream failure occurs. The attribution
-locations therefore send their own error logs to `/dev/null`. This loss is
-limited to nginx diagnostic messages for `/a/*` and `/reset-password`; the
-sanitized access lines still record status and duration, and application data
-remains the authority for a valid click or reset.
+The format must not reference `$request`, `$request_uri`, `$args`, a referer,
+user agent, cookie, upstream header or arbitrary request header. Because `$uri`
+excludes the query string, the reset token is never rendered. Because the map
+replaces the attribution path, the path-carried token is never rendered.
 
-The reset location serves the current `index.html` directly from the inherited
-frontend root with `try_files /index.html =404`. It repeats the versioned
-security-header include and `Cache-Control: no-cache`, so it preserves the SPA
-entry-point contract without an internal redirect into a location that could
-select the global raw log format.
+Both the HTTP/80 redirect server and the HTTPS server explicitly select this
+format. They therefore override nginx's inherited combined access log instead
+of adding a second log destination.
 
-All other locations retain their current access and error logging.
+## Sensitive response and error contract
 
-### Uvicorn
+Both servers contain explicit sensitive locations for `/a/` and
+`/reset-password`.
 
-Add a dependency-free `logging.Filter` owned by `signals.api`. It is installed
-on `uvicorn.access` by `build_application()`, after uvicorn has configured its
-loggers and before the application serves requests.
+On HTTPS:
 
-For the documented uvicorn access-record tuple, the filter replaces a target
-that starts with `/a/`, including any query string, with exactly
-`/a/[redacted]`. It leaves a structurally valid record for any other route
-unchanged. It does not inspect or mutate application, runtime-event, root, or
-provider loggers.
+- `/a/` retains its rate limit and FastAPI proxy;
+- `/reset-password` serves the current `index.html` directly from the inherited
+  frontend root with `try_files /index.html =404`;
+- both locations use a dedicated security-header include whose
+  `Referrer-Policy` is exactly `no-referrer`;
+- the attribution proxy hides FastAPI's own `Referrer-Policy` before nginx adds
+  the single authoritative value;
+- the reset entry point retains `Cache-Control: no-cache`;
+- both locations send their nginx error log to `/dev/null` because nginx error
+  records cannot be custom-formatted and can reproduce the raw request or
+  referer.
 
-Installation is idempotent so application reconstruction and multi-worker
-startup cannot stack filters. If a future uvicorn version supplies an unknown
-record shape, the access record is suppressed rather than risk rendering a raw
-target. This fail-closed behavior is covered by a compatibility test.
+On HTTP/80, the two explicit locations retain the canonical HTTPS redirect,
+add `Referrer-Policy: no-referrer`, and suppress their local error log. The
+redirect keeps the original request target so the link remains functional, but
+the server's safe access format cannot record it.
 
-The filter is installed only when `build_application()` runs. Importing
-`signals.api.asgi` remains inert and does not open a database or mutate global
-logging.
+The dedicated sensitive security-header fragment contains the same reviewed
+headers as the ordinary fragment except for the stricter referrer policy. A
+test compares the directives so later security-header changes cannot drift
+silently.
+
+All other routing, rate limits, TLS, static caching and proxy behavior remain
+unchanged.
+
+## Uvicorn and systemd contract
+
+Add the existing staging API unit to `ops/systemd/kivou-api.service`, preserving
+its deployed user, group, working directory, environment file, two workers,
+loopback binding, trusted proxy boundary, restart policy and hardening.
+
+Its uvicorn command adds exactly `--no-access-log`. It does not disable
+`uvicorn.error`, `signals.runtime_events`, application exceptions or journald.
+Nginx retains one sanitized access entry for every public request, so public
+operational visibility is not lost.
+
+The unit contains no secret or environment value. Its active staging copy must
+match the reviewed file byte-for-byte after deployment.
 
 ## Versioned boundary
 
 The implementation is confined to:
 
-- `src/signals/api/access_logging.py` for the filter and its idempotent
-  installer;
-- `src/signals/api/asgi.py` for production wiring;
-- `ops/nginx/kivou-limits.conf` for the HTTP-level sanitized format;
-- `ops/nginx/kivou-staging.conf` for both sensitive-link locations;
-- focused API/nginx tests;
-- the existing nginx deployment and rollback section in `ops/README.md`;
+- `ops/nginx/kivou-limits.conf` for the safe-path map and format;
+- `ops/nginx/kivou-staging.conf` for both server-level access logs and the four
+  HTTP/HTTPS sensitive locations;
+- a new sensitive-link security-header fragment under `ops/nginx/`;
+- `ops/systemd/kivou-api.service` for the reproducible uvicorn command;
+- focused nginx/systemd contract tests;
+- an exact blue/green deployment and security-preserving rollback procedure in
+  `ops/README.md`;
 - this specification and its TDD implementation plan.
 
-It does not add a systemd unit: the currently deployed API command remains
-unchanged, and the application-owned filter travels with the reviewed backend
-SHA.
+No Python application module, frontend file, database model or migration is
+changed.
 
 ## Rejected alternatives
 
-### Disable every uvicorn access log
+### A targeted Python filter on `uvicorn.access`
 
-`--no-access-log` is simple but global. It would remove useful loopback and
-application-boundary evidence for every route, while nginx would still need its
-own attribution-specific protection.
+This preserves duplicate access lines but depends on uvicorn's private message
+template and argument tuple. It requires fail-closed compatibility logic and
+still leaves nginx, HTTP/80, referers, deployment ordering and rollback to solve
+separately.
 
-### Disable nginx access logging only and filter uvicorn
+### Per-location access logging only
 
-This protects the normal access files but loses all nginx status/duration
-evidence for attribution and reset-link requests. It also leaves nginx error
-logging as a raw request leak.
+This leaves query strings and referers available elsewhere, including asset
+requests following the reset page. It also risks falling back to the global
+combined format after an internal redirect.
 
-### Change token transport or attribution semantics
+### Changing token transport
 
-Moving the token into another channel would break already-issued deep links and
-expand the change into the conversion contract. The route and token model are
-not defective; the defect is confined to logging.
+Moving either token would break existing deep-link contracts and expand the
+change into conversion, authentication, React and e-mail templates. The token
+contracts are not defective; their logging boundary is.
 
 ## Security and privacy invariants
 
-- No token, token fragment, query string, e-mail address, provider identifier,
-  request body, secret, or attribution cookie is written by the new logs.
-- An attribution token remains available only in request memory long enough
-  for the existing verification and cookie response. A reset token remains only
-  in the browser location and the existing reset-confirmation request; nginx
-  never records it.
-- The response contract is unchanged: valid token `303 /signup`, invalid token
-  application JSON `404`, no SPA fallback.
-- The reset contract is unchanged: `/reset-password?token=...` serves the SPA
-  entry point with no cache, and React submits the token through the existing
-  confirmation API.
-- Rate limits, TLS, proxy headers, cookie flags, attribution expiry, source
-  validation, and conversion persistence are unchanged.
-- No migration, provider request, e-mail, prospect action, Stripe mutation, or
+- No attribution token, reset token, token fragment, query string, referer,
+  e-mail address, provider identifier, request body, secret or attribution
+  cookie enters the new access logs.
+- Valid links keep their existing behavior: attribution returns `303 /signup`
+  and its secure cookie; reset serves the non-cached SPA and confirms through
+  the existing API.
+- Invalid attribution remains application JSON 404 with no cookie and no SPA
+  fallback.
+- No migration, provider call, e-mail, prospect action, Stripe mutation or
   production action belongs to this change.
 
 ## TDD proof
 
-Tests are written and observed failing before implementation. They prove:
+Tests are written and observed failing before configuration changes. They
+prove:
 
-1. a synthetic `/a/<marker>?<query>` uvicorn record renders only
-   `/a/[redacted]`;
-2. neither marker nor query survives in the rendered record;
-3. a normal route such as `/me?cursor=opaque` is unchanged;
-4. installing the filter twice yields exactly one instance;
-5. root and `signals.runtime_events` loggers remain untouched;
-6. an unknown uvicorn access-record shape is suppressed;
-7. `build_application()` installs the filter while module import remains inert;
-8. neither nginx sensitive-link format contains raw-target or header variables;
-9. only `location ^~ /a/` selects the attribution format and neutralizes its
-   error log;
-10. only `location = /reset-password` selects the reset format, neutralizes its
-    error log, and serves the non-cached SPA entry point directly;
-11. all other nginx proxy and frontend locations retain normal logging and
-    routing.
+1. the safe nginx format contains no raw-target, query, referer, cookie or
+   arbitrary-header variable;
+2. the safe-path map redacts `/a/` and otherwise uses normalized `$uri`;
+3. both HTTP and HTTPS servers explicitly select exactly one safe access log;
+4. both servers have explicit attribution and reset locations;
+5. the HTTPS attribution location preserves proxy/rate limits, hides the
+   upstream referrer policy and suppresses its error log;
+6. the HTTPS reset location serves `index.html` directly, is non-cached and
+   suppresses its error log;
+7. all four sensitive locations emit exactly one `no-referrer` policy;
+8. sensitive and ordinary security fragments have identical directives except
+   for referrer policy;
+9. ordinary API/static/SPA locations retain their current routing and cache
+   contracts;
+10. the versioned API unit matches the deployed runtime contract and contains
+    exactly one `--no-access-log` flag without disabling error logs;
+11. the runbook contains an executable atomic transition and a rollback that
+    never restores raw logging.
 
-The focused tests run first. The final PR head then runs the repository's
-standard backend suite, Ruff, nginx contract tests, `systemd-analyze verify`
-where applicable, and `git diff --check`. Frontend validation is not required
-because no frontend file or behavior changes.
+The focused tests run first. The final PR head then runs the standard backend
+suite, Ruff, nginx contract tests, `systemd-analyze verify`, and
+`git diff --check`. Frontend validation is unnecessary because no frontend file
+or behavior changes.
 
-## Staging deployment and validation
+## Atomic staging deployment
 
-Deploy the reviewed main SHA without a migration. Restart the API through the
-existing zero-downtime blue/green procedure so new workers load the filter.
-Publish the nginx bundle atomically, run `nginx -t`, and reload nginx without a
-configuration rewrite.
+The runbook versions the exact blue/green procedure; it does not refer to an
+undeclared operational convention.
 
-After the switchover, send one invalid synthetic attribution marker and one
-synthetic reset query marker. Verify with counter-only searches scoped to the
-deployment timestamp:
+1. Build the reviewed main SHA as a new release and run its API on loopback port
+   8001 with `--no-access-log`, the protected environment file and the same
+   hardening as the normal service.
+2. Validate the green API directly: application import, `/openapi.json` 200 and
+   unauthenticated `/me` 401.
+3. Build and validate an nginx candidate from the new safe templates with its
+   reviewed proxy destinations pointing to green port 8001.
+4. Snapshot the active nginx files and API unit root-only.
+5. Publish the safe nginx bundle atomically and reload. The nginx reload is the
+   single public transition: requests use either old nginx plus old API or safe
+   nginx plus green API, never one new and one old logging layer.
+6. Monitor public availability, atomically switch `/srv/kivou/app`, install the
+   versioned API unit, reload systemd and restart the normal port-8000 API while
+   public traffic remains on green.
+7. Validate port 8000, publish the final safe nginx candidate pointing to 8000,
+   reload, validate public traffic, then stop green.
 
-- nginx contains one sanitized `/a/[redacted]` access entry and zero marker
-  occurrences;
-- `kivou-api` journald contains a sanitized access entry and zero marker
-  occurrences;
-- the response remains application JSON 404 with no cookie and no SPA HTML;
-- nginx contains one sanitized reset-link access entry, zero reset-marker
-  occurrences, and the route still returns the non-cached SPA entry point;
-- nginx and the API remain active and the public SaaS smoke is unchanged.
+No valid sensitive token is generated or exercised before step 7 succeeds.
 
-Only after this proof may blocker #84 continue with an authorized valid token
-held entirely in process memory. That proof emits only PASS/FAIL and numeric
-counts. It must show 303, the fixed redirect and cookie attributes, one durable
-click, no journey, and zero token occurrences in nginx or journald. #93 can be
-closed after the synthetic reset marker proves the runtime boundary; it does
-not require generating or sending another password-reset e-mail.
+## Staging validation
 
-## Rollback
+After the atomic transition, use only synthetic markers first:
 
-Before deployment, retain the previous backend release and a root-only nginx
-snapshot. Rollback restores the nginx snapshot atomically, validates it with
-`nginx -t`, reloads nginx, switches the backend symlink to the previous release,
-and restarts the API through the same zero-downtime procedure.
+- exercise attribution and reset links over HTTP and HTTPS;
+- verify expected 301, JSON 404 and non-cached SPA responses;
+- request a real static asset with a synthetic sensitive `Referer`;
+- require zero marker occurrences in nginx access/error logs and
+  `kivou-api` journald since the deployment boundary;
+- require sanitized attribution paths and reset paths in nginx access evidence;
+- require exactly one `Referrer-Policy: no-referrer` on sensitive responses;
+- require nginx and API active, `nginx -t` green, no asset error and the public
+  SaaS smoke unchanged.
 
-The previous release reintroduces token logging. Therefore no valid
-attribution-token proof may run after rollback. Existing logs are not broadly
-deleted; validation uses synthetic markers and counter-only searches.
+Only then may #84 use its separately authorized valid token held entirely in
+process memory. Its script emits only PASS/FAIL and numeric counts. It must show
+303, fixed redirect and cookie attributes, one durable click, no journey, and
+zero token occurrence in every log. #93 needs no new real reset e-mail: the
+synthetic query and downstream-referer proofs close its logging defect.
+
+## Security-preserving rollback
+
+Rollback never restores the old nginx access format or the old API unit. Those
+files are a security floor, not application state.
+
+- If the application release fails, keep safe nginx and the versioned
+  `--no-access-log` unit, switch only `/srv/kivou/app` to the previous release,
+  restart port 8000 while green carries traffic, validate it, then switch the
+  safe proxy back to 8000.
+- If either sensitive location fails functionally, publish a validated
+  fail-closed candidate that keeps its safe access format, `no-referrer` header
+  and suppressed error log but returns 503 for that location. Never fall back
+  to a location with the ordinary referrer policy.
+- If a safe nginx candidate fails `nginx -t`, do not reload it and do not run a
+  valid sensitive-link proof. The previous process remains authoritative.
+- If a post-reload failure cannot retain the safe logging floor, close the two
+  sensitive routes and keep the rest of staging available; never restore raw
+  token logging.
+
+The runbook gives exact commands, health gates and root-only snapshot paths for
+each branch. It never prints or accepts a real token.
 
 ## Residual limit
 
-The guarantee covers syntactically valid HTTP requests selected by
-`location ^~ /a/` or `location = /reset-password` and all application access
-records. A malformed request rejected by nginx before location selection is
-governed by nginx's global error policy. Extending redaction to arbitrary
-malformed request lines would require a broader server-wide logging design and
-is outside blockers #84 and #93.
+The guarantee covers syntactically valid HTTP requests that reach either Kivou
+server block and browser navigation produced by Kivou responses. A malformed
+request rejected by nginx before server/location selection remains governed by
+nginx's global error policy. Protecting arbitrary malformed request lines would
+require a host-wide nginx error-log policy and is outside #84 and #93.
