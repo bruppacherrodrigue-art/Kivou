@@ -75,6 +75,11 @@ class LocationBlock:
     body: str
 
 
+@dataclass(frozen=True)
+class ServerBlock:
+    body: str
+
+
 def _asgi_route_inventory() -> frozenset[tuple[str, str]]:
     app = create_app(
         sa.create_engine("sqlite+pysqlite:///:memory:", future=True),
@@ -130,6 +135,31 @@ def _location_blocks(text: str) -> tuple[LocationBlock, ...]:
     return tuple(blocks)
 
 
+def _server_blocks(text: str) -> tuple[ServerBlock, ...]:
+    lines = text.splitlines()
+    blocks: list[ServerBlock] = []
+    index = 0
+    while index < len(lines):
+        code = lines[index].split("#", 1)[0].strip()
+        if code != "server {":
+            index += 1
+            continue
+        depth = 1
+        body: list[str] = []
+        index += 1
+        while index < len(lines) and depth:
+            line = lines[index]
+            uncommented = line.split("#", 1)[0]
+            depth += uncommented.count("{") - uncommented.count("}")
+            if depth:
+                body.append(line)
+            index += 1
+        if depth:
+            raise AssertionError("unterminated nginx server")
+        blocks.append(ServerBlock(body="\n".join(body)))
+    return tuple(blocks)
+
+
 def _sample_path(route_path: str) -> str:
     return re.sub(r"\{[^}]+\}", "synthetic", route_path)
 
@@ -148,14 +178,64 @@ def _site_text() -> str:
     return (NGINX_DIR / "kivou-staging.conf").read_text()
 
 
-def _proxy_locations() -> tuple[LocationBlock, ...]:
-    return tuple(block for block in _location_blocks(_site_text()) if "proxy_pass" in block.body)
-
-
-def _only_location(selector: str) -> LocationBlock:
-    matching = [block for block in _location_blocks(_site_text()) if block.selector == selector]
-    assert len(matching) == 1, f"expected one nginx location {selector!r}, got {len(matching)}"
+def _only_server(listen_directive: str) -> ServerBlock:
+    matching = [
+        block
+        for block in _server_blocks(_site_text())
+        if listen_directive in block.body
+    ]
+    assert len(matching) == 1, (
+        f"expected one nginx server with {listen_directive!r}, got {len(matching)}"
+    )
     return matching[0]
+
+
+def _proxy_locations() -> tuple[LocationBlock, ...]:
+    https = _only_server("listen 443 ssl http2;")
+    return tuple(
+        block for block in _location_blocks(https.body) if "proxy_pass" in block.body
+    )
+
+
+def _only_location(server: ServerBlock, selector: str) -> LocationBlock:
+    matching = [
+        block
+        for block in _location_blocks(server.body)
+        if block.selector == selector
+    ]
+    assert len(matching) == 1, (
+        f"expected one nginx location {selector!r}, got {len(matching)}"
+    )
+    return matching[0]
+
+
+def _directives(text: str) -> tuple[str, ...]:
+    return tuple(
+        code
+        for line in text.splitlines()
+        if (code := line.split("#", 1)[0].strip())
+    )
+
+
+def _log_format_body(text: str, name: str) -> str:
+    match = re.search(
+        rf"log_format\s+{re.escape(name)}\s+escape=json\s+(.+?);",
+        text,
+        flags=re.DOTALL,
+    )
+    assert match is not None, f"missing nginx log format {name}"
+    return match.group(1)
+
+
+def _map_directives(text: str, source: str, destination: str) -> tuple[str, ...]:
+    match = re.search(
+        rf"map\s+{re.escape(source)}\s+{re.escape(destination)}\s*"
+        r"\{(?P<body>.*?)\}",
+        text,
+        flags=re.DOTALL,
+    )
+    assert match is not None, f"missing nginx map {source} -> {destination}"
+    return _directives(match.group("body"))
 
 
 def test_fastapi_routes_are_all_explicitly_public_or_private() -> None:
@@ -211,8 +291,9 @@ def test_every_reviewed_public_route_reaches_fastapi_and_private_routes_do_not()
 
 
 def test_instantly_and_attribution_use_exact_reviewed_locations_and_limits() -> None:
-    instantly = _only_location("= /webhooks/instantly")
-    attribution = _only_location("^~ /a/")
+    https = _only_server("listen 443 ssl http2;")
+    instantly = _only_location(https, "= /webhooks/instantly")
+    attribution = _only_location(https, "^~ /a/")
 
     assert "limit_req zone=kivou_hook burst=100 nodelay;" in instantly.body
     assert "limit_req zone=kivou_api burst=40 nodelay;" in attribution.body
@@ -226,6 +307,71 @@ def test_nginx_allowlist_includes_companies_but_not_internal_or_stale_health() -
     assert "internal" not in grouped
     assert "health" not in grouped
     assert all("/internal" not in selector for selector in proxy_selectors)
+
+
+def test_safe_access_log_uses_only_allowlisted_transport_variables() -> None:
+    limits = (NGINX_DIR / "kivou-limits.conf").read_text()
+    body = _log_format_body(limits, "kivou_safe_json")
+    variables = set(re.findall(r"\$[a-zA-Z0-9_]+", body))
+
+    assert variables == {
+        "$remote_addr",
+        "$time_iso8601",
+        "$request_method",
+        "$kivou_safe_request_path",
+        "$server_protocol",
+        "$status",
+        "$body_bytes_sent",
+        "$request_time",
+    }
+    for forbidden in (
+        "$request",
+        "$request_uri",
+        "$args",
+        "$http_referer",
+        "$http_user_agent",
+        "$http_cookie",
+    ):
+        assert forbidden not in variables
+    assert not any(
+        variable.startswith(("$http_", "$upstream_http_"))
+        for variable in variables
+    )
+
+
+def test_safe_path_map_redacts_attribution_and_uses_normalized_uri_elsewhere() -> None:
+    limits = (NGINX_DIR / "kivou-limits.conf").read_text()
+
+    assert _map_directives(
+        limits, "$uri", "$kivou_safe_path_map"
+    ) == (
+        "~^/a/ /a/[redacted];",
+        "/reset-password /reset-password;",
+        "default $uri;",
+    )
+    assert "volatile;" not in limits
+    assert "$request_uri" not in limits
+
+
+def test_both_public_servers_select_one_safe_access_log() -> None:
+    site = _site_text()
+    snapshot = "set $kivou_safe_request_path $kivou_safe_path_map;"
+    expected = "access_log /var/log/nginx/access.log kivou_safe_json;"
+
+    assert site.count(expected) == 2
+    assert site.count(snapshot) == 2
+    for server in (
+        _only_server("listen 80;"),
+        _only_server("listen 443 ssl http2;"),
+    ):
+        assert server.body.count(expected) == 1
+        assert server.body.count(snapshot) == 1
+        assert server.body.index(snapshot) < server.body.index(expected)
+        assert " combined;" not in server.body
+        assert all(
+            "access_log" not in location.body
+            for location in _location_blocks(server.body)
+        )
 
 
 def test_nginx_keeps_existing_rate_proxy_and_security_contracts() -> None:
