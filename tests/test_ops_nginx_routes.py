@@ -217,6 +217,14 @@ def _directives(text: str) -> tuple[str, ...]:
     )
 
 
+def _directives_starting_with(text: str, prefix: str) -> tuple[str, ...]:
+    return tuple(
+        directive
+        for directive in _directives(text)
+        if directive.startswith(prefix)
+    )
+
+
 def _direct_server_directives(text: str) -> tuple[str, ...]:
     depth = 0
     directives: list[str] = []
@@ -270,6 +278,30 @@ def test_direct_server_directives_ignore_nested_blocks_and_comments() -> None:
     assert _direct_server_directives(body) == (
         "set $safe_path $safe_path_map;",
         "access_log /var/log/nginx/access.log safe_json;",
+    )
+
+
+def test_directives_starting_with_collect_all_active_matches_in_order() -> None:
+    body = """
+        # set $safe_path /commented;
+        set $safe_path $safe_path_map;
+        location / {
+            set $safe_path /location;
+            if ($request_method = POST) {
+                set $safe_path $request_uri;
+            }
+        }
+        if ($request_method = GET) {
+            set $safe_path $args;
+        }
+        set $safe_path_suffix /not-the-same-variable;
+    """
+
+    assert _directives_starting_with(body, "set $safe_path ") == (
+        "set $safe_path $safe_path_map;",
+        "set $safe_path /location;",
+        "set $safe_path $request_uri;",
+        "set $safe_path $args;",
     )
 
 
@@ -400,6 +432,9 @@ def test_both_public_servers_select_one_safe_access_log() -> None:
         _only_server("listen 443 ssl http2;"),
     ):
         direct = _direct_server_directives(server.body)
+        safe_path_assignments = _directives_starting_with(
+            server.body, "set $kivou_safe_request_path "
+        )
         access_logs = tuple(
             directive
             for directive in _directives(server.body)
@@ -409,6 +444,7 @@ def test_both_public_servers_select_one_safe_access_log() -> None:
         assert direct.count(snapshot) == 1
         assert direct.count(expected) == 1
         assert direct.index(snapshot) < direct.index(expected)
+        assert safe_path_assignments == (snapshot,)
         assert access_logs == (expected,)
 
 
