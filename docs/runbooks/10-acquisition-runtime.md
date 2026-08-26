@@ -183,6 +183,12 @@ le registre fermé, zéro outil natif, Policy et toutes les dépendances du cycl
 La readiness autonome reste honnêtement bornée : un cycle QA/SHADOW sain ne
 constitue pas une autorisation de production.
 
+La fermeture peut reprendre le kill switch canonique `OPERATOR_QA_STOP` et le
+code historique staging `AUDIT_80_PRE_QA_STOP` uniquement si l'arrêt vient du
+Safety Controller, conserve exactement l'autorité QA courante et suit
+immédiatement le même snapshot QA fermé. Tout autre motif reste non récupérable
+par cette commande.
+
 Les événements opératoires restent bornés à des codes machine et références
 opaques. Cette lecture ne doit révéler ni adresse, ni contenu, ni payload :
 

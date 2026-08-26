@@ -708,6 +708,69 @@ def test_kill_switch_can_be_tested_then_explicitly_recovered_to_ready_shadow(
     )
 
 
+def test_legacy_pre_qa_stop_can_be_recovered_after_the_exact_closed_window(
+    tmp_path,
+) -> None:
+    engine = _engine(tmp_path)
+    controller = _controller(engine)
+    runtime_config = _runtime_config()
+    _open(controller, runtime_config=runtime_config)
+    closed = controller.close(
+        at=NOW + dt.timedelta(minutes=1),
+        actor_ref="operator-qa-001",
+        reason_code="AUDIT_80_QA_CYCLE_COMPLETE",
+        runtime_config=runtime_config,
+    )
+    stopped = SafetyController(engine).critical_stop(
+        at=NOW + dt.timedelta(minutes=2),
+        reason_codes=("AUDIT_80_PRE_QA_STOP",),
+    )
+
+    recovered = controller.close(
+        at=NOW + dt.timedelta(minutes=3),
+        actor_ref="operator-qa-001",
+        reason_code="AUDIT_80_QA_RECOVER_SAFE_SHADOW",
+        runtime_config=runtime_config,
+    )
+
+    assert stopped.control_revision == closed.control_revision + 1
+    assert recovered.control_revision == stopped.control_revision + 1
+    assert recovered.autonomy_mode is AutonomyMode.SHADOW
+    assert recovered.read_only is True
+    assert recovered.kill_switch is False
+
+
+def test_unrelated_critical_stop_remains_non_recoverable_after_closed_window(
+    tmp_path,
+) -> None:
+    engine = _engine(tmp_path)
+    controller = _controller(engine)
+    runtime_config = _runtime_config()
+    _open(controller, runtime_config=runtime_config)
+    controller.close(
+        at=NOW + dt.timedelta(minutes=1),
+        actor_ref="operator-qa-001",
+        reason_code="AUDIT_80_QA_CYCLE_COMPLETE",
+        runtime_config=runtime_config,
+    )
+    stopped = SafetyController(engine).critical_stop(
+        at=NOW + dt.timedelta(minutes=2),
+        reason_codes=("OPERATIONS_INCIDENT",),
+    )
+
+    with pytest.raises(_error_type()):
+        controller.close(
+            at=NOW + dt.timedelta(minutes=3),
+            actor_ref="operator-qa-001",
+            reason_code="AUDIT_80_QA_RECOVER_SAFE_SHADOW",
+            runtime_config=runtime_config,
+        )
+
+    assert PolicyStore(engine).get_effective_control(
+        NOW + dt.timedelta(minutes=3)
+    ) == stopped
+
+
 def test_critical_stop_wins_a_concurrent_close_with_exact_hard_stop_authority(
     tmp_path,
     monkeypatch,
