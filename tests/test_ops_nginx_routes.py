@@ -217,6 +217,19 @@ def _directives(text: str) -> tuple[str, ...]:
     )
 
 
+def _direct_server_directives(text: str) -> tuple[str, ...]:
+    depth = 0
+    directives: list[str] = []
+    for line in text.splitlines():
+        code = line.split("#", 1)[0].strip()
+        if not code:
+            continue
+        if depth == 0 and code.endswith(";"):
+            directives.append(code)
+        depth += code.count("{") - code.count("}")
+    return tuple(directives)
+
+
 def _log_format_body(text: str, name: str) -> str:
     match = re.search(
         rf"log_format\s+{re.escape(name)}\s+escape=json\s+(.+?);",
@@ -236,6 +249,28 @@ def _map_directives(text: str, source: str, destination: str) -> tuple[str, ...]
     )
     assert match is not None, f"missing nginx map {source} -> {destination}"
     return _directives(match.group("body"))
+
+
+def test_direct_server_directives_ignore_nested_blocks_and_comments() -> None:
+    body = """
+        # access_log /tmp/commented.log;
+        set $safe_path $safe_path_map;
+        location / {
+            access_log /tmp/location.log;
+            if ($request_method = POST) {
+                set $nested_path /nested;
+            }
+        }
+        if ($request_method = GET) {
+            set $conditional_path /conditional;
+        }
+        access_log /var/log/nginx/access.log safe_json;
+    """
+
+    assert _direct_server_directives(body) == (
+        "set $safe_path $safe_path_map;",
+        "access_log /var/log/nginx/access.log safe_json;",
+    )
 
 
 def test_fastapi_routes_are_all_explicitly_public_or_private() -> None:
@@ -364,14 +399,17 @@ def test_both_public_servers_select_one_safe_access_log() -> None:
         _only_server("listen 80;"),
         _only_server("listen 443 ssl http2;"),
     ):
-        assert server.body.count(expected) == 1
-        assert server.body.count(snapshot) == 1
-        assert server.body.index(snapshot) < server.body.index(expected)
-        assert " combined;" not in server.body
-        assert all(
-            "access_log" not in location.body
-            for location in _location_blocks(server.body)
+        direct = _direct_server_directives(server.body)
+        access_logs = tuple(
+            directive
+            for directive in _directives(server.body)
+            if re.match(r"access_log(?:\s|;)", directive)
         )
+
+        assert direct.count(snapshot) == 1
+        assert direct.count(expected) == 1
+        assert direct.index(snapshot) < direct.index(expected)
+        assert access_logs == (expected,)
 
 
 def test_nginx_keeps_existing_rate_proxy_and_security_contracts() -> None:
