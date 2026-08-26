@@ -397,6 +397,16 @@ le fichier d'environnement protégé par systemd, jamais depuis ce runbook :
 toutes absentes, le webhook répond 503 ; partiellement présentes, l'API refuse
 de démarrer sans imprimer leurs valeurs.
 
+Les quatre variables facultatives de rétention
+`KIVOU_INSTANTLY_WEBHOOK_RETAINED_FINGERPRINT_KEYS_JSON`,
+`KIVOU_SUPPRESSION_RETAINED_KEYS_JSON`,
+`KIVOU_RESPONSE_SOURCE_RETAINED_KEYS_JSON` et
+`KIVOU_RESPONSE_CONTENT_RETAINED_KEYS_JSON` portent des objets JSON bornés à
+huit versions par keyring, clé courante comprise. Avant de remplacer une
+version déjà référencée par des événements ou suppressions durables, conserver
+son secret dans le keyring correspondant ; la rotation ne réinterprète jamais
+l'historique avec une nouvelle clé.
+
 No migration, provider call, e-mail, production action, or secret argument belongs to this procedure.
 Les seules substitutions du gabarit de site sont STAGING_HOST et
 KIVOU_API_PORT. Aucune valeur de /etc/kivou/staging.env n'est chargée dans le

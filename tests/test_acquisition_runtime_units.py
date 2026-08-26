@@ -138,6 +138,16 @@ def test_operations_runbook_documents_the_full_atomic_webhook_bundle() -> None:
         "KIVOU_RESPONSE_CONTENT_HMAC_KEY",
         "KIVOU_RESPONSE_CONTENT_HMAC_KEY_VERSION",
     }
+    retained = {
+        "KIVOU_INSTANTLY_WEBHOOK_RETAINED_FINGERPRINT_KEYS_JSON",
+        "KIVOU_SUPPRESSION_RETAINED_KEYS_JSON",
+        "KIVOU_RESPONSE_SOURCE_RETAINED_KEYS_JSON",
+        "KIVOU_RESPONSE_CONTENT_RETAINED_KEYS_JSON",
+    }
+    normalized_section = " ".join(section.split())
 
     assert all(name in section for name in required)
+    assert all(name in section for name in retained)
+    assert "huit versions par keyring, clé courante comprise" in normalized_section
+    assert "conserver son secret dans le keyring correspondant" in normalized_section
     assert "KIVOU_SUPPRESSION_IDENTITY_KEY" not in section
