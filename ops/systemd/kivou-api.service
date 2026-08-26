@@ -1,5 +1,10 @@
 [Unit]
-Description=Kivou — API HTTP
+# Copie de l'unité active auditée sur staging : dépendances et documentation
+# restent versionnées avec le même contrat que le processus effectivement servi.
+Description=Kivou API (FastAPI/uvicorn)
+Documentation=https://github.com/bruppacherrodrigue-art/Kivou
+After=network-online.target postgresql.service
+Wants=network-online.target
 
 [Service]
 # Reproduction versionnée de l'unité active auditée sur staging. Uvicorn reste
