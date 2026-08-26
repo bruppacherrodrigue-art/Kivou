@@ -39,6 +39,13 @@ MAX_CONTROL_APPEND_ATTEMPTS = 3
 QA_WINDOW_OPENED = "ACQUISITION_RUNTIME_QA_WINDOW_OPEN"
 QA_WINDOW_CLOSED = "ACQUISITION_RUNTIME_QA_WINDOW_CLOSED"
 RECOVERABLE_STOP_REASON = "OPERATOR_QA_STOP"
+LEGACY_RECOVERABLE_STOP_REASON = "AUDIT_80_PRE_QA_STOP"
+_RECOVERABLE_STOP_REASON_SETS = frozenset(
+    {
+        (RECOVERABLE_STOP_REASON,),
+        (LEGACY_RECOVERABLE_STOP_REASON,),
+    }
+)
 RUNTIME_COMMANDS = tuple(stage.command for stage in AcquisitionRuntimeStage)
 
 _OPAQUE_REF = TypeAdapter(OpaqueRef)
@@ -329,7 +336,7 @@ class RuntimeQaPolicyWindowController:
             and control.expires_at is None
             and control.created_by_actor_type == "SYSTEM"
             and control.created_by_actor_ref == SAFETY_CONTROLLER_REF
-            and control.reason_codes == (RECOVERABLE_STOP_REASON,)
+            and control.reason_codes in _RECOVERABLE_STOP_REASON_SETS
             and self._same_qa_authority(control, authority=authority)
         ):
             return False
