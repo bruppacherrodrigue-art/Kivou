@@ -134,6 +134,10 @@ def test_redacted_deployment_examples_are_strict_and_secret_free() -> None:
         OPS_JSON.read_text(encoding="utf-8")
     )
     assert len(deployment.mailboxes) == 3
+    assert [
+        mailbox.managed_airmail_sending_gap_minutes
+        for mailbox in deployment.mailboxes
+    ] == [10, 10, 10]
     assert json.loads(HERMES_CONFIG.read_text(encoding="utf-8")) == (
         HERMES_SHADOW_MODEL_CONFIG
     )

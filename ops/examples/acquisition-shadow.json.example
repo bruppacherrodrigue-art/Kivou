@@ -4,15 +4,18 @@
   "mailboxes": [
     {
       "mailbox_ref": "mailbox-staging-01",
-      "provider_account_id": "mailbox-one@example.com"
+      "provider_account_id": "mailbox-one@example.com",
+      "managed_airmail_sending_gap_minutes": 10
     },
     {
       "mailbox_ref": "mailbox-staging-02",
-      "provider_account_id": "mailbox-two@example.com"
+      "provider_account_id": "mailbox-two@example.com",
+      "managed_airmail_sending_gap_minutes": 10
     },
     {
       "mailbox_ref": "mailbox-staging-03",
-      "provider_account_id": "mailbox-three@example.com"
+      "provider_account_id": "mailbox-three@example.com",
+      "managed_airmail_sending_gap_minutes": 10
     }
   ]
 }

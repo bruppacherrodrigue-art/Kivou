@@ -122,6 +122,47 @@ sudoedit /etc/kivou/acquisition-shadow.env
 sudoedit /etc/kivou/acquisition-shadow.json
 ```
 
+### Managed AirMail cadence rollout
+
+Deploy an approved compatible Kivou revision that accepts the optional
+`managed_airmail_sending_gap_minutes` field before adding that field to the
+protected JSON. For each bound account, use the field only after a fresh
+read-only Instantly account `GET` proves that `provider_code` is exactly integer
+`8` (not a boolean or string), `is_managed_account` is exactly `true`, and the
+actual provider response omits the `sending_gap` property. A `sending_gap`
+property present as null or malformed, a valid provider cadence that conflicts
+with the protected cadence, or any missing, malformed, unmanaged, or different
+provider classification blocks readiness. The protected cadence is Kivou
+operator configuration; it is not an Instantly observation and must not be
+inferred from a normalized response.
+
+Preserve a pre-change copy. Prepare and validate a sibling file, then rename it
+over the live file so the change is atomic on the same filesystem while
+retaining `root:kivou` ownership and mode `0640`:
+
+```bash
+sudo install -m 0640 -o root -g kivou \
+  /etc/kivou/acquisition-shadow.json \
+  /etc/kivou/acquisition-shadow.json.rollback
+sudo install -m 0640 -o root -g kivou \
+  /etc/kivou/acquisition-shadow.json \
+  /etc/kivou/acquisition-shadow.json.next
+sudoedit /etc/kivou/acquisition-shadow.json.next
+sudo -u kivou /srv/kivou/app/.venv/bin/python -c \
+  'from pathlib import Path; from signals.acquisition_connectivity.contracts import ShadowConnectivityDocument; ShadowConnectivityDocument.model_validate_json(Path("/etc/kivou/acquisition-shadow.json.next").read_text(encoding="utf-8"))'
+sudo chown root:kivou /etc/kivou/acquisition-shadow.json.next
+sudo chmod 0640 /etc/kivou/acquisition-shadow.json.next
+sudo mv -T /etc/kivou/acquisition-shadow.json.next \
+  /etc/kivou/acquisition-shadow.json
+sudo stat -c '%a %U %G %n' /etc/kivou/acquisition-shadow.json
+```
+
+This procedure changes only protected Kivou configuration. It does not
+authorize a provider write, a smoke invocation, a timer, or email sending. To
+roll back to code that predates the optional field, atomically restore the
+protected JSON backup first, verify `root:kivou` and `0640`, and only then deploy
+the older code.
+
 The JSON must retain its exact schema version, exactly three distinct opaque
 mailbox refs, and exactly three distinct provider account email bindings. The
 tracked examples are not deployable credentials.
