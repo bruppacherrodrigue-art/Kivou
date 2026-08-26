@@ -415,13 +415,16 @@ def test_https_attribution_is_sensitive_and_preserves_its_proxy_contract() -> No
         "limit_req zone=kivou_api burst=40 nodelay;",
         "include /etc/nginx/kivou-sensitive-link-security-headers.conf;",
         "error_log /dev/null crit;",
-        "proxy_pass http://127.0.0.1:8000;",
+        "proxy_pass http://127.0.0.1:KIVOU_API_PORT;",
         "include /etc/nginx/kivou-proxy-params.conf;",
     ):
         assert directives.count(expected) == 1
     assert _directives_starting_with(
         attribution.body, "proxy_hide_header "
     ) == ("proxy_hide_header Referrer-Policy;",)
+    assert _directives_starting_with(attribution.body, "proxy_pass ") == (
+        "proxy_pass http://127.0.0.1:KIVOU_API_PORT;",
+    )
     assert not any(
         directive.startswith("try_files ") for directive in directives
     )
@@ -563,7 +566,9 @@ def test_every_reviewed_public_route_reaches_fastapi_and_private_routes_do_not()
             _matches(block.selector, _sample_path(route_path))
             for _, route_path in PUBLIC_ASGI_ROUTES
         ), block.selector
-        assert "proxy_pass http://127.0.0.1:8000;" in block.body
+        assert _directives_starting_with(block.body, "proxy_pass ") == (
+            "proxy_pass http://127.0.0.1:KIVOU_API_PORT;",
+        )
         assert "include /etc/nginx/kivou-proxy-params.conf;" in block.body
         assert "try_files" not in block.body
 
