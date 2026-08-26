@@ -43,10 +43,13 @@ on uvicorn's private `LogRecord` tuple shape.
 
 Define at HTTP scope:
 
-1. a `map` from normalized `$uri` to a safe path:
+1. one non-volatile `map` from normalized `$uri` to a safe path:
    - every value beginning `/a/` becomes the literal `/a/[redacted]`;
+   - `/reset-password` remains the literal `/reset-password`;
    - every other value remains normalized `$uri`;
-2. one `escape=json` log format containing only:
+2. each server evaluates that map once in the server rewrite phase and stores
+   the result in the variable used by the access log, before location routing;
+3. one `escape=json` log format containing only:
    - remote address;
    - timestamp;
    - request method;
@@ -56,10 +59,13 @@ Define at HTTP scope:
    - response size;
    - request duration.
 
-The format must not reference `$request`, `$request_uri`, `$args`, a referer,
-user agent, cookie, upstream header or arbitrary request header. Because `$uri`
-excludes the query string, the reset token is never rendered. Because the map
-replaces the attribution path, the path-carried token is never rendered.
+Neither the map nor the log format may reference `$request`, `$request_uri`,
+`$args`, a referer, user agent, cookie, upstream header or arbitrary request
+header. The server-phase assignment forces nginx's normal non-volatile map
+cache to retain the original normalized safe value even if `try_files` later
+changes the current `$uri` to `/index.html`. This preserves
+`/reset-password` as operational evidence, excludes its query token, and
+redacts both encoded and ordinary attribution paths.
 
 Both the HTTP/80 redirect server and the HTTPS server explicitly select this
 format. They therefore override nginx's inherited combined access log instead
@@ -176,7 +182,9 @@ prove:
 
 1. the safe nginx format contains no raw-target, query, referer, cookie or
    arbitrary-header variable;
-2. the safe-path map redacts `/a/` and otherwise uses normalized `$uri`;
+2. the non-volatile safe-path map redacts normalized `/a/`, preserves the
+   literal reset entry point, and is forced into the nginx variable cache by a
+   server-phase assignment before `try_files`;
 3. both HTTP and HTTPS servers explicitly select exactly one safe access log;
 4. both servers have explicit attribution and reset locations;
 5. the HTTPS attribution location preserves proxy/rate limits, hides the

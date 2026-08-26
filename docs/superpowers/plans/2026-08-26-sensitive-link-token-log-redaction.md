@@ -88,6 +88,14 @@ def _only_location(server: ServerBlock, selector: str) -> LocationBlock:
         f"expected one nginx location {selector!r}, got {len(matching)}"
     )
     return matching[0]
+
+
+def _directives(text: str) -> tuple[str, ...]:
+    return tuple(
+        code
+        for line in text.splitlines()
+        if (code := line.split("#", 1)[0].strip())
+    )
 ```
 
 Change `_proxy_locations()` to inspect only `_only_server("listen 443 ssl http2;").body`, and update existing `_only_location` calls to pass that HTTPS server. This characterizes the current proxy inventory while allowing duplicate sensitive selectors in the HTTP server later.
@@ -105,6 +113,17 @@ def _log_format_body(text: str, name: str) -> str:
     )
     assert match is not None, f"missing nginx log format {name}"
     return match.group(1)
+
+
+def _map_directives(text: str, source: str, destination: str) -> tuple[str, ...]:
+    match = re.search(
+        rf"map\s+{re.escape(source)}\s+{re.escape(destination)}\s*"
+        r"\{(?P<body>.*?)\}",
+        text,
+        flags=re.DOTALL,
+    )
+    assert match is not None, f"missing nginx map {source} -> {destination}"
+    return _directives(match.group("body"))
 
 
 def test_safe_access_log_uses_only_allowlisted_transport_variables() -> None:
@@ -140,22 +159,31 @@ def test_safe_access_log_uses_only_allowlisted_transport_variables() -> None:
 def test_safe_path_map_redacts_attribution_and_uses_normalized_uri_elsewhere() -> None:
     limits = (NGINX_DIR / "kivou-limits.conf").read_text()
 
-    assert "map $uri $kivou_safe_request_path {" in limits
-    assert "~^/a/ /a/[redacted];" in limits
-    assert "default $uri;" in limits
+    assert _map_directives(
+        limits, "$uri", "$kivou_safe_path_map"
+    ) == (
+        "~^/a/ /a/[redacted];",
+        "/reset-password /reset-password;",
+        "default $uri;",
+    )
+    assert "volatile;" not in limits
     assert "$request_uri" not in limits
 
 
 def test_both_public_servers_select_one_safe_access_log() -> None:
     site = _site_text()
+    snapshot = "set $kivou_safe_request_path $kivou_safe_path_map;"
     expected = "access_log /var/log/nginx/access.log kivou_safe_json;"
 
     assert site.count(expected) == 2
+    assert site.count(snapshot) == 2
     for server in (
         _only_server("listen 80;"),
         _only_server("listen 443 ssl http2;"),
     ):
         assert server.body.count(expected) == 1
+        assert server.body.count(snapshot) == 1
+        assert server.body.index(snapshot) < server.body.index(expected)
         assert " combined;" not in server.body
         assert all(
             "access_log" not in location.body
@@ -178,29 +206,29 @@ Expected: the new tests fail because `kivou_safe_json`, the safe-path map, and t
 Append this HTTP-scope configuration to `ops/nginx/kivou-limits.conf`:
 
 ```nginx
-map $uri $kivou_safe_request_path {
+map $uri $kivou_safe_path_map {
     ~^/a/ /a/[redacted];
+    /reset-password /reset-password;
     default $uri;
 }
 
-log_format kivou_safe_json escape=json
-    '{"remote_addr":"$remote_addr",'
-    '"time":"$time_iso8601",'
-    '"method":"$request_method",'
-    '"path":"$kivou_safe_request_path",'
-    '"protocol":"$server_protocol",'
-    '"status":$status,'
-    '"bytes":$body_bytes_sent,'
-    '"duration":$request_time}';
+log_format kivou_safe_json escape=json '{"remote_addr":"$remote_addr","time":"$time_iso8601","method":"$request_method","path":"$kivou_safe_request_path","protocol":"$server_protocol","status":$status,"bytes":$body_bytes_sent,"duration":$request_time}';
 ```
 
-Add this directive exactly once inside each `server` block in `ops/nginx/kivou-staging.conf`:
+Keep `log_format` on one physical line: the existing tracked-template syntax
+test intentionally requires each active line to end in `;`, `{`, or `}`.
+
+Add these directives exactly once, in this order, inside each `server` block in
+`ops/nginx/kivou-staging.conf`:
 
 ```nginx
+set $kivou_safe_request_path $kivou_safe_path_map;
 access_log /var/log/nginx/access.log kivou_safe_json;
 ```
 
-Do not add a location-level access log and do not retain or add `combined` as a second destination.
+The `set` forces the non-volatile map to cache the original normalized safe
+path before location processing. Do not add `volatile`, a location-level access
+log, or `combined` as a second destination.
 
 - [ ] **Step 5: Run GREEN and commit the cycle**
 
@@ -230,19 +258,11 @@ git commit -m "fix(ops): sanitize public nginx access logs"
 
 - [ ] **Step 1: Add failing sensitive-location and gate tests**
 
-Add helpers that return non-comment directives and `add_header` directives:
+Reuse `_directives` from Task 1 and add the ordered `add_header` helper:
 
 ```python
-def _directives(text: str) -> tuple[str, ...]:
+def _header_directives(path: Path) -> tuple[str, ...]:
     return tuple(
-        code
-        for line in text.splitlines()
-        if (code := line.split("#", 1)[0].strip())
-    )
-
-
-def _header_directives(path: Path) -> frozenset[str]:
-    return frozenset(
         directive
         for directive in _directives(path.read_text())
         if directive.startswith("add_header ")
@@ -257,20 +277,20 @@ def test_sensitive_header_fragment_only_strengthens_referrer_policy() -> None:
     sensitive = _header_directives(
         NGINX_DIR / "kivou-sensitive-link-security-headers.conf"
     )
-    ordinary_referrer = {
-        item for item in ordinary if item.startswith("add_header Referrer-Policy ")
-    }
-    sensitive_referrer = {
-        item for item in sensitive if item.startswith("add_header Referrer-Policy ")
-    }
-
-    assert ordinary - ordinary_referrer == sensitive - sensitive_referrer
-    assert ordinary_referrer == {
-        'add_header Referrer-Policy "strict-origin-when-cross-origin" always;'
-    }
-    assert sensitive_referrer == {
+    expected_sensitive = tuple(
         'add_header Referrer-Policy "no-referrer" always;'
-    }
+        if item.startswith("add_header Referrer-Policy ")
+        else item
+        for item in ordinary
+    )
+
+    assert sensitive == expected_sensitive
+    assert ordinary.count(
+        'add_header Referrer-Policy "strict-origin-when-cross-origin" always;'
+    ) == 1
+    assert sensitive.count(
+        'add_header Referrer-Policy "no-referrer" always;'
+    ) == 1
 
 
 def test_all_sensitive_locations_share_the_same_fail_closed_gate() -> None:
@@ -282,6 +302,7 @@ def test_all_sensitive_locations_share_the_same_fail_closed_gate() -> None:
         for selector in ("^~ /a/", "= /reset-password"):
             location = _only_location(server, selector)
             assert location.body.count(gate) == 1
+            assert _directives(location.body)[0] == gate
 
     assert _directives(
         (NGINX_DIR / "kivou-sensitive-links-open.conf").read_text()
@@ -327,6 +348,59 @@ def test_https_reset_entry_serves_only_non_cached_spa_with_safe_headers() -> Non
     assert "try_files /index.html =404;" in body
     assert "proxy_pass" not in body
     assert "try_files $uri $uri/ /index.html;" not in body
+
+
+def test_each_sensitive_location_emits_exactly_one_no_referrer_policy() -> None:
+    sensitive_headers = _header_directives(
+        NGINX_DIR / "kivou-sensitive-link-security-headers.conf"
+    )
+    no_referrer = 'add_header Referrer-Policy "no-referrer" always;'
+
+    for server in (
+        _only_server("listen 80;"),
+        _only_server("listen 443 ssl http2;"),
+    ):
+        for selector in ("^~ /a/", "= /reset-password"):
+            location = _only_location(server, selector)
+            directives = list(_directives(location.body))
+            assert "include /etc/nginx/kivou-security-headers.conf;" not in directives
+            if "include /etc/nginx/kivou-sensitive-link-security-headers.conf;" in directives:
+                directives.extend(sensitive_headers)
+            assert directives.count(no_referrer) == 1
+
+    attribution = _only_location(
+        _only_server("listen 443 ssl http2;"), "^~ /a/"
+    )
+    assert attribution.body.count("proxy_hide_header Referrer-Policy;") == 1
+
+
+def test_ordinary_static_and_spa_routes_keep_their_exact_contracts() -> None:
+    http = _only_server("listen 80;")
+    https = _only_server("listen 443 ssl http2;")
+
+    assert "root /var/www/certbot;" in _only_location(
+        http, "/.well-known/acme-challenge/"
+    ).body
+    assert "return 301 https://STAGING_HOST$request_uri;" in _only_location(
+        http, "/"
+    ).body
+    assert "try_files $uri =404;" in _only_location(https, "/assets/").body
+    assert "max-age=31536000, immutable" in _only_location(
+        https, "/assets/"
+    ).body
+    assert "try_files $uri =404;" in _only_location(https, "/brand/").body
+    assert "max-age=2592000" in _only_location(https, "/brand/").body
+    assert 'add_header Cache-Control "no-cache" always;' in _only_location(
+        https, "= /index.html"
+    ).body
+    assert "try_files $uri $uri/ /index.html;" in _only_location(
+        https, "/"
+    ).body
+    for location in _proxy_locations():
+        if location.selector == "^~ /a/":
+            continue
+        assert "kivou-sensitive-link" not in location.body
+        assert "error_log /dev/null" not in location.body
 ```
 
 Also retain the existing route-inventory assertions so HTTPS `/a/` remains the only new FastAPI proxy and neither HTTP sensitive location becomes a backend route.
@@ -543,7 +617,8 @@ git commit -m "fix(ops): disable duplicate uvicorn access logs"
 
 - [ ] **Step 1: Write failing port-template and runbook tests**
 
-Change the HTTPS proxy assertion in `tests/test_ops_nginx_routes.py` to require:
+Change both the generic HTTPS proxy-loop assertion and the dedicated HTTPS
+attribution assertion in `tests/test_ops_nginx_routes.py` to require:
 
 ```python
 assert "proxy_pass http://127.0.0.1:KIVOU_API_PORT;" in block.body
