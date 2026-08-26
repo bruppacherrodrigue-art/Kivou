@@ -384,6 +384,19 @@ descend jamais sous cette limite. Elle s'exécute depuis un shell de connexion
 sur kivou-staging. La reprise et le rollback utilisent un état root-only fixe :
 ils restent autonomes si le shell initial disparaît après une erreur.
 
+Le runtime webhook Instantly conserve son groupe de configuration atomique :
+`KIVOU_INSTANTLY_WEBHOOK_SECRET`, `KIVOU_INSTANTLY_WORKSPACE_REF`,
+`KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY`,
+`KIVOU_INSTANTLY_WEBHOOK_FINGERPRINT_KEY_VERSION`,
+`KIVOU_SUPPRESSION_HMAC_KEY`, `KIVOU_SUPPRESSION_HMAC_KEY_VERSION`,
+`KIVOU_RESPONSE_SOURCE_HMAC_KEY`,
+`KIVOU_RESPONSE_SOURCE_HMAC_KEY_VERSION`,
+`KIVOU_RESPONSE_CONTENT_HMAC_KEY` et
+`KIVOU_RESPONSE_CONTENT_HMAC_KEY_VERSION`. Les dix variables sont lues depuis
+le fichier d'environnement protégé par systemd, jamais depuis ce runbook :
+toutes absentes, le webhook répond 503 ; partiellement présentes, l'API refuse
+de démarrer sans imprimer leurs valeurs.
+
 No migration, provider call, e-mail, production action, or secret argument belongs to this procedure.
 Les seules substitutions du gabarit de site sont STAGING_HOST et
 KIVOU_API_PORT. Aucune valeur de /etc/kivou/staging.env n'est chargée dans le
