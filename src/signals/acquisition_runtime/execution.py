@@ -177,7 +177,12 @@ class ProductionRuntimeDependencyProbe:
         self._apollo = apollo
         self._instantly = InstantlyConnectivityProbe(
             provider=instantly_provider,
-            mailbox_readiness=InstantlyMailboxReadinessSource(instantly_provider),
+            mailbox_readiness=InstantlyMailboxReadinessSource(
+                instantly_provider,
+                managed_airmail_sending_gaps=(
+                    _managed_airmail_sending_gaps(connectivity)
+                ),
+            ),
         )
         self._connectivity = connectivity
         self._hermes = hermes_runtime
@@ -329,6 +334,16 @@ def _mailbox_fingerprint(values: Mapping[str, object]) -> str:
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
+def _managed_airmail_sending_gaps(
+    connectivity: AcquisitionConnectivityConfig,
+) -> dict[str, int]:
+    return {
+        str(binding.provider_account_id).casefold(): gap
+        for binding in connectivity.deployment.mailboxes
+        if (gap := binding.managed_airmail_sending_gap_minutes) is not None
+    }
+
+
 def _campaign_configuration(
     connectivity: AcquisitionConnectivityConfig,
     *,
@@ -359,6 +374,9 @@ def _campaign_configuration(
             config_fingerprint=_mailbox_fingerprint(
                 {
                     "enabled": index == 0,
+                    "managed_airmail_sending_gap_minutes": (
+                        binding.managed_airmail_sending_gap_minutes
+                    ),
                     "mailbox_ref": binding.mailbox_ref,
                     "provider_account_id": str(binding.provider_account_id),
                     "scope": scope.model_dump(mode="json"),
@@ -613,7 +631,12 @@ def build_runtime_execution_composition(
         suppression_keyring=suppression_keyring,
         sender_config=sender_config,
         campaign_deployment=campaign_deployment,
-        mailbox_readiness=InstantlyMailboxReadinessSource(provider),
+        mailbox_readiness=InstantlyMailboxReadinessSource(
+            provider,
+            managed_airmail_sending_gaps=(
+                _managed_airmail_sending_gaps(connectivity_config)
+            ),
+        ),
         attribution_link_builder=link_builder,
         clock=clock,
     )
