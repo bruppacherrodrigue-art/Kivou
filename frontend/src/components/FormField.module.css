@@ -4,9 +4,10 @@
   gap: var(--kivou-space-2);
 }
 
-.label {
+.label,
+.legend {
   font-size: var(--kivou-text-small);
-  font-weight: var(--kivou-weight-medium);
+  font-weight: var(--kivou-weight-semibold);
   color: var(--kivou-text-primary);
 }
 
@@ -20,75 +21,53 @@
   min-height: var(--kivou-control-height);
   padding: 0 var(--kivou-space-4);
   background: var(--kivou-bg-surface);
-  border: 1px solid var(--kivou-border);
+  border: 1px solid var(--kivou-border-strong);
   border-radius: var(--kivou-radius-sm);
   color: var(--kivou-text-primary);
   font-family: var(--kivou-font-sans);
-  /* 16px minimum : en dessous, iOS zoome à la mise au point du champ. */
   font-size: var(--kivou-text-body);
   line-height: 1.4;
-  transition: border-color var(--kivou-motion-base) var(--kivou-ease-standard);
+  transition:
+    border-color var(--kivou-motion-base) var(--kivou-ease-standard),
+    box-shadow var(--kivou-motion-base) var(--kivou-ease-standard);
 }
 
-.input::placeholder {
-  color: var(--kivou-text-muted);
-}
-
-.input:hover:not(:disabled) {
-  border-color: var(--kivou-border-strong);
-}
-
-.input:disabled {
-  background: var(--kivou-bg-subtle);
-  color: var(--kivou-text-muted);
-  cursor: not-allowed;
-}
-
-.inputInvalid {
-  border-color: var(--kivou-color-danger);
-}
+.input::placeholder { color: var(--kivou-text-muted); }
+.input:hover:not(:disabled) { border-color: var(--kivou-text-muted); }
+.input:focus { border-color: var(--kivou-action-primary); }
+.input:disabled { background: var(--kivou-bg-subtle); color: var(--kivou-text-muted); cursor: not-allowed; }
+.inputInvalid { border-color: var(--kivou-color-danger); }
 
 .select {
   appearance: none;
   padding-right: var(--kivou-space-10);
-  /* Chevron dessiné en CSS : pas d'icône externe pour un champ natif. */
-  background-image: linear-gradient(45deg, transparent 50%, var(--kivou-text-secondary) 50%),
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--kivou-text-secondary) 50%),
     linear-gradient(135deg, var(--kivou-text-secondary) 50%, transparent 50%);
   background-position:
     calc(100% - 20px) calc(50% + 2px),
     calc(100% - 15px) calc(50% + 2px);
-  background-size:
-    5px 5px,
-    5px 5px;
+  background-size: 5px 5px, 5px 5px;
   background-repeat: no-repeat;
 }
 
 .textarea {
-  min-height: 6.5rem;
+  min-height: 7rem;
   padding: var(--kivou-space-3) var(--kivou-space-4);
   line-height: var(--kivou-leading-body);
   resize: vertical;
 }
 
-.help {
-  margin: 0;
-  font-size: var(--kivou-text-small);
-  line-height: var(--kivou-leading-small);
-  color: var(--kivou-text-secondary);
-}
-
+.help,
 .error {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--kivou-space-2);
   margin: 0;
   font-size: var(--kivou-text-small);
   line-height: var(--kivou-leading-small);
-  color: var(--kivou-color-danger);
-  font-weight: var(--kivou-weight-medium);
 }
 
-/* ── Groupes ─────────────────────────────────────────────────────────────── */
+.help { color: var(--kivou-text-secondary); }
+.error { display: flex; gap: var(--kivou-space-2); color: var(--kivou-color-danger); font-weight: var(--kivou-weight-medium); }
+
 .fieldset {
   margin: 0;
   padding: 0;
@@ -98,18 +77,8 @@
   gap: var(--kivou-space-3);
 }
 
-.legend {
-  padding: 0;
-  font-size: var(--kivou-text-small);
-  font-weight: var(--kivou-weight-medium);
-  color: var(--kivou-text-primary);
-}
-
-.options {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--kivou-space-2);
-}
+.legend { padding: 0; }
+.options { display: flex; flex-wrap: wrap; gap: var(--kivou-space-2); }
 
 .option {
   display: inline-flex;
@@ -127,49 +96,22 @@
     border-color var(--kivou-motion-base) var(--kivou-ease-standard);
 }
 
-.option:hover {
-  border-color: var(--kivou-border-strong);
-}
-
-/* L'état sélectionné se lit à la bordure, au fond ET à la graisse — pas à la
- * seule couleur (§38). La case cochée elle-même reste visible. */
+.option:hover { border-color: var(--kivou-border-strong); }
 .optionChecked {
   background: var(--kivou-nav-active-bg);
-  border-color: var(--kivou-action-primary);
-  font-weight: var(--kivou-weight-medium);
+  border-color: #82b99a;
+  color: var(--kivou-nav-active-text);
+  font-weight: var(--kivou-weight-semibold);
 }
 
-.checkbox {
-  width: 1rem;
-  height: 1rem;
-  accent-color: var(--kivou-action-primary);
-  flex: none;
-  margin: 0;
-}
-
-/* ── Interrupteur ────────────────────────────────────────────────────────── */
-.switchRow {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--kivou-space-3);
-}
-
+.checkbox,
 .switchInput {
-  width: 1.125rem;
-  height: 1.125rem;
-  margin-top: 0.2rem;
   accent-color: var(--kivou-action-primary);
   flex: none;
 }
 
-.switchText {
-  display: flex;
-  flex-direction: column;
-  gap: var(--kivou-space-1);
-}
-
-.switchLabel {
-  font-size: var(--kivou-text-body);
-  font-weight: var(--kivou-weight-medium);
-  cursor: pointer;
-}
+.checkbox { width: 1rem; height: 1rem; margin: 0; }
+.switchRow { display: flex; align-items: flex-start; gap: var(--kivou-space-3); }
+.switchInput { width: 1.125rem; height: 1.125rem; margin-top: 0.2rem; }
+.switchText { display: flex; flex-direction: column; gap: var(--kivou-space-1); }
+.switchLabel { font-size: var(--kivou-text-body); font-weight: var(--kivou-weight-medium); cursor: pointer; }

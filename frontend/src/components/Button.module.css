@@ -10,11 +10,12 @@
   border-radius: var(--kivou-radius-sm);
   font-family: var(--kivou-font-sans);
   font-size: var(--kivou-text-small);
-  font-weight: var(--kivou-weight-medium);
+  font-weight: var(--kivou-weight-semibold);
   line-height: 1.2;
   text-decoration: none;
   cursor: pointer;
   transition:
+    transform var(--kivou-motion-fast) var(--kivou-ease-standard),
     background-color var(--kivou-motion-base) var(--kivou-ease-standard),
     border-color var(--kivou-motion-base) var(--kivou-ease-standard),
     color var(--kivou-motion-base) var(--kivou-ease-standard);
@@ -22,6 +23,10 @@
 
 .button:disabled {
   cursor: not-allowed;
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .lg {
@@ -34,13 +39,13 @@
   width: 100%;
 }
 
-.label {
+.label,
+.icon {
   display: inline-flex;
   align-items: center;
 }
 
 .icon {
-  display: inline-flex;
   flex: none;
 }
 
@@ -49,11 +54,11 @@
   height: 1.125em;
 }
 
-/* ── primary ─────────────────────────────────────────────────────────────── */
 .primary {
   background: var(--kivou-action-primary);
   color: var(--kivou-text-inverse);
   border-color: var(--kivou-action-primary);
+  box-shadow: 0 7px 18px -12px rgba(36, 99, 235, 0.9);
 }
 
 .primary:hover:not(:disabled) {
@@ -61,53 +66,33 @@
   border-color: var(--kivou-action-primary-hover);
 }
 
-.primary:active:not(:disabled) {
-  background: var(--kivou-action-primary-hover);
-}
-
-/* L'état désactivé ne repose PAS sur la seule opacité (§45) : la surface, la
- * bordure et le texte changent tous les trois. */
 .primary:disabled {
   background: var(--kivou-bg-beige);
   border-color: var(--kivou-border);
   color: var(--kivou-text-muted);
+  box-shadow: none;
 }
 
-/* ── secondary ───────────────────────────────────────────────────────────── */
-.secondary {
-  background: transparent;
-  color: var(--kivou-text-primary);
-  border-color: var(--kivou-border);
-}
-
-.secondary:hover:not(:disabled) {
-  background: var(--kivou-bg-subtle);
-  border-color: var(--kivou-border-strong);
-}
-
-.secondary:disabled {
-  color: var(--kivou-text-muted);
-  border-color: var(--kivou-border);
-  background: var(--kivou-bg-subtle);
-}
-
-/* ── ghost ───────────────────────────────────────────────────────────────── */
+.secondary,
 .ghost {
   background: var(--kivou-bg-surface);
   color: var(--kivou-text-primary);
-  border-color: var(--kivou-border);
+  border-color: var(--kivou-border-strong);
 }
 
+.secondary:hover:not(:disabled),
 .ghost:hover:not(:disabled) {
   background: var(--kivou-bg-subtle);
+  border-color: var(--kivou-text-muted);
 }
 
+.secondary:disabled,
 .ghost:disabled {
   color: var(--kivou-text-muted);
+  border-color: var(--kivou-border);
   background: var(--kivou-bg-subtle);
 }
 
-/* ── quiet ───────────────────────────────────────────────────────────────── */
 .quiet {
   background: transparent;
   color: var(--kivou-text-secondary);
@@ -124,22 +109,17 @@
   color: var(--kivou-text-muted);
 }
 
-/* ── danger ──────────────────────────────────────────────────────────────── */
 .danger {
-  background: transparent;
+  background: var(--kivou-bg-surface);
   color: var(--kivou-color-danger);
-  border-color: var(--kivou-color-danger);
+  border-color: #e4b8b5;
 }
 
 .danger:hover:not(:disabled) {
-  background: var(--kivou-color-danger);
-  color: var(--kivou-text-inverse);
+  background: #fbefee;
 }
 
-/* ── chargement ──────────────────────────────────────────────────────────── */
 .loading .label {
-  /* Le libellé reste en place et conserve la largeur du bouton ; seule sa
-   * visibilité change, ce qui évite le saut de mise en page. */
   visibility: hidden;
 }
 

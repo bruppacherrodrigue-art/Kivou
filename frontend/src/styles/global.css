@@ -9,10 +9,12 @@
 html {
   color-scheme: light;
   -webkit-text-size-adjust: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
   margin: 0;
+  min-width: 320px;
   background: var(--kivou-bg-canvas);
   color: var(--kivou-text-primary);
   font-family: var(--kivou-font-sans);
@@ -20,6 +22,18 @@ body {
   line-height: var(--kivou-leading-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+a {
+  color: var(--kivou-action-primary);
+  text-underline-offset: 0.18em;
 }
 
 h1,
@@ -44,28 +58,17 @@ svg {
   max-width: 100%;
 }
 
-/* Le focus est une signature de marque, pas un défaut de navigateur : contour
- * brass 2px avec offset, comme kivou.tokens.css le pose.
- *
- * Le laiton seul plafonne à 2,87:1 sur l'ivoire, sous les 3:1 qu'exige SC 1.4.11
- * pour un indicateur non textuel. Un halo d'encre extérieur porte le contraste
- * requis SANS toucher à la couleur de marque : l'anneau reste brass, il est
- * simplement cerné. */
 :focus-visible {
-  outline: 2px solid var(--kivou-focus);
+  outline: 3px solid var(--kivou-focus);
   outline-offset: 3px;
-  border-radius: 2px;
-  box-shadow: 0 0 0 5px rgba(15, 29, 24, 0.28);
+  border-radius: 4px;
+  box-shadow: none;
 }
 
-/* Chiffres tabulaires partout où un montant, une date ou un pourcentage doit
- * s'aligner en colonne (docx §Composition et grille). */
 .kivou-tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* Visible pour un lecteur d'écran, invisible à l'œil — utilisé pour les
- * légendes de tableau et les libellés que le design rend implicites. */
 .kivou-visually-hidden {
   position: absolute;
   width: 1px;
@@ -79,7 +82,7 @@ svg {
 }
 
 .kivou-skip-link {
-  position: absolute;
+  position: fixed;
   top: var(--kivou-space-2);
   left: var(--kivou-space-2);
   z-index: 100;
@@ -96,12 +99,15 @@ svg {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
   *,
   *::before,
   *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
-    scroll-behavior: auto !important;
   }
 }
