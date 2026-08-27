@@ -64,6 +64,15 @@ from signals.supplier_discovery.contracts import DiscoveryAuthorizationInput
 NOW = dt.datetime(2026, 8, 25, 14, tzinfo=dt.UTC)
 OPPORTUNITY_ID = "opportunity-qa-001"
 QA_SCOPE = RuntimeQaScope(country="CH", language="fr", wedge="construction")
+RECOVERY_AT = NOW + dt.timedelta(minutes=1)
+RECOVERY_CYCLE_REF = "cycle-qa-fr-002"
+RECOVERY_OPPORTUNITY_ID = "opportunity-qa-fr-002"
+RECOVERY_SIGNAL_KEY = "signal-qa-fr-002"
+RECOVERY_QA_SCOPE = RuntimeQaScope(
+    country="FR",
+    language="fr",
+    wedge="construction",
+)
 
 
 class ReadyPolicyInputs:
@@ -167,10 +176,12 @@ def _context(
     *,
     attempt: int = 1,
     at: dt.datetime = NOW,
+    cycle_ref: str = "cycle-qa-001",
+    opportunity_key: str = "signal-qa-001",
 ) -> AcquisitionActionContext:
     cycle = RuntimeCycleSnapshot(
-        cycle_ref="cycle-qa-001",
-        opportunity_key="signal-qa-001",
+        cycle_ref=cycle_ref,
+        opportunity_key=opportunity_key,
         status=RuntimeCycleStatus.RUNNING,
         next_stage=stage,
         spent_cost=Decimal("0"),
@@ -315,12 +326,22 @@ def test_live_factory_recovers_one_cycle_after_eighteen_chf_durable_cost(
         stage: AcquisitionRuntimeStage,
         *,
         attempt: int,
+        at: dt.datetime = NOW,
+        cycle_ref: str = "cycle-qa-001",
+        opportunity_key: str = "signal-qa-001",
+        acquisition_opportunity_id: str = OPPORTUNITY_ID,
     ):
-        context = _context(stage, attempt=attempt)
+        context = _context(
+            stage,
+            attempt=attempt,
+            at=at,
+            cycle_ref=cycle_ref,
+            opportunity_key=opportunity_key,
+        )
         identity = deterministic_attempt_identity(context.stage_snapshot)
         if stage is AcquisitionRuntimeStage.SUPPLIER_DISCOVERY:
             call = active_factory.supplier(context, identity, ())
-            target_ref = "procurement-opportunity:signal-qa-001"
+            target_ref = f"procurement-opportunity:{opportunity_key}"
             opportunity_id = None
             expected_version = None
         elif stage is AcquisitionRuntimeStage.CONTACT_DISCOVERY:
@@ -328,12 +349,12 @@ def test_live_factory_recovers_one_cycle_after_eighteen_chf_durable_cost(
                 context,
                 identity,
                 (),
-                opportunity_id=OPPORTUNITY_ID,
+                opportunity_id=acquisition_opportunity_id,
             )
-            target_ref = f"acquisition-opportunity:{OPPORTUNITY_ID}"
-            opportunity_id = OPPORTUNITY_ID
+            target_ref = f"acquisition-opportunity:{acquisition_opportunity_id}"
+            opportunity_id = acquisition_opportunity_id
             expected_version = acquisition.get_opportunity(
-                OPPORTUNITY_ID
+                acquisition_opportunity_id
             ).stream_version
         else:
             assert stage is AcquisitionRuntimeStage.COMPANY_RESEARCH
@@ -341,12 +362,12 @@ def test_live_factory_recovers_one_cycle_after_eighteen_chf_durable_cost(
                 context,
                 identity,
                 (),
-                opportunity_id=OPPORTUNITY_ID,
+                opportunity_id=acquisition_opportunity_id,
             )
-            target_ref = f"acquisition-opportunity:{OPPORTUNITY_ID}"
-            opportunity_id = OPPORTUNITY_ID
+            target_ref = f"acquisition-opportunity:{acquisition_opportunity_id}"
+            opportunity_id = acquisition_opportunity_id
             expected_version = acquisition.get_opportunity(
-                OPPORTUNITY_ID
+                acquisition_opportunity_id
             ).stream_version
         policy_request = request(
             stage.command,
@@ -357,19 +378,24 @@ def test_live_factory_recovers_one_cycle_after_eighteen_chf_durable_cost(
             action_fingerprint=context.proposal.argument_fingerprint,
             proposed_volume=0,
         )
-        return call.budget_usage, gateway.evaluate_and_record(
-            policy_request,
-            evaluated_at=NOW,
-            budget_usage=call.budget_usage,
+        return (
+            context,
+            call,
+            gateway.evaluate_and_record(
+                policy_request,
+                evaluated_at=context.at,
+                budget_usage=call.budget_usage,
+            ),
         )
 
-    prior_decisions = [
-        evaluate(factory, AcquisitionRuntimeStage.SUPPLIER_DISCOVERY, attempt=1)[1],
-        evaluate(factory, AcquisitionRuntimeStage.SUPPLIER_DISCOVERY, attempt=2)[1],
-        evaluate(factory, AcquisitionRuntimeStage.CONTACT_DISCOVERY, attempt=1)[1],
-        evaluate(factory, AcquisitionRuntimeStage.CONTACT_DISCOVERY, attempt=2)[1],
-        evaluate(factory, AcquisitionRuntimeStage.COMPANY_RESEARCH, attempt=1)[1],
+    prior_evaluations = [
+        evaluate(factory, AcquisitionRuntimeStage.SUPPLIER_DISCOVERY, attempt=1),
+        evaluate(factory, AcquisitionRuntimeStage.SUPPLIER_DISCOVERY, attempt=2),
+        evaluate(factory, AcquisitionRuntimeStage.CONTACT_DISCOVERY, attempt=1),
+        evaluate(factory, AcquisitionRuntimeStage.CONTACT_DISCOVERY, attempt=2),
+        evaluate(factory, AcquisitionRuntimeStage.COMPANY_RESEARCH, attempt=1),
     ]
+    prior_decisions = [item[2] for item in prior_evaluations]
 
     def executable_cost() -> Decimal:
         with engine.connect() as connection:
@@ -381,34 +407,99 @@ def test_live_factory_recovers_one_cycle_after_eighteen_chf_durable_cost(
         return Decimal(value)
 
     assert all(decision.executable for decision in prior_decisions)
+    assert {item[0].cycle.cycle_ref for item in prior_evaluations} == {"cycle-qa-001"}
+    assert {decision.policy_snapshot_id for decision in prior_decisions} == {"snapshot-1"}
     assert executable_cost() == Decimal("18")
 
+    with engine.begin() as connection:
+        historical_opportunity = (
+            connection.execute(
+                sa.select(acquisition_opportunity).where(
+                    acquisition_opportunity.c.acquisition_opportunity_id == OPPORTUNITY_ID
+                )
+            )
+            .mappings()
+            .one()
+        )
+        recovery_opportunity = dict(historical_opportunity)
+        recovery_opportunity.update(
+            acquisition_opportunity_id=RECOVERY_OPPORTUNITY_ID,
+            identity_key="runtime-test-opportunity-fr",
+            signal_ref=f"procurement-opportunity:{RECOVERY_SIGNAL_KEY}",
+            stream_version=1,
+            last_event_id="event-runtime-test-fr",
+            created_at=RECOVERY_AT,
+            updated_at=RECOVERY_AT,
+        )
+        connection.execute(sa.insert(acquisition_opportunity), recovery_opportunity)
+        historical_cycle = (
+            connection.execute(
+                sa.select(acquisition_runtime_cycle).where(
+                    acquisition_runtime_cycle.c.cycle_ref == "cycle-qa-001"
+                )
+            )
+            .mappings()
+            .one()
+        )
+        recovery_cycle = dict(historical_cycle)
+        recovery_cycle.update(
+            cycle_ref=RECOVERY_CYCLE_REF,
+            opportunity_key=RECOVERY_SIGNAL_KEY,
+            started_at=RECOVERY_AT,
+            updated_at=RECOVERY_AT,
+        )
+        connection.execute(sa.insert(acquisition_runtime_cycle), recovery_cycle)
+    PolicyStore(engine).append_control(
+        control(
+            2,
+            autonomy_mode=AutonomyMode.ASSISTED,
+            allowed_commands=tuple(
+                stage.command for stage in AcquisitionRuntimeStage
+            ),
+            allowed_countries=("FR",),
+            allowed_languages=("fr",),
+            allowed_wedges=("construction",),
+            daily_cost_cap=Decimal("30"),
+            daily_volume_cap=1,
+            effective_at=RECOVERY_AT,
+            created_at=RECOVERY_AT,
+            qa_signal_ref=f"procurement-opportunity:{RECOVERY_SIGNAL_KEY}",
+        )
+    )
     recovered_factory = LiveRuntimePolicyAuthorizationFactory(
         engine,
-        runtime_revision="runtime-config:001",
-        qa_signal_ref="procurement-opportunity:signal-qa-001",
-        qa_scope=QA_SCOPE,
+        runtime_revision="runtime-config:002",
+        qa_signal_ref=f"procurement-opportunity:{RECOVERY_SIGNAL_KEY}",
+        qa_scope=RECOVERY_QA_SCOPE,
         readiness=ReadyPolicyInputs(),
     )
-    supplier_usage, supplier = evaluate(
-        recovered_factory,
+
+    def recover(stage: AcquisitionRuntimeStage, *, attempt: int):
+        return evaluate(
+            recovered_factory,
+            stage,
+            attempt=attempt,
+            at=RECOVERY_AT,
+            cycle_ref=RECOVERY_CYCLE_REF,
+            opportunity_key=RECOVERY_SIGNAL_KEY,
+            acquisition_opportunity_id=RECOVERY_OPPORTUNITY_ID,
+        )
+
+    supplier_context, supplier_call, supplier = recover(
         AcquisitionRuntimeStage.SUPPLIER_DISCOVERY,
-        attempt=3,
+        attempt=1,
     )
-    contact_usage, contact = evaluate(
-        recovered_factory,
+    contact_context, contact_call, contact = recover(
         AcquisitionRuntimeStage.CONTACT_DISCOVERY,
-        attempt=3,
+        attempt=1,
     )
-    company_usage, company = evaluate(
-        recovered_factory,
+    company_context, company_call, company = recover(
         AcquisitionRuntimeStage.COMPANY_RESEARCH,
-        attempt=2,
+        attempt=1,
     )
-    over_cap_usage, over_cap = evaluate(
-        recovered_factory,
+    over_cap_context, over_cap_call, over_cap = recover(
         AcquisitionRuntimeStage.CONTACT_DISCOVERY,
-        attempt=4,
+        attempt=2,
     )
 
     assert [
@@ -417,10 +508,27 @@ def test_live_factory_recovers_one_cycle_after_eighteen_chf_durable_cost(
         company.estimated_cost,
     ] == [Decimal("2"), Decimal("6"), Decimal("2")]
     assert [
-        supplier_usage.cost_used,
-        contact_usage.cost_used,
-        company_usage.cost_used,
+        supplier_call.budget_usage.cost_used,
+        contact_call.budget_usage.cost_used,
+        company_call.budget_usage.cost_used,
     ] == [Decimal("18"), Decimal("20"), Decimal("26")]
+    assert {
+        context.cycle.cycle_ref
+        for context in (
+            supplier_context,
+            contact_context,
+            company_context,
+            over_cap_context,
+        )
+    } == {RECOVERY_CYCLE_REF}
+    assert {
+        call.authorization.scope.country
+        for call in (supplier_call, contact_call, company_call, over_cap_call)
+    } == {"FR"}
+    assert {
+        call.authorization.qa_signal_ref
+        for call in (supplier_call, contact_call, company_call, over_cap_call)
+    } == {f"procurement-opportunity:{RECOVERY_SIGNAL_KEY}"}
     assert all(decision.executable for decision in (supplier, contact, company))
     assert [
         supplier.cost_remaining,
@@ -432,12 +540,31 @@ def test_live_factory_recovers_one_cycle_after_eighteen_chf_durable_cost(
         contact.volume_remaining,
         company.volume_remaining,
     ] == [1, 1, 1]
-    assert over_cap_usage.cost_used == Decimal("28")
+    assert over_cap_call.budget_usage.cost_used == Decimal("28")
     assert over_cap.status is PolicyStatus.BUDGET_EXCEEDED
     assert over_cap.executable is False
     assert over_cap.cost_remaining == Decimal("2")
     assert over_cap.volume_remaining == 1
     assert "daily_cost_cap_exceeded" in over_cap.reason_codes
+    with engine.connect() as connection:
+        durable_over_cap = (
+            connection.execute(
+                sa.select(policy_evaluation).where(
+                    policy_evaluation.c.evaluation_id == over_cap.evaluation_id
+                )
+            )
+            .mappings()
+            .one()
+        )
+    assert durable_over_cap["status"] == PolicyStatus.BUDGET_EXCEEDED.value
+    assert durable_over_cap["executable"] is False
+    assert Decimal(durable_over_cap["estimated_cost"]) == Decimal("6")
+    recovery_control = PolicyStore(engine).get_control(supplier.policy_snapshot_id)
+    assert recovery_control.allowed_countries == ("FR",)
+    assert supplier.target_ref == "procurement-opportunity:signal-qa-fr-002"
+    assert contact.target_ref == company.target_ref == (
+        "acquisition-opportunity:opportunity-qa-fr-002"
+    )
     assert executable_cost() == Decimal("28")
     engine.dispose()
 
