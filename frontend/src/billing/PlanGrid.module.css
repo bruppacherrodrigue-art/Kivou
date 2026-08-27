@@ -1,72 +1,59 @@
 .grid {
-  list-style: none;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--kivou-space-4);
+  align-items: stretch;
 }
 
-.cell {
-  display: flex;
+.publicGrid {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .card {
   position: relative;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: var(--kivou-space-5);
-  width: 100%;
-  overflow: hidden;
-}
-
-.publicGrid {
-  gap: var(--kivou-space-5);
+  padding: var(--kivou-space-6);
+  border: 1px solid var(--kivou-border);
+  border-radius: var(--kivou-radius-lg);
+  background: var(--kivou-bg-surface);
 }
 
 .publicCard {
-  min-height: 34rem;
-  gap: var(--kivou-space-4);
-  border-color: var(--kivou-border-strong);
+  min-height: 100%;
 }
 
-/* La bande Forest Green de Pro : le plan recommandé est le centre visuel de la
- * grille. */
 .recommended {
-  border-color: var(--kivou-action-primary);
-  padding-top: calc(var(--kivou-space-6) + 1.75rem);
+  border-color: #8bbda1;
+  box-shadow: 0 0 0 2px var(--kivou-nav-active-bg);
+}
+
+.current {
+  background: var(--kivou-verified-bg);
 }
 
 .ribbon {
   position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  padding: var(--kivou-space-2) var(--kivou-space-4);
-  background: var(--kivou-action-primary);
-  color: var(--kivou-text-inverse);
-  font-size: var(--kivou-text-micro);
-  line-height: var(--kivou-leading-micro);
-  font-weight: var(--kivou-weight-semibold);
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  text-align: center;
-}
-
-.current {
-  border-color: var(--kivou-action-accent);
-  background: var(--kivou-select-bg);
+  top: var(--kivou-space-4);
+  right: var(--kivou-space-4);
 }
 
 .head {
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-2);
-  align-items: flex-start;
+  gap: var(--kivou-space-3);
 }
 
 .name {
-  font-family: var(--kivou-font-display);
   font-size: var(--kivou-text-h3);
-  line-height: var(--kivou-leading-h3);
-  font-weight: var(--kivou-weight-regular);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.positioning {
+  color: var(--kivou-text-secondary);
+  font-size: var(--kivou-text-small);
 }
 
 .price {
@@ -76,40 +63,22 @@
 }
 
 .amount {
-  font-family: var(--kivou-font-display);
-  font-size: 2.25rem;
-  line-height: 1.1;
-  font-weight: var(--kivou-weight-regular);
-  color: var(--kivou-text-primary);
-}
-
-.publicCard .amount {
-  font-size: clamp(2.5rem, 3vw, 2.9rem);
+  font-size: var(--kivou-text-h1);
+  font-weight: var(--kivou-weight-semibold);
+  letter-spacing: -0.03em;
 }
 
 .interval {
+  color: var(--kivou-text-muted);
   font-size: var(--kivou-text-small);
-  color: var(--kivou-text-secondary);
-}
-
-.positioning {
-  max-width: 29ch;
-  min-height: 4.5rem;
-  padding-top: var(--kivou-space-2);
-  font-size: var(--kivou-text-small);
-  line-height: var(--kivou-leading-small);
-  color: var(--kivou-text-secondary);
 }
 
 .featuresLabel {
-  margin-top: var(--kivou-space-2);
-  margin-bottom: calc(-1 * var(--kivou-space-2));
+  color: var(--kivou-text-muted);
   font-size: var(--kivou-text-micro);
-  line-height: var(--kivou-leading-micro);
   font-weight: var(--kivou-weight-semibold);
-  letter-spacing: 0.1em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--kivou-text-primary);
 }
 
 .features {
@@ -117,45 +86,35 @@
   display: flex;
   flex-direction: column;
   gap: var(--kivou-space-3);
-  flex: 1;
-  padding-top: var(--kivou-space-5);
-  border-top: 1px solid var(--kivou-border);
 }
 
-.features li {
+.cell {
   display: flex;
   align-items: flex-start;
   gap: var(--kivou-space-2);
-  font-size: var(--kivou-text-small);
-  line-height: var(--kivou-leading-small);
   color: var(--kivou-text-secondary);
+  font-size: var(--kivou-text-small);
 }
 
 .featureIcon {
   width: 1rem;
-  height: 1rem;
   flex: none;
-  margin-top: 0.2rem;
-  color: var(--kivou-action-primary);
+  margin-top: 0.15rem;
+  color: var(--kivou-color-success);
 }
 
 .action {
   margin-top: auto;
 }
 
-.publicCard .action {
-  padding-top: var(--kivou-space-3);
-}
-
-@media (min-width: 640px) {
+@media (min-width: 700px) {
   .grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1180px) {
-  .grid {
+  .publicGrid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    align-items: stretch;
   }
 }
