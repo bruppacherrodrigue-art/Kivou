@@ -121,6 +121,7 @@ class ProbeInstantlyProvider:
 class ClosedFakeHermes:
     def __init__(self) -> None:
         self.commands: list[str] = []
+        self.required_action_counts: list[int | None] = []
 
     def health(self) -> SupervisorHealth:
         pin = load_hermes_pin()
@@ -131,11 +132,12 @@ class ClosedFakeHermes:
             executable_tools=(),
         )
 
-    def plan(self, context) -> SupervisorPlan:
+    def plan(self, context, *, required_action_count=None) -> SupervisorPlan:
         command = context.available_commands[0]
         target = context.opportunities[0].object_ref
         cost = context.budget.maximum_cycle_cost
         self.commands.append(command)
+        self.required_action_counts.append(required_action_count)
         pin = load_hermes_pin()
         return SupervisorPlan(
             plan_id=f"plan-{len(self.commands):02d}",
@@ -794,6 +796,7 @@ def test_fake_full_cycle_uses_real_store_registry_runner_and_closed_supervisor(
     assert result.status is RuntimeRunStatus.COMPLETED
     assert executed == list(AcquisitionRuntimeStage)
     assert hermes.commands == [stage.command for stage in AcquisitionRuntimeStage]
+    assert hermes.required_action_counts == [1] * len(AcquisitionRuntimeStage)
     assert composition.store.read_runtime_observation() is not None
     engine.dispose()
 

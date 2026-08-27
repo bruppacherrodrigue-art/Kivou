@@ -59,12 +59,14 @@ class FakeSupervisor:
         )
     )
     contexts: list[object] = field(default_factory=list)
+    required_action_counts: list[int | None] = field(default_factory=list)
 
     def health(self) -> SupervisorHealth:
         return self.runtime_health
 
-    def plan(self, context):
+    def plan(self, context, *, required_action_count=None):
         self.contexts.append(context)
+        self.required_action_counts.append(required_action_count)
         return self.response
 
 
@@ -152,6 +154,7 @@ def test_allowed_hermes_plan_becomes_one_fingerprinted_kivou_action() -> None:
     assert "model_payload" not in proposal.model_dump_json()
 
     assert len(hermes.contexts) == 1
+    assert hermes.required_action_counts == [1]
     context = hermes.contexts[0]
     assert context.available_commands == (
         AcquisitionRuntimeStage.SUPPLIER_DISCOVERY.command,

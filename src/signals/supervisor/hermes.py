@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import ValidationError
+from pydantic import Field, ValidationError
 
 from signals.supervisor.contracts import (
     ProposedAction,
@@ -61,6 +61,10 @@ CLOSED_PROVIDER_ERROR_CODES = frozenset(
         "NETWORK",
     }
 )
+
+
+class _ExactlyOneActionSupervisorPlan(SupervisorPlan):
+    proposed_actions: tuple[ProposedAction, ...] = Field(min_length=1, max_length=1)
 
 
 def transform_provider_schema(original_schema: Mapping[str, Any]) -> dict[str, Any]:
@@ -235,14 +239,24 @@ class HermesSupervisorAdapter:
         payload["content_boundary"] = "UNTRUSTED_DATA"
         return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
 
-    def plan(self, context: SupervisorContext) -> SupervisorPlan:
+    def plan(
+        self,
+        context: SupervisorContext,
+        *,
+        required_action_count: Literal[1] | None = None,
+    ) -> SupervisorPlan:
         self.settings.require_configured()
         try:
             validate_context(context, self.settings.limits)
         except ValueError as exc:
             raise SupervisorValidationError("Kivou supervisor context is invalid") from exc
 
-        original_schema = SupervisorPlan.model_json_schema()
+        plan_contract = (
+            _ExactlyOneActionSupervisorPlan
+            if required_action_count == 1
+            else SupervisorPlan
+        )
+        original_schema = plan_contract.model_json_schema()
         provider_schema = transform_provider_schema(original_schema)
         response = self.transport.invoke(
             {
@@ -271,7 +285,7 @@ class HermesSupervisorAdapter:
         if not isinstance(parsed, dict):
             raise SupervisorValidationError("Hermes response is not one JSON object")
         try:
-            plan = SupervisorPlan.model_validate(parsed)
+            plan = plan_contract.model_validate(parsed)
         except ValidationError as exc:
             raise SupervisorValidationError("Hermes plan failed strict schema validation") from exc
         try:

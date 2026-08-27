@@ -63,7 +63,12 @@ _FINGERPRINT_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 class _KivouSupervisor(Protocol):
     def health(self) -> SupervisorHealth: ...
 
-    def plan(self, context: SupervisorContext) -> SupervisorPlan: ...
+    def plan(
+        self,
+        context: SupervisorContext,
+        *,
+        required_action_count: Literal[1] | None = None,
+    ) -> SupervisorPlan: ...
 
 
 class _ClosedRegistry(Protocol):
@@ -149,7 +154,7 @@ class AcquisitionHermesSupervisor:
             ),
             recent_outcomes=(),
         )
-        plan = self._supervisor.plan(context)
+        plan = self._supervisor.plan(context, required_action_count=1)
         action = self._validate_plan(
             plan,
             stage=stage,
