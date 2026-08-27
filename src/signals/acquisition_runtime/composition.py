@@ -141,6 +141,7 @@ def build_acquisition_domain_composition(
         keyring=suppression_keyring,
         sender_config=sender_config,
         clock=clock,
+        expected_contact_profile_version=RUNTIME_QA_CONTACT_PROFILE_VERSION,
     )
     campaign_service = CampaignService(
         engine,
