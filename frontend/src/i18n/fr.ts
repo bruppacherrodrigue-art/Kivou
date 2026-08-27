@@ -50,6 +50,7 @@ export const fr = {
     icps: 'Profils de ciblage',
     billing: 'Facturation',
     notifications: 'Notifications',
+    settings: 'Compte',
     cockpit: 'Cockpit commercial',
     logout: 'Se déconnecter',
     login: 'Se connecter',
@@ -62,6 +63,20 @@ export const fr = {
     closeMenu: 'Fermer le menu',
     dismissMenu: 'Fermer le menu en cliquant à côté',
     account: 'Compte',
+  },
+
+  settings: {
+    title: 'Compte',
+    lead: 'Les informations utiles de votre compte, sans réglages qui ne sont pas encore disponibles.',
+    identityTitle: 'Votre accès',
+    company: 'Entreprise',
+    email: 'Adresse e-mail',
+    billingTitle: 'Offre et facturation',
+    billingLead: 'Consultez votre offre, vos droits et le portail de facturation sécurisé.',
+    billingAction: 'Voir la facturation',
+    notificationsTitle: 'Notifications e-mail',
+    notificationsLead: 'Choisissez si Kivou peut vous envoyer les alertes prévues par votre offre.',
+    notificationsAction: 'Gérer les notifications',
   },
 
   dashboard: {

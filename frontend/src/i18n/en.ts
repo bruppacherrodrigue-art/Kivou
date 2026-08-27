@@ -44,6 +44,7 @@ export const en: Dictionary = {
     icps: 'Target profiles',
     billing: 'Billing',
     notifications: 'Notifications',
+    settings: 'Account',
     cockpit: 'Commercial cockpit',
     logout: 'Sign out',
     login: 'Sign in',
@@ -56,6 +57,20 @@ export const en: Dictionary = {
     closeMenu: 'Close menu',
     dismissMenu: 'Close the menu by clicking outside',
     account: 'Account',
+  },
+
+  settings: {
+    title: 'Account',
+    lead: 'The useful information about your account, without settings that are not available yet.',
+    identityTitle: 'Your access',
+    company: 'Company',
+    email: 'Email address',
+    billingTitle: 'Plan and billing',
+    billingLead: 'Review your plan, entitlements and secure billing portal.',
+    billingAction: 'View billing',
+    notificationsTitle: 'Email notifications',
+    notificationsLead: 'Choose whether Kivou can send the alerts included in your plan.',
+    notificationsAction: 'Manage notifications',
   },
 
   dashboard: {

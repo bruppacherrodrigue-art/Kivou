@@ -5,7 +5,6 @@ import { useSession } from '../auth/SessionProvider'
 import { KivouLogo } from '../components/KivouLogo'
 import { Button } from '../components/Button'
 import {
-  BellIcon,
   BillingIcon,
   CloseIcon,
   DashboardIcon,
@@ -34,8 +33,7 @@ const NAV_ITEMS = [
   { to: '/app/dashboard', key: 'dashboard', Icon: DashboardIcon },
   { to: '/app/signals', key: 'signals', Icon: SignalsIcon },
   { to: '/app/icps', key: 'icps', Icon: TargetIcon },
-  { to: '/app/billing', key: 'billing', Icon: BillingIcon },
-  { to: '/app/notifications', key: 'notifications', Icon: BellIcon },
+  { to: '/app/settings', key: 'settings', Icon: BillingIcon },
 ] as const
 
 const INTERNAL_NAV_ITEM = {

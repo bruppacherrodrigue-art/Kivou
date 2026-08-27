@@ -46,6 +46,10 @@
   align-items: start;
 }
 
+.supportGrid > :not(.icpSection) {
+  display: none;
+}
+
 .icpSection,
 .sectionCard {
   display: flex;
