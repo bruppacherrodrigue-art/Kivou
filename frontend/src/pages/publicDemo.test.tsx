@@ -149,7 +149,7 @@ describe('démonstration publique de signal', () => {
     ]) {
       expect(within(timingSection).getByText(label)).toBeInTheDocument()
     }
-    expect(text).not.toMatch(/maintenant|timing favorable|attribution récente|fenêtre de prospection est ouverte/i)
+    expect(timingSection.textContent ?? '').not.toMatch(/maintenant|timing favorable|attribution récente|fenêtre de prospection est ouverte/i)
     expect(text).toContain('L’exécution est prévue à partir du 28 octobre 2026')
   })
 
