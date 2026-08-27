@@ -578,10 +578,138 @@ def test_default_root_composition_constructs_real_domains_without_network(
         expected_identity,
         webhook_configuration.suppression_keyring.current_key_version,
     )
+    assert composition.domain.actions._targeting.organization_locations == (
+        "Switzerland",
+    )
     api_ingress = build_instantly_webhook_service(engine, webhook_configuration)
     assert api_ingress._suppression_keyring.identities_for_email(QA_RECIPIENT)[
         webhook_configuration.suppression_keyring.current_key_version
     ] == expected_identity
+    engine.dispose()
+
+
+def test_runtime_supplier_targeting_follows_the_exact_french_qa_scope(
+    tmp_path,
+) -> None:
+    engine = _engine()
+    PolicyStore(engine).append_control(
+        control(
+            2,
+            allowed_countries=("FR",),
+            allowed_commands=tuple(
+                stage.command for stage in AcquisitionRuntimeStage
+            ),
+            effective_at=NOW - dt.timedelta(minutes=30),
+        )
+    )
+    configured = _runtime_config()
+    configured = configured.model_copy(
+        update={
+            "deployment": configured.deployment.model_copy(
+                update={
+                    "qa_scope": RuntimeQaScope(
+                        country="FR",
+                        language="fr",
+                        wedge="construction",
+                    )
+                }
+            )
+        }
+    )
+    provider = NoNetworkProvider()
+    apollo = ApolloComponents(
+        organization_search=provider,
+        contact_discovery=provider,
+        company_research=provider,
+        identity=provider,
+    )
+
+    composition = build_runtime_execution_composition(
+        engine=engine,
+        runtime_config=configured,
+        connectivity_config=_connectivity_config(tmp_path),
+        links=_links(),
+        webhook_configuration=_webhook_configuration(),
+        apollo=apollo,
+        instantly_provider=provider,
+        hermes_runtime=ClosedFakeHermes(),
+        dependency_probe=ReadyDependencyProbe(),
+        clock=lambda: NOW,
+    )
+
+    assert composition.domain.actions._targeting.organization_locations == (
+        "France",
+    )
+    engine.dispose()
+
+
+def test_supplier_targeting_is_bound_to_the_durable_cycle_identity(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    engine = _engine()
+    provider = NoNetworkProvider()
+    apollo = ApolloComponents(
+        organization_search=provider,
+        contact_discovery=provider,
+        company_research=provider,
+        identity=provider,
+    )
+    arguments = {
+        "engine": engine,
+        "runtime_config": _runtime_config(),
+        "connectivity_config": _connectivity_config(tmp_path),
+        "links": _links(),
+        "webhook_configuration": _webhook_configuration(),
+        "apollo": apollo,
+        "instantly_provider": provider,
+        "hermes_runtime": ClosedFakeHermes(),
+        "dependency_probe": ReadyDependencyProbe(),
+        "clock": lambda: NOW,
+    }
+
+    before = build_runtime_execution_composition(**arguments)
+    monkeypatch.setitem(
+        runtime_execution._APOLLO_LOCATION_BY_QA_COUNTRY,
+        "CH",
+        "Swiss Confederation",
+    )
+    after = build_runtime_execution_composition(**arguments)
+
+    assert before.domain.actions._targeting != after.domain.actions._targeting
+    assert before.config_fingerprint != after.config_fingerprint
+    engine.dispose()
+
+
+def test_runtime_rejects_a_missing_supplier_country_mapping(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    engine = _engine()
+    provider = NoNetworkProvider()
+    apollo = ApolloComponents(
+        organization_search=provider,
+        contact_discovery=provider,
+        company_research=provider,
+        identity=provider,
+    )
+    monkeypatch.delitem(runtime_execution._APOLLO_LOCATION_BY_QA_COUNTRY, "CH")
+
+    with pytest.raises(RuntimeExecutionConfigurationError) as error:
+        build_runtime_execution_composition(
+            engine=engine,
+            runtime_config=_runtime_config(),
+            connectivity_config=_connectivity_config(tmp_path),
+            links=_links(),
+            webhook_configuration=_webhook_configuration(),
+            apollo=apollo,
+            instantly_provider=provider,
+            hermes_runtime=ClosedFakeHermes(),
+            dependency_probe=ReadyDependencyProbe(),
+            clock=lambda: NOW,
+        )
+
+    assert error.value.code == "SUPPLIER_TARGETING_COUNTRY_UNSUPPORTED"
     engine.dispose()
 
 

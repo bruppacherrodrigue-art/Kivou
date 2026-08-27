@@ -95,6 +95,10 @@ from signals.supplier_discovery.contracts import SupplierTargetingConfig
 _PUBLIC_APP_URL = "KIVOU_PUBLIC_APP_URL"
 _ATTRIBUTION_KEY = "KIVOU_ATTRIBUTION_HMAC_KEY"
 _ATTRIBUTION_KEY_VERSION = "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION"
+_APOLLO_LOCATION_BY_QA_COUNTRY = {
+    "CH": "Switzerland",
+    "FR": "France",
+}
 
 
 class RuntimeExecutionConfigurationError(RuntimeError):
@@ -439,11 +443,12 @@ def _configuration_fingerprint(
     webhook_configuration: InstantlyWebhookRuntimeConfiguration,
     sender: SenderComplianceConfig,
     campaign: CampaignDeploymentConfig,
+    supplier_targeting: SupplierTargetingConfig,
     registry_identity: str,
 ) -> str:
     return semantic_fingerprint(
         {
-            "kind": "acquisition-runtime-execution-config-v1",
+            "kind": "acquisition-runtime-execution-config-v2",
             "runtime": runtime_config.deployment.model_dump(mode="json"),
             "connectivity": connectivity_config.deployment.model_dump(mode="json"),
             "public_app_url": links.public_app_url,
@@ -463,6 +468,7 @@ def _configuration_fingerprint(
             ),
             "sender_config_fingerprint": sender.config_fingerprint,
             "campaign": campaign.model_dump(mode="json"),
+            "supplier_targeting": supplier_targeting.model_dump(mode="json"),
             "registry_identity": registry_identity,
         }
     )
@@ -577,7 +583,17 @@ def build_runtime_execution_composition(
             keys={links.attribution_key_version: links.attribution_hmac_key},
         ),
     )
-    targeting = SupplierTargetingConfig(max_pages=1, per_page=1, candidate_cap=1)
+    supplier_location = _APOLLO_LOCATION_BY_QA_COUNTRY.get(scope.country)
+    if supplier_location is None:
+        raise RuntimeExecutionConfigurationError(
+            "SUPPLIER_TARGETING_COUNTRY_UNSUPPORTED"
+        )
+    targeting = SupplierTargetingConfig(
+        organization_locations=(supplier_location,),
+        max_pages=1,
+        per_page=1,
+        candidate_cap=1,
+    )
     empty_registry = AcquisitionActionRegistry(
         {
             stage: lambda _context: RuntimeActionResult(
@@ -594,6 +610,7 @@ def build_runtime_execution_composition(
         webhook_configuration=webhook_configuration,
         sender=sender_config,
         campaign=campaign_deployment,
+        supplier_targeting=targeting,
         registry_identity=empty_registry.identity,
     )
     dependencies = (dependency_probe or FailClosedRuntimeDependencyProbe()).check(
