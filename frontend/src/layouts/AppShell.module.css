@@ -3,13 +3,13 @@
   background: var(--kivou-bg-canvas);
 }
 
-/* ── Sidebar desktop : 240px, exactement la référence 04 ─────────────────── */
 .sidebar {
   display: none;
 }
 
 .logoLink {
   display: inline-flex;
+  width: fit-content;
   text-decoration: none;
   border-radius: var(--kivou-radius-sm);
 }
@@ -35,7 +35,7 @@
   min-height: var(--kivou-control-height);
   padding: 0 var(--kivou-space-4);
   border-radius: var(--kivou-radius-sm);
-  color: var(--kivou-text-secondary);
+  color: var(--kivou-sidebar-text);
   font-size: var(--kivou-text-small);
   font-weight: var(--kivou-weight-medium);
   text-decoration: none;
@@ -45,16 +45,13 @@
 }
 
 .navItem:hover {
-  background: var(--kivou-bg-subtle);
-  color: var(--kivou-text-primary);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--kivou-text-inverse);
 }
 
-/* Fond vert très doux pour l'item actif (directive §5 Navigation). Trois
- * signaux le portent : le fond, la graisse et le liseré — jamais la couleur
- * seule. */
 .navItemActive {
   background: var(--kivou-nav-active-bg);
-  color: var(--kivou-action-primary);
+  color: var(--kivou-nav-active-text);
   font-weight: var(--kivou-weight-semibold);
 }
 
@@ -62,11 +59,11 @@
   position: absolute;
   left: 0;
   top: 50%;
-  transform: translateY(-50%);
   width: 3px;
   height: 1.25rem;
   border-radius: var(--kivou-radius-pill);
-  background: var(--kivou-action-primary);
+  background: currentColor;
+  transform: translateY(-50%);
 }
 
 .navIcon {
@@ -77,7 +74,7 @@
 
 .sidebarFooter {
   padding-top: var(--kivou-space-4);
-  border-top: 1px solid var(--kivou-border);
+  border-top: 1px solid var(--kivou-sidebar-border);
 }
 
 .account {
@@ -100,8 +97,9 @@
   width: 2.25rem;
   height: 2.25rem;
   flex: none;
+  border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: var(--kivou-radius-sm);
-  background: var(--kivou-action-primary);
+  background: rgba(255, 255, 255, 0.1);
   color: var(--kivou-text-inverse);
   font-size: var(--kivou-text-micro);
   font-weight: var(--kivou-weight-semibold);
@@ -114,23 +112,35 @@
   min-width: 0;
 }
 
-.accountName {
-  font-size: var(--kivou-text-small);
-  font-weight: var(--kivou-weight-medium);
+.accountName,
+.accountEmail {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.accountName {
+  color: var(--kivou-text-inverse);
+  font-size: var(--kivou-text-small);
+  font-weight: var(--kivou-weight-medium);
 }
 
 .accountEmail {
+  color: var(--kivou-sidebar-muted);
   font-size: var(--kivou-text-micro);
-  color: var(--kivou-text-muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-/* ── Barre mobile et tiroir ──────────────────────────────────────────────── */
+.account :global(button) {
+  background: transparent;
+  border-color: var(--kivou-sidebar-border);
+  color: var(--kivou-sidebar-text);
+}
+
+.account :global(button:hover) {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--kivou-text-inverse);
+}
+
 .mobileBar {
   position: sticky;
   top: 0;
@@ -139,16 +149,17 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--kivou-space-4);
+  min-height: 68px;
   padding: var(--kivou-space-3) var(--kivou-gutter-mobile);
-  background: var(--kivou-bg-surface);
+  background: rgba(255, 255, 255, 0.94);
   border-bottom: 1px solid var(--kivou-border);
+  backdrop-filter: blur(12px);
 }
 
 .drawerToggle {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  /* Zone tactile de 44px minimum (§20, §38). */
   width: var(--kivou-control-height);
   height: var(--kivou-control-height);
   padding: 0;
@@ -176,7 +187,7 @@
   inset: 0;
   border: 0;
   padding: 0;
-  background: rgba(15, 29, 24, 0.32);
+  background: rgba(10, 29, 23, 0.48);
   cursor: pointer;
 }
 
@@ -185,12 +196,13 @@
   display: flex;
   flex-direction: column;
   gap: var(--kivou-space-6);
-  width: min(var(--kivou-sidebar-width), 82vw);
+  width: min(var(--kivou-sidebar-width), 86vw);
   height: 100%;
   padding: var(--kivou-space-5);
-  background: var(--kivou-bg-surface);
-  border-right: 1px solid var(--kivou-border);
+  background: var(--kivou-sidebar-bg);
+  border-right: 1px solid var(--kivou-sidebar-border);
   overflow-y: auto;
+  box-shadow: var(--kivou-shadow-raised);
 }
 
 .drawerHead {
@@ -200,37 +212,46 @@
   gap: var(--kivou-space-4);
 }
 
-/* ── Contenu ─────────────────────────────────────────────────────────────── */
+.drawer .drawerToggle {
+  background: transparent;
+  border-color: var(--kivou-sidebar-border);
+  color: var(--kivou-text-inverse);
+}
+
 .main {
+  min-width: 0;
   padding: var(--kivou-space-6) var(--kivou-gutter-mobile) var(--kivou-space-16);
+}
+
+@media (min-width: 768px) {
+  .main {
+    padding: var(--kivou-space-8) var(--kivou-gutter-desktop) var(--kivou-space-16);
+  }
 }
 
 @media (min-width: 1024px) {
   .shell {
-    display: grid;
-    grid-template-columns: var(--kivou-sidebar-width) minmax(0, 1fr);
-    align-items: start;
+    padding-left: var(--kivou-sidebar-width);
   }
 
-  .mobileBar,
-  .drawerLayer {
+  .mobileBar {
     display: none;
   }
 
   .sidebar {
-    position: sticky;
-    top: 0;
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30;
     display: flex;
     flex-direction: column;
-    gap: var(--kivou-space-6);
-    height: 100vh;
-    padding: var(--kivou-space-6) var(--kivou-space-5);
-    background: var(--kivou-bg-surface);
-    border-right: 1px solid var(--kivou-border);
+    gap: var(--kivou-space-8);
+    width: var(--kivou-sidebar-width);
+    padding: var(--kivou-space-8) var(--kivou-space-5) var(--kivou-space-5);
+    background: var(--kivou-sidebar-bg);
+    border-right: 1px solid var(--kivou-sidebar-border);
   }
 
   .main {
-    /* Gouttière SaaS desktop : 24px minimum, portée à 32px au-delà. */
-    padding: var(--kivou-space-8) var(--kivou-gutter-desktop) var(--kivou-space-20);
+    padding: var(--kivou-space-10) var(--kivou-space-10) var(--kivou-space-20);
   }
 }

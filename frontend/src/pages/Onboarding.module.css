@@ -1,77 +1,68 @@
 .page {
   min-height: 100vh;
-  padding: var(--kivou-space-10) var(--kivou-gutter-mobile) var(--kivou-space-16);
-  background: var(--kivou-bg-canvas);
+  display: grid;
+  place-items: start center;
+  padding: var(--kivou-space-8) var(--kivou-gutter-mobile) var(--kivou-space-16);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(223, 241, 231, 0.85), transparent 34rem),
+    var(--kivou-bg-canvas);
 }
 
 .inner {
-  max-width: 46rem;
-  margin: 0 auto;
+  width: min(100%, 48rem);
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-8);
+  gap: var(--kivou-space-6);
 }
 
 .header {
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-5);
+  gap: var(--kivou-space-3);
+  text-align: center;
+  align-items: center;
 }
 
 .illustration {
-  width: min(280px, 70%);
+  display: none;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kivou-space-6);
+}
+
+.stepTitle {
+  font-size: var(--kivou-text-h2);
+  line-height: var(--kivou-leading-h2);
+  font-weight: var(--kivou-weight-semibold);
+}
+
+.stepTitle:focus {
+  outline: none;
+}
+
+.stepLead {
+  max-width: 60ch;
+  color: var(--kivou-text-secondary);
 }
 
 .footer {
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-5);
-  align-items: stretch;
-}
-
-@media (min-width: 768px) {
-  .page {
-    padding-left: var(--kivou-gutter-desktop);
-    padding-right: var(--kivou-gutter-desktop);
-  }
-
-  .footer {
-    align-items: flex-start;
-  }
-}
-
-/* ── Étapes ──────────────────────────────────────────────────────────────── */
-.step {
-  display: flex;
-  flex-direction: column;
-  gap: var(--kivou-space-5);
-}
-
-/* Le titre d'étape reçoit le focus après Suivant ou Retour : sans cela, le
- * curseur clavier resterait sur un bouton qui vient de changer de sens, et un
- * lecteur d'écran n'annoncerait pas le changement de contenu. */
-.stepTitle {
-  font-family: var(--kivou-font-display);
-  font-size: var(--kivou-text-h2);
-  line-height: var(--kivou-leading-h2);
-  font-weight: var(--kivou-weight-semibold);
-  color: var(--kivou-text-primary);
-}
-
-.stepTitle:focus-visible {
-  outline: 2px solid var(--kivou-action-primary);
-  outline-offset: 4px;
-}
-
-.stepLead {
-  font-size: var(--kivou-text-small);
-  line-height: var(--kivou-leading-small);
-  color: var(--kivou-text-secondary);
-  margin-top: calc(-1 * var(--kivou-space-3));
+  gap: var(--kivou-space-4);
 }
 
 .actions {
   display: flex;
   flex-wrap: wrap;
+  justify-content: space-between;
   gap: var(--kivou-space-3);
+}
+
+@media (min-width: 768px) {
+  .page {
+    padding-top: var(--kivou-space-12);
+  }
 }

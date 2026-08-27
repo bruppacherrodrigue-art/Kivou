@@ -153,7 +153,7 @@ export function AppShell() {
 
       <aside className={styles.sidebar}>
         <Link to="/app/dashboard" className={styles.logoLink}>
-          <KivouLogo size="md" />
+          <KivouLogo size="md" tone="inverse" />
         </Link>
         {navigation}
         <div className={styles.sidebarFooter}>{accountPanel}</div>
@@ -169,7 +169,7 @@ export function AppShell() {
           />
           <div className={styles.drawer} id="kivou-app-drawer" role="dialog" aria-modal="true">
             <div className={styles.drawerHead}>
-              <KivouLogo size="sm" />
+              <KivouLogo size="sm" tone="inverse" />
               <button
                 type="button"
                 className={styles.drawerToggle}
