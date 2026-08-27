@@ -32,6 +32,7 @@ from signals.acquisition_connectivity.instantly import InstantlyConnectivityProb
 from signals.acquisition_runtime.composition import (
     AcquisitionDomainComposition,
     build_acquisition_domain_composition,
+    runtime_qa_contact_profile_descriptor,
 )
 from signals.acquisition_runtime.config import load_runtime_config
 from signals.acquisition_runtime.contracts import (
@@ -448,7 +449,7 @@ def _configuration_fingerprint(
 ) -> str:
     return semantic_fingerprint(
         {
-            "kind": "acquisition-runtime-execution-config-v2",
+            "kind": "acquisition-runtime-execution-config-v3",
             "runtime": runtime_config.deployment.model_dump(mode="json"),
             "connectivity": connectivity_config.deployment.model_dump(mode="json"),
             "public_app_url": links.public_app_url,
@@ -469,6 +470,7 @@ def _configuration_fingerprint(
             "sender_config_fingerprint": sender.config_fingerprint,
             "campaign": campaign.model_dump(mode="json"),
             "supplier_targeting": supplier_targeting.model_dump(mode="json"),
+            "contact_profile": runtime_qa_contact_profile_descriptor(),
             "registry_identity": registry_identity,
         }
     )
@@ -590,7 +592,6 @@ def build_runtime_execution_composition(
         )
     targeting = SupplierTargetingConfig(
         organization_locations=(supplier_location,),
-        employee_ranges=("1,200",),
         max_pages=1,
         per_page=1,
         candidate_cap=1,

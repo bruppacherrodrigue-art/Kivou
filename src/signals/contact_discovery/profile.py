@@ -5,7 +5,14 @@ from __future__ import annotations
 import hashlib
 import json
 
-from signals.contact_discovery.contracts import DecisionMakerSearchProfile
+from signals.contact_discovery.contracts import (
+    MAX_ENRICHMENT_ATTEMPTS,
+    MAX_SEARCH_PAGES,
+    MAX_SEARCH_RESULTS,
+    PROFILE_VERSION,
+    SEARCH_TOO_BROAD_THRESHOLD,
+    DecisionMakerSearchProfile,
+)
 
 PERSON_TITLES = (
     "Head of Sales",
@@ -49,6 +56,12 @@ PERSON_SENIORITIES = (
     "director",
     "manager",
 )
+RUNTIME_QA_PROFILE_VERSION = "decision-maker-search-runtime-qa-v1"
+RUNTIME_QA_PERSON_SENIORITIES = PERSON_SENIORITIES[:-1]
+_SENIORITIES_BY_PROFILE_VERSION = {
+    PROFILE_VERSION: PERSON_SENIORITIES,
+    RUNTIME_QA_PROFILE_VERSION: RUNTIME_QA_PERSON_SENIORITIES,
+}
 
 
 def _fingerprint(payload: dict[str, object]) -> str:
@@ -57,24 +70,37 @@ def _fingerprint(payload: dict[str, object]) -> str:
     ).hexdigest()
 
 
+def decision_maker_profile_semantics(
+    profile_version: str = PROFILE_VERSION,
+) -> dict[str, object]:
+    if not isinstance(profile_version, str) or profile_version not in (
+        _SENIORITIES_BY_PROFILE_VERSION
+    ):
+        raise ValueError("unsupported decision-maker search profile version")
+    return {
+        "profile_version": profile_version,
+        "person_titles": PERSON_TITLES,
+        "person_seniorities": _SENIORITIES_BY_PROFILE_VERSION[profile_version],
+        "contact_email_statuses": ("verified",),
+        "include_similar_titles": False,
+        "max_pages": MAX_SEARCH_PAGES,
+        "per_page": MAX_SEARCH_RESULTS,
+        "max_enrichment_attempts": MAX_ENRICHMENT_ATTEMPTS,
+        "search_too_broad_threshold": SEARCH_TOO_BROAD_THRESHOLD,
+    }
+
+
 def build_decision_maker_profile(
     *,
     acquisition_opportunity_id: str,
     supplier_ref: str,
     provider_organization_id: str,
+    profile_version: str = PROFILE_VERSION,
 ) -> DecisionMakerSearchProfile:
     values: dict[str, object] = {
-        "profile_version": "decision-maker-search-v1",
         "acquisition_opportunity_id": acquisition_opportunity_id,
         "supplier_ref": supplier_ref,
         "provider_organization_id": provider_organization_id,
-        "person_titles": PERSON_TITLES,
-        "person_seniorities": PERSON_SENIORITIES,
-        "contact_email_statuses": ("verified",),
-        "include_similar_titles": False,
-        "max_pages": 1,
-        "per_page": 25,
-        "max_enrichment_attempts": 3,
-        "search_too_broad_threshold": 250,
+        **decision_maker_profile_semantics(profile_version),
     }
     return DecisionMakerSearchProfile(**values, profile_fingerprint=_fingerprint(values))
