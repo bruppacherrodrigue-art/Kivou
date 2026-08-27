@@ -32,6 +32,7 @@ from signals.policy.contracts import AutonomyMode
 from signals.policy.store import PolicyStore
 
 RUNTIME_OBSERVATION_MAX_AGE = dt.timedelta(minutes=90)
+_EXPECTED_HEALTHY_SUPPRESSION_REASONS = frozenset({"VERIFIED_CONTACT_NOT_FOUND"})
 
 
 @dataclass(frozen=True)
@@ -262,8 +263,7 @@ class OperationsReadService:
             execution = HealthStatus.NOT_READY
             reasons.append("RUNTIME_LAST_CYCLE_STALE")
         elif observation.last_cycle_status is not RuntimeCycleStatus.SUCCEEDED:
-            execution = HealthStatus.NOT_READY
-            reasons.append(f"RUNTIME_LAST_CYCLE_{observation.last_cycle_status.value}")
+            reason = None
             if observation.last_cycle_ref is not None:
                 try:
                     reason = self._runtime_store.read_cycle_reason_code(
@@ -271,6 +271,15 @@ class OperationsReadService:
                     )
                 except sa.exc.SQLAlchemyError:
                     reason = None
+            expected_suppression = (
+                observation.last_cycle_status is RuntimeCycleStatus.SUPPRESSED
+                and reason in _EXPECTED_HEALTHY_SUPPRESSION_REASONS
+            )
+            if expected_suppression:
+                reasons.append("RUNTIME_LAST_CYCLE_EXPECTED_SUPPRESSION")
+            else:
+                execution = HealthStatus.NOT_READY
+                reasons.append(f"RUNTIME_LAST_CYCLE_{observation.last_cycle_status.value}")
                 reasons.append(reason or "RUNTIME_LAST_CYCLE_REASON_UNAVAILABLE")
         if hermes.status is not HealthStatus.READY or (
             observation.capability.registry_identity != expected_runtime_registry_identity()

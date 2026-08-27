@@ -66,6 +66,7 @@ def _seed_runtime(
     observed_at: dt.datetime = NOW - dt.timedelta(minutes=1),
     runtime_capability=None,
     cycle_status: RuntimeCycleStatus = RuntimeCycleStatus.SUCCEEDED,
+    suppressed_reason: str = "CONTROLLED_SUPPRESSION",
 ) -> None:
     store = AcquisitionRuntimeStore(engine)
     lease = store.acquire_lease(
@@ -156,7 +157,7 @@ def _seed_runtime(
             AcquisitionRuntimeStage.SIGNAL_SEED,
             RuntimeActionResult(
                 status=RuntimeStageStatus.SUPPRESSED,
-                reason_codes=("CONTROLLED_SUPPRESSION",),
+                reason_codes=(suppressed_reason,),
             ),
             **fence,
             at=cursor,
@@ -387,7 +388,7 @@ def test_ambiguous_apollo_wait_is_visible_as_a_machine_reason_in_health(
         RuntimeCycleStatus.SUPPRESSED,
     ),
 )
-def test_only_a_successful_last_cycle_can_make_the_runtime_ready(
+def test_unfinished_or_unrecognized_terminal_cycle_prevents_runtime_readiness(
     tmp_path,
     cycle_status: RuntimeCycleStatus,
 ) -> None:
@@ -400,6 +401,27 @@ def test_only_a_successful_last_cycle_can_make_the_runtime_ready(
     assert health.status is HealthStatus.NOT_READY
     assert health.campaign_execution is HealthStatus.NOT_READY
     assert f"RUNTIME_LAST_CYCLE_{cycle_status.value}" in health.reason_codes
+
+
+def test_no_verified_contact_is_an_expected_healthy_terminal_outcome(tmp_path) -> None:
+    engine = _engine(tmp_path, "no-verified-contact.db")
+    PolicyStore(engine).append_control(_control())
+    _seed_runtime(
+        engine,
+        cycle_status=RuntimeCycleStatus.SUPPRESSED,
+        suppressed_reason="VERIFIED_CONTACT_NOT_FOUND",
+    )
+
+    service = OperationsReadService(engine)
+    health = service.health(observed_at=NOW)
+    readiness = service.readiness(evaluated_at=NOW)
+
+    assert health.status is HealthStatus.READY
+    assert health.campaign_execution is HealthStatus.READY
+    assert "RUNTIME_LAST_CYCLE_EXPECTED_SUPPRESSION" in health.reason_codes
+    assert "RUNTIME_LAST_CYCLE_SUPPRESSED" not in health.reason_codes
+    assert readiness.h_a_runtime.status == "READY"
+    assert readiness.highest_safe_mode is AutonomyMode.SHADOW
 
 
 def test_runtime_health_outputs_contain_no_payload_recipient_or_secret(tmp_path) -> None:
