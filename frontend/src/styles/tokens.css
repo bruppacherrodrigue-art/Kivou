@@ -1,91 +1,80 @@
-/* Kivou Design Tokens v1.0 — light-only MVP.
+/* Kivou — système visuel unifié.
  *
- * Les primitives, l'échelle typographique, les rayons, les ombres et le motion
- * viennent tels quels de `docs/designPattern/Kivou_Design_System_v1_0/tokens/`.
- * Rien n'est inventé ici : les seules additions sont des rôles SÉMANTIQUES
- * (surface-elevated, text-muted, badge-*) exigés par les composants, et chacun
- * pointe vers une primitive approuvée. Aucun hex ne doit apparaître ailleurs
- * que dans ce fichier.
+ * Une hiérarchie volontairement courte :
+ * - blanc et minéral pour les surfaces de travail ;
+ * - forêt pour l'ancrage de navigation ;
+ * - menthe pour la sélection et les faits vérifiés ;
+ * - bleu pour les actions.
  */
 :root {
-  /* ── Primitives (docs/.../tokens/kivou.tokens.css) ───────────────────── */
-  --kivou-color-ink: #0f1d18;
-  --kivou-color-ivory: #faf6f1;
-  --kivou-color-forest: #234236;
-  --kivou-color-beige: #e7dfd3;
-  --kivou-color-terracotta: #c56440;
-  --kivou-color-brass: #b08d57;
-  --kivou-color-surface: #fffdf9;
-  --kivou-color-line: #d9cfc2;
-  --kivou-color-text-secondary: #52605a;
-  /* Le pack livre #7B827E : 3,66:1 sur l'ivoire, sous le seuil AA de 4,5:1 pour
-   * du petit texte. La teinte gris-vert est conservée, la valeur est assombrie
-   * jusqu'à 5,59:1 sur canvas, 5,92:1 sur surface et 4,56:1 sur le beige des
-   * badges. Le design system exige lui-même WCAG 2.2 AA (§21) : c'est une
-   * correction de conformité, pas un écart à la direction artistique. */
-  --kivou-color-text-muted: #5c6561;
-  --kivou-color-success: #2e6a50;
-  --kivou-color-warning: #a86b2c;
-  --kivou-color-danger: #9a4a3a;
+  --kivou-color-ink: #17231e;
+  --kivou-color-ivory: #f6f8f7;
+  --kivou-color-forest: #173b2f;
+  --kivou-color-beige: #edf1ef;
+  --kivou-color-terracotta: #b3433f;
+  --kivou-color-brass: #2463eb;
+  --kivou-color-surface: #ffffff;
+  --kivou-color-line: #dfe6e2;
+  --kivou-color-text-secondary: #50615a;
+  --kivou-color-text-muted: #5d6b65;
+  --kivou-color-success: #287451;
+  --kivou-color-warning: #a86618;
+  --kivou-color-danger: #b3433f;
 
-  /* ── Rôles sémantiques ───────────────────────────────────────────────── */
   --kivou-bg-canvas: var(--kivou-color-ivory);
   --kivou-bg-surface: var(--kivou-color-surface);
-  --kivou-bg-subtle: #f3ede5;
+  --kivou-bg-subtle: #f2f5f3;
   --kivou-bg-beige: var(--kivou-color-beige);
   --kivou-text-primary: var(--kivou-color-ink);
   --kivou-text-secondary: var(--kivou-color-text-secondary);
   --kivou-text-muted: var(--kivou-color-text-muted);
   --kivou-text-inverse: #ffffff;
   --kivou-border: var(--kivou-color-line);
-  --kivou-border-strong: #beb3a6;
-  --kivou-action-primary: var(--kivou-color-forest);
-  --kivou-action-primary-hover: #19352b;
-  --kivou-action-accent: var(--kivou-color-brass);
-  --kivou-focus: var(--kivou-color-brass);
+  --kivou-border-strong: #c9d4ce;
+  --kivou-action-primary: #2463eb;
+  --kivou-action-primary-hover: #1d4ed8;
+  --kivou-action-accent: #2463eb;
+  --kivou-analysis-accent: #8a641f;
+  --kivou-analysis-bg: #fff9ed;
+  --kivou-focus: #2563eb;
 
-  /* Fond de navigation active : « vert très doux » (directive §5 Navigation). */
-  --kivou-nav-active-bg: #e9eeea;
-  /* Teinte de sélection d'une card de signal, observée en référence 04. */
-  --kivou-select-bg: #fdf8f1;
+  --kivou-sidebar-bg: var(--kivou-color-forest);
+  --kivou-sidebar-text: #d5e3dc;
+  --kivou-sidebar-muted: #9eb4aa;
+  --kivou-sidebar-border: rgba(255, 255, 255, 0.12);
+  --kivou-nav-active-bg: #dff1e7;
+  --kivou-nav-active-text: #124b37;
+  --kivou-select-bg: #eef8f2;
+  --kivou-verified-bg: #e8f5ed;
 
-  /* ── Typographie ─────────────────────────────────────────────────────── */
-  /* CLOSEOUT §2 — « Lora Variable » et « Instrument Sans Variable » sont les
-   * noms de famille déclarés par les `@font-face` des paquets Fontsource, donc
-   * les seuls qui désignent la police RÉELLEMENT livrée. Les noms non variables
-   * suivent au cas où la police serait installée sur le poste ; viennent
-   * ensuite les substituts génériques, qui ne servent que si le téléchargement
-   * échoue. Le chemin normal ne repose sur aucun d'entre eux. */
   --kivou-font-display: 'Lora Variable', 'Lora', Georgia, 'Times New Roman', serif;
   --kivou-font-sans:
     'Instrument Sans Variable', 'Instrument Sans', Inter, Arial, Helvetica, sans-serif;
   --kivou-font-mono: 'JetBrains Mono', SFMono-Regular, Consolas, monospace;
 
-  /* Échelle de la directive §7.3, en clamp() pour les displays (mobile ≥ 32px). */
-  --kivou-text-display-xl: clamp(2.25rem, 1.35rem + 3.6vw, 4rem); /* → 64px */
-  --kivou-text-display-l: clamp(2rem, 1.4rem + 2.4vw, 3.25rem); /* → 52px */
-  --kivou-text-h1: clamp(1.625rem, 1.35rem + 1.1vw, 2rem); /* → 32px */
-  --kivou-text-h2: clamp(1.375rem, 1.2rem + 0.7vw, 1.625rem); /* → 26px */
-  --kivou-text-h3: 1.25rem; /* 20px */
-  --kivou-text-body: 1rem; /* 16px */
-  --kivou-text-small: 0.875rem; /* 14px */
-  --kivou-text-micro: 0.75rem; /* 12px — plancher absolu */
+  --kivou-text-display-xl: clamp(2.5rem, 1.75rem + 3vw, 4.5rem);
+  --kivou-text-display-l: clamp(2rem, 1.45rem + 2.2vw, 3.25rem);
+  --kivou-text-h1: clamp(1.75rem, 1.45rem + 1.2vw, 2.25rem);
+  --kivou-text-h2: clamp(1.375rem, 1.2rem + 0.7vw, 1.75rem);
+  --kivou-text-h3: 1.125rem;
+  --kivou-text-body: 1rem;
+  --kivou-text-small: 0.875rem;
+  --kivou-text-micro: 0.75rem;
 
-  --kivou-leading-display-xl: 1.05;
-  --kivou-leading-display-l: 1.12;
-  --kivou-leading-h1: 1.19;
-  --kivou-leading-h2: 1.23;
-  --kivou-leading-h3: 1.3;
-  --kivou-leading-body: 1.5625; /* 25/16 */
+  --kivou-leading-display-xl: 1.04;
+  --kivou-leading-display-l: 1.08;
+  --kivou-leading-h1: 1.15;
+  --kivou-leading-h2: 1.2;
+  --kivou-leading-h3: 1.35;
+  --kivou-leading-body: 1.55;
   --kivou-leading-small: 1.5;
-  --kivou-leading-micro: 1.4167;
+  --kivou-leading-micro: 1.4;
 
   --kivou-weight-regular: 400;
   --kivou-weight-medium: 500;
   --kivou-weight-semibold: 600;
   --kivou-weight-bold: 700;
 
-  /* ── Espacement, base 4px ────────────────────────────────────────────── */
   --kivou-space-1: 0.25rem;
   --kivou-space-2: 0.5rem;
   --kivou-space-3: 0.75rem;
@@ -98,33 +87,27 @@
   --kivou-space-16: 4rem;
   --kivou-space-20: 5rem;
   --kivou-space-24: 6rem;
-  /* Sections marketing : 96 → 144px. */
-  --kivou-section-marketing: clamp(4rem, 2rem + 8vw, 9rem);
+  --kivou-section-marketing: clamp(4rem, 2rem + 7vw, 8rem);
   --kivou-gutter-desktop: 2rem;
   --kivou-gutter-mobile: 1.25rem;
 
-  /* ── Rayons et ombres ────────────────────────────────────────────────── */
   --kivou-radius-sm: 10px;
   --kivou-radius-md: 14px;
   --kivou-radius-lg: 18px;
   --kivou-radius-xl: 24px;
   --kivou-radius-pill: 999px;
-  --kivou-shadow-soft: 0 10px 30px -16px rgba(15, 29, 24, 0.07);
-  --kivou-shadow-raised: 0 18px 48px -20px rgba(15, 29, 24, 0.1);
+  --kivou-shadow-soft: 0 8px 24px -18px rgba(23, 35, 30, 0.2);
+  --kivou-shadow-raised: 0 20px 50px -28px rgba(23, 35, 30, 0.28);
 
-  /* ── Motion ──────────────────────────────────────────────────────────── */
   --kivou-motion-fast: 120ms;
   --kivou-motion-base: 180ms;
   --kivou-motion-slow: 260ms;
   --kivou-ease-standard: cubic-bezier(0.2, 0, 0, 1);
 
-  /* ── Conteneurs ──────────────────────────────────────────────────────── */
   --kivou-container-reading: 720px;
-  --kivou-container-content: 1280px;
-  --kivou-container-wide: 1440px;
+  --kivou-container-content: 1240px;
+  --kivou-container-wide: 1360px;
   --kivou-sidebar-width: 240px;
-
-  /* Zones tactiles : 44px partout, 48px pour un CTA mobile (directive §20). */
   --kivou-control-height: 44px;
   --kivou-control-height-mobile: 48px;
 }

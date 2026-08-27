@@ -41,7 +41,7 @@
 /* Les pièces qui étayent une HYPOTHÈSE ne se lisent pas comme celles qui
  * établissent un fait : le liseré les distingue sans les dévaloriser. */
 .groupInferred {
-  border-left: 3px solid var(--kivou-action-accent);
+  border-left: 3px solid var(--kivou-analysis-accent);
 }
 
 .trigger {

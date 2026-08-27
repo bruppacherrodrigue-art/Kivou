@@ -315,28 +315,6 @@ export function PublicSignalDemo({ signal = publicDemoSignal }: PublicSignalDemo
         </div>
       </section>
 
-      <section className={styles.section} aria-labelledby="action-title">
-        <div className={`${styles.sectionInner} ${styles.actionGrid}`}>
-          <div className={styles.actionCopy}>
-            <SectionHeading eyebrow={t.publicDemo.actionEyebrow} title={t.publicDemo.actionTitle} id="action-title" />
-            <p>{t.publicDemo.actionBody}</p>
-            <div className={styles.actions}>
-              <ButtonLink to="/signup" variant="primary" size="lg">{t.publicDemo.actionPrimary}</ButtonLink>
-              <ButtonExternalLink href={s.sourceUrl} variant="secondary" size="lg">
-                {t.publicDemo.actionSecondary}
-                <span className="kivou-visually-hidden"> {t.publicDemo.externalNewTab}</span>
-              </ButtonExternalLink>
-            </div>
-          </div>
-          <Card padding="lg" className={styles.actionCard}>
-            <h3>{t.publicDemo.actionListTitle}</h3>
-            <ul className={styles.actionList}>
-              {actionItems.map((item) => <li key={item}>{item}</li>)}
-            </ul>
-          </Card>
-        </div>
-      </section>
-
       <section className={`${styles.section} ${styles.sectionSubtle}`} aria-labelledby="evidence-title">
         <div className={`${styles.sectionInner} ${styles.evidenceGrid}`}>
           <div className={styles.evidenceIntro}>
@@ -391,6 +369,28 @@ export function PublicSignalDemo({ signal = publicDemoSignal }: PublicSignalDemo
               <DataRow label={t.publicDemo.coverageMode}>{t.publicDemo.statusMetadata}</DataRow>
             </DataList>
           </details>
+        </div>
+      </section>
+
+      <section className={styles.section} aria-labelledby="action-title">
+        <div className={`${styles.sectionInner} ${styles.actionGrid}`}>
+          <div className={styles.actionCopy}>
+            <SectionHeading eyebrow={t.publicDemo.actionEyebrow} title={t.publicDemo.actionTitle} id="action-title" />
+            <p>{t.publicDemo.actionBody}</p>
+            <div className={styles.actions}>
+              <ButtonLink to="/signup" variant="primary" size="lg">{t.publicDemo.actionPrimary}</ButtonLink>
+              <ButtonExternalLink href={s.sourceUrl} variant="secondary" size="lg">
+                {t.publicDemo.actionSecondary}
+                <span className="kivou-visually-hidden"> {t.publicDemo.externalNewTab}</span>
+              </ButtonExternalLink>
+            </div>
+          </div>
+          <Card padding="lg" className={styles.actionCard}>
+            <h3>{t.publicDemo.actionListTitle}</h3>
+            <ul className={styles.actionList}>
+              {actionItems.map((item) => <li key={item}>{item}</li>)}
+            </ul>
+          </Card>
         </div>
       </section>
 

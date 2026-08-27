@@ -63,7 +63,7 @@ describe('démonstration publique de signal', () => {
     }
   })
 
-  it('présente les sections dans l’ordre opportunité, pertinence, timing, action, preuve, limites', async () => {
+  it('présente les sections dans l’ordre opportunité, pertinence, timing, preuve, limites, vérification', async () => {
     mockApi({})
     const { container } = renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
     await screen.findByRole('heading', { level: 1 })
@@ -73,9 +73,9 @@ describe('démonstration publique de signal', () => {
       'Pourquoi cette attribution mérite un examen commercial',
       'Opportunités commerciales associées',
       'Calendrier publié du marché',
-      'Prochaine étape recommandée',
       'Les faits essentiels sont vérifiables',
       'Couverture de cette analyse',
+      'Ce que vous pouvez vérifier maintenant',
     ]
     const positions = markers.map((marker) => text.indexOf(marker))
 
@@ -149,7 +149,7 @@ describe('démonstration publique de signal', () => {
     ]) {
       expect(within(timingSection).getByText(label)).toBeInTheDocument()
     }
-    expect(text).not.toMatch(/maintenant|timing favorable|attribution récente|fenêtre de prospection est ouverte/i)
+    expect(timingSection.textContent ?? '').not.toMatch(/maintenant|timing favorable|attribution récente|fenêtre de prospection est ouverte/i)
     expect(text).toContain('L’exécution est prévue à partir du 28 octobre 2026')
   })
 
@@ -170,7 +170,7 @@ describe('démonstration publique de signal', () => {
       expect(within(companySection).getAllByText(value).length).toBeGreaterThan(0)
     }
     expect(within(companySection).getByText('Faits issus de l’avis TED')).toBeInTheDocument()
-    expect(within(companySection).getByText('Coordonnées vérifiées sur le site public de l’entreprise')).toBeInTheDocument()
+    expect(within(companySection).getByText('Informations disponibles sur le site public de l’entreprise')).toBeInTheDocument()
     const companyLinks = [
       within(companySection).getByRole('link', { name: /site internet/i }),
       within(companySection).getByRole('link', { name: /source de vérification/i }),
@@ -225,18 +225,18 @@ describe('démonstration publique de signal', () => {
     }
   })
 
-  it('relègue une seule limite documentaire précise après l’action et la preuve', async () => {
+  it('relègue une seule limite documentaire précise après la preuve et avant les questions', async () => {
     mockApi({})
     const { container } = renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
     await screen.findByRole('heading', { level: 1 })
     const text = container.textContent ?? ''
-    const action = text.indexOf('Prochaine étape recommandée')
     const evidence = text.indexOf('Les faits essentiels sont vérifiables')
     const coverage = text.indexOf('Couverture de cette analyse')
+    const questions = text.indexOf('Ce que vous pouvez vérifier maintenant')
 
-    expect(action).toBeGreaterThanOrEqual(0)
-    expect(action).toBeLessThan(evidence)
+    expect(evidence).toBeGreaterThanOrEqual(0)
     expect(evidence).toBeLessThan(coverage)
+    expect(coverage).toBeLessThan(questions)
     expect((text.match(/Aucun cahier des charges validé n’alimente cette démonstration/g) ?? [])).toHaveLength(1)
     expect(text).toContain('Besoin commercialPlausible')
     expect(text).toContain('Couverture documentaireLimitée')

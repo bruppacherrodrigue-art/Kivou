@@ -128,9 +128,11 @@ function CompanyProfileView({ profile }: { profile: CompanyProfilePayload }) {
           <span>{interpolate(t.companyProfile.observedOn, { date: observed })}</span>
         </div>
         <div className={styles.actions}>
-          <ButtonLink to={`/app/signals/${encodeURIComponent(firstSignal.signal_id)}`} size="lg">
-            {t.companyProfile.reviewSignal}
-          </ButtonLink>
+          {firstSignal ? (
+            <ButtonLink to={`/app/signals/${encodeURIComponent(firstSignal.signal_id)}`} size="lg">
+              {t.companyProfile.reviewSignal}
+            </ButtonLink>
+          ) : null}
           <ButtonLink to="/app/signals" variant="secondary" size="lg">
             {t.companyProfile.backToSignals}
           </ButtonLink>

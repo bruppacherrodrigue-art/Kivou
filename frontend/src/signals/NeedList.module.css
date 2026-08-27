@@ -9,7 +9,7 @@
 .note {
   padding: var(--kivou-space-3) var(--kivou-space-4);
   background: var(--kivou-bg-subtle);
-  border-left: 3px solid var(--kivou-action-accent);
+  border-left: 3px solid var(--kivou-analysis-accent);
   border-radius: var(--kivou-radius-sm);
   font-size: var(--kivou-text-small);
   line-height: var(--kivou-leading-small);

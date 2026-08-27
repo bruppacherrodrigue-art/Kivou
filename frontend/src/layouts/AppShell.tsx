@@ -5,7 +5,6 @@ import { useSession } from '../auth/SessionProvider'
 import { KivouLogo } from '../components/KivouLogo'
 import { Button } from '../components/Button'
 import {
-  BellIcon,
   BillingIcon,
   CloseIcon,
   DashboardIcon,
@@ -34,8 +33,7 @@ const NAV_ITEMS = [
   { to: '/app/dashboard', key: 'dashboard', Icon: DashboardIcon },
   { to: '/app/signals', key: 'signals', Icon: SignalsIcon },
   { to: '/app/icps', key: 'icps', Icon: TargetIcon },
-  { to: '/app/billing', key: 'billing', Icon: BillingIcon },
-  { to: '/app/notifications', key: 'notifications', Icon: BellIcon },
+  { to: '/app/settings', key: 'settings', Icon: BillingIcon },
 ] as const
 
 const INTERNAL_NAV_ITEM = {
@@ -153,7 +151,7 @@ export function AppShell() {
 
       <aside className={styles.sidebar}>
         <Link to="/app/dashboard" className={styles.logoLink}>
-          <KivouLogo size="md" />
+          <KivouLogo size="md" tone="inverse" />
         </Link>
         {navigation}
         <div className={styles.sidebarFooter}>{accountPanel}</div>
@@ -169,7 +167,7 @@ export function AppShell() {
           />
           <div className={styles.drawer} id="kivou-app-drawer" role="dialog" aria-modal="true">
             <div className={styles.drawerHead}>
-              <KivouLogo size="sm" />
+              <KivouLogo size="sm" tone="inverse" />
               <button
                 type="button"
                 className={styles.drawerToggle}

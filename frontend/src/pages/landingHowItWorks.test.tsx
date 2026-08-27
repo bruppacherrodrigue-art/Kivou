@@ -9,7 +9,7 @@ import { CATALOGUE, mockApi, renderApp } from '../test/harness'
 afterEach(() => vi.unstubAllGlobals())
 
 describe('section Comment ça marche de la page d’accueil', () => {
-  it('remplace les cinq cartes abstraites par une démonstration complète de la machine Kivou', async () => {
+  it('présente un parcours court du ciblage à l’apprentissage client', async () => {
     mockApi({ 'GET /billing/plans': { body: CATALOGUE } })
     const { container } = renderApp(<AppRoutes />, { route: '/' })
 
@@ -28,70 +28,60 @@ describe('section Comment ça marche de la page d’accueil', () => {
       'Votre territoire',
       'Vos priorités',
       'Votre flux de signaux personnalisés',
-      'De l’attribution publique à l’action commerciale',
+      'Du signal à votre apprentissage',
       'DANS VOTRE DASHBOARD',
-      'Une attribution publique n’est pas encore une occasion commerciale',
-      'Une analyse commerciale que vous pouvez vérifier',
-      'Une attribution publique peut déjà révéler votre prochain prospect',
+      'Un chemin de lecture clair, jusqu’à votre note.',
     ]) {
       expect(text).toContain(marker)
     }
 
-    expect(text).not.toContain('Ce que Kivou affirme, et ce qu’il qualifie')
-    expect(text).not.toContain('Chaque signal répond aux questions de votre équipe commerciale')
-    expect(text).not.toMatch(/confiance réduite/i)
+    expect(text).not.toContain('De l’attribution publique à l’action commerciale')
+    expect(text).not.toContain('Une attribution publique n’est pas encore une occasion commerciale')
+    expect(text).not.toContain('Coordonnées professionnelles')
+    expect(text).not.toContain('Action recommandée')
   })
 
-  it('présente six étapes orientées valeur avec une dernière étape commerciale', async () => {
+  it('présente quatre étapes et termine par l’avis et la note du client', async () => {
     mockApi({})
     renderApp(<AppRoutes />, { route: '/' })
     await screen.findByRole('heading', { level: 2, name: /Kivou transforme/ })
 
-    const process = screen.getByRole('list', { name: 'De l’attribution publique à l’action commerciale' })
+    const process = screen.getByRole('list', { name: 'Du signal à votre apprentissage' })
     const steps = within(process).getAllByRole('listitem')
 
-    expect(steps).toHaveLength(6)
+    expect(steps).toHaveLength(4)
     expect(within(steps[0]).getByText('01')).toBeInTheDocument()
-    expect(within(steps[0]).getByRole('heading', { level: 4, name: 'Kivou surveille' })).toBeInTheDocument()
-    expect(within(steps[5]).getByText('06')).toBeInTheDocument()
-    expect(within(steps[5]).getByRole('heading', { level: 4, name: 'Votre équipe agit' })).toBeInTheDocument()
-    expect(steps[5].className).toMatch(/final/i)
+    expect(within(steps[0]).getByRole('heading', { level: 4, name: 'Fait publié' })).toBeInTheDocument()
+    expect(within(steps[3]).getByText('04')).toBeInTheDocument()
+    expect(within(steps[3]).getByRole('heading', { level: 4, name: 'Votre apprentissage' })).toBeInTheDocument()
+    expect(steps[3].className).toMatch(/final/i)
   })
 
-  it('intègre une capture responsive du dashboard avec un texte alternatif utile et des dimensions stables', async () => {
-    mockApi({})
-    renderApp(<AppRoutes />, { route: '/' })
-
-    const image = await screen.findByRole('img', {
-      name: /Tableau de bord Kivou montrant un signal commercial pour une entreprise gagnante/i,
-    })
-
-    expect(image).toHaveAttribute('src', '/demo/kivou-dashboard-fr-desktop.webp')
-    expect(image).toHaveAttribute('width', '1600')
-    expect(image).toHaveAttribute('height', '1080')
-    expect(image).toHaveAttribute('loading', 'lazy')
-    expect(image).not.toHaveAttribute('fetchpriority', 'high')
-
-    const picture = image.closest('picture')!
-    expect(picture.querySelector('source[media="(max-width: 767px)"]')).toHaveAttribute(
-      'srcset',
-      '/demo/kivou-dashboard-fr-mobile.webp',
-    )
-  })
-
-  it('rend visibles les repères commerciaux autour de la capture et les CTA attendus', async () => {
+  it('ne dépend plus d’une capture statique de l’ancien dashboard', async () => {
     mockApi({})
     renderApp(<AppRoutes />, { route: '/' })
     await screen.findByRole('heading', { level: 2, name: /Kivou transforme/ })
 
+    expect(screen.queryByRole('img', { name: /Tableau de bord Kivou/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('Du fait publié à votre avis — sans confondre preuve, analyse et apprentissage.')).not.toBeInTheDocument()
+  })
+
+  it('rend visibles les cinq repères du parcours et ses deux actions utiles', async () => {
+    mockApi({})
+    renderApp(<AppRoutes />, { route: '/' })
+    await screen.findByRole('heading', { level: 2, name: /Kivou transforme/ })
+
+    const dashboardSection = screen
+      .getByRole('heading', { level: 3, name: 'Un chemin de lecture clair, jusqu’à votre note.' })
+      .closest('section')!
     for (const label of [
-      'Entreprise identifiée',
-      'Coordonnées professionnelles',
-      'Timing qualifié',
-      'Action recommandée',
+      'Faits publiés',
+      'Périmètre concret',
+      'Analyse Kivou',
       'Preuve officielle',
+      'Votre avis et votre note',
     ]) {
-      expect(screen.getByText(label)).toBeInTheDocument()
+      expect(within(dashboardSection).getByText(label)).toBeInTheDocument()
     }
 
     expect(screen.getByRole('link', { name: 'Voir un signal complet' })).toHaveAttribute(
@@ -102,14 +92,10 @@ describe('section Comment ça marche de la page d’accueil', () => {
       'href',
       '/signup',
     )
-    expect(screen.getByRole('link', { name: 'Voir mes 3 premiers signaux' })).toHaveAttribute(
-      'href',
-      '/signup',
-    )
-    expect(screen.getByRole('link', { name: 'Comparer les offres' })).toHaveAttribute('href', '/#tarifs')
+    expect(screen.queryByRole('link', { name: 'Comparer les offres' })).not.toBeInTheDocument()
   })
 
-  it('reste entièrement localisée en anglais, y compris la capture', async () => {
+  it('reste entièrement localisée en anglais sans réintroduire l’ancien parcours', async () => {
     mockApi({})
     const { container } = renderApp(<AppRoutes />, { route: '/', locale: 'en' })
 
@@ -121,27 +107,20 @@ describe('section Comment ça marche de la page d’accueil', () => {
     ).toBeInTheDocument()
     expect(container.textContent).toContain('CONTINUOUS SALES MONITORING')
     expect(container.textContent).toContain('Target profile')
-    expect(container.textContent).toContain('IN YOUR DASHBOARD')
-    expect(container.textContent).toContain('Verified company details')
+    expect(container.textContent).toContain('From signal to learning')
+    expect(container.textContent).toContain('Published facts')
+    expect(container.textContent).toContain('Your view and note')
+    expect(container.textContent).not.toContain('Verified company details')
     expect(container.textContent).not.toContain('SURVEILLANCE COMMERCIALE CONTINUE')
-    expect(container.textContent).not.toContain('Votre profil de ciblage')
-
-    const image = screen.getByRole('img', {
-      name: /Kivou dashboard showing a sales signal for a contract-winning company/i,
-    })
-    expect(image).toHaveAttribute('src', '/demo/kivou-dashboard-en-desktop.webp')
-    expect(image.closest('picture')!.querySelector('source[media="(max-width: 767px)"]')).toHaveAttribute(
-      'srcset',
-      '/demo/kivou-dashboard-en-mobile.webp',
-    )
+    expect(screen.queryByRole('img', { name: /Kivou dashboard/i })).not.toBeInTheDocument()
   })
 
-  it('conserve les ancres comment et tarifs pendant la transition commerciale', async () => {
+  it('conserve les ancres comment et tarifs', async () => {
     mockApi({ 'GET /billing/plans': { body: CATALOGUE } })
     renderApp(<AppRoutes />, { route: '/' })
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('link', { name: 'Comparer les offres' }))
+    await user.click((await screen.findAllByRole('link', { name: 'Tarifs' }))[0])
 
     await waitFor(() => expect(document.activeElement?.id).toBe('tarifs'))
     expect(
@@ -198,7 +177,7 @@ describe('section Comment ça marche de la page d’accueil', () => {
   })
 })
 
-describe('coordonnées professionnelles de la démonstration dashboard', () => {
+describe('informations publiques de la démonstration', () => {
   it('utilise uniquement les coordonnées publiques vérifiées de H. Hüther GmbH', () => {
     expect(publicDemoSignal.winner).toMatchObject({
       legalName: 'H. Hüther GmbH',

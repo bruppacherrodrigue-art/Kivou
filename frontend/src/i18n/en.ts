@@ -39,11 +39,12 @@ export const en: Dictionary = {
   },
 
   nav: {
-    dashboard: 'Dashboard',
+    dashboard: 'Overview',
     signals: 'Signals',
     icps: 'Target profiles',
     billing: 'Billing',
     notifications: 'Notifications',
+    settings: 'Account',
     cockpit: 'Commercial cockpit',
     logout: 'Sign out',
     login: 'Sign in',
@@ -58,10 +59,24 @@ export const en: Dictionary = {
     account: 'Account',
   },
 
+  settings: {
+    title: 'Account',
+    lead: 'The useful information about your account, without settings that are not available yet.',
+    identityTitle: 'Your access',
+    company: 'Company',
+    email: 'Email address',
+    billingTitle: 'Plan and billing',
+    billingLead: 'Review your plan, entitlements and secure billing portal.',
+    billingAction: 'View billing',
+    notificationsTitle: 'Email notifications',
+    notificationsLead: 'Choose whether Kivou can send the alerts included in your plan.',
+    notificationsAction: 'Manage notifications',
+  },
+
   dashboard: {
-    title: 'Dashboard',
-    lead: 'Your next commercial decisions, based on your account data.',
-    opportunities: 'Next opportunities to review',
+    title: 'Overview',
+    lead: 'What deserves your attention today, based on contracts that match your targeting profiles.',
+    opportunities: 'Signals to review',
     icps: 'Active targeting profiles',
     billing: 'Plan and access',
     alerts: 'Alerts',
@@ -153,7 +168,7 @@ export const en: Dictionary = {
     heroLead:
       'Kivou identifies contract winners, understands what they will need to deliver and shows you the opportunities that match what you sell.',
     heroSecondaryLead:
-      'You do not receive a list of public contracts. You receive documented reasons to approach new prospects.',
+      'You do not receive a list of public contracts. You receive documented reasons to assess the right companies.',
     heroPrimary: 'See my 3 signals',
     heroSecondary: 'Explore a complete signal',
     heroTrust: 'Switzerland + European Union · Official sources · Verifiable evidence',
@@ -194,7 +209,7 @@ export const en: Dictionary = {
       introBodyTwo:
         'Kivou monitors those events, identifies the winners, understands what they will need to deliver and selects only the opportunities that match what you sell.',
       introHighlight:
-        'Not a tender list: documented reasons to contact new prospects.',
+        'Not a tender list: facts, analysis and evidence so you can decide for yourself.',
       profileEyebrow: 'Target profile',
       profileTitle: 'You describe your business. Kivou monitors the market for you.',
       profileBody:
@@ -218,47 +233,39 @@ export const en: Dictionary = {
           body: 'Sectors, amounts, needs.',
         },
       ],
-      processTitle: 'From public award to sales action',
+      processTitle: 'From signal to learning',
       processSteps: [
         {
-          title: 'Kivou monitors',
-          body: 'Published Swiss and European awards are collected.',
+          title: 'Published fact',
+          body: 'Kivou identifies the award, the winning company and the official source.',
         },
         {
-          title: 'Kivou identifies',
-          body: 'Winner, contract, amount, buyer, location and dates are verified.',
+          title: 'Concrete scope',
+          body: 'Published amounts, volumes, locations and dates are brought together without extrapolation.',
         },
         {
-          title: 'Kivou understands',
-          body: 'Lots, volumes and available documents are summarised.',
+          title: 'Kivou analysis',
+          body: 'The match with your targeting and the points to verify are explained as hypotheses.',
         },
         {
-          title: 'Kivou matches',
-          body: 'The signal is matched with your offering, targets and territory.',
-        },
-        {
-          title: 'Kivou qualifies the timing',
-          body: 'The award date and execution schedule place the signal in time.',
-        },
-        {
-          title: 'Your team acts',
-          body: 'Your salesperson gets the prospect, context, timing and evidence.',
+          title: 'Your learning',
+          body: 'You assess the signal and add a note. This feedback stays separate from facts and supports supervised analysis.',
         },
       ],
       dashboardEyebrow: 'IN YOUR DASHBOARD',
-      dashboardTitle: 'A clear signal your team can act on.',
+      dashboardTitle: 'A clear reading path, through to your note.',
       dashboardBody:
-        'The company, contract, volumes, timing, available contact details and official evidence are brought together in one view.',
+        'Published facts, Kivou analysis, official evidence and then your view are brought together in one screen.',
       dashboardAlt:
-        'Kivou dashboard showing a sales signal for a contract-winning company, the contract amount, volumes, fit with the customer offering, verified company details and the next step.',
+        'Kivou dashboard showing published contract facts, concrete scope, analysis, official evidence and a customer note.',
       dashboardCaption:
-        'The prospect, context and next step — brought together in one sales signal.',
+        'From published fact to your view — without confusing evidence, analysis and learning.',
       dashboardMarkers: [
-        'Company identified',
-        'Verified company details',
-        'Timing qualified',
-        'Recommended action',
+        'Published facts',
+        'Concrete scope',
+        'Kivou analysis',
         'Official evidence',
+        'Your view and note',
       ],
       dashboardPrimary: 'View a complete signal',
       dashboardSecondary: 'Receive my 3 signals',
@@ -467,7 +474,7 @@ export const en: Dictionary = {
 
   publicDemo: {
     navLabel: 'Signal example',
-    heroEyebrow: 'Documented commercial opportunity',
+    heroEyebrow: 'Documented sales signal',
     heroTitle: '{company} was awarded a {amount} contract in {location}',
     heroSubtitle:
       'The published description lists {woodDoors} timber frames and doors, {steelDoors} steel frames and timber doors, {skirting} of skirting, {wallCladding} of timber wall cladding, {glazing} glazed elements and {kitchenettes} kitchenettes.',
@@ -551,7 +558,7 @@ export const en: Dictionary = {
 
     companyTitle: 'Identified company',
     companyLead:
-      'Award facts and professional contact details are presented with their respective sources.',
+      'Award facts and available public company information are presented with their respective sources.',
     companyTedFactsTitle: 'Facts from the TED notice',
     companyLegalName: 'Legal name',
     companyOfficialAddress: 'Official address',
@@ -560,9 +567,9 @@ export const en: Dictionary = {
     companyContract: 'Awarded contract',
     companyBuyer: 'Public buyer',
     companyTedSource: 'Review the facts in TED',
-    companyContactTitle: 'Contact details verified on the company’s public website',
+    companyContactTitle: 'Information available on the company’s public website',
     companyContactIntro:
-      'These professional contact details come from the company’s public website, separately from the TED notice.',
+      'This information comes from the company’s public website, separately from the TED notice. No third-party enrichment is used.',
     companyWebsite: 'Website',
     companyWebsiteLink: 'Open the company website',
     companyPhone: 'Business telephone',
@@ -570,14 +577,14 @@ export const en: Dictionary = {
     companyContactSource: 'Verification source',
     companyContactSourceLink: 'Open the verification source',
 
-    actionEyebrow: 'Next step',
-    actionTitle: 'Recommended next step',
-    actionBody: 'This demonstration lets you review the signal without simulating automated outreach.',
-    actionListTitle: 'Available actions',
-    actionReviewMarket: 'Review the contract and published volumes',
-    actionCheckFit: 'Check their fit with your offering',
-    actionOpenNotice: 'Read the official notice',
-    actionCreateAccount: 'Create a Kivou account to receive three personalised signals',
+    actionEyebrow: 'For you to verify',
+    actionTitle: 'What you can verify now',
+    actionBody: 'Kivou documents the signal but does not claim to know which suppliers are already selected or which purchases remain open.',
+    actionListTitle: 'Useful questions',
+    actionReviewMarket: 'Which supplies may still be open?',
+    actionCheckFit: 'Do the published products genuinely match your offering?',
+    actionOpenNotice: 'What exactly does the official notice confirm?',
+    actionCreateAccount: 'What note do you want to keep about this signal?',
     actionPrimary: 'See my first 3 signals',
     actionSecondary: 'Open the official notice',
 
@@ -967,7 +974,7 @@ export const en: Dictionary = {
 
   feedback: {
     title: 'Your view on this signal',
-    lead: 'It helps us understand what is useful to you. It does not change the engine.',
+    lead: 'Your feedback stays separate from published facts. It supports supervised analysis and never changes the engine automatically.',
     relevant: 'Relevant',
     notRelevant: 'Not relevant',
     reasonLabel: 'Why is this signal not relevant?',
@@ -980,9 +987,9 @@ export const en: Dictionary = {
       wrong_need: 'Wrong need',
       other: 'Other',
     },
-    noteLabel: 'Detail',
+    noteLabel: 'Note about this signal',
     noteHelp: '{max} characters maximum.',
-    noteCount: '{count} / {max}',
+    noteCount: '{count} / {max} · Choose “Relevant” or “Not relevant” to save the note.',
     submit: 'Record my view',
     recorded: 'View recorded.',
     contactedTitle: 'Did you contact this company?',

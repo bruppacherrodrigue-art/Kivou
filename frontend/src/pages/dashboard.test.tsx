@@ -58,7 +58,7 @@ describe('accueil connecté', () => {
     mockApi(DASHBOARD_ROUTES)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app' })
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Vue d’ensemble' })).toBeInTheDocument()
   })
 
   it('rend le dashboard accessible dans la navigation authentifiée en FR et EN', async () => {
@@ -69,7 +69,7 @@ describe('accueil connecté', () => {
       locale: 'fr',
     })
 
-    expect(await screen.findByRole('link', { name: 'Accueil' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Vue d’ensemble' })).toHaveAttribute(
       'href',
       '/app/dashboard',
     )
@@ -85,7 +85,7 @@ describe('accueil connecté', () => {
       locale: 'en',
     })
 
-    expect(await screen.findByRole('link', { name: 'Dashboard' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Overview' })).toHaveAttribute(
       'href',
       '/app/dashboard',
     )
@@ -120,7 +120,7 @@ describe('accueil connecté', () => {
     await user.type(screen.getByLabelText(/Adresse e-mail/), 'claire@acme.test')
     await user.type(screen.getByLabelText('Mot de passe'), 'motdepassesolide')
     await user.click(screen.getByRole('button', { name: 'Se connecter' }))
-    expect(await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Vue d’ensemble' })).toBeInTheDocument()
 
     first.unmount()
     mockApi({
@@ -356,7 +356,7 @@ describe('occasions et ciblages autoritaires', () => {
 
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
     const opportunities = (await screen.findByRole('heading', {
-      name: 'Prochaines occasions à examiner',
+      name: 'Signaux à examiner',
     })).closest('section')
     expect(opportunities).not.toBeNull()
 
@@ -613,7 +613,7 @@ describe('facturation et alertes exactes', () => {
       resolveFeed?.({ body: feedPage([]) })
     })
     expect(screen.getByRole('button', { name: 'Réessayer la facturation' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Prochaines occasions à examiner' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Signaux à examiner' })).toBeInTheDocument()
   })
 
   it('reprend localement les alertes sans masquer les ICP déjà chargés', async () => {
@@ -671,8 +671,8 @@ describe('navigation et garde-fous du dashboard', () => {
       locale: 'en',
     })
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Next opportunities to review' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Signals to review' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Active targeting profiles' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Plan and access' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Alerts' })).toBeInTheDocument()
@@ -734,7 +734,7 @@ describe('navigation et garde-fous du dashboard', () => {
 
     await user.click(screen.getByRole('button', { name: 'Historique précédent' }))
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' }),
+      await screen.findByRole('heading', { level: 1, name: 'Vue d’ensemble' }),
     ).toBeInTheDocument()
     await user.click(await screen.findByRole('link', { name: 'Consulter la fiche entreprise' }))
     expect(
@@ -746,7 +746,7 @@ describe('navigation et garde-fous du dashboard', () => {
 
     await user.click(screen.getByRole('button', { name: 'Historique précédent' }))
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Tableau de bord' }),
+      await screen.findByRole('heading', { level: 1, name: 'Vue d’ensemble' }),
     ).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Historique suivant' }))
     expect(
@@ -791,7 +791,7 @@ describe('navigation et garde-fous du dashboard', () => {
     expect(container.querySelectorAll('main')).toHaveLength(1)
     expect(container.querySelectorAll('h1')).toHaveLength(1)
     expect(
-      screen.getByRole('list', { name: 'Prochaines occasions à examiner' }),
+      screen.getByRole('list', { name: 'Signaux à examiner' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('list', { name: 'Ciblages actifs' })).toBeInTheDocument()
     expect(screen.getByRole('region', { name: 'Ciblages actifs' })).toBeInTheDocument()
