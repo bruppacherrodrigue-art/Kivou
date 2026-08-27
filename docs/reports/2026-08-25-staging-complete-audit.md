@@ -359,3 +359,84 @@ redémarre seule et se sauvegarde de manière restaurable.
 Ce qui bloque n'est pas le cœur du produit : c'est la couverture des sources,
 l'hygiène des secrets, l'observabilité des échecs, et une chaîne d'acquisition
 qui n'existe pas encore en exécution.
+
+---
+
+## Clôture opérationnelle — 2026-08-27
+
+**SHA runtime validé :** `b06e22277b14d007f99edd0e252c774014e68510`
+
+**SHA runtime déployé lors des contrôles :**
+`b06e22277b14d007f99edd0e252c774014e68510`
+
+**Révision Alembic :** `0026_acquisition_runtime`
+
+> ## `STAGING PASS — READY FOR PRODUCTION PREFLIGHT`
+
+Ce verdict remplace le `NO-GO PRODUCTION` du 2026-08-25. Il autorise uniquement
+la préparation de production ; il n'autorise ni provisioning, ni déploiement,
+ni DNS, ni Stripe LIVE en production.
+
+| Ensemble | Verdict | Preuve de clôture |
+| --- | --- | --- |
+| Signal Engine | **PASS** | SIMAP, BOAMP, DECP et TED ont des checkpoints `success`, leurs quatre services terminent en `success/0`, les quatre timers sont `enabled` et `active`, aucune exécution n'est orpheline et 28 821 signaux ont été matérialisés dans les dernières 24 heures. |
+| Acquisition Engine | **PASS** | Les 11 dépendances déclarent `READY`. L'orchestrateur, le service et le timer sont exécutables en mode QA/SHADOW borné. Un cycle parti d'un vrai signal a réussi Signal Seed et Supplier Discovery, puis s'est terminé proprement par `SUPPRESSED / VERIFIED_CONTACT_NOT_FOUND`. Le health vaut `READY` avec `RUNTIME_LAST_CYCLE_EXPECTED_SUPPRESSION`. Le kill switch a rendu le health `NOT_READY`, puis sa récupération canonique a restauré `READY`. |
+| SaaS client | **PASS** | Le parcours authentifié complet du 2026-08-25 reste applicable, aucun code du parcours SaaS concerné n'ayant changé. Un nouveau smoke Firefox en 1440 px et 390 px confirme les routes publiques, FR/EN, la garde d'authentification, les assets en `200`, zéro erreur JavaScript et aucun débordement horizontal. |
+| Infrastructure et sécurité | **PASS** | nginx, PostgreSQL et l'API sont actifs ; les huit timers attendus sont `enabled` et `active` ; `nginx -t` est vert ; les scans expurgés des journaux sont à zéro ; vingt sondes consécutives de `/` et `/health` ont répondu `200`. Une sauvegarde postérieure à `0026` a été restaurée en 29 secondes dans une base temporaire de 55 tables, ensuite supprimée. |
+
+### Preuves finales
+
+- PR [#106](https://github.com/bruppacherrodrigue-art/Kivou/pull/106)
+  fusionnée en squash ; arbre de `main` identique à celui testé ;
+- suite backend locale : 5 140 tests réussis, 9 ignorés ; Ruff réussi ;
+- CI de la PR : backend et frontend réussis ;
+- release staging :
+  `/srv/kivou/releases/backend-20260827T170333Z-b06e22277b14` ;
+- cycle Acquisition : une recherche Apollo, zéro enrichissement de personne,
+  aucun contact sélectionné, zéro membre de campagne, zéro opération Instantly
+  et zéro membre envoyé ;
+- alertes : service `success/0`, timer actif, zéro lease bloqué ; les anciennes
+  livraisons refusées sont terminales et aucune ligne `failed` n'a changé dans
+  les trois heures précédant la clôture ;
+- sauvegarde : `/srv/kivou/backups/kivou-20260827T171117Z.dump`, migration
+  restaurée `0026_acquisition_runtime`, base temporaire absente après preuve ;
+- issues [#77](https://github.com/bruppacherrodrigue-art/Kivou/issues/77),
+  [#78](https://github.com/bruppacherrodrigue-art/Kivou/issues/78),
+  [#79](https://github.com/bruppacherrodrigue-art/Kivou/issues/79),
+  [#81](https://github.com/bruppacherrodrigue-art/Kivou/issues/81),
+  [#82](https://github.com/bruppacherrodrigue-art/Kivou/issues/82),
+  [#83](https://github.com/bruppacherrodrigue-art/Kivou/issues/83) et
+  [#84](https://github.com/bruppacherrodrigue-art/Kivou/issues/84) fermées.
+
+### Limites acceptées et conservées
+
+- **Absence de contact professionnel.** Un signal sans contact professionnel
+  vérifié est un résultat terminal normal. Le cycle reste réellement
+  `SUPPRESSED`, sans contact inventé, lead, campagne, activation Instantly ou
+  e-mail. Seule la combinaison exacte
+  `SUPPRESSED / VERIFIED_CONTACT_NOT_FOUND` est considérée saine ; toute autre
+  suppression ou erreur reste bloquante.
+
+- **Ancienne clé Stripe TEST.** L'ancienne clé répondait encore `200` lors du
+  dernier contrôle malgré la rotation et la période de grâce. Le propriétaire
+  a explicitement accepté que ce comportement fournisseur ne bloque plus le
+  staging. L'application utilise la clé tournée et reste exclusivement en
+  TEST. Les copies locales de l'ancienne valeur et le coffre temporaire ont été
+  détruits. Cette clôture ne prétend pas que l'ancienne clé est révoquée.
+
+- **Routes de l'issue #84.** Le contrôle live prouve que les requêtes invalides
+  atteignent FastAPI et ne retombent plus sur la SPA : webhook refusé en `401`
+  et attribution invalide en `404`, tous deux en JSON. Les chemins positifs —
+  webhook authentifié par secret partagé, persistance et replay, attribution
+  `303` avec cookie sûr — sont couverts par huit tests d'intégration réussis,
+  mais n'ont pas été exercés en live sur staging. Aucun événement d'origine
+  Instantly n'a été reçu. Aucun faux contact ou campagne n'a été créé pour
+  fabriquer cette preuve.
+
+- **Preuve SaaS réutilisée.** Le parcours authentifié complet du 2026-08-25 est
+  réutilisé parce que le code du parcours SaaS concerné n'a pas changé. La
+  clôture ajoute un smoke navigateur anonyme récent ; elle ne prétend pas avoir
+  recréé un paiement ni rejoué tout le parcours client.
+
+Aucun client ou prospect réel n'a été contacté. Aucune action Stripe LIVE, DNS
+ou production n'a été réalisée.
