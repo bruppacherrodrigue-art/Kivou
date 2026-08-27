@@ -242,19 +242,19 @@ export const fr = {
       processTitle: 'Du signal à votre apprentissage',
       processSteps: [
         {
-          title: '1. Fait publié',
+          title: 'Fait publié',
           body: 'Kivou identifie l’attribution, l’entreprise gagnante et la source officielle.',
         },
         {
-          title: '2. Périmètre concret',
+          title: 'Périmètre concret',
           body: 'Les montants, volumes, lieux et dates publiés sont regroupés sans extrapolation.',
         },
         {
-          title: '3. Analyse Kivou',
+          title: 'Analyse Kivou',
           body: 'La correspondance avec votre ciblage et les points à vérifier sont expliqués comme des hypothèses.',
         },
         {
-          title: '4. Votre apprentissage',
+          title: 'Votre apprentissage',
           body: 'Vous jugez le signal et ajoutez une note. Ce retour reste séparé des faits et nourrit une analyse supervisée.',
         },
       ],

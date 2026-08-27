@@ -236,19 +236,19 @@ export const en: Dictionary = {
       processTitle: 'From signal to learning',
       processSteps: [
         {
-          title: '1. Published fact',
+          title: 'Published fact',
           body: 'Kivou identifies the award, the winning company and the official source.',
         },
         {
-          title: '2. Concrete scope',
+          title: 'Concrete scope',
           body: 'Published amounts, volumes, locations and dates are brought together without extrapolation.',
         },
         {
-          title: '3. Kivou analysis',
+          title: 'Kivou analysis',
           body: 'The match with your targeting and the points to verify are explained as hypotheses.',
         },
         {
-          title: '4. Your learning',
+          title: 'Your learning',
           body: 'You assess the signal and add a note. This feedback stays separate from facts and supports supervised analysis.',
         },
       ],
