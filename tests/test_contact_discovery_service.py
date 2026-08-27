@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import datetime as dt
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal
 
 import pytest
@@ -8,9 +10,16 @@ import sqlalchemy as sa
 from alembic import command
 from test_policy_persistence import control
 
-from signals.acquisition.contracts import AcquisitionState, ActorType, EventType
+from signals.acquisition.contracts import (
+    AcquisitionState,
+    ActorType,
+    EventType,
+    IdempotencyConflict,
+    OpportunityConcurrencyConflict,
+)
 from signals.acquisition.store import AcquisitionStore
 from signals.contact_discovery.contracts import (
+    PROFILE_VERSION,
     ApolloEnrichedPerson,
     ContactAuthorizationInput,
     ContactDiscoveryEvaluationRequiresFreshAttempt,
@@ -27,7 +36,12 @@ from signals.contact_discovery.profile import (
 from signals.contact_discovery.service import ContactDiscoveryService
 from signals.contact_discovery.store import ContactDiscoveryStore
 from signals.persistence.database import alembic_config, create_database_engine
-from signals.persistence.schema import acquisition_contact, policy_evaluation
+from signals.persistence.schema import (
+    acquisition_contact,
+    acquisition_event,
+    contact_discovery_run,
+    policy_evaluation,
+)
 from signals.policy.contracts import (
     POLICY_VERSION,
     AutonomyMode,
@@ -213,14 +227,27 @@ def _runtime_qa_profile(**identity):
     )
 
 
-def _find(service, opportunity_id, authorization=None, run_id="contact-run-1"):
+def _find(
+    service,
+    opportunity_id,
+    authorization=None,
+    run_id="contact-run-1",
+    authorize_profile_upgrade_requeue=None,
+):
+    arguments = {
+        "evaluated_at": NOW,
+        "budget_usage": BudgetUsage(),
+        "contact_discovery_run_id": run_id,
+        "correlation_id": run_id,
+    }
+    if authorize_profile_upgrade_requeue is not None:
+        arguments["authorize_profile_upgrade_requeue"] = (
+            authorize_profile_upgrade_requeue
+        )
     return service.find(
         opportunity_id,
         authorization or _authorization(),
-        evaluated_at=NOW,
-        budget_usage=BudgetUsage(),
-        contact_discovery_run_id=run_id,
-        correlation_id=run_id,
+        **arguments,
     )
 
 
@@ -444,6 +471,345 @@ def test_too_broad_performs_zero_enrichment_and_records_coverage(context) -> Non
     assert result.run.search_results_truncated is True
     assert provider.enrich_calls == 0
     assert acquisition.get_opportunity(opportunity_id).next_action == "request_human_review"
+
+
+def test_runtime_profile_requeues_only_the_durable_legacy_too_broad_outcome(
+    context,
+) -> None:
+    engine, acquisition, _, opportunity_id = context
+    legacy_provider = FakeProvider(_page(_candidate(), total=251), [_enriched()])
+    legacy = _find(_service(engine, legacy_provider), opportunity_id)
+    runtime_provider = FakeProvider(_page(_candidate(), total=84), [_enriched()])
+    runtime = ContactDiscoveryService(
+        engine,
+        provider=runtime_provider,
+        profile_builder=_runtime_qa_profile,
+        profile_upgrade_requeue=(PROFILE_VERSION, RUNTIME_QA_PROFILE_VERSION),
+        clock=TickClock(),
+    )
+
+    result = _find(
+        runtime,
+        opportunity_id,
+        _authorization("contact-eval-runtime-profile"),
+        run_id="contact-run-runtime-profile",
+        authorize_profile_upgrade_requeue=lambda: None,
+    )
+
+    assert legacy.run.status is ContactRunStatus.CONTACT_SEARCH_TOO_BROAD
+    assert legacy.run.search_profile_version == PROFILE_VERSION
+    assert result.run.status is ContactRunStatus.SUCCESS
+    assert result.run.search_profile_version == RUNTIME_QA_PROFILE_VERSION
+    assert runtime_provider.search_calls == runtime_provider.enrich_calls == 1
+    assert ContactDiscoveryStore(engine).get_run(
+        legacy.run.contact_discovery_run_id
+    ).status is ContactRunStatus.CONTACT_SEARCH_TOO_BROAD
+    requeue_events = [
+        event
+        for event in acquisition.list_events(opportunity_id)
+        if event.reason_codes == ("contact_search_profile_upgraded",)
+    ]
+    assert len(requeue_events) == 1
+    assert requeue_events[0].event_type is EventType.NEXT_ACTION_SET
+    assert requeue_events[0].actor_ref == "kivou-contact-discovery"
+    assert requeue_events[0].evidence_refs == (
+        legacy.run.contact_discovery_run_id,
+    )
+    legacy_event = next(
+        event
+        for event in acquisition.list_events(opportunity_id)
+        if event.idempotency_key
+        == f"contact_human_review:{legacy.run.contact_discovery_run_id}"
+    )
+    assert requeue_events[0].correlation_id == "contact-run-runtime-profile"
+    assert requeue_events[0].causation_id == legacy_event.event_id
+
+    replay = _find(
+        runtime,
+        opportunity_id,
+        _authorization("contact-eval-runtime-profile"),
+        run_id="contact-run-runtime-profile",
+    )
+    assert replay.run.contact_discovery_run_id == result.run.contact_discovery_run_id
+    assert runtime_provider.search_calls == runtime_provider.enrich_calls == 1
+    assert sum(
+        event.reason_codes == ("contact_search_profile_upgraded",)
+        for event in acquisition.list_events(opportunity_id)
+    ) == 1
+
+
+def test_runtime_profile_does_not_override_a_later_human_review(
+    context,
+) -> None:
+    engine, acquisition, _, opportunity_id = context
+    legacy = _find(
+        _service(engine, FakeProvider(_page(_candidate(), total=251), [_enriched()])),
+        opportunity_id,
+    )
+    assert legacy.run.status is ContactRunStatus.CONTACT_SEARCH_TOO_BROAD
+    current = acquisition.get_opportunity(opportunity_id)
+    acquisition.set_next_action(
+        opportunity_id,
+        next_action="request_human_review",
+        expected_version=current.stream_version,
+        idempotency_key="manual-human-review",
+        actor_type=ActorType.HUMAN,
+        actor_ref="qa-reviewer",
+    )
+    provider = FakeProvider(_page(_candidate(), total=84), [_enriched()])
+    runtime = ContactDiscoveryService(
+        engine,
+        provider=provider,
+        profile_builder=_runtime_qa_profile,
+        profile_upgrade_requeue=(PROFILE_VERSION, RUNTIME_QA_PROFILE_VERSION),
+        clock=TickClock(),
+    )
+
+    with pytest.raises(ContactDiscoveryNotActionable):
+        _find(
+            runtime,
+            opportunity_id,
+            _authorization("contact-eval-after-manual-review"),
+            run_id="contact-run-manual-review",
+            authorize_profile_upgrade_requeue=lambda: None,
+        )
+
+    assert provider.search_calls == provider.enrich_calls == 0
+    assert acquisition.get_opportunity(opportunity_id).next_action == "request_human_review"
+    assert all(
+        event.reason_codes != ("contact_search_profile_upgraded",)
+        for event in acquisition.list_events(opportunity_id)
+    )
+
+
+def test_runtime_profile_requeue_survives_a_crash_before_policy_and_replays_once(
+    context,
+) -> None:
+    engine, acquisition, _, opportunity_id = context
+    _find(
+        _service(engine, FakeProvider(_page(_candidate(), total=251), [_enriched()])),
+        opportunity_id,
+    )
+    crashing_policy = PolicyGateway(engine)
+
+    def interrupt_before_policy(*args, **kwargs):
+        raise InterruptedError
+
+    crashing_policy.evaluate_and_record = interrupt_before_policy  # type: ignore[method-assign]
+    provider = FakeProvider(_page(_candidate(), total=84), [_enriched()])
+    profile_upgrade = (PROFILE_VERSION, RUNTIME_QA_PROFILE_VERSION)
+    crashing_service = ContactDiscoveryService(
+        engine,
+        provider=provider,
+        policy_gateway=crashing_policy,
+        profile_builder=_runtime_qa_profile,
+        profile_upgrade_requeue=profile_upgrade,
+        clock=TickClock(),
+    )
+
+    with pytest.raises(InterruptedError):
+        _find(
+            crashing_service,
+            opportunity_id,
+            _authorization("contact-eval-after-requeue-crash"),
+            run_id="contact-run-after-requeue-crash",
+            authorize_profile_upgrade_requeue=lambda: None,
+        )
+
+    assert provider.search_calls == provider.enrich_calls == 0
+    assert acquisition.get_opportunity(opportunity_id).next_action == "find_decision_makers"
+    recovered = _find(
+        ContactDiscoveryService(
+            engine,
+            provider=provider,
+            profile_builder=_runtime_qa_profile,
+            profile_upgrade_requeue=profile_upgrade,
+            clock=TickClock(),
+        ),
+        opportunity_id,
+        _authorization("contact-eval-after-requeue-crash"),
+        run_id="contact-run-after-requeue-crash",
+        authorize_profile_upgrade_requeue=lambda: None,
+    )
+
+    assert recovered.run.status is ContactRunStatus.SUCCESS
+    assert provider.search_calls == provider.enrich_calls == 1
+    assert sum(
+        event.reason_codes == ("contact_search_profile_upgraded",)
+        for event in acquisition.list_events(opportunity_id)
+    ) == 1
+
+
+def test_runtime_profile_requeue_requires_fresh_runtime_authority(context) -> None:
+    engine, acquisition, _, opportunity_id = context
+    _find(
+        _service(engine, FakeProvider(_page(_candidate(), total=251), [_enriched()])),
+        opportunity_id,
+    )
+    provider = FakeProvider(_page(_candidate(), total=84), [_enriched()])
+    runtime = ContactDiscoveryService(
+        engine,
+        provider=provider,
+        profile_builder=_runtime_qa_profile,
+        profile_upgrade_requeue=(PROFILE_VERSION, RUNTIME_QA_PROFILE_VERSION),
+        clock=TickClock(),
+    )
+
+    with pytest.raises(ContactDiscoveryNotActionable):
+        _find(
+            runtime,
+            opportunity_id,
+            _authorization("contact-eval-without-runtime-revalidation"),
+            run_id="contact-run-without-runtime-revalidation",
+        )
+
+    assert provider.search_calls == provider.enrich_calls == 0
+    assert acquisition.get_opportunity(opportunity_id).next_action == "request_human_review"
+
+
+def test_runtime_profile_requeue_rejects_a_mismatched_historical_organization(
+    context,
+) -> None:
+    engine, acquisition, _, opportunity_id = context
+    legacy = _find(
+        _service(engine, FakeProvider(_page(_candidate(), total=251), [_enriched()])),
+        opportunity_id,
+    )
+    tampered_profile = dict(legacy.run.search_profile)
+    tampered_profile["provider_organization_id"] = "apollo-org-other"
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(contact_discovery_run)
+            .where(
+                contact_discovery_run.c.contact_discovery_run_id
+                == legacy.run.contact_discovery_run_id
+            )
+            .values(search_profile=tampered_profile)
+        )
+    provider = FakeProvider(_page(_candidate(), total=84), [_enriched()])
+    runtime = ContactDiscoveryService(
+        engine,
+        provider=provider,
+        profile_builder=_runtime_qa_profile,
+        profile_upgrade_requeue=(PROFILE_VERSION, RUNTIME_QA_PROFILE_VERSION),
+        clock=TickClock(),
+    )
+
+    with pytest.raises(ContactDiscoveryNotActionable):
+        _find(
+            runtime,
+            opportunity_id,
+            _authorization("contact-eval-mismatched-organization"),
+            run_id="contact-run-mismatched-organization",
+            authorize_profile_upgrade_requeue=lambda: None,
+        )
+
+    assert provider.search_calls == provider.enrich_calls == 0
+    assert acquisition.get_opportunity(opportunity_id).next_action == "request_human_review"
+
+
+def test_runtime_profile_requeue_rejects_a_mismatched_historical_correlation(
+    context,
+) -> None:
+    engine, acquisition, _, opportunity_id = context
+    legacy = _find(
+        _service(engine, FakeProvider(_page(_candidate(), total=251), [_enriched()])),
+        opportunity_id,
+    )
+    legacy_event = next(
+        event
+        for event in acquisition.list_events(opportunity_id)
+        if event.idempotency_key
+        == f"contact_human_review:{legacy.run.contact_discovery_run_id}"
+    )
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_event)
+            .where(acquisition_event.c.event_id == legacy_event.event_id)
+            .values(correlation_id="different-correlation")
+        )
+    provider = FakeProvider(_page(_candidate(), total=84), [_enriched()])
+    runtime = ContactDiscoveryService(
+        engine,
+        provider=provider,
+        profile_builder=_runtime_qa_profile,
+        profile_upgrade_requeue=(PROFILE_VERSION, RUNTIME_QA_PROFILE_VERSION),
+        clock=TickClock(),
+    )
+
+    with pytest.raises(ContactDiscoveryNotActionable):
+        _find(
+            runtime,
+            opportunity_id,
+            _authorization("contact-eval-mismatched-correlation"),
+            run_id="contact-run-mismatched-correlation",
+            authorize_profile_upgrade_requeue=lambda: None,
+        )
+
+    assert provider.search_calls == provider.enrich_calls == 0
+    assert acquisition.get_opportunity(opportunity_id).next_action == "request_human_review"
+
+
+def test_concurrent_runtime_profile_requeues_write_one_causal_event(context) -> None:
+    engine, acquisition, supplier, opportunity_id = context
+    legacy = _find(
+        _service(engine, FakeProvider(_page(_candidate(), total=251), [_enriched()])),
+        opportunity_id,
+    )
+    opportunity = acquisition.get_opportunity(opportunity_id)
+    profile = _runtime_qa_profile(
+        acquisition_opportunity_id=opportunity_id,
+        supplier_ref=supplier.supplier_ref,
+        provider_organization_id=supplier.provider_organization_id,
+    )
+    providers = [FakeProvider(_page()), FakeProvider(_page())]
+    services = [
+        ContactDiscoveryService(
+            engine,
+            provider=provider,
+            profile_builder=_runtime_qa_profile,
+            profile_upgrade_requeue=(PROFILE_VERSION, RUNTIME_QA_PROFILE_VERSION),
+            clock=TickClock(),
+        )
+        for provider in providers
+    ]
+    barrier = threading.Barrier(2)
+
+    def requeue(index):
+        return services[index]._requeue_profile_upgrade(
+            opportunity,
+            profile,
+            authorize=lambda: barrier.wait(timeout=5),
+            correlation_id=f"runtime-requeue-{index}",
+        )
+
+    outcomes = []
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(requeue, index) for index in range(2)]
+        for future in futures:
+            try:
+                outcomes.append(future.result(timeout=10))
+            except (IdempotencyConflict, OpportunityConcurrencyConflict) as error:
+                outcomes.append(error)
+
+    requeue_events = [
+        event
+        for event in acquisition.list_events(opportunity_id)
+        if event.reason_codes == ("contact_search_profile_upgraded",)
+    ]
+    assert len(requeue_events) == 1
+    assert ContactDiscoveryStore(engine).get_run(
+        legacy.run.contact_discovery_run_id
+    ).status is ContactRunStatus.CONTACT_SEARCH_TOO_BROAD
+    assert all(
+        isinstance(outcome, (IdempotencyConflict, OpportunityConcurrencyConflict))
+        or outcome.next_action == "find_decision_makers"
+        for outcome in outcomes
+    ), [
+        (type(outcome).__name__, getattr(outcome, "next_action", None))
+        for outcome in outcomes
+    ]
+    assert sum(provider.search_calls for provider in providers) == 0
 
 
 def test_enrichment_employer_mismatch_is_rejected(context) -> None:

@@ -97,6 +97,27 @@ class ContactDiscoveryStore:
             )
         return _run(row) if row is not None else None
 
+    def get_latest_run_for_opportunity_in_transaction(
+        self, connection: Connection, opportunity_id: str
+    ) -> ContactRunRecord | None:
+        row = (
+            connection.execute(
+                sa.select(contact_discovery_run)
+                .where(
+                    contact_discovery_run.c.acquisition_opportunity_id
+                    == opportunity_id
+                )
+                .order_by(
+                    contact_discovery_run.c.started_at.desc(),
+                    contact_discovery_run.c.contact_discovery_run_id.desc(),
+                )
+                .limit(1)
+            )
+            .mappings()
+            .one_or_none()
+        )
+        return _run(row) if row is not None else None
+
     def start_run(self, start: ContactRunStart) -> ContactRunOwnership:
         profile = start.profile
         values = {

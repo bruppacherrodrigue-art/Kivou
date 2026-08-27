@@ -19,10 +19,12 @@ from signals.acquisition_connectivity.contracts import (
     ShadowConnectivityDocument,
     ShadowMailboxBinding,
 )
+from signals.acquisition_runtime import composition as runtime_composition
 from signals.acquisition_runtime import execution as runtime_execution
 from signals.acquisition_runtime.composition import (
     execute_runtime_run_once,
     runtime_qa_contact_profile_descriptor,
+    runtime_qa_contact_profile_requeue_descriptor,
 )
 from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeConfig,
@@ -608,6 +610,15 @@ def test_default_root_composition_constructs_real_domains_without_network(
     ):
         effective_profile.pop(identity_field)
     assert runtime_qa_contact_profile_descriptor() == effective_profile
+    assert runtime_qa_contact_profile_requeue_descriptor() == {
+        "source_profile_version": "decision-maker-search-v1",
+        "target_profile_version": "decision-maker-search-runtime-qa-v1",
+        "source_status": "CONTACT_SEARCH_TOO_BROAD",
+    }
+    assert composition.domain.contact_service._profile_upgrade_requeue == (
+        "decision-maker-search-v1",
+        "decision-maker-search-runtime-qa-v1",
+    )
     api_ingress = build_instantly_webhook_service(engine, webhook_configuration)
     assert api_ingress._suppression_keyring.identities_for_email(QA_RECIPIENT)[
         webhook_configuration.suppression_keyring.current_key_version
@@ -738,6 +749,43 @@ def test_runtime_contact_profile_is_bound_to_the_durable_cycle_identity(
         contact_profile,
         "PERSON_TITLES",
         (*contact_profile.PERSON_TITLES, "Revenue Operations Director"),
+    )
+    after = build_runtime_execution_composition(**arguments)
+
+    assert before.config_fingerprint != after.config_fingerprint
+    engine.dispose()
+
+
+def test_runtime_contact_profile_requeue_is_bound_to_the_durable_cycle_identity(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    engine = _engine()
+    provider = NoNetworkProvider()
+    apollo = ApolloComponents(
+        organization_search=provider,
+        contact_discovery=provider,
+        company_research=provider,
+        identity=provider,
+    )
+    arguments = {
+        "engine": engine,
+        "runtime_config": _runtime_config(),
+        "connectivity_config": _connectivity_config(tmp_path),
+        "links": _links(),
+        "webhook_configuration": _webhook_configuration(),
+        "apollo": apollo,
+        "instantly_provider": provider,
+        "hermes_runtime": ClosedFakeHermes(),
+        "dependency_probe": ReadyDependencyProbe(),
+        "clock": lambda: NOW,
+    }
+
+    before = build_runtime_execution_composition(**arguments)
+    monkeypatch.setattr(
+        runtime_composition,
+        "RUNTIME_QA_CONTACT_REQUEUE_SOURCE_PROFILE_VERSION",
+        "decision-maker-search-legacy-v0",
     )
     after = build_runtime_execution_composition(**arguments)
 

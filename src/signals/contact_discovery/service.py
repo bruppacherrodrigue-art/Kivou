@@ -66,6 +66,7 @@ class ContactDiscoveryService:
         profile_builder: Callable[..., DecisionMakerSearchProfile] = (
             build_decision_maker_profile
         ),
+        profile_upgrade_requeue: tuple[str, str] | None = None,
         clock: Callable[[], dt.datetime] = _utc_now,
     ) -> None:
         self._engine = engine
@@ -76,6 +77,17 @@ class ContactDiscoveryService:
         self._suppliers = supplier_store or SupplierDiscoveryStore(engine, clock=clock)
         self._policy_store = PolicyStore(engine)
         self._profile_builder = profile_builder
+        if profile_upgrade_requeue is not None:
+            source_version, target_version = profile_upgrade_requeue
+            if (
+                not source_version
+                or not target_version
+                or source_version == target_version
+                or len(source_version) > 64
+                or len(target_version) > 64
+            ):
+                raise ValueError("contact profile upgrade requeue is invalid")
+        self._profile_upgrade_requeue = profile_upgrade_requeue
         self._clock = clock
 
     def find(
@@ -87,6 +99,7 @@ class ContactDiscoveryService:
         budget_usage: BudgetUsage,
         contact_discovery_run_id: str,
         correlation_id: str,
+        authorize_profile_upgrade_requeue: Callable[[], None] | None = None,
     ) -> ContactDiscoveryServiceResult:
         existing_run = self._contacts.get_run_by_policy(authorization.evaluation_id)
         if existing_run is not None:
@@ -102,7 +115,8 @@ class ContactDiscoveryService:
                 raise ContactDiscoveryEvaluationRequiresFreshAttempt(authorization.evaluation_id)
 
         opportunity = self._acquisition.get_opportunity(opportunity_id)
-        self._require_actionable(opportunity)
+        if not self._profile_upgrade_candidate(opportunity):
+            self._require_actionable(opportunity)
         assert opportunity.supplier_ref is not None
         supplier = self._suppliers.get_supplier(opportunity.supplier_ref)
         profile = DecisionMakerSearchProfile.model_validate(
@@ -112,6 +126,13 @@ class ContactDiscoveryService:
                 provider_organization_id=supplier.provider_organization_id,
             )
         )
+        opportunity = self._requeue_profile_upgrade(
+            opportunity,
+            profile,
+            authorize=authorize_profile_upgrade_requeue,
+            correlation_id=correlation_id,
+        )
+        self._require_actionable(opportunity)
         arguments = _canonical_json(
             {"profile": profile.model_dump(mode="json"), "provider": "apollo"}
         )
@@ -461,6 +482,116 @@ class ContactDiscoveryService:
             and opportunity.next_action == "find_decision_makers"
         ):
             raise ContactDiscoveryNotActionable(opportunity.acquisition_opportunity_id)
+
+    def _profile_upgrade_candidate(self, opportunity) -> bool:
+        return bool(
+            self._profile_upgrade_requeue is not None
+            and opportunity.state is AcquisitionState.DISCOVERED
+            and opportunity.supplier_ref is not None
+            and opportunity.contact_ref is None
+            and opportunity.next_action == "request_human_review"
+        )
+
+    def _requeue_profile_upgrade(
+        self,
+        opportunity,
+        profile,
+        *,
+        authorize,
+        correlation_id: str,
+    ):
+        if not self._profile_upgrade_candidate(opportunity):
+            return opportunity
+        assert self._profile_upgrade_requeue is not None
+        source_version, target_version = self._profile_upgrade_requeue
+        if profile.profile_version != target_version or authorize is None:
+            return opportunity
+        authorize()
+        with self._engine.begin() as connection:
+            current = self._acquisition.get_opportunity_in_transaction(
+                connection,
+                opportunity.acquisition_opportunity_id,
+                for_update=True,
+            )
+            if not self._profile_upgrade_candidate(current):
+                return current
+            latest_run = self._contacts.get_latest_run_for_opportunity_in_transaction(
+                connection,
+                current.acquisition_opportunity_id,
+            )
+            try:
+                previous_profile = DecisionMakerSearchProfile.model_validate(
+                    latest_run.search_profile if latest_run is not None else {}
+                )
+            except ValidationError:
+                return current
+            previous_profile_material = previous_profile.model_dump(mode="json")
+            previous_profile_material.pop("profile_fingerprint")
+            if latest_run is None or not (
+                latest_run.status is ContactRunStatus.CONTACT_SEARCH_TOO_BROAD
+                and latest_run.completed_at is not None
+                and latest_run.selected_contact_ref is None
+                and latest_run.supplier_ref == current.supplier_ref == profile.supplier_ref
+                and latest_run.search_profile_version == source_version
+                and previous_profile.profile_version == source_version
+                and previous_profile.acquisition_opportunity_id
+                == current.acquisition_opportunity_id
+                and previous_profile.supplier_ref == current.supplier_ref
+                and previous_profile.provider_organization_id
+                == profile.provider_organization_id
+                and latest_run.search_profile_fingerprint
+                == previous_profile.profile_fingerprint
+                == _fingerprint(previous_profile_material)
+            ):
+                return current
+            last_event = self._acquisition.get_last_event_in_transaction(
+                connection,
+                current.acquisition_opportunity_id,
+            )
+            if last_event.event_id != current.last_event_id:
+                raise OpportunityConcurrencyConflict(
+                    current.acquisition_opportunity_id
+                )
+            if not (
+                last_event.event_type is EventType.NEXT_ACTION_SET
+                and last_event.idempotency_key
+                == f"contact_human_review:{latest_run.contact_discovery_run_id}"
+                and last_event.actor_type is ActorType.SYSTEM
+                and last_event.actor_ref == "kivou-contact-discovery"
+                and last_event.correlation_id == latest_run.correlation_id
+                and last_event.reason_codes
+                == (ContactRunStatus.CONTACT_SEARCH_TOO_BROAD.value.lower(),)
+                and last_event.payload == {"next_action": "request_human_review"}
+            ):
+                return current
+            requeue_fingerprint = _fingerprint(
+                {
+                    "kind": "contact-search-profile-upgrade-requeue-v1",
+                    "opportunity_id": current.acquisition_opportunity_id,
+                    "previous_run_id": latest_run.contact_discovery_run_id,
+                    "source_profile_version": source_version,
+                    "target_profile_fingerprint": profile.profile_fingerprint,
+                }
+            )
+            mutation = self._acquisition.append_in_transaction(
+                connection,
+                current.acquisition_opportunity_id,
+                event_type=EventType.NEXT_ACTION_SET,
+                expected_version=current.stream_version,
+                idempotency_key=f"contact_profile_requeue:{requeue_fingerprint}",
+                actor_type=ActorType.SYSTEM,
+                actor_ref="kivou-contact-discovery",
+                reason_codes=("contact_search_profile_upgraded",),
+                evidence_refs=(latest_run.contact_discovery_run_id,),
+                payload={"next_action": "find_decision_makers"},
+                correlation_id=correlation_id,
+                causation_id=last_event.event_id,
+            )
+            if mutation.projection.next_action == "find_decision_makers":
+                return mutation.projection
+            raise OpportunityConcurrencyConflict(
+                current.acquisition_opportunity_id
+            )
 
     @classmethod
     def _require_post_policy(cls, opportunity, run) -> None:
