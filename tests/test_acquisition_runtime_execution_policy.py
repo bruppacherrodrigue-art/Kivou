@@ -292,9 +292,14 @@ def test_live_factory_builds_native_authorizations_from_current_policy() -> None
     engine.dispose()
 
 
-def test_live_factory_enforces_the_twenty_chf_cap_from_the_durable_policy_ledger(
+def test_live_factory_recovers_one_cycle_after_eighteen_chf_durable_cost(
 ) -> None:
-    engine = _engine(control_overrides={"daily_cost_cap": Decimal("20")})
+    engine = _engine(
+        control_overrides={
+            "daily_cost_cap": Decimal("30"),
+            "daily_volume_cap": 1,
+        }
+    )
     factory = LiveRuntimePolicyAuthorizationFactory(
         engine,
         runtime_revision="runtime-config:001",
@@ -305,16 +310,21 @@ def test_live_factory_enforces_the_twenty_chf_cap_from_the_durable_policy_ledger
     gateway = PolicyGateway(engine)
     acquisition = AcquisitionStore(engine)
 
-    def evaluate(stage: AcquisitionRuntimeStage, *, attempt: int):
+    def evaluate(
+        active_factory: LiveRuntimePolicyAuthorizationFactory,
+        stage: AcquisitionRuntimeStage,
+        *,
+        attempt: int,
+    ):
         context = _context(stage, attempt=attempt)
         identity = deterministic_attempt_identity(context.stage_snapshot)
         if stage is AcquisitionRuntimeStage.SUPPLIER_DISCOVERY:
-            call = factory.supplier(context, identity, ())
+            call = active_factory.supplier(context, identity, ())
             target_ref = "procurement-opportunity:signal-qa-001"
             opportunity_id = None
             expected_version = None
         elif stage is AcquisitionRuntimeStage.CONTACT_DISCOVERY:
-            call = factory.contact(
+            call = active_factory.contact(
                 context,
                 identity,
                 (),
@@ -327,7 +337,7 @@ def test_live_factory_enforces_the_twenty_chf_cap_from_the_durable_policy_ledger
             ).stream_version
         else:
             assert stage is AcquisitionRuntimeStage.COMPANY_RESEARCH
-            call = factory.company(
+            call = active_factory.company(
                 context,
                 identity,
                 (),
@@ -353,59 +363,82 @@ def test_live_factory_enforces_the_twenty_chf_cap_from_the_durable_policy_ledger
             budget_usage=call.budget_usage,
         )
 
-    first_supplier_usage, first_supplier = evaluate(
+    prior_decisions = [
+        evaluate(factory, AcquisitionRuntimeStage.SUPPLIER_DISCOVERY, attempt=1)[1],
+        evaluate(factory, AcquisitionRuntimeStage.SUPPLIER_DISCOVERY, attempt=2)[1],
+        evaluate(factory, AcquisitionRuntimeStage.CONTACT_DISCOVERY, attempt=1)[1],
+        evaluate(factory, AcquisitionRuntimeStage.CONTACT_DISCOVERY, attempt=2)[1],
+        evaluate(factory, AcquisitionRuntimeStage.COMPANY_RESEARCH, attempt=1)[1],
+    ]
+
+    def executable_cost() -> Decimal:
+        with engine.connect() as connection:
+            value = connection.scalar(
+                sa.select(sa.func.sum(policy_evaluation.c.estimated_cost)).where(
+                    policy_evaluation.c.executable.is_(True)
+                )
+            )
+        return Decimal(value)
+
+    assert all(decision.executable for decision in prior_decisions)
+    assert executable_cost() == Decimal("18")
+
+    recovered_factory = LiveRuntimePolicyAuthorizationFactory(
+        engine,
+        runtime_revision="runtime-config:001",
+        qa_signal_ref="procurement-opportunity:signal-qa-001",
+        qa_scope=QA_SCOPE,
+        readiness=ReadyPolicyInputs(),
+    )
+    supplier_usage, supplier = evaluate(
+        recovered_factory,
         AcquisitionRuntimeStage.SUPPLIER_DISCOVERY,
-        attempt=1,
+        attempt=3,
     )
-    second_supplier_usage, second_supplier = evaluate(
-        AcquisitionRuntimeStage.SUPPLIER_DISCOVERY,
-        attempt=2,
-    )
-    first_contact_usage, first_contact = evaluate(
-        AcquisitionRuntimeStage.CONTACT_DISCOVERY,
-        attempt=1,
-    )
-    resumed_contact_usage, resumed_contact = evaluate(
-        AcquisitionRuntimeStage.CONTACT_DISCOVERY,
-        attempt=2,
-    )
-    company_usage, company = evaluate(
-        AcquisitionRuntimeStage.COMPANY_RESEARCH,
-        attempt=1,
-    )
-    over_cap_usage, over_cap = evaluate(
+    contact_usage, contact = evaluate(
+        recovered_factory,
         AcquisitionRuntimeStage.CONTACT_DISCOVERY,
         attempt=3,
     )
+    company_usage, company = evaluate(
+        recovered_factory,
+        AcquisitionRuntimeStage.COMPANY_RESEARCH,
+        attempt=2,
+    )
+    over_cap_usage, over_cap = evaluate(
+        recovered_factory,
+        AcquisitionRuntimeStage.CONTACT_DISCOVERY,
+        attempt=4,
+    )
 
     assert [
-        first_supplier.estimated_cost,
-        second_supplier.estimated_cost,
-        first_contact.estimated_cost,
-    ] == [Decimal("2"), Decimal("2"), Decimal("6")]
+        supplier.estimated_cost,
+        contact.estimated_cost,
+        company.estimated_cost,
+    ] == [Decimal("2"), Decimal("6"), Decimal("2")]
     assert [
-        first_supplier_usage.cost_used,
-        second_supplier_usage.cost_used,
-        first_contact_usage.cost_used,
-    ] == [Decimal("0"), Decimal("2"), Decimal("4")]
-    assert resumed_contact_usage.cost_used == Decimal("10")
-    assert resumed_contact.executable is True
-    assert resumed_contact.cost_remaining == Decimal("10")
-    assert company_usage.cost_used == Decimal("16")
-    assert company.executable is True
-    assert company.cost_remaining == Decimal("4")
-    assert over_cap_usage.cost_used == Decimal("18")
+        supplier_usage.cost_used,
+        contact_usage.cost_used,
+        company_usage.cost_used,
+    ] == [Decimal("18"), Decimal("20"), Decimal("26")]
+    assert all(decision.executable for decision in (supplier, contact, company))
+    assert [
+        supplier.cost_remaining,
+        contact.cost_remaining,
+        company.cost_remaining,
+    ] == [Decimal("12"), Decimal("10"), Decimal("4")]
+    assert [
+        supplier.volume_remaining,
+        contact.volume_remaining,
+        company.volume_remaining,
+    ] == [1, 1, 1]
+    assert over_cap_usage.cost_used == Decimal("28")
     assert over_cap.status is PolicyStatus.BUDGET_EXCEEDED
     assert over_cap.executable is False
     assert over_cap.cost_remaining == Decimal("2")
+    assert over_cap.volume_remaining == 1
     assert "daily_cost_cap_exceeded" in over_cap.reason_codes
-    with engine.connect() as connection:
-        executable_cost = connection.scalar(
-            sa.select(sa.func.sum(policy_evaluation.c.estimated_cost)).where(
-                policy_evaluation.c.executable.is_(True)
-            )
-        )
-    assert Decimal(executable_cost) == Decimal("18")
+    assert executable_cost() == Decimal("28")
     engine.dispose()
 
 
