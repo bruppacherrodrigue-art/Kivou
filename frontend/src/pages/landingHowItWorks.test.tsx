@@ -63,7 +63,7 @@ describe('section Comment ça marche de la page d’accueil', () => {
     await screen.findByRole('heading', { level: 2, name: /Kivou transforme/ })
 
     expect(screen.queryByRole('img', { name: /Tableau de bord Kivou/i })).not.toBeInTheDocument()
-    expect(screen.getByText('Du fait publié à votre avis — sans confondre preuve, analyse et apprentissage.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Du fait publié à votre avis — sans confondre preuve, analyse et apprentissage.')).not.toBeInTheDocument()
   })
 
   it('rend visibles les cinq repères du parcours et ses deux actions utiles', async () => {
