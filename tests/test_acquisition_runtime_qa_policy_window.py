@@ -345,6 +345,30 @@ def test_open_window_uses_the_lower_configured_cycle_cost_but_never_zero_base_ca
     assert opened.daily_volume_cap == 1
 
 
+@pytest.mark.parametrize(
+    ("maximum_cycle_cost", "expected_window_cost_cap"),
+    (
+        (Decimal("10"), Decimal("10")),
+        (Decimal("20"), Decimal("20")),
+        (Decimal("50"), Decimal("20")),
+    ),
+)
+def test_open_window_caps_cost_at_twenty_without_raising_lower_configured_limits(
+    tmp_path,
+    maximum_cycle_cost,
+    expected_window_cost_cap,
+) -> None:
+    engine = _engine(tmp_path)
+
+    opened = _open(
+        _controller(engine),
+        runtime_config=_runtime_config(maximum_cycle_cost=maximum_cycle_cost),
+    )
+
+    assert opened.daily_cost_cap == expected_window_cost_cap
+    assert opened.daily_volume_cap == 1
+
+
 def test_open_window_rejects_more_than_one_allowed_opportunity(tmp_path) -> None:
     engine = _engine(tmp_path)
 
