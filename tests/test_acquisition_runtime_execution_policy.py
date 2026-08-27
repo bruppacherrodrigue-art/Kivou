@@ -5,8 +5,10 @@ from decimal import Decimal
 
 import pytest
 import sqlalchemy as sa
+from test_policy_gateway import request
 from test_policy_persistence import control
 
+from signals.acquisition.store import AcquisitionStore
 from signals.acquisition_runtime.authorization import (
     AcquisitionRuntimeApprovalStore,
     RuntimeApprovalStatus,
@@ -37,6 +39,7 @@ from signals.contact_discovery.contracts import ContactAuthorizationInput
 from signals.persistence.database import create_database_engine
 from signals.persistence.schema import (
     METADATA,
+    acquisition_event,
     acquisition_opportunity,
     acquisition_policy_snapshot,
     acquisition_runtime_approval,
@@ -54,6 +57,7 @@ from signals.policy.contracts import (
     PolicyDecision,
     PolicyStatus,
 )
+from signals.policy.gateway import PolicyGateway
 from signals.policy.store import PolicyStore, decision_values
 from signals.supplier_discovery.contracts import DiscoveryAuthorizationInput
 
@@ -93,6 +97,7 @@ def _engine(
     METADATA.create_all(
         engine,
         tables=[
+            acquisition_event,
             acquisition_opportunity,
             acquisition_policy_snapshot,
             policy_evaluation,
@@ -284,6 +289,123 @@ def test_live_factory_builds_native_authorizations_from_current_policy() -> None
         "SUPPLIER_SEARCH_PROFILE",
     }
     assert supplier.budget_usage.cost_used == Decimal("0")
+    engine.dispose()
+
+
+def test_live_factory_enforces_the_twenty_chf_cap_from_the_durable_policy_ledger(
+) -> None:
+    engine = _engine(control_overrides={"daily_cost_cap": Decimal("20")})
+    factory = LiveRuntimePolicyAuthorizationFactory(
+        engine,
+        runtime_revision="runtime-config:001",
+        qa_signal_ref="procurement-opportunity:signal-qa-001",
+        qa_scope=QA_SCOPE,
+        readiness=ReadyPolicyInputs(),
+    )
+    gateway = PolicyGateway(engine)
+    acquisition = AcquisitionStore(engine)
+
+    def evaluate(stage: AcquisitionRuntimeStage, *, attempt: int):
+        context = _context(stage, attempt=attempt)
+        identity = deterministic_attempt_identity(context.stage_snapshot)
+        if stage is AcquisitionRuntimeStage.SUPPLIER_DISCOVERY:
+            call = factory.supplier(context, identity, ())
+            target_ref = "procurement-opportunity:signal-qa-001"
+            opportunity_id = None
+            expected_version = None
+        elif stage is AcquisitionRuntimeStage.CONTACT_DISCOVERY:
+            call = factory.contact(
+                context,
+                identity,
+                (),
+                opportunity_id=OPPORTUNITY_ID,
+            )
+            target_ref = f"acquisition-opportunity:{OPPORTUNITY_ID}"
+            opportunity_id = OPPORTUNITY_ID
+            expected_version = acquisition.get_opportunity(
+                OPPORTUNITY_ID
+            ).stream_version
+        else:
+            assert stage is AcquisitionRuntimeStage.COMPANY_RESEARCH
+            call = factory.company(
+                context,
+                identity,
+                (),
+                opportunity_id=OPPORTUNITY_ID,
+            )
+            target_ref = f"acquisition-opportunity:{OPPORTUNITY_ID}"
+            opportunity_id = OPPORTUNITY_ID
+            expected_version = acquisition.get_opportunity(
+                OPPORTUNITY_ID
+            ).stream_version
+        policy_request = request(
+            stage.command,
+            **call.authorization.model_dump(mode="python"),
+            target_ref=target_ref,
+            acquisition_opportunity_id=opportunity_id,
+            expected_opportunity_version=expected_version,
+            action_fingerprint=context.proposal.argument_fingerprint,
+            proposed_volume=0,
+        )
+        return call.budget_usage, gateway.evaluate_and_record(
+            policy_request,
+            evaluated_at=NOW,
+            budget_usage=call.budget_usage,
+        )
+
+    first_supplier_usage, first_supplier = evaluate(
+        AcquisitionRuntimeStage.SUPPLIER_DISCOVERY,
+        attempt=1,
+    )
+    second_supplier_usage, second_supplier = evaluate(
+        AcquisitionRuntimeStage.SUPPLIER_DISCOVERY,
+        attempt=2,
+    )
+    first_contact_usage, first_contact = evaluate(
+        AcquisitionRuntimeStage.CONTACT_DISCOVERY,
+        attempt=1,
+    )
+    resumed_contact_usage, resumed_contact = evaluate(
+        AcquisitionRuntimeStage.CONTACT_DISCOVERY,
+        attempt=2,
+    )
+    company_usage, company = evaluate(
+        AcquisitionRuntimeStage.COMPANY_RESEARCH,
+        attempt=1,
+    )
+    over_cap_usage, over_cap = evaluate(
+        AcquisitionRuntimeStage.CONTACT_DISCOVERY,
+        attempt=3,
+    )
+
+    assert [
+        first_supplier.estimated_cost,
+        second_supplier.estimated_cost,
+        first_contact.estimated_cost,
+    ] == [Decimal("2"), Decimal("2"), Decimal("6")]
+    assert [
+        first_supplier_usage.cost_used,
+        second_supplier_usage.cost_used,
+        first_contact_usage.cost_used,
+    ] == [Decimal("0"), Decimal("2"), Decimal("4")]
+    assert resumed_contact_usage.cost_used == Decimal("10")
+    assert resumed_contact.executable is True
+    assert resumed_contact.cost_remaining == Decimal("10")
+    assert company_usage.cost_used == Decimal("16")
+    assert company.executable is True
+    assert company.cost_remaining == Decimal("4")
+    assert over_cap_usage.cost_used == Decimal("18")
+    assert over_cap.status is PolicyStatus.BUDGET_EXCEEDED
+    assert over_cap.executable is False
+    assert over_cap.cost_remaining == Decimal("2")
+    assert "daily_cost_cap_exceeded" in over_cap.reason_codes
+    with engine.connect() as connection:
+        executable_cost = connection.scalar(
+            sa.select(sa.func.sum(policy_evaluation.c.estimated_cost)).where(
+                policy_evaluation.c.executable.is_(True)
+            )
+        )
+    assert Decimal(executable_cost) == Decimal("18")
     engine.dispose()
 
 
