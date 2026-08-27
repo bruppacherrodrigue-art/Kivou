@@ -42,6 +42,7 @@ from signals.compliance.store import (
 )
 from signals.compliance.suppression import SuppressionIdentityKeyring
 from signals.contact_discovery.contracts import PROFILE_VERSION as CONTACT_PROFILE_VERSION
+from signals.contact_discovery.profile import decision_maker_profile_semantics
 from signals.contact_discovery.store import ContactDiscoveryStore
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.decision_engine.service import _legacy_budget_usage_candidates
@@ -124,11 +125,14 @@ class ComplianceService:
         sender_config: SenderComplianceConfig,
         clock: Callable[[], dt.datetime] = _utc_now,
         policy_gateway: PolicyGateway | None = None,
+        expected_contact_profile_version: str = CONTACT_PROFILE_VERSION,
     ) -> None:
+        decision_maker_profile_semantics(expected_contact_profile_version)
         self._engine = engine
         self._clock = clock
         self._keyring = keyring
         self._sender_config = sender_config
+        self._expected_contact_profile_version = expected_contact_profile_version
         self._acquisition = AcquisitionStore(engine)
         self._companies = CompanyResearchStore(engine)
         self._contacts = ContactDiscoveryStore(engine)
@@ -266,8 +270,7 @@ class ComplianceService:
         ):
             raise ComplianceNotActionable(opportunity.acquisition_opportunity_id)
 
-    @staticmethod
-    def _require_bindings(opportunity, artifact, supplier, contact, profile) -> None:
+    def _require_bindings(self, opportunity, artifact, supplier, contact, profile) -> None:
         snapshot = artifact["input_snapshot"]
         if not (
             artifact["supplier_ref"] == opportunity.supplier_ref == supplier.supplier_ref
@@ -283,8 +286,8 @@ class ComplianceService:
             and contact.verification_state == "PROVIDER_VERIFIED"
             and contact.verification_provider == "apollo"
             and contact.provider_email_status == "verified"
-            and contact.role_profile_version == CONTACT_PROFILE_VERSION
-            and profile.contact_role_profile_version == CONTACT_PROFILE_VERSION
+            and contact.role_profile_version == self._expected_contact_profile_version
+            and profile.contact_role_profile_version == self._expected_contact_profile_version
             and contact.role_profile_version == profile.contact_role_profile_version
             and contact.role_tier == profile.contact_role_tier
             and supplier.identity_status is SupplierIdentityStatus.PROVIDER_IDENTIFIED

@@ -9,7 +9,9 @@ from pathlib import Path
 import sqlalchemy as sa
 
 from signals.acquisition_connectivity.apollo import ApolloComponents
+from signals.acquisition_runtime import composition as runtime_composition
 from signals.acquisition_runtime.composition import (
+    RUNTIME_QA_CONTACT_PROFILE_VERSION,
     AcquisitionDomainComposition,
     build_acquisition_domain_composition,
 )
@@ -85,7 +87,9 @@ def _runtime_config() -> AcquisitionRuntimeConfig:
     )
 
 
-def test_builder_composes_existing_services_and_closed_stage_handlers_without_io() -> None:
+def test_builder_composes_existing_services_and_closed_stage_handlers_without_io(
+    monkeypatch,
+) -> None:
     engine = sa.create_engine("sqlite+pysqlite:///:memory:")
     provider = NoNetworkProvider()
     apollo = ApolloComponents(
@@ -98,6 +102,13 @@ def test_builder_composes_existing_services_and_closed_stage_handlers_without_io
         current_key_version="suppression-v1",
         keys={"suppression-v1": b"synthetic-suppression-key"},
     )
+    compliance_kwargs: dict[str, object] = {}
+
+    def build_compliance_service(*args, **kwargs):
+        compliance_kwargs.update(kwargs)
+        return ComplianceService(*args, **kwargs)
+
+    monkeypatch.setattr(runtime_composition, "ComplianceService", build_compliance_service)
     composition = build_acquisition_domain_composition(
         engine=engine,
         runtime_config=_runtime_config(),
@@ -136,6 +147,10 @@ def test_builder_composes_existing_services_and_closed_stage_handlers_without_io
     assert isinstance(composition.compliance_service, ComplianceService)
     assert isinstance(composition.campaign_service, CampaignService)
     assert isinstance(composition.campaign_worker, CampaignWorker)
+    assert (
+        compliance_kwargs["expected_contact_profile_version"]
+        == RUNTIME_QA_CONTACT_PROFILE_VERSION
+    )
     assert set(composition.handlers) == set(AcquisitionRuntimeStage)
     assert QA_RECIPIENT not in repr(composition)
 

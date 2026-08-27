@@ -31,6 +31,7 @@ from signals.compliance.suppression import (
     SuppressionIdentityKeyring,
     suppression_evidence_ref,
 )
+from signals.contact_discovery.profile import RUNTIME_QA_PROFILE_VERSION
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.decision_engine.service import DecisionEngineService
 from signals.persistence.schema import (
@@ -52,6 +53,7 @@ from signals.policy.contracts import (
 from signals.policy.store import PolicyStore
 
 COMPLIANCE_ASSESSED_AT = dt.datetime(2026, 8, 21, 12, 30, tzinfo=dt.UTC)
+UNSUPPORTED_CONTACT_PROFILE_VERSION = "decision-maker-search-v0"
 
 
 class CountingClock:
@@ -169,12 +171,23 @@ def ready_context(
     return engine, acquisition, opportunity_id, scope_country
 
 
-def service(engine, clock=None, sender_config=None) -> ComplianceService:
+def service(
+    engine,
+    clock=None,
+    sender_config=None,
+    expected_contact_profile_version: str | None = None,
+) -> ComplianceService:
+    profile_version = (
+        {"expected_contact_profile_version": expected_contact_profile_version}
+        if expected_contact_profile_version is not None
+        else {}
+    )
     return ComplianceService(
         engine,
         keyring=keyring(),
         sender_config=sender_config or sender(),
         clock=clock or CountingClock(COMPLIANCE_ASSESSED_AT),
+        **profile_version,
     )
 
 
@@ -188,6 +201,18 @@ def _count_terminal_events(engine, evaluation_id: str) -> int:
                 acquisition_event.c.causation_id == evaluation_id,
             )
         )
+
+
+def test_unknown_expected_contact_profile_version_fails_closed(prepared) -> None:
+    engine, _, _ = prepared
+
+    with pytest.raises(ValueError) as error:
+        service(
+            engine,
+            expected_contact_profile_version=UNSUPPORTED_CONTACT_PROFILE_VERSION,
+        )
+
+    assert str(error.value) == "unsupported decision-maker search profile version"
 
 
 def test_fr_tier_one_records_allowed_and_advances_to_schedule(prepared) -> None:
@@ -259,23 +284,113 @@ def test_contact_binding_drift_fails_before_policy(prepared) -> None:
         )
 
 
-def test_unsupported_equal_role_profile_versions_fail_before_policy(prepared) -> None:
+def test_default_service_rejects_runtime_qa_role_profile_before_policy(prepared) -> None:
     engine, _, opportunity_id, country = ready_context(prepared)
     with engine.begin() as connection:
         connection.execute(
             sa.update(acquisition_contact).values(
-                role_profile_version="decision-maker-search-v0"
+                role_profile_version=RUNTIME_QA_PROFILE_VERSION
             )
         )
         connection.execute(
             sa.update(acquisition_company_profile).values(
-                contact_role_profile_version="decision-maker-search-v0"
+                contact_role_profile_version=RUNTIME_QA_PROFILE_VERSION
+            )
+        )
+
+    with pytest.raises(ComplianceBindingConflict):
+        service(engine).assess(
+            opportunity_id,
+            compliance_authorization(country=country),
+            budget_usage=BudgetUsage(),
+        )
+
+    assert _count_terminal_events(engine, "compliance-eval-1") == 0
+    with engine.connect() as connection:
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(policy_evaluation)
+                .where(policy_evaluation.c.evaluation_id == "compliance-eval-1")
+            )
+            == 0
+        )
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count()).select_from(acquisition_compliance_assessment)
+            )
+            == 0
+        )
+
+
+def test_explicit_runtime_qa_role_profile_reaches_and_records_compliance(prepared) -> None:
+    engine, acquisition, opportunity_id, country = ready_context(prepared)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_contact).values(
+                role_profile_version=RUNTIME_QA_PROFILE_VERSION
+            )
+        )
+        connection.execute(
+            sa.update(acquisition_company_profile).values(
+                contact_role_profile_version=RUNTIME_QA_PROFILE_VERSION
+            )
+        )
+
+    assessment = service(
+        engine, expected_contact_profile_version=RUNTIME_QA_PROFILE_VERSION
+    ).assess(
+        opportunity_id,
+        compliance_authorization(country=country),
+        budget_usage=BudgetUsage(),
+    )
+
+    assert assessment["state"] == "ALLOWED"
+    assert assessment["disposition"] == "RECORDED"
+    assert acquisition.get_opportunity(opportunity_id).next_action == "schedule_campaign"
+    with engine.connect() as connection:
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count())
+                .select_from(policy_evaluation)
+                .where(policy_evaluation.c.evaluation_id == "compliance-eval-1")
+            )
+            == 1
+        )
+        assert (
+            connection.scalar(
+                sa.select(sa.func.count()).select_from(acquisition_compliance_assessment)
+            )
+            == 1
+        )
+
+
+@pytest.mark.parametrize(
+    "expected_contact_profile_version", (None, RUNTIME_QA_PROFILE_VERSION)
+)
+def test_unsupported_equal_role_profile_versions_fail_before_policy(
+    prepared, expected_contact_profile_version
+) -> None:
+    engine, _, opportunity_id, country = ready_context(prepared)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_contact).values(
+                role_profile_version=UNSUPPORTED_CONTACT_PROFILE_VERSION
+            )
+        )
+        connection.execute(
+            sa.update(acquisition_company_profile).values(
+                contact_role_profile_version=UNSUPPORTED_CONTACT_PROFILE_VERSION
             )
         )
     clock = CountingClock(COMPLIANCE_ASSESSED_AT)
 
     with pytest.raises(ComplianceBindingConflict):
-        service(engine, clock).assess(
+        service(
+            engine,
+            clock,
+            expected_contact_profile_version=expected_contact_profile_version,
+        ).assess(
             opportunity_id,
             compliance_authorization(country=country),
             budget_usage=BudgetUsage(),
