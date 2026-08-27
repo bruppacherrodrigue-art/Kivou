@@ -71,6 +71,9 @@ describe('section Comment ça marche de la page d’accueil', () => {
     renderApp(<AppRoutes />, { route: '/' })
     await screen.findByRole('heading', { level: 2, name: /Kivou transforme/ })
 
+    const dashboardSection = screen
+      .getByRole('heading', { level: 3, name: 'Un chemin de lecture clair, jusqu’à votre note.' })
+      .closest('section')!
     for (const label of [
       'Faits publiés',
       'Périmètre concret',
@@ -78,7 +81,7 @@ describe('section Comment ça marche de la page d’accueil', () => {
       'Preuve officielle',
       'Votre avis et votre note',
     ]) {
-      expect(screen.getByText(label)).toBeInTheDocument()
+      expect(within(dashboardSection).getByText(label)).toBeInTheDocument()
     }
 
     expect(screen.getByRole('link', { name: 'Voir un signal complet' })).toHaveAttribute(
