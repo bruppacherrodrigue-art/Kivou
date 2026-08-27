@@ -53,6 +53,7 @@ from signals.policy.contracts import (
 from signals.policy.store import PolicyStore
 
 COMPLIANCE_ASSESSED_AT = dt.datetime(2026, 8, 21, 12, 30, tzinfo=dt.UTC)
+UNSUPPORTED_CONTACT_PROFILE_VERSION = "decision-maker-search-v0"
 
 
 class CountingClock:
@@ -200,6 +201,18 @@ def _count_terminal_events(engine, evaluation_id: str) -> int:
                 acquisition_event.c.causation_id == evaluation_id,
             )
         )
+
+
+def test_unknown_expected_contact_profile_version_fails_closed(prepared) -> None:
+    engine, _, _ = prepared
+
+    with pytest.raises(ValueError) as error:
+        service(
+            engine,
+            expected_contact_profile_version=UNSUPPORTED_CONTACT_PROFILE_VERSION,
+        )
+
+    assert str(error.value) == "unsupported decision-maker search profile version"
 
 
 def test_fr_tier_one_records_allowed_and_advances_to_schedule(prepared) -> None:
@@ -362,12 +375,12 @@ def test_unsupported_equal_role_profile_versions_fail_before_policy(
     with engine.begin() as connection:
         connection.execute(
             sa.update(acquisition_contact).values(
-                role_profile_version="decision-maker-search-v0"
+                role_profile_version=UNSUPPORTED_CONTACT_PROFILE_VERSION
             )
         )
         connection.execute(
             sa.update(acquisition_company_profile).values(
-                contact_role_profile_version="decision-maker-search-v0"
+                contact_role_profile_version=UNSUPPORTED_CONTACT_PROFILE_VERSION
             )
         )
     clock = CountingClock(COMPLIANCE_ASSESSED_AT)

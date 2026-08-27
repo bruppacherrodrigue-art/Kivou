@@ -42,6 +42,7 @@ from signals.compliance.store import (
 )
 from signals.compliance.suppression import SuppressionIdentityKeyring
 from signals.contact_discovery.contracts import PROFILE_VERSION as CONTACT_PROFILE_VERSION
+from signals.contact_discovery.profile import decision_maker_profile_semantics
 from signals.contact_discovery.store import ContactDiscoveryStore
 from signals.decision_engine.policy import semantic_fingerprint
 from signals.decision_engine.service import _legacy_budget_usage_candidates
@@ -126,6 +127,7 @@ class ComplianceService:
         policy_gateway: PolicyGateway | None = None,
         expected_contact_profile_version: str = CONTACT_PROFILE_VERSION,
     ) -> None:
+        decision_maker_profile_semantics(expected_contact_profile_version)
         self._engine = engine
         self._clock = clock
         self._keyring = keyring
