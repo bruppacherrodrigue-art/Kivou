@@ -45,7 +45,7 @@ export const fr = {
   },
 
   nav: {
-    dashboard: 'Accueil',
+    dashboard: 'Vue d’ensemble',
     signals: 'Signaux',
     icps: 'Profils de ciblage',
     billing: 'Facturation',
@@ -80,9 +80,9 @@ export const fr = {
   },
 
   dashboard: {
-    title: 'Tableau de bord',
-    lead: 'Vos prochaines décisions commerciales, à partir des données de votre compte.',
-    opportunities: 'Prochaines occasions à examiner',
+    title: 'Vue d’ensemble',
+    lead: 'Ce qui mérite votre attention aujourd’hui, à partir des marchés qui correspondent à vos ciblages.',
+    opportunities: 'Signaux à examiner',
     icps: 'Ciblages actifs',
     billing: 'Formule et accès',
     alerts: 'Alertes',

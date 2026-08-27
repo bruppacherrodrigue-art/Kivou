@@ -39,7 +39,7 @@ export const en: Dictionary = {
   },
 
   nav: {
-    dashboard: 'Dashboard',
+    dashboard: 'Overview',
     signals: 'Signals',
     icps: 'Target profiles',
     billing: 'Billing',
@@ -74,9 +74,9 @@ export const en: Dictionary = {
   },
 
   dashboard: {
-    title: 'Dashboard',
-    lead: 'Your next commercial decisions, based on your account data.',
-    opportunities: 'Next opportunities to review',
+    title: 'Overview',
+    lead: 'What deserves your attention today, based on contracts that match your targeting profiles.',
+    opportunities: 'Signals to review',
     icps: 'Active targeting profiles',
     billing: 'Plan and access',
     alerts: 'Alerts',

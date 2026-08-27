@@ -163,7 +163,7 @@ export function PublicLayout() {
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
           <div className={styles.footerBrand}>
-            <KivouLogo size="sm" baseline={t.brand.baseline} />
+            <KivouLogo size="sm" baseline={t.brand.baseline} tone="inverse" />
             <p className={styles.footerTagline}>{t.landing.footerTagline}</p>
           </div>
 
