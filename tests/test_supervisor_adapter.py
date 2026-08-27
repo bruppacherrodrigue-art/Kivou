@@ -167,6 +167,30 @@ def test_adapter_satisfies_replaceable_protocol_and_returns_advisory_actions(tmp
     assert not hasattr(adapter, "execute")
 
 
+def test_exactly_one_action_contract_is_sent_to_hermes(tmp_path):
+    transport = FakeTransport(bridge_response(valid_plan()))
+    adapter = HermesSupervisorAdapter(settings(tmp_path), transport=transport)
+
+    adapter.plan(context(), required_action_count=1)
+
+    request = transport.requests[0]
+    provider_actions = request["response_schema"]["properties"]["proposed_actions"]
+    assert provider_actions["minItems"] == 1
+    assert "maxItems: 1" in provider_actions["description"]
+    assert '"minItems":1' in request["instructions"]
+    assert '"maxItems":1' in request["instructions"]
+
+
+def test_exactly_one_action_contract_rejects_a_valid_generic_noop_plan(tmp_path):
+    adapter = HermesSupervisorAdapter(
+        settings(tmp_path),
+        transport=FakeTransport(bridge_response(valid_plan(proposed_actions=[]))),
+    )
+
+    with pytest.raises(SupervisorValidationError, match="strict schema"):
+        adapter.plan(context(), required_action_count=1)
+
+
 def _schema_nodes(value):
     if isinstance(value, dict):
         yield value
