@@ -218,6 +218,21 @@ class AcquisitionStore:
         with self._engine.connect() as connection:
             return self._list_events(connection, opportunity_id)
 
+    def get_last_event_in_transaction(
+        self, connection: Connection, opportunity_id: str
+    ) -> AcquisitionEvent:
+        row = (
+            connection.execute(
+                sa.select(acquisition_event)
+                .where(acquisition_event.c.acquisition_opportunity_id == opportunity_id)
+                .order_by(acquisition_event.c.stream_sequence.desc())
+                .limit(1)
+            )
+            .mappings()
+            .one()
+        )
+        return _event_from_row(row)
+
     def _list_events(self, connection: Connection, opportunity_id: str) -> list[AcquisitionEvent]:
         rows = connection.execute(
             sa.select(acquisition_event)

@@ -46,6 +46,7 @@ from signals.campaigns.contracts import (
     ProviderOperationState,
 )
 from signals.compliance.contracts import ComplianceDisposition
+from signals.contact_discovery.contracts import ContactDiscoveryNotActionable
 from signals.decision_engine.contracts import DecisionAuditDisposition
 from signals.personalization.contracts import PersonalizationDisposition
 from signals.personalization.grounding import PersonalizationDecisionNoLongerEligible
@@ -239,6 +240,7 @@ class FakeApprovals:
 class FakeAuthorizations:
     def __init__(self) -> None:
         self.calls: list[tuple[str, DomainAttemptIdentity, tuple[object, ...]]] = []
+        self.revalidations: list[tuple[AcquisitionRuntimeStage, str | None]] = []
 
     def _call(self, name, identity, approvals, *, language=None):
         self.calls.append((name, identity, approvals))
@@ -249,7 +251,7 @@ class FakeAuthorizations:
         )
 
     def revalidate_provider_recovery(self, context, *, opportunity_id):
-        del context, opportunity_id
+        self.revalidations.append((context.stage, opportunity_id))
 
     def supplier(self, context, identity, approvals):
         return self._call("supplier", identity, approvals)
@@ -1432,6 +1434,37 @@ def test_supplier_need_becoming_non_actionable_is_suppressed() -> None:
 
     assert outcome.disposition is KivouDomainDisposition.SUPPRESSED
     assert outcome.reason_codes == ("SUPPLIER_NEED_NOT_ACTIONABLE",)
+
+
+def test_contact_becoming_non_actionable_is_a_bounded_blocked_outcome() -> None:
+    truth = FakeTruth()
+    truth.current_opportunity = OpportunityTruth(
+        opportunity_id="opportunity-qa-001",
+        state=AcquisitionState.DISCOVERED,
+        supplier_ref="supplier-qa-001",
+    )
+    actions, _, _ = _actions(truth)
+    guard = FakeExecutionGuard(NOW, NOW + dt.timedelta(seconds=1))
+
+    def not_actionable(*args, **kwargs):
+        assert len(guard.checkpoints) == 2
+        kwargs["authorize_profile_upgrade_requeue"]()
+        raise ContactDiscoveryNotActionable("opportunity-qa-001")
+
+    actions._contact = SimpleNamespace(
+        resume_started=lambda *args, **kwargs: None,
+        find=not_actionable,
+    )
+
+    outcome = actions.discover_contact(
+        _context(AcquisitionRuntimeStage.CONTACT_DISCOVERY, guard=guard)
+    )
+
+    assert outcome.disposition is KivouDomainDisposition.BLOCKED
+    assert outcome.reason_codes == ("CONTACT_DISCOVERY_NOT_ACTIONABLE",)
+    assert actions._authorizations.revalidations == [
+        (AcquisitionRuntimeStage.CONTACT_DISCOVERY, "opportunity-qa-001")
+    ]
 
 
 def test_personalization_eligibility_loss_is_suppressed() -> None:

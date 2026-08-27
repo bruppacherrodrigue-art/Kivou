@@ -43,6 +43,7 @@ from signals.compliance.contracts import (
 )
 from signals.contact_discovery.contracts import (
     ContactAuthorizationInput,
+    ContactDiscoveryNotActionable,
     ContactDiscoveryServiceResult,
 )
 from signals.decision_engine.contracts import (
@@ -350,6 +351,7 @@ class _ContactService(Protocol):
         budget_usage: BudgetUsage,
         contact_discovery_run_id: str,
         correlation_id: str,
+        authorize_profile_upgrade_requeue: Callable[[], None] | None = None,
     ) -> ContactDiscoveryServiceResult: ...
 
 
@@ -949,9 +951,17 @@ class AcquisitionDomainActions:
                         budget_usage=call.budget_usage,
                         contact_discovery_run_id=identity.run_id,
                         correlation_id=identity.correlation_id,
+                        authorize_profile_upgrade_requeue=lambda: (
+                            self._authorizations.revalidate_provider_recovery(
+                                fresh_context,
+                                opportunity_id=opportunity.opportunity_id,
+                            )
+                        ),
                     )
         except DomainTransientFailure as error:
             return _waiting(error.code, retry_at=error.retry_at)
+        except ContactDiscoveryNotActionable:
+            return _blocked("CONTACT_DISCOVERY_NOT_ACTIONABLE")
         policy = _policy_outcome(getattr(result, "decision", None))
         if policy is not None:
             return policy

@@ -31,7 +31,11 @@ from signals.company_research.service import CompanyResearchService
 from signals.compliance.contracts import SenderComplianceConfig
 from signals.compliance.service import ComplianceService
 from signals.compliance.suppression import SuppressionIdentityKeyring
-from signals.contact_discovery.contracts import DecisionMakerSearchProfile
+from signals.contact_discovery.contracts import (
+    PROFILE_VERSION,
+    ContactRunStatus,
+    DecisionMakerSearchProfile,
+)
 from signals.contact_discovery.profile import (
     RUNTIME_QA_PROFILE_VERSION,
     build_decision_maker_profile,
@@ -45,10 +49,19 @@ from signals.supplier_discovery.contracts import SupplierTargetingConfig
 from signals.supplier_discovery.service import SupplierDiscoveryService
 
 RUNTIME_QA_CONTACT_PROFILE_VERSION = RUNTIME_QA_PROFILE_VERSION
+RUNTIME_QA_CONTACT_REQUEUE_SOURCE_PROFILE_VERSION = PROFILE_VERSION
 
 
 def runtime_qa_contact_profile_descriptor() -> dict[str, object]:
     return decision_maker_profile_semantics(RUNTIME_QA_CONTACT_PROFILE_VERSION)
+
+
+def runtime_qa_contact_profile_requeue_descriptor() -> dict[str, str]:
+    return {
+        "source_profile_version": RUNTIME_QA_CONTACT_REQUEUE_SOURCE_PROFILE_VERSION,
+        "target_profile_version": RUNTIME_QA_CONTACT_PROFILE_VERSION,
+        "source_status": ContactRunStatus.CONTACT_SEARCH_TOO_BROAD.value,
+    }
 
 
 def build_runtime_qa_contact_profile(
@@ -110,6 +123,10 @@ def build_acquisition_domain_composition(
         engine,
         provider=apollo.contact_discovery,
         profile_builder=build_runtime_qa_contact_profile,
+        profile_upgrade_requeue=(
+            RUNTIME_QA_CONTACT_REQUEUE_SOURCE_PROFILE_VERSION,
+            RUNTIME_QA_CONTACT_PROFILE_VERSION,
+        ),
         clock=clock,
     )
     company_service = CompanyResearchService(
@@ -185,11 +202,13 @@ def build_acquisition_domain_composition(
 
 __all__ = [
     "RUNTIME_QA_CONTACT_PROFILE_VERSION",
+    "RUNTIME_QA_CONTACT_REQUEUE_SOURCE_PROFILE_VERSION",
     "AcquisitionDomainComposition",
     "build_acquisition_domain_composition",
     "build_runtime_qa_contact_profile",
     "execute_runtime_run_once",
     "runtime_qa_contact_profile_descriptor",
+    "runtime_qa_contact_profile_requeue_descriptor",
 ]
 
 

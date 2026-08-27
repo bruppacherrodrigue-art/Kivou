@@ -33,6 +33,7 @@ from signals.acquisition_runtime.composition import (
     AcquisitionDomainComposition,
     build_acquisition_domain_composition,
     runtime_qa_contact_profile_descriptor,
+    runtime_qa_contact_profile_requeue_descriptor,
 )
 from signals.acquisition_runtime.config import load_runtime_config
 from signals.acquisition_runtime.contracts import (
@@ -449,7 +450,7 @@ def _configuration_fingerprint(
 ) -> str:
     return semantic_fingerprint(
         {
-            "kind": "acquisition-runtime-execution-config-v3",
+            "kind": "acquisition-runtime-execution-config-v4",
             "runtime": runtime_config.deployment.model_dump(mode="json"),
             "connectivity": connectivity_config.deployment.model_dump(mode="json"),
             "public_app_url": links.public_app_url,
@@ -471,6 +472,9 @@ def _configuration_fingerprint(
             "campaign": campaign.model_dump(mode="json"),
             "supplier_targeting": supplier_targeting.model_dump(mode="json"),
             "contact_profile": runtime_qa_contact_profile_descriptor(),
+            "contact_profile_requeue": (
+                runtime_qa_contact_profile_requeue_descriptor()
+            ),
             "registry_identity": registry_identity,
         }
     )
