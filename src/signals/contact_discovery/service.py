@@ -130,6 +130,7 @@ class ContactDiscoveryService:
             opportunity,
             profile,
             authorize=authorize_profile_upgrade_requeue,
+            correlation_id=correlation_id,
         )
         self._require_actionable(opportunity)
         arguments = _canonical_json(
@@ -491,7 +492,14 @@ class ContactDiscoveryService:
             and opportunity.next_action == "request_human_review"
         )
 
-    def _requeue_profile_upgrade(self, opportunity, profile, *, authorize):
+    def _requeue_profile_upgrade(
+        self,
+        opportunity,
+        profile,
+        *,
+        authorize,
+        correlation_id: str,
+    ):
         if not self._profile_upgrade_candidate(opportunity):
             return opportunity
         assert self._profile_upgrade_requeue is not None
@@ -522,6 +530,7 @@ class ContactDiscoveryService:
             if latest_run is None or not (
                 latest_run.status is ContactRunStatus.CONTACT_SEARCH_TOO_BROAD
                 and latest_run.completed_at is not None
+                and latest_run.selected_contact_ref is None
                 and latest_run.supplier_ref == current.supplier_ref == profile.supplier_ref
                 and latest_run.search_profile_version == source_version
                 and previous_profile.profile_version == source_version
@@ -539,13 +548,17 @@ class ContactDiscoveryService:
                 connection,
                 current.acquisition_opportunity_id,
             )
+            if last_event.event_id != current.last_event_id:
+                raise OpportunityConcurrencyConflict(
+                    current.acquisition_opportunity_id
+                )
             if not (
-                last_event.event_id == current.last_event_id
-                and last_event.event_type is EventType.NEXT_ACTION_SET
+                last_event.event_type is EventType.NEXT_ACTION_SET
                 and last_event.idempotency_key
                 == f"contact_human_review:{latest_run.contact_discovery_run_id}"
                 and last_event.actor_type is ActorType.SYSTEM
                 and last_event.actor_ref == "kivou-contact-discovery"
+                and last_event.correlation_id == latest_run.correlation_id
                 and last_event.reason_codes
                 == (ContactRunStatus.CONTACT_SEARCH_TOO_BROAD.value.lower(),)
                 and last_event.payload == {"next_action": "request_human_review"}
@@ -560,7 +573,7 @@ class ContactDiscoveryService:
                     "target_profile_fingerprint": profile.profile_fingerprint,
                 }
             )
-            return self._acquisition.append_in_transaction(
+            mutation = self._acquisition.append_in_transaction(
                 connection,
                 current.acquisition_opportunity_id,
                 event_type=EventType.NEXT_ACTION_SET,
@@ -571,7 +584,14 @@ class ContactDiscoveryService:
                 reason_codes=("contact_search_profile_upgraded",),
                 evidence_refs=(latest_run.contact_discovery_run_id,),
                 payload={"next_action": "find_decision_makers"},
-            ).projection
+                correlation_id=correlation_id,
+                causation_id=last_event.event_id,
+            )
+            if mutation.projection.next_action == "find_decision_makers":
+                return mutation.projection
+            raise OpportunityConcurrencyConflict(
+                current.acquisition_opportunity_id
+            )
 
     @classmethod
     def _require_post_policy(cls, opportunity, run) -> None:
