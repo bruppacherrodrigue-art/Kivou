@@ -33,7 +33,7 @@ from signals.policy.contracts import (
 from signals.policy.store import PolicyStore
 
 MAXIMUM_QA_WINDOW = dt.timedelta(minutes=30)
-MAXIMUM_QA_COST = Decimal("10")
+MAXIMUM_QA_COST = Decimal("20")
 QA_DAILY_VOLUME = 1
 MAX_CONTROL_APPEND_ATTEMPTS = 3
 QA_WINDOW_OPENED = "ACQUISITION_RUNTIME_QA_WINDOW_OPEN"
