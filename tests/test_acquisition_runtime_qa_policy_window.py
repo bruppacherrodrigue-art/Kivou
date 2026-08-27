@@ -350,10 +350,11 @@ def test_open_window_uses_the_lower_configured_cycle_cost_but_never_zero_base_ca
     (
         (Decimal("10"), Decimal("10")),
         (Decimal("20"), Decimal("20")),
-        (Decimal("50"), Decimal("20")),
+        (Decimal("30"), Decimal("30")),
+        (Decimal("50"), Decimal("30")),
     ),
 )
-def test_open_window_caps_cost_at_twenty_without_raising_lower_configured_limits(
+def test_open_window_caps_cost_at_thirty_without_raising_lower_configured_limits(
     tmp_path,
     maximum_cycle_cost,
     expected_window_cost_cap,
