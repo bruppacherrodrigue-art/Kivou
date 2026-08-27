@@ -672,7 +672,7 @@ describe('navigation et garde-fous du dashboard', () => {
     })
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Next opportunities to review' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Signals to review' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Active targeting profiles' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Plan and access' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Alerts' })).toBeInTheDocument()

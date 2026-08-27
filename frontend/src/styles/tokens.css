@@ -45,8 +45,7 @@
   --kivou-select-bg: #eef8f2;
   --kivou-verified-bg: #e8f5ed;
 
-  --kivou-font-display:
-    'Instrument Sans Variable', 'Instrument Sans', Inter, Arial, Helvetica, sans-serif;
+  --kivou-font-display: 'Lora Variable', 'Lora', Georgia, 'Times New Roman', serif;
   --kivou-font-sans:
     'Instrument Sans Variable', 'Instrument Sans', Inter, Arial, Helvetica, sans-serif;
   --kivou-font-mono: 'JetBrains Mono', SFMono-Regular, Consolas, monospace;
