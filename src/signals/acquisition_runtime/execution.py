@@ -590,6 +590,7 @@ def build_runtime_execution_composition(
         )
     targeting = SupplierTargetingConfig(
         organization_locations=(supplier_location,),
+        employee_ranges=("1,200",),
         max_pages=1,
         per_page=1,
         candidate_cap=1,

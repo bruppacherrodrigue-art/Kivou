@@ -581,6 +581,7 @@ def test_default_root_composition_constructs_real_domains_without_network(
     assert composition.domain.actions._targeting.organization_locations == (
         "Switzerland",
     )
+    assert composition.domain.actions._targeting.employee_ranges == ("1,200",)
     api_ingress = build_instantly_webhook_service(engine, webhook_configuration)
     assert api_ingress._suppression_keyring.identities_for_email(QA_RECIPIENT)[
         webhook_configuration.suppression_keyring.current_key_version
