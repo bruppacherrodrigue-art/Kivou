@@ -429,8 +429,9 @@ ni DNS, ni Stripe LIVE en production.
   et attribution invalide en `404`, tous deux en JSON. Les chemins positifs —
   webhook authentifié par secret partagé, persistance et replay, attribution
   `303` avec cookie sûr — sont couverts par huit tests d'intégration réussis,
-  mais n'ont pas été déclenchés en live depuis Instantly. Aucun faux contact ou
-  campagne n'a été créé pour fabriquer cette preuve.
+  mais n'ont pas été exercés en live sur staging. Aucun événement d'origine
+  Instantly n'a été reçu. Aucun faux contact ou campagne n'a été créé pour
+  fabriquer cette preuve.
 
 - **Preuve SaaS réutilisée.** Le parcours authentifié complet du 2026-08-25 est
   réutilisé parce que le code du parcours SaaS concerné n'a pas changé. La
