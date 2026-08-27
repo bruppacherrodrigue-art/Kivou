@@ -168,20 +168,37 @@
 .indicators {
   display: flex;
   align-items: center;
-  gap: 6px;
 }
 
 .indicator {
-  width: 8px;
-  height: 8px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: var(--kivou-border-strong);
+  border-radius: var(--kivou-radius-pill);
+  background: transparent;
   cursor: pointer;
 }
 
-.indicatorActive {
+.indicator::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--kivou-border-strong);
+  transition:
+    width var(--kivou-motion-base) var(--kivou-ease-standard),
+    background var(--kivou-motion-base) var(--kivou-ease-standard);
+}
+
+.indicator:hover::before {
+  background: var(--kivou-text-muted);
+}
+
+.indicatorActive::before {
   width: 24px;
   border-radius: var(--kivou-radius-pill);
   background: var(--kivou-action-primary);

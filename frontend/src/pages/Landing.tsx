@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useI18n } from '../i18n'
 import { ButtonLink } from '../components/Button'
-import { Badge, Card, SectionHeading } from '../components/Surfaces'
+import { Card, SectionHeading } from '../components/Surfaces'
 import { HeroSignalCarousel } from '../components/HeroSignalCarousel'
 import {
   ArrowRightIcon,
@@ -12,7 +12,6 @@ import {
 import { PlanGrid } from '../billing/PlanGrid'
 import { billing } from '../api/endpoints'
 import type { PlanCatalogue } from '../api/types'
-import { publicDemoSignal } from '../content/publicDemoSignal'
 import styles from './Landing.module.css'
 
 /* La page publique.
@@ -30,7 +29,7 @@ import styles from './Landing.module.css'
  *   contient pas, et rien ici ne la reconstitue.
  */
 export function Landing() {
-  const { t, locale } = useI18n()
+  const { t } = useI18n()
   const [catalogue, setCatalogue] = useState<PlanCatalogue | null>(null)
 
   useEffect(() => {
@@ -50,9 +49,6 @@ export function Landing() {
   }, [])
 
   const how = t.landing.how
-  const dashboardImage = `/demo/kivou-dashboard-${locale}-desktop.webp`
-  const dashboardMobileImage = `/demo/kivou-dashboard-${locale}-mobile.webp`
-
   return (
     <>
       <section className={styles.hero}>
@@ -149,29 +145,6 @@ export function Landing() {
               />
             </div>
 
-            <figure className={styles.dashboardFigure}>
-              <div className={styles.dashboardFrame}>
-                <div className={styles.windowBar} aria-hidden="true">
-                  <span />
-                  <span />
-                  <span />
-                </div>
-                <picture>
-                  <source media="(max-width: 767px)" srcSet={dashboardMobileImage} />
-                  <img
-                    className={styles.dashboardImage}
-                    src={dashboardImage}
-                    alt={how.dashboardAlt}
-                    width="1600"
-                    height="1080"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                </picture>
-              </div>
-              <figcaption className={styles.dashboardCaption}>{how.dashboardCaption}</figcaption>
-            </figure>
-
             <ul className={styles.dashboardMarkers} aria-label={how.dashboardEyebrow}>
               {how.dashboardMarkers.map((marker) => (
                 <li key={marker}>
@@ -191,71 +164,6 @@ export function Landing() {
             </div>
           </section>
 
-          <section className={styles.comparisonBlock} aria-labelledby="how-comparison-title">
-            <h3 className={styles.blockHeading} id="how-comparison-title">
-              {how.comparisonTitle}
-            </h3>
-            <div className={styles.comparisonGrid}>
-              <Card padding="lg" className={styles.compareCard}>
-                <p className={styles.eyebrow}>{how.comparisonWithoutEyebrow}</p>
-                <h4>{how.comparisonWithoutTitle}</h4>
-                <ul>
-                  {how.comparisonWithoutItems.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-                <p className={styles.compareConclusion}>{how.comparisonWithoutConclusion}</p>
-              </Card>
-              <Card padding="lg" className={`${styles.compareCard} ${styles.compareKivou}`}>
-                <p className={styles.eyebrow}>{how.comparisonWithEyebrow}</p>
-                <h4>{how.comparisonWithTitle}</h4>
-                <ul>
-                  {how.comparisonWithItems.map((item) => (
-                    <li key={item}>{item}</li>
-                  ))}
-                </ul>
-                <p className={styles.compareConclusion}>{how.comparisonWithConclusion}</p>
-              </Card>
-            </div>
-          </section>
-
-          <section className={styles.trustBlock} aria-labelledby="how-trust-title">
-            <div>
-              <h3 className={styles.blockHeading} id="how-trust-title">
-                {how.trustTitle}
-              </h3>
-              <p className={styles.blockLead}>{how.trustBodyTwo}</p>
-            </div>
-            <ul className={styles.trustIndicators}>
-              {how.trustIndicators.map((indicator) => (
-                <li key={indicator}>
-                  <ShieldIcon aria-hidden="true" />
-                  {indicator}
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <section className={styles.pricingBridge} aria-labelledby="how-pricing-title">
-            <div>
-              <Badge tone="warm">{how.pricingNoCard}</Badge>
-              <h3 className={styles.bridgeTitle} id="how-pricing-title">
-                {how.pricingTitle}
-              </h3>
-              <p>{how.pricingBody}</p>
-            </div>
-            <div className={styles.howActions}>
-              <ButtonLink to="/signup" variant="primary" size="lg" icon={<ArrowRightIcon />}>
-                {how.pricingPrimary}
-              </ButtonLink>
-              <ButtonLink to="/#tarifs" variant="secondary" size="lg">
-                {how.pricingSecondary}
-              </ButtonLink>
-            </div>
-            <p className={styles.bridgeSource}>
-              {publicDemoSignal.winner.legalName} · {publicDemoSignal.contract.reference}
-            </p>
-          </section>
         </div>
       </section>
 

@@ -174,7 +174,7 @@ export const fr = {
     heroLead:
       'Kivou identifie les entreprises gagnantes, comprend ce qu’elles devront exécuter et vous montre les occasions correspondant à ce que vous vendez.',
     heroSecondaryLead:
-      'Vous ne recevez pas une liste de marchés publics. Vous recevez des raisons documentées de contacter de nouveaux prospects.',
+      'Vous ne recevez pas une liste de marchés publics. Vous recevez des raisons documentées d’examiner les bonnes entreprises.',
     heroPrimary: 'Voir mes 3 signaux',
     heroSecondary: 'Découvrir un signal complet',
     heroTrust: 'Suisse + Union européenne · Sources officielles · Preuves vérifiables',
@@ -215,7 +215,7 @@ export const fr = {
       introBodyTwo:
         'Kivou surveille ces événements, identifie les gagnants, comprend ce qu’ils devront exécuter et sélectionne uniquement les occasions correspondant à ce que vous vendez.',
       introHighlight:
-        'Pas une liste de marchés publics : des raisons documentées de contacter de nouveaux prospects.',
+        'Pas une liste de marchés publics : des faits, une analyse et une preuve pour décider par vous-même.',
       profileEyebrow: 'Votre profil de ciblage',
       profileTitle: 'Vous décrivez votre activité. Kivou surveille le marché pour vous.',
       profileBody:
@@ -239,48 +239,40 @@ export const fr = {
           body: 'Secteurs, montants, besoins.',
         },
       ],
-      processTitle: 'De l’attribution publique à l’action commerciale',
+      processTitle: 'Du signal à votre apprentissage',
       processSteps: [
         {
-          title: 'Kivou surveille',
-          body: 'Les attributions suisses et européennes publiées sont collectées.',
+          title: '1. Fait publié',
+          body: 'Kivou identifie l’attribution, l’entreprise gagnante et la source officielle.',
         },
         {
-          title: 'Kivou identifie',
-          body: 'Gagnant, contrat, montant, acheteur, lieu et dates sont vérifiés.',
+          title: '2. Périmètre concret',
+          body: 'Les montants, volumes, lieux et dates publiés sont regroupés sans extrapolation.',
         },
         {
-          title: 'Kivou comprend',
-          body: 'Les lots, volumes et documents disponibles sont résumés.',
+          title: '3. Analyse Kivou',
+          body: 'La correspondance avec votre ciblage et les points à vérifier sont expliqués comme des hypothèses.',
         },
         {
-          title: 'Kivou fait correspondre',
-          body: 'Le signal est comparé à votre offre, vos cibles et votre territoire.',
-        },
-        {
-          title: 'Kivou qualifie le moment',
-          body: 'La date d’attribution et le calendrier d’exécution situent le signal dans le temps.',
-        },
-        {
-          title: 'Votre équipe agit',
-          body: 'Votre commercial reçoit le prospect, le contexte, le timing et la preuve.',
+          title: '4. Votre apprentissage',
+          body: 'Vous jugez le signal et ajoutez une note. Ce retour reste séparé des faits et nourrit une analyse supervisée.',
         },
       ],
       dashboardEyebrow: 'DANS VOTRE DASHBOARD',
       dashboardTitle:
-        'Un signal clair, directement exploitable.',
+        'Un chemin de lecture clair, jusqu’à votre note.',
       dashboardBody:
-        'L’entreprise, le contrat, les volumes, le timing, les coordonnées disponibles et la preuve officielle tiennent dans une seule vue.',
+        'Les faits publiés, l’analyse Kivou, la preuve officielle puis votre avis tiennent dans une seule vue.',
       dashboardAlt:
-        'Tableau de bord Kivou montrant un signal commercial pour une entreprise gagnante, le montant du contrat, les volumes, la correspondance avec l’offre du client, les coordonnées professionnelles et la prochaine étape.',
+        'Tableau de bord Kivou montrant les faits publiés d’un marché, son périmètre, l’analyse, la preuve officielle et une note client.',
       dashboardCaption:
-        'Le prospect, le contexte et la prochaine action — réunis dans un seul signal.',
+        'Du fait publié à votre avis — sans confondre preuve, analyse et apprentissage.',
       dashboardMarkers: [
-        'Entreprise identifiée',
-        'Coordonnées professionnelles',
-        'Timing qualifié',
-        'Action recommandée',
+        'Faits publiés',
+        'Périmètre concret',
+        'Analyse Kivou',
         'Preuve officielle',
+        'Votre avis et votre note',
       ],
       dashboardPrimary: 'Voir un signal complet',
       dashboardSecondary: 'Recevoir mes 3 signaux',
@@ -488,7 +480,7 @@ export const fr = {
 
   publicDemo: {
     navLabel: 'Exemple de signal',
-    heroEyebrow: 'Opportunité commerciale documentée',
+    heroEyebrow: 'Signal commercial documenté',
     heroTitle: '{company} a remporté un marché de {amount} à {location}',
     heroSubtitle:
       'Le descriptif publié mentionne {woodDoors} huisseries et portes bois, {steelDoors} huisseries acier et portes bois, {skirting} de plinthes, {wallCladding} de revêtement bois, {glazing} vitrages et {kitchenettes} kitchenettes.',
@@ -573,7 +565,7 @@ export const fr = {
 
     companyTitle: 'Entreprise identifiée',
     companyLead:
-      'Les faits d’attribution et les coordonnées professionnelles sont présentés avec leurs sources respectives.',
+      'Les faits d’attribution et les informations publiques disponibles sont présentés avec leurs sources respectives.',
     companyTedFactsTitle: 'Faits issus de l’avis TED',
     companyLegalName: 'Raison sociale',
     companyOfficialAddress: 'Adresse officielle',
@@ -582,9 +574,9 @@ export const fr = {
     companyContract: 'Marché remporté',
     companyBuyer: 'Acheteur public',
     companyTedSource: 'Consulter les faits dans TED',
-    companyContactTitle: 'Coordonnées vérifiées sur le site public de l’entreprise',
+    companyContactTitle: 'Informations disponibles sur le site public de l’entreprise',
     companyContactIntro:
-      'Ces coordonnées professionnelles proviennent du site public de l’entreprise, distinct de l’avis TED.',
+      'Ces informations proviennent du site public de l’entreprise, distinct de l’avis TED. Aucun enrichissement tiers n’est utilisé.',
     companyWebsite: 'Site internet',
     companyWebsiteLink: 'Ouvrir le site internet de l’entreprise',
     companyPhone: 'Téléphone professionnel',
@@ -592,14 +584,14 @@ export const fr = {
     companyContactSource: 'Source de vérification',
     companyContactSourceLink: 'Ouvrir la source de vérification',
 
-    actionEyebrow: 'Prochaine étape',
-    actionTitle: 'Prochaine étape recommandée',
-    actionBody: 'Cette démonstration permet d’examiner le signal sans simuler une prospection automatisée.',
-    actionListTitle: 'Actions disponibles',
-    actionReviewMarket: 'Examiner le marché et les volumes publiés',
-    actionCheckFit: 'Vérifier leur correspondance avec votre offre',
-    actionOpenNotice: 'Consulter l’avis officiel',
-    actionCreateAccount: 'Créer un compte Kivou pour recevoir trois signaux personnalisés',
+    actionEyebrow: 'À vérifier par vous',
+    actionTitle: 'Ce que vous pouvez vérifier maintenant',
+    actionBody: 'Kivou documente le signal, mais ne prétend pas connaître les fournisseurs déjà choisis ni les achats encore ouverts.',
+    actionListTitle: 'Questions utiles',
+    actionReviewMarket: 'Quels approvisionnements restent éventuellement ouverts ?',
+    actionCheckFit: 'Les produits publiés correspondent-ils réellement à votre offre ?',
+    actionOpenNotice: 'Que confirme exactement l’avis officiel ?',
+    actionCreateAccount: 'Quelle note souhaitez-vous conserver sur ce signal ?',
     actionPrimary: 'Voir mes 3 premiers signaux',
     actionSecondary: 'Ouvrir l’avis officiel',
 
@@ -1007,7 +999,7 @@ export const fr = {
     },
     noteLabel: 'Note sur ce signal',
     noteHelp: '{max} caractères maximum.',
-    noteCount: '{count} / {max}',
+    noteCount: '{count} / {max} · Choisissez « Pertinent » ou « Pas pertinent » pour enregistrer la note.',
     submit: 'Enregistrer mon avis',
     recorded: 'Avis enregistré.',
     contactedTitle: 'Avez-vous contacté cette entreprise ?',

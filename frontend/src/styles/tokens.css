@@ -16,7 +16,7 @@
   --kivou-color-surface: #ffffff;
   --kivou-color-line: #dfe6e2;
   --kivou-color-text-secondary: #50615a;
-  --kivou-color-text-muted: #6f7d77;
+  --kivou-color-text-muted: #5d6b65;
   --kivou-color-success: #287451;
   --kivou-color-warning: #a86618;
   --kivou-color-danger: #b3433f;
@@ -34,6 +34,8 @@
   --kivou-action-primary: #2463eb;
   --kivou-action-primary-hover: #1d4ed8;
   --kivou-action-accent: #2463eb;
+  --kivou-analysis-accent: #8a641f;
+  --kivou-analysis-bg: #fff9ed;
   --kivou-focus: #2563eb;
 
   --kivou-sidebar-bg: var(--kivou-color-forest);

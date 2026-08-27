@@ -1,5 +1,6 @@
 .card {
   position: relative;
+  container-type: inline-size;
   min-height: 100%;
   padding: var(--kivou-space-6);
   display: flex;
@@ -216,7 +217,7 @@
   border-top: 1px solid var(--kivou-border);
 }
 
-@media (min-width: 720px) {
+@container (min-width: 700px) {
   .analysisGrid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

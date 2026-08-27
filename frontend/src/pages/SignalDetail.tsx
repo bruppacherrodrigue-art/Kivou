@@ -17,7 +17,7 @@ import styles from './SignalDetail.module.css'
  *
  * La séparation FAITS / ANALYSE est la crédibilité même de Kivou, et elle est
  * portée par la STRUCTURE, pas par une nuance de gris : deux sections nommées,
- * deux en-têtes, un liseré brass sur l'analyse. Un lecteur qui parcourt la page
+ * deux en-têtes, un liseré dédié à l’analyse. Un lecteur qui parcourt la page
  * doit voir où finit ce que la source publie et où commence ce que Kivou en
  * déduit.
  *
@@ -182,8 +182,7 @@ function UnlockedDetailView({ detail }: { detail: UnlockedDetail }) {
         ) : null}
       </header>
 
-      <div className={styles.columns}>
-        <div className={styles.mainColumn}>
+      <div className={styles.mainColumn}>
           {/* ── FAITS ─────────────────────────────────────────────────── */}
           <section className={styles.factsSection} aria-labelledby="kivou-facts">
             <SectionHeading
@@ -271,34 +270,58 @@ function UnlockedDetailView({ detail }: { detail: UnlockedDetail }) {
               level={2}
             />
 
-            <Card padding="lg" className={styles.analysisCard}>
-              <h3 className={styles.blockTitle}>{t.detail.needsTitle}</h3>
-              <NeedList
-                needs={analysis.plausible_needs.items}
-                note={analysis.plausible_needs.note}
-                showReasoning
-              />
+            <div className={styles.analysisLayout}>
+              <Card padding="lg" className={styles.analysisCard}>
+                <h3 className={styles.blockTitle}>{t.detail.needsTitle}</h3>
+                <NeedList
+                  needs={analysis.plausible_needs.items}
+                  note={analysis.plausible_needs.note}
+                  showReasoning
+                />
 
-              {analysis.contract_reading ? (
-                <div className={styles.contractReading}>
-                  <h3 className={styles.blockTitle}>{t.detail.contractReading}</h3>
-                  <p className={styles.readingNote}>{analysis.contract_reading.note}</p>
-                  {analysis.contract_reading.summary ? (
-                    <p className={styles.readingText}>{analysis.contract_reading.summary}</p>
-                  ) : null}
-                  <DataList>
-                    {analysis.contract_reading.contract_type ? (
-                      <DataRow label={t.detail.contractType}>
-                        {analysis.contract_reading.contract_type}
-                      </DataRow>
+                {analysis.contract_reading ? (
+                  <div className={styles.contractReading}>
+                    <h3 className={styles.blockTitle}>{t.detail.contractReading}</h3>
+                    <p className={styles.readingNote}>{analysis.contract_reading.note}</p>
+                    {analysis.contract_reading.summary ? (
+                      <p className={styles.readingText}>{analysis.contract_reading.summary}</p>
                     ) : null}
-                    {analysis.contract_reading.sector ? (
-                      <DataRow label={t.detail.sector}>{analysis.contract_reading.sector}</DataRow>
-                    ) : null}
-                  </DataList>
-                </div>
-              ) : null}
-            </Card>
+                    <DataList>
+                      {analysis.contract_reading.contract_type ? (
+                        <DataRow label={t.detail.contractType}>
+                          {analysis.contract_reading.contract_type}
+                        </DataRow>
+                      ) : null}
+                      {analysis.contract_reading.sector ? (
+                        <DataRow label={t.detail.sector}>{analysis.contract_reading.sector}</DataRow>
+                      ) : null}
+                    </DataList>
+                  </div>
+                ) : null}
+              </Card>
+              <Card padding="md" as="section" className={styles.fitCard}>
+                <h3 className={styles.fitTitle}>{t.detail.fitTitle}</h3>
+                <p className={styles.fitLabel}>{analysis.fit.label}</p>
+
+                {analysis.fit.target_icp_label ? (
+                  <p className={styles.fitProfile}>
+                    <span className={styles.fitProfileLabel}>{t.detail.fitProfile}</span>
+                    {analysis.fit.target_icp_label}
+                  </p>
+                ) : null}
+
+                {analysis.fit.reasons.length > 0 ? (
+                  <>
+                    <p className={styles.fitReasonsLabel}>{t.detail.fitReasons}</p>
+                    <ul className={styles.fitReasons}>
+                      {analysis.fit.reasons.map((reason) => (
+                        <li key={reason}>{reason}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : null}
+              </Card>
+            </div>
           </section>
 
           {/* ── PREUVE ────────────────────────────────────────────────── */}
@@ -313,32 +336,6 @@ function UnlockedDetailView({ detail }: { detail: UnlockedDetail }) {
           </section>
 
           <FeedbackControl signalKey={detail.signal_id} initial={detail.interaction} />
-        </div>
-
-        <aside className={styles.sideColumn}>
-          <Card padding="md" as="section" className={styles.fitCard}>
-            <h2 className={styles.fitTitle}>{t.detail.fitTitle}</h2>
-            <p className={styles.fitLabel}>{analysis.fit.label}</p>
-
-            {analysis.fit.target_icp_label ? (
-              <p className={styles.fitProfile}>
-                <span className={styles.fitProfileLabel}>{t.detail.fitProfile}</span>
-                {analysis.fit.target_icp_label}
-              </p>
-            ) : null}
-
-            {analysis.fit.reasons.length > 0 ? (
-              <>
-                <p className={styles.fitReasonsLabel}>{t.detail.fitReasons}</p>
-                <ul className={styles.fitReasons}>
-                  {analysis.fit.reasons.map((reason) => (
-                    <li key={reason}>{reason}</li>
-                  ))}
-                </ul>
-              </>
-            ) : null}
-          </Card>
-        </aside>
       </div>
     </div>
   )

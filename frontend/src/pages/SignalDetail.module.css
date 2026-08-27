@@ -46,6 +46,10 @@
   width: 1.1rem;
 }
 
+.companyName {
+  color: var(--kivou-nav-active-text);
+}
+
 .title {
   max-width: 28ch;
   font-size: var(--kivou-text-h1);
@@ -78,9 +82,10 @@
   align-items: start;
 }
 
-.mainColumn,
-.sideColumn {
+.mainColumn {
+  width: min(100%, 72rem);
   min-width: 0;
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
   gap: var(--kivou-space-8);
@@ -94,9 +99,17 @@
   gap: var(--kivou-space-4);
 }
 
+.analysisLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--kivou-space-4);
+  align-items: start;
+}
+
 .analysisCard {
-  border-color: #cfe7d8;
-  background: var(--kivou-verified-bg);
+  border-color: var(--kivou-border);
+  border-left: 3px solid var(--kivou-analysis-accent);
+  background: var(--kivou-bg-surface);
 }
 
 .blockTitle,
@@ -109,7 +122,7 @@
 .contractReading {
   margin-top: var(--kivou-space-5);
   padding-top: var(--kivou-space-5);
-  border-top: 1px solid #cfe7d8;
+  border-top: 1px solid var(--kivou-border);
 }
 
 .readingNote,
@@ -143,8 +156,8 @@
 }
 
 .fitCard {
-  border-color: #cfe7d8;
-  background: var(--kivou-verified-bg);
+  border-color: var(--kivou-border);
+  background: var(--kivou-bg-subtle);
 }
 
 .fitLabel {
@@ -198,12 +211,7 @@
 }
 
 @media (min-width: 1080px) {
-  .columns {
-    grid-template-columns: minmax(0, 1fr) minmax(18rem, 22rem);
-  }
-
-  .sideColumn {
-    position: sticky;
-    top: var(--kivou-space-8);
+  .analysisLayout {
+    grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
   }
 }

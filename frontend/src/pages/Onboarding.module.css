@@ -40,7 +40,9 @@
 }
 
 .stepTitle:focus {
-  outline: none;
+  outline: 3px solid var(--kivou-focus);
+  outline-offset: 6px;
+  border-radius: var(--kivou-radius-sm);
 }
 
 .stepLead {
