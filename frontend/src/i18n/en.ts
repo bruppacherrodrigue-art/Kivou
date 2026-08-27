@@ -967,7 +967,7 @@ export const en: Dictionary = {
 
   feedback: {
     title: 'Your view on this signal',
-    lead: 'It helps us understand what is useful to you. It does not change the engine.',
+    lead: 'Your feedback stays separate from published facts. It supports supervised analysis and never changes the engine automatically.',
     relevant: 'Relevant',
     notRelevant: 'Not relevant',
     reasonLabel: 'Why is this signal not relevant?',
@@ -980,7 +980,7 @@ export const en: Dictionary = {
       wrong_need: 'Wrong need',
       other: 'Other',
     },
-    noteLabel: 'Detail',
+    noteLabel: 'Note about this signal',
     noteHelp: '{max} characters maximum.',
     noteCount: '{count} / {max}',
     submit: 'Record my view',

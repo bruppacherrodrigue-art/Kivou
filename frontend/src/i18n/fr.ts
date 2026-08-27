@@ -977,7 +977,7 @@ export const fr = {
 
   feedback: {
     title: 'Votre avis sur ce signal',
-    lead: 'Il nous sert à comprendre ce qui vous est utile. Il ne modifie pas le moteur.',
+    lead: 'Votre retour reste séparé des faits publiés. Il nourrit une analyse supervisée, sans modifier automatiquement le moteur.',
     relevant: 'Pertinent',
     notRelevant: 'Pas pertinent',
     reasonLabel: 'Pourquoi ce signal n’est-il pas pertinent ?',
@@ -990,7 +990,7 @@ export const fr = {
       wrong_need: 'Besoin erroné',
       other: 'Autre',
     },
-    noteLabel: 'Précision',
+    noteLabel: 'Note sur ce signal',
     noteHelp: '{max} caractères maximum.',
     noteCount: '{count} / {max}',
     submit: 'Enregistrer mon avis',

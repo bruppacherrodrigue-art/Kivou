@@ -12,8 +12,6 @@ import {
 } from '../test/harness'
 import { MAXIMUM_NOTE_LENGTH } from '../api/types'
 
-/* SPEC-015 §52 — les six vérifications du retour client. */
-
 afterEach(() => vi.unstubAllGlobals())
 
 const PATH = '/signals/sig_unlocked_1/feedback'
@@ -44,20 +42,21 @@ async function openDetail() {
   await screen.findByRole('heading', { name: 'Votre avis sur ce signal' })
 }
 
-describe('retour client', () => {
-  it('enregistre « pertinent » sans exiger de raison', async () => {
+describe('retour client V1', () => {
+  it('enregistre un signal pertinent avec une note facultative', async () => {
     const user = userEvent.setup()
     mockApi(routes())
     await openDetail()
 
     await user.click(screen.getByLabelText('Pertinent'))
+    await user.type(screen.getByLabelText(/Note sur ce signal/), 'Vérifier le calendrier de livraison.')
     await user.click(screen.getByRole('button', { name: 'Enregistrer mon avis' }))
 
     await waitFor(() => expect(callsTo(PATH, 'PUT')).toHaveLength(1))
     expect(callsTo(PATH, 'PUT')[0].body).toEqual({
       relevance: 'relevant',
       reason: null,
-      note: null,
+      note: 'Vérifier le calendrier de livraison.',
     })
   })
 
@@ -90,101 +89,50 @@ describe('retour client', () => {
       'Besoin erroné',
       'Autre',
     ]
-    for (const label of expected) {
-      expect(screen.getByLabelText(label)).toBeInTheDocument()
-    }
+    for (const label of expected) expect(screen.getByLabelText(label)).toBeInTheDocument()
 
     const group = screen.getByRole('group', { name: /Pourquoi ce signal n’est-il pas pertinent/ })
     expect(group.querySelectorAll('input[type="radio"]')).toHaveLength(expected.length)
   })
 
-  it('borne la précision libre à la longueur acceptée par le backend', async () => {
+  it('rend la note disponible quel que soit le jugement et la borne à 500 caractères', async () => {
+    const user = userEvent.setup()
+    mockApi(routes())
+    await openDetail()
+
+    const note = screen.getByLabelText(/Note sur ce signal/)
+    expect(note).toHaveAttribute('maxlength', String(MAXIMUM_NOTE_LENGTH))
+
+    await user.click(screen.getByLabelText('Pas pertinent'))
+    expect(screen.getByLabelText(/Note sur ce signal/)).toBeInTheDocument()
+  })
+
+  it('enregistre ensemble la raison et la note d’un signal non pertinent', async () => {
     const user = userEvent.setup()
     mockApi(routes())
     await openDetail()
 
     await user.click(screen.getByLabelText('Pas pertinent'))
-    await user.click(screen.getByLabelText('Autre'))
+    await user.click(screen.getByLabelText('Trop tard'))
+    await user.type(screen.getByLabelText(/Note sur ce signal/), 'Le fournisseur est déjà choisi.')
+    await user.click(screen.getByRole('button', { name: 'Enregistrer mon avis' }))
 
-    const note = screen.getByLabelText(/Précision/)
-    expect(note).toHaveAttribute('maxlength', String(MAXIMUM_NOTE_LENGTH))
+    await waitFor(() => expect(callsTo(PATH, 'PUT')).toHaveLength(1))
+    expect(callsTo(PATH, 'PUT')[0].body).toEqual({
+      relevance: 'not_relevant',
+      reason: 'too_late',
+      note: 'Le fournisseur est déjà choisi.',
+    })
   })
 
-  it('garde « contacté » séparé du jugement de pertinence', async () => {
-    const user = userEvent.setup()
-    mockApi(
-      routes({
-        'POST /signals/sig_unlocked_1/contacted': {
-          body: {
-            signal_id: 'sig_unlocked_1',
-            recorded: true,
-            interaction: {
-              relevance: null,
-              reason: null,
-              note: null,
-              contacted: true,
-              contacted_at: '2026-08-18T11:00:00+00:00',
-              updated_at: '2026-08-18T11:00:00+00:00',
-            },
-          },
-        },
-      }),
-    )
-    await openDetail()
-
-    // Deux commandes distinctes, deux points d'entrée distincts.
-    await user.click(screen.getByRole('button', { name: 'J’ai contacté cette entreprise' }))
-
-    await waitFor(() =>
-      expect(callsTo('/signals/sig_unlocked_1/contacted')).toHaveLength(1),
-    )
-    // Marquer « contacté » n'a écrit AUCUN avis de pertinence.
-    expect(callsTo(PATH, 'PUT')).toHaveLength(0)
-    expect(screen.getByLabelText('Pertinent')).not.toBeChecked()
-    expect(screen.getByLabelText('Pas pertinent')).not.toBeChecked()
-  })
-
-  it('dit ce que « contacté » signifie, et rien de plus', async () => {
+  it('n’expose aucun suivi commercial dans la V1', async () => {
     mockApi(routes())
     await openDetail()
 
-    // La copie DÉMENT explicitement les trois interprétations abusives : c'est
-    // cette phrase qui doit être là, et les mots qu'elle contient ne peuvent
-    // donc pas servir d'interdits littéraux.
-    const disclaimer = screen.getByText(/vous avez pris contact/)
-    expect(disclaimer).toHaveTextContent('ne dit rien d’une réponse')
-    expect(disclaimer).toHaveTextContent('rendez-vous')
-    expect(disclaimer).toHaveTextContent('affaire gagnée')
-
-    // Aucune ÉTAPE en aval n'est pour autant fabriquée : ni pipeline, ni
-    // relance, ni statut CRM inventé.
-    const page = (document.body.textContent ?? '').toLowerCase()
-    for (const invented of ['pipeline', 'relance', 'opportunité', 'devis envoyé', 'négociation']) {
-      expect(page).not.toContain(invented)
-    }
-  })
-
-  it('ne rejoue pas une transition trompeuse quand le contact était déjà enregistré', async () => {
-    const already = {
-      ...UNLOCKED_DETAIL,
-      interaction: {
-        relevance: null,
-        reason: null,
-        note: null,
-        contacted: true,
-        contacted_at: '2026-08-15T09:00:00+00:00',
-        updated_at: '2026-08-15T09:00:00+00:00',
-      },
-    }
-    mockApi({ ...routes(), 'GET /signals/sig_unlocked_1': { body: already } })
-    await openDetail()
-
-    // L'état confirmé est rendu d'emblée ; l'action n'est plus proposée, donc
-    // aucun clic ne peut simuler une nouvelle démarche commerciale.
-    expect(screen.getByText(/Contact enregistré le/)).toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: 'J’ai contacté cette entreprise' }),
     ).not.toBeInTheDocument()
+    expect(screen.queryByText(/Avez-vous contacté cette entreprise/)).not.toBeInTheDocument()
     expect(callsTo('/signals/sig_unlocked_1/contacted')).toHaveLength(0)
   })
 })
