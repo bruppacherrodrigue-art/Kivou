@@ -20,6 +20,10 @@ from signals.contact_discovery.contracts import (
     PeopleSearchCandidate,
     PeopleSearchPage,
 )
+from signals.contact_discovery.profile import (
+    RUNTIME_QA_PROFILE_VERSION,
+    build_decision_maker_profile,
+)
 from signals.contact_discovery.service import ContactDiscoveryService
 from signals.contact_discovery.store import ContactDiscoveryStore
 from signals.persistence.database import alembic_config, create_database_engine
@@ -202,6 +206,13 @@ def _service(engine, provider, *, clock=None):
     return ContactDiscoveryService(engine, provider=provider, clock=ticking)
 
 
+def _runtime_qa_profile(**identity):
+    return build_decision_maker_profile(
+        **identity,
+        profile_version=RUNTIME_QA_PROFILE_VERSION,
+    )
+
+
 def _find(service, opportunity_id, authorization=None, run_id="contact-run-1"):
     return service.find(
         opportunity_id,
@@ -232,6 +243,31 @@ def test_success_is_bounded_truncated_and_updates_workflow_atomically(context) -
     assert result.decision.evaluated_at < result.run.started_at
     assert result.run.started_at <= result.contact.provider_observed_at
     assert result.contact.provider_observed_at <= result.run.completed_at
+
+
+def test_injected_profile_is_persisted_on_the_run_and_selected_contact(context) -> None:
+    engine, _, _, opportunity_id = context
+    provider = FakeProvider(_page(_candidate(), total=84), [_enriched()])
+    service = ContactDiscoveryService(
+        engine,
+        provider=provider,
+        profile_builder=_runtime_qa_profile,
+        clock=TickClock(),
+    )
+
+    result = _find(service, opportunity_id)
+
+    assert result.run.status is ContactRunStatus.SUCCESS
+    assert result.run.search_profile_version == RUNTIME_QA_PROFILE_VERSION
+    assert result.run.search_profile["person_seniorities"] == [
+        "owner",
+        "founder",
+        "c_suite",
+        "vp",
+        "head",
+        "director",
+    ]
+    assert result.contact.role_profile_version == RUNTIME_QA_PROFILE_VERSION
 
 
 def test_existing_run_replay_precedes_actionability_and_calls_no_provider(context) -> None:

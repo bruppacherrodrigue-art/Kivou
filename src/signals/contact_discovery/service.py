@@ -63,6 +63,9 @@ class ContactDiscoveryService:
         contact_store: ContactDiscoveryStore | None = None,
         acquisition_store: AcquisitionStore | None = None,
         supplier_store: SupplierDiscoveryStore | None = None,
+        profile_builder: Callable[..., DecisionMakerSearchProfile] = (
+            build_decision_maker_profile
+        ),
         clock: Callable[[], dt.datetime] = _utc_now,
     ) -> None:
         self._engine = engine
@@ -72,6 +75,7 @@ class ContactDiscoveryService:
         self._acquisition = acquisition_store or AcquisitionStore(engine, clock=clock)
         self._suppliers = supplier_store or SupplierDiscoveryStore(engine, clock=clock)
         self._policy_store = PolicyStore(engine)
+        self._profile_builder = profile_builder
         self._clock = clock
 
     def find(
@@ -101,10 +105,12 @@ class ContactDiscoveryService:
         self._require_actionable(opportunity)
         assert opportunity.supplier_ref is not None
         supplier = self._suppliers.get_supplier(opportunity.supplier_ref)
-        profile = build_decision_maker_profile(
-            acquisition_opportunity_id=opportunity_id,
-            supplier_ref=supplier.supplier_ref,
-            provider_organization_id=supplier.provider_organization_id,
+        profile = DecisionMakerSearchProfile.model_validate(
+            self._profile_builder(
+                acquisition_opportunity_id=opportunity_id,
+                supplier_ref=supplier.supplier_ref,
+                provider_organization_id=supplier.provider_organization_id,
+            )
         )
         arguments = _canonical_json(
             {"profile": profile.model_dump(mode="json"), "provider": "apollo"}
@@ -289,6 +295,7 @@ class ContactDiscoveryService:
                     display_name=enriched.display_name,
                     title=current_title,
                     normalized_title=normalized_title,
+                    role_profile_version=profile.profile_version,
                     role_tier=role_tier,
                     business_email=enriched.business_email,
                     provider_email_status=enriched.provider_email_status,

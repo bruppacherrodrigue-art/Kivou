@@ -10,7 +10,10 @@ from signals.contact_discovery.contracts import (
     PeopleSearchCandidate,
 )
 from signals.contact_discovery.identity import contact_ref_for
-from signals.contact_discovery.profile import build_decision_maker_profile
+from signals.contact_discovery.profile import (
+    RUNTIME_QA_PROFILE_VERSION,
+    build_decision_maker_profile,
+)
 from signals.contact_discovery.ranking import classify_title, rank_candidates
 
 
@@ -58,6 +61,39 @@ def test_profile_fingerprint_is_deterministic_and_provider_semantic_only() -> No
 
     assert first == second
     assert first.profile_fingerprint == second.profile_fingerprint
+
+
+def test_profile_supports_a_closed_versioned_seniority_variant() -> None:
+    default = build_decision_maker_profile(
+        acquisition_opportunity_id="ao-1",
+        supplier_ref="supplier-1",
+        provider_organization_id="apollo-org-1",
+    )
+    bounded = build_decision_maker_profile(
+        acquisition_opportunity_id="ao-1",
+        supplier_ref="supplier-1",
+        provider_organization_id="apollo-org-1",
+        profile_version=RUNTIME_QA_PROFILE_VERSION,
+    )
+
+    assert bounded.profile_version == RUNTIME_QA_PROFILE_VERSION
+    assert bounded.person_seniorities == (
+        "owner",
+        "founder",
+        "c_suite",
+        "vp",
+        "head",
+        "director",
+    )
+    assert "manager" not in bounded.person_seniorities
+    assert bounded.profile_fingerprint != default.profile_fingerprint
+    with pytest.raises(ValueError, match="unsupported decision-maker search profile version"):
+        build_decision_maker_profile(
+            acquisition_opportunity_id="ao-1",
+            supplier_ref="supplier-1",
+            provider_organization_id="apollo-org-1",
+            profile_version="arbitrary-profile",
+        )
 
 
 def test_profile_rejects_limits_outside_approved_bounds() -> None:
