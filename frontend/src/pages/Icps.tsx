@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useI18n, interpolate } from '../i18n'
 import { Badge, Callout, Card, EmptyState, SectionHeading, Skeleton } from '../components/Surfaces'
 import { Button } from '../components/Button'
@@ -24,6 +24,22 @@ export function Icps() {
   const [status, setStatus] = useState<BillingStatus | null>(null)
   const [error, setError] = useState<unknown>(null)
   const [editing, setEditing] = useState<string | 'new' | null>(null)
+  const editorControls = useRef(new Map<string, HTMLButtonElement>())
+  const restoreFocusKey = useRef<string | null>(null)
+
+  function registerEditorControl(key: string, element: HTMLButtonElement | null) {
+    if (element) editorControls.current.set(key, element)
+    else editorControls.current.delete(key)
+  }
+
+  function openEditor(target: string | 'new', controlKey: string) {
+    restoreFocusKey.current = controlKey
+    setEditing(target)
+  }
+
+  function closeEditor() {
+    setEditing(null)
+  }
 
   async function reload() {
     try {
@@ -43,9 +59,21 @@ export function Icps() {
     void reload()
   }, [])
 
+  useEffect(() => {
+    if (editing !== null || !restoreFocusKey.current) return
+    const control = editorControls.current.get(restoreFocusKey.current)
+    if (!control) return
+    restoreFocusKey.current = null
+    control.focus()
+  }, [editing, profiles])
+
   const limit = status?.entitlements.max_active_icps
   const overLimit = new Set(status?.target_icps_over_limit ?? [])
   const activeCount = profiles?.filter((profile) => profile.status === 'active').length ?? 0
+  const editingProfile =
+    editing && editing !== 'new'
+      ? profiles?.find((profile) => profile.target_icp_id === editing) ?? null
+      : null
 
   if (error && profiles === null) {
     const copy = describeError(error, t)
@@ -73,7 +101,12 @@ export function Icps() {
       <header className={styles.header}>
         <SectionHeading title={t.icp.title} lead={t.icp.lead} level={1} hideTitle />
         {editing === null ? (
-          <Button onClick={() => setEditing('new')}>{t.icp.create}</Button>
+          <Button
+            ref={(element) => registerEditorControl('create-header', element)}
+            onClick={() => openEditor('new', 'create-header')}
+          >
+            {t.icp.create}
+          </Button>
         ) : null}
       </header>
 
@@ -95,20 +128,8 @@ export function Icps() {
         </Callout>
       ) : null}
 
-      {editing === 'new' ? (
-        <IcpEditor
-          initial={emptyIcpValue()}
-          onCancel={() => setEditing(null)}
-          onSave={async (value) => {
-            await icpsApi.create({ label: value.label.trim(), customer_input: value.input })
-            await reload()
-            setEditing(null)
-          }}
-        />
-      ) : null}
-
       {profiles === null ? (
-        <div className={styles.list}>
+        <div className={styles.loadingList} role="status" aria-label={t.common.loading}>
           {[0, 1].map((index) => (
             <Card key={index} padding="md">
               <Skeleton width="40%" height="1.25rem" />
@@ -121,38 +142,74 @@ export function Icps() {
             illustration={<NoSignalIllustration />}
             title={t.icp.listEmpty}
             body={t.icp.listEmptyBody}
-            action={<Button onClick={() => setEditing('new')}>{t.icp.create}</Button>}
+            action={(
+              <Button
+                ref={(element) => registerEditorControl('create-empty', element)}
+                onClick={() => openEditor('new', 'create-empty')}
+              >
+                {t.icp.create}
+              </Button>
+            )}
           />
         </Card>
       ) : (
-        <ul className={styles.list}>
-          {profiles.map((profile) =>
-            editing === profile.target_icp_id ? (
-              <li key={profile.target_icp_id}>
+        <section className={styles.workspace} aria-label={t.icp.workspaceLabel}>
+          <div className={styles.listPane}>
+            <h2 className={styles.workspaceTitle}>{t.icp.listLabel}</h2>
+            <ul className={styles.list} aria-label={t.icp.listLabel}>
+              {profiles.map((profile) => (
+                <li key={profile.target_icp_id}>
+                  <IcpSummary
+                    profile={profile}
+                    overLimit={overLimit.has(profile.target_icp_id)}
+                    onEdit={() => openEditor(profile.target_icp_id, profile.target_icp_id)}
+                    registerControl={(element) =>
+                      registerEditorControl(profile.target_icp_id, element)
+                    }
+                  />
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div className={styles.editorPane} role="region" aria-label={t.icp.editorLabel}>
+            {editing === 'new' ? (
+              <IcpEditor
+                key="new"
+                initial={emptyIcpValue()}
+                onCancel={closeEditor}
+                onSave={async (value) => {
+                  const created = await icpsApi.create({
+                    label: value.label.trim(),
+                    customer_input: value.input,
+                  })
+                  restoreFocusKey.current = created.target_icp_id
+                  await reload()
+                  closeEditor()
+                }}
+              />
+            ) : editingProfile ? (
                 <IcpEditor
-                  initial={{ label: profile.label, input: profile.customer_input }}
-                  onCancel={() => setEditing(null)}
+                  key={editingProfile.target_icp_id}
+                  initial={{ label: editingProfile.label, input: editingProfile.customer_input }}
+                  onCancel={closeEditor}
                   onSave={async (value) => {
-                    await icpsApi.update(profile.target_icp_id, {
+                    await icpsApi.update(editingProfile.target_icp_id, {
                       label: value.label.trim(),
                       customer_input: value.input,
                     })
                     await reload()
-                    setEditing(null)
+                    closeEditor()
                   }}
                 />
-              </li>
             ) : (
-              <li key={profile.target_icp_id}>
-                <IcpSummary
-                  profile={profile}
-                  overLimit={overLimit.has(profile.target_icp_id)}
-                  onEdit={() => setEditing(profile.target_icp_id)}
-                />
-              </li>
-            ),
-          )}
-        </ul>
+              <div className={styles.editorPrompt}>
+                <p className={styles.editorPromptTitle}>{t.icp.editTitle}</p>
+                <p>{t.icp.editorHint}</p>
+              </div>
+            )}
+          </div>
+        </section>
       )}
     </div>
   )
@@ -162,10 +219,12 @@ function IcpSummary({
   profile,
   overLimit,
   onEdit,
+  registerControl,
 }: {
   profile: TargetIcp
   overLimit: boolean
   onEdit: () => void
+  registerControl: (element: HTMLButtonElement | null) => void
 }) {
   const { t, locale, amount } = useI18n()
   const input = profile.customer_input
@@ -253,7 +312,7 @@ function IcpSummary({
       </dl>
 
       <div className={styles.cardActions}>
-        <Button variant="secondary" onClick={onEdit}>
+        <Button ref={registerControl} variant="secondary" onClick={onEdit}>
           {t.icp.edit}
         </Button>
       </div>
@@ -274,6 +333,11 @@ function IcpEditor({
   const [value, setValue] = useState<IcpFormValue>(initial)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const titleRef = useRef<HTMLHeadingElement>(null)
+
+  useEffect(() => {
+    titleRef.current?.focus()
+  }, [])
 
   const missing = missingFields(value)
   const canSave = value.label.trim().length > 0
@@ -294,7 +358,9 @@ function IcpEditor({
 
   return (
     <Card padding="lg" as="section" className={styles.editor}>
-      <h2 className={styles.cardTitle}>{t.icp.editTitle}</h2>
+      <h2 ref={titleRef} className={styles.cardTitle} tabIndex={-1}>
+        {t.icp.editTitle}
+      </h2>
 
       {copy ? (
         <Callout tone="danger" title={copy.title} live>

@@ -86,6 +86,7 @@ export const en: Dictionary = {
     notificationsTitle: 'Email notifications',
     notificationsLead: 'Choose whether Kivou can send the alerts included in your plan.',
     notificationsAction: 'Manage notifications',
+    actionsLabel: 'Account actions',
   },
 
   dashboard: {
@@ -778,6 +779,10 @@ export const en: Dictionary = {
     create: 'Create a profile',
     edit: 'Edit',
     editTitle: 'Edit profile',
+    workspaceLabel: 'Targeting workspace',
+    listLabel: 'Saved profiles',
+    editorLabel: 'Profile editor',
+    editorHint: 'Choose a profile to edit or create a new one.',
     listEmpty: 'No target profile yet.',
     listEmptyBody: 'Create one to start receiving signals.',
     limitLabel: 'Active profiles',

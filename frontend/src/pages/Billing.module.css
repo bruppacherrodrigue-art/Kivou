@@ -1,18 +1,25 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-6);
+  gap: 24px;
   width: min(100%, 1240px);
+  min-width: 0;
   max-width: 1240px;
   margin: 0 auto;
+}
+
+.page :global(.sectionLead) {
+  color: var(--kivou-connected-muted);
 }
 
 .statusCard {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  border-color: #c9ded4;
-  background: #eef7f3;
+  border-color: var(--kivou-connected-line);
+  border-radius: var(--kivou-connected-panel-radius);
+  background: var(--kivou-connected-surface);
+  box-shadow: none;
 }
 
 .statusHead {
@@ -28,7 +35,7 @@
   line-height: var(--kivou-leading-micro);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--kivou-text-muted);
+  color: var(--kivou-connected-muted);
 }
 
 .statusPlan {
@@ -41,7 +48,7 @@
 .statusLine {
   font-size: var(--kivou-text-small);
   line-height: var(--kivou-leading-small);
-  color: var(--kivou-text-secondary);
+  color: var(--kivou-connected-muted);
 }
 
 .portal {
@@ -50,7 +57,7 @@
   align-items: flex-start;
   gap: var(--kivou-space-3);
   padding-top: var(--kivou-space-4);
-  border-top: 1px solid var(--kivou-border);
+  border-top: 1px solid var(--kivou-connected-line);
 }
 
 /* ── Devise ──────────────────────────────────────────────────────────────── */
@@ -60,9 +67,9 @@
   gap: var(--kivou-space-3);
   margin: 0;
   padding: var(--kivou-space-5);
-  border: 1px solid var(--kivou-border);
-  border-radius: 14px;
-  background: var(--kivou-bg-surface);
+  border: 1px solid var(--kivou-connected-line);
+  border-radius: var(--kivou-connected-panel-radius);
+  background: var(--kivou-connected-surface);
 }
 
 .currencyLegend {
@@ -74,7 +81,7 @@
 .currencyHelp {
   font-size: var(--kivou-text-small);
   line-height: var(--kivou-leading-small);
-  color: var(--kivou-text-secondary);
+  color: var(--kivou-connected-muted);
 }
 
 .currencyOptions {
@@ -89,7 +96,7 @@
   gap: var(--kivou-space-2);
   min-height: var(--kivou-control-height);
   padding: 0 var(--kivou-space-5);
-  border: 1px solid var(--kivou-border);
+  border: 1px solid var(--kivou-connected-line);
   border-radius: var(--kivou-radius-pill);
   font-size: var(--kivou-text-small);
   font-variant-numeric: tabular-nums;
@@ -97,9 +104,15 @@
 }
 
 .currencySelected {
-  background: #eef0f8;
-  border-color: var(--kivou-action-primary);
+  background: var(--kivou-connected-surface-muted);
+  border-color: var(--kivou-connected-positive);
+  color: var(--kivou-connected-positive);
   font-weight: var(--kivou-weight-semibold);
+}
+
+.currencyOption:has(.radio:focus-visible) {
+  outline: 2px solid var(--kivou-connected-positive);
+  outline-offset: 2px;
 }
 
 .radio {
@@ -116,10 +129,10 @@
   align-items: center;
   min-height: var(--kivou-control-height);
   padding: 0 var(--kivou-space-5);
-  border: 1px solid var(--kivou-border-strong);
+  border: 1px solid var(--kivou-connected-line-strong);
   border-radius: var(--kivou-radius-sm);
-  background: var(--kivou-bg-surface);
-  color: var(--kivou-text-primary);
+  background: var(--kivou-connected-surface);
+  color: var(--kivou-connected-ink);
   font-size: var(--kivou-text-small);
   font-weight: var(--kivou-weight-medium);
   text-decoration: none;
@@ -127,6 +140,41 @@
 }
 
 .supportLink:hover {
-  border-color: var(--kivou-action-primary);
-  color: var(--kivou-action-primary);
+  border-color: var(--kivou-connected-positive);
+  color: var(--kivou-connected-positive);
+}
+
+.supportLink:focus-visible {
+  outline: 2px solid var(--kivou-connected-positive);
+  outline-offset: 3px;
+}
+
+@media (max-width: 900px) {
+  .page {
+    gap: 20px;
+  }
+
+  .statusCard,
+  .currency {
+    padding: 20px;
+  }
+
+  .currencyOptions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .currencyOption {
+    justify-content: center;
+  }
+}
+
+@media (max-width: 560px) {
+  .statusHead {
+    align-items: flex-start;
+  }
+
+  .currencyOptions {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

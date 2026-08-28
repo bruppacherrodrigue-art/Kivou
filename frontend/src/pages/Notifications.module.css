@@ -1,16 +1,25 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-6);
-  width: min(100%, 760px);
-  max-width: 760px;
+  gap: 24px;
+  width: min(100%, 900px);
+  min-width: 0;
+  max-width: 900px;
   margin: 0 auto;
+}
+
+.page :global(.sectionLead) {
+  color: var(--kivou-connected-muted);
 }
 
 .card {
   display: flex;
   flex-direction: column;
   gap: var(--kivou-space-6);
+  border-color: var(--kivou-connected-line);
+  border-radius: var(--kivou-connected-panel-radius);
+  background: var(--kivou-connected-surface);
+  box-shadow: none;
 }
 
 .cadence {
@@ -18,9 +27,9 @@
   flex-direction: column;
   gap: var(--kivou-space-1);
   padding: var(--kivou-space-4) var(--kivou-space-5);
-  border: 1px solid #c9ded4;
-  background: #eef7f3;
-  border-radius: 10px;
+  border: 1px solid var(--kivou-connected-line);
+  background: var(--kivou-connected-surface-muted);
+  border-radius: var(--kivou-radius-sm);
 }
 
 .cadenceLabel {
@@ -28,20 +37,20 @@
   line-height: var(--kivou-leading-micro);
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--kivou-text-muted);
+  color: var(--kivou-connected-muted);
 }
 
 .cadenceValue {
   font-size: var(--kivou-text-h3);
   line-height: var(--kivou-leading-h3);
   font-weight: var(--kivou-weight-semibold);
-  color: var(--kivou-text-primary);
+  color: var(--kivou-connected-ink);
 }
 
 .cadenceHelp {
   font-size: var(--kivou-text-small);
   line-height: var(--kivou-leading-small);
-  color: var(--kivou-text-secondary);
+  color: var(--kivou-connected-muted);
 }
 
 .actions {
@@ -55,4 +64,31 @@
   font-size: var(--kivou-text-small);
   font-weight: var(--kivou-weight-medium);
   color: var(--kivou-color-success);
+}
+
+.card :global(button:focus-visible),
+.card :global(input:focus-visible) {
+  outline-color: var(--kivou-connected-positive);
+}
+
+@media (max-width: 900px) {
+  .page {
+    gap: 20px;
+  }
+
+  .card {
+    padding: 20px;
+    gap: var(--kivou-space-5);
+  }
+}
+
+@media (max-width: 560px) {
+  .cadence {
+    padding: var(--kivou-space-4);
+  }
+
+  .actions {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }

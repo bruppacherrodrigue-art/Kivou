@@ -92,6 +92,7 @@ export const fr = {
     notificationsTitle: 'Notifications e-mail',
     notificationsLead: 'Choisissez si Kivou peut vous envoyer les alertes prévues par votre offre.',
     notificationsAction: 'Gérer les notifications',
+    actionsLabel: 'Actions du compte',
   },
 
   dashboard: {
@@ -787,6 +788,10 @@ export const fr = {
     create: 'Créer un profil',
     edit: 'Modifier',
     editTitle: 'Modifier le profil',
+    workspaceLabel: 'Espace de ciblage',
+    listLabel: 'Profils enregistrés',
+    editorLabel: 'Éditeur du profil',
+    editorHint: 'Choisissez un profil à modifier ou créez-en un nouveau.',
     listEmpty: 'Aucun profil de ciblage pour le moment.',
     listEmptyBody: 'Créez-en un pour commencer à recevoir des signaux.',
     limitLabel: 'Profils actifs',

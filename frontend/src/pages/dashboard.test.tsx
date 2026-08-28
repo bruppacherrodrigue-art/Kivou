@@ -54,6 +54,24 @@ function HistoryControls() {
 }
 
 describe('accueil connecté', () => {
+  it('compose Compte comme une identité réelle suivie de ses destinations', () => {
+    mockApi({})
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/settings' })
+
+    const identity = screen.getByRole('region', { name: 'Acme Solutions' })
+    expect(identity).toHaveTextContent('claire@acme.test')
+
+    const actions = screen.getByRole('navigation', { name: 'Actions du compte' })
+    expect(within(actions).getByRole('link', { name: 'Voir la facturation' })).toHaveAttribute(
+      'href',
+      '/app/billing',
+    )
+    expect(within(actions).getByRole('link', { name: 'Gérer les notifications' })).toHaveAttribute(
+      'href',
+      '/app/notifications',
+    )
+  })
+
   it('fait de /app/dashboard la destination de /app pour un compte prêt', async () => {
     mockApi(DASHBOARD_ROUTES)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app' })
