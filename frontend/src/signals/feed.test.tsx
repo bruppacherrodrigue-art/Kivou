@@ -68,6 +68,19 @@ describe('feed de signaux', () => {
     expect(row).not.toHaveTextContent(UNLOCKED_ITEM.analysis.fit.reasons[0])
   })
 
+  it('inclut le fait et le calendrier serveur visibles dans le nom accessible de la ligne', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const list = await screen.findByRole('list', { name: 'Liste des signaux' })
+    const signalLink = within(list).getByRole('link', {
+      name: new RegExp(UNLOCKED_ITEM.event.headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    })
+    expect(signalLink).toHaveAccessibleName(
+      expect.stringContaining(UNLOCKED_ITEM.event.why_now),
+    )
+  })
+
   it('rend la date et le timing fournis par le serveur sans les recalculer', async () => {
     const serverItem = {
       ...UNLOCKED_ITEM,

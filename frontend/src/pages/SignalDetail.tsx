@@ -103,7 +103,7 @@ export function SignalDetailPanel({
     <LockedPreview
       detail={lockedPreview}
       embedded={embedded}
-      headingLevel={lockedPreviewHeadingLevel}
+      headingLevel={embedded ? 2 : lockedPreviewHeadingLevel}
     />
   ) : detail ? (
     detail.locked ? (
@@ -152,7 +152,11 @@ function DetailError({
   return (
     <div className={`${styles.page} ${embedded ? styles.pageEmbedded : ''}`}>
       {notFound && !embedded ? <BackLink /> : null}
-      <h1 className={styles.title}>{title}</h1>
+      {embedded ? (
+        <h2 className={styles.title}>{title}</h2>
+      ) : (
+        <h1 className={styles.title}>{title}</h1>
+      )}
       <Callout
         tone="danger"
         live
@@ -196,7 +200,11 @@ function LockedDetailView({ detail, embedded }: { detail: LockedDetail; embedded
   return (
     <div className={`${styles.page} ${embedded ? styles.pageEmbedded : ''}`}>
       {!embedded ? <BackLink /> : null}
-      <LockedSignalContent detail={detail} accessCopy={t.locked.detailBody} headingLevel={1} />
+      <LockedSignalContent
+        detail={detail}
+        accessCopy={t.locked.detailBody}
+        headingLevel={embedded ? 2 : 1}
+      />
     </div>
   )
 }
@@ -292,7 +300,11 @@ function UnlockedDetailView({ detail, embedded }: { detail: UnlockedDetail; embe
           {company.country ? <Badge tone="neutral">{company.country}</Badge> : null}
         </div>
 
-        <h1 className={styles.title}>{contract.title ?? t.common.notAvailable}</h1>
+        {embedded ? (
+          <h2 className={styles.title}>{contract.title ?? t.common.notAvailable}</h2>
+        ) : (
+          <h1 className={styles.title}>{contract.title ?? t.common.notAvailable}</h1>
+        )}
 
         {/* La phrase de fraîcheur et le « pourquoi maintenant » viennent de
             `recency.claim` et `feed.copy` : ils précèdent le détail
@@ -481,10 +493,13 @@ function DetailSkeleton({ embedded = false }: { embedded?: boolean }) {
   const { t } = useI18n()
   return (
     <div className={`${styles.page} ${embedded ? styles.pageEmbedded : ''}`}>
-      {/* Même en chargement, la page porte un h1 : un document sans titre de
-          niveau 1 n'offre aucun point d'entrée à la navigation par titres.
-          Le titre réel n'est pas encore connu, donc l'état l'est. */}
-      <h1 className="kivou-visually-hidden">{t.common.loading}</h1>
+      {/* Même en chargement, le panneau garde son titre : h2 lorsqu'il est
+          rattaché au h1 du shell, h1 lorsqu'il constitue seul le document. */}
+      {embedded ? (
+        <h2 className="kivou-visually-hidden">{t.common.loading}</h2>
+      ) : (
+        <h1 className="kivou-visually-hidden">{t.common.loading}</h1>
+      )}
       <div aria-hidden="true">
       <Skeleton width="10rem" height="1rem" />
       <div className={styles.header}>

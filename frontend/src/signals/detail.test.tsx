@@ -151,8 +151,9 @@ describe('détail d’un signal', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' })
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: LOCKED_DETAIL.headline }),
+      await screen.findByRole('heading', { level: 2, name: LOCKED_DETAIL.headline }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Signaux' })).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(screen.getByRole('heading', { level: 2, name: 'Ce signal est verrouillé' })).toBeInTheDocument()
 
@@ -216,8 +217,9 @@ describe('détail d’un signal', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/inconnu' })
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Signal introuvable' }),
+      await screen.findByRole('heading', { level: 2, name: 'Signal introuvable' }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Signaux' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Retour à la liste' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Retour aux signaux' })).not.toBeInTheDocument()
   })

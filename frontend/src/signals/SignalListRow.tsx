@@ -61,7 +61,7 @@ function UnlockedRow({
         to={`/app/signals/${encodeURIComponent(item.signal_id)}`}
         state={selectionState}
         aria-current={selected ? 'page' : undefined}
-        aria-label={`${company} — ${contract} — ${formattedAmount} — ${formattedDate}`}
+        aria-label={`${company} — ${contract} — ${item.event.headline} — ${item.event.why_now} — ${formattedAmount} — ${formattedDate}`}
       >
         <span className={styles.identity}>{company}</span>
         <span className={styles.contract}>{contract}</span>

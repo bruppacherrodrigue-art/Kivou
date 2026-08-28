@@ -273,16 +273,16 @@
 }
 
 .topbar {
-  position: sticky;
-  z-index: 20;
-  top: 0;
-  display: none;
-  min-height: 76px;
-  align-items: center;
-  padding: 14px clamp(24px, 3.6vw, 56px);
-  border-bottom: 1px solid var(--kivou-connected-line);
-  background: var(--kivou-connected-surface);
-  backdrop-filter: blur(14px);
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 .topbarTitle {
@@ -327,7 +327,23 @@
   }
 
   .topbar {
+    position: sticky;
+    z-index: 20;
+    top: 0;
     display: flex;
+    width: auto;
+    height: auto;
+    min-height: 76px;
+    margin: 0;
+    padding: 14px clamp(24px, 3.6vw, 56px);
+    align-items: center;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    white-space: normal;
+    border-bottom: 1px solid var(--kivou-connected-line);
+    background: var(--kivou-connected-surface);
+    backdrop-filter: blur(14px);
   }
 
   .main {

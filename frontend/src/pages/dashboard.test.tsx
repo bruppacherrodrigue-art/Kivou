@@ -1093,8 +1093,9 @@ describe('navigation et garde-fous du dashboard', () => {
       }),
     )
     expect(
-      await screen.findByRole('heading', { level: 1, name: UNLOCKED_DETAIL.contract.title! }),
+      await screen.findByRole('heading', { level: 2, name: UNLOCKED_DETAIL.contract.title! }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Signaux' })).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Historique précédent' }))
     expect(

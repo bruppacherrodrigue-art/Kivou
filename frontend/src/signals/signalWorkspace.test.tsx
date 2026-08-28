@@ -40,6 +40,8 @@ const ROUTES = {
   'GET /target-icps': { body: [ICP] },
 }
 
+const UNLOCKED_ROW_NAME = /^Constructions Bertrand SA — Réfection de la voirie communale/
+
 function DetailCommitProbe({ onCommit }: { onCommit: (content: string) => void }) {
   const { pathname } = useLocation()
 
@@ -85,7 +87,7 @@ describe('workspace partagé des signaux', () => {
 
     const workspace = await screen.findByTestId('signal-workspace')
     const signalLink = await within(workspace).findByRole('link', {
-      name: /Constructions Bertrand SA/,
+      name: UNLOCKED_ROW_NAME,
     })
     expect(signalLink).toHaveAttribute('href', '/app/signals/sig_unlocked_1')
 
@@ -99,7 +101,7 @@ describe('workspace partagé des signaux', () => {
       await within(workspace).findByRole('list', { name: 'Liste des signaux' }),
     ).toBeInTheDocument()
     expect(
-      within(workspace).getByRole('link', { name: /Constructions Bertrand SA/ }),
+      within(workspace).getByRole('link', { name: UNLOCKED_ROW_NAME }),
     ).toHaveAttribute('aria-current', 'page')
     const detail = await within(workspace).findByRole('region', {
       name: 'Détail du signal sélectionné',
@@ -140,8 +142,9 @@ describe('workspace partagé des signaux', () => {
       name: 'Détail du signal sélectionné',
     })
     expect(
-      within(detail).getByRole('heading', { level: 1, name: LOCKED_ITEM.headline }),
+      within(detail).getByRole('heading', { level: 2, name: LOCKED_ITEM.headline }),
     ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Signaux' })).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(within(detail).getByRole('link', { name: 'Gérer mon accès' })).toHaveAttribute(
       'href',
@@ -171,7 +174,7 @@ describe('workspace partagé des signaux', () => {
       await within(workspace).findByRole('region', { name: 'Détail du signal sélectionné' }),
     ).toBeInTheDocument()
     const signalLink = within(workspace).getByRole('link', {
-      name: /Constructions Bertrand SA/,
+      name: UNLOCKED_ROW_NAME,
     })
     expect(signalLink).toHaveAttribute('href', '/app/signals/sig_unlocked_1')
     expect(signalLink).toHaveAttribute('aria-current', 'page')
@@ -213,7 +216,7 @@ describe('workspace partagé des signaux', () => {
 
     const workspace = await screen.findByTestId('signal-workspace')
     await user.click(
-      await within(workspace).findByRole('link', { name: /Constructions Bertrand SA/ }),
+      await within(workspace).findByRole('link', { name: UNLOCKED_ROW_NAME }),
     )
     await waitFor(() => expect(callsTo('/signals/sig_unlocked_1', 'GET')).toHaveLength(1))
     await user.click(within(workspace).getByRole('link', { name: /Deuxième SA/ }))
@@ -270,7 +273,7 @@ describe('workspace partagé des signaux', () => {
 
     const workspace = await screen.findByTestId('signal-workspace')
     await user.click(
-      await within(workspace).findByRole('link', { name: /Constructions Bertrand SA/ }),
+      await within(workspace).findByRole('link', { name: UNLOCKED_ROW_NAME }),
     )
     const panel = within(workspace).getByRole('region', {
       name: 'Détail du signal sélectionné',
@@ -282,7 +285,7 @@ describe('workspace partagé des signaux', () => {
     expect(onCommit).toHaveBeenCalled()
     expect(onCommit.mock.lastCall?.[0]).not.toContain('Commune de Villeneuve')
     expect(within(panel).queryByText('Commune de Villeneuve')).not.toBeInTheDocument()
-    expect(within(panel).getByRole('heading', { level: 1, name: 'Chargement…' })).toBeInTheDocument()
+    expect(within(panel).getByRole('heading', { level: 2, name: 'Chargement…' })).toBeInTheDocument()
 
     await act(async () => {
       resolveSecond({ body: secondDetail })
@@ -298,7 +301,7 @@ describe('workspace partagé des signaux', () => {
 
     const workspace = await screen.findByTestId('signal-workspace')
     const signalLink = await within(workspace).findByRole('link', {
-      name: /Constructions Bertrand SA/,
+      name: UNLOCKED_ROW_NAME,
     })
     await user.click(signalLink)
 
@@ -335,7 +338,7 @@ describe('workspace partagé des signaux', () => {
 
     const workspace = await screen.findByTestId('signal-workspace')
     await user.click(
-      await within(workspace).findByRole('link', { name: /Constructions Bertrand SA/ }),
+      await within(workspace).findByRole('link', { name: UNLOCKED_ROW_NAME }),
     )
     const panel = within(workspace).getByRole('region', {
       name: 'Détail du signal sélectionné',
@@ -393,7 +396,7 @@ describe('workspace partagé des signaux', () => {
 
     const workspace = await screen.findByTestId('signal-workspace')
     await user.click(
-      await within(workspace).findByRole('link', { name: /Constructions Bertrand SA/ }),
+      await within(workspace).findByRole('link', { name: UNLOCKED_ROW_NAME }),
     )
     const panel = within(workspace).getByRole('region', {
       name: 'Détail du signal sélectionné',
@@ -404,7 +407,7 @@ describe('workspace partagé des signaux', () => {
     await user.click(screen.getByRole('radio', { name: 'Récents et plus anciens' }))
     await waitFor(() => expect(callsTo('/signals', 'GET')).toHaveLength(2))
     expect(
-      await within(workspace).findByRole('link', { name: /Constructions Bertrand SA/ }),
+      await within(workspace).findByRole('link', { name: UNLOCKED_ROW_NAME }),
     ).toHaveAttribute('aria-current', 'page')
 
     await user.click(screen.getByRole('radio', { name: 'Nouveautés' }))
@@ -621,7 +624,7 @@ describe('workspace partagé des signaux', () => {
 
     const workspace = await screen.findByTestId('signal-workspace')
     await user.click(
-      await within(workspace).findByRole('link', { name: /Constructions Bertrand SA/ }),
+      await within(workspace).findByRole('link', { name: UNLOCKED_ROW_NAME }),
     )
 
     const list = within(workspace).getByRole('list', { name: 'Liste des signaux' })
