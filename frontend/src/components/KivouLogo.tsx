@@ -49,11 +49,11 @@ export function KivouLogo({
 }: {
   size?: 'sm' | 'md' | 'lg'
   baseline?: string
-  tone?: 'default' | 'inverse'
+  tone?: 'default' | 'inverse' | 'mint'
 }) {
   const markSize = size === 'lg' ? 44 : size === 'sm' ? 24 : 32
   return (
-    <span className={`${styles.lockup} ${styles[size]} ${tone === 'inverse' ? styles.inverse : ''}`}>
+    <span className={`${styles.lockup} ${styles[size]} ${tone === 'inverse' ? styles.inverse : tone === 'mint' ? styles.mint : ''}`}>
       <KivouMark size={markSize} />
       <span className={styles.text}>
         <span className={styles.wordmark}>KIVOU</span>

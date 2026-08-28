@@ -139,6 +139,7 @@ export function SectionHeading({
   lead,
   id,
   level = 2,
+  hideTitle = false,
 }: {
   eyebrow?: string
   title: string
@@ -148,14 +149,19 @@ export function SectionHeading({
    *  en `h2` laisse un document sans racine, et la navigation par titres d'un
    *  lecteur d'écran n'a plus de point de départ. */
   level?: 1 | 2 | 3
+  /** Le shell connecte porte deja le titre de page dans sa topbar. Cette
+   *  option conserve alors le texte d'introduction sans dupliquer le titre. */
+  hideTitle?: boolean
 }) {
   const Tag = level === 1 ? 'h1' : level === 2 ? 'h2' : 'h3'
   return (
     <div className={styles.sectionHeading}>
       {eyebrow ? <p className={styles.eyebrow}>{eyebrow}</p> : null}
-      <Tag className={level === 3 ? styles.subsectionTitle : styles.sectionTitle} id={id}>
-        {title}
-      </Tag>
+      {hideTitle ? null : (
+        <Tag className={level === 3 ? styles.subsectionTitle : styles.sectionTitle} id={id}>
+          {title}
+        </Tag>
+      )}
       {lead ? <p className={styles.sectionLead}>{lead}</p> : null}
     </div>
   )

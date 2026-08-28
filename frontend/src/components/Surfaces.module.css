@@ -1,7 +1,8 @@
 .card {
   background: var(--kivou-bg-surface);
-  border: 1px solid var(--kivou-border);
-  border-radius: var(--kivou-radius-md);
+  border: 1px solid #dce4e0;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(23, 33, 29, .055);
 }
 
 .elevated {
@@ -11,11 +12,11 @@
 .padding-none { padding: 0; }
 .padding-sm { padding: var(--kivou-space-4); }
 .padding-md { padding: var(--kivou-space-5); }
-.padding-lg { padding: var(--kivou-space-6); }
+.padding-lg { padding: 24px; }
 
 @media (min-width: 768px) {
   .padding-md { padding: var(--kivou-space-6); }
-  .padding-lg { padding: var(--kivou-space-8); }
+  .padding-lg { padding: 24px; }
 }
 
 .badge {
@@ -59,9 +60,9 @@
 }
 
 .badge-brand {
-  background: #eaf0ff;
-  border-color: #cbd9ff;
-  color: #1e4fb8;
+  background: #eef0f8;
+  border-color: #dce1f1;
+  color: #43547f;
 }
 
 .callout {
@@ -148,7 +149,7 @@
   font-weight: var(--kivou-weight-semibold);
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--kivou-text-secondary);
+  color: #1f6b55;
 }
 
 .sectionTitle {

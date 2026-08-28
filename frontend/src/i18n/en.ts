@@ -88,6 +88,10 @@ export const en: Dictionary = {
 
   dashboard: {
     title: 'Overview',
+    summaryEyebrow: 'Monitoring summary',
+    summaryLoading: 'Your documented signals',
+    summaryOne: '{count} documented signal in this response',
+    summaryOther: '{count} documented signals in this response',
     lead: 'What deserves your attention today, based on contracts that match your targeting profiles.',
     opportunities: 'Signals to review',
     icps: 'Active targeting profiles',

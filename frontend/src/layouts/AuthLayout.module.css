@@ -1,69 +1,51 @@
 .page {
-  min-height: min(720px, calc(100vh - 72px));
+  min-height: min(720px, calc(100svh - 74px));
   display: grid;
   place-items: center;
-  padding: var(--kivou-space-10) var(--kivou-gutter-mobile) var(--kivou-space-16);
-  background:
-    radial-gradient(circle at 15% 10%, rgba(223, 241, 231, 0.8), transparent 32rem),
-    var(--kivou-bg-canvas);
+  padding: 54px 20px 64px;
+  background: linear-gradient(180deg, #f7faf8 0%, #ffffff 54%);
 }
 
 .brandPanel,
 .logoLink,
 .promise,
 .material,
-.mobileLogo {
-  display: none;
-}
+.mobileLogo { display: none; }
 
-.formPanel {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-}
-
+.formPanel { width: 100%; display: flex; justify-content: center; }
 .formInner {
-  width: 100%;
-  max-width: 30rem;
-  padding: var(--kivou-space-8);
+  width: min(100%, 460px);
+  padding: 30px;
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-6);
-  background: var(--kivou-bg-surface);
-  border: 1px solid var(--kivou-border);
-  border-radius: var(--kivou-radius-lg);
-  box-shadow: var(--kivou-shadow-raised);
+  gap: 21px;
+  border: 1px solid #dce4e0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 14px 36px rgba(23,33,29,.07);
 }
-
-.heading {
-  display: flex;
-  flex-direction: column;
-  gap: var(--kivou-space-2);
+.heading { display: flex; flex-direction: column; gap: 0; }
+.heading::before {
+  margin-bottom: 8px;
+  color: #1f6b55;
+  content: "Kivou";
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: .13em;
+  text-transform: uppercase;
 }
-
 .title {
-  font-size: var(--kivou-text-h1);
-  line-height: var(--kivou-leading-h1);
-  font-weight: var(--kivou-weight-semibold);
+  color: #17211d;
+  font-family: "Lora Variable", Lora, Georgia, serif;
+  font-size: 33px;
+  font-weight: 470;
+  letter-spacing: -.035em;
+  line-height: 1.12;
 }
-
-.lead {
-  color: var(--kivou-text-secondary);
-}
-
-.footer {
-  padding-top: var(--kivou-space-4);
-  border-top: 1px solid var(--kivou-border);
-  color: var(--kivou-text-secondary);
-  font-size: var(--kivou-text-small);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--kivou-space-2);
-}
-
+.lead { margin-top: 11px; color: #66706c; font-size: 12px; line-height: 1.55; }
+.footer { padding-top: 18px; border-top: 1px solid #e2e8e5; color: #66706c; font-size: 11px; display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 8px; }
 @media (max-width: 480px) {
-  .formInner {
-    padding: var(--kivou-space-6);
-  }
+  .page { padding: 36px 14px 48px; }
+  .formInner { padding: 22px; }
+  .title { font-size: 29px; }
 }

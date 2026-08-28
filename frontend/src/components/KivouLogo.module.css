@@ -36,9 +36,17 @@
 }
 
 .inverse,
-.inverse .mark,
 .inverse .wordmark {
   color: var(--kivou-text-inverse);
+}
+
+.inverse .mark,
+.mint .mark {
+  color: #57d6ae;
+}
+
+.mint .wordmark {
+  color: #0a1d17;
 }
 
 .inverse .baseline {

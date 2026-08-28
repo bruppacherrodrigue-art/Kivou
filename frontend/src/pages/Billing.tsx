@@ -136,7 +136,7 @@ export function Billing() {
   if (loading) {
     return (
       <div className={styles.page}>
-        <SectionHeading title={t.billing.title} lead={t.billing.lead} level={1} />
+        <SectionHeading title={t.billing.title} lead={t.billing.lead} level={1} hideTitle />
         <Card padding="lg">
           <Skeleton width="45%" height="1.5rem" />
         </Card>
@@ -148,7 +148,7 @@ export function Billing() {
     const copy = describeError(error, t)
     return (
       <div className={styles.page}>
-        <SectionHeading title={t.billing.title} lead={t.billing.lead} level={1} />
+        <SectionHeading title={t.billing.title} lead={t.billing.lead} level={1} hideTitle />
         <Callout tone="danger" title={copy.title} live>
           {copy.body}
         </Callout>
@@ -170,7 +170,7 @@ export function Billing() {
 
   return (
     <div className={styles.page}>
-      <SectionHeading title={t.billing.title} lead={t.billing.lead} level={1} />
+      <SectionHeading title={t.billing.title} lead={t.billing.lead} level={1} hideTitle />
 
       {/* Les DROITS actuels — `plan_code` et le statut brut, affichés, jamais
           interprétés pour décider d'une action. */}

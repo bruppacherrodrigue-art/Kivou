@@ -1,9 +1,9 @@
 .page {
-  width: min(100%, var(--kivou-container-wide));
+  width: min(100%, 1240px);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-6);
+  gap: 20px;
 }
 
 .header {
@@ -26,9 +26,9 @@
   align-items: flex-end;
   gap: var(--kivou-space-4);
   padding: var(--kivou-space-4);
-  background: var(--kivou-bg-surface);
-  border: 1px solid var(--kivou-border);
-  border-radius: var(--kivou-radius-md);
+  background: #f7f9f8;
+  border: 1px solid #e2e8e5;
+  border-radius: 12px;
 }
 
 .filterGroup {
@@ -69,9 +69,9 @@
 }
 
 .chipActive {
-  background: var(--kivou-nav-active-bg);
-  border-color: #93c4a8;
-  color: var(--kivou-nav-active-text);
+  background: #eef0f8;
+  border-color: #dce1f1;
+  color: #43547f;
   font-weight: var(--kivou-weight-semibold);
 }
 
@@ -99,7 +99,7 @@
   list-style: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--kivou-space-4);
+  gap: 12px;
 }
 
 .more {
@@ -123,5 +123,14 @@
 @media (min-width: 1040px) {
   .list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .list > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .list > :first-child > article {
+    border-color: #c9ded4;
+    background: #eef7f3;
   }
 }

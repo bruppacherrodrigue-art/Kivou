@@ -73,19 +73,19 @@ export function PublicLayout() {
 
   const links = (
     <nav className={styles.nav} aria-label={t.nav.mainNavigation}>
-      <Link to="/" className={styles.navLink}>
+      <Link to="/" className={styles.navLink} aria-current={location.pathname === '/' ? 'page' : undefined}>
         {copy.nav.home}
       </Link>
-      <Link to="/produit" className={styles.navLink}>
+      <Link to="/produit" className={styles.navLink} aria-current={location.pathname === '/produit' ? 'page' : undefined}>
         {copy.nav.product}
       </Link>
-      <Link to="/exemple-de-signal" className={styles.navLink}>
+      <Link to="/exemple-de-signal" className={styles.navLink} aria-current={location.pathname === '/exemple-de-signal' ? 'page' : undefined}>
         {copy.nav.example}
       </Link>
-      <Link to="/tarifs" className={styles.navLink}>
+      <Link to="/tarifs" className={styles.navLink} aria-current={location.pathname === '/tarifs' ? 'page' : undefined}>
         {copy.nav.pricing}
       </Link>
-      <Link to="/contact" className={styles.navLink}>
+      <Link to="/contact" className={styles.navLink} aria-current={location.pathname === '/contact' ? 'page' : undefined}>
         {copy.nav.contact}
       </Link>
     </nav>
@@ -100,7 +100,7 @@ export function PublicLayout() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <Link to="/" className={styles.logoLink} aria-label={t.brand.name}>
-            <KivouLogo size="md" />
+            <KivouLogo size="md" baseline={copy.brandBaseline} tone="mint" />
           </Link>
 
           <div className={styles.headerNav}>{links}</div>
@@ -171,15 +171,13 @@ export function PublicLayout() {
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
           <div className={styles.footerBrand}>
-            <KivouLogo size="sm" baseline={copy.brandBaseline} tone="inverse" />
+            <KivouLogo size="sm" baseline={copy.brandBaseline} tone="mint" />
             <p className={styles.footerTagline}>{copy.footer.tagline}</p>
           </div>
 
           <nav className={styles.footerColumn} aria-label={t.publicFooter.product}>
             <p className={styles.footerHeading}>{t.publicFooter.product}</p>
-            <Link to="/" aria-label={footerLinkLabel(t.publicFooter.home)}>
-              {copy.nav.home}
-            </Link>
+            <Link to="/" aria-label={footerLinkLabel(copy.nav.home)}>{copy.nav.home}</Link>
             <Link to="/produit" aria-label={footerLinkLabel(copy.nav.product)}>{copy.nav.product}</Link>
             <Link
               to="/exemple-de-signal"
@@ -195,38 +193,26 @@ export function PublicLayout() {
           <nav className={styles.footerColumn} aria-label={t.publicFooter.account}>
             <p className={styles.footerHeading}>{t.publicFooter.account}</p>
             {authenticated ? (
-              <ButtonLink
-                to="/app/signals"
-                variant="primary"
-                aria-label={footerLinkLabel(t.nav.signals)}
-              >
+              <Link to="/app/signals" aria-label={footerLinkLabel(t.nav.signals)}>
                 {t.nav.signals}
-              </ButtonLink>
+              </Link>
             ) : (
               <>
-                <ButtonLink
-                  to="/signup"
-                  variant="primary"
-                  aria-label={footerLinkLabel(t.publicFooter.firstSignals)}
-                >
-                  {t.publicFooter.firstSignals}
-                </ButtonLink>
+                <Link to="/signup" aria-label={footerLinkLabel(t.publicFooter.firstSignals)}>
+                  {locale === 'fr' ? 'Créer un compte' : 'Create an account'}
+                </Link>
                 <Link to="/login" aria-label={footerLinkLabel(copy.nav.login)}>
                   {copy.nav.login}
                 </Link>
               </>
             )}
+            <Link to="/contact" aria-label={footerLinkLabel(t.publicFooter.contact)}>
+              {locale === 'fr' ? 'Nous contacter' : 'Contact us'}
+            </Link>
           </nav>
 
           <nav className={styles.footerColumn} aria-label={copy.footer.information}>
             <p className={styles.footerHeading}>{copy.footer.information}</p>
-            <ButtonLink
-              to="/contact"
-              variant="secondary"
-              aria-label={footerLinkLabel(t.publicFooter.contact)}
-            >
-              {t.publicFooter.contact}
-            </ButtonLink>
             <Link
               to="/informations-legales#mentions-legales"
               aria-label={footerLinkLabel(t.publicFooter.legalNotice)}
@@ -249,8 +235,9 @@ export function PublicLayout() {
 
           <div className={styles.footerBottom}>
             <p className={styles.footerLegal}>
-              © {new Date().getFullYear()} {t.brand.name} — {copy.footer.sources}
+              © {new Date().getFullYear()} {t.brand.name}. {locale === 'fr' ? 'Tous droits réservés.' : 'All rights reserved.'}
             </p>
+            <p className={styles.footerSources}>{copy.footer.sources}</p>
             <LocaleSwitch
               locale={locale}
               onChange={setLocale}

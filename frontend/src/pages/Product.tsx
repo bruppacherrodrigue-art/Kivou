@@ -18,7 +18,7 @@ export function Product() {
       />
 
       <header className={styles.hero}>
-        <div className={styles.inner}>
+        <div className={`${styles.inner} ${styles.productHeroInner}`}>
           <div className={styles.heroCopy}>
             <p className={styles.eyebrow}>{copy.eyebrow}</p>
             <h1 className={styles.title}>{copy.title}</h1>
@@ -28,12 +28,12 @@ export function Product() {
               <ButtonLink to="/exemple-de-signal" variant="secondary" size="lg">{copy.secondary}</ButtonLink>
             </div>
           </div>
-          <ol className={styles.journey}>
+          <ol className={styles.journey} data-label={copy.journeyEyebrow}>
             {copy.journey.map(([title, body], index) => (
               <li key={title}>
                 <Card as="div" padding="lg" className={styles.step}>
                   <span className={styles.stepNumber}>{String(index + 1).padStart(2, '0')}</span>
-                  <h3>{title}</h3><p>{body}</p>
+                  <div><h3>{title}</h3><p>{body}</p></div>
                 </Card>
               </li>
             ))}
@@ -41,7 +41,7 @@ export function Product() {
         </div>
       </header>
 
-      <section className={styles.section}>
+      <section className={`${styles.section} ${styles.productDark}`}>
         <div className={styles.inner}>
           <SectionHeading eyebrow={copy.whyEyebrow} title={copy.whyTitle} lead={copy.whyLead} />
           <div className={styles.distinctions}>
@@ -54,15 +54,15 @@ export function Product() {
         </div>
       </section>
 
-      <section className={`${styles.section} ${styles.sectionSubtle}`}>
-        <div className={styles.inner}>
+      <section className={`${styles.section} ${styles.sectionSubtle}`} id="fonctionnement">
+        <div className={`${styles.inner} ${styles.methodInner}`}>
           <SectionHeading eyebrow={copy.methodEyebrow} title={copy.methodTitle} lead={copy.methodLead} />
           <ol className={styles.method}>
             {copy.method.map(([title, body], index) => (
               <li key={title}>
                 <Card as="div" padding="lg" className={styles.step}>
                   <span className={styles.stepNumber}>{String(index + 1).padStart(2, '0')}</span>
-                  <h3>{title}</h3><p>{body}</p>
+                  <div><h3>{title}</h3><p>{body}</p></div>
                 </Card>
               </li>
             ))}
@@ -97,7 +97,7 @@ export function Product() {
 
       <section className={styles.cta}>
         <div className={styles.inner}>
-          <h2>{copy.ctaTitle}</h2><p>{copy.ctaLead}</p>
+          <div className={styles.ctaCopy}><h2>{copy.ctaTitle}</h2><p>{copy.ctaLead}</p></div>
           <div className={styles.actions}>
             <ButtonLink to="/signup?plan=discovery" size="lg">{copy.primary}</ButtonLink>
             <ButtonLink to="/exemple-de-signal" variant="secondary" size="lg">{copy.secondary}</ButtonLink>

@@ -40,7 +40,7 @@ describe('grille tarifaire', () => {
     mockApi(BASE)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
 
-    await screen.findByText('Essential')
+    await screen.findByText('Essentiel')
 
     // Chaque montant est vérifié DANS sa carte : « 99 » est un sous-texte de
     // « 199 », et une recherche globale confondrait Pro et Scale.
@@ -51,7 +51,7 @@ describe('grille tarifaire', () => {
 
     // Les montants viennent du catalogue : 0 / 49 / 99 / 199, en CHF par défaut.
     expect(priceOf('Découverte')).toContain('Gratuit')
-    expect(priceOf('Essential')).toMatch(/49/)
+    expect(priceOf('Essentiel')).toMatch(/49/)
     expect(priceOf('Pro')).toMatch(/(^|\D)99/)
     expect(priceOf('Scale')).toMatch(/199/)
 
@@ -77,7 +77,7 @@ describe('grille tarifaire', () => {
     mockApi({ ...BASE, 'GET /me': { status: 401, body: {} } })
     renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/' })
 
-    await screen.findByText('Essential')
+    await screen.findByText('Essentiel')
     const page = (document.body.textContent ?? '').toLowerCase()
     expect(page).not.toContain('founding')
     expect(page).not.toContain('fondateur')
@@ -146,7 +146,7 @@ describe('checkout', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
 
-    await user.click(await screen.findByRole('button', { name: 'Choisir Essential' }))
+    await user.click(await screen.findByRole('button', { name: 'Choisir Essentiel' }))
 
     await waitFor(() =>
       expect(assign).toHaveBeenCalledWith('https://checkout.stripe.com/c/pay/cs_test_456'),

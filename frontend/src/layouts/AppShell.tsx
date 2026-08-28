@@ -71,9 +71,13 @@ export function AppShell() {
   const items = me?.capabilities.commercial_cockpit
     ? [...NAV_ITEMS, INTERNAL_NAV_ITEM]
     : NAV_ITEMS
+  const pageTitle = titleForPath(location.pathname, t)
+  const contentOwnsPageHeading = pageOwnsHeading(location.pathname)
+  const eyebrow = me?.locale === 'en' ? 'Awarded contract monitoring' : 'Veille des marchés attribués'
 
   const navigation = (
     <nav className={styles.nav} aria-label={t.nav.mainNavigation}>
+      <p className={styles.sidebarLabel}>Navigation</p>
       <ul className={styles.navList}>
         {items.map(({ to, key, Icon }) => (
           <li key={to}>
@@ -133,9 +137,6 @@ export function AppShell() {
 
       {/* Barre mobile : le tiroir remplace la sidebar sous 1024px (§20). */}
       <header className={styles.mobileBar}>
-        <Link to="/app/dashboard" className={styles.logoLink}>
-          <KivouLogo size="sm" />
-        </Link>
         <button
           type="button"
           className={styles.drawerToggle}
@@ -148,6 +149,9 @@ export function AppShell() {
             {drawerOpen ? t.nav.closeMenu : t.nav.openMenu}
           </span>
         </button>
+        <div className={styles.mobileTitle}>
+          <strong aria-hidden="true">{pageTitle}</strong>
+        </div>
       </header>
 
       <aside className={styles.sidebar}>
@@ -184,11 +188,42 @@ export function AppShell() {
         </div>
       ) : null}
 
-      <main className={styles.main} id="kivou-main">
-        <Outlet />
-      </main>
+      <div className={styles.workspace}>
+        <header className={styles.topbar}>
+          <div className={styles.topbarTitle}>
+            <p>{eyebrow}</p>
+            {contentOwnsPageHeading ? (
+              <strong className={styles.topbarPageTitle}>{pageTitle}</strong>
+            ) : (
+              <h1>{pageTitle}</h1>
+            )}
+          </div>
+        </header>
+        <main className={styles.main} id="kivou-main">
+          <Outlet />
+        </main>
+      </div>
     </div>
   )
+}
+
+function pageOwnsHeading(pathname: string): boolean {
+  return (
+    /^\/app\/signals\/[^/]+$/.test(pathname) ||
+    /^\/app\/companies\/[^/]+$/.test(pathname) ||
+    pathname.startsWith('/app/internal/')
+  )
+}
+
+function titleForPath(pathname: string, t: ReturnType<typeof useI18n>['t']): string {
+  if (pathname.startsWith('/app/signals')) return t.nav.signals
+  if (pathname.startsWith('/app/companies')) return t.nav.companies
+  if (pathname.startsWith('/app/icps')) return t.nav.icps
+  if (pathname === '/app/billing') return t.billing.title
+  if (pathname === '/app/notifications') return t.notifications.title
+  if (pathname.startsWith('/app/settings')) return t.nav.settings
+  if (pathname.startsWith('/app/internal')) return t.nav.cockpit
+  return t.nav.dashboard
 }
 
 function initials(name: string): string {

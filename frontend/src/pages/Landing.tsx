@@ -3,14 +3,13 @@ import { useI18n } from '../i18n'
 import { ButtonLink } from '../components/Button'
 import { Card, SectionHeading } from '../components/Surfaces'
 import { ArrowRightIcon, CheckIcon, ShieldIcon } from '../assets/Icons'
-import { PlanGrid } from '../billing/PlanGrid'
 import { billing } from '../api/endpoints'
 import type { PlanCatalogue } from '../api/types'
 import { marketingCopy } from '../content/marketingCopy'
 import styles from './Landing.module.css'
 
 export function Landing() {
-  const { locale } = useI18n()
+  const { locale, money, t } = useI18n()
   const copy = marketingCopy(locale).landing
   const [catalogue, setCatalogue] = useState<PlanCatalogue | null>(null)
 
@@ -64,8 +63,10 @@ export function Landing() {
 
       <section className={styles.section}>
         <div className={styles.sectionInner}>
-          <SectionHeading eyebrow={copy.dashboardEyebrow} title={copy.dashboardTitle} lead={copy.dashboardLead} />
-          <ButtonLink to="/exemple-de-signal" variant="secondary">{copy.dashboardAction}</ButtonLink>
+          <div className={styles.dashboardIntro}>
+            <SectionHeading eyebrow={copy.dashboardEyebrow} title={copy.dashboardTitle} lead={copy.dashboardLead} />
+            <ButtonLink to="/exemple-de-signal" variant="secondary">{copy.dashboardAction}</ButtonLink>
+          </div>
           <ol className={styles.processList} aria-label={copy.dashboardTitle}>
             {copy.reading.map(([title, body], index) => (
               <li className={styles.processStep} key={title}>
@@ -77,7 +78,7 @@ export function Landing() {
         </div>
       </section>
 
-      <section className={`${styles.section} ${styles.sectionSubtle}`}>
+      <section className={styles.section}>
         <div className={styles.sectionInner}>
           <SectionHeading eyebrow={copy.questionsEyebrow} title={copy.questionsTitle} />
           <div className={styles.questionGrid}>
@@ -90,7 +91,7 @@ export function Landing() {
         </div>
       </section>
 
-      <section className={styles.section} id="comment" tabIndex={-1}>
+      <section className={`${styles.section} ${styles.methodSection}`} id="comment" tabIndex={-1}>
         <div className={styles.sectionInner}>
           <SectionHeading eyebrow={copy.methodEyebrow} title={copy.methodTitle} />
           <ol className={styles.methodList}>
@@ -102,14 +103,32 @@ export function Landing() {
         </div>
       </section>
 
-      <section className={`${styles.section} ${styles.pricingSection}`} id="tarifs" tabIndex={-1}>
-        <div className={styles.sectionInner}>
-          <SectionHeading eyebrow={copy.offersEyebrow} title={copy.offersTitle} lead={copy.offersLead} />
-          <div className={styles.heroActions}>
-            <ButtonLink to="/signup?plan=discovery">{copy.offersPrimary}</ButtonLink>
-            <ButtonLink to="/tarifs" variant="secondary">{copy.offersSecondary}</ButtonLink>
+      <section className={styles.section} id="tarifs" tabIndex={-1}>
+        <div className={`${styles.sectionInner} ${styles.offersOverview}`}>
+          <div className={styles.offersCopy}>
+            <SectionHeading eyebrow={copy.offersEyebrow} title={copy.offersTitle} lead={copy.offersLead} />
+            <div className={styles.heroActions}>
+              <ButtonLink to="/signup?plan=discovery">{copy.offersPrimary}</ButtonLink>
+              <ButtonLink to="/tarifs" variant="secondary">{copy.offersSecondary}</ButtonLink>
+            </div>
           </div>
-          {catalogue ? <PlanGrid catalogue={catalogue} variant="public" /> : null}
+          {catalogue ? (
+            <ul className={styles.offerMatrix} aria-label={locale === 'fr' ? 'Aperçu des offres Kivou' : 'Kivou plan overview'}>
+              {catalogue.plans.map((plan) => {
+                const currency = catalogue.currencies[0] ?? 'chf'
+                const price = plan.monthly_price[currency]
+                return (
+                  <li key={plan.plan_code}>
+                    <span>
+                      <strong>{t.billing.plans[plan.plan_code]}</strong>
+                      <small>{t.billing.planPositioning[plan.plan_code]}</small>
+                    </span>
+                    <b>{price ? money(price.amount_minor_units, price.currency) : t.billing.free}</b>
+                  </li>
+                )
+              })}
+            </ul>
+          ) : null}
         </div>
       </section>
     </>

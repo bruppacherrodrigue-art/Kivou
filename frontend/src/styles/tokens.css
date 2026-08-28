@@ -7,40 +7,40 @@
  * - bleu pour les actions.
  */
 :root {
-  --kivou-color-ink: #17231e;
-  --kivou-color-ivory: #f6f8f7;
-  --kivou-color-forest: #173b2f;
-  --kivou-color-beige: #edf1ef;
+  --kivou-color-ink: #17211d;
+  --kivou-color-ivory: #ffffff;
+  --kivou-color-forest: #173f33;
+  --kivou-color-beige: #f4f7f5;
   --kivou-color-terracotta: #b3433f;
-  --kivou-color-brass: #2463eb;
+  --kivou-color-brass: #5367a3;
   --kivou-color-surface: #ffffff;
-  --kivou-color-line: #dfe6e2;
-  --kivou-color-text-secondary: #50615a;
-  --kivou-color-text-muted: #5d6b65;
-  --kivou-color-success: #287451;
+  --kivou-color-line: #e2e8e5;
+  --kivou-color-text-secondary: #5a6b64;
+  --kivou-color-text-muted: #66706c;
+  --kivou-color-success: #1f6b55;
   --kivou-color-warning: #a86618;
   --kivou-color-danger: #b3433f;
 
   --kivou-bg-canvas: var(--kivou-color-ivory);
   --kivou-bg-surface: var(--kivou-color-surface);
-  --kivou-bg-subtle: #f2f5f3;
+  --kivou-bg-subtle: #f7f9f8;
   --kivou-bg-beige: var(--kivou-color-beige);
   --kivou-text-primary: var(--kivou-color-ink);
   --kivou-text-secondary: var(--kivou-color-text-secondary);
   --kivou-text-muted: var(--kivou-color-text-muted);
   --kivou-text-inverse: #ffffff;
   --kivou-border: var(--kivou-color-line);
-  --kivou-border-strong: #c9d4ce;
-  --kivou-action-primary: #2463eb;
-  --kivou-action-primary-hover: #1d4ed8;
-  --kivou-action-accent: #2463eb;
+  --kivou-border-strong: #d8e4df;
+  --kivou-action-primary: #5367a3;
+  --kivou-action-primary-hover: #43547f;
+  --kivou-action-accent: #5367a3;
   --kivou-analysis-accent: #8a641f;
   --kivou-analysis-bg: #fff9ed;
-  --kivou-focus: #2563eb;
+  --kivou-focus: #5367a3;
 
   --kivou-sidebar-bg: var(--kivou-color-forest);
-  --kivou-sidebar-text: #d5e3dc;
-  --kivou-sidebar-muted: #9eb4aa;
+  --kivou-sidebar-text: rgba(247, 251, 249, 0.72);
+  --kivou-sidebar-muted: rgba(247, 251, 249, 0.55);
   --kivou-sidebar-border: rgba(255, 255, 255, 0.12);
   --kivou-nav-active-bg: #dff1e7;
   --kivou-nav-active-text: #124b37;

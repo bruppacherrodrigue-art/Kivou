@@ -20,9 +20,9 @@ describe('tarifs publics de la refonte', () => {
     renderApp(<AppRoutes />, { route: '/tarifs' })
     const title = screen.getByRole('heading', { level: 1, name: 'Choisissez la couverture adaptée à votre prospection.' })
     expect(title).toBeInTheDocument()
-    const grid = (await screen.findByRole('heading', { level: 3, name: 'Essential' })).closest('ul')!
+    const grid = (await screen.findByRole('heading', { level: 3, name: 'Essentiel' })).closest('ul')!
     expect(within(grid).getAllByRole('article')).toHaveLength(4)
-    const essential = within(grid).getByRole('heading', { level: 3, name: 'Essential' }).closest('article')!
+    const essential = within(grid).getByRole('heading', { level: 3, name: 'Essentiel' }).closest('article')!
     expect(essential.textContent).toMatch(/12[,.]34/)
     expect(within(essential).getByRole('link')).toHaveAttribute('href', '/signup?plan=essential')
   })
@@ -41,7 +41,7 @@ describe('tarifs publics de la refonte', () => {
     mockApi({ 'GET /billing/plans': { body: catalogue } })
     renderApp(<AppRoutes />, { route: '/tarifs' })
     const ribbon = await screen.findByText('Recommandé')
-    expect(within(ribbon.closest('article')!).getByRole('heading', { name: 'Essential' })).toBeInTheDocument()
+    expect(within(ribbon.closest('article')!).getByRole('heading', { name: 'Essentiel' })).toBeInTheDocument()
     expect(screen.getAllByText('Recommandé')).toHaveLength(1)
   })
 
@@ -55,7 +55,7 @@ describe('tarifs publics de la refonte', () => {
   it('préserve les actions de facturation serveur dans le dashboard', async () => {
     mockApi({ 'GET /billing/plans': { body: CATALOGUE }, 'GET /billing/status': { body: DISCOVERY_STATUS } })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
-    expect(await screen.findByRole('button', { name: 'Choisir Essential' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Choisir Essentiel' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Choisir Pro' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Choisir Scale' })).toBeInTheDocument()
   })

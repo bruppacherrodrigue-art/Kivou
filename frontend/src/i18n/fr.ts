@@ -94,6 +94,10 @@ export const fr = {
 
   dashboard: {
     title: 'Vue d’ensemble',
+    summaryEyebrow: 'Résumé de la veille',
+    summaryLoading: 'Vos signaux documentés',
+    summaryOne: '{count} signal documenté dans cette lecture',
+    summaryOther: '{count} signaux documentés dans cette lecture',
     lead: 'Ce qui mérite votre attention aujourd’hui, à partir des marchés qui correspondent à vos ciblages.',
     opportunities: 'Signaux à examiner',
     icps: 'Ciblages actifs',
@@ -1064,7 +1068,7 @@ export const fr = {
     included: 'Ce qui est inclus',
     plans: {
       discovery: 'Découverte',
-      essential: 'Essential',
+      essential: 'Essentiel',
       pro: 'Pro',
       scale: 'Scale',
     },

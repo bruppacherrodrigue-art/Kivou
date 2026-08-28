@@ -1,19 +1,43 @@
 .page {
-  width: min(100%, var(--kivou-container-content));
+  width: min(100%, 1240px);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-10);
+  gap: 24px;
 }
 
 .pageHeader {
-  max-width: 52rem;
+  max-width: 720px;
+  padding-bottom: 4px;
+}
+
+.pageHeader :global(h2) {
+  margin: 0;
+  font-family: var(--kivou-font-display);
+  font-size: clamp(28px, 3vw, 42px);
+  font-weight: 450;
+  letter-spacing: -.035em;
+  line-height: 1.12;
+}
+
+.pageHeader :global(p:first-child) {
+  color: #1f6b55;
+  font-size: 10px;
+  font-weight: 760;
+  letter-spacing: .13em;
+}
+
+.pageHeader :global(p:last-child) {
+  margin-top: 2px;
+  color: #66706c;
+  font-size: 14px;
+  line-height: 1.6;
 }
 
 .opportunities {
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-5);
+  gap: 17px;
 }
 
 .sectionHeader,
@@ -32,7 +56,7 @@
   list-style: none;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--kivou-space-4);
+  gap: 12px;
 }
 
 .listItem {
@@ -42,7 +66,7 @@
 .supportGrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--kivou-space-4);
+  gap: 20px;
   align-items: start;
 }
 
@@ -100,6 +124,11 @@
 
   .signalList > :first-child {
     grid-column: 1 / -1;
+  }
+
+  .signalList > :first-child > article {
+    border-color: #c9ded4;
+    background: #eef7f3;
   }
 
   .supportGrid {
