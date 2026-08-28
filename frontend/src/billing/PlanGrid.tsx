@@ -125,7 +125,7 @@ function PlanCard({
       <div className={styles.action}>
         {variant === 'public' ? (
           <ButtonLink
-            to="/signup"
+            to={`/signup?plan=${plan.plan_code}`}
             variant={plan.recommended ? 'primary' : 'secondary'}
             size="lg"
             fullWidth

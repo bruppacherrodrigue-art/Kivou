@@ -419,7 +419,7 @@ function ReadyDashboard() {
         </Card>
 
         {companyState.status !== 'idle' ? (
-          <Card as="section" padding="lg" ariaLabelledBy="dashboard-company-title">
+          <Card as="section" padding="lg" className={styles.sectionCard} ariaLabelledBy="dashboard-company-title">
             <SectionHeading id="dashboard-company-title" title={t.dashboard.company} />
             <p className={styles.supportingCopy}>{companyState.signal.company.name}</p>
             {companyState.status === 'loading' ? (

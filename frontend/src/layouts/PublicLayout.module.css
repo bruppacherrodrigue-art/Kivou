@@ -254,7 +254,7 @@
   }
 }
 
-@media (min-width: 900px) {
+@media (min-width: 1100px) {
   .headerNav {
     display: flex;
     flex: 1;

@@ -41,7 +41,8 @@ export const en: Dictionary = {
   nav: {
     dashboard: 'Overview',
     signals: 'Signals',
-    icps: 'Target profiles',
+    companies: 'Companies',
+    icps: 'Target profile',
     billing: 'Billing',
     notifications: 'Notifications',
     settings: 'Account',
@@ -57,6 +58,18 @@ export const en: Dictionary = {
     closeMenu: 'Close menu',
     dismissMenu: 'Close the menu by clicking outside',
     account: 'Account',
+  },
+
+  companiesIndex: {
+    title: 'Companies',
+    lead: 'Companies linked to signals currently available in your feed.',
+    count: 'Accessible signals',
+    open: 'Open company profile',
+    emptyTitle: 'No company is available yet.',
+    emptyBody: 'Company profiles appear here when an unlocked signal includes a verifiable company identity.',
+    errorTitle: 'Companies could not be loaded.',
+    retry: 'Try again',
+    partial: 'This list reflects the accessible signals in your feed, not an exhaustive directory.',
   },
 
   settings: {

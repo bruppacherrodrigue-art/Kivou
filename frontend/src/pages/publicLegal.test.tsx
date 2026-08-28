@@ -124,7 +124,7 @@ describe('informations légales publiques', () => {
     )
     await user.click(screen.getByRole('button', { name: 'Historique précédent' }))
     await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/contact'))
-    expect(screen.getByRole('heading', { level: 1, name: 'Contactez-nous' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Contact' })).toBeInTheDocument()
   })
 
   it('conserve l’ancre active et le focus lors du passage en anglais', async () => {
@@ -235,36 +235,25 @@ describe('informations légales publiques', () => {
   })
 })
 
-describe('page Contactez-nous', () => {
-  it('rend une vraie page sans formulaire, téléphone ou promesse de délai', () => {
+describe('page Contact', () => {
+  it('rend le formulaire de la refonte sans téléphone ni promesse de délai', () => {
     mockApi({})
     const { container } = renderApp(<AppRoutes />, { route: '/contact', session: UNAUTHENTICATED })
 
     expect(screen.queryByText('Page introuvable')).not.toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
-    expect(screen.getByRole('heading', { level: 1, name: 'Contactez-nous' })).toBeInTheDocument()
-    for (const category of [
-      'Produit et compte',
-      'Facturation',
-      'Confidentialité',
-      'Partenariats et questions générales',
-    ]) {
-      expect(screen.getByRole('heading', { level: 2, name: category })).toBeInTheDocument()
-    }
-    expect(screen.getByRole('link', { name: 'Écrire à contact@kivou.eu' })).toHaveAttribute(
-      'href',
-      'mailto:contact@kivou.eu',
-    )
-    expect(within(screen.getByRole('main')).getByRole('link', { name: 'Voir mes 3 premiers signaux' })).toHaveAttribute(
-      'href',
-      '/signup',
-    )
-    expect(container.querySelector('form')).toBeNull()
+    expect(screen.getByRole('heading', { level: 1, name: 'Contact' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Nom' })).toBeRequired()
+    expect(screen.getByRole('textbox', { name: 'E-mail professionnel' })).toBeRequired()
+    expect(screen.getByRole('combobox', { name: 'Sujet' })).toBeRequired()
+    expect(screen.getByRole('textbox', { name: 'Message' })).toBeRequired()
+    expect(screen.getByRole('button', { name: 'Envoyer le message' })).toBeInTheDocument()
+    expect(container.querySelector('form')).toBeInTheDocument()
     expect(container.querySelector('a[href^="tel:"]')).toBeNull()
     expect(container.textContent).not.toMatch(/réponse sous|répondons? en|24 heures|48 heures/i)
   })
 
-  it('conserve exactement les mêmes catégories et actions en anglais', () => {
+  it('localise le formulaire en anglais', () => {
     mockApi({})
     const { container } = renderApp(<AppRoutes />, {
       route: '/contact',
@@ -272,24 +261,11 @@ describe('page Contactez-nous', () => {
       session: UNAUTHENTICATED,
     })
 
-    expect(screen.getByRole('heading', { level: 1, name: 'Contact us' })).toBeInTheDocument()
-    for (const category of [
-      'Product and account',
-      'Billing',
-      'Privacy',
-      'Partnerships and general enquiries',
-    ]) {
-      expect(screen.getByRole('heading', { level: 2, name: category })).toBeInTheDocument()
-    }
-    expect(screen.getByRole('link', { name: 'Email contact@kivou.eu' })).toHaveAttribute(
-      'href',
-      'mailto:contact@kivou.eu',
-    )
-    expect(within(screen.getByRole('main')).getByRole('link', { name: 'See my first 3 signals' })).toHaveAttribute(
-      'href',
-      '/signup',
-    )
-    expect(container.querySelector('form')).toBeNull()
+    expect(screen.getByRole('heading', { level: 1, name: 'Contact' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Name' })).toBeInTheDocument()
+    expect(screen.getByRole('textbox', { name: 'Work email' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Send message' })).toBeInTheDocument()
+    expect(container.querySelector('form')).toBeInTheDocument()
   })
 })
 
@@ -301,9 +277,9 @@ describe('footer public complet', () => {
     const footer = screen.getByRole('contentinfo')
     const expectedLinks = [
       ['Accueil', '/'],
+      ['Comment ça marche', '/produit'],
       ['Exemple de signal', '/exemple-de-signal'],
-      ['Comment ça marche', '/#comment'],
-      ['Tarifs', '/#tarifs'],
+      ['Tarifs', '/tarifs'],
       ['Voir mes 3 premiers signaux', '/signup'],
       ['Se connecter', '/login'],
       ['Contactez-nous', '/contact'],
@@ -318,8 +294,8 @@ describe('footer public complet', () => {
         href,
       )
     }
-    expect(within(footer).getByText(/Tous droits réservés/)).toBeInTheDocument()
-    expect(within(footer).getByText(/Performance commerciale sous contrôle/)).toBeInTheDocument()
+    expect(within(footer).getByText(/Sources officielles accessibles/)).toBeInTheDocument()
+    expect(within(footer).getByText(/Signaux commerciaux/)).toBeInTheDocument()
     expect(within(footer).getByRole('group', { name: 'Langue du pied de page' })).toBeInTheDocument()
     expect(within(footer).getByRole('button', { name: 'EN — pied de page' })).toBeInTheDocument()
     expect(footer.querySelector('a[href*="twitter"], a[href*="linkedin"], a[href^="tel:"]')).toBeNull()
@@ -363,7 +339,7 @@ describe('footer public complet', () => {
       'href',
       '/informations-legales#mentions-legales',
     )
-    expect(within(footer).getByText(/All rights reserved/)).toBeInTheDocument()
+    expect(within(footer).getByText(/Official sources available/)).toBeInTheDocument()
     expect(within(footer).getByRole('group', { name: 'Footer language' })).toBeInTheDocument()
   })
 })

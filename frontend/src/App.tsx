@@ -10,6 +10,8 @@ import { DashboardDemoCapture } from './pages/DashboardDemoCapture'
 import { PublicSignalDemo } from './pages/PublicSignalDemo'
 import { LegalInformation } from './pages/LegalInformation'
 import { Contact } from './pages/Contact'
+import { Product } from './pages/Product'
+import { PublicPricing } from './pages/PublicPricing'
 import { Login } from './pages/Login'
 import { Signup } from './pages/Signup'
 import { ForgotPassword, ResetPassword } from './pages/PasswordReset'
@@ -18,6 +20,7 @@ import { Dashboard } from './pages/Dashboard'
 import { SignalsFeed } from './pages/SignalsFeed'
 import { SignalDetail } from './pages/SignalDetail'
 import { CompanyProfile } from './pages/CompanyProfile'
+import { Companies } from './pages/Companies'
 import { Icps } from './pages/Icps'
 import { Billing } from './pages/Billing'
 import { Notifications } from './pages/Notifications'
@@ -70,6 +73,8 @@ export function AppRoutes() {
             signal complet sans compte, et sans qu'aucun appel de session ne
             soit requis pour rendre la page. */}
           <Route path="exemple-de-signal" element={<PublicSignalDemo />} />
+          <Route path="produit" element={<Product />} />
+          <Route path="tarifs" element={<PublicPricing />} />
           <Route path="informations-legales" element={<LegalInformation />} />
           <Route path="contact" element={<Contact />} />
           {/* Compatibilité des anciennes URL : `replace` évite d'emprisonner
@@ -102,6 +107,7 @@ export function AppRoutes() {
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="signals" element={<SignalsFeed />} />
             <Route path="signals/:signalKey" element={<SignalDetail />} />
+            <Route path="companies" element={<Companies />} />
             <Route path="companies/:companyKey" element={<CompanyProfile />} />
             <Route path="icps" element={<Icps />} />
             <Route path="billing" element={<Billing />} />

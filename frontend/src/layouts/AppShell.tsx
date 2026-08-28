@@ -6,6 +6,7 @@ import { KivouLogo } from '../components/KivouLogo'
 import { Button } from '../components/Button'
 import {
   BillingIcon,
+  BuildingIcon,
   CloseIcon,
   DashboardIcon,
   LogoutIcon,
@@ -19,10 +20,9 @@ import styles from './AppShell.module.css'
  *
  * La géométrie vient de la référence 04 : sidebar de 240 px, logo en haut,
  * items icône + libellé, séparateur, carte de compte en bas. Ce que la
- * référence montre en plus — Entreprises, Marchés, Veille, Notes — n'a AUCUN
- * point d'entrée dans `src/signals/api/`. Ces entrées ne sont donc pas rendues,
- * même désactivées : afficher une navigation vers une fonctionnalité
- * inexistante la promettrait.
+ * référence montre aussi Entreprises : cette entrée est maintenant alimentée
+ * uniquement par les fiches reliées aux signaux accessibles. Marchés, Veille
+ * et Notes restent absents tant qu'aucun point d'entrée client ne les sert.
  *
  * Ce qui n'y figure jamais (§14, §40) : Acquisition Engine, Apollo, Instantly,
  * mailboxes, campagnes, séquences et délivrabilité. Ce sont
@@ -32,6 +32,7 @@ import styles from './AppShell.module.css'
 const NAV_ITEMS = [
   { to: '/app/dashboard', key: 'dashboard', Icon: DashboardIcon },
   { to: '/app/signals', key: 'signals', Icon: SignalsIcon },
+  { to: '/app/companies', key: 'companies', Icon: BuildingIcon },
   { to: '/app/icps', key: 'icps', Icon: TargetIcon },
   { to: '/app/settings', key: 'settings', Icon: BillingIcon },
 ] as const
