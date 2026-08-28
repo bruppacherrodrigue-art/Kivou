@@ -839,7 +839,14 @@ def test_route_is_json_bounded_and_constant_time_secret_authenticated(tmp_path) 
         instantly_webhook_secret=SECRET,
         instantly_webhook_workspace_ref="workspace:test",
     )
-    client = TestClient(create_app(engine, config, instantly_webhook_service=_service(engine)))
+    client = TestClient(
+        create_app(
+            engine,
+            config,
+            now_override=lambda: RECEIVED,
+            instantly_webhook_service=_service(engine),
+        )
+    )
     payload = _event(None)
 
     assert client.post("/webhooks/instantly", content=b"{}", headers={
@@ -864,7 +871,14 @@ def test_route_never_reflects_sensitive_invalid_event_values(tmp_path) -> None:
         instantly_webhook_secret=SECRET,
         instantly_webhook_workspace_ref="workspace:test",
     )
-    client = TestClient(create_app(engine, config, instantly_webhook_service=_service(engine)))
+    client = TestClient(
+        create_app(
+            engine,
+            config,
+            now_override=lambda: RECEIVED,
+            instantly_webhook_service=_service(engine),
+        )
+    )
     sensitive = "SYNTHETIC-REPLY-CONTENT-MUST-NOT-BE-REFLECTED"
     payload = _event(None, unsupported_reply_payload=sensitive)
 

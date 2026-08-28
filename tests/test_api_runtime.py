@@ -31,7 +31,7 @@ import pytest
 import sqlalchemy as sa
 from billing_helpers import BILLING_RETURN_URLS
 from fastapi.testclient import TestClient
-from test_campaign_webhooks import SECRET, _event, _queued
+from test_campaign_webhooks import RECEIVED, SECRET, _event, _queued
 
 from signals.api.config import ApiConfig
 from signals.campaigns.contracts import ResponseIngressCapability
@@ -340,6 +340,7 @@ def test_production_instantly_webhook_persists_and_replays_without_network(
     monkeypatch.setattr("socket.socket.connect", forbidden_network)
     module = importlib.import_module(MODULE)
     app = module.build_application()
+    app.state.now_override = lambda: RECEIVED
     client = TestClient(app)
     payload = _event(result)
 
