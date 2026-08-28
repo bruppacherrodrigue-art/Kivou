@@ -159,7 +159,7 @@ function CompanyProfileView({ profile }: { profile: CompanyProfilePayload }) {
               title={t.companyProfile.identifiedTitle}
               lead={t.companyProfile.identifiedLead}
             />
-            <Card padding="lg">
+            <Card padding="lg" className={styles.officialCard}>
               <DataList>
                 <DataRow label={t.companyProfile.officialName}>{identity.name}</DataRow>
                 {identity.country ? (
@@ -197,6 +197,9 @@ function CompanyProfileView({ profile }: { profile: CompanyProfilePayload }) {
             </div>
           </section>
 
+        </div>
+
+        <aside className={styles.sideColumn}>
           <section className={styles.section} aria-labelledby="company-attention">
             <SectionHeading
               id="company-attention"
@@ -238,9 +241,7 @@ function CompanyProfileView({ profile }: { profile: CompanyProfilePayload }) {
               ))}
             </div>
           </section>
-        </div>
 
-        <aside className={styles.sideColumn}>
           <section className={styles.section} aria-labelledby="company-sources">
             <SectionHeading
               id="company-sources"
@@ -274,7 +275,7 @@ function RelatedSignal({ signal }: { signal: CompanyRelatedSignal }) {
           <h3 className={styles.cardTitle}>{signal.contract_title ?? signal.event.headline}</h3>
           <p className={styles.signalHeadline}>{signal.event.headline}</p>
         </div>
-        <Badge tone="brand">Kivou</Badge>
+        <Badge tone="neutral">Kivou</Badge>
       </div>
       <DataList>
         {signal.amount ? (
@@ -305,7 +306,7 @@ function RelatedSignal({ signal }: { signal: CompanyRelatedSignal }) {
 function CompanySkeleton() {
   const { t } = useI18n()
   return (
-    <div className={styles.page}>
+    <div className={styles.page} role="status" aria-label={t.common.loading}>
       <h1 className="kivou-visually-hidden">{t.common.loading}</h1>
       <div aria-hidden="true" className={styles.skeletonStack}>
         <Skeleton width="10rem" height="1rem" />

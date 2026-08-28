@@ -63,13 +63,15 @@ export const en: Dictionary = {
   companiesIndex: {
     title: 'Companies',
     lead: 'Companies linked to signals currently available in your feed.',
-    count: 'Accessible signals',
+    count: 'Related signals',
     open: 'Open company profile',
     emptyTitle: 'No company is available yet.',
     emptyBody: 'Company profiles appear here when an unlocked signal includes a verifiable company identity.',
     errorTitle: 'Companies could not be loaded.',
     retry: 'Try again',
     partial: 'This list reflects the accessible signals in your feed, not an exhaustive directory.',
+    partialResultTitle: 'Partial list',
+    partialResultBody: 'Some companies could not be loaded. Try again to refresh this list.',
   },
 
   settings: {

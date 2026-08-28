@@ -69,13 +69,15 @@ export const fr = {
   companiesIndex: {
     title: 'Entreprises',
     lead: 'Les entreprises reliées aux signaux actuellement accessibles dans votre veille.',
-    count: 'Signaux accessibles',
+    count: 'Signaux liés',
     open: 'Ouvrir la fiche',
     emptyTitle: 'Aucune entreprise accessible pour le moment.',
     emptyBody: 'Les fiches apparaissent ici lorsqu’un signal déverrouillé comporte une identité d’entreprise vérifiable.',
     errorTitle: 'Les entreprises n’ont pas pu être chargées.',
     retry: 'Réessayer',
     partial: 'Cette liste reflète les signaux accessibles de votre flux, pas un répertoire exhaustif.',
+    partialResultTitle: 'Liste partielle',
+    partialResultBody: 'Certaines entreprises n’ont pas pu être chargées. Réessayez pour actualiser cette liste.',
   },
 
   settings: {

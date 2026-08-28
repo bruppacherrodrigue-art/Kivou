@@ -91,20 +91,182 @@ describe('accueil connecté', () => {
     )
   })
 
-  it('rend le nouveau menu Entreprises et son index depuis les seuls signaux accessibles', async () => {
+  it('rend une seule ligne entreprise depuis le détail déverrouillé sans demander le détail verrouillé', async () => {
+    const protectedIdentity = 'ENTREPRISE PROTÉGÉE'
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
       [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      [`GET /signals/${LOCKED_ITEM.signal_id}`]: {
+        body: {
+          ...LOCKED_DETAIL,
+          company: { name: protectedIdentity, country: 'CH', identifier: null },
+          company_key: 'cmp_protected',
+        },
+      },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/companies' })
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Entreprises' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Entreprises' })).toHaveAttribute('href', '/app/companies')
-    expect(await screen.findByRole('heading', { level: 2, name: UNLOCKED_ITEM.company.name! })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Ouvrir la fiche' })).toHaveAttribute(
+    const directory = await screen.findByRole('list', { name: 'Entreprises' })
+    const rows = within(directory).getAllByRole('listitem')
+    expect(rows).toHaveLength(1)
+    expect(within(rows[0]).getAllByRole('link')).toHaveLength(1)
+    expect(within(rows[0]).getByText('Signaux liés · 1')).toBeInTheDocument()
+    expect(within(rows[0]).getByText('FR')).toBeInTheDocument()
+    const companyLink = within(rows[0]).getByRole('link', { name: /Constructions Bertrand SA/ })
+    expect(companyLink).toHaveAttribute(
       'href',
       `/app/companies/${UNLOCKED_DETAIL.company_key}`,
     )
+    companyLink.focus()
+    expect(companyLink).toHaveFocus()
+    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
+    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
+    expect(document.body.textContent).not.toContain(protectedIdentity)
+    expect(document.body.textContent).not.toContain('cmp_protected')
+    expect(screen.queryByText('Ouvrir la fiche')).not.toBeInTheDocument()
+  })
+
+  it('ignore une réponse ancienne lorsque deux reprises locales Entreprises se chevauchent', async () => {
+    let feedCall = 0
+    let resolveOutdatedFeed: ((value: { body: ReturnType<typeof feedPage> }) => void) | undefined
+    const secondItem = {
+      ...UNLOCKED_ITEM,
+      signal_id: 'sig_current_company',
+      company: { ...UNLOCKED_ITEM.company, name: 'Actuelle SA' },
+    }
+    const secondDetail = {
+      ...UNLOCKED_DETAIL,
+      signal_id: secondItem.signal_id,
+      company: secondItem.company,
+      company_key: 'cmp_current_company',
+    }
+    mockApi({
+      'GET /signals': () => {
+        feedCall += 1
+        if (feedCall === 1) {
+          return {
+            status: 503,
+            body: { detail: { code: 'temporarily_unavailable' } },
+          }
+        }
+        if (feedCall === 2) {
+          return new Promise((resolve) => {
+            resolveOutdatedFeed = resolve
+          })
+        }
+        return { body: feedPage([secondItem]) }
+      },
+      [`GET /signals/${secondItem.signal_id}`]: { body: secondDetail },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/companies' })
+
+    const retry = await screen.findByRole('button', { name: 'Réessayer' })
+    act(() => {
+      retry.click()
+      retry.click()
+    })
+    await waitFor(() => expect(feedCall).toBe(3))
+    expect(await screen.findByRole('link', { name: /Actuelle SA/ })).toBeInTheDocument()
+    await act(async () => {
+      resolveOutdatedFeed?.({ body: feedPage([UNLOCKED_ITEM]) })
+      await Promise.resolve()
+    })
+    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
+    expect(screen.getByRole('link', { name: /Actuelle SA/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Constructions Bertrand SA/ })).not.toBeInTheDocument()
+  })
+
+  it('conserve les entreprises chargées et annonce une liste partielle si un détail échoue', async () => {
+    const user = userEvent.setup()
+    let feedCall = 0
+    let resolveRefresh: ((value: {
+      status: number
+      body: { detail: { code: string } }
+    }) => void) | undefined
+    const rejectedItem = {
+      ...UNLOCKED_ITEM,
+      signal_id: 'sig_company_rejected',
+      company: { ...UNLOCKED_ITEM.company, name: 'Détail indisponible SA' },
+    }
+    mockApi({
+      'GET /signals': () => {
+        feedCall += 1
+        if (feedCall === 1) return { body: feedPage([UNLOCKED_ITEM, rejectedItem]) }
+        return new Promise((resolve) => {
+          resolveRefresh = resolve
+        })
+      },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      [`GET /signals/${rejectedItem.signal_id}`]: {
+        status: 503,
+        body: { detail: { code: 'temporarily_unavailable' } },
+      },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/companies' })
+
+    const companyLink = await screen.findByRole('link', { name: /Constructions Bertrand SA/ })
+    const partial = screen.getByRole('region', { name: 'Liste partielle' })
+    expect(within(partial).getByRole('alert')).toHaveTextContent(
+      'Certaines entreprises n’ont pas pu être chargées.',
+    )
+    const retry = within(partial).getByRole('button', { name: 'Réessayer' })
+    await user.click(retry)
+
+    await waitFor(() => expect(feedCall).toBe(2))
+    expect(companyLink).toBeInTheDocument()
+    expect(partial).toBeInTheDocument()
+    expect(retry).toBeInTheDocument()
+    expect(retry).toHaveAttribute('aria-busy', 'true')
+    expect(retry).toHaveFocus()
+
+    await act(async () => {
+      resolveRefresh?.({
+        status: 503,
+        body: { detail: { code: 'temporarily_unavailable' } },
+      })
+      await Promise.resolve()
+    })
+
+    const refreshError = await screen.findByRole('region', {
+      name: 'Les entreprises n’ont pas pu être chargées.',
+    })
+    expect(within(refreshError).getByRole('alert')).toBeInTheDocument()
+    expect(within(refreshError).getByRole('button', { name: 'Réessayer' })).toBeInTheDocument()
+    expect(companyLink).toBeInTheDocument()
+    expect(partial).toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('temporarily_unavailable')
+  })
+
+  it('rend une erreur réessayable plutôt qu’un faux vide si tous les détails échouent', async () => {
+    const secondItem = {
+      ...UNLOCKED_ITEM,
+      signal_id: 'sig_company_rejected_too',
+      company: { ...UNLOCKED_ITEM.company, name: 'Autre détail indisponible SA' },
+    }
+    mockApi({
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM, secondItem]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: {
+        status: 503,
+        body: { detail: { code: 'temporarily_unavailable' } },
+      },
+      [`GET /signals/${secondItem.signal_id}`]: {
+        status: 503,
+        body: { detail: { code: 'temporarily_unavailable' } },
+      },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/companies' })
+
+    const error = await screen.findByRole('alert')
+    expect(error).toHaveTextContent('Les entreprises n’ont pas pu être chargées.')
+    expect(within(error).getByRole('button', { name: 'Réessayer' })).toBeInTheDocument()
+    expect(screen.queryByText('Aucune entreprise accessible pour le moment.')).not.toBeInTheDocument()
+    expect(document.body.textContent).not.toContain('temporarily_unavailable')
   })
 
   it('redirige un compte incomplet avant tout appel aux API du dashboard', async () => {
