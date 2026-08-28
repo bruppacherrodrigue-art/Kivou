@@ -166,13 +166,15 @@ git commit -m "test(frontend): require structural dashboard replacement"
   --kivou-connected-line: #ddd5c8;
   --kivou-connected-line-strong: #cbbfab;
   --kivou-connected-ink: #152b24;
-  --kivou-connected-muted: #6d716d;
+  --kivou-connected-muted: #686c68;
   --kivou-connected-accent: #b66a47;
   --kivou-connected-positive: #0f5a47;
   --kivou-connected-rail-width: 248px;
   --kivou-connected-panel-radius: 16px;
 }
 ~~~
+
+The connected muted token maintains a contrast ratio of at least 4.5:1 on the rail.
 
 Do not change the public marketing variables.
 

@@ -1,11 +1,12 @@
 .shell {
   min-height: 100vh;
-  background: #ffffff;
+  background: var(--kivou-connected-canvas);
 }
 
 .sidebar {
   display: none;
-  background: var(--kivou-sidebar-bg);
+  background: var(--kivou-connected-rail);
+  color: var(--kivou-connected-ink);
 }
 
 .logoLink {
@@ -23,7 +24,7 @@
 
 .sidebarLabel {
   margin: 0 var(--kivou-space-2) var(--kivou-space-3);
-  color: rgba(247, 251, 249, 0.7);
+  color: var(--kivou-connected-muted);
   font-size: 10px;
   font-weight: var(--kivou-weight-bold);
   letter-spacing: 0.14em;
@@ -44,24 +45,29 @@
   gap: var(--kivou-space-3);
   min-height: var(--kivou-control-height);
   padding: 0 var(--kivou-space-4);
-  border-radius: var(--kivou-radius-sm);
-  color: var(--kivou-sidebar-text);
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--kivou-connected-muted);
   font-size: var(--kivou-text-small);
   font-weight: var(--kivou-weight-medium);
   text-decoration: none;
   transition:
     background-color var(--kivou-motion-base) var(--kivou-ease-standard),
+    border-color var(--kivou-motion-base) var(--kivou-ease-standard),
     color var(--kivou-motion-base) var(--kivou-ease-standard);
 }
 
-.navItem:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--kivou-text-inverse);
+.navItem:hover,
+.navItem:focus-visible {
+  border-color: var(--kivou-connected-line);
+  background: var(--kivou-connected-surface);
+  color: var(--kivou-connected-ink);
 }
 
 .navItemActive {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--kivou-text-inverse);
+  border-color: var(--kivou-connected-line);
+  background: var(--kivou-connected-surface);
+  color: var(--kivou-connected-ink);
   font-weight: var(--kivou-weight-semibold);
 }
 
@@ -72,7 +78,7 @@
   width: 3px;
   height: 1.25rem;
   border-radius: var(--kivou-radius-pill);
-  background: #57d6ae;
+  background: var(--kivou-connected-positive);
   transform: translateY(-50%);
 }
 
@@ -84,13 +90,17 @@
 
 .sidebarFooter {
   padding-top: var(--kivou-space-4);
-  border-top: 1px solid var(--kivou-sidebar-border);
+  border-top: 1px solid var(--kivou-connected-line);
 }
 
 .account {
   display: flex;
   flex-direction: column;
   gap: var(--kivou-space-3);
+  padding: var(--kivou-space-3);
+  border: 1px solid var(--kivou-connected-line);
+  border-radius: var(--kivou-connected-panel-radius);
+  background: var(--kivou-connected-surface-muted);
 }
 
 .accountIdentity {
@@ -107,10 +117,10 @@
   width: 2.25rem;
   height: 2.25rem;
   flex: none;
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  border: 1px solid var(--kivou-connected-line-strong);
   border-radius: var(--kivou-radius-sm);
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--kivou-text-inverse);
+  background: var(--kivou-connected-surface);
+  color: var(--kivou-connected-positive);
   font-size: var(--kivou-text-micro);
   font-weight: var(--kivou-weight-semibold);
   letter-spacing: 0.04em;
@@ -130,25 +140,26 @@
 }
 
 .accountName {
-  color: var(--kivou-text-inverse);
+  color: var(--kivou-connected-ink);
   font-size: var(--kivou-text-small);
   font-weight: var(--kivou-weight-medium);
 }
 
 .accountEmail {
-  color: var(--kivou-sidebar-muted);
+  color: var(--kivou-connected-muted);
   font-size: var(--kivou-text-micro);
 }
 
 .account :global(button) {
-  background: transparent;
-  border-color: var(--kivou-sidebar-border);
-  color: var(--kivou-sidebar-text);
+  background: var(--kivou-connected-surface);
+  border-color: var(--kivou-connected-line-strong);
+  color: var(--kivou-connected-ink);
 }
 
 .account :global(button:hover) {
-  background: rgba(255, 255, 255, 0.08);
-  color: var(--kivou-text-inverse);
+  background: var(--kivou-connected-rail);
+  border-color: var(--kivou-connected-positive);
+  color: var(--kivou-connected-positive);
 }
 
 .mobileBar {
@@ -161,8 +172,8 @@
   gap: var(--kivou-space-4);
   min-height: 68px;
   padding: var(--kivou-space-3) var(--kivou-gutter-mobile);
-  background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid var(--kivou-border);
+  background: var(--kivou-connected-surface);
+  border-bottom: 1px solid var(--kivou-connected-line);
   backdrop-filter: blur(12px);
 }
 
@@ -173,7 +184,7 @@
 .mobileTitle p,
 .topbarTitle p {
   margin: 0;
-  color: #1f6b55;
+  color: var(--kivou-connected-positive);
   font-size: 10px;
   font-weight: var(--kivou-weight-bold);
   letter-spacing: 0.13em;
@@ -186,7 +197,7 @@
 .topbarPageTitle {
   display: block;
   margin: 3px 0 0;
-  color: #17211d;
+  color: var(--kivou-connected-ink);
   font-size: 24px;
   font-weight: 690;
   letter-spacing: -0.025em;
@@ -200,10 +211,10 @@
   width: var(--kivou-control-height);
   height: var(--kivou-control-height);
   padding: 0;
-  border: 1px solid var(--kivou-border);
+  border: 1px solid var(--kivou-connected-line-strong);
   border-radius: var(--kivou-radius-sm);
-  background: var(--kivou-bg-surface);
-  color: var(--kivou-text-primary);
+  background: var(--kivou-connected-surface);
+  color: var(--kivou-connected-ink);
   cursor: pointer;
 }
 
@@ -224,7 +235,7 @@
   inset: 0;
   border: 0;
   padding: 0;
-  background: rgba(10, 29, 23, 0.48);
+  background: rgba(21, 43, 36, 0.42);
   cursor: pointer;
 }
 
@@ -233,11 +244,12 @@
   display: flex;
   flex-direction: column;
   gap: var(--kivou-space-6);
-  width: min(var(--kivou-sidebar-width), 86vw);
+  width: min(var(--kivou-connected-rail-width), 86vw);
   height: 100%;
   padding: var(--kivou-space-5);
-  background: var(--kivou-sidebar-bg);
-  border-right: 1px solid var(--kivou-sidebar-border);
+  background: var(--kivou-connected-rail);
+  border-right: 1px solid var(--kivou-connected-line);
+  color: var(--kivou-connected-ink);
   overflow-y: auto;
   box-shadow: var(--kivou-shadow-raised);
 }
@@ -250,14 +262,14 @@
 }
 
 .drawer .drawerToggle {
-  background: transparent;
-  border-color: var(--kivou-sidebar-border);
-  color: var(--kivou-text-inverse);
+  background: var(--kivou-connected-surface);
+  border-color: var(--kivou-connected-line-strong);
+  color: var(--kivou-connected-ink);
 }
 
 .workspace {
   min-width: 0;
-  background: #ffffff;
+  background: var(--kivou-connected-canvas);
 }
 
 .topbar {
@@ -268,8 +280,8 @@
   min-height: 76px;
   align-items: center;
   padding: 14px clamp(24px, 3.6vw, 56px);
-  border-bottom: 1px solid #e2e8e5;
-  background: rgba(255, 255, 255, 0.96);
+  border-bottom: 1px solid var(--kivou-connected-line);
+  background: var(--kivou-connected-surface);
   backdrop-filter: blur(14px);
 }
 
@@ -290,7 +302,7 @@
 
 @media (min-width: 1024px) {
   .shell {
-    padding-left: var(--kivou-sidebar-width);
+    padding-left: var(--kivou-connected-rail-width);
   }
 
   .mobileBar {
@@ -304,10 +316,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--kivou-space-6);
-    width: var(--kivou-sidebar-width);
+    width: var(--kivou-connected-rail-width);
     padding: 28px 14px 22px;
-    background: var(--kivou-sidebar-bg);
-    border-right: 1px solid var(--kivou-sidebar-border);
+    background: var(--kivou-connected-rail);
+    border-right: 1px solid var(--kivou-connected-line);
   }
 
   .sidebar > .logoLink {

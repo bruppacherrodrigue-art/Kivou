@@ -18,7 +18,7 @@ import styles from './AppShell.module.css'
 
 /* Le shell du SaaS client.
  *
- * La géométrie vient de la référence 04 : sidebar de 240 px, logo en haut,
+ * La géométrie vient de la référence 04 : sidebar de 248 px, logo en haut,
  * items icône + libellé, séparateur, carte de compte en bas. Ce que la
  * référence montre aussi Entreprises : cette entrée est maintenant alimentée
  * uniquement par les fiches reliées aux signaux accessibles. Marchés, Veille
@@ -156,7 +156,7 @@ export function AppShell() {
 
       <aside className={styles.sidebar}>
         <Link to="/app/dashboard" className={styles.logoLink}>
-          <KivouLogo size="md" tone="inverse" />
+          <KivouLogo size="md" />
         </Link>
         {navigation}
         <div className={styles.sidebarFooter}>{accountPanel}</div>
@@ -172,7 +172,7 @@ export function AppShell() {
           />
           <div className={styles.drawer} id="kivou-app-drawer" role="dialog" aria-modal="true">
             <div className={styles.drawerHead}>
-              <KivouLogo size="sm" tone="inverse" />
+              <KivouLogo size="sm" />
               <button
                 type="button"
                 className={styles.drawerToggle}

@@ -16,6 +16,34 @@ import {
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), 'utf8')
 
+const readHexToken = (css: string, name: string): string => {
+  const value = css.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6});`, 'i'))?.[1]
+  if (!value) throw new Error(`Token hexadécimal introuvable : --${name}`)
+  return value
+}
+
+const relativeLuminance = (hex: string): number => {
+  const channels = hex
+    .slice(1)
+    .match(/.{2}/g)
+    ?.map((channel) => Number.parseInt(channel, 16))
+  if (!channels || channels.length !== 3) throw new Error(`Couleur hexadécimale invalide : ${hex}`)
+
+  const [red, green, blue] = channels.map((channel) => {
+    const srgb = channel / 255
+    return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+}
+
+const contrastRatio = (foreground: string, background: string): number => {
+  const foregroundLuminance = relativeLuminance(foreground)
+  const backgroundLuminance = relativeLuminance(background)
+  const lighter = Math.max(foregroundLuminance, backgroundLuminance)
+  const darker = Math.min(foregroundLuminance, backgroundLuminance)
+  return (lighter + 0.05) / (darker + 0.05)
+}
+
 describe('fidélité à la refonte publique approuvée', () => {
   it('rend sur l’accueil le résumé compact des offres alimenté par l’API', async () => {
     const catalogue = {
@@ -126,5 +154,11 @@ describe('fidélité au shell dashboard approuvé', () => {
     const tokens = read('src/styles/tokens.css')
     expect(tokens).toMatch(/--kivou-connected-rail:\s*#f3eee5;/)
     expect(tokens).toMatch(/--kivou-connected-canvas:\s*#f7f3ec;/)
+    expect(
+      contrastRatio(
+        readHexToken(tokens, 'kivou-connected-muted'),
+        readHexToken(tokens, 'kivou-connected-rail'),
+      ),
+    ).toBeGreaterThanOrEqual(4.5)
   })
 })
