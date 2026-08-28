@@ -163,7 +163,7 @@ export function SignalsFeed() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <SectionHeading title={t.feed.title} lead={t.feed.lead} level={1} />
+        <SectionHeading title={t.feed.title} lead={t.feed.lead} level={1} hideTitle />
         <div className={styles.headerActions}>
           <ButtonLink to="/app/icps" variant="secondary">
             {t.feed.configureIcp}

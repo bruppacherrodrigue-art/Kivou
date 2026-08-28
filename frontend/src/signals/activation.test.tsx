@@ -287,7 +287,7 @@ describe('moment d’activation — portée et durée', () => {
     mockApi(routesFor([UNLOCKED_ITEM], 3))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await screen.findByRole('heading', { name: 'Occasions commerciales' })
+    await screen.findByRole('heading', { name: 'Signaux' })
     await screen.findByText('Votre découverte')
 
     expect(screen.queryByText('Votre ciblage est prêt')).not.toBeInTheDocument()

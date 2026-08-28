@@ -54,7 +54,7 @@ export function Companies() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <SectionHeading level={1} title={t.companiesIndex.title} lead={t.companiesIndex.lead} />
+        <SectionHeading level={1} title={t.companiesIndex.title} lead={t.companiesIndex.lead} hideTitle />
         <p className={styles.note}>{t.companiesIndex.partial}</p>
       </header>
       {loading ? (

@@ -3,7 +3,7 @@ import { Link, Navigate } from 'react-router-dom'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { Button, ButtonLink } from '../components/Button'
 import { Badge, Callout, Card, DataList, DataRow, EmptyState, SectionHeading, Skeleton } from '../components/Surfaces'
-import { useI18n, interpolate } from '../i18n'
+import { useI18n, interpolate, plural } from '../i18n'
 import { billing, icps, notifications, signals } from '../api/endpoints'
 import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
 import { SignalCard } from '../signals/SignalCard'
@@ -209,7 +209,23 @@ function ReadyDashboard() {
   return (
     <div className={styles.page}>
       <header className={styles.pageHeader}>
-        <SectionHeading level={1} title={t.dashboard.title} lead={t.dashboard.lead} />
+        <SectionHeading
+          level={2}
+          eyebrow={t.dashboard.summaryEyebrow}
+          title={
+            feedState.data
+              ? interpolate(
+                  plural(
+                    feedState.data.total_returned,
+                    t.dashboard.summaryOne,
+                    t.dashboard.summaryOther,
+                  ),
+                  { count: feedState.data.total_returned },
+                )
+              : t.dashboard.summaryLoading
+          }
+          lead={t.dashboard.lead}
+        />
       </header>
 
       <section className={styles.opportunities} aria-labelledby="dashboard-opportunities-title">

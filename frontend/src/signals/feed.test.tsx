@@ -396,6 +396,6 @@ describe('feed de signaux', () => {
     expect(within(card).getByRole('region', { name: 'Plausible need' })).toBeInTheDocument()
     expect(within(card).getByRole('region', { name: 'Fit with your profile' })).toBeInTheDocument()
     expect(within(card).getByText(UNLOCKED_ITEM.event.why_now)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: 'Sales opportunities' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Signals' })).toBeInTheDocument()
   })
 })

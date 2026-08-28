@@ -79,7 +79,7 @@ export function Notifications() {
   if (loading) {
     return (
       <div className={styles.page}>
-        <SectionHeading title={t.notifications.title} lead={t.notifications.lead} level={1} />
+        <SectionHeading title={t.notifications.title} lead={t.notifications.lead} level={1} hideTitle />
         <Card padding="lg">
           <Skeleton width="50%" height="1.5rem" />
         </Card>
@@ -91,7 +91,7 @@ export function Notifications() {
     const copy = describeError(error, t)
     return (
       <div className={styles.page}>
-        <SectionHeading title={t.notifications.title} lead={t.notifications.lead} level={1} />
+        <SectionHeading title={t.notifications.title} lead={t.notifications.lead} level={1} hideTitle />
         <Callout tone="danger" title={t.notifications.errorTitle} live>
           {copy.body ?? copy.title}
         </Callout>
@@ -114,7 +114,7 @@ export function Notifications() {
 
   return (
     <div className={styles.page}>
-      <SectionHeading title={t.notifications.title} lead={t.notifications.lead} level={1} />
+      <SectionHeading title={t.notifications.title} lead={t.notifications.lead} level={1} hideTitle />
 
       <Card padding="lg" as="section" className={styles.card}>
         <Switch

@@ -17,7 +17,7 @@ export function Settings() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <SectionHeading level={1} title={t.settings.title} lead={t.settings.lead} />
+        <SectionHeading level={1} title={t.settings.title} lead={t.settings.lead} hideTitle />
       </header>
 
       <div className={styles.grid}>

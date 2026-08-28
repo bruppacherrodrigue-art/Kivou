@@ -195,7 +195,7 @@ describe('localisation FR / EN', () => {
     })
 
     // La locale du COMPTE l'emporte sur celle de l'interface publique.
-    expect(await screen.findByRole('heading', { name: 'Sales opportunities' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Signals' })).toBeInTheDocument()
     expect(document.documentElement.lang).toBe('en')
   })
 })

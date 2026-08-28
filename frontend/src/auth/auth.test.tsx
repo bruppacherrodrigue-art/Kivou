@@ -41,7 +41,7 @@ describe('protection des routes', () => {
     mockApi(APP_ROUTES)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    expect(await screen.findByRole('heading', { name: 'Occasions commerciales' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Signaux' })).toBeInTheDocument()
   })
 
   it('ramène à la connexion, en le disant, quand la session a expiré', async () => {
@@ -208,7 +208,7 @@ describe('déconnexion', () => {
     mockApi({ ...APP_ROUTES, 'POST /auth/logout': { status: 204 } })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await screen.findByRole('heading', { name: 'Occasions commerciales' })
+    await screen.findByRole('heading', { name: 'Signaux' })
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }))
 
     await waitFor(() => expect(callsTo('/auth/logout')).toHaveLength(1))

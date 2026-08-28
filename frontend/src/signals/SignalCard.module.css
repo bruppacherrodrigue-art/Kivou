@@ -2,13 +2,14 @@
   position: relative;
   container-type: inline-size;
   min-height: 100%;
-  padding: var(--kivou-space-6);
+  padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-5);
+  gap: 16px;
   background: var(--kivou-bg-surface);
-  border: 1px solid var(--kivou-border);
-  border-radius: var(--kivou-radius-md);
+  border: 1px solid #dce4e0;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(23, 33, 29, .055);
   transition:
     border-color var(--kivou-motion-base) var(--kivou-ease-standard),
     box-shadow var(--kivou-motion-base) var(--kivou-ease-standard),
@@ -47,9 +48,9 @@
   width: 2.75rem;
   height: 2.75rem;
   flex: none;
-  border-radius: var(--kivou-radius-sm);
-  background: var(--kivou-nav-active-bg);
-  color: var(--kivou-nav-active-text);
+  border-radius: 10px;
+  background: #e5f1eb;
+  color: #1f6b55;
   font-size: var(--kivou-text-small);
   font-weight: var(--kivou-weight-bold);
 }
@@ -77,7 +78,7 @@
 .sectionLabel,
 .metaLabel {
   color: var(--kivou-text-muted);
-  font-size: var(--kivou-text-micro);
+  font-size: 10px;
   font-weight: var(--kivou-weight-semibold);
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -85,9 +86,10 @@
 
 .company,
 .lockedTitle {
-  font-size: var(--kivou-text-h3);
-  line-height: var(--kivou-leading-h3);
-  font-weight: var(--kivou-weight-semibold);
+  font-family: var(--kivou-font-display);
+  font-size: 22px;
+  line-height: 1.2;
+  font-weight: 450;
 }
 
 .amount {
@@ -109,9 +111,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--kivou-space-2);
-  border: 1px solid #cfe7d8;
-  border-radius: var(--kivou-radius-sm);
-  background: var(--kivou-verified-bg);
+  border: 1px solid #c9ded4;
+  border-radius: 10px;
+  background: rgba(255,255,255,.66);
 }
 
 .headline {
@@ -152,8 +154,9 @@
   flex-direction: column;
   align-items: flex-start;
   gap: var(--kivou-space-2);
-  border-radius: var(--kivou-radius-sm);
-  background: var(--kivou-bg-subtle);
+  border: 1px solid #e2e8e5;
+  border-radius: 10px;
+  background: #fff;
 }
 
 .analysisText,

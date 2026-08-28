@@ -1,12 +1,12 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-2);
+  gap: 7px;
 }
 
 .label,
 .legend {
-  font-size: var(--kivou-text-small);
+  font-size: 11px;
   font-weight: var(--kivou-weight-semibold);
   color: var(--kivou-text-primary);
 }
@@ -18,14 +18,14 @@
 
 .input {
   width: 100%;
-  min-height: var(--kivou-control-height);
-  padding: 0 var(--kivou-space-4);
+  min-height: 42px;
+  padding: 0 12px;
   background: var(--kivou-bg-surface);
   border: 1px solid var(--kivou-border-strong);
-  border-radius: var(--kivou-radius-sm);
+  border-radius: 8px;
   color: var(--kivou-text-primary);
   font-family: var(--kivou-font-sans);
-  font-size: var(--kivou-text-body);
+  font-size: 12px;
   line-height: 1.4;
   transition:
     border-color var(--kivou-motion-base) var(--kivou-ease-standard),
@@ -61,7 +61,7 @@
 .help,
 .error {
   margin: 0;
-  font-size: var(--kivou-text-small);
+  font-size: 10px;
   line-height: var(--kivou-leading-small);
 }
 

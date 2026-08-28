@@ -51,7 +51,7 @@ export function Icps() {
     const copy = describeError(error, t)
     return (
       <div className={styles.page}>
-        <SectionHeading title={t.icp.title} lead={t.icp.lead} level={1} />
+        <SectionHeading title={t.icp.title} lead={t.icp.lead} level={1} hideTitle />
         <Callout
           tone="danger"
           title={copy.title}
@@ -71,7 +71,7 @@ export function Icps() {
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <SectionHeading title={t.icp.title} lead={t.icp.lead} level={1} />
+        <SectionHeading title={t.icp.title} lead={t.icp.lead} level={1} hideTitle />
         {editing === null ? (
           <Button onClick={() => setEditing('new')}>{t.icp.create}</Button>
         ) : null}

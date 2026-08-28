@@ -27,7 +27,7 @@ export function PublicPricing() {
   return (
     <article className={styles.page}>
       <PublicPageMeta title={`${copy.title} — Kivou`} description={copy.lead} canonicalPath="/tarifs" />
-      <header className={styles.hero}>
+      <header className={`${styles.hero} ${styles.pricingHero}`}>
         <div className={styles.inner}>
           <div className={styles.heroCopy}>
             <p className={styles.eyebrow}>{copy.eyebrow}</p>
@@ -37,16 +37,18 @@ export function PublicPricing() {
           </div>
         </div>
       </header>
-      <section className={styles.section}>
+      <section className={`${styles.section} ${styles.pricingSection}`}>
         <div className={styles.inner}>
-          <SectionHeading eyebrow={copy.comparisonEyebrow} title={copy.comparisonTitle} />
+          <div className={styles.comparisonHeading}>
+            <SectionHeading eyebrow={copy.comparisonEyebrow} title={copy.comparisonTitle} />
+          </div>
           {catalogue ? <PlanGrid catalogue={catalogue} variant="public" /> : null}
           {unavailable ? <p className={styles.lead}>{copy.unavailable}</p> : null}
         </div>
       </section>
       <section className={styles.cta}>
         <div className={styles.inner}>
-          <h2>{copy.ctaTitle}</h2><p>{copy.ctaLead}</p>
+          <div className={styles.ctaCopy}><h2>{copy.ctaTitle}</h2><p>{copy.ctaLead}</p></div>
           <ButtonLink to="/signup?plan=discovery" size="lg">{locale === 'fr' ? 'Commencer gratuitement' : 'Start free'}</ButtonLink>
         </div>
       </section>

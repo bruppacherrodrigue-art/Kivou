@@ -1,120 +1,86 @@
 .grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--kivou-space-4);
+  gap: 15px;
   align-items: stretch;
+  list-style: none;
 }
 
-.publicGrid {
-  grid-template-columns: minmax(0, 1fr);
-}
+.cell { min-width: 0; display: block; }
 
 .card {
   position: relative;
   min-width: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
-  gap: var(--kivou-space-5);
-  padding: var(--kivou-space-6);
-  border: 1px solid var(--kivou-border);
-  border-radius: var(--kivou-radius-lg);
-  background: var(--kivou-bg-surface);
+  gap: 17px;
+  padding: 27px 22px 22px !important;
+  border: 1px solid rgba(130,169,155,.42) !important;
+  border-radius: 16px !important;
+  background: linear-gradient(145deg, rgba(255,255,255,.84), rgba(255,255,255,.63) 54%, rgba(237,249,245,.68)) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.98), 0 14px 34px rgba(13,52,40,.065) !important;
 }
 
-.publicCard {
-  min-height: 100%;
-}
-
-.recommended {
-  border-color: #8bbda1;
-  box-shadow: 0 0 0 2px var(--kivou-nav-active-bg);
-}
-
-.current {
-  background: var(--kivou-verified-bg);
-}
+.recommended { border-color: #173f33 !important; }
+.current { background: #f5f9f7 !important; }
 
 .ribbon {
   position: absolute;
-  top: var(--kivou-space-4);
-  right: var(--kivou-space-4);
+  top: 19px;
+  right: 18px;
+  padding: 6px 8px;
+  border: 1px solid #dce1f1;
+  border-radius: 999px;
+  background: #eef0f8;
+  color: #43547f;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
 }
 
-.head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--kivou-space-3);
-}
-
-.name {
-  font-size: var(--kivou-text-h3);
-  font-weight: var(--kivou-weight-semibold);
-}
-
-.positioning {
-  color: var(--kivou-text-secondary);
-  font-size: var(--kivou-text-small);
-}
-
-.price {
-  display: flex;
-  align-items: baseline;
-  gap: var(--kivou-space-2);
-}
-
-.amount {
-  font-size: var(--kivou-text-h1);
-  font-weight: var(--kivou-weight-semibold);
-  letter-spacing: -0.03em;
-}
-
-.interval {
-  color: var(--kivou-text-muted);
-  font-size: var(--kivou-text-small);
-}
+.head { display: flex; flex-direction: column; gap: 0; }
+.name { color: #0a1d17; font-size: 21px; font-weight: 800; }
+.recommended .name { padding-right: 112px; }
+.positioning { min-height: 64px; margin-top: 7px; color: #5a6b64; font-size: 13px; line-height: 1.5; }
+.price { display: flex; min-height: 58px; align-items: baseline; gap: 6px; margin-top: 16px; }
+.amount { color: #0a1d17; font-family: "Lora Variable", Lora, Georgia, serif; font-size: 40px; font-weight: 400; letter-spacing: -.04em; }
+.interval { color: #5a6b64; font-size: 13px; }
 
 .featuresLabel {
-  color: var(--kivou-text-muted);
-  font-size: var(--kivou-text-micro);
-  font-weight: var(--kivou-weight-semibold);
-  letter-spacing: 0.07em;
+  padding-top: 17px;
+  border-top: 1px solid #d8e4df;
+  color: #1f6b55;
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: .08em;
   text-transform: uppercase;
 }
 
-.features {
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: var(--kivou-space-3);
-}
-
-.cell {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--kivou-space-2);
-  color: var(--kivou-text-secondary);
-  font-size: var(--kivou-text-small);
-}
-
+.features { display: grid; flex: 1; gap: 10px; list-style: none; }
+.features li { position: relative; padding-left: 20px; color: #17342b; font-size: 13px; line-height: 1.48; }
 .featureIcon {
-  width: 1rem;
-  flex: none;
-  margin-top: 0.15rem;
-  color: var(--kivou-color-success);
+  position: absolute;
+  top: .22em;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  padding: 2px;
+  border: 1px solid #57d6ae;
+  border-radius: 50%;
+  background: #eaf9f3;
+  color: #173f33;
 }
-
-.action {
-  margin-top: auto;
-}
+.action { margin-top: 7px; }
 
 @media (min-width: 700px) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-@media (min-width: 1180px) {
-  .publicGrid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
+@media (min-width: 1080px) {
+  .publicGrid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+@media (max-width: 620px) {
+  .positioning { min-height: auto; }
 }
