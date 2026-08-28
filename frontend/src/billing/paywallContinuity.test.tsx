@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router-dom'
 import { AppRoutes } from '../App'
@@ -55,6 +55,15 @@ const PROTECTED = [
   'Matériaux ou composants',
 ]
 
+async function openLockedBilling(user: ReturnType<typeof userEvent.setup>) {
+  const workspace = await screen.findByTestId('signal-workspace')
+  await user.click(await within(workspace).findByRole('button', { name: /signal verrouillé/i }))
+  const panel = await within(workspace).findByRole('region', {
+    name: 'Détail du signal sélectionné',
+  })
+  await user.click(within(panel).getByRole('link', { name: 'Gérer mon accès' }))
+}
+
 describe('depuis le feed verrouillé', () => {
   it('transmet la clé du signal, et seulement elle', async () => {
     const user = userEvent.setup()
@@ -67,7 +76,7 @@ describe('depuis le feed verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals' },
     )
 
-    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
+    await openLockedBilling(user)
     await screen.findByRole('button', { name: /Choisir Pro/ })
 
     const state = JSON.parse(screen.getByTestId('nav-state').textContent ?? 'null')
@@ -85,7 +94,7 @@ describe('depuis le feed verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals' },
     )
 
-    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
+    await openLockedBilling(user)
     await screen.findByRole('button', { name: /Choisir Pro/ })
 
     const serialised = screen.getByTestId('nav-state').textContent ?? ''
@@ -144,7 +153,7 @@ describe('avant tout paiement réel', () => {
     mockApi({ ...BILLING_ROUTES, 'GET /signals': { body: feedPage([LOCKED_ITEM]) } })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
+    await openLockedBilling(user)
     await screen.findByRole('button', { name: /Choisir Pro/ })
 
     // Arriver sur la facturation n'est pas acheter : rien n'est mémorisé.
@@ -163,7 +172,7 @@ describe('avant tout paiement réel', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
+    await openLockedBilling(user)
     await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
     await screen.findByRole('alert')
 
@@ -188,7 +197,7 @@ describe('avant tout paiement réel', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
+    await openLockedBilling(user)
     await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
 
     expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/cs_1')

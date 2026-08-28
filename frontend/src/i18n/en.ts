@@ -852,6 +852,14 @@ export const en: Dictionary = {
     },
   },
 
+  workspace: {
+    detailRegion: 'Selected signal details',
+    detailSections: 'Signal sections',
+    chooseSignal: 'Select a signal to review its facts and analysis.',
+    lockedSelection: 'Review the locked signal preview',
+    backToList: 'Back to the list',
+  },
+
   locked: {
     badge: 'Locked',
     title: 'Extend access to your stream',

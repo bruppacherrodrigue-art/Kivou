@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
+import type { Ref } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useI18n } from '../i18n'
 import { Badge, Callout, Card, DataList, DataRow, SectionHeading, Skeleton } from '../components/Surfaces'
-import { ButtonLink } from '../components/Button'
+import { Button, ButtonLink } from '../components/Button'
 import { ArrowRightIcon, BuildingIcon, ExternalIcon, LockIcon } from '../assets/Icons'
 import { NeedList } from '../signals/NeedList'
 import { EvidencePanel } from '../signals/EvidenceGroup'
@@ -10,7 +11,12 @@ import { FeedbackControl } from '../feedback/FeedbackControl'
 import { signals } from '../api/endpoints'
 import { ApiError } from '../api/client'
 import { describeError } from '../api/errorCopy'
-import type { LockedDetail, SignalDetail as SignalDetailPayload, UnlockedDetail } from '../api/types'
+import type {
+  LockedDetail,
+  LockedFeedItem,
+  SignalDetail as SignalDetailPayload,
+  UnlockedDetail,
+} from '../api/types'
 import styles from './SignalDetail.module.css'
 
 /* Le détail d'un signal.
@@ -26,49 +32,142 @@ import styles from './SignalDetail.module.css'
  */
 export function SignalDetail() {
   const { signalKey = '' } = useParams()
-  const { t } = useI18n()
-  const [detail, setDetail] = useState<SignalDetailPayload | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<unknown>(null)
+  const [state, setState] = useState<{
+    key: string
+    detail: SignalDetailPayload | null
+    loading: boolean
+    error: unknown | null
+  }>({ key: signalKey, detail: null, loading: true, error: null })
+  const [attempt, setAttempt] = useState(0)
 
   useEffect(() => {
     let active = true
-    setLoading(true)
-    setError(null)
+    setState({ key: signalKey, detail: null, loading: true, error: null })
     signals
       .detail(signalKey)
       .then((result) => {
-        if (active) setDetail(result)
+        if (active) setState({ key: signalKey, detail: result, loading: false, error: null })
       })
       .catch((caught) => {
-        if (active) setError(caught)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
+        if (active) setState({ key: signalKey, detail: null, loading: false, error: caught })
       })
     return () => {
       active = false
     }
-  }, [signalKey])
+  }, [attempt, signalKey])
 
-  if (loading) return <DetailSkeleton />
+  const visibleState =
+    state.key === signalKey
+      ? state
+      : { key: signalKey, detail: null, loading: true, error: null }
 
-  if (error) {
-    const notFound = error instanceof ApiError && error.status === 404
-    const copy = describeError(error, t)
-    return (
-      <div className={styles.page}>
-        <BackLink />
-        <Callout tone="danger" title={notFound ? t.detail.notFoundTitle : copy.title} live>
-          {notFound ? t.detail.notFoundBody : copy.body}
-        </Callout>
-      </div>
+  return (
+    <SignalDetailPanel
+      detail={visibleState.detail}
+      loading={visibleState.loading}
+      error={visibleState.error}
+      onRetry={() => setAttempt((current) => current + 1)}
+    />
+  )
+}
+
+export interface SignalDetailPanelProps {
+  detail: SignalDetailPayload | null
+  loading: boolean
+  error: unknown | null
+  embedded?: boolean
+  lockedPreview?: LockedFeedItem | null
+  lockedPreviewHeadingLevel?: 1 | 2
+  panelRef?: Ref<HTMLElement>
+  onRetry?: () => void
+  onBackToList?: () => void
+}
+
+export function SignalDetailPanel({
+  detail,
+  loading,
+  error,
+  embedded = false,
+  lockedPreview = null,
+  lockedPreviewHeadingLevel = 1,
+  panelRef,
+  onRetry,
+  onBackToList,
+}: SignalDetailPanelProps) {
+  const { t } = useI18n()
+  const content = loading ? (
+    <DetailSkeleton embedded={embedded} />
+  ) : error ? (
+    <DetailError error={error} embedded={embedded} onRetry={onRetry} />
+  ) : lockedPreview ? (
+    <LockedPreview
+      detail={lockedPreview}
+      embedded={embedded}
+      headingLevel={lockedPreviewHeadingLevel}
+    />
+  ) : detail ? (
+    detail.locked ? (
+      <LockedDetailView detail={detail} embedded={embedded} />
+    ) : (
+      <UnlockedDetailView detail={detail} embedded={embedded} />
     )
-  }
+  ) : (
+    <div className={styles.chooseState}>
+      <p>{t.workspace.chooseSignal}</p>
+    </div>
+  )
 
-  if (!detail) return null
+  if (!embedded) return content
 
-  return detail.locked ? <LockedDetailView detail={detail} /> : <UnlockedDetailView detail={detail} />
+  return (
+    <section
+      ref={panelRef}
+      className={styles.embeddedPanel}
+      aria-label={t.workspace.detailRegion}
+      tabIndex={-1}
+    >
+      {onBackToList ? (
+        <Button variant="secondary" className={styles.mobileBack} onClick={onBackToList}>
+          {t.workspace.backToList}
+        </Button>
+      ) : null}
+      {content}
+    </section>
+  )
+}
+
+function DetailError({
+  error,
+  embedded,
+  onRetry,
+}: {
+  error: unknown
+  embedded: boolean
+  onRetry?: () => void
+}) {
+  const { t } = useI18n()
+  const notFound = error instanceof ApiError && error.status === 404
+  const copy = describeError(error, t)
+  const title = notFound ? t.detail.notFoundTitle : copy.title
+  return (
+    <div className={`${styles.page} ${embedded ? styles.pageEmbedded : ''}`}>
+      {notFound && !embedded ? <BackLink /> : null}
+      <h1 className={styles.title}>{title}</h1>
+      <Callout
+        tone="danger"
+        live
+        action={
+          !notFound && onRetry ? (
+            <Button variant="secondary" onClick={onRetry}>
+              {t.common.retry}
+            </Button>
+          ) : undefined
+        }
+      >
+        {notFound ? t.detail.notFoundBody : copy.body}
+      </Callout>
+    </div>
+  )
 }
 
 function BackLink() {
@@ -91,25 +190,62 @@ function BackLink() {
  * Aucun contrôle de retour n'apparaît ici — juger suppose d'avoir vu, et le
  * backend refuserait d'ailleurs l'avis en 403.
  */
-function LockedDetailView({ detail }: { detail: LockedDetail }) {
+function LockedDetailView({ detail, embedded }: { detail: LockedDetail; embedded: boolean }) {
+  const { t } = useI18n()
+
+  return (
+    <div className={`${styles.page} ${embedded ? styles.pageEmbedded : ''}`}>
+      {!embedded ? <BackLink /> : null}
+      <LockedSignalContent detail={detail} accessCopy={t.locked.detailBody} headingLevel={1} />
+    </div>
+  )
+}
+
+function LockedPreview({
+  detail,
+  embedded,
+  headingLevel,
+}: {
+  detail: LockedFeedItem
+  embedded: boolean
+  headingLevel: 1 | 2
+}) {
+  const { t } = useI18n()
+
+  return (
+    <div className={`${styles.page} ${embedded ? styles.pageEmbedded : ''}`}>
+      <LockedSignalContent detail={detail} accessCopy={t.locked.body} headingLevel={headingLevel} />
+    </div>
+  )
+}
+
+function LockedSignalContent({
+  detail,
+  accessCopy,
+  headingLevel,
+}: {
+  detail: LockedDetail | LockedFeedItem
+  accessCopy: string
+  headingLevel: 1 | 2
+}) {
   const { t, date } = useI18n()
 
   return (
-    <div className={styles.page}>
-      <BackLink />
-
+    <>
       <header className={styles.header}>
         <Badge tone="muted" icon={<LockIcon />}>
           {t.locked.badge}
         </Badge>
-        <h1 className={styles.title}>{detail.headline}</h1>
+        {headingLevel === 1 ? (
+          <h1 className={styles.title}>{detail.headline}</h1>
+        ) : (
+          <h2 className={styles.title}>{detail.headline}</h2>
+        )}
         <p className={styles.whyNow}>{detail.event.why_now}</p>
       </header>
-
       <Card padding="lg" className={styles.lockedCard}>
         <h2 className={styles.lockedTitle}>{t.locked.detailTitle}</h2>
-        <p className={styles.lockedBody}>{t.locked.detailBody}</p>
-
+        <p className={styles.lockedBody}>{accessCopy}</p>
         <DataList>
           {detail.event.date ? (
             <DataRow label={t.detail.dates} tabular>
@@ -131,29 +267,23 @@ function LockedDetailView({ detail }: { detail: LockedDetail }) {
             </DataRow>
           ) : null}
         </DataList>
-
         <div className={styles.lockedAction}>
-          {/* Même règle que le teaser : la clé, et rien d'autre. */}
-          <ButtonLink
-            to="/app/billing"
-            state={{ lockedSignalKey: detail.signal_id }}
-            size="lg"
-          >
+          <ButtonLink to="/app/billing" state={{ lockedSignalKey: detail.signal_id }} size="lg">
             {t.locked.cta}
           </ButtonLink>
         </div>
       </Card>
-    </div>
+    </>
   )
 }
 
-function UnlockedDetailView({ detail }: { detail: UnlockedDetail }) {
+function UnlockedDetailView({ detail, embedded }: { detail: UnlockedDetail; embedded: boolean }) {
   const { t, date, amount } = useI18n()
   const { company, contract, event, analysis, evidence, source } = detail
 
   return (
-    <div className={styles.page}>
-      <BackLink />
+    <div className={`${styles.page} ${embedded ? styles.pageEmbedded : ''}`}>
+      {!embedded ? <BackLink /> : null}
 
       <header className={styles.header}>
         <div className={styles.companyRow}>
@@ -181,6 +311,12 @@ function UnlockedDetailView({ detail }: { detail: UnlockedDetail }) {
           </ButtonLink>
         ) : null}
       </header>
+
+      <nav className={styles.sectionLinks} aria-label={t.workspace.detailSections}>
+        <a href="#kivou-facts">{t.detail.factsTitle}</a>
+        <a href="#kivou-analysis">{t.detail.analysisTitle}</a>
+        <a href="#kivou-evidence">{t.evidence.title}</a>
+      </nav>
 
       <div className={styles.mainColumn}>
           {/* ── FAITS ─────────────────────────────────────────────────── */}
@@ -341,10 +477,10 @@ function UnlockedDetailView({ detail }: { detail: UnlockedDetail }) {
   )
 }
 
-function DetailSkeleton() {
+function DetailSkeleton({ embedded = false }: { embedded?: boolean }) {
   const { t } = useI18n()
   return (
-    <div className={styles.page}>
+    <div className={`${styles.page} ${embedded ? styles.pageEmbedded : ''}`}>
       {/* Même en chargement, la page porte un h1 : un document sans titre de
           niveau 1 n'offre aucun point d'entrée à la navigation par titres.
           Le titre réel n'est pas encore connu, donc l'état l'est. */}

@@ -862,6 +862,14 @@ export const fr = {
     },
   },
 
+  workspace: {
+    detailRegion: 'Détail du signal sélectionné',
+    detailSections: 'Sections du signal',
+    chooseSignal: 'Sélectionnez un signal pour examiner ses faits et son analyse.',
+    lockedSelection: 'Examiner l’aperçu du signal verrouillé',
+    backToList: 'Retour à la liste',
+  },
+
   locked: {
     badge: 'Verrouillé',
     title: 'Étendre l’accès à votre flux',

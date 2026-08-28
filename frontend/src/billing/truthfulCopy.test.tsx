@@ -1,5 +1,6 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
   AUTHENTICATED,
@@ -46,6 +47,13 @@ function render(route: string, locale: 'fr' | 'en' = 'fr') {
       ? AUTHENTICATED
       : { status: 'authenticated' as const, me: { ...ME, locale: 'en' } }
   renderApp(<AppRoutes />, { session, route, locale })
+}
+
+async function selectLockedPreview() {
+  const user = userEvent.setup()
+  const workspace = await screen.findByTestId('signal-workspace')
+  await user.click(await within(workspace).findByRole('button', { name: /signal verrouillé/i }))
+  return within(workspace).findByRole('region', { name: 'Détail du signal sélectionné' })
 }
 
 // ─── 1. le retour depuis le paiement ─────────────────────────────────────────
@@ -130,11 +138,11 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals')
 
-    await screen.findByText('Verrouillé')
+    const panel = await selectLockedPreview()
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('réservés aux offres payantes')
     expect(page).not.toContain('réservées aux offres payantes')
-    expect(page).toContain('Ces informations ne sont pas incluses dans votre accès actuel.')
+    expect(panel).toHaveTextContent('Ces informations ne sont pas incluses dans votre accès actuel.')
   })
 
   it('le teaser propose une action universelle, jamais « Voir les offres »', async () => {
@@ -145,9 +153,9 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals')
 
-    await screen.findByText('Verrouillé')
+    const panel = await selectLockedPreview()
     expect(screen.queryByRole('link', { name: 'Voir les offres' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Gérer mon accès' })).toHaveAttribute(
+    expect(within(panel).getByRole('link', { name: 'Gérer mon accès' })).toHaveAttribute(
       'href',
       '/app/billing',
     )
@@ -205,10 +213,10 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals')
 
-    await screen.findByText('Verrouillé')
+    const panel = await selectLockedPreview()
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('réservés aux offres payantes')
-    expect(screen.getByRole('link', { name: 'Gérer mon accès' })).toBeInTheDocument()
+    expect(within(panel).getByRole('link', { name: 'Gérer mon accès' })).toBeInTheDocument()
   })
 
   it('reste vrai en anglais', async () => {
