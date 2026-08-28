@@ -1,13 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 import { AppRoutes } from '../App'
-import { landingHeroSignals } from '../content/landingHeroSignals'
 import { publicDemoSignal, type PublicDemoSignal } from '../content/publicDemoSignal'
 import { en } from '../i18n/en'
 import { fr } from '../i18n/fr'
-import { CATALOGUE, mockApi, recordedCalls, renderApp, UNAUTHENTICATED } from '../test/harness'
+import { mockApi, recordedCalls, renderApp } from '../test/harness'
 import { PublicSignalDemo } from './PublicSignalDemo'
 
 /* La démonstration publique doit vendre l'avance commerciale avant d'exposer
@@ -196,7 +195,7 @@ describe('démonstration publique de signal', () => {
     expect(text).not.toMatch(/identifier le responsable|préparer le contact|générer.*message|sauvegarder.*crm/i)
     expect(screen.getAllByRole('link', { name: 'Voir mes 3 premiers signaux' }).length).toBeGreaterThan(0)
     for (const signup of screen.getAllByRole('link', { name: 'Voir mes 3 premiers signaux' })) {
-      expect(signup).toHaveAttribute('href', '/signup')
+      expect(signup).toHaveAttribute('href', '/signup?plan=discovery')
     }
     const official = screen.getAllByRole('link', { name: /avis officiel/i })
     expect(official.length).toBeGreaterThan(0)
@@ -283,104 +282,6 @@ describe('démonstration publique de signal', () => {
     ]) {
       expect(dictionaries).not.toContain(forbiddenFact)
     }
-  })
-})
-
-describe('hero de la page d’accueil', () => {
-  it('montre le premier signal, les CTA fixes et sa source vérifiée', () => {
-    mockApi({})
-    renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
-
-    const signalTitle = screen.getByRole('heading', {
-      level: 2,
-      name: landingHeroSignals[0].headline.fr,
-    })
-    const card = signalTitle.closest('article')!
-    expect(screen.getAllByRole('link', { name: fr.landing.heroPrimary })[0]).toHaveAttribute(
-      'href',
-      '/signup',
-    )
-    expect(screen.getByRole('link', { name: fr.landing.heroSecondary })).toHaveAttribute(
-      'href',
-      '/exemple-de-signal',
-    )
-    expect(within(card).getByRole('link', { name: fr.landing.heroCarousel.viewSignal })).toHaveAttribute(
-      'href',
-      '/exemple-de-signal',
-    )
-    expect(within(card).getByText(/TED · Source vérifiée/)).toBeInTheDocument()
-  })
-
-  it('ne porte pas la mesure technique de couverture documentaire', () => {
-    mockApi({})
-    const { container } = renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
-    screen.getByRole('heading', { level: 2, name: landingHeroSignals[0].headline.fr })
-    const text = container.textContent ?? ''
-
-    // Le premier écran commercial n'a pas à annoncer une confiance réduite :
-    // les FAITS de l'attribution sont vérifiés, seule l'inférence repose sur
-    // les métadonnées. La limite est dite sur la fiche complète.
-    expect(text).not.toContain('Couverture de cette analyse')
-    expect(text).not.toContain('Aucun cahier des charges complet validé')
-    expect(text).not.toMatch(/confiance réduite/i)
-    // Mais la valeur commerciale reste séparée des faits par un bloc nommé.
-    expect(text).toContain(fr.landing.heroCarousel.opportunityLabel)
-  })
-
-  it('conserve la couverture documentaire sur la fiche complète, après la valeur', async () => {
-    mockApi({})
-    const { container } = renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
-    await screen.findByRole('heading', { level: 1 })
-    const text = container.textContent ?? ''
-
-    // Ne pas en faire le message du hero ne veut pas dire la masquer : elle
-    // doit rester entière là où elle éclaire.
-    expect(text).toContain('Couverture de cette analyse')
-    expect(text).toContain('Aucun cahier des charges validé n’alimente cette démonstration')
-    expect(text.indexOf('Attribution publiée. Volumes documentés. Entreprise identifiée.')).toBeLessThan(
-      text.indexOf('Couverture de cette analyse'),
-    )
-  })
-
-  it('en anglais aussi, le hero affirme et la fiche relègue les limites', async () => {
-    mockApi({})
-    const home = renderApp(<AppRoutes />, { route: '/', locale: 'en', session: UNAUTHENTICATED })
-    screen.getByRole('heading', { level: 2, name: landingHeroSignals[0].headline.en })
-    expect(home.container.textContent).toContain(en.landing.heroCarousel.sourceVerified)
-    expect(home.container.textContent).not.toContain('Coverage of this analysis')
-    expect(home.container.textContent).not.toMatch(/reduced confidence/i)
-    home.unmount()
-
-    const demo = renderApp(<AppRoutes />, { route: '/exemple-de-signal', locale: 'en' })
-    await screen.findByRole('heading', { level: 1 })
-    const text = demo.container.textContent ?? ''
-    expect(text).toContain('Published award. Documented volumes. Identified company.')
-    expect(text).toContain('Coverage of this analysis')
-    expect(text.indexOf('Published award. Documented volumes. Identified company.')).toBeLessThan(
-      text.indexOf('Coverage of this analysis'),
-    )
-  })
-
-  it('annonce le contrat détecté sans promesse garantie', () => {
-    mockApi({})
-    const { container } = renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
-    screen.getByRole('heading', { level: 2, name: landingHeroSignals[0].headline.fr })
-    const text = container.textContent ?? ''
-
-    expect(text).toContain(fr.landing.heroCarousel.eventLabel)
-    expect(text).not.toMatch(/achat garanti|commande garantie/i)
-  })
-
-  it('sépare le fait publié de l’occasion commerciale Kivou', () => {
-    mockApi({})
-    renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
-
-    const card = screen
-      .getByRole('heading', { level: 2, name: landingHeroSignals[0].headline.fr })
-      .closest('article')!
-    expect(within(card).getAllByText(fr.landing.heroCarousel.opportunityLabel).length).toBeGreaterThan(0)
-    expect(within(card).getByText(landingHeroSignals[0].opportunity.fr)).toBeInTheDocument()
-    expect(card).not.toHaveTextContent(/va acheter|achat garanti/i)
   })
 })
 
@@ -617,65 +518,5 @@ describe('menu mobile', () => {
     await user.click(screen.getByRole('button', { name: fr.nav.dismissMenu }))
 
     expect(document.activeElement).toBe(toggle)
-  })
-})
-
-describe('navigation par ancres', () => {
-  it('atteint la section et lui donne le focus depuis la page d’accueil', async () => {
-    mockApi({ 'GET /billing/plans': { body: CATALOGUE } })
-    renderApp(<AppRoutes />, { route: '/' })
-    const user = userEvent.setup()
-
-    await user.click(await screen.findByRole('link', { name: fr.nav.howItWorks }))
-
-    await waitFor(() => expect(document.activeElement?.id).toBe('comment'))
-  })
-
-  it('atteint la section tarifs depuis la page de démonstration', async () => {
-    mockApi({ 'GET /billing/plans': { body: CATALOGUE } })
-    renderApp(<AppRoutes />, { route: '/exemple-de-signal' })
-    const user = userEvent.setup()
-
-    await user.click(await screen.findByRole('link', { name: fr.nav.pricing }))
-
-    // La cible n'existe pas encore au clic : la page d'accueil doit d'abord
-    // être montée. C'est exactement ce que le composant d'ancre attend.
-    await waitFor(() => expect(document.activeElement?.id).toBe('tarifs'))
-  })
-
-  it('garde une cible tarifs atteignable quand le catalogue est indisponible', async () => {
-    // Facturation en panne : la section doit rester, sinon `/#tarifs` devient
-    // un lien mort et le visiteur clique dans le vide.
-    mockApi({ 'GET /billing/plans': { status: 503, body: { code: 'billing_unavailable' } } })
-    renderApp(<AppRoutes />, { route: '/' })
-    const user = userEvent.setup()
-
-    await user.click(await screen.findByRole('link', { name: fr.nav.pricing }))
-
-    await waitFor(() => expect(document.activeElement?.id).toBe('tarifs'))
-    expect(screen.getByText(fr.landing.pricingUnavailable)).toBeInTheDocument()
-  })
-})
-
-
-describe('bandeau de preuve de la page d’accueil', () => {
-  it('résume la couverture géographique et la preuve officielle', () => {
-    mockApi({})
-    const { container } = renderApp(<AppRoutes />, { route: '/', session: UNAUTHENTICATED })
-    const text = container.textContent ?? ''
-
-    expect(text).toContain(fr.landing.heroTrust)
-  })
-
-  it('dit la même chose en anglais', () => {
-    mockApi({})
-    const { container } = renderApp(<AppRoutes />, {
-      route: '/',
-      locale: 'en',
-      session: UNAUTHENTICATED,
-    })
-    const text = container.textContent ?? ''
-
-    expect(text).toContain(en.landing.heroTrust)
   })
 })

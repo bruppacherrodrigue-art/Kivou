@@ -91,6 +91,22 @@ describe('accueil connecté', () => {
     )
   })
 
+  it('rend le nouveau menu Entreprises et son index depuis les seuls signaux accessibles', async () => {
+    mockApi({
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/companies' })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Entreprises' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Entreprises' })).toHaveAttribute('href', '/app/companies')
+    expect(await screen.findByRole('heading', { level: 2, name: UNLOCKED_ITEM.company.name! })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Ouvrir la fiche' })).toHaveAttribute(
+      'href',
+      `/app/companies/${UNLOCKED_DETAIL.company_key}`,
+    )
+  })
+
   it('redirige un compte incomplet avant tout appel aux API du dashboard', async () => {
     mockApi(DASHBOARD_ROUTES)
     renderApp(<AppRoutes />, {
@@ -135,7 +151,7 @@ describe('accueil connecté', () => {
     await user.type(screen.getByLabelText(/Adresse e-mail/), 'claire@acme.test')
     await user.type(screen.getByLabelText('Mot de passe'), 'motdepassesolide')
     await user.click(screen.getByRole('button', { name: 'Se connecter' }))
-    expect(await screen.findByRole('link', { name: 'Profils de ciblage' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'Profil de ciblage' })).toHaveAttribute(
       'aria-current',
       'page',
     )

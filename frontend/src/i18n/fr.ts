@@ -47,7 +47,8 @@ export const fr = {
   nav: {
     dashboard: 'Vue d’ensemble',
     signals: 'Signaux',
-    icps: 'Profils de ciblage',
+    companies: 'Entreprises',
+    icps: 'Profil de ciblage',
     billing: 'Facturation',
     notifications: 'Notifications',
     settings: 'Compte',
@@ -63,6 +64,18 @@ export const fr = {
     closeMenu: 'Fermer le menu',
     dismissMenu: 'Fermer le menu en cliquant à côté',
     account: 'Compte',
+  },
+
+  companiesIndex: {
+    title: 'Entreprises',
+    lead: 'Les entreprises reliées aux signaux actuellement accessibles dans votre veille.',
+    count: 'Signaux accessibles',
+    open: 'Ouvrir la fiche',
+    emptyTitle: 'Aucune entreprise accessible pour le moment.',
+    emptyBody: 'Les fiches apparaissent ici lorsqu’un signal déverrouillé comporte une identité d’entreprise vérifiable.',
+    errorTitle: 'Les entreprises n’ont pas pu être chargées.',
+    retry: 'Réessayer',
+    partial: 'Cette liste reflète les signaux accessibles de votre flux, pas un répertoire exhaustif.',
   },
 
   settings: {

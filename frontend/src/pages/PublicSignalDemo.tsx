@@ -148,7 +148,7 @@ export function PublicSignalDemo({ signal = publicDemoSignal }: PublicSignalDemo
             </p>
 
             <div className={styles.actions}>
-              <ButtonLink to="/signup" variant="primary" size="lg">
+              <ButtonLink to="/signup?plan=discovery" variant="primary" size="lg">
                 {t.publicDemo.heroPrimary}
               </ButtonLink>
               <ButtonExternalLink href={s.sourceUrl} variant="secondary" size="lg">
@@ -378,7 +378,7 @@ export function PublicSignalDemo({ signal = publicDemoSignal }: PublicSignalDemo
             <SectionHeading eyebrow={t.publicDemo.actionEyebrow} title={t.publicDemo.actionTitle} id="action-title" />
             <p>{t.publicDemo.actionBody}</p>
             <div className={styles.actions}>
-              <ButtonLink to="/signup" variant="primary" size="lg">{t.publicDemo.actionPrimary}</ButtonLink>
+              <ButtonLink to="/signup?plan=discovery" variant="primary" size="lg">{t.publicDemo.actionPrimary}</ButtonLink>
               <ButtonExternalLink href={s.sourceUrl} variant="secondary" size="lg">
                 {t.publicDemo.actionSecondary}
                 <span className="kivou-visually-hidden"> {t.publicDemo.externalNewTab}</span>
@@ -400,7 +400,7 @@ export function PublicSignalDemo({ signal = publicDemoSignal }: PublicSignalDemo
           <p>{t.publicDemo.finalCtaBody}</p>
           <p className={styles.noCard}>{t.publicDemo.finalCtaNoCard}</p>
           <div className={`${styles.actions} ${styles.finalActions}`}>
-            <ButtonLink to="/signup" variant="primary" size="lg">{t.publicDemo.finalCtaPrimary}</ButtonLink>
+            <ButtonLink to="/signup?plan=discovery" variant="primary" size="lg">{t.publicDemo.finalCtaPrimary}</ButtonLink>
           </div>
         </div>
       </section>
