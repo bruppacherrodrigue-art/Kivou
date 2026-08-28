@@ -8,6 +8,7 @@ import {
   CATALOGUE,
   DISCOVERY_STATUS,
   ICP,
+  feedPage,
   mockApi,
   renderApp,
   UNAUTHENTICATED,
@@ -77,10 +78,53 @@ describe('fidélité au shell dashboard approuvé', () => {
     expect(document.body).not.toHaveTextContent(/mode démonstration|compte démo|maquette de travail/i)
   })
 
-  it('porte la géométrie et les couleurs du shell de référence', () => {
+  it('rend le rail clair et seulement les cinq destinations client approuvées', async () => {
+    mockApi({
+      'GET /signals': { body: feedPage([]) },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      'GET /target-icps': { body: [ICP] },
+      'GET /notification-preferences': {
+        body: {
+          email_enabled: true,
+          notification_email: 'claire@acme.test',
+          updated_at: '2026-08-18T09:00:00+00:00',
+        },
+      },
+    })
+    renderApp(<AppRoutes />, { route: '/app/dashboard', session: AUTHENTICATED })
+
+    const navigation = await screen.findByRole('navigation', { name: 'Navigation principale' })
+    expect(within(navigation).getAllByRole('link')).toHaveLength(5)
+    const destinations = [
+      ['Vue d’ensemble', '/app/dashboard'],
+      ['Signaux', '/app/signals'],
+      ['Entreprises', '/app/companies'],
+      ['Profil de ciblage', '/app/icps'],
+      ['Compte', '/app/settings'],
+    ] as const
+    for (const [name, href] of destinations) {
+      expect(within(navigation).getByRole('link', { name })).toHaveAttribute('href', href)
+    }
+    expect(within(navigation).getByRole('link', { name: destinations[0][0] })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    for (const destination of ['Marchés', 'Veille', 'Notes', 'Apollo', 'Instantly']) {
+      expect(
+        within(navigation).queryByRole('link', { name: new RegExp(destination, 'i') }),
+      ).not.toBeInTheDocument()
+    }
+
     const shell = read('src/layouts/AppShell.module.css')
-    expect(shell).toMatch(/\.topbar\s*\{/)
-    expect(shell).toMatch(/\.sidebar\s*\{[^}]*background:\s*var\(--kivou-sidebar-bg\)/s)
-    expect(shell).toMatch(/\.navItemActive\s*\{[^}]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.1\)/s)
+    expect(shell).toMatch(
+      /\.sidebar\s*\{[^}]*background:\s*var\(--kivou-connected-rail\)/s,
+    )
+    expect(shell).toMatch(
+      /\.workspace\s*\{[^}]*background:\s*var\(--kivou-connected-canvas\)/s,
+    )
+
+    const tokens = read('src/styles/tokens.css')
+    expect(tokens).toMatch(/--kivou-connected-rail:\s*#f3eee5;/)
+    expect(tokens).toMatch(/--kivou-connected-canvas:\s*#f7f3ec;/)
   })
 })
