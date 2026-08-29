@@ -82,8 +82,11 @@ jobs:
       - name: Tests
         run: npm test -- --run
 
-      - name: Build
+      - name: Build SaaS
         run: npm run build
+
+      - name: Build Founder Console
+        run: npm run build:founder
 
       - name: Typecheck
         run: npx tsc -b
