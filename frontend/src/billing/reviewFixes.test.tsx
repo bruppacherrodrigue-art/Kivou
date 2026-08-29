@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, beforeEach, vi } from 'vitest'
-import { act, screen, within } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
@@ -7,10 +7,10 @@ import {
   CATALOGUE,
   DISCOVERY_STATUS,
   ICP,
-  LOCKED_DETAIL,
   ME,
   PRO_STATUS,
   RECOVER_STATUS,
+  callsTo,
   feedPage,
   LOCKED_ITEM,
   mockApi,
@@ -47,6 +47,11 @@ function billingRoutes(status: BillingStatus) {
 function renderBilling(status: BillingStatus) {
   mockApi(billingRoutes(status))
   renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
+}
+
+async function selectPro(user = userEvent.setup()) {
+  await user.selectOptions(await screen.findByLabelText(/Offre|Plan/), 'pro')
+  return screen.findByRole('button', { name: /Choisir Pro|Choose Pro/ })
 }
 
 // ─── 1. statut Stripe inconnu ────────────────────────────────────────────────
@@ -100,7 +105,7 @@ describe('date de période', () => {
       billing_action: 'choose_plan',
       current_period_end: '2026-09-18T00:00:00+00:00',
     })
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
     const page = document.body.textContent ?? ''
     expect(page).not.toMatch(/Prochain renouvellement/)
     expect(page).not.toMatch(/Accès jusqu’au/)
@@ -146,7 +151,7 @@ describe('date de période', () => {
       cancel_at_period_end: true,
       current_period_end: '2026-09-18T00:00:00+00:00',
     })
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
     expect(document.body.textContent).not.toMatch(/Résiliation programmée/)
   })
 
@@ -166,22 +171,24 @@ describe('promesse du paywall', () => {
   it('ne promet pas l’ensemble du flux — FR', async () => {
     mockApi({
       ...billingRoutes(DISCOVERY_STATUS),
-      'GET /signals/sig_locked_1': { body: LOCKED_DETAIL },
+      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
       'GET /target-icps': { body: [ICP] },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' })
 
-    await screen.findByText('Ce signal est verrouillé')
+    await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
+    await screen.findByText('Historique 30 jours')
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('ensemble de votre flux')
     expect(page).not.toContain('flux complet')
-    expect(page).toMatch(/fenêtre d’historique/)
+    expect(page).toMatch(/Historique 30 jours/)
+    expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
   })
 
   it('ne promet pas l’ensemble du flux — EN', async () => {
     mockApi({
       ...billingRoutes(DISCOVERY_STATUS),
-      'GET /signals/sig_locked_1': { body: LOCKED_DETAIL },
+      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
       'GET /target-icps': { body: [ICP] },
     })
     renderApp(<AppRoutes />, {
@@ -190,11 +197,13 @@ describe('promesse du paywall', () => {
       locale: 'en',
     })
 
-    await screen.findByText('This signal is locked')
+    await screen.findByRole('heading', { level: 1, name: 'Subscription' })
+    await screen.findByText('30 days of history')
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('whole stream')
     expect(page).not.toContain('full stream')
-    expect(page).toMatch(/history window/)
+    expect(page).toMatch(/30 days of history/)
+    expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
   })
 
   it('le teaser du feed ne promet rien de plus', async () => {
@@ -205,7 +214,7 @@ describe('promesse du paywall', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await screen.findByText('Verrouillé')
+    await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) })
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('ensemble de votre flux')
     expect(page).not.toContain('flux complet')
@@ -251,7 +260,7 @@ describe('intention d’achat périmée', () => {
     saveCheckoutIntent('sig_ancien_abandonne')
 
     renderBilling(DISCOVERY_STATUS)
-    await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
+    await user.click(await selectPro(user))
 
     // Aucun signal n'a conduit ici : l'intention précédente n'a plus d'objet.
     expect(readCheckoutIntent()).toBeNull()
@@ -269,15 +278,10 @@ describe('intention d’achat périmée', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    const workspace = await screen.findByTestId('signal-workspace')
     await user.click(
-      await within(workspace).findByRole('button', { name: /signal verrouillé/i }),
+      await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
     )
-    const panel = await within(workspace).findByRole('region', {
-      name: 'Détail du signal sélectionné',
-    })
-    await user.click(within(panel).getByRole('link', { name: 'Gérer mon accès' }))
-    await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
+    await user.click(await selectPro(user))
 
     expect(readCheckoutIntent()).toBe('sig_locked_1')
   })

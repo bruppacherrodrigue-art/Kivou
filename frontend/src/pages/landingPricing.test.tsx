@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { AppRoutes } from '../App'
 import type { CataloguePlan, PlanCatalogue } from '../api/types'
@@ -264,10 +265,14 @@ describe('tarifs publics exacts et autoritaires', () => {
   })
 
   it('préserve les actions de facturation serveur dans le dashboard', async () => {
+    const user = userEvent.setup()
     mockApi({ 'GET /billing/plans': { body: CATALOGUE }, 'GET /billing/status': { body: DISCOVERY_STATUS } })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
     expect(await screen.findByRole('button', { name: 'Choisir Essentiel' })).toBeInTheDocument()
+    const selector = screen.getByLabelText('Offre')
+    await user.selectOptions(selector, 'pro')
     expect(screen.getByRole('button', { name: 'Choisir Pro' })).toBeInTheDocument()
+    await user.selectOptions(selector, 'scale')
     expect(screen.getByRole('button', { name: 'Choisir Scale' })).toBeInTheDocument()
   })
 })

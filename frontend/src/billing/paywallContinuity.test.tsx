@@ -59,7 +59,12 @@ async function openLockedBilling(user: ReturnType<typeof userEvent.setup>) {
   await user.click(
     await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
   )
-  await screen.findByRole('heading', { level: 1, name: 'Facturation' })
+  await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
+}
+
+async function selectPro(user = userEvent.setup()) {
+  await user.selectOptions(await screen.findByLabelText('Offre'), 'pro')
+  return screen.findByRole('button', { name: /Choisir Pro/ })
 }
 
 describe('depuis le feed verrouillé', () => {
@@ -75,7 +80,7 @@ describe('depuis le feed verrouillé', () => {
     )
 
     await openLockedBilling(user)
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
 
     const state = JSON.parse(screen.getByTestId('nav-state').textContent ?? 'null')
     expect(state).toEqual({ lockedSignalKey: 'sig_locked_1' })
@@ -93,7 +98,7 @@ describe('depuis le feed verrouillé', () => {
     )
 
     await openLockedBilling(user)
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
 
     const serialised = screen.getByTestId('nav-state').textContent ?? ''
     for (const secret of PROTECTED) {
@@ -116,7 +121,7 @@ describe('depuis le détail verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
     )
 
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
     expect(document.body.textContent).not.toContain(LOCKED_DETAIL.access.reason)
 
     const state = JSON.parse(screen.getByTestId('nav-state').textContent ?? 'null')
@@ -136,7 +141,7 @@ describe('depuis le détail verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
     )
 
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
 
     const serialised = screen.getByTestId('nav-state').textContent ?? ''
     for (const secret of PROTECTED) {
@@ -152,7 +157,7 @@ describe('avant tout paiement réel', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     await openLockedBilling(user)
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
 
     // Arriver sur la facturation n'est pas acheter : rien n'est mémorisé.
     expect(sessionStorage.length).toBe(0)
@@ -171,7 +176,7 @@ describe('avant tout paiement réel', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     await openLockedBilling(user)
-    await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
+    await user.click(await selectPro(user))
     await screen.findByRole('alert')
 
     // Une intention orpheline survivrait à un parcours qui n'a jamais eu lieu.
@@ -196,7 +201,7 @@ describe('avant tout paiement réel', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     await openLockedBilling(user)
-    await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
+    await user.click(await selectPro(user))
 
     expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/cs_1')
     expect(JSON.stringify(sessionStorage)).toContain('sig_locked_1')
@@ -222,7 +227,7 @@ describe('avant tout paiement réel', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
 
-    await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
+    await user.click(await selectPro(user))
     expect(assign).toHaveBeenCalled()
     expect(sessionStorage.length).toBe(0)
   })

@@ -154,7 +154,7 @@ describe('détail exact d’un signal réel', () => {
       route: `/app/signals/${LOCKED_ITEM.signal_id}`,
     })
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Facturation' })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}/note`, 'GET')).toHaveLength(0)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}/feedback`, 'GET')).toHaveLength(0)

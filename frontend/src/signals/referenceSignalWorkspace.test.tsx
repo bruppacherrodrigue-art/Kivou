@@ -41,7 +41,7 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
     await user.click(await screen.findByRole('button', { name: /accès payant requis/i }))
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Facturation' }),
+      await screen.findByRole('heading', { level: 1, name: 'Abonnement' }),
     ).toBeVisible()
   })
 

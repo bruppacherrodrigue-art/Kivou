@@ -6221,7 +6221,8 @@ button.public-cta {
   }
 
   .notification-toggle-row > button,
-  .security-action-row > a {
+  .security-action-row > a,
+  .security-action-row > button {
     grid-column: 1 / -1;
     width: 100%;
   }

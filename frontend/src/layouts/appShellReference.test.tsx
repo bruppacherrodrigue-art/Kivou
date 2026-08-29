@@ -81,9 +81,11 @@ describe('shell connecté exact de la référence', () => {
 
     renderApp(<AppRoutes />, { route: '/app/billing', session: AUTHENTICATED })
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Compte' })).toBeVisible()
-    expect(screen.getByRole('link', { name: 'Compte' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: 'Vue d’ensemble' })).not.toHaveAttribute(
+    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
+    const navigation = document.querySelector<HTMLElement>('.sidebar-menu')
+    expect(navigation).not.toBeNull()
+    expect(within(navigation as HTMLElement).getByRole('link', { name: 'Compte' })).toHaveAttribute('aria-current', 'page')
+    expect(within(navigation as HTMLElement).getByRole('link', { name: 'Vue d’ensemble' })).not.toHaveAttribute(
       'aria-current',
     )
   })
@@ -280,9 +282,9 @@ describe('shell connecté exact de la référence', () => {
     let releaseAProfiles:
       | ((response: { body: (typeof ICP)[] }) => void)
       | undefined
-    let releaseABilling:
-      | ((response: { body: typeof DISCOVERY_STATUS }) => void)
-      | undefined
+    const releaseABilling: Array<
+      (response: { body: typeof DISCOVERY_STATUS }) => void
+    > = []
     let profileCall = 0
     let billingCall = 0
 
@@ -298,9 +300,9 @@ describe('shell connecté exact de la référence', () => {
       },
       'GET /billing/status': () => {
         billingCall += 1
-        if (billingCall === 1) {
+        if (billingCall <= 2) {
           return new Promise((resolve) => {
-            releaseABilling = resolve
+            releaseABilling.push(resolve)
           })
         }
         return { body: { ...DISCOVERY_STATUS, plan_code: 'essential' as const } }
@@ -317,7 +319,7 @@ describe('shell connecté exact de la référence', () => {
 
     await waitFor(() => {
       expect(profileCall).toBe(1)
-      expect(billingCall).toBe(1)
+      expect(billingCall).toBe(2)
     })
     expect(screen.getAllByText(ME.account_display_name)).not.toHaveLength(0)
 
@@ -327,12 +329,14 @@ describe('shell connecté exact de la référence', () => {
     expect(await screen.findByText('Profil B · BE')).toBeVisible()
     expect(document.querySelector('.demo-mode-badge')).toHaveTextContent('Essentiel')
     expect(profileCall).toBe(2)
-    expect(billingCall).toBe(2)
+    expect(billingCall).toBe(4)
     expect(screen.queryByText(ME.account_display_name)).not.toBeInTheDocument()
 
     await act(async () => {
       releaseAProfiles?.({ body: [{ ...ICP, label: 'Profil A secret' }] })
-      releaseABilling?.({ body: { ...DISCOVERY_STATUS, plan_code: 'pro' } })
+      for (const release of releaseABilling) {
+        release({ body: { ...DISCOVERY_STATUS, plan_code: 'pro' } })
+      }
     })
 
     expect(screen.queryByText(/Profil A secret/)).not.toBeInTheDocument()
@@ -392,17 +396,18 @@ describe('shell connecté exact de la référence', () => {
     renderApp(<AppRoutes />, { route: '/app/settings', session: AUTHENTICATED })
 
     const retry = await screen.findByRole('button', {
-      name: 'Réessayer le chargement de l’offre',
+      name: 'Réessayer',
     })
     const badge = document.querySelector<HTMLElement>('.demo-mode-badge')
     expect(badge).not.toBeNull()
     expect(within(badge as HTMLElement).queryByText('Non publié')).not.toBeInTheDocument()
-    expect(retry).toHaveTextContent('L’offre n’a pas pu être chargée.')
+    expect(retry.closest('[role="alert"]')).toHaveTextContent('L’offre n’a pas pu être chargée.')
+    expect(retry).toHaveTextContent('Réessayer')
 
     await user.click(retry)
 
     await waitFor(() => expect(badge).toHaveTextContent('Découverte'))
-    expect(callsTo('/billing/status', 'GET')).toHaveLength(2)
+    expect(callsTo('/billing/status', 'GET')).toHaveLength(3)
   })
 })
 

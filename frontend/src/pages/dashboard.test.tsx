@@ -60,25 +60,24 @@ describe('accueil connecté', () => {
     mockApi({})
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/settings' })
 
-    await screen.findByRole('button', { name: 'Réessayer le chargement de l’offre' })
-    expect(document.querySelector('.demo-mode-badge')).toHaveTextContent(
-      'L’offre n’a pas pu être chargée.',
-    )
+    await screen.findByRole('button', { name: 'Réessayer' })
+    expect(screen.getAllByText('L’offre n’a pas pu être chargée.')).not.toHaveLength(0)
     expect(
       screen.getByRole('button', {
         name: 'Réessayer le chargement du profil de ciblage',
       }),
     ).toBeVisible()
 
-    const identity = screen.getByRole('region', { name: 'Acme Solutions' })
+    const identity = screen.getByRole('link', { name: 'Ouvrir les paramètres du compte' })
+    expect(identity).toHaveTextContent('Acme Solutions')
     expect(identity).toHaveTextContent('claire@acme.test')
 
-    const actions = screen.getByRole('navigation', { name: 'Actions du compte' })
-    expect(within(actions).getByRole('link', { name: 'Voir la facturation' })).toHaveAttribute(
+    const actions = screen.getByRole('navigation', { name: 'Paramètres du compte' })
+    expect(within(actions).getByRole('link', { name: 'Abonnement' })).toHaveAttribute(
       'href',
       '/app/billing',
     )
-    expect(within(actions).getByRole('link', { name: 'Gérer les notifications' })).toHaveAttribute(
+    expect(within(actions).getByRole('link', { name: 'Notifications' })).toHaveAttribute(
       'href',
       '/app/notifications',
     )

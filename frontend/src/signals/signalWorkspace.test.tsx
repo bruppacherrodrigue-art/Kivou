@@ -263,7 +263,7 @@ describe('workspace partagé des signaux', () => {
       session: AUTHENTICATED,
     })
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Facturation' })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}/note`, 'GET')).toHaveLength(0)
   })
@@ -421,7 +421,7 @@ describe('workspace partagé des signaux', () => {
     expect(callsTo('/billing/plans', 'GET')).toHaveLength(0)
     await user.click(locked)
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Facturation' })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
 
@@ -442,7 +442,7 @@ describe('workspace partagé des signaux', () => {
 
     const locked = await screen.findByRole('button', { name: /accès payant requis/i })
     await user.click(locked)
-    expect(await screen.findByRole('heading', { level: 1, name: 'Facturation' })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Précédent' }))
 
     const restored = await screen.findByRole('button', { name: /accès payant requis/i })
@@ -516,7 +516,7 @@ describe('workspace partagé des signaux', () => {
     })
     renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Facturation' })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}/note`, 'GET')).toHaveLength(0)
   })

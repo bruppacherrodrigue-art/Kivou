@@ -1,326 +1,535 @@
-import { useEffect, useRef, useState } from 'react'
+import { ArrowRight, CreditCard, ExternalLink } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { useI18n, interpolate } from '../i18n'
-import { Badge, Callout, Card, SectionHeading, Skeleton } from '../components/Surfaces'
-import { Button } from '../components/Button'
-import { PlanGrid } from '../billing/PlanGrid'
+import { ApiError } from '../api/client'
+import { billing } from '../api/endpoints'
+import { describeError } from '../api/errorCopy'
+import type {
+  BillingStatus,
+  CataloguePlan,
+  Currency,
+  Entitlements,
+  PlanCode,
+  PurchasablePlan,
+} from '../api/types'
 import {
   clearCheckoutIntent,
   saveCheckoutIntent,
   validateSignalKey,
 } from '../billing/checkoutIntent'
-import { billing } from '../api/endpoints'
-import { ApiError } from '../api/client'
-import { describeError } from '../api/errorCopy'
-import type { BillingStatus, Currency, PlanCatalogue, PurchasablePlan } from '../api/types'
-import styles from './Billing.module.css'
+import { useCurrentUser } from '../auth/SessionProvider'
+import { interpolate, plural, useI18n } from '../i18n'
+import { PrototypeNotice } from '../reference/dashboard/PrototypeNotice'
+import { SettingsNav } from '../reference/dashboard/SettingsNav'
+import { useResource } from '../reference/dashboard/resources'
+import { Button } from '../reference/dashboard/ui/button'
+import { ReferenceLink } from '../reference/router/ReferenceLink'
 
-/* La page de facturation.
- *
- * `billing_action` décide, `plan_code` décrit
- * ───────────────────────────────────────────
- * Deux champs, deux questions, et les confondre coûte de l'argent réel :
- *
- *     plan_code       →  quels droits le compte a-t-il MAINTENANT ?
- *     billing_action  →  quelle action de facturation est SÛRE maintenant ?
- *
- * Un compte `past_due` vaut `discovery` exactement comme un compte qui n'a
- * jamais rien payé — mais il porte un abonnement facturé. Brancher l'écran sur
- * `plan_code`, comme il le faisait, lui proposait « Choisir Pro » : au mieux un
- * 409, au pire une seconde facture pour un client qui n'a rien demandé de tel.
- *
- * Le frontend ne rejoue donc AUCUNE règle d'autorisation. Il ne connaît ni
- * `TERMINAL_STATUSES`, ni `PAYING_STATUSES`, ni `is_open_subscription()`, et ne
- * déduit rien de `subscription_status` — qu'il se contente d'AFFICHER.
- *
- * Le frontend n'envoie QUE `{ plan, currency }`. Aucun `price_id`, aucun
- * coupon, aucun drapeau fondateur : le montant n'est pas négociable depuis un
- * navigateur.
- *
- * La devise est un CHOIX EXPLICITE. La déduire de la langue ferait payer un
- * client suisse anglophone en euros.
- *
- * Kivou ne reconstruit aucun écran de gestion d'abonnement : moyen de paiement,
- * factures et résiliation vivent dans le portail du prestataire.
- */
+const PURCHASABLE_PLANS: readonly PurchasablePlan[] = ['essential', 'pro', 'scale']
+const DISPLAYABLE_PLANS: readonly PlanCode[] = ['discovery', 'essential', 'pro', 'scale']
+
+function isPurchasablePlan(value: string): value is PurchasablePlan {
+  return PURCHASABLE_PLANS.includes(value as PurchasablePlan)
+}
+
+function isDisplayablePlan(value: string): value is PlanCode {
+  return DISPLAYABLE_PLANS.includes(value as PlanCode)
+}
+
+function secureBillingDestination(value: string): string | null {
+  try {
+    const destination = new URL(value)
+    if (destination.protocol !== 'https:') return null
+    if (destination.username || destination.password) return null
+    return destination.href
+  } catch {
+    return null
+  }
+}
+
 export function Billing() {
-  const { t, date } = useI18n()
+  const me = useCurrentUser()
+  const { t, date, money } = useI18n()
+  const copy = t.reference.billingSettings
   const location = useLocation()
-  const [catalogue, setCatalogue] = useState<PlanCatalogue | null>(null)
-  const [status, setStatus] = useState<BillingStatus | null>(null)
+  const loadStatus = useCallback(() => billing.status(), [])
+  const loadCatalogue = useCallback(() => billing.plans(), [])
+  const status = useResource(loadStatus)
+  const catalogue = useResource(loadCatalogue)
   const [currency, setCurrency] = useState<Currency>('chf')
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<unknown>(null)
+  const [selectedPlanCode, setSelectedPlanCode] = useState<PlanCode>('essential')
   const [actionError, setActionError] = useState<unknown>(null)
-  const [choosing, setChoosing] = useState<PurchasablePlan | null>(null)
-  const [openingPortal, setOpeningPortal] = useState(false)
-
-  /* Verrou SYNCHRONE. `setChoosing` planifie un rendu ; il ne ferme pas la
-   * fenêtre entre deux clics du même tour de boucle. Le backend réserve déjà la
-   * place avant d'appeler Stripe, mais une seconde requête partie d'ici
-   * produirait un 409 que le client n'a aucune raison de voir. */
+  const [destinationError, setDestinationError] = useState(false)
+  const [busyAction, setBusyAction] = useState<'portal' | PurchasablePlan | null>(null)
   const busyRef = useRef(false)
+  const mounted = useRef(true)
+  const actionGeneration = useRef(0)
+  const currencyInitialised = useRef(false)
+  const accountId = me.account_id
 
-  /* Le signal verrouillé qui a déclenché la venue ici, s'il y en a un.
-   * SEULE sa clé voyage — jamais l'entreprise, le montant, le besoin ni la
-   * preuve, qui sont précisément ce que le paywall protège. */
   const lockedSignalKey = validateSignalKey(
     (location.state as { lockedSignalKey?: unknown } | null)?.lockedSignalKey,
   )
 
   useEffect(() => {
-    let active = true
-    Promise.all([billing.plans(), billing.status()])
-      .then(([plans, billingStatus]) => {
-        if (!active) return
-        setCatalogue(plans)
-        setStatus(billingStatus)
-        // Une devise déjà facturée s'impose : on ne propose pas de changer la
-        // devise d'un abonnement en cours depuis cet écran.
-        if (billingStatus.currency === 'chf' || billingStatus.currency === 'eur') {
-          setCurrency(billingStatus.currency)
-        }
-      })
-      .catch((caught) => {
-        if (active) setError(caught)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
+    mounted.current = true
     return () => {
-      active = false
+      mounted.current = false
+      actionGeneration.current += 1
+      busyRef.current = false
     }
   }, [])
 
+  useEffect(() => {
+    if (currencyInitialised.current) return
+    const billedCurrency = status.data?.currency
+    if (billedCurrency === 'chf' || billedCurrency === 'eur') {
+      currencyInitialised.current = true
+      setCurrency(billedCurrency)
+      return
+    }
+    if (catalogue.data) {
+      currencyInitialised.current = true
+      setCurrency(catalogue.data.currencies.includes('chf')
+        ? 'chf'
+        : catalogue.data.currencies[0] ?? 'chf')
+    }
+  }, [catalogue.data, status.data])
+
+  const displayablePlans = useMemo(
+    () => catalogue.data?.plans.filter(
+      (plan): plan is CataloguePlan & { plan_code: PlanCode } =>
+        isDisplayablePlan(plan.plan_code),
+    ) ?? [],
+    [catalogue.data],
+  )
+
+  useEffect(() => {
+    if (displayablePlans.length === 0) return
+    if (!displayablePlans.some((plan) => plan.plan_code === selectedPlanCode)) {
+      setSelectedPlanCode(displayablePlans[0].plan_code)
+    }
+  }, [displayablePlans, selectedPlanCode])
+
+  const authoritativeStatus = !status.loading && !status.error ? status.data : null
+  const authoritativeCatalogue = !catalogue.loading && !catalogue.error ? catalogue.data : null
+  const authoritativeSelectedPlan = authoritativeCatalogue?.plans.find(
+    (plan) => plan.plan_code === selectedPlanCode && isDisplayablePlan(plan.plan_code),
+  ) ?? null
+  const displayedEntitlements = authoritativeStatus?.billing_action === 'choose_plan'
+    ? authoritativeSelectedPlan?.entitlements ?? null
+    : authoritativeStatus?.entitlements ?? null
+
   async function startCheckout(plan: PurchasablePlan) {
     if (busyRef.current) return
+    const cataloguePlan = authoritativeCatalogue?.plans.find((item) => item.plan_code === plan)
+    if (
+      authoritativeStatus?.billing_action !== 'choose_plan' ||
+      !cataloguePlan?.purchasable ||
+      !cataloguePlan.monthly_price[currency]
+    ) return
+
     busyRef.current = true
+    const generation = ++actionGeneration.current
+    const startedForAccount = accountId
+    setBusyAction(plan)
     setActionError(null)
-    setChoosing(plan)
+    setDestinationError(false)
+
     try {
       const session = await billing.checkout({ plan, currency })
-      /* L'intention n'est mémorisée qu'APRÈS un paiement réellement ouvert.
-       * L'écrire avant laisserait une intention orpheline derrière chaque
-       * tentative refusée — et elle survivrait à un parcours qui n'a jamais eu
-       * lieu. Elle n'accorde aucun droit : le retour au signal reste soumis à
-       * ce que le serveur répondra.
-       *
-       * L'effacement PRÉCÈDE l'écriture, et il est inconditionnel. Un paiement
-       * lancé sans signal doit remplacer une intention précédente par AUCUNE :
-       * sans cela, une clé abandonnée dans le même onglet — retour navigateur,
-       * paiement repris plus tard — ressurgirait sur une page de succès à
-       * laquelle elle n'a plus rien à voir. */
+      if (
+        !mounted.current ||
+        generation !== actionGeneration.current ||
+        startedForAccount !== accountId
+      ) return
+      const destination = secureBillingDestination(session.checkout_url)
+      if (!destination) {
+        setDestinationError(true)
+        setBusyAction(null)
+        busyRef.current = false
+        return
+      }
       clearCheckoutIntent()
       if (lockedSignalKey !== null) saveCheckoutIntent(lockedSignalKey)
-      // La destination vient du backend, jamais d'une URL construite ici.
-      window.location.assign(session.checkout_url)
+      window.location.assign(destination)
     } catch (caught) {
+      if (
+        !mounted.current ||
+        generation !== actionGeneration.current ||
+        startedForAccount !== accountId
+      ) return
       setActionError(caught)
-      setChoosing(null)
+      setBusyAction(null)
       busyRef.current = false
     }
   }
 
   async function openPortal() {
+    if (busyRef.current) return
+    if (
+      authoritativeStatus?.billing_action !== 'manage_subscription' &&
+      authoritativeStatus?.billing_action !== 'recover_payment'
+    ) return
+
+    busyRef.current = true
+    const generation = ++actionGeneration.current
+    const startedForAccount = accountId
+    setBusyAction('portal')
     setActionError(null)
-    setOpeningPortal(true)
+    setDestinationError(false)
+
     try {
       const session = await billing.portal()
-      window.location.assign(session.portal_url)
+      if (
+        !mounted.current ||
+        generation !== actionGeneration.current ||
+        startedForAccount !== accountId
+      ) return
+      const destination = secureBillingDestination(session.portal_url)
+      if (!destination) {
+        setDestinationError(true)
+        setBusyAction(null)
+        busyRef.current = false
+        return
+      }
+      window.location.assign(destination)
     } catch (caught) {
+      if (
+        !mounted.current ||
+        generation !== actionGeneration.current ||
+        startedForAccount !== accountId
+      ) return
       setActionError(caught)
-      setOpeningPortal(false)
+      setBusyAction(null)
+      busyRef.current = false
     }
   }
 
-  if (loading) {
-    return (
-      <div className={styles.page}>
-        <SectionHeading title={t.billing.title} lead={t.billing.lead} level={1} hideTitle />
-        <Card padding="lg">
-          <Skeleton width="45%" height="1.5rem" />
-        </Card>
-      </div>
-    )
-  }
-
-  if (error || !catalogue || !status) {
-    const copy = describeError(error, t)
-    return (
-      <div className={styles.page}>
-        <SectionHeading title={t.billing.title} lead={t.billing.lead} level={1} hideTitle />
-        <Callout tone="danger" title={copy.title} live>
-          {copy.body}
-        </Callout>
-      </div>
-    )
-  }
-
-  const action = status.billing_action
-  const isPaid = status.plan_code !== 'discovery'
-  /* P0-03G — l'échéance de résiliation, telle que le SERVEUR la donne. Aucun
-     calcul, aucune comparaison à l'horloge locale : une échéance déjà passée
-     ne retire aucun droit tant que Stripe n'a pas changé le statut. */
-  const scheduledEnd = status.scheduled_cancellation_at
   const actionCopy = actionError ? describeError(actionError, t) : null
-  const expiresAt =
-    actionError instanceof ApiError && typeof actionError.extra.expires_at === 'string'
-      ? date(actionError.extra.expires_at)
-      : null
+  const expiresAt = actionError instanceof ApiError && typeof actionError.extra.expires_at === 'string'
+    ? date(actionError.extra.expires_at)
+    : null
 
   return (
-    <div className={styles.page}>
-      <SectionHeading title={t.billing.title} lead={t.billing.lead} level={1} hideTitle />
-
-      {/* Les DROITS actuels — `plan_code` et le statut brut, affichés, jamais
-          interprétés pour décider d'une action. */}
-      <Card padding="lg" as="section" className={styles.statusCard}>
-        <div className={styles.statusHead}>
+    <div className="settings-main">
+      <section className="settings-intro">
+        <p className="section-label">{copy.label}</p>
+        <h2>{copy.title}</h2>
+        <p>{copy.body}</p>
+      </section>
+      <SettingsNav active="billing" />
+      <section className="settings-form-card billing-settings-card" aria-labelledby="billing-card-title">
+        <div className="settings-form-heading">
           <div>
-            <p className={styles.statusLabel}>{t.billing.currentPlan}</p>
-            <p className={styles.statusPlan}>{t.billing.plans[status.plan_code]}</p>
+            <p className="card-kicker">
+              {authoritativeStatus?.billing_action === 'choose_plan'
+                ? copy.selectedOffer
+                : copy.currentOffer}
+            </p>
+            <h3 id="billing-card-title">
+              {status.loading
+                ? t.reference.loading
+                : status.error || !status.data
+                  ? t.reference.missingValue
+                  : status.data.billing_action === 'choose_plan'
+                    ? authoritativeSelectedPlan
+                      ? `${t.billing.plans[authoritativeSelectedPlan.plan_code]} · ${planPriceLabel(authoritativeSelectedPlan, currency, money, t)} ${t.billing.perMonth}`
+                      : t.reference.missingValue
+                    : t.billing.plans[status.data.plan_code]}
+            </h3>
           </div>
-          <Badge tone={isPaid ? 'positive' : 'neutral'}>
-            {/* Un statut que Stripe inventerait n'est pas montré au client :
-                `billing_action` a déjà décidé de le traiter comme une
-                vérification, et afficher le terme technique contredirait ce
-                défaut fermé. */}
-            {t.billing.status[
-              (status.subscription_status ?? 'none') as keyof typeof t.billing.status
-            ] ?? t.billing.status.unknown}
-          </Badge>
+          <span className="billing-status">
+            <span aria-hidden="true" />
+            {status.loading
+              ? t.reference.loading
+              : status.error || !status.data
+                ? t.reference.missingValue
+                : subscriptionStatusLabel(status.data, t)}
+          </span>
         </div>
 
-        {/* La date de période n'est une PROMESSE que si l'abonnement est
-            réellement géré. Un abonnement résilié ou impayé garde une
-            `current_period_end` — c'est la fin de ce qui a été payé, pas un
-            renouvellement à venir. L'annoncer sur un écran qui propose de
-            choisir une offre dirait au client qu'il est encore abonné. */}
-        {action === 'manage_subscription' && status.current_period_end && !scheduledEnd ? (
-          <p className={styles.statusLine}>
-            {interpolate(t.billing.renewsOn, { date: date(status.current_period_end) ?? '' })}
-          </p>
-        ) : null}
+        <PrototypeNotice>{copy.connectedNotice}</PrototypeNotice>
 
-        {/* P0-03G — la date vient du SERVEUR, et d'un seul champ.
-            `current_period_end` ne la remplace jamais : Stripe permet de
-            planifier une résiliation à une autre date, et emprunter la fin de
-            période annoncerait alors une échéance qui n'est pas la sienne.
-
-            Même règle que la ligne de période : une résiliation programmée dit
-            que l'accès court ENCORE jusqu'à une date. Le dire à un compte dont
-            l'accès est SUSPENDU mettrait deux affirmations contradictoires sur
-            le même écran. */}
-        {action === 'manage_subscription' && scheduledEnd ? (
-          <Callout tone="warning" title={t.billing.cancellationTitle}>
-            {interpolate(
-              status.cancel_at_period_end
-                ? t.billing.cancellationAtPeriodEnd
-                : t.billing.cancellationOnDate,
-              { date: date(scheduledEnd) ?? '' },
-            )}
-          </Callout>
-        ) : null}
-
-        {action === 'manage_subscription' ? (
-          <div className={styles.portal}>
-            <p className={styles.statusLine}>{t.billing.manageLead}</p>
-            <Button variant="secondary" loading={openingPortal} onClick={() => void openPortal()}>
-              {t.billing.managePortal}
-            </Button>
+        {status.error || (!status.loading && !status.data) ? (
+          <div className="prototype-notice" role="alert">
+            <div>
+              <strong>{copy.statusError}</strong>
+              <Button type="button" variant="outline" onClick={() => void status.retry()}>
+                {copy.retryStatus}
+              </Button>
+            </div>
           </div>
         ) : null}
-      </Card>
 
-      {actionCopy ? (
-        <Callout tone="danger" title={actionCopy.title} live>
-          {actionCopy.body}
-          {expiresAt ? (
-            <> {interpolate(t.billing.errors.checkoutInProgressExpiry, { date: expiresAt })}</>
-          ) : null}
-        </Callout>
-      ) : null}
+        {authoritativeStatus ? (
+          <>
+            {authoritativeStatus.billing_action === 'manage_subscription' && authoritativeStatus.current_period_end && !authoritativeStatus.scheduled_cancellation_at ? (
+              <p className="field-hint">
+                {interpolate(t.billing.renewsOn, {
+                  date: date(authoritativeStatus.current_period_end) ?? t.reference.missingValue,
+                })}
+              </p>
+            ) : null}
 
-      {/* L'abonnement existe encore et l'accès est suspendu. Aucun second
-          paiement : le backend le refuserait, et le proposer laisserait croire
-          qu'acheter à nouveau réglerait l'incident. */}
-      {action === 'recover_payment' ? (
-        <Callout
-          tone="warning"
-          title={t.billing.recoverTitle}
-          action={
-            <Button loading={openingPortal} onClick={() => void openPortal()}>
-              {t.billing.recoverCta}
-            </Button>
-          }
-        >
-          {t.billing.recoverBody}
-        </Callout>
-      ) : null}
+            {authoritativeStatus.billing_action === 'manage_subscription' && authoritativeStatus.scheduled_cancellation_at ? (
+              <div className="prototype-notice" role="note">
+                <div>
+                  <strong>{t.billing.cancellationTitle}</strong>
+                  <p>{interpolate(
+                    authoritativeStatus.cancel_at_period_end
+                      ? t.billing.cancellationAtPeriodEnd
+                      : t.billing.cancellationOnDate,
+                    {
+                      date: date(authoritativeStatus.scheduled_cancellation_at) ?? t.reference.missingValue,
+                    },
+                  )}</p>
+                </div>
+              </div>
+            ) : null}
 
-      {/* Ni achat, ni portail présenté comme une solution certaine : personne ne
-          sait encore ce que porte ce compte. Une vérification humaine d'abord. */}
-      {action === 'contact_support' ? (
-        <Callout
-          tone="warning"
-          title={t.billing.supportTitle}
-          action={
-            <a className={styles.supportLink} href={`mailto:${t.billing.supportEmail}`}>
-              {t.billing.supportCta}
-            </a>
-          }
-        >
-          {t.billing.supportBody}
-        </Callout>
-      ) : null}
+            {authoritativeStatus.billing_action === 'manage_subscription' ? (
+              <p className="field-hint">{t.billing.manageLead}</p>
+            ) : null}
 
-      {action === 'choose_plan' ? (
-        <>
-          {/* Une tentative expirée porte encore un `payment_issue`, mais
-              l'incident n'est plus « en cours » : la place est libre, et le
-              dire autrement retiendrait un client qui peut recommencer. */}
-          {status.payment_issue ? (
-            <Callout tone="info">{t.billing.terminalNotice}</Callout>
-          ) : null}
+            {authoritativeStatus.billing_action === 'choose_plan' && authoritativeStatus.payment_issue ? (
+              <div className="prototype-notice" role="note">
+                <div><p>{t.billing.terminalNotice}</p></div>
+              </div>
+            ) : null}
 
-          <fieldset className={styles.currency}>
-            <legend className={styles.currencyLegend}>{t.billing.currency}</legend>
-            <p className={styles.currencyHelp}>{t.billing.currencyLead}</p>
-            <div className={styles.currencyOptions}>
-              {catalogue.currencies.map((code) => (
-                <label
-                  key={code}
-                  className={`${styles.currencyOption} ${
-                    currency === code ? styles.currencySelected : ''
-                  }`}
+            {authoritativeStatus.billing_action === 'choose_plan' ? (
+              catalogue.loading ? (
+                <p className="billing-plan-selector" role="status">{t.reference.loading}</p>
+              ) : catalogue.error || !authoritativeCatalogue ? (
+                <div className="billing-plan-selector prototype-notice" role="alert">
+                  <div>
+                    <strong>{copy.catalogueError}</strong>
+                    <Button type="button" variant="outline" onClick={() => void catalogue.retry()}>
+                      {copy.retryCatalogue}
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="billing-plan-selector form-field">
+                  <label htmlFor="billing-plan">{copy.planLabel}</label>
+                  <select
+                    id="billing-plan"
+                    className="lifecycle-select"
+                    value={selectedPlanCode}
+                    disabled={busyAction !== null}
+                    onChange={(event) => setSelectedPlanCode(event.target.value as PlanCode)}
+                  >
+                    {displayablePlans.map((plan) => (
+                      <option value={plan.plan_code} key={plan.plan_code}>
+                        {t.billing.plans[plan.plan_code]} · {planPriceLabel(plan, currency, money, t)} {t.billing.perMonth}
+                        {plan.recommended ? ` · ${t.billing.recommended}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <fieldset>
+                    <legend>{t.billing.currency}</legend>
+                    <div className="billing-actions">
+                      {authoritativeCatalogue.currencies.map((code) => (
+                        <label key={code}>
+                          <input
+                            type="radio"
+                            name="kivou-currency"
+                            value={code}
+                            checked={currency === code}
+                            disabled={busyAction !== null}
+                            onChange={() => setCurrency(code)}
+                          />
+                          {code.toUpperCase()}
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                  <p className="field-hint">{copy.planHint}</p>
+                  {authoritativeSelectedPlan?.purchasable && !authoritativeSelectedPlan.monthly_price[currency] ? (
+                    <p>{t.reference.missingValue}</p>
+                  ) : null}
+                </div>
+              )
+            ) : null}
+
+            {displayedEntitlements ? (
+              <EntitlementList entitlements={displayedEntitlements} />
+            ) : null}
+
+            {actionCopy || destinationError ? (
+              <div className="prototype-notice" role="alert">
+                <div>
+                  <strong>{destinationError ? copy.destinationError : actionCopy?.title}</strong>
+                  {!destinationError && actionCopy?.body ? <p>{actionCopy.body}</p> : null}
+                  {expiresAt ? (
+                    <p>{interpolate(t.billing.errors.checkoutInProgressExpiry, { date: expiresAt })}</p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+
+            {authoritativeStatus.billing_action === 'recover_payment' ? (
+              <div className="prototype-notice" role="note">
+                <div>
+                  <strong>{t.billing.recoverTitle}</strong>
+                  <p>{t.billing.recoverBody}</p>
+                </div>
+              </div>
+            ) : null}
+
+            {authoritativeStatus.billing_action === 'contact_support' ? (
+              <div className="prototype-notice" role="note">
+                <div>
+                  <strong>{t.billing.supportTitle}</strong>
+                  <p>{t.billing.supportBody}</p>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="billing-actions">
+              {authoritativeStatus.billing_action === 'choose_plan' && authoritativeSelectedPlan?.plan_code === 'discovery' ? (
+                <Button asChild className="primary-action">
+                  <ReferenceLink href="/app/signals">
+                    {copy.seeAccessibleSignals} <ArrowRight aria-hidden="true" />
+                  </ReferenceLink>
+                </Button>
+              ) : null}
+
+              {authoritativeStatus.billing_action === 'choose_plan' && authoritativeSelectedPlan?.purchasable && isPurchasablePlan(authoritativeSelectedPlan.plan_code) ? (
+                <Button
+                  type="button"
+                  className="primary-action"
+                  disabled={busyAction !== null || !authoritativeSelectedPlan.monthly_price[currency]}
+                  onClick={() => {
+                    const planCode = authoritativeSelectedPlan.plan_code
+                    if (isPurchasablePlan(planCode)) void startCheckout(planCode)
+                  }}
                 >
-                  <input
-                    type="radio"
-                    name="kivou-currency"
-                    className={styles.radio}
-                    value={code}
-                    checked={currency === code}
-                    onChange={() => setCurrency(code)}
-                  />
-                  {code.toUpperCase()}
-                </label>
-              ))}
-            </div>
-          </fieldset>
+                  {busyAction === authoritativeSelectedPlan.plan_code
+                    ? t.billing.choosing
+                    : interpolate(t.billing.choose, { plan: t.billing.plans[authoritativeSelectedPlan.plan_code] })}
+                  <ArrowRight aria-hidden="true" />
+                </Button>
+              ) : null}
 
-          <section aria-label={t.billing.plansTitle}>
-            <PlanGrid
-              catalogue={catalogue}
-              variant="app"
-              currency={currency}
-              currentPlan={status.plan_code}
-              onChoose={(plan) => void startCheckout(plan)}
-              choosingPlan={choosing}
-              disabled={choosing !== null}
-            />
-          </section>
-        </>
-      ) : null}
+              {authoritativeStatus.billing_action === 'manage_subscription' ? (
+                <Button
+                  type="button"
+                  className="primary-action"
+                  disabled={busyAction !== null}
+                  onClick={() => void openPortal()}
+                >
+                  <CreditCard aria-hidden="true" />
+                  {busyAction === 'portal' ? t.billing.openingPortal : t.billing.managePortal}
+                  <ExternalLink aria-hidden="true" />
+                </Button>
+              ) : null}
+
+              {authoritativeStatus.billing_action === 'recover_payment' ? (
+                <Button
+                  type="button"
+                  className="primary-action"
+                  disabled={busyAction !== null}
+                  onClick={() => void openPortal()}
+                >
+                  <CreditCard aria-hidden="true" />
+                  {busyAction === 'portal' ? t.billing.openingPortal : t.billing.recoverCta}
+                  <ExternalLink aria-hidden="true" />
+                </Button>
+              ) : null}
+
+              {authoritativeStatus.billing_action === 'contact_support' ? (
+                <Button asChild className="primary-action">
+                  <a href={`mailto:${t.billing.supportEmail}`}>
+                    {t.billing.supportCta} <ArrowRight aria-hidden="true" />
+                  </a>
+                </Button>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </section>
     </div>
   )
+}
+
+function EntitlementList({ entitlements }: { entitlements: Entitlements }) {
+  const { t } = useI18n()
+  const copy = t.reference.billingSettings
+  const profiles = interpolate(
+    plural(
+      entitlements.max_active_icps,
+      t.billing.entitlements.icpsOne,
+      t.billing.entitlements.icpsOther,
+    ),
+    { count: entitlements.max_active_icps },
+  )
+  const territories = entitlements.max_territories_per_icp !== null
+    ? interpolate(
+        plural(
+          entitlements.max_territories_per_icp,
+          t.billing.entitlements.territoriesPerProfileOne,
+          t.billing.entitlements.territoriesPerProfileOther,
+        ),
+        { count: entitlements.max_territories_per_icp },
+      )
+    : entitlements.territory_mode === 'expanded'
+      ? t.billing.entitlements.territoryExpanded
+      : t.billing.entitlements.territoryMultiple
+  const history = entitlements.history_scope === 'all_available'
+    ? t.billing.entitlements.historyAll
+    : entitlements.history_days && entitlements.history_days > 0
+      ? interpolate(t.billing.entitlements.historyWindow, { days: entitlements.history_days })
+      : t.billing.entitlements.historyNone
+  const feedAccess = entitlements.granted_signals > 0
+    ? interpolate(t.billing.entitlements.grantedSignals, {
+        count: entitlements.granted_signals,
+      })
+    : entitlements.detail_access
+      ? copy.signalFeedAndDetails
+      : entitlements.feed_access
+        ? copy.signalFeed
+        : copy.signalAccessUnavailable
+  const signalAccess = `${feedAccess} · ${entitlements.evidence_access
+    ? t.billing.entitlements.evidence
+    : copy.evidenceUnavailable}`
+
+  return (
+    <dl className="billing-entitlements">
+      <div><dt>{copy.targetProfiles}</dt><dd>{profiles}</dd></div>
+      <div><dt>{copy.territories}</dt><dd>{territories}</dd></div>
+      <div><dt>{copy.alerts}</dt><dd>{t.billing.entitlements[`alert${cadenceKey(entitlements.alert_cadence)}`]}</dd></div>
+      <div><dt>{copy.history}</dt><dd>{history}</dd></div>
+      <div><dt>{copy.signalAccess}</dt><dd>{signalAccess}</dd></div>
+    </dl>
+  )
+}
+
+function cadenceKey(value: Entitlements['alert_cadence']): 'None' | 'Weekly' | 'Daily' | 'Priority' {
+  return `${value[0].toUpperCase()}${value.slice(1)}` as 'None' | 'Weekly' | 'Daily' | 'Priority'
+}
+
+function planPriceLabel(
+  plan: CataloguePlan,
+  currency: Currency,
+  money: (minorUnits: number, currency: string) => string,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  const price = plan.monthly_price[currency]
+  if (price) return money(price.amount_minor_units, price.currency)
+  if (!plan.purchasable && plan.plan_code === 'discovery') return t.billing.free
+  return t.reference.missingValue
+}
+
+function subscriptionStatusLabel(
+  status: BillingStatus,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  const value = status.subscription_status
+  if (value === null) return t.billing.status.none
+  if (value in t.billing.status) {
+    return t.billing.status[value as keyof typeof t.billing.status]
+  }
+  return t.billing.status.unknown
 }

@@ -311,6 +311,12 @@ describe('déconnexion', () => {
     await screen.findByRole('heading', { name: 'Signaux' })
     await user.click(screen.getByRole('link', { name: 'Compte' }))
     await screen.findByRole('heading', { level: 1, name: 'Compte' })
+    const security = screen.getAllByRole('link', { name: 'Sécurité' }).find(
+      (link) => link.getAttribute('href') === '/app/settings/security',
+    )
+    expect(security).toBeDefined()
+    await user.click(security as HTMLElement)
+    await screen.findByRole('heading', { level: 1, name: 'Sécurité' })
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }))
 
     await waitFor(() => expect(callsTo('/auth/logout')).toHaveLength(1))
@@ -331,6 +337,12 @@ describe('déconnexion', () => {
     const view = renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/settings' })
 
     await screen.findByText(`${ICP.label} · ${ICP.customer_input.territories[0]}`)
+    const user = userEvent.setup()
+    const security = screen.getAllByRole('link', { name: 'Sécurité' }).find(
+      (link) => link.getAttribute('href') === '/app/settings/security',
+    )
+    expect(security).toBeDefined()
+    await user.click(security as HTMLElement)
     const logout = screen.getByRole('button', { name: 'Se déconnecter' })
     act(() => {
       fireEvent.click(logout)

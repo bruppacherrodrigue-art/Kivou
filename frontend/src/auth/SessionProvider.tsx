@@ -25,7 +25,7 @@ interface SessionValue {
   /** Remplace l'utilisateur courant sans aller-retour réseau — le corps de
    *  réponse de `/auth/login` et `/auth/signup` EST un `MeResponse`. */
   adopt: (me: Me) => void
-  updateLocale: (locale: Locale) => Promise<void>
+  updateLocale: (locale: Locale, onCommitted?: () => void) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -101,7 +101,7 @@ export function SessionProvider({
     setState({ status: 'authenticated', me })
   }, [])
 
-  const updateLocale = useCallback(async (locale: Locale) => {
+  const updateLocale = useCallback(async (locale: Locale, onCommitted?: () => void) => {
     const epoch = sessionEpoch.current
     const requestId = ++localeRequestId.current
     const me = await auth.updateLocale(locale)
@@ -110,6 +110,10 @@ export function SessionProvider({
       sessionEpoch.current === epoch &&
       localeRequestId.current === requestId
     ) {
+      // Le changement de locale démonte temporairement toute la route connectée.
+      // L'appelant peut donc déposer un reçu de navigation juste avant que la
+      // réponse `/me`, seule autorité, ne fasse basculer la session.
+      onCommitted?.()
       setState({ status: 'authenticated', me })
     }
   }, [])

@@ -51,16 +51,21 @@ function render(status: BillingStatus, locale: 'fr' | 'en' = 'fr') {
 
 const choosePro = { name: /Choisir Pro/ }
 
+async function selectPro(user = userEvent.setup()) {
+  await user.selectOptions(await screen.findByLabelText('Offre'), 'pro')
+  return screen.findByRole('button', choosePro)
+}
+
 describe('billing_action — choose_plan', () => {
   it('propose la grille et le paiement', async () => {
     render(DISCOVERY_STATUS)
-    expect(await screen.findByRole('button', choosePro)).toBeInTheDocument()
+    expect(await selectPro()).toBeInTheDocument()
     expect(screen.getByText('Devise')).toBeInTheDocument()
   })
 
   it('ne propose aucun portail', async () => {
     render(DISCOVERY_STATUS)
-    await screen.findByRole('button', choosePro)
+    await selectPro()
     expect(screen.queryByRole('button', { name: /Gérer ma facturation/ })).not.toBeInTheDocument()
     expect(
       screen.queryByRole('button', { name: /Ouvrir le portail de facturation/ }),
@@ -70,7 +75,7 @@ describe('billing_action — choose_plan', () => {
   it('est la seule valeur qui autorise un POST /billing/checkout', async () => {
     const user = userEvent.setup()
     render(DISCOVERY_STATUS)
-    await user.click(await screen.findByRole('button', choosePro))
+    await user.click(await selectPro(user))
     await waitFor(() => expect(callsTo('/billing/checkout')).toHaveLength(1))
   })
 })
@@ -123,7 +128,7 @@ describe('billing_action — recover_payment', () => {
   it('un compte past_due n’a AUCUN bouton d’achat', async () => {
     render(RECOVER_STATUS)
     await screen.findByText('Accès suspendu — incident de paiement')
-    const currentPlan = screen.getByText('Votre offre').closest('section')!
+    const currentPlan = screen.getByText('Offre actuelle').closest('section')!
     expect(within(currentPlan).getByText('Découverte')).toBeInTheDocument()
     expect(screen.getByText('Paiement en retard')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Choisir/ })).not.toBeInTheDocument()
@@ -173,7 +178,7 @@ describe('billing_action — contact_support', () => {
   it('un compte trialing n’a AUCUN bouton d’achat', async () => {
     render(SUPPORT_STATUS)
     await screen.findByText('Vérification de facturation nécessaire')
-    const currentPlan = screen.getByText('Votre offre').closest('section')!
+    const currentPlan = screen.getByText('Offre actuelle').closest('section')!
     expect(within(currentPlan).getByText('Découverte')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Choisir/ })).not.toBeInTheDocument()
   })
@@ -212,7 +217,7 @@ describe('copy terminale', () => {
    * l'inverse retiendrait un client qui peut simplement recommencer. */
   it('ne parle pas d’incident en cours sur une tentative expirée', async () => {
     render(TERMINAL_STATUS)
-    expect(await screen.findByRole('button', choosePro)).toBeInTheDocument()
+    expect(await selectPro()).toBeInTheDocument()
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('Un incident de paiement est en cours sur cet abonnement.')
     expect(page).toContain('La tentative précédente n’est plus active.')
@@ -258,7 +263,7 @@ describe('anti double-paiement', () => {
     )
 
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
-    const button = await screen.findByRole('button', choosePro)
+    const button = await selectPro()
 
     act(() => {
       fireEvent.click(button)

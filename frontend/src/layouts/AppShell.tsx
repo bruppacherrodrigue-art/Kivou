@@ -308,8 +308,14 @@ function connectedLocation(
   if (pathname.startsWith('/app/icps')) {
     return { active: 'target', title: t.reference.targeting }
   }
+  if (pathname.startsWith('/app/settings/security')) {
+    return { active: 'settings', title: t.reference.accountSettings.securityTitle }
+  }
+  if (pathname.startsWith('/app/notifications')) {
+    return { active: 'settings', title: t.notifications.title }
+  }
   if (pathname.startsWith('/app/billing')) {
-    return { active: 'settings', title: t.billing.title }
+    return { active: 'settings', title: t.reference.accountSettings.subscription }
   }
   return { active: 'settings', title: t.reference.account }
 }

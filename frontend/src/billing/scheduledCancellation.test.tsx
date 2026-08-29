@@ -1,5 +1,6 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
   AUTHENTICATED,
@@ -66,6 +67,8 @@ describe('aucune résiliation programmée', () => {
   it('un compte Découverte n’en voit pas davantage', async () => {
     render({ ...PRO_STATUS, plan_code: 'discovery', billing_action: 'choose_plan' })
 
+    const user = userEvent.setup()
+    await user.selectOptions(await screen.findByLabelText('Offre'), 'pro')
     await screen.findByRole('button', { name: /Choisir Pro/ })
     expect(screen.queryByText(/Résiliation programmée/)).not.toBeInTheDocument()
   })
@@ -144,7 +147,7 @@ describe('une échéance annoncée ne coupe rien', () => {
     render(PRO_CANCELLING_STATUS)
 
     await screen.findByText('Résiliation programmée')
-    const currentPlan = screen.getByText('Votre offre').closest('section')!
+    const currentPlan = screen.getByText('Offre actuelle').closest('section')!
     expect(within(currentPlan).getByText('Pro')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Gérer ma facturation/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Choisir/ })).not.toBeInTheDocument()
@@ -159,7 +162,7 @@ describe('une échéance annoncée ne coupe rien', () => {
     })
 
     await screen.findByText('Résiliation programmée')
-    const currentPlan = screen.getByText('Votre offre').closest('section')!
+    const currentPlan = screen.getByText('Offre actuelle').closest('section')!
     expect(within(currentPlan).getByText('Pro')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Gérer ma facturation/ })).toBeInTheDocument()
   })
