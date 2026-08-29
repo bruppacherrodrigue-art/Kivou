@@ -298,7 +298,7 @@ describe('accueil connecté', () => {
     })
 
     expect(
-      await screen.findByRole('heading', { name: 'Configurer votre profil de ciblage' }),
+      await screen.findByRole('heading', { name: 'Définir ce que Kivou doit surveiller' }),
     ).toBeInTheDocument()
     expect(callsTo('/signals', 'GET')).toHaveLength(0)
     expect(callsTo('/billing/status', 'GET')).toHaveLength(0)
@@ -1018,9 +1018,11 @@ describe('navigation et garde-fous du dashboard', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
     expect(
-      await screen.findByText('Votre session a expiré. Connectez-vous à nouveau.'),
+      await screen.findByText('Votre session a expiré. Reconnectez-vous.'),
     ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: 'Se connecter' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Retrouver vos signaux' }),
+    ).toBeInTheDocument()
   })
 
   it('rend les blocs et actions structurants avec une parité anglaise', async () => {

@@ -187,7 +187,7 @@ describe('fiche entreprise officielle', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
     expect(await screen.findByText(/session a expiré/i)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Se connecter' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Retrouver vos signaux' })).toBeInTheDocument()
   })
 
   it('présente un chargement structuré et des actions accessibles au clavier', async () => {

@@ -1,9 +1,19 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { useState } from 'react'
 import { describe, expect, it, afterEach, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AppRoutes } from '../App'
+import type { TargetIcpInput } from '../api/types'
+import { useSession } from '../auth/SessionProvider'
+import { fr } from '../i18n/fr'
+import {
+  UnknownTargetingToken,
+  toTargetIcpPayload,
+} from '../reference/dashboard/targetingInput'
+import { OnboardingFlow } from '../reference/dashboard/OnboardingFlow'
 import {
   AUTHENTICATED,
   CATALOGUE,
@@ -22,9 +32,194 @@ import {
  * P0-02 — la mise en route en trois temps, et son moment le plus coûteux :
  * un ciblage enregistré que le client ne sait pas enregistré. */
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
 
 const INCOMPLETE_ME = { ...ME, onboarding_status: 'account_created' as const }
+const CROSS_ACCOUNT_A = {
+  ...INCOMPLETE_ME,
+  user_id: 'usr_cross_a',
+  email: 'a@cross-account.test',
+  account_id: 'acc_cross_a',
+  account_display_name: 'Compte A',
+}
+const CROSS_ACCOUNT_B = {
+  ...INCOMPLETE_ME,
+  user_id: 'usr_cross_b',
+  email: 'b@cross-account.test',
+  account_id: 'acc_cross_b',
+  account_display_name: 'Compte B',
+}
+const CROSS_ACCOUNT_B_READY = {
+  ...CROSS_ACCOUNT_B,
+  onboarding_status: 'ready_for_signals' as const,
+}
+
+const REFERENCE_DRAFT = {
+  name: 'Matériaux — Occitanie',
+  offer: 'Fourniture de matériaux pour les chantiers publics',
+  precision: 'Livraison rapide sur les chantiers routiers',
+  companies: 'Routes et génie civil',
+  territory: 'France',
+  terms: 'Matériaux et composants',
+  minAmount: '50000',
+  currency: 'EUR',
+}
+
+describe('adaptation stricte du ciblage de référence', () => {
+  it('mappe uniquement les libellés localisés et préserve les deux textes de l’offre', () => {
+    expect(toTargetIcpPayload(REFERENCE_DRAFT, fr)).toEqual({
+      label: 'Matériaux — Occitanie',
+      customer_input: {
+        offer_summary:
+          'Fourniture de matériaux pour les chantiers publics\n\nLivraison rapide sur les chantiers routiers',
+        offers: ['materials_and_components'],
+        secondary_offers: [],
+        buyer_trades: ['roads_and_civil_works'],
+        secondary_buyer_trades: [],
+        territories: ['FR'],
+        minimum_contract_value: {
+          currency: 'EUR',
+          minimum_amount: 50000,
+          maximum_amount: null,
+        },
+      },
+    })
+  })
+
+  it('accepte aussi les codes machine et les libellés anglais sans inférer de prose', () => {
+    expect(
+      toTargetIcpPayload(
+        {
+          ...REFERENCE_DRAFT,
+          companies: 'roads_and_civil_works',
+          territory: 'Germany',
+          terms: 'materials_and_components',
+          precision: '',
+        },
+        fr,
+      ).customer_input,
+    ).toMatchObject({
+      offer_summary: 'Fourniture de matériaux pour les chantiers publics',
+      offers: ['materials_and_components'],
+      buyer_trades: ['roads_and_civil_works'],
+      territories: ['DE'],
+    })
+  })
+
+  it('préserve les champs secondaires et le maximum antérieurs en remplaçant les champs visibles', () => {
+    const previous: TargetIcpInput = {
+      offer_summary: 'Ancienne offre',
+      offers: ['equipment_rental'],
+      secondary_offers: ['transport_and_logistics', 'safety_equipment'],
+      buyer_trades: ['building_construction'],
+      secondary_buyer_trades: ['rail_infrastructure', 'equipment_hire'],
+      territories: ['CH'],
+      minimum_contract_value: {
+        currency: 'EUR',
+        minimum_amount: 1000,
+        maximum_amount: 900000,
+      },
+    }
+
+    expect(toTargetIcpPayload(REFERENCE_DRAFT, fr, previous)).toEqual({
+      label: 'Matériaux — Occitanie',
+      customer_input: {
+        offer_summary:
+          'Fourniture de matériaux pour les chantiers publics\n\nLivraison rapide sur les chantiers routiers',
+        offers: ['materials_and_components'],
+        secondary_offers: ['transport_and_logistics', 'safety_equipment'],
+        buyer_trades: ['roads_and_civil_works'],
+        secondary_buyer_trades: ['rail_infrastructure', 'equipment_hire'],
+        territories: ['FR'],
+        minimum_contract_value: {
+          currency: 'EUR',
+          minimum_amount: 50000,
+          maximum_amount: 900000,
+        },
+      },
+    })
+  })
+
+  it('échoue fermé plutôt que de préserver un maximum exprimé dans une autre devise', () => {
+    const previous: TargetIcpInput = {
+      offer_summary: 'Ancienne offre',
+      offers: ['equipment_rental'],
+      secondary_offers: [],
+      buyer_trades: ['building_construction'],
+      secondary_buyer_trades: [],
+      territories: ['CH'],
+      minimum_contract_value: {
+        currency: 'CHF',
+        minimum_amount: 1000,
+        maximum_amount: 900000,
+      },
+    }
+
+    expect(() => toTargetIcpPayload(REFERENCE_DRAFT, fr, previous)).toThrowError(
+      expect.objectContaining<Partial<UnknownTargetingToken>>({ field: 'threshold' }),
+    )
+  })
+
+  it('échoue fermé quand le nouveau minimum dépasse le maximum préservé', () => {
+    const previous: TargetIcpInput = {
+      offer_summary: 'Ancienne offre',
+      offers: ['equipment_rental'],
+      secondary_offers: [],
+      buyer_trades: ['building_construction'],
+      secondary_buyer_trades: [],
+      territories: ['CH'],
+      minimum_contract_value: {
+        currency: 'EUR',
+        minimum_amount: 1000,
+        maximum_amount: 40000,
+      },
+    }
+
+    expect(() => toTargetIcpPayload(REFERENCE_DRAFT, fr, previous)).toThrowError(
+      expect.objectContaining<Partial<UnknownTargetingToken>>({ field: 'threshold' }),
+    )
+  })
+
+  it('déduplique les codes résolus après normalisation en préservant leur ordre', () => {
+    const payload = toTargetIcpPayload(
+      {
+        ...REFERENCE_DRAFT,
+        terms:
+          'Matériaux et composants, materials_and_components, Location de matériel, equipment_rental',
+        companies:
+          'Routes et génie civil, roads_and_civil_works, Bâtiment, building_construction',
+        territory: 'France, FR, Germany, Allemagne, DE',
+      },
+      fr,
+    )
+
+    expect(payload.customer_input.offers).toEqual([
+      'materials_and_components',
+      'equipment_rental',
+    ])
+    expect(payload.customer_input.buyer_trades).toEqual([
+      'roads_and_civil_works',
+      'building_construction',
+    ])
+    expect(payload.customer_input.territories).toEqual(['FR', 'DE'])
+  })
+
+  it.each([
+    ['offers', { terms: 'portes sur mesure' }],
+    ['buyer_trades', { companies: 'entreprises qui achètent des portes' }],
+    ['territories', { territory: 'Bavière' }],
+    ['threshold', { minAmount: '-1' }],
+    ['threshold', { minAmount: '' }],
+    ['threshold', { currency: 'USD' }],
+  ] as const)('échoue fermé sur un jeton inconnu de %s', (field, change) => {
+    expect(() =>
+      toTargetIcpPayload({ ...REFERENCE_DRAFT, ...change }, fr),
+    ).toThrowError(expect.objectContaining<Partial<UnknownTargetingToken>>({ field }))
+  })
+})
 
 type User = ReturnType<typeof userEvent.setup>
 
@@ -64,22 +259,107 @@ const ACTIVATED_ROUTES = {
   'GET /target-icps': { body: [ICP] },
 }
 
-/** Remplit les trois temps du ciblage et s'arrête sur la relecture. */
-async function fillTargeting(user: User, { label = 'Matériaux — Occitanie' } = {}) {
-  // A — ce que vous vendez
-  await user.click(await screen.findByLabelText('Matériaux et composants'))
-  await user.click(screen.getByRole('button', { name: 'Suivant' }))
+/** Remplit les quatre étapes exactes de la référence et s'arrête sur la relecture. */
+async function fillTargeting(
+  user: User,
+  {
+    label = 'Matériaux — Occitanie',
+    terms = 'Matériaux et composants',
+    offer = 'Fourniture de matériaux pour les chantiers publics',
+    precision = 'Livraison rapide sur les chantiers routiers',
+  }: { label?: string; terms?: string; offer?: string; precision?: string } = {},
+) {
+  await user.type(
+    await screen.findByLabelText('Produits et services proposés'),
+    offer,
+  )
+  await user.type(screen.getByLabelText(/Précision utile/), precision)
+  await user.click(screen.getByRole('button', { name: 'Continuer' }))
 
-  // B — à qui et où
-  await user.click(await screen.findByLabelText('France'))
-  await user.click(screen.getByRole('button', { name: 'Suivant' }))
+  await user.type(await screen.findByLabelText('Entreprises recherchées'), 'Routes et génie civil')
+  await user.type(screen.getByLabelText('Territoire couvert'), 'France')
+  await user.type(screen.getByLabelText('Mots-clés à surveiller'), terms)
+  await user.click(screen.getByRole('button', { name: 'Continuer' }))
 
-  // C — à partir de quel montant
-  await user.type(await screen.findByLabelText('Montant minimum'), '50000')
-  await user.type(screen.getByLabelText(/Nom du profil/), label)
-  await user.click(screen.getByRole('button', { name: 'Suivant' }))
+  await user.type(await screen.findByLabelText('Montant minimum du marché'), '50000')
+  await user.selectOptions(screen.getByLabelText('Devise'), 'EUR')
+  await user.type(screen.getByLabelText('Nom du profil'), label)
+  await user.click(screen.getByRole('button', { name: 'Continuer' }))
 
-  await screen.findByRole('heading', { name: 'Vérifier votre ciblage' })
+  await screen.findByRole('heading', { name: 'Relire le ciblage' })
+}
+
+function LocationProbe() {
+  const location = useLocation()
+  return <output data-testid="location">{`${location.pathname}${location.search}`}</output>
+}
+
+function OnboardingLeaveHarness() {
+  const [visible, setVisible] = useState(true)
+  const navigate = useNavigate()
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setVisible(false)
+          navigate('/left')
+        }}
+      >
+        Quitter l’onboarding
+      </button>
+      {visible ? <OnboardingFlow /> : <p>Onboarding quitté</p>}
+      <LocationProbe />
+    </>
+  )
+}
+
+function OnboardingQueryChanger() {
+  const navigate = useNavigate()
+  return (
+    <>
+      <button type="button" onClick={() => navigate('/onboarding?plan=pro')}>
+        Choisir Pro
+      </button>
+      <OnboardingFlow />
+      <LocationProbe />
+    </>
+  )
+}
+
+function OnboardingRemountHarness() {
+  const [visible, setVisible] = useState(true)
+  const navigate = useNavigate()
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          setVisible((current) => !current)
+          navigate(visible ? '/left' : '/onboarding')
+        }}
+      >
+        {visible ? 'Quitter l’onboarding' : 'Reprendre l’onboarding'}
+      </button>
+      {visible ? <OnboardingFlow /> : <p>Onboarding quitté</p>}
+      <LocationProbe />
+    </>
+  )
+}
+
+function OnboardingAccountSwitcher() {
+  const { state, refresh } = useSession()
+  const accountId = state.status === 'authenticated' ? state.me.account_id : state.status
+  return (
+    <>
+      <button type="button" onClick={() => void refresh()}>
+        Relire le compte
+      </button>
+      <output data-testid="account-id">{accountId}</output>
+      <OnboardingFlow />
+      <LocationProbe />
+    </>
+  )
 }
 
 describe('onboarding', () => {
@@ -91,11 +371,14 @@ describe('onboarding', () => {
     })
 
     expect(
-      await screen.findByRole('heading', { name: 'Configurer votre profil de ciblage' }),
+      await screen.findByRole('heading', { name: 'Définir ce que Kivou doit surveiller' }),
     ).toBeInTheDocument()
+    const note = screen.getByRole('note')
+    expect(note).toHaveClass('prototype-notice')
+    expect(note).toHaveTextContent('Le ciblage sera enregistré dans votre compte Kivou')
   })
 
-  it('pose les questions en trois temps, sous un seul h1', async () => {
+  it('pose les questions dans les quatre étapes exactes, sous un seul h1', async () => {
     const user = userEvent.setup()
     mockApi(ACTIVATED_ROUTES)
     renderApp(<AppRoutes />, {
@@ -106,45 +389,40 @@ describe('onboarding', () => {
     // Un seul titre de page ; les étapes sont des sous-titres.
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(
-      await screen.findByRole('heading', { level: 2, name: 'Ce que vous vendez' }),
+      await screen.findByRole('heading', { level: 2, name: 'Que vendez-vous ?' }),
     ).toBeInTheDocument()
 
-    await user.click(screen.getByLabelText('Matériaux et composants'))
-    await user.click(screen.getByRole('button', { name: 'Suivant' }))
+    await user.type(screen.getByLabelText('Produits et services proposés'), 'Matériaux')
+    await user.click(screen.getByRole('button', { name: 'Continuer' }))
     expect(
-      await screen.findByRole('heading', { level: 2, name: 'À qui et où vous vendez' }),
+      await screen.findByRole('heading', { level: 2, name: 'Quel marché recherchez-vous ?' }),
     ).toBeInTheDocument()
 
-    await user.click(screen.getByLabelText('France'))
-    await user.click(screen.getByRole('button', { name: 'Suivant' }))
+    await user.type(screen.getByLabelText('Entreprises recherchées'), 'Routes et génie civil')
+    await user.type(screen.getByLabelText('Territoire couvert'), 'France')
+    await user.type(screen.getByLabelText('Mots-clés à surveiller'), 'Matériaux et composants')
+    await user.click(screen.getByRole('button', { name: 'Continuer' }))
     expect(
-      await screen.findByRole('heading', { level: 2, name: 'À partir de quel montant' }),
+      await screen.findByRole('heading', { level: 2, name: 'Quel seuil mérite votre attention ?' }),
     ).toBeInTheDocument()
 
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
   })
 
-  it('signale la progression sans compter les questions', async () => {
+  it('signale la progression exacte sans rendre les étapes cliquables', async () => {
     mockApi(ACTIVATED_ROUTES)
     renderApp(<AppRoutes />, {
       session: { status: 'authenticated', me: INCOMPLETE_ME },
       route: '/onboarding',
     })
 
-    const progress = await screen.findByRole('navigation', { name: 'Votre mise en route' })
-    const steps = within(progress).getAllByRole('listitem')
-    expect(steps).toHaveLength(3)
-    expect(steps[0]).toHaveTextContent('Compte')
-    expect(steps[1]).toHaveTextContent('Ciblage')
-    expect(steps[2]).toHaveTextContent('Signaux')
-
-    // L'étape courante est portée par ARIA, pas seulement par une couleur.
-    expect(steps[1]).toHaveAttribute('aria-current', 'step')
-    expect(steps[0]).not.toHaveAttribute('aria-current')
-    expect(steps[2]).not.toHaveAttribute('aria-current')
-    // Rien n'y est cliquable : le ciblage ne se saute pas.
-    expect(within(progress).queryByRole('link')).not.toBeInTheDocument()
-    expect(within(progress).queryByRole('button')).not.toBeInTheDocument()
+    const progress = await screen.findByRole('progressbar')
+    expect(progress).toHaveAttribute('aria-valuenow', '25')
+    const region = progress.closest('.onboarding-progress') as HTMLElement
+    expect(region).toHaveAccessibleName('Étape 1 sur 4')
+    expect(region).toHaveTextContent('Votre offre')
+    expect(within(region).queryByRole('link')).not.toBeInTheDocument()
+    expect(within(region).queryByRole('button')).not.toBeInTheDocument()
   })
 
   it('laisse le bouton utilisable et explique ce qui manque, sans jargon moteur', async () => {
@@ -156,20 +434,20 @@ describe('onboarding', () => {
     })
 
     // Le bouton n'est pas désactivé sans explication (§13) : il répond.
-    const next = await screen.findByRole('button', { name: 'Suivant' })
+    const next = await screen.findByRole('button', { name: 'Continuer' })
     expect(next).toBeEnabled()
     await user.click(next)
 
-    const notice = await screen.findByText(/Il manque encore/)
-    expect(notice.closest('div')).toHaveTextContent('ce que vous vendez')
+    const notice = await screen.findByRole('alert')
+    expect(notice).toHaveTextContent('Décrivez ce que vous proposez')
     // L'étape n'a pas avancé.
     expect(
-      screen.getByRole('heading', { level: 2, name: 'Ce que vous vendez' }),
+      screen.getByRole('heading', { level: 2, name: 'Que vendez-vous ?' }),
     ).toBeInTheDocument()
 
     // L'erreur disparaît dès que la saisie la lève.
-    await user.click(screen.getByLabelText('Matériaux et composants'))
-    await waitFor(() => expect(screen.queryByText(/Il manque encore/)).not.toBeInTheDocument())
+    await user.type(screen.getByLabelText('Produits et services proposés'), 'Matériaux')
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
 
     // Aucun vocabulaire moteur ne doit fuiter dans l'interface client.
     const page = document.body.textContent ?? ''
@@ -194,14 +472,14 @@ describe('onboarding', () => {
       route: '/onboarding',
     })
 
-    await user.click(await screen.findByLabelText('Matériaux et composants'))
-    await user.click(screen.getByRole('button', { name: 'Suivant' }))
+    await user.type(await screen.findByLabelText('Produits et services proposés'), 'Matériaux')
+    await user.click(screen.getByRole('button', { name: 'Continuer' }))
 
-    const second = await screen.findByRole('heading', { level: 2, name: 'À qui et où vous vendez' })
+    const second = await screen.findByRole('heading', { level: 2, name: 'Quel marché recherchez-vous ?' })
     await waitFor(() => expect(second).toHaveFocus())
 
     await user.click(screen.getByRole('button', { name: 'Retour' }))
-    const first = await screen.findByRole('heading', { level: 2, name: 'Ce que vous vendez' })
+    const first = await screen.findByRole('heading', { level: 2, name: 'Que vendez-vous ?' })
     await waitFor(() => expect(first).toHaveFocus())
   })
 
@@ -213,23 +491,25 @@ describe('onboarding', () => {
       route: '/onboarding',
     })
 
-    await user.click(await screen.findByLabelText('Matériaux et composants'))
-    await user.click(screen.getByRole('button', { name: 'Suivant' }))
-    await user.click(await screen.findByLabelText('France'))
-    await user.click(screen.getByRole('button', { name: 'Suivant' }))
+    await user.type(await screen.findByLabelText('Produits et services proposés'), 'Matériaux')
+    await user.click(screen.getByRole('button', { name: 'Continuer' }))
+    await user.type(await screen.findByLabelText('Entreprises recherchées'), 'Routes et génie civil')
+    await user.type(screen.getByLabelText('Territoire couvert'), 'France')
+    await user.type(screen.getByLabelText('Mots-clés à surveiller'), 'Matériaux et composants')
+    await user.click(screen.getByRole('button', { name: 'Continuer' }))
 
     // Une devise choisie AVANT le montant n'a encore aucune représentation dans
     // le modèle : c'est exactement la saisie qu'un démontage effacerait.
     await user.selectOptions(await screen.findByLabelText('Devise'), 'CHF')
-    await user.type(screen.getByLabelText('Montant minimum'), '75000')
+    await user.type(screen.getByLabelText('Montant minimum du marché'), '75000')
 
     await user.click(screen.getByRole('button', { name: 'Retour' }))
-    await screen.findByRole('heading', { level: 2, name: 'À qui et où vous vendez' })
-    await user.click(screen.getByRole('button', { name: 'Suivant' }))
+    await screen.findByRole('heading', { level: 2, name: 'Quel marché recherchez-vous ?' })
+    await user.click(screen.getByRole('button', { name: 'Continuer' }))
 
-    await screen.findByRole('heading', { level: 2, name: 'À partir de quel montant' })
+    await screen.findByRole('heading', { level: 2, name: 'Quel seuil mérite votre attention ?' })
     expect(screen.getByLabelText('Devise')).toHaveValue('CHF')
-    expect(screen.getByLabelText('Montant minimum')).toHaveValue(75000)
+    expect(screen.getByLabelText('Montant minimum du marché')).toHaveValue(75000)
   })
 
   it('relit le ciblage dans les mots du client avant de l’enregistrer', async () => {
@@ -243,17 +523,14 @@ describe('onboarding', () => {
     await fillTargeting(user)
 
     expect(screen.getByText('Matériaux et composants')).toBeInTheDocument()
-    // Le territoire est nommé, jamais rendu par son code ISO brut.
-    const territoryRow = screen.getByText('Territoires').closest('div')!
+    const territoryRow = screen.getByText('Territoire').closest('div')!
     expect(territoryRow).toHaveTextContent('France')
     expect(territoryRow).not.toHaveTextContent(/\bFR\b/)
-    // Sans corps de métier choisi, la relecture le dit plutôt que de laisser un vide.
-    expect(screen.getByText('Corps de métier visés').closest('div')).toHaveTextContent(
-      'Tous corps de métier',
+    expect(screen.getByText('Entreprises').closest('div')).toHaveTextContent('Routes et génie civil')
+    expect(screen.getByText('Précision').closest('div')).toHaveTextContent(
+      'Livraison rapide sur les chantiers routiers',
     )
-    expect(screen.getByText('Prêt pour les signaux')).toBeInTheDocument()
-    // Aucun champ de saisie n'est proposé sur la relecture.
-    expect(screen.queryByLabelText('Montant minimum')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Montant minimum du marché')).not.toBeInTheDocument()
   })
 
   it('crée un profil valide et n’envoie jamais d’account_id', async () => {
@@ -266,7 +543,7 @@ describe('onboarding', () => {
 
     await fillTargeting(user)
     await user.click(
-      screen.getByRole('button', { name: 'Créer mon profil et voir mes signaux' }),
+      screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }),
     )
 
     await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(1))
@@ -303,7 +580,7 @@ describe('onboarding', () => {
 
     await fillTargeting(user)
     await user.click(
-      screen.getByRole('button', { name: 'Créer mon profil et voir mes signaux' }),
+      screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }),
     )
 
     expect(await screen.findByRole('heading', { name: 'Signaux' })).toBeInTheDocument()
@@ -328,7 +605,7 @@ describe('onboarding', () => {
 
     await fillTargeting(user, { label: 'Test' })
     await user.click(
-      screen.getByRole('button', { name: 'Créer mon profil et voir mes signaux' }),
+      screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }),
     )
 
     await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(1))
@@ -337,6 +614,351 @@ describe('onboarding', () => {
       expect(call.url).not.toContain('account_id')
       expect(call.search.get('account_id')).toBeNull()
     }
+  })
+
+  it('refuse un libellé de ciblage inconnu localement sans appeler l’API', async () => {
+    const user = userEvent.setup()
+    mockApi(ACTIVATED_ROUTES)
+    renderApp(<AppRoutes />, {
+      session: { status: 'authenticated', me: INCOMPLETE_ME },
+      route: '/onboarding',
+    })
+
+    await fillTargeting(user, { terms: 'portes sur mesure' })
+    await user.click(
+      screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }),
+    )
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      '« portes sur mesure » ne correspond à aucun type d’offre proposé',
+    )
+    expect(screen.getByRole('heading', { name: 'Quel marché recherchez-vous ?' })).toBeVisible()
+    expect(callsTo('/target-icps')).toHaveLength(0)
+    expect(callsTo('/me')).toHaveLength(0)
+  })
+
+  it('porte une offre payante uniquement dans l’URL jusqu’au checkout', async () => {
+    const user = userEvent.setup()
+    const storage = vi.spyOn(Storage.prototype, 'setItem')
+    mockApi({
+      ...ACTIVATED_ROUTES,
+      'GET /billing/plans': { body: CATALOGUE },
+    })
+    renderApp(
+      <>
+        <AppRoutes />
+        <LocationProbe />
+      </>,
+      {
+        session: { status: 'authenticated', me: INCOMPLETE_ME },
+        route: '/onboarding?plan=pro',
+      },
+    )
+
+    await fillTargeting(user)
+    await user.click(
+      screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }),
+    )
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent('/checkout?plan=pro'),
+    )
+    expect(storage).not.toHaveBeenCalled()
+  })
+
+  it('conserve la création pendant un changement de plan et ne rejoue jamais le POST', async () => {
+    const user = userEvent.setup()
+    let release!: (value: { status: number; body: typeof ICP }) => void
+    const response = new Promise<{ status: number; body: typeof ICP }>((resolve) => {
+      release = resolve
+    })
+    mockApi({
+      'POST /target-icps': () => response,
+      'GET /me': { body: ME },
+    })
+    renderApp(<OnboardingQueryChanger />, {
+      session: { status: 'authenticated', me: INCOMPLETE_ME },
+      route: '/onboarding?plan=discovery',
+    })
+
+    await fillTargeting(user)
+    await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
+    await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(1))
+    await user.click(screen.getByRole('button', { name: 'Choisir Pro' }))
+    const repeatedSubmit = screen.getByRole('button', {
+      name: 'Enregistrer et voir les signaux',
+    })
+    expect(repeatedSubmit).toBeDisabled()
+    fireEvent.click(repeatedSubmit)
+    expect(callsTo('/target-icps')).toHaveLength(1)
+
+    await act(async () => {
+      release({ status: 201, body: ICP })
+      await response
+    })
+    await waitFor(() => expect(callsTo('/me', 'GET')).toHaveLength(1))
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent('/checkout?plan=pro'),
+    )
+    expect(callsTo('/target-icps')).toHaveLength(1)
+    expect(callsTo('/me', 'GET')).toHaveLength(1)
+  })
+
+  it('isole le POST du compte B quand le compte change pendant la création du compte A', async () => {
+    const user = userEvent.setup()
+    let releaseA!: (value: { status: number; body: typeof ICP }) => void
+    let releaseB!: (value: { status: number; body: typeof ICP }) => void
+    const responseA = new Promise<{ status: number; body: typeof ICP }>((resolve) => {
+      releaseA = resolve
+    })
+    const responseB = new Promise<{ status: number; body: typeof ICP }>((resolve) => {
+      releaseB = resolve
+    })
+    let postCalls = 0
+    let meCalls = 0
+    mockApi({
+      'POST /target-icps': () => {
+        postCalls += 1
+        return postCalls === 1 ? responseA : responseB
+      },
+      'GET /me': () => {
+        meCalls += 1
+        if (meCalls === 1) return { body: CROSS_ACCOUNT_B }
+        if (meCalls === 2) {
+          return { status: 503, body: { detail: { code: 'billing_error' } } }
+        }
+        return { body: CROSS_ACCOUNT_B_READY }
+      },
+    })
+    renderApp(<OnboardingAccountSwitcher />, {
+      session: { status: 'authenticated', me: CROSS_ACCOUNT_A },
+      route: '/onboarding',
+    })
+
+    await fillTargeting(user, { label: 'Ciblage du compte A' })
+    await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
+    await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(1))
+
+    await user.click(screen.getByRole('button', { name: 'Relire le compte' }))
+    await waitFor(() => expect(screen.getByTestId('account-id')).toHaveTextContent('acc_cross_b'))
+    await fillTargeting(user, { label: 'Ciblage du compte B' })
+    const submitB = screen.getByRole('button', { name: 'Enregistrer et voir les signaux' })
+    await waitFor(() => expect(submitB).toBeEnabled())
+    await user.click(submitB)
+    await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(2))
+    expect(submitB).toBeDisabled()
+
+    await act(async () => {
+      releaseA({ status: 201, body: { ...ICP, target_icp_id: 'icp_cross_a' } })
+      await responseA
+    })
+    await waitFor(() => expect(callsTo('/me', 'GET')).toHaveLength(2))
+
+    expect(submitB).toBeDisabled()
+    expect(screen.queryByText(/^Votre ciblage a bien été enregistré/)).not.toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/onboarding')
+
+    await act(async () => {
+      releaseB({ status: 201, body: { ...ICP, target_icp_id: 'icp_cross_b' } })
+      await responseB
+    })
+    await waitFor(() => expect(callsTo('/me', 'GET')).toHaveLength(3))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/app/signals'))
+    expect(callsTo('/target-icps')).toHaveLength(2)
+  })
+
+  it('écarte le ciblage du compte A quand son refresh autoritaire retourne le compte B', async () => {
+    const user = userEvent.setup()
+    let releaseRefreshA!: (value: { body: typeof CROSS_ACCOUNT_B }) => void
+    const refreshA = new Promise<{ body: typeof CROSS_ACCOUNT_B }>((resolve) => {
+      releaseRefreshA = resolve
+    })
+    let postCalls = 0
+    let meCalls = 0
+    mockApi({
+      'POST /target-icps': () => {
+        postCalls += 1
+        return {
+          status: 201,
+          body: {
+            ...ICP,
+            target_icp_id: postCalls === 1 ? 'icp_refresh_a' : 'icp_refresh_b',
+          },
+        }
+      },
+      'GET /me': () => {
+        meCalls += 1
+        return meCalls === 1 ? refreshA : { body: CROSS_ACCOUNT_B_READY }
+      },
+    })
+    renderApp(<OnboardingAccountSwitcher />, {
+      session: { status: 'authenticated', me: { ...CROSS_ACCOUNT_A, account_id: 'acc_refresh_a' } },
+      route: '/onboarding',
+    })
+
+    await fillTargeting(user, { label: 'Ciblage avant refresh' })
+    await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
+    await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(1))
+    await waitFor(() => expect(callsTo('/me', 'GET')).toHaveLength(1))
+
+    await act(async () => {
+      releaseRefreshA({ body: { ...CROSS_ACCOUNT_B, account_id: 'acc_refresh_b' } })
+      await refreshA
+    })
+    await waitFor(() => expect(screen.getByTestId('account-id')).toHaveTextContent('acc_refresh_b'))
+    expect(screen.getByTestId('location')).toHaveTextContent('/onboarding')
+    expect(screen.queryByText(/^Votre ciblage a bien été enregistré/)).not.toBeInTheDocument()
+
+    await fillTargeting(user, { label: 'Ciblage du compte B après refresh' })
+    const submitB = screen.getByRole('button', { name: 'Enregistrer et voir les signaux' })
+    await waitFor(() => expect(submitB).toBeEnabled())
+
+    await user.click(submitB)
+
+    await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(2))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/app/signals'))
+    expect(callsTo('/target-icps')).toHaveLength(2)
+  })
+
+  it('efface tout le brouillon du compte A avant que le compte B puisse créer le sien', async () => {
+    const user = userEvent.setup()
+    const accountA = {
+      ...CROSS_ACCOUNT_A,
+      account_id: 'acc_private_draft_a',
+      account_display_name: 'Compte confidentiel A',
+    }
+    const accountB = {
+      ...CROSS_ACCOUNT_B,
+      account_id: 'acc_private_draft_b',
+      account_display_name: 'Compte privé B',
+    }
+    const accountBReady = {
+      ...accountB,
+      onboarding_status: 'ready_for_signals' as const,
+    }
+    let releaseA!: (value: { status: number; body: typeof ICP }) => void
+    const responseA = new Promise<{ status: number; body: typeof ICP }>((resolve) => {
+      releaseA = resolve
+    })
+    let postCalls = 0
+    let meCalls = 0
+    mockApi({
+      'POST /target-icps': () => {
+        postCalls += 1
+        return postCalls === 1
+          ? responseA
+          : { status: 201, body: { ...ICP, target_icp_id: 'icp_private_draft_b' } }
+      },
+      'GET /me': () => {
+        meCalls += 1
+        if (meCalls === 1) return { body: accountB }
+        if (meCalls === 2) {
+          return { status: 503, body: { detail: { code: 'billing_error' } } }
+        }
+        return { body: accountBReady }
+      },
+    })
+    renderApp(<OnboardingAccountSwitcher />, {
+      session: { status: 'authenticated', me: accountA },
+      route: '/onboarding?plan=discovery',
+    })
+
+    await fillTargeting(user, {
+      label: 'Profil strictement confidentiel A',
+      offer: 'Offre strictement confidentielle du compte A',
+      precision: 'Précision confidentielle réservée au compte A',
+    })
+    await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
+    await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(1))
+
+    await user.click(screen.getByRole('button', { name: 'Relire le compte' }))
+    await waitFor(() =>
+      expect(screen.getByTestId('account-id')).toHaveTextContent('acc_private_draft_b'),
+    )
+
+    expect(screen.getByText('Étape 1 sur 4')).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Que vendez-vous ?' })).toBeVisible()
+    expect(screen.getByLabelText('Produits et services proposés')).toHaveValue('')
+    expect(screen.getByLabelText(/Précision utile/)).toHaveValue('')
+    expect(screen.queryByText('Profil strictement confidentiel A')).not.toBeInTheDocument()
+    expect(screen.queryByText('Offre strictement confidentielle du compte A')).not.toBeInTheDocument()
+
+    await act(async () => {
+      releaseA({ status: 201, body: { ...ICP, target_icp_id: 'icp_private_draft_a' } })
+      await responseA
+    })
+    await waitFor(() => expect(callsTo('/me', 'GET')).toHaveLength(2))
+
+    expect(screen.getByText('Étape 1 sur 4')).toBeVisible()
+    expect(screen.getByLabelText('Produits et services proposés')).toHaveValue('')
+    expect(screen.queryByText(/^Votre ciblage a bien été enregistré/)).not.toBeInTheDocument()
+    expect(screen.getByTestId('location')).toHaveTextContent('/onboarding?plan=discovery')
+
+    await user.click(screen.getByRole('button', { name: 'Continuer' }))
+    expect(await screen.findByText('Décrivez ce que vous proposez pour continuer.')).toBeVisible()
+    expect(callsTo('/target-icps')).toHaveLength(1)
+
+    await fillTargeting(user, {
+      label: 'Profil propre au compte B',
+      offer: 'Offre propre au compte B',
+      precision: 'Précision propre au compte B',
+    })
+    await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
+
+    await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(2))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/app/signals'))
+    const sentByB = callsTo('/target-icps')[1].body
+    expect(sentByB).toMatchObject({
+      label: 'Profil propre au compte B',
+      customer_input: {
+        offer_summary: 'Offre propre au compte B\n\nPrécision propre au compte B',
+      },
+    })
+    expect(JSON.stringify(sentByB)).not.toContain('compte A')
+    expect(callsTo('/target-icps')).toHaveLength(2)
+  })
+
+  it('garde le reset de compte dans un layout effect pré-affichage — jsdom ne modélise pas la peinture', () => {
+    // Le scénario précédent couvre le résultat observable. Comme jsdom n'a
+    // pas de phase de peinture, ce garde-fou structurel garantit que le reset
+    // du brouillon et de l'étape reste synchrone avant le prochain affichage.
+    const source = readFileSync(
+      join(process.cwd(), 'src/reference/dashboard/OnboardingFlow.tsx'),
+      'utf8',
+    )
+
+    expect(source).toMatch(
+      /useLayoutEffect\(\(\) => \{[\s\S]*?setDraft\(initialDraft\)[\s\S]*?setStep\(0\)[\s\S]*?\}, \[currentAccountId\]\)/,
+    )
+  })
+
+  it('réconcilie la session sans rediriger ni mettre à jour la surface quittée', async () => {
+    const user = userEvent.setup()
+    let release!: (value: { status: number; body: typeof ICP }) => void
+    const response = new Promise<{ status: number; body: typeof ICP }>((resolve) => {
+      release = resolve
+    })
+    mockApi({
+      'POST /target-icps': () => response,
+      'GET /me': { body: ME },
+    })
+    renderApp(<OnboardingLeaveHarness />, {
+      session: { status: 'authenticated', me: INCOMPLETE_ME },
+      route: '/onboarding',
+    })
+
+    await fillTargeting(user)
+    await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
+    await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(1))
+    await user.click(screen.getByRole('button', { name: 'Quitter l’onboarding' }))
+
+    await act(async () => {
+      release({ status: 201, body: ICP })
+      await response
+    })
+    await waitFor(() => expect(callsTo('/me', 'GET')).toHaveLength(1))
+    expect(screen.getByTestId('location')).toHaveTextContent('/left')
+    expect(screen.getByText('Onboarding quitté')).toBeVisible()
   })
 
   it('reste sur la relecture et explique une erreur réseau avant toute création réussie', async () => {
@@ -352,11 +974,11 @@ describe('onboarding', () => {
 
     await fillTargeting(user)
     await user.click(
-      screen.getByRole('button', { name: 'Créer mon profil et voir mes signaux' }),
+      screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }),
     )
 
-    expect(await screen.findByText('Une erreur est survenue')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Vérifier votre ciblage' })).toBeInTheDocument()
+    expect(await screen.findByText(/^Une erreur est survenue/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Relire le ciblage' })).toBeInTheDocument()
     expect(callsTo('/target-icps')).toHaveLength(1)
     expect(callsTo('/me')).toHaveLength(0)
   })
@@ -383,19 +1005,51 @@ describe('onboarding', () => {
     })
 
     await fillTargeting(user)
-    await user.click(screen.getByRole('button', { name: 'Créer mon profil et voir mes signaux' }))
+    await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
 
-    expect(await screen.findByText('Limite territoriale atteinte')).toBeInTheDocument()
+    expect(await screen.findByText(/^Limite territoriale atteinte/)).toBeInTheDocument()
     expect(document.body).toHaveTextContent(
       'Votre offre autorise 1 territoire par profil. Réduisez votre sélection pour enregistrer ce ciblage.',
     )
-    expect(screen.getByRole('heading', { name: 'Vérifier votre ciblage' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Relire le ciblage' })).toBeInTheDocument()
     expect(callsTo('/target-icps')).toHaveLength(1)
     expect(callsTo('/me')).toHaveLength(0)
   })
 })
 
 describe('succès partiel — ciblage enregistré, session non relue', () => {
+  it('réutilise la création après démontage et échec de réconciliation', async () => {
+    const user = userEvent.setup()
+    let meCalls = 0
+    mockApi({
+      'POST /target-icps': { status: 201, body: ICP },
+      'GET /me': () => {
+        meCalls += 1
+        return meCalls === 1
+          ? { status: 503, body: { detail: { code: 'billing_error' } } }
+          : { body: ME }
+      },
+    })
+    renderApp(<OnboardingRemountHarness />, {
+      session: { status: 'authenticated', me: INCOMPLETE_ME },
+      route: '/onboarding',
+    })
+
+    await fillTargeting(user)
+    await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
+    expect(await screen.findByText(/^Votre ciblage a bien été enregistré/)).toBeVisible()
+    expect(callsTo('/target-icps')).toHaveLength(1)
+
+    await user.click(screen.getByRole('button', { name: 'Quitter l’onboarding' }))
+    await user.click(screen.getByRole('button', { name: 'Reprendre l’onboarding' }))
+    await fillTargeting(user)
+    await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
+
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/app/signals'))
+    expect(callsTo('/target-icps')).toHaveLength(1)
+    expect(meCalls).toBe(2)
+  })
+
   it('ne rejoue jamais le POST : le retry ne refait que la finalisation', async () => {
     const user = userEvent.setup()
     let meCalls = 0
@@ -416,13 +1070,13 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
 
     await fillTargeting(user)
     await user.click(
-      screen.getByRole('button', { name: 'Créer mon profil et voir mes signaux' }),
+      screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }),
     )
 
     // Le ciblage a bien été enregistré : le dire autrement serait faux, et
     // pousserait le client à recommencer une saisie qui existe déjà.
-    const notice = await screen.findByText('Votre ciblage a bien été enregistré')
-    expect(notice.closest('div')).toHaveTextContent(/n’a pas pu finaliser/)
+    const notice = await screen.findByText(/^Votre ciblage a bien été enregistré/)
+    expect(notice).toHaveTextContent(/n’a pas pu finaliser/)
     expect(document.body.textContent).not.toMatch(/création du ciblage a échoué/i)
     // La session tient : une panne serveur n'est pas une déconnexion.
     expect(screen.queryByRole('heading', { name: 'Se connecter' })).not.toBeInTheDocument()
@@ -476,7 +1130,7 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
     })
 
     await fillTargeting(user)
-    const submit = screen.getByRole('button', { name: 'Créer mon profil et voir mes signaux' })
+    const submit = screen.getByRole('button', { name: 'Enregistrer et voir les signaux' })
 
     // Deux clics dans le même tour de boucle, avant tout nouveau rendu.
     act(() => {
@@ -500,7 +1154,7 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
 
     expect(await screen.findByRole('heading', { name: 'Signaux' })).toBeInTheDocument()
     expect(
-      screen.queryByRole('heading', { name: 'Configurer votre profil de ciblage' }),
+      screen.queryByRole('heading', { name: 'Définir ce que Kivou doit surveiller' }),
     ).not.toBeInTheDocument()
     expect(callsTo('/target-icps')).toHaveLength(0)
   })

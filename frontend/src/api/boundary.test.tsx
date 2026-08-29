@@ -122,7 +122,9 @@ describe('frontière HTTP', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     // Plusieurs appels échouent en même temps ; un seul retour à la connexion.
-    expect(await screen.findByRole('heading', { name: 'Se connecter' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Retrouver vos signaux' }),
+    ).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText(/session a expiré/i)).toBeInTheDocument())
   })
 })

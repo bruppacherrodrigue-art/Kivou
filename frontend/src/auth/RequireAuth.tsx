@@ -2,6 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useSession } from './SessionProvider'
 import { FullPageLoader } from '../components/FullPageLoader'
 import type { Me } from '../api/types'
+import { planFromSearch, planSearch } from '../billing/planRoute'
 
 /* Les trois états de session, rendus explicitement.
  *
@@ -51,7 +52,18 @@ export function RedirectIfAuthenticated() {
   if (state.status === 'loading') return <FullPageLoader />
   if (state.status === 'authenticated') {
     const requested = (location.state as { from?: string } | null)?.from
-    const home = homeFor(state.me)
+    const selectedPlan = planFromSearch(location.search)
+    if (
+      state.me.onboarding_status === 'ready_for_signals' &&
+      location.pathname === '/signup' &&
+      selectedPlan !== 'discovery'
+    ) {
+      return <Navigate to={`/app/billing${planSearch(selectedPlan)}`} replace />
+    }
+    const home =
+      state.me.onboarding_status !== 'ready_for_signals' && location.pathname === '/signup'
+        ? `/onboarding${planSearch(selectedPlan)}`
+        : homeFor(state.me)
     const destination =
       state.me.onboarding_status === 'ready_for_signals' ? (requested ?? home) : home
     return <Navigate to={destination} replace />
