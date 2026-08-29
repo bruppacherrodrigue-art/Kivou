@@ -46,7 +46,7 @@ class FounderApiConfig:
         object.__setattr__(self, "hostname", hostname)
 
     @classmethod
-    def from_environment(cls) -> "FounderApiConfig":
+    def from_environment(cls) -> FounderApiConfig:
         allowed_email = (os.environ.get(FOUNDER_ALLOWED_EMAIL_ENV) or "").strip()
         origin_secret = os.environ.get(FOUNDER_ORIGIN_SECRET_ENV) or ""
         hostname = os.environ.get(FOUNDER_HOSTNAME_ENV) or DEFAULT_FOUNDER_HOSTNAME
