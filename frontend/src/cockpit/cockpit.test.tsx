@@ -11,15 +11,20 @@ const OPERATOR = {
 }
 
 describe('séparation du Founder Console', () => {
-  it.each([
-    ['client', AUTHENTICATED],
-    ['ancien opérateur interne', OPERATOR],
-  ])('ne sert plus le cockpit dans le SaaS pour %s', (_label, session) => {
-    mockApi({})
-    renderApp(<AppRoutes />, { session, route: '/app/internal/cockpit' })
+  it('ne sert plus le cockpit à un client du SaaS', () => {
+    assertCockpitAbsent(AUTHENTICATED)
+  })
 
-    expect(screen.queryByRole('link', { name: 'Cockpit commercial' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Cockpit commercial' })).not.toBeInTheDocument()
-    expect(callsTo('/internal/commercial-cockpit', 'GET')).toHaveLength(0)
+  it('ne sert plus le cockpit à un ancien opérateur interne', () => {
+    assertCockpitAbsent(OPERATOR)
   })
 })
+
+function assertCockpitAbsent(session: typeof AUTHENTICATED): void {
+  mockApi({})
+  renderApp(<AppRoutes />, { session, route: '/app/internal/cockpit' })
+
+  expect(screen.queryByRole('link', { name: 'Cockpit commercial' })).not.toBeInTheDocument()
+  expect(screen.queryByRole('heading', { name: 'Cockpit commercial' })).not.toBeInTheDocument()
+  expect(callsTo('/internal/commercial-cockpit', 'GET')).toHaveLength(0)
+}
