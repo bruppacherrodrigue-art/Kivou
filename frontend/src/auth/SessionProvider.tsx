@@ -25,6 +25,7 @@ interface SessionValue {
   /** Remplace l'utilisateur courant sans aller-retour réseau — le corps de
    *  réponse de `/auth/login` et `/auth/signup` EST un `MeResponse`. */
   adopt: (me: Me) => void
+  updateLocale: (locale: Locale) => Promise<void>
   signOut: () => Promise<void>
 }
 
@@ -44,6 +45,8 @@ export function SessionProvider({
    * d'identité à chaque rendu : `refresh` est passé aux consommateurs et
    * figure dans des dépendances d'effet. */
   const latest = useRef(state)
+  const sessionEpoch = useRef(0)
+  const localeRequestId = useRef(0)
 
   useEffect(() => {
     latest.current = state
@@ -84,6 +87,7 @@ export function SessionProvider({
       if (!rejected && latest.current.status === 'authenticated') {
         throw error
       }
+      if (rejected) sessionEpoch.current += 1
       setState({ status: 'unauthenticated', me: null, expired: false })
       // Un échec réseau n'est pas une session expirée : ne pas le dire.
       if (!rejected && !(error instanceof ApiError)) throw error
@@ -93,10 +97,25 @@ export function SessionProvider({
   }, [])
 
   const adopt = useCallback((me: Me) => {
+    sessionEpoch.current += 1
     setState({ status: 'authenticated', me })
   }, [])
 
+  const updateLocale = useCallback(async (locale: Locale) => {
+    const epoch = sessionEpoch.current
+    const requestId = ++localeRequestId.current
+    const me = await auth.updateLocale(locale)
+    if (
+      mounted.current &&
+      sessionEpoch.current === epoch &&
+      localeRequestId.current === requestId
+    ) {
+      setState({ status: 'authenticated', me })
+    }
+  }, [])
+
   const signOut = useCallback(async () => {
+    sessionEpoch.current += 1
     try {
       await auth.logout()
     } catch {
@@ -120,6 +139,7 @@ export function SessionProvider({
     () =>
       onUnauthenticated(() => {
         if (!mounted.current) return
+        if (latest.current.status === 'authenticated') sessionEpoch.current += 1
         setState((current) =>
           current.status === 'authenticated'
             ? { status: 'unauthenticated', me: null, expired: true }
@@ -130,8 +150,8 @@ export function SessionProvider({
   )
 
   const value = useMemo<SessionValue>(
-    () => ({ state, refresh, adopt, signOut }),
-    [state, refresh, adopt, signOut],
+    () => ({ state, refresh, adopt, updateLocale, signOut }),
+    [state, refresh, adopt, updateLocale, signOut],
   )
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>

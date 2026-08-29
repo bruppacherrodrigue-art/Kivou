@@ -33,6 +33,9 @@ import type {
 export const auth = {
   me: () => request<Me>('/me', { silentUnauthenticated: true }),
 
+  updateLocale: (locale: Locale) =>
+    request<Me>('/me', { method: 'PATCH', body: { locale } }),
+
   signup: (payload: {
     email: string
     password: string
