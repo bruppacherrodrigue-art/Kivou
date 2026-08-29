@@ -59,12 +59,14 @@ Les contrats actuels restent autoritaires :
 - `/billing/status`, `/billing/plans`, `/billing/checkout` et
   `/billing/portal` pour les offres et Stripe ;
 - `/notification-preferences` pour les alertes ;
-- les points d'entrée existants de note, pertinence et contact restent
-  inchangés côté backend.
+- les points d'entrée existants de pertinence et de contact restent inchangés
+  côté backend.
 
 Le matching, l'authentification, Stripe, les permissions, le paywall, Apollo,
 Instantly, Hermes, les migrations métier et la production ne sont pas modifiés
-par le port visuel.
+par le port visuel. Une migration technique additive crée uniquement le
+stockage privé des notes de signal décrit ci-dessous ; elle ne modifie aucune
+table ni donnée du moteur.
 
 ## Langue
 
@@ -159,6 +161,26 @@ les faits et la source affichés, et les anciens points d'entrée backend resten
 compatibles, mais aucun panneau de preuve ou de pertinence supplémentaire ne
 peut réapparaître sans approbation explicite d'une différence visuelle.
 
+La vérification préparatoire a établi que `signal_feedback.note` ne peut pas
+porter seul cette note : la même ligne exige un jugement `relevance` non nul.
+Utiliser cette table fabriquerait donc un avis « pertinent » lorsque le client
+écrit seulement une note. La note de la maquette devient une ressource séparée :
+
+- `GET /signals/{signal_key}/note` lit la note privée du compte ;
+- `PUT /signals/{signal_key}/note` accepte uniquement une chaîne de 0 à 500
+  caractères, une chaîne vide supprimant l'état courant ;
+- une table additive `signal_note`, clé primaire `(account_id, signal_key)`,
+  stocke la note et ses horodatages ;
+- les deux routes réutilisent exactement la vérification d'accès du détail :
+  un autre compte reçoit 404 et un signal verrouillé reçoit 403 ;
+- l'écriture exige une session et la protection d'origine existantes ;
+- aucune pertinence, aucun événement analytique, aucun score, aucun matching et
+  aucun fait de signal ne sont créés ou modifiés.
+
+La migration est testée en montée et en retour sur une base jetable. Sur le
+staging, elle n'est appliquée qu'après sauvegarde vérifiée, depuis le SHA exact
+fusionné sur `main`. Elle n'autorise aucune mutation de production.
+
 ## États honnêtes
 
 Chaque ressource conserve son chargement, son erreur et sa relance locale. Une
@@ -180,6 +202,8 @@ actuelle et aucune donnée de démonstration ne sert de repli silencieux.
 - tests fail-closed des signaux verrouillés et des entreprises ;
 - tests des actions Stripe et notification sans mutation réelle en CI ;
 - tests de la préférence de langue et de sa relecture de session ;
+- tests de lecture, écriture, suppression, isolation et contrôle d'accès des
+  notes sans ligne de feedback ni événement analytique ;
 - tests frontend et backend complets, build, typecheck et lint.
 
 ### Régression visuelle
@@ -191,25 +215,39 @@ même Chromium, aux largeurs 1440 px et 390 px. Les pages critiques couvrent au
 minimum :
 
 - accueil public, produit, tarifs et exemple de signal ;
+- contact, informations légales, connexion et inscription ;
 - vue d'ensemble, workspace signal, entreprises, ciblage et compte ;
-- shell, navigation ouverte et états verrouillé/vide/erreur.
+- shell et navigations mobiles ouvertes.
 
 Le seuil ne permet aucune différence structurelle ou de composant. Les zones
-de texte variables sont alimentées par des fixtures équivalentes pour rendre
-la comparaison stable. Le ratio de pixels différents est limité à 0,1 %,
+publiques restent non masquées et les valeurs de prix sont alimentées par une
+fixture API équivalente. Les captures connectées normalisent le texte de la
+maquette et du port avec le même contenu avant comparaison : la référence parle
+de démonstration, tandis que Kivou doit afficher les valeurs réelles. Les tests
+unitaires vérifient séparément le texte non normalisé et les captures staging
+vérifient son repli réel. Le ratio de pixels différents est limité à 0,1 %,
 réservé à l'anticrénelage du navigateur ; les boîtes de mise en page, les
 polices, les couleurs, les espacements et les breakpoints doivent être exacts.
-Toute autre différence doit être explicitement documentée et approuvée avant
-fusion.
+
+Les fallbacks globaux `loading.tsx`, `error.tsx` et `SystemState` de la maquette
+ne sont pas utilisés comme goldens des erreurs de ressource connectées : ils
+remplacent toute la page, alors que Kivou doit garder le shell et les autres
+ressources réelles visibles. Les états verrouillé, vide, chargement et erreur
+sont donc protégés par des tests de classes, de géométrie, de confidentialité,
+de relance locale et par l'inspection navigateur staging non masquée. Les
+comparer au fallback pleine page forcerait une régression fonctionnelle. Toute
+autre différence doit être explicitement documentée et approuvée avant fusion.
 
 ### Staging
 
 Après CI verte et fusion :
 
 1. construire le frontend depuis le SHA exact de `main` ;
-2. publier une nouvelle release frontend atomique sur le staging seulement ;
-3. vérifier le SHA servi et conserver le backend existant sauf nécessité
-   stricte liée à la locale ;
+2. prendre une sauvegarde staging vérifiée, préparer la release backend du SHA
+   exact, tester et appliquer la migration additive, puis publier le backend
+   atomiquement ;
+3. publier une nouvelle release frontend atomique issue du même SHA et vérifier
+   les deux cibles servies ;
 4. contrôler directement toutes les routes publiques et connectées, en desktop
    et mobile, avec la session de test ;
 5. comparer les captures staging aux références ;
