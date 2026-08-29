@@ -132,6 +132,9 @@ function ConnectedShell({
   const { openMobile, setOpenMobile } = useSidebar()
   const mobileTrigger = useRef<HTMLButtonElement>(null)
   const mobileWasOpen = useRef(openMobile)
+  const closeMobileNavigation = useCallback(() => {
+    setOpenMobile(false)
+  }, [setOpenMobile])
   const labels = {
     overview: t.reference.overview,
     signals: t.reference.signals,
@@ -153,13 +156,20 @@ function ConnectedShell({
 
   return (
     <>
-      <Sidebar collapsible="offcanvas" className="kivou-sidebar">
+      <Sidebar
+        collapsible="offcanvas"
+        className="kivou-sidebar"
+        mobileTitle={t.reference.navigation}
+        mobileDescription={t.reference.navigationDescription}
+        mobileCloseLabel={t.reference.closeNavigation}
+      >
         <SidebarHeader className="sidebar-head">
           <ReferenceLink
             dashboard
             className="sidebar-brand"
             href="/"
             aria-label={t.reference.brandOverview}
+            onClick={closeMobileNavigation}
           >
             <KivouBrand subtitle={t.reference.brandSubtitle} />
           </ReferenceLink>
@@ -186,6 +196,7 @@ function ConnectedShell({
                           dashboard
                           href={href}
                           aria-current={active ? 'page' : undefined}
+                          onClick={closeMobileNavigation}
                         >
                           <Icon aria-hidden="true" />
                           <span>{labels[id]}</span>
@@ -205,6 +216,7 @@ function ConnectedShell({
             className="demo-account"
             href="/settings"
             aria-label={t.reference.openAccountSettings}
+            onClick={closeMobileNavigation}
           >
             <span className="account-avatar">{accountInitials}</span>
             <div>
@@ -258,6 +270,7 @@ function ConnectedShell({
                   dashboard
                   href="/targeting"
                   aria-label={t.reference.openTargetProfile}
+                  onClick={closeMobileNavigation}
                 >
                   <span>{t.reference.targetingShort}</span>
                   <strong>{profileLabel}</strong>

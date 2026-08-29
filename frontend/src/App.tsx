@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { I18nProvider, useI18n } from './i18n'
 import { SessionProvider, accountLocale, useSession } from './auth/SessionProvider'
 import { RedirectIfAuthenticated, RequireAuth } from './auth/RequireAuth'
@@ -59,9 +59,8 @@ export function App() {
  * repartirait d'un appel réseau à `/me`. */
 export function AppRoutes() {
   return (
-    <>
-      <LocaleFollowsAccount />
-      <Routes>
+    <Routes>
+      <Route element={<RouteLocaleBoundary connected={false} />}>
         <Route element={<PublicLayout />}>
           <Route index element={<Landing />} />
           <Route path="produit" element={<Product />} />
@@ -89,7 +88,11 @@ export function AppRoutes() {
 
           <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="reset-password" element={<ResetPassword />} />
+        </Route>
+      </Route>
 
+      <Route element={<RouteLocaleBoundary connected />}>
+        <Route element={<DashboardSurface />}>
           <Route element={<RequireAuth />}>
             <Route path="onboarding" element={<Onboarding />} />
             <Route path="checkout" element={<Checkout />} />
@@ -115,8 +118,8 @@ export function AppRoutes() {
             <Route path="billing" element={<Navigate to="/app/billing" replace />} />
           </Route>
         </Route>
-      </Routes>
-    </>
+      </Route>
+    </Routes>
   )
 }
 
@@ -128,30 +131,12 @@ function DashboardSurface() {
   )
 }
 
-const PUBLIC_PATHS = new Set([
-  '/',
-  '/produit',
-  '/tarifs',
-  '/exemple-de-signal',
-  '/contact',
-  '/informations-legales',
-  '/mentions-legales',
-  '/confidentialite',
-  '/cgu',
-  '/login',
-  '/signup',
-  '/forgot-password',
-  '/reset-password',
-])
-
 /** Une fois connecté, `account.locale` fait autorité — l'API renvoie déjà ses
  *  libellés dans cette langue, et laisser l'interface en choisir une autre
  *  ferait cohabiter deux langues sur le même écran. */
-function LocaleFollowsAccount() {
-  const { pathname } = useLocation()
+function RouteLocaleBoundary({ connected }: { connected: boolean }) {
   const { state } = useSession()
   const { locale, setLocale } = useI18n()
-  const connected = !PUBLIC_PATHS.has(pathname)
   const wanted =
     connected && state.status === 'authenticated'
       ? accountLocale(state.me) ?? 'fr'
@@ -162,5 +147,5 @@ function LocaleFollowsAccount() {
     else document.documentElement.lang = wanted
   }, [wanted, locale, setLocale])
 
-  return null
+  return <Outlet />
 }

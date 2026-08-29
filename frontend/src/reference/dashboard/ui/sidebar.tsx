@@ -155,6 +155,9 @@ function Sidebar({
   side = "left",
   variant = "sidebar",
   collapsible = "offcanvas",
+  mobileTitle,
+  mobileDescription,
+  mobileCloseLabel,
   className,
   children,
   ...props
@@ -162,6 +165,9 @@ function Sidebar({
   side?: "left" | "right"
   variant?: "sidebar" | "floating" | "inset"
   collapsible?: "offcanvas" | "icon" | "none"
+  mobileTitle: string
+  mobileDescription: string
+  mobileCloseLabel: string
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar()
 
@@ -194,10 +200,11 @@ function Sidebar({
             } as React.CSSProperties
           }
           side={side}
+          closeLabel={mobileCloseLabel}
         >
           <SheetHeader className="sr-only">
-            <SheetTitle>Navigation</SheetTitle>
-            <SheetDescription>Menu principal de Kivou.</SheetDescription>
+            <SheetTitle>{mobileTitle}</SheetTitle>
+            <SheetDescription>{mobileDescription}</SheetDescription>
           </SheetHeader>
           <div className="flex h-full w-full flex-col">{children}</div>
         </SheetContent>

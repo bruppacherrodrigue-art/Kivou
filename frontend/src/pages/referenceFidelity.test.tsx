@@ -25,14 +25,33 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-function renderSignalsShell() {
+function renderSignalsShell(
+  session = AUTHENTICATED,
+  locale: 'fr' | 'en' = 'fr',
+) {
   mockApi({
     'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
     'GET /signals/sig_unlocked_1': { body: UNLOCKED_DETAIL },
     'GET /billing/status': { body: DISCOVERY_STATUS },
     'GET /target-icps': { body: [ICP] },
   })
-  return renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
+  return renderApp(<AppRoutes />, { route: '/app/signals', session, locale })
+}
+
+function renderConnectedShellAt(route: string) {
+  mockApi({
+    'GET /signals': { body: feedPage([]) },
+    'GET /billing/status': { body: DISCOVERY_STATUS },
+    'GET /target-icps': { body: [ICP] },
+    'GET /notification-preferences': {
+      body: {
+        email_enabled: false,
+        notification_email: null,
+        updated_at: '2026-08-29T09:00:00+00:00',
+      },
+    },
+  })
+  return renderApp(<AppRoutes />, { route, session: AUTHENTICATED })
 }
 
 function stubMobileMedia() {
@@ -275,6 +294,26 @@ describe('fidélité au shell dashboard approuvé', () => {
     expect(drawerToggle).toHaveFocus()
   })
 
+  it('localise le nom, la description et la fermeture du drawer en anglais', async () => {
+    const user = userEvent.setup()
+    stubMobileMedia()
+    renderSignalsShell(
+      {
+        status: 'authenticated',
+        me: { ...ME, locale: 'en' },
+      },
+      'fr',
+    )
+    await screen.findByRole('heading', { level: 1, name: 'Signals' })
+
+    await user.click(screen.getByRole('button', { name: 'Open navigation' }))
+
+    const drawer = screen.getByRole('dialog', { name: 'Navigation' })
+    expect(drawer).toHaveAccessibleDescription('Kivou main menu.')
+    expect(within(drawer).getByRole('button', { name: 'Close' })).toBeVisible()
+    expect(within(drawer).queryByRole('button', { name: 'Fermer' })).not.toBeInTheDocument()
+  })
+
   it('confine Tab et Maj+Tab aux contrôles du drawer', async () => {
     const user = userEvent.setup()
     stubMobileMedia()
@@ -339,6 +378,41 @@ describe('fidélité au shell dashboard approuvé', () => {
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
+
+  it('ferme le drawer quand la destination de navigation choisie est déjà active', async () => {
+    const user = userEvent.setup()
+    stubMobileMedia()
+    renderSignalsShell()
+    await screen.findByRole('heading', { level: 1, name: 'Signaux' })
+    const drawerToggle = screen.getByRole('button', { name: 'Ouvrir la navigation' })
+    await user.click(drawerToggle)
+
+    const drawer = screen.getByRole('dialog', { name: 'Navigation' })
+    await user.click(within(drawer).getByRole('link', { name: 'Signaux' }))
+
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(drawerToggle).toHaveFocus()
+  })
+
+  it.each([
+    ['/app/dashboard', 'Kivou, vue d’ensemble'],
+    ['/app/settings', 'Ouvrir les paramètres du compte'],
+  ] as const)(
+    'ferme le drawer depuis %s quand son lien structurel pointe déjà sur la page',
+    async (route, linkName) => {
+      const user = userEvent.setup()
+      stubMobileMedia()
+      renderConnectedShellAt(route)
+      const drawerToggle = await screen.findByRole('button', { name: 'Ouvrir la navigation' })
+      await user.click(drawerToggle)
+
+      const drawer = screen.getByRole('dialog', { name: 'Navigation' })
+      await user.click(within(drawer).getByRole('link', { name: linkName }))
+
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(drawerToggle).toHaveFocus()
+    },
+  )
 
   it('ferme le drawer au passage sur le rail desktop et libère son écouteur', async () => {
     const user = userEvent.setup()

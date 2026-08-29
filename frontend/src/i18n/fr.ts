@@ -51,6 +51,8 @@ export const fr = {
     targeting: 'Profil de ciblage',
     account: 'Compte',
     navigation: 'Navigation',
+    navigationDescription: 'Menu principal de Kivou.',
+    closeNavigation: 'Fermer',
     brandSubtitle: 'Signaux commerciaux',
     brandOverview: 'Kivou, vue d’ensemble',
     monitoring: 'Veille des marchés attribués',

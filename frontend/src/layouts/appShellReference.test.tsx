@@ -3,6 +3,7 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import { useSession } from '../auth/SessionProvider'
+import { useI18n } from '../i18n'
 import {
   AUTHENTICATED,
   DISCOVERY_STATUS,
@@ -115,6 +116,100 @@ describe('shell connecté exact de la référence', () => {
     expect(screen.getByRole('link', { name: 'Account' })).toBeVisible()
     expect(document.documentElement.lang).toBe('en')
   })
+
+  it('laisse /produit/ en français avec une session anglaise', async () => {
+    stubDesktopMedia()
+    mockConnectedApi()
+    const englishSession = {
+      status: 'authenticated' as const,
+      me: { ...ME, locale: 'en' as const },
+    }
+
+    renderApp(
+      <>
+        <AppRoutes />
+        <LocaleProbe />
+      </>,
+      {
+        route: '/produit/',
+        session: englishSession,
+        locale: 'en',
+      },
+    )
+
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: 'Kivou suit ce qui se passe après l’attribution.',
+      }),
+    ).toBeVisible()
+    expect(screen.getByTestId('active-locale')).toHaveTextContent('fr')
+    await waitFor(() => expect(document.documentElement.lang).toBe('fr'))
+  })
+
+  it.each(['/adresse-publique-inconnue', '/app/inconnu'])(
+    'échoue en français sur la route publique inconnue %s avec une session anglaise',
+    async (route) => {
+      stubDesktopMedia()
+      const englishSession = {
+        status: 'authenticated' as const,
+        me: { ...ME, locale: 'en' as const },
+      }
+
+      renderApp(<AppRoutes />, {
+        route,
+        session: englishSession,
+        locale: 'en',
+      })
+
+      expect(
+        await screen.findByRole('heading', { name: 'Page introuvable' }),
+      ).toBeVisible()
+      expect(screen.queryByText('Page not found')).not.toBeInTheDocument()
+      await waitFor(() => expect(document.documentElement.lang).toBe('fr'))
+    },
+  )
+
+  it.each([
+    ['/onboarding', 'account_created'],
+    ['/checkout?plan=essential', 'ready_for_signals'],
+  ] as const)(
+    'applique la locale du compte à la route connectée %s',
+    async (route, onboardingStatus) => {
+      stubDesktopMedia()
+      mockApi({
+        'GET /billing/plans': {
+          body: {
+            catalogue_version: 'test',
+            billing_interval: 'month',
+            currencies: [],
+            plans: [],
+          },
+        },
+      })
+      const englishSession = {
+        status: 'authenticated' as const,
+        me: {
+          ...ME,
+          locale: 'en' as const,
+          onboarding_status: onboardingStatus,
+        },
+      }
+
+      renderApp(
+        <>
+          <AppRoutes />
+          <LocaleProbe />
+        </>,
+        { route, session: englishSession, locale: 'fr' },
+      )
+
+      await waitFor(() => {
+        expect(screen.getByTestId('active-locale')).toHaveTextContent('en')
+        expect(document.documentElement.lang).toBe('en')
+      })
+    },
+  )
 
   it('réinitialise les ressources avant d’afficher un autre compte', async () => {
     const user = userEvent.setup()
@@ -270,6 +365,11 @@ function AccountSwitcher({ account }: { account: typeof ME }) {
       Passer au compte B
     </button>
   )
+}
+
+function LocaleProbe() {
+  const { locale } = useI18n()
+  return <output data-testid="active-locale">{locale}</output>
 }
 
 function mockConnectedApi() {

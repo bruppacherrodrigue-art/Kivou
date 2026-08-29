@@ -45,6 +45,8 @@ export const en: Dictionary = {
     targeting: 'Target profile',
     account: 'Account',
     navigation: 'Navigation',
+    navigationDescription: 'Kivou main menu.',
+    closeNavigation: 'Close',
     brandSubtitle: 'Commercial signals',
     brandOverview: 'Kivou, overview',
     monitoring: 'Awarded contract monitoring',
