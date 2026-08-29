@@ -303,6 +303,9 @@ function connectedLocation(
   if (pathname.startsWith('/app/icps')) {
     return { active: 'target', title: t.reference.targeting }
   }
+  if (pathname.startsWith('/app/billing')) {
+    return { active: 'settings', title: t.billing.title }
+  }
   return { active: 'settings', title: t.reference.account }
 }
 

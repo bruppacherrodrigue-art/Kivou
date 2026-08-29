@@ -46,7 +46,10 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       amount: UNLOCKED_ITEM.contract.amount,
       location: UNLOCKED_ITEM.contract.location,
       eventDate: UNLOCKED_ITEM.event.date,
+      awardDate: UNLOCKED_ITEM.contract.dates.award,
       matchLabel: UNLOCKED_ITEM.analysis.fit.label,
+      matchReasons: UNLOCKED_ITEM.analysis.fit.reasons,
+      sourceSystem: UNLOCKED_ITEM.source.system,
       whyNow: UNLOCKED_ITEM.event.why_now,
     })
   })
@@ -62,7 +65,10 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       amount: null,
       location: null,
       eventDate: locked.event.date,
+      awardDate: null,
       matchLabel: null,
+      matchReasons: [],
+      sourceSystem: null,
       whyNow: locked.event.why_now,
     })
   })
@@ -77,7 +83,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     expectNoReferenceOnlyCopy(toSignalCards(feed))
   })
 
-  it('mappe le détail et les extraits publiés verbatim, avec null pour les absences', () => {
+  it('mappe le détail sans requalifier les faits publiés en périmètre', () => {
     const detail: UnlockedDetail = UNLOCKED_DETAIL
     const view = toSignalDetailView(detail)
 
@@ -86,6 +92,10 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       title: detail.contract.title,
       companyName: detail.company.name,
       companyKey: detail.company_key ?? null,
+      companyCountry: detail.company.country,
+      companyIdentifier: detail.company.identifier,
+      targetProfileLabel: detail.analysis.fit.target_icp_label,
+      sourceSystem: detail.source.system,
       summary: detail.analysis.contract_reading?.summary ?? null,
       brief: {
         whyNow: detail.event.why_now,
@@ -95,25 +105,39 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       },
       facts: {
         amount: detail.contract.amount,
-        concludedAt: detail.contract.dates.award,
+        awardDate: detail.contract.dates.award,
         execution: null,
         buyer: detail.contract.buyer?.name ?? null,
         notice: detail.source.notice_id,
         cpv: detail.contract.cpv,
         sourceUrl: detail.source.url,
       },
-      scope: [
-        {
-          value: detail.evidence.public_facts[0].items[0].excerpt!,
-          label: detail.evidence.public_facts[0].label,
-        },
-      ],
+      scope: [],
       questions: [],
     })
     expect(view.facts.sourceUrl).toBe(UNLOCKED_DETAIL.source.url)
     expect(view.brief.whyNow).toBe(UNLOCKED_DETAIL.event.why_now)
     expectNoReferenceOnlyCopy(view)
   })
+
+  it.each(['award_winner', 'amount', 'award_date', 'procedure_buyers'])(
+    'ne transforme jamais le fait public %s en périmètre publié',
+    (fact) => {
+      const detail: UnlockedDetail = {
+        ...UNLOCKED_DETAIL,
+        evidence: {
+          ...UNLOCKED_DETAIL.evidence,
+          public_facts: [{
+            fact,
+            label: `Libellé ${fact}`,
+            items: UNLOCKED_DETAIL.evidence.public_facts[0].items,
+          }],
+        },
+      }
+
+      expect(toSignalDetailView(detail).scope).toEqual([])
+    },
+  )
 
   it('présente le ciblage, la facturation et l’entreprise sans valeurs de maquette', () => {
     const target: TargetIcp = ICP

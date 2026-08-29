@@ -99,7 +99,7 @@ export const en: Dictionary = {
       targetCompanies: 'Target companies',
       territory: 'Territory',
       amount: 'Total contract amount',
-      concludedAt: 'Contract concluded',
+      awardDate: 'Award date',
       execution: 'Execution period',
       buyer: 'Public buyer',
       whyNow: 'Why now',
@@ -119,6 +119,8 @@ export const en: Dictionary = {
       currency: 'Currency',
       observedEvent: 'Observed event',
       company: 'Company',
+      country: 'Country',
+      identifier: 'Published identifier',
       professionalEmail: 'Work email',
       language: 'Language',
       timezone: 'Time zone',
@@ -152,6 +154,7 @@ export const en: Dictionary = {
       retryBilling: 'Try loading the plan again',
       saveError: 'The changes could not be saved.',
       noteError: 'The note could not be saved.',
+      noteLoadError: 'The note could not be loaded.',
       empty: 'No published data.',
     },
     plans: {
@@ -159,6 +162,70 @@ export const en: Dictionary = {
       essential: 'Essential',
       pro: 'Pro',
       scale: 'Scale',
+    },
+    overviewPage: {
+      documentedAwardOne: '{count} documented award',
+      documentedAwardOther: '{count} documented awards',
+      lead:
+        'Each signal separates published facts from what still needs checking before contacting a company.',
+      reviewFirst: 'Review first',
+      publishedAward: 'Published award',
+      publishedOn: 'Award published on {source}',
+      whyFirst: 'Why it appears first',
+      honestyLimit:
+        'The public notice documents the contract without proving that a supplier purchase remains open.',
+      reviewSignal: 'Review signal',
+      marketOne: '{count} contract to review',
+      marketOther: '{count} contracts to review',
+      publicSources: 'Public sources',
+      seeSignals: 'View all signals',
+      seeProfile: 'View profile',
+      paidAccessRequired: 'Paid access required',
+      noAccessibleSignal: 'No accessible signal for now',
+      noAccessibleSignalBody:
+        'Locked items stay protected until the backend grants access to them.',
+      noAccessibleSignalLimit:
+        'The Billing page shows only the action authorised for your account.',
+      realAccess: 'Real access',
+      noActiveProfile: 'No active profile is published.',
+    },
+    signalsPage: {
+      documentedAwards: 'Documented awards',
+      accessibleWith: 'Available with {plan}',
+      paidAccessRequired: 'Paid access required',
+      publishedOn: 'Award published on {source}',
+      dataNotice:
+        'The real data below comes from published information and Kivou APIs.',
+      summaryQualification:
+        'Kivou compares these facts with the target profile without presenting a purchasing hypothesis as certain.',
+      targetProfile: 'Profile: {profile}',
+      noticeReference: '{source} notice {notice}',
+      eventDate: 'Event date: {date}',
+      contractConcluded: 'Contract concluded on {date}',
+      lockedReason:
+        'Your current access keeps this preview without revealing protected data.',
+      commercialBrief: 'Commercial brief',
+      publishedFacts: 'Published facts',
+      noEnrichedContact: 'No enriched name or contact is displayed.',
+      totalAmountLimit:
+        'The displayed amount is the total public contract value. It is not an available supplier budget.',
+      openNotice: 'Open notice',
+      toConfirm: 'To confirm',
+      verificationLimit:
+        'Published facts do not confirm that a supplier purchase remains open.',
+      contractHolder: 'Contract holder',
+      viewCompany: 'View company',
+      yourSpace: 'Your workspace',
+      privateNote: 'Private account note',
+      notePlaceholder:
+        'E.g. Check whether supplies still need sourcing and identify the purchasing role.',
+      noteHelp:
+        'The note is saved automatically for this account. It changes neither facts nor matching.',
+      signalUnavailable: 'Signal unavailable in this reading',
+      chooseSignal: 'Select a documented signal.',
+      loadMore: 'Load more signals',
+      retryMore: 'Try loading the next page again',
+      empty: 'No award matches this reading.',
     },
   },
 

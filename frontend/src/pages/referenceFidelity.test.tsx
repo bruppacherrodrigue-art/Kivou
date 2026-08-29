@@ -32,6 +32,9 @@ function renderSignalsShell(
   mockApi({
     'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
     'GET /signals/sig_unlocked_1': { body: UNLOCKED_DETAIL },
+    'GET /signals/sig_unlocked_1/note': {
+      body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
+    },
     'GET /billing/status': { body: DISCOVERY_STATUS },
     'GET /target-icps': { body: [ICP] },
   })
@@ -244,14 +247,17 @@ describe('fidélité au shell dashboard approuvé', () => {
   })
 
   it.each([
-    ['fr', 'Signaux', 'Détail du signal sélectionné'],
-    ['en', 'Signals', 'Selected signal details'],
+    ['fr', 'Signaux'],
+    ['en', 'Signals'],
   ] as const)(
     'conserve le titre et les landmarks du workspace en %s',
-    async (locale, title, detailLabel) => {
+    async (locale, title) => {
       mockApi({
         'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
         'GET /signals/sig_unlocked_1': { body: UNLOCKED_DETAIL },
+        'GET /signals/sig_unlocked_1/note': {
+          body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
+        },
         'GET /billing/status': { body: DISCOVERY_STATUS },
         'GET /target-icps': { body: [ICP] },
       })
@@ -266,7 +272,9 @@ describe('fidélité au shell dashboard approuvé', () => {
       })
 
       expect(await screen.findByRole('heading', { level: 1, name: title })).toBeInTheDocument()
-      expect(screen.getByRole('region', { name: detailLabel })).toBeInTheDocument()
+      expect(
+        await screen.findByRole('region', { name: UNLOCKED_ITEM.contract.title! }),
+      ).toBeInTheDocument()
       expect(container.querySelectorAll('main')).toHaveLength(1)
       expect(container.querySelectorAll('h1')).toHaveLength(1)
     },
@@ -434,14 +442,14 @@ describe('fidélité au shell dashboard approuvé', () => {
     const { container } = renderSignalsShell()
 
     await user.click(
-      await screen.findByRole('link', {
-        name: /^Constructions Bertrand SA — Réfection de la voirie communale/,
+      await screen.findByRole('button', {
+        name: /Constructions Bertrand SA.*Réfection de la voirie communale/s,
       }),
     )
     expect(
-      await screen.findByRole('region', { name: 'Détail du signal sélectionné' }),
+      await screen.findByRole('region', { name: UNLOCKED_ITEM.contract.title! }),
     ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Retour à la liste' })).toBeInTheDocument()
+    expect(document.querySelector('.workspace-grid .feed-panel + .detail-panel')).not.toBeNull()
     expect(container.querySelectorAll('main')).toHaveLength(1)
     expect(container.querySelectorAll('h1')).toHaveLength(1)
   })

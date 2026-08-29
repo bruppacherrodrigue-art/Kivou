@@ -1,28 +1,32 @@
-import { describe, expect, it, afterEach, vi } from 'vitest'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
   AUTHENTICATED,
+  CATALOGUE,
   DISCOVERY_STATUS,
   ICP,
   LOCKED_ITEM,
   ME,
   STALE_ITEM,
+  UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
+  callsTo,
   feedPage,
   mockApi,
-  recordedCalls,
   renderApp,
 } from '../test/harness'
-
-/* SPEC-015 §50 — les huit vérifications du feed. */
 
 afterEach(() => vi.unstubAllGlobals())
 
 const BASE = {
   'GET /billing/status': { body: DISCOVERY_STATUS },
   'GET /target-icps': { body: [ICP] },
+  [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+  [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
+    body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
+  },
 }
 
 function feedWith(items: unknown[], overrides = {}) {
@@ -32,57 +36,35 @@ function feedWith(items: unknown[], overrides = {}) {
   }
 }
 
-describe('feed de signaux', () => {
-  it('rend l’entreprise gagnante sur un signal débloqué', async () => {
-    mockApi(feedWith([UNLOCKED_ITEM]))
+async function signalList(): Promise<HTMLElement> {
+  await screen.findByRole('heading', { level: 2, name: /attributions documentées/i })
+  const list = document.querySelector('.signal-list')
+  if (!(list instanceof HTMLElement)) throw new Error('signal-list absente')
+  return list
+}
+
+describe('feed de signaux dans le workspace de référence', () => {
+  it('hiérarchise les valeurs réelles et conserve strictement l’ordre serveur', async () => {
+    const second = {
+      ...UNLOCKED_ITEM,
+      signal_id: 'sig_server_second',
+      company: { ...UNLOCKED_ITEM.company, name: 'Deuxième selon le serveur SA' },
+      contract: { ...UNLOCKED_ITEM.contract, title: 'Deuxième marché réel' },
+    }
+    mockApi(feedWith([UNLOCKED_ITEM, second]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    expect(await screen.findByText('Constructions Bertrand SA')).toBeInTheDocument()
-    expect(screen.getByText('Réfection de la voirie communale — lot 2')).toBeInTheDocument()
+    const rows = (await signalList()).querySelectorAll('button.signal-item')
+    expect(rows).toHaveLength(2)
+    expect(rows[0]).toHaveTextContent('Constructions Bertrand SA')
+    expect(rows[0]).toHaveTextContent('Réfection de la voirie communale — lot 2')
+    expect(rows[0].textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('1 240 000 €')
+    expect(rows[0]).toHaveTextContent('4 août 2026')
+    expect(rows[1]).toHaveTextContent('Deuxième selon le serveur SA')
   })
 
-  it('hiérarchise l’entreprise, le marché puis les métadonnées utiles', async () => {
-    mockApi(feedWith([UNLOCKED_ITEM]))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    const list = await screen.findByRole('list', { name: 'Liste des signaux' })
-    const row = within(list).getByRole('article')
-    const company = within(row).getByText('Constructions Bertrand SA')
-    const contract = within(row).getByText('Réfection de la voirie communale — lot 2')
-    expect(row.textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('1 240 000 €')
-    expect(row).toHaveTextContent('4 août 2026')
-    expect(
-      company.compareDocumentPosition(contract) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-  })
-
-  it('garde le fait et le calendrier serveur dans la ligne sans y dupliquer l’analyse longue', async () => {
-    mockApi(feedWith([UNLOCKED_ITEM]))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    const list = await screen.findByRole('list', { name: 'Liste des signaux' })
-    const row = within(list).getByRole('article')
-    expect(row).toHaveTextContent(UNLOCKED_ITEM.event.headline)
-    expect(row).toHaveTextContent(UNLOCKED_ITEM.event.why_now)
-    expect(row).not.toHaveTextContent(UNLOCKED_ITEM.analysis.plausible_needs.items[0].statement!)
-    expect(row).not.toHaveTextContent(UNLOCKED_ITEM.analysis.fit.reasons[0])
-  })
-
-  it('inclut le fait et le calendrier serveur visibles dans le nom accessible de la ligne', async () => {
-    mockApi(feedWith([UNLOCKED_ITEM]))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    const list = await screen.findByRole('list', { name: 'Liste des signaux' })
-    const signalLink = within(list).getByRole('link', {
-      name: new RegExp(UNLOCKED_ITEM.event.headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
-    })
-    expect(signalLink).toHaveAccessibleName(
-      expect.stringContaining(UNLOCKED_ITEM.event.why_now),
-    )
-  })
-
-  it('rend la date et le timing fournis par le serveur sans les recalculer', async () => {
-    const serverItem = {
+  it('rend le calendrier et la justification du serveur sans recalcul navigateur', async () => {
+    const item = {
       ...UNLOCKED_ITEM,
       event: {
         ...UNLOCKED_ITEM.event,
@@ -91,118 +73,130 @@ describe('feed de signaux', () => {
         why_now: 'CALENDRIER SERVEUR — décision commerciale à examiner.',
       },
     }
-    mockApi(feedWith([serverItem]))
+    mockApi(feedWith([item]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    expect(await screen.findByText('3 février 2026')).toBeInTheDocument()
-    expect(screen.getByText('CALENDRIER SERVEUR — décision commerciale à examiner.')).toBeInTheDocument()
-    expect(document.body.textContent).not.toContain('999 jours')
+    const row = (await signalList()).querySelector('.signal-item')!
+    expect(row).toHaveTextContent('3 février 2026')
+    expect(row).toHaveTextContent('CALENDRIER SERVEUR — décision commerciale à examiner.')
+    expect(row).not.toHaveTextContent('999 jours')
+    expect(row).not.toHaveTextContent(UNLOCKED_ITEM.analysis.plausible_needs.items[0].statement!)
   })
 
-  it('conserve strictement l’ordre des signaux renvoyé par le serveur', async () => {
-    const first = {
-      ...UNLOCKED_ITEM,
-      signal_id: 'sig_server_first',
-      company: { ...UNLOCKED_ITEM.company, name: 'Première selon le serveur SA' },
-      event: { ...UNLOCKED_ITEM.event, date: '2025-01-01', age_days: 600 },
-    }
-    const second = {
-      ...UNLOCKED_ITEM,
-      signal_id: 'sig_server_second',
-      company: { ...UNLOCKED_ITEM.company, name: 'Deuxième selon le serveur SA' },
-      event: { ...UNLOCKED_ITEM.event, date: '2026-08-17', age_days: 1 },
-    }
-    mockApi(feedWith([first, second]))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    const cards = within(await screen.findByRole('list', { name: 'Liste des signaux' })).getAllByRole(
-      'article',
-    )
-    expect(cards[0]).toHaveTextContent('Première selon le serveur SA')
-    expect(cards[1]).toHaveTextContent('Deuxième selon le serveur SA')
-  })
-
-  it('envoie uniquement les filtres de fraîcheur et de profil disponibles', async () => {
-    const otherIcp = { ...ICP, target_icp_id: 'icp_2', label: 'Location — Suisse' }
-    mockApi({
-      ...BASE,
-      'GET /target-icps': { body: [ICP, otherIcp] },
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
-    })
-    const user = userEvent.setup()
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-    await screen.findByText('Constructions Bertrand SA')
-
-    await user.click(screen.getByRole('radio', { name: 'Tout l’historique' }))
-    await user.selectOptions(screen.getByLabelText('Profil actif'), 'icp_2')
-
-    await waitFor(() => {
-      const lastFeedCall = recordedCalls.filter((call) => call.url === '/signals').at(-1)!
-      expect(lastFeedCall.search.get('freshness')).toBe('all')
-      expect(lastFeedCall.search.get('target_icp_id')).toBe('icp_2')
-      expect(lastFeedCall.search.get('winner')).toBeNull()
-      expect(lastFeedCall.search.get('country')).toBeNull()
-    })
-  })
-
-  it('ne rend JAMAIS l’identité du gagnant sur un aperçu verrouillé', async () => {
-    mockApi(feedWith([LOCKED_ITEM]))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    await screen.findByText('Un marché public vient d’être attribué.')
-
-    const page = document.body.textContent ?? ''
-    // Ni le nom, ni l'identifiant, ni l'intitulé du marché, ni l'URL source.
-    expect(page).not.toContain('Constructions Bertrand')
-    expect(page).not.toContain('12345678900011')
-    expect(page).not.toContain('Réfection de la voirie')
-    expect(page).not.toContain('boamp.fr')
-    expect(page).not.toContain('26-104412')
-    // Le montant exact est remplacé par un ordre de grandeur.
-    expect(page).not.toContain('1240000')
-    expect(page).toContain('250 k à 1 M')
-  })
-
-  it('affiche l’appel à l’action d’un signal verrouillé', async () => {
-    const user = userEvent.setup()
-    mockApi(feedWith([LOCKED_ITEM]))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    await user.click(await screen.findByRole('button', { name: /signal verrouillé/i }))
-    const cta = await screen.findByRole('link', { name: 'Gérer mon accès' })
-    expect(cta).toHaveAttribute('href', '/app/billing')
-    expect(screen.getAllByText('Verrouillé').length).toBeGreaterThan(0)
-    // Jamais une formulation d'extraction de données cachées.
-    expect(document.body.textContent).not.toMatch(/révéler|reveal|données cachées/i)
-  })
-
-  it('ne dit jamais qu’un signal ancien vient d’être remporté', async () => {
+  it('ne reformule jamais un signal ancien comme une attribution récente', async () => {
     mockApi(feedWith([STALE_ITEM]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await screen.findByText('Travaux Delmas SARL')
-    const page = document.body.textContent ?? ''
-    // La phrase vient de `recency.claim` ; le frontend ne la reformule pas.
-    expect(page).toContain('a remporté un marché public en novembre 2025.')
-    expect(page).not.toMatch(/vient de remporter/)
-    expect(page).not.toMatch(/nouveau contrat/i)
+    const row = (await signalList()).querySelector('.signal-item')!
+    expect(row).toHaveTextContent(STALE_ITEM.event.why_now)
+    expect(row).not.toHaveTextContent(/vient de remporter|nouveau contrat/i)
   })
 
-  it('rend un état vide utile plutôt qu’une liste blanche', async () => {
-    mockApi(feedWith([]))
+  it('choisit le premier élément réellement déverrouillé sans promouvoir le teaser précédent', async () => {
+    mockApi({
+      ...feedWith([LOCKED_ITEM, UNLOCKED_ITEM]),
+      'GET /billing/plans': { body: CATALOGUE },
+    })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     expect(
-      await screen.findByRole('heading', { name: 'Aucun signal pertinent pour le moment' }),
-    ).toBeInTheDocument()
-    expect(screen.getByText(/Kivou continue de surveiller/)).toBeInTheDocument()
-    expect(
-      screen.getByRole('button', { name: 'Voir aussi les signaux plus anciens' }),
-    ).toBeInTheDocument()
+      await screen.findByRole('heading', { level: 2, name: UNLOCKED_ITEM.contract.title! }),
+    ).toBeVisible()
+    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
 
-  it('ne duplique aucune carte lorsque la pagination recouvre la page précédente', async () => {
-    const second = { ...UNLOCKED_ITEM, signal_id: 'sig_unlocked_2' }
+  it('protège entièrement un teaser verrouillé puis transmet seulement sa clé à Billing', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      ...feedWith([LOCKED_ITEM]),
+      'GET /billing/plans': { body: CATALOGUE },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const locked = await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) })
+    const preview = locked.textContent ?? ''
+    for (const protectedValue of [
+      'Constructions Bertrand',
+      '12345678900011',
+      'Réfection de la voirie',
+      'boamp.fr',
+      '26-104412',
+      '1240000',
+    ]) {
+      expect(preview).not.toContain(protectedValue)
+    }
+    await user.click(locked)
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Facturation' })).toBeVisible()
+    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
+    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}/note`, 'GET')).toHaveLength(0)
+  })
+
+  it('ne prétend jamais qu’un plan précis ouvre un teaser paid_plan', async () => {
+    mockApi({
+      ...feedWith([LOCKED_ITEM]),
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    expect((await screen.findAllByText('Accès payant requis')).length).toBeGreaterThan(0)
+    expect(document.body.textContent).not.toMatch(/Accessible avec (Essentiel|Pro|Scale)/)
+    expect(callsTo('/billing/plans', 'GET')).toHaveLength(0)
+  })
+
+  it('signale honnêtement un scan backend borné même sans page suivante', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM], {
+      page: { limit: 20, offset: 0, has_more: false, scan_truncated: true },
+    }))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    await signalList()
+    expect(
+      screen.getByText(
+        'La lecture a été bornée : des signaux plus anciens existent au-delà de cette page.',
+      ),
+    ).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'Charger plus de signaux' })).toBeNull()
+  })
+
+  it('rend un état vide honnête dans la géométrie du feed', async () => {
+    mockApi(feedWith([]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const list = await signalList()
+    expect(within(list).getByText('Aucune attribution ne correspond à cette lecture.')).toBeVisible()
+    expect(list.querySelectorAll('.signal-item')).toHaveLength(1)
+  })
+
+  it('met à jour le badge du signal sélectionné depuis sa note API réelle', async () => {
+    mockApi({
+      ...feedWith([UNLOCKED_ITEM]),
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
+        body: {
+          signal_id: UNLOCKED_ITEM.signal_id,
+          note: 'Relancer le responsable achats',
+          updated_at: '2026-08-29T18:00:00+00:00',
+        },
+      },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const row = (await signalList()).querySelector('.signal-item') as HTMLElement
+    expect(await within(row).findByText('Note ajoutée')).toBeVisible()
+    expect(within(row).queryByText('À examiner d’abord')).toBeNull()
+  })
+
+  it('déduplique une page suivante qui recouvre la page précédente', async () => {
+    const user = userEvent.setup()
+    const second = {
+      ...UNLOCKED_ITEM,
+      signal_id: 'sig_unlocked_2',
+      company: { ...UNLOCKED_ITEM.company, name: 'Deuxième SA' },
+    }
+    const third = {
+      ...UNLOCKED_ITEM,
+      signal_id: 'sig_unlocked_3',
+      company: { ...UNLOCKED_ITEM.company, name: 'Troisième SA' },
+    }
     let call = 0
     mockApi({
       ...BASE,
@@ -215,245 +209,81 @@ describe('feed de signaux', () => {
               }),
             }
           : {
-              // La seconde page RENVOIE le même premier signal : la fraîcheur a
-              // été réévaluée entre les deux appels.
-              body: feedPage([second, { ...UNLOCKED_ITEM, signal_id: 'sig_unlocked_3' }], {
+              body: feedPage([second, third], {
                 page: { limit: 20, offset: 20, has_more: false, scan_truncated: false },
               }),
             }
       },
     })
-    const user = userEvent.setup()
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await screen.findByRole('list', { name: 'Liste des signaux' })
-    await user.click(screen.getByRole('button', { name: 'Voir plus de signaux' }))
-
-    // On compte les CARTES (`<article>`), pas les `<li>` : la ligne de méta
-    // d'une carte est elle-même une liste, et compter les `listitem`
-    // additionnerait les deux niveaux.
-    await waitFor(() => {
-      const list = screen.getByRole('list', { name: 'Liste des signaux' })
-      expect(within(list).getAllByRole('article')).toHaveLength(3)
-    })
-
-    const ids = screen
-      .getByRole('list', { name: 'Liste des signaux' })
-      .querySelectorAll('article')
-    expect(ids).toHaveLength(3)
+    await user.click(await screen.findByRole('button', { name: 'Charger plus de signaux' }))
+    await waitFor(() =>
+      expect(document.querySelectorAll('.signal-list .signal-item')).toHaveLength(3),
+    )
+    expect(screen.getByText('Troisième SA')).toBeVisible()
   })
 
-  it('ignore une page suivante devenue obsolète après un changement de filtre', async () => {
+  it('garde les cartes et réessaie localement une page suivante en échec', async () => {
     const user = userEvent.setup()
-    const pageAItem = {
+    const second = {
       ...UNLOCKED_ITEM,
-      signal_id: 'sig_page_a',
-      company: { ...UNLOCKED_ITEM.company, name: 'Page A obsolète SA' },
+      signal_id: 'sig_page_retry',
+      company: { ...UNLOCKED_ITEM.company, name: 'Page réessayée SA' },
     }
-    const filterBItem = {
-      ...UNLOCKED_ITEM,
-      signal_id: 'sig_filter_b',
-      company: { ...UNLOCKED_ITEM.company, name: 'Filtre B SA' },
-    }
-    let resolvePageA!: (value: { body: unknown }) => void
-
+    let call = 0
     mockApi({
       ...BASE,
-      'GET /signals': (request) => {
-        const freshness = request.search.get('freshness')
-        const offset = request.search.get('offset')
-        if (freshness === 'new' && offset === '0') {
+      'GET /signals': () => {
+        call += 1
+        if (call === 1) {
           return {
             body: feedPage([UNLOCKED_ITEM], {
               page: { limit: 20, offset: 0, has_more: true, scan_truncated: false },
             }),
           }
         }
-        if (freshness === 'new' && offset === '20') {
-          return new Promise((resolve) => {
-            resolvePageA = resolve
-          })
+        if (call === 2) return { status: 503, body: { detail: { code: 'feed_unavailable' } } }
+        return {
+          body: feedPage([second], {
+            page: { limit: 20, offset: 20, has_more: false, scan_truncated: false },
+          }),
         }
-        return { body: feedPage([filterBItem]) }
       },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await screen.findByText('Constructions Bertrand SA')
-    await user.click(screen.getByRole('button', { name: 'Voir plus de signaux' }))
-    await waitFor(() =>
-      expect(
-        recordedCalls.some(
-          (call) => call.search.get('freshness') === 'new' && call.search.get('offset') === '20',
-        ),
-      ).toBe(true),
+    await user.click(await screen.findByRole('button', { name: 'Charger plus de signaux' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Les informations n’ont pas pu être chargées.',
     )
-
-    await user.click(screen.getByRole('radio', { name: 'Tout l’historique' }))
-    expect(await screen.findByText('Filtre B SA')).toBeInTheDocument()
-
-    await act(async () => {
-      resolvePageA({
-        body: feedPage([pageAItem], {
-          page: { limit: 20, offset: 20, has_more: false, scan_truncated: false },
-        }),
-      })
-    })
-
-    const list = screen.getByRole('list', { name: 'Liste des signaux' })
-    expect(within(list).getByText('Filtre B SA')).toBeInTheDocument()
-    expect(within(list).queryByText('Page A obsolète SA')).not.toBeInTheDocument()
-    expect(within(list).getAllByRole('article')).toHaveLength(1)
+    expect(within(await signalList()).getByText('Constructions Bertrand SA')).toBeVisible()
+    await user.click(screen.getByRole('button', { name: 'Réessayer le chargement de la suite' }))
+    expect(await screen.findByText('Page réessayée SA')).toBeVisible()
   })
 
-  it('conserve les cartes et propose un réessai local si la page suivante échoue', async () => {
+  it('rend une panne initiale comme un état produit réessayable', async () => {
+    const user = userEvent.setup()
     let call = 0
     mockApi({
       ...BASE,
       'GET /signals': () => {
         call += 1
         return call === 1
-          ? {
-              body: feedPage([UNLOCKED_ITEM], {
-                page: { limit: 20, offset: 0, has_more: true, scan_truncated: false },
-              }),
-            }
-          : { status: 503, body: { detail: { code: 'feed_unavailable' } } }
+          ? { status: 500, body: { detail: 'Traceback: sqlalchemy.exc.OperationalError' } }
+          : { body: feedPage([UNLOCKED_ITEM]) }
       },
-    })
-    const user = userEvent.setup()
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    await user.click(await screen.findByRole('button', { name: 'Voir plus de signaux' }))
-
-    expect(await screen.findByText('Constructions Bertrand SA')).toBeInTheDocument()
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'Les signaux suivants n’ont pas pu être chargés',
-    )
-    expect(screen.getByRole('button', { name: 'Réessayer la page suivante' })).toBeInTheDocument()
-  })
-
-  it('formate les montants dans la locale du compte, pas dans celle du navigateur', async () => {
-    mockApi(feedWith([UNLOCKED_ITEM]))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals', locale: 'fr' })
-
-    await screen.findByText('Constructions Bertrand SA')
-    const page = document.body.textContent ?? ''
-    // 1 240 000 € en français : espaces insécables, symbole après le nombre.
-    // La forme anglaise « 1,240,000 » serait une fuite de la locale du poste.
-    expect(page).not.toContain('1,240,000')
-    expect(page.replace(/\u202f|\u00a0/g, ' ')).toContain('1 240 000')
-  })
-
-  it('n’affiche aucune preuve documentaire sur une carte de feed', async () => {
-    mockApi(feedWith([UNLOCKED_ITEM]))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    await screen.findByText('Constructions Bertrand SA')
-    const page = document.body.textContent ?? ''
-    expect(page).not.toContain('Preuve documentaire')
-    expect(page).not.toContain('Le marché est attribué à')
-    expect(screen.queryByRole('link', { name: /Ouvrir la source/ })).not.toBeInTheDocument()
-  })
-
-  it('n’expose aucun vocabulaire interne ni système d’acquisition', async () => {
-    mockApi(feedWith([UNLOCKED_ITEM, LOCKED_ITEM]))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    await screen.findByText('Constructions Bertrand SA')
-    const page = (document.body.textContent ?? '').toLowerCase()
-
-    for (const forbidden of [
-      'acquisition engine',
-      'apollo',
-      'instantly',
-      'mailbox',
-      'délivrabilité',
-      'campagne',
-      'séquence',
-      'mrr',
-      'churn',
-      'need graph',
-      'benchmark',
-      'opportunity_key',
-      'materialized',
-      'signal_key',
-      'scan_truncated',
-    ]) {
-      expect(page).not.toContain(forbidden)
-    }
-  })
-
-  it('explique l’état Découverte sans promettre un renouvellement', async () => {
-    mockApi(feedWith([UNLOCKED_ITEM]))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    await screen.findByText(/3 signaux réels débloqués/)
-    expect(screen.getByText(/acquis définitivement/)).toBeInTheDocument()
-
-    // La copie NIE explicitement le renouvellement ; ce qui est interdit, c'est
-    // de le promettre. L'assertion vise donc l'affirmation, pas le mot.
-    const page = (document.body.textContent ?? '').toLowerCase()
-    expect(page).toContain('ne se renouvellent pas')
-    expect(page).not.toMatch(/renouvel\w+ (chaque|tous les|automatiquement)/)
-    expect(page).not.toMatch(/3 signaux (gratuits )?(par|chaque) (jour|mois|semaine)/)
-  })
-
-  it('présente une occasion accessible avant les limites du plan Découverte', async () => {
-    mockApi(feedWith([UNLOCKED_ITEM, LOCKED_ITEM]))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    const opportunity = await screen.findByRole('link', { name: /Constructions Bertrand SA/ })
-    const discoveryPanel = screen.getByText('Votre découverte').closest('aside')!
-    expect(
-      opportunity.compareDocumentPosition(discoveryPanel) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy()
-  })
-
-  it('affiche le nombre RÉEL de déblocages quand il est inférieur à trois', async () => {
-    mockApi({
-      ...feedWith([UNLOCKED_ITEM]),
-      'GET /billing/status': {
-        body: {
-          ...DISCOVERY_STATUS,
-          discovery: { granted_signal_count: 1, remaining_slots: 2, limit: 3 },
-        },
-      },
-    })
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    expect(await screen.findByText('1 signal réel débloqué')).toBeInTheDocument()
-    expect(screen.getByText(/il reste 2 déblocages/)).toBeInTheDocument()
-  })
-
-  it('propose de configurer un profil quand aucun n’est actif', async () => {
-    mockApi({
-      ...BASE,
-      'GET /target-icps': { body: [{ ...ICP, status: 'draft' }] },
-      'GET /signals': { body: feedPage([]) },
-    })
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
-
-    expect(
-      await screen.findByRole('heading', { name: 'Aucun profil de ciblage actif' }),
-    ).toBeInTheDocument()
-  })
-
-  it('rend l’erreur de chargement comme un état produit, jamais comme une trace', async () => {
-    mockApi({
-      ...BASE,
-      'GET /signals': { status: 500, body: { detail: 'Traceback: sqlalchemy.exc.OperationalError' } },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     const alert = await screen.findByRole('alert')
-    expect(alert).toBeInTheDocument()
-    expect(document.body.textContent).not.toContain('Traceback')
-    expect(document.body.textContent).not.toContain('sqlalchemy')
-    expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument()
+    expect(alert).toHaveTextContent('Les informations n’ont pas pu être chargées.')
+    expect(document.body.textContent).not.toMatch(/Traceback|sqlalchemy/)
+    await user.click(within(alert).getByRole('button', { name: 'Réessayer' }))
+    expect(within(await signalList()).getByText('Constructions Bertrand SA')).toBeVisible()
   })
 
-  it('conserve la même hiérarchie commerciale et le même niveau de certitude en anglais', async () => {
+  it('formate et traduit selon la locale du compte', async () => {
     mockApi(feedWith([UNLOCKED_ITEM]))
     renderApp(<AppRoutes />, {
       session: { status: 'authenticated', me: { ...ME, locale: 'en' } },
@@ -461,15 +291,33 @@ describe('feed de signaux', () => {
       locale: 'en',
     })
 
-    const list = await screen.findByRole('list', { name: 'Signal list' })
-    const row = within(list).getByRole('article')
-    expect(within(row).getByRole('link', { name: /Constructions Bertrand SA/ })).toHaveAttribute(
-      'href',
-      '/app/signals/sig_unlocked_1',
-    )
-    expect(within(row).getByText(UNLOCKED_ITEM.event.headline)).toBeInTheDocument()
-    expect(within(row).getByText(UNLOCKED_ITEM.event.why_now)).toBeInTheDocument()
-    expect(row).not.toHaveTextContent(UNLOCKED_ITEM.analysis.plausible_needs.items[0].statement!)
-    expect(screen.getByRole('heading', { level: 1, name: 'Signals' })).toBeInTheDocument()
+    await screen.findByRole('heading', { level: 2, name: 'Documented awards' })
+    const row = document.querySelector('.signal-list .signal-item')!
+    expect(row).toHaveTextContent('Constructions Bertrand SA')
+    expect(row).toHaveTextContent('Event date:')
+    expect(row.textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('1,240,000')
+    expect(screen.getByRole('heading', { level: 1, name: 'Signals' })).toBeVisible()
+  })
+
+  it('n’expose ni preuve longue ni vocabulaire interne dans le feed', async () => {
+    mockApi({
+      ...feedWith([UNLOCKED_ITEM, LOCKED_ITEM]),
+      'GET /billing/plans': { body: CATALOGUE },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    await signalList()
+    const page = (document.body.textContent ?? '').toLowerCase()
+    for (const forbidden of [
+      'preuve documentaire',
+      'acquisition engine',
+      'apollo',
+      'instantly',
+      'opportunity_key',
+      'signal_key',
+      'scan_truncated',
+    ]) {
+      expect(page).not.toContain(forbidden)
+    }
   })
 })

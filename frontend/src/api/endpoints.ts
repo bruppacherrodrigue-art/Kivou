@@ -20,6 +20,7 @@ import type {
   PlanCatalogue,
   PurchasablePlan,
   SignalDetail,
+  SignalNote,
   TargetIcp,
   TargetIcpInput,
   WeeklyCommercialCockpit,
@@ -94,6 +95,17 @@ export const signals = {
 
   detail: (signalKey: string) =>
     request<SignalDetail>(`/signals/${encodeURIComponent(signalKey)}`),
+}
+
+export const signalNotes = {
+  read: (signalKey: string) =>
+    request<SignalNote>(`/signals/${encodeURIComponent(signalKey)}/note`),
+
+  write: (signalKey: string, note: string) =>
+    request<SignalNote>(`/signals/${encodeURIComponent(signalKey)}/note`, {
+      method: 'PUT',
+      body: { note },
+    }),
 }
 
 // ─── Entreprises ─────────────────────────────────────────────────────────────

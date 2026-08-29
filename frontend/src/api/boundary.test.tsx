@@ -241,7 +241,7 @@ describe('localisation FR / EN', () => {
       targetCompanies: 'Entreprises cibles',
       territory: 'Territoire',
       amount: 'Montant total du marché',
-      concludedAt: 'Contrat conclu',
+      awardDate: 'Date d’attribution',
       execution: 'Période d’exécution',
       buyer: 'Acheteur public',
       whyNow: 'Pourquoi maintenant',
@@ -261,6 +261,8 @@ describe('localisation FR / EN', () => {
       currency: 'Devise',
       observedEvent: 'Événement observé',
       company: 'Entreprise',
+      country: 'Pays',
+      identifier: 'Identifiant publié',
       professionalEmail: 'Adresse professionnelle',
       language: 'Langue',
       timezone: 'Fuseau horaire',
@@ -310,6 +312,7 @@ describe('localisation FR / EN', () => {
       retryProfile: 'Réessayer le chargement du profil de ciblage',
       retryBilling: 'Réessayer le chargement de l’offre',
       saveError: 'Les modifications n’ont pas pu être enregistrées.',
+      noteLoadError: 'La note n’a pas pu être chargée.',
       noteError: 'La note n’a pas pu être enregistrée.',
       empty: 'Aucune donnée publiée.',
     })
@@ -320,6 +323,7 @@ describe('localisation FR / EN', () => {
       retryProfile: 'Try loading the target profile again',
       retryBilling: 'Try loading the plan again',
       saveError: 'The changes could not be saved.',
+      noteLoadError: 'The note could not be loaded.',
       noteError: 'The note could not be saved.',
       empty: 'No published data.',
     })

@@ -105,7 +105,7 @@ export const fr = {
       targetCompanies: 'Entreprises cibles',
       territory: 'Territoire',
       amount: 'Montant total du marché',
-      concludedAt: 'Contrat conclu',
+      awardDate: 'Date d’attribution',
       execution: 'Période d’exécution',
       buyer: 'Acheteur public',
       whyNow: 'Pourquoi maintenant',
@@ -125,6 +125,8 @@ export const fr = {
       currency: 'Devise',
       observedEvent: 'Événement observé',
       company: 'Entreprise',
+      country: 'Pays',
+      identifier: 'Identifiant publié',
       professionalEmail: 'Adresse professionnelle',
       language: 'Langue',
       timezone: 'Fuseau horaire',
@@ -158,6 +160,7 @@ export const fr = {
       retryBilling: 'Réessayer le chargement de l’offre',
       saveError: 'Les modifications n’ont pas pu être enregistrées.',
       noteError: 'La note n’a pas pu être enregistrée.',
+      noteLoadError: 'La note n’a pas pu être chargée.',
       empty: 'Aucune donnée publiée.',
     },
     plans: {
@@ -165,6 +168,70 @@ export const fr = {
       essential: 'Essentiel',
       pro: 'Pro',
       scale: 'Scale',
+    },
+    overviewPage: {
+      documentedAwardOne: '{count} attribution documentée',
+      documentedAwardOther: '{count} attributions documentées',
+      lead:
+        'Chaque signal sépare les faits publiés de ce qu’il reste à vérifier avant de contacter une entreprise.',
+      reviewFirst: 'À examiner en premier',
+      publishedAward: 'Attribution publiée',
+      publishedOn: 'Attribution publiée sur {source}',
+      whyFirst: 'Pourquoi il remonte en premier',
+      honestyLimit:
+        'L’avis public documente le marché, sans prouver qu’un achat fournisseur reste ouvert.',
+      reviewSignal: 'Examiner le signal',
+      marketOne: '{count} marché à parcourir',
+      marketOther: '{count} marchés à parcourir',
+      publicSources: 'Sources publiques',
+      seeSignals: 'Voir tous les signaux',
+      seeProfile: 'Voir le profil',
+      paidAccessRequired: 'Accès payant requis',
+      noAccessibleSignal: 'Aucun signal accessible pour le moment',
+      noAccessibleSignalBody:
+        'Les éléments verrouillés restent protégés tant que le backend ne les rend pas accessibles.',
+      noAccessibleSignalLimit:
+        'La page Facturation présente uniquement l’action autorisée pour votre compte.',
+      realAccess: 'Accès réel',
+      noActiveProfile: 'Aucun profil actif publié.',
+    },
+    signalsPage: {
+      documentedAwards: 'Attributions documentées',
+      accessibleWith: 'Accessible avec {plan}',
+      paidAccessRequired: 'Accès payant requis',
+      publishedOn: 'Attribution publiée sur {source}',
+      dataNotice:
+        'Les données réelles ci-dessous proviennent des informations publiées et des API Kivou.',
+      summaryQualification:
+        'Kivou compare ces faits au profil de ciblage, sans présenter une hypothèse d’achat comme une certitude.',
+      targetProfile: 'Profil : {profile}',
+      noticeReference: 'Avis {source} {notice}',
+      eventDate: 'Date de l’événement : {date}',
+      contractConcluded: 'Contrat conclu le {date}',
+      lockedReason:
+        'Votre accès actuel conserve cet aperçu sans révéler les données protégées.',
+      commercialBrief: 'Brief commercial',
+      publishedFacts: 'Faits publiés',
+      noEnrichedContact: 'Aucun nom ni contact enrichi n’est affiché.',
+      totalAmountLimit:
+        'Le montant affiché correspond au contrat public total. Il ne représente pas un budget fournisseur disponible.',
+      openNotice: 'Ouvrir l’avis',
+      toConfirm: 'À confirmer',
+      verificationLimit:
+        'Les faits publiés ne permettent pas de confirmer qu’un achat fournisseur reste ouvert.',
+      contractHolder: 'Titulaire du marché',
+      viewCompany: 'Voir l’entreprise',
+      yourSpace: 'Votre espace',
+      privateNote: 'Note privée du compte',
+      notePlaceholder:
+        'Ex. Vérifier si les fournitures restent à sourcer et identifier la fonction responsable des achats.',
+      noteHelp:
+        'La note est enregistrée automatiquement pour ce compte. Elle ne modifie ni les faits ni le matching.',
+      signalUnavailable: 'Signal non disponible dans cette lecture',
+      chooseSignal: 'Sélectionnez un signal documenté.',
+      loadMore: 'Charger plus de signaux',
+      retryMore: 'Réessayer le chargement de la suite',
+      empty: 'Aucune attribution ne correspond à cette lecture.',
     },
   },
 

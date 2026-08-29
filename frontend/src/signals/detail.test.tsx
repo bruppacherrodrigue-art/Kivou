@@ -1,226 +1,248 @@
-import { useLayoutEffect } from 'react'
-import { describe, expect, it, afterEach, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
+import { Route, Routes } from 'react-router-dom'
 import { AppRoutes } from '../App'
 import { SignalDetail } from '../pages/SignalDetail'
 import {
   AUTHENTICATED,
+  CATALOGUE,
   DISCOVERY_STATUS,
-  LOCKED_DETAIL,
+  ICP,
+  LOCKED_ITEM,
   UNLOCKED_DETAIL,
+  UNLOCKED_ITEM,
+  callsTo,
+  feedPage,
   mockApi,
   renderApp,
 } from '../test/harness'
 
-/* SPEC-015 §51 — les six vérifications du détail. */
-
 afterEach(() => vi.unstubAllGlobals())
 
-function detailRoutes(payload: unknown) {
+function detailRoutes(detail: unknown = UNLOCKED_DETAIL) {
   return {
-    'GET /signals/sig_unlocked_1': { body: payload },
-    'GET /signals/sig_locked_1': { body: payload },
+    'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+    [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: detail },
+    [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
+      body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
+    },
     'GET /billing/status': { body: DISCOVERY_STATUS },
+    'GET /target-icps': { body: [ICP] },
   }
 }
 
-function WrapperDetailCommitProbe({ onCommit }: { onCommit: (content: string) => void }) {
-  const { pathname } = useLocation()
-
-  useLayoutEffect(() => {
-    if (pathname.endsWith('/sig_unlocked_2')) onCommit(document.body.textContent ?? '')
-  }, [onCommit, pathname])
-
-  return null
+async function detailPanel(): Promise<HTMLElement> {
+  await screen.findByRole('heading', { level: 2, name: UNLOCKED_ITEM.contract.title! })
+  const panel = document.querySelector('.detail-panel')
+  if (!(panel instanceof HTMLElement)) throw new Error('detail-panel absent')
+  return panel
 }
 
-function WrapperDetailControls() {
-  const navigate = useNavigate()
-  return (
-    <button type="button" onClick={() => navigate('/app/signals/sig_unlocked_2')}>
-      Ouvrir le second détail
-    </button>
-  )
-}
-
-describe('détail d’un signal', () => {
-  it('retire immédiatement les données du wrapper quand sa clé de route change', async () => {
-    const user = userEvent.setup()
-    const onCommit = vi.fn()
-    mockApi({
-      'GET /signals/sig_unlocked_1': { body: UNLOCKED_DETAIL },
-      'GET /signals/sig_unlocked_2': () => new Promise(() => undefined),
+describe('détail exact d’un signal réel', () => {
+  it('compose les cartes exactes depuis le détail API sans réintroduire l’ancien DOM', async () => {
+    mockApi(detailRoutes())
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
-    renderApp(
-      <>
-        <Routes>
-          <Route path="app/signals/:signalKey" element={<SignalDetail />} />
-        </Routes>
-        <WrapperDetailControls />
-        <WrapperDetailCommitProbe onCommit={onCommit} />
-      </>,
-      { route: '/app/signals/sig_unlocked_1', session: AUTHENTICATED },
+
+    const panel = await detailPanel()
+    for (const heading of [
+      'Le signal en quatre points',
+      'Détails du marché',
+      'Questions avant de contacter l’entreprise',
+      'Constructions Bertrand SA',
+      'Note sur ce signal',
+    ]) {
+      expect(within(panel).getByRole('heading', { name: heading })).toBeVisible()
+    }
+    expect(within(panel).getByText('Commune de Villeneuve')).toBeVisible()
+    expect(panel.querySelector('.commercial-brief-card')).not.toBeNull()
+    expect(panel.querySelector('.facts-card')).not.toBeNull()
+    expect(panel.querySelector('.verification-card')).not.toBeNull()
+    expect(panel.querySelector('.signal-note-card')).not.toBeNull()
+    expect(panel.querySelector('[class*="evidence"]')).toBeNull()
+    const notice = panel.querySelector('.prototype-notice')
+    expect(notice).toHaveTextContent(/données réelles|informations publiées/i)
+    expect(notice).not.toHaveTextContent(/démonstration|jeu d’exemples|maquette/i)
+    expect(within(panel).getByText('Profil : Matériaux — Occitanie')).toBeVisible()
+    expect(within(panel).getAllByText('France').length).toBeGreaterThan(0)
+    expect(within(panel).getByText('SIRET 12345678900011')).toBeVisible()
+    expect(within(panel).getAllByText(/BOAMP.*26-104412/).length).toBeGreaterThan(1)
+    expect(within(panel).getByText('Date d’attribution')).toBeVisible()
+    expect(within(panel).queryByText('Contrat conclu')).not.toBeInTheDocument()
+    const scope = panel.querySelector('.volume-grid')
+    expect(scope).toHaveTextContent('Non publié')
+    expect(scope).not.toHaveTextContent('Le marché est attribué')
+  })
+
+  it('conserve le statut d’hypothèse et n’invente aucune certitude d’achat', async () => {
+    mockApi(detailRoutes())
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel()
+    expect(panel).toHaveTextContent(UNLOCKED_DETAIL.analysis.plausible_needs.note)
+    expect(panel).toHaveTextContent(
+      UNLOCKED_DETAIL.analysis.plausible_needs.items[0].statement!,
     )
-
-    expect(await screen.findByText('Commune de Villeneuve')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Ouvrir le second détail' }))
-
-    expect(onCommit).toHaveBeenCalled()
-    expect(onCommit.mock.lastCall?.[0]).not.toContain('Commune de Villeneuve')
-    expect(onCommit.mock.lastCall?.[0]).toContain('Chargement…')
+    expect(panel.textContent?.toLowerCase()).not.toMatch(
+      /va acheter|achètera|achat prévu|achat certain|client garanti/,
+    )
   })
 
-  it('sépare visiblement les faits publics de l’analyse Kivou', async () => {
-    mockApi(detailRoutes(UNLOCKED_DETAIL))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_unlocked_1' })
-
-    const facts = await screen.findByRole('region', { name: /Ce que la source officielle publie/ })
-    const analysis = screen.getByRole('region', { name: /Ce que Kivou déduit de ces faits/ })
-
-    expect(facts).not.toBe(analysis)
-    // Le fait public — l'acheteur — vit dans la section des faits.
-    expect(within(facts).getByText('Commune de Villeneuve')).toBeInTheDocument()
-    // L'hypothèse vit dans l'autre, et pas l'inverse.
-    expect(within(analysis).getByText('Matériaux ou composants')).toBeInTheDocument()
-    expect(within(facts).queryByText('Matériaux ou composants')).not.toBeInTheDocument()
-
-    // Les trois dates restent distinctes : attribution ≠ notification ≠ publication.
-    expect(within(facts).getByText('Attribution')).toBeInTheDocument()
-    expect(within(facts).getByText('Notification du contrat')).toBeInTheDocument()
-    expect(within(facts).getByText('Publication')).toBeInTheDocument()
-  })
-
-  it('conserve au besoin son statut d’hypothèse', async () => {
-    mockApi(detailRoutes(UNLOCKED_DETAIL))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_unlocked_1' })
-
-    const analysis = await screen.findByRole('region', {
-      name: /Ce que Kivou déduit de ces faits/,
+  it('rend la source officielle uniquement quand l’API fournit une URL sûre', async () => {
+    mockApi(detailRoutes())
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
-    expect(within(analysis).getByText('Besoins plausibles')).toBeInTheDocument()
-    // La note de l'API, qui porte le mot « plausible », n'est pas masquée.
-    expect(
-      within(analysis).getByText(/Ces besoins sont plausibles/),
-    ).toBeInTheDocument()
-    expect(within(analysis).getByText(/peut nécessiter/)).toBeInTheDocument()
 
-    // Aucune formulation d'achat certain.
-    const page = (document.body.textContent ?? '').toLowerCase()
-    expect(page).not.toMatch(/va acheter|achètera|achat prévu|achat certain|client garanti/)
-  })
-
-  it('affiche la preuve uniquement là où l’API en renvoie, et sépare les deux natures', async () => {
-    const user = userEvent.setup()
-    mockApi(detailRoutes(UNLOCKED_DETAIL))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_unlocked_1' })
-
-    const evidence = await screen.findByRole('region', { name: /Chaque fait ci-dessous renvoie/ })
-    expect(within(evidence).getByText('Preuves des faits publiés')).toBeInTheDocument()
-    expect(within(evidence).getByText('Éléments ayant servi à l’analyse')).toBeInTheDocument()
-    // La mise en garde de l'API : ces pièces ne prouvent pas un achat.
-    expect(within(evidence).getByText(/Elles ne prouvent pas un achat/)).toBeInTheDocument()
-
-    // Les passages sont repliés par défaut, puis lisibles en entier.
-    expect(screen.queryByText(/Le marché est attribué à/)).not.toBeInTheDocument()
-    await user.click(within(evidence).getByRole('button', { name: /Attributaire/ }))
-    expect(
-      await within(evidence).findByText('Le marché est attribué à Constructions Bertrand SA.'),
-    ).toBeInTheDocument()
-  })
-
-  it('rend le lien source de façon sûre et sans chemin interne', async () => {
-    mockApi(detailRoutes(UNLOCKED_DETAIL))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_unlocked_1' })
-
-    const link = await screen.findByRole('link', { name: /Ouvrir l’avis source/ })
+    const link = await screen.findByRole('link', { name: 'Ouvrir l’avis' })
     expect(link).toHaveAttribute('href', 'https://www.boamp.fr/avis/26-104412')
     expect(link).toHaveAttribute('target', '_blank')
-    // `noopener` évite que la page ouverte garde une référence à la nôtre.
     expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'))
-
-    const page = document.body.textContent ?? ''
     for (const leak of ['/home/', '/tmp/', 'tests/', 'fixtures/', 'src/signals', '.jsonl']) {
-      expect(page).not.toContain(leak)
+      expect(document.body.textContent).not.toContain(leak)
     }
   })
 
-  it('ne laisse fuiter aucun champ protégé sur un détail verrouillé', async () => {
-    mockApi(detailRoutes(LOCKED_DETAIL))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' })
+  it('masque les actions source et entreprise quand leurs autorités sont absentes', async () => {
+    const withoutActions = {
+      ...UNLOCKED_DETAIL,
+      company_key: null,
+      source: { ...UNLOCKED_DETAIL.source, url: null },
+    }
+    mockApi(detailRoutes(withoutActions))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
 
-    expect(
-      await screen.findByRole('heading', { level: 2, name: LOCKED_DETAIL.headline }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: 'Signaux' })).toBeInTheDocument()
-    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
-    expect(screen.getByRole('heading', { level: 2, name: 'Ce signal est verrouillé' })).toBeInTheDocument()
+    await detailPanel()
+    expect(screen.queryByRole('link', { name: 'Ouvrir l’avis' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Voir l’entreprise' })).not.toBeInTheDocument()
+  })
 
-    const page = document.body.textContent ?? ''
-    expect(page).not.toContain('Constructions Bertrand')
-    expect(page).not.toContain('Commune de Villeneuve')
-    expect(page).not.toContain('Réfection de la voirie')
-    expect(page).not.toContain('boamp.fr')
-    expect(page).not.toContain('MP-2026-0412')
-    expect(page).not.toContain('1240000')
-    expect(screen.queryByText('Preuve documentaire')).not.toBeInTheDocument()
+  it('navigue vers l’entreprise avec la seule company_key autorisée', async () => {
+    mockApi(detailRoutes())
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
 
-    expect(screen.getByRole('link', { name: 'Gérer mon accès' })).toHaveAttribute(
+    const link = await screen.findByRole('link', { name: 'Voir l’entreprise' })
+    expect(link).toHaveAttribute(
       'href',
-      '/app/billing',
+      `/app/companies/${UNLOCKED_DETAIL.company_key}`,
     )
-  })
-
-  it('n’expose aucun contrôle de retour sur un signal verrouillé', async () => {
-    mockApi(detailRoutes(LOCKED_DETAIL))
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' })
-
-    await screen.findByRole('heading', { name: 'Ce signal est verrouillé' })
-
-    expect(screen.queryByText('Pertinent')).not.toBeInTheDocument()
-    expect(screen.queryByText('Pas pertinent')).not.toBeInTheDocument()
-    expect(
-      screen.queryByRole('button', { name: 'J’ai contacté cette entreprise' }),
-    ).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Voir la fiche entreprise' })).not.toBeInTheDocument()
-  })
-
-  it('navigue vers la fiche avec la seule clé opaque depuis un signal déverrouillé', async () => {
-    const user = userEvent.setup()
-    mockApi({
-      ...detailRoutes(UNLOCKED_DETAIL),
-      'GET /companies/cmp_0123456789abcdefghijklmnop': {
-        status: 404,
-        body: { detail: { code: 'company_not_found', message: 'entreprise introuvable' } },
-      },
-    })
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_unlocked_1' })
-
-    const link = await screen.findByRole('link', { name: 'Voir la fiche entreprise' })
-    expect(link).toHaveAttribute('href', '/app/companies/cmp_0123456789abcdefghijklmnop')
     expect(link).not.toHaveAttribute('state')
-    await user.click(link)
-    expect(
-      await screen.findByRole('heading', { level: 2, name: 'Fiche entreprise inaccessible' }),
-    ).toBeInTheDocument()
   })
 
-  it('rend un signal introuvable comme un état produit', async () => {
+  it('ne demande ni détail, ni note, ni feedback pour une route verrouillée', async () => {
     mockApi({
-      'GET /signals/inconnu': {
-        status: 404,
-        body: { detail: { code: 'signal_not_found', message: 'signal introuvable' } },
-      },
+      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
+      'GET /billing/plans': { body: CATALOGUE },
       'GET /billing/status': { body: DISCOVERY_STATUS },
+      'GET /target-icps': { body: [ICP] },
     })
-    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/inconnu' })
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${LOCKED_ITEM.signal_id}`,
+    })
 
-    expect(
-      await screen.findByRole('heading', { level: 2, name: 'Signal introuvable' }),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: 'Signaux' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Retour à la liste' })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Retour aux signaux' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Facturation' })).toBeVisible()
+    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
+    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}/note`, 'GET')).toHaveLength(0)
+    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}/feedback`, 'GET')).toHaveLength(0)
+    expect(document.body.textContent).not.toContain('Constructions Bertrand')
+  })
+
+  it('garde le feed disponible et réessaie localement un détail en panne', async () => {
+    const user = userEvent.setup()
+    let detailCalls = 0
+    mockApi({
+      ...detailRoutes(),
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: () => {
+        detailCalls += 1
+        return detailCalls === 1
+          ? { status: 503, body: { detail: { code: 'signal_unavailable' } } }
+          : { body: UNLOCKED_DETAIL }
+      },
+    })
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    expect(await screen.findByText('Signal non disponible dans cette lecture')).toBeVisible()
+    expect(document.querySelector('.signal-list .signal-item')).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Réessayer' }))
+    expect(await screen.findByText('Commune de Villeneuve')).toBeVisible()
+    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(2)
+  })
+
+  it('rend les champs nullable comme non publiés sans fabriquer de valeur', async () => {
+    const nullable = {
+      ...UNLOCKED_DETAIL,
+      company: { name: null, country: null, identifier: null },
+      company_key: null,
+      contract: {
+        ...UNLOCKED_DETAIL.contract,
+        title: null,
+        buyer: null,
+        amount: null,
+        cpv: null,
+        location: null,
+        dates: { award: null, contract_notification: null, publication: null },
+      },
+      source: {
+        system: null,
+        country: null,
+        notice_id: null,
+        procedure_id: null,
+        url: null,
+      },
+      analysis: {
+        ...UNLOCKED_DETAIL.analysis,
+        plausible_needs: { note: '', items: [] },
+        contract_reading: {
+          note: '',
+          summary: null,
+          contract_type: null,
+          sector: null,
+        },
+      },
+      evidence: { ...UNLOCKED_DETAIL.evidence, public_facts: [] },
+    }
+    mockApi(detailRoutes(nullable))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const heading = await screen.findByRole('heading', { level: 2, name: 'Non publié' })
+    const panel = heading.closest('.detail-panel') as HTMLElement
+    expect(within(panel).getAllByText('Non publié').length).toBeGreaterThan(3)
+    expect(within(panel).queryByRole('link', { name: /avis|entreprise/i })).not.toBeInTheDocument()
+  })
+
+  it('conserve le wrapper SignalDetail comme alias du workspace exact', async () => {
+    mockApi(detailRoutes())
+    renderApp(
+      <Routes>
+        <Route path="app/signals/:signalKey" element={<SignalDetail />} />
+      </Routes>,
+      {
+        session: AUTHENTICATED,
+        route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+      },
+    )
+
+    expect(await screen.findByRole('heading', { level: 2, name: UNLOCKED_ITEM.contract.title! })).toBeVisible()
+    expect(document.querySelector('.workspace-grid .feed-panel + .detail-panel')).not.toBeNull()
   })
 })

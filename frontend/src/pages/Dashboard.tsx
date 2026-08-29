@@ -1,38 +1,16 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Navigate, useNavigate } from 'react-router-dom'
-import { useCurrentUser } from '../auth/SessionProvider'
-import { Button, ButtonLink } from '../components/Button'
-import { Badge, Callout, Card, DataList, DataRow, EmptyState, SectionHeading, Skeleton } from '../components/Surfaces'
-import { useI18n, interpolate, plural } from '../i18n'
-import { billing, icps, notifications, signals } from '../api/endpoints'
+import { useCallback } from 'react'
+import { ArrowRight, FileCheck2, MapPin } from 'lucide-react'
+import { Navigate } from 'react-router-dom'
+import { billing, icps, signals } from '../api/endpoints'
 import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
-import { SignalListRow } from '../signals/SignalListRow'
-import type {
-  BillingAction,
-  BillingStatus,
-  FeedPage,
-  NotificationPreference,
-  TargetIcp,
-  UnlockedFeedItem,
-} from '../api/types'
-import styles from './Dashboard.module.css'
-
-interface ResourceState<T> {
-  data: T | null
-  loading: boolean
-  error: unknown | null
-}
-
-function emptyResource<T>(): ResourceState<T> {
-  return { data: null, loading: true, error: null }
-}
-
-type CompanyState =
-  | { status: 'idle'; signal: null }
-  | { status: 'loading'; signal: UnlockedFeedItem }
-  | { status: 'available'; signal: UnlockedFeedItem; companyKey: string }
-  | { status: 'unavailable'; signal: UnlockedFeedItem }
-  | { status: 'error'; signal: UnlockedFeedItem; error: unknown }
+import type { BillingAction, BillingStatus, TargetIcp } from '../api/types'
+import { useCurrentUser } from '../auth/SessionProvider'
+import { interpolate, plural, useI18n } from '../i18n'
+import { toSignalCards } from '../reference/dashboard/adapters'
+import type { SignalCardView } from '../reference/dashboard/models'
+import { useResource } from '../reference/dashboard/resources'
+import { Button } from '../reference/dashboard/ui/button'
+import { ReferenceLink } from '../reference/router/ReferenceLink'
 
 export function Dashboard() {
   const me = useCurrentUser()
@@ -45,576 +23,356 @@ export function Dashboard() {
 }
 
 function ReadyDashboard() {
-  const { t, date } = useI18n()
-  const navigate = useNavigate()
-
-  const [feedState, setFeedState] = useState<ResourceState<FeedPage>>(emptyResource)
-  const [billingState, setBillingState] =
-    useState<ResourceState<BillingStatus>>(emptyResource)
-  const [icpState, setIcpState] = useState<ResourceState<TargetIcp[]>>(emptyResource)
-  const [notificationState, setNotificationState] =
-    useState<ResourceState<NotificationPreference>>(emptyResource)
-  const [companyState, setCompanyState] = useState<CompanyState>({
-    status: 'idle',
-    signal: null,
-  })
-
-  const mountedRef = useRef(false)
-  const feedGenerationRef = useRef(0)
-  const billingGenerationRef = useRef(0)
-  const icpGenerationRef = useRef(0)
-  const notificationGenerationRef = useRef(0)
-  const companyGenerationRef = useRef(0)
-
-  const loadBilling = useCallback(async () => {
-    const generation = ++billingGenerationRef.current
-    setBillingState((current) => ({ ...current, loading: true, error: null }))
-    try {
-      const data = await billing.status()
-      if (mountedRef.current && generation === billingGenerationRef.current) {
-        setBillingState({ data, loading: false, error: null })
-      }
-    } catch (error) {
-      if (mountedRef.current && generation === billingGenerationRef.current) {
-        setBillingState((current) => ({ ...current, loading: false, error }))
-      }
-    }
-  }, [])
-
-  const loadCompany = useCallback(async (signal: UnlockedFeedItem) => {
-    const generation = ++companyGenerationRef.current
-    setCompanyState({ status: 'loading', signal })
-    try {
-      const detail = await signals.detail(signal.signal_id)
-      if (!mountedRef.current || generation !== companyGenerationRef.current) return
-      if (detail.locked) {
-        setCompanyState({ status: 'idle', signal: null })
-      } else if (detail.company_key) {
-        setCompanyState({ status: 'available', signal, companyKey: detail.company_key })
-      } else {
-        setCompanyState({ status: 'unavailable', signal })
-      }
-    } catch (error) {
-      if (mountedRef.current && generation === companyGenerationRef.current) {
-        setCompanyState({ status: 'error', signal, error })
-      }
-    }
-  }, [])
-
-  const loadFeed = useCallback(async () => {
-    const generation = ++feedGenerationRef.current
-    companyGenerationRef.current += 1
-    setCompanyState({ status: 'idle', signal: null })
-    setFeedState((current) => ({ ...current, loading: true, error: null }))
-    try {
-      const data = await signals.feed({ limit: 3, offset: 0 })
-      if (!mountedRef.current || generation !== feedGenerationRef.current) return
-      setFeedState({ data, loading: false, error: null })
-      const firstUnlocked = data.items.find(
-        (item): item is UnlockedFeedItem => item.locked === false,
-      )
-      if (firstUnlocked) void loadCompany(firstUnlocked)
-      void loadBilling()
-    } catch (error) {
-      if (mountedRef.current && generation === feedGenerationRef.current) {
-        setFeedState((current) => ({ ...current, loading: false, error }))
-      }
-    }
-  }, [loadBilling, loadCompany])
-
-  const loadIcps = useCallback(async () => {
-    const generation = ++icpGenerationRef.current
-    setIcpState((current) => ({ ...current, loading: true, error: null }))
-    try {
-      const data = await icps.list()
-      if (mountedRef.current && generation === icpGenerationRef.current) {
-        setIcpState({ data, loading: false, error: null })
-      }
-    } catch (error) {
-      if (mountedRef.current && generation === icpGenerationRef.current) {
-        setIcpState((current) => ({ ...current, loading: false, error }))
-      }
-    }
-  }, [])
-
-  const loadNotifications = useCallback(async () => {
-    const generation = ++notificationGenerationRef.current
-    setNotificationState((current) => ({ ...current, loading: true, error: null }))
-    try {
-      const data = await notifications.read()
-      if (mountedRef.current && generation === notificationGenerationRef.current) {
-        setNotificationState({ data, loading: false, error: null })
-      }
-    } catch (error) {
-      if (mountedRef.current && generation === notificationGenerationRef.current) {
-        setNotificationState((current) => ({ ...current, loading: false, error }))
-      }
-    }
-  }, [])
-
-  useEffect(() => {
-    mountedRef.current = true
-    void loadFeed()
-    void loadBilling()
-    void loadIcps()
-    void loadNotifications()
-
-    return () => {
-      mountedRef.current = false
-      feedGenerationRef.current += 1
-      billingGenerationRef.current += 1
-      icpGenerationRef.current += 1
-      notificationGenerationRef.current += 1
-      companyGenerationRef.current += 1
-    }
-  }, [loadBilling, loadFeed, loadIcps, loadNotifications])
-
-  const feedItems = feedState.data?.items.slice(0, 3) ?? []
-  const hasUnlockedSignal = feedItems.some((item) => item.locked === false)
-  const activeIcps = icpState.data?.filter((profile) => profile.status === 'active') ?? []
-  const overLimitIcps = new Set(billingState.data?.target_icps_over_limit ?? [])
-  const billingStatus = billingState.data
-  const billingActionLabels = {
-    choose_plan: t.dashboard.choosePlan,
-    manage_subscription: t.dashboard.manageSubscription,
-    recover_payment: t.dashboard.recoverPayment,
-    contact_support: t.dashboard.contactSupport,
-  } satisfies Record<BillingAction, string>
-  const notificationPreference = notificationState.data
-  const alertCadence = billingStatus?.entitlements.alert_cadence ?? null
-  const cadenceCopy = alertCadence ? t.dashboard.cadence[alertCadence] : null
-  let alertsSummary: string | null = null
-
-  if (notificationPreference && alertCadence && cadenceCopy) {
-    const activation = notificationPreference.email_enabled
-      ? t.dashboard.alertsEnabled
-      : t.dashboard.alertsDisabled
-    const capability =
-      alertCadence === 'none'
-        ? t.dashboard.noAlertCadence
-        : notificationPreference.email_enabled
-          ? interpolate(t.dashboard.activeCadence, { cadence: cadenceCopy })
-          : interpolate(t.dashboard.availableCadenceForPlan, { cadence: cadenceCopy })
-    alertsSummary = `${activation} · ${capability}`
-  } else if (notificationPreference) {
-    alertsSummary = notificationPreference.email_enabled
-      ? t.dashboard.alertsEnabled
-      : t.dashboard.alertsDisabled
-  }
-
-  const signalsRead = feedState.data
-    ? interpolate(
+  const { t, locale, date, amount } = useI18n()
+  const loadFeed = useCallback(() => signals.feed({ limit: 20, offset: 0 }), [])
+  const loadProfiles = useCallback(() => icps.list(), [])
+  const loadBilling = useCallback(() => billing.status(), [])
+  const feed = useResource(loadFeed)
+  const profiles = useResource(loadProfiles)
+  const access = useResource(loadBilling)
+  const cards = feed.data ? toSignalCards(feed.data) : []
+  const priority = cards.find((card) => !card.locked) ?? null
+  const additional = priority ? cards.filter((card) => card.id !== priority.id) : cards
+  const activeProfile = profiles.data?.find((profile) => profile.status === 'active') ?? null
+  const documentedCount = feed.data?.total_returned ?? null
+  const countCopy = feed.error && !feed.data
+    ? t.reference.headings.documentedAwards
+    : documentedCount === null
+      ? t.reference.loading
+    : interpolate(
         plural(
-          feedState.data.total_returned,
-          t.dashboard.signalReadOne,
-          t.dashboard.signalReadOther,
+          documentedCount,
+          t.reference.overviewPage.documentedAwardOne,
+          t.reference.overviewPage.documentedAwardOther,
         ),
-        { count: feedState.data.total_returned },
+        { count: `${documentedCount}${feed.data?.page.has_more ? '+' : ''}` },
       )
-    : null
-  const activeIcpSummary = icpState.data
-    ? interpolate(
-        plural(activeIcps.length, t.dashboard.activeIcpOne, t.dashboard.activeIcpOther),
-        { count: activeIcps.length },
-      )
-    : null
-  const planSummary = billingStatus ? t.billing.plans[billingStatus.plan_code] : null
+
+  const displayAmount = (card: SignalCardView) =>
+    card.amount
+      ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
+      : t.reference.missingValue
+  const displayLocation = (card: SignalCardView) => {
+    if (!card.location) return t.reference.missingValue
+    const territory = MVP_TERRITORIES.find(
+      (candidate) => candidate.code === card.location?.country,
+    )
+    const country = territory
+      ? territoryLabel(territory, locale)
+      : card.location.country
+    return [card.location.locality, card.location.postal_code, country]
+      .filter(Boolean)
+      .join(', ') || t.reference.missingValue
+  }
+  const displayDate = (value: string | null) =>
+    date(value) ?? t.reference.missingValue
+  const additionalCountCopy = feed.loading && !feed.data
+    ? t.reference.loading
+    : feed.error && !feed.data
+      ? t.reference.headings.otherDocumentedAwards
+      : interpolate(
+          plural(
+            additional.length,
+            t.reference.overviewPage.marketOne,
+            t.reference.overviewPage.marketOther,
+          ),
+          { count: additional.length },
+        )
 
   return (
-    <div className={styles.page}>
-      <header className={styles.pageHeader}>
-        <SectionHeading
-          level={2}
-          eyebrow={t.dashboard.summaryEyebrow}
-          title={t.dashboard.summaryTitle}
-          lead={t.dashboard.lead}
-        />
-      </header>
+    <div className="overview-main">
+      <section className="overview-intro" aria-labelledby="overview-title">
+        <div>
+          <p className="section-label">{t.reference.headings.monitoringSummary}</p>
+          <h2 id="overview-title">{countCopy}</h2>
+          <p>{t.reference.overviewPage.lead}</p>
+        </div>
+      </section>
 
-      <ul className={styles.metrics} aria-label={t.dashboard.summaryLabel}>
-        <Metric
-          label={t.dashboard.signalsRead}
-          value={signalsRead}
-          loading={feedState.loading && !feedState.data}
-          error={feedState.error}
-          errorCopy={t.dashboard.opportunitiesError}
-          loadingCopy={t.common.loading}
-          retryLabel={t.dashboard.retryOpportunities}
-          onRetry={() => void loadFeed()}
+      <div className="overview-focus-grid">
+        <PriorityCard
+          card={priority}
+          feedLoading={feed.loading && !feed.data}
+          feedError={feed.error}
+          billing={access.data}
+          billingLoading={access.loading && !access.data}
+          billingError={access.error}
+          onRetryFeed={() => void feed.retry()}
+          onRetryBilling={() => void access.retry()}
+          displayLocation={displayLocation}
+          displayDate={displayDate}
         />
-        <Metric
-          label={t.dashboard.activeTargeting}
-          value={activeIcpSummary}
-          loading={icpState.loading && !icpState.data}
-          error={icpState.error}
-          errorCopy={t.dashboard.icpsError}
-          loadingCopy={t.common.loading}
-          retryLabel={t.common.retry}
-          onRetry={() => void loadIcps()}
-        />
-        <Metric
-          label={t.dashboard.currentAccess}
-          value={planSummary}
-          loading={billingState.loading && !billingStatus}
-          error={billingState.error}
-          errorCopy={t.dashboard.billingError}
-          loadingCopy={t.common.loading}
-          retryLabel={t.dashboard.retryBilling}
-          onRetry={() => void loadBilling()}
-        />
-        <Metric
-          label={t.dashboard.alertState}
-          value={alertsSummary}
-          loading={notificationState.loading && !notificationPreference}
-          error={notificationState.error}
-          errorCopy={t.dashboard.alertsError}
-          loadingCopy={t.common.loading}
-          retryLabel={t.dashboard.retryAlerts}
-          onRetry={() => void loadNotifications()}
-        />
-      </ul>
 
-      <div className={styles.workingSurface}>
-        <Card
-          as="section"
-          padding="none"
-          className={styles.feedPane}
-          ariaLabelledBy="dashboard-opportunities-title"
-        >
-          <div className={styles.paneHeader}>
-            <SectionHeading
-              id="dashboard-opportunities-title"
-              title={t.dashboard.opportunities}
-            />
-            <ButtonLink to="/app/signals" variant="secondary">
-              {t.dashboard.viewAllFeed}
-            </ButtonLink>
-          </div>
-          {feedState.loading && !feedState.data ? (
-            <div
-              className={styles.loadingRows}
-              role="status"
-              aria-labelledby="dashboard-feed-loading"
-            >
-              <span id="dashboard-feed-loading" className="kivou-visually-hidden">
-                {t.dashboard.opportunities} — {t.common.loading}
-              </span>
-              {[0, 1, 2].map((index) => (
-                <Skeleton key={index} width="100%" height="6.5rem" />
-              ))}
-            </div>
-          ) : null}
-          {feedItems.length > 0 ? (
-            <ol className={styles.signalList} aria-label={t.dashboard.opportunities}>
-              {feedItems.map((item) => {
-                const selectionState = dashboardSelectionState(item.signal_id)
-                return (
-                  <li key={item.signal_id} className={styles.listItem}>
-                    <SignalListRow
-                      item={item}
-                      selectionState={selectionState}
-                      onSelectLocked={(locked) => {
-                        navigate(`/app/signals/${encodeURIComponent(locked.signal_id)}`, {
-                          state: dashboardSelectionState(locked.signal_id),
-                        })
-                      }}
-                    />
-                  </li>
-                )
-              })}
-            </ol>
-          ) : null}
-          {feedState.data && feedItems.length === 0 ? (
-            <EmptyState
-              title={t.dashboard.noOpportunities}
-              body={t.dashboard.noOpportunitiesBody}
-              action={
-                <ButtonLink to="/app/icps" variant="secondary">
-                  {t.dashboard.adjustTargeting}
-                </ButtonLink>
-              }
-            />
-          ) : null}
-        </Card>
-
-        <Card
-          as="aside"
-          padding="lg"
-          className={styles.contextPane}
-          ariaLabelledBy="dashboard-company-title"
-        >
-          <SectionHeading
-            id="dashboard-company-title"
-            eyebrow={t.dashboard.contextPreview}
-            title={t.dashboard.company}
-          />
-          {companyState.status === 'loading' ||
-          (companyState.status === 'idle' && feedState.loading && !feedState.data) ? (
-            <div
-              className={styles.contextLoading}
-              role="status"
-              aria-labelledby="dashboard-company-loading"
-            >
-              <span id="dashboard-company-loading" className="kivou-visually-hidden">
-                {t.dashboard.company} — {t.common.loading}
-              </span>
-              <Skeleton width="42%" height="1rem" />
-              <Skeleton width="78%" height="1.5rem" />
-              <Skeleton width="58%" height="2.5rem" />
-            </div>
-          ) : null}
-          {companyState.status === 'available' ? (
-            <div className={styles.contextState}>
-              <p className={styles.supportingCopy}>{t.dashboard.companyAvailable}</p>
-              <ButtonLink
-                to={`/app/companies/${encodeURIComponent(companyState.companyKey)}`}
-                variant="secondary"
-              >
-                {t.dashboard.companyAction}
-              </ButtonLink>
-            </div>
-          ) : null}
-          {companyState.status === 'unavailable' ? (
-            <p className={styles.emptyTitle}>{t.dashboard.companyUnavailable}</p>
-          ) : null}
-          {companyState.status === 'error' ? (
-            <Callout
-              tone="danger"
-              live
-              title={t.dashboard.companyError}
-              action={
-                <Button variant="secondary" onClick={() => void loadCompany(companyState.signal)}>
-                  {t.dashboard.retryCompany}
-                </Button>
-              }
-            />
-          ) : null}
-          {companyState.status === 'idle' && !(feedState.loading && !feedState.data) ? (
-            <p className={styles.supportingCopy}>
-              {hasUnlockedSignal
-                ? t.dashboard.noAccessibleCompany
-                : t.dashboard.contextWithoutUnlocked}
-            </p>
-          ) : null}
-        </Card>
-      </div>
-
-      <div className={styles.supportStrip}>
-        <Card
-          as="section"
-          padding="lg"
-          className={styles.icpSection}
-          ariaLabelledBy="dashboard-icps-title"
-        >
-          <div className={styles.cardHeader}>
-            <SectionHeading id="dashboard-icps-title" title={t.dashboard.icps} />
-            <ButtonLink to="/app/icps" variant="secondary">
-              {t.dashboard.manageIcps}
-            </ButtonLink>
-          </div>
-          {icpState.loading && !icpState.data ? (
-            <div className={styles.compactList} aria-label={t.common.loading}>
-              <Skeleton width="58%" height="1.5rem" />
-              <Skeleton width="76%" height="1rem" />
-            </div>
-          ) : null}
-          {icpState.data && activeIcps.length === 0 ? (
-            <div className={styles.emptyCompact}>
-              <p className={styles.emptyTitle}>{t.dashboard.noActiveIcp}</p>
-              <p className={styles.supportingCopy}>{t.dashboard.noActiveIcpBody}</p>
-            </div>
-          ) : null}
-          {activeIcps.length > 0 ? (
-            <ol className={styles.icpList} aria-label={t.dashboard.icps}>
-              {activeIcps.map((profile) => (
-                <li key={profile.target_icp_id} className={styles.listItem}>
-                  <IcpSummary
-                    profile={profile}
-                    overLimit={overLimitIcps.has(profile.target_icp_id)}
-                  />
-                </li>
-              ))}
-            </ol>
-          ) : null}
-        </Card>
-
-        <Card
-          as="section"
-          padding="lg"
-          className={styles.sectionCard}
-          ariaLabelledBy="dashboard-billing-title"
-        >
-          <SectionHeading id="dashboard-billing-title" title={t.dashboard.billing} />
-          {billingState.loading && !billingStatus ? (
-            <Skeleton width="40%" height="1.5rem" />
-          ) : null}
-          {billingStatus ? (
-            <>
-              <div className={styles.statusHead}>
-                <Badge tone={billingStatus.plan_code === 'discovery' ? 'neutral' : 'positive'}>
-                  {t.billing.status[
-                    (billingStatus.subscription_status ??
-                      'none') as keyof typeof t.billing.status
-                  ] ?? t.billing.status.unknown}
-                </Badge>
+        <aside className="overview-side-stack">
+          <section className="targeting-card" aria-labelledby="targeting-title">
+            <div className="overview-card-heading">
+              <div>
+                <p className="card-kicker">{t.reference.targeting}</p>
+                <h3 id="targeting-title">{t.reference.headings.savedProfile}</h3>
               </div>
-              <DataList>
-                <DataRow label={t.dashboard.discoveryUsed}>
-                  {interpolate(
-                    billingStatus.discovery.granted_signal_count === 1
-                      ? t.dashboard.discoveryUsedOne
-                      : t.dashboard.discoveryUsedOther,
-                    { count: billingStatus.discovery.granted_signal_count },
-                  )}
-                </DataRow>
-                <DataRow label={t.dashboard.discoveryRemaining}>
-                  {interpolate(
-                    billingStatus.discovery.remaining_slots === 1
-                      ? t.dashboard.discoveryRemainingOne
-                      : t.dashboard.discoveryRemainingOther,
-                    { count: billingStatus.discovery.remaining_slots },
-                  )}
-                </DataRow>
-                <DataRow label={t.dashboard.discoveryLimit}>
-                  {interpolate(t.dashboard.discoveryLimitValue, {
-                    count: billingStatus.discovery.limit,
-                  })}
-                </DataRow>
-              </DataList>
-              {billingStatus.discovery.remaining_slots === 0 ? (
-                <p className={styles.supportingCopy}>{t.dashboard.discoveryExhausted}</p>
-              ) : null}
-              {billingStatus.scheduled_cancellation_at ? (
-                <Callout tone="warning" title={t.billing.cancellationTitle}>
-                  {interpolate(t.dashboard.scheduledCancellation, {
-                    date: date(billingStatus.scheduled_cancellation_at) ?? '',
-                  })}
-                </Callout>
-              ) : null}
-              <ButtonLink to="/app/billing" variant="secondary">
-                {billingActionLabels[billingStatus.billing_action]}
-              </ButtonLink>
-            </>
-          ) : null}
-        </Card>
-
-        <Card
-          as="section"
-          padding="lg"
-          className={styles.sectionCard}
-          ariaLabelledBy="dashboard-alerts-title"
-        >
-          <SectionHeading id="dashboard-alerts-title" title={t.dashboard.alerts} />
-          {notificationState.loading && !notificationPreference ? (
-            <Skeleton width="62%" height="1.25rem" />
-          ) : null}
-          <ButtonLink to="/app/notifications" variant="secondary">
-            {t.dashboard.manageAlerts}
-          </ButtonLink>
-        </Card>
+              <MapPin aria-hidden="true" />
+            </div>
+            <TargetProfileSnapshot
+              profile={activeProfile}
+              loading={profiles.loading && !profiles.data}
+              error={profiles.error}
+              onRetry={() => void profiles.retry()}
+            />
+          </section>
+        </aside>
       </div>
+
+      <section className="recent-card overview-awards-card" aria-labelledby="other-awards-title">
+        <div className="overview-card-heading">
+          <div>
+            <p className="card-kicker">{t.reference.headings.otherDocumentedAwards}</p>
+            <h3 id="other-awards-title">{additionalCountCopy}</h3>
+          </div>
+          <span className="signal-count">{t.reference.overviewPage.publicSources}</span>
+        </div>
+
+        <div className="recent-list">
+          {additional.map((card) => (
+              <ReferenceLink
+                dashboard
+                className="recent-signal"
+                href={`/signals?signal=${encodeURIComponent(card.id)}`}
+                key={card.id}
+              >
+                <span className="recent-company">
+                  <strong>{card.companyName ?? t.reference.missingValue}</strong>
+                  <span>{card.eventTitle ?? t.reference.missingValue}</span>
+                </span>
+                <span className="recent-value">
+                  <strong>{displayAmount(card)}</strong>
+                  <span>{displayDate(card.awardDate)} · {displayLocation(card)}</span>
+                </span>
+                <span className="recent-match">
+                  {card.locked
+                    ? t.reference.overviewPage.paidAccessRequired
+                    : card.matchLabel ?? t.reference.missingValue}
+                </span>
+              </ReferenceLink>
+          ))}
+        </div>
+
+        <ReferenceLink dashboard className="text-link" href="/signals">
+          {t.reference.overviewPage.seeSignals} <ArrowRight aria-hidden="true" />
+        </ReferenceLink>
+      </section>
     </div>
   )
 }
 
-function Metric({
-  label,
-  value,
-  loading,
-  error,
-  errorCopy,
-  loadingCopy,
-  retryLabel,
-  onRetry,
+function PriorityCard({
+  card,
+  feedLoading,
+  feedError,
+  billing: billingStatus,
+  billingLoading,
+  billingError,
+  onRetryFeed,
+  onRetryBilling,
+  displayLocation,
+  displayDate,
 }: {
-  label: string
-  value: string | null
-  loading: boolean
-  error: unknown | null
-  errorCopy: string
-  loadingCopy: string
-  retryLabel: string
-  onRetry: () => void
+  card: SignalCardView | null
+  feedLoading: boolean
+  feedError: unknown | null
+  billing: BillingStatus | null
+  billingLoading: boolean
+  billingError: unknown | null
+  onRetryFeed: () => void
+  onRetryBilling: () => void
+  displayLocation: (card: SignalCardView) => string
+  displayDate: (value: string | null) => string
 }) {
-  const loadingId = useId()
+  const { t } = useI18n()
+
+  if (feedLoading) {
+    return (
+      <article className="priority-card" aria-busy="true">
+        <p className="card-kicker">{t.reference.overviewPage.reviewFirst}</p>
+        <h3>{t.reference.loading}</h3>
+      </article>
+    )
+  }
+
+  if (feedError) {
+    return (
+      <article className="priority-card">
+        <ResourceError
+          message={t.reference.messages.loadError}
+          retryLabel={t.reference.retry}
+          onRetry={onRetryFeed}
+        />
+      </article>
+    )
+  }
+
+  if (!card) {
+    const billingAction = billingStatus
+      ? billingActionLabel(billingStatus.billing_action, t)
+      : null
+    return (
+      <article className="priority-card" aria-labelledby="priority-title">
+        <div className="priority-heading">
+          <div>
+            <p className="card-kicker">{t.reference.overviewPage.reviewFirst}</p>
+            <h3 id="priority-title">{t.reference.overviewPage.noAccessibleSignal}</h3>
+          </div>
+          <span className="published-status">
+            <FileCheck2 aria-hidden="true" /> {t.reference.overviewPage.realAccess}
+          </span>
+        </div>
+        <p className="priority-summary">{t.reference.overviewPage.noAccessibleSignalBody}</p>
+        <dl className="priority-facts">
+          {[t.reference.fields.award, t.reference.fields.plannedStart, t.reference.fields.location].map(
+            (label) => (
+              <div key={label}><dt>{label}</dt><dd>{t.reference.missingValue}</dd></div>
+            ),
+          )}
+        </dl>
+        <div className="priority-footer">
+          <p>{t.reference.overviewPage.noAccessibleSignalLimit}</p>
+          {billingError ? (
+            <button type="button" className="source-link" onClick={onRetryBilling}>
+              {t.reference.retry}
+            </button>
+          ) : billingLoading ? (
+            <span>{t.reference.loading}</span>
+          ) : billingAction ? (
+            <Button asChild className="primary-action priority-action">
+              <ReferenceLink dashboard href="/billing">
+                {billingAction} <ArrowRight aria-hidden="true" />
+              </ReferenceLink>
+            </Button>
+          ) : null}
+        </div>
+      </article>
+    )
+  }
+
+  const reasons = card.matchReasons.length > 0
+    ? card.matchReasons
+    : [t.reference.missingValue]
 
   return (
-    <li className={styles.metric}>
-      <p className={styles.metricLabel}>{label}</p>
-      {error ? (
-        <div className={styles.metricError} role="alert">
-          <p>{errorCopy}</p>
-          <Button variant="secondary" onClick={onRetry}>
-            {retryLabel}
-          </Button>
+    <article className="priority-card" aria-labelledby="priority-title">
+      <div className="priority-heading">
+        <div>
+          <p className="card-kicker">{t.reference.overviewPage.reviewFirst}</p>
+          <h3 id="priority-title">{card.eventTitle ?? t.reference.missingValue}</h3>
         </div>
-      ) : loading || value === null ? (
-        <div className={styles.metricSkeleton} role="status" aria-labelledby={loadingId}>
-          <span id={loadingId} className="kivou-visually-hidden">
-            {label} — {loadingCopy}
-          </span>
-          <Skeleton width="72%" height="1.35rem" />
-        </div>
-      ) : (
-        <p className={styles.metricValue}>{value}</p>
-      )}
-    </li>
+        <span className="published-status">
+          <FileCheck2 aria-hidden="true" />{' '}
+          {card.sourceSystem
+            ? interpolate(t.reference.overviewPage.publishedOn, { source: card.sourceSystem })
+            : t.reference.overviewPage.publishedAward}
+        </span>
+      </div>
+
+      <p className="priority-summary">{card.whyNow}</p>
+
+      <dl className="priority-facts">
+        <div><dt>{t.reference.fields.award}</dt><dd>{displayDate(card.awardDate)}</dd></div>
+        <div><dt>{t.reference.fields.plannedStart}</dt><dd>{t.reference.missingValue}</dd></div>
+        <div><dt>{t.reference.fields.location}</dt><dd>{displayLocation(card)}</dd></div>
+      </dl>
+
+      <div className="priority-why">
+        <p className="card-kicker">{t.reference.overviewPage.whyFirst}</p>
+        <div>{reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
+      </div>
+
+      <div className="priority-footer">
+        <p>{t.reference.overviewPage.honestyLimit}</p>
+        <Button asChild className="primary-action priority-action">
+          <ReferenceLink dashboard href={`/signals?signal=${encodeURIComponent(card.id)}`}>
+            {t.reference.overviewPage.reviewSignal} <ArrowRight aria-hidden="true" />
+          </ReferenceLink>
+        </Button>
+      </div>
+    </article>
   )
 }
 
-function dashboardSelectionState(key: string) {
-  return {
-    signalSelection: {
-      kind: 'feed' as const,
-      key,
-      feedGeneration: 0,
-      query: { freshness: 'new' as const, targetIcpId: '' },
-    },
-  }
-}
+function TargetProfileSnapshot({
+  profile,
+  loading,
+  error,
+  onRetry,
+}: {
+  profile: TargetIcp | null
+  loading: boolean
+  error: unknown | null
+  onRetry: () => void
+}) {
+  const { t, locale } = useI18n()
 
-function IcpSummary({ profile, overLimit }: { profile: TargetIcp; overLimit: boolean }) {
-  const { t, locale, amount } = useI18n()
+  if (loading) return <p role="status">{t.reference.loading}</p>
+  if (error) {
+    return (
+      <ResourceError
+        message={t.reference.messages.profileLoadError}
+        retryLabel={t.reference.retry}
+        onRetry={onRetry}
+      />
+    )
+  }
+  if (!profile) return <p>{t.reference.overviewPage.noActiveProfile}</p>
+
   const input = profile.customer_input
-  const summary =
-    input.offer_summary.trim() ||
-    input.offers.map((offer) => t.offers[offer]).join(', ') ||
-    t.common.notAvailable
+  const offer = input.offer_summary.trim() ||
+    input.offers.map((kind) => t.offers[kind]).join(', ') ||
+    t.reference.missingValue
+  const companies = input.buyer_trades.map((trade) => t.trades[trade]).join(', ') ||
+    t.reference.missingValue
   const territories = input.territories.map((code) => {
     const territory = MVP_TERRITORIES.find((candidate) => candidate.code === code)
     return territory ? territoryLabel(territory, locale) : code
-  })
-  const threshold = input.minimum_contract_value
-    ? amount(
-        String(input.minimum_contract_value.minimum_amount),
-        input.minimum_contract_value.currency,
-      )
-    : null
+  }).join(', ') || t.reference.missingValue
 
   return (
-    <Card as="article" padding="md" className={styles.icpCard}>
-      <div className={styles.icpHead}>
-        <h3 className={styles.icpTitle}>{profile.label}</h3>
-        <div className={styles.badges}>
-          {overLimit ? <Badge tone="warm">{t.icp.overLimitBadge}</Badge> : null}
-          {profile.plan_limit ? <Badge tone="warm">{t.icp.territoryLimitedBadge}</Badge> : null}
-        </div>
-      </div>
-      <p className={styles.icpSummary}>{summary}</p>
-      <DataList>
-        <DataRow label={t.icp.territoriesLabel}>
-          {territories.length > 0 ? territories.join(', ') : t.common.notAvailable}
-        </DataRow>
-        {threshold ? <DataRow label={t.icp.thresholdLabel}>{threshold}</DataRow> : null}
-      </DataList>
-      {profile.plan_limit ? (
-        <p className={styles.limitCopy}>
-          {interpolate(t.dashboard.territoryLimit, {
-            count: profile.plan_limit.territory_count,
-            limit: profile.plan_limit.limit,
-          })}
-        </p>
-      ) : null}
-    </Card>
+    <div className="target-profile-snapshot">
+      <strong>{profile.label}</strong>
+      <dl className="targeting-list">
+        <div><dt>{t.reference.fields.offerSummary}</dt><dd>{offer}</dd></div>
+        <div><dt>{t.reference.fields.targetCompanies}</dt><dd>{companies}</dd></div>
+        <div><dt>{t.reference.fields.territory}</dt><dd>{territories}</dd></div>
+      </dl>
+      <ReferenceLink dashboard className="text-link" href="/targeting">
+        {t.reference.overviewPage.seeProfile} <ArrowRight aria-hidden="true" />
+      </ReferenceLink>
+    </div>
   )
+}
+
+function ResourceError({
+  message,
+  retryLabel,
+  onRetry,
+}: {
+  message: string
+  retryLabel: string
+  onRetry: () => void
+}) {
+  return (
+    <div role="alert">
+      <p>{message}</p>
+      <button type="button" className="source-link" onClick={onRetry}>{retryLabel}</button>
+    </div>
+  )
+}
+
+function billingActionLabel(
+  action: BillingAction,
+  t: ReturnType<typeof useI18n>['t'],
+): string {
+  return {
+    choose_plan: t.dashboard.choosePlan,
+    manage_subscription: t.dashboard.manageSubscription,
+    recover_payment: t.dashboard.recoverPayment,
+    contact_support: t.dashboard.contactSupport,
+  }[action]
 }

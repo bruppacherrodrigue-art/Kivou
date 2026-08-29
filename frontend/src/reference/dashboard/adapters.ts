@@ -24,7 +24,10 @@ export function toSignalCard(_item: FeedItem): SignalCardView {
       amount: null,
       location: null,
       eventDate: _item.event.date,
+      awardDate: null,
       matchLabel: null,
+      matchReasons: [],
+      sourceSystem: null,
       whyNow: _item.event.why_now,
     }
   }
@@ -37,7 +40,10 @@ export function toSignalCard(_item: FeedItem): SignalCardView {
     amount: _item.contract.amount,
     location: _item.contract.location,
     eventDate: _item.event.date,
+    awardDate: _item.contract.dates.award,
     matchLabel: _item.analysis.fit.label,
+    matchReasons: _item.analysis.fit.reasons,
+    sourceSystem: _item.source.system,
     whyNow: _item.event.why_now,
   }
 }
@@ -48,17 +54,16 @@ export function toSignalCards(page: FeedPage): SignalCardView[] {
 
 export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
   const firstNeed = detail.analysis.plausible_needs.items[0]
-  const scope = detail.evidence.public_facts.flatMap((fact) =>
-    fact.items.flatMap((item) =>
-      item.excerpt === null ? [] : [{ value: item.excerpt, label: fact.label }],
-    ),
-  )
 
   return {
     id: detail.signal_id,
     title: detail.contract.title,
     companyName: detail.company.name,
     companyKey: detail.company_key ?? null,
+    companyCountry: detail.company.country,
+    companyIdentifier: detail.company.identifier,
+    targetProfileLabel: detail.analysis.fit.target_icp_label,
+    sourceSystem: detail.source.system,
     summary: detail.analysis.contract_reading?.summary ?? null,
     brief: {
       whyNow: detail.event.why_now,
@@ -68,14 +73,17 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
     },
     facts: {
       amount: detail.contract.amount,
-      concludedAt: detail.contract.dates.award,
+      awardDate: detail.contract.dates.award,
       execution: null,
       buyer: detail.contract.buyer?.name ?? null,
       notice: detail.source.notice_id,
       cpv: detail.contract.cpv,
       sourceUrl: detail.source.url,
     },
-    scope,
+    // L'API ne publie pas de champ structuré « périmètre ». Les groupes
+    // `public_facts` décrivent plusieurs natures de faits (attributaire,
+    // montant, dates, acheteurs) et ne doivent pas être requalifiés ici.
+    scope: [],
     questions: [],
   }
 }

@@ -13,7 +13,10 @@ export interface SignalCardView {
   amount: Money | null
   location: Place | null
   eventDate: string | null
+  awardDate: string | null
   matchLabel: string | null
+  matchReasons: string[]
+  sourceSystem: string | null
   whyNow: string
 }
 
@@ -22,6 +25,10 @@ export interface SignalDetailView {
   title: string | null
   companyName: string | null
   companyKey: string | null
+  companyCountry: string | null
+  companyIdentifier: { scheme: string | null; value: string | null } | null
+  targetProfileLabel: string | null
+  sourceSystem: string | null
   summary: string | null
   brief: {
     whyNow: string
@@ -31,7 +38,7 @@ export interface SignalDetailView {
   }
   facts: {
     amount: Money | null
-    concludedAt: string | null
+    awardDate: string | null
     execution: string | null
     buyer: string | null
     notice: string | null
