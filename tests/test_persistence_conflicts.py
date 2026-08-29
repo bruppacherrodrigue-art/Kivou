@@ -18,6 +18,7 @@ import uuid
 import pytest
 import sqlalchemy as sa
 
+from signals.persistence import conflicts
 from signals.persistence.conflicts import UnsupportedConflictDialect, insert_if_absent
 
 METADATA = sa.MetaData()
@@ -26,6 +27,13 @@ probe = sa.Table(
     METADATA,
     sa.Column("owner_key", sa.String(64), primary_key=True),
     sa.Column("payload", sa.String(64), nullable=False),
+)
+upsert_probe = sa.Table(
+    "upsert_probe",
+    METADATA,
+    sa.Column("owner_key", sa.String(64), primary_key=True),
+    sa.Column("payload", sa.String(64), nullable=False),
+    sa.Column("immutable_marker", sa.String(64), nullable=False),
 )
 
 PG_URL = os.environ.get("KIVOU_TEST_DATABASE_URL")
@@ -72,6 +80,25 @@ def own(connection, key: str, payload: str = "first") -> bool:
 def stored(engine, key: str) -> str | None:
     with engine.connect() as connection:
         return connection.scalar(sa.select(probe.c.payload).where(probe.c.owner_key == key))
+
+
+def upsert(connection, key: str, payload: str, immutable_marker: str):
+    return conflicts.upsert_returning(
+        connection,
+        upsert_probe,
+        {
+            "owner_key": key,
+            "payload": payload,
+            "immutable_marker": immutable_marker,
+        },
+        index_elements=[upsert_probe.c.owner_key],
+        update_values={"payload": payload},
+        returning=(
+            upsert_probe.c.owner_key,
+            upsert_probe.c.payload,
+            upsert_probe.c.immutable_marker,
+        ),
+    )
 
 
 # ─── Les deux issues, et rien d'autre ────────────────────────────────────────
@@ -213,6 +240,39 @@ def test_the_default_projection_needs_no_column_from_the_caller(engine) -> None:
             is False
         )
     assert stored(engine, "d1") == "x"
+
+
+# ─── Écrire ou remplacer en une seule instruction ───────────────────────────
+
+
+def test_upsert_returning_inserts_and_returns_the_written_row(engine) -> None:
+    with engine.begin() as connection:
+        row = upsert(connection, "u1", "first", "created-once")
+
+    assert tuple(row) == ("u1", "first", "created-once")
+
+
+def test_upsert_returning_updates_only_requested_values_and_returns_the_row(engine) -> None:
+    with engine.begin() as connection:
+        upsert(connection, "u2", "first", "created-once")
+    with engine.begin() as connection:
+        row = upsert(connection, "u2", "second", "must-not-replace")
+
+    assert tuple(row) == ("u2", "second", "created-once")
+    with engine.connect() as connection:
+        stored_row = connection.execute(
+            sa.select(upsert_probe).where(upsert_probe.c.owner_key == "u2")
+        ).one()
+    assert tuple(stored_row) == ("u2", "second", "created-once")
+
+
+def test_upsert_returning_refuses_an_unsupported_dialect() -> None:
+    class _Fake:
+        class dialect:
+            name = "mysql"
+
+    with pytest.raises(UnsupportedConflictDialect):
+        upsert(_Fake(), "u3", "payload", "immutable")
 
 
 # ─── L'URL de la base jetable ─────────────────────────────────────────────────

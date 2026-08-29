@@ -13,7 +13,7 @@ from signals.persistence.schema import (
 PREVIOUS = "0013_personalization"
 #: La migration que CE fichier décrit, distincte de la tête de chaîne courante.
 COMPLIANCE = "0014_compliance"
-HEAD = "0026_acquisition_runtime"
+CURRENT_HEAD = "0027_signal_notes"
 
 
 def test_compliance_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
@@ -29,7 +29,7 @@ def test_compliance_migration_is_linear_and_adds_exactly_two_tables(tmp_path) ->
         "acquisition_compliance_assessment",
     }
     scripts = ScriptDirectory.from_config(config)
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(COMPLIANCE).down_revision == PREVIOUS
 
 
@@ -71,14 +71,14 @@ def test_compliance_upgrade_downgrade_and_schema_parity(tmp_path) -> None:
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'roundtrip.db'}")
     config = alembic_config(engine)
     command.upgrade(config, PREVIOUS)
-    command.upgrade(config, HEAD)
+    command.upgrade(config, CURRENT_HEAD)
 
     inspector = sa.inspect(engine)
     for table in (acquisition_contact_suppression, acquisition_compliance_assessment):
         assert {column["name"] for column in inspector.get_columns(table.name)} == {
             column.name for column in table.columns
         }
-    assert current_revision(engine) == HEAD
+    assert current_revision(engine) == CURRENT_HEAD
     assert {
         item["name"]
         for item in inspector.get_check_constraints(acquisition_contact_suppression.name)
@@ -115,14 +115,14 @@ def test_compliance_upgrade_downgrade_and_schema_parity(tmp_path) -> None:
     assert acquisition_compliance_assessment.name not in names
     assert current_revision(engine) == PREVIOUS
 
-    command.upgrade(config, HEAD)
-    assert current_revision(engine) == HEAD
+    command.upgrade(config, CURRENT_HEAD)
+    assert current_revision(engine) == CURRENT_HEAD
 
 
 def test_compliance_postgresql_offline_sql_has_exactly_two_tables_and_index(capsys) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
     config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
-    command.upgrade(config, f"{PREVIOUS}:{HEAD}", sql=True)
+    command.upgrade(config, f"{PREVIOUS}:{CURRENT_HEAD}", sql=True)
     sql = capsys.readouterr().out
 
     assert sql.count("CREATE TABLE acquisition_contact_suppression") == 1
