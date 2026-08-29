@@ -75,6 +75,11 @@ describe('détail exact d’un signal réel', () => {
     const scope = panel.querySelector('.volume-grid')
     expect(scope).toHaveTextContent('Non publié')
     expect(scope).not.toHaveTextContent('Le marché est attribué')
+    expect(scope?.querySelectorAll('.volume-item')).toHaveLength(5)
+    expect(panel.querySelectorAll('.questions-list > li')).toHaveLength(3)
+    for (const item of panel.querySelectorAll('.volume-item, .questions-list > li')) {
+      expect(item).toHaveTextContent('Non publié')
+    }
   })
 
   it('conserve le statut d’hypothèse et n’invente aucune certitude d’achat', async () => {

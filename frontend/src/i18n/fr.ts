@@ -117,6 +117,7 @@ export const fr = {
       editAccount: 'Modifier le compte',
       subscription: 'Abonnement',
       state: 'État',
+      currentPriceUnavailable: 'Tarif facturé non publié',
       connectedState: 'Données du compte connectées',
       manageSubscription: 'Gérer l’abonnement',
       supportKicker: 'Assistance',

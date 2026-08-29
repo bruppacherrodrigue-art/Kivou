@@ -344,6 +344,13 @@ export function AuthFlow({ mode }: { mode: AuthMode }) {
           />
         ) : null}
 
+        {mode === 'signup' ? (
+          <div className="form-field">
+            <span className="auth-readonly-label">Langue</span>
+            <output className="lifecycle-select auth-readonly-locale">Français</output>
+          </div>
+        ) : null}
+
         {mode === 'login' ? (
           <div className="auth-inline-row">
             <span />

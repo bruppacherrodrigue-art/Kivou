@@ -4970,6 +4970,12 @@ button.public-cta {
   font-weight: 660;
 }
 
+.form-field .auth-readonly-label {
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 660;
+}
+
 .form-field label span {
   color: var(--text-muted);
   font-weight: 520;
@@ -4997,6 +5003,11 @@ button.public-cta {
 .lifecycle-select {
   padding: 0 11px;
   outline: none;
+}
+
+.auth-readonly-locale {
+  display: flex;
+  align-items: center;
 }
 
 .lifecycle-select:focus-visible {
@@ -5930,6 +5941,17 @@ button.public-cta {
   .feed-panel,
   .detail-panel {
     padding: 24px 18px 36px;
+  }
+
+  .detail-panel {
+    position: relative;
+  }
+
+  .signal-mobile-back {
+    position: absolute;
+    z-index: 1;
+    top: 24px;
+    right: 18px;
   }
 
   .companies-panel,

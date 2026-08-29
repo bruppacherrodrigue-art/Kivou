@@ -80,8 +80,13 @@ export function ReferenceSignalDetail({
   ]
   const scope = detail.scope.length > 0
     ? detail.scope
-    : [{ value: missing, label: t.reference.fields.publishedScope }]
-  const questions = detail.questions.length > 0 ? detail.questions : [missing]
+    : Array.from({ length: 5 }, () => ({
+        value: missing,
+        label: t.reference.fields.publishedScope,
+      }))
+  const questions = detail.questions.length > 0
+    ? detail.questions
+    : Array.from({ length: 3 }, () => missing)
   const sourceReference = [detail.sourceSystem, detail.facts.notice].filter(Boolean).join(' ') || missing
   const noticeReference = detail.sourceSystem && detail.facts.notice
     ? interpolate(t.reference.signalsPage.noticeReference, {

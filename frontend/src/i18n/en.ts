@@ -111,6 +111,7 @@ export const en: Dictionary = {
       editAccount: 'Edit account',
       subscription: 'Subscription',
       state: 'Status',
+      currentPriceUnavailable: 'Billed price not published',
       connectedState: 'Connected account data',
       manageSubscription: 'Manage subscription',
       supportKicker: 'Support',

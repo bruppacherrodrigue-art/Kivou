@@ -87,6 +87,12 @@ export function Settings() {
                       ? t.reference.missingValue
                       : plan}
                 </h3>
+                {!access.loading && !access.error ? (
+                  <p className="settings-price">
+                    <strong>{t.reference.missingValue}</strong>
+                    <span>{copy.currentPriceUnavailable}</span>
+                  </p>
+                ) : null}
               </div>
               <CreditCard aria-hidden="true" />
             </div>

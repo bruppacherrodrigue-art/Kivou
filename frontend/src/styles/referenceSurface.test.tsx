@@ -184,4 +184,34 @@ describe('reference presentation surface', () => {
     expect(html).not.toContain('<noscript>')
     expect(html).toContain('Kivou | Signaux commerciaux post-attribution')
   })
+
+  it('restores the pinned public line-height outside the dashboard surface', () => {
+    const isolationCss = readFileSync(
+      resolve(process.cwd(), 'src/styles/reference-surface-isolation.css'),
+      'utf8',
+    )
+    const main = readFileSync(resolve(process.cwd(), 'src/main.tsx'), 'utf8')
+
+    expect(isolationCss).toMatch(
+      /html\[data-kivou-surface="public"\] body\s*\{\s*line-height:\s*normal;/,
+    )
+    expect(isolationCss).toMatch(
+      /html\[data-kivou-surface="public"\] code\s*\{\s*font-family:\s*monospace;/,
+    )
+    expect(isolationCss).toMatch(
+      /html\[data-kivou-surface="public"\] \.legal-toc ol,[\s\S]*list-style:\s*decimal;/,
+    )
+    expect(isolationCss).toMatch(
+      /html\[data-kivou-surface="public"\] \.legal-subsection ul\s*\{\s*list-style:\s*disc;/,
+    )
+    expect(isolationCss).toMatch(
+      /html\[data-kivou-surface="public"\] \.legal-subsection h3\s*\{\s*font-weight:\s*700;/,
+    )
+    expect(isolationCss).toMatch(
+      /html\[data-kivou-surface="public"\] \.legal-toc a,[\s\S]*text-decoration:\s*underline;/,
+    )
+    expect(main.indexOf("'./styles/reference-surface-isolation.css'")).toBeGreaterThan(
+      main.indexOf("'./reference/dashboard/dashboard-reference.css'"),
+    )
+  })
 })

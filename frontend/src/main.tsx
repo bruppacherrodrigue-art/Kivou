@@ -20,6 +20,7 @@ import '@fontsource-variable/instrument-sans/wght.css'
 import './styles/tokens.css'
 import './reference/public/public-reference.css'
 import './reference/dashboard/dashboard-reference.css'
+import './styles/reference-surface-isolation.css'
 import { App } from './App'
 
 const container = document.getElementById('root')

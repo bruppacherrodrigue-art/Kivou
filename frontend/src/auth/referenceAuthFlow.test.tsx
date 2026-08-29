@@ -217,6 +217,7 @@ describe('parcours d’entrée de la référence connectée', () => {
 
     expect(screen.queryByLabelText(/langue/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'English' })).not.toBeInTheDocument()
+    expect(document.querySelector('.auth-readonly-locale')).toHaveTextContent('Français')
     expect(screen.getByRole('heading', { name: 'Commencer avec un ciblage clair' })).toBeVisible()
 
     await user.type(screen.getByLabelText('Entreprise'), 'Entreprise Test')

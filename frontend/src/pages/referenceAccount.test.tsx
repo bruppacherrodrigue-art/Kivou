@@ -20,6 +20,19 @@ const shell = {
 }
 
 describe('compte exact connecté', () => {
+  it('conserve le slot du tarif actuel sans inventer le montant facturé', async () => {
+    mockApi(shell)
+    renderApp(<AppRoutes />, {
+      route: '/app/settings',
+      session: AUTHENTICATED,
+    })
+
+    await screen.findByRole('heading', { level: 2, name: 'Informations du compte' })
+    const price = document.querySelector('.settings-price')
+    expect(price).toHaveTextContent('Tarif facturé non publié')
+    expect(price).not.toHaveTextContent(/CHF|EUR|\b\d+[,.]?\d*\b/)
+  })
+
   it('modifie la langue connectée depuis le formulaire exact du compte', async () => {
     const user = userEvent.setup()
     mockApi({
