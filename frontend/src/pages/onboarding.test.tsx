@@ -567,7 +567,7 @@ describe('onboarding', () => {
     expect(sent.customer_input).not.toHaveProperty('account_id')
   })
 
-  it('rejoint le feed en annonçant les signaux réellement ouverts', async () => {
+  it('rejoint le feed exact sans réintroduire la bannière d’activation supprimée', async () => {
     const user = userEvent.setup()
     mockApi({
       ...ACTIVATED_ROUTES,
@@ -584,15 +584,9 @@ describe('onboarding', () => {
     )
 
     expect(await screen.findByRole('heading', { name: 'Signaux' })).toBeInTheDocument()
-    // Le compte vient du serveur, et il n'est annoncé qu'une fois les
-    // déblocages réellement attribués.
-    expect(
-      await screen.findByText('3 signaux sont accessibles avec votre profil.'),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Voir mon premier signal' })).toHaveAttribute(
-      'href',
-      '/app/signals/sig_unlocked_1',
-    )
+    expect(await screen.findByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
+    expect(screen.queryByText(/signaux sont accessibles avec votre profil/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Voir mon premier signal' })).not.toBeInTheDocument()
   })
 
   it('aucune requête du frontend ne porte d’account_id', async () => {
@@ -1162,28 +1156,33 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
 
 describe('gestion des profils', () => {
   it('garde les aides de dépassement au-dessus du contraste WCAG AA', () => {
-    const tokens = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8')
-    const css = readFileSync(join(process.cwd(), 'src/pages/Icps.module.css'), 'utf8')
+    const css = readFileSync(
+      join(process.cwd(), 'src/reference/dashboard/dashboard-reference.css'),
+      'utf8',
+    )
 
     expect(css).toMatch(
-      /\.overLimitHelp\s*\{[^}]*color:\s*var\(--kivou-analysis-accent\)/s,
+      /\.target-demo-message\s*\{[^}]*color:\s*var\(--green\)/s,
     )
     expect(
       contrastRatio(
-        readHexToken(tokens, 'kivou-analysis-accent'),
-        readHexToken(tokens, 'kivou-connected-surface-muted'),
+        readHexToken(css, 'green'),
+        readHexToken(css, 'surface'),
       ),
     ).toBeGreaterThanOrEqual(4.5)
   })
 
-  it('empile le workspace avant le rail 1024 px tout en gardant sa grille sur grand écran', () => {
-    const css = readFileSync(join(process.cwd(), 'src/pages/Icps.module.css'), 'utf8')
+  it('empile le workspace de référence au breakpoint existant tout en gardant sa grille sur grand écran', () => {
+    const css = readFileSync(
+      join(process.cwd(), 'src/reference/dashboard/dashboard-reference.css'),
+      'utf8',
+    )
 
     expect(css).toMatch(
-      /\.workspace\s*\{[^}]*grid-template-columns:\s*minmax\(17rem, 0\.72fr\) minmax\(28rem, 1\.28fr\)/s,
+      /\.target-profile-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1\.45fr\) minmax\(290px, 0\.7fr\)/s,
     )
     expect(css).toMatch(
-      /@media \(max-width: 1100px\)\s*\{[\s\S]*?\.workspace\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/,
+      /@media \(max-width: 1279px\)\s*\{[\s\S]*?\.target-profile-layout\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/,
     )
   })
 

@@ -18,6 +18,8 @@ export function ReferenceSignalDetail({
   noteError,
   onNoteChange,
   onRetryNote,
+  announceLoading = true,
+  announceError = true,
 }: {
   detail: SignalDetailView | null
   loading: boolean
@@ -29,16 +31,22 @@ export function ReferenceSignalDetail({
   noteError: unknown | null
   onNoteChange: (value: string) => void
   onRetryNote: () => void
+  announceLoading?: boolean
+  announceError?: boolean
 }) {
   const { t, locale, date, amount } = useI18n()
   const missing = t.reference.missingValue
 
   if (loading) {
     return (
-      <div className="detail-hero" role="status" aria-live="polite">
+      <div
+        className="detail-hero"
+        role={announceLoading ? 'status' : undefined}
+        aria-live={announceLoading ? 'polite' : undefined}
+      >
         <div>
           <p className="section-label">{t.reference.headings.selectedSignal}</p>
-          <h2 id="detail-title">{t.reference.loading}</h2>
+          <h2 id="detail-title" tabIndex={-1}>{t.reference.loading}</h2>
         </div>
       </div>
     )
@@ -46,10 +54,10 @@ export function ReferenceSignalDetail({
 
   if (error || !detail) {
     return (
-      <div className="detail-hero" role="alert">
+      <div className="detail-hero" role={announceError ? 'alert' : undefined}>
         <div>
           <p className="section-label">{t.reference.headings.selectedSignal}</p>
-          <h2 id="detail-title">{errorTitle ?? t.reference.signalsPage.signalUnavailable}</h2>
+          <h2 id="detail-title" tabIndex={-1}>{errorTitle ?? t.reference.signalsPage.signalUnavailable}</h2>
           <p className="detail-summary">{t.reference.messages.loadError}</p>
           <button type="button" className="source-link" onClick={onRetry}>
             {t.reference.retry}
@@ -105,7 +113,7 @@ export function ReferenceSignalDetail({
       <div className="detail-hero">
         <div>
           <p className="section-label">{t.reference.headings.selectedSignal}</p>
-          <h2 id="detail-title">{detail.title ?? missing}</h2>
+          <h2 id="detail-title" tabIndex={-1}>{detail.title ?? missing}</h2>
           <p className="detail-summary">
             {detail.summary ?? detail.brief.whyNow}{' '}
             {t.reference.signalsPage.summaryQualification}

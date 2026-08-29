@@ -256,6 +256,8 @@ export const fr = {
       loadError: 'Les informations n’ont pas pu être chargées.',
       profileLoadError: 'Le profil de ciblage n’a pas pu être chargé.',
       billingLoadError: 'L’offre n’a pas pu être chargée.',
+      refreshing: 'Actualisation des données…',
+      refreshFailed: 'L’actualisation a échoué. Les données affichées peuvent être anciennes.',
       retryProfile: 'Réessayer le chargement du profil de ciblage',
       retryBilling: 'Réessayer le chargement de l’offre',
       saveError: 'Les modifications n’ont pas pu être enregistrées.',

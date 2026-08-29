@@ -77,10 +77,10 @@ function ReadyAppShell() {
         ? `${activeProfile.label} · ${activeProfile.firstTerritory}`
         : activeProfile.label
       : t.reference.missingValue
-  const planLabel = access.data
-    ? t.reference.plans[access.data.plan_code]
-    : access.loading || access.error
-      ? t.reference.loading
+  const planLabel = access.loading || access.error
+    ? t.reference.loading
+    : access.data
+      ? t.reference.plans[access.data.plan_code]
       : t.reference.missingValue
 
   return (

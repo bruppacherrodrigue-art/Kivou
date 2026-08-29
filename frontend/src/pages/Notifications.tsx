@@ -160,7 +160,7 @@ export function Notifications() {
       </section>
       <SettingsNav active="notifications" />
 
-      {preferenceResource.loading && baseline === null ? (
+      {preferenceResource.loading ? (
         <section className="settings-form-card" aria-labelledby="notification-form-title" aria-busy="true">
           <NotificationHeading saved={false} />
           <p role="status">{copy.preferencesLoading}</p>

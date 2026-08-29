@@ -250,6 +250,8 @@ export const en: Dictionary = {
       loadError: 'The information could not be loaded.',
       profileLoadError: 'The target profile could not be loaded.',
       billingLoadError: 'The plan could not be loaded.',
+      refreshing: 'Refreshing data…',
+      refreshFailed: 'The refresh failed. The displayed data may be out of date.',
       retryProfile: 'Try loading the target profile again',
       retryBilling: 'Try loading the plan again',
       saveError: 'The changes could not be saved.',

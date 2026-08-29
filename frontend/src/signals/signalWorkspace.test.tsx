@@ -191,8 +191,8 @@ describe('workspace partagé des signaux', () => {
 
       const second = await screen.findByRole('button', { name: /Deuxième SA/ })
       await user.click(second)
-      const panel = document.querySelector('.detail-panel') as HTMLElement
-      await waitFor(() => expect(panel).toHaveFocus())
+      const detailTitle = await screen.findByRole('heading', { level: 2, name: SECOND_DETAIL.contract.title! })
+      await waitFor(() => expect(detailTitle).toHaveFocus())
       expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
 
       await user.click(screen.getByRole('button', { name: 'Précédent' }))
@@ -479,11 +479,14 @@ describe('workspace partagé des signaux', () => {
 
     await user.click(await screen.findByRole('button', { name: 'Réessayer' }))
     const list = document.querySelector('.signal-list') as HTMLElement
-    await waitFor(() => expect(within(list).getByRole('alert')).toBeVisible())
-    expect(within(list).getByRole('alert')).toHaveTextContent(
-      'Les informations n’ont pas pu être chargées.',
+    const feedPanel = list.closest('.feed-panel') as HTMLElement
+    await waitFor(() => expect(within(feedPanel).getByRole('alert')).toBeVisible())
+    expect(within(feedPanel).getByRole('alert')).toHaveTextContent(
+      'L’actualisation a échoué. Les données affichées peuvent être anciennes.',
     )
+    expect(within(list).getByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
     expect(within(list).queryByText('Aucune attribution ne correspond à cette lecture.')).toBeNull()
+    expect(within(document.querySelector('.workspace-grid') as HTMLElement).getAllByRole('alert')).toHaveLength(1)
   })
 
   it('laisse le listener HTTP invalider une session expirée sans rejouer de détail', async () => {

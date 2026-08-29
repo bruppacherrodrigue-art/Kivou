@@ -459,6 +459,34 @@ describe('vue d’ensemble exacte connectée', () => {
     )
   })
 
+  it('sélectionne dans le feed le premier signal ouvert reçu sans demander le teaser verrouillé', async () => {
+    const secondDetail = {
+      ...UNLOCKED_DETAIL,
+      ...OVERVIEW_SECOND_ITEM,
+      company_key: 'cmp_overview_second',
+    }
+    mockApi({
+      ...EXACT_OVERVIEW_ROUTES,
+      'GET /signals': {
+        body: feedPage([LOCKED_ITEM, OVERVIEW_SECOND_ITEM, UNLOCKED_ITEM]),
+      },
+      [`GET /signals/${OVERVIEW_SECOND_ITEM.signal_id}`]: { body: secondDetail },
+      [`GET /signals/${OVERVIEW_SECOND_ITEM.signal_id}/note`]: {
+        body: { signal_id: OVERVIEW_SECOND_ITEM.signal_id, note: null, updated_at: null },
+      },
+    })
+
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: { pathname: '/app/signals', state: { activationCompleted: true } },
+    })
+
+    expect(
+      await screen.findByRole('heading', { name: OVERVIEW_SECOND_ITEM.contract.title! }),
+    ).toBeVisible()
+    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
+  })
+
   it('ne révèle ni ne demande les champs protégés d’un teaser verrouillé malformé', async () => {
     const leakingLocked = {
       ...LOCKED_ITEM,

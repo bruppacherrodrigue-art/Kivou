@@ -13,6 +13,7 @@ import { useI18n, interpolate } from '../i18n'
 import { toSignalCard, toSignalDetailView } from '../reference/dashboard/adapters'
 import { ReferenceSignalDetail } from '../reference/dashboard/ReferenceSignalDetail'
 import { useSignalNote } from '../reference/dashboard/useSignalNote'
+import { useIsMobile } from '../reference/dashboard/use-mobile'
 import type { SignalCardView } from '../reference/dashboard/models'
 
 const PAGE_SIZE = 20
@@ -57,6 +58,7 @@ export function SignalsFeed() {
   const location = useLocation()
   const navigate = useNavigate()
   const navigationType = useNavigationType()
+  const isMobile = useIsMobile()
   const { signalKey } = useParams()
   const mounted = useRef(false)
   const feedGeneration = useRef(0)
@@ -69,6 +71,7 @@ export function SignalsFeed() {
   const lastSelection = useRef<string | null>(null)
   const previousLocationKey = useRef(location.key)
   const initialFocusRestored = useRef(false)
+  const pendingDetailFocus = useRef<string | null>(null)
   const navigateRef = useRef(navigate)
   navigateRef.current = navigate
 
@@ -129,8 +132,7 @@ export function SignalsFeed() {
       }
     } catch (error) {
       if (!mounted.current || generation !== feedGeneration.current) return
-      setFeed({ data: null, loading: false, error })
-      setItems([])
+      setFeed((current) => ({ ...current, loading: false, error }))
     }
   }, [])
 
@@ -363,14 +365,8 @@ export function SignalsFeed() {
     if (previousLocationKey.current === location.key) return
     previousLocationKey.current = location.key
     if (navigationType === 'PUSH' && signalKey) {
-      const frame = window.requestAnimationFrame(() => {
-        const panel = document.getElementById('signal-detail')
-        panel?.focus()
-        if (window.innerWidth < 1180) {
-          panel?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
-        }
-      })
-      return () => window.cancelAnimationFrame(frame)
+      pendingDetailFocus.current = signalKey
+      return
     }
     const selection = readSelectionState(location.state)
     const focusKey = selection?.key ?? (signalKey ? selectedKey : lastSelection.current)
@@ -398,6 +394,22 @@ export function SignalsFeed() {
   const visibleDetail = detail.key === selectedKey
     ? detail
     : { key: selectedKey, data: null, loading: Boolean(selectedKey), error: null }
+  useEffect(() => {
+    if (
+      !pendingDetailFocus.current
+      || pendingDetailFocus.current !== selectedKey
+      || visibleDetail.loading
+    ) return
+    const frame = window.requestAnimationFrame(() => {
+      const panel = document.getElementById('signal-detail')
+      document.getElementById('detail-title')?.focus()
+      if (window.innerWidth < 1180) {
+        panel?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+      }
+      pendingDetailFocus.current = null
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [selectedKey, visibleDetail.loading])
   const detailView = visibleDetail.data && !visibleDetail.data.locked
     ? toSignalDetailView(visibleDetail.data)
     : null
@@ -526,6 +538,12 @@ export function SignalsFeed() {
           )}
         </div>
 
+        {feed.loading && feed.data ? (
+          <p className="signal-limit" role="status">{t.reference.messages.refreshing}</p>
+        ) : feed.error && feed.data ? (
+          <p className="signal-limit" role="alert">{t.reference.messages.refreshFailed}</p>
+        ) : null}
+
         {feed.data?.page.scan_truncated ? (
           <p className="signal-limit" role="status">{t.feed.truncatedNote}</p>
         ) : null}
@@ -557,49 +575,72 @@ export function SignalsFeed() {
         tabIndex={-1}
       >
         {selectedKey ? (
-          <ReferenceSignalDetail
-            detail={detailView}
-            loading={visibleDetail.loading}
-            error={visibleDetail.error}
-            errorTitle={deepLookup.key === signalKey && deepLookup.truncated
-              ? t.feed.truncatedNote
-              : selectionLookupError
-                ? t.reference.messages.loadError
-                : undefined}
-            onRetry={() => {
-              if (!selectedItem && paginationError && feed.data?.page.has_more) void loadMore()
-              else if (!selectedItem && (deepLookup.error || deepLookup.truncated)) {
-                deepLookupStarted.current = null
-                setDeepLookup({
-                  key: null,
-                  item: null,
-                  loading: false,
-                  exhausted: false,
-                  truncated: false,
-                  error: null,
-                })
-                setDeepLookupAttempt((current) => current + 1)
-              } else if (!selectedItem) {
-                deepLookupGeneration.current += 1
-                deepLookupStarted.current = null
-                setDeepLookup({
-                  key: null,
-                  item: null,
-                  loading: false,
-                  exhausted: false,
-                  truncated: false,
-                  error: null,
-                })
-                void loadFeed()
-              }
-              else setDetailAttempt((current) => current + 1)
-            }}
-            note={note.value}
-            noteState={note.state}
-            noteError={note.error}
-            onNoteChange={note.change}
-            onRetryNote={note.retry}
-          />
+          <>
+            {isMobile ? (
+              <button
+                type="button"
+                className="source-link signal-mobile-back"
+                onClick={() => {
+                  lastSelection.current = selectedKey
+                  const origin = readSelectionState(location.state)
+                  if (origin?.key === selectedKey) navigate(-1)
+                  else {
+                    navigate('/app/signals', {
+                      replace: true,
+                      state: selectionState(selectedKey, appliedFeedGeneration.current),
+                    })
+                  }
+                }}
+              >
+                {t.workspace.backToList}
+              </button>
+            ) : null}
+            <ReferenceSignalDetail
+              detail={detailView}
+              loading={visibleDetail.loading}
+              error={visibleDetail.error}
+              errorTitle={deepLookup.key === signalKey && deepLookup.truncated
+                ? t.feed.truncatedNote
+                : selectionLookupError
+                  ? t.reference.messages.loadError
+                  : undefined}
+              onRetry={() => {
+                if (!selectedItem && paginationError && feed.data?.page.has_more) void loadMore()
+                else if (!selectedItem && (deepLookup.error || deepLookup.truncated)) {
+                  deepLookupStarted.current = null
+                  setDeepLookup({
+                    key: null,
+                    item: null,
+                    loading: false,
+                    exhausted: false,
+                    truncated: false,
+                    error: null,
+                  })
+                  setDeepLookupAttempt((current) => current + 1)
+                } else if (!selectedItem) {
+                  deepLookupGeneration.current += 1
+                  deepLookupStarted.current = null
+                  setDeepLookup({
+                    key: null,
+                    item: null,
+                    loading: false,
+                    exhausted: false,
+                    truncated: false,
+                    error: null,
+                  })
+                  void loadFeed()
+                }
+                else setDetailAttempt((current) => current + 1)
+              }}
+              note={note.value}
+              noteState={note.state}
+              noteError={note.error}
+              onNoteChange={note.change}
+              onRetryNote={note.retry}
+              announceLoading={!(feed.loading && feed.data)}
+              announceError={Boolean(selectedItem) || (!feed.error && !paginationError)}
+            />
+          </>
         ) : (
           <div className="detail-hero">
             <div>

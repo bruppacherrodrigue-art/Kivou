@@ -86,6 +86,11 @@ function ReadyDashboard() {
           <p className="section-label">{t.reference.headings.monitoringSummary}</p>
           <h2 id="overview-title">{countCopy}</h2>
           <p>{t.reference.overviewPage.lead}</p>
+          {feed.loading && feed.data ? (
+            <p className="signal-limit" role="status">{t.reference.messages.refreshing}</p>
+          ) : feed.error && feed.data ? (
+            <p className="signal-limit" role="alert">{t.reference.messages.refreshFailed}</p>
+          ) : null}
         </div>
       </section>
 
@@ -93,9 +98,9 @@ function ReadyDashboard() {
         <PriorityCard
           card={priority}
           feedLoading={feed.loading && !feed.data}
-          feedError={feed.error}
+          feedError={feed.data ? null : feed.error}
           billing={access.data}
-          billingLoading={access.loading && !access.data}
+          billingLoading={access.loading}
           billingError={access.error}
           onRetryFeed={() => void feed.retry()}
           onRetryBilling={() => void access.retry()}
@@ -114,7 +119,7 @@ function ReadyDashboard() {
             </div>
             <TargetProfileSnapshot
               profile={activeProfile}
-              loading={profiles.loading && !profiles.data}
+              loading={profiles.loading}
               error={profiles.error}
               onRetry={() => void profiles.retry()}
             />
@@ -236,9 +241,11 @@ function PriorityCard({
         <div className="priority-footer">
           <p>{t.reference.overviewPage.noAccessibleSignalLimit}</p>
           {billingError ? (
-            <button type="button" className="source-link" onClick={onRetryBilling}>
-              {t.reference.retry}
-            </button>
+            <ResourceError
+              message={t.reference.messages.billingLoadError}
+              retryLabel={t.reference.retry}
+              onRetry={onRetryBilling}
+            />
           ) : billingLoading ? (
             <span>{t.reference.loading}</span>
           ) : billingAction ? (
@@ -273,6 +280,16 @@ function PriorityCard({
       </div>
 
       <p className="priority-summary">{card.whyNow}</p>
+
+      {billingError ? (
+        <ResourceError
+          message={t.reference.messages.billingLoadError}
+          retryLabel={t.reference.retry}
+          onRetry={onRetryBilling}
+        />
+      ) : billingLoading ? (
+        <p role="status">{t.reference.loading}</p>
+      ) : null}
 
       <dl className="priority-facts">
         <div><dt>{t.reference.fields.award}</dt><dd>{displayDate(card.awardDate)}</dd></div>
