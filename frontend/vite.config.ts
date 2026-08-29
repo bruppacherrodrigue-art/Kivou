@@ -39,6 +39,6 @@ export default defineConfig({
     // d'un point d'arrêt. La fidélité visuelle se vérifie dans un navigateur,
     // pas ici.
     css: false,
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'founder/src/**/*.test.{ts,tsx}'],
   },
 })
