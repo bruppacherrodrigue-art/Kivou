@@ -3704,7 +3704,8 @@ ssh kivou-staging 'set -eu
 printf "app="; readlink -f /srv/kivou/app
 printf "frontend="; readlink -f /srv/kivou/frontend
 systemctl is-active kivou-api.service nginx.service kivou-backup.timer
-curl -fsS http://127.0.0.1:8000/health >/dev/null
+test "$(curl -sS --connect-timeout 1 --max-time 2 -o /dev/null \
+  -w '%{http_code}' http://127.0.0.1:8000/openapi.json)" = 200
 '
 ```
 
@@ -3955,14 +3956,14 @@ test "$(readlink -f /srv/kivou/app.new)" = "$KIVOU_RELEASE_DIR"
 sudo mv -Tf /srv/kivou/app.new /srv/kivou/app
 if ! sudo systemctl restart kivou-api.service || \
    ! sudo systemctl is-active --quiet kivou-api.service || \
-   ! curl -fsS --connect-timeout 1 --max-time 3 \
-      http://127.0.0.1:8000/health >/dev/null; then
+   ! test "$(curl -sS --connect-timeout 1 --max-time 3 -o /dev/null \
+      -w '%{http_code}' http://127.0.0.1:8000/openapi.json)" = 200; then
   sudo ln -s "$KIVOU_PREVIOUS_RELEASE" /srv/kivou/app.rollback
   sudo chown -h kivou:kivou /srv/kivou/app.rollback
   sudo mv -Tf /srv/kivou/app.rollback /srv/kivou/app
   sudo systemctl restart kivou-api.service
-  curl -fsS --connect-timeout 1 --max-time 3 \
-    http://127.0.0.1:8000/health >/dev/null
+  test "$(curl -sS --connect-timeout 1 --max-time 3 -o /dev/null \
+    -w '%{http_code}' http://127.0.0.1:8000/openapi.json)" = 200
   exit 1
 fi
 test "$(sudo -u kivou git -C "$(readlink -f /srv/kivou/app)" rev-parse HEAD)" = "$KIVOU_RELEASE_SHA"
