@@ -1195,14 +1195,11 @@ describe('gestion des profils', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    const workspace = await screen.findByRole('region', { name: 'Espace de ciblage' })
-    expect(within(workspace).getByRole('list', { name: 'Profils enregistrés' })).toBeInTheDocument()
-
-    await user.click(within(workspace).getByRole('button', { name: 'Modifier' }))
-
-    const editor = screen.getByRole('region', { name: 'Éditeur du profil' })
-    const editorTitle = within(editor).getByRole('heading', { name: 'Modifier le profil' })
-    await waitFor(() => expect(editorTitle).toHaveFocus())
+    expect(await screen.findByRole('heading', { level: 3, name: ICP.label })).toBeVisible()
+    expect(document.querySelector('.target-profile-layout .target-definition-card')).not.toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Modifier le profil' }))
+    await waitFor(() => expect(screen.getByLabelText('Nom du profil')).toHaveFocus())
+    expect(document.querySelector('form.target-edit-form')).not.toBeNull()
   })
 
   it('remonte l’éditeur avec les valeurs du profil choisi quand on change de ligne', async () => {
@@ -1214,12 +1211,10 @@ describe('gestion des profils', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    const firstCard = (await screen.findByText(ICP.label)).closest('article')!
-    await user.click(within(firstCard).getByRole('button', { name: 'Modifier' }))
-    expect(screen.getByLabelText(/Nom du profil/)).toHaveValue(ICP.label)
-
-    const secondCard = screen.getByText(second.label).closest('article')!
-    await user.click(within(secondCard).getByRole('button', { name: 'Modifier' }))
+    const selector = await screen.findByLabelText('Profil affiché')
+    expect(within(selector).getAllByRole('option')).toHaveLength(2)
+    await user.selectOptions(selector, second.target_icp_id)
+    await user.click(screen.getByRole('button', { name: 'Modifier le profil' }))
     expect(screen.getByLabelText(/Nom du profil/)).toHaveValue(second.label)
   })
 
@@ -1231,7 +1226,8 @@ describe('gestion des profils', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    await user.click(await screen.findByRole('button', { name: 'Créer un profil' }))
+    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }))
+    await user.click(screen.getByRole('button', { name: 'Créer un profil' }))
     await user.click(screen.getByRole('button', { name: 'Annuler' }))
 
     const restoredTrigger = screen.getByRole('button', { name: 'Créer un profil' })
@@ -1247,11 +1243,15 @@ describe('gestion des profils', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    await user.click(await screen.findByRole('button', { name: 'Modifier' }))
+    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }))
+    const name = screen.getByLabelText(/Nom du profil/)
+    await user.clear(name)
+    await user.type(name, 'Matériaux — Sud')
+    await user.type(screen.getByLabelText('Ce que vous vendez'), 'Granulats')
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
     await waitFor(() => expect(callsTo('/target-icps/icp_1', 'PATCH')).toHaveLength(1))
 
-    const restoredTrigger = screen.getByRole('button', { name: 'Modifier' })
+    const restoredTrigger = screen.getByRole('button', { name: 'Modifier le profil' })
     await waitFor(() => expect(restoredTrigger).toHaveFocus())
   })
 
@@ -1262,32 +1262,29 @@ describe('gestion des profils', () => {
       target_icp_id: 'icp_created',
       label: 'Nouveau profil',
       customer_input: {
-        offer_summary: '',
-        offers: [],
+        offer_summary: 'Granulats livrés sur chantier',
+        offers: ['materials_and_components'] as const,
         secondary_offers: [],
-        buyer_trades: [],
+        buyer_trades: ['roads_and_civil_works'] as const,
         secondary_buyer_trades: [],
-        territories: [],
-        minimum_contract_value: null,
+        territories: ['FR'],
+        minimum_contract_value: { currency: 'EUR', minimum_amount: 50000, maximum_amount: null },
       },
     }
-    let listCalls = 0
     mockApi({
-      'GET /target-icps': () => {
-        listCalls += 1
-        return { body: listCalls === 1 ? [] : [created] }
-      },
+      'GET /target-icps': { body: [] },
       'GET /billing/status': { body: DISCOVERY_STATUS },
       'POST /target-icps': { status: 201, body: created },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    const emptyTitle = await screen.findByRole('heading', {
-      name: 'Aucun profil de ciblage pour le moment.',
-    })
-    const emptyState = emptyTitle.closest('div')!
-    await user.click(within(emptyState).getByRole('button', { name: 'Créer un profil' }))
+    await user.click(await screen.findByRole('button', { name: 'Créer un profil' }))
     await user.type(screen.getByLabelText(/Nom du profil/), created.label)
+    await user.type(screen.getByLabelText('Ce que vous vendez'), 'Granulats livrés sur chantier')
+    await user.type(screen.getByLabelText('Entreprises recherchées'), 'Routes et génie civil')
+    await user.type(screen.getByLabelText('Territoire commercial'), 'France')
+    await user.type(screen.getByLabelText('Mots-clés surveillés'), 'Matériaux et composants')
+    await user.type(screen.getByLabelText('Montant minimum du marché'), '50000')
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
 
     await waitFor(() => expect(callsTo('/target-icps', 'POST')).toHaveLength(1))
@@ -1295,10 +1292,7 @@ describe('gestion des profils', () => {
       label: created.label,
       customer_input: created.customer_input,
     })
-    expect(listCalls).toBe(3)
-
-    const createdCard = (await screen.findByText(created.label)).closest('article')!
-    const restoredTrigger = within(createdCard).getByRole('button', { name: 'Modifier' })
+    const restoredTrigger = await screen.findByRole('button', { name: 'Modifier le profil' })
     await waitFor(() => expect(restoredTrigger).toHaveFocus())
   })
 
@@ -1318,15 +1312,24 @@ describe('gestion des profils', () => {
   })
 
   it('rend une erreur de chargement relançable sans masquer le titre de page', async () => {
+    let profileCalls = 0
     mockApi({
-      'GET /target-icps': { status: 503, body: { detail: { code: 'billing_error' } } },
+      'GET /target-icps': () => {
+        profileCalls += 1
+        return profileCalls <= 2
+          ? { status: 503, body: { detail: { code: 'billing_error' } } }
+          : { body: [ICP] }
+      },
       'GET /billing/status': { body: DISCOVERY_STATUS },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    expect(await screen.findByText('Une erreur est survenue')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Profil de ciblage' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Réessayer' })).toBeInTheDocument()
+    const page = document.querySelector('.target-profile-main') as HTMLElement
+    expect(await within(page).findByRole('alert')).toHaveTextContent('Le profil de ciblage n’a pas pu être chargé')
+    expect(screen.getByRole('heading', { level: 1, name: 'Profil de ciblage' })).toBeInTheDocument()
+    await userEvent.setup().click(within(page).getByRole('button', { name: 'Réessayer' }))
+    expect(await screen.findByRole('heading', { level: 3, name: ICP.label })).toBeVisible()
+    expect(callsTo('/billing/status', 'GET')).toHaveLength(2)
   })
 
   it('conserve l’éditeur après une erreur de modification et localise l’erreur en anglais', async () => {
@@ -1334,6 +1337,7 @@ describe('gestion des profils', () => {
     mockApi({
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: DISCOVERY_STATUS },
+      'GET /signals': { body: feedPage([], { freshness: 'all' }) },
       'PATCH /target-icps/icp_1': {
         status: 503,
         body: { detail: { code: 'billing_error' } },
@@ -1345,11 +1349,12 @@ describe('gestion des profils', () => {
       locale: 'en',
     })
 
-    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    await user.click(await screen.findByRole('button', { name: 'Edit profile' }))
+    await user.type(screen.getByLabelText('What you sell'), 'Real offer')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findByText('Something went wrong')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Edit profile' })).toBeInTheDocument()
+    expect(await screen.findByText(/The changes could not be saved.*Something went wrong/)).toBeVisible()
+    expect(screen.getByLabelText('What you sell')).toHaveValue('Real offer')
     expect(screen.queryByText(/Une erreur|Réessayer|Modifier le profil/)).not.toBeInTheDocument()
   })
 
@@ -1358,6 +1363,7 @@ describe('gestion des profils', () => {
     mockApi({
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: DISCOVERY_STATUS },
+      'GET /signals': { body: feedPage([], { freshness: 'all' }) },
       'PATCH /target-icps/icp_1': {
         status: 422,
         body: {
@@ -1376,10 +1382,13 @@ describe('gestion des profils', () => {
       locale: 'en',
     })
 
-    await user.click(await screen.findByRole('button', { name: 'Edit' }))
+    await user.click(await screen.findByRole('button', { name: 'Edit profile' }))
+    await user.type(screen.getByLabelText('What you sell'), 'Real offer')
+    await user.clear(screen.getByLabelText('Sales territory'))
+    await user.type(screen.getByLabelText('Sales territory'), 'France, Germany')
     await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    expect(await screen.findByText('Territory limit reached')).toBeInTheDocument()
+    expect(await screen.findByText(/Territory limit reached/)).toBeVisible()
     expect(document.body).toHaveTextContent(
       'Your plan allows 1 territory per profile. Reduce your selection to save this target profile.',
     )
@@ -1406,8 +1415,9 @@ describe('gestion des profils', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    const card = (await screen.findByText('Matériaux — Occitanie')).closest('article')!
-    const territories = within(card).getByText('Territoires').closest('div')!
+    await screen.findByRole('heading', { level: 3, name: 'Matériaux — Occitanie' })
+    const card = document.querySelector('.target-definition-card') as HTMLElement
+    const territories = within(card).getByText('Territoire commercial').closest('div')!
     expect(territories).toHaveTextContent('Suisse, ZZ')
     expect(territories).not.toHaveTextContent(/\bCH\b/)
     const threshold = within(card).getByText('Montant minimum').closest('div')!
@@ -1418,7 +1428,7 @@ describe('gestion des profils', () => {
         maximumFractionDigits: 0,
       }).format(75000),
     )
-    expect(within(card).getByText('Votre offre en une phrase').closest('div')).toHaveTextContent(
+    expect(within(card).getByText('Ce que vous vendez').closest('div')).toHaveTextContent(
       'Composants bois livrés sur chantier.',
     )
   })
@@ -1442,8 +1452,9 @@ describe('gestion des profils', () => {
       locale: 'en',
     })
 
-    const card = (await screen.findByText('Matériaux — Occitanie')).closest('article')!
-    expect(within(card).getByText('Territories').closest('div')).toHaveTextContent(
+    await screen.findByRole('heading', { level: 3, name: 'Matériaux — Occitanie' })
+    const card = document.querySelector('.target-definition-card') as HTMLElement
+    expect(within(card).getByText('Sales territory').closest('div')).toHaveTextContent(
       'Switzerland, Germany',
     )
     const threshold = within(card).getByText('Minimum amount').closest('div')!
@@ -1454,10 +1465,10 @@ describe('gestion des profils', () => {
         maximumFractionDigits: 0,
       }).format(50000),
     )
-    expect(within(card).getByText('Your offer in one sentence').closest('div')).toHaveTextContent(
+    expect(within(card).getByText('What you sell').closest('div')).toHaveTextContent(
       'Timber components delivered to site.',
     )
-    expect(card).not.toHaveTextContent(/Territoires|Montant minimum|Votre offre/)
+    expect(card).not.toHaveTextContent(/Territoire commercial|Montant minimum|Ce que vous vendez/)
   })
 
   it('masque la description facultative lorsqu’elle est vide', async () => {
@@ -1467,8 +1478,8 @@ describe('gestion des profils', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    await screen.findByText('Matériaux — Occitanie')
-    expect(screen.queryByText('Votre offre en une phrase')).not.toBeInTheDocument()
+    await screen.findByRole('heading', { level: 3, name: 'Matériaux — Occitanie' })
+    expect(screen.queryByText('Précision')).not.toBeInTheDocument()
   })
 
   it('permet de modifier un profil existant', async () => {
@@ -1480,10 +1491,11 @@ describe('gestion des profils', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    await user.click(await screen.findByRole('button', { name: 'Modifier' }))
+    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }))
     const field = await screen.findByLabelText(/Nom du profil/)
     await user.clear(field)
     await user.type(field, 'Matériaux — Sud')
+    await user.type(screen.getByLabelText('Ce que vous vendez'), 'Granulats')
     await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
 
     await waitFor(() =>
@@ -1506,35 +1518,30 @@ describe('gestion des profils', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    await user.click(await screen.findByRole('button', { name: 'Modifier' }))
-    const editor = (await screen.findByRole('heading', { name: 'Modifier le profil' })).closest(
-      'section',
-    )!
+    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }))
+    const editor = document.querySelector('form.target-edit-form') as HTMLElement
 
-    // Les six groupes, présents ensemble sur le MÊME écran.
+    // Les champs du profil exact, présents ensemble sur le MÊME écran.
     expect(within(editor).getByLabelText(/Nom du profil/)).toBeInTheDocument()
-    expect(within(editor).getByText('Que vendez-vous ?')).toBeInTheDocument()
-    expect(within(editor).getByText('À quels corps de métier vendez-vous ?')).toBeInTheDocument()
-    expect(within(editor).getByText('Où pouvez-vous livrer ou intervenir ?')).toBeInTheDocument()
-    expect(
-      within(editor).getByText('À partir de quel montant un marché vous intéresse-t-il ?'),
-    ).toBeInTheDocument()
+    expect(within(editor).getByLabelText('Ce que vous vendez')).toBeInTheDocument()
+    expect(within(editor).getByLabelText(/Précision utile/)).toBeInTheDocument()
+    expect(within(editor).getByLabelText('Entreprises recherchées')).toBeInTheDocument()
+    expect(within(editor).getByLabelText('Territoire commercial')).toBeInTheDocument()
+    expect(within(editor).getByLabelText('Mots-clés surveillés')).toBeInTheDocument()
     expect(within(editor).getByLabelText('Devise')).toBeInTheDocument()
-    expect(within(editor).getByLabelText('Montant minimum')).toBeInTheDocument()
-    expect(
-      within(editor).getByLabelText(/Décrivez votre offre en une phrase/),
-    ).toBeInTheDocument()
+    expect(within(editor).getByLabelText('Montant minimum du marché')).toBeInTheDocument()
 
     // Les valeurs existantes sont rendues, pas réinitialisées.
     expect(within(editor).getByLabelText(/Nom du profil/)).toHaveValue('Matériaux — Occitanie')
-    expect(within(editor).getByLabelText('Matériaux et composants')).toBeChecked()
-    expect(within(editor).getByLabelText('France')).toBeChecked()
-    expect(within(editor).getByLabelText('Montant minimum')).toHaveValue(50000)
+    expect(within(editor).getByLabelText('Entreprises recherchées')).toHaveValue('Routes et génie civil')
+    expect(within(editor).getByLabelText('Territoire commercial')).toHaveValue('France')
+    expect(within(editor).getByLabelText('Mots-clés surveillés')).toHaveValue('Matériaux et composants')
+    expect(within(editor).getByLabelText('Montant minimum du marché')).toHaveValue(50000)
 
     // `/app/icps` n'est pas un assistant.
     expect(screen.queryByRole('button', { name: 'Suivant' })).not.toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Votre mise en route' })).not.toBeInTheDocument()
-    expect(within(editor).getByRole('button', { name: 'Enregistrer' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Enregistrer' })).toBeInTheDocument()
   })
 
   it('rend le formulaire complet aussi à la création depuis /app/icps', async () => {
@@ -1548,11 +1555,13 @@ describe('gestion des profils', () => {
     await user.click(await screen.findByRole('button', { name: 'Créer un profil' }))
 
     expect(await screen.findByLabelText(/Nom du profil/)).toBeInTheDocument()
-    expect(screen.getByText('Que vendez-vous ?')).toBeInTheDocument()
-    expect(screen.getByText('À quels corps de métier vendez-vous ?')).toBeInTheDocument()
-    expect(screen.getByText('Où pouvez-vous livrer ou intervenir ?')).toBeInTheDocument()
+    expect(screen.getByLabelText('Ce que vous vendez')).toBeInTheDocument()
+    expect(screen.getByLabelText(/Précision utile/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Entreprises recherchées')).toBeInTheDocument()
+    expect(screen.getByLabelText('Territoire commercial')).toBeInTheDocument()
+    expect(screen.getByLabelText('Mots-clés surveillés')).toBeInTheDocument()
     expect(screen.getByLabelText('Devise')).toBeInTheDocument()
-    expect(screen.getByLabelText(/Décrivez votre offre en une phrase/)).toBeInTheDocument()
+    expect(screen.getByLabelText('Montant minimum du marché')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Suivant' })).not.toBeInTheDocument()
   })
 
@@ -1563,23 +1572,21 @@ describe('gestion des profils', () => {
       'GET /billing/status': {
         body: { ...DISCOVERY_STATUS, target_icps_over_limit: ['icp_2'] },
       },
+      'GET /signals': { body: feedPage([], { freshness: 'all' }) },
       'GET /billing/plans': { body: CATALOGUE },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    // Les deux profils restent affichés : rien n'est masqué ni supprimé.
-    expect(await screen.findByText('Matériaux — Occitanie')).toBeInTheDocument()
-    expect(screen.getByText('Location — Suisse')).toBeInTheDocument()
-
-    const warnings = screen.getAllByText('Au-delà de la limite de votre offre')
-    expect(warnings.length).toBeGreaterThan(0)
-    expect(screen.getByText(/Profils actifs/)).toBeInTheDocument()
+    const selector = await screen.findByLabelText('Profil affiché')
+    expect(within(selector).getAllByRole('option')).toHaveLength(2)
+    await userEvent.setup().selectOptions(selector, second.target_icp_id)
+    expect(screen.getByRole('heading', { level: 3, name: second.label })).toBeVisible()
+    expect(screen.getByText(/Ce profil est conservé mais n’alimente plus votre flux/)).toBeVisible()
 
     // Aucune action destructive n'est proposée : le backend n'expose pas de DELETE.
     expect(screen.queryByRole('button', { name: /supprimer/i })).not.toBeInTheDocument()
 
-    const list = screen.getByText('Location — Suisse').closest('article')!
-    expect(within(list).getByRole('button', { name: 'Modifier' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Modifier le profil' })).toBeInTheDocument()
     expect(document.body).not.toHaveTextContent(/désactivez|supprimez/i)
   })
 
@@ -1599,15 +1606,16 @@ describe('gestion des profils', () => {
     mockApi({
       'GET /target-icps': { body: [limited] },
       'GET /billing/status': { body: DISCOVERY_STATUS },
+      'GET /signals': { body: feedPage([], { freshness: 'all' }) },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
-    const card = (await screen.findByText('Matériaux — Occitanie')).closest('article')!
-    expect(within(card).getByText('Limité par votre offre')).toBeInTheDocument()
-    expect(within(card).getByText('Territoires').closest('div')).toHaveTextContent('Suisse, France')
-    expect(card).toHaveTextContent(
+    await screen.findByRole('heading', { level: 3, name: 'Matériaux — Occitanie' })
+    const card = document.querySelector('.target-definition-card') as HTMLElement
+    expect(screen.getByRole('alert')).toHaveTextContent(
       'Ce profil conserve ses territoires, mais il n’alimente pas votre flux. Sélectionnez au maximum 1 territoire pour le réactiver.',
     )
+    expect(within(card).getByText('Territoire commercial').closest('div')).toHaveTextContent('Suisse, France')
     expect(within(card).queryByRole('button', { name: /supprimer/i })).not.toBeInTheDocument()
   })
 })

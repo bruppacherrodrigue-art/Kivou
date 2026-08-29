@@ -32,6 +32,7 @@ import {
 } from '../reference/dashboard/ui/sidebar'
 import { ReferenceLink } from '../reference/router/ReferenceLink'
 import { SurfaceBoundary } from '../reference/surface/SurfaceBoundary'
+import { subscribeToTargetIcpChanges } from '../targeting/targetIcpEvents'
 
 type ActiveView = 'overview' | 'signals' | 'companies' | 'target' | 'settings'
 
@@ -61,16 +62,20 @@ function ReadyAppShell() {
   const loadBilling = useCallback(() => billing.status(), [])
   const profiles = useResource(loadProfiles)
   const access = useResource(loadBilling)
+  const retryProfiles = profiles.retry
+  useEffect(() => subscribeToTargetIcpChanges(() => {
+    void retryProfiles()
+  }), [retryProfiles])
   const current = connectedLocation(location.pathname, t)
   const activeProfile = profiles.data
     ?.map(toTargetProfileView)
     .find((profile) => profile.active)
-  const profileLabel = activeProfile
-    ? activeProfile.firstTerritory
-      ? `${activeProfile.label} · ${activeProfile.firstTerritory}`
-      : activeProfile.label
-    : profiles.loading || profiles.error
-      ? t.reference.loading
+  const profileLabel = profiles.loading || profiles.error
+    ? t.reference.loading
+    : activeProfile
+      ? activeProfile.firstTerritory
+        ? `${activeProfile.label} · ${activeProfile.firstTerritory}`
+        : activeProfile.label
       : t.reference.missingValue
   const planLabel = access.data
     ? t.reference.plans[access.data.plan_code]
@@ -94,7 +99,7 @@ function ReadyAppShell() {
           profileLabel={profileLabel}
           profileError={Boolean(profiles.error)}
           planError={Boolean(access.error)}
-          retryProfile={() => void profiles.retry()}
+          retryProfile={() => void retryProfiles()}
           retryPlan={() => void access.retry()}
         />
       </SidebarProvider>

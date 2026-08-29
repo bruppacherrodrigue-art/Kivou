@@ -138,19 +138,16 @@ describe('accueil connecté', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Entreprises' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Entreprises' })).toHaveAttribute('href', '/app/companies')
-    const directory = await screen.findByRole('list', { name: 'Entreprises' })
-    const rows = within(directory).getAllByRole('listitem')
+    const companyButton = await screen.findByRole('button', { name: /Constructions Bertrand SA/ })
+    const directory = document.querySelector('.companies-list') as HTMLElement
+    const rows = within(directory).getAllByRole('button')
     expect(rows).toHaveLength(1)
-    expect(within(rows[0]).getAllByRole('link')).toHaveLength(1)
-    expect(within(rows[0]).getByText('Signaux liés · 1')).toBeInTheDocument()
-    expect(within(rows[0]).getByText('FR')).toBeInTheDocument()
-    const companyLink = within(rows[0]).getByRole('link', { name: /Constructions Bertrand SA/ })
-    expect(companyLink).toHaveAttribute(
-      'href',
-      `/app/companies/${UNLOCKED_DETAIL.company_key}`,
-    )
-    companyLink.focus()
-    expect(companyLink).toHaveFocus()
+    expect(companyButton).toBe(within(directory).getByRole('button', { name: /Constructions Bertrand SA/ }))
+    expect(companyButton).toHaveTextContent('1 marché')
+    expect(companyButton).toHaveTextContent('France')
+    expect(companyButton).toHaveAttribute('aria-pressed', 'true')
+    companyButton.focus()
+    expect(companyButton).toHaveFocus()
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(document.body.textContent).not.toContain(protectedIdentity)
@@ -200,58 +197,57 @@ describe('accueil connecté', () => {
       retry.click()
     })
     await waitFor(() => expect(feedCall).toBe(3))
-    expect(await screen.findByRole('link', { name: /Actuelle SA/ })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: /Actuelle SA/ })).toBeInTheDocument()
     await act(async () => {
       resolveOutdatedFeed?.({ body: feedPage([UNLOCKED_ITEM]) })
       await Promise.resolve()
     })
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
-    expect(screen.getByRole('link', { name: /Actuelle SA/ })).toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: /Constructions Bertrand SA/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Actuelle SA/ })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Constructions Bertrand SA/ })).not.toBeInTheDocument()
   })
 
   it('conserve les entreprises chargées et annonce une liste partielle si un détail échoue', async () => {
     const user = userEvent.setup()
-    let feedCall = 0
     let resolveRefresh: ((value: {
       status: number
       body: { detail: { code: string } }
     }) => void) | undefined
+    let rejectedAttempts = 0
     const rejectedItem = {
       ...UNLOCKED_ITEM,
       signal_id: 'sig_company_rejected',
       company: { ...UNLOCKED_ITEM.company, name: 'Détail indisponible SA' },
     }
     mockApi({
-      'GET /signals': () => {
-        feedCall += 1
-        if (feedCall === 1) return { body: feedPage([UNLOCKED_ITEM, rejectedItem]) }
-        return new Promise((resolve) => {
-          resolveRefresh = resolve
-        })
-      },
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM, rejectedItem]) },
       [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
-      [`GET /signals/${rejectedItem.signal_id}`]: {
-        status: 503,
-        body: { detail: { code: 'temporarily_unavailable' } },
+      [`GET /signals/${rejectedItem.signal_id}`]: () => {
+        rejectedAttempts += 1
+        if (rejectedAttempts === 1) {
+          return { status: 503, body: { detail: { code: 'temporarily_unavailable' } } }
+        }
+        return new Promise((resolve) => { resolveRefresh = resolve })
       },
     })
 
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/companies' })
 
-    const companyLink = await screen.findByRole('link', { name: /Constructions Bertrand SA/ })
-    const partial = screen.getByRole('region', { name: 'Liste partielle' })
-    expect(within(partial).getByRole('alert')).toHaveTextContent(
+    const companyButton = await screen.findByRole('button', { name: /Constructions Bertrand SA/ })
+    const partial = screen.getByText('Liste partielle').closest('[role="alert"]') as HTMLElement
+    expect(partial).toHaveTextContent(
       'Certaines entreprises n’ont pas pu être chargées.',
     )
     const retry = within(partial).getByRole('button', { name: 'Réessayer' })
     await user.click(retry)
 
-    await waitFor(() => expect(feedCall).toBe(2))
-    expect(companyLink).toBeInTheDocument()
+    await waitFor(() => expect(callsTo(`/signals/${rejectedItem.signal_id}`, 'GET')).toHaveLength(2))
+    expect(callsTo('/signals', 'GET')).toHaveLength(1)
+    expect(companyButton).toBeInTheDocument()
     expect(partial).toBeInTheDocument()
     expect(retry).toBeInTheDocument()
-    expect(retry).toHaveAttribute('aria-busy', 'true')
+    expect(retry).toBeDisabled()
+    expect(retry).toHaveTextContent('Chargement')
     expect(retry).toHaveFocus()
 
     await act(async () => {
@@ -262,12 +258,9 @@ describe('accueil connecté', () => {
       await Promise.resolve()
     })
 
-    const refreshError = await screen.findByRole('region', {
-      name: 'Les entreprises n’ont pas pu être chargées.',
-    })
-    expect(within(refreshError).getByRole('alert')).toBeInTheDocument()
+    const refreshError = screen.getByText('Liste partielle').closest('[role="alert"]') as HTMLElement
     expect(within(refreshError).getByRole('button', { name: 'Réessayer' })).toBeInTheDocument()
-    expect(companyLink).toBeInTheDocument()
+    expect(companyButton).toBeInTheDocument()
     expect(partial).toBeInTheDocument()
     expect(document.body.textContent).not.toContain('temporarily_unavailable')
   })
