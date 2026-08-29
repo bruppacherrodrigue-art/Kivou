@@ -100,6 +100,10 @@ const contrastRatio = (foreground: string, background: string): number => {
   return (lighter + 0.05) / (darker + 0.05)
 }
 
+function expectDrawerBackgroundUnavailable(trigger: HTMLElement) {
+  expect(trigger.closest('[aria-hidden="true"], [inert]')).not.toBeNull()
+}
+
 describe('fidélité à la refonte publique approuvée', () => {
   it('rend sur l’accueil le résumé compact des offres alimenté par l’API', async () => {
     const catalogue = {
@@ -263,10 +267,12 @@ describe('fidélité au shell dashboard approuvé', () => {
     const close = within(drawer).getByRole('button', { name: 'Fermer' })
     expect(drawer).toContainElement(document.activeElement as HTMLElement)
     expect(document.querySelector('[data-slot="sheet-overlay"]')).not.toBeNull()
+    expectDrawerBackgroundUnavailable(drawerToggle)
 
     await user.click(close)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(drawerToggle).toBeEnabled()
+    expect(drawerToggle.closest('[aria-hidden="true"], [inert]')).toBeNull()
+    expect(drawerToggle).toHaveFocus()
   })
 
   it('confine Tab et Maj+Tab aux contrôles du drawer', async () => {
@@ -294,11 +300,13 @@ describe('fidélité au shell dashboard approuvé', () => {
     await screen.findByRole('heading', { level: 1, name: 'Signaux' })
     const drawerToggle = screen.getByRole('button', { name: 'Ouvrir la navigation' })
     await user.click(drawerToggle)
+    expectDrawerBackgroundUnavailable(drawerToggle)
 
     await user.keyboard('{Escape}')
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(drawerToggle).toBeEnabled()
+    expect(drawerToggle.closest('[aria-hidden="true"], [inert]')).toBeNull()
+    expect(drawerToggle).toHaveFocus()
   })
 
   it('distingue le scrim du bouton Fermer', async () => {
@@ -311,10 +319,12 @@ describe('fidélité au shell dashboard approuvé', () => {
 
     const overlay = document.querySelector<HTMLElement>('[data-slot="sheet-overlay"]')
     expect(overlay).not.toBeNull()
+    expectDrawerBackgroundUnavailable(drawerToggle)
     await user.click(overlay!)
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(drawerToggle).toBeEnabled()
+    expect(drawerToggle.closest('[aria-hidden="true"], [inert]')).toBeNull()
+    expect(drawerToggle).toHaveFocus()
   })
 
   it('ferme le drawer quand une destination interne est choisie', async () => {

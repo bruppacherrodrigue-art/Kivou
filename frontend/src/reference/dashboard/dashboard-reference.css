@@ -423,6 +423,43 @@ a:focus-visible {
   height: 14px;
 }
 
+.shell-resource-retry {
+  appearance: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.topbar-tools .shell-profile-resource-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-tools .shell-profile-resource-retry > span {
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 720;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.topbar-tools .shell-profile-resource-retry > strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-weight: 620;
+  text-overflow: ellipsis;
+}
+
 .workspace-grid {
   display: grid;
   grid-template-columns: minmax(320px, 352px) minmax(0, 1fr);

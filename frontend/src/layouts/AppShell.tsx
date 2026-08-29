@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type CSSProperties } from 'react'
+import { useCallback, useEffect, useRef, type CSSProperties } from 'react'
 import {
   Building2,
   ChevronRight,
@@ -69,12 +69,12 @@ function ReadyAppShell() {
     ? activeProfile.firstTerritory
       ? `${activeProfile.label} · ${activeProfile.firstTerritory}`
       : activeProfile.label
-    : profiles.loading
+    : profiles.loading || profiles.error
       ? t.reference.loading
       : t.reference.missingValue
   const planLabel = access.data
     ? t.reference.plans[access.data.plan_code]
-    : access.loading
+    : access.loading || access.error
       ? t.reference.loading
       : t.reference.missingValue
 
@@ -92,6 +92,10 @@ function ReadyAppShell() {
           accountInitials={initials(me.account_display_name)}
           planLabel={planLabel}
           profileLabel={profileLabel}
+          profileError={Boolean(profiles.error)}
+          planError={Boolean(access.error)}
+          retryProfile={() => void profiles.retry()}
+          retryPlan={() => void access.retry()}
         />
       </SidebarProvider>
     </SurfaceBoundary>
@@ -106,6 +110,10 @@ function ConnectedShell({
   accountInitials,
   planLabel,
   profileLabel,
+  profileError,
+  planError,
+  retryProfile,
+  retryPlan,
 }: {
   activeView: ActiveView
   title: string
@@ -114,10 +122,16 @@ function ConnectedShell({
   accountInitials: string
   planLabel: string
   profileLabel: string
+  profileError: boolean
+  planError: boolean
+  retryProfile: () => void
+  retryPlan: () => void
 }) {
   const { t } = useI18n()
   const { pathname } = useLocation()
-  const { setOpenMobile } = useSidebar()
+  const { openMobile, setOpenMobile } = useSidebar()
+  const mobileTrigger = useRef<HTMLButtonElement>(null)
+  const mobileWasOpen = useRef(openMobile)
   const labels = {
     overview: t.reference.overview,
     signals: t.reference.signals,
@@ -129,6 +143,13 @@ function ConnectedShell({
   useEffect(() => {
     setOpenMobile(false)
   }, [pathname, setOpenMobile])
+
+  useEffect(() => {
+    if (mobileWasOpen.current && !openMobile) {
+      mobileTrigger.current?.focus()
+    }
+    mobileWasOpen.current = openMobile
+  }, [openMobile])
 
   return (
     <>
@@ -198,6 +219,7 @@ function ConnectedShell({
         <header className="topbar">
           <div className="topbar-title">
             <SidebarTrigger
+              ref={mobileTrigger}
               className="sidebar-trigger"
               aria-label={t.reference.openNavigation}
             />
@@ -206,18 +228,42 @@ function ConnectedShell({
               <h1>{title}</h1>
             </div>
           </div>
-          <span className="demo-mode-badge">{planLabel}</span>
+          <span className="demo-mode-badge">
+            {planError ? (
+              <button
+                type="button"
+                className="shell-resource-retry"
+                aria-label={t.reference.messages.retryBilling}
+                onClick={retryPlan}
+              >
+                {t.reference.messages.billingLoadError}
+              </button>
+            ) : planLabel}
+          </span>
           {activeView !== 'target' ? (
             <div className="topbar-tools">
-              <ReferenceLink
-                dashboard
-                href="/targeting"
-                aria-label={t.reference.openTargetProfile}
-              >
-                <span>{t.reference.targetingShort}</span>
-                <strong>{profileLabel}</strong>
-                <ChevronRight aria-hidden="true" />
-              </ReferenceLink>
+              {profileError ? (
+                <button
+                  type="button"
+                  className="shell-resource-retry shell-profile-resource-retry"
+                  aria-label={t.reference.messages.retryProfile}
+                  onClick={retryProfile}
+                >
+                  <span>{t.reference.targetingShort}</span>
+                  <strong>{t.reference.messages.profileLoadError}</strong>
+                  <ChevronRight aria-hidden="true" />
+                </button>
+              ) : (
+                <ReferenceLink
+                  dashboard
+                  href="/targeting"
+                  aria-label={t.reference.openTargetProfile}
+                >
+                  <span>{t.reference.targetingShort}</span>
+                  <strong>{profileLabel}</strong>
+                  <ChevronRight aria-hidden="true" />
+                </ReferenceLink>
+              )}
             </div>
           ) : null}
         </header>

@@ -11,6 +11,7 @@ import {
   ME,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
+  callsTo,
   feedPage,
   mockApi,
   renderApp,
@@ -193,6 +194,72 @@ describe('shell connecté exact de la référence', () => {
 
     expect(screen.queryByText(/Profil A secret/)).not.toBeInTheDocument()
     expect(document.querySelector('.demo-mode-badge')).toHaveTextContent('Essentiel')
+  })
+
+  it('distingue une erreur du profil de ciblage d’une valeur non publiée et la relance localement', async () => {
+    const user = userEvent.setup()
+    let requestCount = 0
+    mockApi({
+      'GET /target-icps': () => {
+        requestCount += 1
+        return requestCount === 1
+          ? {
+              status: 503,
+              body: { detail: { code: 'service_unavailable', message: 'indisponible' } },
+            }
+          : { body: [ICP] }
+      },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+
+    renderApp(<AppRoutes />, { route: '/app/settings', session: AUTHENTICATED })
+
+    const retry = await screen.findByRole('button', {
+      name: 'Réessayer le chargement du profil de ciblage',
+    })
+    const topbar = document.querySelector<HTMLElement>('.topbar')
+    expect(topbar).not.toBeNull()
+    expect(within(topbar as HTMLElement).queryByText('Non publié')).not.toBeInTheDocument()
+    expect(retry).toHaveTextContent('Le profil de ciblage n’a pas pu être chargé.')
+
+    await user.click(retry)
+
+    expect(
+      await screen.findByText(`${ICP.label} · ${ICP.customer_input.territories[0]}`),
+    ).toBeVisible()
+    expect(callsTo('/target-icps', 'GET')).toHaveLength(2)
+  })
+
+  it('distingue une erreur de facturation d’une valeur non publiée et la relance localement', async () => {
+    const user = userEvent.setup()
+    let requestCount = 0
+    mockApi({
+      'GET /target-icps': { body: [ICP] },
+      'GET /billing/status': () => {
+        requestCount += 1
+        return requestCount === 1
+          ? {
+              status: 503,
+              body: { detail: { code: 'service_unavailable', message: 'indisponible' } },
+            }
+          : { body: DISCOVERY_STATUS }
+      },
+    })
+
+    renderApp(<AppRoutes />, { route: '/app/settings', session: AUTHENTICATED })
+
+    const retry = await screen.findByRole('button', {
+      name: 'Réessayer le chargement de l’offre',
+    })
+    const badge = document.querySelector<HTMLElement>('.demo-mode-badge')
+    expect(badge).not.toBeNull()
+    expect(within(badge as HTMLElement).queryByText('Non publié')).not.toBeInTheDocument()
+    expect(retry).toHaveTextContent('L’offre n’a pas pu être chargée.')
+
+    await user.click(retry)
+
+    await waitFor(() => expect(badge).toHaveTextContent('Découverte'))
+    expect(callsTo('/billing/status', 'GET')).toHaveLength(2)
   })
 })
 

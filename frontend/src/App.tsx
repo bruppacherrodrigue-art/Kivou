@@ -17,7 +17,6 @@ import { ForgotPassword, ResetPassword } from './pages/PasswordReset'
 import { Onboarding } from './pages/Onboarding'
 import { Dashboard } from './pages/Dashboard'
 import { SignalsFeed } from './pages/SignalsFeed'
-import { CompanyProfile } from './pages/CompanyProfile'
 import { Companies } from './pages/Companies'
 import { Icps } from './pages/Icps'
 import { Billing } from './pages/Billing'
@@ -101,7 +100,7 @@ export function AppRoutes() {
               <Route path="signals" element={<SignalsFeed />} />
               <Route path="signals/:signalKey" element={<SignalsFeed />} />
               <Route path="companies" element={<Companies />} />
-              <Route path="companies/:companyKey" element={<CompanyProfile />} />
+              <Route path="companies/:companyKey" element={<Companies />} />
               <Route path="icps" element={<Icps />} />
               <Route path="billing" element={<Billing />} />
               <Route path="notifications" element={<Notifications />} />

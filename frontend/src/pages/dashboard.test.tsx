@@ -58,9 +58,15 @@ describe('accueil connecté', () => {
     mockApi({})
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/settings' })
 
-    await waitFor(() =>
-      expect(document.querySelector('.demo-mode-badge')).toHaveTextContent('Non publié'),
+    await screen.findByRole('button', { name: 'Réessayer le chargement de l’offre' })
+    expect(document.querySelector('.demo-mode-badge')).toHaveTextContent(
+      'L’offre n’a pas pu être chargée.',
     )
+    expect(
+      screen.getByRole('button', {
+        name: 'Réessayer le chargement du profil de ciblage',
+      }),
+    ).toBeVisible()
 
     const identity = screen.getByRole('region', { name: 'Acme Solutions' })
     expect(identity).toHaveTextContent('claire@acme.test')

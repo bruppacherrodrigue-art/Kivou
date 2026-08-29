@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -8,6 +10,7 @@ import {
   COMPANY_PROFILE,
   DISCOVERY_STATUS,
   ME,
+  callsTo,
   mockApi,
   renderApp,
 } from '../test/harness'
@@ -22,6 +25,29 @@ function companyRoutes(profile: CompanyProfile = COMPANY_PROFILE) {
 }
 
 describe('fiche entreprise officielle', () => {
+  it('fait traverser la composition Entreprises à la route profonde sans charger la liste', async () => {
+    const routes = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8')
+    expect(routes).toContain(
+      '<Route path="companies/:companyKey" element={<Companies />} />',
+    )
+    expect(routes).not.toContain(
+      '<Route path="companies/:companyKey" element={<CompanyProfile />} />',
+    )
+
+    mockApi({
+      ...companyRoutes(),
+      'GET /target-icps': { body: [] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
+
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Constructions Bertrand SA' }),
+    ).toBeInTheDocument()
+    expect(callsTo(ENDPOINT, 'GET')).toHaveLength(1)
+    expect(callsTo('/signals', 'GET')).toHaveLength(0)
+  })
+
   it('rend la valeur commerciale, les faits officiels, les actions et les sources en français', async () => {
     mockApi(companyRoutes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })

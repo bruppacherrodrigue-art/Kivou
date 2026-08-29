@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { signals } from '../api/endpoints'
 import type { UnlockedDetail } from '../api/types'
 import { ArrowRightIcon, BuildingIcon } from '../assets/Icons'
 import { Button } from '../components/Button'
 import { Callout, EmptyState, SectionHeading, Skeleton } from '../components/Surfaces'
 import { useI18n } from '../i18n'
+import { CompanyProfile } from './CompanyProfile'
 import styles from './Companies.module.css'
 
 interface CompanyEntry {
@@ -16,6 +17,12 @@ interface CompanyEntry {
 }
 
 export function Companies() {
+  const { companyKey } = useParams()
+
+  return companyKey ? <CompanyProfile /> : <CompaniesIndex />
+}
+
+function CompaniesIndex() {
   const { t } = useI18n()
   const [entries, setEntries] = useState<CompanyEntry[]>([])
   const [loading, setLoading] = useState(true)
