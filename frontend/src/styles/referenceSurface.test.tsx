@@ -208,6 +208,12 @@ describe('reference presentation surface', () => {
       /html\[data-kivou-surface="public"\] \.legal-subsection h3\s*\{\s*font-weight:\s*700;/,
     )
     expect(isolationCss).toMatch(
+      /html\[data-kivou-surface="public"\] h3\s*\{\s*font-weight:\s*700;/,
+    )
+    expect(isolationCss).toMatch(
+      /html\[data-kivou-surface="public"\] \.card-link,[\s\S]*html\[data-kivou-surface="public"\] \.text-link,[\s\S]*html\[data-kivou-surface="public"\] \.company-lines a[\s\S]*text-decoration:\s*underline;/,
+    )
+    expect(isolationCss).toMatch(
       /html\[data-kivou-surface="public"\] \.legal-toc a,[\s\S]*text-decoration:\s*underline;/,
     )
     expect(main.indexOf("'./styles/reference-surface-isolation.css'")).toBeGreaterThan(
