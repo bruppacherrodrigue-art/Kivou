@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom'
 import { I18nProvider, useI18n } from './i18n'
 import { SessionProvider, accountLocale, useSession } from './auth/SessionProvider'
 import { RedirectIfAuthenticated, RequireAuth } from './auth/RequireAuth'
@@ -129,21 +129,39 @@ function DashboardSurface() {
   )
 }
 
+const PUBLIC_PATHS = new Set([
+  '/',
+  '/produit',
+  '/tarifs',
+  '/exemple-de-signal',
+  '/contact',
+  '/informations-legales',
+  '/mentions-legales',
+  '/confidentialite',
+  '/cgu',
+  '/login',
+  '/signup',
+  '/forgot-password',
+  '/reset-password',
+])
+
 /** Une fois connecté, `account.locale` fait autorité — l'API renvoie déjà ses
  *  libellés dans cette langue, et laisser l'interface en choisir une autre
  *  ferait cohabiter deux langues sur le même écran. */
 function LocaleFollowsAccount() {
+  const { pathname } = useLocation()
   const { state } = useSession()
   const { locale, setLocale } = useI18n()
+  const connected = !PUBLIC_PATHS.has(pathname)
+  const wanted =
+    connected && state.status === 'authenticated'
+      ? accountLocale(state.me) ?? 'fr'
+      : 'fr'
 
   useEffect(() => {
-    const accountValue = accountLocale(state.status === 'authenticated' ? state.me : null)
-    if (accountValue && accountValue !== locale) setLocale(accountValue)
-  }, [state, locale, setLocale])
-
-  useEffect(() => {
-    document.documentElement.lang = locale
-  }, [locale])
+    if (wanted !== locale) setLocale(wanted)
+    else document.documentElement.lang = wanted
+  }, [wanted, locale, setLocale])
 
   return null
 }

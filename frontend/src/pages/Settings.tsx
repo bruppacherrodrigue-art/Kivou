@@ -1,5 +1,6 @@
-import { useCurrentUser } from '../auth/SessionProvider'
-import { ButtonLink } from '../components/Button'
+import { useEffect, useRef, useState } from 'react'
+import { useCurrentUser, useSession } from '../auth/SessionProvider'
+import { Button, ButtonLink } from '../components/Button'
 import { SectionHeading } from '../components/Surfaces'
 import { useI18n } from '../i18n'
 import styles from './Settings.module.css'
@@ -12,7 +13,28 @@ import styles from './Settings.module.css'
  */
 export function Settings() {
   const me = useCurrentUser()
+  const { signOut } = useSession()
   const { t } = useI18n()
+  const [signingOut, setSigningOut] = useState(false)
+  const mounted = useRef(true)
+  const signOutPending = useRef(false)
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+    }
+  }, [])
+
+  function leaveAccount() {
+    if (signOutPending.current) return
+    signOutPending.current = true
+    setSigningOut(true)
+    void signOut().finally(() => {
+      signOutPending.current = false
+      if (mounted.current) setSigningOut(false)
+    })
+  }
 
   return (
     <div className={styles.page}>
@@ -48,6 +70,16 @@ export function Settings() {
             <ButtonLink to="/app/notifications" variant="secondary">
               {t.settings.notificationsAction}
             </ButtonLink>
+          </div>
+
+          <div className={styles.action}>
+            <div>
+              <h3>{t.settings.logoutTitle}</h3>
+              <p>{t.settings.logoutLead}</p>
+            </div>
+            <Button variant="secondary" loading={signingOut} onClick={leaveAccount}>
+              {t.nav.logout}
+            </Button>
           </div>
         </nav>
       </section>

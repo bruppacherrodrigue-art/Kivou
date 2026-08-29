@@ -1295,7 +1295,7 @@ describe('gestion des profils', () => {
       label: created.label,
       customer_input: created.customer_input,
     })
-    expect(listCalls).toBe(2)
+    expect(listCalls).toBe(3)
 
     const createdCard = (await screen.findByText(created.label)).closest('article')!
     const restoredTrigger = within(createdCard).getByRole('button', { name: 'Modifier' })

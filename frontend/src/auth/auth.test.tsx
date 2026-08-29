@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useNavigate } from 'react-router-dom'
 import { AppRoutes } from '../App'
@@ -309,12 +309,40 @@ describe('déconnexion', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     await screen.findByRole('heading', { name: 'Signaux' })
+    await user.click(screen.getByRole('link', { name: 'Compte' }))
+    await screen.findByRole('heading', { level: 1, name: 'Compte' })
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }))
 
     await waitFor(() => expect(callsTo('/auth/logout')).toHaveLength(1))
     expect(
       await screen.findByRole('heading', { name: 'Retrouver vos signaux' }),
     ).toBeInTheDocument()
+  })
+
+  it('verrouille un double clic et ignore une réponse tardive après démontage', async () => {
+    let release: ((response: { status: number }) => void) | undefined
+    mockApi({
+      ...APP_ROUTES,
+      'POST /auth/logout': () =>
+        new Promise((resolve) => {
+          release = resolve
+        }),
+    })
+    const view = renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/settings' })
+
+    await screen.findByText(`${ICP.label} · ${ICP.customer_input.territories[0]}`)
+    const logout = screen.getByRole('button', { name: 'Se déconnecter' })
+    act(() => {
+      fireEvent.click(logout)
+      fireEvent.click(logout)
+    })
+    await waitFor(() => expect(callsTo('/auth/logout')).toHaveLength(1))
+
+    view.unmount()
+    await act(async () => {
+      release?.({ status: 204 })
+    })
+    expect(callsTo('/auth/logout')).toHaveLength(1)
   })
 })
 

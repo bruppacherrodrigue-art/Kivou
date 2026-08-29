@@ -6,6 +6,7 @@ import type { CompanyProfile } from '../api/types'
 import {
   AUTHENTICATED,
   COMPANY_PROFILE,
+  DISCOVERY_STATUS,
   ME,
   mockApi,
   renderApp,
@@ -26,7 +27,7 @@ describe('fiche entreprise officielle', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Constructions Bertrand SA' }),
+      await screen.findByRole('heading', { level: 2, name: 'Constructions Bertrand SA' }),
     ).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(document.querySelectorAll('main')).toHaveLength(1)
@@ -146,7 +147,7 @@ describe('fiche entreprise officielle', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Fiche entreprise inaccessible' }),
+      await screen.findByRole('heading', { level: 2, name: 'Fiche entreprise inaccessible' }),
     ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Retour aux signaux' })).toHaveAttribute(
       'href',
@@ -166,7 +167,7 @@ describe('fiche entreprise officielle', () => {
 
     expect(
       await screen.findByRole('heading', {
-        level: 1,
+        level: 2,
         name: 'La fiche entreprise n’a pas pu être chargée',
       }),
     ).toBeInTheDocument()
@@ -192,30 +193,24 @@ describe('fiche entreprise officielle', () => {
 
   it('présente un chargement structuré et des actions accessibles au clavier', async () => {
     const user = userEvent.setup()
-    let resolveRequest: ((response: Response) => void) | undefined
-    vi.stubGlobal(
-      'fetch',
-      vi.fn(
-        () =>
-          new Promise<Response>((resolve) => {
-            resolveRequest = resolve
-          }),
-      ),
-    )
+    let resolveRequest: ((response: { body: CompanyProfile }) => void) | undefined
+    mockApi({
+      'GET /target-icps': { body: [] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      [`GET ${ENDPOINT}`]: () =>
+        new Promise((resolve) => {
+          resolveRequest = resolve
+        }),
+    })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
     expect(screen.getByRole('status', { name: 'Chargement…' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 1, name: 'Chargement…' })).toBeInTheDocument()
-    resolveRequest?.(
-      new Response(JSON.stringify(COMPANY_PROFILE), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    )
+    expect(screen.getByRole('heading', { level: 2, name: 'Chargement…' })).toBeInTheDocument()
+    resolveRequest?.({ body: COMPANY_PROFILE })
     await screen.findByRole('heading', { name: 'Constructions Bertrand SA' })
 
     await user.tab()
-    await waitFor(() => expect(document.activeElement).toHaveAttribute('href', '#kivou-main'))
+    await waitFor(() => expect(document.activeElement).toHaveAttribute('href', '/app/dashboard'))
 
     const backLinks = screen.getAllByRole('link', { name: 'Retour aux signaux' })
     const reviewLinks = screen.getAllByRole('link', { name: 'Examiner le signal' })

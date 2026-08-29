@@ -5,6 +5,8 @@ import { AppRoutes } from '../App'
 import type { WeeklyCommercialCockpit } from '../api/types'
 import {
   AUTHENTICATED,
+  DISCOVERY_STATUS,
+  ICP,
   ME,
   callsTo,
   feedPage,
@@ -88,21 +90,32 @@ const OPERATOR = {
 }
 
 describe('cockpit commercial interne', () => {
-  it('cache la navigation au client normal et refuse la route manuelle sans appeler les données', () => {
-    mockApi({ 'GET /signals': { body: feedPage([]) } })
+  it('cache la navigation au client normal et refuse la route manuelle sans appeler les données', async () => {
+    mockApi({
+      'GET /signals': { body: feedPage([]) },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      'GET /target-icps': { body: [ICP] },
+    })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/internal/cockpit' })
 
     expect(screen.getByRole('heading', { name: 'Accès interne requis' })).toBeInTheDocument()
+    expect(await screen.findByText(`${ICP.label} · ${ICP.customer_input.territories[0]}`)).toBeVisible()
     expect(screen.queryByRole('link', { name: 'Cockpit commercial' })).not.toBeInTheDocument()
     expect(callsTo('/internal/commercial-cockpit', 'GET')).toHaveLength(0)
   })
 
   it('rend le funnel, les devises, le proxy, M2 et la table sans donnée client', async () => {
-    mockApi({ 'GET /internal/commercial-cockpit': { body: REPORT } })
+    mockApi({
+      'GET /internal/commercial-cockpit': { body: REPORT },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      'GET /target-icps': { body: [ICP] },
+    })
     renderApp(<AppRoutes />, { session: OPERATOR, route: '/app/internal/cockpit' })
 
     expect(await screen.findByRole('heading', { name: 'Cockpit commercial' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Cockpit commercial' })).toBeInTheDocument()
+    expect(await screen.findByText(`${ICP.label} · ${ICP.customer_input.territories[0]}`)).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Cockpit commercial' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Compte' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getAllByText('Emails délivrés (proxy)').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText(/99/).length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText(/^49/).length).toBeGreaterThanOrEqual(1)

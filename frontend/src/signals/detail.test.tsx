@@ -202,7 +202,7 @@ describe('détail d’un signal', () => {
     expect(link).not.toHaveAttribute('state')
     await user.click(link)
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Fiche entreprise inaccessible' }),
+      await screen.findByRole('heading', { level: 2, name: 'Fiche entreprise inaccessible' }),
     ).toBeInTheDocument()
   })
 

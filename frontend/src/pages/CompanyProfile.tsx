@@ -42,9 +42,9 @@ export function CompanyProfile() {
     return (
       <div className={styles.page}>
         <BackToSignals />
-        <h1 className="kivou-visually-hidden">
+        <h2 className="kivou-visually-hidden">
           {unavailable ? t.companyProfile.inaccessibleTitle : t.companyProfile.errorTitle}
-        </h1>
+        </h2>
         <Callout
           tone={unavailable ? 'warning' : 'danger'}
           title={unavailable ? t.companyProfile.inaccessibleTitle : t.companyProfile.errorTitle}
@@ -120,7 +120,7 @@ function CompanyProfileView({ profile }: { profile: CompanyProfilePayload }) {
         </div>
         <div className={styles.heroTitleRow}>
           <BuildingIcon className={styles.heroIcon} aria-hidden="true" />
-          <h1 className={styles.title}>{identity.name}</h1>
+          <h2 className={styles.title}>{identity.name}</h2>
         </div>
         <div className={styles.heroMeta}>
           {identity.country ? <span>{identity.country}</span> : null}
@@ -307,7 +307,7 @@ function CompanySkeleton() {
   const { t } = useI18n()
   return (
     <div className={styles.page} role="status" aria-label={t.common.loading}>
-      <h1 className="kivou-visually-hidden">{t.common.loading}</h1>
+      <h2 className="kivou-visually-hidden">{t.common.loading}</h2>
       <div aria-hidden="true" className={styles.skeletonStack}>
         <Skeleton width="10rem" height="1rem" />
         <Skeleton width="70%" height="2.5rem" />

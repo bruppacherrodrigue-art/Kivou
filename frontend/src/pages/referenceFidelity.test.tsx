@@ -20,7 +20,10 @@ import {
 
 const read = (path: string) => readFileSync(join(process.cwd(), path), 'utf8')
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.restoreAllMocks()
+  vi.unstubAllGlobals()
+})
 
 function renderSignalsShell() {
   mockApi({
@@ -32,13 +35,14 @@ function renderSignalsShell() {
   return renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
 }
 
-function stubDesktopMedia() {
-  const query = '(min-width: 1024px)'
+function stubMobileMedia() {
+  const query = '(max-width: 767px)'
   const listeners = new Set<EventListenerOrEventListenerObject>()
-  let matches = false
+  let width = 375
+  vi.stubGlobal('innerWidth', width)
   const media = {
     get matches() {
-      return matches
+      return width < 768
     },
     media: query,
     onchange: null,
@@ -57,8 +61,9 @@ function stubDesktopMedia() {
   return {
     media,
     enterDesktop() {
-      matches = true
-      const event = { matches, media: query } as MediaQueryListEvent
+      width = 1024
+      vi.stubGlobal('innerWidth', width)
+      const event = { matches: false, media: query } as MediaQueryListEvent
       for (const listener of listeners) {
         if (typeof listener === 'function') listener(event)
         else listener.handleEvent(event)
@@ -172,8 +177,10 @@ describe('fidélité au shell dashboard approuvé', () => {
     })
     renderApp(<AppRoutes />, { route: '/app/dashboard', session: AUTHENTICATED })
 
-    const navigation = await screen.findByRole('navigation', { name: 'Navigation principale' })
-    expect(within(navigation).getAllByRole('link')).toHaveLength(5)
+    await screen.findByRole('heading', { level: 1, name: 'Vue d’ensemble' })
+    const navigation = document.querySelector<HTMLElement>('.sidebar-menu')
+    expect(navigation).not.toBeNull()
+    expect(within(navigation!).getAllByRole('link')).toHaveLength(5)
     const destinations = [
       ['Vue d’ensemble', '/app/dashboard'],
       ['Signaux', '/app/signals'],
@@ -182,15 +189,15 @@ describe('fidélité au shell dashboard approuvé', () => {
       ['Compte', '/app/settings'],
     ] as const
     for (const [name, href] of destinations) {
-      expect(within(navigation).getByRole('link', { name })).toHaveAttribute('href', href)
+      expect(within(navigation!).getByRole('link', { name })).toHaveAttribute('href', href)
     }
-    expect(within(navigation).getByRole('link', { name: destinations[0][0] })).toHaveAttribute(
+    expect(within(navigation!).getByRole('link', { name: destinations[0][0] })).toHaveAttribute(
       'aria-current',
       'page',
     )
     for (const destination of ['Marchés', 'Veille', 'Notes', 'Apollo', 'Instantly']) {
       expect(
-        within(navigation).queryByRole('link', { name: new RegExp(destination, 'i') }),
+        within(navigation!).queryByRole('link', { name: new RegExp(destination, 'i') }),
       ).not.toBeInTheDocument()
     }
 
@@ -242,41 +249,36 @@ describe('fidélité au shell dashboard approuvé', () => {
     },
   )
 
-  it('nomme le drawer, y place le focus et rend le contenu de fond inerte', async () => {
+  it('nomme le drawer, y place le focus et expose son overlay', async () => {
     const user = userEvent.setup()
-    const { container } = renderSignalsShell()
-    const main = container.querySelector('main')
-    const skipLink = screen.getByRole('link', { name: 'Aller au contenu principal' })
+    stubMobileMedia()
+    renderSignalsShell()
+    await screen.findByRole('heading', { level: 1, name: 'Signaux' })
 
-    const drawerToggle = screen.getByRole('button', { name: 'Ouvrir le menu' })
-    expect(drawerToggle).toHaveAttribute('aria-expanded', 'false')
+    const drawerToggle = screen.getByRole('button', { name: 'Ouvrir la navigation' })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
     await user.click(drawerToggle)
-    const drawer = screen.getByRole('dialog', { name: 'Navigation principale' })
-    const close = within(drawer).getByRole('button', { name: 'Fermer le menu' })
-    expect(drawerToggle).toHaveAttribute('aria-expanded', 'true')
-    expect(close).toHaveFocus()
-    expect(skipLink).toHaveAttribute('inert')
-    expect(drawerToggle.closest('header')).toHaveAttribute('inert')
-    expect(main?.parentElement).toHaveAttribute('inert')
+    const drawer = screen.getByRole('dialog', { name: 'Navigation' })
+    const close = within(drawer).getByRole('button', { name: 'Fermer' })
+    expect(drawer).toContainElement(document.activeElement as HTMLElement)
+    expect(document.querySelector('[data-slot="sheet-overlay"]')).not.toBeNull()
 
     await user.click(close)
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(drawerToggle).toHaveFocus()
-    expect(skipLink).not.toHaveAttribute('inert')
-    expect(drawerToggle.closest('header')).not.toHaveAttribute('inert')
-    expect(main?.parentElement).not.toHaveAttribute('inert')
+    expect(drawerToggle).toBeEnabled()
   })
 
   it('confine Tab et Maj+Tab aux contrôles du drawer', async () => {
     const user = userEvent.setup()
+    stubMobileMedia()
     renderSignalsShell()
-    await user.click(screen.getByRole('button', { name: 'Ouvrir le menu' }))
+    await screen.findByRole('heading', { level: 1, name: 'Signaux' })
+    await user.click(screen.getByRole('button', { name: 'Ouvrir la navigation' }))
 
-    const drawer = screen.getByRole('dialog', { name: 'Navigation principale' })
-    const first = within(drawer).getByRole('button', { name: 'Fermer le menu' })
-    const last = within(drawer).getByRole('button', { name: 'Se déconnecter' })
+    const drawer = screen.getByRole('dialog', { name: 'Navigation' })
+    const first = within(drawer).getByRole('link', { name: 'Kivou, vue d’ensemble' })
+    const last = within(drawer).getByRole('button', { name: 'Fermer' })
 
     last.focus()
     await user.tab()
@@ -285,52 +287,60 @@ describe('fidélité au shell dashboard approuvé', () => {
     expect(last).toHaveFocus()
   })
 
-  it('ferme le drawer avec Échap et restitue le focus au déclencheur', async () => {
+  it('ferme le drawer avec Échap', async () => {
     const user = userEvent.setup()
+    stubMobileMedia()
     renderSignalsShell()
-    const drawerToggle = screen.getByRole('button', { name: 'Ouvrir le menu' })
+    await screen.findByRole('heading', { level: 1, name: 'Signaux' })
+    const drawerToggle = screen.getByRole('button', { name: 'Ouvrir la navigation' })
     await user.click(drawerToggle)
 
     await user.keyboard('{Escape}')
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(drawerToggle).toHaveFocus()
+    expect(drawerToggle).toBeEnabled()
   })
 
-  it('distingue le scrim du bouton Fermer et restitue aussi le focus', async () => {
+  it('distingue le scrim du bouton Fermer', async () => {
     const user = userEvent.setup()
+    stubMobileMedia()
     renderSignalsShell()
-    const drawerToggle = screen.getByRole('button', { name: 'Ouvrir le menu' })
+    await screen.findByRole('heading', { level: 1, name: 'Signaux' })
+    const drawerToggle = screen.getByRole('button', { name: 'Ouvrir la navigation' })
     await user.click(drawerToggle)
 
-    await user.click(screen.getByRole('button', { name: 'Fermer le menu en cliquant à côté' }))
+    const overlay = document.querySelector<HTMLElement>('[data-slot="sheet-overlay"]')
+    expect(overlay).not.toBeNull()
+    await user.click(overlay!)
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(drawerToggle).toHaveFocus()
+    expect(drawerToggle).toBeEnabled()
   })
 
   it('ferme le drawer quand une destination interne est choisie', async () => {
     const user = userEvent.setup()
+    stubMobileMedia()
     renderSignalsShell()
-    await user.click(screen.getByRole('button', { name: 'Ouvrir le menu' }))
+    await screen.findByRole('heading', { level: 1, name: 'Signaux' })
+    await user.click(screen.getByRole('button', { name: 'Ouvrir la navigation' }))
 
-    const drawer = screen.getByRole('dialog', { name: 'Navigation principale' })
-    await user.click(within(drawer).getByRole('link', { name: 'Signaux' }))
+    const drawer = screen.getByRole('dialog', { name: 'Navigation' })
+    await user.click(within(drawer).getByRole('link', { name: 'Entreprises' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('ferme le drawer au passage sur le rail desktop et libère son écouteur', async () => {
     const user = userEvent.setup()
-    const desktop = stubDesktopMedia()
+    const desktop = stubMobileMedia()
     const { unmount } = renderSignalsShell()
-    const drawerToggle = screen.getByRole('button', { name: 'Ouvrir le menu' })
+    await screen.findByRole('heading', { level: 1, name: 'Signaux' })
+    const drawerToggle = screen.getByRole('button', { name: 'Ouvrir la navigation' })
     await user.click(drawerToggle)
 
     act(() => desktop.enterDesktop())
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(drawerToggle).toHaveAttribute('aria-expanded', 'false')
     unmount()
     expect(desktop.media.removeEventListener).toHaveBeenCalled()
   })

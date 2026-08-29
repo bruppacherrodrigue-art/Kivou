@@ -53,9 +53,20 @@ function AuthLeaveHarness() {
 
 function LateAccountLocale() {
   const { locale, setLocale } = useI18n()
+  const { adopt } = useSession()
+  const navigate = useNavigate()
   return (
     <>
       <button type="button" onClick={() => setLocale('en')}>Résoudre la locale du compte</button>
+      <button
+        type="button"
+        onClick={() => {
+          adopt({ ...ME, locale: 'en' })
+          navigate('/app/settings')
+        }}
+      >
+        Ouvrir le compte anglais
+      </button>
       <output data-testid="locale">{locale}</output>
     </>
   )
@@ -262,22 +273,27 @@ describe('parcours d’entrée de la référence connectée', () => {
     expect(storage).not.toHaveBeenCalled()
   })
 
-  it('maintient le document français après une résolution tardive de locale et restaure cette locale en sortant', async () => {
+  it('maintient la locale française sur l’auth puis applique la locale du compte connecté', async () => {
     const user = userEvent.setup()
-    mockApi({})
-    const view = renderApp(
+    mockApi({
+      'GET /target-icps': { body: [ICP] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(
       <>
         <AppRoutes />
         <LateAccountLocale />
       </>,
-      { route: '/signup', session: UNAUTHENTICATED, locale: 'fr' },
+      { route: '/forgot-password', session: UNAUTHENTICATED, locale: 'fr' },
     )
 
     await user.click(screen.getByRole('button', { name: 'Résoudre la locale du compte' }))
-    expect(screen.getByTestId('locale')).toHaveTextContent('en')
+    await waitFor(() => expect(screen.getByTestId('locale')).toHaveTextContent('fr'))
     expect(document.documentElement).toHaveAttribute('lang', 'fr')
 
-    view.unmount()
+    await user.click(screen.getByRole('button', { name: 'Ouvrir le compte anglais' }))
+    expect(await screen.findByRole('heading', { level: 1, name: 'Account' })).toBeVisible()
+    await waitFor(() => expect(screen.getByTestId('locale')).toHaveTextContent('en'))
     expect(document.documentElement).toHaveAttribute('lang', 'en')
   })
 })

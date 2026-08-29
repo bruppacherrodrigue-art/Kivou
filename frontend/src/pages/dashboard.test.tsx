@@ -54,9 +54,13 @@ function HistoryControls() {
 }
 
 describe('accueil connecté', () => {
-  it('compose Compte comme une identité réelle suivie de ses destinations', () => {
+  it('compose Compte comme une identité réelle suivie de ses destinations', async () => {
     mockApi({})
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/settings' })
+
+    await waitFor(() =>
+      expect(document.querySelector('.demo-mode-badge')).toHaveTextContent('Non publié'),
+    )
 
     const identity = screen.getByRole('region', { name: 'Acme Solutions' })
     expect(identity).toHaveTextContent('claire@acme.test')
@@ -392,7 +396,7 @@ describe('chargements indépendants', () => {
       'GET /signals/sig_unlocked_1': { body: UNLOCKED_DETAIL },
       'GET /billing/status': () => {
         billingCall += 1
-        return billingCall < 3
+        return billingCall < 4
           ? { status: 503, body: { detail: { code: 'temporarily_unavailable' } } }
           : { body: PRO_STATUS }
       },
@@ -413,9 +417,9 @@ describe('chargements indépendants', () => {
     await user.click(within(summary).getByRole('button', { name: 'Réessayer la facturation' }))
 
     expect(await within(summary).findByText('Pro')).toBeInTheDocument()
-    expect(callsTo('/billing/status', 'GET')).toHaveLength(3)
+    expect(callsTo('/billing/status', 'GET')).toHaveLength(4)
     expect(callsTo('/signals', 'GET')).toHaveLength(1)
-    expect(callsTo('/target-icps', 'GET')).toHaveLength(1)
+    expect(callsTo('/target-icps', 'GET')).toHaveLength(2)
     expect(callsTo('/notification-preferences', 'GET')).toHaveLength(1)
   })
 
@@ -454,8 +458,8 @@ describe('chargements indépendants', () => {
     ).toBeInTheDocument()
     expect(callsTo('/notification-preferences', 'GET')).toHaveLength(2)
     expect(callsTo('/signals', 'GET')).toHaveLength(1)
-    expect(callsTo('/target-icps', 'GET')).toHaveLength(1)
-    expect(callsTo('/billing/status', 'GET')).toHaveLength(2)
+    expect(callsTo('/target-icps', 'GET')).toHaveLength(2)
+    expect(callsTo('/billing/status', 'GET')).toHaveLength(3)
   })
 
   it('démarre le feed, le billing, les ICP et les préférences sans attendre une autre source', async () => {
@@ -471,8 +475,8 @@ describe('chargements indépendants', () => {
 
     await waitFor(() => {
       expect(callsTo('/signals', 'GET')).toHaveLength(1)
-      expect(callsTo('/billing/status', 'GET')).toHaveLength(1)
-      expect(callsTo('/target-icps', 'GET')).toHaveLength(1)
+      expect(callsTo('/billing/status', 'GET')).toHaveLength(2)
+      expect(callsTo('/target-icps', 'GET')).toHaveLength(2)
       expect(callsTo('/notification-preferences', 'GET')).toHaveLength(1)
     })
   })
@@ -516,6 +520,7 @@ describe('chargements indépendants', () => {
             resolveInitial = resolve
           })
         }
+        if (billingCall === 2) return { body: DISCOVERY_STATUS }
         return new Promise((resolve) => {
           resolveRefresh = resolve
         })
@@ -524,19 +529,20 @@ describe('chargements indépendants', () => {
 
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
-    await waitFor(() => expect(callsTo('/billing/status', 'GET')).toHaveLength(2))
+    await waitFor(() => expect(callsTo('/billing/status', 'GET')).toHaveLength(3))
 
     await act(async () => {
       resolveRefresh?.({ body: PRO_STATUS })
     })
-    expect(await screen.findByText('Pro')).toBeInTheDocument()
+    const summary = await screen.findByRole('list', { name: 'Résumé du compte' })
+    expect(await within(summary).findByText('Pro')).toBeInTheDocument()
 
     await act(async () => {
       resolveInitial?.({ body: DISCOVERY_STATUS })
     })
-    await waitFor(() => expect(screen.getByText('Pro')).toBeInTheDocument())
-    expect(screen.queryByText('Découverte')).not.toBeInTheDocument()
-    expect(callsTo('/billing/status', 'GET')).toHaveLength(2)
+    await waitFor(() => expect(within(summary).getByText('Pro')).toBeInTheDocument())
+    expect(within(summary).queryByText('Découverte')).not.toBeInTheDocument()
+    expect(callsTo('/billing/status', 'GET')).toHaveLength(3)
   })
 })
 
@@ -669,8 +675,8 @@ describe('accès à la fiche entreprise', () => {
     expect(await screen.findByRole('link', { name: 'Consulter la fiche entreprise' })).toBeInTheDocument()
     expect(callsTo('/signals', 'GET')).toHaveLength(2)
     expect(callsTo('/signals/sig_unlocked_1', 'GET')).toHaveLength(1)
-    expect(callsTo('/billing/status', 'GET')).toHaveLength(2)
-    expect(callsTo('/target-icps', 'GET')).toHaveLength(1)
+    expect(callsTo('/billing/status', 'GET')).toHaveLength(3)
+    expect(callsTo('/target-icps', 'GET')).toHaveLength(2)
     expect(callsTo('/notification-preferences', 'GET')).toHaveLength(1)
   })
 })
@@ -861,7 +867,10 @@ describe('facturation et alertes exactes', () => {
     mockApi({ ...DASHBOARD_ROUTES, 'GET /billing/status': { body: status } })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
-    expect(await screen.findByText(status.plan_code === 'pro' ? 'Pro' : 'Découverte')).toBeInTheDocument()
+    const summary = await screen.findByRole('list', { name: 'Résumé du compte' })
+    expect(
+      within(summary).getByText(status.plan_code === 'pro' ? 'Pro' : 'Découverte'),
+    ).toBeInTheDocument()
     expect(screen.getByRole('link', { name: action })).toHaveAttribute('href', '/app/billing')
     expect(callsTo('/billing/plans', 'GET')).toHaveLength(0)
     expect(callsTo('/billing/checkout')).toHaveLength(0)
@@ -1001,7 +1010,7 @@ describe('facturation et alertes exactes', () => {
     await user.click(screen.getByRole('button', { name: 'Réessayer les alertes' }))
     expect(await screen.findByText('Alertes activées · Cadence quotidienne')).toBeInTheDocument()
     expect(callsTo('/notification-preferences', 'GET')).toHaveLength(2)
-    expect(callsTo('/target-icps', 'GET')).toHaveLength(1)
+    expect(callsTo('/target-icps', 'GET')).toHaveLength(2)
   })
 })
 
@@ -1106,7 +1115,7 @@ describe('navigation et garde-fous du dashboard', () => {
     await user.click(await screen.findByRole('link', { name: 'Consulter la fiche entreprise' }))
     expect(
       await screen.findByRole('heading', {
-        level: 1,
+        level: 2,
         name: COMPANY_PROFILE.official_identity.name,
       }),
     ).toBeInTheDocument()
@@ -1118,7 +1127,7 @@ describe('navigation et garde-fous du dashboard', () => {
     await user.click(screen.getByRole('button', { name: 'Historique suivant' }))
     expect(
       await screen.findByRole('heading', {
-        level: 1,
+        level: 2,
         name: COMPANY_PROFILE.official_identity.name,
       }),
     ).toBeInTheDocument()

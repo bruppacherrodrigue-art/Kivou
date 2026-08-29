@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { AppRoutes } from '../App'
 import {
   AUTHENTICATED,
@@ -144,7 +144,8 @@ describe('une échéance annoncée ne coupe rien', () => {
     render(PRO_CANCELLING_STATUS)
 
     await screen.findByText('Résiliation programmée')
-    expect(screen.getByText('Pro')).toBeInTheDocument()
+    const currentPlan = screen.getByText('Votre offre').closest('section')!
+    expect(within(currentPlan).getByText('Pro')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Gérer ma facturation/ })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Choisir/ })).not.toBeInTheDocument()
   })
@@ -158,7 +159,8 @@ describe('une échéance annoncée ne coupe rien', () => {
     })
 
     await screen.findByText('Résiliation programmée')
-    expect(screen.getByText('Pro')).toBeInTheDocument()
+    const currentPlan = screen.getByText('Votre offre').closest('section')!
+    expect(within(currentPlan).getByText('Pro')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Gérer ma facturation/ })).toBeInTheDocument()
   })
 })

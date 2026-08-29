@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { act, fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
@@ -123,7 +123,8 @@ describe('billing_action — recover_payment', () => {
   it('un compte past_due n’a AUCUN bouton d’achat', async () => {
     render(RECOVER_STATUS)
     await screen.findByText('Accès suspendu — incident de paiement')
-    expect(screen.getByText('Découverte')).toBeInTheDocument()
+    const currentPlan = screen.getByText('Votre offre').closest('section')!
+    expect(within(currentPlan).getByText('Découverte')).toBeInTheDocument()
     expect(screen.getByText('Paiement en retard')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Choisir/ })).not.toBeInTheDocument()
     expect(callsTo('/billing/checkout')).toHaveLength(0)
@@ -172,7 +173,8 @@ describe('billing_action — contact_support', () => {
   it('un compte trialing n’a AUCUN bouton d’achat', async () => {
     render(SUPPORT_STATUS)
     await screen.findByText('Vérification de facturation nécessaire')
-    expect(screen.getByText('Découverte')).toBeInTheDocument()
+    const currentPlan = screen.getByText('Votre offre').closest('section')!
+    expect(within(currentPlan).getByText('Découverte')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Choisir/ })).not.toBeInTheDocument()
   })
 
