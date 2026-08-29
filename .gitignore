@@ -33,6 +33,7 @@ htmlcov/
 # depuis la racine, quel que soit le sous-dossier depuis lequel on ajoute.
 frontend/node_modules/
 frontend/dist/
+frontend/dist-founder/
 
 # ── Artefacts de système de fichiers ─────────────────────────────────────────
 .DS_Store
