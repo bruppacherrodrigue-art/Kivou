@@ -37,12 +37,6 @@ const NAV_ITEMS = [
   { to: '/app/settings', key: 'settings', Icon: BillingIcon },
 ] as const
 
-const INTERNAL_NAV_ITEM = {
-  to: '/app/internal/cockpit',
-  key: 'cockpit',
-  Icon: SignalsIcon,
-} as const
-
 const DESKTOP_RAIL_QUERY = '(min-width: 1024px)'
 const DRAWER_CONTROLS =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
@@ -133,9 +127,7 @@ export function AppShell() {
   }, [closeDrawer])
 
   const me = state.status === 'authenticated' ? state.me : null
-  const items = me?.capabilities.commercial_cockpit
-    ? [...NAV_ITEMS, INTERNAL_NAV_ITEM]
-    : NAV_ITEMS
+  const items = NAV_ITEMS
   const pageTitle = titleForPath(location.pathname, t)
   const contentOwnsPageHeading = pageOwnsHeading(location.pathname)
   const eyebrow = me?.locale === 'en' ? 'Awarded contract monitoring' : 'Veille des marchés attribués'
@@ -285,10 +277,7 @@ export function AppShell() {
 }
 
 function pageOwnsHeading(pathname: string): boolean {
-  return (
-    /^\/app\/companies\/[^/]+$/.test(pathname) ||
-    pathname.startsWith('/app/internal/')
-  )
+  return /^\/app\/companies\/[^/]+$/.test(pathname)
 }
 
 function titleForPath(pathname: string, t: ReturnType<typeof useI18n>['t']): string {
@@ -298,7 +287,6 @@ function titleForPath(pathname: string, t: ReturnType<typeof useI18n>['t']): str
   if (pathname === '/app/billing') return t.billing.title
   if (pathname === '/app/notifications') return t.notifications.title
   if (pathname.startsWith('/app/settings')) return t.nav.settings
-  if (pathname.startsWith('/app/internal')) return t.nav.cockpit
   return t.nav.dashboard
 }
 
