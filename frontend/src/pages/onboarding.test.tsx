@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it, afterEach, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -25,6 +27,34 @@ afterEach(() => vi.unstubAllGlobals())
 const INCOMPLETE_ME = { ...ME, onboarding_status: 'account_created' as const }
 
 type User = ReturnType<typeof userEvent.setup>
+
+const readHexToken = (css: string, name: string): string => {
+  const value = css.match(new RegExp(`--${name}:\\s*(#[0-9a-f]{6});`, 'i'))?.[1]
+  if (!value) throw new Error(`Token hexadécimal introuvable : --${name}`)
+  return value
+}
+
+const relativeLuminance = (hex: string): number => {
+  const channels = hex
+    .slice(1)
+    .match(/.{2}/g)
+    ?.map((channel) => Number.parseInt(channel, 16))
+  if (!channels || channels.length !== 3) throw new Error(`Couleur hexadécimale invalide : ${hex}`)
+
+  const [red, green, blue] = channels.map((channel) => {
+    const srgb = channel / 255
+    return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue
+}
+
+const contrastRatio = (foreground: string, background: string): number => {
+  const foregroundLuminance = relativeLuminance(foreground)
+  const backgroundLuminance = relativeLuminance(background)
+  const lighter = Math.max(foregroundLuminance, backgroundLuminance)
+  const darker = Math.min(foregroundLuminance, backgroundLuminance)
+  return (lighter + 0.05) / (darker + 0.05)
+}
 
 const ACTIVATED_ROUTES = {
   'POST /target-icps': { status: 201, body: ICP },
@@ -477,6 +507,162 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
 })
 
 describe('gestion des profils', () => {
+  it('garde les aides de dépassement au-dessus du contraste WCAG AA', () => {
+    const tokens = readFileSync(join(process.cwd(), 'src/styles/tokens.css'), 'utf8')
+    const css = readFileSync(join(process.cwd(), 'src/pages/Icps.module.css'), 'utf8')
+
+    expect(css).toMatch(
+      /\.overLimitHelp\s*\{[^}]*color:\s*var\(--kivou-analysis-accent\)/s,
+    )
+    expect(
+      contrastRatio(
+        readHexToken(tokens, 'kivou-analysis-accent'),
+        readHexToken(tokens, 'kivou-connected-surface-muted'),
+      ),
+    ).toBeGreaterThanOrEqual(4.5)
+  })
+
+  it('empile le workspace avant le rail 1024 px tout en gardant sa grille sur grand écran', () => {
+    const css = readFileSync(join(process.cwd(), 'src/pages/Icps.module.css'), 'utf8')
+
+    expect(css).toMatch(
+      /\.workspace\s*\{[^}]*grid-template-columns:\s*minmax\(17rem, 0\.72fr\) minmax\(28rem, 1\.28fr\)/s,
+    )
+    expect(css).toMatch(
+      /@media \(max-width: 1100px\)\s*\{[\s\S]*?\.workspace\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/,
+    )
+  })
+
+  it('organise les profils en workspace liste + éditeur et focalise le formulaire ouvert', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /target-icps': { body: [ICP] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
+
+    const workspace = await screen.findByRole('region', { name: 'Espace de ciblage' })
+    expect(within(workspace).getByRole('list', { name: 'Profils enregistrés' })).toBeInTheDocument()
+
+    await user.click(within(workspace).getByRole('button', { name: 'Modifier' }))
+
+    const editor = screen.getByRole('region', { name: 'Éditeur du profil' })
+    const editorTitle = within(editor).getByRole('heading', { name: 'Modifier le profil' })
+    await waitFor(() => expect(editorTitle).toHaveFocus())
+  })
+
+  it('remonte l’éditeur avec les valeurs du profil choisi quand on change de ligne', async () => {
+    const user = userEvent.setup()
+    const second = { ...ICP, target_icp_id: 'icp_2', label: 'Location — Suisse' }
+    mockApi({
+      'GET /target-icps': { body: [ICP, second] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
+
+    const firstCard = (await screen.findByText(ICP.label)).closest('article')!
+    await user.click(within(firstCard).getByRole('button', { name: 'Modifier' }))
+    expect(screen.getByLabelText(/Nom du profil/)).toHaveValue(ICP.label)
+
+    const secondCard = screen.getByText(second.label).closest('article')!
+    await user.click(within(secondCard).getByRole('button', { name: 'Modifier' }))
+    expect(screen.getByLabelText(/Nom du profil/)).toHaveValue(second.label)
+  })
+
+  it('rend le focus au bouton Créer après annulation du nouvel éditeur', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /target-icps': { body: [ICP] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
+
+    await user.click(await screen.findByRole('button', { name: 'Créer un profil' }))
+    await user.click(screen.getByRole('button', { name: 'Annuler' }))
+
+    const restoredTrigger = screen.getByRole('button', { name: 'Créer un profil' })
+    await waitFor(() => expect(restoredTrigger).toHaveFocus())
+  })
+
+  it('rend le focus au bouton Modifier après une sauvegarde réussie', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /target-icps': { body: [ICP] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      'PATCH /target-icps/icp_1': { body: ICP },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
+
+    await user.click(await screen.findByRole('button', { name: 'Modifier' }))
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+    await waitFor(() => expect(callsTo('/target-icps/icp_1', 'PATCH')).toHaveLength(1))
+
+    const restoredTrigger = screen.getByRole('button', { name: 'Modifier' })
+    await waitFor(() => expect(restoredTrigger).toHaveFocus())
+  })
+
+  it('rend le focus au profil créé depuis l’état vide après la sauvegarde', async () => {
+    const user = userEvent.setup()
+    const created = {
+      ...ICP,
+      target_icp_id: 'icp_created',
+      label: 'Nouveau profil',
+      customer_input: {
+        offer_summary: '',
+        offers: [],
+        secondary_offers: [],
+        buyer_trades: [],
+        secondary_buyer_trades: [],
+        territories: [],
+        minimum_contract_value: null,
+      },
+    }
+    let listCalls = 0
+    mockApi({
+      'GET /target-icps': () => {
+        listCalls += 1
+        return { body: listCalls === 1 ? [] : [created] }
+      },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      'POST /target-icps': { status: 201, body: created },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
+
+    const emptyTitle = await screen.findByRole('heading', {
+      name: 'Aucun profil de ciblage pour le moment.',
+    })
+    const emptyState = emptyTitle.closest('div')!
+    await user.click(within(emptyState).getByRole('button', { name: 'Créer un profil' }))
+    await user.type(screen.getByLabelText(/Nom du profil/), created.label)
+    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+
+    await waitFor(() => expect(callsTo('/target-icps', 'POST')).toHaveLength(1))
+    expect(callsTo('/target-icps', 'POST')[0].body).toEqual({
+      label: created.label,
+      customer_input: created.customer_input,
+    })
+    expect(listCalls).toBe(2)
+
+    const createdCard = (await screen.findByText(created.label)).closest('article')!
+    const restoredTrigger = within(createdCard).getByRole('button', { name: 'Modifier' })
+    await waitFor(() => expect(restoredTrigger).toHaveFocus())
+  })
+
+  it('annonce honnêtement le chargement initial des profils', () => {
+    const pending = new Promise<never>(() => {})
+    mockApi({
+      'GET /target-icps': () => pending,
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    const { unmount } = renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: '/app/icps',
+    })
+
+    expect(screen.getByRole('status', { name: 'Chargement…' })).toBeInTheDocument()
+    unmount()
+  })
+
   it('rend une erreur de chargement relançable sans masquer le titre de page', async () => {
     mockApi({
       'GET /target-icps': { status: 503, body: { detail: { code: 'billing_error' } } },

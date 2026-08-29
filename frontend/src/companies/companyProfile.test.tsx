@@ -49,6 +49,20 @@ describe('fiche entreprise officielle', () => {
     )
     expect(screen.getByText('Matériaux ou composants')).toBeInTheDocument()
     expect(screen.getByText('Très bon pour votre profil')).toBeInTheDocument()
+
+    expect(
+      screen.queryByRole('complementary', {
+        name: 'Pourquoi cette entreprise mérite votre attention',
+      }),
+    ).not.toBeInTheDocument()
+    const context = screen.getByRole('region', {
+      name: 'Pourquoi cette entreprise mérite votre attention',
+    })
+    expect(
+      within(context).getByRole('heading', { name: 'Pourquoi cette entreprise mérite votre attention' }),
+    ).toBeInTheDocument()
+    const sources = screen.getByRole('region', { name: 'Sources et couverture' })
+    expect(within(sources).getByRole('heading', { name: 'Sources et couverture' })).toBeInTheDocument()
   })
 
   it('masque les champs absents et résume une couverture partielle une seule fois', async () => {
@@ -190,6 +204,7 @@ describe('fiche entreprise officielle', () => {
     )
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
+    expect(screen.getByRole('status', { name: 'Chargement…' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 1, name: 'Chargement…' })).toBeInTheDocument()
     resolveRequest?.(
       new Response(JSON.stringify(COMPANY_PROFILE), {
@@ -201,6 +216,19 @@ describe('fiche entreprise officielle', () => {
 
     await user.tab()
     await waitFor(() => expect(document.activeElement).toHaveAttribute('href', '#kivou-main'))
+
+    const backLinks = screen.getAllByRole('link', { name: 'Retour aux signaux' })
+    const reviewLinks = screen.getAllByRole('link', { name: 'Examiner le signal' })
+    const external = screen.getByRole('link', { name: /Ouvrir le site de l’entreprise/ })
+
+    backLinks[0].focus()
+    expect(backLinks[0]).toHaveFocus()
+    await user.tab()
+    expect(reviewLinks[0]).toHaveFocus()
+    await user.tab()
+    expect(backLinks[1]).toHaveFocus()
+    await user.tab()
+    expect(external).toHaveFocus()
   })
 
   it('ne lit ni n’écrit aucun fait d’entreprise dans sessionStorage', async () => {

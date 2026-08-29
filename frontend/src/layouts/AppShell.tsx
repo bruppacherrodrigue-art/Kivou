@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
 import { useI18n } from '../i18n'
 import { useSession } from '../auth/SessionProvider'
@@ -18,7 +18,7 @@ import styles from './AppShell.module.css'
 
 /* Le shell du SaaS client.
  *
- * La géométrie vient de la référence 04 : sidebar de 240 px, logo en haut,
+ * La géométrie vient de la référence 04 : sidebar de 248 px, logo en haut,
  * items icône + libellé, séparateur, carte de compte en bas. Ce que la
  * référence montre aussi Entreprises : cette entrée est maintenant alimentée
  * uniquement par les fiches reliées aux signaux accessibles. Marchés, Veille
@@ -43,29 +43,94 @@ const INTERNAL_NAV_ITEM = {
   Icon: SignalsIcon,
 } as const
 
+const DESKTOP_RAIL_QUERY = '(min-width: 1024px)'
+const DRAWER_CONTROLS =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 export function AppShell() {
   const { t } = useI18n()
   const { state, signOut } = useSession()
   const location = useLocation()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
+  const drawerTriggerRef = useRef<HTMLButtonElement>(null)
+  const drawerRef = useRef<HTMLDivElement>(null)
+  const drawerCloseRef = useRef<HTMLButtonElement>(null)
+  const restoreDrawerFocus = useRef(false)
+
+  const closeDrawer = useCallback((restoreFocus: boolean) => {
+    restoreDrawerFocus.current = restoreFocus
+    setDrawerOpen(false)
+  }, [])
+
+  const openDrawer = useCallback(() => {
+    restoreDrawerFocus.current = false
+    setDrawerOpen(true)
+  }, [])
 
   // La navigation ferme le tiroir : sur mobile, un tiroir resté ouvert
   // masquerait la page qu'on vient d'atteindre.
   useEffect(() => {
-    setDrawerOpen(false)
-  }, [location.pathname])
+    closeDrawer(false)
+  }, [closeDrawer, location.pathname])
+
+  // Une ouverture modale commence sur son contrôle de fermeture. Après une
+  // fermeture locale, le focus revient au déclencheur une fois `inert` retiré.
+  useEffect(() => {
+    if (drawerOpen) {
+      drawerCloseRef.current?.focus()
+      return
+    }
+    if (!restoreDrawerFocus.current) return
+    restoreDrawerFocus.current = false
+    drawerTriggerRef.current?.focus()
+  }, [drawerOpen])
 
   // Échap ferme le tiroir. Sans cela, un utilisateur au clavier n'a aucun moyen
   // de sortir de la couche modale qui recouvre la page.
   useEffect(() => {
     if (!drawerOpen) return
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setDrawerOpen(false)
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        closeDrawer(true)
+        return
+      }
+      if (event.key !== 'Tab') return
+
+      const drawer = drawerRef.current
+      if (!drawer) return
+      const controls = Array.from(drawer.querySelectorAll<HTMLElement>(DRAWER_CONTROLS)).filter(
+        (control) => control.tabIndex >= 0,
+      )
+      const first = controls.at(0)
+      const last = controls.at(-1)
+      if (!first || !last) return
+
+      const active = document.activeElement
+      if (event.shiftKey && (active === first || !drawer.contains(active))) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && (active === last || !drawer.contains(active))) {
+        event.preventDefault()
+        first.focus()
+      }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [drawerOpen])
+  }, [closeDrawer, drawerOpen])
+
+  // Si la media query active le rail fixe, le drawer mobile n'a plus de
+  // surface visible : il doit disparaître avec son état modal.
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const desktop = window.matchMedia(DESKTOP_RAIL_QUERY)
+    const onChange = (event: MediaQueryListEvent) => {
+      if (event.matches) closeDrawer(false)
+    }
+    desktop.addEventListener('change', onChange)
+    return () => desktop.removeEventListener('change', onChange)
+  }, [closeDrawer])
 
   const me = state.status === 'authenticated' ? state.me : null
   const items = me?.capabilities.commercial_cockpit
@@ -75,7 +140,7 @@ export function AppShell() {
   const contentOwnsPageHeading = pageOwnsHeading(location.pathname)
   const eyebrow = me?.locale === 'en' ? 'Awarded contract monitoring' : 'Veille des marchés attribués'
 
-  const navigation = (
+  const navigation = (onNavigate?: () => void) => (
     <nav className={styles.nav} aria-label={t.nav.mainNavigation}>
       <p className={styles.sidebarLabel}>Navigation</p>
       <ul className={styles.navList}>
@@ -83,6 +148,7 @@ export function AppShell() {
           <li key={to}>
             <NavLink
               to={to}
+              onClick={onNavigate}
               className={({ isActive }) =>
                 `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
               }
@@ -131,23 +197,26 @@ export function AppShell() {
 
   return (
     <div className={styles.shell}>
-      <a className="kivou-skip-link" href="#kivou-main">
+      <a
+        className="kivou-skip-link"
+        href="#kivou-main"
+        inert={drawerOpen ? true : undefined}
+      >
         {t.common.skipToContent}
       </a>
 
       {/* Barre mobile : le tiroir remplace la sidebar sous 1024px (§20). */}
-      <header className={styles.mobileBar}>
+      <header className={styles.mobileBar} inert={drawerOpen ? true : undefined}>
         <button
+          ref={drawerTriggerRef}
           type="button"
           className={styles.drawerToggle}
           aria-expanded={drawerOpen}
           aria-controls="kivou-app-drawer"
-          onClick={() => setDrawerOpen((open) => !open)}
+          onClick={openDrawer}
         >
-          {drawerOpen ? <MenuIcon /> : <MenuIcon />}
-          <span className="kivou-visually-hidden">
-            {drawerOpen ? t.nav.closeMenu : t.nav.openMenu}
-          </span>
+          <MenuIcon />
+          <span className="kivou-visually-hidden">{t.nav.openMenu}</span>
         </button>
         <div className={styles.mobileTitle}>
           <strong aria-hidden="true">{pageTitle}</strong>
@@ -156,9 +225,9 @@ export function AppShell() {
 
       <aside className={styles.sidebar}>
         <Link to="/app/dashboard" className={styles.logoLink}>
-          <KivouLogo size="md" tone="inverse" />
+          <KivouLogo size="md" />
         </Link>
-        {navigation}
+        {navigation()}
         <div className={styles.sidebarFooter}>{accountPanel}</div>
       </aside>
 
@@ -167,28 +236,36 @@ export function AppShell() {
           <button
             type="button"
             className={styles.scrim}
-            aria-label={t.nav.closeMenu}
-            onClick={() => setDrawerOpen(false)}
+            aria-label={t.nav.dismissMenu}
+            onClick={() => closeDrawer(true)}
           />
-          <div className={styles.drawer} id="kivou-app-drawer" role="dialog" aria-modal="true">
+          <div
+            ref={drawerRef}
+            className={styles.drawer}
+            id="kivou-app-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label={t.nav.mainNavigation}
+          >
             <div className={styles.drawerHead}>
-              <KivouLogo size="sm" tone="inverse" />
+              <KivouLogo size="sm" />
               <button
+                ref={drawerCloseRef}
                 type="button"
                 className={styles.drawerToggle}
-                onClick={() => setDrawerOpen(false)}
+                onClick={() => closeDrawer(true)}
               >
                 <CloseIcon />
                 <span className="kivou-visually-hidden">{t.nav.closeMenu}</span>
               </button>
             </div>
-            {navigation}
+            {navigation(() => closeDrawer(false))}
             <div className={styles.sidebarFooter}>{accountPanel}</div>
           </div>
         </div>
       ) : null}
 
-      <div className={styles.workspace}>
+      <div className={styles.workspace} inert={drawerOpen ? true : undefined}>
         <header className={styles.topbar}>
           <div className={styles.topbarTitle}>
             <p>{eyebrow}</p>
@@ -209,7 +286,6 @@ export function AppShell() {
 
 function pageOwnsHeading(pathname: string): boolean {
   return (
-    /^\/app\/signals\/[^/]+$/.test(pathname) ||
     /^\/app\/companies\/[^/]+$/.test(pathname) ||
     pathname.startsWith('/app/internal/')
   )

@@ -69,13 +69,15 @@ export const fr = {
   companiesIndex: {
     title: 'Entreprises',
     lead: 'Les entreprises reliées aux signaux actuellement accessibles dans votre veille.',
-    count: 'Signaux accessibles',
+    count: 'Signaux liés',
     open: 'Ouvrir la fiche',
     emptyTitle: 'Aucune entreprise accessible pour le moment.',
     emptyBody: 'Les fiches apparaissent ici lorsqu’un signal déverrouillé comporte une identité d’entreprise vérifiable.',
     errorTitle: 'Les entreprises n’ont pas pu être chargées.',
     retry: 'Réessayer',
     partial: 'Cette liste reflète les signaux accessibles de votre flux, pas un répertoire exhaustif.',
+    partialResultTitle: 'Liste partielle',
+    partialResultBody: 'Certaines entreprises n’ont pas pu être chargées. Réessayez pour actualiser cette liste.',
   },
 
   settings: {
@@ -90,14 +92,22 @@ export const fr = {
     notificationsTitle: 'Notifications e-mail',
     notificationsLead: 'Choisissez si Kivou peut vous envoyer les alertes prévues par votre offre.',
     notificationsAction: 'Gérer les notifications',
+    actionsLabel: 'Actions du compte',
   },
 
   dashboard: {
     title: 'Vue d’ensemble',
     summaryEyebrow: 'Résumé de la veille',
-    summaryLoading: 'Vos signaux documentés',
-    summaryOne: '{count} signal documenté dans cette lecture',
-    summaryOther: '{count} signaux documentés dans cette lecture',
+    summaryTitle: 'Vos ressources utiles, au même endroit',
+    summaryLabel: 'Résumé du compte',
+    signalsRead: 'Signaux',
+    signalReadOne: '{count} signal dans cette lecture',
+    signalReadOther: '{count} signaux dans cette lecture',
+    activeTargeting: 'Profils actifs',
+    activeIcpOne: '{count} profil actif',
+    activeIcpOther: '{count} profils actifs',
+    currentAccess: 'Accès actuel',
+    alertState: 'Alertes',
     lead: 'Ce qui mérite votre attention aujourd’hui, à partir des marchés qui correspondent à vos ciblages.',
     opportunities: 'Signaux à examiner',
     icps: 'Ciblages actifs',
@@ -105,7 +115,7 @@ export const fr = {
     alerts: 'Alertes',
     opportunitiesError: 'Les occasions sont momentanément indisponibles.',
     retryOpportunities: 'Réessayer les occasions',
-    viewAllFeed: 'Voir tout le feed',
+    viewAllFeed: 'Voir tous les signaux',
     noOpportunities: 'Aucune occasion à examiner pour le moment.',
     noOpportunitiesBody:
       'Kivou continue de surveiller les publications. Vérifiez vos ciblages pendant ce temps.',
@@ -137,7 +147,6 @@ export const fr = {
     alertsDisabled: 'Alertes désactivées',
     activeCadence: 'Cadence {cadence}',
     availableCadenceForPlan: 'Votre formule permet une cadence {cadence}',
-    availableCadence: 'Cadence disponible : {cadence}',
     noAlertCadence: 'Votre formule ne prévoit aucune cadence',
     cadence: {
       none: 'aucune',
@@ -149,6 +158,10 @@ export const fr = {
     retryAlerts: 'Réessayer les alertes',
     manageAlerts: 'Gérer mes alertes',
     company: 'Fiche entreprise',
+    contextPreview: 'Contexte adjacent',
+    contextWithoutUnlocked:
+      'Aucun signal déverrouillé dans cette lecture ne permet de vérifier une fiche entreprise.',
+    companyAvailable: 'Une fiche entreprise autorisée est disponible pour le premier signal accessible.',
     companyAction: 'Consulter la fiche entreprise',
     companyUnavailable: 'Fiche indisponible',
     companyError: 'La fiche entreprise n’a pas pu être vérifiée.',
@@ -775,6 +788,10 @@ export const fr = {
     create: 'Créer un profil',
     edit: 'Modifier',
     editTitle: 'Modifier le profil',
+    workspaceLabel: 'Espace de ciblage',
+    listLabel: 'Profils enregistrés',
+    editorLabel: 'Éditeur du profil',
+    editorHint: 'Choisissez un profil à modifier ou créez-en un nouveau.',
     listEmpty: 'Aucun profil de ciblage pour le moment.',
     listEmptyBody: 'Créez-en un pour commencer à recevoir des signaux.',
     limitLabel: 'Profils actifs',
@@ -860,6 +877,14 @@ export const fr = {
       list: 'Liste des signaux',
       updated: 'Liste des signaux mise à jour.',
     },
+  },
+
+  workspace: {
+    detailRegion: 'Détail du signal sélectionné',
+    detailSections: 'Sections du signal',
+    chooseSignal: 'Sélectionnez un signal pour examiner ses faits et son analyse.',
+    lockedSelection: 'Examiner l’aperçu du signal verrouillé',
+    backToList: 'Retour à la liste',
   },
 
   locked: {

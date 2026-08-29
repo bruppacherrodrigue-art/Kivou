@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, beforeEach, vi } from 'vitest'
-import { act, screen } from '@testing-library/react'
+import { act, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
@@ -269,7 +269,14 @@ describe('intention d’achat périmée', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
+    const workspace = await screen.findByTestId('signal-workspace')
+    await user.click(
+      await within(workspace).findByRole('button', { name: /signal verrouillé/i }),
+    )
+    const panel = await within(workspace).findByRole('region', {
+      name: 'Détail du signal sélectionné',
+    })
+    await user.click(within(panel).getByRole('link', { name: 'Gérer mon accès' }))
     await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
 
     expect(readCheckoutIntent()).toBe('sig_locked_1')

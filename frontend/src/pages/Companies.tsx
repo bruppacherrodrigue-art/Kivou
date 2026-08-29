@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { signals } from '../api/endpoints'
 import type { UnlockedDetail } from '../api/types'
-import { BuildingIcon } from '../assets/Icons'
-import { Button, ButtonLink } from '../components/Button'
-import { Callout, Card, EmptyState, SectionHeading, Skeleton } from '../components/Surfaces'
+import { ArrowRightIcon, BuildingIcon } from '../assets/Icons'
+import { Button } from '../components/Button'
+import { Callout, EmptyState, SectionHeading, Skeleton } from '../components/Surfaces'
 import { useI18n } from '../i18n'
 import styles from './Companies.module.css'
 
@@ -19,37 +20,80 @@ export function Companies() {
   const [entries, setEntries] = useState<CompanyEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<unknown>(null)
+  const [partialResult, setPartialResult] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState<unknown>(null)
+  const mounted = useRef(false)
+  const generation = useRef(0)
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    setError(null)
+  const load = useCallback(async (
+    { preserveEntries = false }: { preserveEntries?: boolean } = {},
+  ) => {
+    const currentGeneration = ++generation.current
+    const isCurrent = () => mounted.current && generation.current === currentGeneration
+
+    if (isCurrent()) {
+      if (preserveEntries) {
+        setRefreshing(true)
+      } else {
+        setLoading(true)
+        setError(null)
+        setPartialResult(false)
+      }
+    }
     try {
       const feed = await signals.feed({ freshness: 'all', limit: 20, offset: 0 })
+      if (!isCurrent()) return
       const unlocked = feed.items.filter((item) => item.locked === false)
       const results = await Promise.allSettled(unlocked.map((item) => signals.detail(item.signal_id)))
       const grouped = new Map<string, CompanyEntry>()
+      const rejectedCount = results.filter((result) => result.status === 'rejected').length
       results.forEach((result) => {
         if (result.status !== 'fulfilled' || result.value.locked || !result.value.company_key) return
         const detail = result.value as UnlockedDetail
         const companyKey = result.value.company_key
+        if (!detail.company.name) return
         const current = grouped.get(companyKey)
         if (current) current.signalCount += 1
         else grouped.set(companyKey, {
           key: companyKey,
-          name: detail.company.name ?? '—',
+          name: detail.company.name,
           country: detail.company.country,
           signalCount: 1,
         })
       })
-      setEntries([...grouped.values()].sort((a, b) => a.name.localeCompare(b.name)))
+      if (isCurrent()) {
+        if (rejectedCount > 0 && grouped.size === 0) {
+          const detailsError = new Error('company_details_unavailable')
+          if (preserveEntries) setRefreshError(detailsError)
+          else setError(detailsError)
+          return
+        }
+        setEntries([...grouped.values()].sort((a, b) => a.name.localeCompare(b.name)))
+        setPartialResult(rejectedCount > 0)
+        setRefreshError(null)
+      }
     } catch (caught) {
-      setError(caught)
+      if (isCurrent()) {
+        if (preserveEntries) setRefreshError(caught)
+        else setError(caught)
+      }
     } finally {
-      setLoading(false)
+      if (isCurrent()) {
+        if (preserveEntries) setRefreshing(false)
+        else setLoading(false)
+      }
     }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    mounted.current = true
+    void load()
+    return () => {
+      mounted.current = false
+      generation.current += 1
+    }
+  }, [load])
 
   return (
     <div className={styles.page}>
@@ -58,26 +102,94 @@ export function Companies() {
         <p className={styles.note}>{t.companiesIndex.partial}</p>
       </header>
       {loading ? (
-        <div className={styles.grid} aria-label={t.common.loading}>
-          {[0, 1, 2].map((item) => <Card key={item} padding="lg"><Skeleton width="62%" height="1.5rem" /></Card>)}
+        <div className={styles.loadingRows} role="status" aria-label={t.common.loading}>
+          {[0, 1, 2].map((item) => (
+            <div key={item} className={styles.loadingRow} aria-hidden="true">
+              <Skeleton width="2.5rem" height="2.5rem" />
+              <Skeleton width="62%" height="1.25rem" />
+            </div>
+          ))}
         </div>
       ) : error ? (
-        <Callout tone="danger" title={t.companiesIndex.errorTitle} action={<Button variant="secondary" onClick={() => void load()}>{t.companiesIndex.retry}</Button>} />
+        <Callout
+          tone="danger"
+          title={t.companiesIndex.errorTitle}
+          action={<Button variant="secondary" onClick={() => void load()}>{t.companiesIndex.retry}</Button>}
+          live
+        />
       ) : entries.length === 0 ? (
-        <Card padding="none"><EmptyState title={t.companiesIndex.emptyTitle} body={t.companiesIndex.emptyBody} /></Card>
+        <div className={styles.emptySurface}>
+          <EmptyState title={t.companiesIndex.emptyTitle} body={t.companiesIndex.emptyBody} />
+        </div>
       ) : (
-        <ul className={styles.grid}>
-          {entries.map((entry) => (
-            <li key={entry.key}>
-              <Card as="article" padding="lg" className={styles.companyCard}>
-                <BuildingIcon className={styles.icon} />
-                <div><h2>{entry.name}</h2>{entry.country ? <p>{entry.country}</p> : null}</div>
-                <p className={styles.count}>{t.companiesIndex.count} · {entry.signalCount}</p>
-                <ButtonLink to={`/app/companies/${encodeURIComponent(entry.key)}`} variant="secondary">{t.companiesIndex.open}</ButtonLink>
-              </Card>
-            </li>
-          ))}
-        </ul>
+        <>
+          {partialResult ? (
+            <section
+              className={styles.partialResult}
+              aria-label={t.companiesIndex.partialResultTitle}
+            >
+              <Callout
+                tone="warning"
+                title={t.companiesIndex.partialResultTitle}
+                action={(
+                  <Button
+                    variant="secondary"
+                    loading={refreshing}
+                    onClick={() => void load({ preserveEntries: true })}
+                  >
+                    {t.companiesIndex.retry}
+                  </Button>
+                )}
+                live
+              >
+                {t.companiesIndex.partialResultBody}
+              </Callout>
+            </section>
+          ) : null}
+          {refreshError ? (
+            <section
+              className={styles.partialResult}
+              aria-label={t.companiesIndex.errorTitle}
+            >
+              <Callout
+                tone="danger"
+                title={t.companiesIndex.errorTitle}
+                action={(
+                  <Button
+                    variant="secondary"
+                    loading={refreshing}
+                    onClick={() => void load({ preserveEntries: true })}
+                  >
+                    {t.companiesIndex.retry}
+                  </Button>
+                )}
+                live
+              />
+            </section>
+          ) : null}
+          <ul className={styles.rows} aria-label={t.companiesIndex.title}>
+            {entries.map((entry) => (
+              <li key={entry.key}>
+                <Link
+                  to={`/app/companies/${encodeURIComponent(entry.key)}`}
+                  className={styles.rowLink}
+                >
+                  <span className={styles.iconFrame} aria-hidden="true">
+                    <BuildingIcon className={styles.icon} />
+                  </span>
+                  <span className={styles.rowBody}>
+                    <span className={styles.companyName}>{entry.name}</span>
+                    <span className={styles.metadata}>
+                      {entry.country ? <span>{entry.country}</span> : null}
+                      <span>{t.companiesIndex.count} · {entry.signalCount}</span>
+                    </span>
+                  </span>
+                  <ArrowRightIcon className={styles.arrow} aria-hidden="true" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </>
       )}
     </div>
   )

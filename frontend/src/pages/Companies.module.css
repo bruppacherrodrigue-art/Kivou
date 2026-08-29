@@ -1,41 +1,175 @@
 .page {
   width: min(100%, 1240px);
+  min-width: 0;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 24px;
 }
-.header { max-width: 720px; display: grid; gap: 10px; }
-.header :global(.sectionLead) { color: #66706c; font-size: 14px; line-height: 1.6; }
-.note { color: #66706c; font-size: 10px; line-height: 1.5; }
-.grid {
+
+.header {
+  max-width: 720px;
+  display: grid;
+  gap: 10px;
+}
+
+.header :global(.sectionLead) {
+  color: var(--kivou-connected-muted);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.note {
+  color: var(--kivou-connected-muted);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.rows,
+.loadingRows,
+.emptySurface {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--kivou-connected-line);
+  border-radius: var(--kivou-connected-panel-radius);
+  background: var(--kivou-connected-surface);
+}
+
+.rows {
+  margin: 0;
+  padding: 0;
   list-style: none;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
 }
-.companyCard {
-  height: 100%;
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-content: start;
-  gap: 14px;
-  border-color: #dce4e0;
-  box-shadow: 0 8px 24px rgba(23,33,29,.055);
+
+.rows > li {
+  min-width: 0;
 }
+
+.rows > li + li {
+  border-top: 1px solid var(--kivou-connected-line);
+}
+
+.rowLink {
+  min-width: 0;
+  padding: 16px 20px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  color: var(--kivou-connected-ink);
+  text-decoration: none;
+  transition: background-color var(--kivou-motion-fast) var(--kivou-ease-standard);
+}
+
+.rowLink:hover {
+  background: var(--kivou-connected-surface-muted);
+}
+
+.rowLink:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--kivou-connected-positive);
+  outline-offset: -2px;
+}
+
+.iconFrame {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--kivou-connected-line);
+  border-radius: 12px;
+  background: var(--kivou-connected-surface-muted);
+  color: var(--kivou-connected-positive);
+}
+
 .icon {
-  width: 2.5rem;
-  height: 2.5rem;
-  padding: var(--kivou-space-2);
-  border: 1px solid #c9ded4;
-  border-radius: 10px;
-  background: #eef7f3;
-  color: #1f6b55;
+  width: 20px;
+  height: 20px;
 }
-.companyCard h2 { font-family: var(--kivou-font-display); font-size: 21px; line-height: 1.2; font-weight: 450; }
-.companyCard div p,
-.count { color: var(--kivou-text-secondary); font-size: var(--kivou-text-small); }
-.count,
-.companyCard > a { grid-column: 1 / -1; }
-@media (min-width: 720px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 1180px) { .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+.rowBody {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.companyName {
+  overflow-wrap: anywhere;
+  font-family: var(--kivou-font-display);
+  font-size: 18px;
+  font-weight: 500;
+  line-height: 1.25;
+}
+
+.metadata {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  overflow-wrap: anywhere;
+  color: var(--kivou-connected-muted);
+  font-size: var(--kivou-text-small);
+  line-height: 1.45;
+}
+
+.arrow {
+  width: 18px;
+  height: 18px;
+  color: var(--kivou-connected-muted);
+  transition: transform var(--kivou-motion-fast) var(--kivou-ease-standard);
+}
+
+.rowLink:hover .arrow,
+.rowLink:focus-visible .arrow {
+  transform: translateX(3px);
+  color: var(--kivou-connected-positive);
+}
+
+.loadingRows {
+  display: grid;
+}
+
+.loadingRow {
+  min-width: 0;
+  min-height: 72px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.loadingRow + .loadingRow {
+  border-top: 1px solid var(--kivou-connected-line);
+}
+
+.emptySurface {
+  padding: 8px;
+}
+
+.partialResult {
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .page {
+    gap: 20px;
+  }
+
+  .rowLink,
+  .loadingRow {
+    padding: 14px 16px;
+    gap: 12px;
+  }
+
+  .iconFrame {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+  }
+
+  .companyName {
+    font-size: 17px;
+  }
+}

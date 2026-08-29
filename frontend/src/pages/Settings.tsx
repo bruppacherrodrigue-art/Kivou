@@ -1,6 +1,6 @@
 import { useCurrentUser } from '../auth/SessionProvider'
 import { ButtonLink } from '../components/Button'
-import { Card, DataList, DataRow, SectionHeading } from '../components/Surfaces'
+import { SectionHeading } from '../components/Surfaces'
 import { useI18n } from '../i18n'
 import styles from './Settings.module.css'
 
@@ -20,32 +20,37 @@ export function Settings() {
         <SectionHeading level={1} title={t.settings.title} lead={t.settings.lead} hideTitle />
       </header>
 
-      <div className={styles.grid}>
-        <Card as="section" padding="lg" className={styles.identity}>
-          <SectionHeading title={t.settings.identityTitle} />
-          <DataList>
-            <DataRow label={t.settings.company}>{me.account_display_name}</DataRow>
-            <DataRow label={t.settings.email}>{me.email}</DataRow>
-          </DataList>
-        </Card>
+      <section className={styles.accountSurface} aria-labelledby="account-identity">
+        <header className={styles.identity}>
+          <p className={styles.eyebrow}>{t.settings.identityTitle}</p>
+          <h2 id="account-identity" className={styles.accountName}>
+            {me.account_display_name}
+          </h2>
+          <p className={styles.email}>{me.email}</p>
+        </header>
 
-        <Card as="section" padding="lg" className={styles.card}>
-          <SectionHeading title={t.settings.billingTitle} lead={t.settings.billingLead} />
-          <ButtonLink to="/app/billing" variant="secondary">
-            {t.settings.billingAction}
-          </ButtonLink>
-        </Card>
+        <nav className={styles.actions} aria-label={t.settings.actionsLabel}>
+          <div className={styles.action}>
+            <div>
+              <h3>{t.settings.billingTitle}</h3>
+              <p>{t.settings.billingLead}</p>
+            </div>
+            <ButtonLink to="/app/billing" variant="secondary">
+              {t.settings.billingAction}
+            </ButtonLink>
+          </div>
 
-        <Card as="section" padding="lg" className={styles.card}>
-          <SectionHeading
-            title={t.settings.notificationsTitle}
-            lead={t.settings.notificationsLead}
-          />
-          <ButtonLink to="/app/notifications" variant="secondary">
-            {t.settings.notificationsAction}
-          </ButtonLink>
-        </Card>
-      </div>
+          <div className={styles.action}>
+            <div>
+              <h3>{t.settings.notificationsTitle}</h3>
+              <p>{t.settings.notificationsLead}</p>
+            </div>
+            <ButtonLink to="/app/notifications" variant="secondary">
+              {t.settings.notificationsAction}
+            </ButtonLink>
+          </div>
+        </nav>
+      </section>
     </div>
   )
 }

@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it, afterEach, vi } from 'vitest'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -31,6 +33,13 @@ function routes(status = PRO_STATUS, preference = PREFERENCE, overrides = {}) {
 }
 
 describe('préférences de notification', () => {
+  it('compose les préférences avec les surfaces connectées et un repli à 900 px', () => {
+    const css = readFileSync(join(process.cwd(), 'src/pages/Notifications.module.css'), 'utf8')
+
+    expect(css).toMatch(/\.card\s*\{[^}]*var\(--kivou-connected-surface\)/s)
+    expect(css).toMatch(/@media \(max-width: 900px\)/)
+  })
+
   it('affiche l’adresse de réception enregistrée', async () => {
     mockApi(routes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/notifications' })

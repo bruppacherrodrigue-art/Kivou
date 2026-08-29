@@ -38,6 +38,19 @@
   --kivou-analysis-bg: #fff9ed;
   --kivou-focus: #5367a3;
 
+  --kivou-connected-canvas: #f7f3ec;
+  --kivou-connected-rail: #f3eee5;
+  --kivou-connected-surface: #fffdf9;
+  --kivou-connected-surface-muted: #faf6ef;
+  --kivou-connected-line: #ddd5c8;
+  --kivou-connected-line-strong: #cbbfab;
+  --kivou-connected-ink: #152b24;
+  --kivou-connected-muted: #686c68;
+  --kivou-connected-accent: #b66a47;
+  --kivou-connected-positive: #0f5a47;
+  --kivou-connected-rail-width: 248px;
+  --kivou-connected-panel-radius: 16px;
+
   --kivou-sidebar-bg: var(--kivou-color-forest);
   --kivou-sidebar-text: rgba(247, 251, 249, 0.72);
   --kivou-sidebar-muted: rgba(247, 251, 249, 0.55);

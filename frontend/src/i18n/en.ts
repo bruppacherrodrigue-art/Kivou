@@ -63,13 +63,15 @@ export const en: Dictionary = {
   companiesIndex: {
     title: 'Companies',
     lead: 'Companies linked to signals currently available in your feed.',
-    count: 'Accessible signals',
+    count: 'Related signals',
     open: 'Open company profile',
     emptyTitle: 'No company is available yet.',
     emptyBody: 'Company profiles appear here when an unlocked signal includes a verifiable company identity.',
     errorTitle: 'Companies could not be loaded.',
     retry: 'Try again',
     partial: 'This list reflects the accessible signals in your feed, not an exhaustive directory.',
+    partialResultTitle: 'Partial list',
+    partialResultBody: 'Some companies could not be loaded. Try again to refresh this list.',
   },
 
   settings: {
@@ -84,14 +86,22 @@ export const en: Dictionary = {
     notificationsTitle: 'Email notifications',
     notificationsLead: 'Choose whether Kivou can send the alerts included in your plan.',
     notificationsAction: 'Manage notifications',
+    actionsLabel: 'Account actions',
   },
 
   dashboard: {
     title: 'Overview',
     summaryEyebrow: 'Monitoring summary',
-    summaryLoading: 'Your documented signals',
-    summaryOne: '{count} documented signal in this response',
-    summaryOther: '{count} documented signals in this response',
+    summaryTitle: 'Your useful resources, in one place',
+    summaryLabel: 'Account summary',
+    signalsRead: 'Signals',
+    signalReadOne: '{count} signal in this response',
+    signalReadOther: '{count} signals in this response',
+    activeTargeting: 'Active profiles',
+    activeIcpOne: '{count} active profile',
+    activeIcpOther: '{count} active profiles',
+    currentAccess: 'Current access',
+    alertState: 'Alerts',
     lead: 'What deserves your attention today, based on contracts that match your targeting profiles.',
     opportunities: 'Signals to review',
     icps: 'Active targeting profiles',
@@ -99,7 +109,7 @@ export const en: Dictionary = {
     alerts: 'Alerts',
     opportunitiesError: 'Opportunities are temporarily unavailable.',
     retryOpportunities: 'Retry opportunities',
-    viewAllFeed: 'View the full feed',
+    viewAllFeed: 'View all signals',
     noOpportunities: 'No opportunities to review right now.',
     noOpportunitiesBody:
       'Kivou continues to monitor publications. You can review your targeting in the meantime.',
@@ -131,7 +141,6 @@ export const en: Dictionary = {
     alertsDisabled: 'Alerts disabled',
     activeCadence: '{cadence} cadence',
     availableCadenceForPlan: 'Your plan allows a {cadence} cadence',
-    availableCadence: 'Available cadence: {cadence}',
     noAlertCadence: 'Your plan does not provide an alert cadence',
     cadence: {
       none: 'none',
@@ -143,6 +152,10 @@ export const en: Dictionary = {
     retryAlerts: 'Retry alerts',
     manageAlerts: 'Manage my alerts',
     company: 'Company profile',
+    contextPreview: 'Adjacent context',
+    contextWithoutUnlocked:
+      'No unlocked signal in this response allows a company profile to be verified.',
+    companyAvailable: 'An authorized company profile is available for the first accessible signal.',
     companyAction: 'View company profile',
     companyUnavailable: 'Profile unavailable',
     companyError: 'The company profile could not be verified.',
@@ -766,6 +779,10 @@ export const en: Dictionary = {
     create: 'Create a profile',
     edit: 'Edit',
     editTitle: 'Edit profile',
+    workspaceLabel: 'Targeting workspace',
+    listLabel: 'Saved profiles',
+    editorLabel: 'Profile editor',
+    editorHint: 'Choose a profile to edit or create a new one.',
     listEmpty: 'No target profile yet.',
     listEmptyBody: 'Create one to start receiving signals.',
     limitLabel: 'Active profiles',
@@ -850,6 +867,14 @@ export const en: Dictionary = {
       list: 'Signal list',
       updated: 'Signal list updated.',
     },
+  },
+
+  workspace: {
+    detailRegion: 'Selected signal details',
+    detailSections: 'Signal sections',
+    chooseSignal: 'Select a signal to review its facts and analysis.',
+    lockedSelection: 'Review the locked signal preview',
+    backToList: 'Back to the list',
   },
 
   locked: {

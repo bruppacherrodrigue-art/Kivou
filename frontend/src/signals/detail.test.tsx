@@ -1,7 +1,10 @@
+import { useLayoutEffect } from 'react'
 import { describe, expect, it, afterEach, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { AppRoutes } from '../App'
+import { SignalDetail } from '../pages/SignalDetail'
 import {
   AUTHENTICATED,
   DISCOVERY_STATUS,
@@ -23,7 +26,52 @@ function detailRoutes(payload: unknown) {
   }
 }
 
+function WrapperDetailCommitProbe({ onCommit }: { onCommit: (content: string) => void }) {
+  const { pathname } = useLocation()
+
+  useLayoutEffect(() => {
+    if (pathname.endsWith('/sig_unlocked_2')) onCommit(document.body.textContent ?? '')
+  }, [onCommit, pathname])
+
+  return null
+}
+
+function WrapperDetailControls() {
+  const navigate = useNavigate()
+  return (
+    <button type="button" onClick={() => navigate('/app/signals/sig_unlocked_2')}>
+      Ouvrir le second détail
+    </button>
+  )
+}
+
 describe('détail d’un signal', () => {
+  it('retire immédiatement les données du wrapper quand sa clé de route change', async () => {
+    const user = userEvent.setup()
+    const onCommit = vi.fn()
+    mockApi({
+      'GET /signals/sig_unlocked_1': { body: UNLOCKED_DETAIL },
+      'GET /signals/sig_unlocked_2': () => new Promise(() => undefined),
+    })
+    renderApp(
+      <>
+        <Routes>
+          <Route path="app/signals/:signalKey" element={<SignalDetail />} />
+        </Routes>
+        <WrapperDetailControls />
+        <WrapperDetailCommitProbe onCommit={onCommit} />
+      </>,
+      { route: '/app/signals/sig_unlocked_1', session: AUTHENTICATED },
+    )
+
+    expect(await screen.findByText('Commune de Villeneuve')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Ouvrir le second détail' }))
+
+    expect(onCommit).toHaveBeenCalled()
+    expect(onCommit.mock.lastCall?.[0]).not.toContain('Commune de Villeneuve')
+    expect(onCommit.mock.lastCall?.[0]).toContain('Chargement…')
+  })
+
   it('sépare visiblement les faits publics de l’analyse Kivou', async () => {
     mockApi(detailRoutes(UNLOCKED_DETAIL))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_unlocked_1' })
@@ -102,7 +150,12 @@ describe('détail d’un signal', () => {
     mockApi(detailRoutes(LOCKED_DETAIL))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' })
 
-    expect(await screen.findByRole('heading', { name: 'Ce signal est verrouillé' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 2, name: LOCKED_DETAIL.headline }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Signaux' })).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 2, name: 'Ce signal est verrouillé' })).toBeInTheDocument()
 
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('Constructions Bertrand')
@@ -163,7 +216,11 @@ describe('détail d’un signal', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals/inconnu' })
 
-    expect(await screen.findByText('Signal introuvable')).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Retour aux signaux' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Signal introuvable' }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Signaux' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retour à la liste' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Retour aux signaux' })).not.toBeInTheDocument()
   })
 })

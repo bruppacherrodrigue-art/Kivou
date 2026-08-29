@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
@@ -41,38 +41,44 @@ describe('feed de signaux', () => {
     expect(screen.getByText('Réfection de la voirie communale — lot 2')).toBeInTheDocument()
   })
 
-  it('hiérarchise l’entreprise, le montant puis le marché avant l’analyse', async () => {
+  it('hiérarchise l’entreprise, le marché puis les métadonnées utiles', async () => {
     mockApi(feedWith([UNLOCKED_ITEM]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    const company = await screen.findByRole('heading', { name: 'Constructions Bertrand SA' })
-    const card = company.closest('article')!
-    const publishedAmount = within(card).getByText('Montant publié').parentElement!
-    expect(publishedAmount.textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('1 240 000 €')
-    const contract = within(card).getByText('Réfection de la voirie communale — lot 2')
-    const analysis = within(card).getByRole('region', { name: 'Besoin plausible' })
-
-    expect(company.compareDocumentPosition(publishedAmount) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(publishedAmount.compareDocumentPosition(contract) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(contract.compareDocumentPosition(analysis) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const list = await screen.findByRole('list', { name: 'Liste des signaux' })
+    const row = within(list).getByRole('article')
+    const company = within(row).getByText('Constructions Bertrand SA')
+    const contract = within(row).getByText('Réfection de la voirie communale — lot 2')
+    expect(row.textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('1 240 000 €')
+    expect(row).toHaveTextContent('4 août 2026')
+    expect(
+      company.compareDocumentPosition(contract) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
   })
 
-  it('sépare le fait public, le besoin plausible et la correspondance ICP', async () => {
+  it('garde le fait et le calendrier serveur dans la ligne sans y dupliquer l’analyse longue', async () => {
     mockApi(feedWith([UNLOCKED_ITEM]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    const card = (await screen.findByRole('heading', { name: 'Constructions Bertrand SA' })).closest(
-      'article',
-    )!
-    expect(within(card).getByRole('region', { name: 'Fait public' })).toHaveTextContent(
-      UNLOCKED_ITEM.event.headline,
+    const list = await screen.findByRole('list', { name: 'Liste des signaux' })
+    const row = within(list).getByRole('article')
+    expect(row).toHaveTextContent(UNLOCKED_ITEM.event.headline)
+    expect(row).toHaveTextContent(UNLOCKED_ITEM.event.why_now)
+    expect(row).not.toHaveTextContent(UNLOCKED_ITEM.analysis.plausible_needs.items[0].statement!)
+    expect(row).not.toHaveTextContent(UNLOCKED_ITEM.analysis.fit.reasons[0])
+  })
+
+  it('inclut le fait et le calendrier serveur visibles dans le nom accessible de la ligne', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const list = await screen.findByRole('list', { name: 'Liste des signaux' })
+    const signalLink = within(list).getByRole('link', {
+      name: new RegExp(UNLOCKED_ITEM.event.headline.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+    })
+    expect(signalLink).toHaveAccessibleName(
+      expect.stringContaining(UNLOCKED_ITEM.event.why_now),
     )
-    expect(within(card).getByRole('region', { name: 'Besoin plausible' })).toHaveTextContent(
-      UNLOCKED_ITEM.analysis.plausible_needs.items[0].statement!,
-    )
-    expect(
-      within(card).getByRole('region', { name: 'Correspondance avec votre profil' }),
-    ).toHaveTextContent(UNLOCKED_ITEM.analysis.fit.reasons[0])
   })
 
   it('rend la date et le timing fournis par le serveur sans les recalculer', async () => {
@@ -158,12 +164,14 @@ describe('feed de signaux', () => {
   })
 
   it('affiche l’appel à l’action d’un signal verrouillé', async () => {
+    const user = userEvent.setup()
     mockApi(feedWith([LOCKED_ITEM]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
+    await user.click(await screen.findByRole('button', { name: /signal verrouillé/i }))
     const cta = await screen.findByRole('link', { name: 'Gérer mon accès' })
     expect(cta).toHaveAttribute('href', '/app/billing')
-    expect(screen.getByText('Verrouillé')).toBeInTheDocument()
+    expect(screen.getAllByText('Verrouillé').length).toBeGreaterThan(0)
     // Jamais une formulation d'extraction de données cachées.
     expect(document.body.textContent).not.toMatch(/révéler|reveal|données cachées/i)
   })
@@ -233,6 +241,69 @@ describe('feed de signaux', () => {
       .getByRole('list', { name: 'Liste des signaux' })
       .querySelectorAll('article')
     expect(ids).toHaveLength(3)
+  })
+
+  it('ignore une page suivante devenue obsolète après un changement de filtre', async () => {
+    const user = userEvent.setup()
+    const pageAItem = {
+      ...UNLOCKED_ITEM,
+      signal_id: 'sig_page_a',
+      company: { ...UNLOCKED_ITEM.company, name: 'Page A obsolète SA' },
+    }
+    const filterBItem = {
+      ...UNLOCKED_ITEM,
+      signal_id: 'sig_filter_b',
+      company: { ...UNLOCKED_ITEM.company, name: 'Filtre B SA' },
+    }
+    let resolvePageA!: (value: { body: unknown }) => void
+
+    mockApi({
+      ...BASE,
+      'GET /signals': (request) => {
+        const freshness = request.search.get('freshness')
+        const offset = request.search.get('offset')
+        if (freshness === 'new' && offset === '0') {
+          return {
+            body: feedPage([UNLOCKED_ITEM], {
+              page: { limit: 20, offset: 0, has_more: true, scan_truncated: false },
+            }),
+          }
+        }
+        if (freshness === 'new' && offset === '20') {
+          return new Promise((resolve) => {
+            resolvePageA = resolve
+          })
+        }
+        return { body: feedPage([filterBItem]) }
+      },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    await screen.findByText('Constructions Bertrand SA')
+    await user.click(screen.getByRole('button', { name: 'Voir plus de signaux' }))
+    await waitFor(() =>
+      expect(
+        recordedCalls.some(
+          (call) => call.search.get('freshness') === 'new' && call.search.get('offset') === '20',
+        ),
+      ).toBe(true),
+    )
+
+    await user.click(screen.getByRole('radio', { name: 'Tout l’historique' }))
+    expect(await screen.findByText('Filtre B SA')).toBeInTheDocument()
+
+    await act(async () => {
+      resolvePageA({
+        body: feedPage([pageAItem], {
+          page: { limit: 20, offset: 20, has_more: false, scan_truncated: false },
+        }),
+      })
+    })
+
+    const list = screen.getByRole('list', { name: 'Liste des signaux' })
+    expect(within(list).getByText('Filtre B SA')).toBeInTheDocument()
+    expect(within(list).queryByText('Page A obsolète SA')).not.toBeInTheDocument()
+    expect(within(list).getAllByRole('article')).toHaveLength(1)
   })
 
   it('conserve les cartes et propose un réessai local si la page suivante échoue', async () => {
@@ -332,7 +403,7 @@ describe('feed de signaux', () => {
     mockApi(feedWith([UNLOCKED_ITEM, LOCKED_ITEM]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
-    const opportunity = await screen.findByRole('heading', { name: 'Constructions Bertrand SA' })
+    const opportunity = await screen.findByRole('link', { name: /Constructions Bertrand SA/ })
     const discoveryPanel = screen.getByText('Votre découverte').closest('aside')!
     expect(
       opportunity.compareDocumentPosition(discoveryPanel) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -390,12 +461,15 @@ describe('feed de signaux', () => {
       locale: 'en',
     })
 
-    const company = await screen.findByRole('heading', { name: 'Constructions Bertrand SA' })
-    const card = company.closest('article')!
-    expect(within(card).getByRole('region', { name: 'Public fact' })).toBeInTheDocument()
-    expect(within(card).getByRole('region', { name: 'Plausible need' })).toBeInTheDocument()
-    expect(within(card).getByRole('region', { name: 'Fit with your profile' })).toBeInTheDocument()
-    expect(within(card).getByText(UNLOCKED_ITEM.event.why_now)).toBeInTheDocument()
+    const list = await screen.findByRole('list', { name: 'Signal list' })
+    const row = within(list).getByRole('article')
+    expect(within(row).getByRole('link', { name: /Constructions Bertrand SA/ })).toHaveAttribute(
+      'href',
+      '/app/signals/sig_unlocked_1',
+    )
+    expect(within(row).getByText(UNLOCKED_ITEM.event.headline)).toBeInTheDocument()
+    expect(within(row).getByText(UNLOCKED_ITEM.event.why_now)).toBeInTheDocument()
+    expect(row).not.toHaveTextContent(UNLOCKED_ITEM.analysis.plausible_needs.items[0].statement!)
     expect(screen.getByRole('heading', { level: 1, name: 'Signals' })).toBeInTheDocument()
   })
 })

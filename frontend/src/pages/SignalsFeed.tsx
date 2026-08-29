@@ -1,16 +1,24 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useI18n, interpolate, plural } from '../i18n'
 import { Button, ButtonLink } from '../components/Button'
-import { Callout, Card, EmptyState, SectionHeading, Skeleton } from '../components/Surfaces'
+import { Callout, Card, EmptyState, Skeleton } from '../components/Surfaces'
 import { NoSignalIllustration } from '../assets/Illustrations'
-import { SignalCard } from '../signals/SignalCard'
+import { SignalListRow } from '../signals/SignalListRow'
 import { DiscoveryPanel } from '../signals/DiscoveryPanel'
+import { SignalDetailPanel } from './SignalDetail'
 import { ActivationProgress } from '../activation/ActivationProgress'
 import { ActivationSuccess } from '../activation/ActivationSuccess'
 import { signals, billing, icps as icpsApi } from '../api/endpoints'
 import { describeError } from '../api/errorCopy'
-import type { BillingStatus, FeedItem, FeedPage, Freshness, TargetIcp } from '../api/types'
+import type {
+  BillingStatus,
+  FeedItem,
+  FeedPage,
+  Freshness,
+  SignalDetail as SignalDetailPayload,
+  TargetIcp,
+} from '../api/types'
 import styles from './SignalsFeed.module.css'
 
 /* Le feed client.
@@ -29,10 +37,26 @@ export interface ActivationNavigationState {
   activationCompleted?: boolean
 }
 
+interface SignalSelectionNavigationState {
+  signalSelection: {
+    kind: 'feed'
+    key: string
+    feedGeneration: number
+    query: { freshness: Freshness; targetIcpId: string }
+  }
+}
+
 export function SignalsFeed() {
   const { t } = useI18n()
   const location = useLocation()
   const navigate = useNavigate()
+  const { signalKey } = useParams()
+  const navigateRef = useRef(navigate)
+  const signalSelection = selectionFromLocation(location.state, signalKey)
+  const signalSelectionRef = useRef(signalSelection)
+
+  navigateRef.current = navigate
+  signalSelectionRef.current = signalSelection
 
   /* Le moment d'activation, consommé UNE fois.
    *
@@ -63,6 +87,31 @@ export function SignalsFeed() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [paginationError, setPaginationError] = useState<unknown>(null)
+  const feedGeneration = useRef(signalSelection?.feedGeneration ?? 0)
+  const appliedFeedGeneration = useRef(signalSelection?.feedGeneration ?? 0)
+  const feedQuery = useRef({ freshness, targetIcpId })
+  const detailGeneration = useRef(0)
+  const resolvedSignalKey = useRef<string | null>(null)
+  const detailPanelRef = useRef<HTMLElement | null>(null)
+  const rowControls = useRef(new Map<string, HTMLAnchorElement | HTMLButtonElement>())
+  const rowControlRefs = useRef(
+    new Map<
+      string,
+      (element: HTMLAnchorElement | HTMLButtonElement | null) => void
+    >(),
+  )
+  const restoreFocusKey = useRef<string | null>(null)
+  const previousSignalKey = useRef(signalKey)
+  const suppressRouteFocusRestore = useRef(false)
+  const [detailAttempt, setDetailAttempt] = useState(0)
+  const [detailState, setDetailState] = useState<{
+    key: string | null
+    data: SignalDetailPayload | null
+    loading: boolean
+    error: unknown | null
+  }>({ key: null, data: null, loading: false, error: null })
+
+  feedQuery.current = { freshness, targetIcpId }
 
   /* `GET /signals` n'est pas seulement une lecture : c'est l'appel qui ATTRIBUE
    * les déblocages Découverte (`_grant_discovery`). Sur la première arrivée
@@ -76,7 +125,14 @@ export function SignalsFeed() {
 
   const load = useCallback(
     async (nextFreshness: Freshness, nextIcp: string) => {
+      const generation = ++feedGeneration.current
+      const query = { freshness: nextFreshness, targetIcpId: nextIcp }
+      const isCurrentQuery = () =>
+        generation === feedGeneration.current &&
+        feedQuery.current.freshness === query.freshness &&
+        feedQuery.current.targetIcpId === query.targetIcpId
       setLoading(true)
+      setLoadingMore(false)
       setError(null)
       setPaginationError(null)
       try {
@@ -86,24 +142,61 @@ export function SignalsFeed() {
           limit: PAGE_SIZE,
           offset: 0,
         })
+        if (!isCurrentQuery()) return
+        appliedFeedGeneration.current = generation
+
+        const selectedFromFeed = signalSelectionRef.current
+        if (selectedFromFeed) {
+          const isLaterFeedGeneration = generation > selectedFromFeed.feedGeneration
+          const stillPresent = result.items.some(
+            (item) => item.signal_id === selectedFromFeed.key,
+          )
+
+          if (isLaterFeedGeneration && !stillPresent) {
+            restoreFocusKey.current = null
+            suppressRouteFocusRestore.current = true
+            // La navigation est appliquée par React Router dans un commit
+            // distinct. Marquer encore cette clé comme résolue empêche l'effet
+            // détail de relancer un GET pendant le bref rendu de l'ancienne URL;
+            // le rendu de la route de base remet ensuite la garde à zéro.
+            resolvedSignalKey.current = selectedFromFeed.key
+            detailGeneration.current += 1
+            setDetailState({ key: null, data: null, loading: false, error: null })
+            navigateRef.current('/app/signals', { replace: true })
+          }
+        }
+
         setPage(result)
         setItems(result.items)
 
         if (postFeedBilling.current) {
-          postFeedBilling.current = false
           try {
-            setStatus(await billing.status())
+            const nextStatus = await billing.status()
+            if (!isCurrentQuery()) return
+            postFeedBilling.current = false
+            setStatus(nextStatus)
           } catch {
+            if (!isCurrentQuery()) return
+            postFeedBilling.current = false
             setStatus(null)
           }
         }
       } catch (caught) {
+        if (!isCurrentQuery()) return
         setError(caught)
         setPage(null)
         setItems([])
       } finally {
-        setLoading(false)
+        if (isCurrentQuery()) setLoading(false)
       }
+    },
+    [],
+  )
+
+  useEffect(
+    () => () => {
+      feedGeneration.current += 1
+      detailGeneration.current += 1
     },
     [],
   )
@@ -129,17 +222,92 @@ export function SignalsFeed() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  useEffect(() => {
+    if (!signalKey) {
+      detailGeneration.current += 1
+      resolvedSignalKey.current = null
+      setDetailState({ key: null, data: null, loading: false, error: null })
+      return
+    }
+
+    if (loading) {
+      if (resolvedSignalKey.current !== signalKey) {
+        detailGeneration.current += 1
+        resolvedSignalKey.current = null
+        setDetailState({ key: signalKey, data: null, loading: true, error: null })
+      }
+      return
+    }
+
+    const selected = items.find((item) => item.signal_id === signalKey)
+    if (selected?.locked) {
+      detailGeneration.current += 1
+      resolvedSignalKey.current = signalKey
+      setDetailState({ key: signalKey, data: null, loading: false, error: null })
+      return
+    }
+    if (resolvedSignalKey.current === signalKey) return
+
+    const generation = ++detailGeneration.current
+    resolvedSignalKey.current = signalKey
+    setDetailState({ key: signalKey, data: null, loading: true, error: null })
+    signals.detail(signalKey).then(
+      (data) => {
+        if (generation === detailGeneration.current) {
+          setDetailState({ key: signalKey, data, loading: false, error: null })
+        }
+      },
+      (caught) => {
+        if (generation === detailGeneration.current) {
+          setDetailState({ key: signalKey, data: null, loading: false, error: caught })
+        }
+      },
+    )
+  }, [detailAttempt, items, loading, signalKey])
+
+  const activeSelectionKey = signalKey
+
+  useEffect(() => {
+    if (activeSelectionKey) detailPanelRef.current?.focus()
+  }, [activeSelectionKey])
+
+  useEffect(() => {
+    const previous = previousSignalKey.current
+    previousSignalKey.current = signalKey
+    if (signalKey || !previous) return
+    if (suppressRouteFocusRestore.current) {
+      suppressRouteFocusRestore.current = false
+      return
+    }
+    if (!restoreFocusKey.current) restoreFocusKey.current = previous
+  }, [signalKey])
+
+  useEffect(() => {
+    if (activeSelectionKey || !restoreFocusKey.current) return
+    const control = rowControls.current.get(restoreFocusKey.current)
+    if (!control) return
+    restoreFocusKey.current = null
+    control.focus()
+  }, [activeSelectionKey, items])
+
   async function loadMore() {
     if (!page?.page.has_more) return
+    const generation = feedGeneration.current
+    const query = { freshness, targetIcpId }
+    const isCurrentQuery = () =>
+      generation === feedGeneration.current &&
+      feedQuery.current.freshness === query.freshness &&
+      feedQuery.current.targetIcpId === query.targetIcpId
     setLoadingMore(true)
     setPaginationError(null)
     try {
       const next = await signals.feed({
-        freshness,
-        target_icp_id: targetIcpId || null,
+        freshness: query.freshness,
+        target_icp_id: query.targetIcpId || null,
         limit: PAGE_SIZE,
         offset: page.page.offset + page.page.limit,
       })
+      if (!isCurrentQuery()) return
       setPage(next)
       // La déduplication porte sur `signal_id` : deux pages qui se recouvrent
       // — parce que la fraîcheur a été réévaluée entre deux appels — ne doivent
@@ -149,21 +317,46 @@ export function SignalsFeed() {
         return [...current, ...next.items.filter((item) => !seen.has(item.signal_id))]
       })
     } catch (caught) {
+      if (!isCurrentQuery()) return
       // Une page suivante ratée ne transforme pas les signaux déjà lus en
       // erreur globale. Ils restent utilisables et le réessai reste local.
       setPaginationError(caught)
     } finally {
-      setLoadingMore(false)
+      if (isCurrentQuery()) setLoadingMore(false)
     }
   }
 
   const activeProfiles = profiles?.filter((profile) => profile.status === 'active') ?? []
   const hasNoUsableProfile = profiles !== null && activeProfiles.length === 0
+  const selectedItem = activeSelectionKey
+    ? items.find((item) => item.signal_id === activeSelectionKey) ?? null
+    : null
+  const lockedPreview = selectedItem?.locked ? selectedItem : null
+  const visibleDetailState =
+    detailState.key === (signalKey ?? null)
+      ? detailState
+      : { key: signalKey ?? null, data: null, loading: Boolean(signalKey), error: null }
+
+  function retryDetail() {
+    resolvedSignalKey.current = null
+    setDetailAttempt((current) => current + 1)
+  }
+
+  function rowControlRef(key: string) {
+    const existing = rowControlRefs.current.get(key)
+    if (existing) return existing
+    const register = (control: HTMLAnchorElement | HTMLButtonElement | null) => {
+      if (control) rowControls.current.set(key, control)
+      else rowControls.current.delete(key)
+    }
+    rowControlRefs.current.set(key, register)
+    return register
+  }
 
   return (
     <div className={styles.page}>
       <header className={styles.header}>
-        <SectionHeading title={t.feed.title} lead={t.feed.lead} level={1} hideTitle />
+        <p className={styles.lead}>{t.feed.lead}</p>
         <div className={styles.headerActions}>
           <ButtonLink to="/app/icps" variant="secondary">
             {t.feed.configureIcp}
@@ -183,16 +376,7 @@ export function SignalsFeed() {
         </>
       ) : null}
 
-      {hasNoUsableProfile ? (
-        <Card padding="none">
-          <EmptyState
-            illustration={<NoSignalIllustration />}
-            title={t.feed.noIcpTitle}
-            body={t.feed.noIcpBody}
-            action={<ButtonLink to="/app/icps">{t.feed.noIcpAction}</ButtonLink>}
-          />
-        </Card>
-      ) : (
+      {!hasNoUsableProfile ? (
         <>
           <FeedFilters
             freshness={freshness}
@@ -202,8 +386,21 @@ export function SignalsFeed() {
             onProfile={setTargetIcpId}
             disabled={loading}
           />
+        </>
+      ) : null}
 
-          {loading ? (
+      <div className={styles.workspace} data-testid="signal-workspace">
+        <div className={`${styles.master} ${activeSelectionKey ? styles.masterHidden : ''}`}>
+          {hasNoUsableProfile ? (
+            <Card padding="none">
+              <EmptyState
+                illustration={<NoSignalIllustration />}
+                title={t.feed.noIcpTitle}
+                body={t.feed.noIcpBody}
+                action={<ButtonLink to="/app/icps">{t.feed.noIcpAction}</ButtonLink>}
+              />
+            </Card>
+          ) : loading ? (
             <FeedSkeleton />
           ) : error ? (
             <FeedError error={error} onRetry={() => void load(freshness, targetIcpId)} />
@@ -237,7 +434,25 @@ export function SignalsFeed() {
               <ul className={styles.list} aria-label={t.feed.aria.list}>
                 {items.map((item) => (
                   <li key={item.signal_id}>
-                    <SignalCard item={item} />
+                    <SignalListRow
+                      item={item}
+                      selected={item.signal_id === activeSelectionKey}
+                      registerControl={rowControlRef(item.signal_id)}
+                      selectionState={selectionState(
+                        item.signal_id,
+                        appliedFeedGeneration.current,
+                        feedQuery.current,
+                      )}
+                      onSelectLocked={(locked) => {
+                        navigate(`/app/signals/${encodeURIComponent(locked.signal_id)}`, {
+                          state: selectionState(
+                            locked.signal_id,
+                            appliedFeedGeneration.current,
+                            feedQuery.current,
+                          ),
+                        })
+                      }}
+                    />
                   </li>
                 ))}
               </ul>
@@ -262,8 +477,26 @@ export function SignalsFeed() {
               ) : null}
             </>
           )}
-        </>
-      )}
+        </div>
+
+        <div className={`${styles.detail} ${activeSelectionKey ? '' : styles.detailHidden}`}>
+          <SignalDetailPanel
+            detail={visibleDetailState.data}
+            loading={visibleDetailState.loading}
+            error={visibleDetailState.error}
+            embedded
+            lockedPreview={lockedPreview}
+            lockedPreviewHeadingLevel={signalKey ? 1 : 2}
+            panelRef={detailPanelRef}
+            onRetry={retryDetail}
+            onBackToList={() => {
+              restoreFocusKey.current = activeSelectionKey ?? null
+              if (signalSelection) navigate(-1)
+              else navigate('/app/signals')
+            }}
+          />
+        </div>
+      </div>
 
       {/* L'occasion précède l'explication du plan. Le panneau reste exact et
           accessible, mais ne prend plus la première place lorsque le serveur
@@ -271,6 +504,30 @@ export function SignalsFeed() {
       {status ? <DiscoveryPanel status={status} /> : null}
     </div>
   )
+}
+
+function selectionState(
+  key: string,
+  feedGeneration: number,
+  query: { freshness: Freshness; targetIcpId: string },
+): SignalSelectionNavigationState {
+  return { signalSelection: { kind: 'feed', key, feedGeneration, query: { ...query } } }
+}
+
+function selectionFromLocation(state: unknown, signalKey: string | undefined) {
+  if (!state || typeof state !== 'object' || !signalKey) return null
+  const selection = (state as Partial<SignalSelectionNavigationState>).signalSelection
+  if (
+    selection?.kind !== 'feed' ||
+    selection.key !== signalKey ||
+    !Number.isInteger(selection.feedGeneration) ||
+    selection.feedGeneration < 0 ||
+    typeof selection.query?.targetIcpId !== 'string' ||
+    !['new', 'recent_or_aging', 'all'].includes(selection.query?.freshness)
+  ) {
+    return null
+  }
+  return selection
 }
 
 function FeedFilters({

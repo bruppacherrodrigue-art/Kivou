@@ -1,9 +1,14 @@
 .page {
-  width: min(100%, 1240px);
+  width: min(100%, 1440px);
   margin: 0 auto;
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.lead {
+  max-width: 68ch;
+  color: var(--kivou-connected-muted);
 }
 
 .header {
@@ -91,15 +96,40 @@
 }
 
 .count {
+  padding: 14px 18px 8px;
   color: var(--kivou-text-secondary);
   font-size: var(--kivou-text-small);
 }
 
-.list {
-  list-style: none;
+.workspace {
+  min-width: 0;
+  min-height: calc(100vh - 150px);
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: minmax(16rem, 0.82fr) minmax(0, 1.48fr);
+  border: 1px solid var(--kivou-connected-line);
+  border-radius: var(--kivou-connected-panel-radius);
+  background: var(--kivou-connected-surface);
+  overflow: clip;
+}
+
+.master {
+  min-width: 0;
+  border-right: 1px solid var(--kivou-connected-line);
+}
+
+.detail {
+  min-width: 0;
+  background: var(--kivou-connected-surface);
+}
+
+.list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list > li + li {
+  border-top: 1px solid var(--kivou-connected-line);
 }
 
 .more {
@@ -120,17 +150,25 @@
   gap: var(--kivou-space-3);
 }
 
-@media (min-width: 1040px) {
-  .list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+@media (max-width: 899px) {
+  .workspace {
+    min-height: 0;
+    display: block;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
   }
 
-  .list > :first-child {
-    grid-column: 1 / -1;
+  .master {
+    border-right: 0;
   }
 
-  .list > :first-child > article {
-    border-color: #c9ded4;
-    background: #eef7f3;
+  .masterHidden,
+  .detailHidden {
+    display: none;
+  }
+
+  .detail {
+    min-height: calc(100vh - 68px);
   }
 }

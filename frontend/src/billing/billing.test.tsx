@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { describe, expect, it, afterEach, beforeEach, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -36,6 +38,13 @@ const BASE = {
 }
 
 describe('grille tarifaire', () => {
+  it('compose la facturation avec les surfaces connectées et un repli à 900 px', () => {
+    const css = readFileSync(join(process.cwd(), 'src/pages/Billing.module.css'), 'utf8')
+
+    expect(css).toMatch(/\.statusCard\s*\{[^}]*var\(--kivou-connected-surface\)/s)
+    expect(css).toMatch(/@media \(max-width: 900px\)/)
+  })
+
   it('affiche les prix RENVOYÉS par l’API, jamais une grille écrite en dur', async () => {
     mockApi(BASE)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
