@@ -1,0 +1,11 @@
+# Cloudflare Tunnel route for the single production Founder Console.
+# Cloudflare Access must protect control.kivou.eu before this route is enabled.
+tunnel: REPLACE_WITH_TUNNEL_UUID
+credentials-file: /etc/cloudflared/REPLACE_WITH_TUNNEL_UUID.json
+
+ingress:
+  - hostname: control.kivou.eu
+    service: http://127.0.0.1:8081
+    originRequest:
+      httpHostHeader: control.kivou.eu
+  - service: http_status:404
