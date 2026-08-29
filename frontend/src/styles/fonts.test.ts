@@ -42,6 +42,11 @@ describe('livraison des polices', () => {
     for (const name of FONT_PACKAGES) {
       expect(main).toContain(`${name}/wght.css`)
     }
+
+    expect(main).toContain("'./styles/tokens.css'")
+    expect(main).not.toContain("'./styles/global.css'")
+    expect(main).toContain("'./reference/public/public-reference.css'")
+    expect(main).toContain("'./reference/dashboard/dashboard-reference.css'")
   })
 
   it('nomme les familles réellement livrées en tête des piles de tokens', () => {
