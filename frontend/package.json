@@ -8,6 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest",
+    "test:visual": "playwright test",
+    "capture:reference": "node scripts/capture-reference-goldens.mjs",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint ."
   },

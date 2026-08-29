@@ -48,6 +48,16 @@ Les seules différences autorisées avec une capture de référence sont :
 - les états honnêtes de chargement, d'erreur ou d'absence de données ;
 - le préfixe `/app` nécessaire pour séparer les routes SPA des routes API.
 
+La copie publique calculée depuis `PricingResource` constitue une exception
+bornée : le catalogue backend ne publie ni plafond d'utilisateurs, ni la
+cadence Discovery, ni les limites territoriales fixes de la maquette. Les
+captures source et Kivou normalisent donc symétriquement le texte direct de ces
+seuls slots sur l'accueil, le produit, les tarifs et l'exemple de signal. Cette
+normalisation ne peut modifier aucun prix, élément, attribut, classe, ordre ou
+nombre de nœuds. Contact et informations légales restent entièrement non
+normalisés. Les valeurs réelles du catalogue et les prix restent protégés par
+les tests unitaires et les contrôles staging non masqués.
+
 ### Autorité d'exécution
 
 Les contrats actuels restent autoritaires :
@@ -219,9 +229,13 @@ minimum :
 - vue d'ensemble, workspace signal, entreprises, ciblage et compte ;
 - shell et navigations mobiles ouvertes.
 
-Le seuil ne permet aucune différence structurelle ou de composant. Les zones
-publiques restent non masquées et les valeurs de prix sont alimentées par une
-fixture API équivalente. Les captures connectées normalisent le texte de la
+Le seuil ne permet aucune différence structurelle ou de composant. Les valeurs
+de prix restent non masquées et sont alimentées par une fixture API équivalente.
+Sur l'accueil, le produit, les tarifs et l'exemple de signal, le même helper
+normalise des deux côtés uniquement la copie directe issue de
+`PricingResource`; il vérifie avant/après que les prix affichés sont byte-exacts
+et ne remplace ni élément ni attribut. Contact et informations légales restent
+entièrement non normalisés. Les captures connectées normalisent le texte de la
 maquette et du port avec le même contenu avant comparaison : la référence parle
 de démonstration, tandis que Kivou doit afficher les valeurs réelles. Les tests
 unitaires vérifient séparément le texte non normalisé et les captures staging

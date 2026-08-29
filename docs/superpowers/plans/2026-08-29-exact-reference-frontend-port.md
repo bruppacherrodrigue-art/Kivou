@@ -62,6 +62,10 @@
   the reference default metadata/favicon.
 - Create `frontend/playwright.config.ts`, `frontend/tests/visual/*`, and
   `frontend/tests/visual/reference-goldens/*`: deterministic browser comparison.
+- Create `frontend/tests/visual/normalize-public-pricing.mjs`: one symmetric,
+  selector-bounded normalizer for only the public copy derived from
+  `PricingResource`, with a fail-closed guard proving displayed prices do not
+  change.
 
 ### Public presentation
 
@@ -3028,6 +3032,7 @@ git commit -m "fix(frontend): preserve truthful reference states"
 - Create: `frontend/playwright.config.ts`
 - Create: `frontend/tests/visual/fixtures.ts`
 - Create: `frontend/tests/visual/reference-port.spec.ts`
+- Create: `frontend/tests/visual/normalize-public-pricing.mjs`
 - Create: `frontend/scripts/capture-reference-goldens.mjs`
 - Create: `frontend/tests/visual/reference-goldens/*.png`
 - Delete: `frontend/src/pages/referenceFidelity.test.tsx`
@@ -3055,19 +3060,24 @@ export default defineConfig({
   testDir: './tests/visual',
   fullyParallel: false,
   workers: 1,
-  snapshotPathTemplate: '{testDir}/reference-goldens/{arg}',
+  retries: 0,
+  reporter: [['list'], ['html', { open: 'never', outputFolder: 'playwright-report' }]],
+  updateSnapshots: 'none',
+  snapshotPathTemplate: '{testDir}/reference-goldens/{arg}{ext}',
   expect: { toMatchSnapshot: { maxDiffPixelRatio: 0.001 } },
   use: {
+    baseURL: 'http://127.0.0.1:5173',
     browserName: 'chromium',
     locale: 'fr-CH',
     timezoneId: 'UTC',
     colorScheme: 'light',
     reducedMotion: 'reduce',
+    deviceScaleFactor: 1,
   },
   webServer: {
     command: 'npm run dev -- --host 127.0.0.1',
     url: 'http://127.0.0.1:5173',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
 })
 ```
@@ -3167,175 +3177,40 @@ node scripts/verify-reference-source.mjs
 ```
 
 `capture-reference-goldens.mjs` creates detached temporary worktrees from the
-pinned commits and serves only those worktrees. Use this complete script:
+pinned commits and serves only those worktrees. The checked-in script is the
+authoritative implementation: it uses owned dynamic ports with `--strictPort`,
+an atomic same-filesystem output swap, fail-closed cleanup, and imports the
+shared `normalizePublicPricingText()` helper for Home, Product, Pricing,
+Signal, and the public menu. The plan does not duplicate that implementation;
+the following invariants are its normative, reviewable contract.
 
-```js
-import { spawn, execFileSync } from 'node:child_process'
-import { mkdirSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join, resolve } from 'node:path'
-import { chromium } from '@playwright/test'
+The committed script is accepted only when these executable invariants hold:
 
-const manifest = JSON.parse(readFileSync(resolve('reference-source.json'), 'utf8'))
-const output = resolve('tests/visual/reference-goldens')
-const temporaryRoot = execFileSync('mktemp', ['-d', join(tmpdir(), 'kivou-reference.XXXXXX')], {
-  encoding: 'utf8',
-}).trim()
-const children = []
-const worktrees = []
-
-function addWorktree(source, name) {
-  const target = join(temporaryRoot, name)
-  execFileSync('git', ['-C', source.path, 'worktree', 'add', '--detach', target, source.commit], {
-    stdio: 'inherit',
-  })
-  symlinkSync(join(source.path, 'node_modules'), join(target, 'node_modules'), 'dir')
-  worktrees.push({ repository: source.path, target })
-  return target
-}
-
-function start(cwd, port) {
-  const child = spawn(
-    'npm', ['run', 'dev', '--', '--host', '127.0.0.1', '--port', String(port)],
-    { cwd, detached: true, stdio: 'ignore' },
-  )
-  children.push(child)
-  return child
-}
-
-async function ready(url) {
-  const deadline = Date.now() + 60_000
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(url)
-      if (response.ok) return
-    } catch {}
-    await new Promise((accept) => setTimeout(accept, 250))
-  }
-  throw new Error(`reference server did not become ready: ${url}`)
-}
-
-const font = (path) => readFileSync(resolve(path)).toString('base64')
-const fontCss = `
-@font-face { font-family: "Instrument Sans Variable"; src: url(data:font/woff2;base64,${font('node_modules/@fontsource-variable/instrument-sans/files/instrument-sans-latin-ext-wght-normal.woff2')}) format("woff2"); font-weight: 100 900; font-style: normal; font-display: block; }
-@font-face { font-family: "Lora Variable"; src: url(data:font/woff2;base64,${font('node_modules/@fontsource-variable/lora/files/lora-latin-ext-wght-normal.woff2')}) format("woff2"); font-weight: 400 700; font-style: normal; font-display: block; }
-*, *::before, *::after { animation: none !important; transition: none !important; caret-color: transparent !important; }
-`
-
-const pages = [
-  ['public', '/', 'public-home', 'Repérez les entreprises qui viennent de gagner un marché public.'],
-  ['public', '/produit', 'public-product', 'Kivou suit ce qui se passe après l’attribution.'],
-  ['public', '/tarifs', 'public-pricing', 'Choisissez la couverture adaptée à votre prospection.'],
-  ['public', '/exemple-de-signal', 'public-signal', 'H. Hüther GmbH a remporté un marché de 5,22 M€ à Munich.'],
-  ['public', '/contact', 'public-contact', 'Contact'],
-  ['public', '/informations-legales', 'public-legal', 'Informations légales et contractuelles'],
-  ['dashboard', '/login', 'dashboard-login', 'Retrouver vos signaux'],
-  ['dashboard', '/signup', 'dashboard-signup', 'Commencer avec un ciblage clair'],
-  ['dashboard', '/', 'dashboard-overview', 'Vue d’ensemble'],
-  ['dashboard', '/signals?signal=tm-ausbau-campus-ost', 'dashboard-signals', 'Signaux'],
-  ['dashboard', '/companies', 'dashboard-companies', 'Entreprises'],
-  ['dashboard', '/targeting', 'dashboard-targeting', 'Profil de ciblage'],
-  ['dashboard', '/settings', 'dashboard-account', 'Compte'],
-]
-
-async function normalizeConnectedText(page) {
-  await page.evaluate(() => {
-    const root = document.querySelector('.dashboard-provider, .auth-shell')
-    if (!root) return
-    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-    const nodes = []
-    while (walker.nextNode()) nodes.push(walker.currentNode)
-    for (const node of nodes) {
-      if (node.nodeValue?.trim()) node.nodeValue = 'Texte'
-    }
-    for (const field of root.querySelectorAll('input, textarea')) {
-      field.setAttribute('placeholder', 'Texte')
-      if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
-        field.value = ''
-      }
-    }
-  })
-}
-
-async function capture(page, site, base, path, name, heading, viewportName) {
-  await page.setViewportSize(viewportName === 'desktop'
-    ? { width: 1440, height: 900 }
-    : { width: 390, height: 844 })
-  await page.goto(`${base}${path}`, { waitUntil: 'networkidle' })
-  await page.addStyleTag({ content: fontCss })
-  await page.evaluate(() => document.fonts.ready)
-  await page.getByText(heading, { exact: true }).first().waitFor()
-  if (site === 'dashboard') await normalizeConnectedText(page)
-  await page.screenshot({
-    path: join(output, `${name}-${viewportName}.png`),
-    fullPage: true,
-    animations: 'disabled',
-  })
-}
-
-try {
-  mkdirSync(output, { recursive: true })
-  const publicTree = addWorktree(manifest.public, 'public')
-  const dashboardTree = addWorktree(manifest.dashboard, 'dashboard')
-  start(publicTree, 4174)
-  start(dashboardTree, 4175)
-  await Promise.all([
-    ready('http://127.0.0.1:4174/'),
-    ready('http://127.0.0.1:4175/'),
-  ])
-  const browser = await chromium.launch()
-  try {
-    const page = await browser.newPage({ locale: 'fr-CH', timezoneId: 'UTC' })
-    for (const [site, path, name, heading] of pages) {
-      const base = site === 'public'
-        ? 'http://127.0.0.1:4174'
-        : 'http://127.0.0.1:4175'
-      await capture(page, site, base, path, name, heading, 'desktop')
-      await capture(page, site, base, path, name, heading, 'mobile')
-    }
-
-    await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto('http://127.0.0.1:4174/', { waitUntil: 'networkidle' })
-    await page.addStyleTag({ content: fontCss })
-    await page.getByRole('button', { name: 'Ouvrir le menu' }).click()
-    await page.screenshot({ path: join(output, 'public-menu-open-mobile.png'), fullPage: true })
-
-    await page.goto('http://127.0.0.1:4175/', { waitUntil: 'networkidle' })
-    await page.addStyleTag({ content: fontCss })
-    await page.getByRole('button', { name: 'Ouvrir la navigation' }).click()
-    await normalizeConnectedText(page)
-    await page.screenshot({ path: join(output, 'dashboard-sidebar-open-mobile.png'), fullPage: true })
-  } finally {
-    await browser.close()
-  }
-} finally {
-  for (const child of children.reverse()) {
-    if (child.pid) {
-      try { process.kill(-child.pid, 'SIGTERM') } catch {}
-    }
-  }
-  await new Promise((accept) => setTimeout(accept, 500))
-  for (const child of children.reverse()) {
-    if (child.pid) {
-      try { process.kill(-child.pid, 'SIGKILL') } catch {}
-    }
-  }
-  for (const { repository, target } of worktrees.reverse()) {
-    try { execFileSync('git', ['-C', repository, 'worktree', 'remove', '--force', target]) } catch {}
-  }
-  rmSync(temporaryRoot, { recursive: true, force: true })
-}
-```
+- `verify-reference-source.mjs` passes before any server starts;
+- both detached authority worktrees use owned dynamic ports with `--strictPort`;
+- the Latin font assets and UI steady-state checks are identical on both sides;
+- `normalizePublicPricingText()` is imported once and shared by Home, Product,
+  Pricing, Signal, and the public `summary[aria-label="Ouvrir le menu"]` capture;
+- Contact and Legal never call a text normalizer;
+- browser, server, and worktree failures are reported together during cleanup;
+- all 28 expected `.png` names are validated in a temporary sibling directory
+  before an atomic, recoverable swap into `reference-goldens/`.
 
 The injected fonts are the same locked local assets used by Kivou, so both
 renders exercise the font families requested by the reference CSS. Public
-captures remain completely unmasked. Connected captures normalize text only:
-this removes intentional differences between real API copy and the source's
-demo copy while retaining the exact number of nodes, DOM geometry, icons,
-colors, spacing, and responsive composition under one common text payload. It
-does not claim to compare natural reflow of unequal live strings. Unit tests in
-Tasks 7-11 assert the unnormalized real text and values, and Task 16 checks
-unmasked live wrapping/overflow at both viewports. The harness
+Contact and Legal captures remain completely unmasked. Home, Product, Pricing,
+Signal, and the public mobile menu call the same
+`normalizePublicPricingText()` helper on source and local renders. Its selector
+allow-list reaches only direct text nodes whose copy is derived from
+`PricingResource`; it never replaces elements or changes attributes, classes,
+DOM order, or node counts, and it fails if any displayed plan, offer-matrix, or
+comparison-table price changes. Connected captures normalize text only: this
+removes intentional differences between real API copy and the source's demo
+copy while retaining the exact number of nodes, DOM geometry, icons, colors,
+spacing, and responsive composition under one common text payload. It does not
+claim to compare natural reflow of unequal live strings. Unit tests in Tasks
+7-11 assert the unnormalized real text, catalogue authority, and prices; Task
+16 checks unmasked live wrapping/overflow at both viewports. The harness
 lives only in disposable worktrees and cannot enter either authority tree or
 the product bundle. Never update goldens from the Kivou port or the mutable
 hosted URLs.
@@ -3354,9 +3229,13 @@ Expected: only the named PNG goldens are created.
 - [ ] **Step 4: Write the local comparison suite and observe genuine differences**
 
 For each golden, intercept API calls, navigate to the mapped Kivou path, wait
-for fonts/network/UI state, call the same `normalizeConnectedText()` only for
-dashboard/auth captures, and compare. Export that helper from `fixtures.ts`;
-its body must be byte-for-byte the same as the capture script above.
+for fonts/network/UI state, call `normalizeConnectedText()` only for
+dashboard/auth captures, and compare. For Home, Product, Pricing, Signal, and
+the public mobile menu, import and call the exact same
+`normalizePublicPricingText()` module used by the authority capture script.
+Contact and Legal must not call either normalizer. Export the connected helper
+from `fixtures.ts`; its body must be byte-for-byte the same as
+`normalizeConnectedText()` in the authoritative checked-in capture script.
 
 ```ts
 for (const route of LOCAL_REFERENCE_ROUTES) {
@@ -3372,6 +3251,14 @@ for (const route of LOCAL_REFERENCE_ROUTES) {
       await page.evaluate(() => document.fonts.ready)
       if (route.golden.startsWith('dashboard-')) {
         await normalizeConnectedText(page)
+      }
+      if (
+        route.golden === 'public-home'
+        || route.golden === 'public-product'
+        || route.golden === 'public-pricing'
+        || route.golden === 'public-signal'
+      ) {
+        await normalizePublicPricingText(page)
       }
       const actual = await page.screenshot({ fullPage: true, animations: 'disabled' })
       expect(actual).toMatchSnapshot(`${route.golden}-${viewport.name}.png`, {
@@ -3415,6 +3302,16 @@ In the existing frontend job, after unit tests and before build:
 
       - name: Régression visuelle des références
         run: npm run test:visual
+
+      - name: Conserver les écarts visuels
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-visual-diffs
+          path: |
+            frontend/test-results
+            frontend/playwright-report
+          if-no-files-found: ignore
 ```
 
 Do not create a second workflow. This preserves one CI invocation per commit.
@@ -3439,8 +3336,10 @@ npm test -- --run src/pages/publicReferencePort.test.tsx \
 cd ..
 git add frontend/playwright.config.ts frontend/tests/visual \
   frontend/scripts/capture-reference-goldens.mjs frontend/package.json \
-  frontend/package-lock.json .github/workflows/ci.yml \
-  frontend/src/pages/referenceFidelity.test.tsx
+  frontend/package-lock.json frontend/.gitignore .github/workflows/ci.yml \
+  frontend/src/pages/referenceFidelity.test.tsx \
+  docs/superpowers/plans/2026-08-29-exact-reference-frontend-port.md \
+  docs/superpowers/specs/2026-08-29-exact-reference-frontend-port-design.md
 git commit -m "test(frontend): enforce exact reference rendering"
 ```
 
