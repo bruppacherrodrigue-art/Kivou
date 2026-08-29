@@ -24,7 +24,6 @@ import { Icps } from './pages/Icps'
 import { Billing } from './pages/Billing'
 import { Notifications } from './pages/Notifications'
 import { Settings } from './pages/Settings'
-import { CommercialCockpit } from './cockpit/CommercialCockpit'
 import { CheckoutCancel, CheckoutSuccess } from './pages/Checkout'
 import { NotFound } from './pages/NotFound'
 
@@ -112,7 +111,6 @@ export function AppRoutes() {
             <Route path="billing" element={<Billing />} />
             <Route path="settings" element={<Settings />} />
             <Route path="notifications" element={<Notifications />} />
-            <Route path="internal/cockpit" element={<CommercialCockpit />} />
           </Route>
 
           <Route path="checkout/success" element={<CheckoutSuccess />} />
