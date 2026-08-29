@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useLayoutEffect } from 'react'
 import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { I18nProvider, useI18n } from './i18n'
 import { SessionProvider, accountLocale, useSession } from './auth/SessionProvider'
@@ -133,8 +133,10 @@ function DashboardSurface() {
 
 /** Une fois connecté, `account.locale` fait autorité — l'API renvoie déjà ses
  *  libellés dans cette langue, et laisser l'interface en choisir une autre
- *  ferait cohabiter deux langues sur le même écran. */
-function RouteLocaleBoundary({ connected }: { connected: boolean }) {
+ *  ferait cohabiter deux langues sur le même écran.
+ *
+ * @internal Exposée pour tester la frontière de rendu sans dupliquer son contrat. */
+export function RouteLocaleBoundary({ connected }: { connected: boolean }) {
   const { state } = useSession()
   const { locale, setLocale } = useI18n()
   const wanted =
@@ -142,10 +144,11 @@ function RouteLocaleBoundary({ connected }: { connected: boolean }) {
       ? accountLocale(state.me) ?? 'fr'
       : 'fr'
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (wanted !== locale) setLocale(wanted)
     else document.documentElement.lang = wanted
   }, [wanted, locale, setLocale])
 
+  if (locale !== wanted) return null
   return <Outlet />
 }

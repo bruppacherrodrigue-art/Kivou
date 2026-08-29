@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { AppRoutes } from '../App'
+import { Link, Route, Routes } from 'react-router-dom'
+import { AppRoutes, RouteLocaleBoundary } from '../App'
 import { useSession } from '../auth/SessionProvider'
 import { useI18n } from '../i18n'
 import {
@@ -211,6 +212,53 @@ describe('shell connecté exact de la référence', () => {
     },
   )
 
+  it('ne rend aucun enfant avec une locale périmée du connecté au public', async () => {
+    const user = userEvent.setup()
+    const renderedLocales: string[] = []
+    const englishSession = {
+      status: 'authenticated' as const,
+      me: { ...ME, locale: 'en' as const },
+    }
+
+    renderApp(
+      <Routes>
+        <Route element={<RouteLocaleBoundary connected />}>
+          <Route
+            path="connected"
+            element={
+              <LocaleBoundaryProbe
+                surface="connected"
+                renderedLocales={renderedLocales}
+                next="/public"
+              />
+            }
+          />
+        </Route>
+        <Route element={<RouteLocaleBoundary connected={false} />}>
+          <Route
+            path="public"
+            element={
+              <LocaleBoundaryProbe
+                surface="public"
+                renderedLocales={renderedLocales}
+              />
+            }
+          />
+        </Route>
+      </Routes>,
+      { route: '/connected', session: englishSession, locale: 'fr' },
+    )
+
+    expect(await screen.findByTestId('connected-locale')).toHaveTextContent('en')
+    expect(document.documentElement.lang).toBe('en')
+
+    await user.click(screen.getByRole('link', { name: 'Vers le public' }))
+
+    expect(await screen.findByTestId('public-locale')).toHaveTextContent('fr')
+    expect(renderedLocales).toEqual(['connected:en', 'public:fr'])
+    expect(document.documentElement.lang).toBe('fr')
+  })
+
   it('réinitialise les ressources avant d’afficher un autre compte', async () => {
     const user = userEvent.setup()
     const accountB = {
@@ -370,6 +418,25 @@ function AccountSwitcher({ account }: { account: typeof ME }) {
 function LocaleProbe() {
   const { locale } = useI18n()
   return <output data-testid="active-locale">{locale}</output>
+}
+
+function LocaleBoundaryProbe({
+  surface,
+  renderedLocales,
+  next,
+}: {
+  surface: 'connected' | 'public'
+  renderedLocales: string[]
+  next?: string
+}) {
+  const { locale } = useI18n()
+  renderedLocales.push(`${surface}:${locale}`)
+  return (
+    <div>
+      <output data-testid={`${surface}-locale`}>{locale}</output>
+      {next ? <Link to={next}>Vers le public</Link> : null}
+    </div>
+  )
 }
 
 function mockConnectedApi() {
