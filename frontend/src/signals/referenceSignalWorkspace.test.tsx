@@ -114,6 +114,43 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
     expect(screen.getByText('Note enregistrée')).toBeVisible()
   })
 
+  it('vide immédiatement le brouillon de note au blur', async () => {
+    mockApi({
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
+        body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
+      },
+      [`PUT /signals/${UNLOCKED_ITEM.signal_id}/note`]: (request) => ({
+        body: {
+          signal_id: UNLOCKED_ITEM.signal_id,
+          note: (request.body as { note: string }).note,
+          updated_at: '2026-08-29T18:00:00+00:00',
+        },
+      }),
+      'GET /target-icps': { body: [ICP] },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(<AppRoutes />, {
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+      session: AUTHENTICATED,
+    })
+    const textarea = await screen.findByRole('textbox', { name: 'Note sur ce signal' })
+    await waitFor(() => expect(textarea).toBeEnabled())
+    vi.useFakeTimers()
+
+    await act(async () => {
+      fireEvent.change(textarea, { target: { value: 'À rappeler demain' } })
+      fireEvent.blur(textarea)
+      await Promise.resolve()
+    })
+
+    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}/note`, 'PUT')).toHaveLength(1)
+    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}/note`, 'PUT')[0].body).toEqual({
+      note: 'À rappeler demain',
+    })
+  })
+
   it('réessaie une écriture en échec avec la valeur courante exacte', async () => {
     const writes: string[] = []
     mockApi({
@@ -195,7 +232,7 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}/note`, 'PUT')).toHaveLength(0)
   })
 
-  it('annule le timer de l’ancienne sélection et ne lit aucune note verrouillée', async () => {
+  it('vide le brouillon de l’ancienne sélection et ne lit aucune note verrouillée', async () => {
     const second = {
       ...UNLOCKED_ITEM,
       signal_id: 'sig_unlocked_2',
@@ -233,9 +270,11 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
     vi.useFakeTimers()
     fireEvent.change(textarea, { target: { value: 'Ne doit pas partir' } })
     fireEvent.click(screen.getByRole('button', { name: /Deuxième entreprise réelle/ }))
-    await act(async () => vi.advanceTimersByTimeAsync(600))
 
-    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}/note`, 'PUT')).toHaveLength(0)
+    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}/note`, 'PUT')).toHaveLength(1)
+    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}/note`, 'PUT')[0].body).toEqual({
+      note: 'Ne doit pas partir',
+    })
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}/note`, 'GET')).toHaveLength(0)
     vi.useRealTimers()
     expect(await screen.findByDisplayValue('Note du second compte')).toBeVisible()

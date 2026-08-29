@@ -17,6 +17,7 @@ import {
   saveCheckoutIntent,
   validateSignalKey,
 } from '../billing/checkoutIntent'
+import { secureBillingDestination } from '../billing/destination'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { interpolate, plural, useI18n } from '../i18n'
 import { PrototypeNotice } from '../reference/dashboard/PrototypeNotice'
@@ -36,15 +37,9 @@ function isDisplayablePlan(value: string): value is PlanCode {
   return DISPLAYABLE_PLANS.includes(value as PlanCode)
 }
 
-function secureBillingDestination(value: string): string | null {
-  try {
-    const destination = new URL(value)
-    if (destination.protocol !== 'https:') return null
-    if (destination.username || destination.password) return null
-    return destination.href
-  } catch {
-    return null
-  }
+function purchasablePlanFromSearch(search: string): PurchasablePlan | null {
+  const candidate = new URLSearchParams(search).get('plan')
+  return candidate !== null && isPurchasablePlan(candidate) ? candidate : null
 }
 
 export function Billing() {
@@ -56,8 +51,11 @@ export function Billing() {
   const loadCatalogue = useCallback(() => billing.plans(), [])
   const status = useResource(loadStatus)
   const catalogue = useResource(loadCatalogue)
+  const requestedPlanCode = purchasablePlanFromSearch(location.search)
   const [currency, setCurrency] = useState<Currency>('chf')
-  const [selectedPlanCode, setSelectedPlanCode] = useState<PlanCode>('essential')
+  const [selectedPlanCode, setSelectedPlanCode] = useState<PlanCode>(
+    () => requestedPlanCode ?? 'essential',
+  )
   const [actionError, setActionError] = useState<unknown>(null)
   const [destinationError, setDestinationError] = useState(false)
   const [busyAction, setBusyAction] = useState<'portal' | PurchasablePlan | null>(null)
@@ -65,6 +63,7 @@ export function Billing() {
   const mounted = useRef(true)
   const actionGeneration = useRef(0)
   const currencyInitialised = useRef(false)
+  const appliedPlanSearch = useRef(location.search)
   const accountId = me.account_id
 
   const lockedSignalKey = validateSignalKey(
@@ -103,6 +102,17 @@ export function Billing() {
     ) ?? [],
     [catalogue.data],
   )
+
+  useEffect(() => {
+    if (appliedPlanSearch.current === location.search || displayablePlans.length === 0) return
+    appliedPlanSearch.current = location.search
+    if (
+      requestedPlanCode !== null &&
+      displayablePlans.some((plan) => plan.plan_code === requestedPlanCode)
+    ) {
+      setSelectedPlanCode(requestedPlanCode)
+    }
+  }, [displayablePlans, location.search, requestedPlanCode])
 
   useEffect(() => {
     if (displayablePlans.length === 0) return

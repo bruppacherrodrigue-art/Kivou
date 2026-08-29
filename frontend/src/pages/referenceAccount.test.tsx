@@ -33,6 +33,18 @@ describe('compte exact connecté', () => {
     expect(price).not.toHaveTextContent(/CHF|EUR|\b\d+[,.]?\d*\b/)
   })
 
+  it('n’invente aucun fuseau horaire absent du contrat du compte', async () => {
+    mockApi(shell)
+    renderApp(<AppRoutes />, {
+      route: '/app/settings',
+      session: AUTHENTICATED,
+    })
+
+    const timezone = await screen.findByText('Fuseau horaire')
+    expect(timezone.closest('div')).toHaveTextContent('Non publié')
+    expect(timezone.closest('div')).not.toHaveTextContent('Europe/Zurich')
+  })
+
   it('modifie la langue connectée depuis le formulaire exact du compte', async () => {
     const user = userEvent.setup()
     mockApi({
@@ -121,7 +133,7 @@ describe('compte exact connecté', () => {
     expect(await screen.findByText('Saved')).toBeVisible()
   })
 
-  it('rend entreprise, e-mail et fuseau réels sans promettre leur mutation', async () => {
+  it('rend entreprise et e-mail réels, puis le fuseau manquant sans promettre leur mutation', async () => {
     const storageGet = vi.spyOn(Storage.prototype, 'getItem')
     const storageSet = vi.spyOn(Storage.prototype, 'setItem')
     mockApi(shell)
@@ -135,8 +147,9 @@ describe('compte exact connecté', () => {
     expect(within(form).getByLabelText('Entreprise')).toHaveAttribute('readonly')
     expect(within(form).getByLabelText('Adresse professionnelle')).toHaveValue(ME.email)
     expect(within(form).getByLabelText('Adresse professionnelle')).toHaveAttribute('readonly')
-    expect(within(form).getByLabelText('Fuseau horaire')).toHaveValue('Europe/Zurich')
+    expect(within(form).getByLabelText('Fuseau horaire')).toHaveValue('Non publié')
     expect(within(form).getByLabelText('Fuseau horaire')).toBeDisabled()
+    expect(form).not.toHaveTextContent('Europe/Zurich')
     expect(container.querySelectorAll('main')).toHaveLength(1)
     expect(container.querySelectorAll('h1')).toHaveLength(1)
     expect(container.querySelector('.settings-form-card')).toBe(form)

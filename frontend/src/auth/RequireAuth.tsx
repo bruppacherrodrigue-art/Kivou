@@ -53,15 +53,16 @@ export function RedirectIfAuthenticated() {
   if (state.status === 'authenticated') {
     const requested = (location.state as { from?: string } | null)?.from
     const selectedPlan = planFromSearch(location.search)
+    const enteredFromPlanChoice = location.pathname === '/signup' || location.pathname === '/login'
     if (
       state.me.onboarding_status === 'ready_for_signals' &&
-      location.pathname === '/signup' &&
+      enteredFromPlanChoice &&
       selectedPlan !== 'discovery'
     ) {
       return <Navigate to={`/app/billing${planSearch(selectedPlan)}`} replace />
     }
     const home =
-      state.me.onboarding_status !== 'ready_for_signals' && location.pathname === '/signup'
+      state.me.onboarding_status !== 'ready_for_signals' && enteredFromPlanChoice
         ? `/onboarding${planSearch(selectedPlan)}`
         : homeFor(state.me)
     const destination =

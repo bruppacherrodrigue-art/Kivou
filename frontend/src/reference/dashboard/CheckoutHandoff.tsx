@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom'
 import { billing } from '../../api/endpoints'
 import { describeError } from '../../api/errorCopy'
 import type { CataloguePlan, Currency, PlanCatalogue, PurchasablePlan } from '../../api/types'
+import { secureBillingDestination } from '../../billing/destination'
 import { planFromSearch } from '../../billing/planRoute'
 import { fr } from '../../i18n/fr'
 import { ReferenceLink } from '../router/ReferenceLink'
@@ -57,7 +58,9 @@ export function CheckoutHandoff() {
   const [catalogue, setCatalogue] = useState<PlanCatalogue | null>(null)
   const [loadError, setLoadError] = useState<unknown>(null)
   const [checkoutError, setCheckoutError] = useState<unknown>(null)
+  const [destinationError, setDestinationError] = useState(false)
   const [currency, setCurrency] = useState<Currency | null>(null)
+  const [catalogueAttempt, setCatalogueAttempt] = useState(0)
   const [submitting, setSubmitting] = useState(false)
   const busyRef = useRef(false)
   const mountedRef = useRef(false)
@@ -75,6 +78,7 @@ export function CheckoutHandoff() {
   useEffect(() => {
     submitGenerationRef.current += 1
     setCheckoutError(null)
+    setDestinationError(false)
   }, [location.search])
 
   const submitIsCurrent = (generation: number) =>
@@ -82,6 +86,8 @@ export function CheckoutHandoff() {
 
   useEffect(() => {
     let active = true
+    setCatalogue(null)
+    setLoadError(null)
     billing.plans().then(
       (next) => {
         if (active) setCatalogue(next)
@@ -93,7 +99,7 @@ export function CheckoutHandoff() {
     return () => {
       active = false
     }
-  }, [])
+  }, [catalogueAttempt])
 
   const plan = catalogue?.plans.find((item) => item.plan_code === planCode) ?? null
   const availableCurrencies = useMemo(
@@ -119,13 +125,19 @@ export function CheckoutHandoff() {
     activeSubmitRef.current = generation
     setSubmitting(true)
     setCheckoutError(null)
+    setDestinationError(false)
     try {
       const session = await billing.checkout({
         plan: plan.plan_code as PurchasablePlan,
         currency: selectedCurrency,
       })
       if (!submitIsCurrent(generation)) return
-      window.location.assign(session.checkout_url)
+      const destination = secureBillingDestination(session.checkout_url)
+      if (!destination) {
+        setDestinationError(true)
+        return
+      }
+      window.location.assign(destination)
     } catch (error) {
       if (submitIsCurrent(generation)) setCheckoutError(error)
     } finally {
@@ -150,7 +162,7 @@ export function CheckoutHandoff() {
     return (
       <AuthShell eyebrow="Passage à l’offre" title="Offre momentanément indisponible" description="Aucun paiement n’a été ouvert." wide>
         <p className="form-error" role="alert">{copy.title} {copy.body}</p>
-        <div className="checkout-actions"><ReferenceLink className="text-link" href="/tarifs"><ArrowLeft aria-hidden="true" /> Comparer les offres</ReferenceLink></div>
+        <div className="checkout-actions"><Button type="button" variant="outline" aria-label="Réessayer le chargement du catalogue" onClick={() => setCatalogueAttempt((current) => current + 1)}>Réessayer</Button><ReferenceLink className="text-link" href="/tarifs"><ArrowLeft aria-hidden="true" /> Comparer les offres</ReferenceLink></div>
       </AuthShell>
     )
   }
@@ -205,7 +217,11 @@ export function CheckoutHandoff() {
         </select>
       </div>
       <dl className="checkout-entitlements"><div><dt>Profils</dt><dd>{plan.entitlements.max_active_icps}</dd></div><div><dt>Territoires</dt><dd>{territoryLabel(plan)}</dd></div><div><dt>Alertes</dt><dd>{cadenceLabel(plan.entitlements.alert_cadence)}</dd></div><div><dt>Historique</dt><dd>{historyLabel(plan)}</dd></div></dl>
-      {checkoutCopy ? <p className="form-error" role="alert">{checkoutCopy.title} {checkoutCopy.body}</p> : null}
+      {destinationError
+        ? <p className="form-error" role="alert">La destination de paiement reçue est invalide. Aucun paiement n’a été ouvert.</p>
+        : checkoutCopy
+          ? <p className="form-error" role="alert">{checkoutCopy.title} {checkoutCopy.body}</p>
+          : null}
       <div className="checkout-actions"><Button type="button" disabled={submitting} className="primary-action" onClick={() => void submit()}>Continuer vers Stripe</Button><ReferenceLink className="text-link" href="/tarifs" aria-disabled={submitting || undefined} onClick={(event) => { if (busyRef.current) event.preventDefault() }}><ArrowLeft aria-hidden="true" /> Changer d’offre</ReferenceLink></div>
     </AuthShell>
   )

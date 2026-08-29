@@ -33,7 +33,7 @@ export function Settings() {
   const accountSettings = [
     { icon: UserRound, label: copy.users, value: t.reference.missingValue },
     { icon: Languages, label: copy.language, value: locale === 'fr' ? 'Français' : 'English' },
-    { icon: Clock3, label: copy.timezone, value: 'Europe/Zurich' },
+    { icon: Clock3, label: copy.timezone, value: t.reference.missingValue },
   ] as const
 
   return (

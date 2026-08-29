@@ -159,10 +159,10 @@ export function ProfileSettings() {
             <select
               id="account-timezone"
               className="lifecycle-select"
-              value="Europe/Zurich"
+              value={t.reference.missingValue}
               disabled
             >
-              <option value="Europe/Zurich">Europe/Zurich</option>
+              <option value={t.reference.missingValue}>{t.reference.missingValue}</option>
             </select>
           </div>
         </div>

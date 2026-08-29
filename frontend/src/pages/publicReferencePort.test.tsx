@@ -1,4 +1,5 @@
-import { screen, within } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { AppRoutes } from '../App'
 import { CATALOGUE, UNAUTHENTICATED, callsTo, mockApi, renderApp } from '../test/harness'
@@ -276,6 +277,32 @@ describe('port exact de la référence publique', () => {
       const alert = await within(copy).findByRole('alert')
       expect(alert).toHaveTextContent('Les tarifs sont momentanément indisponibles')
       expect(copy.querySelectorAll(':scope > p')).toHaveLength(1)
+    },
+  )
+
+  it.each(['/', '/produit', '/tarifs', '/exemple-de-signal'])(
+    'retries the failed authoritative catalogue locally on %s',
+    async (route) => {
+      const user = userEvent.setup()
+      let attempt = 0
+      mockApi({
+        'GET /billing/plans': () => {
+          attempt += 1
+          return attempt === 1
+            ? { status: 503, body: { detail: { code: 'billing_unavailable' } } }
+            : { body: CATALOGUE }
+        },
+      })
+      renderApp(<AppRoutes />, { route, session: UNAUTHENTICATED })
+
+      await user.click(await screen.findByRole('button', {
+        name: 'Réessayer le chargement des tarifs',
+      }))
+
+      await waitFor(() => expect(callsTo('/billing/plans', 'GET')).toHaveLength(2))
+      await waitFor(() => expect(screen.queryByRole('button', {
+        name: 'Réessayer le chargement des tarifs',
+      })).not.toBeInTheDocument())
     },
   )
 })

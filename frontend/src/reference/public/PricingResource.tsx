@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { billing } from '../../api/endpoints'
 import type {
   AlertCadence,
@@ -14,17 +14,22 @@ export type PricingState =
   | { status: 'error'; catalogue: null; currency: null }
   | { status: 'ready'; catalogue: PlanCatalogue; currency: Currency | null }
 
+export type PricingResourceState = PricingState & { retry: () => void }
+
 export const PUBLIC_PLAN_CODES = ['discovery', 'essential', 'pro', 'scale'] as const
 
-export function usePricingResource(): PricingState {
+export function usePricingResource(): PricingResourceState {
   const [state, setState] = useState<PricingState>({
     status: 'loading',
     catalogue: null,
     currency: null,
   })
+  const [attempt, setAttempt] = useState(0)
+  const retry = useCallback(() => setAttempt((current) => current + 1), [])
 
   useEffect(() => {
     let active = true
+    setState({ status: 'loading', catalogue: null, currency: null })
     billing.plans().then((catalogue) => {
       if (!active) return
       const currency = catalogue.currencies.includes('chf')
@@ -35,9 +40,23 @@ export function usePricingResource(): PricingState {
       if (active) setState({ status: 'error', catalogue: null, currency: null })
     })
     return () => { active = false }
-  }, [])
+  }, [attempt])
 
-  return state
+  return { ...state, retry }
+}
+
+export function PublicPricingRetry({ state }: { state: PricingResourceState }) {
+  if (state.status !== 'error') return null
+  return (
+    <button
+      type="button"
+      className="text-link pricing-resource-retry"
+      aria-label="Réessayer le chargement des tarifs"
+      onClick={state.retry}
+    >
+      Réessayer
+    </button>
+  )
 }
 
 export interface PublicPrice {

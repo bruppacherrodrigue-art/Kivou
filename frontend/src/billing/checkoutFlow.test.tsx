@@ -84,6 +84,28 @@ const paid = { body: PRO_STATUS }
 const free = { body: DISCOVERY_STATUS }
 
 describe('passage autoritaire vers Stripe', () => {
+  it('relance localement le catalogue après une erreur sans ouvrir de checkout', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    let attempt = 0
+    mockApi({
+      'GET /billing/plans': () => {
+        attempt += 1
+        return attempt === 1
+          ? { status: 503, body: { detail: { code: 'billing_unavailable' } } }
+          : { body: CATALOGUE }
+      },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/checkout?plan=pro' })
+
+    await user.click(await screen.findByRole('button', {
+      name: 'Réessayer le chargement du catalogue',
+    }))
+
+    expect(await screen.findByRole('heading', { name: 'Finaliser l’offre Pro' })).toBeVisible()
+    expect(callsTo('/billing/plans', 'GET')).toHaveLength(2)
+    expect(callsTo('/billing/checkout')).toHaveLength(0)
+  })
+
   it('accepte l’unique catalogue réel après un changement de plan pendant son chargement', async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
     let release!: (value: { body: typeof CATALOGUE }) => void
@@ -187,6 +209,34 @@ describe('passage autoritaire vers Stripe', () => {
       'POST /billing/checkout',
     ])
     expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/cs_reference')
+  })
+
+  it.each([
+    'http://checkout.stripe.test/cs_insecure',
+    'https://user:password@checkout.stripe.test/cs_credentials',
+    'destination-invalide',
+  ])('refuse localement la destination checkout invalide %s', async (checkoutUrl) => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    const assign = vi.fn()
+    vi.stubGlobal('location', { ...window.location, assign })
+    mockApi({
+      'GET /billing/plans': { body: CATALOGUE },
+      'POST /billing/checkout': {
+        body: {
+          checkout_url: checkoutUrl,
+          plan: 'pro',
+          currency: 'chf',
+        },
+      },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/checkout?plan=pro' })
+
+    await user.click(await screen.findByRole('button', { name: 'Continuer vers Stripe' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'La destination de paiement reçue est invalide',
+    )
+    expect(assign).not.toHaveBeenCalled()
   })
 
   it('verrouille deux demandes checkout dans le même tour de boucle', async () => {

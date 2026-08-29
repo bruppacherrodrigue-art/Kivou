@@ -6,6 +6,7 @@ import {
   PUBLIC_PLAN_NAMES,
   PUBLIC_PLAN_WHO,
   PublicPlanLink,
+  PublicPricingRetry,
   type PricingState,
   alertCadenceCompact,
   alertCadenceLabel,
@@ -46,6 +47,7 @@ export function PublicPricing() {
             role={pricing.status === 'loading' ? 'status' : pricing.status === 'error' ? 'alert' : undefined}
           >
             {pricingHeroFacts(pricing, discovery)}
+            <PublicPricingRetry state={pricing} />
           </p>
         </header>
 

@@ -27,7 +27,15 @@ interface SignalNoteController {
   state: NoteSaveState
   error: unknown | null
   change: (value: string) => void
+  flush: () => void
   retry: () => void
+}
+
+function sameContext(left: NoteContext, right: NoteContext): boolean {
+  return left.accountId === right.accountId
+    && left.signalKey === right.signalKey
+    && left.enabled === right.enabled
+    && left.generation === right.generation
 }
 
 export function useSignalNote({
@@ -51,13 +59,17 @@ export function useSignalNote({
   const writeRequest = useRef(0)
   const hasLoaded = useRef(false)
   const inFlightWrite = useRef<PendingWrite | null>(null)
-  const queuedWrite = useRef<PendingWrite | null>(null)
+  const queuedWrites = useRef<PendingWrite[]>([])
+  const scheduledWrite = useRef<PendingWrite | null>(null)
+  const latestAccountId = useRef(accountId)
+  latestAccountId.current = accountId
 
   const cancelTimer = useCallback(() => {
     if (timer.current !== null) {
       clearTimeout(timer.current)
       timer.current = null
     }
+    scheduledWrite.current = null
   }, [])
 
   const isCurrent = useCallback((snapshot: NoteContext) => {
@@ -86,14 +98,14 @@ export function useSignalNote({
 
       if (inFlightWrite.current !== pending) return
       inFlightWrite.current = null
-      if (!isCurrent(snapshot)) return
 
-      const next = queuedWrite.current
-      queuedWrite.current = null
-      if (next && isCurrent(next.snapshot)) {
+      const next = queuedWrites.current.shift()
+      if (next) {
         void persistInOrder(next)
         return
       }
+
+      if (!isCurrent(snapshot)) return
 
       // Une frappe plus récente peut encore être dans sa fenêtre de debounce.
       // La réponse courante ne doit alors ni réécrire la textarea ni annoncer
@@ -116,16 +128,31 @@ export function useSignalNote({
 
   const enqueue = useCallback((pending: PendingWrite) => {
     const active = inFlightWrite.current
-    if (active && isCurrent(active.snapshot)) {
-      // Une seule écriture par signal/compte peut être en vol. La dernière
-      // valeur arrivée après son debounce remplace toute valeur déjà en file.
-      queuedWrite.current = pending
+    if (active) {
+      // Les écritures restent globalement sérialisées. Pour un même contexte,
+      // seule la dernière valeur attend ; les brouillons d'autres signaux ne
+      // s'écrasent jamais lors d'une navigation rapide.
+      const existing = queuedWrites.current.findIndex((queued) =>
+        sameContext(queued.snapshot, pending.snapshot),
+      )
+      if (existing === -1) queuedWrites.current.push(pending)
+      else queuedWrites.current[existing] = pending
       return
     }
     inFlightWrite.current = null
-    queuedWrite.current = null
     void persist(pending)
-  }, [isCurrent, persist])
+  }, [persist])
+
+  const flush = useCallback(() => {
+    const pending = scheduledWrite.current
+    if (!pending) return
+    if (timer.current !== null) {
+      clearTimeout(timer.current)
+      timer.current = null
+    }
+    scheduledWrite.current = null
+    enqueue(pending)
+  }, [enqueue])
 
   const load = useCallback((snapshot: NoteContext) => {
     if (!snapshot.enabled || !snapshot.signalKey) return
@@ -159,7 +186,7 @@ export function useSignalNote({
       mounted.current = false
       cancelTimer()
       inFlightWrite.current = null
-      queuedWrite.current = null
+      queuedWrites.current = []
       readRequest.current += 1
       writeRequest.current += 1
       context.current = { ...context.current, generation: context.current.generation + 1 }
@@ -168,8 +195,10 @@ export function useSignalNote({
 
   useEffect(() => {
     cancelTimer()
-    inFlightWrite.current = null
-    queuedWrite.current = null
+    if (context.current.accountId !== accountId) {
+      inFlightWrite.current = null
+      queuedWrites.current = []
+    }
     readRequest.current += 1
     writeRequest.current += 1
     hasLoaded.current = false
@@ -190,9 +219,12 @@ export function useSignalNote({
       setState('idle')
       return () => {
         if (context.current.generation !== snapshot.generation) return
-        cancelTimer()
-        inFlightWrite.current = null
-        queuedWrite.current = null
+        if (mounted.current && latestAccountId.current === snapshot.accountId) flush()
+        else {
+          cancelTimer()
+          inFlightWrite.current = null
+          queuedWrites.current = []
+        }
         readRequest.current += 1
         writeRequest.current += 1
         context.current = { ...snapshot, generation: snapshot.generation + 1 }
@@ -202,14 +234,17 @@ export function useSignalNote({
     load(snapshot)
     return () => {
       if (context.current.generation !== snapshot.generation) return
-      cancelTimer()
-      inFlightWrite.current = null
-      queuedWrite.current = null
+      if (mounted.current && latestAccountId.current === snapshot.accountId) flush()
+      else {
+        cancelTimer()
+        inFlightWrite.current = null
+        queuedWrites.current = []
+      }
       readRequest.current += 1
       writeRequest.current += 1
       context.current = { ...snapshot, generation: snapshot.generation + 1 }
     }
-  }, [accountId, cancelTimer, enabled, load, signalKey])
+  }, [accountId, cancelTimer, enabled, flush, load, signalKey])
 
   const change = useCallback((nextValue: string) => {
     const snapshot = context.current
@@ -224,16 +259,21 @@ export function useSignalNote({
     cancelTimer()
     // Si une valeur attendait qu'un PUT précédent se termine, cette nouvelle
     // frappe la remplace avant même la fin de sa propre fenêtre de debounce.
-    queuedWrite.current = null
+    queuedWrites.current = queuedWrites.current.filter(
+      (queued) => !sameContext(queued.snapshot, snapshot),
+    )
     hasLoaded.current = true
     valueRef.current = nextValue
     setValue(nextValue)
     setState('saving')
     setError(null)
     const requestId = ++writeRequest.current
+    const pending = { snapshot, requestId, value: nextValue }
+    scheduledWrite.current = pending
     timer.current = setTimeout(() => {
       timer.current = null
-      enqueue({ snapshot, requestId, value: nextValue })
+      if (scheduledWrite.current === pending) scheduledWrite.current = null
+      enqueue(pending)
     }, 500)
   }, [accountId, cancelTimer, enabled, enqueue, signalKey])
 
@@ -248,7 +288,9 @@ export function useSignalNote({
     setState('saving')
     setError(null)
     const requestId = ++writeRequest.current
-    queuedWrite.current = null
+    queuedWrites.current = queuedWrites.current.filter(
+      (queued) => !sameContext(queued.snapshot, snapshot),
+    )
     enqueue({ snapshot, requestId, value: valueRef.current })
   }, [cancelTimer, enqueue, load])
 
@@ -272,6 +314,7 @@ export function useSignalNote({
     state: visibleState,
     error: waitingForCurrentContext ? null : error,
     change,
+    flush,
     retry,
   }
 }

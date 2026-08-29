@@ -3,6 +3,7 @@ import { PublicPageMeta } from '../components/PublicPageMeta'
 import {
   PUBLIC_PLAN_NAMES,
   PublicPlanLink,
+  PublicPricingRetry,
   type PricingState,
   alertCadenceCompact,
   discoveryCompact,
@@ -51,6 +52,7 @@ export function Landing() {
                 {discovery
                   ? <>{signalCountLabel(discovery.entitlements.granted_signals, 'gratuit')} · Sans carte bancaire · {capitalize(alertCadenceCompact(discovery.entitlements.alert_cadence))}</>
                   : landingDiscoveryStateText(pricing)}
+                <PublicPricingRetry state={pricing} />
               </p>
             </div>
             <article className="glass signal-card hero-signal" aria-labelledby="home-signal-title">

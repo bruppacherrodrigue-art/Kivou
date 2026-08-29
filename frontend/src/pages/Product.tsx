@@ -2,6 +2,7 @@ import type { AlertCadence, CataloguePlan } from '../api/types'
 import { PublicPageMeta } from '../components/PublicPageMeta'
 import {
   PublicPlanLink,
+  PublicPricingRetry,
   frenchCardinal,
   publicPlan,
   usePricingResource,
@@ -111,7 +112,7 @@ export function Product() {
 
         <div className="container">
           <section className="final-cta">
-            <div className="final-cta-grid"><div><h2>Jugez Kivou sur des signaux complets.</h2><p role={pricing.status === 'loading' ? 'status' : pricing.status === 'error' ? 'alert' : undefined}>{discovery ? productDiscoverySentence(discovery) : pricing.status === 'loading' ? 'Chargement de l’offre Découverte…' : pricing.status === 'error' ? 'Les tarifs sont momentanément indisponibles.' : 'L’offre Découverte est absente du catalogue.'}</p></div><div className="button-row"><PublicPlanLink state={pricing} planCode="discovery" className="btn primary">Voir mes premiers signaux</PublicPlanLink><ReferenceLink className="btn secondary" href="/tarifs">Voir les tarifs</ReferenceLink></div></div>
+            <div className="final-cta-grid"><div><h2>Jugez Kivou sur des signaux complets.</h2><p role={pricing.status === 'loading' ? 'status' : pricing.status === 'error' ? 'alert' : undefined}>{discovery ? productDiscoverySentence(discovery) : pricing.status === 'loading' ? 'Chargement de l’offre Découverte…' : pricing.status === 'error' ? 'Les tarifs sont momentanément indisponibles.' : 'L’offre Découverte est absente du catalogue.'}<PublicPricingRetry state={pricing} /></p></div><div className="button-row"><PublicPlanLink state={pricing} planCode="discovery" className="btn primary">Voir mes premiers signaux</PublicPlanLink><ReferenceLink className="btn secondary" href="/tarifs">Voir les tarifs</ReferenceLink></div></div>
           </section>
         </div>
       </main>

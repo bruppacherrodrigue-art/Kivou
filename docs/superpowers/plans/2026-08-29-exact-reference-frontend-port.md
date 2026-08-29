@@ -1488,11 +1488,13 @@ catalogue changes, the sentence changes rather than lying. A catalogue error
 keeps the source geometry but removes every packaging number and disables the
 signup CTA with the same inline tariff-unavailable alert.
 
-`PricingResource.tsx` provides one catalogue read only on the public pages that
-render packaging, plus fixed French formatting:
+`PricingResource.tsx` provides one catalogue read per attempt only on the
+public pages that render packaging, plus fixed French formatting. Every error
+surface exposes the same generation-safe local retry; a retry returns to the
+loading geometry and never reuses a stale response:
 
 ```tsx
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { billing } from '../../api/endpoints'
 import type { CataloguePlan, Currency, PlanCatalogue } from '../../api/types'
 
@@ -1501,12 +1503,17 @@ type PricingState =
   | { status: 'error'; catalogue: null; currency: null }
   | { status: 'ready'; catalogue: PlanCatalogue; currency: Currency | null }
 
-export function usePricingResource(): PricingState {
+type PricingResourceState = PricingState & { retry: () => void }
+
+export function usePricingResource(): PricingResourceState {
   const [state, setState] = useState<PricingState>({
     status: 'loading', catalogue: null, currency: null,
   })
+  const [attempt, setAttempt] = useState(0)
+  const retry = useCallback(() => setAttempt((current) => current + 1), [])
   useEffect(() => {
     let active = true
+    setState({ status: 'loading', catalogue: null, currency: null })
     billing.plans().then((catalogue) => {
       if (!active) return
       const currency = catalogue.currencies.includes('chf')
@@ -1517,8 +1524,8 @@ export function usePricingResource(): PricingState {
       if (active) setState({ status: 'error', catalogue: null, currency: null })
     })
     return () => { active = false }
-  }, [])
-  return state
+  }, [attempt])
+  return { ...state, retry }
 }
 
 export interface PublicPrice {
@@ -2400,8 +2407,11 @@ expect(await screen.findByText('Note enregistrée')).toBeVisible()
 Read only for an unlocked selected signal. Keep list/detail available if the
 note request fails. On edit, show `Enregistrement…`, debounce 500ms, PUT the
 exact textarea value, then show `Note enregistrée`; on failure show an inline
-error plus `Réessayer` in the existing note footer. Cancel stale timers and
-ignore stale responses when the selected signal changes.
+error plus `Réessayer` in the existing note footer. Flush the captured draft
+immediately on blur and before navigation to another signal of the same
+account, while keeping writes serialized by their account/signal snapshot.
+Cancel rather than flush on account change or unmount, and ignore stale UI
+responses after every context change.
 
 - [ ] **Step 7: Verify Signals and Overview, then commit**
 
@@ -2604,8 +2614,9 @@ Copy `settings-overview-page.tsx`, `account-settings-forms.tsx`,
 - real company name and email from `Me`;
 - locale select wired to `session.updateLocale`;
 - company/email as read-only because no mutation contract exists;
-- fixed `Europe/Zurich` as display-only product timezone, not a mutable backend
-  promise;
+- localized `Non publié`/`Not published` for timezone because `Me` exposes no
+  authoritative timezone field; do not present a product constant as account
+  data;
 - logout button wired to `session.signOut`;
 - password action linked to `/forgot-password`;
 - all demo notices with honest capability wording in the same boxes.
@@ -2656,6 +2667,17 @@ it('offers checkout only for choose_plan and an explicit live catalogue plan', a
   await user.click(await screen.findByRole('button', { name: /choisir essentiel/i }))
   expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: 'essential', currency: 'chf' })
 })
+
+it.each(['essential', 'pro', 'scale'] as const)(
+  'honors the paid plan %s carried by /app/billing?plan=',
+  async (plan) => {
+    renderApp(<AppRoutes />, {
+      route: `/app/billing?plan=${plan}`,
+      session: AUTHENTICATED,
+    })
+    expect(await screen.findByLabelText('Offre')).toHaveValue(plan)
+  },
+)
 
 it('renders contact support without any Stripe mutation', async () => {
   mockApi({
@@ -3517,8 +3539,9 @@ exact body after the fresh commands above have all exited zero:
 - backend : `uv run pytest -q` et Ruff PASS sur la tête poussée ;
 - frontend : Vitest complet PASS sur la tête poussée ;
 - build, typecheck, lint : PASS ;
-- régression visuelle Chromium 1440/390, public non masqué et connecté à texte
-  normalisé, seuil 0,1 % : PASS ;
+- régression visuelle Chromium 1440/390 : Contact/Légal non masqués, copie
+  tarifaire publique normalisée symétriquement sans masquer les prix, connecté
+  à texte normalisé, seuil 0,1 % : PASS ;
 - la tête poussée est relue par `gh pr view` avant fusion.
 
 ## Frontières

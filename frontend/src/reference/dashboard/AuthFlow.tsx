@@ -163,10 +163,15 @@ export function AuthFlow({ mode }: { mode: AuthMode }) {
         if (!requestIsCurrent(generation)) return
         adopt(me)
         const home = homeFor(me)
+        const selectedHome = selectedPlan === 'discovery'
+          ? home
+          : me.onboarding_status === 'ready_for_signals'
+            ? `/app/billing${planSearch(selectedPlan)}`
+            : `/onboarding${planSearch(selectedPlan)}`
         const destination =
           me.onboarding_status === 'ready_for_signals'
-            ? (locationState.from ?? home)
-            : home
+            ? (locationState.from ?? selectedHome)
+            : selectedHome
         navigate(destination, { replace: true })
       } else if (mode === 'signup') {
         const me = await auth.signup({
@@ -386,9 +391,9 @@ export function AuthFlow({ mode }: { mode: AuthMode }) {
 
       <p className="auth-footer-copy">
         {mode === 'login' ? (
-          <>Pas encore de compte ? <Link to="/signup" aria-disabled={submitting || undefined} onClick={blockNavigation}>Créer un compte</Link></>
+          <>Pas encore de compte ? <Link to={`/signup${planSearch(selectedPlan)}`} aria-disabled={submitting || undefined} onClick={blockNavigation}>Créer un compte</Link></>
         ) : mode === 'signup' ? (
-          <>Déjà un compte ? <Link to="/login" aria-disabled={submitting || undefined} onClick={blockNavigation}>Se connecter</Link></>
+          <>Déjà un compte ? <Link to={`/login${planSearch(selectedPlan)}`} aria-disabled={submitting || undefined} onClick={blockNavigation}>Se connecter</Link></>
         ) : (
           <>Vous avez retrouvé votre accès ? <Link to="/login" aria-disabled={submitting || undefined} onClick={blockNavigation}>Se connecter</Link></>
         )}

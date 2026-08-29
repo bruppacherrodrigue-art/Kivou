@@ -17,6 +17,7 @@ export function ReferenceSignalDetail({
   noteState,
   noteError,
   onNoteChange,
+  onNoteBlur,
   onRetryNote,
   announceLoading = true,
   announceError = true,
@@ -30,6 +31,7 @@ export function ReferenceSignalDetail({
   noteState: NoteSaveState
   noteError: unknown | null
   onNoteChange: (value: string) => void
+  onNoteBlur: () => void
   onRetryNote: () => void
   announceLoading?: boolean
   announceError?: boolean
@@ -277,6 +279,7 @@ export function ReferenceSignalDetail({
           placeholder={t.reference.signalsPage.notePlaceholder}
           disabled={noteState === 'loading' || noteState === 'read-error'}
           onChange={(event) => onNoteChange(event.target.value)}
+          onBlur={onNoteBlur}
         />
         <div className="signal-note-footer">
           <p id="signal-note-help">{t.reference.signalsPage.noteHelp}</p>

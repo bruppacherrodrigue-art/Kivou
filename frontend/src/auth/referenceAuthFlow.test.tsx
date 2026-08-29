@@ -329,6 +329,43 @@ describe('plan porté uniquement dans l’URL', () => {
     },
   )
 
+  it('préserve le plan choisi entre inscription et connexion', () => {
+    renderApp(<AppRoutes />, {
+      route: '/signup?plan=pro',
+      session: UNAUTHENTICATED,
+    })
+
+    expect(screen.getByRole('link', { name: 'Se connecter' })).toHaveAttribute(
+      'href',
+      '/login?plan=pro',
+    )
+  })
+
+  it('redirige un compte prêt connecté depuis le choix public vers cette offre', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'POST /auth/login': { body: ME },
+      'GET /billing/plans': { body: CATALOGUE },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+    renderApp(
+      <>
+        <AppRoutes />
+        <LocationProbe />
+      </>,
+      { route: '/login?plan=scale', session: UNAUTHENTICATED },
+    )
+
+    await user.type(screen.getByLabelText(/adresse/i), 'test@example.test')
+    await user.type(screen.getByLabelText(/^mot de passe$/i), 'correct-password')
+    await user.click(screen.getByRole('button', { name: /se connecter/i }))
+
+    await waitFor(() =>
+      expect(screen.getByTestId('location')).toHaveTextContent('/app/billing?plan=scale'),
+    )
+    expect(callsTo('/billing/checkout')).toHaveLength(0)
+  })
+
   it('renvoie Découverte vers la vue d’ensemble pour un compte déjà prêt', async () => {
     mockApi({
       'GET /signals': { body: feedPage([]) },

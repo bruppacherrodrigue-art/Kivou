@@ -81,6 +81,35 @@ describe('facturation exacte sous autorité backend', () => {
     expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: 'essential', currency: 'chf' })
   })
 
+  it.each([
+    ['essential', 'Essentiel'],
+    ['pro', 'Pro'],
+    ['scale', 'Scale'],
+  ] as const)(
+    'honore le choix public %s dans le sélecteur et le payload checkout',
+    async (planCode, planName) => {
+      const user = userEvent.setup()
+      mockApi({
+        ...routes(DISCOVERY_STATUS),
+        'POST /billing/checkout': (request) => ({
+          body: {
+            checkout_url: 'https://checkout.stripe.test/session',
+            ...(request.body as object),
+          },
+        }),
+      })
+      renderApp(<AppRoutes />, {
+        route: `/app/billing?plan=${planCode}`,
+        session: AUTHENTICATED,
+      })
+
+      const selector = await screen.findByLabelText('Offre')
+      expect(selector).toHaveValue(planCode)
+      await user.click(screen.getByRole('button', { name: new RegExp(`choisir ${planName}`, 'i') }))
+      expect(callsTo('/billing/checkout')[0].body).toEqual({ plan: planCode, currency: 'chf' })
+    },
+  )
+
   it('affiche uniquement les prix et droits fournis par le catalogue réel', async () => {
     mockApi(routes(DISCOVERY_STATUS))
     renderApp(<AppRoutes />, { route: '/app/billing', session: AUTHENTICATED })

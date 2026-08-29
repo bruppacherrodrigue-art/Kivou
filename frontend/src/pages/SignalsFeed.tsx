@@ -636,6 +636,7 @@ export function SignalsFeed() {
               noteState={note.state}
               noteError={note.error}
               onNoteChange={note.change}
+              onNoteBlur={note.flush}
               onRetryNote={note.retry}
               announceLoading={!(feed.loading && feed.data)}
               announceError={Boolean(selectedItem) || (!feed.error && !paginationError)}

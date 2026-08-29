@@ -144,6 +144,7 @@ h3 { font-size: 20px; line-height: 1.28; }
 .btn.iris { border-color: var(--iris-600); background: var(--iris-600); color: #fff; }
 .btn.iris:hover { border-color: var(--iris-700); background: var(--iris-700); }
 .text-link { color: var(--green-2); font-weight: 750; text-underline-offset: 4px; }
+.pricing-resource-retry { margin-left: 8px; padding: 0; border: 0; background: none; cursor: pointer; text-decoration: underline; }
 .center-link { display: flex; justify-content: center; margin-top: 28px; }
 
 /* Shared navigation */
