@@ -5,8 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:founder": "vite --config vite.founder.config.ts",
     "build": "tsc -b && vite build",
+    "build:founder": "tsc -b && vite build --config vite.founder.config.ts",
     "preview": "vite preview",
+    "preview:founder": "vite preview --config vite.founder.config.ts",
     "test": "vitest",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint ."
