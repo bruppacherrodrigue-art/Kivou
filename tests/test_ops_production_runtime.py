@@ -788,8 +788,9 @@ def test_release_one_runbook_is_explicitly_non_executing_and_fail_closed() -> No
     assert "ne pas exécuter" in body.lower()
     for excluded in ("DNS", "Stripe", "SMTP", "provider", "Acquisition"):
         assert excluded.lower() in body.lower()
-    assert "aucune ancienne release" in body.lower()
-    assert "aucune sauvegarde" in body.lower()
+    assert "aucune release" in body.lower()
+    assert "aucune sauvegarde n'est supprimée manuellement" in body.lower()
+    assert "rétention" in body.lower()
     assert "source /etc/kivou/" not in commands
     assert ". /etc/kivou/" not in commands
     assert "8001" not in commands
@@ -865,15 +866,24 @@ def test_runbook_validates_secrets_and_units_before_atomic_install() -> None:
     assert "root:root:600" in body
     assert_fragments_in_order(
         body,
-        "systemctl disable --now",
         "systemd-analyze verify",
+        "KIVOU_UNIT_STAGE_DIR",
+        "KIVOU_UNIT_CAPTURE_DIR",
+        "systemctl is-enabled",
+        "systemctl is-active",
+        "KIVOU_MUTATION_WINDOW_BEGIN",
+        "systemctl disable --now",
         "chown root:root",
         "chmod 644",
         "mv -Tf",
         "systemctl daemon-reload",
     )
-    install_section = body[body.index("## 4. Installer les unités"):body.index("## 5.")]
-    assert "systemctl enable" not in install_section
+    before_mutation = body[: body.index("KIVOU_MUTATION_WINDOW_BEGIN")]
+    assert "systemctl disable" not in "\n".join(runbook_shell_blocks(before_mutation))
+    assert "systemctl stop" not in "\n".join(runbook_shell_blocks(before_mutation))
+    assert not re.search(
+        r"(?:install|mv)\s+[^\n]*/etc/systemd/system", before_mutation
+    )
 
 
 def test_runbook_exercises_local_offsite_and_real_restore_without_side_effects() -> None:
@@ -955,26 +965,53 @@ def test_all_fallible_prevalidations_and_captures_precede_the_mutation_window() 
         "SELECT version_num FROM alembic_version",
         "openssl x509",
         'nginx -t -c "$KIVOU_NGINX_CANDIDATE/nginx.conf"',
-        'sudo install -o root -g root -m 644 "$KIVOU_NGINX_CANDIDATE/kivou-limits.conf"',
-        'sudo ln -s "/etc/nginx/sites-available/$KIVOU_SITE"',
+        "KIVOU_NGINX_STAGE_DIR",
         "KIVOU_NGINX_CAPTURE_PATHS=(",
         'readlink -f "$KIVOU_SITE_LINK"',
+        "KIVOU_UNIT_CAPTURE_DIR",
+        "KIVOU_NGINX_WAS_ENABLED",
+        "KIVOU_NGINX_WAS_ACTIVE",
         'chmod -R a-w "$KIVOU_ROLLBACK_DIR"',
     ):
         assert body.index(required_prevalidation) < first_mutation, required_prevalidation
+
+    first_runtime_mutation = body.index("KIVOU_FIRST_RUNTIME_MUTATION=1")
+    assert first_runtime_mutation < first_mutation
+    for long_preflight in (
+        "systemd-analyze verify",
+        "systemd-run --wait --pipe --collect --unit=kivou-backup-local-preflight",
+        "systemd-run --wait --pipe --collect --unit=kivou-backup-offsite-preflight",
+        "restic restore latest",
+        "openssl x509",
+        'nginx -t -c "$KIVOU_NGINX_CANDIDATE/nginx.conf"',
+        "KIVOU_NGINX_CAPTURE_COMPLETE=1",
+    ):
+        assert body.index(long_preflight) < first_runtime_mutation
+    first_rollout_lock = body.index("flock --exclusive 9")
+    assert body.count('exec 9<>"$KIVOU_ROLLOUT_LOCK"') == 1
+    assert first_rollout_lock < body.index("KIVOU_UNIT_CAPTURE_DIR")
+    assert first_rollout_lock < body.index("restic restore latest")
 
 
 def test_all_previous_targets_and_nginx_state_are_captured_before_switches() -> None:
     body = read(PRODUCTION_RUNBOOK)
 
-    assert_fragments_in_order(
-        body,
+    first_mutation = body.index("KIVOU_FIRST_RUNTIME_MUTATION=1")
+    for capture in (
+        "KIVOU_UNIT_CAPTURE_DIR",
+        "systemctl is-enabled",
+        "systemctl is-active",
         "readlink -f /srv/kivou/app",
         "readlink -f /srv/kivou/frontend",
         "KIVOU_NGINX_CAPTURE_PATHS=(",
         'readlink -f "$KIVOU_SITE_LINK"',
-        'mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app',
-        'mv -Tf "$KIVOU_FRONTEND_LINK_NEW" /srv/kivou/frontend',
+        "/etc/nginx/sites-enabled/default",
+        "KIVOU_UNKNOWN_ENABLED_SITE",
+    ):
+        assert body.index(capture) < first_mutation, capture
+    assert first_mutation < body.index('mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app')
+    assert first_mutation < body.index(
+        'mv -Tf "$KIVOU_FRONTEND_LINK_NEW" /srv/kivou/frontend'
     )
 
 
@@ -1033,52 +1070,89 @@ def test_real_backup_smoke_occurs_only_after_switch_and_before_timer() -> None:
         "systemctl is-failed --quiet kivou-backup-local.service",
         "systemctl is-failed --quiet kivou-backup.service",
         "systemctl enable --now kivou-backup.timer",
+    )
+    assert_fragments_in_order(
+        body,
+        "KIVOU_PREVIOUS_APP_TARGET=ABSENT",
         'case "$KIVOU_PREVIOUS_APP_TARGET" in',
         "(ABSENT)",
+        "KIVOU_FIRST_RUNTIME_MUTATION=1",
     )
 
 
 def test_runbook_activates_only_proven_ingestion_and_smoked_job_timers() -> None:
     body = read(PRODUCTION_RUNBOOK)
-
-    source_section = body[body.index("## 10. Prouver les sources"):body.index("## 11.")]
+    mutation = body[body.index("KIVOU_MUTATION_WINDOW_BEGIN") :]
+    grouped_timers = (
+        "kivou-ingest-simap.timer",
+        "kivou-ingest-boamp.timer",
+        "kivou-ingest-decp.timer",
+        "kivou-ingest-ted.timer",
+    )
+    group_position = mutation.rindex(
+        "kivou-ingest-simap.timer kivou-ingest-boamp.timer"
+    )
     for source in ("simap", "boamp", "decp", "ted"):
         assert_fragments_in_order(
-            source_section,
+            mutation,
+            "systemctl disable --now",
             f"systemctl start kivou-ingest@{source}.service",
             f"systemctl is-failed --quiet kivou-ingest@{source}.service",
-            f"systemctl enable --now kivou-ingest-{source}.timer",
         )
+        assert mutation.index(
+            f"systemctl is-failed --quiet kivou-ingest@{source}.service"
+        ) < group_position
+        assert f"systemctl enable --now kivou-ingest-{source}.timer" not in body
+    assert "systemctl enable --now" in mutation[group_position - 40 : group_position]
+    grouped_command = mutation[group_position - 40 : group_position + 180]
+    assert all(timer in grouped_command for timer in grouped_timers)
     assert_fragments_in_order(
-        body,
+        mutation,
         "systemctl start kivou-backup.service",
         "systemctl enable --now kivou-backup.timer",
     )
     assert "systemctl disable --now kivou-alerts.timer kivou-alerts.service" in body
     assert "systemctl start kivou-alerts.service" not in body
+    assert "systemctl enable --now kivou-alerts.timer" not in body
+    assert "autorisation SMTP séparée" in body
 
 
 def test_runbook_rollback_uses_only_captured_targets_and_preserves_artifacts() -> None:
     body = read(PRODUCTION_RUNBOOK)
     rollback = body[body.index("## 11. Rollback immédiat") :]
+    window = body[
+        body.index("KIVOU_MUTATION_WINDOW_BEGIN") : body.index(
+            "KIVOU_MUTATION_WINDOW_END"
+        )
+    ]
 
     assert_fragments_in_order(
         rollback,
+        "flock --exclusive",
+        "kivou_rollout_rollback",
+    )
+    assert_fragments_in_order(
+        window,
         "systemctl disable --now",
         "KIVOU_PREVIOUS_APP_TARGET",
         "KIVOU_PREVIOUS_FRONTEND_TARGET",
         "mv -Tf",
+        "KIVOU_UNIT_CAPTURE_DIR",
         "nginx -t",
         "systemctl reload nginx",
     )
-    assert "ABSENT" in rollback
+    assert "ABSENT" in window
     assert "chmod -R a-w" in body
     assert not re.search(r"rm\s+[^\n]*(?:/srv/kivou/releases|/srv/kivou/backups)", rollback)
 
 
 def test_rollback_restores_links_before_optional_nginx_capture() -> None:
     body = read(PRODUCTION_RUNBOOK)
-    rollback = body[body.index("## 11. Rollback immédiat") :]
+    rollback = body[
+        body.index("kivou_rollout_rollback()") : body.index(
+            "kivou_rollout_on_err()"
+        )
+    ]
 
     assert_fragments_in_order(
         rollback,
@@ -1087,11 +1161,187 @@ def test_rollback_restores_links_before_optional_nginx_capture() -> None:
         'case "$KIVOU_PREVIOUS_FRONTEND_TARGET" in',
         "KIVOU_NGINX_CAPTURE_VALID=0",
         'if [ "$KIVOU_NGINX_CAPTURE_VALID" = 1 ]; then',
-        "nginx -t",
-        "systemctl reload nginx",
+        "kivou_publish_captured_nginx_bundle",
     )
     app_restore = rollback.index('case "$KIVOU_PREVIOUS_APP_TARGET" in')
     frontend_restore = rollback.index('case "$KIVOU_PREVIOUS_FRONTEND_TARGET" in')
     nginx_probe = rollback.index("KIVOU_NGINX_CAPTURE_VALID=0")
     assert app_restore < frontend_restore < nginx_probe
     assert 'sudo test -d "$KIVOU_ROLLBACK_DIR/nginx"' not in rollback[:nginx_probe]
+
+
+def test_mutation_window_is_locked_and_trapped_before_every_runtime_mutation() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    begin = body.index("KIVOU_MUTATION_WINDOW_BEGIN")
+    window = body[begin : body.index("KIVOU_MUTATION_WINDOW_END", begin)]
+
+    first_mutation = window.index("KIVOU_FIRST_RUNTIME_MUTATION=1")
+    assert_fragments_in_order(
+        window[:first_mutation],
+        "kivou_rollout_rollback()",
+        "kivou_rollout_on_err()",
+        "KIVOU_ROLLOUT_RC=$?",
+        "trap - ERR",
+        "flock --exclusive",
+        "trap 'kivou_rollout_on_err' ERR",
+    )
+    assert "return \"$KIVOU_ROLLOUT_RC\"" in window
+    mutation_commands = window[
+        first_mutation : window.index("trap - ERR", first_mutation)
+    ]
+    assert not re.search(r"(?:^|[;\s])exit\s+[0-9]+", mutation_commands)
+    assert "kivou_fail 70" in mutation_commands
+    assert_fragments_in_order(
+        window[first_mutation:],
+        "systemctl disable --now",
+        'mv -Tf "$KIVOU_UNIT_NEW" "$KIVOU_UNIT_PATH"',
+        "systemctl daemon-reload",
+        'mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app',
+        "systemctl enable --now kivou-api.service",
+    )
+
+
+def test_nginx_activation_and_rollback_restore_the_captured_service_state() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    mutation = body[
+        body.index("KIVOU_FIRST_RUNTIME_MUTATION=1") : body.index(
+            "KIVOU_MUTATION_WINDOW_END"
+        )
+    ]
+    rollback = body[
+        body.index("kivou_rollout_rollback()") : body.index(
+            "kivou_rollout_on_err()"
+        )
+    ]
+
+    assert_fragments_in_order(
+        body,
+        'KIVOU_NGINX_WAS_ENABLED=$(sudo systemctl is-enabled nginx.service',
+        'KIVOU_NGINX_WAS_ACTIVE=$(sudo systemctl is-active nginx.service',
+        "KIVOU_MUTATION_WINDOW_BEGIN",
+    )
+    assert_fragments_in_order(
+        mutation,
+        "nginx -t",
+        'if [ "$KIVOU_NGINX_WAS_ACTIVE" = active ]; then',
+        "systemctl reload nginx",
+        "systemctl enable --now nginx",
+        "systemctl is-active --quiet nginx",
+    )
+    assert "systemctl disable nginx" in rollback
+    assert "systemctl stop nginx" in rollback
+
+
+def test_nginx_staging_is_outside_included_paths_and_default_is_transactional() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    before_mutation = body[: body.index("KIVOU_MUTATION_WINDOW_BEGIN")]
+    before_commands = "\n".join(runbook_shell_blocks(before_mutation))
+
+    assert "ln -s" not in "\n".join(
+        line for line in before_commands.splitlines() if "/sites-enabled/" in line
+    )
+    assert not re.search(r"/etc/nginx/sites-enabled/[^\s]+\.new", before_commands)
+    assert "KIVOU_NGINX_STAGE_DIR" in before_mutation
+    assert "/etc/nginx/sites-enabled/default" in before_mutation
+    assert "KIVOU_UNKNOWN_ENABLED_SITE" in before_mutation
+    assert "default_server" in before_mutation
+    assert "KIVOU_EXPECTED_DEFAULT_SERVER_DIRECTIVES" in before_mutation
+
+    mutation = body[body.index("KIVOU_MUTATION_WINDOW_BEGIN") :]
+    assert_fragments_in_order(
+        mutation,
+        "systemctl disable --now",
+        "/etc/nginx/sites-enabled/default",
+        "mv -Tf",
+        "nginx -t",
+    )
+
+
+def test_backup_retention_claim_matches_versioned_scripts_and_success_order() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    local = read(REPOSITORY / "ops/bin/kivou-backup.sh")
+    offsite = read(REPOSITORY / "ops/bin/kivou-restic-upload.sh")
+
+    assert "aucune release n'est supprimée manuellement" in body.lower()
+    assert "aucune sauvegarde n'est supprimée manuellement" in body.lower()
+    assert "14 jours" in body.lower()
+    assert "30 quotidiennes, 12 mensuelles et 3 annuelles" in body.lower()
+    assert_fragments_in_order(local, "pg_restore", 'mv -f "${PARTIAL}" "${TARGET}"', "-delete")
+    assert_fragments_in_order(
+        offsite,
+        '"${RESTIC}" backup',
+        '"${RESTIC}" forget',
+        "--keep-daily 30",
+        "--keep-monthly 12",
+        "--keep-yearly 3",
+    )
+
+
+def test_ingestion_timers_are_grouped_after_all_smokes_and_rollback_disables_all() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    window = body[
+        body.index("KIVOU_MUTATION_WINDOW_BEGIN") : body.index(
+            "KIVOU_MUTATION_WINDOW_END"
+        )
+    ]
+    grouped_timers = (
+        "kivou-ingest-simap.timer",
+        "kivou-ingest-boamp.timer",
+        "kivou-ingest-decp.timer",
+        "kivou-ingest-ted.timer",
+    )
+
+    group_position = window.rindex(
+        "kivou-ingest-simap.timer kivou-ingest-boamp.timer"
+    )
+    for source in ("simap", "boamp", "decp", "ted"):
+        assert window.index(f"systemctl start kivou-ingest@{source}.service") < group_position
+        assert (
+            window.index(f"systemctl is-failed --quiet kivou-ingest@{source}.service")
+            < group_position
+        )
+    rollback_function = window[: window.index("kivou_rollout_on_err()")]
+    for timer in ("simap", "boamp", "decp", "ted"):
+        assert f"kivou-ingest-{timer}.timer" in rollback_function
+    assert "systemctl start kivou-alerts.service" not in body
+    assert "systemctl enable --now kivou-alerts.timer" not in body
+    assert "systemctl enable --now" in window[group_position - 40 : group_position]
+    grouped_command = window[group_position - 40 : group_position + 180]
+    assert all(timer in grouped_command for timer in grouped_timers)
+
+
+def test_nginx_rollback_reverts_disk_bundle_when_candidate_restore_is_invalid() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    rollback = body[
+        body.index("KIVOU_MUTATION_WINDOW_BEGIN") : body.index(
+            "KIVOU_MUTATION_WINDOW_END"
+        )
+    ]
+    manual = body[body.index("## 11. Rollback immédiat") :]
+
+    assert_fragments_in_order(
+        rollback,
+        "kivou_capture_current_nginx_bundle()",
+        "KIVOU_NGINX_CURRENT_BUNDLE",
+        "kivou_publish_captured_nginx_bundle()",
+    )
+    publish = rollback[
+        rollback.index("kivou_publish_captured_nginx_bundle()") : rollback.index(
+            "kivou_restore_unit_states()"
+        )
+    ]
+    assert_fragments_in_order(
+        publish,
+        "kivou_capture_current_nginx_bundle",
+        "if ! sudo nginx -t; then",
+        "kivou_restore_current_nginx_bundle",
+        "return 71",
+    )
+    failed_test = rollback.index("if ! sudo nginx -t; then")
+    restore_current = rollback.index("kivou_restore_current_nginx_bundle", failed_test)
+    first_reload = rollback.find("systemctl reload nginx", failed_test)
+    assert first_reload == -1 or restore_current < first_reload
+    app_restore = rollback.index('case "$KIVOU_PREVIOUS_APP_TARGET" in')
+    nginx_capture_probe = rollback.index("KIVOU_NGINX_CAPTURE_VALID=0")
+    assert app_restore < nginx_capture_probe
+    assert_fragments_in_order(manual, "flock --exclusive", "kivou_rollout_rollback")
