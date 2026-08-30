@@ -269,6 +269,7 @@ def test_direct_factual_fallback_publishes_the_exact_server_renderer(
     assert result["payload_variant"] == "FACTUAL_FALLBACK"
     assert result["payload"] == expected.model_dump(mode="json")
     assert result["published_at"] == NOW
+    assert result["qa_reasons"] == ["deterministic_factual_fallback"]
     assert rows[0]["generator_version"] == FACTUAL_GENERATOR_VERSION
     assert rows[0]["qa_policy_version"] == FACTUAL_QA_POLICY_VERSION
     assert rows[0]["provider"] is None
@@ -278,6 +279,23 @@ def test_direct_factual_fallback_publishes_the_exact_server_renderer(
     assert rows[0]["qa_model_id"] is None
 
 
+def test_direct_factual_fallback_rejects_free_form_reasons(
+    engine: sa.Engine,
+    source: PresentationInput,
+) -> None:
+    with engine.begin() as connection, pytest.raises(TypeError):
+        publish_factual_fallback(
+            connection,
+            source=source,
+            now=NOW,
+            reasons=("qa-token=must-not-leak",),  # type: ignore[call-arg]
+        )
+    with engine.connect() as connection:
+        assert connection.scalar(
+            sa.select(sa.func.count()).select_from(card_presentation_artifact)
+        ) == 0
+
+
 def test_valid_full_qa_pass_is_private_then_distinct_factual_fallback_is_published(
     engine: sa.Engine,
     source: PresentationInput,
@@ -285,7 +303,9 @@ def test_valid_full_qa_pass_is_private_then_distinct_factual_fallback_is_publish
     candidate = _full_payload(source)
     assert validate_payload(candidate, source).errors == ("full_variant_not_authorized",)
     generator = FakeGenerator([GenerationResponse(payload=candidate)])
-    qa = FakeQa([QaDecision(status=QaStatus.PASS, reasons=("grounded",))])
+    qa = FakeQa(
+        [QaDecision(status=QaStatus.PASS, reasons=("qa-token=must-not-leak",))]
+    )
 
     with engine.begin() as connection:
         result = run_offline_candidate_pipeline(
@@ -301,15 +321,22 @@ def test_valid_full_qa_pass_is_private_then_distinct_factual_fallback_is_publish
     assert rows[0]["qa_status"] == "PASS"
     assert rows[0]["payload_variant"] == "FULL"
     assert rows[0]["published_at"] is None
+    assert rows[0]["qa_reasons"] == ["qa_passed_private"]
     assert rows[0]["provider"] == "offline-generator"
     assert rows[0]["qa_provider"] == "offline-qa"
     assert rows[1]["qa_status"] == "FALLBACK"
     assert rows[1]["payload_variant"] == "FACTUAL_FALLBACK"
+    assert rows[1]["qa_reasons"] == [
+        "deterministic_factual_fallback",
+        "qa_passed_private",
+    ]
     assert rows[1]["published_at"] is not None
     assert rows[1]["provider"] is None
     assert rows[1]["qa_provider"] is None
     assert result["artifact_id"] == rows[1]["artifact_id"]
     assert qa.seen == [(source, candidate)]
+    assert "qa-token=must-not-leak" not in repr(rows)
+    assert "qa-token=must-not-leak" not in repr(result)
 
 
 def test_qa_receives_candidate_without_a_rewrite_and_cannot_replace_its_payload(
@@ -317,9 +344,12 @@ def test_qa_receives_candidate_without_a_rewrite_and_cannot_replace_its_payload(
     source: PresentationInput,
 ) -> None:
     candidate = _full_payload(source)
+    source_before = source.model_dump(mode="json")
     before = candidate.model_dump(mode="json")
     generator = FakeGenerator([GenerationResponse(payload=candidate)])
-    qa = FakeQa([QaDecision(status=QaStatus.REVIEW, reasons=("manual_review",))])
+    qa = FakeQa(
+        [QaDecision(status=QaStatus.REVIEW, reasons=("qa-token=must-not-leak",))]
+    )
 
     with engine.begin() as connection:
         result = run_offline_candidate_pipeline(
@@ -332,18 +362,26 @@ def test_qa_receives_candidate_without_a_rewrite_and_cannot_replace_its_payload(
         rows = _rows(connection)
 
     assert qa.seen[0][1] == candidate
+    assert generator.calls[0][0] is not source
+    assert qa.seen[0][0] is not source
+    assert qa.seen[0][1] is not candidate
     assert qa.seen[0][1].model_dump(mode="json") == before
+    assert source.model_dump(mode="json") == source_before
     assert candidate.model_dump(mode="json") == before
     assert rows[0]["payload"] == before
     assert rows[0]["qa_status"] == "REVIEW"
+    assert rows[0]["qa_reasons"] == ["qa_review_requested"]
+    assert "qa-token=must-not-leak" not in repr(rows)
+    assert "qa-token=must-not-leak" not in repr(result)
     assert result["payload"] == factual_fallback(source).model_dump(mode="json")
 
 
-def test_qa_payload_mutation_is_rejected_and_only_the_original_stays_private(
+def test_qa_source_and_payload_mutation_only_changes_isolated_clones(
     engine: sa.Engine,
     source: PresentationInput,
 ) -> None:
     candidate = _full_payload(source)
+    original_source = source.model_dump(mode="json")
     original = candidate.model_dump(mode="json")
     generator = FakeGenerator([GenerationResponse(payload=candidate)])
 
@@ -354,8 +392,12 @@ def test_qa_payload_mutation_is_rejected_and_only_the_original_stays_private(
             payload: CardPresentationPayload,
         ) -> QaDecision:
             self.seen.append((source, payload))
+            object.__setattr__(source, "target_icp_label", "Source QA réécrite")
             object.__setattr__(payload, "headline", "Réécriture QA interdite")
-            return QaDecision(status=QaStatus.PASS, reasons=("forged_pass",))
+            return QaDecision(
+                status=QaStatus.PASS,
+                reasons=("qa-token=must-not-leak",),
+            )
 
     qa = MutatingQa([])
 
@@ -370,9 +412,15 @@ def test_qa_payload_mutation_is_rejected_and_only_the_original_stays_private(
         rows = _rows(connection)
 
     assert rows[0]["qa_status"] == "REVIEW"
-    assert rows[0]["qa_reasons"] == ["qa_payload_mutation"]
+    assert rows[0]["qa_reasons"] == ["qa_input_mutation"]
     assert rows[0]["payload"] == original
     assert rows[0]["published_at"] is None
+    assert qa.seen[0][0] is not source
+    assert qa.seen[0][1] is not candidate
+    assert source.model_dump(mode="json") == original_source
+    assert candidate.model_dump(mode="json") == original
+    assert "qa-token=must-not-leak" not in repr(rows)
+    assert "qa-token=must-not-leak" not in repr(result)
     assert result["qa_status"] == "FALLBACK"
 
 
@@ -413,6 +461,10 @@ def test_materials_to_staffing_candidate_never_reaches_qa(
     assert qa.seen == []
     assert [row["qa_status"] for row in rows] == ["REGENERATE", "REGENERATE", "FALLBACK"]
     assert all("materials_staffing_mismatch" in row["qa_reasons"] for row in rows[:2])
+    assert rows[-1]["qa_reasons"] == [
+        "deterministic_factual_fallback",
+        "candidate_validation_exhausted",
+    ]
     assert result["qa_status"] == "FALLBACK"
 
 
@@ -496,8 +548,14 @@ def test_qa_regenerate_permits_exactly_one_second_generation(
     )
     qa = FakeQa(
         [
-            QaDecision(status=QaStatus.REGENERATE, reasons=("tighten_copy",)),
-            QaDecision(status=QaStatus.PASS, reasons=("grounded",)),
+            QaDecision(
+                status=QaStatus.REGENERATE,
+                reasons=("qa-token=must-not-leak",),
+            ),
+            QaDecision(
+                status=QaStatus.PASS,
+                reasons=("qa-secret=also-must-not-leak",),
+            ),
         ]
     )
 
@@ -513,8 +571,12 @@ def test_qa_regenerate_permits_exactly_one_second_generation(
 
     assert [attempt for _, attempt in generator.calls] == [1, 2]
     assert [row["qa_status"] for row in rows] == ["REGENERATE", "PASS", "FALLBACK"]
+    assert rows[0]["qa_reasons"] == ["qa_regeneration_requested"]
+    assert rows[1]["qa_reasons"] == ["qa_passed_private"]
     assert rows[0]["published_at"] is None
     assert rows[1]["published_at"] is None
+    assert "must-not-leak" not in repr(rows)
+    assert "must-not-leak" not in repr(result)
     assert result["version"] == 3
 
 
@@ -554,6 +616,7 @@ def test_generation_failure_is_private_bounded_and_never_leaks_details(
     assert qa.seen == []
     assert [row["qa_status"] for row in rows] == ["REGENERATE", "REGENERATE", "FALLBACK"]
     assert all(row["qa_reasons"] == [expected_reason] for row in rows[:2])
+    assert rows[-1]["qa_reasons"] == ["deterministic_factual_fallback", expected_reason]
     assert "secret" not in repr(rows)
     assert "api-key" not in repr(rows)
     assert result["qa_status"] == "FALLBACK"
@@ -595,12 +658,13 @@ def test_invalid_qa_outcome_fails_closed_without_leaking_or_rewriting(
     assert rows[0]["qa_status"] == "REVIEW"
     assert rows[0]["qa_reasons"] == [expected_reason]
     assert rows[0]["payload"] == candidate.model_dump(mode="json")
+    assert rows[1]["qa_reasons"] == ["deterministic_factual_fallback", expected_reason]
     assert "qa-token" not in repr(rows)
     assert result["qa_status"] == "FALLBACK"
 
 
 @pytest.mark.parametrize(
-    ("decision", "private_status", "public_cause"),
+    ("decision", "private_status", "private_reason", "public_cause"),
     (
         (
             QaDecision(
@@ -608,6 +672,7 @@ def test_invalid_qa_outcome_fails_closed_without_leaking_or_rewriting(
                 reasons=("qa-token=must-not-leak",),
             ),
             "REVIEW",
+            "qa_review_requested",
             "qa_review_requested",
         ),
         (
@@ -617,6 +682,7 @@ def test_invalid_qa_outcome_fails_closed_without_leaking_or_rewriting(
             ),
             "REVIEW",
             "qa_requested_fallback",
+            "qa_requested_fallback",
         ),
         (
             QaDecision(
@@ -624,6 +690,7 @@ def test_invalid_qa_outcome_fails_closed_without_leaking_or_rewriting(
                 reasons=("qa-token=must-not-leak",),
             ),
             "REGENERATE",
+            "qa_regeneration_requested",
             "qa_regeneration_exhausted",
         ),
     ),
@@ -634,6 +701,7 @@ def test_non_pass_qa_decisions_remain_private_then_use_canonical_fallback(
     source: PresentationInput,
     decision: QaDecision,
     private_status: str,
+    private_reason: str,
     public_cause: str,
 ) -> None:
     candidate = _full_payload(source)
@@ -652,10 +720,10 @@ def test_non_pass_qa_decisions_remain_private_then_use_canonical_fallback(
         rows = _rows(connection)
 
     assert [row["qa_status"] for row in rows] == [private_status, "FALLBACK"]
-    assert "qa-token=must-not-leak" in rows[0]["qa_reasons"]
+    assert rows[0]["qa_reasons"] == [private_reason]
     assert rows[0]["published_at"] is None
     assert rows[1]["qa_reasons"] == ["deterministic_factual_fallback", public_cause]
-    assert "qa-token=must-not-leak" not in repr(rows[1])
+    assert "qa-token=must-not-leak" not in repr(rows)
     assert "qa-token=must-not-leak" not in repr(result)
     assert result["payload"] == factual_fallback(source).model_dump(mode="json")
 
@@ -683,6 +751,10 @@ def test_generator_supplied_fallback_is_private_and_never_sent_to_qa_or_promoted
     assert rows[0]["published_at"] is None
     assert rows[0]["qa_reasons"] == ["generator_fallback_not_authorized"]
     assert rows[1]["payload"] == supplied.model_dump(mode="json")
+    assert rows[1]["qa_reasons"] == [
+        "deterministic_factual_fallback",
+        "generator_fallback_not_authorized",
+    ]
     assert rows[0]["artifact_id"] != rows[1]["artifact_id"]
     assert result["artifact_id"] == rows[1]["artifact_id"]
 
@@ -713,6 +785,10 @@ def test_forged_generation_response_is_private_and_retry_is_bounded(
     assert [row["qa_reasons"] for row in rows[:2]] == [
         ["generation_response_invalid"],
         ["generation_response_invalid"],
+    ]
+    assert rows[-1]["qa_reasons"] == [
+        "deterministic_factual_fallback",
+        "generation_response_invalid",
     ]
 
 
@@ -752,6 +828,61 @@ def test_invalid_protocol_metadata_fails_before_calls_and_published_row_is_clean
     assert rows[1]["qa_model_id"] is None
     assert "secret-provider" not in repr(rows)
     assert result["qa_status"] == "FALLBACK"
+
+
+def test_metadata_descriptor_exception_is_closed_without_calls_or_message_leak(
+    engine: sa.Engine,
+    source: PresentationInput,
+) -> None:
+    class ExplodingMetadataGenerator:
+        calls = 0
+
+        @property
+        def generator_version(self) -> str:
+            raise RuntimeError("credential=descriptor-must-not-leak")
+
+        @property
+        def provider(self) -> str:
+            raise AssertionError("provider must not be inspected after metadata failure")
+
+        @property
+        def model_id(self) -> str:
+            raise AssertionError("model must not be inspected after metadata failure")
+
+        @property
+        def prompt_version(self) -> str:
+            raise AssertionError("prompt must not be inspected after metadata failure")
+
+        def generate(
+            self,
+            source: PresentationInput,
+            *,
+            attempt: int,
+        ) -> GenerationResponse:
+            self.calls += 1
+            raise AssertionError("generate must not be called")
+
+    generator = ExplodingMetadataGenerator()
+    qa = FakeQa([QaDecision(status=QaStatus.PASS)])
+
+    with engine.begin() as connection:
+        result = run_offline_candidate_pipeline(
+            connection,
+            source=source,
+            generator=generator,  # type: ignore[arg-type]
+            qa=qa,
+            now=NOW,
+        )
+        rows = _rows(connection)
+
+    assert generator.calls == 0
+    assert qa.seen == []
+    assert [row["qa_reasons"] for row in rows] == [
+        ["candidate_metadata_invalid"],
+        ["deterministic_factual_fallback", "candidate_metadata_invalid"],
+    ]
+    assert "descriptor-must-not-leak" not in repr(rows)
+    assert "descriptor-must-not-leak" not in repr(result)
 
 
 def test_ambiguous_buyer_awardee_fallback_is_review_only_and_not_published(
