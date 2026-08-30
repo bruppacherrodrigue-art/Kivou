@@ -1149,16 +1149,21 @@ def test_runbook_rollback_uses_only_captured_targets_and_preserves_artifacts() -
 def test_rollback_restores_links_before_optional_nginx_capture() -> None:
     body = read(PRODUCTION_RUNBOOK)
     rollback = body[
-        body.index("kivou_rollout_rollback()") : body.index(
-            "kivou_rollout_on_err()"
+        body.index("# KIVOU_ROLLBACK_ENGINE_BEGIN") : body.index(
+            "# KIVOU_ROLLBACK_ENGINE_END"
         )
     ]
 
     assert_fragments_in_order(
         rollback,
+        "kivou_rollback_stop_phase()",
         "systemctl disable --now",
+        "kivou_rollback_app_phase()",
         'case "$KIVOU_PREVIOUS_APP_TARGET" in',
+        "kivou_rollback_frontend_phase()",
         'case "$KIVOU_PREVIOUS_FRONTEND_TARGET" in',
+        "kivou_rollback_units_phase()",
+        "kivou_rollback_nginx_phase()",
         "KIVOU_NGINX_CAPTURE_VALID=0",
         'if [ "$KIVOU_NGINX_CAPTURE_VALID" = 1 ]; then',
         "kivou_publish_captured_nginx_bundle",
@@ -1185,7 +1190,7 @@ def test_mutation_window_is_locked_and_trapped_before_every_runtime_mutation() -
         "flock --exclusive",
         "trap 'kivou_rollout_on_err' ERR",
     )
-    assert "return \"$KIVOU_ROLLOUT_RC\"" in window
+    assert "exit \"$KIVOU_ROLLOUT_RC\"" in window
     mutation_commands = window[
         first_mutation : window.index("trap - ERR", first_mutation)
     ]
@@ -1209,8 +1214,8 @@ def test_nginx_activation_and_rollback_restore_the_captured_service_state() -> N
         )
     ]
     rollback = body[
-        body.index("kivou_rollout_rollback()") : body.index(
-            "kivou_rollout_on_err()"
+        body.index("# KIVOU_ROLLBACK_ENGINE_BEGIN") : body.index(
+            "# KIVOU_ROLLBACK_ENGINE_END"
         )
     ]
 
@@ -1345,3 +1350,88 @@ def test_nginx_rollback_reverts_disk_bundle_when_candidate_restore_is_invalid() 
     nginx_capture_probe = rollback.index("KIVOU_NGINX_CAPTURE_VALID=0")
     assert app_restore < nginx_capture_probe
     assert_fragments_in_order(manual, "flock --exclusive", "kivou_rollout_rollback")
+
+
+def rollback_engine(body: str) -> str:
+    begin = body.index("# KIVOU_ROLLBACK_ENGINE_BEGIN")
+    end = body.index("# KIVOU_ROLLBACK_ENGINE_END", begin)
+    return body[begin:end]
+
+
+def test_rollback_aggregates_strict_independent_phase_failures() -> None:
+    engine = rollback_engine(read(PRODUCTION_RUNBOOK))
+
+    for phase in ("stop", "app", "frontend", "units", "nginx"):
+        assert f"kivou_rollback_{phase}_phase()" in engine
+        assert f"set -Eeuo pipefail; kivou_rollback_{phase}_phase" in engine
+    assert "KIVOU_ROLLBACK_RC=0" in engine
+    assert "KIVOU_PHASE_RC=$?" in engine
+    assert "return \"$KIVOU_ROLLBACK_RC\"" in engine
+    assert "if ! kivou_" not in engine
+
+    script = "\n".join(
+        (
+            "set -Eeuo pipefail",
+            engine,
+            "kivou_rollback_stop_phase() { false; true; printf 'masked-failure\\n'; }",
+            "kivou_rollback_app_phase() { printf 'continued-app\\n'; }",
+            "kivou_rollback_frontend_phase() { return 17; }",
+            "kivou_rollback_units_phase() { printf 'continued-units\\n'; }",
+            "kivou_rollback_nginx_phase() { :; }",
+            "set +e",
+            "kivou_rollout_rollback",
+            "KIVOU_TEST_ROLLBACK_RC=$?",
+            "set -e",
+            "printf 'rollback_rc=%s\\n' \"$KIVOU_TEST_ROLLBACK_RC\"",
+            "test \"$KIVOU_TEST_ROLLBACK_RC\" -ne 0",
+        )
+    )
+    result = subprocess.run(
+        ["bash"], input=script, text=True, capture_output=True, check=False
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "rollback_rc=1" in result.stdout
+    assert "continued-app" in result.stdout
+    assert "continued-units" in result.stdout
+    assert "masked-failure" not in result.stdout
+
+
+def test_err_handler_always_exits_with_the_original_nonzero_status() -> None:
+    engine = rollback_engine(read(PRODUCTION_RUNBOOK))
+    script = f"""\
+set -Eeuo pipefail
+{engine}
+kivou_rollback_stop_phase() {{ false; true; }}
+kivou_rollback_app_phase() {{ :; }}
+kivou_rollback_frontend_phase() {{ :; }}
+kivou_rollback_units_phase() {{ :; }}
+kivou_rollback_nginx_phase() {{ :; }}
+trap 'kivou_rollout_on_err' ERR
+(exit 23)
+printf 'handler-continued-success\n'
+"""
+    result = subprocess.run(
+        ["bash"], input=script, text=True, capture_output=True, check=False
+    )
+
+    assert result.returncode == 23, result.stderr
+    assert "handler-continued-success" not in result.stdout
+    assert "rollback_failed=" in result.stderr
+
+
+def test_alerts_are_inactive_before_the_first_runtime_mutation() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    gate = body[body.index("## 9. Dernier gate") : body.index("## 10.")]
+
+    assert_fragments_in_order(
+        gate,
+        "systemctl is-enabled --quiet kivou-alerts.timer",
+        "systemctl is-active --quiet kivou-alerts.timer",
+        "systemctl is-active --quiet kivou-alerts.service",
+    )
+    assert "systemctl disable" not in gate
+    assert "systemctl stop" not in gate
+    assert body.index("systemctl is-active --quiet kivou-alerts.service") < body.index(
+        "KIVOU_FIRST_RUNTIME_MUTATION=1"
+    )
