@@ -23,5 +23,5 @@
     "noUncheckedSideEffectImports": true,
     "exactOptionalPropertyTypes": false
   },
-  "include": ["src"]
+  "include": ["src", "founder/src"]
 }

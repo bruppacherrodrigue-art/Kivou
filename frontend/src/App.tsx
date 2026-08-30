@@ -24,7 +24,6 @@ import { Notifications } from './pages/Notifications'
 import { Settings } from './pages/Settings'
 import { ProfileSettings } from './pages/ProfileSettings'
 import { SecuritySettings } from './pages/SecuritySettings'
-import { CommercialCockpit } from './cockpit/CommercialCockpit'
 import { Checkout, CheckoutCancel, CheckoutSuccess } from './pages/Checkout'
 import { NotFound } from './pages/NotFound'
 import { SurfaceBoundary } from './reference/surface/SurfaceBoundary'
@@ -112,7 +111,6 @@ export function AppRoutes() {
               <Route path="settings" element={<Settings />} />
               <Route path="settings/profile" element={<ProfileSettings />} />
               <Route path="settings/security" element={<SecuritySettings />} />
-              <Route path="internal/cockpit" element={<CommercialCockpit />} />
             </Route>
 
             <Route path="checkout/success" element={<CheckoutSuccess />} />
