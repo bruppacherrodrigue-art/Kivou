@@ -881,8 +881,9 @@ def test_runbook_exercises_local_offsite_and_real_restore_without_side_effects()
 
     assert_fragments_in_order(
         body,
-        "systemctl start kivou-backup.service",
+        "systemd-run --wait --pipe --collect --unit=kivou-backup-local-preflight",
         "pg_restore --list",
+        "systemd-run --wait --pipe --collect --unit=kivou-backup-offsite-preflight",
         "trap kivou_restore_cleanup EXIT",
         "restic restore latest",
         "chown -R postgres:postgres",
@@ -891,7 +892,7 @@ def test_runbook_exercises_local_offsite_and_real_restore_without_side_effects()
         "SELECT version_num FROM alembic_version",
     )
     assert "dropdb" in body
-    restore = body[body.index("## 6. Exercer une restauration"):body.index("## 7.")]
+    restore = body[body.index("## 6. Prévalider la sauvegarde"):body.index("## 7.")]
     assert "--host kivou-production-01" in restore
     assert "--tag kivou-postgresql" in restore
     assert "KIVOU_RESTORE_DB" in restore
@@ -948,7 +949,6 @@ def test_all_fallible_prevalidations_and_captures_precede_the_mutation_window() 
     )
 
     for required_prevalidation in (
-        "systemctl start kivou-backup.service",
         "pg_restore --list",
         "restic restore latest",
         "pg_restore --exit-on-error",
@@ -975,6 +975,66 @@ def test_all_previous_targets_and_nginx_state_are_captured_before_switches() -> 
         'readlink -f "$KIVOU_SITE_LINK"',
         'mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app',
         'mv -Tf "$KIVOU_FRONTEND_LINK_NEW" /srv/kivou/frontend',
+    )
+
+
+def test_backup_preflight_uses_the_exact_candidate_before_any_switch() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    first_switch = body.index('mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app')
+    before_switch = body[:first_switch]
+
+    assert "systemctl start kivou-backup.service" not in before_switch
+    assert "/srv/kivou/app/ops/bin/kivou-backup.sh" not in before_switch
+    assert "/srv/kivou/app/ops/bin/kivou-restic-upload.sh" not in before_switch
+
+    local_start = before_switch.index(
+        "systemd-run --wait --pipe --collect --unit=kivou-backup-local-preflight"
+    )
+    offsite_start = before_switch.index(
+        "systemd-run --wait --pipe --collect --unit=kivou-backup-offsite-preflight"
+    )
+    restore_start = before_switch.index(
+        "systemd-run --wait --collect --unit=kivou-restore-drill"
+    )
+    assert local_start < offsite_start < restore_start
+
+    local = before_switch[local_start:offsite_start]
+    offsite = before_switch[offsite_start:restore_start]
+    assert "/etc/kivou/production.env" in local
+    assert "/etc/kivou/swiss-backup.env" not in local
+    assert '"$KIVOU_BACKEND_RELEASE_DIR/ops/bin/kivou-backup.sh"' in local
+    assert "/etc/kivou/swiss-backup.env" in offsite
+    assert "/etc/kivou/production.env" not in offsite
+    assert '"$KIVOU_BACKEND_RELEASE_DIR/ops/bin/kivou-restic-upload.sh"' in offsite
+    assert "CacheDirectory=kivou-restic" in offsite
+    assert "RESTIC_CACHE_DIR=/var/cache/kivou-restic" in offsite
+    for transient in (local, offsite):
+        for hardening in (
+            "--property=User=kivou",
+            "--property=Group=kivou",
+            "--property=NoNewPrivileges=yes",
+            "--property=PrivateTmp=yes",
+            "--property=PrivateDevices=yes",
+            "--property=ProtectSystem=strict",
+            'ReadOnlyPaths="$KIVOU_BACKEND_RELEASE_DIR"',
+            "--property=ReadWritePaths=/srv/kivou/backups",
+        ):
+            assert hardening in transient
+
+
+def test_real_backup_smoke_occurs_only_after_switch_and_before_timer() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    assert_fragments_in_order(
+        body,
+        "KIVOU_PREVIOUS_APP_TARGET=ABSENT",
+        'mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app',
+        "systemctl start kivou-backup.service",
+        "systemctl is-failed --quiet kivou-backup-local.service",
+        "systemctl is-failed --quiet kivou-backup.service",
+        "systemctl enable --now kivou-backup.timer",
+        'case "$KIVOU_PREVIOUS_APP_TARGET" in',
+        "(ABSENT)",
     )
 
 

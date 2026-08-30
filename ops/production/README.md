@@ -308,24 +308,69 @@ Stop gate : les anciennes cibles app/frontend, les huit destinations nginx et
 les trois liens `sites-enabled` sont capturés ou explicitement marqués absents.
 Rien n'a encore été basculé ni activé.
 
-## 6. Exercer une restauration locale et hors site
+## 6. Prévalider la sauvegarde candidate et exercer le restore
 
-Le démarrage de `kivou-backup.service` entraîne obligatoirement
-`kivou-backup-local.service` via `Requires=`. Le restore hors site est filtré
-par l'hôte et le tag écrits par le wrapper versionné. Les identifiants restic
-restent dans `swiss-backup.env`, lu uniquement par systemd ; le cache appartient
-au compte `kivou` via `CacheDirectory=kivou-restic`.
+Avant la bascule, `/srv/kivou/app` peut être absent ou pointer vers une ancienne
+release : il ne fait donc pas autorité. Deux services transitoires synchrones
+exécutent directement les scripts du SHA candidat. Le premier ne reçoit que
+`production.env`; le second ne reçoit que `swiss-backup.env` et son cache
+restic. `--wait --pipe --collect` propage l'échec de chaque script et retire
+l'unité transitoire. Le restore hors site ne commence qu'après leurs succès.
 
 ```bash
 set -euo pipefail
-sudo systemctl start kivou-backup.service
-if sudo systemctl is-failed --quiet kivou-backup-local.service; then exit 70; fi
-if sudo systemctl is-failed --quiet kivou-backup.service; then exit 70; fi
+case "$KIVOU_BACKEND_RELEASE_DIR" in (/srv/kivou/releases/backend-*) ;; (*) exit 69 ;; esac
+sudo test -x "$KIVOU_BACKEND_RELEASE_DIR/ops/bin/kivou-backup.sh"
+sudo test -x "$KIVOU_BACKEND_RELEASE_DIR/ops/bin/kivou-restic-upload.sh"
+sudo systemd-run --wait --pipe --collect --unit=kivou-backup-local-preflight \
+  --expand-environment=no \
+  --property=Type=oneshot \
+  --property=User=kivou --property=Group=kivou \
+  --property=WorkingDirectory="$KIVOU_BACKEND_RELEASE_DIR" \
+  --property=EnvironmentFile=/etc/kivou/production.env \
+  --property=TimeoutStartSec=2h \
+  --property=UMask=0077 \
+  --property=NoNewPrivileges=yes \
+  --property=PrivateTmp=yes --property=PrivateDevices=yes \
+  --property=ProtectSystem=strict --property=ProtectHome=yes \
+  --property=InaccessiblePaths=/srv/kivou/.ssh \
+  --property=ReadOnlyPaths="$KIVOU_BACKEND_RELEASE_DIR" \
+  --property=ReadWritePaths=/srv/kivou/backups \
+  --property=ProtectKernelTunables=yes \
+  --property=ProtectKernelModules=yes \
+  --property=ProtectControlGroups=yes \
+  --property=RestrictSUIDSGID=yes --property=LockPersonality=yes \
+  --property="RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6" \
+  -- "$KIVOU_BACKEND_RELEASE_DIR/ops/bin/kivou-backup.sh"
 KIVOU_LOCAL_DUMP=$(sudo -u kivou find /srv/kivou/backups -maxdepth 1 -type f -name 'kivou-*.dump' -printf '%T@ %p\n' | sort -nr | awk 'NR == 1 {print $2}')
 case "$KIVOU_LOCAL_DUMP" in (/srv/kivou/backups/kivou-*.dump) ;; (*) exit 66 ;; esac
 sudo -u kivou test -f "$KIVOU_LOCAL_DUMP"
 sudo -u kivou test ! -L "$KIVOU_LOCAL_DUMP"
 sudo -u kivou pg_restore --list "$KIVOU_LOCAL_DUMP" >/dev/null
+
+sudo systemd-run --wait --pipe --collect --unit=kivou-backup-offsite-preflight \
+  --expand-environment=no \
+  --property=Type=oneshot \
+  --property=User=kivou --property=Group=kivou \
+  --property=WorkingDirectory="$KIVOU_BACKEND_RELEASE_DIR" \
+  --property=EnvironmentFile=/etc/kivou/swiss-backup.env \
+  --property=Environment=RESTIC_CACHE_DIR=/var/cache/kivou-restic \
+  --property=CacheDirectory=kivou-restic \
+  --property=CacheDirectoryMode=0700 \
+  --property=TimeoutStartSec=6h \
+  --property=UMask=0077 \
+  --property=NoNewPrivileges=yes \
+  --property=PrivateTmp=yes --property=PrivateDevices=yes \
+  --property=ProtectSystem=strict --property=ProtectHome=yes \
+  --property=InaccessiblePaths=/srv/kivou/.ssh \
+  --property=ReadOnlyPaths="$KIVOU_BACKEND_RELEASE_DIR" \
+  --property=ReadWritePaths=/srv/kivou/backups \
+  --property=ProtectKernelTunables=yes \
+  --property=ProtectKernelModules=yes \
+  --property=ProtectControlGroups=yes \
+  --property=RestrictSUIDSGID=yes --property=LockPersonality=yes \
+  --property="RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6" \
+  -- "$KIVOU_BACKEND_RELEASE_DIR/ops/bin/kivou-restic-upload.sh"
 
 KIVOU_RESTORE_ROOT=/srv/kivou/restore-drills
 KIVOU_RESTORE_DIR=$KIVOU_RESTORE_ROOT/restore-$KIVOU_RELEASE_UTC-$KIVOU_RELEASE_SHORT
@@ -378,10 +423,11 @@ sudo find "$KIVOU_RESTORE_DIR" -xdev -mindepth 1 -delete
 sudo rmdir "$KIVOU_RESTORE_DIR"
 ```
 
-Stop gate : le dump local passe `pg_restore --list`, le dernier snapshot restic
-filtré est réellement restauré dans une base temporaire, la révision Alembic
-est lisible, puis la base et le répertoire borné sont nettoyés. Aucun paiement,
-e-mail ou provider n'est contacté.
+Stop gate : les deux scripts du SHA candidat ont réussi dans deux environnements
+séparés, le dump local passe `pg_restore --list`, puis le dernier snapshot
+restic filtré est réellement restauré dans une base temporaire. La révision
+Alembic est lisible et le nettoyage est terminé. Aucun paiement, e-mail ou
+provider n'est contacté.
 
 ## 7. Prouver le certificat et construire le candidat nginx hermétique
 
@@ -525,10 +571,13 @@ Stop gate : les deux liens pointent vers les nouvelles releases, l'API répond
 sur 8000, le default deny est activé, les trois sites et cinq fragments sont
 publiés, puis `nginx -t` et l'unique reload sont verts.
 
-## 9. Vérifier le service HTTPS publié
+## 9. Vérifier HTTPS puis le service backup installé
 
 La racine publique est le health check disponible dans le contrat nginx actuel
-(la route interne de santé n'est volontairement pas publiée).
+(la route interne de santé n'est volontairement pas publiée). À ce stade, le
+rollback capturé au bloc 5 est disponible. Le smoke suivant est le premier
+démarrage autorisé de l'orchestrateur installé : son `Requires=` exerce le
+service local, puis le service principal exerce l'upload hors site.
 
 ```bash
 set -euo pipefail
@@ -537,17 +586,22 @@ KIVOU_HTTPS_STATUS=$(curl --silent --show-error --output /dev/null --connect-tim
 test "$KIVOU_HTTPS_STATUS" = 200
 KIVOU_WWW_STATUS=$(curl --silent --show-error --output /dev/null --connect-timeout 5 --max-time 15 --write-out '%{http_code}' https://www.kivou.eu/)
 case "$KIVOU_WWW_STATUS" in (301|302|307|308) ;; (*) exit 69 ;; esac
+sudo systemctl start kivou-backup.service
+if sudo systemctl is-failed --quiet kivou-backup-local.service; then exit 70; fi
+if sudo systemctl is-failed --quiet kivou-backup.service; then exit 70; fi
 ```
 
-Stop gate : l'apex HTTPS répond 200 et `www` redirige. Aucun parcours
-authentifié, paiement, webhook ou envoi e-mail n'est exercé ici.
+Stop gate : l'apex HTTPS répond 200, `www` redirige et les unités backup
+installées réussissent sur la nouvelle cible `/srv/kivou/app`. En cas d'échec,
+exécuter immédiatement le rollback du bloc 11 ; le timer reste désactivé.
 
 ## 10. Prouver les sources localement avant leurs timers
 
 Chaque source est démarrée manuellement, puis contrôlée avec `is-failed` avant
 que son timer propre soit activé. Le timer de sauvegarde peut être activé car
-le dump local, l'upload et le restore ont été prouvés. Le service et le timer
-d'alertes restent désactivés : aucun smoke SMTP n'appartient à cette release.
+le dump local, l'upload, le restore et le smoke des unités installées ont été
+prouvés. Le service et le timer d'alertes restent désactivés : aucun smoke SMTP
+n'appartient à cette release.
 
 ```bash
 set -euo pipefail
