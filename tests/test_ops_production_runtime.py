@@ -910,10 +910,11 @@ def test_runbook_proves_certificate_and_nginx_candidate_before_publication() -> 
     assert "kivou-production-default-deny.conf" in body
     assert_fragments_in_order(
         body,
+        'readlink -f "$KIVOU_SITE_LINK"',
         "openssl x509",
         "kivou-production-default-deny.conf",
         'nginx -t -c "$KIVOU_NGINX_CANDIDATE/nginx.conf"',
-        'readlink -f "$KIVOU_SITE_LINK"',
+        'mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app',
     )
 
 
@@ -935,6 +936,45 @@ def test_runbook_switches_both_releases_then_publishes_nginx() -> None:
         "nginx -t",
         "systemctl reload nginx",
         "KIVOU_HTTPS_HEALTH_URL=https://kivou.eu/",
+    )
+
+
+def test_all_fallible_prevalidations_and_captures_precede_the_mutation_window() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    first_mutation = min(
+        body.index('mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app'),
+        body.index('mv -Tf "$KIVOU_FRONTEND_LINK_NEW" /srv/kivou/frontend'),
+        body.index("systemctl enable --now kivou-api.service"),
+    )
+
+    for required_prevalidation in (
+        "systemctl start kivou-backup.service",
+        "pg_restore --list",
+        "restic restore latest",
+        "pg_restore --exit-on-error",
+        "SELECT version_num FROM alembic_version",
+        "openssl x509",
+        'nginx -t -c "$KIVOU_NGINX_CANDIDATE/nginx.conf"',
+        'sudo install -o root -g root -m 644 "$KIVOU_NGINX_CANDIDATE/kivou-limits.conf"',
+        'sudo ln -s "/etc/nginx/sites-available/$KIVOU_SITE"',
+        "KIVOU_NGINX_CAPTURE_PATHS=(",
+        'readlink -f "$KIVOU_SITE_LINK"',
+        'chmod -R a-w "$KIVOU_ROLLBACK_DIR"',
+    ):
+        assert body.index(required_prevalidation) < first_mutation, required_prevalidation
+
+
+def test_all_previous_targets_and_nginx_state_are_captured_before_switches() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    assert_fragments_in_order(
+        body,
+        "readlink -f /srv/kivou/app",
+        "readlink -f /srv/kivou/frontend",
+        "KIVOU_NGINX_CAPTURE_PATHS=(",
+        'readlink -f "$KIVOU_SITE_LINK"',
+        'mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app',
+        'mv -Tf "$KIVOU_FRONTEND_LINK_NEW" /srv/kivou/frontend',
     )
 
 
@@ -974,3 +1014,24 @@ def test_runbook_rollback_uses_only_captured_targets_and_preserves_artifacts() -
     assert "ABSENT" in rollback
     assert "chmod -R a-w" in body
     assert not re.search(r"rm\s+[^\n]*(?:/srv/kivou/releases|/srv/kivou/backups)", rollback)
+
+
+def test_rollback_restores_links_before_optional_nginx_capture() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    rollback = body[body.index("## 11. Rollback immédiat") :]
+
+    assert_fragments_in_order(
+        rollback,
+        "systemctl disable --now",
+        'case "$KIVOU_PREVIOUS_APP_TARGET" in',
+        'case "$KIVOU_PREVIOUS_FRONTEND_TARGET" in',
+        "KIVOU_NGINX_CAPTURE_VALID=0",
+        'if [ "$KIVOU_NGINX_CAPTURE_VALID" = 1 ]; then',
+        "nginx -t",
+        "systemctl reload nginx",
+    )
+    app_restore = rollback.index('case "$KIVOU_PREVIOUS_APP_TARGET" in')
+    frontend_restore = rollback.index('case "$KIVOU_PREVIOUS_FRONTEND_TARGET" in')
+    nginx_probe = rollback.index("KIVOU_NGINX_CAPTURE_VALID=0")
+    assert app_restore < frontend_restore < nginx_probe
+    assert 'sudo test -d "$KIVOU_ROLLBACK_DIR/nginx"' not in rollback[:nginx_probe]

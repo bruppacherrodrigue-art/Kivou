@@ -220,12 +220,12 @@ done
 Stop gate : chaque unité installée est `root:root 644`, le daemon a été
 rechargé, mais aucun service ni timer n'a été activé.
 
-## 5. Capturer les liens, basculer les deux releases et prouver l'API
+## 5. Capturer toutes les cibles de rollback avant mutation
 
 Les seules valeurs de lien acceptées sont `ABSENT` ou une release immuable du
-type attendu. Le fichier d'état ne contient aucun secret. Si un lien était
-absent, le rollback laissera le runtime correspondant désactivé plutôt que
-d'inventer une cible.
+type attendu. Les fichiers et liens nginx sont copiés ou marqués `ABSENT` dans
+un répertoire borné avant toute bascule. Le fichier d'état ne contient aucun
+secret. Si un lien était absent, le rollback n'inventera aucune cible.
 
 ```bash
 set -euo pipefail
@@ -271,29 +271,42 @@ printf '%s\n%s\n%s\n' "$KIVOU_PREVIOUS_APP_TARGET" "$KIVOU_PREVIOUS_FRONTEND_TAR
 sudo mv -Tf "$KIVOU_ROLLOUT_STATE_NEW" "$KIVOU_ROLLOUT_STATE"
 test "$(sudo stat -c '%U:%G:%a' "$KIVOU_ROLLOUT_STATE")" = root:root:600
 
-KIVOU_APP_LINK_NEW=/srv/kivou/app.new-$KIVOU_RELEASE_SHORT
-KIVOU_FRONTEND_LINK_NEW=/srv/kivou/frontend.new-$KIVOU_RELEASE_SHORT
-case "$KIVOU_APP_LINK_NEW" in (/srv/kivou/app.new-*) ;; (*) exit 69 ;; esac
-case "$KIVOU_FRONTEND_LINK_NEW" in (/srv/kivou/frontend.new-*) ;; (*) exit 69 ;; esac
-sudo test ! -e "$KIVOU_APP_LINK_NEW"
-sudo test ! -L "$KIVOU_APP_LINK_NEW"
-sudo ln -s "$KIVOU_BACKEND_RELEASE_DIR" "$KIVOU_APP_LINK_NEW"
-sudo mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app
-sudo test "$(sudo readlink -f /srv/kivou/app)" = "$KIVOU_BACKEND_RELEASE_DIR"
-sudo test ! -e "$KIVOU_FRONTEND_LINK_NEW"
-sudo test ! -L "$KIVOU_FRONTEND_LINK_NEW"
-sudo ln -s "$KIVOU_FRONTEND_RELEASE_DIR" "$KIVOU_FRONTEND_LINK_NEW"
-sudo mv -Tf "$KIVOU_FRONTEND_LINK_NEW" /srv/kivou/frontend
-sudo test "$(sudo readlink -f /srv/kivou/frontend)" = "$KIVOU_FRONTEND_RELEASE_DIR"
-
-sudo systemctl enable --now kivou-api.service
-sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
-  /srv/kivou/app/ops/bin/kivou-api-readiness.sh kivou-api.service 8000
-sudo systemctl is-active --quiet kivou-api.service
+KIVOU_NGINX_CAPTURE_PATHS=(
+  /etc/nginx/conf.d/kivou-limits.conf
+  /etc/nginx/kivou-proxy-params.conf
+  /etc/nginx/kivou-production-security-headers.conf
+  /etc/nginx/kivou-production-sensitive-link-security-headers.conf
+  /etc/nginx/kivou-sensitive-links-gate.conf
+  /etc/nginx/sites-available/kivou-production-default-deny
+  /etc/nginx/sites-available/kivou
+  /etc/nginx/sites-available/kivou-www
+)
+sudo install -o root -g root -m 700 -d "$KIVOU_ROLLBACK_DIR/nginx"
+for KIVOU_NGINX_PATH in "${KIVOU_NGINX_CAPTURE_PATHS[@]}"; do
+  KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_NGINX_PATH" | sed 's#^/##; s#/#__#g')
+  if sudo test -e "$KIVOU_NGINX_PATH" || sudo test -L "$KIVOU_NGINX_PATH"; then
+    sudo cp -a "$KIVOU_NGINX_PATH" "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved"
+  else
+    sudo touch "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.ABSENT"
+  fi
+done
+for KIVOU_SITE_LINK in /etc/nginx/sites-enabled/kivou-production-default-deny /etc/nginx/sites-enabled/kivou /etc/nginx/sites-enabled/kivou-www; do
+  KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_SITE_LINK" | sed 's#^/##; s#/#__#g')
+  if sudo test -L "$KIVOU_SITE_LINK"; then
+    KIVOU_SITE_TARGET=$(sudo readlink -f "$KIVOU_SITE_LINK")
+    case "$KIVOU_SITE_TARGET" in (/etc/nginx/sites-available/*) ;; (*) exit 69 ;; esac
+    printf '%s\n' "$KIVOU_SITE_TARGET" | sudo tee "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.target" >/dev/null
+  else
+    sudo test ! -e "$KIVOU_SITE_LINK"
+    sudo touch "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.ABSENT"
+  fi
+done
+sudo chmod -R a-w "$KIVOU_ROLLBACK_DIR"
 ```
 
-Stop gate : les deux liens pointent vers les deux nouvelles releases exactes,
-l'API est active et le helper versionné obtient `/openapi.json = 200` sur 8000.
+Stop gate : les anciennes cibles app/frontend, les huit destinations nginx et
+les trois liens `sites-enabled` sont capturés ou explicitement marqués absents.
+Rien n'a encore été basculé ni activé.
 
 ## 6. Exercer une restauration locale et hors site
 
@@ -441,55 +454,6 @@ sudo chmod 644 \
 sudo chmod 600 "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-links-gate.conf"
 sudo nginx -t -c "$KIVOU_NGINX_CANDIDATE/nginx.conf"
 
-KIVOU_NGINX_CAPTURE_PATHS=(
-  /etc/nginx/conf.d/kivou-limits.conf
-  /etc/nginx/kivou-proxy-params.conf
-  /etc/nginx/kivou-production-security-headers.conf
-  /etc/nginx/kivou-production-sensitive-link-security-headers.conf
-  /etc/nginx/kivou-sensitive-links-gate.conf
-  /etc/nginx/sites-available/kivou-production-default-deny
-  /etc/nginx/sites-available/kivou
-  /etc/nginx/sites-available/kivou-www
-)
-sudo install -o root -g root -m 700 -d "$KIVOU_ROLLBACK_DIR/nginx"
-for KIVOU_NGINX_PATH in "${KIVOU_NGINX_CAPTURE_PATHS[@]}"; do
-  KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_NGINX_PATH" | sed 's#^/##; s#/#__#g')
-  if sudo test -e "$KIVOU_NGINX_PATH" || sudo test -L "$KIVOU_NGINX_PATH"; then
-    sudo cp -a "$KIVOU_NGINX_PATH" "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved"
-  else
-    sudo touch "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.ABSENT"
-  fi
-done
-for KIVOU_SITE_LINK in /etc/nginx/sites-enabled/kivou-production-default-deny /etc/nginx/sites-enabled/kivou /etc/nginx/sites-enabled/kivou-www; do
-  KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_SITE_LINK" | sed 's#^/##; s#/#__#g')
-  if sudo test -L "$KIVOU_SITE_LINK"; then
-    KIVOU_SITE_TARGET=$(sudo readlink -f "$KIVOU_SITE_LINK")
-    case "$KIVOU_SITE_TARGET" in (/etc/nginx/sites-available/*) ;; (*) exit 69 ;; esac
-    printf '%s\n' "$KIVOU_SITE_TARGET" | sudo tee "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.target" >/dev/null
-  else
-    sudo test ! -e "$KIVOU_SITE_LINK"
-    sudo touch "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.ABSENT"
-  fi
-done
-sudo chmod -R a-w "$KIVOU_ROLLBACK_DIR"
-```
-
-Stop gate : le SAN contient au minimum `kivou.eu` et `www.kivou.eu`, aucun
-placeholder ne subsiste, le candidat hermétique incluant le default deny passe
-`nginx -t`, et l'ancien état nginx est capturé sans être modifié.
-
-## 8. Installer et publier nginx atomiquement
-
-L'API sur 8000 est déjà active avant cette publication. Tous les fichiers sont
-installés sous un nom temporaire puis commutés. Les liens `sites-enabled` sont
-eux aussi remplacés atomiquement.
-
-```bash
-set -euo pipefail
-sudo systemctl is-active --quiet kivou-api.service
-sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
-  /srv/kivou/app/ops/bin/kivou-api-readiness.sh kivou-api.service 8000
-
 sudo install -o root -g root -m 644 "$KIVOU_NGINX_CANDIDATE/kivou-limits.conf" /etc/nginx/conf.d/kivou-limits.conf.new
 sudo install -o root -g root -m 644 "$KIVOU_NGINX_CANDIDATE/kivou-proxy-params.conf" /etc/nginx/kivou-proxy-params.conf.new
 sudo install -o root -g root -m 644 "$KIVOU_NGINX_CANDIDATE/kivou-production-security-headers.conf" /etc/nginx/kivou-production-security-headers.conf.new
@@ -498,6 +462,48 @@ sudo install -o root -g root -m 600 "$KIVOU_NGINX_CANDIDATE/kivou-sensitive-link
 sudo install -o root -g root -m 644 "$KIVOU_NGINX_CANDIDATE/kivou-production-default-deny.conf" /etc/nginx/sites-available/kivou-production-default-deny.new
 sudo install -o root -g root -m 644 "$KIVOU_NGINX_CANDIDATE/kivou-production.conf" /etc/nginx/sites-available/kivou.new
 sudo install -o root -g root -m 644 "$KIVOU_NGINX_CANDIDATE/kivou-production-www.conf" /etc/nginx/sites-available/kivou-www.new
+for KIVOU_SITE in kivou-production-default-deny kivou kivou-www; do
+  KIVOU_SITE_LINK_NEW=/etc/nginx/sites-enabled/$KIVOU_SITE.new
+  case "$KIVOU_SITE_LINK_NEW" in (/etc/nginx/sites-enabled/*.new) ;; (*) exit 69 ;; esac
+  sudo test ! -e "$KIVOU_SITE_LINK_NEW"
+  sudo test ! -L "$KIVOU_SITE_LINK_NEW"
+  sudo ln -s "/etc/nginx/sites-available/$KIVOU_SITE" "$KIVOU_SITE_LINK_NEW"
+done
+```
+
+Stop gate : le SAN contient au minimum `kivou.eu` et `www.kivou.eu`, aucun
+placeholder ne subsiste, le candidat hermétique incluant le default deny passe
+`nginx -t`. Tous les fichiers `.new` et liens temporaires sont prêts. La
+capture immuable de l'ancien état a déjà été validée au bloc 5.
+
+## 8. Fenêtre courte : basculer les releases, l'API puis nginx
+
+Tous les stop gates coûteux ou susceptibles d'échouer sont maintenant verts.
+Ce bloc ouvre la première fenêtre de mutation : il bascule app et frontend,
+prouve l'API sur 8000, puis publie nginx. Tous les fichiers et liens sont
+préparés sous un nom temporaire puis commutés atomiquement.
+
+```bash
+set -euo pipefail
+KIVOU_APP_LINK_NEW=/srv/kivou/app.new-$KIVOU_RELEASE_SHORT
+KIVOU_FRONTEND_LINK_NEW=/srv/kivou/frontend.new-$KIVOU_RELEASE_SHORT
+case "$KIVOU_APP_LINK_NEW" in (/srv/kivou/app.new-*) ;; (*) exit 69 ;; esac
+case "$KIVOU_FRONTEND_LINK_NEW" in (/srv/kivou/frontend.new-*) ;; (*) exit 69 ;; esac
+sudo test ! -e "$KIVOU_APP_LINK_NEW"
+sudo test ! -L "$KIVOU_APP_LINK_NEW"
+sudo ln -s "$KIVOU_BACKEND_RELEASE_DIR" "$KIVOU_APP_LINK_NEW"
+sudo mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app
+sudo test "$(sudo readlink -f /srv/kivou/app)" = "$KIVOU_BACKEND_RELEASE_DIR"
+sudo test ! -e "$KIVOU_FRONTEND_LINK_NEW"
+sudo test ! -L "$KIVOU_FRONTEND_LINK_NEW"
+sudo ln -s "$KIVOU_FRONTEND_RELEASE_DIR" "$KIVOU_FRONTEND_LINK_NEW"
+sudo mv -Tf "$KIVOU_FRONTEND_LINK_NEW" /srv/kivou/frontend
+sudo test "$(sudo readlink -f /srv/kivou/frontend)" = "$KIVOU_FRONTEND_RELEASE_DIR"
+
+sudo systemctl enable --now kivou-api.service
+sudo systemctl is-active --quiet kivou-api.service
+sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
+  /srv/kivou/app/ops/bin/kivou-api-readiness.sh kivou-api.service 8000
 
 sudo mv -Tf /etc/nginx/conf.d/kivou-limits.conf.new /etc/nginx/conf.d/kivou-limits.conf
 sudo mv -Tf /etc/nginx/kivou-proxy-params.conf.new /etc/nginx/kivou-proxy-params.conf
@@ -508,21 +514,16 @@ sudo mv -Tf /etc/nginx/sites-available/kivou-production-default-deny.new /etc/ng
 sudo mv -Tf /etc/nginx/sites-available/kivou.new /etc/nginx/sites-available/kivou
 sudo mv -Tf /etc/nginx/sites-available/kivou-www.new /etc/nginx/sites-available/kivou-www
 
-for KIVOU_SITE in kivou-production-default-deny kivou kivou-www; do
-  KIVOU_SITE_LINK_NEW=/etc/nginx/sites-enabled/$KIVOU_SITE.new
-  case "$KIVOU_SITE_LINK_NEW" in (/etc/nginx/sites-enabled/*.new) ;; (*) exit 69 ;; esac
-  sudo test ! -e "$KIVOU_SITE_LINK_NEW"
-  sudo test ! -L "$KIVOU_SITE_LINK_NEW"
-  sudo ln -s "/etc/nginx/sites-available/$KIVOU_SITE" "$KIVOU_SITE_LINK_NEW"
-  sudo mv -Tf "$KIVOU_SITE_LINK_NEW" "/etc/nginx/sites-enabled/$KIVOU_SITE"
-done
+sudo mv -Tf /etc/nginx/sites-enabled/kivou-production-default-deny.new /etc/nginx/sites-enabled/kivou-production-default-deny
+sudo mv -Tf /etc/nginx/sites-enabled/kivou.new /etc/nginx/sites-enabled/kivou
+sudo mv -Tf /etc/nginx/sites-enabled/kivou-www.new /etc/nginx/sites-enabled/kivou-www
 sudo nginx -t
 sudo systemctl reload nginx
 ```
 
-Stop gate : le default deny est un site activé, les trois sites et cinq
-fragments sont publiés, `nginx -t` passe sur la configuration réellement active
-et nginx a été rechargé une seule fois.
+Stop gate : les deux liens pointent vers les nouvelles releases, l'API répond
+sur 8000, le default deny est activé, les trois sites et cinq fragments sont
+publiés, puis `nginx -t` et l'unique reload sont verts.
 
 ## 9. Vérifier le service HTTPS publié
 
@@ -579,9 +580,9 @@ attente d'un smoke SMTP séparément autorisé.
 Ce bloc est autonome : il lit trois valeurs non secrètes par lignes, sans
 évaluer le fichier. Il désactive d'abord les sources et timers fautifs. Il ne
 restaure qu'une cible de release capturée et immuable. Si une cible était
-`ABSENT`, le runtime reste désactivé et la release courante est laissée en place
-pour analyse. Les configurations remplacées sont déplacées vers une nouvelle
-capture `failed`, jamais supprimées.
+`ABSENT`, le runtime reste désactivé et son lien courant est déplacé pour
+analyse. La restauration app/frontend ne dépend jamais de la capture nginx.
+Nginx n'est restauré et rechargé que si sa capture complète est encore valide.
 
 ```bash
 set -euo pipefail
@@ -603,10 +604,19 @@ KIVOU_PREVIOUS_APP_TARGET=$(sudo sed -n '1p' "$KIVOU_ROLLOUT_STATE")
 KIVOU_PREVIOUS_FRONTEND_TARGET=$(sudo sed -n '2p' "$KIVOU_ROLLOUT_STATE")
 KIVOU_ROLLBACK_DIR=$(sudo sed -n '3p' "$KIVOU_ROLLOUT_STATE")
 case "$KIVOU_ROLLBACK_DIR" in (/root/kivou-rollbacks/production-runtime-*) ;; (*) exit 69 ;; esac
-sudo test -d "$KIVOU_ROLLBACK_DIR/nginx"
+
+KIVOU_FAILED_DIR=/root/kivou-rollbacks/failed-$(date -u +%Y%m%dT%H%M%SZ)
+case "$KIVOU_FAILED_DIR" in (/root/kivou-rollbacks/failed-*) ;; (*) exit 69 ;; esac
+sudo install -o root -g root -m 700 -d "$KIVOU_FAILED_DIR"
 
 case "$KIVOU_PREVIOUS_APP_TARGET" in
-  (ABSENT) ;;
+  (ABSENT)
+    if sudo test -L /srv/kivou/app; then
+      sudo mv -Tf /srv/kivou/app "$KIVOU_FAILED_DIR/app-link"
+    else
+      sudo test ! -e /srv/kivou/app
+    fi
+    ;;
   (/srv/kivou/releases/backend-*)
     sudo test -d "$KIVOU_PREVIOUS_APP_TARGET"
     test -z "$(sudo find "$KIVOU_PREVIOUS_APP_TARGET" -perm /222 -print -quit)"
@@ -619,7 +629,13 @@ case "$KIVOU_PREVIOUS_APP_TARGET" in
   (*) exit 69 ;;
 esac
 case "$KIVOU_PREVIOUS_FRONTEND_TARGET" in
-  (ABSENT) ;;
+  (ABSENT)
+    if sudo test -L /srv/kivou/frontend; then
+      sudo mv -Tf /srv/kivou/frontend "$KIVOU_FAILED_DIR/frontend-link"
+    else
+      sudo test ! -e /srv/kivou/frontend
+    fi
+    ;;
   (/srv/kivou/releases/frontend-*)
     sudo test -d "$KIVOU_PREVIOUS_FRONTEND_TARGET"
     test -z "$(sudo find "$KIVOU_PREVIOUS_FRONTEND_TARGET" -perm /222 -print -quit)"
@@ -632,9 +648,12 @@ case "$KIVOU_PREVIOUS_FRONTEND_TARGET" in
   (*) exit 69 ;;
 esac
 
-KIVOU_FAILED_DIR=/root/kivou-rollbacks/failed-$(date -u +%Y%m%dT%H%M%SZ)
-case "$KIVOU_FAILED_DIR" in (/root/kivou-rollbacks/failed-*) ;; (*) exit 69 ;; esac
-sudo install -o root -g root -m 700 -d "$KIVOU_FAILED_DIR"
+if [ "$KIVOU_PREVIOUS_APP_TARGET" != ABSENT ]; then
+  sudo systemctl enable --now kivou-api.service
+  sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
+    /srv/kivou/app/ops/bin/kivou-api-readiness.sh kivou-api.service 8000
+fi
+
 KIVOU_NGINX_CAPTURE_PATHS=(
   /etc/nginx/conf.d/kivou-limits.conf
   /etc/nginx/kivou-proxy-params.conf
@@ -645,51 +664,77 @@ KIVOU_NGINX_CAPTURE_PATHS=(
   /etc/nginx/sites-available/kivou
   /etc/nginx/sites-available/kivou-www
 )
-for KIVOU_NGINX_PATH in "${KIVOU_NGINX_CAPTURE_PATHS[@]}"; do
-  KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_NGINX_PATH" | sed 's#^/##; s#/#__#g')
-  case "$KIVOU_NGINX_PATH" in (/etc/nginx/*) ;; (*) exit 69 ;; esac
-  if sudo test -e "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved" || sudo test -L "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved"; then
-    sudo test ! -e "$KIVOU_NGINX_PATH.rollback-new"
-    sudo test ! -L "$KIVOU_NGINX_PATH.rollback-new"
-    sudo cp -a "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved" "$KIVOU_NGINX_PATH.rollback-new"
-    sudo mv -Tf "$KIVOU_NGINX_PATH.rollback-new" "$KIVOU_NGINX_PATH"
-  else
-    sudo test -f "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.ABSENT"
-    if sudo test -e "$KIVOU_NGINX_PATH" || sudo test -L "$KIVOU_NGINX_PATH"; then
+KIVOU_NGINX_CAPTURE_VALID=0
+if sudo test -d "$KIVOU_ROLLBACK_DIR/nginx" && \
+    test -z "$(sudo find "$KIVOU_ROLLBACK_DIR/nginx" -perm /222 -print -quit)"; then
+  KIVOU_NGINX_CAPTURE_VALID=1
+  for KIVOU_NGINX_PATH in "${KIVOU_NGINX_CAPTURE_PATHS[@]}"; do
+    KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_NGINX_PATH" | sed 's#^/##; s#/#__#g')
+    if { sudo test -e "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved" || sudo test -L "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved"; } && \
+        sudo test ! -e "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.ABSENT"; then
+      :
+    elif sudo test -f "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.ABSENT" && \
+        sudo test ! -e "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved" && \
+        sudo test ! -L "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved"; then
+      :
+    else
+      KIVOU_NGINX_CAPTURE_VALID=0
+    fi
+  done
+  for KIVOU_SITE_LINK in /etc/nginx/sites-enabled/kivou-production-default-deny /etc/nginx/sites-enabled/kivou /etc/nginx/sites-enabled/kivou-www; do
+    KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_SITE_LINK" | sed 's#^/##; s#/#__#g')
+    if sudo test -f "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.target" && \
+        sudo test ! -e "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.ABSENT"; then
+      KIVOU_SITE_TARGET=$(sudo sed -n '1p' "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.target")
+      case "$KIVOU_SITE_TARGET" in (/etc/nginx/sites-available/*) ;; (*) KIVOU_NGINX_CAPTURE_VALID=0 ;; esac
+      if [ "$(sudo wc -l < "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.target")" != 1 ]; then
+        KIVOU_NGINX_CAPTURE_VALID=0
+      fi
+    elif sudo test -f "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.ABSENT" && \
+        sudo test ! -e "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.target"; then
+      :
+    else
+      KIVOU_NGINX_CAPTURE_VALID=0
+    fi
+  done
+fi
+
+if [ "$KIVOU_NGINX_CAPTURE_VALID" = 1 ]; then
+  for KIVOU_NGINX_PATH in "${KIVOU_NGINX_CAPTURE_PATHS[@]}"; do
+    KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_NGINX_PATH" | sed 's#^/##; s#/#__#g')
+    case "$KIVOU_NGINX_PATH" in (/etc/nginx/*) ;; (*) exit 69 ;; esac
+    if sudo test -e "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved" || sudo test -L "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved"; then
+      sudo test ! -e "$KIVOU_NGINX_PATH.rollback-new"
+      sudo test ! -L "$KIVOU_NGINX_PATH.rollback-new"
+      sudo cp -a "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved" "$KIVOU_NGINX_PATH.rollback-new"
+      sudo mv -Tf "$KIVOU_NGINX_PATH.rollback-new" "$KIVOU_NGINX_PATH"
+    elif sudo test -e "$KIVOU_NGINX_PATH" || sudo test -L "$KIVOU_NGINX_PATH"; then
       sudo mv -Tf "$KIVOU_NGINX_PATH" "$KIVOU_FAILED_DIR/$KIVOU_CAPTURE_NAME"
     fi
-  fi
-done
-
-for KIVOU_SITE_LINK in /etc/nginx/sites-enabled/kivou-production-default-deny /etc/nginx/sites-enabled/kivou /etc/nginx/sites-enabled/kivou-www; do
-  KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_SITE_LINK" | sed 's#^/##; s#/#__#g')
-  case "$KIVOU_SITE_LINK" in (/etc/nginx/sites-enabled/*) ;; (*) exit 69 ;; esac
-  if sudo test -f "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.target"; then
-    KIVOU_SITE_TARGET=$(sudo sed -n '1p' "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.target")
-    case "$KIVOU_SITE_TARGET" in (/etc/nginx/sites-available/*) ;; (*) exit 69 ;; esac
-    sudo test -e "$KIVOU_SITE_TARGET"
-    KIVOU_SITE_LINK_NEW=$KIVOU_SITE_LINK.rollback-new
-    sudo test ! -e "$KIVOU_SITE_LINK_NEW"
-    sudo test ! -L "$KIVOU_SITE_LINK_NEW"
-    sudo ln -s "$KIVOU_SITE_TARGET" "$KIVOU_SITE_LINK_NEW"
-    sudo mv -Tf "$KIVOU_SITE_LINK_NEW" "$KIVOU_SITE_LINK"
-  else
-    sudo test -f "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.ABSENT"
-    if sudo test -e "$KIVOU_SITE_LINK" || sudo test -L "$KIVOU_SITE_LINK"; then
+  done
+  for KIVOU_SITE_LINK in /etc/nginx/sites-enabled/kivou-production-default-deny /etc/nginx/sites-enabled/kivou /etc/nginx/sites-enabled/kivou-www; do
+    KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_SITE_LINK" | sed 's#^/##; s#/#__#g')
+    case "$KIVOU_SITE_LINK" in (/etc/nginx/sites-enabled/*) ;; (*) exit 69 ;; esac
+    if sudo test -f "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.target"; then
+      KIVOU_SITE_TARGET=$(sudo sed -n '1p' "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.target")
+      sudo test -e "$KIVOU_SITE_TARGET"
+      KIVOU_SITE_LINK_NEW=$KIVOU_SITE_LINK.rollback-new
+      sudo test ! -e "$KIVOU_SITE_LINK_NEW"
+      sudo test ! -L "$KIVOU_SITE_LINK_NEW"
+      sudo ln -s "$KIVOU_SITE_TARGET" "$KIVOU_SITE_LINK_NEW"
+      sudo mv -Tf "$KIVOU_SITE_LINK_NEW" "$KIVOU_SITE_LINK"
+    elif sudo test -e "$KIVOU_SITE_LINK" || sudo test -L "$KIVOU_SITE_LINK"; then
       sudo mv -Tf "$KIVOU_SITE_LINK" "$KIVOU_FAILED_DIR/$KIVOU_CAPTURE_NAME"
     fi
-  fi
-done
-sudo nginx -t
-sudo systemctl reload nginx
-
-if [ "$KIVOU_PREVIOUS_APP_TARGET" != ABSENT ]; then
-  sudo systemctl enable --now kivou-api.service
-  sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
-    /srv/kivou/app/ops/bin/kivou-api-readiness.sh kivou-api.service 8000
+  done
+  sudo nginx -t
+  sudo systemctl reload nginx
+else
+  printf '%s\n' 'nginx_rollback=skipped_invalid_capture' >&2
 fi
 ```
 
-Rollback terminé uniquement si nginx repasse son test et son reload. Les
-releases, dumps, snapshots restic, captures initiales et fichiers déplacés dans
-`failed-*` sont tous conservés pour analyse.
+Le retour app/frontend et l'état API sont établis avant d'examiner nginx. Une
+capture nginx absente ou invalide est ignorée sans annuler ce retour ; une
+capture valide n'est publiée que si `nginx -t` passe, puis nginx est rechargé.
+Les releases, dumps, snapshots et captures sont tous conservés.
