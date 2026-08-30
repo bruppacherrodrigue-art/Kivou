@@ -807,7 +807,9 @@ errors use the same factual path. Published fallback metadata must use
 `generator_version="factual-fallback-v1"`, a deterministic QA policy version,
 and null provider, model, prompt and QA-provider fields. No application route,
 worker, provider implementation, environment credential or Hermes default is
-introduced.
+introduced. Provider-returned reasons are untrusted: private and factual
+attempts persist only closed service-owned reason codes. The public factual
+publisher exposes no caller-controlled reason parameter.
 
 - [ ] **Step 4: Run service tests**
 
