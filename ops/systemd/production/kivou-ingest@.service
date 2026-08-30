@@ -1,0 +1,36 @@
+[Unit]
+Description=Kivou — ingestion de production %i
+Documentation=file:/srv/kivou/app/ops/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/production.env
+RuntimeDirectory=kivou
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/flock --verbose --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou/ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source %i
+TimeoutStartSec=30min
+TimeoutStopSec=90s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-ingest-%i
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+InaccessiblePaths=/srv/kivou/.ssh
+ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
+ReadWritePaths=/run/kivou
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

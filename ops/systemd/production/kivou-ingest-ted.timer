@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — convergence TED de production toutes les deux heures
+
+[Timer]
+OnCalendar=*-*-* 00/2:30:00
+Persistent=true
+RandomizedDelaySec=60
+AccuracySec=60
+Unit=kivou-ingest@ted.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — convergence DECP de production horaire
+
+[Timer]
+OnCalendar=*-*-* *:20:00
+Persistent=true
+RandomizedDelaySec=60
+AccuracySec=60
+Unit=kivou-ingest@decp.service
+
+[Install]
+WantedBy=timers.target

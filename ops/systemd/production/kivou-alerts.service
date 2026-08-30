@@ -1,0 +1,33 @@
+[Unit]
+Description=Kivou — alertes transactionnelles de production
+Documentation=file:/srv/kivou/app/ops/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/production.env
+ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 0 /srv/kivou/run/alerts.lock /srv/kivou/app/.venv/bin/python -m signals.alerts
+TimeoutStartSec=20min
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-alerts
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+InaccessiblePaths=/srv/kivou/.ssh
+ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
+ReadWritePaths=/srv/kivou/run
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6

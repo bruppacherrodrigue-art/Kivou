@@ -1,0 +1,38 @@
+[Unit]
+Description=Kivou API production (FastAPI/uvicorn)
+Documentation=file:/srv/kivou/app/ops/README.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=exec
+User=kivou
+Group=kivou
+WorkingDirectory=/srv/kivou/app
+EnvironmentFile=/etc/kivou/production.env
+ExecStart=/srv/kivou/app/.venv/bin/uvicorn signals.api.asgi:app --host 127.0.0.1 --port 8000 --workers 2 --proxy-headers --forwarded-allow-ips 127.0.0.1 --no-server-header --no-access-log --timeout-keep-alive 20
+Restart=on-failure
+RestartSec=5s
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-api
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+InaccessiblePaths=/srv/kivou/.ssh
+ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
+ReadWritePaths=/srv/kivou/run
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target
