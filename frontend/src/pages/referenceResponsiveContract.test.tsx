@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
   AUTHENTICATED,
+  CARD_PRESENTATION,
   ICP,
   ME,
   PRO_STATUS,
@@ -44,7 +45,10 @@ describe('contrat responsive connecté à 390 px', () => {
       session: AUTHENTICATED,
     })
 
-    await screen.findByRole('heading', { name: UNLOCKED_ITEM.contract.title! })
+    const detailHeading = await screen.findByRole('heading', {
+      name: CARD_PRESENTATION.content.headline,
+    })
+    await waitFor(() => expect(detailHeading).toHaveFocus())
     expect(screen.getAllByRole('main')).toHaveLength(1)
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Ouvrir la navigation' })).toBeVisible()
@@ -137,6 +141,11 @@ describe('contrat responsive connecté à 390 px', () => {
       signal_id: 'sig_mobile_2',
       company: { ...UNLOCKED_ITEM.company, name: 'Deuxième entreprise mobile' },
       contract: { ...UNLOCKED_ITEM.contract, title: 'Deuxième marché mobile' },
+      presentation: {
+        ...CARD_PRESENTATION,
+        artifact_id: 'card_sig_mobile_2_v1',
+        content: { ...CARD_PRESENTATION.content, headline: 'Deuxième analyse mobile' },
+      },
     }
     const secondDetail = { ...UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_2' }
     mockApi({
@@ -156,7 +165,9 @@ describe('contrat responsive connecté à 390 px', () => {
 
     const row = await screen.findByRole('button', { name: /Deuxième entreprise mobile/ })
     await user.click(row)
-    const heading = await screen.findByRole('heading', { name: second.contract.title })
+    const heading = await screen.findByRole('heading', {
+      name: second.presentation.content.headline,
+    })
     await waitFor(() => expect(heading).toHaveFocus())
 
     await user.click(screen.getByRole('button', { name: 'Retour à la liste' }))
@@ -173,6 +184,11 @@ describe('contrat responsive connecté à 390 px', () => {
       signal_id: 'sig_mobile_delayed',
       company: { ...UNLOCKED_ITEM.company, name: 'Entreprise mobile différée' },
       contract: { ...UNLOCKED_ITEM.contract, title: 'Marché mobile différé' },
+      presentation: {
+        ...CARD_PRESENTATION,
+        artifact_id: 'card_sig_mobile_delayed_v1',
+        content: { ...CARD_PRESENTATION.content, headline: 'Analyse mobile différée' },
+      },
     }
     const secondDetail = { ...UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_delayed' }
     mockApi({
@@ -194,7 +210,9 @@ describe('contrat responsive connecté à 390 px', () => {
     await screen.findByRole('heading', { name: 'Chargement…' })
     await act(async () => resolveDetail({ body: secondDetail }))
 
-    const heading = await screen.findByRole('heading', { name: second.contract.title })
+    const heading = await screen.findByRole('heading', {
+      name: second.presentation.content.headline,
+    })
     await waitFor(() => expect(heading).toHaveFocus())
   })
 
@@ -214,6 +232,11 @@ describe('contrat responsive connecté à 390 px', () => {
       'prefers-reduced-motion: reduce',
     ])
     expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)[\s\S]*scroll-behavior:\s*auto/)
+    expect(css).toMatch(/\.signal-match\s*\{[\s\S]*?-webkit-line-clamp:\s*2/)
+    expect(css).toMatch(
+      /\.signal-reason:not\(\.signal-lock-note\)\s*\{[\s\S]*?-webkit-line-clamp:\s*2/,
+    )
+    expect(css).toMatch(/\.signal-company-card\s*\{[^}]*position:\s*static/)
   })
 })
 

@@ -71,7 +71,7 @@ export function SignalsFeed() {
   const lastSelection = useRef<string | null>(null)
   const previousLocationKey = useRef(location.key)
   const initialFocusRestored = useRef(false)
-  const pendingDetailFocus = useRef<string | null>(null)
+  const pendingDetailFocus = useRef<string | null>(signalKey ?? null)
   const navigateRef = useRef(navigate)
   navigateRef.current = navigate
 
@@ -434,6 +434,10 @@ export function SignalsFeed() {
       ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
       : t.reference.missingValue
   const displayDate = (value: string | null) => date(value) ?? t.reference.missingValue
+  const displayEventDate = (card: SignalCardView) => interpolate(
+    t.reference.signalsPage.eventDates[card.eventDateKind],
+    { date: displayDate(card.eventDate) },
+  )
   const displayLocation = (card: SignalCardView) => {
     if (!card.location) return t.reference.missingValue
     const region = [card.location.locality, card.location.postal_code, card.location.country]
@@ -447,8 +451,8 @@ export function SignalsFeed() {
       <aside className="feed-panel" aria-labelledby="signals-list-title">
         <div className="panel-heading">
           <div>
-            <p className="section-label">{t.reference.headings.awardedContracts}</p>
-            <h2 id="signals-list-title">{t.reference.signalsPage.documentedAwards}</h2>
+            <p className="section-label">{t.reference.signalsPage.sourceType}</p>
+            <h2 id="signals-list-title">{t.reference.signalsPage.detectedSignals}</h2>
           </div>
           <span className="signal-count">{signalCount}</span>
         </div>
@@ -478,13 +482,14 @@ export function SignalsFeed() {
                 && note.state !== 'loading'
                 && note.state !== 'read-error'
               const hasSelectedNote = selectedNoteIsKnown && note.value.trim().length > 0
+              const presentationMode = card.presentation?.mode ?? 'unavailable'
               const badge = card.locked
                 ? t.reference.signalsPage.paidAccessRequired
-                : hasSelectedNote
-                  ? t.reference.statuses.noteAdded
-                : card.id === firstUnlocked?.signal_id
-                  ? t.reference.statuses.reviewFirst
-                  : t.reference.statuses.documentedSignal
+                : t.reference.signalsPage.presentationStatus[presentationMode]
+              const cardTitle = card.locked
+                ? card.eventTitle
+                : card.presentation?.headline
+                  ?? t.reference.signalsPage.presentationUnavailableTitle
               return (
                 <button
                   type="button"
@@ -493,6 +498,16 @@ export function SignalsFeed() {
                     else rowRefs.current.delete(card.id)
                   }}
                   className={`signal-item${selected ? ' is-selected' : ''}${card.locked ? ' is-locked' : ''}`}
+                  aria-label={card.locked
+                    ? interpolate(t.reference.signalsPage.openLockedSignal, {
+                        headline: cardTitle ?? t.reference.missingValue,
+                        status: badge,
+                      })
+                    : interpolate(t.reference.signalsPage.openSignal, {
+                        company: card.companyName ?? t.reference.missingValue,
+                        headline: cardTitle ?? t.reference.missingValue,
+                        status: badge,
+                      })}
                   aria-pressed={selected}
                   onClick={() => {
                     if (card.locked) {
@@ -514,23 +529,38 @@ export function SignalsFeed() {
                 >
                   <span className="signal-item-head">
                     <strong>{card.companyName ?? t.reference.missingValue}</strong>
-                    <span>{badge}</span>
+                    <span className={`presentation-${presentationMode}`}>{badge}</span>
                   </span>
-                  <span className="signal-event">{card.eventTitle ?? t.reference.missingValue}</span>
-                  <span className="signal-meta">{displayAmount(card)} · {displayLocation(card)}</span>
-                  <span className="signal-fit">
-                    {interpolate(t.reference.signalsPage.eventDate, {
-                      date: displayDate(card.eventDate),
-                    })}
-                  </span>
-                  <span className="signal-match">
-                    {card.locked ? badge : card.matchLabel ?? t.reference.missingValue}
-                  </span>
-                  {card.locked || card.id === firstUnlocked?.signal_id ? (
-                    <span className={`signal-reason${card.locked ? ' signal-lock-note' : ''}`}>
-                      {card.locked ? <LockKeyhole aria-hidden="true" /> : null}
-                      {card.locked ? t.reference.signalsPage.lockedReason : card.whyNow}
+                  <span className="signal-event">{cardTitle ?? t.reference.missingValue}</span>
+                  {!card.locked ? (
+                    <span className="signal-card-summary">
+                      {card.presentation?.awardSummary
+                        ?? t.reference.signalsPage.presentationUnavailableBody}
                     </span>
+                  ) : null}
+                  <span className="signal-meta">{displayAmount(card)} · {displayLocation(card)}</span>
+                  <span className="signal-fit">{displayEventDate(card)}</span>
+                  {!card.locked && card.presentation?.mode === 'full' ? (
+                    <span className="signal-match">{card.presentation.fitReason}</span>
+                  ) : null}
+                  {!card.locked && card.presentation?.mode === 'full' ? (
+                    <span className="signal-reason">{card.presentation.timing}</span>
+                  ) : null}
+                  {card.locked ? (
+                    <span className={`signal-reason${card.locked ? ' signal-lock-note' : ''}`}>
+                      <LockKeyhole aria-hidden="true" />
+                      {t.reference.signalsPage.lockedReason}
+                    </span>
+                  ) : null}
+                  {!card.locked ? (
+                    <span className="signal-card-action">
+                      {card.presentation?.mode === 'full'
+                        ? t.reference.signalsPage.viewAnalysis
+                        : t.reference.signalsPage.viewPublishedFacts}
+                    </span>
+                  ) : null}
+                  {hasSelectedNote ? (
+                    <span className="signal-note-state">{t.reference.statuses.noteAdded}</span>
                   ) : null}
                 </button>
               )

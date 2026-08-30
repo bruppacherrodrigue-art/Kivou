@@ -9,7 +9,10 @@ function dashboardDestination(href: string): string {
   }
   if (url.pathname === '/companies') {
     const company = url.searchParams.get('company')
-    return company ? `/app/companies/${encodeURIComponent(company)}` : '/app/companies'
+    const signal = url.searchParams.get('signal')
+    if (!company) return '/app/companies'
+    const destination = `/app/companies/${encodeURIComponent(company)}`
+    return signal ? `${destination}?signal=${encodeURIComponent(signal)}` : destination
   }
   const routes: Record<string, string> = {
     '/targeting': '/app/icps',

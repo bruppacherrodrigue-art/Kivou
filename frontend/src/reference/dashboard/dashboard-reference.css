@@ -582,12 +582,27 @@ a:focus-visible {
 }
 
 .signal-event {
-  display: block;
+  display: -webkit-box;
+  overflow: hidden;
   margin: 7px 0 5px;
   color: #23352e;
   font-size: 13px;
   font-weight: 560;
   line-height: 1.42;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.signal-card-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 7px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.48;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .signal-meta,
@@ -601,6 +616,37 @@ a:focus-visible {
   line-height: 1.5;
 }
 
+.signal-card-action {
+  display: block;
+  margin-top: 10px;
+  color: var(--blue);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.signal-note-state {
+  display: block;
+  width: fit-content;
+  margin-top: 7px;
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 650;
+}
+
+.signal-item-head span.presentation-factualFallback,
+.published-status.presentation-factualFallback {
+  border-color: var(--blue-border);
+  background: var(--blue-soft);
+  color: var(--blue-hover);
+}
+
+.signal-item-head span.presentation-unavailable,
+.published-status.presentation-unavailable {
+  border-color: var(--line);
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
 .signal-fit {
   margin-top: 3px;
   color: var(--green);
@@ -608,8 +654,10 @@ a:focus-visible {
 }
 
 .signal-match {
-  display: inline-flex;
+  display: -webkit-box;
   width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
   margin-top: 7px;
   padding: 3px 7px;
   border: 1px solid var(--card-border);
@@ -618,12 +666,21 @@ a:focus-visible {
   color: var(--green);
   font-size: 10px;
   font-weight: 680;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .signal-reason {
   margin-top: 9px;
   padding-top: 9px;
   border-top: 1px solid rgba(31, 107, 85, 0.12);
+}
+
+.signal-reason:not(.signal-lock-note) {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .detail-panel {
@@ -661,6 +718,52 @@ a:focus-visible {
   font-weight: 450;
   letter-spacing: -0.03em;
   line-height: 1.13;
+}
+
+#signal-detail .detail-hero h2 {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.signal-presentation-hero > div:first-child {
+  min-width: 0;
+}
+
+.signal-hero-actions {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: end;
+  gap: 10px;
+}
+
+.signal-context-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 19px 0 0;
+}
+
+.signal-context-row > div {
+  display: grid;
+  gap: 3px;
+}
+
+.signal-context-row dt {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 690;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+
+.signal-context-row dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 660;
 }
 
 .detail-summary {
@@ -3308,6 +3411,146 @@ a:focus-visible {
   color: var(--text-muted);
   font-size: 9px;
   line-height: 1.45;
+}
+
+.presentation-targets {
+  display: grid;
+  gap: 9px;
+  margin-top: 17px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.presentation-targets > span {
+  color: var(--green);
+  font-size: 9px;
+  font-weight: 730;
+  letter-spacing: .055em;
+  text-transform: uppercase;
+}
+
+.presentation-targets ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.presentation-targets li {
+  padding: 5px 8px;
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  background: var(--green-state);
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 660;
+}
+
+.presentation-claims,
+.presentation-unknowns,
+.signal-company-card {
+  margin-top: 20px;
+}
+
+.signal-company-card {
+  position: static;
+}
+
+.presentation-claim-groups {
+  display: grid;
+  gap: 14px;
+  margin-top: 17px;
+}
+
+.presentation-claim-groups section {
+  display: grid;
+  gap: 9px;
+}
+
+.presentation-claim-groups h4 {
+  margin: 0;
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 720;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+
+.presentation-claim-groups ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.presentation-claim-groups li {
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+}
+
+.presentation-claim-groups p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.presentation-claim-groups li > span {
+  display: block;
+  margin-top: 7px;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.signal-fact-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.signal-source-disclosure {
+  margin-top: 17px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.signal-source-disclosure summary {
+  width: fit-content;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 690;
+  cursor: pointer;
+}
+
+.signal-source-disclosure dl {
+  display: grid;
+  gap: 10px;
+  margin: 14px 0;
+}
+
+.signal-source-disclosure dl > div {
+  display: grid;
+  gap: 4px;
+}
+
+.signal-source-disclosure dt {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 680;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.signal-source-disclosure dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .workflow-panel {
@@ -6099,11 +6342,19 @@ button.public-cta {
     gap: 16px;
   }
 
+  .signal-hero-actions {
+    justify-items: start;
+  }
+
   .source-link {
     width: fit-content;
   }
 
   .fact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .signal-fact-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -6314,6 +6565,7 @@ button.public-cta {
   }
 
   .commercial-brief-grid,
+  .presentation-claim-groups ul,
   .workflow-form,
   .workflow-learning-facts {
     grid-template-columns: minmax(0, 1fr);

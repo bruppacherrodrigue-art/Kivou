@@ -8,6 +8,7 @@ import { useSignalNote } from '../reference/dashboard/useSignalNote'
 import type { NoteSaveState } from '../reference/dashboard/useSignalNote'
 import {
   AUTHENTICATED,
+  CARD_PRESENTATION,
   CATALOGUE,
   DISCOVERY_STATUS,
   ICP,
@@ -65,10 +66,15 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
     expect(
       await screen.findByRole('heading', {
         level: 2,
-        name: UNLOCKED_ITEM.contract.title!,
+        name: CARD_PRESENTATION.content.headline,
       }),
     ).toBeVisible()
     expect(document.querySelector('.workspace-grid .feed-panel + .detail-panel')).not.toBeNull()
+    expect(screen.getByText('Pourquoi c’est commercialement important')).toBeVisible()
+    expect(screen.getByText('Responsable achats chantier')).toBeVisible()
+    expect(screen.getByText('Responsable travaux')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Voir l’entreprise' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: /contacts/i })).not.toBeInTheDocument()
   })
 
   it('enregistre la valeur exacte après 500 ms et annonce honnêtement le résultat', async () => {
@@ -238,6 +244,15 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
       signal_id: 'sig_unlocked_2',
       company: { ...UNLOCKED_ITEM.company, name: 'Deuxième entreprise réelle' },
       contract: { ...UNLOCKED_ITEM.contract, title: 'Deuxième marché réel' },
+      presentation: {
+        ...CARD_PRESENTATION,
+        artifact_id: 'card_sig_unlocked_2_v1',
+        content: {
+          ...CARD_PRESENTATION.content,
+          headline: 'Deuxième analyse publiée',
+          award_summary: 'Résumé publié pour la deuxième entreprise réelle.',
+        },
+      },
     }
     const secondDetail = {
       ...UNLOCKED_DETAIL,

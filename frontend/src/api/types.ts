@@ -36,6 +36,11 @@ export type CustomerEventType =
   | 'recently_notified_contract'
   | 'recently_published_award'
 
+export type CardPresentationStatus = 'PASS' | 'FALLBACK'
+export type CardPresentationVariant = 'FULL' | 'FACTUAL_FALLBACK'
+export type CardPresentationClaimKind = 'FACT' | 'INFERENCE' | 'RECOMMENDATION'
+export type CardPresentationConfidence = 'high' | 'medium' | 'low'
+
 export type MagnitudeBand = 'under_50k' | '50k_250k' | '250k_1m' | '1m_5m' | 'over_5m'
 
 export type OfferKind =
@@ -330,7 +335,7 @@ interface CardPresentationClaimBase {
   claim_id: string
   text: string
   evidence_refs: string[]
-  confidence: 'high' | 'medium' | 'low' | null
+  confidence: CardPresentationConfidence | null
 }
 
 export interface FactualCardPresentationClaim extends CardPresentationClaimBase {
@@ -346,6 +351,7 @@ export interface InferenceCardPresentationClaim extends CardPresentationClaimBas
 
 export interface RecommendationCardPresentationClaim extends CardPresentationClaimBase {
   kind: 'RECOMMENDATION'
+  evidence_refs: [string, ...string[]]
 }
 
 export type CardPresentationClaim =

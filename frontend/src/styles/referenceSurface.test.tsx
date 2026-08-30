@@ -166,11 +166,15 @@ describe('reference presentation surface', () => {
   it('maps dashboard hrefs while preserving public same-origin hrefs', () => {
     renderApp(<>
       <ReferenceLink dashboard href="/signals?signal=sig_1">open signal</ReferenceLink>
+      <ReferenceLink dashboard href="/companies?company=cmp_1&signal=sig_1">open award</ReferenceLink>
       <ReferenceLink dashboard href="/checkout?plan=pro">checkout</ReferenceLink>
       <ReferenceLink href="/">public home</ReferenceLink>
     </>, { session: UNAUTHENTICATED })
     expect(screen.getByRole('link', { name: 'open signal' })).toHaveAttribute(
       'href', '/app/signals/sig_1',
+    )
+    expect(screen.getByRole('link', { name: 'open award' })).toHaveAttribute(
+      'href', '/app/companies/cmp_1?signal=sig_1',
     )
     expect(screen.getByRole('link', { name: 'public home' })).toHaveAttribute('href', '/')
     expect(screen.getByRole('link', { name: 'checkout' })).toHaveAttribute(

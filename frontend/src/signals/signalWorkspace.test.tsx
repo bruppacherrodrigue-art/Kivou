@@ -3,9 +3,10 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../App'
-import type { FeedPage, UnlockedDetail, UnlockedFeedItem } from '../api/types'
+import type { CardPresentation, FeedPage, UnlockedDetail, UnlockedFeedItem } from '../api/types'
 import {
   AUTHENTICATED,
+  CARD_PRESENTATION,
   CATALOGUE,
   DISCOVERY_STATUS,
   ICP,
@@ -23,6 +24,19 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+function presentationFor(signalId: string, headline: string): CardPresentation {
+  return {
+    ...CARD_PRESENTATION,
+    artifact_id: `card_${signalId}_v1`,
+    content: {
+      ...CARD_PRESENTATION.content,
+      headline,
+      award_summary: `Résumé publié pour ${headline}.`,
+      claims: CARD_PRESENTATION.content.claims,
+    },
+  }
+}
+
 const SECOND_ITEM: UnlockedFeedItem = {
   ...UNLOCKED_ITEM,
   signal_id: 'sig_unlocked_2',
@@ -32,6 +46,7 @@ const SECOND_ITEM: UnlockedFeedItem = {
     title: 'Deuxième marché public',
     buyer: { ...UNLOCKED_ITEM.contract.buyer!, name: 'Acheteur Deux' },
   },
+  presentation: presentationFor('sig_unlocked_2', 'Deuxième analyse commerciale'),
 }
 
 const SECOND_DETAIL: UnlockedDetail = {
@@ -45,6 +60,7 @@ const DEEP_ITEM: UnlockedFeedItem = {
   signal_id: 'sig_deep_page_2',
   company: { ...SECOND_ITEM.company, name: 'Deep Link SA' },
   contract: { ...SECOND_ITEM.contract, title: 'Marché trouvé en page deux' },
+  presentation: presentationFor('sig_deep_page_2', 'Analyse trouvée en page deux'),
 }
 
 const DEEP_DETAIL: UnlockedDetail = {
@@ -191,7 +207,10 @@ describe('workspace partagé des signaux', () => {
 
       const second = await screen.findByRole('button', { name: /Deuxième SA/ })
       await user.click(second)
-      const detailTitle = await screen.findByRole('heading', { level: 2, name: SECOND_DETAIL.contract.title! })
+      const detailTitle = await screen.findByRole('heading', {
+        level: 2,
+        name: SECOND_ITEM.presentation!.content.headline,
+      })
       await waitFor(() => expect(detailTitle).toHaveFocus())
       expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
 
@@ -241,7 +260,10 @@ describe('workspace partagé des signaux', () => {
       resolvePageTwo({ body: feedPage([DEEP_ITEM], { offset: 20 }) as FeedPage })
     })
 
-    expect(await screen.findByRole('heading', { level: 2, name: 'Marché trouvé en page deux' })).toBeVisible()
+    expect(await screen.findByRole('heading', {
+      level: 2,
+      name: DEEP_ITEM.presentation!.content.headline,
+    })).toBeVisible()
     expect(callsTo(`/signals/${DEEP_ITEM.signal_id}`, 'GET')).toHaveLength(1)
   })
 
@@ -272,6 +294,10 @@ describe('workspace partagé des signaux', () => {
     const historical = {
       ...DEEP_ITEM,
       signal_id: 'sig_historical_unlocked',
+      presentation: presentationFor(
+        'sig_historical_unlocked',
+        'Analyse historique publiée',
+      ),
       event: {
         ...DEEP_ITEM.event,
         status: 'stale_award' as const,
@@ -307,7 +333,10 @@ describe('workspace partagé des signaux', () => {
       resolveHistorical({ body: feedPage([historical], { freshness: 'all' }) as FeedPage })
     })
 
-    expect(await screen.findByRole('heading', { level: 2, name: historical.contract.title! })).toBeVisible()
+    expect(await screen.findByRole('heading', {
+      level: 2,
+      name: historical.presentation.content.headline,
+    })).toBeVisible()
     expect(callsTo(`/signals/${historical.signal_id}`, 'GET')).toHaveLength(1)
     const list = document.querySelector('.signal-list') as HTMLElement
     expect(within(list).queryByText('Deep Link SA')).toBeNull()

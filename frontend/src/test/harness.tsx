@@ -10,6 +10,7 @@ import type { SessionState } from '../auth/SessionProvider'
 import type {
   BillingStatus,
   CompanyProfile,
+  FallbackCardPresentation,
   LockedDetail,
   LockedFeedItem,
   Me,
@@ -133,36 +134,86 @@ export const UNAUTHENTICATED: SessionState = {
 }
 export const EXPIRED: SessionState = { status: 'unauthenticated', me: null, expired: true }
 
-export const UNLOCKED_PRESENTATION: PassCardPresentation = {
-  artifact_id: 'card_presentation_sig_unlocked_1_v1',
+export const CARD_PRESENTATION: PassCardPresentation = {
+  artifact_id: 'card_sig_unlocked_1_v1',
   schema_version: 'card-presentation-v1',
   version: 1,
   status: 'PASS',
-  published_at: '2026-08-18T08:00:00+00:00',
+  published_at: '2026-08-11T09:30:00+00:00',
   content: {
     schema_version: 'card-presentation-v1',
     variant: 'FULL',
     headline: 'Voirie communale : un chantier de 1,24 M€ attribué à Bertrand',
     award_summary:
-      'Constructions Bertrand SA réalisera la réfection de trois tronçons de voirie à Villeneuve, pour un montant public de 1,24 M€.',
+      'La Commune de Villeneuve a attribué à Constructions Bertrand SA la réfection de trois tronçons de voirie.',
     commercial_importance:
-      'Le chantier documente un volume significatif de travaux routiers.',
+      'Ce chantier documenté crée un contexte concret pour qualifier les fournitures restant à sourcer.',
     fit_reason:
-      'Le marché concerne les matériaux routiers ciblés par votre profil en France.',
+      'Le marché porte sur des travaux routiers et le besoin matériaux correspond au profil Matériaux — Occitanie.',
     timing:
-      'L’attribution date du 4 août 2026 ; le calendrier d’approvisionnement reste à confirmer.',
+      'L’attribution est récente ; le calendrier d’approvisionnement reste à vérifier.',
     recommended_action:
-      'Vérifier les fournitures encore à sourcer avant toute prise de contact.',
-    target_roles: ['SITE_PROCUREMENT_MANAGER'],
-    fit_need_categories: ['materials_and_components'],
-    unknowns: ['Fournisseurs déjà engagés non publiés.'],
+      'Vérifier les catégories de fournitures encore ouvertes puis préparer une approche ciblée.',
+    target_roles: ['SITE_PROCUREMENT_MANAGER', 'WORKS_MANAGER'],
+    fit_need_categories: ['materials_or_components'],
+    unknowns: [
+      'Les fournisseurs déjà retenus ne sont pas publiés.',
+      'Le calendrier détaillé d’approvisionnement reste à confirmer.',
+    ],
     claims: [
       {
-        claim_id: 'claim_award_summary_1',
+        claim_id: 'AWARD_FACT',
         kind: 'FACT',
-        text: 'Constructions Bertrand SA est attributaire du marché.',
-        evidence_refs: ['notice:26-104412'],
-        confidence: 'high',
+        text: 'Constructions Bertrand SA est l’attributaire publié du lot 2.',
+        evidence_refs: ['public_facts:award_winner'],
+        confidence: null,
+      },
+      {
+        claim_id: 'MATERIALS_FIT',
+        kind: 'INFERENCE',
+        text: 'Le chantier peut être pertinent pour une offre de matériaux routiers.',
+        evidence_refs: ['analysis_inputs:materials_or_components'],
+        confidence: 'medium',
+      },
+      {
+        claim_id: 'NEXT_ACTION',
+        kind: 'RECOMMENDATION',
+        text: 'Qualifier les fournitures encore ouvertes avant toute prise de contact.',
+        evidence_refs: ['analysis_inputs:recommended_next_step'],
+        confidence: null,
+      },
+    ],
+  },
+}
+
+export const UNLOCKED_PRESENTATION = CARD_PRESENTATION
+
+export const FACTUAL_FALLBACK_PRESENTATION: FallbackCardPresentation = {
+  artifact_id: 'card_sig_fallback_v1',
+  schema_version: 'card-presentation-v1',
+  version: 1,
+  status: 'FALLBACK',
+  published_at: '2026-08-11T09:30:00+00:00',
+  content: {
+    schema_version: 'card-presentation-v1',
+    variant: 'FACTUAL_FALLBACK',
+    headline: 'Marché de voirie attribué à Travaux Delmas SARL',
+    award_summary:
+      'Travaux Delmas SARL est l’attributaire publié d’un marché de voirie daté du 12 novembre 2025.',
+    commercial_importance: null,
+    fit_reason: null,
+    timing: null,
+    recommended_action: null,
+    target_roles: [],
+    fit_need_categories: [],
+    unknowns: ['Aucune analyse commerciale validée n’est publiée pour ce marché.'],
+    claims: [
+      {
+        claim_id: 'AWARD_FACT',
+        kind: 'FACT',
+        text: 'Travaux Delmas SARL est l’attributaire publié.',
+        evidence_refs: ['public_facts:award_winner'],
+        confidence: null,
       },
     ],
   },
@@ -172,7 +223,6 @@ export const UNLOCKED_ITEM: UnlockedFeedItem = {
   locked: false,
   signal_id: 'sig_unlocked_1',
   target_icp_id: 'icp_1',
-  presentation: UNLOCKED_PRESENTATION,
   company: {
     name: 'Constructions Bertrand SA',
     country: 'FR',
@@ -233,6 +283,7 @@ export const UNLOCKED_ITEM: UnlockedFeedItem = {
       reasons: ['Besoin visé : Matériaux ou composants', 'Territoire couvert : FR'],
     },
   },
+  presentation: CARD_PRESENTATION,
   source: {
     system: 'BOAMP',
     country: 'FR',
@@ -270,6 +321,7 @@ export const STALE_ITEM: UnlockedFeedItem = {
   ...UNLOCKED_ITEM,
   signal_id: 'sig_stale_1',
   company: { ...UNLOCKED_ITEM.company, name: 'Travaux Delmas SARL' },
+  presentation: FACTUAL_FALLBACK_PRESENTATION,
   event: {
     status: 'stale_award',
     type: null,

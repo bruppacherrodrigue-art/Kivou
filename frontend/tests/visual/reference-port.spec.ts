@@ -103,7 +103,9 @@ async function waitForScenario(
   if (golden === 'dashboard-signals') {
     await expect(page.locator('.signal-list .signal-item')).toHaveCount(6)
     await expect(page.locator('#detail-title')).toHaveText(
-      VISUAL_DETAILS.find((detail) => detail.signal_id === 'tm-ausbau-campus-ost')!.contract.title!,
+      VISUAL_DETAILS.find(
+        (detail) => detail.signal_id === 'tm-ausbau-campus-ost',
+      )!.presentation!.content.headline,
     )
     await expect(page.locator('.signal-note-card textarea')).toBeEnabled()
   }

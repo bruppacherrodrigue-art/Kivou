@@ -1,7 +1,6 @@
 import type {
   BillingStatus,
-  CardPresentation,
-  CardPresentationContent,
+  CardPresentationTargetRole,
   CompanyProfile,
   FeedItem,
   FeedPage,
@@ -14,10 +13,27 @@ import type {
   OverviewAwardCardView,
   SignalCardView,
   SignalDetailView,
+  SignalEventDateKind,
+  SignalPresentationClaimView,
+  SignalPresentationView,
   TargetProfileView,
 } from './models'
 
-const CARD_PRESENTATION_TARGET_ROLES = new Set([
+function eventDateKind(clock: string | null | undefined, status: string): SignalEventDateKind {
+  if (clock === 'notification' || status === 'recently_notified_contract') {
+    return 'notification'
+  }
+  if (
+    clock === 'publication'
+    || status === 'recently_published_award'
+    || status === 'award_date_unknown'
+  ) {
+    return 'publication'
+  }
+  return 'award'
+}
+
+const TARGET_ROLES = new Set<CardPresentationTargetRole>([
   'PROCUREMENT_MANAGER',
   'SITE_PROCUREMENT_MANAGER',
   'PROJECT_MANAGER',
@@ -25,112 +41,174 @@ const CARD_PRESENTATION_TARGET_ROLES = new Set([
   'SUPPLY_MANAGER',
 ])
 
-function publishedPresentationContent(
-  presentation: CardPresentation | null,
-): CardPresentationContent | null {
-  if (!presentation || !isRecord(presentation) || !isRecord(presentation.content)) {
-    return null
-  }
-
-  const candidate = presentation as unknown as Record<string, unknown>
-  const content = candidate.content as Record<string, unknown>
-  const targetRoles = content.target_roles
-  const fitNeedCategories = content.fit_need_categories
-  const unknowns = content.unknowns
-  const claims = content.claims
-  const hasCommonShape = (
-    hasText(candidate.artifact_id)
-    && candidate.schema_version === 'card-presentation-v1'
-    && Number.isInteger(candidate.version)
-    && Number(candidate.version) > 0
-    && hasText(candidate.published_at)
-    && content.schema_version === 'card-presentation-v1'
-    && hasText(content.headline)
-    && hasText(content.award_summary)
-    && Array.isArray(targetRoles)
-    && Array.isArray(fitNeedCategories)
-    && Array.isArray(unknowns)
-    && Array.isArray(claims)
-  )
-  if (!hasCommonShape) return null
-  const publishedTargetRoles = targetRoles as unknown[]
-  const publishedFitNeedCategories = fitNeedCategories as unknown[]
-  const publishedUnknowns = unknowns as unknown[]
-  const publishedClaims = claims as unknown[]
-  if (
-    !publishedUnknowns.every(hasText)
-    || publishedClaims.length === 0
-    || !publishedClaims.every(isPublishedClaim)
-  ) {
-    return null
-  }
-
-  if (candidate.status === 'PASS' && content.variant === 'FULL') {
-    const commercialFields = [
-      content.commercial_importance,
-      content.fit_reason,
-      content.timing,
-      content.recommended_action,
-    ]
-    const hasCommercialShape = (
-      commercialFields.every(hasText)
-      && publishedTargetRoles.length > 0
-      && publishedTargetRoles.every(isPublishedTargetRole)
-      && publishedFitNeedCategories.length > 0
-      && publishedFitNeedCategories.every(hasText)
-    )
-    return hasCommercialShape
-      ? content as unknown as CardPresentationContent
-      : null
-  }
-
-  if (candidate.status === 'FALLBACK' && content.variant === 'FACTUAL_FALLBACK') {
-    const hasNoCommercialInference = (
-      content.commercial_importance === null
-      && content.fit_reason === null
-      && content.timing === null
-      && content.recommended_action === null
-      && publishedTargetRoles.length === 0
-      && publishedFitNeedCategories.length === 0
-      && publishedClaims.every((claim) => isRecord(claim) && claim.kind === 'FACT')
-    )
-    return hasNoCommercialInference
-      ? content as unknown as CardPresentationContent
-      : null
-  }
-
-  return null
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function hasText(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0
+function boundedText(value: unknown, maxLength: number): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed && trimmed.length <= maxLength ? trimmed : null
 }
 
-function isPublishedTargetRole(value: unknown): boolean {
-  return typeof value === 'string' && CARD_PRESENTATION_TARGET_ROLES.has(value)
+function boundedTextList(value: unknown, maxItems: number, maxLength: number): string[] | null {
+  if (!Array.isArray(value) || value.length > maxItems) return null
+  const items = value.map((item) => boundedText(item, maxLength))
+  return items.every((item): item is string => item !== null) ? items : null
 }
 
-function isPublishedClaim(value: unknown): boolean {
-  if (!isRecord(value) || !hasText(value.claim_id) || !hasText(value.text)) return false
-  if (!Array.isArray(value.evidence_refs) || !value.evidence_refs.every(hasText)) return false
-
-  const confidenceIsValid = (
-    value.confidence === null
-    || value.confidence === 'high'
-    || value.confidence === 'medium'
-    || value.confidence === 'low'
-  )
-  if (!confidenceIsValid) return false
-
-  if (value.kind === 'FACT') return value.evidence_refs.length > 0
-  if (value.kind === 'INFERENCE') {
-    return value.evidence_refs.length > 0 && value.confidence !== null
+function safeHttpsUrl(value: string | null): string | null {
+  if (!value) return null
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'https:' ? parsed.toString() : null
+  } catch {
+    return null
   }
-  return value.kind === 'RECOMMENDATION'
+}
+
+function presentationClaim(claim: unknown): SignalPresentationClaimView | null {
+  if (!isRecord(claim)) return null
+  const id = boundedText(claim.claim_id, 64)
+  const text = boundedText(claim.text, 420)
+  const evidenceRefs = boundedTextList(claim.evidence_refs, 16, 256)
+  const kind = claim.kind
+  const confidence = claim.confidence
+  if (
+    !id
+    || !/^[A-Z][A-Z0-9_]{0,63}$/.test(id)
+    || !text
+    || !evidenceRefs
+    || (kind !== 'FACT' && kind !== 'INFERENCE' && kind !== 'RECOMMENDATION')
+  ) return null
+  if (evidenceRefs.length === 0) {
+    return null
+  }
+  if (
+    kind === 'INFERENCE'
+    && confidence !== 'high'
+    && confidence !== 'medium'
+    && confidence !== 'low'
+  ) {
+    return null
+  }
+  if (confidence !== null && confidence !== 'high' && confidence !== 'medium' && confidence !== 'low') {
+    return null
+  }
+  return {
+    id,
+    kind,
+    text,
+    evidenceRefs,
+    confidence,
+  }
+}
+
+/**
+ * Valide uniquement la forme publiée. Un payload absent ou incohérent devient
+ * `null`; cet adaptateur ne reconstruit jamais un récit depuis le signal brut.
+ */
+export function toSignalPresentationView(
+  presentation: unknown,
+): SignalPresentationView | null {
+  if (!isRecord(presentation) || !isRecord(presentation.content)) return null
+  const content = presentation.content
+  if (
+    presentation.schema_version !== 'card-presentation-v1'
+    || content.schema_version !== 'card-presentation-v1'
+    || !boundedText(presentation.artifact_id, 64)
+    || !Number.isInteger(presentation.version)
+    || (presentation.version as number) < 1
+    || !boundedText(presentation.published_at, 64)
+    || Number.isNaN(Date.parse(presentation.published_at as string))
+  ) return null
+
+  const headline = boundedText(content.headline, 160)
+  const awardSummary = boundedText(content.award_summary, 420)
+  const unknowns = boundedTextList(content.unknowns, 8, 240)
+  const fitNeedCategories = boundedTextList(content.fit_need_categories, 8, 256)
+  const targetRoles = Array.isArray(content.target_roles)
+    && content.target_roles.length <= 6
+    && content.target_roles.every(
+      (role): role is CardPresentationTargetRole =>
+        typeof role === 'string' && TARGET_ROLES.has(role as CardPresentationTargetRole),
+    )
+    ? content.target_roles
+    : null
+  const claims = Array.isArray(content.claims) && content.claims.length > 0 && content.claims.length <= 12
+    ? content.claims.map(presentationClaim)
+    : null
+  if (
+    !headline
+    || !awardSummary
+    || !unknowns
+    || !fitNeedCategories
+    || !targetRoles
+    || !claims
+    || claims.some((claim) => claim === null)
+  ) return null
+  const validClaims = claims.filter(
+    (claim): claim is SignalPresentationClaimView => claim !== null,
+  )
+
+  if (presentation.status === 'FALLBACK' && content.variant === 'FACTUAL_FALLBACK') {
+    if (
+      content.commercial_importance !== null
+      || content.fit_reason !== null
+      || content.timing !== null
+      || content.recommended_action !== null
+      || targetRoles.length > 0
+      || fitNeedCategories.length > 0
+      || validClaims.some((claim) => claim.kind !== 'FACT')
+    ) return null
+    return {
+      artifactId: presentation.artifact_id as string,
+      version: presentation.version as number,
+      publishedAt: presentation.published_at as string,
+      mode: 'factualFallback',
+      headline,
+      awardSummary,
+      commercialImportance: null,
+      fitReason: null,
+      timing: null,
+      recommendedAction: null,
+      targetRoles: [],
+      fitNeedCategories: [],
+      unknowns,
+      claims: validClaims,
+    }
+  }
+
+  if (presentation.status !== 'PASS' || content.variant !== 'FULL') return null
+  const commercialImportance = boundedText(content.commercial_importance, 420)
+  const fitReason = boundedText(content.fit_reason, 420)
+  const timing = boundedText(content.timing, 320)
+  const recommendedAction = boundedText(content.recommended_action, 320)
+  if (
+    !commercialImportance
+    || !fitReason
+    || !timing
+    || !recommendedAction
+    || targetRoles.length === 0
+    || fitNeedCategories.length === 0
+  ) return null
+
+  return {
+    artifactId: presentation.artifact_id as string,
+    version: presentation.version as number,
+    publishedAt: presentation.published_at as string,
+    mode: 'full',
+    headline,
+    awardSummary,
+    commercialImportance,
+    fitReason,
+    timing,
+    recommendedAction,
+    targetRoles,
+    fitNeedCategories,
+    unknowns,
+    claims: validClaims,
+  }
 }
 
 export function toOverviewAwardCard(item: FeedItem): OverviewAwardCardView {
@@ -154,20 +232,23 @@ export function toOverviewAwardCard(item: FeedItem): OverviewAwardCardView {
     }
   }
 
-  const content = publishedPresentationContent(item.presentation)
-
+  const presentation = toSignalPresentationView(item.presentation)
   return {
     id: item.signal_id,
     locked: false,
     companyName: item.company.name,
     teaserHeadline: null,
-    headline: content?.headline ?? null,
-    awardSummary: content?.award_summary ?? null,
-    commercialImportance: content?.commercial_importance ?? null,
-    fitReason: content?.fit_reason ?? null,
-    timing: content?.timing ?? null,
-    recommendedAction: content?.recommended_action ?? null,
-    presentationVariant: content?.variant ?? null,
+    headline: presentation?.headline ?? null,
+    awardSummary: presentation?.awardSummary ?? null,
+    commercialImportance: presentation?.commercialImportance ?? null,
+    fitReason: presentation?.fitReason ?? null,
+    timing: presentation?.timing ?? null,
+    recommendedAction: presentation?.recommendedAction ?? null,
+    presentationVariant: presentation?.mode === 'full'
+      ? 'FULL'
+      : presentation?.mode === 'factualFallback'
+        ? 'FACTUAL_FALLBACK'
+        : null,
     amount: item.contract.amount,
     location: item.contract.location,
     awardDate: item.contract.dates.award,
@@ -189,7 +270,10 @@ export function toSignalCard(_item: FeedItem): SignalCardView {
       amount: null,
       location: null,
       eventDate: _item.event.date,
+      eventDateKind: eventDateKind(undefined, _item.event.status),
+      eventStatus: _item.event.status,
       awardDate: null,
+      presentation: null,
       matchLabel: null,
       matchReasons: [],
       sourceSystem: null,
@@ -197,19 +281,24 @@ export function toSignalCard(_item: FeedItem): SignalCardView {
     }
   }
 
+  const presentation = toSignalPresentationView(_item.presentation)
+
   return {
     id: _item.signal_id,
     locked: false,
     companyName: _item.company.name,
-    eventTitle: _item.contract.title,
+    eventTitle: null,
     amount: _item.contract.amount,
     location: _item.contract.location,
     eventDate: _item.event.date,
+    eventDateKind: eventDateKind(_item.event.clock, _item.event.status),
+    eventStatus: _item.event.status,
     awardDate: _item.contract.dates.award,
-    matchLabel: _item.analysis.fit.label,
-    matchReasons: _item.analysis.fit.reasons,
+    presentation,
+    matchLabel: null,
+    matchReasons: [],
     sourceSystem: _item.source.system,
-    whyNow: _item.event.why_now,
+    whyNow: '',
   }
 }
 
@@ -218,38 +307,27 @@ export function toSignalCards(page: FeedPage): SignalCardView[] {
 }
 
 export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
-  const firstNeed = detail.analysis.plausible_needs.items[0]
-
   return {
     id: detail.signal_id,
-    title: detail.contract.title,
     companyName: detail.company.name,
     companyKey: detail.company_key ?? null,
     companyCountry: detail.company.country,
     companyIdentifier: detail.company.identifier,
-    targetProfileLabel: detail.analysis.fit.target_icp_label,
     sourceSystem: detail.source.system,
-    summary: detail.analysis.contract_reading?.summary ?? null,
-    brief: {
-      whyNow: detail.event.why_now,
-      offerCoverage: firstNeed?.statement ?? null,
-      functionToFind: null,
-      unknown: detail.analysis.plausible_needs.note || null,
-    },
+    presentation: toSignalPresentationView(detail.presentation),
     facts: {
       amount: detail.contract.amount,
+      location: detail.contract.location,
+      eventDate: detail.event.date,
+      eventDateKind: eventDateKind(detail.event.clock, detail.event.status),
       awardDate: detail.contract.dates.award,
       execution: null,
       buyer: detail.contract.buyer?.name ?? null,
+      officialTitle: detail.contract.title,
       notice: detail.source.notice_id,
       cpv: detail.contract.cpv,
-      sourceUrl: detail.source.url,
+      sourceUrl: safeHttpsUrl(detail.source.url),
     },
-    // L'API ne publie pas de champ structuré « périmètre ». Les groupes
-    // `public_facts` décrivent plusieurs natures de faits (attributaire,
-    // montant, dates, acheteurs) et ne doivent pas être requalifiés ici.
-    scope: [],
-    questions: [],
   }
 }
 

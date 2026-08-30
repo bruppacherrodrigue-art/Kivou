@@ -4,8 +4,10 @@ import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
   AUTHENTICATED,
+  CARD_PRESENTATION,
   CATALOGUE,
   DISCOVERY_STATUS,
+  FACTUAL_FALLBACK_PRESENTATION,
   ICP,
   LOCKED_ITEM,
   ME,
@@ -36,20 +38,37 @@ function feedWith(items: unknown[], overrides = {}) {
   }
 }
 
+function fullPresentation(
+  content: Partial<typeof CARD_PRESENTATION.content> = {},
+): typeof CARD_PRESENTATION {
+  return {
+    ...CARD_PRESENTATION,
+    content: { ...CARD_PRESENTATION.content, ...content },
+  }
+}
+
 async function signalList(): Promise<HTMLElement> {
-  await screen.findByRole('heading', { level: 2, name: /attributions documentées/i })
+  await waitFor(() => {
+    expect(document.querySelector('.signal-list')).toBeInstanceOf(HTMLElement)
+  })
   const list = document.querySelector('.signal-list')
   if (!(list instanceof HTMLElement)) throw new Error('signal-list absente')
   return list
 }
 
 describe('feed de signaux dans le workspace de référence', () => {
-  it('hiérarchise les valeurs réelles et conserve strictement l’ordre serveur', async () => {
+  it('rend la présentation FULL comme synthèse commerciale et conserve l’ordre serveur', async () => {
     const second = {
       ...UNLOCKED_ITEM,
       signal_id: 'sig_server_second',
       company: { ...UNLOCKED_ITEM.company, name: 'Deuxième selon le serveur SA' },
-      contract: { ...UNLOCKED_ITEM.contract, title: 'Deuxième marché réel' },
+      contract: { ...UNLOCKED_ITEM.contract, title: 'TITRE BRUT DEUXIÈME À NE PAS AFFICHER' },
+      presentation: fullPresentation({
+        headline: 'Deuxième attribution synthétisée',
+        award_summary: 'Un second marché documenté est prêt à être qualifié.',
+        fit_reason: 'La prestation correspond au profil actif du compte.',
+        timing: 'Le calendrier opérationnel reste à confirmer.',
+      }),
     }
     mockApi(feedWith([UNLOCKED_ITEM, second]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
@@ -57,39 +76,184 @@ describe('feed de signaux dans le workspace de référence', () => {
     const rows = (await signalList()).querySelectorAll('button.signal-item')
     expect(rows).toHaveLength(2)
     expect(rows[0]).toHaveTextContent('Constructions Bertrand SA')
-    expect(rows[0]).toHaveTextContent('Réfection de la voirie communale — lot 2')
+    expect(rows[0]).toHaveTextContent(CARD_PRESENTATION.content.headline)
+    expect(rows[0]).toHaveTextContent(CARD_PRESENTATION.content.award_summary)
     expect(rows[0].textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('1 240 000 €')
     expect(rows[0]).toHaveTextContent('4 août 2026')
+    expect(rows[0]).toHaveTextContent('Date d’attribution')
+    expect(rows[0]).toHaveTextContent(CARD_PRESENTATION.content.fit_reason!)
+    expect(rows[0]).toHaveTextContent(CARD_PRESENTATION.content.timing!)
+    expect(rows[0]).toHaveTextContent('Analyse publiée')
+    expect(rows[0]).toHaveTextContent('Voir l’analyse')
+    expect(rows[0]).toHaveAccessibleName(
+      `Ouvrir le signal « ${CARD_PRESENTATION.content.headline} » pour Constructions Bertrand SA — Analyse publiée`,
+    )
+    expect(rows[0].getAttribute('aria-label')).not.toContain(CARD_PRESENTATION.content.award_summary)
+    expect(rows[0]).not.toHaveTextContent(UNLOCKED_ITEM.analysis.fit.label)
     expect(rows[1]).toHaveTextContent('Deuxième selon le serveur SA')
+    expect(rows[1]).toHaveTextContent('Deuxième attribution synthétisée')
+    expect(rows[1]).not.toHaveTextContent('TITRE BRUT DEUXIÈME À NE PAS AFFICHER')
+    expect(document.body).not.toHaveTextContent('À examiner d’abord')
   })
 
-  it('rend le calendrier et la justification du serveur sans recalcul navigateur', async () => {
+  it('rend le timing publié par la présentation sans recycler les champs bruts', async () => {
     const item = {
       ...UNLOCKED_ITEM,
       event: {
         ...UNLOCKED_ITEM.event,
         date: '2026-02-03',
         age_days: 999,
-        why_now: 'CALENDRIER SERVEUR — décision commerciale à examiner.',
+        headline: 'TITRE ÉVÉNEMENT BRUT INTERDIT',
+        why_now: 'POISON WHY NOW — priorité absolue.',
       },
+      contract: { ...UNLOCKED_ITEM.contract, title: 'TITRE CONTRAT BRUT INTERDIT' },
+      analysis: {
+        plausible_needs: {
+          ...UNLOCKED_ITEM.analysis.plausible_needs,
+          items: [{
+            ...UNLOCKED_ITEM.analysis.plausible_needs.items[0],
+            statement: 'POISON BESOIN BRUT INTERDIT',
+          }],
+        },
+        fit: {
+          ...UNLOCKED_ITEM.analysis.fit,
+          label: 'POISON SCORE BRUT INTERDIT',
+          reasons: ['POISON RAISON BRUTE INTERDITE'],
+        },
+      },
+      presentation: fullPresentation({
+        timing: 'TIMING VALIDÉ — contacter après qualification du calendrier.',
+      }),
     }
     mockApi(feedWith([item]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     const row = (await signalList()).querySelector('.signal-item')!
     expect(row).toHaveTextContent('3 février 2026')
-    expect(row).toHaveTextContent('CALENDRIER SERVEUR — décision commerciale à examiner.')
+    expect(row).toHaveTextContent('TIMING VALIDÉ — contacter après qualification du calendrier.')
     expect(row).not.toHaveTextContent('999 jours')
-    expect(row).not.toHaveTextContent(UNLOCKED_ITEM.analysis.plausible_needs.items[0].statement!)
+    for (const poison of [
+      'TITRE ÉVÉNEMENT BRUT INTERDIT',
+      'POISON WHY NOW — priorité absolue.',
+      'TITRE CONTRAT BRUT INTERDIT',
+      'POISON BESOIN BRUT INTERDIT',
+      'POISON SCORE BRUT INTERDIT',
+      'POISON RAISON BRUTE INTERDITE',
+    ]) {
+      expect(row).not.toHaveTextContent(poison)
+    }
   })
 
-  it('ne reformule jamais un signal ancien comme une attribution récente', async () => {
-    mockApi(feedWith([STALE_ITEM]))
+  it('nomme la nature exacte de la date publiée par le serveur', async () => {
+    const notified = {
+      ...UNLOCKED_ITEM,
+      event: {
+        ...UNLOCKED_ITEM.event,
+        status: 'recently_notified_contract' as const,
+        type: 'recently_notified_contract' as const,
+        clock: 'notification',
+        date: '2026-02-03',
+      },
+    }
+    mockApi(feedWith([notified]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     const row = (await signalList()).querySelector('.signal-item')!
-    expect(row).toHaveTextContent(STALE_ITEM.event.why_now)
-    expect(row).not.toHaveTextContent(/vient de remporter|nouveau contrat/i)
+    expect(row).toHaveTextContent('Date de notification : 3 février 2026')
+    expect(row).not.toHaveTextContent('Date de l’événement')
+  })
+
+  it('rend un état transparent quand aucune présentation validée n’est publiée', async () => {
+    const unsupported = {
+      ...UNLOCKED_ITEM,
+      presentation: null,
+      contract: { ...UNLOCKED_ITEM.contract, title: 'POISON TITRE CONTRAT SANS PRÉSENTATION' },
+      event: {
+        ...UNLOCKED_ITEM.event,
+        headline: 'POISON TITRE ÉVÉNEMENT SANS PRÉSENTATION',
+        why_now: 'POISON URGENCE SANS PRÉSENTATION',
+      },
+      analysis: {
+        plausible_needs: {
+          ...UNLOCKED_ITEM.analysis.plausible_needs,
+          items: [{
+            ...UNLOCKED_ITEM.analysis.plausible_needs.items[0],
+            statement: 'POISON BESOIN SANS PRÉSENTATION',
+          }],
+        },
+        fit: {
+          ...UNLOCKED_ITEM.analysis.fit,
+          label: 'POISON MATCH SANS PRÉSENTATION',
+          reasons: ['POISON RAISON SANS PRÉSENTATION'],
+        },
+      },
+    }
+    mockApi(feedWith([unsupported]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const row = (await signalList()).querySelector('.signal-item')!
+    expect(row).toHaveTextContent('Analyse indisponible')
+    expect(row).toHaveTextContent('Analyse commerciale indisponible')
+    expect(row).toHaveTextContent(
+      'Les faits publiés restent consultables. Aucun résumé, motif de pertinence, besoin ou conseil n’est affiché tant qu’aucune présentation validée n’est publiée.',
+    )
+    expect(row).toHaveTextContent('Voir les faits publiés')
+    expect(row.querySelector('.signal-match')).toBeNull()
+    expect(row.querySelector('.signal-reason')).toBeNull()
+    for (const poison of [
+      'POISON TITRE CONTRAT SANS PRÉSENTATION',
+      'POISON TITRE ÉVÉNEMENT SANS PRÉSENTATION',
+      'POISON URGENCE SANS PRÉSENTATION',
+      'POISON BESOIN SANS PRÉSENTATION',
+      'POISON MATCH SANS PRÉSENTATION',
+      'POISON RAISON SANS PRÉSENTATION',
+    ]) {
+      expect(row).not.toHaveTextContent(poison)
+    }
+  })
+
+  it('rend le FALLBACK comme factuel sans commercial, urgence ni priorité implicite', async () => {
+    const fallback = {
+      ...STALE_ITEM,
+      presentation: {
+        ...FACTUAL_FALLBACK_PRESENTATION,
+        content: {
+          ...FACTUAL_FALLBACK_PRESENTATION.content,
+          unknowns: ['POISON INCONNU SECONDAIRE NON AFFICHÉ DANS LE FEED'],
+        },
+      },
+      event: {
+        ...STALE_ITEM.event,
+        headline: 'POISON ÉVÉNEMENT FALLBACK',
+        why_now: 'À examiner d’abord — priorité maximale.',
+      },
+      contract: { ...STALE_ITEM.contract, title: 'POISON CONTRAT FALLBACK' },
+      analysis: {
+        ...STALE_ITEM.analysis,
+        fit: {
+          ...STALE_ITEM.analysis.fit,
+          label: 'Correspondance commerciale brute interdite',
+          reasons: ['Raison commerciale brute interdite'],
+        },
+      },
+    }
+    mockApi(feedWith([fallback]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const row = (await signalList()).querySelector('.signal-item')!
+    expect(row).toHaveTextContent('Faits publiés uniquement')
+    expect(row).toHaveTextContent(FACTUAL_FALLBACK_PRESENTATION.content.headline)
+    expect(row).toHaveTextContent(FACTUAL_FALLBACK_PRESENTATION.content.award_summary)
+    expect(row).toHaveTextContent('Voir les faits publiés')
+    expect(row.querySelector('.signal-match')).toBeNull()
+    expect(row.querySelector('.signal-reason')).toBeNull()
+    expect(row).not.toHaveTextContent(CARD_PRESENTATION.content.fit_reason!)
+    expect(row).not.toHaveTextContent(CARD_PRESENTATION.content.timing!)
+    expect(row).not.toHaveTextContent(/à examiner d’abord|priorité maximale/i)
+    expect(row).not.toHaveTextContent('Correspondance commerciale brute interdite')
+    expect(row).not.toHaveTextContent('Raison commerciale brute interdite')
+    expect(row).not.toHaveTextContent('POISON CONTRAT FALLBACK')
+    expect(row).not.toHaveTextContent('POISON ÉVÉNEMENT FALLBACK')
   })
 
   it('choisit le premier élément réellement déverrouillé sans promouvoir le teaser précédent', async () => {
@@ -100,7 +264,10 @@ describe('feed de signaux dans le workspace de référence', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     expect(
-      await screen.findByRole('heading', { level: 2, name: UNLOCKED_ITEM.contract.title! }),
+      await screen.findByRole('heading', {
+        level: 2,
+        name: CARD_PRESENTATION.content.headline,
+      }),
     ).toBeVisible()
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
@@ -167,7 +334,7 @@ describe('feed de signaux dans le workspace de référence', () => {
     expect(list.querySelectorAll('.signal-item')).toHaveLength(1)
   })
 
-  it('met à jour le badge du signal sélectionné depuis sa note API réelle', async () => {
+  it('affiche la note comme état de travail séparé sans remplacer l’état de présentation', async () => {
     mockApi({
       ...feedWith([UNLOCKED_ITEM]),
       [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
@@ -182,6 +349,8 @@ describe('feed de signaux dans le workspace de référence', () => {
 
     const row = (await signalList()).querySelector('.signal-item') as HTMLElement
     expect(await within(row).findByText('Note ajoutée')).toBeVisible()
+    expect(within(row).getByText('Analyse publiée')).toBeVisible()
+    expect(within(row).getByText('Voir l’analyse')).toBeVisible()
     expect(within(row).queryByText('À examiner d’abord')).toBeNull()
   })
 
@@ -283,7 +452,7 @@ describe('feed de signaux dans le workspace de référence', () => {
     expect(within(await signalList()).getByText('Constructions Bertrand SA')).toBeVisible()
   })
 
-  it('formate et traduit selon la locale du compte', async () => {
+  it('formate et traduit la présentation et ses états selon la locale du compte', async () => {
     mockApi(feedWith([UNLOCKED_ITEM]))
     renderApp(<AppRoutes />, {
       session: { status: 'authenticated', me: { ...ME, locale: 'en' } },
@@ -291,10 +460,14 @@ describe('feed de signaux dans le workspace de référence', () => {
       locale: 'en',
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Documented awards' })
-    const row = document.querySelector('.signal-list .signal-item')!
+    await screen.findByRole('heading', { level: 2, name: 'Detected signals' })
+    const row = (await signalList()).querySelector('.signal-item')!
     expect(row).toHaveTextContent('Constructions Bertrand SA')
-    expect(row).toHaveTextContent('Event date:')
+    expect(row).toHaveTextContent(CARD_PRESENTATION.content.headline)
+    expect(row).toHaveTextContent(CARD_PRESENTATION.content.award_summary)
+    expect(row).toHaveTextContent('Published analysis')
+    expect(row).toHaveTextContent('View analysis')
+    expect(row).toHaveTextContent('Award date: 4 August 2026')
     expect(row.textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('1,240,000')
     expect(screen.getByRole('heading', { level: 1, name: 'Signals' })).toBeVisible()
   })

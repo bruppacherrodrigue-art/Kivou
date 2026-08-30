@@ -1,5 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import {
+  type RefObject,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
+import { CheckCircle2 } from 'lucide-react'
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useNavigationType,
+  useParams,
+} from 'react-router-dom'
 import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
 import { companies, signals } from '../api/endpoints'
 import { ApiError } from '../api/client'
@@ -14,11 +29,14 @@ import {
   type AuthorizedCompanySignal,
   CompanyDetailMessage,
   CompanyProfileView,
+  companyAwardHref,
   companyInitials,
 } from './CompanyProfile'
+import styles from './Companies.module.css'
 
 const FEED_LIMIT = 20
 const DETAIL_CONCURRENCY = 4
+const SINGLE_PANE_QUERY = '(max-width: 1179px)'
 
 interface AccessSnapshot {
   status: 'loading' | 'ready' | 'error'
@@ -29,6 +47,15 @@ interface AccessSnapshot {
   scanTruncated: boolean
   error: unknown | null
   retrying: boolean
+}
+
+interface CompanySelectionNavigationState {
+  companySelection: {
+    kind: 'company-award'
+    companyKey: string
+    signalId: string
+    fromList: boolean
+  }
 }
 
 const INITIAL_ACCESS: AccessSnapshot = {
@@ -78,6 +105,19 @@ async function boundedDetails(
   return results
 }
 
+function publishedSummary(detail: UnlockedDetail): string | null {
+  const candidates = [
+    detail.analysis.contract_reading?.summary,
+    detail.contract.title,
+    detail.event.headline,
+  ]
+  for (const candidate of candidates) {
+    const normalized = candidate?.trim()
+    if (normalized) return normalized
+  }
+  return null
+}
+
 function companiesFrom(
   orderedItems: UnlockedFeedItem[],
   details: Map<string, UnlockedDetail>,
@@ -86,12 +126,26 @@ function companiesFrom(
   for (const item of orderedItems) {
     const detail = details.get(item.signal_id)
     if (!detail || detail.locked || !detail.company_key || !detail.company.name) continue
+    const firstNeed = detail.analysis.plausible_needs.items.find((need) => (
+      need.targeted_by_your_profile && need.statement?.trim()
+    ))
     const signal: AuthorizedCompanySignal = {
       signalId: detail.signal_id,
       title: detail.contract.title,
+      summary: publishedSummary(detail),
+      buyerName: detail.contract.buyer?.name ?? null,
+      location: detail.contract.location,
       amountValue: detail.contract.amount?.value ?? null,
       amountCurrency: detail.contract.amount?.currency ?? null,
       awardDate: detail.contract.dates.award,
+      eventDate: detail.event.date,
+      whyNow: detail.event.why_now,
+      matchLabel: detail.analysis.fit.label,
+      matchReasons: detail.analysis.fit.reasons,
+      plausibleNeed: firstNeed?.statement?.trim() ?? null,
+      sourceSystem: detail.source.system,
+      sourceNoticeId: detail.source.notice_id,
+      sourceUrl: detail.source.url,
     }
     const existing = grouped.get(detail.company_key)
     if (existing) {
@@ -110,9 +164,42 @@ function companiesFrom(
   return [...grouped.values()]
 }
 
+function selectionState(
+  companyKey: string,
+  signalId: string,
+  fromList: boolean,
+): CompanySelectionNavigationState {
+  return {
+    companySelection: { kind: 'company-award', companyKey, signalId, fromList },
+  }
+}
+
+function readSelectionState(value: unknown): CompanySelectionNavigationState['companySelection'] | null {
+  if (typeof value !== 'object' || value === null || !('companySelection' in value)) return null
+  const selection = (value as { companySelection?: unknown }).companySelection
+  if (typeof selection !== 'object' || selection === null) return null
+  const candidate = selection as Partial<CompanySelectionNavigationState['companySelection']>
+  if (
+    candidate.kind !== 'company-award'
+    || typeof candidate.companyKey !== 'string'
+    || candidate.companyKey.length === 0
+    || typeof candidate.signalId !== 'string'
+    || candidate.signalId.length === 0
+    || typeof candidate.fromList !== 'boolean'
+  ) return null
+  return candidate as CompanySelectionNavigationState['companySelection']
+}
+
+function usesSinglePane(): boolean {
+  if (typeof window.matchMedia === 'function') return window.matchMedia(SINGLE_PANE_QUERY).matches
+  return window.innerWidth < 1180
+}
+
 export function Companies() {
   const { companyKey } = useParams()
+  const location = useLocation()
   const navigate = useNavigate()
+  const navigationType = useNavigationType()
   const { t, locale, date, amount } = useI18n()
   const [access, setAccess] = useState<AccessSnapshot>(INITIAL_ACCESS)
   const accessRef = useRef(access)
@@ -124,8 +211,18 @@ export function Companies() {
   const [profileError, setProfileError] = useState<unknown>(null)
   const [profileKey, setProfileKey] = useState<string | null>(null)
   const profileGeneration = useRef(0)
-  const pendingMobileFocus = useRef<string | null>(null)
-  const [mobileFocusRequest, setMobileFocusRequest] = useState(0)
+  const listPanelRef = useRef<HTMLElement | null>(null)
+  const detailPanelRef = useRef<HTMLElement | null>(null)
+  const rowRefs = useRef(new Map<string, HTMLAnchorElement>())
+  const lastSelection = useRef<{ companyKey: string; signalId: string } | null>(null)
+  const previousLocationKey = useRef(location.key)
+  const pendingDetailFocus = useRef<string | null>(null)
+  const [focusRequest, setFocusRequest] = useState(0)
+
+  const requestedSignalId = useMemo(
+    () => new URLSearchParams(location.search).get('signal'),
+    [location.search],
+  )
 
   const publishAccess = useCallback((next: AccessSnapshot) => {
     accessRef.current = next
@@ -278,11 +375,32 @@ export function Companies() {
     })
   }, [publishAccess])
 
-  const selectedCompany = useMemo(() => {
-    const key = companyKey ?? access.companies[0]?.key
-    return key ? access.companies.find((candidate) => candidate.key === key) ?? null : null
-  }, [access.companies, companyKey])
-  const selectedKey = selectedCompany?.key ?? null
+  const selectedCompany = useMemo(() => (
+    companyKey
+      ? access.companies.find((candidate) => candidate.key === companyKey) ?? null
+      : null
+  ), [access.companies, companyKey])
+  const selectedSignal = useMemo(() => (
+    selectedCompany && requestedSignalId
+      ? selectedCompany.signals.find((candidate) => candidate.signalId === requestedSignalId) ?? null
+      : null
+  ), [requestedSignalId, selectedCompany])
+  const selectedKey = selectedCompany && selectedSignal ? selectedCompany.key : null
+
+  useEffect(() => {
+    if (
+      access.status !== 'ready'
+      || !companyKey
+      || !selectedCompany
+      || requestedSignalId
+      || selectedCompany.signals.length === 0
+    ) return
+    const signalId = selectedCompany.signals[0].signalId
+    navigate(companyAwardHref(selectedCompany.key, signalId), {
+      replace: true,
+      state: selectionState(selectedCompany.key, signalId, false),
+    })
+  }, [access.status, companyKey, navigate, requestedSignalId, selectedCompany])
 
   const loadProfile = useCallback(async (key: string) => {
     const generation = ++profileGeneration.current
@@ -321,57 +439,132 @@ export function Companies() {
     void loadProfile(selectedKey)
   }, [access.status, loadProfile, selectedKey])
 
-  const selectCompany = (key: string) => {
-    if (window.innerWidth < 1180) {
-      pendingMobileFocus.current = key
-      setMobileFocusRequest((current) => current + 1)
-    }
-    navigate(`/app/companies/${encodeURIComponent(key)}`, { replace: true })
-  }
+  useLayoutEffect(() => {
+    const detail = detailPanelRef.current
+    if (detail && typeof detail.scrollTo === 'function') {
+      detail.scrollTo({ top: 0, behavior: 'auto' })
+    } else if (detail) detail.scrollTop = 0
+  }, [companyKey, requestedSignalId])
 
   useEffect(() => {
     if (
-      !selectedKey ||
-      pendingMobileFocus.current !== selectedKey ||
-      profileKey !== selectedKey ||
-      (profileStatus !== 'ready' && profileStatus !== 'error')
+      !pendingDetailFocus.current
+      || pendingDetailFocus.current !== selectedSignal?.signalId
+      || profileKey !== selectedCompany?.key
+      || (profileStatus !== 'ready' && profileStatus !== 'error')
     ) return
     const frame = window.requestAnimationFrame(() => {
-      const detail = document.getElementById('company-detail')
-      if (typeof detail?.scrollIntoView === 'function') {
-        detail.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      }
-      detail?.focus({ preventScroll: true })
-      pendingMobileFocus.current = null
+      detailPanelRef.current?.querySelector<HTMLElement>('#company-name')?.focus({ preventScroll: true })
+      pendingDetailFocus.current = null
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [mobileFocusRequest, profileKey, profileStatus, selectedKey])
+  }, [focusRequest, profileKey, profileStatus, selectedCompany?.key, selectedSignal?.signalId])
+
+  useEffect(() => {
+    if (previousLocationKey.current === location.key) return
+    previousLocationKey.current = location.key
+    if (
+      companyKey
+      && requestedSignalId
+      && pendingDetailFocus.current === requestedSignalId
+    ) return
+    if (navigationType === 'PUSH' && companyKey) return
+
+    const navigationSelection = readSelectionState(location.state)
+    const focusSelection = companyKey && requestedSignalId
+      ? {
+          companyKey: selectedCompany?.key ?? navigationSelection?.companyKey ?? companyKey,
+          signalId: selectedSignal?.signalId ?? navigationSelection?.signalId ?? requestedSignalId,
+        }
+      : lastSelection.current ?? (navigationSelection
+        ? { companyKey: navigationSelection.companyKey, signalId: navigationSelection.signalId }
+        : null)
+    if (!focusSelection) return
+    lastSelection.current = focusSelection
+
+    if (companyKey && requestedSignalId && usesSinglePane()) {
+      pendingDetailFocus.current = requestedSignalId
+      setFocusRequest((current) => current + 1)
+      return
+    }
+    const frame = window.requestAnimationFrame(() => rowRefs.current.get(focusSelection.signalId)?.focus())
+    return () => window.cancelAnimationFrame(frame)
+  }, [
+    companyKey,
+    location.key,
+    location.state,
+    navigationType,
+    requestedSignalId,
+    selectedCompany?.key,
+    selectedSignal?.signalId,
+  ])
+
+  const requestDetailFocus = (signalId: string) => {
+    pendingDetailFocus.current = signalId
+    setFocusRequest((current) => current + 1)
+  }
+
+  const backToList = () => {
+    if (selectedCompany && selectedSignal) {
+      lastSelection.current = { companyKey: selectedCompany.key, signalId: selectedSignal.signalId }
+    }
+    const origin = readSelectionState(location.state)
+    if (origin?.fromList) navigate(-1)
+    else navigate('/app/companies', { replace: true, state: null })
+  }
 
   const partial = access.status === 'ready' && (
     access.unresolved.length > 0 || access.nextOffset !== null || access.scanTruncated || access.error !== null
   )
+  const retryablePartial = access.nextOffset !== null || access.unresolved.length > 0
+  const detailOwnsAccessAlert = Boolean(companyKey && (
+    access.status === 'error'
+    || (partial && (!selectedCompany || !requestedSignalId || !selectedSignal))
+  ))
   const copy = t.reference.companiesPage
+  const awardCards = access.companies.flatMap((company) => (
+    company.signals.map((signal) => ({ company, signal }))
+  ))
+
+  const displayTerritory = (company: AuthorizedCompany, signal: AuthorizedCompanySignal) => {
+    if (signal.location) {
+      const value = [signal.location.locality, signal.location.postal_code, signal.location.country]
+        .filter(Boolean)
+        .join(', ')
+      if (value) return value
+    }
+    const knownTerritory = MVP_TERRITORIES.find((candidate) => candidate.code === company.country)
+    if (knownTerritory) return territoryLabel(knownTerritory, locale)
+    return company.country ?? copy.territoryMissing
+  }
 
   return (
-    <div className="companies-workspace">
-      <aside className="companies-panel" aria-labelledby="companies-list-title">
+    <div
+      className={`companies-workspace ${styles.workspace}`}
+      data-pane={companyKey ? 'detail' : 'list'}
+    >
+      <aside
+        ref={listPanelRef}
+        className={`companies-panel ${styles.listPanel}`}
+        aria-labelledby="companies-list-title"
+      >
         <div className="panel-heading">
           <div>
             <p className="section-label">{copy.publishedHolders}</p>
-            <h2 id="companies-list-title">{t.reference.headings.linkedCompanies}</h2>
+            <h2 id="companies-list-title">{copy.listTitle}</h2>
           </div>
-          <span className="signal-count">{access.status === 'loading' ? '…' : access.companies.length}</span>
+          <span className="signal-count">{access.status === 'loading' ? '…' : awardCards.length}</span>
         </div>
         <p className="companies-panel-note">{copy.listBoundary} {t.companiesIndex.partial}</p>
 
         {access.status === 'error' ? (
-          <div role="alert" className="companies-panel-note">
+          <div role={detailOwnsAccessAlert ? undefined : 'alert'} className="companies-panel-note">
             <strong>{t.companiesIndex.errorTitle}</strong>
             <button type="button" onClick={() => void loadAccess()}>{t.reference.retry}</button>
           </div>
         ) : null}
         {partial ? (
-          <div role="alert" className="companies-panel-note">
+          <div role={detailOwnsAccessAlert ? undefined : 'alert'} className="companies-panel-note">
             <strong>{t.companiesIndex.partialResultTitle}</strong>
             <span> {access.scanTruncated ? copy.truncatedResolution : t.companiesIndex.partialResultBody}</span>
             {access.nextOffset !== null || access.unresolved.length > 0 ? (
@@ -386,29 +579,40 @@ export function Companies() {
           </div>
         ) : null}
 
-        <div className="companies-list">
+        <div className="companies-list" aria-busy={access.status === 'loading'}>
           {access.status === 'ready' && access.companies.length === 0 && !partial
             ? <p className="companies-panel-note">{t.companiesIndex.emptyTitle}</p>
             : null}
-          {access.companies.map((company) => {
-            const latest = company.signals[0]
-            const selected = company.key === selectedKey
-            const knownTerritory = MVP_TERRITORIES.find((candidate) => candidate.code === company.country)
-            const localizedCountry = knownTerritory
-              ? territoryLabel(knownTerritory, locale)
-              : company.country ?? t.reference.missingValue
-            const publishedAmount = latest
-              ? amount(latest.amountValue, latest.amountCurrency) ?? t.reference.missingValue
-              : t.reference.missingValue
-            const publishedDate = latest ? date(latest.awardDate) ?? t.reference.missingValue : t.reference.missingValue
+          {awardCards.map(({ company, signal }) => {
+            const selected = company.key === selectedCompany?.key
+              && signal.signalId === selectedSignal?.signalId
+            const publishedAmount = amount(signal.amountValue, signal.amountCurrency)
+              ?? t.reference.missingValue
+            const awardDate = date(signal.awardDate)
+            const eventDate = date(signal.eventDate)
+            const publishedDate = awardDate
+              ? interpolate(copy.awardedOn, { date: awardDate })
+              : eventDate
+                ? interpolate(copy.eventRecordedOn, { date: eventDate })
+                : copy.awardDateMissing
             const count = company.signals.length
+            const href = companyAwardHref(company.key, signal.signalId)
             return (
-              <button
-                type="button"
-                className={`company-list-item${selected ? ' is-selected' : ''}`}
-                aria-pressed={selected}
-                onClick={() => selectCompany(company.key)}
-                key={company.key}
+              <Link
+                ref={(node) => {
+                  if (node) rowRefs.current.set(signal.signalId, node)
+                  else rowRefs.current.delete(signal.signalId)
+                }}
+                to={href}
+                replace={selected}
+                state={selectionState(company.key, signal.signalId, true)}
+                className={`company-list-item ${styles.companyLink}${selected ? ' is-selected' : ''}`}
+                aria-current={selected ? 'true' : undefined}
+                onClick={(event) => {
+                  lastSelection.current = { companyKey: company.key, signalId: signal.signalId }
+                  if (usesSinglePane() || event.detail === 0) requestDetailFocus(signal.signalId)
+                }}
+                key={signal.signalId}
               >
                 <span className="company-list-avatar" aria-hidden="true">{companyInitials(company.name)}</span>
                 <span className="company-list-content">
@@ -416,11 +620,28 @@ export function Companies() {
                     <strong>{company.name}</strong>
                     <span>{interpolate(plural(count, copy.contractOne, copy.contractOther), { count })}</span>
                   </span>
-                  <span className="company-list-location">{localizedCountry}</span>
-                  <span className="company-list-event">{latest?.title ?? t.reference.missingValue}</span>
-                  <span className="company-list-meta"><span>{publishedAmount}</span><span>{publishedDate}</span></span>
+                  <span className={styles.companyRole}>{copy.winningCompany}</span>
+                  {selected ? (
+                    <span className={styles.selectedState}>
+                      <CheckCircle2 aria-hidden="true" /> {copy.selected}
+                    </span>
+                  ) : null}
+                  <span className={styles.awardLabel}>{copy.recentAward}</span>
+                  <span className={`company-list-event ${styles.summary}`}>
+                    {signal.summary ?? copy.objectMissing}
+                  </span>
+                  <span className={styles.buyer}>
+                    {signal.buyerName
+                      ? interpolate(copy.buyer, { buyer: signal.buyerName })
+                      : copy.buyerMissing}
+                  </span>
+                  <span className={`company-list-meta ${styles.cardMeta}`}>
+                    <span>{publishedAmount}</span>
+                    <span>{publishedDate}</span>
+                    <span>{displayTerritory(company, signal)}</span>
+                  </span>
                 </span>
-              </button>
+              </Link>
             )
           })}
         </div>
@@ -429,12 +650,26 @@ export function Companies() {
       {renderDetail({
         access,
         companyKey,
+        requestedSignalId,
         selectedCompany,
+        selectedSignal,
         profile,
         profileKey,
         profileStatus,
         profileError,
-        retryProfile: selectedKey ? () => void loadProfile(selectedKey) : undefined,
+        retryProfile: selectedKey && selectedSignal ? () => {
+          requestDetailFocus(selectedSignal.signalId)
+          void loadProfile(selectedKey)
+        } : undefined,
+        retryAccess: () => void loadAccess(),
+        retryIncomplete: partial && retryablePartial ? () => void retryIncomplete() : undefined,
+        backToList: companyKey ? backToList : undefined,
+        onSelectSignal: (signalId) => {
+          if (selectedCompany) lastSelection.current = { companyKey: selectedCompany.key, signalId }
+          requestDetailFocus(signalId)
+        },
+        selectionFromList: readSelectionState(location.state)?.fromList ?? false,
+        panelRef: detailPanelRef,
         copy,
         inaccessibleTitle: t.companyProfile.inaccessibleTitle,
         inaccessibleBody: t.companyProfile.inaccessibleBody,
@@ -451,12 +686,20 @@ export function Companies() {
 function renderDetail({
   access,
   companyKey,
+  requestedSignalId,
   selectedCompany,
+  selectedSignal,
   profile,
   profileKey,
   profileStatus,
   profileError,
   retryProfile,
+  retryAccess,
+  retryIncomplete,
+  backToList,
+  onSelectSignal,
+  selectionFromList,
+  panelRef,
   copy,
   inaccessibleTitle,
   inaccessibleBody,
@@ -468,12 +711,20 @@ function renderDetail({
 }: {
   access: AccessSnapshot
   companyKey: string | undefined
+  requestedSignalId: string | null
   selectedCompany: AuthorizedCompany | null
+  selectedSignal: AuthorizedCompanySignal | null
   profile: CompanyProfilePayload | null
   profileKey: string | null
   profileStatus: 'idle' | 'loading' | 'ready' | 'error'
   profileError: unknown
   retryProfile?: () => void
+  retryAccess: () => void
+  retryIncomplete?: () => void
+  backToList?: () => void
+  onSelectSignal: (signalId: string) => void
+  selectionFromList: boolean
+  panelRef: RefObject<HTMLElement | null>
   copy: ReturnType<typeof useI18n>['t']['reference']['companiesPage']
   inaccessibleTitle: string
   inaccessibleBody: string
@@ -483,32 +734,67 @@ function renderDetail({
   emptyTitle: string
   emptyBody: string
 }) {
-  if (access.status === 'loading') return <CompanyDetailMessage title={loading} body={copy.resolvingAccess} />
-  if (access.status === 'error') return <CompanyDetailMessage title={copy.resolutionError} body={copy.resolutionErrorBody} tone={null} />
-  if (!selectedCompany) {
-    const incomplete = access.unresolved.length > 0 || access.nextOffset !== null || access.scanTruncated || access.error !== null
-    if (incomplete) {
-      return <CompanyDetailMessage title={copy.incompleteTitle} body={copy.incompleteBody} tone={null} />
-    }
-    return <CompanyDetailMessage
-      title={companyKey ? inaccessibleTitle : emptyTitle}
-      body={companyKey ? inaccessibleBody : emptyBody}
-      tone={companyKey ? 'alert' : 'status'}
+  const message = (title: string, body: string, tone: 'status' | 'alert' | null = 'status', retry?: () => void) => (
+    <CompanyDetailMessage
+      panelRef={panelRef}
+      title={title}
+      body={body}
+      tone={tone}
+      retry={retry}
+      backToList={backToList}
     />
+  )
+  if (access.status === 'loading') return message(loading, copy.resolvingAccess)
+  if (access.status === 'error') {
+    return message(
+      copy.resolutionError,
+      copy.resolutionErrorBody,
+      companyKey ? 'alert' : null,
+      companyKey ? retryAccess : undefined,
+    )
+  }
+
+  const incomplete = access.unresolved.length > 0
+    || access.nextOffset !== null
+    || access.scanTruncated
+    || access.error !== null
+  if (!companyKey) {
+    if (access.companies.length === 0 && incomplete) {
+      return message(copy.incompleteTitle, copy.incompleteBody, null)
+    }
+    if (access.companies.length === 0) return message(emptyTitle, emptyBody)
+    return message(copy.noSelectionTitle, copy.noSelectionBody)
+  }
+  if (!selectedCompany) {
+    if (incomplete) return message(copy.incompleteTitle, copy.incompleteBody, 'alert', retryIncomplete)
+    return message(inaccessibleTitle, inaccessibleBody, 'alert')
+  }
+  if (!requestedSignalId || !selectedSignal) {
+    if (incomplete) return message(copy.incompleteTitle, copy.incompleteBody, 'alert', retryIncomplete)
+    return message(copy.awardInaccessibleTitle, copy.awardInaccessibleBody, 'alert')
   }
   if (
-    profileKey !== selectedCompany.key ||
-    profileStatus === 'loading' ||
-    profileStatus === 'idle' ||
-    (profile !== null && profile.company_key !== selectedCompany.key)
-  ) {
-    return <CompanyDetailMessage title={loading} body={copy.loadingProfile} />
-  }
+    profileKey !== selectedCompany.key
+    || profileStatus === 'loading'
+    || profileStatus === 'idle'
+    || (profile !== null && profile.company_key !== selectedCompany.key)
+  ) return message(loading, copy.loadingProfile)
+
   if (profileStatus === 'error' || !profile) {
     if (profileError instanceof ApiError && profileError.status === 404) {
-      return <CompanyDetailMessage title={inaccessibleTitle} body={inaccessibleBody} tone="alert" />
+      return message(inaccessibleTitle, inaccessibleBody, 'alert')
     }
-    return <CompanyDetailMessage title={profileErrorTitle} body={profileErrorBody} retry={retryProfile} tone="alert" />
+    return message(profileErrorTitle, profileErrorBody, 'alert', retryProfile)
   }
-  return <CompanyProfileView profile={profile} />
+  return (
+    <CompanyProfileView
+      panelRef={panelRef}
+      profile={profile}
+      company={selectedCompany}
+      signal={selectedSignal}
+      backToList={backToList}
+      onSelectSignal={onSelectSignal}
+      selectionFromList={selectionFromList}
+    />
+  )
 }
