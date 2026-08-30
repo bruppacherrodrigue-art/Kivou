@@ -314,7 +314,8 @@ card_presentation_artifact = sa.Table(
     sa.Column("payload", sa.JSON(none_as_null=True)),
     sa.Column("payload_variant", sa.String(32)),
     sa.Column("qa_status", sa.String(16), nullable=False),
-    sa.Column("qa_reasons", sa.JSON, nullable=False),
+    sa.Column("qa_reasons", sa.JSON(none_as_null=True), nullable=False),
+    sa.Column("qa_policy_version", sa.String(128), nullable=False),
     sa.Column("generator_version", sa.String(128), nullable=False),
     sa.Column("prompt_version", sa.String(128)),
     sa.Column("model_id", sa.String(256)),
@@ -361,6 +362,14 @@ card_presentation_artifact = sa.Table(
     sa.CheckConstraint(
         "qa_status IN ('PASS', 'REGENERATE', 'FALLBACK', 'REVIEW')",
         name="ck_card_presentation_qa_status",
+    ),
+    sa.CheckConstraint(
+        "length(qa_policy_version) >= 1 AND length(qa_policy_version) <= 128",
+        name="ck_card_presentation_qa_policy_version",
+    ),
+    sa.CheckConstraint(
+        "length(generator_version) >= 1 AND length(generator_version) <= 128",
+        name="ck_card_presentation_generator_version",
     ),
     sa.CheckConstraint(
         "payload_variant IS NULL OR payload_variant IN ('FULL', 'FACTUAL_FALLBACK')",

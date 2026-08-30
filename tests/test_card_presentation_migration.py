@@ -43,6 +43,7 @@ EXPECTED_COLUMNS = {
     "payload_variant",
     "qa_status",
     "qa_reasons",
+    "qa_policy_version",
     "generator_version",
     "prompt_version",
     "model_id",
@@ -151,6 +152,7 @@ def artifact_values(**overrides: object) -> dict[str, object]:
         "payload_variant": "FACTUAL_FALLBACK",
         "qa_status": "FALLBACK",
         "qa_reasons": ["deterministic_factual_fallback"],
+        "qa_policy_version": "factual-qa-v1",
         "generator_version": "factual-fallback-v1",
         "prompt_version": None,
         "model_id": None,
@@ -218,6 +220,15 @@ def test_declared_and_migrated_table_have_the_exact_closed_shape(tmp_path) -> No
     } == {name for name, column in migrated.items() if column["nullable"]}
     for name in ("prompt_version", "model_id", "provider", "qa_model_id", "qa_provider"):
         assert migrated[name]["default"] is None
+    assert migrated["qa_policy_version"]["type"].length == 128
+    assert migrated["generator_version"]["type"].length == 128
+    assert {
+        constraint.name
+        for constraint in _table().constraints
+        if isinstance(constraint, sa.CheckConstraint)
+    } == {
+        item["name"] for item in inspector.get_check_constraints(TABLE_NAME)
+    }
 
 
 def test_foreign_keys_versions_checks_and_read_indexes_are_durable(tmp_path) -> None:
@@ -229,13 +240,14 @@ def test_foreign_keys_versions_checks_and_read_indexes_are_durable(tmp_path) -> 
         tuple(item["constrained_columns"]): (
             item["referred_table"],
             tuple(item["referred_columns"]),
+            item["options"].get("ondelete"),
         )
         for item in inspector.get_foreign_keys(TABLE_NAME)
     }
     assert foreign_keys == {
-        ("account_id",): ("account", ("account_id",)),
-        ("signal_key",): ("materialized_signal", ("signal_key",)),
-        ("target_icp_id",): ("target_icp", ("target_icp_id",)),
+        ("account_id",): ("account", ("account_id",), "CASCADE"),
+        ("signal_key",): ("materialized_signal", ("signal_key",), "RESTRICT"),
+        ("target_icp_id",): ("target_icp", ("target_icp_id",), "RESTRICT"),
     }
     assert {
         (item["name"], tuple(item["column_names"]))
@@ -361,6 +373,37 @@ def test_fallback_metadata_cannot_claim_a_provider(
     migrated_engine: sa.Engine, provider_metadata: dict[str, object]
 ) -> None:
     _assert_integrity_error(migrated_engine, artifact_values(**provider_metadata))
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("qa_policy_version", None),
+        ("qa_policy_version", ""),
+        ("qa_policy_version", "q" * 129),
+        ("generator_version", ""),
+        ("generator_version", "g" * 129),
+        ("qa_reasons", None),
+    ],
+)
+def test_required_provenance_is_non_null_non_empty_and_bounded(
+    migrated_engine: sa.Engine, field: str, value: object
+) -> None:
+    _assert_integrity_error(migrated_engine, artifact_values(**{field: value}))
+
+
+def test_published_fallback_persists_qa_reasons_as_a_json_list(
+    migrated_engine: sa.Engine,
+) -> None:
+    with migrated_engine.begin() as connection:
+        connection.execute(sa.insert(_table()).values(**artifact_values()))
+    with migrated_engine.connect() as connection:
+        reasons = connection.scalar(
+            sa.select(_table().c.qa_reasons).where(
+                _table().c.artifact_id == "a" * 64
+            )
+        )
+    assert reasons == ["deterministic_factual_fallback"]
 
 
 def test_pass_full_and_unpublished_review_are_the_only_respective_valid_shapes(
@@ -519,6 +562,9 @@ def test_postgresql_offline_sql_is_additive_partial_and_provider_neutral(capsys)
     assert f"create index {TENANT_READ_INDEX}" in sql
     assert "ck_card_presentation_publishable_pair" in sql
     assert "ck_card_presentation_fallback_offline" in sql
+    assert "qa_policy_version varchar(128) not null" in sql
+    assert "ck_card_presentation_qa_policy_version" in sql
+    assert "ck_card_presentation_generator_version" in sql
     assert "alter table" not in sql
     assert "drop table" not in sql
     assert "hermes" not in sql
