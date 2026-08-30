@@ -13,5 +13,6 @@ class CardGenerator(Protocol):
     provider: str
     model_id: str
     prompt_version: str
+    generator_version: str
 
     def generate(self, source: PresentationInput, *, attempt: int) -> GenerationResponse: ...

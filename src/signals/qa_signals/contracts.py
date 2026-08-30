@@ -5,17 +5,13 @@ from __future__ import annotations
 from enum import StrEnum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import Field, StringConstraints
+
+from signals.card_intelligence.contracts import Contract
 
 
-class QaContract(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        strict=True,
-        str_strip_whitespace=True,
-        revalidate_instances="always",
-    )
+class QaContract(Contract):
+    """QA contracts share the one strict JSON codec with Card Intelligence."""
 
 
 class QaStatus(StrEnum):

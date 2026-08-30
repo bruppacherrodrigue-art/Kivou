@@ -1,11 +1,12 @@
 import datetime as dt
-import json
 from decimal import Decimal
+from typing import get_type_hints
 
 import pytest
+import sqlalchemy as sa
 from pydantic import ValidationError
 
-from signals.accounts.icp_input import MonetaryThreshold, TargetIcpInput
+from signals.accounts.icp_input import TargetIcpInput
 from signals.card_intelligence.contracts import (
     ArtifactKind,
     CardPresentationPayload,
@@ -22,6 +23,7 @@ from signals.card_intelligence.contracts import (
     TargetRole,
     TargetRoleKind,
 )
+from signals.card_intelligence.protocol import CardGenerator
 from signals.qa_signals.contracts import QaDecision, QaStatus
 
 
@@ -129,19 +131,27 @@ def valid_source_facts() -> SourceFacts:
     )
 
 
-def valid_customer_input() -> TargetIcpInput:
-    return TargetIcpInput(
-        offer_summary="Materiaux de construction",
-        offers=("materials_and_components",),
-        territories=("CH",),
-        minimum_contract_value=MonetaryThreshold(
-            currency="CHF",
-            minimum_amount=100000,
-        ),
-    )
+def valid_icp_json() -> dict[str, object]:
+    return {
+        "offer_summary": "Materiaux de construction",
+        "offers": ["materials_and_components"],
+        "secondary_offers": [],
+        "buyer_trades": [],
+        "secondary_buyer_trades": [],
+        "territories": ["CH"],
+        "minimum_contract_value": {
+            "currency": "CHF",
+            "minimum_amount": 100000.0,
+            "maximum_amount": None,
+        },
+    }
 
 
-def valid_input(customer_input: TargetIcpInput | TargetIcpSnapshot | None = None) -> PresentationInput:
+def valid_icp_snapshot() -> TargetIcpSnapshot:
+    return TargetIcpSnapshot.from_json_value(valid_icp_json())
+
+
+def valid_input(snapshot: TargetIcpSnapshot | None = None) -> PresentationInput:
     return PresentationInput(
         account_id="account-1",
         signal_key="signal-1",
@@ -150,7 +160,7 @@ def valid_input(customer_input: TargetIcpInput | TargetIcpSnapshot | None = None
         target_icp_revision=7,
         language="fr",
         target_icp_label="Materiaux romands",
-        target_icp_customer_input=customer_input or valid_customer_input(),
+        target_icp_customer_input=(snapshot if snapshot is not None else valid_icp_snapshot()),
         icp_matched_needs=("materials_or_components",),
         facts=valid_source_facts(),
     )
@@ -274,6 +284,25 @@ def test_claim_identifiers_are_unique_per_payload():
         CardPresentationPayload.model_validate(dumped)
 
 
+def test_target_role_categories_and_fit_needs_are_unique():
+    payload = valid_full_payload()
+    duplicate_role = payload.target_roles[0].model_copy(
+        update={"rationale": "Meme categorie fonctionnelle, autre texte."}
+    )
+    dumped = payload.model_dump()
+    dumped["target_roles"] = (*payload.target_roles, duplicate_role)
+    with pytest.raises(ValidationError, match="target role categories.*unique"):
+        CardPresentationPayload.model_validate(dumped)
+
+    dumped = payload.model_dump()
+    dumped["fit_need_categories"] = (
+        "materials_or_components",
+        "materials_or_components",
+    )
+    with pytest.raises(ValidationError, match="fit_need_categories.*unique"):
+        CardPresentationPayload.model_validate(dumped)
+
+
 def test_every_public_prose_field_is_bound_to_an_evidenced_claim():
     dumped = valid_full_payload().model_dump()
     dumped["timing"] = "Appeler demain"
@@ -358,8 +387,26 @@ def test_presentation_input_uses_the_structured_customer_contract():
     source = valid_input()
     assert isinstance(source.target_icp_customer_input, TargetIcpSnapshot)
     assert source.target_icp_customer_input.offers == ("materials_and_components",)
-    dumped = source.model_dump()
-    dumped["target_icp_customer_input"] = {"offers": ("not-a-real-offer",)}
+    dumped = source.model_dump(mode="json")
+    with pytest.raises(ValidationError):
+        PresentationInput.model_validate(dumped)
+
+
+def test_presentation_input_rejects_the_coercive_mutable_api_model():
+    coercive = TargetIcpInput.model_validate(
+        {
+            "offers": ["materials_and_components"],
+            "territories": ["CH"],
+            "minimum_contract_value": {
+                "currency": "CHF",
+                "minimum_amount": "100000",
+            },
+        }
+    )
+    assert coercive.minimum_contract_value is not None
+    assert coercive.minimum_contract_value.minimum_amount == 100000.0
+    dumped = valid_input().model_dump()
+    dumped["target_icp_customer_input"] = coercive
     with pytest.raises(ValidationError):
         PresentationInput.model_validate(dumped)
 
@@ -373,18 +420,16 @@ def test_presentation_icp_snapshot_is_deeply_frozen():
         snapshot.minimum_contract_value.minimum_amount = 1.0
 
 
-def test_presentation_input_copies_the_mutable_customer_input_before_fingerprinting():
-    customer_input = valid_customer_input()
-    source = valid_input(customer_input)
+def test_presentation_input_does_not_alias_the_mutable_raw_icp_json():
+    raw = valid_icp_json()
+    snapshot = TargetIcpSnapshot.from_json_value(raw)
+    source = valid_input(snapshot)
     fingerprint = source.fingerprint()
-    assert source.target_icp_customer_input is not customer_input
-    assert source.target_icp_customer_input.minimum_contract_value is not (
-        customer_input.minimum_contract_value
-    )
 
-    customer_input.offers = ("staffing_and_labour",)
-    assert customer_input.minimum_contract_value is not None
-    customer_input.minimum_contract_value.minimum_amount = 1.0
+    raw["offers"] = ["staffing_and_labour"]
+    threshold = raw["minimum_contract_value"]
+    assert isinstance(threshold, dict)
+    threshold["minimum_amount"] = 1.0
 
     assert source.target_icp_customer_input.offers == ("materials_and_components",)
     assert source.target_icp_customer_input.minimum_contract_value is not None
@@ -392,29 +437,39 @@ def test_presentation_input_copies_the_mutable_customer_input_before_fingerprint
     assert source.fingerprint() == fingerprint
 
 
-def test_presentation_icp_snapshot_refuses_coercive_monetary_values_at_the_boundary():
+@pytest.mark.parametrize("coercive", ("100000", True))
+def test_presentation_icp_snapshot_refuses_coercive_raw_json_numbers(coercive):
+    raw = valid_icp_json()
+    threshold = raw["minimum_contract_value"]
+    assert isinstance(threshold, dict)
+    threshold["minimum_amount"] = coercive
     with pytest.raises(ValidationError):
-        TargetIcpThresholdSnapshot(currency="CHF", minimum_amount="100000")
+        TargetIcpSnapshot.from_json_value(raw)
 
-    unsafe_threshold = MonetaryThreshold.model_construct(
+
+@pytest.mark.parametrize("invalid_key", ("unexpected", "minimumContractValue"))
+def test_presentation_icp_snapshot_refuses_extra_and_alias_keys(invalid_key):
+    raw = valid_icp_json()
+    raw[invalid_key] = raw["minimum_contract_value"]
+    if invalid_key == "minimumContractValue":
+        del raw["minimum_contract_value"]
+    with pytest.raises(ValidationError, match="extra_forbidden"):
+        TargetIcpSnapshot.from_json_value(raw)
+
+
+def test_presentation_icp_snapshot_accepts_valid_raw_json_numbers():
+    snapshot = TargetIcpSnapshot.from_json_value(valid_icp_json())
+    assert snapshot.minimum_contract_value == TargetIcpThresholdSnapshot(
         currency="CHF",
-        minimum_amount="100000",
-        maximum_amount=None,
+        minimum_amount=100000.0,
     )
-    unsafe_customer_input = TargetIcpInput.model_construct(
-        offers=("materials_and_components",),
-        territories=("CH",),
-        minimum_contract_value=unsafe_threshold,
-    )
-    with pytest.raises(ValidationError):
-        valid_input(unsafe_customer_input)
 
 
 def test_input_fingerprint_is_canonical_and_revision_sensitive():
     source = valid_input()
     raw = source.model_dump(mode="json")
     reordered = dict(reversed(tuple(raw.items())))
-    decoded = PresentationInput.model_validate_json(json.dumps(reordered))
+    decoded = PresentationInput.from_json_value(reordered)
     assert decoded.fingerprint() == source.fingerprint()
     assert len(source.fingerprint()) == 64
 
@@ -491,8 +546,48 @@ def test_contracts_are_closed_frozen_and_json_round_trip_strictly():
         payload.headline = "Rewritten"
 
 
+def test_contract_codec_round_trips_a_sqlalchemy_json_value():
+    metadata = sa.MetaData()
+    artifacts = sa.Table(
+        "contract_codec_artifact",
+        metadata,
+        sa.Column("payload", sa.JSON, nullable=False),
+    )
+    engine = sa.create_engine("sqlite:///:memory:")
+    metadata.create_all(engine)
+    payload = valid_full_payload()
+    with engine.begin() as connection:
+        connection.execute(artifacts.insert().values(payload=payload.model_dump(mode="json")))
+        stored = connection.execute(sa.select(artifacts.c.payload)).scalar_one()
+
+    assert isinstance(stored, dict)
+    assert CardPresentationPayload.from_json_value(stored) == payload
+    with pytest.raises(ValueError, match="JSON-compatible"):
+        CardPresentationPayload.from_json_value({"invalid": float("nan")})
+
+
+def test_card_generator_protocol_requires_a_generator_version():
+    assert get_type_hints(CardGenerator)["generator_version"] is str
+
+    class FakeGenerator:
+        provider = "test-only"
+        model_id = "fake-model"
+        prompt_version = "fake-prompt-v1"
+        generator_version = "fake-generator-v1"
+
+        def generate(self, source: PresentationInput, *, attempt: int) -> GenerationResponse:
+            assert source.account_id == "account-1"
+            assert attempt == 1
+            return GenerationResponse(payload=valid_fallback_payload())
+
+    generator: CardGenerator = FakeGenerator()
+    assert generator.generator_version == "fake-generator-v1"
+    assert generator.generate(valid_input(), attempt=1).payload == valid_fallback_payload()
+
+
 def test_qa_decision_has_no_content_rewrite_field():
     decision = QaDecision(status=QaStatus.PASS, reasons=("grounded",))
+    assert QaDecision.from_json_value(decision.model_dump(mode="json")) == decision
     assert set(decision.model_dump()) == {"status", "reasons"}
     assert set(QaStatus) == {
         QaStatus.PASS,

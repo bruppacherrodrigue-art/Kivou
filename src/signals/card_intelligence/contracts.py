@@ -11,19 +11,17 @@ import hashlib
 import json
 from decimal import Decimal
 from enum import StrEnum
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
     StringConstraints,
-    ValidationInfo,
-    field_validator,
     model_validator,
 )
 
-from signals.accounts.icp_input import BuyerTrade, OfferKind, TargetIcpInput
+from signals.accounts.icp_input import BuyerTrade, OfferKind
 from signals.needs import NeedCategory
 
 SCHEMA_VERSION = "card-presentation-v1"
@@ -57,6 +55,22 @@ class Contract(BaseModel):
         str_strip_whitespace=True,
         revalidate_instances="always",
     )
+
+    @classmethod
+    def from_json_value(cls, value: object) -> Self:
+        """Decode a SQL/JSON value through Pydantic's strict JSON path."""
+
+        try:
+            encoded = json.dumps(
+                value,
+                ensure_ascii=False,
+                sort_keys=True,
+                separators=(",", ":"),
+                allow_nan=False,
+            )
+        except (TypeError, ValueError) as error:
+            raise ValueError("contract value must be JSON-compatible") from error
+        return cls.model_validate_json(encoded)
 
 
 class ArtifactKind(StrEnum):
@@ -155,31 +169,6 @@ class TargetIcpSnapshot(Contract):
                 raise ValueError(f"{field} values must be unique")
         return self
 
-    @classmethod
-    def from_customer_input(cls, customer_input: TargetIcpInput) -> TargetIcpSnapshot:
-        """Copy a mutable API input without retaining any mutable nested alias."""
-
-        threshold = customer_input.minimum_contract_value
-        threshold_snapshot = (
-            TargetIcpThresholdSnapshot(
-                currency=threshold.currency,
-                minimum_amount=threshold.minimum_amount,
-                maximum_amount=threshold.maximum_amount,
-            )
-            if threshold is not None
-            else None
-        )
-        return cls(
-            offer_summary=customer_input.offer_summary,
-            offers=tuple(customer_input.offers),
-            secondary_offers=tuple(customer_input.secondary_offers),
-            buyer_trades=tuple(customer_input.buyer_trades),
-            secondary_buyer_trades=tuple(customer_input.secondary_buyer_trades),
-            territories=tuple(customer_input.territories),
-            minimum_contract_value=threshold_snapshot,
-        )
-
-
 class CardPresentationPayload(Contract):
     schema_version: Literal["card-presentation-v1"] = SCHEMA_VERSION
     variant: PresentationVariant
@@ -204,6 +193,10 @@ class CardPresentationPayload(Contract):
         )
         if len({claim.claim_id for claim in self.claims}) != len(self.claims):
             raise ValueError("claim_id values must be unique")
+        if len({role.role for role in self.target_roles}) != len(self.target_roles):
+            raise ValueError("target role categories must be unique")
+        if len(set(self.fit_need_categories)) != len(self.fit_need_categories):
+            raise ValueError("fit_need_categories values must be unique")
         if self.variant is PresentationVariant.FULL:
             if any(value is None for value in commercial):
                 raise ValueError("FULL requires every commercial field")
@@ -301,21 +294,6 @@ class PresentationInput(Contract):
     target_icp_customer_input: TargetIcpSnapshot
     icp_matched_needs: tuple[NeedCategory, ...] = Field(default=(), max_length=32)
     facts: SourceFacts
-
-    @field_validator("target_icp_customer_input", mode="before")
-    @classmethod
-    def freeze_customer_input(
-        cls,
-        value: object,
-        info: ValidationInfo,
-    ) -> object:
-        if isinstance(value, TargetIcpInput):
-            return TargetIcpSnapshot.from_customer_input(value)
-        if isinstance(value, dict) and info.mode == "json":
-            return TargetIcpSnapshot.model_validate_json(
-                json.dumps(value, ensure_ascii=False, separators=(",", ":"))
-            )
-        return value
 
     @model_validator(mode="after")
     def matched_needs_are_unique(self) -> PresentationInput:
