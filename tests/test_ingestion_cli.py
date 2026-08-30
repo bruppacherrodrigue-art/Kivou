@@ -29,6 +29,20 @@ def test_structured_summary_is_concise_and_contains_required_counters():
     )
 
 
+def test_source_outcome_keeps_the_previous_positional_field_order():
+    outcome = SourceOutcome(
+        "boamp",
+        "failed",
+        IngestionCounters(),
+        0.5,
+        "unexpected",
+        True,
+    )
+
+    assert outcome.work_pending is True
+    assert outcome.error_type is None
+
+
 def test_failed_summary_exposes_only_category_and_safe_error_type():
     private_marker = "private-ingestion-marker"
     outcome = SourceOutcome(

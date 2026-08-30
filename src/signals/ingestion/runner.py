@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import inspect
 import time
 from collections.abc import Callable, Mapping
 from typing import Any
@@ -56,8 +57,8 @@ class SourceOutcome:
     counters: IngestionCounters
     duration_seconds: float
     error_category: str | None = None
-    error_type: str | None = None
     work_pending: bool = False
+    error_type: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -140,16 +141,39 @@ def _category(error: BaseException) -> str:
     return "network" if status is None and "http" in name else "unexpected"
 
 
+_ERROR_TYPE_FAMILIES: tuple[tuple[type[BaseException], str], ...] = (
+    (TimeoutError, "TimeoutError"),
+    (ConnectionError, "ConnectionError"),
+    (TypeError, "TypeError"),
+    (ValueError, "ValueError"),
+    (OSError, "OSError"),
+    (RuntimeError, "RuntimeError"),
+)
+
+
 def _error_type(error: BaseException) -> str:
     root = error
     seen = {id(root)}
-    while isinstance(cause := getattr(root, "cause", None), BaseException):
+    while True:
+        try:
+            attributes = object.__getattribute__(root, "__dict__")
+            cause = inspect.getattr_static(root, "cause", None)
+        except BaseException:  # noqa: BLE001
+            break
+        if (
+            type(attributes) is not dict
+            or attributes.get("cause") is not cause
+            or not isinstance(cause, BaseException)
+        ):
+            break
         if id(cause) in seen:
             break
         seen.add(id(cause))
         root = cause
-    name = type(root).__name__
-    return name if len(name) <= 64 and name.isidentifier() else "Exception"
+    for family, label in _ERROR_TYPE_FAMILIES:
+        if isinstance(root, family):
+            return label
+    return "Exception"
 
 
 class IngestionRunner:

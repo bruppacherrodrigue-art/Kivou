@@ -705,11 +705,63 @@ def test_error_type_is_cycle_safe():
     assert runner_module._error_type(outer) == "TypeError"
 
 
+def test_error_type_does_not_execute_cause_descriptors():
+    marker = "private-descriptor-marker"
+
+    class DescriptorError(Exception):
+        @property
+        def cause(self):
+            raise AssertionError(marker)
+
+        def __getattribute__(self, name):
+            if name == "cause":
+                raise AssertionError(marker)
+            return super().__getattribute__(name)
+
+    error_type = runner_module._error_type(DescriptorError())
+    outcome = runner_module.SourceOutcome(
+        "boamp",
+        "failed",
+        runner_module.IngestionCounters(),
+        0,
+        "unexpected",
+        True,
+        error_type,
+    )
+
+    assert error_type == "Exception"
+    assert marker not in error_type
+    assert marker not in summarize(outcome)
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    (
+        (TypeError(), "TypeError"),
+        (TimeoutError(), "TimeoutError"),
+        (ConnectionError(), "ConnectionError"),
+        (ValueError(), "ValueError"),
+        (OSError(), "OSError"),
+        (RuntimeError(), "RuntimeError"),
+        (Exception(), "Exception"),
+    ),
+)
+def test_error_type_uses_closed_builtin_family_labels(error, expected):
+    assert runner_module._error_type(error) == expected
+
+
+def test_custom_type_error_subclass_uses_the_builtin_family_label():
+    class PrivateCustomerTypeError(TypeError):
+        pass
+
+    assert runner_module._error_type(PrivateCustomerTypeError()) == "TypeError"
+
+
 @pytest.mark.parametrize(
     "unsafe_name",
-    ("not an identifier", "E" * 65),
+    ("Private_customer_123", "ТypeError", "E" * 65),
 )
-def test_error_type_rejects_unsafe_exception_class_names(unsafe_name):
+def test_error_type_rejects_third_party_exception_class_names(unsafe_name):
     unsafe_error = type(unsafe_name, (Exception,), {})()
 
     assert runner_module._error_type(unsafe_error) == "Exception"
