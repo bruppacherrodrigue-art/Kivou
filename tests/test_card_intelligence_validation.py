@@ -928,6 +928,18 @@ def _replace_public_text(
     return CardPresentationPayload.model_validate(data)
 
 
+def _assert_full_semantics_clean(
+    payload: CardPresentationPayload,
+    source: PresentationInput,
+) -> None:
+    """FULL controls may prove semantics, but FULL is not publishable yet."""
+
+    result = validate_payload(payload, source)
+
+    assert not result.valid
+    assert result.errors == ("full_variant_not_authorized",)
+
+
 def _source_with_actors(
     source: PresentationInput,
     *,
@@ -1025,7 +1037,7 @@ def test_localized_dates_pass_only_when_bound_to_the_exact_source_field(
 ):
     payload = _replace_public_text(full_payload, "award_summary", claim)
 
-    assert validate_payload(payload, source).valid
+    _assert_full_semantics_clean(payload, source)
 
 
 def test_publication_date_cannot_be_presented_as_the_award_date(source, full_payload):
@@ -1039,6 +1051,26 @@ def test_publication_date_cannot_be_presented_as_the_award_date(source, full_pay
 
     assert "award_date_mismatch" in errors
     assert "publication_as_award_date" in errors
+
+
+@pytest.mark.parametrize(
+    "claim",
+    (
+        "Date d'attribution du projet : 15 août 2026.",
+        "Award date for project: August 15, 2026.",
+    ),
+    ids=("fr", "en"),
+)
+def test_project_word_never_neutralizes_a_semantic_award_date(
+    source, full_payload, claim
+):
+    payload = _replace_public_text(full_payload, "award_summary", claim)
+
+    errors = validate_payload(payload, source).errors
+
+    assert "award_date_mismatch" in errors
+    assert "publication_as_award_date" in errors
+    assert "full_variant_not_authorized" in errors
 
 
 def test_a_real_date_without_a_semantic_date_kind_fails_closed(source, full_payload):
@@ -1075,11 +1107,63 @@ def test_isolated_amount_postcode_and_project_numbers_are_not_dates(
 ):
     payload = _replace_public_text(full_payload, "award_summary", claim)
 
-    assert validate_payload(payload, source).valid
+    _assert_full_semantics_clean(payload, source)
 
 
 def test_factual_renderer_output_passes_the_same_validator(source):
     assert validate_payload(factual_fallback(source), source).valid
+
+
+def test_full_variant_is_not_authorized_without_an_approved_generation_pipeline(
+    source, full_payload
+):
+    result = validate_payload(full_payload, source)
+
+    assert not result.valid
+    assert result.errors == ("full_variant_not_authorized",)
+
+
+@pytest.mark.parametrize(
+    "surface",
+    ("headline", "claim", "claim-evidence", "unknown"),
+)
+def test_only_the_exact_canonical_factual_fallback_is_publishable(source, surface):
+    canonical = factual_fallback(source)
+    data = canonical.model_dump(mode="python")
+    if surface == "headline":
+        old_headline = data["headline"]
+        data["headline"] = f"{old_headline} vérifiée"
+        next(
+            claim for claim in data["claims"] if claim["text"] == old_headline
+        )["text"] = data["headline"]
+    elif surface == "claim":
+        data["claims"] = (
+            *data["claims"],
+            PresentationClaim(
+                claim_id="FACT_LOTS",
+                kind=ClaimKind.FACT,
+                text="Le marché comporte 99 lots.",
+                evidence_refs=(AWARDEE_FIELD_REF,),
+            ),
+        )
+    elif surface == "claim-evidence":
+        data["claims"][0]["evidence_refs"] = (
+            AWARDEE_FIELD_REF,
+            AMOUNT_FIELD_REF,
+        )
+    else:
+        data["unknowns"] = (
+            PresentationUnknown(
+                text="Nombre de lots non publié.",
+                evidence_refs=(AWARDEE_FIELD_REF,),
+            ),
+        )
+    candidate = CardPresentationPayload.model_validate(data)
+
+    result = validate_payload(candidate, source)
+
+    assert not result.valid
+    assert "factual_fallback_not_canonical" in result.errors
 
 
 @pytest.mark.parametrize(
@@ -1125,7 +1209,7 @@ def test_unicode_actor_labels_are_matched_by_exact_normalized_role(source):
         "ACHETEUR : Energie Geneve SA. ATTRIBUTAIRE : Batiments Reunis SA.",
     )
 
-    assert validate_payload(payload, localized_source).valid
+    _assert_full_semantics_clean(payload, localized_source)
 
 
 def test_explicit_actor_labels_cannot_swap_buyer_and_awardee(source, full_payload):
@@ -1160,7 +1244,7 @@ def test_distinct_homonymous_identities_in_one_role_remain_representable(source)
         awardees=(SourceActor(actor_ref="9" * 64, display_name="Attributaire Unique SA"),),
     )
 
-    assert validate_payload(_full_payload(same_role_source), same_role_source).valid
+    _assert_full_semantics_clean(_full_payload(same_role_source), same_role_source)
 
 
 def test_truncated_actor_prefix_collision_fails_ambiguous(source):
@@ -1211,7 +1295,7 @@ def test_actor_name_substrings_never_match_another_actor(
         _full_payload(bounded_source), "award_summary", claim
     )
 
-    assert validate_payload(payload, bounded_source).valid
+    _assert_full_semantics_clean(payload, bounded_source)
 
 
 def test_materials_cannot_be_rewritten_as_staffing(source, full_payload):
@@ -1234,11 +1318,11 @@ def test_actor_names_are_masked_before_materials_staffing_validation(source):
         awardees=(SourceActor(actor_ref="9" * 64, display_name="Personnel Matériaux SA"),),
     )
 
-    assert validate_payload(_full_payload(legal_name_source), legal_name_source).valid
+    _assert_full_semantics_clean(_full_payload(legal_name_source), legal_name_source)
 
 
-def test_materials_claim_without_staffing_is_valid(source, full_payload):
-    assert validate_payload(full_payload, source).valid
+def test_materials_claim_without_staffing_has_no_semantic_error(source, full_payload):
+    _assert_full_semantics_clean(full_payload, source)
 
 
 def test_fit_categories_must_be_an_exact_subset_of_current_matched_needs(
@@ -1355,7 +1439,7 @@ def test_source_proven_legal_actor_names_are_masked_from_copy_heuristics(source)
         awardees=(SourceActor(actor_ref="9" * 64, display_name="Dr Urgence Garantie SA"),),
     )
 
-    assert validate_payload(_full_payload(legal_name_source), legal_name_source).valid
+    _assert_full_semantics_clean(_full_payload(legal_name_source), legal_name_source)
 
 
 def test_date_semantics_never_bleed_between_distinct_public_fields(source, full_payload):
@@ -1401,7 +1485,7 @@ def test_administrative_title_check_does_not_match_a_numeric_fragment(
         "Montant documenté : 250 000 CHF pour le projet 1200.",
     )
 
-    assert validate_payload(payload, numeric_source).valid
+    _assert_full_semantics_clean(payload, numeric_source)
 
 
 def test_claimed_amount_must_equal_the_typed_source_value(source, full_payload):
@@ -1441,6 +1525,24 @@ def test_every_labeled_actor_assertion_resolves_exactly_to_its_source_role(
     assert "actor_reference_unbound" in validate_payload(payload, source).errors
 
 
+def test_every_actor_in_a_labeled_role_list_must_match_the_exact_source_role(
+    source, full_payload
+):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        (
+            "Acheteur : SOCIETE INVENTEE SA et Gemeinde Root. "
+            "Attributaire : Egli Gartenbau AG Sursee."
+        ),
+    )
+
+    errors = validate_payload(payload, source).errors
+
+    assert "actor_reference_unbound" in errors
+    assert "full_variant_not_authorized" in errors
+
+
 @pytest.mark.parametrize(
     ("claim", "expected_error"),
     (
@@ -1464,6 +1566,26 @@ def test_lowercase_people_priority_and_assured_outcomes_fail_closed(
     assert expected_error in validate_payload(payload, source).errors
 
 
+@pytest.mark.parametrize(
+    "claim",
+    (
+        "jean dupont suivra le besoin de matériaux.",
+        "Répondre sans attendre au besoin de matériaux.",
+        "La vente de matériaux est acquise.",
+    ),
+    ids=("lowercase-owner", "without-waiting", "sale-acquired"),
+)
+def test_unapproved_full_copy_cannot_bypass_publication_by_rephrasing(
+    source, full_payload, claim
+):
+    payload = _replace_public_text(full_payload, "recommended_action", claim)
+
+    result = validate_payload(payload, source)
+
+    assert not result.valid
+    assert "full_variant_not_authorized" in result.errors
+
+
 def test_two_qualified_date_pairs_can_share_one_sentence(source, full_payload):
     payload = _replace_public_text(
         full_payload,
@@ -1474,7 +1596,7 @@ def test_two_qualified_date_pairs_can_share_one_sentence(source, full_payload):
         ),
     )
 
-    assert validate_payload(payload, source).valid
+    _assert_full_semantics_clean(payload, source)
 
 
 def test_iso_project_reference_is_not_treated_as_a_published_date(
@@ -1486,7 +1608,7 @@ def test_iso_project_reference_is_not_treated_as_a_published_date(
         "Référence projet 2026-05-19.",
     )
 
-    assert validate_payload(payload, source).valid
+    _assert_full_semantics_clean(payload, source)
 
 
 def test_substantial_normalized_prefix_of_a_long_raw_title_is_rejected(
@@ -1524,7 +1646,7 @@ def test_proven_functional_role_label_is_not_treated_as_a_person(
         "Contacter le responsable des achats au sujet des matériaux.",
     )
 
-    assert validate_payload(payload, source).valid
+    _assert_full_semantics_clean(payload, source)
 
 
 def test_project_identifier_and_qualified_publication_date_can_share_a_sentence(
@@ -1536,7 +1658,7 @@ def test_project_identifier_and_qualified_publication_date_can_share_a_sentence(
         "Référence projet 2026-05-19 et date de publication : 15 août 2026.",
     )
 
-    assert validate_payload(payload, source).valid
+    _assert_full_semantics_clean(payload, source)
 
 
 def test_lowercase_currency_cannot_bypass_typed_amount_validation(
@@ -1576,6 +1698,21 @@ def test_labeled_location_must_equal_the_typed_source_location(
     )
 
     assert "location_value_mismatch" in validate_payload(payload, source).errors
+
+
+def test_false_location_cannot_be_hidden_before_the_exact_source_location(
+    source, full_payload
+):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Lieu d'exécution : Paris, FR ; source précédente Root, CH.",
+    )
+
+    errors = validate_payload(payload, source).errors
+
+    assert "location_value_mismatch" in errors
+    assert "full_variant_not_authorized" in errors
 
 
 def test_functional_role_copy_must_match_a_proven_target_role(

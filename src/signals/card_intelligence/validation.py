@@ -26,6 +26,7 @@ from signals.card_intelligence.contracts import (
     SourceTable,
     source_field_ref,
 )
+from signals.card_intelligence.fallback import factual_fallback
 
 _OFFER_TO_NEED = {
     "materials_and_components": "materials_or_components",
@@ -213,7 +214,9 @@ _DATE_KIND_PATTERNS = {
 }
 
 _IDENTIFIER_DATE_CONTEXT = re.compile(
-    r"\b(?:reference|ref|projet|project|cpv|lot|code\s+postal|postcode)\b"
+    r"\b(?:(?:reference|ref|identifier|id|numero|number)"
+    r"(?:\s+(?:projet|project|cpv|lot))?|"
+    r"cpv|lot|code\s+postal|postcode)\b"
 )
 
 _BUYER_ASSERTION = re.compile(
@@ -502,10 +505,10 @@ def _claim_evidence_errors(
             required.add(typed_refs["location"])
             if location is None:
                 errors.add("location_value_unbound")
-            elif not _contains_phrase(
+            elif re.match(
+                _phrase_pattern(location),
                 _normalize(folded_claim[assertion.end() :]),
-                location,
-            ):
+            ) is None:
                 errors.add("location_value_mismatch")
 
         date_text = folded_claim
@@ -624,9 +627,26 @@ def _labeled_actor_errors(
     errors: set[str] = set()
     for index, (role, match) in enumerate(assertions):
         end = assertions[index + 1][1].start() if index + 1 < len(assertions) else len(folded)
-        segment = _normalize(folded[match.end() : end])
         expected = buyers if role == "buyer" else awardees
-        if not any(_contains_phrase(segment, actor) for actor in expected):
+        raw_segment = folded[match.end() : end]
+        segment = _normalize(raw_segment)
+        for boundary in re.finditer(r"[.!?](?:\s+|$)", raw_segment):
+            candidate = _normalize(raw_segment[: boundary.start()])
+            if any(_contains_phrase(candidate, actor) for actor in expected):
+                segment = candidate
+                break
+        matched = False
+        remainder = segment
+        for actor in sorted(expected, key=len, reverse=True):
+            if _contains_phrase(remainder, actor):
+                matched = True
+                remainder = re.sub(_phrase_pattern(actor), " ", remainder)
+        remainder_words = tuple(
+            word
+            for word in remainder.split()
+            if word not in {"and", "et"}
+        )
+        if not matched or remainder_words:
             errors.add("actor_reference_unbound")
     return errors
 
@@ -755,18 +775,27 @@ def _is_identifier_date(text: str, mention: _DateMention) -> bool:
     segment = text[start:end]
     local_start = mention.start - start
     local_end = mention.end - start
-    identifier_distances = [
-        _span_distance(local_start, local_end, match)
+    identifier_matches = tuple(
+        match
         for match in _IDENTIFIER_DATE_CONTEXT.finditer(segment)
-    ]
-    if not identifier_distances or min(identifier_distances) > 48:
+        if match.end() <= local_start
+    )
+    if not identifier_matches:
         return False
-    semantic_distances = [
-        _span_distance(local_start, local_end, match)
+    closest_identifier = min(
+        identifier_matches,
+        key=lambda match: _span_distance(local_start, local_end, match),
+    )
+    if _span_distance(local_start, local_end, closest_identifier) > 48:
+        return False
+    semantic_before = [
+        match
         for pattern in _DATE_KIND_PATTERNS.values()
         for match in pattern.finditer(segment)
+        if match.end() <= local_start
+        and _span_distance(local_start, local_end, match) <= 80
     ]
-    return not semantic_distances or min(identifier_distances) < min(semantic_distances)
+    return not semantic_before
 
 
 def _validate_dates(texts: tuple[str, ...], source: PresentationInput) -> set[str]:
@@ -991,6 +1020,21 @@ def _validate_administrative_copy(
     )
 
 
+def _validate_publication_policy(
+    payload: CardPresentationPayload,
+    source: PresentationInput,
+) -> set[str]:
+    """Close publication until an independently approved FULL pipeline exists."""
+
+    if payload.variant is PresentationVariant.FULL:
+        return {"full_variant_not_authorized"}
+    try:
+        canonical = factual_fallback(source)
+    except (ValidationError, TypeError, ValueError, AttributeError):
+        return {"factual_fallback_not_canonical"}
+    return set() if payload == canonical else {"factual_fallback_not_canonical"}
+
+
 def validate_payload(
     payload: CardPresentationPayload,
     source: PresentationInput,
@@ -1018,6 +1062,7 @@ def validate_payload(
         return ValidationResult(tuple(sorted(errors)))
 
     texts = _public_texts(checked_payload)
+    errors.update(_validate_publication_policy(checked_payload, checked_source))
     errors.update(_validate_evidence(checked_payload, checked_source))
     errors.update(_validate_actor_roles(texts, checked_source))
     errors.update(_validate_dates(texts, checked_source))
