@@ -12,10 +12,15 @@ Ce design traduit :
 - les drafts #121, #122, #123, #124 et #125, utilisées uniquement comme
   références techniques.
 
-Le SHA de départ audité est
-`a1ffc5021f1d981059f4e9017d295683a389605b`, tête de `origin/main` au début du
-travail. La migration courante est `0027_signal_notes`. Chaque création de
-branche et chaque fusion reverra la tête distante avant d'agir.
+Le SHA de départ audité était
+`a1ffc5021f1d981059f4e9017d295683a389605b`. Avant le premier changement
+produit, `main` a avancé à
+`9b73cc370ef6657e0a53a9fb53fde1d226500fc9` avec #115. Ce delta isole la
+console fondateur, ajoute son build à la CI et ne change ni les contrats
+Signaux, ni les entreprises, ni la persistance métier. La branche de fondation
+a donc été recréée proprement depuis `9b73cc3`, sans rebase ni force-push. La
+migration courante reste `0027_signal_notes`. Chaque création de branche et
+chaque fusion reverra la tête distante avant d'agir.
 
 Les drafts ne sont pas des dépendances Git. Aucune ne sera fusionnée, rebasée
 ou réécrite. Leurs éléments utiles seront réimplémentés dans de nouvelles

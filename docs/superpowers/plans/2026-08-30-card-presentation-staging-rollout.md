@@ -72,7 +72,7 @@ Use `jq -e` to require exact `headSha`, overall success, exactly one Backend and
 one Frontend job, job success, and a non-empty `steps` array. For Backend require
 checkout, uv installation, dependency sync, Tests and Lint. For Frontend require
 checkout, Node/npm setup, Tests, Chromium install, visual regression, Build,
-Typecheck and Lint. A run like historical #328/#329/#330 with no allocated
+Build Founder Console, Typecheck and Lint. A run like historical #328/#329/#330 with no allocated
 runner and no executed steps is rejected even if a check name exists.
 
 - [ ] **Step 4: Recheck remote main immediately before SSH**
@@ -283,6 +283,10 @@ directory. Run `npm ci`, `npm run build`, `npm run typecheck` and
 `npm run lint`. Require `frontend/dist/index.html` and its referenced hashed
 assets to exist. Write a root-owned release marker containing only the final
 SHA into the immutable release after installing the built `dist` tree.
+
+The separate Founder Console has already been validated by exact-main CI via
+`npm run build:founder`; it is production-only and must not be copied, switched
+or deployed during this staging rollout.
 
 - [ ] **Step 3: Verify the immutable frontend before switching**
 

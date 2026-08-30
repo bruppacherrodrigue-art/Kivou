@@ -12,16 +12,19 @@
 
 ## Audited base and branch
 
-- The audited `origin/main` was
-  `a1ffc5021f1d981059f4e9017d295683a389605b` with migration head
-  `0027_signal_notes`; this worktree and design commit were created from that
-  SHA.
+- The initial audited `origin/main` was
+  `a1ffc5021f1d981059f4e9017d295683a389605b`. Immediately before product code,
+  it was revalidated at `9b73cc370ef6657e0a53a9fb53fde1d226500fc9`.
+  The intervening #115 delta adds an isolated Founder Console and its CI build;
+  it does not modify Signals/company persistence. The clean implementation
+  branch starts at `9b73cc3`, whose migration head remains
+  `0027_signal_notes`.
 - Immediately before implementation, fetch `origin/main`. If it advanced,
   inspect the complete delta and create a new clean foundation branch from the
   new SHA; port the reviewed documentation and implementation commits normally.
   Do not rebase or force-push a published branch.
 - The implementation branch is
-  `feat/119-card-presentation-foundation-v2`. It replaces draft #123 without
+  `feat/119-card-presentation-foundation-v3`. It replaces draft #123 without
   cherry-picking its commits.
 - `CONTRIBUTING.md` prohibits history rewriting and force-push. Every push in
   this plan is a normal fast-forward push.
@@ -1086,6 +1089,7 @@ cd frontend
 npm test -- --run
 npm run test:visual
 npm run build
+npm run build:founder
 npx tsc -b
 npm run lint
 ```
@@ -1111,11 +1115,11 @@ generation wiring.
 - [ ] **Step 4: Push without force and create the replacement PR**
 
 ```bash
-git push -u origin feat/119-card-presentation-foundation-v2
+git push -u origin feat/119-card-presentation-foundation-v3
 gh pr create \
   --repo bruppacherrodrigue-art/Kivou \
   --base main \
-  --head feat/119-card-presentation-foundation-v2 \
+  --head feat/119-card-presentation-foundation-v3 \
   --title "feat(signals): found Card Intelligence publication" \
   --body-file /tmp/kivou-pr1-body.md
 ```

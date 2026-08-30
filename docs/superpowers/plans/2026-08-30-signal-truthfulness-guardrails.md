@@ -363,6 +363,7 @@ cd frontend
 npm test -- --run
 npm run test:visual
 npm run build
+npm run build:founder
 npm run typecheck
 npm run lint
 ```
