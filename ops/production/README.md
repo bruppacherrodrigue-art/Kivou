@@ -585,7 +585,8 @@ sudo nginx -t -c "$KIVOU_NGINX_CANDIDATE/nginx.conf"
 ```
 
 Stop gate : aucun placeholder ne reste et le candidat hermétique, avec exactement
-les deux directives IPv4/IPv6 `default_server` du default deny, passe `nginx -t`.
+les quatre directives `default_server` du default deny (HTTP et HTTPS, IPv4 et IPv6),
+passe `nginx -t`.
 
 ## 9. Dernier gate d'intégrité avant mutation
 

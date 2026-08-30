@@ -1459,6 +1459,15 @@ def test_nginx_candidate_counts_every_default_deny_listener() -> None:
     assert f"KIVOU_EXPECTED_DEFAULT_SERVER_DIRECTIVES={expected}" in body
 
 
+def test_nginx_stop_gate_describes_all_four_http_https_ipv4_ipv6_listeners() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    assert (
+        "les quatre directives `default_server` du default deny "
+        "(HTTP et HTTPS, IPv4 et IPv6)"
+    ) in body
+
+
 def test_root_shell_gate_precedes_every_preflight_and_lock_open() -> None:
     body = read(PRODUCTION_RUNBOOK)
     first_block = runbook_shell_blocks(body)[0]
