@@ -737,7 +737,7 @@ git add src/signals/card_intelligence/store.py tests/test_card_presentation_stor
 git commit -m "feat(signals): publish card artifacts atomically"
 ```
 
-## Task 7: Orchestrate generator, deterministic gates and QA without live wiring
+## Task 7: Orchestrate private candidates and factual-only publication
 
 **Files:**
 
@@ -750,7 +750,7 @@ git commit -m "feat(signals): publish card artifacts atomically"
 def test_qa_pass_cannot_override_invalid_copy(connection, source, writer, qa):
     writer.responses = [GenerationResponse(payload=materials_to_staffing_payload(source))]
     qa.decisions = [QaDecision(status=QaStatus.PASS, reasons=("model_said_pass",))]
-    result = generate_and_publish(
+    result = run_offline_candidate_pipeline(
         connection,
         source=source,
         generator=writer,
@@ -761,17 +761,29 @@ def test_qa_pass_cannot_override_invalid_copy(connection, source, writer, qa):
     assert result.published.content.variant is PresentationVariant.FACTUAL_FALLBACK
 
 
-def test_qa_can_decide_but_never_rewrite(connection, source, writer, qa):
+def test_qa_pass_is_private_and_can_never_activate_full(connection, source, writer, qa):
     candidate = valid_full_payload(source)
     writer.responses = [GenerationResponse(payload=candidate)]
     qa.decisions = [QaDecision(status=QaStatus.PASS, reasons=("grounded",))]
-    result = generate_and_publish(connection, source=source, generator=writer, qa=qa, now=NOW)
-    assert result.published.content == candidate
+    result = run_offline_candidate_pipeline(
+        connection,
+        source=source,
+        generator=writer,
+        qa=qa,
+        now=NOW,
+    )
+    attempts = stored_attempts(connection)
+    assert attempts[-2]["qa_status"] == "PASS"
+    assert attempts[-2]["published_at"] is None
+    assert result["qa_status"] == "FALLBACK"
+    assert result["payload"]["variant"] == "FACTUAL_FALLBACK"
+    assert qa.seen_payloads == [candidate]
 ```
 
-Also cover one regeneration then pass, generation failure to fallback,
-ambiguous actor collision to review, `REVIEW` stored but not published, and a
-generator-supplied fallback that QA cannot promote to PASS.
+Also cover one regeneration before a private QA decision, generation failure
+to fallback, ambiguous actor collision to review, `REVIEW` stored but not
+published, and a generator-supplied fallback that QA cannot promote to PASS.
+QA returns only a decision and never a replacement payload.
 
 - [ ] **Step 2: Confirm service tests are RED**
 
@@ -781,11 +793,21 @@ Expected: missing orchestration.
 
 - [ ] **Step 3: Implement the finite state machine**
 
-Allow one regeneration only. Validate before QA and again at the publication
-boundary. QA receives the candidate and input, returns only a decision, and is
-never allowed to mutate the payload. Generation errors publish the deterministic
-fallback with `generator_version="factual-fallback-v1"` and null provider,
-model and prompt metadata.
+Allow one regeneration only. Deterministic validators run before QA; only a
+semantically valid `FULL` candidate whose sole remaining refusal is
+`full_variant_not_authorized` may reach the provider-neutral QA protocol. QA
+receives the immutable candidate and input, returns only a decision, and is
+never allowed to mutate the payload.
+
+All generator and QA outcomes remain private attempts. In particular, a QA
+`PASS/FULL` attempt is recorded with `published_at = NULL`; it can never cross
+the read boundary. The function then publishes the exact deterministic
+`FACTUAL_FALLBACK`, revalidating it at `append_attempt()`. Generation or QA
+errors use the same factual path. Published fallback metadata must use
+`generator_version="factual-fallback-v1"`, a deterministic QA policy version,
+and null provider, model, prompt and QA-provider fields. No application route,
+worker, provider implementation, environment credential or Hermes default is
+introduced.
 
 - [ ] **Step 4: Run service tests**
 
