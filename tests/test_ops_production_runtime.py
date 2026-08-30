@@ -7,6 +7,14 @@ import pytest
 REPOSITORY = pathlib.Path(__file__).resolve().parents[1]
 SYSTEMD = REPOSITORY / "ops/systemd"
 PRODUCTION = SYSTEMD / "production"
+NGINX = REPOSITORY / "ops/nginx"
+PRODUCTION_NGINX = NGINX / "kivou-production.conf"
+PRODUCTION_WWW_NGINX = NGINX / "kivou-production-www.conf"
+PRODUCTION_DEFAULT_DENY_NGINX = NGINX / "kivou-production-default-deny.conf"
+PRODUCTION_SECURITY_HEADERS = NGINX / "kivou-production-security-headers.conf"
+PRODUCTION_SENSITIVE_SECURITY_HEADERS = (
+    NGINX / "kivou-production-sensitive-link-security-headers.conf"
+)
 
 STAGING_SOURCES = {
     "simap": "*-*-* 00/2:05:00",
@@ -30,6 +38,38 @@ ParsedUnit = dict[str, dict[str, list[str]]]
 
 def read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
+
+
+def nginx_active_directives(body: str) -> tuple[str, ...]:
+    return tuple(
+        directive
+        for raw_line in body.splitlines()
+        if (directive := raw_line.split("#", 1)[0].strip())
+    )
+
+
+def nginx_server_blocks(body: str) -> tuple[tuple[str, ...], ...]:
+    lines = body.splitlines()
+    blocks: list[tuple[str, ...]] = []
+    index = 0
+    while index < len(lines):
+        directive = lines[index].split("#", 1)[0].strip()
+        if directive != "server {":
+            index += 1
+            continue
+        depth = 1
+        block: list[str] = []
+        index += 1
+        while index < len(lines) and depth:
+            directive = lines[index].split("#", 1)[0].strip()
+            if directive:
+                depth += directive.count("{") - directive.count("}")
+                if depth:
+                    block.append(directive)
+            index += 1
+        assert depth == 0, "unterminated nginx server block"
+        blocks.append(tuple(block))
+    return tuple(blocks)
 
 
 def parse_active_directives(body: str) -> ParsedUnit:
@@ -474,4 +514,160 @@ def test_production_backup_runs_local_then_offsite_with_narrow_write_access() ->
             ("Timer", "Unit"): "kivou-backup.service",
             ("Install", "WantedBy"): "timers.target",
         },
+    )
+
+
+def test_production_nginx_preserves_the_exact_staging_route_contract() -> None:
+    staging = nginx_active_directives(read(NGINX / "kivou-staging.conf"))
+    expected = tuple(
+        directive.replace("STAGING_HOST", "PRODUCTION_HOST")
+        .replace(
+            "/etc/nginx/kivou-security-headers.conf",
+            "/etc/nginx/kivou-production-security-headers.conf",
+        )
+        .replace(
+            "/etc/nginx/kivou-sensitive-link-security-headers.conf",
+            "/etc/nginx/kivou-production-sensitive-link-security-headers.conf",
+        )
+        for directive in staging
+    )
+
+    assert nginx_active_directives(read(PRODUCTION_NGINX)) == expected
+
+
+@pytest.mark.parametrize(
+    ("staging_path", "production_path"),
+    (
+        (NGINX / "kivou-security-headers.conf", PRODUCTION_SECURITY_HEADERS),
+        (
+            NGINX / "kivou-sensitive-link-security-headers.conf",
+            PRODUCTION_SENSITIVE_SECURITY_HEADERS,
+        ),
+    ),
+)
+def test_production_headers_remove_only_staging_hsts(
+    staging_path: pathlib.Path,
+    production_path: pathlib.Path,
+) -> None:
+    hsts = (
+        'add_header Strict-Transport-Security "max-age=31536000; '
+        'includeSubDomains" always;'
+    )
+    staging = nginx_active_directives(read(staging_path))
+    production_body = read(production_path)
+
+    assert nginx_active_directives(production_body) == tuple(
+        directive for directive in staging if directive != hsts
+    )
+    assert "strict-transport-security" not in production_body.lower()
+    assert "hsts" not in production_body.lower()
+
+
+@pytest.mark.parametrize(
+    ("path", "referrer_policy"),
+    (
+        (PRODUCTION_SECURITY_HEADERS, "strict-origin-when-cross-origin"),
+        (PRODUCTION_SENSITIVE_SECURITY_HEADERS, "no-referrer"),
+    ),
+)
+def test_production_security_headers_keep_the_full_policy_without_hsts(
+    path: pathlib.Path,
+    referrer_policy: str,
+) -> None:
+    directives = nginx_active_directives(read(path))
+    csp = tuple(
+        directive
+        for directive in directives
+        if directive.startswith("add_header Content-Security-Policy ")
+    )
+
+    expected_csp = (
+        'add_header Content-Security-Policy "default-src \'self\'; '
+        "script-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; font-src 'self'; connect-src 'self'; "
+        "frame-ancestors 'none'; base-uri 'self'; form-action 'self' "
+        "https://checkout.stripe.com https://billing.stripe.com; "
+        'object-src \'none\'" always;'
+    )
+    assert csp == (expected_csp,)
+    assert "unsafe-eval" not in "\n".join(directives)
+    for expected in (
+        'add_header X-Content-Type-Options "nosniff" always;',
+        'add_header X-Frame-Options "DENY" always;',
+        f'add_header Referrer-Policy "{referrer_policy}" always;',
+        (
+            'add_header Permissions-Policy "camera=(), microphone=(), '
+            'geolocation=(), payment=()" always;'
+        ),
+    ):
+        assert directives.count(expected) == 1
+
+
+def test_production_sites_use_only_canonical_host_placeholders() -> None:
+    production_sites = (
+        PRODUCTION_NGINX,
+        PRODUCTION_WWW_NGINX,
+        PRODUCTION_DEFAULT_DENY_NGINX,
+    )
+    for path in production_sites:
+        body = read(path)
+        for forbidden in ("staging.kivou.eu", "chatgpt.site", "STAGING_HOST"):
+            assert forbidden not in body
+
+    canonical_servers = nginx_server_blocks(read(PRODUCTION_NGINX))
+    assert len(canonical_servers) == 2
+    for server in canonical_servers:
+        assert server.count("server_name PRODUCTION_HOST;") == 1
+    assert nginx_active_directives(read(PRODUCTION_NGINX)).count(
+        "server_name PRODUCTION_HOST;"
+    ) == 2
+
+
+def test_production_www_redirects_http_and_https_to_the_canonical_host() -> None:
+    body = read(PRODUCTION_WWW_NGINX)
+    directives = nginx_active_directives(body)
+    servers = nginx_server_blocks(body)
+
+    assert len(servers) == 2
+    assert directives.count("server_name PRODUCTION_WWW_HOST;") == 2
+    assert directives.count("return 301 https://PRODUCTION_HOST$request_uri;") == 2
+    assert "proxy_pass" not in body
+
+    http, https = servers
+    for expected in (
+        "listen 80;",
+        "listen [::]:80;",
+        "server_name PRODUCTION_WWW_HOST;",
+        "location /.well-known/acme-challenge/ {",
+        "root /var/www/certbot;",
+        "return 301 https://PRODUCTION_HOST$request_uri;",
+    ):
+        assert http.count(expected) == 1
+    for expected in (
+        "listen 443 ssl http2;",
+        "listen [::]:443 ssl http2;",
+        "server_name PRODUCTION_WWW_HOST;",
+        "ssl_certificate /etc/letsencrypt/live/PRODUCTION_HOST/fullchain.pem;",
+        "ssl_certificate_key /etc/letsencrypt/live/PRODUCTION_HOST/privkey.pem;",
+        "ssl_trusted_certificate /etc/letsencrypt/live/PRODUCTION_HOST/chain.pem;",
+        "include /etc/nginx/kivou-production-security-headers.conf;",
+        "return 301 https://PRODUCTION_HOST$request_uri;",
+    ):
+        assert https.count(expected) == 1
+
+
+def test_production_default_site_rejects_unknown_http_and_tls_hosts() -> None:
+    assert nginx_active_directives(read(PRODUCTION_DEFAULT_DENY_NGINX)) == (
+        "server {",
+        "listen 80 default_server;",
+        "listen [::]:80 default_server;",
+        "server_name _;",
+        "return 444;",
+        "}",
+        "server {",
+        "listen 443 ssl default_server;",
+        "listen [::]:443 ssl default_server;",
+        "server_name _;",
+        "ssl_reject_handshake on;",
+        "}",
     )
