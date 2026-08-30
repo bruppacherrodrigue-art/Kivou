@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import os
 import pathlib
 import re
 import shlex
@@ -978,6 +980,50 @@ def test_runbook_inspects_root_owned_release_with_isolated_root_git() -> None:
         'sudo -u kivou /usr/bin/git -C "$KIVOU_BACKEND_RELEASE_DIR"'
         not in after_root_ownership
     )
+
+
+def test_immutable_git_integrity_check_does_not_refresh_index(tmp_path: pathlib.Path) -> None:
+    repository = tmp_path / "release"
+    repository.mkdir()
+    subprocess.run(["git", "init", "--quiet", repository], check=True)
+    subprocess.run(
+        ["git", "-C", repository, "config", "user.name", "Kivou test"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", repository, "config", "user.email", "test@invalid"], check=True
+    )
+    tracked = repository / "tracked.txt"
+    tracked.write_text("immutable\n", encoding="utf-8")
+    subprocess.run(["git", "-C", repository, "add", "tracked.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", repository, "commit", "--quiet", "-m", "fixture"], check=True
+    )
+    stat = tracked.stat()
+    os.utime(tracked, ns=(stat.st_atime_ns, stat.st_mtime_ns + 2_000_000_000))
+    for path in sorted(repository.rglob("*"), reverse=True):
+        path.chmod(0o555 if path.is_dir() else 0o444)
+    repository.chmod(0o555)
+
+    index = repository / ".git" / "index"
+    before = hashlib.sha256(index.read_bytes()).digest()
+    result = subprocess.run(
+        ["git", "-C", repository, "status", "--porcelain"],
+        env={
+            "HOME": str(tmp_path / "isolated-home"),
+            "PATH": os.environ["PATH"],
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+    assert hashlib.sha256(index.read_bytes()).digest() == before
+    assert not index.stat().st_mode & 0o222
 
 
 def test_every_immutability_guard_allows_real_release_and_capture_symlinks(

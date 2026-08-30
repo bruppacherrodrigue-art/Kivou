@@ -204,7 +204,17 @@ Enter only 5e0e7e29df8db75089e51bce845343c1f88c565e at the reviewed-SHA prompt.
 
 Expected: detached clean checkout at the exact SHA; backend and frontend tests/lint/build pass; immutable root-owned releases exist; no active symlink changed.
 
-- [ ] **Step 2: Apply migrations through a transient systemd unit**
+- [ ] **Step 2: Back up and restore-check the still-empty database**
+
+Before the first migration, run `ops/bin/kivou-backup.sh` from the exact
+candidate in a transient `kivou` unit with `production.env`,
+`InaccessiblePaths=/srv/kivou/.ssh`, `ReadWritePaths=/srv/kivou/backups` and
+`TimeoutStartSec=2h`. Require a new regular `kivou:kivou 0600` dump, validate it
+with `pg_restore --list`, restore it into a uniquely named temporary PostgreSQL
+database and prove that the restored public schema is empty. Drop only that
+temporary restore database after the proof; retain the pre-migration dump.
+
+- [ ] **Step 3: Apply migrations through a bounded transient systemd unit**
 
 ```bash
 sudo systemd-run --wait --pipe --collect --unit=kivou-migrate-release2 \
@@ -212,7 +222,9 @@ sudo systemd-run --wait --pipe --collect --unit=kivou-migrate-release2 \
   --property=WorkingDirectory="$KIVOU_BACKEND_RELEASE_DIR" \
   --property=EnvironmentFile=/etc/kivou/production.env \
   --property=UMask=0077 --property=NoNewPrivileges=yes \
+  --property=TimeoutStartSec=10min \
   --property=ProtectSystem=strict --property=ProtectHome=yes \
+  --property=InaccessiblePaths=/srv/kivou/.ssh \
   --property=ReadOnlyPaths="$KIVOU_BACKEND_RELEASE_DIR" \
   -- "$KIVOU_BACKEND_RELEASE_DIR/.venv/bin/python" -c '
 from signals.persistence.database import create_database_engine, migrate_to_latest
@@ -228,14 +240,20 @@ Expected: zero exit. This repository deliberately has no `alembic.ini`; the
 standalone Alembic CLI is not a valid migration entry point. Query
 `alembic_version` through another protected transient unit and require the exact
 reviewed head `0027_signal_notes`. No migration downgrade is permitted.
+If migration fails, do not retry in place: stop all candidates, rename the
+partial database to `kivou_failed_<UTC>` for forensics, recreate a fresh
+`kivou` owned by `kivou_app`, restore the retained pre-migration dump and prove
+the restored empty schema. No failed database or dump is deleted.
 
-- [ ] **Step 3: Validate typed configuration and the loopback candidate**
+- [ ] **Step 4: Validate typed configuration and the loopback candidate**
 
 First run a protected one-shot Python process from the candidate release that
 loads `ApiConfig.from_environment()` and prints only these booleans/identities:
 secure cookie true, allowed/public origins equal `https://kivou.eu`, Stripe mode
 live, Stripe key absent, alerts unconfigured and Acquisition environment
 `UNCONFIGURED`. Then start the API candidate exactly as follows:
+The configuration one-shot uses the same deploy-key isolation and a two-minute
+timeout as the API candidate.
 
 ```bash
 sudo systemd-run --unit=kivou-api-green.service --collect \
@@ -243,7 +261,9 @@ sudo systemd-run --unit=kivou-api-green.service --collect \
   --property=WorkingDirectory="$KIVOU_BACKEND_RELEASE_DIR" \
   --property=EnvironmentFile=/etc/kivou/production.env \
   --property=UMask=0077 --property=NoNewPrivileges=yes \
+  --property=TimeoutStartSec=2min \
   --property=ProtectSystem=strict --property=ProtectHome=yes \
+  --property=InaccessiblePaths=/srv/kivou/.ssh \
   --property=ReadOnlyPaths="$KIVOU_BACKEND_RELEASE_DIR" \
   -- "$KIVOU_BACKEND_RELEASE_DIR/.venv/bin/uvicorn" signals.api.asgi:app \
   --host 127.0.0.1 --port 8001 --workers 2 --proxy-headers \
@@ -339,7 +359,9 @@ for KIVOU_SOURCE in simap boamp decp ted; do
     --property=EnvironmentFile=/etc/kivou/production.env \
     --property=RuntimeDirectory=kivou --property=RuntimeDirectoryMode=0700 \
     --property=UMask=0077 --property=NoNewPrivileges=yes \
+    --property=TimeoutStartSec=30min \
     --property=ProtectSystem=strict --property=ProtectHome=yes \
+    --property=InaccessiblePaths=/srv/kivou/.ssh \
     --property=ReadOnlyPaths="$KIVOU_BACKEND_RELEASE_DIR" \
     --property=ReadWritePaths=/run/kivou \
     -- /usr/bin/flock --verbose --exclusive --timeout 300 \
