@@ -150,6 +150,7 @@ test -z "$(sudo find "$KIVOU_FRONTEND_RELEASE_DIR" \( -type f -o -type d \) -per
 kivou_release_git() {
   /usr/bin/env -i HOME=/root PATH=/usr/bin:/bin \
     GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+    GIT_OPTIONAL_LOCKS=0 \
     /usr/bin/git -C "$KIVOU_BACKEND_RELEASE_DIR" "$@"
 }
 test "$(kivou_release_git rev-parse HEAD)" = "$KIVOU_RELEASE_SHA"

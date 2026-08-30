@@ -972,6 +972,7 @@ def test_runbook_inspects_root_owned_release_with_isolated_root_git() -> None:
     )[1]
 
     assert "GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1" in after_root_ownership
+    assert "GIT_OPTIONAL_LOCKS=0" in after_root_ownership
     assert after_root_ownership.count("kivou_release_git") >= 3
     assert (
         'sudo -u kivou /usr/bin/git -C "$KIVOU_BACKEND_RELEASE_DIR"'
