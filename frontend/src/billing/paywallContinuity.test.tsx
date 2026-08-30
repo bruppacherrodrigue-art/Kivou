@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation } from 'react-router-dom'
 import { AppRoutes } from '../App'
@@ -56,12 +56,15 @@ const PROTECTED = [
 ]
 
 async function openLockedBilling(user: ReturnType<typeof userEvent.setup>) {
-  const workspace = await screen.findByTestId('signal-workspace')
-  await user.click(await within(workspace).findByRole('button', { name: /signal verrouillé/i }))
-  const panel = await within(workspace).findByRole('region', {
-    name: 'Détail du signal sélectionné',
-  })
-  await user.click(within(panel).getByRole('link', { name: 'Gérer mon accès' }))
+  await user.click(
+    await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
+  )
+  await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
+}
+
+async function selectPro(user = userEvent.setup()) {
+  await user.selectOptions(await screen.findByLabelText('Offre'), 'pro')
+  return screen.findByRole('button', { name: /Choisir Pro/ })
 }
 
 describe('depuis le feed verrouillé', () => {
@@ -77,7 +80,7 @@ describe('depuis le feed verrouillé', () => {
     )
 
     await openLockedBilling(user)
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
 
     const state = JSON.parse(screen.getByTestId('nav-state').textContent ?? 'null')
     expect(state).toEqual({ lockedSignalKey: 'sig_locked_1' })
@@ -95,7 +98,7 @@ describe('depuis le feed verrouillé', () => {
     )
 
     await openLockedBilling(user)
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
 
     const serialised = screen.getByTestId('nav-state').textContent ?? ''
     for (const secret of PROTECTED) {
@@ -106,10 +109,9 @@ describe('depuis le feed verrouillé', () => {
 
 describe('depuis le détail verrouillé', () => {
   it('transmet la clé du signal, et seulement elle', async () => {
-    const user = userEvent.setup()
     mockApi({
       ...BILLING_ROUTES,
-      'GET /signals/sig_locked_1': { body: LOCKED_DETAIL },
+      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
     })
     renderApp(
       <>
@@ -119,16 +121,18 @@ describe('depuis le détail verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
     )
 
-    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
+    expect(document.body.textContent).not.toContain(LOCKED_DETAIL.access.reason)
 
     const state = JSON.parse(screen.getByTestId('nav-state').textContent ?? 'null')
     expect(state).toEqual({ lockedSignalKey: 'sig_locked_1' })
   })
 
   it('ne laisse fuir aucune donnée protégée depuis le détail', async () => {
-    const user = userEvent.setup()
-    mockApi({ ...BILLING_ROUTES, 'GET /signals/sig_locked_1': { body: LOCKED_DETAIL } })
+    mockApi({
+      ...BILLING_ROUTES,
+      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
+    })
     renderApp(
       <>
         <AppRoutes />
@@ -137,8 +141,7 @@ describe('depuis le détail verrouillé', () => {
       { session: AUTHENTICATED, route: '/app/signals/sig_locked_1' },
     )
 
-    await user.click(await screen.findByRole('link', { name: 'Gérer mon accès' }))
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
 
     const serialised = screen.getByTestId('nav-state').textContent ?? ''
     for (const secret of PROTECTED) {
@@ -154,7 +157,7 @@ describe('avant tout paiement réel', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     await openLockedBilling(user)
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
 
     // Arriver sur la facturation n'est pas acheter : rien n'est mémorisé.
     expect(sessionStorage.length).toBe(0)
@@ -173,7 +176,7 @@ describe('avant tout paiement réel', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     await openLockedBilling(user)
-    await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
+    await user.click(await selectPro(user))
     await screen.findByRole('alert')
 
     // Une intention orpheline survivrait à un parcours qui n'a jamais eu lieu.
@@ -198,7 +201,7 @@ describe('avant tout paiement réel', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     await openLockedBilling(user)
-    await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
+    await user.click(await selectPro(user))
 
     expect(assign).toHaveBeenCalledWith('https://checkout.stripe.test/cs_1')
     expect(JSON.stringify(sessionStorage)).toContain('sig_locked_1')
@@ -224,7 +227,7 @@ describe('avant tout paiement réel', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
 
-    await user.click(await screen.findByRole('button', { name: /Choisir Pro/ }))
+    await user.click(await selectPro(user))
     expect(assign).toHaveBeenCalled()
     expect(sessionStorage.length).toBe(0)
   })

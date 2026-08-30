@@ -1,6 +1,6 @@
 """Ce que le client dit d'un signal, et ce que le produit observe de lui.
 
-Cinq tables, et une frontière qui traverse tout le module :
+Six tables, et une frontière qui traverse tout le module :
 
     L'AVIS DU CLIENT N'EST NI UN FAIT PUBLIC NI UNE INFÉRENCE MOTEUR
     ───────────────────────────────────────────────────────────────
@@ -127,6 +127,21 @@ signal_feedback = sa.Table(
 )
 
 
+signal_note = sa.Table(
+    "signal_note",
+    METADATA,
+    sa.Column(
+        "account_id",
+        sa.String(64),
+        sa.ForeignKey("account.account_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("signal_key", sa.String(64), primary_key=True),
+    sa.Column("note", sa.String(MAXIMUM_NOTE_LENGTH), nullable=False),
+    *_timestamps(),
+)
+
+
 product_event = sa.Table(
     "product_event",
     METADATA,
@@ -235,6 +250,7 @@ signal_alert_job_lease = sa.Table(
 
 ENGAGEMENT_TABLES: tuple[sa.Table, ...] = (
     signal_feedback,
+    signal_note,
     product_event,
     account_notification_preference,
     signal_alert_delivery,

@@ -1,310 +1,328 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link, NavLink, Outlet, useLocation } from 'react-router-dom'
-import { useI18n } from '../i18n'
-import { useSession } from '../auth/SessionProvider'
-import { KivouLogo } from '../components/KivouLogo'
-import { Button } from '../components/Button'
+import { useCallback, useEffect, useRef, type CSSProperties } from 'react'
 import {
-  BillingIcon,
-  BuildingIcon,
-  CloseIcon,
-  DashboardIcon,
-  LogoutIcon,
-  MenuIcon,
-  SignalsIcon,
-  TargetIcon,
-} from '../assets/Icons'
-import styles from './AppShell.module.css'
+  Building2,
+  ChevronRight,
+  FileCheck2,
+  LayoutDashboard,
+  SlidersHorizontal,
+  Target,
+} from 'lucide-react'
+import { Outlet, useLocation } from 'react-router-dom'
+import { billing, icps } from '../api/endpoints'
+import { useCurrentUser } from '../auth/SessionProvider'
+import { useI18n } from '../i18n'
+import { toTargetProfileView } from '../reference/dashboard/adapters'
+import { KivouBrand } from '../reference/dashboard/KivouBrand'
+import { useResource } from '../reference/dashboard/resources'
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarTrigger,
+  useSidebar,
+} from '../reference/dashboard/ui/sidebar'
+import { ReferenceLink } from '../reference/router/ReferenceLink'
+import { SurfaceBoundary } from '../reference/surface/SurfaceBoundary'
+import { subscribeToTargetIcpChanges } from '../targeting/targetIcpEvents'
 
-/* Le shell du SaaS client.
- *
- * La géométrie vient de la référence 04 : sidebar de 248 px, logo en haut,
- * items icône + libellé, séparateur, carte de compte en bas. Ce que la
- * référence montre aussi Entreprises : cette entrée est maintenant alimentée
- * uniquement par les fiches reliées aux signaux accessibles. Marchés, Veille
- * et Notes restent absents tant qu'aucun point d'entrée client ne les sert.
- *
- * Ce qui n'y figure jamais (§14, §40) : Acquisition Engine, Apollo, Instantly,
- * mailboxes, campagnes, séquences et délivrabilité. Ce sont
- * les systèmes internes de Kivou, pas des fonctionnalités du produit client.
- */
+type ActiveView = 'overview' | 'signals' | 'companies' | 'target' | 'settings'
 
-const NAV_ITEMS = [
-  { to: '/app/dashboard', key: 'dashboard', Icon: DashboardIcon },
-  { to: '/app/signals', key: 'signals', Icon: SignalsIcon },
-  { to: '/app/companies', key: 'companies', Icon: BuildingIcon },
-  { to: '/app/icps', key: 'icps', Icon: TargetIcon },
-  { to: '/app/settings', key: 'settings', Icon: BillingIcon },
+const navigation = [
+  { id: 'overview', icon: LayoutDashboard, href: '/' },
+  { id: 'signals', icon: FileCheck2, href: '/signals' },
+  { id: 'companies', icon: Building2, href: '/companies' },
+  { id: 'target', icon: Target, href: '/targeting' },
+  { id: 'settings', icon: SlidersHorizontal, href: '/settings' },
 ] as const
 
-const INTERNAL_NAV_ITEM = {
-  to: '/app/internal/cockpit',
-  key: 'cockpit',
-  Icon: SignalsIcon,
-} as const
-
-const DESKTOP_RAIL_QUERY = '(min-width: 1024px)'
-const DRAWER_CONTROLS =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-
 export function AppShell() {
+  const me = useCurrentUser()
+
+  if (me.onboarding_status !== 'ready_for_signals') {
+    return <Outlet />
+  }
+
+  return <ReadyAppShell key={me.account_id} />
+}
+
+function ReadyAppShell() {
   const { t } = useI18n()
-  const { state, signOut } = useSession()
   const location = useLocation()
-  const [drawerOpen, setDrawerOpen] = useState(false)
-  const [signingOut, setSigningOut] = useState(false)
-  const drawerTriggerRef = useRef<HTMLButtonElement>(null)
-  const drawerRef = useRef<HTMLDivElement>(null)
-  const drawerCloseRef = useRef<HTMLButtonElement>(null)
-  const restoreDrawerFocus = useRef(false)
-
-  const closeDrawer = useCallback((restoreFocus: boolean) => {
-    restoreDrawerFocus.current = restoreFocus
-    setDrawerOpen(false)
-  }, [])
-
-  const openDrawer = useCallback(() => {
-    restoreDrawerFocus.current = false
-    setDrawerOpen(true)
-  }, [])
-
-  // La navigation ferme le tiroir : sur mobile, un tiroir resté ouvert
-  // masquerait la page qu'on vient d'atteindre.
-  useEffect(() => {
-    closeDrawer(false)
-  }, [closeDrawer, location.pathname])
-
-  // Une ouverture modale commence sur son contrôle de fermeture. Après une
-  // fermeture locale, le focus revient au déclencheur une fois `inert` retiré.
-  useEffect(() => {
-    if (drawerOpen) {
-      drawerCloseRef.current?.focus()
-      return
-    }
-    if (!restoreDrawerFocus.current) return
-    restoreDrawerFocus.current = false
-    drawerTriggerRef.current?.focus()
-  }, [drawerOpen])
-
-  // Échap ferme le tiroir. Sans cela, un utilisateur au clavier n'a aucun moyen
-  // de sortir de la couche modale qui recouvre la page.
-  useEffect(() => {
-    if (!drawerOpen) return
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        closeDrawer(true)
-        return
-      }
-      if (event.key !== 'Tab') return
-
-      const drawer = drawerRef.current
-      if (!drawer) return
-      const controls = Array.from(drawer.querySelectorAll<HTMLElement>(DRAWER_CONTROLS)).filter(
-        (control) => control.tabIndex >= 0,
-      )
-      const first = controls.at(0)
-      const last = controls.at(-1)
-      if (!first || !last) return
-
-      const active = document.activeElement
-      if (event.shiftKey && (active === first || !drawer.contains(active))) {
-        event.preventDefault()
-        last.focus()
-      } else if (!event.shiftKey && (active === last || !drawer.contains(active))) {
-        event.preventDefault()
-        first.focus()
-      }
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [closeDrawer, drawerOpen])
-
-  // Si la media query active le rail fixe, le drawer mobile n'a plus de
-  // surface visible : il doit disparaître avec son état modal.
-  useEffect(() => {
-    if (typeof window.matchMedia !== 'function') return
-    const desktop = window.matchMedia(DESKTOP_RAIL_QUERY)
-    const onChange = (event: MediaQueryListEvent) => {
-      if (event.matches) closeDrawer(false)
-    }
-    desktop.addEventListener('change', onChange)
-    return () => desktop.removeEventListener('change', onChange)
-  }, [closeDrawer])
-
-  const me = state.status === 'authenticated' ? state.me : null
-  const items = me?.capabilities.commercial_cockpit
-    ? [...NAV_ITEMS, INTERNAL_NAV_ITEM]
-    : NAV_ITEMS
-  const pageTitle = titleForPath(location.pathname, t)
-  const contentOwnsPageHeading = pageOwnsHeading(location.pathname)
-  const eyebrow = me?.locale === 'en' ? 'Awarded contract monitoring' : 'Veille des marchés attribués'
-
-  const navigation = (onNavigate?: () => void) => (
-    <nav className={styles.nav} aria-label={t.nav.mainNavigation}>
-      <p className={styles.sidebarLabel}>Navigation</p>
-      <ul className={styles.navList}>
-        {items.map(({ to, key, Icon }) => (
-          <li key={to}>
-            <NavLink
-              to={to}
-              onClick={onNavigate}
-              className={({ isActive }) =>
-                `${styles.navItem} ${isActive ? styles.navItemActive : ''}`
-              }
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon className={styles.navIcon} />
-                  <span>{t.nav[key]}</span>
-                  {/* L'état actif ne repose pas sur la seule couleur : il est
-                      aussi porté par `aria-current` et par un liseré. */}
-                  {isActive ? <span className={styles.navMarker} aria-hidden="true" /> : null}
-                </>
-              )}
-            </NavLink>
-          </li>
-        ))}
-      </ul>
-    </nav>
-  )
-
-  const accountPanel = me ? (
-    <div className={styles.account}>
-      <div className={styles.accountIdentity}>
-        <span className={styles.accountAvatar} aria-hidden="true">
-          {initials(me.account_display_name)}
-        </span>
-        <span className={styles.accountText}>
-          <span className={styles.accountName}>{me.account_display_name}</span>
-          <span className={styles.accountEmail}>{me.email}</span>
-        </span>
-      </div>
-      <Button
-        variant="secondary"
-        fullWidth
-        icon={<LogoutIcon />}
-        loading={signingOut}
-        onClick={() => {
-          setSigningOut(true)
-          void signOut().finally(() => setSigningOut(false))
-        }}
-      >
-        {t.nav.logout}
-      </Button>
-    </div>
-  ) : null
+  const me = useCurrentUser()
+  const loadProfiles = useCallback(() => icps.list(), [])
+  const loadBilling = useCallback(() => billing.status(), [])
+  const profiles = useResource(loadProfiles)
+  const access = useResource(loadBilling)
+  const retryProfiles = profiles.retry
+  useEffect(() => subscribeToTargetIcpChanges(() => {
+    void retryProfiles()
+  }), [retryProfiles])
+  const current = connectedLocation(location.pathname, t)
+  const activeProfile = profiles.data
+    ?.map(toTargetProfileView)
+    .find((profile) => profile.active)
+  const profileLabel = profiles.loading || profiles.error
+    ? t.reference.loading
+    : activeProfile
+      ? activeProfile.firstTerritory
+        ? `${activeProfile.label} · ${activeProfile.firstTerritory}`
+        : activeProfile.label
+      : t.reference.missingValue
+  const planLabel = access.loading || access.error
+    ? t.reference.loading
+    : access.data
+      ? t.reference.plans[access.data.plan_code]
+      : t.reference.missingValue
 
   return (
-    <div className={styles.shell}>
-      <a
-        className="kivou-skip-link"
-        href="#kivou-main"
-        inert={drawerOpen ? true : undefined}
+    <SurfaceBoundary surface="dashboard">
+      <SidebarProvider
+        style={{ '--sidebar-width': '240px' } as CSSProperties}
+        className="dashboard-provider"
       >
-        {t.common.skipToContent}
-      </a>
+        <ConnectedShell
+          activeView={current.active}
+          title={current.title}
+          accountName={me.account_display_name}
+          accountEmail={me.email}
+          accountInitials={initials(me.account_display_name)}
+          planLabel={planLabel}
+          profileLabel={profileLabel}
+          profileError={Boolean(profiles.error)}
+          planError={Boolean(access.error)}
+          retryProfile={() => void retryProfiles()}
+          retryPlan={() => void access.retry()}
+        />
+      </SidebarProvider>
+    </SurfaceBoundary>
+  )
+}
 
-      {/* Barre mobile : le tiroir remplace la sidebar sous 1024px (§20). */}
-      <header className={styles.mobileBar} inert={drawerOpen ? true : undefined}>
-        <button
-          ref={drawerTriggerRef}
-          type="button"
-          className={styles.drawerToggle}
-          aria-expanded={drawerOpen}
-          aria-controls="kivou-app-drawer"
-          onClick={openDrawer}
-        >
-          <MenuIcon />
-          <span className="kivou-visually-hidden">{t.nav.openMenu}</span>
-        </button>
-        <div className={styles.mobileTitle}>
-          <strong aria-hidden="true">{pageTitle}</strong>
-        </div>
-      </header>
+function ConnectedShell({
+  activeView,
+  title,
+  accountName,
+  accountEmail,
+  accountInitials,
+  planLabel,
+  profileLabel,
+  profileError,
+  planError,
+  retryProfile,
+  retryPlan,
+}: {
+  activeView: ActiveView
+  title: string
+  accountName: string
+  accountEmail: string
+  accountInitials: string
+  planLabel: string
+  profileLabel: string
+  profileError: boolean
+  planError: boolean
+  retryProfile: () => void
+  retryPlan: () => void
+}) {
+  const { t } = useI18n()
+  const { pathname } = useLocation()
+  const { openMobile, setOpenMobile } = useSidebar()
+  const mobileTrigger = useRef<HTMLButtonElement>(null)
+  const mobileWasOpen = useRef(openMobile)
+  const closeMobileNavigation = useCallback(() => {
+    setOpenMobile(false)
+  }, [setOpenMobile])
+  const labels = {
+    overview: t.reference.overview,
+    signals: t.reference.signals,
+    companies: t.reference.companies,
+    target: t.reference.targeting,
+    settings: t.reference.account,
+  } satisfies Record<ActiveView, string>
 
-      <aside className={styles.sidebar}>
-        <Link to="/app/dashboard" className={styles.logoLink}>
-          <KivouLogo size="md" />
-        </Link>
-        {navigation()}
-        <div className={styles.sidebarFooter}>{accountPanel}</div>
-      </aside>
+  useEffect(() => {
+    setOpenMobile(false)
+  }, [pathname, setOpenMobile])
 
-      {drawerOpen ? (
-        <div className={styles.drawerLayer}>
-          <button
-            type="button"
-            className={styles.scrim}
-            aria-label={t.nav.dismissMenu}
-            onClick={() => closeDrawer(true)}
-          />
-          <div
-            ref={drawerRef}
-            className={styles.drawer}
-            id="kivou-app-drawer"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t.nav.mainNavigation}
+  useEffect(() => {
+    if (mobileWasOpen.current && !openMobile) {
+      mobileTrigger.current?.focus()
+    }
+    mobileWasOpen.current = openMobile
+  }, [openMobile])
+
+  return (
+    <>
+      <Sidebar
+        collapsible="offcanvas"
+        className="kivou-sidebar"
+        mobileTitle={t.reference.navigation}
+        mobileDescription={t.reference.navigationDescription}
+        mobileCloseLabel={t.reference.closeNavigation}
+      >
+        <SidebarHeader className="sidebar-head">
+          <ReferenceLink
+            dashboard
+            className="sidebar-brand"
+            href="/"
+            aria-label={t.reference.brandOverview}
+            onClick={closeMobileNavigation}
           >
-            <div className={styles.drawerHead}>
-              <KivouLogo size="sm" />
-              <button
-                ref={drawerCloseRef}
-                type="button"
-                className={styles.drawerToggle}
-                onClick={() => closeDrawer(true)}
-              >
-                <CloseIcon />
-                <span className="kivou-visually-hidden">{t.nav.closeMenu}</span>
-              </button>
+            <KivouBrand subtitle={t.reference.brandSubtitle} />
+          </ReferenceLink>
+        </SidebarHeader>
+
+        <SidebarContent className="sidebar-content">
+          <SidebarGroup>
+            <SidebarGroupLabel className="sidebar-label">
+              {t.reference.navigation}
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="sidebar-menu">
+                {navigation.map(({ id, icon: Icon, href }) => {
+                  const active = id === activeView
+
+                  return (
+                    <SidebarMenuItem key={id}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={active}
+                        className="sidebar-item"
+                      >
+                        <ReferenceLink
+                          dashboard
+                          href={href}
+                          aria-current={active ? 'page' : undefined}
+                          onClick={closeMobileNavigation}
+                        >
+                          <Icon aria-hidden="true" />
+                          <span>{labels[id]}</span>
+                        </ReferenceLink>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  )
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        </SidebarContent>
+
+        <SidebarFooter className="sidebar-footer">
+          <ReferenceLink
+            dashboard
+            className="demo-account"
+            href="/settings"
+            aria-label={t.reference.openAccountSettings}
+            onClick={closeMobileNavigation}
+          >
+            <span className="account-avatar">{accountInitials}</span>
+            <div>
+              <strong>{accountName}</strong>
+              <small>{accountEmail}</small>
             </div>
-            {navigation(() => closeDrawer(false))}
-            <div className={styles.sidebarFooter}>{accountPanel}</div>
-          </div>
-        </div>
-      ) : null}
+          </ReferenceLink>
+        </SidebarFooter>
+      </Sidebar>
 
-      <div className={styles.workspace} inert={drawerOpen ? true : undefined}>
-        <header className={styles.topbar}>
-          <div className={styles.topbarTitle}>
-            <p>{eyebrow}</p>
-            {contentOwnsPageHeading ? (
-              <strong className={styles.topbarPageTitle}>{pageTitle}</strong>
-            ) : (
-              <h1>{pageTitle}</h1>
-            )}
+      <SidebarInset className="dashboard-workspace">
+        <header className="topbar">
+          <div className="topbar-title">
+            <SidebarTrigger
+              ref={mobileTrigger}
+              className="sidebar-trigger"
+              aria-label={t.reference.openNavigation}
+            />
+            <div>
+              <p>{t.reference.monitoring}</p>
+              <h1>{title}</h1>
+            </div>
           </div>
+          <span className="demo-mode-badge">
+            {planError ? (
+              <button
+                type="button"
+                className="shell-resource-retry"
+                aria-label={t.reference.messages.retryBilling}
+                onClick={retryPlan}
+              >
+                {t.reference.messages.billingLoadError}
+              </button>
+            ) : planLabel}
+          </span>
+          {activeView !== 'target' ? (
+            <div className="topbar-tools">
+              {profileError ? (
+                <button
+                  type="button"
+                  className="shell-resource-retry shell-profile-resource-retry"
+                  aria-label={t.reference.messages.retryProfile}
+                  onClick={retryProfile}
+                >
+                  <span>{t.reference.targetingShort}</span>
+                  <strong>{t.reference.messages.profileLoadError}</strong>
+                  <ChevronRight aria-hidden="true" />
+                </button>
+              ) : (
+                <ReferenceLink
+                  dashboard
+                  href="/targeting"
+                  aria-label={t.reference.openTargetProfile}
+                  onClick={closeMobileNavigation}
+                >
+                  <span>{t.reference.targetingShort}</span>
+                  <strong>{profileLabel}</strong>
+                  <ChevronRight aria-hidden="true" />
+                </ReferenceLink>
+              )}
+            </div>
+          ) : null}
         </header>
-        <main className={styles.main} id="kivou-main">
-          <Outlet />
-        </main>
-      </div>
-    </div>
+
+        <Outlet />
+      </SidebarInset>
+    </>
   )
 }
 
-function pageOwnsHeading(pathname: string): boolean {
-  return (
-    /^\/app\/companies\/[^/]+$/.test(pathname) ||
-    pathname.startsWith('/app/internal/')
-  )
-}
-
-function titleForPath(pathname: string, t: ReturnType<typeof useI18n>['t']): string {
-  if (pathname.startsWith('/app/signals')) return t.nav.signals
-  if (pathname.startsWith('/app/companies')) return t.nav.companies
-  if (pathname.startsWith('/app/icps')) return t.nav.icps
-  if (pathname === '/app/billing') return t.billing.title
-  if (pathname === '/app/notifications') return t.notifications.title
-  if (pathname.startsWith('/app/settings')) return t.nav.settings
-  if (pathname.startsWith('/app/internal')) return t.nav.cockpit
-  return t.nav.dashboard
+function connectedLocation(
+  pathname: string,
+  t: ReturnType<typeof useI18n>['t'],
+): { active: ActiveView; title: string } {
+  if (pathname === '/app/dashboard') {
+    return { active: 'overview', title: t.reference.overview }
+  }
+  if (pathname.startsWith('/app/signals')) {
+    return { active: 'signals', title: t.reference.signals }
+  }
+  if (pathname.startsWith('/app/companies')) {
+    return { active: 'companies', title: t.reference.companies }
+  }
+  if (pathname.startsWith('/app/icps')) {
+    return { active: 'target', title: t.reference.targeting }
+  }
+  if (pathname.startsWith('/app/settings/security')) {
+    return { active: 'settings', title: t.reference.accountSettings.securityTitle }
+  }
+  if (pathname.startsWith('/app/notifications')) {
+    return { active: 'settings', title: t.notifications.title }
+  }
+  if (pathname.startsWith('/app/billing')) {
+    return { active: 'settings', title: t.reference.accountSettings.subscription }
+  }
+  return { active: 'settings', title: t.reference.account }
 }
 
 function initials(name: string): string {
   const parts = name.trim().split(/\s+/).filter(Boolean)
   if (parts.length === 0) return '—'
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+  return `${parts[0][0]}${parts.at(-1)?.[0] ?? ''}`.toUpperCase()
 }

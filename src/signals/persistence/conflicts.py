@@ -17,10 +17,11 @@ plus de garde « indéterminé » à écrire — ni de faux succès, ni de faux 
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
 import sqlalchemy as sa
-from sqlalchemy.engine import Connection
+from sqlalchemy.engine import Connection, Row
 
 
 class UnsupportedConflictDialect(RuntimeError):
@@ -30,6 +31,17 @@ class UnsupportedConflictDialect(RuntimeError):
     `RETURNING` ont des sémantiques trop différentes ailleurs pour qu'une
     possession de clé y reste démontrable.
     """
+
+
+def _conflict_insert(connection: Connection, table: sa.Table):
+    dialect = connection.dialect.name
+    if dialect == "sqlite":
+        from sqlalchemy.dialects.sqlite import insert
+    elif dialect == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert
+    else:
+        raise UnsupportedConflictDialect(f"conflict-safe insert unsupported for dialect {dialect}")
+    return insert(table)
 
 
 def insert_if_absent(
@@ -55,14 +67,7 @@ def insert_if_absent(
     # été écrite. Cela évite d'imposer à chaque appelant de nommer une colonne,
     # et se comporte identiquement sur les deux moteurs.
     projection = sa.literal_column("1") if returning is None else returning
-    dialect = connection.dialect.name
-    if dialect == "sqlite":
-        from sqlalchemy.dialects.sqlite import insert
-    elif dialect == "postgresql":
-        from sqlalchemy.dialects.postgresql import insert
-    else:
-        raise UnsupportedConflictDialect(f"conflict-safe insert unsupported for dialect {dialect}")
-    statement = insert(table).values(values)
+    statement = _conflict_insert(connection, table).values(values)
     statement = (
         statement.on_conflict_do_nothing()
         if index_elements is None
@@ -71,4 +76,26 @@ def insert_if_absent(
     return connection.execute(statement.returning(projection)).first() is not None
 
 
-__all__ = ["UnsupportedConflictDialect", "insert_if_absent"]
+def upsert_returning(
+    connection: Connection,
+    table: sa.Table,
+    values: dict[str, Any],
+    *,
+    index_elements: list[Any],
+    update_values: dict[str, Any],
+    returning: Sequence[Any],
+) -> Row[Any]:
+    """Insère ou met à jour atomiquement, puis rend l'unique ligne écrite."""
+    statement = (
+        _conflict_insert(connection, table)
+        .values(values)
+        .on_conflict_do_update(
+            index_elements=index_elements,
+            set_=update_values,
+        )
+        .returning(*returning)
+    )
+    return connection.execute(statement).one()
+
+
+__all__ = ["UnsupportedConflictDialect", "insert_if_absent", "upsert_returning"]

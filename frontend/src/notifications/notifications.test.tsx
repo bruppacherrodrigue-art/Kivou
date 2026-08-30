@@ -34,10 +34,13 @@ function routes(status = PRO_STATUS, preference = PREFERENCE, overrides = {}) {
 
 describe('préférences de notification', () => {
   it('compose les préférences avec les surfaces connectées et un repli à 900 px', () => {
-    const css = readFileSync(join(process.cwd(), 'src/pages/Notifications.module.css'), 'utf8')
+    const css = readFileSync(
+      join(process.cwd(), 'src/reference/dashboard/dashboard-reference.css'),
+      'utf8',
+    )
 
-    expect(css).toMatch(/\.card\s*\{[^}]*var\(--kivou-connected-surface\)/s)
-    expect(css).toMatch(/@media \(max-width: 900px\)/)
+    expect(css).toMatch(/\.notification-toggle-row[\s\S]*grid-template-columns/)
+    expect(css).toMatch(/@media \(max-width: 620px\)[\s\S]*\.notification-toggle-row/)
   })
 
   it('affiche l’adresse de réception enregistrée', async () => {
@@ -59,11 +62,11 @@ describe('préférences de notification', () => {
     )
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/notifications' })
 
-    const toggle = await screen.findByRole('switch', { name: /Recevoir les alertes par e-mail/ })
+    const toggle = await screen.findByRole('switch', { name: /Activer les alertes e-mail/ })
     expect(toggle).toBeChecked()
 
     await user.click(toggle)
-    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+    await user.click(screen.getByRole('button', { name: 'Enregistrer les notifications' }))
 
     await waitFor(() =>
       expect(callsTo('/notification-preferences', 'PATCH')).toHaveLength(1),
@@ -72,7 +75,7 @@ describe('préférences de notification', () => {
     expect(sent.email_enabled).toBe(false)
     expect(sent).not.toHaveProperty('account_id')
 
-    expect(await screen.findByText('Préférences enregistrées.')).toBeInTheDocument()
+    expect(await screen.findByText('Enregistré')).toBeInTheDocument()
     expect(screen.getByRole('switch')).not.toBeChecked()
   })
 
@@ -83,8 +86,9 @@ describe('préférences de notification', () => {
     expect(await screen.findByText('Quotidienne')).toBeInTheDocument()
     expect(screen.getByText(/La fréquence dépend de votre offre/)).toBeInTheDocument()
 
-    // La cadence n'est PAS un choix : aucun contrôle ne permet de la changer.
-    expect(screen.queryByRole('combobox', { name: /fréquence/i })).not.toBeInTheDocument()
+    // La cadence conserve le contrôle de la maquette, mais reste strictement
+    // en lecture seule sous l'autorité du droit serveur.
+    expect(screen.getByRole('combobox', { name: /fréquence/i })).toBeDisabled()
     expect(screen.queryByRole('radio', { name: 'Hebdomadaire' })).not.toBeInTheDocument()
   })
 
@@ -135,7 +139,7 @@ describe('préférences de notification', () => {
     const field = await screen.findByLabelText(/Adresse de réception/)
     await user.clear(field)
     await user.type(field, 'pas-une-adresse')
-    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
+    await user.click(screen.getByRole('button', { name: 'Enregistrer les notifications' }))
 
     expect(await screen.findByText('Cette adresse n’est pas valide.')).toBeInTheDocument()
     expect(field).toHaveAttribute('aria-invalid', 'true')

@@ -36,7 +36,7 @@ export function CommercialCockpit() {
   if (!allowed) {
     return (
       <section className={styles.state}>
-        <h1>{t.cockpit.internalRequired}</h1>
+        <h2>{t.cockpit.internalRequired}</h2>
         <p>{t.cockpit.internalRequiredBody}</p>
       </section>
     )
@@ -46,7 +46,7 @@ export function CommercialCockpit() {
     <div className={styles.page}>
       <header className={styles.header}>
         <div>
-          <h1>{t.cockpit.title}</h1>
+          <h2>{t.cockpit.title}</h2>
           <p>{t.cockpit.subtitle}</p>
         </div>
         <label className={styles.weekField}>

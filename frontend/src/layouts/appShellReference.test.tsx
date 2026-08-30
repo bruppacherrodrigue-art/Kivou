@@ -1,0 +1,472 @@
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { Link, Route, Routes } from 'react-router-dom'
+import { AppRoutes, RouteLocaleBoundary } from '../App'
+import { useSession } from '../auth/SessionProvider'
+import { useI18n } from '../i18n'
+import {
+  AUTHENTICATED,
+  DISCOVERY_STATUS,
+  ICP,
+  LOCKED_ITEM,
+  ME,
+  UNLOCKED_DETAIL,
+  UNLOCKED_ITEM,
+  callsTo,
+  feedPage,
+  mockApi,
+  renderApp,
+} from '../test/harness'
+
+const NOTIFICATIONS = {
+  email_enabled: false,
+  notification_email: null,
+  updated_at: '2026-08-29T09:00:00+00:00',
+}
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  document.documentElement.lang = 'fr'
+})
+
+describe('shell connecté exact de la référence', () => {
+  it('rend les cinq entrées exactes, dans l’ordre, avec les valeurs réelles du compte', async () => {
+    stubDesktopMedia()
+    mockConnectedApi()
+
+    renderApp(<AppRoutes />, { route: '/app/dashboard', session: AUTHENTICATED })
+
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Vue d’ensemble' }),
+    ).toBeVisible()
+
+    const provider = document.querySelector<HTMLElement>('.dashboard-provider')
+    expect(provider).not.toBeNull()
+    expect(provider?.style.getPropertyValue('--sidebar-width')).toBe('240px')
+    expect(provider?.querySelector('.kivou-sidebar')).not.toBeNull()
+    expect(provider?.querySelector('.sidebar-brand .kivou-brand-lockup')).not.toBeNull()
+    expect(provider?.querySelector('.dashboard-workspace > .topbar')).not.toBeNull()
+
+    const navigation = provider?.querySelector('.sidebar-menu')
+    expect(navigation).not.toBeNull()
+    const links = within(navigation as HTMLElement).getAllByRole('link')
+    expect(links.map((link) => link.textContent?.trim())).toEqual([
+      'Vue d’ensemble',
+      'Signaux',
+      'Entreprises',
+      'Profil de ciblage',
+      'Compte',
+    ])
+    expect(links.map((link) => link.getAttribute('href'))).toEqual([
+      '/app/dashboard',
+      '/app/signals',
+      '/app/companies',
+      '/app/icps',
+      '/app/settings',
+    ])
+    expect(links[0]).toHaveAttribute('aria-current', 'page')
+
+    expect(screen.getByText(ME.account_display_name)).toBeVisible()
+    expect(screen.getByText(ME.email)).toBeVisible()
+    expect(document.querySelector('.demo-mode-badge')).toHaveTextContent('Découverte')
+    expect(screen.getByText(`${ICP.label} · ${ICP.customer_input.territories[0]}`)).toBeVisible()
+    expect(screen.queryByText(/Compte démo|Mode démonstration|Maquette de travail/)).not.toBeInTheDocument()
+    expect(document.querySelector('.demo-account .account-avatar')).toHaveTextContent('AS')
+  })
+
+  it('groupe facturation, notifications et réglages sous Compte', async () => {
+    stubDesktopMedia()
+    mockConnectedApi()
+
+    renderApp(<AppRoutes />, { route: '/app/billing', session: AUTHENTICATED })
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
+    const navigation = document.querySelector<HTMLElement>('.sidebar-menu')
+    expect(navigation).not.toBeNull()
+    expect(within(navigation as HTMLElement).getByRole('link', { name: 'Compte' })).toHaveAttribute('aria-current', 'page')
+    expect(within(navigation as HTMLElement).getByRole('link', { name: 'Vue d’ensemble' })).not.toHaveAttribute(
+      'aria-current',
+    )
+  })
+
+  it('laisse les routes publiques en français et applique la locale seulement au connecté', async () => {
+    stubDesktopMedia()
+    const englishSession = {
+      status: 'authenticated' as const,
+      me: { ...ME, locale: 'en' as const },
+    }
+
+    const publicRender = renderApp(<AppRoutes />, {
+      route: '/',
+      session: englishSession,
+      locale: 'en',
+    })
+    expect((await screen.findAllByRole('link', { name: 'Comment ça marche' }))[0]).toBeVisible()
+    expect(document.documentElement.lang).toBe('fr')
+    publicRender.unmount()
+
+    mockConnectedApi()
+    renderApp(<AppRoutes />, {
+      route: '/app/dashboard',
+      session: englishSession,
+      locale: 'fr',
+    })
+
+    expect(await screen.findByRole('link', { name: 'Overview' })).toBeVisible()
+    expect(screen.getByRole('heading', { level: 1, name: 'Overview' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Target profile' })).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Account' })).toBeVisible()
+    expect(document.documentElement.lang).toBe('en')
+  })
+
+  it('laisse /produit/ en français avec une session anglaise', async () => {
+    stubDesktopMedia()
+    mockConnectedApi()
+    const englishSession = {
+      status: 'authenticated' as const,
+      me: { ...ME, locale: 'en' as const },
+    }
+
+    renderApp(
+      <>
+        <AppRoutes />
+        <LocaleProbe />
+      </>,
+      {
+        route: '/produit/',
+        session: englishSession,
+        locale: 'en',
+      },
+    )
+
+    expect(
+      await screen.findByRole('heading', {
+        level: 1,
+        name: 'Kivou suit ce qui se passe après l’attribution.',
+      }),
+    ).toBeVisible()
+    expect(screen.getByTestId('active-locale')).toHaveTextContent('fr')
+    await waitFor(() => expect(document.documentElement.lang).toBe('fr'))
+  })
+
+  it.each(['/adresse-publique-inconnue', '/app/inconnu'])(
+    'échoue en français sur la route publique inconnue %s avec une session anglaise',
+    async (route) => {
+      stubDesktopMedia()
+      const englishSession = {
+        status: 'authenticated' as const,
+        me: { ...ME, locale: 'en' as const },
+      }
+
+      renderApp(<AppRoutes />, {
+        route,
+        session: englishSession,
+        locale: 'en',
+      })
+
+      expect(
+        await screen.findByRole('heading', { name: 'Page introuvable' }),
+      ).toBeVisible()
+      expect(screen.queryByText('Page not found')).not.toBeInTheDocument()
+      await waitFor(() => expect(document.documentElement.lang).toBe('fr'))
+    },
+  )
+
+  it.each([
+    ['/onboarding', 'account_created'],
+    ['/checkout?plan=essential', 'ready_for_signals'],
+  ] as const)(
+    'applique la locale du compte à la route connectée %s',
+    async (route, onboardingStatus) => {
+      stubDesktopMedia()
+      mockApi({
+        'GET /billing/plans': {
+          body: {
+            catalogue_version: 'test',
+            billing_interval: 'month',
+            currencies: [],
+            plans: [],
+          },
+        },
+      })
+      const englishSession = {
+        status: 'authenticated' as const,
+        me: {
+          ...ME,
+          locale: 'en' as const,
+          onboarding_status: onboardingStatus,
+        },
+      }
+
+      renderApp(
+        <>
+          <AppRoutes />
+          <LocaleProbe />
+        </>,
+        { route, session: englishSession, locale: 'fr' },
+      )
+
+      await waitFor(() => {
+        expect(screen.getByTestId('active-locale')).toHaveTextContent('en')
+        expect(document.documentElement.lang).toBe('en')
+      })
+    },
+  )
+
+  it('ne rend aucun enfant avec une locale périmée du connecté au public', async () => {
+    const user = userEvent.setup()
+    const renderedLocales: string[] = []
+    const englishSession = {
+      status: 'authenticated' as const,
+      me: { ...ME, locale: 'en' as const },
+    }
+
+    renderApp(
+      <Routes>
+        <Route element={<RouteLocaleBoundary connected />}>
+          <Route
+            path="connected"
+            element={
+              <LocaleBoundaryProbe
+                surface="connected"
+                renderedLocales={renderedLocales}
+                next="/public"
+              />
+            }
+          />
+        </Route>
+        <Route element={<RouteLocaleBoundary connected={false} />}>
+          <Route
+            path="public"
+            element={
+              <LocaleBoundaryProbe
+                surface="public"
+                renderedLocales={renderedLocales}
+              />
+            }
+          />
+        </Route>
+      </Routes>,
+      { route: '/connected', session: englishSession, locale: 'fr' },
+    )
+
+    expect(await screen.findByTestId('connected-locale')).toHaveTextContent('en')
+    expect(document.documentElement.lang).toBe('en')
+
+    await user.click(screen.getByRole('link', { name: 'Vers le public' }))
+
+    expect(await screen.findByTestId('public-locale')).toHaveTextContent('fr')
+    expect(renderedLocales).toEqual(['connected:en', 'public:fr'])
+    expect(document.documentElement.lang).toBe('fr')
+  })
+
+  it('réinitialise les ressources avant d’afficher un autre compte', async () => {
+    const user = userEvent.setup()
+    const accountB = {
+      ...ME,
+      account_id: 'acc_b',
+      user_id: 'usr_b',
+      account_display_name: 'Entreprise B',
+      email: 'b@example.test',
+    }
+    const profileB = {
+      ...ICP,
+      target_icp_id: 'icp_b',
+      label: 'Profil B',
+      customer_input: {
+        ...ICP.customer_input,
+        territories: ['BE'],
+      },
+    }
+    let releaseAProfiles:
+      | ((response: { body: (typeof ICP)[] }) => void)
+      | undefined
+    const releaseABilling: Array<
+      (response: { body: typeof DISCOVERY_STATUS }) => void
+    > = []
+    let profileCall = 0
+    let billingCall = 0
+
+    mockApi({
+      'GET /target-icps': () => {
+        profileCall += 1
+        if (profileCall === 1) {
+          return new Promise((resolve) => {
+            releaseAProfiles = resolve
+          })
+        }
+        return { body: [profileB] }
+      },
+      'GET /billing/status': () => {
+        billingCall += 1
+        if (billingCall <= 2) {
+          return new Promise((resolve) => {
+            releaseABilling.push(resolve)
+          })
+        }
+        return { body: { ...DISCOVERY_STATUS, plan_code: 'essential' as const } }
+      },
+    })
+
+    renderApp(
+      <>
+        <AppRoutes />
+        <AccountSwitcher account={accountB} />
+      </>,
+      { route: '/app/settings', session: AUTHENTICATED },
+    )
+
+    await waitFor(() => {
+      expect(profileCall).toBe(1)
+      expect(billingCall).toBe(2)
+    })
+    expect(screen.getAllByText(ME.account_display_name)).not.toHaveLength(0)
+
+    await user.click(screen.getByRole('button', { name: 'Passer au compte B' }))
+
+    expect(await screen.findAllByText(accountB.account_display_name)).not.toHaveLength(0)
+    expect(await screen.findByText('Profil B · BE')).toBeVisible()
+    expect(document.querySelector('.demo-mode-badge')).toHaveTextContent('Essentiel')
+    expect(profileCall).toBe(2)
+    expect(billingCall).toBe(4)
+    expect(screen.queryByText(ME.account_display_name)).not.toBeInTheDocument()
+
+    await act(async () => {
+      releaseAProfiles?.({ body: [{ ...ICP, label: 'Profil A secret' }] })
+      for (const release of releaseABilling) {
+        release({ body: { ...DISCOVERY_STATUS, plan_code: 'pro' } })
+      }
+    })
+
+    expect(screen.queryByText(/Profil A secret/)).not.toBeInTheDocument()
+    expect(document.querySelector('.demo-mode-badge')).toHaveTextContent('Essentiel')
+  })
+
+  it('distingue une erreur du profil de ciblage d’une valeur non publiée et la relance localement', async () => {
+    const user = userEvent.setup()
+    let requestCount = 0
+    mockApi({
+      'GET /target-icps': () => {
+        requestCount += 1
+        return requestCount === 1
+          ? {
+              status: 503,
+              body: { detail: { code: 'service_unavailable', message: 'indisponible' } },
+            }
+          : { body: [ICP] }
+      },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+    })
+
+    renderApp(<AppRoutes />, { route: '/app/settings', session: AUTHENTICATED })
+
+    const retry = await screen.findByRole('button', {
+      name: 'Réessayer le chargement du profil de ciblage',
+    })
+    const topbar = document.querySelector<HTMLElement>('.topbar')
+    expect(topbar).not.toBeNull()
+    expect(within(topbar as HTMLElement).queryByText('Non publié')).not.toBeInTheDocument()
+    expect(retry).toHaveTextContent('Le profil de ciblage n’a pas pu être chargé.')
+
+    await user.click(retry)
+
+    expect(
+      await screen.findByText(`${ICP.label} · ${ICP.customer_input.territories[0]}`),
+    ).toBeVisible()
+    expect(callsTo('/target-icps', 'GET')).toHaveLength(2)
+  })
+
+  it('distingue une erreur de facturation d’une valeur non publiée et la relance localement', async () => {
+    const user = userEvent.setup()
+    let requestCount = 0
+    mockApi({
+      'GET /target-icps': { body: [ICP] },
+      'GET /billing/status': () => {
+        requestCount += 1
+        return requestCount === 1
+          ? {
+              status: 503,
+              body: { detail: { code: 'service_unavailable', message: 'indisponible' } },
+            }
+          : { body: DISCOVERY_STATUS }
+      },
+    })
+
+    renderApp(<AppRoutes />, { route: '/app/settings', session: AUTHENTICATED })
+
+    const retry = await screen.findByRole('button', {
+      name: 'Réessayer',
+    })
+    const badge = document.querySelector<HTMLElement>('.demo-mode-badge')
+    expect(badge).not.toBeNull()
+    expect(within(badge as HTMLElement).queryByText('Non publié')).not.toBeInTheDocument()
+    expect(retry.closest('[role="alert"]')).toHaveTextContent('L’offre n’a pas pu être chargée.')
+    expect(retry).toHaveTextContent('Réessayer')
+
+    await user.click(retry)
+
+    await waitFor(() => expect(badge).toHaveTextContent('Découverte'))
+    expect(callsTo('/billing/status', 'GET')).toHaveLength(3)
+  })
+})
+
+function AccountSwitcher({ account }: { account: typeof ME }) {
+  const { adopt } = useSession()
+  return (
+    <button type="button" onClick={() => adopt(account)}>
+      Passer au compte B
+    </button>
+  )
+}
+
+function LocaleProbe() {
+  const { locale } = useI18n()
+  return <output data-testid="active-locale">{locale}</output>
+}
+
+function LocaleBoundaryProbe({
+  surface,
+  renderedLocales,
+  next,
+}: {
+  surface: 'connected' | 'public'
+  renderedLocales: string[]
+  next?: string
+}) {
+  const { locale } = useI18n()
+  renderedLocales.push(`${surface}:${locale}`)
+  return (
+    <div>
+      <output data-testid={`${surface}-locale`}>{locale}</output>
+      {next ? <Link to={next}>Vers le public</Link> : null}
+    </div>
+  )
+}
+
+function mockConnectedApi() {
+  mockApi({
+    'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
+    [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+    'GET /target-icps': { body: [ICP] },
+    'GET /billing/status': { body: DISCOVERY_STATUS },
+    'GET /billing/plans': {
+      body: { catalogue_version: 'test', billing_interval: 'month', currencies: [], plans: [] },
+    },
+    'GET /notification-preferences': { body: NOTIFICATIONS },
+  })
+}
+
+function stubDesktopMedia() {
+  const media: MediaQueryList = {
+    matches: false,
+    media: '(max-width: 767px)',
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  }
+  vi.stubGlobal('matchMedia', vi.fn(() => media))
+}

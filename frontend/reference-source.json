@@ -1,0 +1,23 @@
+{
+  "public": {
+    "path": "/tmp/kivou-sites-source-public",
+    "commit": "efaa4160f4c3bbbdb01448bf9228772491e614f5",
+    "files": {
+      "app/globals.css": "56f8c96cc3975d9f81882d1ac9eb49c791aefd90d690f6a559c4a96c946bde95",
+      "app/page.tsx": "3c39bfb20716f425d3cb6971191d0c42b242a3560a5be656e2ebba5977762758",
+      "components/site-shell.tsx": "e06c282e0001237bd8465bc07e5606a28e068109de36bfb57917464449b2a297",
+      "public/favicon.svg": "0d63748a96627ae1508c14f493d04ac8d8cf48d7dc87b429b5746b1697273032"
+    }
+  },
+  "dashboard": {
+    "path": "/tmp/kivou-sites-source-dashboard",
+    "commit": "05212f2da5197699e6a9bb191556afcb2dcf1bb3",
+    "files": {
+      "app/globals.css": "4f7fb469e4ed2f32a424d4b45cb77e23b016314e0f2a062524f0dc7c090a720d",
+      "components/kivou-dashboard-shell.tsx": "9f14abcdfa10b354f61ad299b445fd223340f013e20715203a6cd0b5f4850dd1",
+      "components/overview-page.tsx": "fedc78d0041beb1c77321d24f24e0e41a0ab3b0e153b26036d8d96f337d80423",
+      "components/signals-page.tsx": "ddfbfd00ed18373a8d9a3e96d166adf69db13ad59296363bc36065bdddcf6b79",
+      "public/favicon.svg": "1540696271c1fae5bb5066346dfaf62fba1c4375548d95c63bec4c24d9205b4c"
+    }
+  }
+}

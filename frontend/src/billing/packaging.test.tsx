@@ -1,5 +1,6 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import { AUTHENTICATED, CATALOGUE, DISCOVERY_STATUS, ME, mockApi, renderApp } from '../test/harness'
 
@@ -34,6 +35,13 @@ function renderPlans() {
   renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
 }
 
+async function selectPro() {
+  const user = userEvent.setup()
+  const selector = await screen.findByLabelText(/Offre|Plan/)
+  await user.selectOptions(selector, 'pro')
+  return selector
+}
+
 const FORBIDDEN_FR = [
   'Export limité',
   'Export étendu',
@@ -41,9 +49,6 @@ const FORBIDDEN_FR = [
   'Filtres essentiels',
   'Filtres de base',
   'Filtres avancés',
-  '1 territoire principal',
-  'Plusieurs territoires',
-  'Couverture étendue Suisse et Union européenne',
 ]
 
 const FORBIDDEN_EN = [
@@ -60,7 +65,7 @@ const FORBIDDEN_EN = [
 describe('vérité du packaging', () => {
   it('ne vend aucune capacité inexistante — FR', async () => {
     renderPlans()
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
     const page = document.body.textContent ?? ''
     for (const forbidden of FORBIDDEN_FR) {
       expect(page).not.toContain(forbidden)
@@ -79,7 +84,8 @@ describe('vérité du packaging', () => {
       route: '/app/billing',
       locale: 'en',
     })
-    await screen.findByRole('button', { name: /Choose Pro/ })
+    const user = userEvent.setup()
+    await user.selectOptions(await screen.findByLabelText(/Plan/), 'pro')
     const page = document.body.textContent ?? ''
     for (const forbidden of FORBIDDEN_EN) {
       expect(page).not.toContain(forbidden)
@@ -88,23 +94,35 @@ describe('vérité du packaging', () => {
 
   it('conserve les capacités réellement utilisables', async () => {
     renderPlans()
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    const user = userEvent.setup()
+    const selector = await screen.findByLabelText('Offre')
+
+    await user.selectOptions(selector, 'discovery')
+    expect(document.body.textContent).toContain('3 signaux réels débloqués définitivement')
+    expect(document.body.textContent).toContain('Jusqu’à 1 territoire par profil')
+
+    await user.selectOptions(selector, 'pro')
     const page = document.body.textContent ?? ''
     // Profils : appliqué par `feedable_target_icps` et `over_limit_icps`.
     expect(page).toMatch(/profils? de ciblage/)
-    // Signaux offerts : appliqués par `discovery.grant_up_to_limit`.
-    expect(page).toContain('3 signaux réels débloqués définitivement')
+    expect(page).toContain('Plusieurs territoires par profil')
+    // L'accès payant au flux et aux détails vient du contrat serveur ; le
+    // compteur Discovery ne doit pas être transposé à Pro.
+    expect(page).toContain('Accès au flux et aux détails')
     // Historique : appliqué par `within_history_window`.
     expect(page).toMatch(/Historique 365 jours/)
     // Preuve : servie par le détail.
     expect(page).toContain('Preuve documentaire complète')
     // Alertes : UI Notifications, préférence, job et cadence appliquée.
     expect(page).toContain('Alertes e-mail quotidiennes')
+
+    await user.selectOptions(selector, 'scale')
+    expect(document.body.textContent).toContain('Couverture territoriale étendue')
   })
 
   it('ne change pas les prix, qui viennent toujours du serveur', async () => {
     renderPlans()
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
     const page = document.body.textContent ?? ''
     expect(page).toContain('49')
     expect(page).toContain('99')
@@ -114,7 +132,7 @@ describe('vérité du packaging', () => {
 
   it('n’expose jamais l’offre Founding', async () => {
     renderPlans()
-    await screen.findByRole('button', { name: /Choisir Pro/ })
+    await selectPro()
     const page = document.body.textContent ?? ''
     expect(page).not.toMatch(/founding|fondateur/i)
     expect(page).not.toContain('29')
@@ -122,7 +140,7 @@ describe('vérité du packaging', () => {
 
   it('garde Pro recommandé', async () => {
     renderPlans()
-    const pro = (await screen.findByRole('button', { name: /Choisir Pro/ })).closest('article')!
-    expect(within(pro).getByText('Recommandé')).toBeInTheDocument()
+    const selector = await selectPro()
+    expect(within(selector).getByRole('option', { name: /Pro.*Recommandé/ })).toBeInTheDocument()
   })
 })

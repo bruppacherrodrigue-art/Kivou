@@ -1,325 +1,177 @@
-import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
-import { ApiError } from '../api/client'
-import { companies } from '../api/endpoints'
-import type { CompanyProfile as CompanyProfilePayload, CompanyRelatedSignal } from '../api/types'
-import { ArrowRightIcon, BuildingIcon, ExternalIcon } from '../assets/Icons'
-import { ButtonExternalLink, ButtonLink } from '../components/Button'
-import { Badge, Callout, Card, DataList, DataRow, SectionHeading, Skeleton } from '../components/Surfaces'
+import { ArrowRight, FileCheck2, MapPin } from 'lucide-react'
+import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
+import type { CompanyProfile as CompanyProfilePayload } from '../api/types'
 import { interpolate, plural, useI18n } from '../i18n'
-import styles from './CompanyProfile.module.css'
+import { ReferenceLink } from '../reference/router/ReferenceLink'
 
-export function CompanyProfile() {
-  const { companyKey = '' } = useParams()
-  const { t } = useI18n()
-  const [profile, setProfile] = useState<CompanyProfilePayload | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<unknown>(null)
-
-  useEffect(() => {
-    let active = true
-    setLoading(true)
-    setError(null)
-    companies
-      .get(companyKey)
-      .then((result) => {
-        if (active) setProfile(result)
-      })
-      .catch((caught) => {
-        if (active) setError(caught)
-      })
-      .finally(() => {
-        if (active) setLoading(false)
-      })
-    return () => {
-      active = false
-    }
-  }, [companyKey])
-
-  if (loading) return <CompanySkeleton />
-  if (error) {
-    const unavailable = error instanceof ApiError && error.status === 404
-    return (
-      <div className={styles.page}>
-        <BackToSignals />
-        <h1 className="kivou-visually-hidden">
-          {unavailable ? t.companyProfile.inaccessibleTitle : t.companyProfile.errorTitle}
-        </h1>
-        <Callout
-          tone={unavailable ? 'warning' : 'danger'}
-          title={unavailable ? t.companyProfile.inaccessibleTitle : t.companyProfile.errorTitle}
-          live
-        >
-          {unavailable ? t.companyProfile.inaccessibleBody : t.companyProfile.errorBody}
-        </Callout>
-      </div>
-    )
-  }
-  if (!profile) return null
-  return <CompanyProfileView profile={profile} />
+export interface AuthorizedCompanySignal {
+  signalId: string
+  title: string | null
+  amountValue: string | null
+  amountCurrency: string | null
+  awardDate: string | null
 }
 
-function safeWebsite(value: string | null): string | null {
+export interface AuthorizedCompany {
+  key: string
+  name: string
+  country: string | null
+  signals: AuthorizedCompanySignal[]
+}
+
+export function companyInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean)
+  if (/^[A-ZÀ-ÖØ-Þ]{2,3}$/u.test(parts[0] ?? '')) return parts[0]
+  return (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : parts[0]?.slice(0, 2) ?? '?')
+    .toLocaleUpperCase()
+}
+
+function countryLabel(value: string | null, locale: 'fr' | 'en'): string | null {
   if (!value) return null
-  try {
-    const parsed = new URL(value)
-    const hostname = parsed.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase()
-    const ipLiteral = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(hostname) || hostname.includes(':')
-    if (
-      parsed.protocol !== 'https:' ||
-      parsed.username ||
-      parsed.password ||
-      hostname === 'localhost' ||
-      hostname.endsWith('.localhost') ||
-      hostname.endsWith('.local') ||
-      hostname.endsWith('.internal') ||
-      ipLiteral ||
-      !hostname.includes('.')
-    ) {
-      return null
-    }
-    return parsed.toString()
-  } catch {
-    return null
-  }
+  const territory = MVP_TERRITORIES.find((candidate) => candidate.code === value)
+  return territory ? territoryLabel(territory, locale) : value
 }
 
-function BackToSignals() {
-  const { t } = useI18n()
-  return (
-    <Link to="/app/signals" className={styles.back}>
-      <ArrowRightIcon className={styles.backIcon} aria-hidden="true" />
-      {t.companyProfile.backToSignals}
-    </Link>
-  )
-}
-
-function CompanyProfileView({ profile }: { profile: CompanyProfilePayload }) {
-  const { t, date } = useI18n()
+export function CompanyProfileView({
+  profile,
+}: {
+  profile: CompanyProfilePayload
+}) {
+  const { t, locale, date, amount } = useI18n()
+  const copy = t.reference.companiesPage
   const identity = profile.official_identity
-  const website = safeWebsite(identity.website_url)
-  const observed = date(identity.observed_at) ?? identity.observed_at
-  const firstSignal = profile.related_signals[0]
-  const countCopy = plural(
-    profile.related_signals.length,
-    t.companyProfile.relatedCountOne,
-    t.companyProfile.relatedCountOther,
-  )
-  const partial =
-    profile.coverage.unavailable_fields.length > 0 ||
-    !profile.coverage.related_signals_complete
+  const localizedCountry = countryLabel(identity.country, locale)
+  const partial = profile.coverage.unavailable_fields.length > 0 || !profile.coverage.related_signals_complete
 
   return (
-    <div className={styles.page}>
-      <BackToSignals />
-
-      <header className={styles.hero}>
-        <div className={styles.eyebrowRow}>
-          <span>{t.companyProfile.eyebrow}</span>
-          <Badge tone="neutral">{t.companyProfile.publicNotice}</Badge>
-        </div>
-        <div className={styles.heroTitleRow}>
-          <BuildingIcon className={styles.heroIcon} aria-hidden="true" />
-          <h1 className={styles.title}>{identity.name}</h1>
-        </div>
-        <div className={styles.heroMeta}>
-          {identity.country ? <span>{identity.country}</span> : null}
-          <span>{interpolate(countCopy, { count: profile.related_signals.length })}</span>
-          <span>{interpolate(t.companyProfile.observedOn, { date: observed })}</span>
-        </div>
-        <div className={styles.actions}>
-          {firstSignal ? (
-            <ButtonLink to={`/app/signals/${encodeURIComponent(firstSignal.signal_id)}`} size="lg">
-              {t.companyProfile.reviewSignal}
-            </ButtonLink>
-          ) : null}
-          <ButtonLink to="/app/signals" variant="secondary" size="lg">
-            {t.companyProfile.backToSignals}
-          </ButtonLink>
-          {website ? (
-            <ButtonExternalLink href={website} variant="quiet" size="lg" icon={<ExternalIcon />}>
-              {t.companyProfile.openWebsite}
-              <span className="kivou-visually-hidden"> {t.companyProfile.externalNewTab}</span>
-            </ButtonExternalLink>
-          ) : null}
+    <section className="company-detail" id="company-detail" aria-labelledby="company-name" tabIndex={-1}>
+      <header className="company-detail-hero">
+        <div className="company-identity-heading">
+          <span className="company-hero-avatar" aria-hidden="true">{companyInitials(identity.name)}</span>
+          <div>
+            <p className="section-label">{t.reference.headings.company}</p>
+            <h2 id="company-name">{identity.name}</h2>
+            <p>{copy.profileSummary}</p>
+          </div>
         </div>
       </header>
 
-      {partial ? (
-        <Callout tone="info" title={t.companyProfile.partialTitle}>
-          {t.companyProfile.partialBody}
-        </Callout>
-      ) : null}
+      <div className="company-provenance">
+        <FileCheck2 aria-hidden="true" />
+        <p><strong>{copy.provenance}</strong> {t.companyProfile.publicNotice}.</p>
+      </div>
 
-      <div className={styles.layout}>
-        <div className={styles.mainColumn}>
-          <section className={styles.section} aria-labelledby="company-official-identity">
-            <SectionHeading
-              id="company-official-identity"
-              title={t.companyProfile.identifiedTitle}
-              lead={t.companyProfile.identifiedLead}
-            />
-            <Card padding="lg" className={styles.officialCard}>
-              <DataList>
-                <DataRow label={t.companyProfile.officialName}>{identity.name}</DataRow>
-                {identity.country ? (
-                  <DataRow label={t.companyProfile.officialCountry}>{identity.country}</DataRow>
-                ) : null}
-                {identity.address ? (
-                  <DataRow label={t.companyProfile.officialAddress}>{identity.address}</DataRow>
-                ) : null}
-                {identity.identifiers.length > 0 ? (
-                  <DataRow label={t.companyProfile.officialIdentifiers}>
-                    <ul className={styles.identifiers}>
-                      {identity.identifiers.map((identifier) => (
-                        <li key={`${identifier.scheme}:${identifier.value}`}>
-                          <span>{identifier.scheme}</span>
-                          <code>{identifier.value}</code>
-                        </li>
-                      ))}
-                    </ul>
-                  </DataRow>
-                ) : null}
-              </DataList>
-            </Card>
-          </section>
+      {partial ? <p className="companies-panel-note" role="status">{t.companyProfile.partialBody}</p> : null}
 
-          <section className={styles.section} aria-labelledby="company-related-signals">
-            <SectionHeading
-              id="company-related-signals"
-              title={t.companyProfile.relatedTitle}
-              lead={t.companyProfile.relatedLead}
-            />
-            <div className={styles.signalList}>
-              {profile.related_signals.map((signal) => (
-                <RelatedSignal key={signal.signal_id} signal={signal} />
-              ))}
+      <div className="company-detail-layout company-detail-layout-simple">
+        <div className="company-main-column">
+          <section className="related-signals-card" aria-labelledby="related-title">
+            <div className="company-card-heading">
+              <div>
+                <p className="card-kicker">{copy.documentedContracts}</p>
+                <h3 id="related-title">{t.reference.headings.associatedAwards}</h3>
+              </div>
+              <span>{interpolate(plural(
+                profile.related_signals.length,
+                copy.contractOne,
+                copy.contractOther,
+              ), { count: profile.related_signals.length })}</span>
             </div>
-          </section>
 
+            {profile.related_signals.length > 0 ? profile.related_signals.map((signal) => {
+              const eventDate = date(signal.event.date) ?? t.reference.missingValue
+              const publishedAmount = signal.amount
+                ? amount(signal.amount.value, signal.amount.currency) ?? t.reference.missingValue
+                : t.reference.missingValue
+              const title = signal.contract_title ?? signal.event.headline
+              return (
+                <article className="company-timeline-item" key={signal.signal_id}>
+                  <span className="timeline-marker" aria-hidden="true" />
+                  <div>
+                    <time dateTime={signal.event.date ?? undefined}>{eventDate}</time>
+                    <strong>{title}</strong>
+                    <p>{publishedAmount} · {signal.event.why_now}</p>
+                  </div>
+                  <ReferenceLink
+                    dashboard
+                    href={`/signals?signal=${encodeURIComponent(signal.signal_id)}`}
+                    aria-label={interpolate(copy.openSignal, { title })}
+                  >
+                    <ArrowRight aria-hidden="true" />
+                  </ReferenceLink>
+                </article>
+              )
+            }) : <p className="companies-panel-note">{t.reference.messages.empty}</p>}
+          </section>
         </div>
 
-        <aside className={styles.sideColumn}>
-          <section className={styles.section} aria-labelledby="company-attention">
-            <SectionHeading
-              id="company-attention"
-              title={t.companyProfile.whyAttentionTitle}
-              lead={t.companyProfile.whyAttentionLead}
-            />
-            <div className={styles.attentionList}>
-              {profile.related_signals.map((signal) => (
-                <Card key={signal.signal_id} padding="lg" as="article" className={styles.analysisCard}>
-                  <h3 className={styles.cardTitle}>
-                    {signal.contract_title ?? signal.event.headline}
-                  </h3>
-                  {signal.plausible_needs.length > 0 ? (
-                    <div className={styles.analysisBlock}>
-                      <p className={styles.analysisLabel}>{t.companyProfile.plausibleNeeds}</p>
-                      <ul className={styles.needs}>
-                        {signal.plausible_needs.map((need) => (
-                          <li key={`${signal.signal_id}:${need.label}`}>
-                            <strong>{need.label}</strong>
-                            {need.statement ? <span>{need.statement}</span> : null}
-                            {need.timing_label ? <small>{need.timing_label}</small> : null}
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ) : null}
-                  <div className={styles.analysisBlock}>
-                    <p className={styles.analysisLabel}>{t.companyProfile.fit}</p>
-                    <p className={styles.fitLabel}>{signal.fit.label}</p>
-                    {signal.fit.reasons.length > 0 ? (
-                      <ul className={styles.reasons}>
-                        {signal.fit.reasons.map((reason) => (
-                          <li key={reason}>{reason}</li>
-                        ))}
-                      </ul>
-                    ) : null}
-                  </div>
-                </Card>
-              ))}
+        <aside className="company-side-column">
+          <section className="company-identity-card" aria-labelledby="identity-title">
+            <div className="company-card-heading">
+              <div>
+                <p className="card-kicker">{t.reference.headings.publishedIdentity}</p>
+                <h3 id="identity-title">{t.reference.headings.sourceAssertions}</h3>
+              </div>
+              <MapPin aria-hidden="true" />
             </div>
+
+            <dl className="company-identity-list">
+              <div><dt>{t.companyProfile.officialName}</dt><dd>{identity.name}</dd></div>
+              <div><dt>{t.companyProfile.officialAddress}</dt><dd>{identity.address ?? t.reference.missingValue}</dd></div>
+              <div><dt>{t.companyProfile.officialCountry}</dt><dd>{localizedCountry ?? t.reference.missingValue}</dd></div>
+            </dl>
+            <p className="company-identity-limit">{copy.identityLimit}</p>
           </section>
 
-          <section className={styles.section} aria-labelledby="company-sources">
-            <SectionHeading
-              id="company-sources"
-              title={t.companyProfile.sourcesTitle}
-              lead={t.companyProfile.sourcesLead}
-            />
-            <Card padding="md" className={styles.sourceCard}>
-              <DataList>
-                <DataRow label={t.companyProfile.identitySource}>
-                  {t.companyProfile.publicNotice}
-                </DataRow>
-                <DataRow label={t.companyProfile.signalSource}>
-                  {t.companyProfile.signalSourceValue}
-                </DataRow>
-                <DataRow label={t.companyProfile.observationDate}>{observed}</DataRow>
-              </DataList>
-            </Card>
+          <section className="company-roles-card" aria-labelledby="roles-title">
+            <div className="company-card-heading">
+              <div>
+                <p className="card-kicker">{copy.toResearch}</p>
+                <h3 id="roles-title">{t.reference.headings.usefulRoles}</h3>
+              </div>
+            </div>
+            <ul className="company-roles-list">
+              {[0, 1, 2].map((slot) => <li key={slot}>{t.reference.missingValue}</li>)}
+            </ul>
+            <p>{copy.noEnrichedContact}</p>
           </section>
         </aside>
       </div>
-    </div>
+    </section>
   )
 }
 
-function RelatedSignal({ signal }: { signal: CompanyRelatedSignal }) {
-  const { t, date, amount } = useI18n()
-  return (
-    <Card padding="lg" as="article" className={styles.signalCard}>
-      <div className={styles.signalHeader}>
-        <div>
-          <h3 className={styles.cardTitle}>{signal.contract_title ?? signal.event.headline}</h3>
-          <p className={styles.signalHeadline}>{signal.event.headline}</p>
-        </div>
-        <Badge tone="neutral">Kivou</Badge>
-      </div>
-      <DataList>
-        {signal.amount ? (
-          <DataRow label={t.companyProfile.contractAmount} tabular>
-            {amount(signal.amount.value, signal.amount.currency)}
-          </DataRow>
-        ) : null}
-        {signal.event.date ? (
-          <DataRow label={t.companyProfile.eventDate} tabular>
-            {date(signal.event.date)}
-          </DataRow>
-        ) : null}
-      </DataList>
-      <p className={styles.whyNow}>{signal.event.why_now}</p>
-      {signal.event.award_date_note ? (
-        <p className={styles.awardNote}>{signal.event.award_date_note}</p>
-      ) : null}
-      <ButtonLink
-        to={`/app/signals/${encodeURIComponent(signal.signal_id)}`}
-        variant="secondary"
-      >
-        {t.companyProfile.reviewSignal}
-      </ButtonLink>
-    </Card>
-  )
-}
-
-function CompanySkeleton() {
+export function CompanyDetailMessage({
+  title,
+  body,
+  retry,
+  tone = 'status',
+}: {
+  title: string
+  body: string
+  retry?: () => void
+  tone?: 'status' | 'alert' | null
+}) {
   const { t } = useI18n()
   return (
-    <div className={styles.page} role="status" aria-label={t.common.loading}>
-      <h1 className="kivou-visually-hidden">{t.common.loading}</h1>
-      <div aria-hidden="true" className={styles.skeletonStack}>
-        <Skeleton width="10rem" height="1rem" />
-        <Skeleton width="70%" height="2.5rem" />
-        <Skeleton width="45%" height="1rem" />
-        <Card padding="lg">
-          <div className={styles.skeletonStack}>
-            <Skeleton width="90%" />
-            <Skeleton width="75%" />
-            <Skeleton width="82%" />
+    <section
+      className="company-detail"
+      id="company-detail"
+      aria-labelledby="company-name"
+      role={tone ?? undefined}
+      tabIndex={-1}
+    >
+      <header className="company-detail-hero">
+        <div className="company-identity-heading">
+          <span className="company-hero-avatar" aria-hidden="true">—</span>
+          <div>
+            <p className="section-label">{t.reference.headings.company}</p>
+            <h2 id="company-name">{title}</h2>
+            <p>{body}</p>
+            {retry ? <button type="button" className="primary-action" onClick={retry}>{t.reference.retry}</button> : null}
           </div>
-        </Card>
-      </div>
-    </div>
+        </div>
+      </header>
+    </section>
   )
 }

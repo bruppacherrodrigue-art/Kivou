@@ -122,7 +122,9 @@ describe('frontière HTTP', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     // Plusieurs appels échouent en même temps ; un seul retour à la connexion.
-    expect(await screen.findByRole('heading', { name: 'Se connecter' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Retrouver vos signaux' }),
+    ).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText(/session a expiré/i)).toBeInTheDocument())
   })
 })
@@ -167,6 +169,170 @@ describe('ce que le navigateur ne porte jamais', () => {
 })
 
 describe('localisation FR / EN', () => {
+  it('porte systématiquement les libellés exacts du dashboard de référence', () => {
+    expect(fr.reference.headings).toEqual({
+      monitoringSummary: 'Résumé de la veille',
+      documentedAwards: 'Attributions documentées',
+      savedProfile: 'Profil enregistré',
+      otherDocumentedAwards: 'Autres attributions documentées',
+      awardedContracts: 'Marchés attribués',
+      selectedSignal: 'Signal sélectionné',
+      commercialBrief: 'Le signal en quatre points',
+      marketDetails: 'Détails du marché',
+      questionsBeforeContact: 'Questions avant de contacter l’entreprise',
+      signalNote: 'Note sur ce signal',
+      linkedCompanies: 'Entreprises liées aux signaux',
+      company: 'Entreprise',
+      associatedAwards: 'Attributions associées à l’entreprise',
+      publishedIdentity: 'Identité publiée',
+      sourceAssertions: 'Ce que la source permet d’affirmer',
+      usefulRoles: 'Fonctions utiles avant contact',
+      targetProfile: 'Profil de ciblage',
+      matchingLogic: 'Logique de correspondance',
+      matchingExamples: 'Exemples de correspondance',
+      tedTraceability: 'Chaque avis TED reste consultable',
+      accountInformation: 'Informations du compte',
+      displayAccess: 'Affichage et accès',
+      mainInformation: 'Informations principales',
+      security: 'Sécurité',
+      resetAccess: 'Réinitialiser l’accès',
+      subscription: 'Abonnement',
+      notifications: 'Notifications',
+      notificationDelivery: 'Réception des nouveaux signaux',
+      support: 'Une question sur votre compte ?',
+    })
+    expect(en.reference.headings).toEqual({
+      monitoringSummary: 'Monitoring summary',
+      documentedAwards: 'Documented awards',
+      savedProfile: 'Saved profile',
+      otherDocumentedAwards: 'Other documented awards',
+      awardedContracts: 'Awarded contracts',
+      selectedSignal: 'Selected signal',
+      commercialBrief: 'The signal in four points',
+      marketDetails: 'Contract details',
+      questionsBeforeContact: 'Questions before contacting the company',
+      signalNote: 'Note on this signal',
+      linkedCompanies: 'Companies linked to signals',
+      company: 'Company',
+      associatedAwards: 'Awards associated with the company',
+      publishedIdentity: 'Published identity',
+      sourceAssertions: 'What the source lets us assert',
+      usefulRoles: 'Useful roles before contact',
+      targetProfile: 'Target profile',
+      matchingLogic: 'Matching logic',
+      matchingExamples: 'Matching examples',
+      tedTraceability: 'Every TED notice remains available',
+      accountInformation: 'Account information',
+      displayAccess: 'Display and access',
+      mainInformation: 'Main information',
+      security: 'Security',
+      resetAccess: 'Reset access',
+      subscription: 'Subscription',
+      notifications: 'Notifications',
+      notificationDelivery: 'New signal delivery',
+      support: 'A question about your account?',
+    })
+
+    expect(fr.reference.fields).toEqual({
+      award: 'Attribution',
+      plannedStart: 'Début prévu',
+      location: 'Lieu',
+      offerSummary: 'Offre',
+      targetCompanies: 'Entreprises cibles',
+      territory: 'Territoire',
+      amount: 'Montant total du marché',
+      awardDate: 'Date d’attribution',
+      execution: 'Période d’exécution',
+      buyer: 'Acheteur public',
+      whyNow: 'Pourquoi maintenant',
+      offerCoverage: 'Ce que l’offre peut couvrir',
+      roleToFind: 'Fonction à rechercher',
+      unknown: 'Ce qui reste inconnu',
+      publishedScope: 'Périmètre publié',
+      officialSource: 'Source officielle',
+      profileName: 'Nom du profil',
+      offer: 'Ce que vous vendez',
+      precision: 'Précision utile',
+      companiesSought: 'Entreprises recherchées',
+      commercialTerritory: 'Territoire commercial',
+      keywords: 'Mots-clés surveillés',
+      minimumContract: 'Montant minimum du marché',
+      minimumAmount: 'Montant minimum',
+      currency: 'Devise',
+      observedEvent: 'Événement observé',
+      company: 'Entreprise',
+      country: 'Pays',
+      identifier: 'Identifiant publié',
+      professionalEmail: 'Adresse professionnelle',
+      language: 'Langue',
+      timezone: 'Fuseau horaire',
+      users: 'Utilisateurs',
+      state: 'État',
+      recipient: 'Adresse de réception',
+      frequency: 'Fréquence',
+      targetProfiles: 'Profils de ciblage',
+      territories: 'Territoires',
+      alerts: 'Alertes',
+      history: 'Historique',
+      export: 'Export',
+    })
+    expect(Object.keys(en.reference.fields)).toEqual(Object.keys(fr.reference.fields))
+
+    expect(fr.reference.statuses).toEqual({
+      activeProfile: 'Profil actif',
+      publishedAward: 'Attribution publiée sur TED',
+      noNote: 'Aucune note',
+      noteSaved: 'Note enregistrée',
+      active: 'Actif',
+      noSubscription: 'Aucun abonnement',
+      accessibleWithEssential: 'Accessible avec Essential',
+      noteAdded: 'Note ajoutée',
+      reviewFirst: 'À examiner d’abord',
+      documentedSignal: 'Signal documenté',
+    })
+    expect(Object.keys(en.reference.statuses)).toEqual(Object.keys(fr.reference.statuses))
+
+    expect({
+      missingValue: fr.reference.missingValue,
+      retry: fr.reference.retry,
+      save: fr.reference.save,
+      saving: fr.reference.saving,
+      saved: fr.reference.saved,
+    }).toEqual({
+      missingValue: 'Non publié',
+      retry: 'Réessayer',
+      save: 'Enregistrer',
+      saving: 'Enregistrement…',
+      saved: 'Enregistré',
+    })
+    expect(fr.reference.messages).toEqual({
+      loadError: 'Les informations n’ont pas pu être chargées.',
+      profileLoadError: 'Le profil de ciblage n’a pas pu être chargé.',
+      billingLoadError: 'L’offre n’a pas pu être chargée.',
+      refreshing: 'Actualisation des données…',
+      refreshFailed: 'L’actualisation a échoué. Les données affichées peuvent être anciennes.',
+      retryProfile: 'Réessayer le chargement du profil de ciblage',
+      retryBilling: 'Réessayer le chargement de l’offre',
+      saveError: 'Les modifications n’ont pas pu être enregistrées.',
+      noteLoadError: 'La note n’a pas pu être chargée.',
+      noteError: 'La note n’a pas pu être enregistrée.',
+      empty: 'Aucune donnée publiée.',
+    })
+    expect(en.reference.messages).toEqual({
+      loadError: 'The information could not be loaded.',
+      profileLoadError: 'The target profile could not be loaded.',
+      billingLoadError: 'The plan could not be loaded.',
+      refreshing: 'Refreshing data…',
+      refreshFailed: 'The refresh failed. The displayed data may be out of date.',
+      retryProfile: 'Try loading the target profile again',
+      retryBilling: 'Try loading the plan again',
+      saveError: 'The changes could not be saved.',
+      noteLoadError: 'The note could not be loaded.',
+      noteError: 'The note could not be saved.',
+      empty: 'No published data.',
+    })
+  })
+
   it('les deux dictionnaires portent exactement les mêmes clés', () => {
     const missing: string[] = []
     compare(fr, en, '', missing)

@@ -5,6 +5,8 @@ import { AppRoutes } from '../App'
 import type { WeeklyCommercialCockpit } from '../api/types'
 import {
   AUTHENTICATED,
+  DISCOVERY_STATUS,
+  ICP,
   ME,
   callsTo,
   feedPage,
@@ -88,21 +90,40 @@ const OPERATOR = {
 }
 
 describe('cockpit commercial interne', () => {
-  it('cache la navigation au client normal et refuse la route manuelle sans appeler les données', () => {
-    mockApi({ 'GET /signals': { body: feedPage([]) } })
+  it('cache la navigation au client normal et refuse la route manuelle sans appeler les données', async () => {
+    mockApi({
+      'GET /signals': { body: feedPage([]) },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      'GET /target-icps': { body: [ICP] },
+    })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/internal/cockpit' })
 
-    expect(screen.getByRole('heading', { name: 'Accès interne requis' })).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1, name: 'Compte' })).toBeInTheDocument()
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Accès interne requis' }),
+    ).toBeInTheDocument()
+    expect(await screen.findByText(`${ICP.label} · ${ICP.customer_input.territories[0]}`)).toBeVisible()
     expect(screen.queryByRole('link', { name: 'Cockpit commercial' })).not.toBeInTheDocument()
     expect(callsTo('/internal/commercial-cockpit', 'GET')).toHaveLength(0)
   })
 
   it('rend le funnel, les devises, le proxy, M2 et la table sans donnée client', async () => {
-    mockApi({ 'GET /internal/commercial-cockpit': { body: REPORT } })
+    mockApi({
+      'GET /internal/commercial-cockpit': { body: REPORT },
+      'GET /billing/status': { body: DISCOVERY_STATUS },
+      'GET /target-icps': { body: [ICP] },
+    })
     renderApp(<AppRoutes />, { session: OPERATOR, route: '/app/internal/cockpit' })
 
-    expect(await screen.findByRole('heading', { name: 'Cockpit commercial' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Cockpit commercial' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Cockpit commercial' }),
+    ).toBeInTheDocument()
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(screen.getByRole('heading', { level: 1, name: 'Compte' })).toBeInTheDocument()
+    expect(await screen.findByText(`${ICP.label} · ${ICP.customer_input.territories[0]}`)).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Cockpit commercial' })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Compte' })).toHaveAttribute('aria-current', 'page')
     expect(screen.getAllByText('Emails délivrés (proxy)').length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText(/99/).length).toBeGreaterThanOrEqual(1)
     expect(screen.getAllByText(/^49/).length).toBeGreaterThanOrEqual(1)
@@ -115,6 +136,7 @@ describe('cockpit commercial interne', () => {
     const table = screen.getByRole('table', { name: 'Pays × secteur × besoin × campagne' })
     expect(within(table).getByText('campaign-ref-safe')).toBeInTheDocument()
     expect(within(table).getByText('workforce_capacity')).toBeInTheDocument()
+    expect(callsTo('/internal/commercial-cockpit', 'GET')).toHaveLength(1)
     const body = document.body.textContent ?? ''
     for (const pii of (
       ['lead@example.invalid', 'signup@example.invalid', 'pi_123', 'provider-lead-1']

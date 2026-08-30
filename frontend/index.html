@@ -2,101 +2,21 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/brand/kivou-favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/reference/public-favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta
       name="description"
-      content="Kivou transforme les marchés publics gagnés et leurs documents en signaux commerciaux B2B actionnables."
+      content="Kivou transforme les marchés publics attribués en signaux commerciaux documentés."
     />
     <!-- CLOSEOUT §2 — les polices Lora et Instrument Sans sont AUTO-HÉBERGÉES.
          Elles entrent par `src/main.tsx` via les paquets Fontsource (SIL OFL),
          sont empreintées au build et servies depuis notre origine. Aucune
          balise de police tierce ici : une page Kivou ne contacte ni Google
          Fonts, ni aucun autre hôte. -->
-    <title>Kivou</title>
+    <title>Kivou | Signaux commerciaux post-attribution</title>
   </head>
   <body>
     <div id="root"></div>
-    <!-- Le frontend est une SPA. Ce fallback conserve néanmoins la promesse,
-         les actions et le premier signal si JavaScript est indisponible. Il
-         suit la locale publique par défaut (FR) ; la bascule de langue reste,
-         par nature, une interaction de l'application. -->
-    <noscript>
-      <style>
-        .kivou-noscript {
-          min-height: 100vh;
-          padding: clamp(2rem, 5vw, 5rem);
-          background: #faf6f1;
-          color: #0f1d18;
-          font-family: Arial, Helvetica, sans-serif;
-        }
-        .kivou-noscript__grid {
-          width: min(1180px, 100%);
-          margin: 0 auto;
-          display: grid;
-          gap: 2rem;
-        }
-        .kivou-noscript h1,
-        .kivou-noscript h2 {
-          margin: 0;
-          font-family: Georgia, 'Times New Roman', serif;
-          font-weight: 400;
-          line-height: 1.08;
-        }
-        .kivou-noscript h1 { font-size: clamp(2.25rem, 5vw, 3.125rem); }
-        .kivou-noscript h2 { font-size: clamp(1.5rem, 3vw, 2rem); }
-        .kivou-noscript p { max-width: 58ch; line-height: 1.6; }
-        .kivou-noscript__eyebrow {
-          color: #234236;
-          font-size: 0.75rem;
-          font-weight: 700;
-          letter-spacing: 0.14em;
-        }
-        .kivou-noscript__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
-        .kivou-noscript a {
-          display: inline-flex;
-          min-height: 48px;
-          align-items: center;
-          padding: 0 1.5rem;
-          border: 1px solid #234236;
-          border-radius: 10px;
-          color: #234236;
-          font-weight: 600;
-          text-decoration: none;
-        }
-        .kivou-noscript__primary { background: #234236; color: #fffdf9 !important; }
-        .kivou-noscript__signal {
-          padding: clamp(1.5rem, 4vw, 2rem);
-          border: 1px solid #beb3a6;
-          border-radius: 24px;
-          background: #fffdf9;
-        }
-        .kivou-noscript__meta { color: #234236; font-weight: 700; }
-        @media (min-width: 1024px) {
-          .kivou-noscript__grid { grid-template-columns: 47fr 53fr; align-items: center; }
-        }
-      </style>
-      <main class="kivou-noscript">
-        <div class="kivou-noscript__grid">
-          <section>
-            <p class="kivou-noscript__eyebrow">SIGNAUX COMMERCIAUX ISSUS DES MARCHÉS PUBLICS</p>
-            <h1>Les entreprises qui viennent de gagner de nouveaux contrats — et que vous devriez contacter maintenant.</h1>
-            <p>Kivou détecte les nouveaux gagnants, comprend ce qu’ils devront exécuter et vous montre les occasions correspondant à ce que vous vendez.</p>
-            <div class="kivou-noscript__actions">
-              <a class="kivou-noscript__primary" href="/signup">Voir mes 3 signaux</a>
-              <a href="/exemple-de-signal">Découvrir un signal complet</a>
-            </div>
-          </section>
-          <article class="kivou-noscript__signal">
-            <p class="kivou-noscript__eyebrow">NOUVEAU CONTRAT DÉTECTÉ · 01 / 04</p>
-            <h2>H. Hüther GmbH remporte un chantier de 5,22 M€ à Munich</h2>
-            <p class="kivou-noscript__meta">5,22 M€ · Munich, Allemagne</p>
-            <p>Plus de 700 portes et huisseries, 5,5 km de plinthes et plusieurs équipements d’agencement figurent dans le périmètre publié.</p>
-            <a href="/exemple-de-signal">Voir le signal complet</a>
-          </article>
-        </div>
-      </main>
-    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

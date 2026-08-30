@@ -1,8 +1,9 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { act, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useSession } from './SessionProvider'
-import { AUTHENTICATED, ME, mockApi, renderApp } from '../test/harness'
+import { AUTHENTICATED, ME, callsTo, mockApi, renderApp } from '../test/harness'
+import type { RouteHandler } from '../test/harness'
 
 /* P0-02 §5.A — ce qu'une relecture de session ratée a le droit de conclure.
  *
@@ -42,6 +43,39 @@ function SessionProbe() {
   )
 }
 
+function LocaleProbe() {
+  const { state, updateLocale } = useSession()
+  return (
+    <div>
+      <span data-testid="locale">
+        {state.status === 'authenticated' ? state.me.locale : state.status}
+      </span>
+      <span data-testid="account-display-name">
+        {state.status === 'authenticated' ? state.me.account_display_name : state.status}
+      </span>
+      <button onClick={() => void updateLocale('en')}>English</button>
+    </div>
+  )
+}
+
+function LocaleRaceProbe() {
+  const { state, updateLocale, signOut } = useSession()
+  return (
+    <div>
+      <span data-testid="race-status">{state.status}</span>
+      <span data-testid="race-locale">
+        {state.status === 'authenticated' ? state.me.locale : state.status}
+      </span>
+      <span data-testid="race-display-name">
+        {state.status === 'authenticated' ? state.me.account_display_name : state.status}
+      </span>
+      <button onClick={() => void updateLocale('en')}>English</button>
+      <button onClick={() => void updateLocale('fr')}>Français</button>
+      <button onClick={() => void signOut()}>Se déconnecter</button>
+    </div>
+  )
+}
+
 /** Une panne réseau : `fetch` rejette, ce qu'aucun code de statut ne décrit. */
 function stubNetworkFailure() {
   vi.stubGlobal(
@@ -51,6 +85,82 @@ function stubNetworkFailure() {
 }
 
 describe('relecture de session', () => {
+  it('adopts the authoritative PATCH /me response when locale changes', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'PATCH /me': (request) => {
+        expect(request.body).toEqual({ locale: 'en' })
+        return { body: { ...ME, locale: 'en', account_display_name: 'English Locale SA' } }
+      },
+    })
+    renderApp(<LocaleProbe />, { session: AUTHENTICATED })
+    await user.click(screen.getByRole('button', { name: 'English' }))
+    await waitFor(() => expect(screen.getByTestId('locale')).toHaveTextContent('en'))
+    expect(screen.getByTestId('account-display-name')).toHaveTextContent('English Locale SA')
+    expect(callsTo('/me', 'PATCH')).toHaveLength(1)
+  })
+
+  it('ignores a locale response that arrives after sign-out', async () => {
+    const user = userEvent.setup()
+    let resolvePatch!: (response: RouteHandler) => void
+    const patchResponse = new Promise<RouteHandler>((resolve) => {
+      resolvePatch = resolve
+    })
+    mockApi({
+      'PATCH /me': () => patchResponse,
+      'POST /auth/logout': { status: 204 },
+    })
+    renderApp(<LocaleRaceProbe />, { session: AUTHENTICATED })
+
+    await user.click(screen.getByRole('button', { name: 'English' }))
+    await waitFor(() => expect(callsTo('/me', 'PATCH')).toHaveLength(1))
+    await user.click(screen.getByRole('button', { name: 'Se déconnecter' }))
+    await waitFor(() => expect(screen.getByTestId('race-status')).toHaveTextContent('unauthenticated'))
+
+    await act(async () => {
+      resolvePatch({ body: { ...ME, locale: 'en' } })
+      await Promise.resolve()
+    })
+
+    expect(screen.getByTestId('race-status')).toHaveTextContent('unauthenticated')
+  })
+
+  it('adopts only the most recent concurrent locale response', async () => {
+    const user = userEvent.setup()
+    let resolveEnglish!: (response: RouteHandler) => void
+    let resolveFrench!: (response: RouteHandler) => void
+    mockApi({
+      'PATCH /me': (request) =>
+        new Promise<RouteHandler>((resolve) => {
+          if (request.body && (request.body as { locale: string }).locale === 'en') {
+            resolveEnglish = resolve
+          } else {
+            resolveFrench = resolve
+          }
+        }),
+    })
+    renderApp(<LocaleRaceProbe />, { session: AUTHENTICATED })
+
+    await user.click(screen.getByRole('button', { name: 'English' }))
+    await user.click(screen.getByRole('button', { name: 'Français' }))
+    await waitFor(() => expect(callsTo('/me', 'PATCH')).toHaveLength(2))
+
+    await act(async () => {
+      resolveFrench({ body: { ...ME, locale: 'fr', account_display_name: 'Locale française' } })
+      await Promise.resolve()
+    })
+    await waitFor(() => expect(screen.getByTestId('race-locale')).toHaveTextContent('fr'))
+    expect(screen.getByTestId('race-display-name')).toHaveTextContent('Locale française')
+
+    await act(async () => {
+      resolveEnglish({ body: { ...ME, locale: 'en', account_display_name: 'English Locale SA' } })
+      await Promise.resolve()
+    })
+
+    expect(screen.getByTestId('race-locale')).toHaveTextContent('fr')
+    expect(screen.getByTestId('race-display-name')).toHaveTextContent('Locale française')
+  })
+
   it('invalide la session sur un vrai 401', async () => {
     const user = userEvent.setup()
     mockApi({ 'GET /me': { status: 401, body: { detail: { code: 'not_authenticated' } } } })

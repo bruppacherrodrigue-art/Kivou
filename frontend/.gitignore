@@ -1,4 +1,9 @@
 node_modules
 dist
 coverage
+test-results
+playwright-report
+blob-report
+.reference-goldens-next-*
+.reference-goldens-previous-*
 *.local

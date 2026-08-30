@@ -37,32 +37,37 @@ const BASE = {
   'GET /signals': { body: feedPage([]) },
 }
 
+async function selectPlan(plan: 'discovery' | 'essential' | 'pro' | 'scale') {
+  const user = userEvent.setup()
+  await user.selectOptions(await screen.findByLabelText('Offre'), plan)
+  return user
+}
+
 describe('grille tarifaire', () => {
   it('compose la facturation avec les surfaces connectées et un repli à 900 px', () => {
-    const css = readFileSync(join(process.cwd(), 'src/pages/Billing.module.css'), 'utf8')
+    const css = readFileSync(
+      join(process.cwd(), 'src/reference/dashboard/dashboard-reference.css'),
+      'utf8',
+    )
 
-    expect(css).toMatch(/\.statusCard\s*\{[^}]*var\(--kivou-connected-surface\)/s)
-    expect(css).toMatch(/@media \(max-width: 900px\)/)
+    expect(css).toMatch(/\.billing-entitlements\s*\{/)
+    expect(css).toMatch(/\.billing-actions\s*\{/)
+    expect(css).toMatch(/@media \(max-width: 620px\)[\s\S]*\.billing-entitlements/)
   })
 
   it('affiche les prix RENVOYÉS par l’API, jamais une grille écrite en dur', async () => {
     mockApi(BASE)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
 
-    await screen.findByText('Essentiel')
-
-    // Chaque montant est vérifié DANS sa carte : « 99 » est un sous-texte de
-    // « 199 », et une recherche globale confondrait Pro et Scale.
-    const priceOf = (plan: string) => {
-      const heading = screen.getByRole('heading', { name: plan })
-      return heading.closest('article')!.textContent ?? ''
-    }
+    const selector = await screen.findByLabelText('Offre')
+    const optionOf = (plan: string) =>
+      within(selector).getByRole('option', { name: new RegExp(`^${plan}\\b`) }).textContent ?? ''
 
     // Les montants viennent du catalogue : 0 / 49 / 99 / 199, en CHF par défaut.
-    expect(priceOf('Découverte')).toContain('Gratuit')
-    expect(priceOf('Essentiel')).toMatch(/49/)
-    expect(priceOf('Pro')).toMatch(/(^|\D)99/)
-    expect(priceOf('Scale')).toMatch(/199/)
+    expect(optionOf('Découverte')).toContain('Gratuit')
+    expect(optionOf('Essentiel')).toMatch(/49/)
+    expect(optionOf('Pro')).toMatch(/(^|\D)99/)
+    expect(optionOf('Scale')).toMatch(/199/)
 
     // Les anciens prix des maquettes ne doivent apparaître nulle part.
     const page = document.body.textContent ?? ''
@@ -75,11 +80,11 @@ describe('grille tarifaire', () => {
     mockApi(BASE)
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
 
-    const recommended = await screen.findByText('Recommandé')
-    const card = recommended.closest('article')!
-    expect(within(card).getByRole('heading', { name: 'Pro' })).toBeInTheDocument()
-    // Une seule offre porte la marque : sinon aucune n'est mise en avant.
-    expect(screen.getAllByText('Recommandé')).toHaveLength(1)
+    const selector = await screen.findByLabelText('Offre')
+    expect(within(selector).getByRole('option', { name: /Pro.*Recommandé/ })).toBeInTheDocument()
+    expect(
+      within(selector).getAllByRole('option').filter((option) => /Recommandé/.test(option.textContent ?? '')),
+    ).toHaveLength(1)
   })
 
   it('n’affiche jamais l’offre Founding sur une grille publique', async () => {
@@ -114,7 +119,6 @@ describe('devise', () => {
 
 describe('checkout', () => {
   it('n’envoie que le plan et la devise — aucun identifiant de prix', async () => {
-    const user = userEvent.setup()
     mockApi({
       ...BASE,
       'POST /billing/checkout': {
@@ -127,6 +131,7 @@ describe('checkout', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
 
+    const user = await selectPlan('pro')
     await user.click(await screen.findByRole('button', { name: 'Choisir Pro' }))
 
     await waitFor(() => expect(callsTo('/billing/checkout')).toHaveLength(1))
@@ -163,7 +168,6 @@ describe('checkout', () => {
   })
 
   it('rend « paiement déjà ouvert » comme un état, sans boucler', async () => {
-    const user = userEvent.setup()
     mockApi({
       ...BASE,
       'POST /billing/checkout': {
@@ -179,6 +183,7 @@ describe('checkout', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/billing' })
 
+    const user = await selectPlan('pro')
     await user.click(await screen.findByRole('button', { name: 'Choisir Pro' }))
 
     const alert = await screen.findByRole('alert')
