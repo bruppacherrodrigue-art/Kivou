@@ -2,7 +2,7 @@
 Description=Kivou — ingestion de production %i
 Documentation=file:/srv/kivou/app/ops/README.md
 Wants=network-online.target
-After=network-online.target
+After=network-online.target postgresql.service
 
 [Service]
 Type=oneshot
@@ -12,6 +12,7 @@ WorkingDirectory=/srv/kivou/app
 EnvironmentFile=/etc/kivou/production.env
 RuntimeDirectory=kivou
 RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
 ExecStart=/usr/bin/flock --verbose --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou/ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source %i
 TimeoutStartSec=30min
 TimeoutStopSec=90s

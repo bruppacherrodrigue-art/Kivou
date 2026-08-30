@@ -24,7 +24,6 @@ ProtectSystem=strict
 ProtectHome=true
 InaccessiblePaths=/srv/kivou/.ssh
 ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
-ReadWritePaths=/srv/kivou/run
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true

@@ -12,6 +12,9 @@ EnvironmentFile=/etc/kivou/production.env
 EnvironmentFile=/etc/kivou/swiss-backup.env
 ExecStart=/srv/kivou/app/ops/bin/kivou-backup.sh
 ExecStart=/srv/kivou/app/ops/bin/kivou-restic-upload.sh
+# Borne le dump local et l'upload hors site à 6 h, soit 18 h de marge avant
+# l'occurrence quotidienne suivante.
+TimeoutStartSec=6h
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=kivou-backup

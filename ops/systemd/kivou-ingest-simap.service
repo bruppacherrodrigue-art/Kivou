@@ -12,6 +12,7 @@ WorkingDirectory=/srv/kivou/app
 EnvironmentFile=/etc/kivou/staging.env
 RuntimeDirectory=kivou
 RuntimeDirectoryMode=0700
+RuntimeDirectoryPreserve=yes
 ExecStart=/usr/bin/flock --verbose --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou/ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source simap
 TimeoutStartSec=30min
 TimeoutStopSec=90s

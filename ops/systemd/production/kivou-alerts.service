@@ -2,7 +2,7 @@
 Description=Kivou — alertes transactionnelles de production
 Documentation=file:/srv/kivou/app/ops/README.md
 Wants=network-online.target
-After=network-online.target
+After=network-online.target postgresql.service
 
 [Service]
 Type=oneshot
