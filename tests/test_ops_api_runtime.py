@@ -7,6 +7,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SYSTEMD = ROOT / "ops" / "systemd"
 SERVICE = SYSTEMD / "kivou-api.service"
+PRODUCTION_SERVICE = SYSTEMD / "production" / "kivou-api.service"
 ASGI_TARGET = "signals.api.asgi:app"
 
 UNIT_DIRECTIVES = (
@@ -73,7 +74,7 @@ def _systemd_artifacts(root: Path) -> tuple[Path, ...]:
 
 
 def _assert_api_runtime_artifacts(
-    artifacts: tuple[Path, ...], *, expected_service: Path
+    artifacts: tuple[Path, ...], *, expected_services: tuple[Path, ...]
 ) -> None:
     drop_ins = tuple(
         path for path in artifacts if "kivou-api.service.d" in path.parts
@@ -85,8 +86,9 @@ def _assert_api_runtime_artifacts(
         for path in artifacts
         if path.is_file() and ASGI_TARGET in path.read_text(encoding="utf-8")
     )
-    assert launchers == (expected_service,), (
-        f"expected {expected_service} as the only ASGI launcher, got {launchers}"
+    assert launchers == expected_services, (
+        f"expected exactly the audited ASGI launchers {expected_services}, "
+        f"got {launchers}"
     )
 
 
@@ -163,23 +165,29 @@ def test_api_service_preserves_exactly_the_deployed_hardening_contract() -> None
     assert hardening == HARDENING_DIRECTIVES
 
 
-def test_api_service_is_the_only_versioned_asgi_launcher_and_has_no_drop_ins() -> None:
+def test_api_runtime_inventory_has_exactly_shared_and_production_launchers() -> None:
     _assert_api_runtime_artifacts(
-        _systemd_artifacts(SYSTEMD), expected_service=SERVICE
+        _systemd_artifacts(SYSTEMD),
+        expected_services=(SERVICE, PRODUCTION_SERVICE),
     )
 
 
-def test_api_runtime_inventory_rejects_a_differently_named_second_launcher(
+def test_api_runtime_inventory_rejects_a_differently_named_third_launcher(
     tmp_path: Path,
 ) -> None:
-    primary = tmp_path / "kivou-api.service"
-    primary.write_text(f"ExecStart=/usr/bin/uvicorn {ASGI_TARGET}\n", encoding="utf-8")
-    alternate = tmp_path / "unrelated-name.service"
-    alternate.write_text(f"ExecStart=/usr/bin/uvicorn {ASGI_TARGET}\n", encoding="utf-8")
+    shared = tmp_path / "kivou-api.service"
+    shared.write_text(f"ExecStart=/usr/bin/uvicorn {ASGI_TARGET}\n", encoding="utf-8")
+    production = tmp_path / "production" / "kivou-api.service"
+    production.parent.mkdir()
+    production.write_text(
+        f"ExecStart=/usr/bin/uvicorn {ASGI_TARGET}\n", encoding="utf-8"
+    )
+    third = tmp_path / "unrelated-name.service"
+    third.write_text(f"ExecStart=/usr/bin/uvicorn {ASGI_TARGET}\n", encoding="utf-8")
 
-    with pytest.raises(AssertionError, match="only ASGI launcher"):
+    with pytest.raises(AssertionError, match="exactly the audited ASGI launchers"):
         _assert_api_runtime_artifacts(
-            _systemd_artifacts(tmp_path), expected_service=primary
+            _systemd_artifacts(tmp_path), expected_services=(shared, production)
         )
 
 
@@ -192,5 +200,5 @@ def test_api_runtime_inventory_rejects_a_versioned_drop_in(tmp_path: Path) -> No
 
     with pytest.raises(AssertionError, match="drop-in"):
         _assert_api_runtime_artifacts(
-            _systemd_artifacts(tmp_path), expected_service=primary
+            _systemd_artifacts(tmp_path), expected_services=(primary,)
         )
