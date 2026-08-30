@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
-import inspect
 import time
 from collections.abc import Callable, Mapping
 from typing import Any
@@ -156,15 +155,16 @@ def _error_type(error: BaseException) -> str:
     seen = {id(root)}
     while True:
         try:
-            attributes = object.__getattribute__(root, "__dict__")
-            cause = inspect.getattr_static(root, "cause", None)
+            reduced = BaseException.__reduce__(root)
         except BaseException:  # noqa: BLE001
             break
-        if (
-            type(attributes) is not dict
-            or attributes.get("cause") is not cause
-            or not isinstance(cause, BaseException)
-        ):
+        if type(reduced) is not tuple or len(reduced) != 3:
+            break
+        state = reduced[2]
+        if type(state) is not dict:
+            break
+        cause = state.get("cause")
+        if not isinstance(cause, BaseException):
             break
         if id(cause) in seen:
             break

@@ -734,6 +734,35 @@ def test_error_type_does_not_execute_cause_descriptors():
     assert marker not in summarize(outcome)
 
 
+def test_error_type_reads_native_state_without_executing_dict_or_reduce_overrides():
+    marker = "private-dict-descriptor-marker"
+
+    class DictDescriptorError(Exception):
+        @property
+        def __dict__(self):
+            raise AssertionError(marker)
+
+        def __reduce__(self):
+            raise AssertionError(marker)
+
+    error = DictDescriptorError()
+    BaseException.__setattr__(error, "cause", TypeError("private-root-marker"))
+
+    error_type = runner_module._error_type(error)
+    outcome = runner_module.SourceOutcome(
+        "boamp",
+        "failed",
+        runner_module.IngestionCounters(),
+        0,
+        "unexpected",
+        True,
+        error_type,
+    )
+
+    assert error_type == "TypeError"
+    assert marker not in summarize(outcome)
+
+
 @pytest.mark.parametrize(
     ("error", "expected"),
     (
