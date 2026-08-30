@@ -10,6 +10,7 @@ import {
   PRO_STATUS,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
+  UNLOCKED_PRESENTATION,
   feedPage,
   mockApi,
   renderApp,
@@ -30,7 +31,7 @@ describe('états indépendants des vues de référence', () => {
 
     renderApp(<AppRoutes />, { route: '/app/dashboard', session: AUTHENTICATED })
 
-    expect(await screen.findByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(await screen.findByText(UNLOCKED_PRESENTATION.content.headline)).toBeVisible()
     const priority = document.querySelector('.priority-card') as HTMLElement
     expect(within(priority).getAllByRole('alert')).toHaveLength(1)
     expect(within(priority).getByRole('alert')).toHaveTextContent(/offre/i)

@@ -20,6 +20,30 @@ export interface SignalCardView {
   whyNow: string
 }
 
+/** Carte strictement dédiée à la vue d'ensemble.
+ *
+ * Les champs narratifs proviennent uniquement de l'artefact Card
+ * Intelligence publié. Le titre brut du marché et les déductions historiques
+ * du feed n'entrent volontairement pas dans ce modèle.
+ */
+export interface OverviewAwardCardView {
+  id: string
+  locked: boolean
+  companyName: string | null
+  teaserHeadline: string | null
+  headline: string | null
+  awardSummary: string | null
+  commercialImportance: string | null
+  fitReason: string | null
+  timing: string | null
+  recommendedAction: string | null
+  presentationVariant: 'FULL' | 'FACTUAL_FALLBACK' | null
+  amount: Money | null
+  location: Place | null
+  awardDate: string | null
+  sourceSystem: string | null
+}
+
 export interface SignalDetailView {
   id: string
   title: string | null

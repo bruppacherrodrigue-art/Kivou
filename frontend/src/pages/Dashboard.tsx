@@ -6,8 +6,8 @@ import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
 import type { BillingAction, BillingStatus, TargetIcp } from '../api/types'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { interpolate, plural, useI18n } from '../i18n'
-import { toSignalCards } from '../reference/dashboard/adapters'
-import type { SignalCardView } from '../reference/dashboard/models'
+import { toOverviewAwardCards } from '../reference/dashboard/adapters'
+import type { OverviewAwardCardView } from '../reference/dashboard/models'
 import { useResource } from '../reference/dashboard/resources'
 import { Button } from '../reference/dashboard/ui/button'
 import { ReferenceLink } from '../reference/router/ReferenceLink'
@@ -30,9 +30,13 @@ function ReadyDashboard() {
   const feed = useResource(loadFeed)
   const profiles = useResource(loadProfiles)
   const access = useResource(loadBilling)
-  const cards = feed.data ? toSignalCards(feed.data) : []
+  const cards = feed.data ? toOverviewAwardCards(feed.data) : []
   const priority = cards.find((card) => !card.locked) ?? null
-  const additional = priority ? cards.filter((card) => card.id !== priority.id) : cards
+  // Une vue d'ensemble reste volontairement courte : un signal prioritaire et
+  // cinq cartes complémentaires au maximum, dans l'ordre décidé par l'API.
+  const additional = (
+    priority ? cards.filter((card) => card.id !== priority.id) : cards
+  ).slice(0, priority ? 5 : 6)
   const activeProfile = profiles.data?.find((profile) => profile.status === 'active') ?? null
   const documentedCount = feed.data?.total_returned ?? null
   const countCopy = feed.error && !feed.data
@@ -48,11 +52,11 @@ function ReadyDashboard() {
         { count: `${documentedCount}${feed.data?.page.has_more ? '+' : ''}` },
       )
 
-  const displayAmount = (card: SignalCardView) =>
+  const displayAmount = (card: OverviewAwardCardView) =>
     card.amount
       ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
       : t.reference.missingValue
-  const displayLocation = (card: SignalCardView) => {
+  const displayLocation = (card: OverviewAwardCardView) => {
     if (!card.location) return t.reference.missingValue
     const territory = MVP_TERRITORIES.find(
       (candidate) => candidate.code === card.location?.country,
@@ -146,7 +150,11 @@ function ReadyDashboard() {
               >
                 <span className="recent-company">
                   <strong>{card.companyName ?? t.reference.missingValue}</strong>
-                  <span>{card.eventTitle ?? t.reference.missingValue}</span>
+                  <span className="recent-award-summary">
+                    {card.locked
+                      ? card.teaserHeadline ?? t.reference.missingValue
+                      : card.awardSummary ?? t.reference.overviewPage.summaryUnavailable}
+                  </span>
                 </span>
                 <span className="recent-value">
                   <strong>{displayAmount(card)}</strong>
@@ -155,7 +163,13 @@ function ReadyDashboard() {
                 <span className="recent-match">
                   {card.locked
                     ? t.reference.overviewPage.paidAccessRequired
-                    : card.matchLabel ?? t.reference.missingValue}
+                    : card.presentationVariant === 'FACTUAL_FALLBACK'
+                      ? t.reference.overviewPage.factualSummary
+                      : card.fitReason
+                        ? t.reference.overviewPage.profileMatchDocumented
+                        : card.presentationVariant === 'FULL'
+                          ? t.reference.overviewPage.commercialSummary
+                          : t.reference.overviewPage.analysisUnavailable}
                 </span>
               </ReferenceLink>
           ))}
@@ -181,7 +195,7 @@ function PriorityCard({
   displayLocation,
   displayDate,
 }: {
-  card: SignalCardView | null
+  card: OverviewAwardCardView | null
   feedLoading: boolean
   feedError: unknown | null
   billing: BillingStatus | null
@@ -189,7 +203,7 @@ function PriorityCard({
   billingError: unknown | null
   onRetryFeed: () => void
   onRetryBilling: () => void
-  displayLocation: (card: SignalCardView) => string
+  displayLocation: (card: OverviewAwardCardView) => string
   displayDate: (value: string | null) => string
 }) {
   const { t } = useI18n()
@@ -260,16 +274,20 @@ function PriorityCard({
     )
   }
 
-  const reasons = card.matchReasons.length > 0
-    ? card.matchReasons
-    : [t.reference.missingValue]
+  const insights = [
+    card.commercialImportance,
+    card.fitReason,
+    card.timing,
+  ].filter((value): value is string => Boolean(value))
 
   return (
     <article className="priority-card" aria-labelledby="priority-title">
       <div className="priority-heading">
         <div>
           <p className="card-kicker">{t.reference.overviewPage.reviewFirst}</p>
-          <h3 id="priority-title">{card.eventTitle ?? t.reference.missingValue}</h3>
+          <h3 id="priority-title">
+            {card.headline ?? card.companyName ?? t.reference.overviewPage.analysisUnavailable}
+          </h3>
         </div>
         <span className="published-status">
           <FileCheck2 aria-hidden="true" />{' '}
@@ -279,7 +297,9 @@ function PriorityCard({
         </span>
       </div>
 
-      <p className="priority-summary">{card.whyNow}</p>
+      <p className="priority-summary">
+        {card.awardSummary ?? t.reference.overviewPage.summaryUnavailable}
+      </p>
 
       {billingError ? (
         <ResourceError
@@ -299,7 +319,15 @@ function PriorityCard({
 
       <div className="priority-why">
         <p className="card-kicker">{t.reference.overviewPage.whyFirst}</p>
-        <div>{reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
+        {insights.length > 0 ? (
+          <div>{insights.map((insight) => <span key={insight}>{insight}</span>)}</div>
+        ) : (
+          <p className="priority-analysis-unavailable">
+            {card.presentationVariant === 'FACTUAL_FALLBACK'
+              ? t.reference.overviewPage.factualSummaryBody
+              : t.reference.overviewPage.analysisUnavailableBody}
+          </p>
+        )}
       </div>
 
       <div className="priority-footer">

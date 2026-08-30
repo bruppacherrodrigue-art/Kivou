@@ -17,6 +17,7 @@ import {
   UNAUTHENTICATED,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
+  UNLOCKED_PRESENTATION,
   callsTo,
   feedPage,
   mockApi,
@@ -352,6 +353,16 @@ const OVERVIEW_SECOND_ITEM = {
   ...UNLOCKED_ITEM,
   signal_id: 'sig_overview_second',
   company: { ...UNLOCKED_ITEM.company, name: 'Deuxième SA' },
+  presentation: {
+    ...UNLOCKED_PRESENTATION,
+    artifact_id: 'card_presentation_sig_overview_second_v1',
+    content: {
+      ...UNLOCKED_PRESENTATION.content,
+      headline: 'Deuxième SA réalisera un marché de travaux documenté',
+      award_summary:
+        'Deuxième SA est attributaire d’un second marché public dont les faits essentiels sont documentés.',
+    },
+  },
   contract: {
     ...UNLOCKED_ITEM.contract,
     title: 'Deuxième marché public',
@@ -391,10 +402,16 @@ describe('vue d’ensemble exacte connectée', () => {
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
 
     const priority = document.querySelector('.priority-card') as HTMLElement
-    expect(within(priority).getByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(within(priority).getByText(UNLOCKED_PRESENTATION.content.headline)).toBeVisible()
+    expect(within(priority).getByText(UNLOCKED_PRESENTATION.content.award_summary)).toBeVisible()
+    expect(within(priority).queryByText(UNLOCKED_ITEM.contract.title!)).toBeNull()
     expect(within(priority).getByText('Attribution publiée sur BOAMP')).toBeVisible()
-    for (const reason of UNLOCKED_ITEM.analysis.fit.reasons) {
-      expect(within(priority).getByText(reason)).toBeVisible()
+    for (const insight of [
+      UNLOCKED_PRESENTATION.content.commercial_importance,
+      UNLOCKED_PRESENTATION.content.fit_reason,
+      UNLOCKED_PRESENTATION.content.timing,
+    ]) {
+      expect(within(priority).getByText(insight!)).toBeVisible()
     }
     expect(within(priority).getByText('Début prévu')).toBeVisible()
     expect(within(priority).getByText('Non publié')).toBeVisible()
@@ -444,7 +461,9 @@ describe('vue d’ensemble exacte connectée', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
     const priority = document.querySelector('.priority-card') as HTMLElement
-    expect(await within(priority).findByText(OVERVIEW_SECOND_ITEM.contract.title!)).toBeVisible()
+    expect(
+      await within(priority).findByText(OVERVIEW_SECOND_ITEM.presentation.content.headline),
+    ).toBeVisible()
     expect(within(priority).getByRole('link', { name: 'Examiner le signal' })).toHaveAttribute(
       'href',
       `/app/signals/${OVERVIEW_SECOND_ITEM.signal_id}`,
@@ -457,6 +476,56 @@ describe('vue d’ensemble exacte connectée', () => {
       'href',
       '/app/signals',
     )
+  })
+
+  it('limite la vue d’ensemble à six cartes tout en gardant le lien vers le feed complet', async () => {
+    const items = Array.from({ length: 9 }, (_, index) => ({
+      ...UNLOCKED_ITEM,
+      signal_id: `sig_overview_${index}`,
+      company: { ...UNLOCKED_ITEM.company, name: `Entreprise ${index}` },
+      presentation: {
+        ...UNLOCKED_PRESENTATION,
+        artifact_id: `card_presentation_sig_overview_${index}_v1`,
+        content: {
+          ...UNLOCKED_PRESENTATION.content,
+          headline: `Attribution résumée ${index}`,
+          award_summary: `Résumé commercial publié ${index}.`,
+        },
+      },
+    }))
+    mockApi({
+      ...EXACT_OVERVIEW_ROUTES,
+      'GET /signals': { body: feedPage(items) },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText('Attribution résumée 0')).toBeVisible()
+    expect(document.querySelectorAll('.recent-list .recent-signal')).toHaveLength(5)
+    expect(screen.queryByText('Résumé commercial publié 6.')).toBeNull()
+    expect(screen.getByRole('link', { name: /Voir tous les signaux/ })).toHaveAttribute(
+      'href',
+      '/app/signals',
+    )
+  })
+
+  it('n’invente aucun résumé lorsque la présentation publiée est absente', async () => {
+    const withoutPresentation = {
+      ...UNLOCKED_ITEM,
+      presentation: null,
+      contract: {
+        ...UNLOCKED_ITEM.contract,
+        title: 'TITRE BRUT INTERDIT DANS LA VUE D’ENSEMBLE',
+      },
+    }
+    mockApi({
+      ...EXACT_OVERVIEW_ROUTES,
+      'GET /signals': { body: feedPage([withoutPresentation]) },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText('Résumé commercial indisponible. Ouvrez le signal pour consulter les faits publiés.')).toBeVisible()
+    expect(screen.getByText('Aucune analyse publiée : seuls les faits du marché sont affichés.')).toBeVisible()
+    expect(document.body).not.toHaveTextContent('TITRE BRUT INTERDIT')
   })
 
   it('sélectionne dans le feed le premier signal ouvert reçu sans demander le teaser verrouillé', async () => {
@@ -554,7 +623,7 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
 
     const priority = document.querySelector('.priority-card') as HTMLElement
     await user.click(await within(priority).findByRole('button', { name: 'Réessayer' }))
-    expect(await within(priority).findByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(await within(priority).findByText(UNLOCKED_PRESENTATION.content.headline)).toBeVisible()
     expect(screen.getByText(ICP.label)).toBeVisible()
     expect(callsTo('/signals', 'GET')).toHaveLength(2)
     expect(callsTo('/target-icps', 'GET')).toHaveLength(2)
@@ -576,7 +645,7 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
-    expect(await screen.findByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(await screen.findByText(UNLOCKED_PRESENTATION.content.headline)).toBeVisible()
     const targeting = document.querySelector('.targeting-card') as HTMLElement
     await user.click(await within(targeting).findByRole('button', { name: 'Réessayer' }))
     expect(await within(targeting).findByText(ICP.label)).toBeVisible()
@@ -616,6 +685,15 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
     const currentItem = {
       ...OVERVIEW_SECOND_ITEM,
       signal_id: 'sig_current_overview',
+      presentation: {
+        ...UNLOCKED_PRESENTATION,
+        artifact_id: 'card_presentation_sig_current_overview_v1',
+        content: {
+          ...UNLOCKED_PRESENTATION.content,
+          headline: 'Lecture la plus récente',
+          award_summary: 'Résumé publié par la reprise la plus récente.',
+        },
+      },
       contract: { ...OVERVIEW_SECOND_ITEM.contract, title: 'Lecture la plus récente' },
     }
     mockApi({
@@ -643,7 +721,7 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
       resolveStale({ body: feedPage([UNLOCKED_ITEM]) })
     })
     expect(screen.getByText('Lecture la plus récente')).toBeVisible()
-    expect(screen.queryByText(UNLOCKED_ITEM.contract.title!)).toBeNull()
+    expect(screen.queryByText(UNLOCKED_PRESENTATION.content.headline)).toBeNull()
   })
 
   it('écarte la réponse feed privée du compte précédent après changement de compte', async () => {
@@ -652,10 +730,26 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
     let resolveAccountA!: (value: { body: ReturnType<typeof feedPage> }) => void
     const accountAItem = {
       ...UNLOCKED_ITEM,
+      presentation: {
+        ...UNLOCKED_PRESENTATION,
+        artifact_id: 'card_presentation_account_a_v1',
+        content: {
+          ...UNLOCKED_PRESENTATION.content,
+          headline: 'Attribution privée du compte A',
+        },
+      },
       contract: { ...UNLOCKED_ITEM.contract, title: 'Marché privé du compte A' },
     }
     const accountBItem = {
       ...OVERVIEW_SECOND_ITEM,
+      presentation: {
+        ...UNLOCKED_PRESENTATION,
+        artifact_id: 'card_presentation_account_b_v1',
+        content: {
+          ...UNLOCKED_PRESENTATION.content,
+          headline: 'Attribution du compte B',
+        },
+      },
       contract: { ...OVERVIEW_SECOND_ITEM.contract, title: 'Marché du compte B' },
     }
     mockApi({
@@ -677,12 +771,12 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
 
     await waitFor(() => expect(callsTo('/signals', 'GET')).toHaveLength(1))
     await user.click(screen.getByRole('button', { name: 'Basculer sur le compte B' }))
-    expect(await screen.findByText('Marché du compte B')).toBeVisible()
+    expect(await screen.findByText('Attribution du compte B')).toBeVisible()
     await act(async () => {
       resolveAccountA({ body: feedPage([accountAItem]) })
     })
-    expect(screen.getByText('Marché du compte B')).toBeVisible()
-    expect(screen.queryByText('Marché privé du compte A')).toBeNull()
+    expect(screen.getByText('Attribution du compte B')).toBeVisible()
+    expect(screen.queryByText('Attribution privée du compte A')).toBeNull()
   })
 
   it('ne transforme ni chargement ni erreur feed en faux zéro et ne duplique pas l’alerte', async () => {
@@ -819,7 +913,7 @@ describe('autorités, navigation et garde-fous Overview', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
-    expect(await screen.findByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(await screen.findByText(UNLOCKED_PRESENTATION.content.headline)).toBeVisible()
     expect(storageWrite).not.toHaveBeenCalled()
     expect(localStorage).toHaveLength(0)
     expect(sessionStorage).toHaveLength(0)

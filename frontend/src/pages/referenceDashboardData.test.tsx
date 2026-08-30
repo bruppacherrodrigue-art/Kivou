@@ -9,6 +9,7 @@ import {
   LOCKED_ITEM,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
+  UNLOCKED_PRESENTATION,
   callsTo,
   feedPage,
   mockApi,
@@ -35,7 +36,8 @@ describe('vue d’ensemble de référence connectée aux données réelles', () 
     expect(
       screen.getByRole('heading', { level: 2, name: /attributions documentées/i }),
     ).toBeVisible()
-    expect(screen.getByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(screen.getByText(UNLOCKED_PRESENTATION.content.headline)).toBeVisible()
+    expect(screen.getByText(UNLOCKED_PRESENTATION.content.award_summary)).toBeVisible()
     expect(document.querySelector('.overview-focus-grid .priority-card')).not.toBeNull()
     expect(document.querySelector('.workspace-grid')).toBeNull()
     const priority = document.querySelector('.priority-card') as HTMLElement
@@ -45,8 +47,12 @@ describe('vue d’ensemble de référence connectée aux données réelles', () 
     expect(within(facts).getByText('Lieu')).toBeVisible()
     expect(within(facts).queryByText('Montant total du marché')).toBeNull()
     expect(within(facts).getByText('Non publié')).toBeVisible()
-    for (const reason of UNLOCKED_ITEM.analysis.fit.reasons) {
-      expect(within(priority).getByText(reason)).toBeVisible()
+    for (const insight of [
+      UNLOCKED_PRESENTATION.content.commercial_importance,
+      UNLOCKED_PRESENTATION.content.fit_reason,
+      UNLOCKED_PRESENTATION.content.timing,
+    ]) {
+      expect(within(priority).getByText(insight!)).toBeVisible()
     }
     expect(within(priority).getByText(/Attribution publiée sur BOAMP/)).toBeVisible()
   })

@@ -14,6 +14,7 @@ import type {
   LockedFeedItem,
   Me,
   PlanCatalogue,
+  PassCardPresentation,
   TargetIcp,
   UnlockedDetail,
   UnlockedFeedItem,
@@ -132,10 +133,46 @@ export const UNAUTHENTICATED: SessionState = {
 }
 export const EXPIRED: SessionState = { status: 'unauthenticated', me: null, expired: true }
 
+export const UNLOCKED_PRESENTATION: PassCardPresentation = {
+  artifact_id: 'card_presentation_sig_unlocked_1_v1',
+  schema_version: 'card-presentation-v1',
+  version: 1,
+  status: 'PASS',
+  published_at: '2026-08-18T08:00:00+00:00',
+  content: {
+    schema_version: 'card-presentation-v1',
+    variant: 'FULL',
+    headline: 'Voirie communale : un chantier de 1,24 M€ attribué à Bertrand',
+    award_summary:
+      'Constructions Bertrand SA réalisera la réfection de trois tronçons de voirie à Villeneuve, pour un montant public de 1,24 M€.',
+    commercial_importance:
+      'Le chantier documente un volume significatif de travaux routiers.',
+    fit_reason:
+      'Le marché concerne les matériaux routiers ciblés par votre profil en France.',
+    timing:
+      'L’attribution date du 4 août 2026 ; le calendrier d’approvisionnement reste à confirmer.',
+    recommended_action:
+      'Vérifier les fournitures encore à sourcer avant toute prise de contact.',
+    target_roles: ['SITE_PROCUREMENT_MANAGER'],
+    fit_need_categories: ['materials_and_components'],
+    unknowns: ['Fournisseurs déjà engagés non publiés.'],
+    claims: [
+      {
+        claim_id: 'claim_award_summary_1',
+        kind: 'FACT',
+        text: 'Constructions Bertrand SA est attributaire du marché.',
+        evidence_refs: ['notice:26-104412'],
+        confidence: 'high',
+      },
+    ],
+  },
+}
+
 export const UNLOCKED_ITEM: UnlockedFeedItem = {
   locked: false,
   signal_id: 'sig_unlocked_1',
   target_icp_id: 'icp_1',
+  presentation: UNLOCKED_PRESENTATION,
   company: {
     name: 'Constructions Bertrand SA',
     country: 'FR',

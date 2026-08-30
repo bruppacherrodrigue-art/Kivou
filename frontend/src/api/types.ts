@@ -314,6 +314,82 @@ export interface Analysis {
   }
 }
 
+/** Présentation courte publiée par Card Intelligence.
+ *
+ * Le navigateur rend ce contenu tel qu'il a été validé et publié par le
+ * backend. Il ne résume jamais lui-même le titre ou les pièces du marché.
+ */
+export type CardPresentationTargetRole =
+  | 'PROCUREMENT_MANAGER'
+  | 'SITE_PROCUREMENT_MANAGER'
+  | 'PROJECT_MANAGER'
+  | 'WORKS_MANAGER'
+  | 'SUPPLY_MANAGER'
+
+export interface CardPresentationClaim {
+  claim_id: string
+  kind: 'FACT' | 'INFERENCE' | 'RECOMMENDATION'
+  text: string
+  evidence_refs: string[]
+  confidence: 'high' | 'medium' | 'low' | null
+}
+
+export interface FactualCardPresentationClaim extends CardPresentationClaim {
+  kind: 'FACT'
+}
+
+interface CardPresentationContentBase {
+  schema_version: 'card-presentation-v1'
+  headline: string
+  award_summary: string
+  unknowns: string[]
+}
+
+export interface FullCardPresentationContent extends CardPresentationContentBase {
+  variant: 'FULL'
+  commercial_importance: string
+  fit_reason: string
+  timing: string
+  recommended_action: string
+  target_roles: CardPresentationTargetRole[]
+  fit_need_categories: string[]
+  claims: CardPresentationClaim[]
+}
+
+export interface FactualFallbackCardPresentationContent extends CardPresentationContentBase {
+  variant: 'FACTUAL_FALLBACK'
+  commercial_importance: null
+  fit_reason: null
+  timing: null
+  recommended_action: null
+  target_roles: []
+  fit_need_categories: []
+  claims: FactualCardPresentationClaim[]
+}
+
+export type CardPresentationContent =
+  | FullCardPresentationContent
+  | FactualFallbackCardPresentationContent
+
+interface CardPresentationBase {
+  artifact_id: string
+  schema_version: 'card-presentation-v1'
+  version: number
+  published_at: string
+}
+
+export type PassCardPresentation = CardPresentationBase & {
+  status: 'PASS'
+  content: FullCardPresentationContent
+}
+
+export type FallbackCardPresentation = CardPresentationBase & {
+  status: 'FALLBACK'
+  content: FactualFallbackCardPresentationContent
+}
+
+export type CardPresentation = PassCardPresentation | FallbackCardPresentation
+
 export interface EvidenceItem {
   source_system: string | null
   source_kind: string | null
@@ -346,6 +422,9 @@ export interface UnlockedFeedItem {
   locked: false
   signal_id: string
   target_icp_id: string | null
+  /** Même artefact publié dans le feed et le détail, `null` s'il est absent
+   * ou périmé. Cette clé n'existe jamais sur un teaser verrouillé. */
+  presentation: CardPresentation | null
   company: Company
   event: SignalEvent
   contract: Contract

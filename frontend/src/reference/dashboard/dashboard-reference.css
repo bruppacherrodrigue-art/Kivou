@@ -1459,6 +1459,13 @@ a:focus-visible {
   margin-top: 20px;
 }
 
+.priority-analysis-unavailable {
+  margin: 9px 0 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
 .priority-why > div {
   display: flex;
   flex-wrap: wrap;
@@ -1691,6 +1698,13 @@ a:focus-visible {
   color: var(--text-muted);
   font-size: 9px;
   line-height: 1.4;
+}
+
+.overview-awards-card .recent-award-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .recent-value {

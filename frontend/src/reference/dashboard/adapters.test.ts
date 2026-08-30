@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type {
   BillingStatus,
+  CardPresentation,
   CompanyProfile,
   FeedPage,
   LockedFeedItem,
@@ -14,11 +15,14 @@ import {
   LOCKED_ITEM,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
+  UNLOCKED_PRESENTATION,
   feedPage,
 } from '../../test/harness'
 import {
   toBillingAccessView,
   toCompanySummary,
+  toOverviewAwardCard,
+  toOverviewAwardCards,
   toSignalCard,
   toSignalCards,
   toSignalDetailView,
@@ -37,6 +41,165 @@ const REFERENCE_ONLY_COPY = [
 ]
 
 describe('adaptateurs de présentation du dashboard de référence', () => {
+  it('alimente la vue d’ensemble uniquement depuis la présentation publiée', () => {
+    const rawTitle = 'TITRE BRUT À NE JAMAIS AFFICHER DANS LA VUE D’ENSEMBLE'
+    const item = {
+      ...UNLOCKED_ITEM,
+      contract: { ...UNLOCKED_ITEM.contract, title: rawTitle },
+    }
+
+    expect(toOverviewAwardCard(item)).toEqual({
+      id: item.signal_id,
+      locked: false,
+      companyName: item.company.name,
+      teaserHeadline: null,
+      headline: UNLOCKED_PRESENTATION.content.headline,
+      awardSummary: UNLOCKED_PRESENTATION.content.award_summary,
+      commercialImportance: UNLOCKED_PRESENTATION.content.commercial_importance,
+      fitReason: UNLOCKED_PRESENTATION.content.fit_reason,
+      timing: UNLOCKED_PRESENTATION.content.timing,
+      recommendedAction: UNLOCKED_PRESENTATION.content.recommended_action,
+      presentationVariant: UNLOCKED_PRESENTATION.content.variant,
+      amount: item.contract.amount,
+      location: item.contract.location,
+      awardDate: item.contract.dates.award,
+      sourceSystem: item.source.system,
+    })
+    expect(JSON.stringify(toOverviewAwardCard(item))).not.toContain(rawTitle)
+  })
+
+  it('reste factuel quand aucun artefact courant n’est publié', () => {
+    const view = toOverviewAwardCard({ ...UNLOCKED_ITEM, presentation: null })
+
+    expect(view).toMatchObject({
+      companyName: UNLOCKED_ITEM.company.name,
+      headline: null,
+      awardSummary: null,
+      commercialImportance: null,
+      fitReason: null,
+      timing: null,
+      recommendedAction: null,
+      presentationVariant: null,
+      amount: UNLOCKED_ITEM.contract.amount,
+      location: UNLOCKED_ITEM.contract.location,
+      awardDate: UNLOCKED_ITEM.contract.dates.award,
+    })
+    expect(JSON.stringify(view)).not.toContain(UNLOCKED_ITEM.contract.title)
+    expect(JSON.stringify(view)).not.toContain(UNLOCKED_ITEM.analysis.fit.label)
+  })
+
+  it('accepte uniquement la paire FALLBACK et FACTUAL_FALLBACK sans inférence', () => {
+    const fallback: CardPresentation = {
+      artifact_id: 'card_fallback_1',
+      schema_version: 'card-presentation-v1',
+      version: 1,
+      status: 'FALLBACK',
+      published_at: '2026-08-18T08:00:00+00:00',
+      content: {
+        schema_version: 'card-presentation-v1',
+        variant: 'FACTUAL_FALLBACK',
+        headline: 'Marché de voirie attribué à Constructions Bertrand SA',
+        award_summary:
+          'Constructions Bertrand SA est l’attributaire publié d’un marché de voirie de 1,24 M€.',
+        commercial_importance: null,
+        fit_reason: null,
+        timing: null,
+        recommended_action: null,
+        target_roles: [],
+        fit_need_categories: [],
+        unknowns: [],
+        claims: [{
+          claim_id: 'claim_fallback_1',
+          kind: 'FACT',
+          text: 'Le montant public est de 1,24 M€.',
+          evidence_refs: ['notice:26-104412'],
+          confidence: 'high',
+        }],
+      },
+    }
+
+    expect(toOverviewAwardCard({ ...UNLOCKED_ITEM, presentation: fallback })).toMatchObject({
+      headline: fallback.content.headline,
+      awardSummary: fallback.content.award_summary,
+      presentationVariant: 'FACTUAL_FALLBACK',
+      commercialImportance: null,
+      fitReason: null,
+      timing: null,
+      recommendedAction: null,
+    })
+  })
+
+  it.each([
+    ['schéma externe inconnu', {
+      ...UNLOCKED_PRESENTATION,
+      schema_version: 'card-presentation-v2',
+    }],
+    ['paire statut/variante incohérente', {
+      ...UNLOCKED_PRESENTATION,
+      status: 'FALLBACK',
+    }],
+    ['champ commercial FULL absent', {
+      ...UNLOCKED_PRESENTATION,
+      content: { ...UNLOCKED_PRESENTATION.content, fit_reason: null },
+    }],
+  ])('échoue fermé pour un artefact invalide : %s', (_label, presentation) => {
+    const item = {
+      ...UNLOCKED_ITEM,
+      presentation: presentation as unknown as CardPresentation,
+      contract: {
+        ...UNLOCKED_ITEM.contract,
+        title: 'TITRE BRUT INTERDIT EN REPLI',
+      },
+    }
+
+    expect(toOverviewAwardCard(item)).toMatchObject({
+      headline: null,
+      awardSummary: null,
+      commercialImportance: null,
+      fitReason: null,
+      timing: null,
+      recommendedAction: null,
+      presentationVariant: null,
+    })
+    expect(JSON.stringify(toOverviewAwardCard(item))).not.toContain('TITRE BRUT INTERDIT')
+  })
+
+  it('ne lit jamais une présentation injectée dans un teaser verrouillé', () => {
+    const leakingLocked = {
+      ...LOCKED_ITEM,
+      presentation: UNLOCKED_PRESENTATION,
+    } as FeedPage['items'][number]
+
+    expect(toOverviewAwardCard(leakingLocked)).toEqual({
+      id: LOCKED_ITEM.signal_id,
+      locked: true,
+      companyName: null,
+      teaserHeadline: LOCKED_ITEM.headline,
+      headline: null,
+      awardSummary: null,
+      commercialImportance: null,
+      fitReason: null,
+      timing: null,
+      recommendedAction: null,
+      presentationVariant: null,
+      amount: null,
+      location: null,
+      awardDate: null,
+      sourceSystem: null,
+    })
+    expect(JSON.stringify(toOverviewAwardCard(leakingLocked))).not.toContain(
+      UNLOCKED_PRESENTATION.content.award_summary,
+    )
+  })
+
+  it('préserve l’ordre serveur dans les cartes de la vue d’ensemble', () => {
+    const feed = feedPage([LOCKED_ITEM, UNLOCKED_ITEM]) as FeedPage
+    expect(toOverviewAwardCards(feed).map((card) => card.id)).toEqual([
+      LOCKED_ITEM.signal_id,
+      UNLOCKED_ITEM.signal_id,
+    ])
+  })
+
   it('mappe une carte déverrouillée uniquement depuis le contrat de feed', () => {
     expect(toSignalCard(UNLOCKED_ITEM)).toEqual({
       id: UNLOCKED_ITEM.signal_id,
