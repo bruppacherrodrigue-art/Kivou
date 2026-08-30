@@ -18,6 +18,7 @@ from feed_helpers import (
 )
 from pydantic import ValidationError
 
+import signals.card_intelligence.validation as validation_module
 from signals.accounts.schema import target_icp
 from signals.card_intelligence.contracts import (
     CardPresentationPayload,
@@ -1073,6 +1074,22 @@ def test_project_word_never_neutralizes_a_semantic_award_date(
     assert "full_variant_not_authorized" in errors
 
 
+def test_postfixed_award_marker_overrides_a_project_reference_context(
+    source, full_payload
+):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Référence projet : 2026-08-15 est la date d’attribution.",
+    )
+
+    errors = validate_payload(payload, source).errors
+
+    assert "award_date_mismatch" in errors
+    assert "publication_as_award_date" in errors
+    assert "full_variant_not_authorized" in errors
+
+
 def test_a_real_date_without_a_semantic_date_kind_fails_closed(source, full_payload):
     payload = _replace_public_text(
         full_payload,
@@ -1112,6 +1129,80 @@ def test_isolated_amount_postcode_and_project_numbers_are_not_dates(
 
 def test_factual_renderer_output_passes_the_same_validator(source):
     assert validate_payload(factual_fallback(source), source).valid
+
+
+@pytest.mark.parametrize("language", ("fr", "en"))
+@pytest.mark.parametrize(
+    "location",
+    ("New York, US", "La Chaux-de-Fonds, CH", "Saint Gallen, CH"),
+)
+def test_canonical_fallback_structured_locations_bypass_text_heuristics(
+    source, language, location
+):
+    facts = source.facts.model_copy(update={"location": location})
+    localized_source = PresentationInput.model_validate(
+        source.model_copy(update={"language": language, "facts": facts})
+    )
+    payload = factual_fallback(localized_source)
+
+    assert validate_payload(payload, localized_source).valid
+
+
+def test_canonical_fallback_accepts_exact_prefix_related_source_actors(source):
+    facts = source.facts.model_copy(
+        update={
+            "awardees": (
+                SourceActor(actor_ref="7" * 64, display_name="Alpha Construction"),
+                SourceActor(
+                    actor_ref="8" * 64,
+                    display_name="Alpha Construction Services SA",
+                ),
+            )
+        }
+    )
+    actor_source = PresentationInput.model_validate(
+        source.model_copy(update={"facts": facts})
+    )
+    payload = factual_fallback(actor_source)
+
+    assert validate_payload(payload, actor_source).valid
+
+
+def test_canonical_fallback_does_not_treat_an_awardee_title_as_admin_copy(source):
+    facts = source.facts.model_copy(update={"award_title": source.facts.winner_name})
+    titled_source = PresentationInput.model_validate(
+        source.model_copy(update={"facts": facts})
+    )
+    payload = factual_fallback(titled_source)
+
+    assert validate_payload(payload, titled_source).valid
+
+
+def test_canonical_fallback_validation_is_non_rewriting(source):
+    payload = factual_fallback(source)
+    payload_before = payload.model_dump(mode="python")
+    source_before = source.model_dump(mode="python")
+
+    result = validate_payload(payload, source)
+
+    assert result.valid
+    assert payload.model_dump(mode="python") == payload_before
+    assert source.model_dump(mode="python") == source_before
+
+
+@pytest.mark.parametrize("error_type", (TypeError, AttributeError))
+def test_internal_fallback_renderer_errors_propagate(
+    source, monkeypatch, error_type
+):
+    payload = factual_fallback(source)
+
+    def broken_renderer(_source):
+        raise error_type("renderer defect")
+
+    monkeypatch.setattr(validation_module, "factual_fallback", broken_renderer)
+
+    with pytest.raises(error_type, match="renderer defect"):
+        validate_payload(payload, source)
 
 
 def test_full_variant_is_not_authorized_without_an_approved_generation_pipeline(
@@ -1222,6 +1313,27 @@ def test_explicit_actor_labels_cannot_swap_buyer_and_awardee(source, full_payloa
     assert "actor_role_inversion" in validate_payload(payload, source).errors
 
 
+@pytest.mark.parametrize(
+    "claim",
+    (
+        "Egli Gartenbau AG Sursee est l’acheteur",
+        "Egli Gartenbau AG Sursee is the buyer",
+        "L’acheteur est Egli Gartenbau AG Sursee",
+        "The awardee is Gemeinde Root",
+    ),
+    ids=("actor-first-fr", "actor-first-en", "role-first-fr", "role-first-en"),
+)
+def test_copular_role_assertions_cannot_invert_buyer_and_awardee(
+    source, full_payload, claim
+):
+    payload = _replace_public_text(full_payload, "award_summary", claim)
+
+    errors = validate_payload(payload, source).errors
+
+    assert "actor_role_inversion" in errors
+    assert "full_variant_not_authorized" in errors
+
+
 def test_cross_role_homonym_is_ambiguous(source):
     homonym_source = _source_with_actors(
         source,
@@ -1245,6 +1357,38 @@ def test_distinct_homonymous_identities_in_one_role_remain_representable(source)
     )
 
     _assert_full_semantics_clean(_full_payload(same_role_source), same_role_source)
+
+
+@pytest.mark.parametrize(
+    "buyer_assertion",
+    (
+        "Acheteur : Alpha Construction ; Alpha Construction Services SA.",
+        "Acheteur : Alpha Construction et Alpha Construction Services SA.",
+        "Acheteur : Alpha Construction.",
+    ),
+    ids=("separator", "conjunction", "end"),
+)
+def test_exact_short_actor_is_not_a_prefix_collision(
+    source, buyer_assertion
+):
+    actor_source = _source_with_actors(
+        source,
+        buyers=(
+            SourceActor(actor_ref="7" * 64, display_name="Alpha Construction"),
+            SourceActor(
+                actor_ref="8" * 64,
+                display_name="Alpha Construction Services SA",
+            ),
+        ),
+        awardees=(SourceActor(actor_ref="9" * 64, display_name="Bêta Bâtiment SA"),),
+    )
+    payload = _replace_public_text(
+        _full_payload(actor_source),
+        "award_summary",
+        f"{buyer_assertion} Attributaire : Bêta Bâtiment SA.",
+    )
+
+    _assert_full_semantics_clean(payload, actor_source)
 
 
 def test_truncated_actor_prefix_collision_fails_ambiguous(source):

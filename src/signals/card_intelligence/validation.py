@@ -545,11 +545,18 @@ def _validate_evidence(
 
 def _role_mentions(text: str, actor: str, labels: tuple[str, ...]) -> bool:
     labels_pattern = "|".join(re.escape(label) for label in sorted(labels, key=len, reverse=True))
+    article = r"(?:l|le|la|les|un|une|the|a|an)"
     qualifiers = r"(?:\s+(?:publiee?s?|publies?|identified|identifiee?s?)){0,3}"
-    before = rf"(?:{labels_pattern}){qualifiers}\s+{_phrase_pattern(actor)}"
-    copula = r"(?:est|is|est\s+identifiee?\s+comme|is\s+identified\s+as)"
-    after = rf"{_phrase_pattern(actor)}\s+{copula}\s+(?:{labels_pattern})\b"
-    return re.search(before, text) is not None or re.search(after, text) is not None
+    label = rf"(?<!\w)(?:{labels_pattern})(?!\w)"
+    copula = r"(?:est\s+identifiee?\s+comme|is\s+identified\s+as|est|is)"
+    role_first = (
+        rf"(?:{article}\s+)?{label}{qualifiers}(?:\s+{copula})?\s+"
+        rf"{_phrase_pattern(actor)}"
+    )
+    actor_first = (
+        rf"{_phrase_pattern(actor)}\s+{copula}\s+(?:{article}\s+)?{label}"
+    )
+    return re.search(role_first, text) is not None or re.search(actor_first, text) is not None
 
 
 def _acts_as_awarder(text: str, actor: str) -> bool:
@@ -573,7 +580,13 @@ def _is_award_recipient(text: str, actor: str) -> bool:
     )
 
 
-def _has_prefix_collision(text: str, actor_labels: set[str]) -> bool:
+def _has_prefix_collision(raw_text: str, actor_labels: set[str]) -> bool:
+    decomposed = unicodedata.normalize("NFKD", raw_text)
+    folded = "".join(
+        character for character in decomposed if not unicodedata.combining(character)
+    ).casefold()
+    token_matches = tuple(re.finditer(r"\w+", folded, flags=re.UNICODE))
+    token_values = tuple(match.group() for match in token_matches)
     for left, right in combinations(sorted(actor_labels), 2):
         left_words = left.split()
         right_words = right.split()
@@ -591,12 +604,29 @@ def _has_prefix_collision(text: str, actor_labels: set[str]) -> bool:
             for words in (left_words, right_words)
             if len(words) > len(common)
         }
-        for match in re.finditer(_phrase_pattern(prefix), text):
-            remainder = text[match.end() :].lstrip()
-            next_word_match = re.match(r"(?P<word>\w+)", remainder)
-            next_word = next_word_match.group("word") if next_word_match else None
-            if next_word not in allowed_next:
-                return True
+        common_words = tuple(common)
+        for index in range(len(token_values) - len(common_words) + 1):
+            if token_values[index : index + len(common_words)] != common_words:
+                continue
+            next_index = index + len(common_words)
+            next_word = (
+                token_values[next_index]
+                if next_index < len(token_values)
+                else None
+            )
+            if next_word in allowed_next:
+                continue
+            if prefix in actor_labels:
+                if next_word is None:
+                    continue
+                separator = folded[
+                    token_matches[next_index - 1].end() : token_matches[next_index].start()
+                ]
+                if next_word in {"and", "et"} or any(
+                    marker in separator for marker in (";", ",", ".", "!", "?", "/", "&")
+                ):
+                    continue
+            return True
     return False
 
 
@@ -678,7 +708,7 @@ def _validate_actor_roles(texts: tuple[str, ...], source: PresentationInput) -> 
 
     if any(
         _has_prefix_collision(text, buyer_labels | awardee_labels)
-        for text in normalized_texts
+        for text in texts
     ):
         errors.add("actor_reference_ambiguous")
 
@@ -788,14 +818,21 @@ def _is_identifier_date(text: str, mention: _DateMention) -> bool:
     )
     if _span_distance(local_start, local_end, closest_identifier) > 48:
         return False
-    semantic_before = [
+    date_mentions = _extract_dates(segment)
+    semantic_markers = tuple(
         match
         for pattern in _DATE_KIND_PATTERNS.values()
         for match in pattern.finditer(segment)
-        if match.end() <= local_start
-        and _span_distance(local_start, local_end, match) <= 80
-    ]
-    return not semantic_before
+        if _span_distance(local_start, local_end, match) <= 80
+    )
+    for marker in semantic_markers:
+        if marker.end() <= local_start:
+            return False
+        if marker.start() < local_end:
+            continue
+        if not any(date.start >= marker.end() for date in date_mentions):
+            return False
+    return True
 
 
 def _validate_dates(texts: tuple[str, ...], source: PresentationInput) -> set[str]:
@@ -1020,21 +1057,6 @@ def _validate_administrative_copy(
     )
 
 
-def _validate_publication_policy(
-    payload: CardPresentationPayload,
-    source: PresentationInput,
-) -> set[str]:
-    """Close publication until an independently approved FULL pipeline exists."""
-
-    if payload.variant is PresentationVariant.FULL:
-        return {"full_variant_not_authorized"}
-    try:
-        canonical = factual_fallback(source)
-    except (ValidationError, TypeError, ValueError, AttributeError):
-        return {"factual_fallback_not_canonical"}
-    return set() if payload == canonical else {"factual_fallback_not_canonical"}
-
-
 def validate_payload(
     payload: CardPresentationPayload,
     source: PresentationInput,
@@ -1042,8 +1064,9 @@ def validate_payload(
     """Validate a candidate against its exact source without changing either.
 
     Recursive Pydantic revalidation closes instances forged with ``model_copy``.
-    Semantic validators run only on fully valid contracts, but both contract
-    errors are collected before returning a stable, sorted result.
+    The exact deterministic fallback is authoritative and bypasses prose
+    heuristics.  Semantic validators remain diagnostics for every FULL or
+    non-canonical fallback candidate.
     """
 
     errors: set[str] = set()
@@ -1061,8 +1084,18 @@ def validate_payload(
     if checked_payload is None or checked_source is None:
         return ValidationResult(tuple(sorted(errors)))
 
+    canonical_fallback = factual_fallback(checked_source)
+    if (
+        checked_payload.variant is PresentationVariant.FACTUAL_FALLBACK
+        and checked_payload == canonical_fallback
+    ):
+        return ValidationResult(())
+    if checked_payload.variant is PresentationVariant.FULL:
+        errors.add("full_variant_not_authorized")
+    else:
+        errors.add("factual_fallback_not_canonical")
+
     texts = _public_texts(checked_payload)
-    errors.update(_validate_publication_policy(checked_payload, checked_source))
     errors.update(_validate_evidence(checked_payload, checked_source))
     errors.update(_validate_actor_roles(texts, checked_source))
     errors.update(_validate_dates(texts, checked_source))
