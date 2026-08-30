@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pathlib
 import re
+import shlex
 import subprocess
 
 import pytest
@@ -1365,6 +1366,14 @@ def rollback_engine(body: str) -> str:
     return body[begin:end]
 
 
+def autonomous_recovery_source(body: str) -> str:
+    begin_marker = "# KIVOU_AUTONOMOUS_RECOVERY_SOURCE_BEGIN"
+    end_marker = "# KIVOU_AUTONOMOUS_RECOVERY_SOURCE_END"
+    begin = body.index(begin_marker) + len(begin_marker)
+    end = body.index(end_marker, begin)
+    return body[begin:end]
+
+
 def test_rollback_aggregates_strict_independent_phase_failures() -> None:
     engine = rollback_engine(read(PRODUCTION_RUNBOOK))
 
@@ -1609,7 +1618,8 @@ def test_durable_recovery_is_published_before_mutation_and_is_autonomous() -> No
     for recovery_contract in (
         "KIVOU_PREVIOUS_APP_TARGET",
         "KIVOU_PREVIOUS_FRONTEND_TARGET",
-        "/etc/systemd/system/$KIVOU_UNIT",
+        "KIVOU_SYSTEMD_UNIT_ROOT=/etc/systemd/system",
+        "$KIVOU_SYSTEMD_UNIT_ROOT/$KIVOU_UNIT",
         "KIVOU_NGINX_CAPTURE_PATHS",
         "kivou_rollback_stop_phase",
         "kivou_rollback_app_phase",
@@ -1709,53 +1719,6 @@ def test_autonomous_recovery_requires_previous_api_readiness_before_nginx() -> N
     )
 
 
-def test_failed_rollback_readiness_blocks_nginx_and_success_status(
-    tmp_path: pathlib.Path,
-) -> None:
-    body = read(PRODUCTION_RUNBOOK)
-    helper_start = body.index("kivou_rollback_api_readiness_required()")
-    helper_end = body.index("# KIVOU_ROLLBACK_ENGINE_BEGIN", helper_start)
-    helpers = body[helper_start:helper_end]
-    engine = rollback_engine(body)
-    capture = tmp_path / "systemd"
-    capture.mkdir()
-    (capture / "kivou-api.service.active").write_text("active\n", encoding="utf-8")
-    marker = tmp_path / "missing-readiness.ok"
-    status = tmp_path / "rollout.status"
-    status.write_text("PREPARED\n", encoding="utf-8")
-    script = f"""\
-set -Eeuo pipefail
-sudo() {{ "$@"; }}
-KIVOU_UNIT_CAPTURE_DIR={capture}
-KIVOU_PREVIOUS_APP_TARGET=/srv/kivou/releases/backend-previous
-KIVOU_ROLLBACK_READINESS_MARKER={marker}
-{helpers}
-{engine}
-kivou_rollback_stop_phase() {{ :; }}
-kivou_rollback_app_phase() {{ :; }}
-kivou_rollback_frontend_phase() {{ :; }}
-kivou_rollback_units_phase() {{ return 75; }}
-kivou_rollback_nginx_phase() {{
-  kivou_require_rollback_api_readiness
-  printf 'nginx-reloaded\\n'
-}}
-set +e
-kivou_rollout_rollback
-KIVOU_TEST_RC=$?
-set -e
-if [ "$KIVOU_TEST_RC" -eq 0 ]; then printf 'ROLLED_BACK\\n' >{status}; fi
-printf 'rollback_rc=%s\\n' "$KIVOU_TEST_RC"
-"""
-    result = subprocess.run(
-        ["bash"], input=script, text=True, capture_output=True, check=False
-    )
-
-    assert result.returncode == 0, result.stderr
-    assert "rollback_rc=75" in result.stdout
-    assert "nginx-reloaded" not in result.stdout
-    assert status.read_text(encoding="utf-8") == "PREPARED\n"
-
-
 def test_autonomous_recovery_uses_a_unique_retry_safe_attempt_directory() -> None:
     body = read(PRODUCTION_RUNBOOK)
     manual = body[body.index("## 11. Rollback immédiat") :]
@@ -1795,68 +1758,226 @@ def test_autonomous_recovery_uses_a_unique_retry_safe_attempt_directory() -> Non
     )
 
 
-def test_autonomous_recovery_retries_after_interruption(tmp_path: pathlib.Path) -> None:
-    body = read(PRODUCTION_RUNBOOK)
-    manual = body[body.index("## 11. Rollback immédiat") :]
-    lifecycle_start = manual.index("kivou_recovery_cleanup()")
-    lifecycle_end_marker = "trap 'kivou_recovery_on_exit $?' EXIT"
-    lifecycle_end = manual.index(lifecycle_end_marker, lifecycle_start) + len(
-        lifecycle_end_marker
-    )
-    lifecycle = manual[lifecycle_start:lifecycle_end]
-    rollout = tmp_path / "rollout-test"
-    rollout.mkdir(mode=0o700)
+def prepare_autonomous_recovery_fixture(
+    root: pathlib.Path, readiness_rc: int
+) -> dict[str, pathlib.Path]:
+    runtime = root / "runtime"
+    backend_old = runtime / "releases/backend-old"
+    backend_new = runtime / "releases/backend-new"
+    frontend_old = runtime / "releases/frontend-old"
+    frontend_new = runtime / "releases/frontend-new"
+    for release in (backend_old, backend_new, frontend_old, frontend_new):
+        release.mkdir(parents=True, exist_ok=True)
+        release.chmod(0o555)
+    (runtime / "app").symlink_to(backend_new, target_is_directory=True)
+    (runtime / "frontend").symlink_to(frontend_new, target_is_directory=True)
+
+    rollout = root / "rollout-test"
+    unit_capture = rollout / "systemd"
+    nginx_capture = rollout / "nginx"
+    unit_capture.mkdir(parents=True)
+    nginx_capture.mkdir()
     status = rollout / "rollout.status"
     status.write_text("PREPARED\n", encoding="utf-8")
-    state = tmp_path / "runtime-state"
-    state.mkdir()
+    (unit_capture / "kivou-api.service.saved").write_text(
+        "old-unit\n", encoding="utf-8"
+    )
+    (unit_capture / "kivou-api.service.enabled").write_text(
+        "disabled\n", encoding="utf-8"
+    )
+    (unit_capture / "kivou-api.service.active").write_text(
+        "active\n", encoding="utf-8"
+    )
 
-    setup = f"""\
+    unit_root = root / "systemd-active"
+    unit_root.mkdir()
+    (unit_root / "kivou-api.service").write_text("new-unit\n", encoding="utf-8")
+    nginx_root = root / "nginx-active"
+    nginx_path = nginx_root / "sites-available/kivou"
+    nginx_path.parent.mkdir(parents=True)
+    nginx_path.write_text("new-nginx\n", encoding="utf-8")
+    capture_name = str(nginx_path).removeprefix("/").replace("/", "__")
+    (nginx_capture / f"{capture_name}.saved").write_text(
+        "old-nginx\n", encoding="utf-8"
+    )
+    for capture in (unit_capture, nginx_capture):
+        for child in capture.iterdir():
+            child.chmod(0o400)
+        capture.chmod(0o500)
+
+    trace = root / "recovery.trace"
+    trace.write_text("", encoding="utf-8")
+    readiness_status = root / "readiness.rc"
+    readiness_status.write_text(f"{readiness_rc}\n", encoding="utf-8")
+    readiness = rollout / "kivou-api-readiness.sh"
+    readiness.write_text(
+        "#!/usr/bin/env bash\n"
+        f"printf 'readiness\\n' >>{shlex.quote(str(trace))}\n"
+        f"read -r KIVOU_TEST_RC <{shlex.quote(str(readiness_status))}\n"
+        "exit \"$KIVOU_TEST_RC\"\n",
+        encoding="utf-8",
+    )
+    readiness.chmod(0o555)
+    api_state = root / "api.state"
+    nginx_state = root / "nginx.state"
+    api_state.write_text("active\n", encoding="utf-8")
+    nginx_state.write_text("active\n", encoding="utf-8")
+    return {
+        "runtime": runtime,
+        "backend_old": backend_old,
+        "frontend_old": frontend_old,
+        "rollout": rollout,
+        "status": status,
+        "unit_capture": unit_capture,
+        "unit_root": unit_root,
+        "nginx_root": nginx_root,
+        "nginx_path": nginx_path,
+        "readiness": readiness,
+        "trace": trace,
+        "api_state": api_state,
+        "nginx_state": nginx_state,
+    }
+
+
+def autonomous_recovery_harness(
+    source: str, fixture: dict[str, pathlib.Path], *, interrupt: bool
+) -> str:
+    quoted = {key: shlex.quote(str(value)) for key, value in fixture.items()}
+    return f"""\
 set -Eeuo pipefail
-KIVOU_ROLLBACK_DIR={rollout}
+KIVOU_RUNTIME_ROOT={quoted["runtime"]}
+KIVOU_SYSTEMD_UNIT_ROOT={quoted["unit_root"]}
+KIVOU_NGINX_ROOT={quoted["nginx_root"]}
+KIVOU_ROLLBACK_DIR={quoted["rollout"]}
+KIVOU_ROLLOUT_STATUS={quoted["status"]}
+KIVOU_UNIT_CAPTURE_DIR={quoted["unit_capture"]}
+KIVOU_ROLLBACK_READINESS={quoted["readiness"]}
+KIVOU_PREVIOUS_APP_TARGET={quoted["backend_old"]}
+KIVOU_PREVIOUS_FRONTEND_TARGET={quoted["frontend_old"]}
+KIVOU_UNIT_NAMES=(kivou-api.service)
+KIVOU_ROLLOUT_UNITS=(kivou-api.service)
+KIVOU_NGINX_CAPTURE_PATHS=({quoted["nginx_path"]})
+KIVOU_NGINX_SITE_LINKS=()
+KIVOU_NGINX_WAS_ENABLED=enabled
+KIVOU_NGINX_WAS_ACTIVE=active
 KIVOU_RECOVERY_ATTEMPT_DIR=$(mktemp -d "$KIVOU_ROLLBACK_DIR/recovery-attempt.XXXXXX")
-{lifecycle}
+KIVOU_RECOVERY_ATTEMPT_ID=${{KIVOU_RECOVERY_ATTEMPT_DIR##*.}}
+KIVOU_TEST_TRACE={quoted["trace"]}
+KIVOU_TEST_API_STATE={quoted["api_state"]}
+KIVOU_TEST_NGINX_STATE={quoted["nginx_state"]}
+KIVOU_TEST_INTERRUPT={1 if interrupt else 0}
+KIVOU_TEST_PARENT_PID=$$
+
+chown() {{ :; }}
+stat() {{
+  if [ "$1:$2" = "-c:%U:%G:%a" ]; then
+    printf 'root:root:%s\n' "$(command stat -c %a "$3")"
+  else
+    command stat "$@"
+  fi
+}}
+install() {{
+  test "$1:$2:$3:$4:$5:$6:$7" = "-o:root:-g:root:-m:700:-d"
+  /usr/bin/install -m 700 -d "$8"
+}}
+systemctl() {{
+  printf 'systemctl %s\n' "$*" >>"$KIVOU_TEST_TRACE"
+  KIVOU_TEST_ACTION=$1
+  shift
+  KIVOU_TEST_UNIT=${{@: -1}}
+  case "$KIVOU_TEST_UNIT" in
+    (kivou-api.service) KIVOU_TEST_STATE=$KIVOU_TEST_API_STATE ;;
+    (nginx) KIVOU_TEST_STATE=$KIVOU_TEST_NGINX_STATE ;;
+    (*) KIVOU_TEST_STATE= ;;
+  esac
+  case "$KIVOU_TEST_ACTION" in
+    (is-enabled) return 1 ;;
+    (is-active) [ -n "$KIVOU_TEST_STATE" ] && [ "$(sed -n '1p' "$KIVOU_TEST_STATE")" = active ] ;;
+    (stop) [ -z "$KIVOU_TEST_STATE" ] || printf 'inactive\n' >"$KIVOU_TEST_STATE" ;;
+    (start) [ -z "$KIVOU_TEST_STATE" ] || printf 'active\n' >"$KIVOU_TEST_STATE" ;;
+    (disable)
+      case " $* " in (*' --now '*) [ -z "$KIVOU_TEST_STATE" ] || printf 'inactive\n' >"$KIVOU_TEST_STATE" ;; esac
+      ;;
+    (enable|mask|daemon-reload|reload) ;;
+    (*) return 64 ;;
+  esac
+}}
+nginx() {{ printf 'nginx-test\n' >>"$KIVOU_TEST_TRACE"; }}
+find() {{
+  if [ "$KIVOU_TEST_INTERRUPT" = 1 ] && [ "$1" = "$KIVOU_PREVIOUS_FRONTEND_TARGET" ]; then
+    printf 'interrupt-frontend\n' >>"$KIVOU_TEST_TRACE"
+    printf 'interrupt-frontend\n'
+    kill -TERM "$KIVOU_TEST_PARENT_PID"
+    return 143
+  fi
+  command find "$@"
+}}
+{source}
+kivou_run_autonomous_recovery
 """
+
+
+def test_real_autonomous_recovery_retries_after_interruption(
+    tmp_path: pathlib.Path,
+) -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    source = autonomous_recovery_source(body)
+    assert "kivou_recovery_rollback()" in source
+    assert "kivou_run_autonomous_recovery()" in source
+    fixture = prepare_autonomous_recovery_fixture(tmp_path, readiness_rc=0)
+
     interrupted = subprocess.run(
         ["bash"],
-        input=setup
-        + f"""\
-printf 'old-app\n' >{state / "app"}
-kill -TERM $$
-printf 'must-not-continue\n'
-""",
+        input=autonomous_recovery_harness(source, fixture, interrupt=True),
         text=True,
         capture_output=True,
         check=False,
     )
-
     assert interrupted.returncode == 143, interrupted.stderr
-    assert status.read_text(encoding="utf-8") == "PREPARED\n"
-    assert (state / "app").read_text(encoding="utf-8") == "old-app\n"
-    assert not (state / "frontend").exists()
-    assert not tuple(rollout.glob("recovery-attempt.*"))
+    assert fixture["status"].read_text(encoding="utf-8") == "PREPARED\n"
+    assert (fixture["runtime"] / "app").resolve() == fixture["backend_old"]
+    assert (fixture["runtime"] / "frontend").resolve().name == "frontend-new"
+    assert not tuple(fixture["rollout"].glob("recovery-attempt.*"))
 
+    fixture["trace"].write_text("", encoding="utf-8")
     completed = subprocess.run(
         ["bash"],
-        input=setup
-        + f"""\
-printf 'old-app\n' >{state / "app"}
-printf 'old-frontend\n' >{state / "frontend"}
-printf 'old-units\n' >{state / "units"}
-printf 'old-nginx\n' >{state / "nginx"}
-kivou_recovery_cleanup
-printf 'ROLLED_BACK\n' >{status}.new
-mv -Tf {status}.new {status}
-trap - HUP INT TERM EXIT
-""",
+        input=autonomous_recovery_harness(source, fixture, interrupt=False),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert completed.returncode == 0, completed.stderr
+    assert fixture["status"].read_text(encoding="utf-8") == "ROLLED_BACK\n"
+    assert (fixture["runtime"] / "frontend").resolve() == fixture["frontend_old"]
+    assert (fixture["unit_root"] / "kivou-api.service").read_text() == "old-unit\n"
+    assert fixture["nginx_path"].read_text(encoding="utf-8") == "old-nginx\n"
+    trace = fixture["trace"].read_text(encoding="utf-8")
+    assert_fragments_in_order(trace, "readiness", "nginx-test", "systemctl reload nginx")
+    assert not tuple(fixture["rollout"].glob("recovery-attempt.*"))
+
+
+def test_real_autonomous_recovery_readiness_failure_blocks_nginx(
+    tmp_path: pathlib.Path,
+) -> None:
+    source = autonomous_recovery_source(read(PRODUCTION_RUNBOOK))
+    fixture = prepare_autonomous_recovery_fixture(tmp_path, readiness_rc=75)
+
+    result = subprocess.run(
+        ["bash"],
+        input=autonomous_recovery_harness(source, fixture, interrupt=False),
         text=True,
         capture_output=True,
         check=False,
     )
 
-    assert completed.returncode == 0, completed.stderr
-    assert status.read_text(encoding="utf-8") == "ROLLED_BACK\n"
-    assert not tuple(rollout.glob("recovery-attempt.*"))
+    assert result.returncode == 75, result.stderr
+    assert fixture["status"].read_text(encoding="utf-8") == "PREPARED\n"
+    trace = fixture["trace"].read_text(encoding="utf-8")
+    assert "readiness" in trace
+    assert "nginx-test" not in trace
+    assert "systemctl reload nginx" not in trace
+    assert not tuple(fixture["rollout"].glob("recovery-attempt.*"))
 
 
 def test_successful_nginx_publish_is_enabled_and_active_even_when_already_active() -> None:

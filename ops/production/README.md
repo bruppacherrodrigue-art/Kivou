@@ -1125,6 +1125,12 @@ KIVOU_ROLLBACK_READINESS=$KIVOU_ROLLBACK_DIR/kivou-api-readiness.sh
 case "$KIVOU_ROLLBACK_READINESS" in (/srv/kivou/rollbacks/rollout-*/kivou-api-readiness.sh) ;; (*) exit 69 ;; esac
 test -f "$KIVOU_ROLLBACK_READINESS"; test ! -L "$KIVOU_ROLLBACK_READINESS"
 test "$(stat -c '%U:%G:%a' "$KIVOU_ROLLBACK_READINESS")" = root:root:555
+KIVOU_RUNTIME_ROOT=/srv/kivou
+KIVOU_SYSTEMD_UNIT_ROOT=/etc/systemd/system
+KIVOU_NGINX_ROOT=/etc/nginx
+test "$KIVOU_RUNTIME_ROOT" = /srv/kivou
+test "$KIVOU_SYSTEMD_UNIT_ROOT" = /etc/systemd/system
+test "$KIVOU_NGINX_ROOT" = /etc/nginx
 
 KIVOU_UNIT_CAPTURE_DIR=$KIVOU_ROLLBACK_DIR/systemd
 KIVOU_UNIT_NAMES=(
@@ -1145,20 +1151,20 @@ KIVOU_ROLLOUT_UNITS=(
   kivou-ingest@ted.service kivou-ingest-ted.timer
 )
 KIVOU_NGINX_CAPTURE_PATHS=(
-  /etc/nginx/conf.d/kivou-limits.conf
-  /etc/nginx/kivou-proxy-params.conf
-  /etc/nginx/kivou-production-security-headers.conf
-  /etc/nginx/kivou-production-sensitive-link-security-headers.conf
-  /etc/nginx/kivou-sensitive-links-gate.conf
-  /etc/nginx/sites-available/kivou-production-default-deny
-  /etc/nginx/sites-available/kivou
-  /etc/nginx/sites-available/kivou-www
+  "$KIVOU_NGINX_ROOT/conf.d/kivou-limits.conf"
+  "$KIVOU_NGINX_ROOT/kivou-proxy-params.conf"
+  "$KIVOU_NGINX_ROOT/kivou-production-security-headers.conf"
+  "$KIVOU_NGINX_ROOT/kivou-production-sensitive-link-security-headers.conf"
+  "$KIVOU_NGINX_ROOT/kivou-sensitive-links-gate.conf"
+  "$KIVOU_NGINX_ROOT/sites-available/kivou-production-default-deny"
+  "$KIVOU_NGINX_ROOT/sites-available/kivou"
+  "$KIVOU_NGINX_ROOT/sites-available/kivou-www"
 )
 KIVOU_NGINX_SITE_LINKS=(
-  /etc/nginx/sites-enabled/default
-  /etc/nginx/sites-enabled/kivou-production-default-deny
-  /etc/nginx/sites-enabled/kivou
-  /etc/nginx/sites-enabled/kivou-www
+  "$KIVOU_NGINX_ROOT/sites-enabled/default"
+  "$KIVOU_NGINX_ROOT/sites-enabled/kivou-production-default-deny"
+  "$KIVOU_NGINX_ROOT/sites-enabled/kivou"
+  "$KIVOU_NGINX_ROOT/sites-enabled/kivou-www"
 )
 KIVOU_NGINX_WAS_ENABLED=$(sed -n '1p' "$KIVOU_ROLLBACK_DIR/nginx.enabled")
 KIVOU_NGINX_WAS_ACTIVE=$(sed -n '1p' "$KIVOU_ROLLBACK_DIR/nginx.active")
@@ -1172,6 +1178,7 @@ test "$(stat -c '%U:%G:%a' "$KIVOU_RECOVERY_ATTEMPT_DIR")" = root:root:700
 KIVOU_RECOVERY_ATTEMPT_ID=${KIVOU_RECOVERY_ATTEMPT_DIR##*.}
 case "$KIVOU_RECOVERY_ATTEMPT_ID" in (*[!A-Za-z0-9]*|'') exit 69 ;; esac
 test "${#KIVOU_RECOVERY_ATTEMPT_ID}" = 6
+# KIVOU_AUTONOMOUS_RECOVERY_SOURCE_BEGIN
 KIVOU_FAILED_DIR=$KIVOU_RECOVERY_ATTEMPT_DIR
 
 kivou_recovery_cleanup() {
@@ -1209,7 +1216,7 @@ kivou_recovery_capture_nginx() {
   KIVOU_NGINX_CURRENT_BUNDLE=$KIVOU_FAILED_DIR/nginx-current
   install -o root -g root -m 700 -d "$KIVOU_NGINX_CURRENT_BUNDLE"
   for KIVOU_NGINX_PATH in "${KIVOU_NGINX_CAPTURE_PATHS[@]}" "${KIVOU_NGINX_SITE_LINKS[@]}"; do
-    case "$KIVOU_NGINX_PATH" in (/etc/nginx/*) ;; (*) return 69 ;; esac
+    case "$KIVOU_NGINX_PATH" in ("$KIVOU_NGINX_ROOT"/*) ;; (*) return 69 ;; esac
     KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_NGINX_PATH" | sed 's#^/##; s#/#__#g')
     if test -e "$KIVOU_NGINX_PATH" || test -L "$KIVOU_NGINX_PATH"; then
       cp -a "$KIVOU_NGINX_PATH" "$KIVOU_NGINX_CURRENT_BUNDLE/$KIVOU_CAPTURE_NAME.saved"
@@ -1226,7 +1233,7 @@ kivou_recovery_apply_nginx_bundle() {
   case "$KIVOU_EVAC" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/nginx-*) ;; (*) return 69 ;; esac
   install -o root -g root -m 700 -d "$KIVOU_EVAC"
   for KIVOU_NGINX_PATH in "${KIVOU_NGINX_CAPTURE_PATHS[@]}" "${KIVOU_NGINX_SITE_LINKS[@]}"; do
-    case "$KIVOU_NGINX_PATH" in (/etc/nginx/*) ;; (*) return 69 ;; esac
+    case "$KIVOU_NGINX_PATH" in ("$KIVOU_NGINX_ROOT"/*) ;; (*) return 69 ;; esac
     KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_NGINX_PATH" | sed 's#^/##; s#/#__#g')
     if test -e "$KIVOU_NGINX_PATH" || test -L "$KIVOU_NGINX_PATH"; then
       test ! -e "$KIVOU_EVAC/$KIVOU_CAPTURE_NAME"; test ! -L "$KIVOU_EVAC/$KIVOU_CAPTURE_NAME"
@@ -1234,7 +1241,7 @@ kivou_recovery_apply_nginx_bundle() {
     fi
     if test -e "$KIVOU_BUNDLE/$KIVOU_CAPTURE_NAME.saved" || test -L "$KIVOU_BUNDLE/$KIVOU_CAPTURE_NAME.saved"; then
       KIVOU_NGINX_NEW=$KIVOU_NGINX_PATH.recovery-$KIVOU_RECOVERY_ATTEMPT_ID-new
-      case "$KIVOU_NGINX_NEW" in (/etc/nginx/*.recovery-??????-new|/etc/nginx/*/*.recovery-??????-new) ;; (*) return 69 ;; esac
+      case "$KIVOU_NGINX_NEW" in ("$KIVOU_NGINX_ROOT"/*.recovery-??????-new) ;; (*) return 69 ;; esac
       KIVOU_NGINX_STALE=$KIVOU_RECOVERY_ATTEMPT_DIR/stale-$KIVOU_CAPTURE_NAME
       case "$KIVOU_NGINX_STALE" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/stale-*) ;; (*) return 69 ;; esac
       if test -e "$KIVOU_NGINX_NEW" || test -L "$KIVOU_NGINX_NEW"; then
@@ -1289,7 +1296,7 @@ kivou_evaluate_rollback_api_readiness_requirement() {
 kivou_verify_rollback_api_readiness() {
   kivou_evaluate_rollback_api_readiness_requirement
   case "$KIVOU_READINESS_REQUIRED_RC" in (0) ;; (1) return 0 ;; (*) return "$KIVOU_READINESS_REQUIRED_RC" ;; esac
-  test "$(readlink -f /srv/kivou/app)" = "$KIVOU_PREVIOUS_APP_TARGET"
+  test "$(readlink -f "$KIVOU_RUNTIME_ROOT/app")" = "$KIVOU_PREVIOUS_APP_TARGET"
   test -f "$KIVOU_ROLLBACK_READINESS"; test ! -L "$KIVOU_ROLLBACK_READINESS"
   test "$(stat -c '%U:%G:%a' "$KIVOU_ROLLBACK_READINESS")" = root:root:555
   /usr/bin/env -i HOME=/root PATH=/usr/bin:/bin \
@@ -1330,16 +1337,16 @@ kivou_rollback_stop_phase() {
 kivou_rollback_app_phase() {
   case "$KIVOU_PREVIOUS_APP_TARGET" in
     (ABSENT)
-      if test -L /srv/kivou/app; then mv -Tf /srv/kivou/app "$KIVOU_FAILED_DIR/app-link"; else test ! -e /srv/kivou/app; fi
+      if test -L "$KIVOU_RUNTIME_ROOT/app"; then mv -Tf "$KIVOU_RUNTIME_ROOT/app" "$KIVOU_FAILED_DIR/app-link"; else test ! -e "$KIVOU_RUNTIME_ROOT/app"; fi
       ;;
-    (/srv/kivou/releases/backend-*)
+    ("$KIVOU_RUNTIME_ROOT"/releases/backend-*)
       test -d "$KIVOU_PREVIOUS_APP_TARGET"
       test -z "$(find "$KIVOU_PREVIOUS_APP_TARGET" -perm /222 -print -quit)"
       KIVOU_APP_RECOVERY_NEW=$KIVOU_RECOVERY_ATTEMPT_DIR/app-link.new
       case "$KIVOU_APP_RECOVERY_NEW" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/app-link.new) ;; (*) return 69 ;; esac
       test ! -e "$KIVOU_APP_RECOVERY_NEW"; test ! -L "$KIVOU_APP_RECOVERY_NEW"
       ln -s "$KIVOU_PREVIOUS_APP_TARGET" "$KIVOU_APP_RECOVERY_NEW"
-      mv -Tf "$KIVOU_APP_RECOVERY_NEW" /srv/kivou/app
+      mv -Tf "$KIVOU_APP_RECOVERY_NEW" "$KIVOU_RUNTIME_ROOT/app"
       ;;
     (*) return 69 ;;
   esac
@@ -1348,16 +1355,16 @@ kivou_rollback_app_phase() {
 kivou_rollback_frontend_phase() {
   case "$KIVOU_PREVIOUS_FRONTEND_TARGET" in
     (ABSENT)
-      if test -L /srv/kivou/frontend; then mv -Tf /srv/kivou/frontend "$KIVOU_FAILED_DIR/frontend-link"; else test ! -e /srv/kivou/frontend; fi
+      if test -L "$KIVOU_RUNTIME_ROOT/frontend"; then mv -Tf "$KIVOU_RUNTIME_ROOT/frontend" "$KIVOU_FAILED_DIR/frontend-link"; else test ! -e "$KIVOU_RUNTIME_ROOT/frontend"; fi
       ;;
-    (/srv/kivou/releases/frontend-*)
+    ("$KIVOU_RUNTIME_ROOT"/releases/frontend-*)
       test -d "$KIVOU_PREVIOUS_FRONTEND_TARGET"
       test -z "$(find "$KIVOU_PREVIOUS_FRONTEND_TARGET" -perm /222 -print -quit)"
       KIVOU_FRONTEND_RECOVERY_NEW=$KIVOU_RECOVERY_ATTEMPT_DIR/frontend-link.new
       case "$KIVOU_FRONTEND_RECOVERY_NEW" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/frontend-link.new) ;; (*) return 69 ;; esac
       test ! -e "$KIVOU_FRONTEND_RECOVERY_NEW"; test ! -L "$KIVOU_FRONTEND_RECOVERY_NEW"
       ln -s "$KIVOU_PREVIOUS_FRONTEND_TARGET" "$KIVOU_FRONTEND_RECOVERY_NEW"
-      mv -Tf "$KIVOU_FRONTEND_RECOVERY_NEW" /srv/kivou/frontend
+      mv -Tf "$KIVOU_FRONTEND_RECOVERY_NEW" "$KIVOU_RUNTIME_ROOT/frontend"
       ;;
     (*) return 69 ;;
   esac
@@ -1366,14 +1373,14 @@ kivou_rollback_frontend_phase() {
 kivou_rollback_units_phase() {
   install -o root -g root -m 700 -d "$KIVOU_FAILED_DIR/systemd-current"
   for KIVOU_UNIT in "${KIVOU_UNIT_NAMES[@]}"; do
-    KIVOU_UNIT_PATH=/etc/systemd/system/$KIVOU_UNIT
-    case "$KIVOU_UNIT_PATH" in (/etc/systemd/system/kivou-*) ;; (*) return 69 ;; esac
+    KIVOU_UNIT_PATH=$KIVOU_SYSTEMD_UNIT_ROOT/$KIVOU_UNIT
+    case "$KIVOU_UNIT_PATH" in ("$KIVOU_SYSTEMD_UNIT_ROOT"/kivou-*) ;; (*) return 69 ;; esac
     if test -e "$KIVOU_UNIT_PATH" || test -L "$KIVOU_UNIT_PATH"; then
       mv -Tf "$KIVOU_UNIT_PATH" "$KIVOU_FAILED_DIR/systemd-current/$KIVOU_UNIT"
     fi
     if test -e "$KIVOU_UNIT_CAPTURE_DIR/$KIVOU_UNIT.saved" || test -L "$KIVOU_UNIT_CAPTURE_DIR/$KIVOU_UNIT.saved"; then
       KIVOU_UNIT_RECOVERY_NEW=$KIVOU_UNIT_PATH.recovery-$KIVOU_RECOVERY_ATTEMPT_ID-new
-      case "$KIVOU_UNIT_RECOVERY_NEW" in (/etc/systemd/system/kivou-*.recovery-??????-new) ;; (*) return 69 ;; esac
+      case "$KIVOU_UNIT_RECOVERY_NEW" in ("$KIVOU_SYSTEMD_UNIT_ROOT"/kivou-*.recovery-??????-new) ;; (*) return 69 ;; esac
       KIVOU_UNIT_STALE=$KIVOU_RECOVERY_ATTEMPT_DIR/stale-systemd-$KIVOU_UNIT
       case "$KIVOU_UNIT_STALE" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/stale-systemd-kivou-*) ;; (*) return 69 ;; esac
       if test -e "$KIVOU_UNIT_RECOVERY_NEW" || test -L "$KIVOU_UNIT_RECOVERY_NEW"; then
@@ -1434,16 +1441,22 @@ kivou_recovery_rollback() {
   return "$KIVOU_RECOVERY_RC"
 }
 
-set +e
-kivou_recovery_rollback
-KIVOU_RECOVERY_RC=$?
-set -e
-if [ "$KIVOU_RECOVERY_RC" -ne 0 ]; then exit "$KIVOU_RECOVERY_RC"; fi
-kivou_recovery_cleanup
-KIVOU_STATUS_NEW=$KIVOU_ROLLOUT_STATUS.recovered-$$
-case "$KIVOU_STATUS_NEW" in (/srv/kivou/rollbacks/rollout-*/rollout.status.recovered-*) ;; (*) exit 69 ;; esac
-printf '%s\n' ROLLED_BACK >"$KIVOU_STATUS_NEW"
-chown root:root "$KIVOU_STATUS_NEW"; chmod 600 "$KIVOU_STATUS_NEW"
-mv -Tf "$KIVOU_STATUS_NEW" "$KIVOU_ROLLOUT_STATUS"
-trap - HUP INT TERM EXIT
+kivou_run_autonomous_recovery() {
+  set +e
+  kivou_recovery_rollback
+  KIVOU_RECOVERY_RC=$?
+  set -e
+  if [ "$KIVOU_RECOVERY_RC" -ne 0 ]; then return "$KIVOU_RECOVERY_RC"; fi
+  kivou_recovery_cleanup
+  test "$KIVOU_ROLLOUT_STATUS" = "$KIVOU_ROLLBACK_DIR/rollout.status"
+  KIVOU_STATUS_NEW=$KIVOU_ROLLOUT_STATUS.recovered-$$
+  case "$KIVOU_STATUS_NEW" in ("$KIVOU_ROLLOUT_STATUS".recovered-*) ;; (*) return 69 ;; esac
+  printf '%s\n' ROLLED_BACK >"$KIVOU_STATUS_NEW"
+  chown root:root "$KIVOU_STATUS_NEW"; chmod 600 "$KIVOU_STATUS_NEW"
+  mv -Tf "$KIVOU_STATUS_NEW" "$KIVOU_ROLLOUT_STATUS"
+  trap - HUP INT TERM EXIT
+}
+# KIVOU_AUTONOMOUS_RECOVERY_SOURCE_END
+
+kivou_run_autonomous_recovery
 ```
