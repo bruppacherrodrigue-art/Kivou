@@ -25,11 +25,10 @@ jobs:
   backend:
     name: Backend (Python 3.12 · uv)
     runs-on: ubuntu-latest
-    # La suite dure ~22 min en local et davantage sur un runner partagé. À 20,
-    # l'étape « Tests » était tuée à 20 min 03 s et le job rendu `cancelled` —
-    # ce qui se lisait comme une stalle (#71) alors que c'était le budget qui
-    # était dépassé. 40 laisse une marge sans masquer un vrai blocage.
-    # Réduire la DURÉE de la suite est suivi séparément.
+    # À arbre backend identique, les runners partagés ont varié de 19 min 11 s à
+    # 30 min 09 s, et les runs lentes censurées projetaient 66 min 04 s à
+    # 71 min 59 s. Une marge de 20 % sur le pire cas donne 86 min 23 s ; 90 est
+    # l'arrondi supérieur à cinq minutes. Réduire la suite reste suivi séparément.
     timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7

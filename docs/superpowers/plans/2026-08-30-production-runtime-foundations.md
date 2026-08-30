@@ -258,7 +258,9 @@ def test_audited_staging_fast_source_units_are_versioned() -> None:
         assert schedule in timer
         assert "Persistent=true" in timer
         assert "EnvironmentFile=/etc/kivou/staging.env" in service
-        assert "/run/kivou-ingestion.lock" in service
+        assert "RuntimeDirectory=kivou" in service
+        assert "RuntimeDirectoryMode=0700" in service
+        assert "/run/kivou/ingestion.lock" in service
         assert f"-m signals.ingestion run --source {source}" in service
 
 
@@ -270,6 +272,11 @@ def test_production_units_never_reference_staging_or_acquisition() -> None:
     assert "apollo" not in combined.lower()
     assert "acquisition" not in combined.lower()
     assert "EnvironmentFile=/etc/kivou/production.env" in combined
+    for path in paths:
+        if path.suffix == ".service":
+            service = read(path)
+            assert "InaccessiblePaths=/srv/kivou/.ssh" in service
+            assert "ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app" in service
 
 
 def test_production_api_is_loopback_only_and_hardened() -> None:
@@ -290,7 +297,9 @@ def test_production_api_is_loopback_only_and_hardened() -> None:
 
 def test_production_ingestion_uses_one_shared_lock_and_exact_sources() -> None:
     service = read(PRODUCTION / "kivou-ingest@.service")
-    assert "/run/kivou-ingestion.lock" in service
+    assert "RuntimeDirectory=kivou" in service
+    assert "RuntimeDirectoryMode=0700" in service
+    assert "/run/kivou/ingestion.lock" in service
     assert "-m signals.ingestion run --source %i" in service
     schedules = {
         "simap": "OnCalendar=*-*-* 00/2:05:00",
@@ -343,7 +352,9 @@ User=kivou
 Group=kivou
 WorkingDirectory=/srv/kivou/app
 EnvironmentFile=/etc/kivou/staging.env
-ExecStart=/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou-ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source simap
+RuntimeDirectory=kivou
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou/ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source simap
 TimeoutStartSec=30min
 StandardOutput=journal
 StandardError=journal
@@ -352,7 +363,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/run/kivou-ingestion.lock
+ReadWritePaths=/run/kivou
 ```
 
 Create `ops/systemd/kivou-ingest-boamp.service` with:
@@ -369,7 +380,9 @@ User=kivou
 Group=kivou
 WorkingDirectory=/srv/kivou/app
 EnvironmentFile=/etc/kivou/staging.env
-ExecStart=/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou-ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source boamp
+RuntimeDirectory=kivou
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou/ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source boamp
 TimeoutStartSec=30min
 StandardOutput=journal
 StandardError=journal
@@ -378,7 +391,7 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/run/kivou-ingestion.lock
+ReadWritePaths=/run/kivou
 ```
 
 Create `ops/systemd/kivou-ingest-simap.timer`:
@@ -427,7 +440,9 @@ User=kivou
 Group=kivou
 WorkingDirectory=/srv/kivou/app
 EnvironmentFile=/etc/kivou/production.env
-ExecStart=/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou-ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source %i
+RuntimeDirectory=kivou
+RuntimeDirectoryMode=0700
+ExecStart=/usr/bin/flock --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou/ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source %i
 TimeoutStartSec=30min
 TimeoutStopSec=90s
 StandardOutput=journal
@@ -439,13 +454,15 @@ PrivateTmp=true
 PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
+InaccessiblePaths=/srv/kivou/.ssh
+ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-ReadWritePaths=/run/kivou-ingestion.lock
+ReadWritePaths=/run/kivou
 ```
 
 Create `ops/systemd/production/kivou-ingest-simap.timer`:
@@ -516,6 +533,13 @@ Unit=kivou-ingest@ted.service
 WantedBy=timers.target
 ```
 
+The `kivou` account uses the repository deploy key only while constructing the
+reviewed release. Every production service namespace makes
+`/srv/kivou/.ssh` inaccessible and explicitly mounts both the release tree and
+the `/srv/kivou/app` target read-only. The activation runbook additionally
+transfers the finished release to `root:root` and removes all file and directory
+write bits before any service starts.
+
 - [ ] **Step 5: Create production API, alerts and backup units**
 
 Create `ops/systemd/production/kivou-api.service`:
@@ -542,6 +566,8 @@ NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
+InaccessiblePaths=/srv/kivou/.ssh
+ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
 ReadWritePaths=/srv/kivou/run
 ProtectKernelTunables=true
 ProtectKernelModules=true
@@ -580,6 +606,8 @@ PrivateTmp=true
 PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
+InaccessiblePaths=/srv/kivou/.ssh
+ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
 ProtectKernelTunables=true
 ProtectControlGroups=true
 ProtectKernelModules=true
@@ -626,6 +654,8 @@ PrivateTmp=true
 PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
+InaccessiblePaths=/srv/kivou/.ssh
+ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
 ProtectKernelTunables=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
@@ -1215,6 +1245,13 @@ def test_production_runbook_is_disabled_first_and_gate_ordered() -> None:
         "systemctl disable --now",
         "pg_restore --list",
         "restic restore latest",
+        "trap kivou_restore_cleanup EXIT",
+        "chown -R postgres:postgres",
+        "dropdb --if-exists",
+        "chown -R root:root",
+        "chmod -R a-w",
+        "KIVOU_PRODUCTION_API_PORT=8000",
+        "systemctl enable --now kivou-api.service",
         "kivou-ingest@simap.service",
         "kivou-ingest@boamp.service",
         "kivou-ingest@decp.service",
@@ -1229,6 +1266,7 @@ def test_production_runbook_is_disabled_first_and_gate_ordered() -> None:
         "systemctl enable --now kivou-ingest-simap.timer"
     )
     assert "source /etc/kivou/production.env" not in body
+    assert "KIVOU_PRODUCTION_API_PORT=8001" not in body
     assert "systemctl enable --now kivou-acquisition" not in body
     assert "certbot --nginx" not in body
 ```
@@ -1295,6 +1333,11 @@ sudo -u kivou /usr/bin/env --chdir="$KIVOU_PRODUCTION_BACKEND/frontend" npm run 
 sudo -u kivou /usr/bin/env --chdir="$KIVOU_PRODUCTION_BACKEND/frontend" npx tsc -b
 sudo -u kivou /usr/bin/env --chdir="$KIVOU_PRODUCTION_BACKEND/frontend" npm run lint
 test -z "$(sudo -u kivou git -C "$KIVOU_PRODUCTION_BACKEND" status --porcelain)"
+sudo chown -R root:root "$KIVOU_PRODUCTION_BACKEND"
+sudo chmod -R a-w "$KIVOU_PRODUCTION_BACKEND"
+test "$(sudo stat -c '%U:%G' "$KIVOU_PRODUCTION_BACKEND")" = root:root
+test -z "$(sudo find "$KIVOU_PRODUCTION_BACKEND" -xdev \
+  \( -type f -o -type d \) -perm /0222 -print -quit)"
 ```
 
 Before installing any unit, validate protected files and disable every timer:
@@ -1330,6 +1373,28 @@ KIVOU_LOCAL_DUMP=$(sudo find /srv/kivou/backups -maxdepth 1 -type f \
   -name 'kivou-*.dump' -printf '%T@ %p\n' | sort -nr | awk 'NR == 1 {$1=""; sub(/^ /, ""); print}')
 case "$KIVOU_LOCAL_DUMP" in /srv/kivou/backups/kivou-*.dump) ;; *) exit 69 ;; esac
 sudo pg_restore --list "$KIVOU_LOCAL_DUMP" >/dev/null
+KIVOU_RESTORE_DIR=
+KIVOU_RESTORE_DB=
+kivou_restore_cleanup() {
+  if [[ -n "${KIVOU_RESTORE_DB:-}" ]]; then
+    printf '%s\n' "$KIVOU_RESTORE_DB" |
+      grep -Eq '^kivou_restore_[0-9]{14}_[0-9]+$' || return 69
+    sudo -u postgres dropdb --if-exists "$KIVOU_RESTORE_DB"
+  fi
+  if [[ -n "${KIVOU_RESTORE_DIR:-}" ]]; then
+    case "$KIVOU_RESTORE_DIR" in
+      /srv/kivou/validation/restore.*) ;;
+      *) return 69 ;;
+    esac
+    if sudo test -e "$KIVOU_RESTORE_DIR"; then
+      sudo test -d "$KIVOU_RESTORE_DIR"
+      sudo test ! -L "$KIVOU_RESTORE_DIR"
+      sudo rm -rf --one-file-system -- "$KIVOU_RESTORE_DIR"
+    fi
+  fi
+  return 0
+}
+trap kivou_restore_cleanup EXIT
 KIVOU_RESTORE_DIR=$(sudo mktemp -d /srv/kivou/validation/restore.XXXXXX)
 sudo chmod 700 "$KIVOU_RESTORE_DIR"
 sudo systemd-run --wait --pipe --collect \
@@ -1339,6 +1404,8 @@ KIVOU_RESTORED_DUMP=$(sudo find "$KIVOU_RESTORE_DIR" -type f \
   -name 'kivou-*.dump' -print -quit)
 case "$KIVOU_RESTORED_DUMP" in "$KIVOU_RESTORE_DIR"/*/kivou-*.dump) ;; *) exit 69 ;; esac
 sudo pg_restore --list "$KIVOU_RESTORED_DUMP" >/dev/null
+sudo chown -R postgres:postgres "$KIVOU_RESTORE_DIR"
+test "$(sudo stat -c '%U:%G:%a' "$KIVOU_RESTORE_DIR")" = postgres:postgres:700
 KIVOU_RESTORE_DB=kivou_restore_$(date -u +%Y%m%d%H%M%S)_$$
 printf '%s\n' "$KIVOU_RESTORE_DB" | grep -Eq '^kivou_restore_[0-9]{14}_[0-9]+$'
 sudo -u postgres createdb "$KIVOU_RESTORE_DB"
@@ -1346,14 +1413,15 @@ sudo -u postgres pg_restore --exit-on-error --no-owner --no-privileges \
   --dbname "$KIVOU_RESTORE_DB" "$KIVOU_RESTORED_DUMP"
 sudo -u postgres psql --no-psqlrc --tuples-only --no-align \
   --dbname "$KIVOU_RESTORE_DB" --command 'select version_num from alembic_version;'
-sudo -u postgres dropdb "$KIVOU_RESTORE_DB"
+kivou_restore_cleanup
+trap - EXIT
 ```
 
 The nginx candidate is rendered only after the certificate files exist:
 
 ```bash
 KIVOU_PRODUCTION_HOST=kivou.eu
-KIVOU_PRODUCTION_API_PORT=8001
+KIVOU_PRODUCTION_API_PORT=8000
 test -f /etc/letsencrypt/live/kivou.eu/fullchain.pem
 test -f /etc/letsencrypt/live/kivou.eu/privkey.pem
 test -f /etc/letsencrypt/live/kivou.eu/chain.pem
@@ -1414,7 +1482,16 @@ case "$KIVOU_PREVIOUS_FRONTEND" in ABSENT|/srv/kivou/releases/frontend-*) ;; *) 
 KIVOU_APP_NEXT_DIR=$(sudo mktemp -d /srv/kivou/.app-next.XXXXXX)
 sudo ln -s "$KIVOU_PRODUCTION_BACKEND" "$KIVOU_APP_NEXT_DIR/app.next"
 sudo mv -Tf "$KIVOU_APP_NEXT_DIR/app.next" /srv/kivou/app
+sudo systemctl enable --now kivou-api.service
+sudo systemctl is-active --quiet kivou-api.service
+sudo "$KIVOU_PRODUCTION_BACKEND/ops/bin/kivou-wait-http.sh" \
+  kivou-api.service 8000
 ```
+
+Only after this loopback port-8000 proof may the already validated nginx
+candidate be published and nginx reloaded. The rendered upstream port and the
+versioned Uvicorn service therefore remain identical; the runbook never points
+nginx at the staging-only green port 8001.
 
 Manual source proof and enablement remains ordered and source-local:
 
