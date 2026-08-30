@@ -1180,11 +1180,53 @@ case "$KIVOU_RECOVERY_ATTEMPT_ID" in (*[!A-Za-z0-9]*|'') exit 69 ;; esac
 test "${#KIVOU_RECOVERY_ATTEMPT_ID}" = 6
 # KIVOU_AUTONOMOUS_RECOVERY_SOURCE_BEGIN
 KIVOU_FAILED_DIR=$KIVOU_RECOVERY_ATTEMPT_DIR
+KIVOU_RECOVERY_EXTERNAL_TEMPS=$KIVOU_RECOVERY_ATTEMPT_DIR/external-temporaries.manifest
+case "$KIVOU_RECOVERY_EXTERNAL_TEMPS" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/external-temporaries.manifest) ;; (*) exit 69 ;; esac
+: >"$KIVOU_RECOVERY_EXTERNAL_TEMPS"
+chmod 600 "$KIVOU_RECOVERY_EXTERNAL_TEMPS"
+
+kivou_recovery_validate_external_temp() {
+  KIVOU_EXTERNAL_TEMP=$1
+  case "$KIVOU_EXTERNAL_TEMP" in (*$'\n'*) return 69 ;; esac
+  KIVOU_EXTERNAL_TEMP_PARENT=${KIVOU_EXTERNAL_TEMP%/*}
+  KIVOU_EXTERNAL_TEMP_NAME=${KIVOU_EXTERNAL_TEMP##*/}
+  KIVOU_EXTERNAL_TEMP_PARENT_REAL=$(readlink -f "$KIVOU_EXTERNAL_TEMP_PARENT")
+  test "$KIVOU_EXTERNAL_TEMP_PARENT_REAL" = "$KIVOU_EXTERNAL_TEMP_PARENT"
+  if [ "$KIVOU_EXTERNAL_TEMP_PARENT" = "$KIVOU_SYSTEMD_UNIT_ROOT" ]; then
+    case "$KIVOU_EXTERNAL_TEMP_NAME" in (kivou-*.recovery-"$KIVOU_RECOVERY_ATTEMPT_ID"-new) ;; (*) return 69 ;; esac
+  else
+    case "$KIVOU_EXTERNAL_TEMP_PARENT" in ("$KIVOU_NGINX_ROOT"|"$KIVOU_NGINX_ROOT"/*) ;; (*) return 69 ;; esac
+    case "$KIVOU_EXTERNAL_TEMP_NAME" in (*.recovery-"$KIVOU_RECOVERY_ATTEMPT_ID"-new) ;; (*) return 69 ;; esac
+  fi
+}
+
+kivou_recovery_register_external_temp() {
+  KIVOU_EXTERNAL_TEMP=$1
+  kivou_recovery_validate_external_temp "$KIVOU_EXTERNAL_TEMP"
+  test -f "$KIVOU_RECOVERY_EXTERNAL_TEMPS"
+  test ! -L "$KIVOU_RECOVERY_EXTERNAL_TEMPS"
+  if ! grep -Fqx -- "$KIVOU_EXTERNAL_TEMP" "$KIVOU_RECOVERY_EXTERNAL_TEMPS"; then
+    printf '%s\n' "$KIVOU_EXTERNAL_TEMP" >>"$KIVOU_RECOVERY_EXTERNAL_TEMPS"
+  fi
+}
 
 kivou_recovery_cleanup() {
   case "$KIVOU_RECOVERY_ATTEMPT_DIR" in ("$KIVOU_ROLLBACK_DIR"/recovery-attempt.??????) ;; (*) return 69 ;; esac
   if test -e "$KIVOU_RECOVERY_ATTEMPT_DIR"; then
     test -d "$KIVOU_RECOVERY_ATTEMPT_DIR"; test ! -L "$KIVOU_RECOVERY_ATTEMPT_DIR"
+    test -f "$KIVOU_RECOVERY_EXTERNAL_TEMPS"; test ! -L "$KIVOU_RECOVERY_EXTERNAL_TEMPS"
+    KIVOU_EXTERNAL_TEMP_INDEX=0
+    while IFS= read -r KIVOU_EXTERNAL_TEMP; do
+      test -n "$KIVOU_EXTERNAL_TEMP"
+      kivou_recovery_validate_external_temp "$KIVOU_EXTERNAL_TEMP"
+      if test -e "$KIVOU_EXTERNAL_TEMP" || test -L "$KIVOU_EXTERNAL_TEMP"; then
+        KIVOU_EXTERNAL_TEMP_INDEX=$((KIVOU_EXTERNAL_TEMP_INDEX + 1))
+        KIVOU_EXTERNAL_TEMP_EVAC=$KIVOU_RECOVERY_ATTEMPT_DIR/cleanup-external-$KIVOU_EXTERNAL_TEMP_INDEX
+        case "$KIVOU_EXTERNAL_TEMP_EVAC" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/cleanup-external-[1-9]*) ;; (*) return 69 ;; esac
+        test ! -e "$KIVOU_EXTERNAL_TEMP_EVAC"; test ! -L "$KIVOU_EXTERNAL_TEMP_EVAC"
+        mv -Tf "$KIVOU_EXTERNAL_TEMP" "$KIVOU_EXTERNAL_TEMP_EVAC"
+      fi
+    done <"$KIVOU_RECOVERY_EXTERNAL_TEMPS"
     find "$KIVOU_RECOVERY_ATTEMPT_DIR" -xdev -depth -delete
   fi
 }
@@ -1242,6 +1284,7 @@ kivou_recovery_apply_nginx_bundle() {
     if test -e "$KIVOU_BUNDLE/$KIVOU_CAPTURE_NAME.saved" || test -L "$KIVOU_BUNDLE/$KIVOU_CAPTURE_NAME.saved"; then
       KIVOU_NGINX_NEW=$KIVOU_NGINX_PATH.recovery-$KIVOU_RECOVERY_ATTEMPT_ID-new
       case "$KIVOU_NGINX_NEW" in ("$KIVOU_NGINX_ROOT"/*.recovery-??????-new) ;; (*) return 69 ;; esac
+      kivou_recovery_register_external_temp "$KIVOU_NGINX_NEW"
       KIVOU_NGINX_STALE=$KIVOU_RECOVERY_ATTEMPT_DIR/stale-$KIVOU_CAPTURE_NAME
       case "$KIVOU_NGINX_STALE" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/stale-*) ;; (*) return 69 ;; esac
       if test -e "$KIVOU_NGINX_NEW" || test -L "$KIVOU_NGINX_NEW"; then
@@ -1381,6 +1424,7 @@ kivou_rollback_units_phase() {
     if test -e "$KIVOU_UNIT_CAPTURE_DIR/$KIVOU_UNIT.saved" || test -L "$KIVOU_UNIT_CAPTURE_DIR/$KIVOU_UNIT.saved"; then
       KIVOU_UNIT_RECOVERY_NEW=$KIVOU_UNIT_PATH.recovery-$KIVOU_RECOVERY_ATTEMPT_ID-new
       case "$KIVOU_UNIT_RECOVERY_NEW" in ("$KIVOU_SYSTEMD_UNIT_ROOT"/kivou-*.recovery-??????-new) ;; (*) return 69 ;; esac
+      kivou_recovery_register_external_temp "$KIVOU_UNIT_RECOVERY_NEW"
       KIVOU_UNIT_STALE=$KIVOU_RECOVERY_ATTEMPT_DIR/stale-systemd-$KIVOU_UNIT
       case "$KIVOU_UNIT_STALE" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/stale-systemd-kivou-*) ;; (*) return 69 ;; esac
       if test -e "$KIVOU_UNIT_RECOVERY_NEW" || test -L "$KIVOU_UNIT_RECOVERY_NEW"; then

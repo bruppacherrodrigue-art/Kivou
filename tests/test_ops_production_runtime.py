@@ -1840,7 +1840,7 @@ def prepare_autonomous_recovery_fixture(
 
 
 def autonomous_recovery_harness(
-    source: str, fixture: dict[str, pathlib.Path], *, interrupt: bool
+    source: str, fixture: dict[str, pathlib.Path], *, interrupt_at: str | None
 ) -> str:
     quoted = {key: shlex.quote(str(value)) for key, value in fixture.items()}
     return f"""\
@@ -1865,7 +1865,7 @@ KIVOU_RECOVERY_ATTEMPT_ID=${{KIVOU_RECOVERY_ATTEMPT_DIR##*.}}
 KIVOU_TEST_TRACE={quoted["trace"]}
 KIVOU_TEST_API_STATE={quoted["api_state"]}
 KIVOU_TEST_NGINX_STATE={quoted["nginx_state"]}
-KIVOU_TEST_INTERRUPT={1 if interrupt else 0}
+KIVOU_TEST_INTERRUPT_AT={shlex.quote(interrupt_at or "none")}
 KIVOU_TEST_PARENT_PID=$$
 
 chown() {{ :; }}
@@ -1902,9 +1902,28 @@ systemctl() {{
     (*) return 64 ;;
   esac
 }}
-nginx() {{ printf 'nginx-test\n' >>"$KIVOU_TEST_TRACE"; }}
+cp() {{
+  command cp "$@"
+  KIVOU_TEST_COPY_TARGET=${{@: -1}}
+  if [ "$KIVOU_TEST_INTERRUPT_AT" = nginx-temp ]; then
+    case "$KIVOU_TEST_COPY_TARGET" in
+      ("$KIVOU_NGINX_ROOT"/*.recovery-??????-new)
+        printf 'interrupt-nginx-temp\n' >>"$KIVOU_TEST_TRACE"
+        kill -TERM "$KIVOU_TEST_PARENT_PID"
+        return 143
+        ;;
+    esac
+  fi
+}}
+nginx() {{
+  if /usr/bin/find "$KIVOU_NGINX_ROOT" -name '*.recovery-*-new' -print -quit | grep -q .; then
+    printf 'nginx-duplicate-temp\n' >>"$KIVOU_TEST_TRACE"
+    return 76
+  fi
+  printf 'nginx-test\n' >>"$KIVOU_TEST_TRACE"
+}}
 find() {{
-  if [ "$KIVOU_TEST_INTERRUPT" = 1 ] && [ "$1" = "$KIVOU_PREVIOUS_FRONTEND_TARGET" ]; then
+  if [ "$KIVOU_TEST_INTERRUPT_AT" = frontend ] && [ "$1" = "$KIVOU_PREVIOUS_FRONTEND_TARGET" ]; then
     printf 'interrupt-frontend\n' >>"$KIVOU_TEST_TRACE"
     printf 'interrupt-frontend\n'
     kill -TERM "$KIVOU_TEST_PARENT_PID"
@@ -1928,7 +1947,7 @@ def test_real_autonomous_recovery_retries_after_interruption(
 
     interrupted = subprocess.run(
         ["bash"],
-        input=autonomous_recovery_harness(source, fixture, interrupt=True),
+        input=autonomous_recovery_harness(source, fixture, interrupt_at="frontend"),
         text=True,
         capture_output=True,
         check=False,
@@ -1942,7 +1961,7 @@ def test_real_autonomous_recovery_retries_after_interruption(
     fixture["trace"].write_text("", encoding="utf-8")
     completed = subprocess.run(
         ["bash"],
-        input=autonomous_recovery_harness(source, fixture, interrupt=False),
+        input=autonomous_recovery_harness(source, fixture, interrupt_at=None),
         text=True,
         capture_output=True,
         check=False,
@@ -1954,6 +1973,8 @@ def test_real_autonomous_recovery_retries_after_interruption(
     assert fixture["nginx_path"].read_text(encoding="utf-8") == "old-nginx\n"
     trace = fixture["trace"].read_text(encoding="utf-8")
     assert_fragments_in_order(trace, "readiness", "nginx-test", "systemctl reload nginx")
+    assert not tuple(fixture["nginx_root"].glob("**/*.recovery-*-new"))
+    assert not tuple(fixture["unit_root"].glob("*.recovery-*-new"))
     assert not tuple(fixture["rollout"].glob("recovery-attempt.*"))
 
 
@@ -1965,7 +1986,7 @@ def test_real_autonomous_recovery_readiness_failure_blocks_nginx(
 
     result = subprocess.run(
         ["bash"],
-        input=autonomous_recovery_harness(source, fixture, interrupt=False),
+        input=autonomous_recovery_harness(source, fixture, interrupt_at=None),
         text=True,
         capture_output=True,
         check=False,
@@ -1978,6 +1999,91 @@ def test_real_autonomous_recovery_readiness_failure_blocks_nginx(
     assert "nginx-test" not in trace
     assert "systemctl reload nginx" not in trace
     assert not tuple(fixture["rollout"].glob("recovery-attempt.*"))
+
+
+def test_autonomous_recovery_registers_every_external_temp_before_creation() -> None:
+    source = autonomous_recovery_source(read(PRODUCTION_RUNBOOK))
+
+    assert "KIVOU_RECOVERY_EXTERNAL_TEMPS=" in source
+    assert "kivou_recovery_validate_external_temp()" in source
+    assert "kivou_recovery_register_external_temp()" in source
+    validator = source[
+        source.index("kivou_recovery_validate_external_temp()") : source.index(
+            "kivou_recovery_register_external_temp()"
+        )
+    ]
+    assert "KIVOU_EXTERNAL_TEMP_PARENT=" in validator
+    assert 'readlink -f "$KIVOU_EXTERNAL_TEMP_PARENT"' in validator
+    assert 'test "$KIVOU_EXTERNAL_TEMP_PARENT_REAL"' in validator
+    assert_fragments_in_order(
+        source,
+        "kivou_recovery_cleanup()",
+        'while IFS= read -r KIVOU_EXTERNAL_TEMP',
+        'kivou_recovery_validate_external_temp "$KIVOU_EXTERNAL_TEMP"',
+        'mv -Tf "$KIVOU_EXTERNAL_TEMP" "$KIVOU_EXTERNAL_TEMP_EVAC"',
+    )
+    for temp, creation in (
+        ("$KIVOU_NGINX_NEW", 'cp -a "$KIVOU_BUNDLE/'),
+        ("$KIVOU_UNIT_RECOVERY_NEW", 'cp -a "$KIVOU_UNIT_CAPTURE_DIR/'),
+    ):
+        register = source.index(f'kivou_recovery_register_external_temp "{temp}"')
+        create = source.index(creation, register)
+        assert register < create
+    cleanup = source[
+        source.index("kivou_recovery_cleanup()") : source.index(
+            "kivou_recovery_on_exit()"
+        )
+    ]
+    assert "rm " not in cleanup
+    assert "recovery-*-new" not in cleanup
+
+
+def test_real_recovery_cleans_interrupted_nginx_temp_before_retry(
+    tmp_path: pathlib.Path,
+) -> None:
+    source = autonomous_recovery_source(read(PRODUCTION_RUNBOOK))
+    fixture = prepare_autonomous_recovery_fixture(tmp_path, readiness_rc=0)
+    unregistered = fixture["unit_root"] / "unregistered.recovery-OTHER1-new"
+    unregistered.write_text("keep\n", encoding="utf-8")
+    canonical_sentinel = fixture["nginx_root"] / "canonical-keep.conf"
+    canonical_sentinel.write_text("keep\n", encoding="utf-8")
+
+    interrupted = subprocess.run(
+        ["bash"],
+        input=autonomous_recovery_harness(
+            source, fixture, interrupt_at="nginx-temp"
+        ),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert interrupted.returncode == 143, interrupted.stderr
+    assert fixture["status"].read_text(encoding="utf-8") == "PREPARED\n"
+    assert "interrupt-nginx-temp" in fixture["trace"].read_text(encoding="utf-8")
+    assert not tuple(fixture["nginx_root"].glob("**/*.recovery-*-new"))
+    assert not tuple(fixture["rollout"].glob("recovery-attempt.*"))
+    assert unregistered.read_text(encoding="utf-8") == "keep\n"
+    assert canonical_sentinel.read_text(encoding="utf-8") == "keep\n"
+
+    fixture["trace"].write_text("", encoding="utf-8")
+    completed = subprocess.run(
+        ["bash"],
+        input=autonomous_recovery_harness(source, fixture, interrupt_at=None),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert fixture["status"].read_text(encoding="utf-8") == "ROLLED_BACK\n"
+    trace = fixture["trace"].read_text(encoding="utf-8")
+    assert_fragments_in_order(trace, "readiness", "nginx-test", "systemctl reload nginx")
+    assert "nginx-duplicate-temp" not in trace
+    assert not tuple(fixture["nginx_root"].glob("**/*.recovery-*-new"))
+    assert not tuple(fixture["rollout"].glob("recovery-attempt.*"))
+    assert unregistered.read_text(encoding="utf-8") == "keep\n"
+    assert canonical_sentinel.read_text(encoding="utf-8") == "keep\n"
 
 
 def test_successful_nginx_publish_is_enabled_and_active_even_when_already_active() -> None:
