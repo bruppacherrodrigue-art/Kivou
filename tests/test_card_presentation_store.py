@@ -1261,7 +1261,12 @@ def test_postgresql_authority_lock_serializes_a_concurrent_award_change() -> Non
     authority_transaction = authority_connection.begin()
     mutation = threading.Thread(target=mutate_award, daemon=True)
     try:
-        authority_connection.execute(_locked_signal_statement(locked_source)).one()
+        first = _publish(
+            authority_connection,
+            source=locked_source,
+            payload=locked_payload,
+            metadata=locked_metadata,
+        )
         mutation.start()
         assert mutation_started.wait(timeout=5)
         assert mutation_backend_pid
@@ -1282,12 +1287,6 @@ def test_postgresql_authority_lock_serializes_a_concurrent_award_change() -> Non
         assert wait_event == "Lock"
         assert not mutation_finished.is_set()
 
-        first = _publish(
-            authority_connection,
-            source=locked_source,
-            payload=locked_payload,
-            metadata=locked_metadata,
-        )
         authority_transaction.commit()
         assert mutation_finished.wait(timeout=5)
         mutation.join(timeout=1)
