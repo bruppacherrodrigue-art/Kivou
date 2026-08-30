@@ -13,6 +13,10 @@ REPOSITORY = pathlib.Path(__file__).resolve().parents[1]
 SYSTEMD = REPOSITORY / "ops/systemd"
 PRODUCTION = SYSTEMD / "production"
 PRODUCTION_RUNBOOK = REPOSITORY / "ops/production/README.md"
+PRODUCTION_RELEASE_PLAN = (
+    REPOSITORY
+    / "docs/superpowers/plans/2026-08-30-production-saas-signal-engine-release.md"
+)
 NGINX = REPOSITORY / "ops/nginx"
 PRODUCTION_NGINX = NGINX / "kivou-production.conf"
 PRODUCTION_WWW_NGINX = NGINX / "kivou-production-www.conf"
@@ -902,6 +906,13 @@ def test_release_one_runbook_is_explicitly_non_executing_and_fail_closed() -> No
     assert not re.search(r"rm\s+[^\n]*(?:/srv/kivou/releases|/srv/kivou/backups)", commands)
 
 
+def test_release_two_plan_uses_the_public_stripe_webhook_route() -> None:
+    body = read(PRODUCTION_RELEASE_PLAN)
+
+    assert "https://kivou.eu/webhooks/stripe" in body
+    assert "https://kivou.eu/api/webhooks/stripe" not in body
+
+
 def test_every_release_one_shell_block_is_strict_and_syntax_valid() -> None:
     blocks = runbook_shell_blocks(read(PRODUCTION_RUNBOOK))
 
@@ -1001,7 +1012,13 @@ def test_immutable_git_integrity_check_does_not_refresh_index(tmp_path: pathlib.
     stat = tracked.stat()
     os.utime(tracked, ns=(stat.st_atime_ns, stat.st_mtime_ns + 2_000_000_000))
     for path in sorted(repository.rglob("*"), reverse=True):
-        path.chmod(0o555 if path.is_dir() else 0o444)
+        try:
+            path.chmod(0o555 if path.is_dir() else 0o444)
+        except FileNotFoundError:
+            # Git maintenance lock files may disappear after rglob snapshots them.
+            if path.relative_to(repository).as_posix() == ".git/objects/maintenance.lock":
+                continue
+            raise
     repository.chmod(0o555)
 
     index = repository / ".git" / "index"

@@ -305,7 +305,7 @@ If credentials are unavailable, status is BLOCKED_SWISS_BACKUP and public activa
 
 - [ ] **Step 2: Stripe LIVE gate without payment**
 
-Use a production-only restricted API key where the existing Checkout/Billing endpoints permit it; apply an IP restriction to 179.237.105.52 when compatible. Configure the webhook for https://kivou.eu/api/webhooks/stripe, LIVE products/prices, customer portal and return URLs. Store the key and webhook secret only in production.env through a protected root TTY.
+Use a production-only restricted API key where the existing Checkout/Billing endpoints permit it; apply an IP restriction to 179.237.105.52 when compatible. Configure the webhook for https://kivou.eu/webhooks/stripe, LIVE products/prices, customer portal and return URLs. Store the key and webhook secret only in production.env through a protected root TTY.
 
 Read-only verification must prove the intended Stripe account, livemode resources, webhook endpoint, portal configuration and plan mapping. Do not create a Customer, Checkout Session, PaymentIntent, Subscription, Invoice, charge or refund.
 
