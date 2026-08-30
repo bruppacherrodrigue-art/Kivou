@@ -17,6 +17,8 @@ from signals.card_intelligence.contracts import (
     PresentationVariant,
     PublishedCardPresentation,
     SourceFacts,
+    TargetIcpSnapshot,
+    TargetIcpThresholdSnapshot,
     TargetRole,
     TargetRoleKind,
 )
@@ -127,7 +129,19 @@ def valid_source_facts() -> SourceFacts:
     )
 
 
-def valid_input() -> PresentationInput:
+def valid_customer_input() -> TargetIcpInput:
+    return TargetIcpInput(
+        offer_summary="Materiaux de construction",
+        offers=("materials_and_components",),
+        territories=("CH",),
+        minimum_contract_value=MonetaryThreshold(
+            currency="CHF",
+            minimum_amount=100000,
+        ),
+    )
+
+
+def valid_input(customer_input: TargetIcpInput | TargetIcpSnapshot | None = None) -> PresentationInput:
     return PresentationInput(
         account_id="account-1",
         signal_key="signal-1",
@@ -136,15 +150,7 @@ def valid_input() -> PresentationInput:
         target_icp_revision=7,
         language="fr",
         target_icp_label="Materiaux romands",
-        target_icp_customer_input=TargetIcpInput(
-            offer_summary="Materiaux de construction",
-            offers=("materials_and_components",),
-            territories=("CH",),
-            minimum_contract_value=MonetaryThreshold(
-                currency="CHF",
-                minimum_amount=100000,
-            ),
-        ),
+        target_icp_customer_input=customer_input or valid_customer_input(),
         icp_matched_needs=("materials_or_components",),
         facts=valid_source_facts(),
     )
@@ -350,12 +356,58 @@ def test_source_evidence_catalog_is_unique_and_amount_currency_are_atomic():
 
 def test_presentation_input_uses_the_structured_customer_contract():
     source = valid_input()
-    assert isinstance(source.target_icp_customer_input, TargetIcpInput)
+    assert isinstance(source.target_icp_customer_input, TargetIcpSnapshot)
     assert source.target_icp_customer_input.offers == ("materials_and_components",)
     dumped = source.model_dump()
     dumped["target_icp_customer_input"] = {"offers": ("not-a-real-offer",)}
     with pytest.raises(ValidationError):
         PresentationInput.model_validate(dumped)
+
+
+def test_presentation_icp_snapshot_is_deeply_frozen():
+    snapshot = valid_input().target_icp_customer_input
+    with pytest.raises(ValidationError, match="frozen"):
+        snapshot.offers = ("staffing_and_labour",)
+    assert snapshot.minimum_contract_value is not None
+    with pytest.raises(ValidationError, match="frozen"):
+        snapshot.minimum_contract_value.minimum_amount = 1.0
+
+
+def test_presentation_input_copies_the_mutable_customer_input_before_fingerprinting():
+    customer_input = valid_customer_input()
+    source = valid_input(customer_input)
+    fingerprint = source.fingerprint()
+    assert source.target_icp_customer_input is not customer_input
+    assert source.target_icp_customer_input.minimum_contract_value is not (
+        customer_input.minimum_contract_value
+    )
+
+    customer_input.offers = ("staffing_and_labour",)
+    assert customer_input.minimum_contract_value is not None
+    customer_input.minimum_contract_value.minimum_amount = 1.0
+
+    assert source.target_icp_customer_input.offers == ("materials_and_components",)
+    assert source.target_icp_customer_input.minimum_contract_value is not None
+    assert source.target_icp_customer_input.minimum_contract_value.minimum_amount == 100000
+    assert source.fingerprint() == fingerprint
+
+
+def test_presentation_icp_snapshot_refuses_coercive_monetary_values_at_the_boundary():
+    with pytest.raises(ValidationError):
+        TargetIcpThresholdSnapshot(currency="CHF", minimum_amount="100000")
+
+    unsafe_threshold = MonetaryThreshold.model_construct(
+        currency="CHF",
+        minimum_amount="100000",
+        maximum_amount=None,
+    )
+    unsafe_customer_input = TargetIcpInput.model_construct(
+        offers=("materials_and_components",),
+        territories=("CH",),
+        minimum_contract_value=unsafe_threshold,
+    )
+    with pytest.raises(ValidationError):
+        valid_input(unsafe_customer_input)
 
 
 def test_input_fingerprint_is_canonical_and_revision_sensitive():

@@ -12,6 +12,8 @@ from signals.card_intelligence.contracts import (
     PresentationVariant,
     PublishedCardPresentation,
     SourceFacts,
+    TargetIcpSnapshot,
+    TargetIcpThresholdSnapshot,
     TargetRole,
     TargetRoleKind,
 )
@@ -30,6 +32,8 @@ __all__ = [
     "PresentationVariant",
     "PublishedCardPresentation",
     "SourceFacts",
+    "TargetIcpSnapshot",
+    "TargetIcpThresholdSnapshot",
     "TargetRole",
     "TargetRoleKind",
 ]

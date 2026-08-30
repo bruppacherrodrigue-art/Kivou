@@ -13,9 +13,17 @@ from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
-from signals.accounts.icp_input import TargetIcpInput
+from signals.accounts.icp_input import BuyerTrade, OfferKind, TargetIcpInput
 from signals.needs import NeedCategory
 
 SCHEMA_VERSION = "card-presentation-v1"
@@ -45,6 +53,7 @@ class Contract(BaseModel):
         extra="forbid",
         frozen=True,
         strict=True,
+        allow_inf_nan=False,
         str_strip_whitespace=True,
         revalidate_instances="always",
     )
@@ -102,6 +111,73 @@ class TargetRole(Contract):
 class PresentationUnknown(Contract):
     text: BoundedUnknown
     evidence_refs: tuple[StableRef, ...] = Field(min_length=1, max_length=16)
+
+
+class TargetIcpThresholdSnapshot(Contract):
+    """Strict immutable copy of the monetary part of a customer ICP."""
+
+    currency: Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]
+    minimum_amount: float = Field(ge=0)
+    maximum_amount: float | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def ordered_bounds(self) -> TargetIcpThresholdSnapshot:
+        if self.maximum_amount is not None and self.minimum_amount > self.maximum_amount:
+            raise ValueError("minimum_amount cannot exceed maximum_amount")
+        return self
+
+
+class TargetIcpSnapshot(Contract):
+    """Deeply immutable customer-declared ICP captured for one presentation input."""
+
+    offer_summary: Annotated[str, StringConstraints(max_length=4000)] = ""
+    offers: tuple[OfferKind, ...] = Field(default=(), max_length=7)
+    secondary_offers: tuple[OfferKind, ...] = Field(default=(), max_length=7)
+    buyer_trades: tuple[BuyerTrade, ...] = Field(default=(), max_length=8)
+    secondary_buyer_trades: tuple[BuyerTrade, ...] = Field(default=(), max_length=8)
+    territories: tuple[
+        Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")],
+        ...,
+    ] = Field(default=(), max_length=249)
+    minimum_contract_value: TargetIcpThresholdSnapshot | None = None
+
+    @model_validator(mode="after")
+    def declared_values_are_unique(self) -> TargetIcpSnapshot:
+        sequences = {
+            "offers": self.offers,
+            "secondary_offers": self.secondary_offers,
+            "buyer_trades": self.buyer_trades,
+            "secondary_buyer_trades": self.secondary_buyer_trades,
+            "territories": self.territories,
+        }
+        for field, values in sequences.items():
+            if len(set(values)) != len(values):
+                raise ValueError(f"{field} values must be unique")
+        return self
+
+    @classmethod
+    def from_customer_input(cls, customer_input: TargetIcpInput) -> TargetIcpSnapshot:
+        """Copy a mutable API input without retaining any mutable nested alias."""
+
+        threshold = customer_input.minimum_contract_value
+        threshold_snapshot = (
+            TargetIcpThresholdSnapshot(
+                currency=threshold.currency,
+                minimum_amount=threshold.minimum_amount,
+                maximum_amount=threshold.maximum_amount,
+            )
+            if threshold is not None
+            else None
+        )
+        return cls(
+            offer_summary=customer_input.offer_summary,
+            offers=tuple(customer_input.offers),
+            secondary_offers=tuple(customer_input.secondary_offers),
+            buyer_trades=tuple(customer_input.buyer_trades),
+            secondary_buyer_trades=tuple(customer_input.secondary_buyer_trades),
+            territories=tuple(customer_input.territories),
+            minimum_contract_value=threshold_snapshot,
+        )
 
 
 class CardPresentationPayload(Contract):
@@ -222,9 +298,24 @@ class PresentationInput(Contract):
     target_icp_revision: int = Field(ge=1)
     language: Literal["fr", "en"]
     target_icp_label: Annotated[str, StringConstraints(min_length=1, max_length=256)]
-    target_icp_customer_input: TargetIcpInput
+    target_icp_customer_input: TargetIcpSnapshot
     icp_matched_needs: tuple[NeedCategory, ...] = Field(default=(), max_length=32)
     facts: SourceFacts
+
+    @field_validator("target_icp_customer_input", mode="before")
+    @classmethod
+    def freeze_customer_input(
+        cls,
+        value: object,
+        info: ValidationInfo,
+    ) -> object:
+        if isinstance(value, TargetIcpInput):
+            return TargetIcpSnapshot.from_customer_input(value)
+        if isinstance(value, dict) and info.mode == "json":
+            return TargetIcpSnapshot.model_validate_json(
+                json.dumps(value, ensure_ascii=False, separators=(",", ":"))
+            )
+        return value
 
     @model_validator(mode="after")
     def matched_needs_are_unique(self) -> PresentationInput:
