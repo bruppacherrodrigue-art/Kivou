@@ -380,8 +380,16 @@ def test_fallback_metadata_cannot_claim_a_provider(
     [
         ("qa_policy_version", None),
         ("qa_policy_version", ""),
+        ("qa_policy_version", "   "),
+        ("qa_policy_version", "\t"),
+        ("qa_policy_version", "\n"),
+        ("qa_policy_version", "-_.:"),
         ("qa_policy_version", "q" * 129),
         ("generator_version", ""),
+        ("generator_version", "   "),
+        ("generator_version", "\t"),
+        ("generator_version", "\n"),
+        ("generator_version", "-_.:"),
         ("generator_version", "g" * 129),
         ("qa_reasons", None),
     ],
@@ -398,12 +406,18 @@ def test_published_fallback_persists_qa_reasons_as_a_json_list(
     with migrated_engine.begin() as connection:
         connection.execute(sa.insert(_table()).values(**artifact_values()))
     with migrated_engine.connect() as connection:
-        reasons = connection.scalar(
-            sa.select(_table().c.qa_reasons).where(
+        row = connection.execute(
+            sa.select(
+                _table().c.qa_reasons,
+                _table().c.qa_policy_version,
+                _table().c.generator_version,
+            ).where(
                 _table().c.artifact_id == "a" * 64
             )
-        )
-    assert reasons == ["deterministic_factual_fallback"]
+        ).one()
+    assert row.qa_reasons == ["deterministic_factual_fallback"]
+    assert row.qa_policy_version == "factual-qa-v1"
+    assert row.generator_version == "factual-fallback-v1"
 
 
 def test_pass_full_and_unpublished_review_are_the_only_respective_valid_shapes(
@@ -552,7 +566,8 @@ def test_postgresql_offline_sql_is_additive_partial_and_provider_neutral(capsys)
 
     command.upgrade(config, f"{PREVIOUS}:{HEAD}", sql=True)
 
-    sql = capsys.readouterr().out.lower()
+    raw_sql = capsys.readouterr().out
+    sql = raw_sql.lower()
     assert sql.count(f"create table {TABLE_NAME} (") == 1
     assert "foreign key(account_id) references account" in sql
     assert "foreign key(signal_key) references materialized_signal" in sql
@@ -565,6 +580,8 @@ def test_postgresql_offline_sql_is_additive_partial_and_provider_neutral(capsys)
     assert "qa_policy_version varchar(128) not null" in sql
     assert "ck_card_presentation_qa_policy_version" in sql
     assert "ck_card_presentation_generator_version" in sql
+    assert "qa_policy_version ~ '[0-9A-Za-z]'" in raw_sql
+    assert "generator_version ~ '[0-9A-Za-z]'" in raw_sql
     assert "alter table" not in sql
     assert "drop table" not in sql
     assert "hermes" not in sql

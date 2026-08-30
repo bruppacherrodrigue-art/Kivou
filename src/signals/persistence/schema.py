@@ -364,11 +364,17 @@ card_presentation_artifact = sa.Table(
         name="ck_card_presentation_qa_status",
     ),
     sa.CheckConstraint(
-        "length(qa_policy_version) >= 1 AND length(qa_policy_version) <= 128",
+        sa.and_(
+            sa.func.length(sa.column("qa_policy_version")).between(1, 128),
+            sa.column("qa_policy_version").regexp_match(r"[0-9A-Za-z]"),
+        ),
         name="ck_card_presentation_qa_policy_version",
     ),
     sa.CheckConstraint(
-        "length(generator_version) >= 1 AND length(generator_version) <= 128",
+        sa.and_(
+            sa.func.length(sa.column("generator_version")).between(1, 128),
+            sa.column("generator_version").regexp_match(r"[0-9A-Za-z]"),
+        ),
         name="ck_card_presentation_generator_version",
     ),
     sa.CheckConstraint(
