@@ -214,12 +214,20 @@ sudo systemd-run --wait --pipe --collect --unit=kivou-migrate-release2 \
   --property=UMask=0077 --property=NoNewPrivileges=yes \
   --property=ProtectSystem=strict --property=ProtectHome=yes \
   --property=ReadOnlyPaths="$KIVOU_BACKEND_RELEASE_DIR" \
-  -- "$KIVOU_BACKEND_RELEASE_DIR/.venv/bin/alembic" upgrade head
+  -- "$KIVOU_BACKEND_RELEASE_DIR/.venv/bin/python" -c '
+from signals.persistence.database import create_database_engine, migrate_to_latest
+engine = create_database_engine(pool_pre_ping=True)
+try:
+    migrate_to_latest(engine)
+finally:
+    engine.dispose()
+'
 ```
 
-Expected: zero exit. Run `"$KIVOU_BACKEND_RELEASE_DIR/.venv/bin/alembic"
-heads` from the release and query `alembic_version` through another protected
-transient unit; values must match exactly. No migration downgrade is permitted.
+Expected: zero exit. This repository deliberately has no `alembic.ini`; the
+standalone Alembic CLI is not a valid migration entry point. Query
+`alembic_version` through another protected transient unit and require the exact
+reviewed head `0027_signal_notes`. No migration downgrade is permitted.
 
 - [ ] **Step 3: Validate typed configuration and the loopback candidate**
 
