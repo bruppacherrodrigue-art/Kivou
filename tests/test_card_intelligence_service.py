@@ -600,18 +600,31 @@ def test_invalid_qa_outcome_fails_closed_without_leaking_or_rewriting(
 
 
 @pytest.mark.parametrize(
-    ("decision", "private_status", "reason"),
+    ("decision", "private_status", "public_cause"),
     (
-        (QaDecision(status=QaStatus.REVIEW, reasons=("manual_review",)), "REVIEW", "manual_review"),
         (
-            QaDecision(status=QaStatus.FALLBACK, reasons=("use_facts",)),
+            QaDecision(
+                status=QaStatus.REVIEW,
+                reasons=("qa-token=must-not-leak",),
+            ),
+            "REVIEW",
+            "qa_review_requested",
+        ),
+        (
+            QaDecision(
+                status=QaStatus.FALLBACK,
+                reasons=("qa-token=must-not-leak",),
+            ),
             "REVIEW",
             "qa_requested_fallback",
         ),
         (
-            QaDecision(status=QaStatus.REGENERATE, reasons=("try_again",)),
+            QaDecision(
+                status=QaStatus.REGENERATE,
+                reasons=("qa-token=must-not-leak",),
+            ),
             "REGENERATE",
-            "try_again",
+            "qa_regeneration_exhausted",
         ),
     ),
     ids=("review", "fallback", "regenerate-at-limit"),
@@ -621,7 +634,7 @@ def test_non_pass_qa_decisions_remain_private_then_use_canonical_fallback(
     source: PresentationInput,
     decision: QaDecision,
     private_status: str,
-    reason: str,
+    public_cause: str,
 ) -> None:
     candidate = _full_payload(source)
     generator = FakeGenerator([GenerationResponse(payload=candidate)])
@@ -639,8 +652,11 @@ def test_non_pass_qa_decisions_remain_private_then_use_canonical_fallback(
         rows = _rows(connection)
 
     assert [row["qa_status"] for row in rows] == [private_status, "FALLBACK"]
-    assert reason in rows[0]["qa_reasons"]
+    assert "qa-token=must-not-leak" in rows[0]["qa_reasons"]
     assert rows[0]["published_at"] is None
+    assert rows[1]["qa_reasons"] == ["deterministic_factual_fallback", public_cause]
+    assert "qa-token=must-not-leak" not in repr(rows[1])
+    assert "qa-token=must-not-leak" not in repr(result)
     assert result["payload"] == factual_fallback(source).model_dump(mode="json")
 
 

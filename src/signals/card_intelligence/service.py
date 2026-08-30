@@ -208,12 +208,16 @@ def _retry(
     *,
     payload: CardPresentationPayload | None,
     reasons: Sequence[str],
+    factual_cause: Sequence[str] | None = None,
 ) -> _PrivateAttempt:
     return _PrivateAttempt(
         payload=payload,
         status=QaStatus.REGENERATE,
         reasons=_merge_reasons(reasons),
         next_state=_NextState.RETRY,
+        factual_cause=(
+            None if factual_cause is None else _merge_reasons(factual_cause)
+        ),
     )
 
 
@@ -289,17 +293,20 @@ def _review_candidate(
         return _retry(
             payload=original,
             reasons=decision.reasons or ("qa_regeneration_requested",),
+            factual_cause=("qa_regeneration_exhausted",),
         )
     if decision.status is QaStatus.FALLBACK:
         return _finish(
             payload=original,
             status=QaStatus.REVIEW,
             reasons=_merge_reasons(("qa_requested_fallback",), decision.reasons),
+            factual_cause=("qa_requested_fallback",),
         )
     return _finish(
         payload=original,
         status=QaStatus.REVIEW,
         reasons=decision.reasons or ("qa_review_requested",),
+        factual_cause=("qa_review_requested",),
     )
 
 
