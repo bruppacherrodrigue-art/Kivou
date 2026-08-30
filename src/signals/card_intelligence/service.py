@@ -11,6 +11,7 @@ from signals.card_intelligence.contracts import (
     ArtifactKind,
     CardPresentationPayload,
     PresentationInput,
+    PresentationVariant,
     QaStatus,
 )
 from signals.card_intelligence.fallback import factual_fallback
@@ -134,6 +135,28 @@ def generate_and_publish(
 
         payload = generated.payload
         assert payload is not None
+        if payload.variant is not PresentationVariant.FULL:
+            _append(
+                connection,
+                source=source,
+                payload=payload,
+                status=QaStatus.REGENERATE,
+                reasons=("generator_returned_non_full_variant",),
+                generator=generator,
+                qa=qa,
+                now=now,
+                publish=False,
+            )
+            if attempt < max_attempts:
+                continue
+            return publish_factual_fallback(
+                connection,
+                source=source,
+                now=now,
+                reasons=("generator_returned_non_full_variant_after_retry",),
+                generator=generator,
+                qa=qa,
+            )
         validation = validate_payload(payload, source)
         if not validation.valid:
             _append(

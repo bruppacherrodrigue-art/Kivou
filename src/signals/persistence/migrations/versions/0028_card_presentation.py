@@ -47,8 +47,8 @@ def upgrade() -> None:
         sa.Column("prompt_version", sa.String(64), nullable=False),
         sa.Column("model_id", sa.String(128)),
         sa.Column("provider", sa.String(64)),
-        sa.Column("input_snapshot", sa.JSON, nullable=False),
-        sa.Column("payload", sa.JSON),
+        sa.Column("input_snapshot", sa.JSON(none_as_null=True), nullable=False),
+        sa.Column("payload", sa.JSON(none_as_null=True)),
         sa.Column("qa_status", sa.String(16), nullable=False),
         sa.Column("qa_reasons", sa.JSON, nullable=False),
         sa.Column("qa_model_id", sa.String(128)),
@@ -115,6 +115,24 @@ def upgrade() -> None:
             "language",
             "superseded_at",
         ],
+    )
+    op.create_index(
+        "uq_card_presentation_active_publication",
+        "card_presentation_artifact",
+        [
+            "account_id",
+            "signal_key",
+            "target_icp_id",
+            "artifact_kind",
+            "language",
+        ],
+        unique=True,
+        postgresql_where=sa.text(
+            "published_at IS NOT NULL AND superseded_at IS NULL"
+        ),
+        sqlite_where=sa.text(
+            "published_at IS NOT NULL AND superseded_at IS NULL"
+        ),
     )
 
 

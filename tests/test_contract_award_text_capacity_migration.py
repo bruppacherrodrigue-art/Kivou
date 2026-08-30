@@ -34,6 +34,7 @@ EMAIL_REVISION = "0023_transactional_email_runtime"
 SCHEDULED_PLAN_REVISION = "0024_scheduled_plan_change"
 ALERT_RECIPIENT_CONTEXT_REVISION = "0025_alert_recipient_context"
 ACQUISITION_RUNTIME_REVISION = "0026_acquisition_runtime"
+SIGNAL_NOTES_REVISION = "0027_signal_notes"
 CURRENT_HEAD = "0028_card_presentation"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
@@ -120,7 +121,10 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
     assert script.get_revision(CONVERSION_REVISION).down_revision == RESPONSE_REVISION
     assert script.get_revision(LEARNING_REVISION).down_revision == CONVERSION_REVISION
     assert (
-        script.get_revision(CURRENT_HEAD).down_revision
+        script.get_revision(CURRENT_HEAD).down_revision == SIGNAL_NOTES_REVISION
+    )
+    assert (
+        script.get_revision(SIGNAL_NOTES_REVISION).down_revision
         == ACQUISITION_RUNTIME_REVISION
     )
     assert (
@@ -185,4 +189,3 @@ def test_postgresql_migration_widens_only_contract_reference(capsys):
     sql = capsys.readouterr().out
     assert "ALTER TABLE contract_award ALTER COLUMN contract_reference TYPE TEXT;" in sql
     assert sql.count("ALTER TABLE") == 1
-

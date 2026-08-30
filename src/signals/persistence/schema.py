@@ -1103,7 +1103,7 @@ acquisition_personalization_artifact = sa.Table(
     sa.Column("proposal_fingerprint", sa.String(64), nullable=False),
     sa.Column("policy_action_fingerprint", sa.String(64), nullable=False),
     sa.Column("artifact_fingerprint", sa.String(64), nullable=False),
-    sa.Column("input_snapshot", sa.JSON, nullable=False),
+    sa.Column("input_snapshot", sa.JSON(none_as_null=True), nullable=False),
     sa.Column("claim_map", sa.JSON, nullable=False),
     sa.Column("subject", sa.String(90)),
     sa.Column("greeting", sa.String(80)),
@@ -2488,7 +2488,7 @@ card_presentation_artifact = sa.Table(
     # Failed REGENERATE attempts keep provenance and reasons without exposing
     # or fabricating content. PASS/FALLBACK publication still requires a
     # payload in the service and database status constraint.
-    sa.Column("payload", sa.JSON),
+    sa.Column("payload", sa.JSON(none_as_null=True)),
     sa.Column("qa_status", sa.String(16), nullable=False, index=True),
     sa.Column("qa_reasons", sa.JSON, nullable=False),
     sa.Column("qa_model_id", sa.String(128)),
@@ -2531,5 +2531,20 @@ card_presentation_artifact = sa.Table(
         "artifact_kind",
         "language",
         "superseded_at",
+    ),
+    sa.Index(
+        "uq_card_presentation_active_publication",
+        "account_id",
+        "signal_key",
+        "target_icp_id",
+        "artifact_kind",
+        "language",
+        unique=True,
+        postgresql_where=sa.text(
+            "published_at IS NOT NULL AND superseded_at IS NULL"
+        ),
+        sqlite_where=sa.text(
+            "published_at IS NOT NULL AND superseded_at IS NULL"
+        ),
     ),
 )

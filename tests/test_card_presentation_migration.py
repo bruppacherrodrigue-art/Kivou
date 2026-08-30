@@ -75,6 +75,10 @@ def test_card_presentation_schema_is_scoped_versioned_and_fail_closed(tmp_path):
         ("signal_key",): ("materialized_signal", {"ondelete": "CASCADE"}),
         ("target_icp_id",): ("target_icp", {"ondelete": "CASCADE"}),
     }
+    indexes = {
+        index["name"]: index for index in inspector.get_indexes(card_presentation_artifact.name)
+    }
+    assert indexes["uq_card_presentation_active_publication"]["unique"] == 1
 
 
 def test_card_presentation_migration_roundtrips(tmp_path):
@@ -95,5 +99,7 @@ def test_card_presentation_postgresql_sql_contains_no_provider_payload(capsys):
     sql = capsys.readouterr().out.lower()
     assert "create table card_presentation_artifact" in sql
     assert "qa_status in ('pass', 'regenerate', 'fallback', 'review')" in sql
+    assert "create unique index uq_card_presentation_active_publication" in sql
+    assert "where published_at is not null and superseded_at is null" in sql
     for forbidden in ("raw_prompt", "raw_response", "api_key", "apollo", "contact_email"):
         assert forbidden not in sql

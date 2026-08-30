@@ -9,6 +9,7 @@ from signals.card_intelligence.backfill import (
     MAX_BACKFILL_ITEMS,
     backfill_factual_presentations,
 )
+from signals.feed import policy
 from signals.persistence.database import create_database_engine
 
 
@@ -23,6 +24,13 @@ def parser() -> argparse.ArgumentParser:
     backfill.add_argument("--as-of", type=dt.date.fromisoformat, required=True)
     backfill.add_argument("--language", choices=("fr", "en"), required=True)
     backfill.add_argument("--limit", type=int, choices=range(1, MAX_BACKFILL_ITEMS + 1), required=True)
+    backfill.add_argument(
+        "--offset",
+        type=int,
+        choices=range(policy.CANDIDATE_SCAN_CAP),
+        default=0,
+        help="stable feed offset; use next_offset from the previous bounded run",
+    )
     return root
 
 
@@ -37,9 +45,14 @@ def main(argv: list[str] | None = None) -> int:
         as_of=args.as_of,
         language=args.language,
         limit=args.limit,
+        offset=args.offset,
         now=now,
     )
     print(
-        f"scanned={result.scanned} published={result.published} unchanged={result.unchanged}"
+        f"scanned={result.scanned} published={result.published} "
+        f"unchanged={result.unchanged} failed={result.failed} "
+        f"next_offset={result.next_offset}"
     )
-    return 0
+    for failure in result.failures:
+        print(f"failed_item={failure}")
+    return 1 if result.failed else 0
