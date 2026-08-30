@@ -535,6 +535,23 @@ def test_production_nginx_preserves_the_exact_staging_route_contract() -> None:
     assert nginx_active_directives(read(PRODUCTION_NGINX)) == expected
 
 
+def test_pre_hsts_production_nginx_does_not_claim_hsts_is_active() -> None:
+    for path in (
+        PRODUCTION_NGINX,
+        PRODUCTION_WWW_NGINX,
+        PRODUCTION_DEFAULT_DENY_NGINX,
+        PRODUCTION_SECURITY_HEADERS,
+        PRODUCTION_SENSITIVE_SECURITY_HEADERS,
+    ):
+        body = read(path)
+
+        assert "hsts" not in body.lower(), path
+        assert not any(
+            "Strict-Transport-Security" in directive
+            for directive in nginx_active_directives(body)
+        ), path
+
+
 @pytest.mark.parametrize(
     ("staging_path", "production_path"),
     (
