@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import json
 import pathlib
 from dataclasses import dataclass
@@ -15,18 +16,21 @@ from feed_helpers import (
     make_icp,
     materialize_boamp,
 )
+from pydantic import ValidationError
 
 from signals.accounts.schema import target_icp
 from signals.card_intelligence.contracts import (
     ClaimKind,
     PresentationInput,
     PresentationVariant,
+    SourceActor,
     SourceFacts,
     TargetIcpSnapshot,
 )
 from signals.card_intelligence.fallback import factual_fallback
 from signals.card_intelligence.input import (
     PresentationInputUnavailable,
+    _source_field_ref,
     build_presentation_input,
 )
 from signals.persistence.database import create_database_engine, migrate_to_latest
@@ -38,14 +42,18 @@ from signals.persistence.schema import (
 )
 
 NOW = dt.datetime(2026, 8, 30, 9, 0, tzinfo=dt.UTC)
-AWARDEE_FIELD_REF = "source-field:v1:contract_award:award-1:awardee_parties"
-BUYER_FIELD_REF = "source-field:v1:source_event:event-1:procedure_buyers"
-AMOUNT_FIELD_REF = "source-field:v1:contract_award:award-1:amount"
-CURRENCY_FIELD_REF = "source-field:v1:contract_award:award-1:currency"
-LOCATION_FIELD_REF = "source-field:v1:contract_award:award-1:place_of_performance"
-AWARD_DATE_FIELD_REF = "source-field:v1:contract_award:award-1:award_date"
-NOTIFICATION_DATE_FIELD_REF = "source-field:v1:contract_award:award-1:contract_notification_date"
-PUBLICATION_DATE_FIELD_REF = "source-field:v1:source_event:event-1:published_on"
+AWARD_BINDING = "a" * 64
+EVENT_BINDING = "b" * 64
+AWARDEE_FIELD_REF = f"source-field:v1:contract_award:sha256-{AWARD_BINDING}:awardee_parties"
+BUYER_FIELD_REF = f"source-field:v1:source_event:sha256-{EVENT_BINDING}:procedure_buyers"
+AMOUNT_FIELD_REF = f"source-field:v1:contract_award:sha256-{AWARD_BINDING}:amount"
+CURRENCY_FIELD_REF = f"source-field:v1:contract_award:sha256-{AWARD_BINDING}:currency"
+LOCATION_FIELD_REF = f"source-field:v1:contract_award:sha256-{AWARD_BINDING}:place_of_performance"
+AWARD_DATE_FIELD_REF = f"source-field:v1:contract_award:sha256-{AWARD_BINDING}:award_date"
+NOTIFICATION_DATE_FIELD_REF = (
+    f"source-field:v1:contract_award:sha256-{AWARD_BINDING}:contract_notification_date"
+)
+PUBLICATION_DATE_FIELD_REF = f"source-field:v1:source_event:sha256-{EVENT_BINDING}:published_on"
 PERSISTED_WINNER_REF = "evidence:v1:winner-proof:winner"
 PERSISTED_BUYER_REF = "evidence:v1:buyer-proof:procedure_buyers"
 DIRECT_FIELD_REFS = (
@@ -91,8 +99,10 @@ def source() -> PresentationInput:
         target_icp_customer_input=_icp_snapshot(),
         icp_matched_needs=("materials_or_components",),
         facts=SourceFacts(
-            winner_name="Egli Gartenbau AG Sursee",
-            buyer_name="Gemeinde Root",
+            source_award_binding=AWARD_BINDING,
+            source_event_binding=EVENT_BINDING,
+            awardees=(SourceActor(actor_ref="1" * 64, display_name="Egli Gartenbau AG Sursee"),),
+            buyers=(SourceActor(actor_ref="2" * 64, display_name="Gemeinde Root"),),
             award_title="FOURNITURE LOT 7 ACCORD-CADRE ADMINISTRATIF",
             amount=Decimal("250000.00"),
             currency="CHF",
@@ -142,7 +152,7 @@ def test_fallback_is_factual_grounded_and_language_bound(
     (("fr", "Acheteur non publié"), ("en", "buyer is not published")),
 )
 def test_fallback_discloses_a_missing_buyer_without_commercial_claims(source, language, missing):
-    facts = source.facts.model_copy(update={"buyer_name": None})
+    facts = source.facts.model_copy(update={"buyers": ()})
     payload = factual_fallback(source.model_copy(update={"language": language, "facts": facts}))
 
     assert missing.casefold() in payload.award_summary.casefold()
@@ -164,7 +174,12 @@ def test_fallback_never_reuses_the_administrative_title(source):
 def test_fallback_never_cuts_long_actor_names_into_a_new_fact(source):
     long_winner = "  " + "Societe attributaire tres longue " * 12 + "SA  "
     long_buyer = "\n" + "Collectivite acheteuse tres longue " * 12 + "Ville\t"
-    facts = source.facts.model_copy(update={"winner_name": long_winner, "buyer_name": long_buyer})
+    facts = source.facts.model_copy(
+        update={
+            "awardees": (SourceActor(actor_ref="1" * 64, display_name=long_winner),),
+            "buyers": (SourceActor(actor_ref="2" * 64, display_name=long_buyer),),
+        }
+    )
 
     payload = factual_fallback(source.model_copy(update={"facts": facts}))
     rendered = payload.model_dump_json()
@@ -177,9 +192,9 @@ def test_fallback_never_cuts_long_actor_names_into_a_new_fact(source):
     assert "Collectivite acheteuse tres longue Collectivite" not in rendered
 
 
-def test_fallback_deduplicates_and_bounds_evidence_to_sixteen(source):
+def test_fallback_bounds_semantic_evidence_to_sixteen(source):
     winner_refs = tuple(f"evidence:v1:{index:064x}:winner" for index in range(20))
-    raw_refs = (*DIRECT_FIELD_REFS, *winner_refs, winner_refs[3], winner_refs[7])
+    raw_refs = (*DIRECT_FIELD_REFS, *winner_refs)
     facts = source.facts.model_copy(update={"evidence_refs": raw_refs})
     payload = factual_fallback(source.model_copy(update={"facts": facts}))
 
@@ -199,7 +214,7 @@ def test_fallback_deduplicates_and_bounds_evidence_to_sixteen(source):
     assert claims["FACT_LOCATION"].evidence_refs == (LOCATION_FIELD_REF,)
     assert claims["FACT_PUBLICATION_DATE"].evidence_refs == (PUBLICATION_DATE_FIELD_REF,)
 
-    absent_facts = facts.model_copy(update={"buyer_name": None})
+    absent_facts = facts.model_copy(update={"buyers": ()})
     absent_payload = factual_fallback(source.model_copy(update={"facts": absent_facts}))
     absent_claims = {claim.claim_id: claim for claim in absent_payload.claims}
     assert BUYER_FIELD_REF in absent_claims["FACT_AWARD_CONTEXT"].evidence_refs
@@ -213,7 +228,7 @@ def test_fallback_unknowns_are_bounded_proven_and_only_describe_absent_facts(sou
     assert factual_fallback(source).unknowns == ()
     facts = source.facts.model_copy(
         update={
-            "buyer_name": None,
+            "buyers": (),
             "amount": None,
             "currency": None,
             "location": None,
@@ -253,7 +268,7 @@ def test_fallback_fails_closed_when_a_present_fact_lacks_its_field_proof(source)
             )
         }
     )
-    with pytest.raises(ValueError, match="place_of_performance"):
+    with pytest.raises(ValueError, match="source-field evidence"):
         factual_fallback(source.model_copy(update={"facts": facts}))
 
 
@@ -262,8 +277,77 @@ def test_fallback_rejects_multiple_direct_refs_for_one_source_field(source):
     facts = source.facts.model_copy(
         update={"evidence_refs": (*source.facts.evidence_refs, duplicate)}
     )
-    with pytest.raises(ValueError, match="exactly one source-field proof"):
+    with pytest.raises(ValueError, match="source-field evidence"):
         factual_fallback(source.model_copy(update={"facts": facts}))
+
+
+@pytest.mark.parametrize(
+    ("owned_ref", "owned_binding"),
+    (
+        (AWARDEE_FIELD_REF, AWARD_BINDING),
+        (BUYER_FIELD_REF, EVENT_BINDING),
+    ),
+    ids=("award", "event"),
+)
+def test_fallback_rejects_a_source_field_ref_bound_to_another_source_row(
+    source, owned_ref, owned_binding
+):
+    foreign = owned_ref.replace(owned_binding, "c" * 64)
+    refs = tuple(foreign if ref == owned_ref else ref for ref in source.facts.evidence_refs)
+    facts = source.facts.model_copy(update={"evidence_refs": refs})
+    with pytest.raises(ValidationError, match="source-field evidence"):
+        factual_fallback(source.model_copy(update={"facts": facts}))
+
+
+def test_fallback_rejects_a_malformed_source_field_column(source):
+    malformed = AWARDEE_FIELD_REF.removesuffix("awardee_parties") + "description"
+    refs = tuple(
+        malformed if ref == AWARDEE_FIELD_REF else ref for ref in source.facts.evidence_refs
+    )
+    facts = source.facts.model_copy(update={"evidence_refs": refs})
+    with pytest.raises(ValidationError, match="source-field evidence"):
+        factual_fallback(source.model_copy(update={"facts": facts}))
+
+
+def test_source_field_binding_hashes_exact_key_bytes_without_whitespace_normalization():
+    first_key = "award key"
+    second_key = "award  key"
+    first = _source_field_ref(table="contract_award", row_key=first_key, column="award_date")
+    second = _source_field_ref(table="contract_award", row_key=second_key, column="award_date")
+
+    assert first != second
+    assert f"sha256-{hashlib.sha256(first_key.encode('utf-8')).hexdigest()}" in first
+    assert f"sha256-{hashlib.sha256(second_key.encode('utf-8')).hexdigest()}" in second
+
+
+@pytest.mark.parametrize(
+    "invalid_source",
+    (
+        lambda source: source.model_copy(update={"language": "de"}),
+        lambda source: source.model_copy(
+            update={"facts": source.facts.model_copy(update={"award_date": "2026-05-19"})}
+        ),
+        lambda source: source.model_copy(
+            update={"facts": source.facts.model_copy(update={"amount": None})}
+        ),
+        lambda source: source.model_copy(
+            update={
+                "facts": source.facts.model_copy(
+                    update={
+                        "evidence_refs": (
+                            *source.facts.evidence_refs,
+                            source.facts.evidence_refs[0],
+                        )
+                    }
+                )
+            }
+        ),
+    ),
+    ids=("language", "date-type", "amount-currency", "duplicate-evidence"),
+)
+def test_fallback_revalidates_every_input_contract(source, invalid_source):
+    with pytest.raises(ValidationError):
+        factual_fallback(invalid_source(source))
 
 
 @pytest.mark.parametrize("language", ("fr", "en"))
@@ -457,6 +541,50 @@ def test_input_rejects_coercive_or_invalid_icp_json(engine, persisted_case, cust
     _assert_unavailable(engine, persisted_case)
 
 
+def test_input_rejects_active_but_structurally_incomplete_icp(engine, persisted_case):
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(target_icp)
+            .where(target_icp.c.target_icp_id == persisted_case.target_icp_id)
+            .values(customer_input={})
+        )
+
+    _assert_unavailable(engine, persisted_case)
+
+
+def test_input_closes_actual_malformed_sql_json_at_the_result_boundary(engine, persisted_case):
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "UPDATE target_icp SET customer_input = ? WHERE target_icp_id = ?",
+            ("{", persisted_case.target_icp_id),
+        )
+
+    _assert_unavailable(engine, persisted_case)
+
+
+def test_input_closes_actual_malformed_sql_date_at_the_result_boundary(engine, persisted_case):
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "UPDATE contract_award SET award_date = ? WHERE award_key = ?",
+            ("not-a-date", persisted_case.award_key),
+        )
+
+    _assert_unavailable(engine, persisted_case)
+
+
+def test_input_does_not_hide_operational_sqlalchemy_errors(engine, persisted_case):
+    connection = engine.connect()
+    connection.close()
+
+    with pytest.raises(sa.exc.ResourceClosedError):
+        build_presentation_input(
+            connection,
+            account_id=persisted_case.account_id,
+            signal_key=persisted_case.signal_key,
+            language="fr",
+        )
+
+
 def test_input_rejects_an_award_without_persisted_evidence(engine, persisted_case):
     with engine.begin() as connection:
         connection.execute(
@@ -503,6 +631,122 @@ def test_input_rejects_an_award_without_a_published_winner(engine, persisted_cas
             .where(contract_award.c.award_key == persisted_case.award_key)
             .values(winner_status="undisclosed", awardee_parties=[])
         )
+    _assert_unavailable(engine, persisted_case)
+
+
+def _persist_homonymous_actors(engine, persisted_case):
+    first = {
+        "legal_name": "Entreprise Homonyme SA",
+        "identifiers": [{"scheme": "SIRET", "value": "11111111111111"}],
+        "country": "FR",
+    }
+    second = {
+        "legal_name": "Entreprise Homonyme SA",
+        "identifiers": [{"scheme": "SIRET", "value": "22222222222222"}],
+        "country": "FR",
+    }
+    buyers = [first, second, first]
+    awardees = [
+        {
+            "is_group": True,
+            "members": [
+                {"role": "consortium_lead", "organization": first},
+                {"role": "consortium_member", "organization": second},
+                {"role": "consortium_member", "organization": first},
+            ],
+        }
+    ]
+    with engine.begin() as connection:
+        event_key = connection.execute(
+            sa.select(contract_award.c.event_key).where(
+                contract_award.c.award_key == persisted_case.award_key
+            )
+        ).scalar_one()
+        connection.execute(
+            sa.update(source_event)
+            .where(source_event.c.event_key == event_key)
+            .values(procedure_buyers=buyers)
+        )
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key == persisted_case.award_key)
+            .values(awardee_parties=awardees)
+        )
+    return first, second
+
+
+def _actor_ref(organization):
+    canonical = json.dumps(
+        organization,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def test_input_preserves_homonymous_actors_and_only_deduplicates_exact_identity(
+    engine, persisted_case
+):
+    first, second = _persist_homonymous_actors(engine, persisted_case)
+
+    source = _build(engine, persisted_case)
+
+    assert source.facts.awardees == (
+        SourceActor(actor_ref=_actor_ref(first), display_name="Entreprise Homonyme SA"),
+        SourceActor(actor_ref=_actor_ref(second), display_name="Entreprise Homonyme SA"),
+    )
+    assert source.facts.buyers == source.facts.awardees
+    assert source.facts.awardees[0].actor_ref != source.facts.awardees[1].actor_ref
+
+
+@pytest.mark.parametrize(
+    ("language", "buyer_label", "awardee_label", "separator"),
+    (
+        ("fr", "Acheteurs publiés", "Attributaires publiés", " : "),
+        ("en", "Published buyers", "Published awardees", ": "),
+    ),
+)
+def test_fallback_renders_structured_actor_cardinality_without_identity_leaks(
+    engine, persisted_case, language, buyer_label, awardee_label, separator
+):
+    _persist_homonymous_actors(engine, persisted_case)
+    source = _build(engine, persisted_case)
+    source = PresentationInput.model_validate({**source.model_dump(), "language": language})
+
+    payload = factual_fallback(source)
+    rendered = payload.model_dump_json()
+
+    assert f"{buyer_label}{separator}Entreprise Homonyme SA ; Entreprise Homonyme SA" in rendered
+    assert f"{awardee_label}{separator}Entreprise Homonyme SA ; Entreprise Homonyme SA" in rendered
+    assert "actor_ref" not in rendered
+    assert "identifiers" not in rendered
+    assert "11111111111111" not in rendered
+    assert "22222222222222" not in rendered
+
+
+def test_input_fails_closed_above_the_actor_cardinality_bound(engine, persisted_case):
+    buyers = [
+        {
+            "legal_name": f"Acheteur {index}",
+            "identifiers": [{"scheme": "SIRET", "value": f"{index:014d}"}],
+            "country": "FR",
+        }
+        for index in range(17)
+    ]
+    with engine.begin() as connection:
+        event_key = connection.execute(
+            sa.select(contract_award.c.event_key).where(
+                contract_award.c.award_key == persisted_case.award_key
+            )
+        ).scalar_one()
+        connection.execute(
+            sa.update(source_event)
+            .where(source_event.c.event_key == event_key)
+            .values(procedure_buyers=buyers)
+        )
+
     _assert_unavailable(engine, persisted_case)
 
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import re
 from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal, Self
@@ -42,6 +43,29 @@ BoundedUnknown = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=240),
 ]
+SourceDigest = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
+SourceTable = Literal["contract_award", "source_event"]
+SOURCE_FIELD_COLUMNS: dict[SourceTable, tuple[str, ...]] = {
+    "contract_award": (
+        "awardee_parties",
+        "amount",
+        "currency",
+        "place_of_performance",
+        "award_date",
+        "contract_notification_date",
+    ),
+    "source_event": ("procedure_buyers", "published_on"),
+}
+
+
+def source_field_ref(*, table: SourceTable, binding: str, column: str) -> str:
+    """Build one closed, versioned pointer to an exactly bound source row."""
+
+    if table not in SOURCE_FIELD_COLUMNS or column not in SOURCE_FIELD_COLUMNS[table]:
+        raise ValueError("unknown source-field table or column")
+    if re.fullmatch(r"[0-9a-f]{64}", binding) is None:
+        raise ValueError("source-field binding must be a 64-hex digest")
+    return f"source-field:v1:{table}:sha256-{binding}:{column}"
 
 
 class Contract(BaseModel):
@@ -169,6 +193,7 @@ class TargetIcpSnapshot(Contract):
                 raise ValueError(f"{field} values must be unique")
         return self
 
+
 class CardPresentationPayload(Contract):
     schema_version: Literal["card-presentation-v1"] = SCHEMA_VERSION
     variant: PresentationVariant
@@ -223,18 +248,25 @@ class CardPresentationPayload(Contract):
             text = getattr(self, field)
             if text is None:
                 continue
-            if not any(
-                claim.text == text and claim.kind is expected_kind for claim in self.claims
-            ):
+            if not any(claim.text == text and claim.kind is expected_kind for claim in self.claims):
                 raise ValueError(
                     f"{field} requires an exact evidenced claim of kind {expected_kind.value}"
                 )
         return self
 
 
+class SourceActor(Contract):
+    """One source organization, identity-bound but safe to display by name only."""
+
+    actor_ref: SourceDigest
+    display_name: Annotated[str, StringConstraints(min_length=1, max_length=512)]
+
+
 class SourceFacts(Contract):
-    winner_name: Annotated[str, StringConstraints(min_length=1, max_length=512)]
-    buyer_name: Annotated[str, StringConstraints(min_length=1, max_length=512)] | None = None
+    source_award_binding: SourceDigest
+    source_event_binding: SourceDigest
+    awardees: tuple[SourceActor, ...] = Field(min_length=1, max_length=16)
+    buyers: tuple[SourceActor, ...] = Field(default=(), max_length=16)
     award_title: Annotated[str, StringConstraints(min_length=1, max_length=4000)] | None = None
     amount: Annotated[Decimal, Field(ge=0)] | None = None
     currency: Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")] | None = None
@@ -252,7 +284,45 @@ class SourceFacts(Contract):
             raise ValueError("amount and currency must be present together")
         if len(set(self.evidence_refs)) != len(self.evidence_refs):
             raise ValueError("evidence_refs in the source catalog must be unique")
+        for field, actors in (("awardees", self.awardees), ("buyers", self.buyers)):
+            if len({actor.actor_ref for actor in actors}) != len(actors):
+                raise ValueError(f"{field} actor_ref values must be unique")
+        expected = {
+            *(
+                source_field_ref(
+                    table="contract_award",
+                    binding=self.source_award_binding,
+                    column=column,
+                )
+                for column in SOURCE_FIELD_COLUMNS["contract_award"]
+            ),
+            *(
+                source_field_ref(
+                    table="source_event",
+                    binding=self.source_event_binding,
+                    column=column,
+                )
+                for column in SOURCE_FIELD_COLUMNS["source_event"]
+            ),
+        }
+        actual = {ref for ref in self.evidence_refs if ref.startswith("source-field")}
+        if actual != expected:
+            raise ValueError("source-field evidence must exactly match bindings and grammar")
         return self
+
+    @property
+    def winner_name(self) -> str:
+        """Compatibility label; structured awardees remain the fingerprinted truth."""
+
+        return " ; ".join(actor.display_name for actor in self.awardees)
+
+    @property
+    def buyer_name(self) -> str | None:
+        """Compatibility label without selecting a principal buyer."""
+
+        if not self.buyers:
+            return None
+        return " ; ".join(actor.display_name for actor in self.buyers)
 
     @property
     def evidence_catalog(self) -> frozenset[str]:

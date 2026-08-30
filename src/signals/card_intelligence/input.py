@@ -8,17 +8,23 @@ buyer or winner, contact a provider, or publish an artifact.
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Iterable, Mapping
+import json
+from collections.abc import Mapping
 from decimal import Decimal, InvalidOperation
-from typing import Literal, NoReturn
+from typing import Literal, NoReturn, cast
 
 import sqlalchemy as sa
 
 from signals.accounts.schema import target_icp
 from signals.card_intelligence.contracts import (
     PresentationInput,
+    SourceActor,
     SourceFacts,
+    SourceTable,
     TargetIcpSnapshot,
+)
+from signals.card_intelligence.contracts import (
+    source_field_ref as bound_source_field_ref,
 )
 from signals.persistence.schema import (
     contract_award,
@@ -59,45 +65,58 @@ def _clean_text(value: object, *, required: bool = False) -> str | None:
     return cleaned
 
 
-def _deduplicated_actor_label(names: Iterable[object], *, required: bool) -> str | None:
-    """Keep every published organization without electing a principal actor."""
-
-    cleaned: list[str] = []
-    seen: set[str] = set()
-    for value in names:
-        name = _clean_text(value, required=True)
-        assert name is not None
-        if name not in seen:
-            seen.add(name)
-            cleaned.append(name)
-    if not cleaned:
-        if required:
-            _unavailable()
-        return None
-    label = " ; ".join(cleaned)
-    if len(label) > 512:
-        # Truncating a legal name, or selecting the first buyer, would create a
-        # different actor fact.  The current singular contract therefore fails
-        # closed when the complete deterministic label cannot fit.
+def _source_actor(raw: Mapping[object, object]) -> SourceActor:
+    display_name = _clean_text(raw.get("legal_name"), required=True)
+    assert display_name is not None
+    try:
+        canonical = json.dumps(
+            raw,
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+            allow_nan=False,
+        )
+    except (TypeError, ValueError):
         _unavailable()
-    return label
+    return SourceActor(
+        actor_ref=hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+        display_name=display_name,
+    )
 
 
-def _buyer_label(raw: object) -> str | None:
+def _deduplicated_actors(
+    organizations: list[Mapping[object, object]], *, required: bool
+) -> tuple[SourceActor, ...]:
+    actors: list[SourceActor] = []
+    seen: set[str] = set()
+    for organization in organizations:
+        actor = _source_actor(organization)
+        if actor.actor_ref in seen:
+            continue
+        seen.add(actor.actor_ref)
+        actors.append(actor)
+        if len(actors) > 16:
+            _unavailable()
+    if required and not actors:
+        _unavailable()
+    return tuple(actors)
+
+
+def _buyers(raw: object) -> tuple[SourceActor, ...]:
     if not isinstance(raw, list):
         _unavailable()
-    names: list[object] = []
+    organizations: list[Mapping[object, object]] = []
     for organization in raw:
         if not isinstance(organization, Mapping):
             _unavailable()
-        names.append(organization.get("legal_name"))
-    return _deduplicated_actor_label(names, required=False)
+        organizations.append(organization)
+    return _deduplicated_actors(organizations, required=False)
 
 
-def _winner_label(raw: object) -> str:
+def _awardees(raw: object) -> tuple[SourceActor, ...]:
     if not isinstance(raw, list):
         _unavailable()
-    names: list[object] = []
+    organizations: list[Mapping[object, object]] = []
     for party in raw:
         if not isinstance(party, Mapping):
             _unavailable()
@@ -110,10 +129,8 @@ def _winner_label(raw: object) -> str:
             organization = member.get("organization")
             if not isinstance(organization, Mapping):
                 _unavailable()
-            names.append(organization.get("legal_name"))
-    label = _deduplicated_actor_label(names, required=True)
-    assert label is not None
-    return label
+            organizations.append(organization)
+    return _deduplicated_actors(organizations, required=True)
 
 
 def _location_label(raw: object) -> str | None:
@@ -188,17 +205,25 @@ _INPUT_SELECT = (
 )
 
 
-def _source_field_ref(*, table: str, row_key: str, column: str) -> str:
-    """Versioned pointer to one immutable persisted source field."""
+def _source_binding(row_key: object) -> str:
+    """Hash the exact UTF-8 bytes of a persisted key, without normalization."""
 
-    cleaned_key = _clean_text(row_key, required=True)
-    assert cleaned_key is not None
-    key_token = (
-        f"sha256-{hashlib.sha256(cleaned_key.encode('utf-8')).hexdigest()}"
-        if table == "source_event"
-        else cleaned_key
-    )
-    return f"source-field:v1:{table}:{key_token}:{column}"
+    if not isinstance(row_key, str):
+        _unavailable()
+    return hashlib.sha256(row_key.encode("utf-8")).hexdigest()
+
+
+def _source_field_ref(*, table: str, row_key: object, column: str) -> str:
+    """Versioned exact-row pointer with a closed table/column grammar."""
+
+    try:
+        return bound_source_field_ref(
+            table=cast(SourceTable, table),
+            binding=_source_binding(row_key),
+            column=column,
+        )
+    except ValueError:
+        _unavailable()
 
 
 def _evidence_refs(
@@ -242,6 +267,17 @@ def _evidence_refs(
     return tuple(dict.fromkeys((*field_refs, *persisted_refs)))[:32]
 
 
+def _ensure_complete_icp(snapshot: TargetIcpSnapshot) -> None:
+    incomplete = (
+        not snapshot.offers
+        or not snapshot.territories
+        or snapshot.minimum_contract_value is None
+        or bool(snapshot.secondary_buyer_trades and not snapshot.buyer_trades)
+    )
+    if incomplete:
+        _unavailable()
+
+
 def build_presentation_input(
     connection: sa.Connection,
     *,
@@ -258,21 +294,33 @@ def build_presentation_input(
 
     if language not in ("fr", "en"):
         _unavailable()
-    row = connection.execute(
-        _INPUT_SELECT,
-        {"owned_account_id": account_id, "owned_signal_key": signal_key},
-    ).one_or_none()
+    try:
+        row = connection.execute(
+            _INPUT_SELECT,
+            {"owned_account_id": account_id, "owned_signal_key": signal_key},
+        ).one_or_none()
+    except sa.exc.SQLAlchemyError:
+        raise
+    except json.JSONDecodeError:
+        _unavailable()
+    except (TypeError, ValueError):
+        _unavailable()
     if row is None:
         _unavailable()
 
     try:
         snapshot = TargetIcpSnapshot.from_json_value(row.target_icp_customer_input)
+        _ensure_complete_icp(snapshot)
         matched_needs_raw = row.icp_matched_needs
         if not isinstance(matched_needs_raw, list):
             _unavailable()
+        award_binding = _source_binding(row.source_award_key)
+        event_binding = _source_binding(row.source_event_key)
         facts = SourceFacts(
-            winner_name=_winner_label(row.source_awardees),
-            buyer_name=_buyer_label(row.source_buyers),
+            source_award_binding=award_binding,
+            source_event_binding=event_binding,
+            awardees=_awardees(row.source_awardees),
+            buyers=_buyers(row.source_buyers),
             award_title=_clean_text(row.source_award_title),
             amount=(Decimal(str(row.source_amount)) if row.source_amount is not None else None),
             currency=_clean_text(row.source_currency),

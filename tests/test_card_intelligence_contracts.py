@@ -17,14 +17,52 @@ from signals.card_intelligence.contracts import (
     PresentationUnknown,
     PresentationVariant,
     PublishedCardPresentation,
+    SourceActor,
     SourceFacts,
     TargetIcpSnapshot,
     TargetIcpThresholdSnapshot,
     TargetRole,
     TargetRoleKind,
+    source_field_ref,
 )
 from signals.card_intelligence.protocol import CardGenerator
 from signals.qa_signals.contracts import QaDecision, QaStatus
+
+AWARD_BINDING = "a" * 64
+EVENT_BINDING = "b" * 64
+
+
+def _direct_refs(
+    award_binding: str = AWARD_BINDING, event_binding: str = EVENT_BINDING
+) -> tuple[str, ...]:
+    return (
+        source_field_ref(table="contract_award", binding=award_binding, column="awardee_parties"),
+        source_field_ref(table="source_event", binding=event_binding, column="procedure_buyers"),
+        source_field_ref(table="contract_award", binding=award_binding, column="amount"),
+        source_field_ref(table="contract_award", binding=award_binding, column="currency"),
+        source_field_ref(
+            table="contract_award", binding=award_binding, column="place_of_performance"
+        ),
+        source_field_ref(table="contract_award", binding=award_binding, column="award_date"),
+        source_field_ref(
+            table="contract_award",
+            binding=award_binding,
+            column="contract_notification_date",
+        ),
+        source_field_ref(table="source_event", binding=event_binding, column="published_on"),
+    )
+
+
+def _actor(display_name: str, marker: str) -> SourceActor:
+    return SourceActor(actor_ref=marker * 64, display_name=display_name)
+
+
+def test_source_actor_requires_an_opaque_digest_and_is_frozen():
+    with pytest.raises(ValidationError):
+        SourceActor(actor_ref="not-a-digest", display_name="Egli SA")
+    actor = SourceActor(actor_ref="a" * 64, display_name="Egli SA")
+    with pytest.raises(ValidationError, match="frozen"):
+        actor.display_name = "Changed"
 
 
 def _claims() -> tuple[PresentationClaim, ...]:
@@ -110,8 +148,10 @@ def valid_fallback_payload() -> CardPresentationPayload:
 
 def valid_source_facts() -> SourceFacts:
     return SourceFacts(
-        winner_name="Egli SA",
-        buyer_name="Ville de Sion",
+        source_award_binding=AWARD_BINDING,
+        source_event_binding=EVENT_BINDING,
+        awardees=(_actor("Egli SA", "1"),),
+        buyers=(_actor("Ville de Sion", "2"),),
         award_title="FOURNITURE LOT 7 ACCORD-CADRE ADMINISTRATIF",
         amount=Decimal("250000"),
         currency="CHF",
@@ -120,6 +160,7 @@ def valid_source_facts() -> SourceFacts:
         source_system="decp",
         source_notice_id="notice-123",
         evidence_refs=(
+            *_direct_refs(),
             "source:awardee",
             "source:buyer",
             "source:amount",
@@ -321,9 +362,7 @@ def test_every_public_prose_field_is_bound_to_an_evidenced_claim():
         ("recommended_action", ClaimKind.FACT, None),
     ),
 )
-def test_public_prose_fields_require_their_exact_semantic_claim_kind(
-    field, wrong_kind, confidence
-):
+def test_public_prose_fields_require_their_exact_semantic_claim_kind(field, wrong_kind, confidence):
     payload = valid_full_payload()
     claims = tuple(
         claim.model_copy(update={"kind": wrong_kind, "confidence": confidence})
@@ -355,14 +394,10 @@ def test_every_evidence_reference_resolves_in_the_source_catalog(surface):
         )
         payload = payload.model_copy(update={"claims": claims})
     elif surface == "role":
-        roles = (
-            payload.target_roles[0].model_copy(update={"evidence_refs": ("unknown:ref",)}),
-        )
+        roles = (payload.target_roles[0].model_copy(update={"evidence_refs": ("unknown:ref",)}),)
         payload = payload.model_copy(update={"target_roles": roles})
     else:
-        unknowns = (
-            payload.unknowns[0].model_copy(update={"evidence_refs": ("unknown:ref",)}),
-        )
+        unknowns = (payload.unknowns[0].model_copy(update={"evidence_refs": ("unknown:ref",)}),)
         payload = payload.model_copy(update={"unknowns": unknowns})
 
     assert valid_source_facts().unresolved_evidence_refs(payload) == ("unknown:ref",)
@@ -381,6 +416,67 @@ def test_source_evidence_catalog_is_unique_and_amount_currency_are_atomic():
         dumped[missing] = None
         with pytest.raises(ValidationError, match="amount and currency"):
             SourceFacts.model_validate(dumped)
+
+
+def test_source_actors_preserve_same_name_collisions_but_reject_duplicate_refs():
+    first = _actor("Entreprise Homonyme SA", "3")
+    second = _actor("Entreprise Homonyme SA", "4")
+    facts = valid_source_facts().model_copy(
+        update={"awardees": (first, second), "buyers": (first, second)}
+    )
+    validated = SourceFacts.model_validate(facts)
+
+    assert [actor.display_name for actor in validated.awardees] == [
+        "Entreprise Homonyme SA",
+        "Entreprise Homonyme SA",
+    ]
+    assert validated.winner_name == "Entreprise Homonyme SA ; Entreprise Homonyme SA"
+    assert "winner_name" not in validated.model_dump()
+    duplicate = facts.model_copy(update={"awardees": (first, first)})
+    with pytest.raises(ValidationError, match="awardees actor_ref values must be unique"):
+        SourceFacts.model_validate(duplicate)
+
+
+@pytest.mark.parametrize(
+    "bad_ref",
+    (
+        source_field_ref(table="contract_award", binding="c" * 64, column="awardee_parties"),
+        f"source-field:v1:contract_award:sha256-{AWARD_BINDING}:description",
+        f"source-field:v1:unknown:sha256-{AWARD_BINDING}:awardee_parties",
+    ),
+)
+def test_source_field_catalog_is_exactly_bound_and_grammar_closed(bad_ref):
+    dumped = valid_source_facts().model_dump()
+    dumped["evidence_refs"] = tuple(
+        bad_ref if ref == _direct_refs()[0] else ref for ref in dumped["evidence_refs"]
+    )
+    with pytest.raises(ValidationError, match="source-field evidence"):
+        SourceFacts.model_validate(dumped)
+
+
+@pytest.mark.parametrize("field", ("source_award_binding", "source_event_binding"))
+def test_source_bindings_are_closed_64_hex_and_fingerprinted(field):
+    dumped = valid_source_facts().model_dump()
+    dumped[field] = "not-a-digest"
+    with pytest.raises(ValidationError):
+        SourceFacts.model_validate(dumped)
+
+    source = valid_input()
+    facts_dump = source.facts.model_dump()
+    replacement = "c" * 64
+    facts_dump[field] = replacement
+    if field == "source_award_binding":
+        old_refs = _direct_refs()
+        new_refs = _direct_refs(award_binding=replacement)
+    else:
+        old_refs = _direct_refs()
+        new_refs = _direct_refs(event_binding=replacement)
+    remapped = dict(zip(old_refs, new_refs, strict=True))
+    facts_dump["evidence_refs"] = tuple(
+        remapped.get(ref, ref) for ref in facts_dump["evidence_refs"]
+    )
+    changed = source.model_copy(update={"facts": SourceFacts.model_validate(facts_dump)})
+    assert changed.fingerprint() != source.fingerprint()
 
 
 def test_presentation_input_uses_the_structured_customer_contract():

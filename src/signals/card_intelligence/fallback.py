@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime as dt
 from decimal import Decimal
+from typing import cast
 
 from signals.card_intelligence.contracts import (
     CardPresentationPayload,
@@ -12,6 +13,8 @@ from signals.card_intelligence.contracts import (
     PresentationInput,
     PresentationUnknown,
     PresentationVariant,
+    SourceTable,
+    source_field_ref,
 )
 
 _FR_MONTHS = (
@@ -73,16 +76,24 @@ def _direct_evidence(
     table: str,
     column: str,
 ) -> str:
-    direct = tuple(
-        ref
-        for ref in source.facts.evidence_refs
-        if ref.startswith(f"source-field:v1:{table}:") and ref.endswith(f":{column}")
+    binding = (
+        source.facts.source_award_binding
+        if table == "contract_award"
+        else source.facts.source_event_binding
     )
-    if len(direct) != 1:
+    try:
+        expected = source_field_ref(
+            table=cast(SourceTable, table),
+            binding=binding,
+            column=column,
+        )
+    except ValueError as error:
+        raise ValueError("factual fallback requested an unknown source field") from error
+    if source.facts.evidence_refs.count(expected) != 1:
         raise ValueError(
             f"factual fallback requires exactly one source-field proof for {table}.{column}"
         )
-    return direct[0]
+    return expected
 
 
 def _persisted_evidence(
@@ -297,9 +308,12 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
     typed dates copied into :class:`PresentationInput`.
     """
 
+    source = PresentationInput.model_validate(source)
     facts = source.facts
     winner = actor_label(facts.winner_name)
     buyer = actor_label(facts.buyer_name) if facts.buyer_name is not None else None
+    awardee_count = len(facts.awardees)
+    buyer_count = len(facts.buyers)
     awardee_evidence = _award_evidence(
         source,
         "awardee_parties",
@@ -338,16 +352,26 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
             fallback="Attribution publiée",
         )
         if buyer is None:
+            awardee_label = "Attributaire publié" if awardee_count == 1 else "Attributaires publiés"
+            awardee_fallback = (
+                "un attributaire" if awardee_count == 1 else "plusieurs attributaires"
+            )
             actor_sentence = bounded(
-                f"Attributaire publié : {winner}. Acheteur non publié.",
+                f"{awardee_label} : {winner}. Acheteur non publié.",
                 420,
-                fallback="La source publie un attributaire. Acheteur non publié.",
+                fallback=f"La source publie {awardee_fallback}. Acheteur non publié.",
             )
         else:
+            buyer_label = "Acheteur publié" if buyer_count == 1 else "Acheteurs publiés"
+            awardee_label = "Attributaire publié" if awardee_count == 1 else "Attributaires publiés"
+            buyer_fallback = "un acheteur" if buyer_count == 1 else "plusieurs acheteurs"
+            awardee_fallback = (
+                "un attributaire" if awardee_count == 1 else "plusieurs attributaires"
+            )
             actor_sentence = bounded(
-                f"Acheteur publié : {buyer}. Attributaire publié : {winner}.",
+                f"{buyer_label} : {buyer}. {awardee_label} : {winner}.",
                 420,
-                fallback="La source publie un acheteur et un attributaire.",
+                fallback=f"La source publie {buyer_fallback} et {awardee_fallback}.",
             )
     else:
         headline = bounded(
@@ -356,16 +380,22 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
             fallback="Published award",
         )
         if buyer is None:
+            awardee_label = "Published awardee" if awardee_count == 1 else "Published awardees"
+            awardee_fallback = "an awardee" if awardee_count == 1 else "multiple awardees"
             actor_sentence = bounded(
-                f"Published awardee: {winner}. The buyer is not published.",
+                f"{awardee_label}: {winner}. The buyer is not published.",
                 420,
-                fallback="The source publishes an awardee. The buyer is not published.",
+                fallback=(f"The source publishes {awardee_fallback}. The buyer is not published."),
             )
         else:
+            buyer_label = "Published buyer" if buyer_count == 1 else "Published buyers"
+            awardee_label = "Published awardee" if awardee_count == 1 else "Published awardees"
+            buyer_fallback = "a buyer" if buyer_count == 1 else "multiple buyers"
+            awardee_fallback = "an awardee" if awardee_count == 1 else "multiple awardees"
             actor_sentence = bounded(
-                f"Published buyer: {buyer}. Published awardee: {winner}.",
+                f"{buyer_label}: {buyer}. {awardee_label}: {winner}.",
                 420,
-                fallback="The source publishes a buyer and an awardee.",
+                fallback=f"The source publishes {buyer_fallback} and {awardee_fallback}.",
             )
 
     claims: list[PresentationClaim] = [
