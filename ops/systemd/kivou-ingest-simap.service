@@ -1,5 +1,5 @@
 [Unit]
-Description=Kivou — ingestion DECP bornée
+Description=Kivou — ingestion SIMAP bornée
 Documentation=file:/srv/kivou/app/ops/README.md
 Wants=network-online.target
 After=network-online.target
@@ -13,12 +13,12 @@ EnvironmentFile=/etc/kivou/staging.env
 RuntimeDirectory=kivou
 RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes
-ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 0 /run/kivou/ingest-decp.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source decp
-TimeoutStartSec=25min
+ExecStart=/usr/bin/flock --verbose --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou/ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source simap
+TimeoutStartSec=30min
 TimeoutStopSec=90s
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=kivou-ingest-decp
+SyslogIdentifier=kivou-ingest-simap
 UMask=0077
 
 NoNewPrivileges=true
@@ -27,8 +27,8 @@ PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
 ProtectKernelTunables=true
-ProtectControlGroups=true
 ProtectKernelModules=true
+ProtectControlGroups=true
 RestrictSUIDSGID=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
 ReadWritePaths=/run/kivou

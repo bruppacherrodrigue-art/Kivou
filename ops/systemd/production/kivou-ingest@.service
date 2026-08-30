@@ -1,6 +1,6 @@
 [Unit]
-Description=Kivou — cycle Acquisition QA/SHADOW borné
-Documentation=file:/srv/kivou/app/docs/runbooks/10-acquisition-runtime.md
+Description=Kivou — ingestion de production %i
+Documentation=file:/srv/kivou/app/ops/README.md
 Wants=network-online.target
 After=network-online.target postgresql.service
 
@@ -9,18 +9,16 @@ Type=oneshot
 User=kivou
 Group=kivou
 WorkingDirectory=/srv/kivou/app
-EnvironmentFile=/etc/kivou/staging.env
-EnvironmentFile=/etc/kivou/acquisition-shadow.env
-EnvironmentFile=/etc/kivou/acquisition-runtime.env
+EnvironmentFile=/etc/kivou/production.env
 RuntimeDirectory=kivou
 RuntimeDirectoryMode=0700
 RuntimeDirectoryPreserve=yes
-ExecStart=/usr/bin/flock --verbose --nonblock --conflict-exit-code 0 /run/kivou/acquisition.lock /srv/kivou/app/.venv/bin/python -m signals.acquisition_runtime run-once
-TimeoutStartSec=25min
+ExecStart=/usr/bin/flock --verbose --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou/ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion run --source %i
+TimeoutStartSec=30min
 TimeoutStopSec=90s
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=kivou-acquisition
+SyslogIdentifier=kivou-ingest-%i
 UMask=0077
 
 NoNewPrivileges=true
@@ -28,10 +26,12 @@ PrivateTmp=true
 PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
+InaccessiblePaths=/srv/kivou/.ssh
+ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
+ReadWritePaths=/run/kivou
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-ReadWritePaths=/run/kivou /var/lib/kivou/hermes-shadow

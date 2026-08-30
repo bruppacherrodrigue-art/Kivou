@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — convergence SIMAP de production toutes les deux heures
+
+[Timer]
+OnCalendar=*-*-* 00/2:05:00
+Persistent=true
+RandomizedDelaySec=60
+AccuracySec=60
+Unit=kivou-ingest@simap.service
+
+[Install]
+WantedBy=timers.target

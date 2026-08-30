@@ -29,6 +29,42 @@ def test_structured_summary_is_concise_and_contains_required_counters():
     )
 
 
+def test_source_outcome_keeps_the_previous_positional_field_order():
+    outcome = SourceOutcome(
+        "boamp",
+        "failed",
+        IngestionCounters(),
+        0.5,
+        "unexpected",
+        True,
+    )
+
+    assert outcome.work_pending is True
+    assert outcome.error_type is None
+
+
+def test_failed_summary_exposes_only_category_and_safe_error_type():
+    private_marker = "private-ingestion-marker"
+    outcome = SourceOutcome(
+        source="ted",
+        status="failed",
+        counters=IngestionCounters(),
+        duration_seconds=0.125,
+        error_category="unexpected",
+        error_type="TypeError",
+        work_pending=True,
+    )
+
+    summary = summarize(outcome)
+
+    assert summary == (
+        "source=ted fetched=0 persisted=0 linked=0 materialized=0 skipped=0 "
+        "conflicts=0 rate_limited=0 status=failed error=unexpected "
+        "error_type=TypeError pending=1 duration=0.125s"
+    )
+    assert private_marker not in summary
+
+
 def test_cli_dispatches_selected_sources_and_returns_runner_exit_code(monkeypatch, capsys):
     captured = {}
 

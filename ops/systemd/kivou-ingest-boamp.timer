@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — convergence BOAMP toutes les deux heures
+
+[Timer]
+OnCalendar=*-*-* 00/2:15:00
+Persistent=true
+RandomizedDelaySec=60
+AccuracySec=60
+Unit=kivou-ingest-boamp.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — déclenchement horaire des alertes de production
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=60
+Unit=kivou-alerts.service
+
+[Install]
+WantedBy=timers.target

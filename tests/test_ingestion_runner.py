@@ -11,7 +11,9 @@ from feed_helpers import LINKED_BOAMP, LINKED_DECP
 
 from signals.connectors.decp import DecpBatch, DecpClient, DecpWindowLimitError
 from signals.connectors.ted import NoticeRef, TedClient
-from signals.connectors.ted.errors import TedHttpError
+from signals.connectors.ted.errors import TedHttpError, TedMappingError, TedParseError
+from signals.ingestion import runner as runner_module
+from signals.ingestion.cli import summarize
 from signals.ingestion.pipeline import IngestionPipeline, PipelineFailure, PipelineResult
 from signals.ingestion.runner import IngestionRunner, RunOptions
 from signals.ingestion.sources import (
@@ -590,6 +592,254 @@ def test_partial_acquisition_and_pipeline_progress_are_kept_in_the_run_audit(tmp
 
     assert pipeline_result.outcomes[0].counters.records_persisted == 2
     assert pipeline_result.outcomes[0].counters.signals_materialized == 1
+
+
+def test_generic_source_failure_exposes_root_type_and_keeps_work_pending(tmp_path):
+    marker = "private-boamp-marker"
+    partial = AcquisitionResult(
+        source="boamp",
+        publications=(),
+        fetched=3,
+        accepted=1,
+        rejected=0,
+        complete=False,
+        cursor_after={"window_end": NOW.date().isoformat()},
+    )
+    source = SourceStub(
+        "boamp",
+        error=AcquisitionFailure(TypeError(marker), partial=partial),
+    )
+
+    engine = _engine(tmp_path)
+    result = IngestionRunner(
+        engine,
+        sources={"boamp": source},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("boamp",)))
+
+    outcome = result.outcomes[0]
+    assert outcome.error_category == "unexpected"
+    assert outcome.error_type == "TypeError"
+    assert outcome.work_pending is True
+    assert "error=unexpected error_type=TypeError pending=1" in summarize(outcome)
+    assert marker not in summarize(outcome)
+    with engine.connect() as connection:
+        run = connection.execute(sa.select(ingestion_run)).one()
+    assert run.error_message == marker
+
+
+def test_ted_failure_exposes_root_error_type(tmp_path):
+    partial = AcquisitionResult(
+        source="ted",
+        publications=(),
+        fetched=2,
+        accepted=0,
+        rejected=0,
+        complete=False,
+        cursor_after=None,
+    )
+
+    class FailingTedSource:
+        source = "ted"
+        page_size = 25
+
+        def acquire_unit(self, cursor, *, retrieved_at):
+            raise AcquisitionFailure(TypeError("private-ted-marker"), partial=partial)
+
+    result = IngestionRunner(
+        _engine(tmp_path),
+        sources={"ted": FailingTedSource()},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("ted",)))
+
+    assert result.outcomes[0].error_type == "TypeError"
+
+
+def test_decp_failure_exposes_root_error_type(tmp_path):
+    partial = AcquisitionResult(
+        source="decp",
+        publications=(),
+        fetched=2,
+        accepted=0,
+        rejected=0,
+        complete=False,
+        cursor_after=None,
+    )
+    source = SourceStub(
+        "decp",
+        error=AcquisitionFailure(TypeError("private-decp-marker"), partial=partial),
+    )
+
+    result = IngestionRunner(
+        _engine(tmp_path),
+        sources={"decp": source},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("decp",)))
+
+    assert result.outcomes[0].error_type == "TypeError"
+
+
+def test_error_type_follows_only_explicit_nested_causes():
+    root = TypeError("private-root-marker")
+    middle = RuntimeError("middle")
+    middle.cause = root
+    outer = RuntimeError("outer")
+    outer.cause = middle
+
+    assert runner_module._error_type(outer) == "TypeError"
+
+    python_chained = RuntimeError("python chained")
+    python_chained.__cause__ = root
+    assert runner_module._error_type(python_chained) == "RuntimeError"
+
+
+def test_error_type_is_cycle_safe():
+    outer = ValueError("outer")
+    inner = TypeError("inner")
+    outer.cause = inner
+    inner.cause = outer
+
+    assert runner_module._error_type(outer) == "TypeError"
+
+
+def test_error_type_does_not_execute_cause_descriptors():
+    marker = "private-descriptor-marker"
+
+    class DescriptorError(Exception):
+        @property
+        def cause(self):
+            raise AssertionError(marker)
+
+        def __getattribute__(self, name):
+            if name == "cause":
+                raise AssertionError(marker)
+            return super().__getattribute__(name)
+
+    error_type = runner_module._error_type(DescriptorError())
+    outcome = runner_module.SourceOutcome(
+        "boamp",
+        "failed",
+        runner_module.IngestionCounters(),
+        0,
+        "unexpected",
+        True,
+        error_type,
+    )
+
+    assert error_type == "Exception"
+    assert marker not in error_type
+    assert marker not in summarize(outcome)
+
+
+def test_error_type_reads_native_state_without_executing_dict_or_reduce_overrides():
+    marker = "private-dict-descriptor-marker"
+
+    class DictDescriptorError(Exception):
+        @property
+        def __dict__(self):
+            raise AssertionError(marker)
+
+        def __reduce__(self):
+            raise AssertionError(marker)
+
+    error = DictDescriptorError()
+    BaseException.__setattr__(error, "cause", TypeError("private-root-marker"))
+
+    error_type = runner_module._error_type(error)
+    outcome = runner_module.SourceOutcome(
+        "boamp",
+        "failed",
+        runner_module.IngestionCounters(),
+        0,
+        "unexpected",
+        True,
+        error_type,
+    )
+
+    assert error_type == "TypeError"
+    assert marker not in summarize(outcome)
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    (
+        (TypeError(), "TypeError"),
+        (TimeoutError(), "TimeoutError"),
+        (ConnectionError(), "ConnectionError"),
+        (ValueError(), "ValueError"),
+        (OSError(), "OSError"),
+        (RuntimeError(), "RuntimeError"),
+        (Exception(), "Exception"),
+    ),
+)
+def test_error_type_uses_closed_builtin_family_labels(error, expected):
+    assert runner_module._error_type(error) == expected
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    (
+        (
+            TedHttpError(
+                "private-ted-http-marker",
+                status_code=503,
+                url="https://private-ted-http-marker.invalid",
+            ),
+            "TedHttpError",
+        ),
+        (TedParseError("private-ted-parse-marker"), "TedParseError"),
+        (TedMappingError("private-ted-mapping-marker"), "TedMappingError"),
+    ),
+)
+def test_error_type_uses_closed_ted_connector_labels_without_payload(error, expected):
+    outer = RuntimeError("private-wrapper-marker")
+    outer.cause = error
+
+    error_type = runner_module._error_type(outer)
+    outcome = runner_module.SourceOutcome(
+        "ted",
+        "failed",
+        runner_module.IngestionCounters(),
+        0,
+        "unexpected",
+        True,
+        error_type,
+    )
+    summary = summarize(outcome)
+
+    assert error_type == expected
+    assert "private-" not in summary
+    assert str(error) not in summary
+
+
+def test_error_type_rejects_unlisted_ted_exception_subclasses():
+    class ThirdPartyTedParseError(TedParseError):
+        pass
+
+    assert (
+        runner_module._error_type(ThirdPartyTedParseError("private-subclass-marker"))
+        == "Exception"
+    )
+
+
+def test_custom_type_error_subclass_uses_the_builtin_family_label():
+    class PrivateCustomerTypeError(TypeError):
+        pass
+
+    assert runner_module._error_type(PrivateCustomerTypeError()) == "TypeError"
+
+
+@pytest.mark.parametrize(
+    "unsafe_name",
+    ("Private_customer_123", "ТypeError", "E" * 65),
+)
+def test_error_type_rejects_third_party_exception_class_names(unsafe_name):
+    unsafe_error = type(unsafe_name, (Exception,), {})()
+
+    assert runner_module._error_type(unsafe_error) == "Exception"
 
 
 class _BoampRecordClient:

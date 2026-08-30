@@ -9,6 +9,7 @@ from typing import Any
 import sqlalchemy as sa
 
 from signals.connectors.decp import PAGE_SIZE as DECP_PAGE_SIZE
+from signals.connectors.ted.errors import TedHttpError, TedMappingError, TedParseError
 from signals.ingestion.convergence import (
     advance_decp_batch,
     decp_checkpoint_high_water,
@@ -57,6 +58,7 @@ class SourceOutcome:
     duration_seconds: float
     error_category: str | None = None
     work_pending: bool = False
+    error_type: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -137,6 +139,51 @@ def _category(error: BaseException) -> str:
     if "timeout" in name:
         return "timeout"
     return "network" if status is None and "http" in name else "unexpected"
+
+
+_ERROR_TYPE_FAMILIES: tuple[tuple[type[BaseException], str], ...] = (
+    (TimeoutError, "TimeoutError"),
+    (ConnectionError, "ConnectionError"),
+    (TypeError, "TypeError"),
+    (ValueError, "ValueError"),
+    (OSError, "OSError"),
+    (RuntimeError, "RuntimeError"),
+)
+
+_TED_ERROR_TYPES: tuple[tuple[type[BaseException], str], ...] = (
+    (TedHttpError, "TedHttpError"),
+    (TedParseError, "TedParseError"),
+    (TedMappingError, "TedMappingError"),
+)
+
+
+def _error_type(error: BaseException) -> str:
+    root = error
+    seen = {id(root)}
+    while True:
+        try:
+            reduced = BaseException.__reduce__(root)
+        except BaseException:  # noqa: BLE001
+            break
+        if type(reduced) is not tuple or len(reduced) != 3:
+            break
+        state = reduced[2]
+        if type(state) is not dict:
+            break
+        cause = state.get("cause")
+        if not isinstance(cause, BaseException):
+            break
+        if id(cause) in seen:
+            break
+        seen.add(id(cause))
+        root = cause
+    for error_class, label in _TED_ERROR_TYPES:
+        if type(root) is error_class:
+            return label
+    for family, label in _ERROR_TYPE_FAMILIES:
+        if isinstance(root, family):
+            return label
+    return "Exception"
 
 
 class IngestionRunner:
@@ -457,6 +504,7 @@ class IngestionRunner:
                 total,
                 (finished - started).total_seconds(),
                 error_category=category,
+                error_type=_error_type(error),
                 work_pending=True,
             )
 
@@ -679,6 +727,7 @@ class IngestionRunner:
                 total,
                 (finished - started).total_seconds(),
                 error_category=category,
+                error_type=_error_type(error),
                 work_pending=True,
             )
 
@@ -869,6 +918,8 @@ class IngestionRunner:
                         counters,
                         (finished - started).total_seconds(),
                         error_category=category,
+                        error_type=_error_type(error),
+                        work_pending=True,
                     )
                 )
                 if category == IngestionTerminated.category:

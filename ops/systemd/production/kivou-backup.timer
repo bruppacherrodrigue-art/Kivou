@@ -1,0 +1,11 @@
+[Unit]
+Description=Kivou — sauvegarde quotidienne de production
+
+[Timer]
+OnCalendar=*-*-* 03:17:00
+Persistent=true
+RandomizedDelaySec=600
+Unit=kivou-backup.service
+
+[Install]
+WantedBy=timers.target

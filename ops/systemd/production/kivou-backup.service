@@ -1,0 +1,38 @@
+[Unit]
+Description=Kivou — sauvegarde hors site de production
+Documentation=file:/srv/kivou/app/ops/README.md
+Wants=network-online.target
+Requires=kivou-backup-local.service
+After=network-online.target kivou-backup-local.service
+
+[Service]
+Type=oneshot
+User=kivou
+Group=kivou
+EnvironmentFile=/etc/kivou/swiss-backup.env
+Environment=RESTIC_CACHE_DIR=/var/cache/kivou-restic
+CacheDirectory=kivou-restic
+CacheDirectoryMode=0700
+ExecStart=/srv/kivou/app/ops/bin/kivou-restic-upload.sh
+# Borne l'upload hors site à 6 h, soit 18 h de marge avant l'occurrence
+# quotidienne suivante. Le dump local a sa propre borne dans son unité.
+TimeoutStartSec=6h
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kivou-backup
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+InaccessiblePaths=/srv/kivou/.ssh
+ReadOnlyPaths=/srv/kivou/releases /srv/kivou/app
+ReadWritePaths=/srv/kivou/backups
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
