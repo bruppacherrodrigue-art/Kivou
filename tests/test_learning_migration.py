@@ -22,7 +22,8 @@ EMAIL = "0023_transactional_email_runtime"
 SCHEDULED_PLAN = "0024_scheduled_plan_change"
 ALERT_RECIPIENT_CONTEXT = "0025_alert_recipient_context"
 RUNTIME = "0026_acquisition_runtime"
-LATEST = "0027_signal_notes"
+SIGNAL_NOTES = "0027_signal_notes"
+LATEST = "0028_card_presentation"
 TABLES = {"acquisition_learning_snapshot", "acquisition_allocation_proposal"}
 
 
@@ -33,7 +34,8 @@ def test_learning_migration_is_one_linear_head_with_exactly_two_tables(tmp_path)
 
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == RUNTIME
+    assert scripts.get_revision(LATEST).down_revision == SIGNAL_NOTES
+    assert scripts.get_revision(SIGNAL_NOTES).down_revision == RUNTIME
     assert scripts.get_revision(RUNTIME).down_revision == ALERT_RECIPIENT_CONTEXT
     assert scripts.get_revision(ALERT_RECIPIENT_CONTEXT).down_revision == SCHEDULED_PLAN
     assert scripts.get_revision(SCHEDULED_PLAN).down_revision == EMAIL
