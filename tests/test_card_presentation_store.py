@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
+import threading
+import time
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -932,7 +936,12 @@ def test_duplicate_active_rows_are_omitted_if_storage_is_corrupt(
     metadata: AttemptMetadata,
 ) -> None:
     with engine.begin() as connection:
-        _publish(connection, source=source, payload=fallback, metadata=metadata)
+        published = _publish(
+            connection,
+            source=source,
+            payload=fallback,
+            metadata=metadata,
+        )
         original = dict(
             connection.execute(sa.select(card_presentation_artifact)).mappings().one()
         )
@@ -942,6 +951,18 @@ def test_duplicate_active_rows_are_omitted_if_storage_is_corrupt(
         connection.execute(sa.insert(card_presentation_artifact).values(**duplicate))
 
         assert _current(connection, source) is None
+        for artifact_id in (str(published["artifact_id"]), str(duplicate["artifact_id"])):
+            assert (
+                published_artifact_for_signal(
+                    connection,
+                    account_id=source.account_id,
+                    signal_key=source.signal_key,
+                    binding=_binding(source),
+                    language=source.language,
+                    artifact_id=artifact_id,
+                )
+                is None
+            )
 
 
 def test_batch_reader_uses_one_account_scoped_artifact_select_for_multiple_signals(
@@ -991,11 +1012,11 @@ def test_batch_reader_uses_one_account_scoped_artifact_select_for_multiple_signa
     finally:
         sa.event.remove(engine, "before_cursor_execute", capture)
 
-    artifact_selects = [sql for sql in statements if "card_presentation_artifact" in sql]
     assert set(presentations) == {source.signal_key, second_source.signal_key}
-    assert len(artifact_selects) == 1
-    assert "target_icp.account_id" in artifact_selects[0]
-    assert "materialized_signal.invalidated_at IS NULL" in artifact_selects[0]
+    assert len(statements) == 1
+    assert "card_presentation_artifact" in statements[0]
+    assert "target_icp.account_id" in statements[0]
+    assert "materialized_signal.invalidated_at IS NULL" in statements[0]
 
 
 def test_fallback_provider_or_model_metadata_is_rejected_before_insert(
@@ -1162,7 +1183,153 @@ def test_postgresql_publication_lock_compiles_as_select_for_update(
     assert "SELECT" in sql
     assert "MATERIALIZED_SIGNAL" in sql
     assert "TARGET_ICP.ACCOUNT_ID" in sql
-    assert "FOR UPDATE OF MATERIALIZED_SIGNAL" in sql
+    assert "JOIN CONTRACT_AWARD" in sql
+    assert "JOIN SOURCE_EVENT" in sql
+    assert "JOIN EVIDENCE AS PUBLICATION_EVIDENCE" in sql
+    assert "PUBLICATION_EVIDENCE.ANCHORS_KIND = 'AWARD_FACT'" in sql
+    assert "MIN(EVIDENCE.EVIDENCE_KEY)" in sql
+    assert (
+        "FOR UPDATE OF MATERIALIZED_SIGNAL, TARGET_ICP, CONTRACT_AWARD, "
+        "SOURCE_EVENT, PUBLICATION_EVIDENCE"
+    ) in sql
+
+
+def test_postgresql_authority_lock_serializes_a_concurrent_award_change() -> None:
+    dsn = os.environ.get("KIVOU_TEST_POSTGRES_DSN")
+    if not dsn:
+        pytest.skip("KIVOU_TEST_POSTGRES_DSN is required for the lock interleaving test")
+
+    postgres_engine = create_database_engine(dsn, pool_pre_ping=True)
+    migrate_to_latest(postgres_engine)
+    unique = uuid.uuid4().hex
+    with postgres_engine.begin() as connection:
+        account_id = make_account(
+            connection,
+            f"card-lock-{unique}@test.invalid",
+            "Card Lock QA",
+        )
+        target_icp_id = make_icp(connection, account_id, label=f"Lock {unique}")
+        signal = materialize_boamp(
+            connection,
+            BOAMP_AGING,
+            target_icp_id=target_icp_id,
+        )
+        award_key = signal.materialization_award_key
+        original_title = connection.scalar(
+            sa.select(contract_award.c.title).where(
+                contract_award.c.award_key == award_key
+            )
+        )
+
+    with postgres_engine.connect() as connection:
+        locked_source = build_presentation_input(
+            connection,
+            account_id=account_id,
+            signal_key=signal.signal_key,
+            language="fr",
+        )
+    locked_payload = factual_fallback(locked_source)
+    locked_metadata = AttemptMetadata(
+        generator_version="factual-fallback-v1",
+        qa_policy_version="factual-qa-v1",
+    )
+
+    mutation_started = threading.Event()
+    mutation_finished = threading.Event()
+    mutation_errors: list[BaseException] = []
+    mutation_backend_pid: list[int] = []
+
+    def mutate_award() -> None:
+        try:
+            with postgres_engine.begin() as connection:
+                connection.exec_driver_sql("SET LOCAL statement_timeout = '10s'")
+                mutation_backend_pid.append(
+                    int(connection.scalar(sa.text("SELECT pg_backend_pid()")))
+                )
+                mutation_started.set()
+                connection.execute(
+                    sa.update(contract_award)
+                    .where(contract_award.c.award_key == award_key)
+                    .values(title=f"{original_title or ''} concurrent mutation")
+                )
+        except (sa.exc.SQLAlchemyError, TypeError, ValueError) as error:
+            mutation_errors.append(error)
+        finally:
+            mutation_finished.set()
+
+    authority_connection = postgres_engine.connect()
+    authority_transaction = authority_connection.begin()
+    mutation = threading.Thread(target=mutate_award, daemon=True)
+    try:
+        authority_connection.execute(_locked_signal_statement(locked_source)).one()
+        mutation.start()
+        assert mutation_started.wait(timeout=5)
+        assert mutation_backend_pid
+
+        wait_event: str | None = None
+        deadline = time.monotonic() + 5
+        with postgres_engine.connect() as observer:
+            while time.monotonic() < deadline:
+                wait_event = observer.scalar(
+                    sa.text(
+                        "SELECT wait_event_type FROM pg_stat_activity WHERE pid = :pid"
+                    ),
+                    {"pid": mutation_backend_pid[0]},
+                )
+                if wait_event == "Lock":
+                    break
+                time.sleep(0.05)
+        assert wait_event == "Lock"
+        assert not mutation_finished.is_set()
+
+        first = _publish(
+            authority_connection,
+            source=locked_source,
+            payload=locked_payload,
+            metadata=locked_metadata,
+        )
+        authority_transaction.commit()
+        assert mutation_finished.wait(timeout=5)
+        mutation.join(timeout=1)
+        assert not mutation_errors
+    finally:
+        if authority_transaction.is_active:
+            authority_transaction.rollback()
+        authority_connection.close()
+        if mutation.ident is not None:
+            mutation.join(timeout=1)
+
+    with postgres_engine.connect() as connection:
+        assert _current(connection, locked_source) is None
+        assert (
+            connection.scalar(
+                sa.select(card_presentation_artifact.c.published_at).where(
+                    card_presentation_artifact.c.artifact_id == first["artifact_id"]
+                )
+            )
+            is not None
+        )
+        refreshed_source = build_presentation_input(
+            connection,
+            account_id=account_id,
+            signal_key=signal.signal_key,
+            language="fr",
+        )
+
+    with postgres_engine.begin() as connection:
+        second = _publish(
+            connection,
+            source=refreshed_source,
+            payload=factual_fallback(refreshed_source),
+            metadata=locked_metadata,
+            created_at=NOW + dt.timedelta(seconds=1),
+        )
+    with postgres_engine.connect() as connection:
+        current = _current(connection, refreshed_source)
+
+    assert second["version"] == 2
+    assert current is not None and current.artifact_id == second["artifact_id"]
+    postgres_engine.dispose()
 
 
 def test_unexpected_sqlalchemy_errors_are_not_hidden(

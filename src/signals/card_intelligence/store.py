@@ -134,16 +134,42 @@ def _sha256_json(value: object) -> str:
 def _locked_signal_statement(source: PresentationInput) -> sa.Select:
     """Build the current-row ownership lock used by every append.
 
-    ``of=materialized_signal`` is intentionally explicit: PostgreSQL must lock
-    the stream authority row, while SQLite remains usable for local tests.
+    PostgreSQL locks the complete source authority set in one statement.  The
+    deterministic minimum evidence key bounds a many-evidence award to one
+    probative row without weakening the existence gate used by the input
+    builder.  SQLite ignores ``FOR UPDATE`` but remains usable for local tests.
     """
 
+    publication_evidence = evidence.alias("publication_evidence")
+    evidence_key = (
+        sa.select(sa.func.min(evidence.c.evidence_key))
+        .where(
+            evidence.c.award_key == contract_award.c.award_key,
+            evidence.c.anchors_kind == "award_fact",
+        )
+        .correlate(contract_award)
+        .scalar_subquery()
+    )
     return (
         sa.select(materialized_signal.c.signal_key)
         .select_from(
             materialized_signal.join(
                 target_icp,
                 materialized_signal.c.target_icp_id == target_icp.c.target_icp_id,
+            )
+            .join(
+                contract_award,
+                materialized_signal.c.materialization_award_key
+                == contract_award.c.award_key,
+            )
+            .join(source_event, contract_award.c.event_key == source_event.c.event_key)
+            .join(
+                publication_evidence,
+                sa.and_(
+                    publication_evidence.c.award_key == contract_award.c.award_key,
+                    publication_evidence.c.anchors_kind == "award_fact",
+                    publication_evidence.c.evidence_key == evidence_key,
+                ),
             )
         )
         .where(
@@ -157,8 +183,17 @@ def _locked_signal_statement(source: PresentationInput) -> sa.Select:
             target_icp.c.plan_limit_code.is_(None),
             target_icp.c.matching_revision == source.target_icp_revision,
             materialized_signal.c.target_icp_revision == target_icp.c.matching_revision,
+            contract_award.c.winner_status == "identified",
         )
-        .with_for_update(of=materialized_signal)
+        .with_for_update(
+            of=(
+                materialized_signal,
+                target_icp,
+                contract_award,
+                source_event,
+                publication_evidence,
+            )
+        )
     )
 
 
@@ -623,6 +658,26 @@ def _read_statement(
         )
         for signal_key, (signal_revision, icp_revision) in bindings.items()
     )
+    active_publication = card_presentation_artifact.alias("active_publication")
+    active_count = (
+        sa.select(sa.func.count())
+        .select_from(active_publication)
+        .where(
+            active_publication.c.account_id
+            == card_presentation_artifact.c.account_id,
+            active_publication.c.signal_key
+            == card_presentation_artifact.c.signal_key,
+            active_publication.c.target_icp_id
+            == card_presentation_artifact.c.target_icp_id,
+            active_publication.c.artifact_kind
+            == card_presentation_artifact.c.artifact_kind,
+            active_publication.c.language == card_presentation_artifact.c.language,
+            active_publication.c.published_at.is_not(None),
+            active_publication.c.superseded_at.is_(None),
+        )
+        .correlate(card_presentation_artifact)
+        .scalar_subquery()
+    )
     statement = (
         sa.select(*_read_columns())
         .select_from(
@@ -650,6 +705,7 @@ def _read_statement(
             card_presentation_artifact.c.language == language,
             card_presentation_artifact.c.published_at.is_not(None),
             card_presentation_artifact.c.qa_status.in_(("PASS", "FALLBACK")),
+            active_count == 1,
             card_presentation_artifact.c.signal_revision
             == materialized_signal.c.revision,
             card_presentation_artifact.c.target_icp_id
