@@ -32,6 +32,7 @@ from __future__ import annotations
 import dataclasses
 from typing import Any, Literal
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request
 
 from signals.accounts import service
@@ -46,9 +47,15 @@ from signals.billing.access import (
     eligible_upgrade_plans,
     feed_access,
 )
+from signals.card_intelligence.contracts import PublishedCardPresentation
+from signals.card_intelligence.store import (
+    published_artifact_for_signal,
+    published_for_signals,
+)
 from signals.companies.service import ensure_company_for_unlocked_signal
 from signals.engagement import analytics, feedback
 from signals.feed import policy, query, view
+from signals.persistence.schema import materialized_signal
 from signals.recency import RECENCY_POLICY_VERSION
 
 router = APIRouter()
@@ -70,6 +77,32 @@ def _language(connection, *, user_id: str) -> str:
 
     locale = service.current_user(connection, user_id=user_id).locale
     return locale if locale in LANGUAGES else "fr"
+
+
+def _presentation_bindings(connection, items) -> dict[str, tuple[int, int]]:
+    """Reload only revision numbers absent from the legacy feed dataclass.
+
+    The query is batched and receives only items whose access has already been
+    granted.  Presentation lookup therefore never sees a locked signal key.
+    """
+
+    by_key = {item.signal.signal_key: item for item in items}
+    if not by_key:
+        return {}
+    revisions = {
+        row.signal_key: row.target_icp_revision
+        for row in connection.execute(
+            sa.select(
+                materialized_signal.c.signal_key,
+                materialized_signal.c.target_icp_revision,
+            ).where(materialized_signal.c.signal_key.in_(tuple(by_key)))
+        )
+    }
+    return {
+        signal_key: (item.signal.revision, revisions[signal_key])
+        for signal_key, item in by_key.items()
+        if signal_key in revisions
+    }
 
 
 @router.get("/signals")
@@ -148,6 +181,15 @@ def list_signals(
             # Le profil d'un autre compte se comporte comme un profil inexistant.
             raise api_error(404, "target_icp_not_found", "profil de ciblage introuvable") from error
 
+        unlocked_items = tuple(item for item in page.items if access.is_unlocked(item))
+        presentation_bindings = _presentation_bindings(connection, unlocked_items)
+        presentations = published_for_signals(
+            connection,
+            account_id=session.account_id,
+            bindings=presentation_bindings,
+            language=lang,
+        )
+
         # §34 — UNE consultation par appel de feed, jamais une par carte : une
         # ligne par signal affiché noierait la table et ne dirait rien de plus.
         analytics.record(
@@ -166,7 +208,15 @@ def list_signals(
         )
 
     return {
-        "items": [_render(item, access, lang=lang) for item in page.items],
+        "items": [
+            _render(
+                item,
+                access,
+                lang=lang,
+                presentation=presentations.get(item.signal.signal_key),
+            )
+            for item in page.items
+        ],
         "total_returned": len(page.items),
         "page": {
             "limit": page.limit,
@@ -190,10 +240,16 @@ def list_signals(
     }
 
 
-def _render(item, access: FeedAccess, *, lang: str) -> dict[str, Any]:
+def _render(
+    item,
+    access: FeedAccess,
+    *,
+    lang: str,
+    presentation: PublishedCardPresentation | None,
+) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
-        card = view.feed_item(item, lang=lang)
+        card = view.feed_item(item, lang=lang, presentation=presentation)
         card["locked"] = False
         return card
     return paywall.locked_teaser(item, lang=lang)
@@ -226,13 +282,23 @@ def _grant_discovery(connection, account_id: str, access: FeedAccess, allowed, n
 
 
 @router.get("/signals/{signal_key}")
-def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
+def get_signal(
+    signal_key: str,
+    request: Request,
+    presentation_artifact_id: str | None = Query(
+        default=None,
+        min_length=64,
+        max_length=64,
+        pattern=r"^[0-9a-f]{64}$",
+    ),
+) -> dict[str, Any]:
     """Le détail d'un signal possédé — de quoi vérifier, pas seulement lire."""
     now = request_now(request)
     as_of = now.date()
     # La consultation est ENREGISTRÉE : d'où une transaction plutôt qu'une
     # simple lecture.
     company_key = None
+    presentation = None
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         lang = _language(connection, user_id=session.user_id)
@@ -277,6 +343,24 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
                 connection, account_id=session.account_id, signal_key=signal_key
             )
             if unlocked:
+                binding = _presentation_bindings(connection, (item,)).get(signal_key)
+                if binding is not None:
+                    if presentation_artifact_id is None:
+                        presentation = published_for_signals(
+                            connection,
+                            account_id=session.account_id,
+                            bindings={signal_key: binding},
+                            language=lang,
+                        ).get(signal_key)
+                    else:
+                        presentation = published_artifact_for_signal(
+                            connection,
+                            account_id=session.account_id,
+                            signal_key=signal_key,
+                            binding=binding,
+                            language=lang,
+                            artifact_id=presentation_artifact_id,
+                        )
                 company_key = ensure_company_for_unlocked_signal(
                     connection,
                     item=item,
@@ -296,7 +380,7 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
         locked["language"] = lang
         return locked
 
-    detail = view.signal_detail(item, lang=lang)
+    detail = view.signal_detail(item, lang=lang, presentation=presentation)
     detail["read_at"] = as_of.isoformat()
     detail["language"] = lang
     detail["locked"] = False
