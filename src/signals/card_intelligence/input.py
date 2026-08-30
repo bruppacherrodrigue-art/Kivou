@@ -7,6 +7,7 @@ buyer or winner, contact a provider, or publish an artifact.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterable, Mapping
 from decimal import Decimal, InvalidOperation
 from typing import Literal, NoReturn
@@ -159,6 +160,7 @@ _INPUT_SELECT = (
         contract_award.c.award_date.label("source_award_date"),
         contract_award.c.contract_notification_date.label("source_notification_date"),
         source_event.c.source_system.label("source_system"),
+        source_event.c.event_key.label("source_event_key"),
         source_event.c.source_notice_id.label("source_notice_id"),
         source_event.c.published_on.label("source_publication_date"),
         source_event.c.procedure_buyers.label("source_buyers"),
@@ -186,22 +188,57 @@ _INPUT_SELECT = (
 )
 
 
-def _evidence_refs(connection: sa.Connection, *, award_key: str) -> tuple[str, ...]:
-    """Return a deterministic bounded catalog of persisted source-fact evidence."""
+def _source_field_ref(*, table: str, row_key: str, column: str) -> str:
+    """Versioned pointer to one immutable persisted source field."""
 
-    keys = connection.execute(
-        sa.select(evidence.c.evidence_key)
+    cleaned_key = _clean_text(row_key, required=True)
+    assert cleaned_key is not None
+    key_token = (
+        f"sha256-{hashlib.sha256(cleaned_key.encode('utf-8')).hexdigest()}"
+        if table == "source_event"
+        else cleaned_key
+    )
+    return f"source-field:v1:{table}:{key_token}:{column}"
+
+
+def _evidence_refs(
+    connection: sa.Connection,
+    *,
+    award_key: str,
+    event_key: str,
+) -> tuple[str, ...]:
+    """Return field pointers first, then fact-bound persisted evidence rows."""
+
+    field_refs = (
+        _source_field_ref(table="contract_award", row_key=award_key, column="awardee_parties"),
+        _source_field_ref(table="source_event", row_key=event_key, column="procedure_buyers"),
+        _source_field_ref(table="contract_award", row_key=award_key, column="amount_currency"),
+        _source_field_ref(table="contract_award", row_key=award_key, column="place_of_performance"),
+        _source_field_ref(table="contract_award", row_key=award_key, column="award_date"),
+        _source_field_ref(
+            table="contract_award",
+            row_key=award_key,
+            column="contract_notification_date",
+        ),
+        _source_field_ref(table="source_event", row_key=event_key, column="published_on"),
+    )
+    rows = connection.execute(
+        sa.select(evidence.c.evidence_key, evidence.c.anchors_ref)
         .where(
             evidence.c.award_key == award_key,
             evidence.c.anchors_kind == "award_fact",
         )
         .order_by(evidence.c.evidence_key)
         .limit(32)
-    ).scalars()
-    refs = tuple(dict.fromkeys(f"evidence:{key}" for key in keys))
-    if not refs:
+    ).all()
+    if not rows:
         _unavailable()
-    return refs
+    persisted_refs = tuple(
+        f"evidence:v1:{_clean_text(row.evidence_key, required=True)}:"
+        f"{_clean_text(row.anchors_ref, required=True)}"
+        for row in rows
+    )
+    return tuple(dict.fromkeys((*field_refs, *persisted_refs)))[:32]
 
 
 def build_presentation_input(
@@ -244,7 +281,11 @@ def build_presentation_input(
             publication_date=row.source_publication_date,
             source_system=_clean_text(row.source_system, required=True),
             source_notice_id=_clean_text(row.source_notice_id, required=True),
-            evidence_refs=_evidence_refs(connection, award_key=row.source_award_key),
+            evidence_refs=_evidence_refs(
+                connection,
+                award_key=row.source_award_key,
+                event_key=row.source_event_key,
+            ),
         )
         return PresentationInput(
             account_id=row.owned_account_id,

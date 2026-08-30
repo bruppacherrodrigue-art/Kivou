@@ -67,11 +67,56 @@ def bounded(text: str, limit: int, *, fallback: str) -> str:
     return candidate if len(candidate) <= limit else replacement
 
 
-def _evidence(source: PresentationInput) -> tuple[str, ...]:
-    refs = tuple(dict.fromkeys(source.facts.evidence_refs))[:16]
-    if not refs:
-        raise ValueError("factual fallback requires persisted evidence")
-    return refs
+def _semantic_evidence(
+    source: PresentationInput,
+    *,
+    table: str,
+    column: str,
+    anchors: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    """Select only pointers that establish this exact persisted source fact."""
+
+    direct = tuple(
+        ref
+        for ref in source.facts.evidence_refs
+        if ref.startswith(f"source-field:v1:{table}:") and ref.endswith(f":{column}")
+    )
+    if not direct:
+        raise ValueError(f"factual fallback lacks source-field proof for {table}.{column}")
+    persisted = tuple(
+        ref
+        for ref in source.facts.evidence_refs
+        if ref.startswith("evidence:v1:") and any(ref.endswith(f":{anchor}") for anchor in anchors)
+    )
+    return tuple(dict.fromkeys((*direct, *persisted)))[:16]
+
+
+def _award_evidence(
+    source: PresentationInput,
+    column: str,
+    *,
+    anchors: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    return _semantic_evidence(
+        source,
+        table="contract_award",
+        column=column,
+        anchors=anchors,
+    )
+
+
+def _event_evidence(
+    source: PresentationInput,
+    column: str,
+    *,
+    anchors: tuple[str, ...] = (),
+) -> tuple[str, ...]:
+    return _semantic_evidence(
+        source,
+        table="source_event",
+        column=column,
+        anchors=anchors,
+    )
 
 
 def _date(value: dt.date, *, language: str) -> str:
@@ -84,44 +129,82 @@ def _amount(value: Decimal, currency: str) -> str:
     return f"{value} {currency}"
 
 
-def _missing_fact_labels(
-    source: PresentationInput, evidence_refs: tuple[str, ...]
-) -> tuple[PresentationUnknown, ...]:
+def _missing_fact_labels(source: PresentationInput) -> tuple[PresentationUnknown, ...]:
     facts = source.facts
     if source.language == "fr":
         missing = (
-            (facts.buyer_name, "Acheteur non publié."),
-            (facts.amount, "Montant non publié."),
-            (facts.location, "Lieu d'exécution non publié."),
-            (facts.award_date, "Date d'attribution non publiée."),
+            (
+                facts.buyer_name,
+                "Acheteur non publié.",
+                _event_evidence(source, "procedure_buyers", anchors=("procedure_buyers",)),
+            ),
+            (
+                facts.amount,
+                "Montant non publié.",
+                _award_evidence(source, "amount_currency", anchors=("amount",)),
+            ),
+            (
+                facts.location,
+                "Lieu d'exécution non publié.",
+                _award_evidence(source, "place_of_performance"),
+            ),
+            (
+                facts.award_date,
+                "Date d'attribution non publiée.",
+                _award_evidence(source, "award_date", anchors=("award_date",)),
+            ),
             (
                 facts.contract_notification_date,
                 "Date de notification du contrat non publiée.",
+                _award_evidence(source, "contract_notification_date"),
             ),
-            (facts.publication_date, "Date de publication non publiée."),
+            (
+                facts.publication_date,
+                "Date de publication non publiée.",
+                _event_evidence(source, "published_on"),
+            ),
         )
     else:
         missing = (
-            (facts.buyer_name, "The buyer is not published."),
-            (facts.amount, "The amount is not published."),
-            (facts.location, "The place of performance is not published."),
-            (facts.award_date, "The award date is not published."),
+            (
+                facts.buyer_name,
+                "The buyer is not published.",
+                _event_evidence(source, "procedure_buyers", anchors=("procedure_buyers",)),
+            ),
+            (
+                facts.amount,
+                "The amount is not published.",
+                _award_evidence(source, "amount_currency", anchors=("amount",)),
+            ),
+            (
+                facts.location,
+                "The place of performance is not published.",
+                _award_evidence(source, "place_of_performance"),
+            ),
+            (
+                facts.award_date,
+                "The award date is not published.",
+                _award_evidence(source, "award_date", anchors=("award_date",)),
+            ),
             (
                 facts.contract_notification_date,
                 "The contract notification date is not published.",
+                _award_evidence(source, "contract_notification_date"),
             ),
-            (facts.publication_date, "The publication date is not published."),
+            (
+                facts.publication_date,
+                "The publication date is not published.",
+                _event_evidence(source, "published_on"),
+            ),
         )
     return tuple(
         PresentationUnknown(text=text, evidence_refs=evidence_refs)
-        for value, text in missing
+        for value, text, evidence_refs in missing
         if value is None
     )
 
 
-def _dated_claims(
-    source: PresentationInput, evidence_refs: tuple[str, ...]
-) -> tuple[PresentationClaim, ...]:
+def _dated_claims(source: PresentationInput) -> tuple[PresentationClaim, ...]:
     facts = source.facts
     if source.language == "fr":
         dated = (
@@ -129,36 +212,50 @@ def _dated_claims(
                 "FACT_AWARD_DATE",
                 facts.award_date,
                 "Date d'attribution publiée : {date}.",
+                _award_evidence(source, "award_date", anchors=("award_date",)),
             ),
             (
                 "FACT_NOTIFICATION_DATE",
                 facts.contract_notification_date,
                 "Date de notification du contrat publiée : {date}.",
+                _award_evidence(source, "contract_notification_date"),
             ),
             (
                 "FACT_PUBLICATION_DATE",
                 facts.publication_date,
                 "Date de publication : {date}.",
+                _event_evidence(source, "published_on"),
             ),
         )
     else:
         dated = (
-            ("FACT_AWARD_DATE", facts.award_date, "Published award date: {date}."),
+            (
+                "FACT_AWARD_DATE",
+                facts.award_date,
+                "Published award date: {date}.",
+                _award_evidence(source, "award_date", anchors=("award_date",)),
+            ),
             (
                 "FACT_NOTIFICATION_DATE",
                 facts.contract_notification_date,
                 "Published contract notification date: {date}.",
+                _award_evidence(source, "contract_notification_date"),
             ),
-            ("FACT_PUBLICATION_DATE", facts.publication_date, "Publication date: {date}."),
+            (
+                "FACT_PUBLICATION_DATE",
+                facts.publication_date,
+                "Publication date: {date}.",
+                _event_evidence(source, "published_on"),
+            ),
         )
     return tuple(
         PresentationClaim(
             claim_id=claim_id,
             kind=ClaimKind.FACT,
             text=template.format(date=_date(value, language=source.language)),
-            evidence_refs=evidence_refs,
+            evidence_refs=claim_evidence,
         )
-        for claim_id, value, template in dated
+        for claim_id, value, template, claim_evidence in dated
         if value is not None
     )
 
@@ -174,7 +271,17 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
     facts = source.facts
     winner = actor_label(facts.winner_name)
     buyer = actor_label(facts.buyer_name) if facts.buyer_name is not None else None
-    evidence_refs = _evidence(source)
+    awardee_evidence = _award_evidence(
+        source,
+        "awardee_parties",
+        anchors=("winner",),
+    )
+    buyer_evidence = _event_evidence(
+        source,
+        "procedure_buyers",
+        anchors=("procedure_buyers",),
+    )
+    actor_evidence = tuple(dict.fromkeys((*awardee_evidence, *buyer_evidence)))[:16]
 
     if source.language == "fr":
         headline = bounded(
@@ -218,13 +325,13 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
             claim_id="FACT_HEADLINE",
             kind=ClaimKind.FACT,
             text=headline,
-            evidence_refs=evidence_refs,
+            evidence_refs=awardee_evidence,
         ),
         PresentationClaim(
             claim_id="FACT_AWARD_CONTEXT",
             kind=ClaimKind.FACT,
             text=actor_sentence,
-            evidence_refs=evidence_refs,
+            evidence_refs=actor_evidence,
         ),
     ]
     if facts.amount is not None:
@@ -245,7 +352,11 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
                 claim_id="FACT_AMOUNT",
                 kind=ClaimKind.FACT,
                 text=amount_text,
-                evidence_refs=evidence_refs,
+                evidence_refs=_award_evidence(
+                    source,
+                    "amount_currency",
+                    anchors=("amount",),
+                ),
             )
         )
     if facts.location is not None:
@@ -265,18 +376,19 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
                 claim_id="FACT_LOCATION",
                 kind=ClaimKind.FACT,
                 text=location_text,
-                evidence_refs=evidence_refs,
+                evidence_refs=_award_evidence(source, "place_of_performance"),
             )
         )
-    claims.extend(_dated_claims(source, evidence_refs))
+    claims.extend(_dated_claims(source))
 
-    return CardPresentationPayload(
+    payload = CardPresentationPayload(
         variant=PresentationVariant.FACTUAL_FALLBACK,
         headline=headline,
         award_summary=actor_sentence,
-        unknowns=_missing_fact_labels(source, evidence_refs),
+        unknowns=_missing_fact_labels(source),
         claims=tuple(claims),
     )
+    return source.ensure_evidence_refs(payload)
 
 
 __all__ = ["actor_label", "bounded", "factual_fallback"]
