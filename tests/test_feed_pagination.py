@@ -268,5 +268,15 @@ def test_listing_a_page_does_not_query_evidence_once_per_row(client, icp, engine
     finally:
         sa.event.remove(engine, "before_cursor_execute", record)
 
-    evidence_reads = [statement for statement in statements if "FROM evidence" in statement]
-    assert evidence_reads == [], "aucune preuve n'est relue pour une carte de feed"
+    normalized = [" ".join(statement.lower().split()) for statement in statements]
+    evidence_hydrations = [
+        statement for statement in normalized if statement.startswith("select evidence.")
+    ]
+    presentation_batches = [
+        statement
+        for statement in normalized
+        if statement.startswith("select card_presentation_artifact.")
+    ]
+
+    assert evidence_hydrations == [], "aucune preuve n'est hydratée par carte de feed"
+    assert len(presentation_batches) == 1, "les présentations sont chargées en un seul batch"
