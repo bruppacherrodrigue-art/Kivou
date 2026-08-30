@@ -11,8 +11,27 @@ import type {
   CompanySummaryView,
   SignalCardView,
   SignalDetailView,
+  SignalEventDateKind,
   TargetProfileView,
 } from './models'
+
+function eventDateKind(clock: string | null | undefined, status: string): SignalEventDateKind {
+  if (clock === 'notification' || status === 'recently_notified_contract') {
+    return 'notification'
+  }
+  if (
+    clock === 'publication'
+    || status === 'recently_published_award'
+    || status === 'award_date_unknown'
+  ) {
+    return 'publication'
+  }
+  return 'award'
+}
+
+function concreteMatchReasons(reasons: string[]): string[] {
+  return reasons.map((reason) => reason.trim()).filter(Boolean)
+}
 
 export function toSignalCard(_item: FeedItem): SignalCardView {
   if (_item.locked) {
@@ -24,6 +43,8 @@ export function toSignalCard(_item: FeedItem): SignalCardView {
       amount: null,
       location: null,
       eventDate: _item.event.date,
+      eventDateKind: eventDateKind(undefined, _item.event.status),
+      eventStatus: _item.event.status,
       awardDate: null,
       matchLabel: null,
       matchReasons: [],
@@ -31,6 +52,8 @@ export function toSignalCard(_item: FeedItem): SignalCardView {
       whyNow: _item.event.why_now,
     }
   }
+
+  const matchReasons = concreteMatchReasons(_item.analysis.fit.reasons)
 
   return {
     id: _item.signal_id,
@@ -40,9 +63,11 @@ export function toSignalCard(_item: FeedItem): SignalCardView {
     amount: _item.contract.amount,
     location: _item.contract.location,
     eventDate: _item.event.date,
+    eventDateKind: eventDateKind(_item.event.clock, _item.event.status),
+    eventStatus: _item.event.status,
     awardDate: _item.contract.dates.award,
-    matchLabel: _item.analysis.fit.label,
-    matchReasons: _item.analysis.fit.reasons,
+    matchLabel: matchReasons.length > 0 ? _item.analysis.fit.label : null,
+    matchReasons,
     sourceSystem: _item.source.system,
     whyNow: _item.event.why_now,
   }
@@ -53,7 +78,9 @@ export function toSignalCards(page: FeedPage): SignalCardView[] {
 }
 
 export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
-  const firstNeed = detail.analysis.plausible_needs.items[0]
+  const firstTargetedNeed = detail.analysis.plausible_needs.items.find(
+    (need) => need.targeted_by_your_profile && Boolean(need.statement?.trim()),
+  )
 
   return {
     id: detail.signal_id,
@@ -67,12 +94,14 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
     summary: detail.analysis.contract_reading?.summary ?? null,
     brief: {
       whyNow: detail.event.why_now,
-      offerCoverage: firstNeed?.statement ?? null,
+      offerCoverage: firstTargetedNeed?.statement ?? null,
       functionToFind: null,
       unknown: detail.analysis.plausible_needs.note || null,
     },
     facts: {
       amount: detail.contract.amount,
+      eventDate: detail.event.date,
+      eventDateKind: eventDateKind(detail.event.clock, detail.event.status),
       awardDate: detail.contract.dates.award,
       execution: null,
       buyer: detail.contract.buyer?.name ?? null,

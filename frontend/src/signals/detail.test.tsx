@@ -71,6 +71,9 @@ describe('détail exact d’un signal réel', () => {
     expect(within(panel).getByText('SIRET 12345678900011')).toBeVisible()
     expect(within(panel).getAllByText(/BOAMP.*26-104412/).length).toBeGreaterThan(1)
     expect(within(panel).getByText('Date d’attribution')).toBeVisible()
+    expect(within(panel).getByText('Fonction cible')).toBeVisible()
+    expect(within(panel).getByText('À identifier après qualification du signal.')).toBeVisible()
+    expect(within(panel).getByText(/Aucune fonction cible.*validé/i)).toBeVisible()
     expect(within(panel).queryByText('Contrat conclu')).not.toBeInTheDocument()
     const scope = panel.querySelector('.volume-grid')
     expect(scope).toHaveTextContent('Non publié')
@@ -97,6 +100,91 @@ describe('détail exact d’un signal réel', () => {
     expect(panel.textContent?.toLowerCase()).not.toMatch(
       /va acheter|achètera|achat prévu|achat certain|client garanti/,
     )
+  })
+
+  it('écarte un besoin non ciblé même lorsqu’il arrive en premier', async () => {
+    const targetedStatement = 'Le chantier pourrait nécessiter des matériaux dédiés.'
+    const detail = {
+      ...UNLOCKED_DETAIL,
+      analysis: {
+        ...UNLOCKED_DETAIL.analysis,
+        plausible_needs: {
+          ...UNLOCKED_DETAIL.analysis.plausible_needs,
+          items: [
+            {
+              ...UNLOCKED_DETAIL.analysis.plausible_needs.items[0],
+              category: 'workforce_capacity',
+              statement: 'Le chantier pourrait nécessiter du personnel supplémentaire.',
+              targeted_by_your_profile: false,
+            },
+            {
+              ...UNLOCKED_DETAIL.analysis.plausible_needs.items[0],
+              category: 'materials_or_components',
+              statement: targetedStatement,
+              targeted_by_your_profile: true,
+            },
+          ],
+        },
+      },
+    }
+    mockApi(detailRoutes(detail))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel()
+    expect(panel).toHaveTextContent(targetedStatement)
+    expect(panel).not.toHaveTextContent('personnel supplémentaire')
+  })
+
+  it('masque le besoin commercial lorsqu’aucun besoin n’est ciblé', async () => {
+    const detail = {
+      ...UNLOCKED_DETAIL,
+      analysis: {
+        ...UNLOCKED_DETAIL.analysis,
+        plausible_needs: {
+          ...UNLOCKED_DETAIL.analysis.plausible_needs,
+          items: UNLOCKED_DETAIL.analysis.plausible_needs.items.map((need) => ({
+            ...need,
+            targeted_by_your_profile: false,
+          })),
+        },
+      },
+    }
+    mockApi(detailRoutes(detail))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel()
+    expect(within(panel).queryByText('Ce que l’offre peut couvrir')).not.toBeInTheDocument()
+    expect(panel).not.toHaveTextContent(
+      UNLOCKED_DETAIL.analysis.plausible_needs.items[0].statement!,
+    )
+  })
+
+  it('qualifie aussi la date du détail depuis l’horloge serveur', async () => {
+    const detail = {
+      ...UNLOCKED_DETAIL,
+      event: {
+        ...UNLOCKED_DETAIL.event,
+        status: 'recently_published_award' as const,
+        type: 'recently_published_award' as const,
+        clock: 'publication',
+        date: '2026-08-10',
+      },
+    }
+    mockApi(detailRoutes(detail))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel()
+    expect(within(panel).getByText('Date de publication')).toBeVisible()
+    expect(within(panel).getByText('10 août 2026')).toBeVisible()
   })
 
   it('rend la source officielle uniquement quand l’API fournit une URL sûre', async () => {
@@ -144,6 +232,8 @@ describe('détail exact d’un signal réel', () => {
       'href',
       `/app/companies/${UNLOCKED_DETAIL.company_key}`,
     )
+    expect(link).toHaveTextContent('Voir l’entreprise')
+    expect(link).not.toHaveTextContent(/contact/i)
     expect(link).not.toHaveAttribute('state')
   })
 

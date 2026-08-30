@@ -69,6 +69,11 @@ export function ReferenceSignalDetail({
     )
   }
 
+  const eventDateLabel = {
+    award: t.reference.fields.awardDate,
+    notification: t.reference.fields.notificationDate,
+    publication: t.reference.fields.publicationDate,
+  }[detail.facts.eventDateKind]
   const facts = [
     {
       label: t.reference.fields.amount,
@@ -76,7 +81,7 @@ export function ReferenceSignalDetail({
         ? amount(detail.facts.amount.value, detail.facts.amount.currency) ?? missing
         : missing,
     },
-    { label: t.reference.fields.awardDate, value: date(detail.facts.awardDate) ?? missing },
+    { label: eventDateLabel, value: date(detail.facts.eventDate) ?? missing },
     { label: t.reference.fields.execution, value: detail.facts.execution ?? missing },
     { label: t.reference.fields.buyer, value: detail.facts.buyer ?? missing },
   ]
@@ -153,11 +158,20 @@ export function ReferenceSignalDetail({
         </div>
         <div className="commercial-brief-grid">
           <div><span>{t.reference.fields.whyNow}</span><p>{detail.brief.whyNow}</p></div>
-          <div><span>{t.reference.fields.offerCoverage}</span><p>{detail.brief.offerCoverage ?? missing}</p></div>
+          {detail.brief.offerCoverage ? (
+            <div>
+              <span>{t.reference.fields.offerCoverage}</span>
+              <p>{detail.brief.offerCoverage}</p>
+            </div>
+          ) : null}
           <div>
             <span>{t.reference.fields.roleToFind}</span>
-            <p>{detail.brief.functionToFind ?? missing}</p>
-            <small>{t.reference.signalsPage.noEnrichedContact}</small>
+            <p>{detail.brief.functionToFind ?? t.reference.signalsPage.roleUnavailable}</p>
+            <small>
+              {detail.brief.functionToFind
+                ? t.reference.signalsPage.noEnrichedContact
+                : t.reference.signalsPage.roleUnavailableDetail}
+            </small>
           </div>
           <div><span>{t.reference.fields.unknown}</span><p>{detail.brief.unknown ?? missing}</p></div>
         </div>

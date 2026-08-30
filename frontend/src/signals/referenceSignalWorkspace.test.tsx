@@ -69,6 +69,10 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
       }),
     ).toBeVisible()
     expect(document.querySelector('.workspace-grid .feed-panel + .detail-panel')).not.toBeNull()
+    expect(screen.getByText('Fonction cible')).toBeVisible()
+    expect(screen.getByText('À identifier après qualification du signal.')).toBeVisible()
+    expect(screen.getByRole('link', { name: 'Voir l’entreprise' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: /contacts/i })).not.toBeInTheDocument()
   })
 
   it('enregistre la valeur exacte après 500 ms et annonce honnêtement le résultat', async () => {

@@ -434,6 +434,10 @@ export function SignalsFeed() {
       ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
       : t.reference.missingValue
   const displayDate = (value: string | null) => date(value) ?? t.reference.missingValue
+  const displayEventDate = (card: SignalCardView) => interpolate(
+    t.reference.signalsPage.eventDates[card.eventDateKind],
+    { date: displayDate(card.eventDate) },
+  )
   const displayLocation = (card: SignalCardView) => {
     if (!card.location) return t.reference.missingValue
     const region = [card.location.locality, card.location.postal_code, card.location.country]
@@ -482,9 +486,8 @@ export function SignalsFeed() {
                 ? t.reference.signalsPage.paidAccessRequired
                 : hasSelectedNote
                   ? t.reference.statuses.noteAdded
-                : card.id === firstUnlocked?.signal_id
-                  ? t.reference.statuses.reviewFirst
                   : t.reference.statuses.documentedSignal
+              const matchReason = card.matchReasons[0] ?? null
               return (
                 <button
                   type="button"
@@ -518,15 +521,11 @@ export function SignalsFeed() {
                   </span>
                   <span className="signal-event">{card.eventTitle ?? t.reference.missingValue}</span>
                   <span className="signal-meta">{displayAmount(card)} · {displayLocation(card)}</span>
-                  <span className="signal-fit">
-                    {interpolate(t.reference.signalsPage.eventDate, {
-                      date: displayDate(card.eventDate),
-                    })}
-                  </span>
-                  <span className="signal-match">
-                    {card.locked ? badge : card.matchLabel ?? t.reference.missingValue}
-                  </span>
-                  {card.locked || card.id === firstUnlocked?.signal_id ? (
+                  <span className="signal-fit">{displayEventDate(card)}</span>
+                  {!card.locked && matchReason ? (
+                    <span className="signal-match">{matchReason}</span>
+                  ) : null}
+                  {card.locked || card.whyNow.trim() ? (
                     <span className={`signal-reason${card.locked ? ' signal-lock-note' : ''}`}>
                       {card.locked ? <LockKeyhole aria-hidden="true" /> : null}
                       {card.locked ? t.reference.signalsPage.lockedReason : card.whyNow}

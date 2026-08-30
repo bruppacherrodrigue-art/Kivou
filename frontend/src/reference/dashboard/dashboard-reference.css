@@ -582,12 +582,16 @@ a:focus-visible {
 }
 
 .signal-event {
-  display: block;
+  display: -webkit-box;
+  overflow: hidden;
   margin: 7px 0 5px;
   color: #23352e;
   font-size: 13px;
   font-weight: 560;
   line-height: 1.42;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .signal-meta,
@@ -661,6 +665,14 @@ a:focus-visible {
   font-weight: 450;
   letter-spacing: -0.03em;
   line-height: 1.13;
+}
+
+#signal-detail .detail-hero h2 {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .detail-summary {

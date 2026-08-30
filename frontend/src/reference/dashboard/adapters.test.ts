@@ -46,6 +46,8 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       amount: UNLOCKED_ITEM.contract.amount,
       location: UNLOCKED_ITEM.contract.location,
       eventDate: UNLOCKED_ITEM.event.date,
+      eventDateKind: 'award',
+      eventStatus: UNLOCKED_ITEM.event.status,
       awardDate: UNLOCKED_ITEM.contract.dates.award,
       matchLabel: UNLOCKED_ITEM.analysis.fit.label,
       matchReasons: UNLOCKED_ITEM.analysis.fit.reasons,
@@ -65,6 +67,8 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       amount: null,
       location: null,
       eventDate: locked.event.date,
+      eventDateKind: 'award',
+      eventStatus: locked.event.status,
       awardDate: null,
       matchLabel: null,
       matchReasons: [],
@@ -105,6 +109,8 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       },
       facts: {
         amount: detail.contract.amount,
+        eventDate: detail.event.date,
+        eventDateKind: 'award',
         awardDate: detail.contract.dates.award,
         execution: null,
         buyer: detail.contract.buyer?.name ?? null,
@@ -118,6 +124,88 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     expect(view.facts.sourceUrl).toBe(UNLOCKED_DETAIL.source.url)
     expect(view.brief.whyNow).toBe(UNLOCKED_DETAIL.event.why_now)
     expectNoReferenceOnlyCopy(view)
+  })
+
+  it('choisit le premier besoin réellement ciblé au lieu du premier besoin global', () => {
+    const materialsStatement = 'Le chantier pourrait nécessiter des matériaux dédiés.'
+    const detail: UnlockedDetail = {
+      ...UNLOCKED_DETAIL,
+      analysis: {
+        ...UNLOCKED_DETAIL.analysis,
+        plausible_needs: {
+          ...UNLOCKED_DETAIL.analysis.plausible_needs,
+          items: [
+            {
+              ...UNLOCKED_DETAIL.analysis.plausible_needs.items[0],
+              category: 'workforce_capacity',
+              statement: 'Le chantier pourrait nécessiter du personnel supplémentaire.',
+              targeted_by_your_profile: false,
+            },
+            {
+              ...UNLOCKED_DETAIL.analysis.plausible_needs.items[0],
+              category: 'materials_or_components',
+              statement: materialsStatement,
+              targeted_by_your_profile: true,
+            },
+          ],
+        },
+      },
+    }
+
+    const view = toSignalDetailView(detail)
+
+    expect(view.brief.offerCoverage).toBe(materialsStatement)
+    expect(view.brief.offerCoverage).not.toContain('personnel')
+  })
+
+  it('ne publie ni besoin ni libellé de correspondance sans preuve ciblée', () => {
+    const detail: UnlockedDetail = {
+      ...UNLOCKED_DETAIL,
+      analysis: {
+        ...UNLOCKED_DETAIL.analysis,
+        plausible_needs: {
+          ...UNLOCKED_DETAIL.analysis.plausible_needs,
+          items: UNLOCKED_DETAIL.analysis.plausible_needs.items.map((need) => ({
+            ...need,
+            targeted_by_your_profile: false,
+          })),
+        },
+      },
+    }
+    const card = toSignalCard({
+      ...UNLOCKED_ITEM,
+      analysis: {
+        ...UNLOCKED_ITEM.analysis,
+        fit: { ...UNLOCKED_ITEM.analysis.fit, reasons: [' ', ''] },
+      },
+    })
+
+    expect(toSignalDetailView(detail).brief.offerCoverage).toBeNull()
+    expect(card.matchReasons).toEqual([])
+    expect(card.matchLabel).toBeNull()
+  })
+
+  it('qualifie la date depuis l’horloge, avec le statut comme repli', () => {
+    const notified = toSignalCard({
+      ...UNLOCKED_ITEM,
+      event: {
+        ...UNLOCKED_ITEM.event,
+        status: 'recently_notified_contract',
+        type: 'recently_notified_contract',
+        clock: 'notification',
+      },
+    })
+    const publishedLocked = toSignalCard({
+      ...LOCKED_ITEM,
+      event: {
+        ...LOCKED_ITEM.event,
+        status: 'recently_published_award',
+        type: 'recently_published_award',
+      },
+    })
+
+    expect(notified.eventDateKind).toBe('notification')
+    expect(publishedLocked.eventDateKind).toBe('publication')
   })
 
   it.each(['award_winner', 'amount', 'award_date', 'procedure_buyers'])(

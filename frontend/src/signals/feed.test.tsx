@@ -60,7 +60,11 @@ describe('feed de signaux dans le workspace de référence', () => {
     expect(rows[0]).toHaveTextContent('Réfection de la voirie communale — lot 2')
     expect(rows[0].textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('1 240 000 €')
     expect(rows[0]).toHaveTextContent('4 août 2026')
+    expect(rows[0]).toHaveTextContent('Date d’attribution')
+    expect(rows[0]).toHaveTextContent('Besoin visé : Matériaux ou composants')
+    expect(rows[0]).not.toHaveTextContent('Très bon pour votre profil')
     expect(rows[1]).toHaveTextContent('Deuxième selon le serveur SA')
+    expect(document.body).not.toHaveTextContent('À examiner d’abord')
   })
 
   it('rend le calendrier et la justification du serveur sans recalcul navigateur', async () => {
@@ -81,6 +85,41 @@ describe('feed de signaux dans le workspace de référence', () => {
     expect(row).toHaveTextContent('CALENDRIER SERVEUR — décision commerciale à examiner.')
     expect(row).not.toHaveTextContent('999 jours')
     expect(row).not.toHaveTextContent(UNLOCKED_ITEM.analysis.plausible_needs.items[0].statement!)
+  })
+
+  it('nomme la nature exacte de la date publiée par le serveur', async () => {
+    const notified = {
+      ...UNLOCKED_ITEM,
+      event: {
+        ...UNLOCKED_ITEM.event,
+        status: 'recently_notified_contract' as const,
+        type: 'recently_notified_contract' as const,
+        clock: 'notification',
+        date: '2026-02-03',
+      },
+    }
+    mockApi(feedWith([notified]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const row = (await signalList()).querySelector('.signal-item')!
+    expect(row).toHaveTextContent('Date de notification : 3 février 2026')
+    expect(row).not.toHaveTextContent('Date de l’événement')
+  })
+
+  it('masque la correspondance quand l’API ne fournit aucune raison concrète', async () => {
+    const unsupported = {
+      ...UNLOCKED_ITEM,
+      analysis: {
+        ...UNLOCKED_ITEM.analysis,
+        fit: { ...UNLOCKED_ITEM.analysis.fit, reasons: [] },
+      },
+    }
+    mockApi(feedWith([unsupported]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const row = (await signalList()).querySelector('.signal-item')!
+    expect(row.querySelector('.signal-match')).toBeNull()
+    expect(row).not.toHaveTextContent(UNLOCKED_ITEM.analysis.fit.label)
   })
 
   it('ne reformule jamais un signal ancien comme une attribution récente', async () => {
@@ -294,7 +333,7 @@ describe('feed de signaux dans le workspace de référence', () => {
     await screen.findByRole('heading', { level: 2, name: 'Documented awards' })
     const row = document.querySelector('.signal-list .signal-item')!
     expect(row).toHaveTextContent('Constructions Bertrand SA')
-    expect(row).toHaveTextContent('Event date:')
+    expect(row).toHaveTextContent('Award date: 4 August 2026')
     expect(row.textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('1,240,000')
     expect(screen.getByRole('heading', { level: 1, name: 'Signals' })).toBeVisible()
   })

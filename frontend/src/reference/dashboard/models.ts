@@ -1,9 +1,12 @@
 import type {
   BillingAction,
+  EventStatus,
   Money,
   Place,
   PlanCode,
 } from '../../api/types'
+
+export type SignalEventDateKind = 'award' | 'notification' | 'publication'
 
 export interface SignalCardView {
   id: string
@@ -13,6 +16,8 @@ export interface SignalCardView {
   amount: Money | null
   location: Place | null
   eventDate: string | null
+  eventDateKind: SignalEventDateKind
+  eventStatus: EventStatus
   awardDate: string | null
   matchLabel: string | null
   matchReasons: string[]
@@ -38,6 +43,8 @@ export interface SignalDetailView {
   }
   facts: {
     amount: Money | null
+    eventDate: string | null
+    eventDateKind: SignalEventDateKind
     awardDate: string | null
     execution: string | null
     buyer: string | null
