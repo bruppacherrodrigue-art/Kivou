@@ -33,6 +33,7 @@ PRODUCTION_TIMERS = {
 PRODUCTION_SERVICES = (
     PRODUCTION / "kivou-api.service",
     PRODUCTION / "kivou-alerts.service",
+    PRODUCTION / "kivou-backup-local.service",
     PRODUCTION / "kivou-backup.service",
     PRODUCTION / "kivou-ingest@.service",
 )
@@ -291,16 +292,9 @@ def test_production_services_are_isolated_from_staging_and_acquisition() -> None
         for forbidden in ("staging", "apollo", "acquisition"):
             assert forbidden not in active
 
-        environment: str | tuple[str, ...] = "/etc/kivou/production.env"
-        repeatable: frozenset[tuple[str, str]] = frozenset()
+        environment = "/etc/kivou/production.env"
         if path.name == "kivou-backup.service":
-            environment = (
-                "/etc/kivou/production.env",
-                "/etc/kivou/swiss-backup.env",
-            )
-            repeatable = frozenset(
-                {("Service", "EnvironmentFile"), ("Service", "ExecStart")}
-            )
+            environment = "/etc/kivou/swiss-backup.env"
         assert_unit_contract(
             body,
             {
@@ -319,7 +313,6 @@ def test_production_services_are_isolated_from_staging_and_acquisition() -> None
                 ("Service", "LockPersonality"): "true",
                 ("Service", "RestrictAddressFamilies"): "AF_UNIX AF_INET AF_INET6",
             },
-            repeatable=repeatable,
         )
 
 
@@ -361,13 +354,14 @@ def test_production_jobs_are_ordered_after_postgres(path: pathlib.Path) -> None:
     )
 
 
-def test_production_backup_has_a_six_hour_start_timeout() -> None:
+def test_production_backup_timeouts_bound_local_dump_and_offsite_upload() -> None:
+    assert_unit_contract(
+        read(PRODUCTION / "kivou-backup-local.service"),
+        {("Service", "TimeoutStartSec"): "2h"},
+    )
     assert_unit_contract(
         read(PRODUCTION / "kivou-backup.service"),
         {("Service", "TimeoutStartSec"): "6h"},
-        repeatable=frozenset(
-            {("Service", "EnvironmentFile"), ("Service", "ExecStart")}
-        ),
     )
 
 
@@ -511,34 +505,50 @@ def test_production_alerts_have_a_bounded_non_overlapping_hourly_cycle() -> None
     )
 
 
-def test_production_backup_runs_local_then_offsite_with_narrow_write_access() -> None:
-    service = read(PRODUCTION / "kivou-backup.service")
+def test_production_backup_runs_local_then_offsite_with_separated_secrets() -> None:
+    local = read(PRODUCTION / "kivou-backup-local.service")
+    offsite = read(PRODUCTION / "kivou-backup.service")
     timer = read(PRODUCTION / "kivou-backup.timer")
 
     assert_unit_contract(
-        service,
+        local,
         {
             ("Unit", "After"): "network-online.target postgresql.service",
             ("Service", "Type"): "oneshot",
             ("Service", "User"): "kivou",
             ("Service", "Group"): "kivou",
-            ("Service", "EnvironmentFile"): (
-                "/etc/kivou/production.env",
-                "/etc/kivou/swiss-backup.env",
-            ),
-            ("Service", "ExecStart"): (
-                "/srv/kivou/app/ops/bin/kivou-backup.sh",
-                "/srv/kivou/app/ops/bin/kivou-restic-upload.sh",
-            ),
-            ("Service", "TimeoutStartSec"): "6h",
+            ("Service", "EnvironmentFile"): "/etc/kivou/production.env",
+            ("Service", "ExecStart"): "/srv/kivou/app/ops/bin/kivou-backup.sh",
+            ("Service", "TimeoutStartSec"): "2h",
             ("Service", "StandardOutput"): "journal",
             ("Service", "StandardError"): "journal",
             ("Service", "ReadWritePaths"): "/srv/kivou/backups",
         },
-        repeatable=frozenset(
-            {("Service", "EnvironmentFile"), ("Service", "ExecStart")}
-        ),
     )
+    assert_unit_contract(
+        offsite,
+        {
+            ("Unit", "Requires"): "kivou-backup-local.service",
+            ("Unit", "After"): "network-online.target kivou-backup-local.service",
+            ("Service", "Type"): "oneshot",
+            ("Service", "User"): "kivou",
+            ("Service", "Group"): "kivou",
+            ("Service", "EnvironmentFile"): "/etc/kivou/swiss-backup.env",
+            ("Service", "Environment"): "RESTIC_CACHE_DIR=/var/cache/kivou-restic",
+            ("Service", "CacheDirectory"): "kivou-restic",
+            ("Service", "CacheDirectoryMode"): "0700",
+            ("Service", "ExecStart"): (
+                "/srv/kivou/app/ops/bin/kivou-restic-upload.sh"
+            ),
+            ("Service", "TimeoutStartSec"): "6h",
+            ("Service", "StandardOutput"): "journal",
+            ("Service", "StandardError"): "journal",
+            ("Service", "ProtectSystem"): "strict",
+            ("Service", "ReadWritePaths"): "/srv/kivou/backups",
+        },
+    )
+    assert "/etc/kivou/swiss-backup.env" not in local
+    assert "/etc/kivou/production.env" not in offsite
     assert_unit_contract(
         timer,
         {
