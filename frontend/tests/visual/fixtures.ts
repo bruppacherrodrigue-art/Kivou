@@ -987,28 +987,53 @@ export async function installReferenceApi(page: Page, scenario: VisualScenario) 
 }
 
 export async function normalizeConnectedText(page: Page) {
-  await page.evaluate(() => {
-    const roots = document.querySelectorAll('.dashboard-provider, .auth-page, [role="dialog"]')
-    for (const root of roots) {
-      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
-      const nodes = []
-      while (walker.nextNode()) nodes.push(walker.currentNode)
-      const normalizedParents = new Set()
-      for (const node of nodes) {
-        if (!node.nodeValue?.trim()) continue
-        const parent = node.parentNode
-        if (parent && normalizedParents.has(parent)) node.nodeValue = ''
-        else {
-          node.nodeValue = 'Texte'
-          if (parent) normalizedParents.add(parent)
+  await page.evaluate(async () => {
+    const normalize = () => {
+      const roots = document.querySelectorAll('.dashboard-provider, .auth-page, [role="dialog"]')
+      for (const root of roots) {
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+        const nodes = []
+        while (walker.nextNode()) nodes.push(walker.currentNode)
+        const normalizedParents = new Set()
+        for (const node of nodes) {
+          if (!node.nodeValue?.trim()) continue
+          const parent = node.parentNode
+          const normalized = parent && normalizedParents.has(parent) ? '' : 'Texte'
+          if (node.nodeValue !== normalized) node.nodeValue = normalized
+          if (parent && normalized) normalizedParents.add(parent)
         }
-      }
-      for (const field of root.querySelectorAll('input, textarea')) {
-        field.setAttribute('placeholder', 'Texte')
-        if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
-          field.value = ''
+        for (const field of root.querySelectorAll('input, textarea')) {
+          if (field.getAttribute('placeholder') !== 'Texte') {
+            field.setAttribute('placeholder', 'Texte')
+          }
+          if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+            if (field.value) field.value = ''
+          }
         }
       }
     }
+
+    let changed = false
+    const observer = new MutationObserver(() => {
+      changed = true
+      normalize()
+    })
+    observer.observe(document.body, { childList: true, characterData: true, subtree: true })
+    normalize()
+
+    let stableFrames = 0
+    for (let frame = 0; frame < 120 && stableFrames < 2; frame += 1) {
+      changed = false
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)))
+      if (changed) {
+        normalize()
+        stableFrames = 0
+      } else {
+        stableFrames += 1
+      }
+    }
+    observer.disconnect()
+    normalize()
+    if (stableFrames < 2) throw new Error('connected text normalization did not stabilize')
   })
 }

@@ -195,3 +195,28 @@ test('dashboard sidebar open mobile', async ({ page }) => {
   expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
   expect(failures).toEqual([])
 })
+
+test('connected text normalization survives a late shell rerender', async ({ page }) => {
+  await page.setContent(`
+    <div class="dashboard-provider">
+      <aside><span>Navigation initiale</span></aside>
+      <main><span>Contenu initial</span></main>
+    </div>
+  `)
+  await page.evaluate(() => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const sidebar = document.querySelector('aside')
+        if (sidebar) sidebar.innerHTML = '<span>Navigation reconstruite</span>'
+      })
+    })
+  })
+
+  await normalizeConnectedText(page)
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+  }))
+
+  await expect(page.locator('aside')).toHaveText('Texte')
+  await expect(page.locator('main')).toHaveText('Texte')
+})
