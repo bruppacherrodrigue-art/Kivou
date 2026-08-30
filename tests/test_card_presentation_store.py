@@ -151,6 +151,26 @@ def _current(
     ).get(source.signal_key)
 
 
+def _assert_current_and_pinned_omit(
+    connection: sa.Connection,
+    *,
+    source: PresentationInput,
+    artifact_id: str,
+) -> None:
+    assert _current(connection, source) is None
+    assert (
+        published_artifact_for_signal(
+            connection,
+            account_id=source.account_id,
+            signal_key=source.signal_key,
+            binding=_binding(source),
+            language=source.language,
+            artifact_id=artifact_id,
+        )
+        is None
+    )
+
+
 def _full_payload(source: PresentationInput) -> CardPresentationPayload:
     awardee_ref = next(
         ref for ref in source.facts.evidence_refs if ref.endswith(":awardee_parties")
@@ -797,6 +817,109 @@ def test_batch_and_pinned_reads_omit_corrupt_persisted_artifacts(
                 binding=_binding(source),
                 language=source.language,
                 artifact_id=artifact_id,
+            )
+            is None
+        )
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("qa_policy_version", ""),
+        ("generator_version", "-_."),
+        ("qa_policy_version", "q" * 129),
+        ("generator_version", "g" * 129),
+    ),
+    ids=(
+        "empty-qa-policy",
+        "punctuation-generator",
+        "oversized-qa-policy",
+        "oversized-generator",
+    ),
+)
+def test_batch_and_pinned_reads_omit_invalid_persisted_provenance(
+    engine: sa.Engine,
+    source: PresentationInput,
+    fallback: CardPresentationPayload,
+    metadata: AttemptMetadata,
+    field: str,
+    value: str,
+) -> None:
+    with engine.begin() as connection:
+        stored = _publish(connection, source=source, payload=fallback, metadata=metadata)
+        artifact_id = str(stored["artifact_id"])
+        with _ignore_sqlite_checks(connection):
+            connection.exec_driver_sql(
+                f"UPDATE card_presentation_artifact SET {field} = ? WHERE artifact_id = ?",
+                (value, artifact_id),
+            )
+
+        _assert_current_and_pinned_omit(
+            connection,
+            source=source,
+            artifact_id=artifact_id,
+        )
+
+
+@pytest.mark.parametrize(
+    "assignments",
+    (
+        {"created_at": "not-a-timestamp"},
+        {"published_at": "not-a-timestamp"},
+        {"superseded_at": "not-a-timestamp"},
+        {
+            "created_at": "2026-08-30T10:00:02+00:00",
+            "published_at": "2026-08-30T10:00:01+00:00",
+        },
+        {"superseded_at": "2026-08-30T09:59:59+00:00"},
+    ),
+    ids=(
+        "malformed-created",
+        "malformed-published",
+        "malformed-superseded",
+        "created-after-published",
+        "superseded-before-published",
+    ),
+)
+def test_batch_and_pinned_reads_omit_invalid_persisted_timestamps(
+    engine: sa.Engine,
+    source: PresentationInput,
+    fallback: CardPresentationPayload,
+    metadata: AttemptMetadata,
+    assignments: dict[str, str],
+) -> None:
+    with engine.begin() as connection:
+        stored = _publish(connection, source=source, payload=fallback, metadata=metadata)
+        artifact_id = str(stored["artifact_id"])
+        set_clause = ", ".join(f"{field} = ?" for field in assignments)
+        with _ignore_sqlite_checks(connection):
+            connection.exec_driver_sql(
+                f"UPDATE card_presentation_artifact SET {set_clause} WHERE artifact_id = ?",
+                (*assignments.values(), artifact_id),
+            )
+
+        _assert_current_and_pinned_omit(
+            connection,
+            source=source,
+            artifact_id=artifact_id,
+        )
+
+
+@pytest.mark.parametrize("invalid_artifact_id", (None, 7, b"a" * 64))
+def test_pinned_reader_fails_closed_for_a_non_string_artifact_id(
+    engine: sa.Engine,
+    source: PresentationInput,
+    invalid_artifact_id: object,
+) -> None:
+    with engine.connect() as connection:
+        assert (
+            published_artifact_for_signal(
+                connection,
+                account_id=source.account_id,
+                signal_key=source.signal_key,
+                binding=_binding(source),
+                language=source.language,
+                artifact_id=invalid_artifact_id,  # type: ignore[arg-type]
             )
             is None
         )

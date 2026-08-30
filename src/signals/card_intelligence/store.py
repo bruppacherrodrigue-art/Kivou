@@ -847,7 +847,9 @@ def published_artifact_for_signal(
         account_id=account_id,
         bindings=bindings,
         language=language,
-    ) or re.fullmatch(r"[0-9a-f]{64}", artifact_id) is None:
+    ) or not isinstance(artifact_id, str) or re.fullmatch(
+        r"[0-9a-f]{64}", artifact_id
+    ) is None:
         return None
     rows = list(
         connection.execute(
