@@ -142,7 +142,7 @@ describe('détail exact d’un signal réel', () => {
     const link = await screen.findByRole('link', { name: 'Voir l’entreprise' })
     expect(link).toHaveAttribute(
       'href',
-      `/app/companies/${UNLOCKED_DETAIL.company_key}`,
+      `/app/companies/${UNLOCKED_DETAIL.company_key}?signal=${UNLOCKED_ITEM.signal_id}`,
     )
     expect(link).not.toHaveAttribute('state')
   })

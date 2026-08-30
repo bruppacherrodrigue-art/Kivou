@@ -137,14 +137,14 @@ describe('accueil connecté', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Entreprises' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Entreprises' })).toHaveAttribute('href', '/app/companies')
-    const companyButton = await screen.findByRole('button', { name: /Constructions Bertrand SA/ })
+    const companyButton = await screen.findByRole('link', { name: /Constructions Bertrand SA/ })
     const directory = document.querySelector('.companies-list') as HTMLElement
-    const rows = within(directory).getAllByRole('button')
+    const rows = within(directory).getAllByRole('link')
     expect(rows).toHaveLength(1)
-    expect(companyButton).toBe(within(directory).getByRole('button', { name: /Constructions Bertrand SA/ }))
-    expect(companyButton).toHaveTextContent('1 marché')
-    expect(companyButton).toHaveTextContent('France')
-    expect(companyButton).toHaveAttribute('aria-pressed', 'true')
+    expect(companyButton).toBe(within(directory).getByRole('link', { name: /Constructions Bertrand SA/ }))
+    expect(companyButton).toHaveTextContent('1 attribution')
+    expect(companyButton).toHaveTextContent('Villeneuve')
+    expect(companyButton).not.toHaveAttribute('aria-current')
     companyButton.focus()
     expect(companyButton).toHaveFocus()
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
@@ -196,14 +196,14 @@ describe('accueil connecté', () => {
       retry.click()
     })
     await waitFor(() => expect(feedCall).toBe(3))
-    expect(await screen.findByRole('button', { name: /Actuelle SA/ })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /Actuelle SA/ })).toBeInTheDocument()
     await act(async () => {
       resolveOutdatedFeed?.({ body: feedPage([UNLOCKED_ITEM]) })
       await Promise.resolve()
     })
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
-    expect(screen.getByRole('button', { name: /Actuelle SA/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Constructions Bertrand SA/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Actuelle SA/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Constructions Bertrand SA/ })).not.toBeInTheDocument()
   })
 
   it('conserve les entreprises chargées et annonce une liste partielle si un détail échoue', async () => {
@@ -232,10 +232,10 @@ describe('accueil connecté', () => {
 
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/companies' })
 
-    const companyButton = await screen.findByRole('button', { name: /Constructions Bertrand SA/ })
+    const companyButton = await screen.findByRole('link', { name: /Constructions Bertrand SA/ })
     const partial = screen.getByText('Liste partielle').closest('[role="alert"]') as HTMLElement
     expect(partial).toHaveTextContent(
-      'Certaines entreprises n’ont pas pu être chargées.',
+      'Certaines attributions n’ont pas pu être chargées.',
     )
     const retry = within(partial).getByRole('button', { name: 'Réessayer' })
     await user.click(retry)
@@ -285,9 +285,9 @@ describe('accueil connecté', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/companies' })
 
     const error = await screen.findByRole('alert')
-    expect(error).toHaveTextContent('Les entreprises n’ont pas pu être chargées.')
+    expect(error).toHaveTextContent('Les attributions n’ont pas pu être chargées.')
     expect(within(error).getByRole('button', { name: 'Réessayer' })).toBeInTheDocument()
-    expect(screen.queryByText('Aucune entreprise accessible pour le moment.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Aucune attribution accessible pour le moment.')).not.toBeInTheDocument()
     expect(document.body.textContent).not.toContain('temporarily_unavailable')
   })
 

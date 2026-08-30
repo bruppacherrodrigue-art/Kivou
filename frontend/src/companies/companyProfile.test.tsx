@@ -21,8 +21,9 @@ import {
   renderApp,
 } from '../test/harness'
 
-const PATH = `/app/companies/${COMPANY_PROFILE.company_key}`
+const PATH = `/app/companies/${COMPANY_PROFILE.company_key}?signal=${UNLOCKED_ITEM.signal_id}`
 const ENDPOINT = `/companies/${COMPANY_PROFILE.company_key}`
+const SUMMARY = UNLOCKED_DETAIL.analysis.contract_reading?.summary ?? UNLOCKED_DETAIL.event.headline
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -47,33 +48,34 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
 
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
-    expect(await screen.findByRole('heading', { level: 2, name: COMPANY_PROFILE.official_identity.name })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 2, name: SUMMARY })).toBeVisible()
     const detailCall = callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')[0]
     const companyCall = callsTo(ENDPOINT, 'GET')[0]
     expect(recordedCalls.indexOf(detailCall)).toBeLessThan(recordedCalls.indexOf(companyCall))
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
 
-  it('rend en français les faits et related_signals API verbatim dans la composition exacte', async () => {
+  it('rend en français le contexte de l’attribution depuis les champs déjà autorisés', async () => {
     mockApi(authorizedRoutes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
-    expect(await screen.findByRole('heading', { level: 2, name: 'Constructions Bertrand SA' })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 2, name: SUMMARY })).toBeVisible()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(document.querySelectorAll('main')).toHaveLength(1)
     expect(screen.getByText('12 rue des Ateliers, 31270 Villeneuve')).toBeVisible()
     expect(screen.getAllByText('France')).not.toHaveLength(0)
-    expect(screen.getAllByText('4 août 2026')).not.toHaveLength(0)
+    expect(screen.getAllByText(/4 août 2026/)).not.toHaveLength(0)
     expect(screen.getAllByText(/1.240.000.€/)).not.toHaveLength(0)
     expect(document.querySelector('.company-timeline-item p')).toHaveTextContent(
-      COMPANY_PROFILE.related_signals[0].event.why_now,
+      UNLOCKED_DETAIL.event.why_now,
     )
-    expect(screen.getByRole('region', { name: 'Attributions associées à l’entreprise' })).toBeVisible()
+    expect(screen.getByRole('region', { name: 'Faits essentiels' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Autres attributions de cette entreprise' })).toBeVisible()
     expect(document.querySelectorAll('.company-identity-list > div')).toHaveLength(3)
     expect(document.querySelectorAll('.company-roles-list > li')).toHaveLength(3)
     expect(screen.getByRole('link', { name: /Ouvrir le signal/ })).toHaveAttribute(
       'href',
-      `/app/signals/${COMPANY_PROFILE.related_signals[0].signal_id}`,
+      `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     )
     expect(screen.queryByText('Pourquoi cette entreprise mérite votre attention')).not.toBeInTheDocument()
     expect(screen.queryByText('Sources et couverture')).not.toBeInTheDocument()
@@ -97,7 +99,7 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
     mockApi(authorizedRoutes(partial))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
-    await screen.findByRole('heading', { name: 'Constructions Bertrand SA' })
+    await screen.findByRole('heading', { name: SUMMARY })
     expect(screen.getByText('Adresse officielle').nextElementSibling).toHaveTextContent('Non publié')
     expect(screen.getByText('Pays officiel').nextElementSibling).toHaveTextContent('Non publié')
     expect(screen.queryByText('Identifiants officiels')).not.toBeInTheDocument()
@@ -114,9 +116,9 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
     }))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
-    await screen.findByRole('heading', { name: 'Constructions Bertrand SA' })
+    await screen.findByRole('heading', { name: SUMMARY })
     expect(screen.queryByRole('link', { name: /site de l’entreprise/i })).not.toBeInTheDocument()
-    expect(document.querySelector('.company-detail-layout-simple')).not.toBeNull()
+    expect(screen.getByRole('heading', { name: 'Preuves et source officielle' })).toBeVisible()
   })
 
   it('rend le même degré de certitude et les actions réelles en anglais', async () => {
@@ -127,12 +129,12 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
       locale: 'en',
     })
 
-    await screen.findByRole('heading', { name: 'Constructions Bertrand SA' })
-    expect(screen.getByText(/Public notice/)).toBeVisible()
-    expect(screen.getAllByText('4 August 2026')).not.toHaveLength(0)
-    expect(screen.getByRole('heading', { name: 'Awards associated with the company' })).toBeVisible()
+    await screen.findByRole('heading', { name: SUMMARY })
+    expect(screen.getByText(/BOAMP/)).toBeVisible()
+    expect(screen.getAllByText(/4 August 2026/)).not.toHaveLength(0)
+    expect(screen.getByRole('heading', { name: 'Other awards for this company' })).toBeVisible()
     expect(screen.getByRole('link', { name: /Open signal/ })).toHaveAttribute('href', '/app/signals/sig_unlocked_1')
-    expect(screen.getByRole('heading', { name: 'Useful roles before contact' })).toBeVisible()
+    expect(screen.getByRole('list', { name: 'Useful roles before contact' })).toBeVisible()
   })
 
   it('rend une révocation 404 sans révéler les faits ni proposer un faux retry', async () => {
@@ -166,7 +168,9 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('La fiche entreprise n’a pas pu être chargée')
     await user.click(screen.getByRole('button', { name: 'Réessayer' }))
-    expect(await screen.findByRole('heading', { name: 'Constructions Bertrand SA' })).toBeVisible()
+    const heading = await screen.findByRole('heading', { name: SUMMARY })
+    expect(heading).toBeVisible()
+    await waitFor(() => expect(heading).toHaveFocus())
     expect(callsTo('/signals', 'GET')).toHaveLength(1)
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
     expect(callsTo(ENDPOINT, 'GET')).toHaveLength(2)
@@ -210,7 +214,7 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
     mockApi(authorizedRoutes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
-    await screen.findByRole('heading', { name: 'Constructions Bertrand SA' })
+    await screen.findByRole('heading', { name: SUMMARY })
     expect(getItem).not.toHaveBeenCalled()
     expect(setItem).not.toHaveBeenCalled()
   })

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AppRoutes } from '../App'
 import { useSession } from '../auth/SessionProvider'
 import type { CompanyProfile, UnlockedDetail, UnlockedFeedItem } from '../api/types'
@@ -28,11 +28,24 @@ const SECOND_ITEM: UnlockedFeedItem = {
   signal_id: 'sig_company_second',
   company: { ...UNLOCKED_ITEM.company, name: 'Atelier Alpha SA' },
   contract: { ...UNLOCKED_ITEM.contract, title: 'Second marché documenté' },
+  event: {
+    ...UNLOCKED_ITEM.event,
+    headline: 'Atelier Alpha SA a remporté un marché public.',
+  },
 }
 const SECOND_DETAIL: UnlockedDetail = {
   ...UNLOCKED_DETAIL,
   ...SECOND_ITEM,
   company_key: 'cmp_company_second',
+  analysis: {
+    ...SECOND_ITEM.analysis,
+    contract_reading: {
+      note: 'Lecture produite à partir des pièces publiées.',
+      summary: 'Second marché documenté pour des travaux publics.',
+      contract_type: 'Travaux',
+      sector: 'Travaux publics',
+    },
+  },
 }
 const SECOND_PROFILE: CompanyProfile = {
   ...COMPANY_PROFILE,
@@ -54,6 +67,11 @@ const shellRoutes = {
   'GET /billing/status': { body: DISCOVERY_STATUS },
 }
 
+const FIRST_PATH = `/app/companies/${COMPANY_PROFILE.company_key}?signal=${UNLOCKED_ITEM.signal_id}`
+const SECOND_PATH = `/app/companies/${SECOND_PROFILE.company_key}?signal=${SECOND_ITEM.signal_id}`
+const FIRST_SUMMARY = UNLOCKED_DETAIL.analysis.contract_reading?.summary ?? UNLOCKED_DETAIL.event.headline
+const SECOND_SUMMARY = SECOND_DETAIL.analysis.contract_reading?.summary ?? SECOND_DETAIL.event.headline
+
 describe('workspace Entreprises exact et borné par les signaux accessibles', () => {
   it('résout les entreprises uniquement via les détails de signaux déverrouillés', async () => {
     mockApi({
@@ -66,11 +84,115 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
 
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
 
-    await screen.findByRole('heading', { level: 2, name: COMPANY_PROFILE.official_identity.name })
+    await screen.findAllByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) })
     expect(document.querySelector('.companies-workspace .companies-panel + .company-detail')).not.toBeNull()
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
-    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')).toHaveLength(1)
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')).toHaveLength(0)
+    expect(screen.getByRole('heading', { name: 'Sélectionnez une attribution pour afficher son contexte' })).toBeVisible()
+  })
+
+  it('canonise une route entreprise autorisée avec le signal explicite', async () => {
+    mockApi({
+      ...shellRoutes,
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM], { freshness: 'all' }) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      [`GET /companies/${COMPANY_PROFILE.company_key}`]: { body: COMPANY_PROFILE },
+    })
+
+    renderApp(<><AppRoutes /><LocationProbe /></>, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      session: AUTHENTICATED,
+    })
+
+    expect(await screen.findByRole('heading', { name: FIRST_SUMMARY })).toBeVisible()
+    expect(screen.getByTestId('location')).toHaveTextContent(FIRST_PATH)
+  })
+
+  it('préserve le scroll de la liste et restaure son focus avec l’historique mobile', async () => {
+    const user = userEvent.setup()
+    vi.stubGlobal('matchMedia', mobileMatchMedia())
+    mockApi({
+      ...shellRoutes,
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM], { freshness: 'all' }) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      [`GET /companies/${COMPANY_PROFILE.company_key}`]: { body: COMPANY_PROFILE },
+    })
+
+    renderApp(<><AppRoutes /><LocationProbe /><HistoryControls /></>, {
+      route: '/app/companies',
+      session: AUTHENTICATED,
+    })
+
+    const row = await screen.findByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) })
+    const list = document.querySelector<HTMLElement>('.companies-panel')
+    expect(list).not.toBeNull()
+    if (list) list.scrollTop = 280
+    expect(row).toHaveAttribute('href', FIRST_PATH)
+
+    await user.click(row)
+    await waitFor(() => expect(screen.getByRole('heading', { name: FIRST_SUMMARY })).toHaveFocus())
+    expect(row).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByTestId('location')).toHaveTextContent(FIRST_PATH)
+    expect(list?.scrollTop).toBe(280)
+
+    await user.click(screen.getByRole('button', { name: 'Retour aux attributions' }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/app/companies'))
+    await waitFor(() => expect(row).toHaveFocus())
+    expect(list?.scrollTop).toBe(280)
+
+    await user.click(screen.getByRole('button', { name: 'Historique suivant' }))
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent(FIRST_PATH))
+    await waitFor(() => expect(screen.getByRole('heading', { name: FIRST_SUMMARY })).toHaveFocus())
+  })
+
+  it('remonte le détail sans déplacer la liste lors d’un changement d’attribution', async () => {
+    const user = userEvent.setup()
+    const sameCompanyDetail: UnlockedDetail = {
+      ...SECOND_DETAIL,
+      company_key: COMPANY_PROFILE.company_key,
+      company: UNLOCKED_DETAIL.company,
+    }
+    mockApi({
+      ...shellRoutes,
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM, SECOND_ITEM], { freshness: 'all' }) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      [`GET /signals/${SECOND_ITEM.signal_id}`]: { body: sameCompanyDetail },
+      [`GET /companies/${COMPANY_PROFILE.company_key}`]: { body: COMPANY_PROFILE },
+    })
+
+    renderApp(<AppRoutes />, { route: FIRST_PATH, session: AUTHENTICATED })
+
+    await screen.findByRole('heading', { name: FIRST_SUMMARY })
+    const list = document.querySelector<HTMLElement>('.companies-panel')
+    const detail = document.getElementById('company-detail')
+    expect(list).not.toBeNull()
+    expect(detail).not.toBeNull()
+    if (list) list.scrollTop = 240
+    if (detail) detail.scrollTop = 180
+
+    await user.click(screen.getByRole('link', { name: `Ouvrir l’attribution ${SECOND_SUMMARY}` }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: SECOND_SUMMARY })).toHaveFocus())
+    expect(document.getElementById('company-detail')).toBe(detail)
+    expect(detail?.scrollTop).toBe(0)
+    expect(list?.scrollTop).toBe(240)
+  })
+
+  it('refuse un signal qui n’appartient pas à l’entreprise avant tout GET entreprise', async () => {
+    mockApi({
+      ...shellRoutes,
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM], { freshness: 'all' }) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      [`GET /companies/${COMPANY_PROFILE.company_key}`]: { body: COMPANY_PROFILE },
+    })
+
+    renderApp(<AppRoutes />, {
+      route: `/app/companies/${COMPANY_PROFILE.company_key}?signal=sig_inaccessible`,
+      session: AUTHENTICATED,
+    })
+
+    expect(await screen.findByRole('heading', { name: 'Attribution inaccessible' })).toBeVisible()
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')).toHaveLength(0)
   })
 
   it('pagine tout le feed, déduplique et conserve l’ordre de découverte serveur', async () => {
@@ -96,10 +218,10 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
 
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
 
-    await screen.findByRole('heading', { level: 2, name: COMPANY_PROFILE.official_identity.name })
+    await screen.findByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) })
     const list = document.querySelector('.companies-list')
     expect(list).not.toBeNull()
-    const rows = within(list as HTMLElement).getAllByRole('button')
+    const rows = within(list as HTMLElement).getAllByRole('link')
     expect(rows).toHaveLength(2)
     expect(rows[0]).toHaveTextContent(COMPANY_PROFILE.official_identity.name)
     expect(rows[1]).toHaveTextContent(SECOND_PROFILE.official_identity.name)
@@ -129,11 +251,11 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     })
 
     renderApp(<AppRoutes />, {
-      route: `/app/companies/${SECOND_PROFILE.company_key}`,
+      route: SECOND_PATH,
       session: AUTHENTICATED,
     })
 
-    expect(await screen.findByRole('heading', { name: SECOND_PROFILE.official_identity.name })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: SECOND_SUMMARY })).toBeVisible()
     expect(callsTo('/signals', 'GET').map((call) => call.search.get('offset'))).toEqual(['0', '20'])
     const detailCall = callsTo(`/signals/${SECOND_ITEM.signal_id}`, 'GET')[0]
     const companyCall = callsTo(`/companies/${SECOND_PROFILE.company_key}`, 'GET')[0]
@@ -141,7 +263,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
 
-  it('regroupe deux signaux distincts de la même entreprise sans doubler la fiche', async () => {
+  it('présente chaque attribution comme une carte distincte, même pour la même entreprise', async () => {
     const sameCompanyDetail: UnlockedDetail = {
       ...SECOND_DETAIL,
       company_key: COMPANY_PROFILE.company_key,
@@ -157,10 +279,10 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
 
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
 
-    await screen.findByRole('heading', { name: COMPANY_PROFILE.official_identity.name })
-    expect(document.querySelectorAll('.company-list-item')).toHaveLength(1)
-    expect(screen.getByRole('button', { name: /Constructions Bertrand SA/ })).toHaveTextContent('2 marchés')
-    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')).toHaveLength(1)
+    await screen.findAllByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) })
+    expect(document.querySelectorAll('.company-list-item')).toHaveLength(2)
+    expect(screen.getAllByRole('link', { name: /Constructions Bertrand SA/ })[0]).toHaveTextContent('2 attributions')
+    expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')).toHaveLength(0)
   })
 
   it('refuse une route entreprise inconnue avant tout GET entreprise', async () => {
@@ -191,12 +313,12 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     })
 
     renderApp(<AppRoutes />, {
-      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      route: FIRST_PATH,
       session: AUTHENTICATED,
     })
 
     expect(
-      await screen.findByRole('heading', { level: 2, name: COMPANY_PROFILE.official_identity.name }),
+      await screen.findByRole('heading', { level: 2, name: FIRST_SUMMARY }),
     ).toBeVisible()
     const detailCall = callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')[0]
     const companyCall = callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')[0]
@@ -225,7 +347,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     })
 
     renderApp(<AppRoutes />, {
-      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      route: FIRST_PATH,
       session: AUTHENTICATED,
     })
 
@@ -266,7 +388,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
 
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
 
-    await screen.findByRole('heading', { level: 2, name: COMPANY_PROFILE.official_identity.name })
+    await waitFor(() => expect(document.querySelectorAll('.company-list-item')).toHaveLength(12))
     expect(peak).toBeLessThanOrEqual(4)
   })
 
@@ -285,7 +407,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
 
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
 
-    await screen.findByRole('heading', { level: 2, name: COMPANY_PROFILE.official_identity.name })
+    await screen.findByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) })
     expect(screen.getByRole('alert')).toHaveTextContent(/partielle|plafonnée/i)
     expect(screen.queryByRole('button', { name: 'Réessayer' })).not.toBeInTheDocument()
   })
@@ -324,18 +446,21 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
 
     renderApp(<><AppRoutes /><LocationProbe /></>, { route: '/app/companies', session: AUTHENTICATED })
 
-    const second = await screen.findByRole('button', { name: new RegExp(SECOND_PROFILE.official_identity.name) })
+    const first = await screen.findByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) })
+    const second = screen.getByRole('link', { name: new RegExp(SECOND_PROFILE.official_identity.name) })
+    await user.click(first)
+    await waitFor(() => expect(resolveFirst).toBeTypeOf('function'))
     await user.click(second)
     expect(
-      await screen.findByRole('heading', { level: 2, name: SECOND_PROFILE.official_identity.name }),
+      await screen.findByRole('heading', { level: 2, name: SECOND_SUMMARY }),
     ).toBeVisible()
-    expect(screen.getByTestId('location')).toHaveTextContent(`/app/companies/${SECOND_PROFILE.company_key}`)
+    expect(screen.getByTestId('location')).toHaveTextContent(SECOND_PATH)
 
     await act(async () => {
       resolveFirst({ body: COMPANY_PROFILE })
       await Promise.resolve()
     })
-    expect(screen.getByRole('heading', { level: 2, name: SECOND_PROFILE.official_identity.name })).toBeVisible()
+    expect(screen.getByRole('heading', { level: 2, name: SECOND_SUMMARY })).toBeVisible()
     expect(document.body.textContent).not.toContain(COMPANY_PROFILE.official_identity.address!)
   })
 
@@ -357,9 +482,10 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     })
 
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
+    await user.click(await screen.findByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) }))
     expect(await screen.findByRole('alert')).toHaveTextContent('La fiche entreprise n’a pas pu être chargée')
 
-    await user.click(screen.getByRole('button', { name: new RegExp(SECOND_PROFILE.official_identity.name) }))
+    await user.click(screen.getByRole('link', { name: new RegExp(SECOND_PROFILE.official_identity.name) }))
     expect(await screen.findByRole('status')).toHaveTextContent('Chargement')
     expect(screen.queryByText('La fiche entreprise n’a pas pu être chargée')).not.toBeInTheDocument()
     expect(document.body.textContent).not.toContain(COMPANY_PROFILE.official_identity.address!)
@@ -368,12 +494,21 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
       resolveSecond({ body: SECOND_PROFILE })
       await Promise.resolve()
     })
-    expect(await screen.findByRole('heading', { name: SECOND_PROFILE.official_identity.name })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: SECOND_SUMMARY })).toBeVisible()
   })
 
   it('conserve le focus mobile sur le détail terminal, y compris en retapant la sélection active', async () => {
     const user = userEvent.setup()
-    vi.spyOn(window, 'innerWidth', 'get').mockReturnValue(640)
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+      matches: query === '(max-width: 1179px)',
+      media: query,
+      onchange: null,
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      dispatchEvent: vi.fn(() => true),
+    })))
     let resolveSecond!: (value: { body: CompanyProfile }) => void
     mockApi({
       ...shellRoutes,
@@ -387,21 +522,19 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     })
 
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
-    const first = await screen.findByRole('button', { name: new RegExp(COMPANY_PROFILE.official_identity.name) })
-    await screen.findByRole('heading', { name: COMPANY_PROFILE.official_identity.name })
+    const first = await screen.findByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) })
 
     await user.click(first)
-    await waitFor(() => expect(document.getElementById('company-detail')).toHaveFocus())
+    await waitFor(() => expect(screen.getByRole('heading', { name: FIRST_SUMMARY })).toHaveFocus())
 
-    await user.click(screen.getByRole('button', { name: new RegExp(SECOND_PROFILE.official_identity.name) }))
+    await user.click(screen.getByRole('link', { name: new RegExp(SECOND_PROFILE.official_identity.name) }))
     await waitFor(() => expect(resolveSecond).toBeTypeOf('function'))
-    expect(document.getElementById('company-detail')).not.toHaveFocus()
+    expect(screen.queryByRole('heading', { name: SECOND_SUMMARY })).not.toBeInTheDocument()
     await act(async () => {
       resolveSecond({ body: SECOND_PROFILE })
       await Promise.resolve()
     })
-    await waitFor(() => expect(document.getElementById('company-detail')).toHaveFocus())
-    expect(screen.getByRole('heading', { name: SECOND_PROFILE.official_identity.name })).toBeVisible()
+    await waitFor(() => expect(screen.getByRole('heading', { name: SECOND_SUMMARY })).toHaveFocus())
   })
 
   it('rend une révocation 404 de la fiche comme inaccessible sans faux retry', async () => {
@@ -416,7 +549,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     })
 
     renderApp(<AppRoutes />, {
-      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      route: FIRST_PATH,
       session: AUTHENTICATED,
     })
 
@@ -447,7 +580,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     )
     fireEvent.click(screen.getByRole('button', { name: 'Basculer sur le compte B' }))
     expect(
-      await screen.findByRole('heading', { level: 2, name: SECOND_PROFILE.official_identity.name }),
+      await screen.findByRole('link', { name: new RegExp(SECOND_PROFILE.official_identity.name) }),
     ).toBeVisible()
 
     await act(async () => {
@@ -487,7 +620,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     renderApp(<><AppRoutes /><AdoptSecondAccount /></>, { route: '/app/companies', session: AUTHENTICATED })
     await waitFor(() => expect(resolvers).toHaveLength(4))
     fireEvent.click(screen.getByRole('button', { name: 'Basculer sur le compte B' }))
-    expect(await screen.findByRole('heading', { name: SECOND_PROFILE.official_identity.name })).toBeVisible()
+    expect(await screen.findByRole('link', { name: new RegExp(SECOND_PROFILE.official_identity.name) })).toBeVisible()
 
     await act(async () => {
       resolvers.forEach((resolve, index) => resolve({
@@ -516,7 +649,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
 
     expect(
-      await screen.findByRole('heading', { level: 2, name: COMPANY_PROFILE.official_identity.name }),
+      await screen.findByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) }),
     ).toBeVisible()
     expect(screen.getByRole('alert')).toHaveTextContent('Liste partielle')
     expect(callsTo('/signals', 'GET').map((call) => call.search.get('offset'))).toEqual(['0', '20'])
@@ -541,12 +674,12 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
 
     expect(
-      await screen.findByRole('heading', { level: 2, name: COMPANY_PROFILE.official_identity.name }),
+      await screen.findByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) }),
     ).toBeVisible()
     expect(screen.getByRole('alert')).toHaveTextContent('Liste partielle')
     await user.click(screen.getByRole('button', { name: 'Réessayer' }))
     await waitFor(() => expect(callsTo(`/signals/${SECOND_ITEM.signal_id}`, 'GET')).toHaveLength(2))
-    expect(await screen.findByRole('button', { name: new RegExp(SECOND_PROFILE.official_identity.name) })).toBeVisible()
+    expect(await screen.findByRole('link', { name: new RegExp(SECOND_PROFILE.official_identity.name) })).toBeVisible()
     expect(callsTo('/signals', 'GET')).toHaveLength(1)
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
   })
@@ -564,7 +697,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
 
     await waitFor(() => expect(screen.getAllByRole('alert')).toHaveLength(1))
-    expect(screen.getByRole('alert')).toHaveTextContent('Les entreprises n’ont pas pu être chargées')
+    expect(screen.getByRole('alert')).toHaveTextContent('Les attributions n’ont pas pu être chargées')
     expect(screen.getByRole('button', { name: 'Réessayer' })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Les entreprises n’ont pas pu être vérifiées' })).toBeVisible()
   })
@@ -585,14 +718,14 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     })
 
     renderApp(<AppRoutes />, {
-      route: `/app/companies/${COMPANY_PROFILE.company_key}`,
+      route: FIRST_PATH,
       session: AUTHENTICATED,
     })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('La fiche entreprise n’a pas pu être chargée')
     await user.click(screen.getByRole('button', { name: 'Réessayer' }))
     expect(
-      await screen.findByRole('heading', { level: 2, name: COMPANY_PROFILE.official_identity.name }),
+      await screen.findByRole('heading', { level: 2, name: FIRST_SUMMARY }),
     ).toBeVisible()
     expect(callsTo('/signals', 'GET')).toHaveLength(1)
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
@@ -625,8 +758,8 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
       locale: 'en',
     })
 
-    expect(await screen.findByRole('heading', { name: COMPANY_PROFILE.official_identity.name })).toBeVisible()
-    expect(screen.getByRole('heading', { name: 'Companies linked to signals' })).toBeVisible()
+    expect(await screen.findByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Detected awards' })).toBeVisible()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(document.querySelectorAll('main')).toHaveLength(1)
     expect(document.querySelector('.companies-workspace .companies-panel + .company-detail')).not.toBeNull()
@@ -647,5 +780,28 @@ function AdoptSecondAccount() {
 
 function LocationProbe() {
   const location = useLocation()
-  return <output data-testid="location">{location.pathname}</output>
+  return <output data-testid="location">{location.pathname}{location.search}</output>
+}
+
+function HistoryControls() {
+  const navigate = useNavigate()
+  return (
+    <>
+      <button type="button" onClick={() => navigate(-1)}>Historique précédent</button>
+      <button type="button" onClick={() => navigate(1)}>Historique suivant</button>
+    </>
+  )
+}
+
+function mobileMatchMedia() {
+  return vi.fn((query: string): MediaQueryList => ({
+    matches: query === '(max-width: 1179px)',
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  }))
 }

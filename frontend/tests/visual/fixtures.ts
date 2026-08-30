@@ -856,7 +856,7 @@ export const LOCAL_REFERENCE_ROUTES = [
   { golden: 'dashboard-signup', source: '/signup', local: '/signup', scenario: 'auth' },
   { golden: 'dashboard-overview', source: '/', local: '/app/dashboard', scenario: 'connected-pro' },
   { golden: 'dashboard-signals', source: '/signals?signal=tm-ausbau-campus-ost', local: '/app/signals/tm-ausbau-campus-ost', scenario: 'connected-discovery' },
-  { golden: 'dashboard-companies', source: '/companies', local: '/app/companies', scenario: 'connected-pro' },
+  { golden: 'dashboard-companies', source: '/companies', local: '/app/companies/h-huether?signal=h-huether-munich', scenario: 'connected-pro' },
   { golden: 'dashboard-targeting', source: '/targeting', local: '/app/icps', scenario: 'connected-pro' },
   { golden: 'dashboard-account', source: '/settings', local: '/app/settings', scenario: 'connected-pro' },
 ] as const
