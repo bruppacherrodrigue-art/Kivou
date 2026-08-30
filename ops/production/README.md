@@ -145,8 +145,8 @@ sudo test ! -L "$KIVOU_FRONTEND_RELEASE_DIR/index.html"
 test -n "$(sudo find "$KIVOU_FRONTEND_RELEASE_DIR/assets" -type f -print -quit)"
 sudo chown -R root:root "$KIVOU_BACKEND_RELEASE_DIR" "$KIVOU_FRONTEND_RELEASE_DIR"
 sudo chmod -R a-w "$KIVOU_BACKEND_RELEASE_DIR" "$KIVOU_FRONTEND_RELEASE_DIR"
-test -z "$(sudo find "$KIVOU_BACKEND_RELEASE_DIR" -perm /222 -print -quit)"
-test -z "$(sudo find "$KIVOU_FRONTEND_RELEASE_DIR" -perm /222 -print -quit)"
+test -z "$(sudo find "$KIVOU_BACKEND_RELEASE_DIR" \( -type f -o -type d \) -perm /222 -print -quit)"
+test -z "$(sudo find "$KIVOU_FRONTEND_RELEASE_DIR" \( -type f -o -type d \) -perm /222 -print -quit)"
 test "$(sudo -u kivou /usr/bin/git -C "$KIVOU_BACKEND_RELEASE_DIR" rev-parse HEAD)" = "$KIVOU_RELEASE_SHA"
 test -z "$(sudo -u kivou /usr/bin/git -C "$KIVOU_BACKEND_RELEASE_DIR" status --porcelain)"
 ```
@@ -281,7 +281,7 @@ case "$KIVOU_PREVIOUS_APP_TARGET" in
   (ABSENT) ;;
   (/srv/kivou/releases/backend-*)
     sudo test -d "$KIVOU_PREVIOUS_APP_TARGET"
-    test -z "$(sudo find "$KIVOU_PREVIOUS_APP_TARGET" -perm /222 -print -quit)"
+    test -z "$(sudo find "$KIVOU_PREVIOUS_APP_TARGET" \( -type f -o -type d \) -perm /222 -print -quit)"
     ;;
   (*) exit 69 ;;
 esac
@@ -296,7 +296,7 @@ case "$KIVOU_PREVIOUS_FRONTEND_TARGET" in
   (ABSENT) ;;
   (/srv/kivou/releases/frontend-*)
     sudo test -d "$KIVOU_PREVIOUS_FRONTEND_TARGET"
-    test -z "$(sudo find "$KIVOU_PREVIOUS_FRONTEND_TARGET" -perm /222 -print -quit)"
+    test -z "$(sudo find "$KIVOU_PREVIOUS_FRONTEND_TARGET" \( -type f -o -type d \) -perm /222 -print -quit)"
     ;;
   (*) exit 69 ;;
 esac
@@ -607,12 +607,12 @@ set -euo pipefail
 test "$KIVOU_NGINX_CAPTURE_COMPLETE" = 1
 case "$KIVOU_UNIT_STAGE_DIR" in (/root/kivou-rollouts/production-runtime-*/systemd) ;; (*) exit 69 ;; esac
 case "$KIVOU_NGINX_STAGE_DIR" in (/root/kivou-rollouts/production-runtime-*/nginx) ;; (*) exit 69 ;; esac
-test -z "$(sudo find "$KIVOU_UNIT_CAPTURE_DIR" "$KIVOU_ROLLBACK_DIR/nginx" -perm /222 -print -quit)"
+test -z "$(sudo find "$KIVOU_UNIT_CAPTURE_DIR" "$KIVOU_ROLLBACK_DIR/nginx" \( -type f -o -type d \) -perm /222 -print -quit)"
 test "$(sudo stat -c '%U:%G:%a' "$KIVOU_ROLLOUT_STATE")" = root:root:600
 test "$(sudo stat -c '%U:%G:%a' "$KIVOU_ROLLOUT_STATUS")" = root:root:600
 test "$(sudo readlink -f /srv/kivou/rollbacks/current)" = "$KIVOU_ROLLBACK_DIR"
 test "$(sudo -u kivou /usr/bin/git -C "$KIVOU_BACKEND_RELEASE_DIR" rev-parse HEAD)" = "$KIVOU_RELEASE_SHA"
-test -z "$(sudo find "$KIVOU_BACKEND_RELEASE_DIR" "$KIVOU_FRONTEND_RELEASE_DIR" -perm /222 -print -quit)"
+test -z "$(sudo find "$KIVOU_BACKEND_RELEASE_DIR" "$KIVOU_FRONTEND_RELEASE_DIR" \( -type f -o -type d \) -perm /222 -print -quit)"
 test "$(sudo sed -n '1p' "$KIVOU_UNIT_CAPTURE_DIR/kivou-alerts.timer.enabled")" != enabled
 test "$(sudo sed -n '1p' "$KIVOU_UNIT_CAPTURE_DIR/kivou-alerts.service.active")" != active
 if sudo systemctl is-enabled --quiet kivou-alerts.timer; then exit 70; fi
@@ -793,7 +793,7 @@ kivou_rollback_app_phase() {
       ;;
     (/srv/kivou/releases/backend-*)
       sudo test -d "$KIVOU_PREVIOUS_APP_TARGET"
-      test -z "$(sudo find "$KIVOU_PREVIOUS_APP_TARGET" -perm /222 -print -quit)"
+      test -z "$(sudo find "$KIVOU_PREVIOUS_APP_TARGET" \( -type f -o -type d \) -perm /222 -print -quit)"
       sudo test ! -e /srv/kivou/app.rollback
       sudo test ! -L /srv/kivou/app.rollback
       sudo ln -s "$KIVOU_PREVIOUS_APP_TARGET" /srv/kivou/app.rollback
@@ -810,7 +810,7 @@ kivou_rollback_frontend_phase() {
       ;;
     (/srv/kivou/releases/frontend-*)
       sudo test -d "$KIVOU_PREVIOUS_FRONTEND_TARGET"
-      test -z "$(sudo find "$KIVOU_PREVIOUS_FRONTEND_TARGET" -perm /222 -print -quit)"
+      test -z "$(sudo find "$KIVOU_PREVIOUS_FRONTEND_TARGET" \( -type f -o -type d \) -perm /222 -print -quit)"
       sudo test ! -e /srv/kivou/frontend.rollback
       sudo test ! -L /srv/kivou/frontend.rollback
       sudo ln -s "$KIVOU_PREVIOUS_FRONTEND_TARGET" /srv/kivou/frontend.rollback
@@ -846,7 +846,7 @@ kivou_rollback_units_phase() {
 kivou_rollback_nginx_phase() {
   kivou_require_rollback_api_readiness
   KIVOU_NGINX_CAPTURE_VALID=0
-  if sudo test -d "$KIVOU_ROLLBACK_DIR/nginx" && test -z "$(sudo find "$KIVOU_ROLLBACK_DIR/nginx" -perm /222 -print -quit)"; then
+  if sudo test -d "$KIVOU_ROLLBACK_DIR/nginx" && test -z "$(sudo find "$KIVOU_ROLLBACK_DIR/nginx" \( -type f -o -type d \) -perm /222 -print -quit)"; then
     KIVOU_NGINX_CAPTURE_VALID=1
   fi
   if [ "$KIVOU_NGINX_CAPTURE_VALID" = 1 ]; then
@@ -1449,7 +1449,7 @@ kivou_rollback_app_phase() {
       ;;
     ("$KIVOU_RUNTIME_ROOT"/releases/backend-*)
       test -d "$KIVOU_PREVIOUS_APP_TARGET"
-      test -z "$(find "$KIVOU_PREVIOUS_APP_TARGET" -perm /222 -print -quit)"
+      test -z "$(find "$KIVOU_PREVIOUS_APP_TARGET" \( -type f -o -type d \) -perm /222 -print -quit)"
       KIVOU_APP_RECOVERY_NEW=$KIVOU_RECOVERY_ATTEMPT_DIR/app-link.new
       case "$KIVOU_APP_RECOVERY_NEW" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/app-link.new) ;; (*) return 69 ;; esac
       test ! -e "$KIVOU_APP_RECOVERY_NEW"; test ! -L "$KIVOU_APP_RECOVERY_NEW"
@@ -1467,7 +1467,7 @@ kivou_rollback_frontend_phase() {
       ;;
     ("$KIVOU_RUNTIME_ROOT"/releases/frontend-*)
       test -d "$KIVOU_PREVIOUS_FRONTEND_TARGET"
-      test -z "$(find "$KIVOU_PREVIOUS_FRONTEND_TARGET" -perm /222 -print -quit)"
+      test -z "$(find "$KIVOU_PREVIOUS_FRONTEND_TARGET" \( -type f -o -type d \) -perm /222 -print -quit)"
       KIVOU_FRONTEND_RECOVERY_NEW=$KIVOU_RECOVERY_ATTEMPT_DIR/frontend-link.new
       case "$KIVOU_FRONTEND_RECOVERY_NEW" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/frontend-link.new) ;; (*) return 69 ;; esac
       test ! -e "$KIVOU_FRONTEND_RECOVERY_NEW"; test ! -L "$KIVOU_FRONTEND_RECOVERY_NEW"
@@ -1509,7 +1509,7 @@ kivou_rollback_units_phase() {
 kivou_rollback_nginx_phase() {
   kivou_require_rollback_api_readiness
   test -d "$KIVOU_ROLLBACK_DIR/nginx"
-  test -z "$(find "$KIVOU_ROLLBACK_DIR/nginx" -perm /222 -print -quit)"
+  test -z "$(find "$KIVOU_ROLLBACK_DIR/nginx" \( -type f -o -type d \) -perm /222 -print -quit)"
   for KIVOU_NGINX_PATH in "${KIVOU_NGINX_CAPTURE_PATHS[@]}" "${KIVOU_NGINX_SITE_LINKS[@]}"; do
     KIVOU_CAPTURE_NAME=$(printf '%s' "$KIVOU_NGINX_PATH" | sed 's#^/##; s#/#__#g')
     if test -e "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved" || test -L "$KIVOU_ROLLBACK_DIR/nginx/$KIVOU_CAPTURE_NAME.saved"; then

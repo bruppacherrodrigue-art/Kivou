@@ -61,6 +61,106 @@ def read(path: pathlib.Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def runbook_immutability_find_commands(body: str) -> tuple[str, ...]:
+    return tuple(
+        re.findall(r"(?:sudo )?find [^\n]* -perm /222 -print -quit", body)
+    )
+
+
+def run_immutability_find_command(
+    command: str,
+    *,
+    backend: pathlib.Path,
+    frontend: pathlib.Path,
+    unit_capture: pathlib.Path,
+    rollback: pathlib.Path,
+) -> subprocess.CompletedProcess[str]:
+    assignments = {
+        "KIVOU_BACKEND_RELEASE_DIR": backend,
+        "KIVOU_FRONTEND_RELEASE_DIR": frontend,
+        "KIVOU_PREVIOUS_APP_TARGET": backend,
+        "KIVOU_PREVIOUS_FRONTEND_TARGET": frontend,
+        "KIVOU_UNIT_CAPTURE_DIR": unit_capture,
+        "KIVOU_ROLLBACK_DIR": rollback,
+    }
+    script = "\n".join(
+        (
+            "set -euo pipefail",
+            'sudo() { command "$@"; }',
+            *(f"{name}={shlex.quote(str(path))}" for name, path in assignments.items()),
+            command,
+        )
+    )
+    return subprocess.run(
+        ["bash"], input=script, text=True, capture_output=True, check=False
+    )
+
+
+def prepare_immutable_symlink_artifacts(
+    root: pathlib.Path,
+) -> dict[str, pathlib.Path]:
+    backend = root / "backend-release"
+    backend_lib = backend / ".venv/lib"
+    backend_lib.mkdir(parents=True)
+    (backend / ".venv/lib64").symlink_to("lib", target_is_directory=True)
+
+    frontend = root / "frontend-release"
+    frontend_bin = frontend / "node_modules/.bin"
+    frontend_tool = frontend / "node_modules/vite/bin/vite.js"
+    frontend_bin.mkdir(parents=True)
+    frontend_tool.parent.mkdir(parents=True)
+    frontend_tool.write_text("vite\n", encoding="utf-8")
+    (frontend_bin / "vite").symlink_to("../vite/bin/vite.js")
+
+    rollback = root / "rollback"
+    nginx_capture = rollback / "nginx"
+    nginx_capture.mkdir(parents=True)
+    nginx_target = root / "nginx/sites-available/kivou"
+    nginx_target.parent.mkdir(parents=True)
+    nginx_target.write_text("server {}\n", encoding="utf-8")
+    (nginx_capture / "etc__nginx__sites-enabled__kivou.saved").symlink_to(
+        nginx_target
+    )
+    nginx_absent = nginx_capture / "etc__nginx__sites-enabled__default.ABSENT"
+    nginx_absent.write_text("", encoding="utf-8")
+
+    unit_capture = rollback / "systemd"
+    unit_capture.mkdir()
+    (unit_capture / "kivou-api.service.saved").write_text(
+        "[Service]\n", encoding="utf-8"
+    )
+
+    for path in (
+        backend_lib,
+        backend / ".venv",
+        backend,
+        frontend_tool,
+        frontend_tool.parent,
+        frontend / "node_modules/vite",
+        frontend_bin,
+        frontend / "node_modules",
+        frontend,
+        nginx_target,
+        nginx_target.parent,
+        nginx_target.parent.parent,
+        nginx_absent,
+        nginx_capture,
+        unit_capture / "kivou-api.service.saved",
+        unit_capture,
+        rollback,
+    ):
+        path.chmod(0o555 if path.is_dir() else 0o444)
+
+    return {
+        "backend": backend,
+        "frontend": frontend,
+        "rollback": rollback,
+        "nginx_capture": nginx_capture,
+        "nginx_absent": nginx_absent,
+        "unit_capture": unit_capture,
+    }
+
+
 def nginx_active_directives(body: str) -> tuple[str, ...]:
     return tuple(
         directive
@@ -855,8 +955,79 @@ def test_runbook_builds_locked_separate_immutable_releases() -> None:
         "chown -R root:root",
         "chmod -R a-w",
     )
-    assert "find \"$KIVOU_BACKEND_RELEASE_DIR\" -perm /222" in body
-    assert "find \"$KIVOU_FRONTEND_RELEASE_DIR\" -perm /222" in body
+    assert (
+        'find "$KIVOU_BACKEND_RELEASE_DIR" \\( -type f -o -type d \\) -perm /222'
+        in body
+    )
+    assert (
+        'find "$KIVOU_FRONTEND_RELEASE_DIR" \\( -type f -o -type d \\) -perm /222'
+        in body
+    )
+
+
+def test_every_immutability_guard_allows_real_release_and_capture_symlinks(
+    tmp_path: pathlib.Path,
+) -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    commands = runbook_immutability_find_commands(body)
+    artifacts = prepare_immutable_symlink_artifacts(tmp_path)
+
+    assert len(commands) == 12
+    assert all(
+        r"\( -type f -o -type d \) -perm /222" in command
+        for command in commands
+    )
+    for command in commands:
+        result = run_immutability_find_command(
+            command,
+            backend=artifacts["backend"],
+            frontend=artifacts["frontend"],
+            unit_capture=artifacts["unit_capture"],
+            rollback=artifacts["rollback"],
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout == "", f"{command} rejected {result.stdout.strip()}"
+
+
+@pytest.mark.parametrize(
+    ("command_variable", "writable_artifact"),
+    (
+        ("KIVOU_PREVIOUS_APP_TARGET", "backend"),
+        ("KIVOU_PREVIOUS_FRONTEND_TARGET", "frontend"),
+        ("KIVOU_ROLLBACK_DIR/nginx", "nginx"),
+    ),
+)
+def test_immutability_guards_still_reject_writable_real_files_or_directories(
+    tmp_path: pathlib.Path,
+    command_variable: str,
+    writable_artifact: str,
+) -> None:
+    commands = runbook_immutability_find_commands(read(PRODUCTION_RUNBOOK))
+    artifacts = prepare_immutable_symlink_artifacts(tmp_path)
+    writable_paths = {
+        "backend": artifacts["backend"] / ".venv/lib",
+        "frontend": artifacts["frontend"] / "node_modules/vite/bin/vite.js",
+        "nginx": artifacts["nginx_absent"],
+    }
+    writable_path = writable_paths[writable_artifact]
+    writable_path.chmod(0o755 if writable_path.is_dir() else 0o644)
+    matching_commands = tuple(
+        command for command in commands if command_variable in command
+    )
+
+    assert matching_commands
+    for command in matching_commands:
+        result = run_immutability_find_command(
+            command,
+            backend=artifacts["backend"],
+            frontend=artifacts["frontend"],
+            unit_capture=artifacts["unit_capture"],
+            rollback=artifacts["rollback"],
+        )
+
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.strip() == str(writable_path)
 
 
 def test_runbook_validates_secrets_and_units_before_atomic_install() -> None:
@@ -1768,6 +1939,28 @@ def prepare_autonomous_recovery_fixture(
     frontend_new = runtime / "releases/frontend-new"
     for release in (backend_old, backend_new, frontend_old, frontend_new):
         release.mkdir(parents=True, exist_ok=True)
+
+    backend_lib = backend_old / ".venv/lib"
+    backend_lib.mkdir(parents=True)
+    (backend_old / ".venv/lib64").symlink_to("lib", target_is_directory=True)
+    frontend_bin = frontend_old / "node_modules/.bin"
+    frontend_tool = frontend_old / "node_modules/vite/bin/vite.js"
+    frontend_bin.mkdir(parents=True)
+    frontend_tool.parent.mkdir(parents=True)
+    frontend_tool.write_text("vite\n", encoding="utf-8")
+    (frontend_bin / "vite").symlink_to("../vite/bin/vite.js")
+
+    for path in (
+        backend_lib,
+        backend_old / ".venv",
+        frontend_tool,
+        frontend_tool.parent,
+        frontend_old / "node_modules/vite",
+        frontend_bin,
+        frontend_old / "node_modules",
+    ):
+        path.chmod(0o555 if path.is_dir() else 0o444)
+    for release in (backend_old, backend_new, frontend_old, frontend_new):
         release.chmod(0o555)
     (runtime / "app").symlink_to(backend_new, target_is_directory=True)
     (runtime / "frontend").symlink_to(frontend_new, target_is_directory=True)
@@ -1797,8 +1990,10 @@ def prepare_autonomous_recovery_fixture(
     nginx_path.parent.mkdir(parents=True)
     nginx_path.write_text("new-nginx\n", encoding="utf-8")
     capture_name = str(nginx_path).removeprefix("/").replace("/", "__")
-    (nginx_capture / f"{capture_name}.saved").write_text(
-        "old-nginx\n", encoding="utf-8"
+    nginx_saved = nginx_capture / f"{capture_name}.saved"
+    nginx_saved.write_text("old-nginx\n", encoding="utf-8")
+    (nginx_capture / "etc__nginx__sites-enabled__kivou.saved").symlink_to(
+        nginx_saved.name
     )
     for capture in (unit_capture, nginx_capture):
         for child in capture.iterdir():
