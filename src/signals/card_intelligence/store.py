@@ -285,6 +285,25 @@ def _fresh_source_under_lock(
     return current
 
 
+def lock_publication_source(
+    connection: Connection,
+    *,
+    source: PresentationInput,
+) -> PresentationInput:
+    """Lock and revalidate the complete authority for one publication stream.
+
+    The lock lives until the caller's outer transaction ends.  Callers that
+    decide idempotence before appending can therefore hold this exact same
+    authority across their read and eventual publication.
+    """
+
+    try:
+        checked_source = PresentationInput.model_validate(source)
+    except (ValidationError, TypeError, ValueError, AttributeError):
+        _conflict()
+    return _fresh_source_under_lock(connection, checked_source)
+
+
 def _stream_predicate(source: PresentationInput) -> tuple[sa.ColumnElement[bool], ...]:
     return (
         card_presentation_artifact.c.account_id == source.account_id,
@@ -389,7 +408,10 @@ def append_attempt(
         created_at=created_at,
         publish=publish,
     )
-    _fresh_source_under_lock(connection, checked_source)
+    checked_source = lock_publication_source(
+        connection,
+        source=checked_source,
+    )
 
     predicate = _stream_predicate(checked_source)
     maximum = connection.scalar(
@@ -927,6 +949,7 @@ __all__ = [
     "AttemptMetadata",
     "PresentationPublicationConflict",
     "append_attempt",
+    "lock_publication_source",
     "published_artifact_for_signal",
     "published_for_signals",
 ]

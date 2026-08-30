@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import datetime as dt
 import hashlib
+import os
+import threading
+import uuid
 from dataclasses import dataclass
 
 import pytest
@@ -18,7 +21,10 @@ from signals.card_intelligence.backfill import (
 from signals.card_intelligence.cli import main
 from signals.card_intelligence.input import build_presentation_input
 from signals.card_intelligence.service import publish_factual_fallback
-from signals.card_intelligence.store import published_for_signals
+from signals.card_intelligence.store import (
+    lock_publication_source,
+    published_for_signals,
+)
 from signals.feed import policy as feed_policy
 from signals.feed.query import feed_page as real_feed_page
 from signals.persistence.database import create_database_engine, migrate_to_latest
@@ -463,18 +469,29 @@ def test_one_invocation_executes_exactly_one_explicit_page(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     case = _seed_candidates(engine, count=4, prefix="one-page")
-    calls: list[tuple[int, int, int]] = []
+    page_calls: list[tuple[int, int, int]] = []
+    events: list[tuple[str, object]] = []
     presentation_calls: list[set[str]] = []
 
     def recorded_feed_page(connection, **kwargs):
-        calls.append((kwargs["offset"], kwargs["limit"], kwargs["scan_cap"]))
+        page_calls.append((kwargs["offset"], kwargs["limit"], kwargs["scan_cap"]))
         return real_feed_page(connection, **kwargs)
+
+    def recorded_lock(connection, *, source):
+        events.append(("lock", source.signal_key))
+        return lock_publication_source(connection, source=source)
 
     def recorded_presentations(connection, **kwargs):
         presentation_calls.append(set(kwargs["bindings"]))
+        events.append(("batch", set(kwargs["bindings"])))
         return published_for_signals(connection, **kwargs)
 
     monkeypatch.setattr(backfill_module, "feed_page", recorded_feed_page)
+    monkeypatch.setattr(
+        backfill_module,
+        "lock_publication_source",
+        recorded_lock,
+    )
     monkeypatch.setattr(
         backfill_module,
         "published_for_signals",
@@ -485,9 +502,81 @@ def test_one_invocation_executes_exactly_one_explicit_page(
 
     assert result.scanned == 2
     assert result.next_offset == 3
-    assert calls == [(1, 2, feed_policy.CANDIDATE_SCAN_CAP)]
+    assert page_calls == [(1, 2, feed_policy.CANDIDATE_SCAN_CAP)]
     assert presentation_calls == [set(case.signal_keys[1:3])]
+    assert events == [
+        *(("lock", signal_key) for signal_key in case.signal_keys[1:3]),
+        ("batch", set(case.signal_keys[1:3])),
+    ]
     assert len(_published_rows(engine)) == 2
+
+
+def test_authority_lock_failure_is_item_scoped_and_stops_next_offset(
+    engine: sa.Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = _seed_candidates(engine, count=3, prefix="lock-failure")
+    failed_key = case.signal_keys[0]
+
+    def partially_lock_then_fail(connection, *, source):
+        if source.signal_key == failed_key:
+            connection.execute(
+                sa.update(materialized_signal)
+                .where(materialized_signal.c.signal_key == failed_key)
+                .values(winner_name="LOCK FAILURE MUST ROLL BACK")
+            )
+            event_key = connection.scalar(
+                sa.select(contract_award.c.event_key)
+                .select_from(
+                    materialized_signal.join(
+                        contract_award,
+                        materialized_signal.c.materialization_award_key
+                        == contract_award.c.award_key,
+                    )
+                )
+                .where(materialized_signal.c.signal_key == failed_key)
+            )
+            buyers = connection.scalar(
+                sa.select(source_event.c.procedure_buyers).where(
+                    source_event.c.event_key == event_key
+                )
+            )
+            assert isinstance(buyers, list)
+            connection.execute(
+                sa.update(source_event)
+                .where(source_event.c.event_key == event_key)
+                .values(
+                    procedure_buyers=[
+                        *buyers,
+                        {"legal_name": "Concurrent source mutation"},
+                    ]
+                )
+            )
+        return lock_publication_source(connection, source=source)
+
+    monkeypatch.setattr(
+        backfill_module,
+        "lock_publication_source",
+        partially_lock_then_fail,
+    )
+
+    result = _run(engine, case, limit=2)
+
+    assert result.scanned == 2
+    assert result.published == 1
+    assert result.unchanged == 0
+    assert result.failed == 1
+    assert result.next_offset is None
+    with engine.connect() as connection:
+        failed_name = connection.scalar(
+            sa.select(materialized_signal.c.winner_name).where(
+                materialized_signal.c.signal_key == failed_key
+            )
+        )
+    assert failed_name != "LOCK FAILURE MUST ROLL BACK"
+    assert {row["signal_key"] for row in _published_rows(engine)} == {
+        case.signal_keys[1]
+    }
 
 
 @pytest.mark.parametrize(
@@ -740,3 +829,89 @@ def test_cli_sanitizes_engine_disposal_failure_and_returns_nonzero(
     )
     assert secret not in captured.err
     assert "DISPOSE-SECRET" not in captured.err
+
+
+def test_postgresql_concurrent_identical_backfills_publish_one_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    dsn = os.environ.get("KIVOU_TEST_POSTGRES_DSN")
+    if not dsn:
+        pytest.skip(
+            "KIVOU_TEST_POSTGRES_DSN is required for the backfill interleaving test"
+        )
+
+    postgres_engine = create_database_engine(dsn, pool_pre_ping=True)
+    migrate_to_latest(postgres_engine)
+    case = _seed_candidates(
+        postgres_engine,
+        count=1,
+        prefix=f"concurrent-{uuid.uuid4().hex}",
+    )
+    start = threading.Barrier(3)
+    after_batch_read = threading.Barrier(2)
+    batch_calls: list[set[str]] = []
+    results: list[BackfillResult] = []
+    errors: list[BaseException] = []
+
+    def synchronized_batch_reader(connection, **kwargs):
+        current = published_for_signals(connection, **kwargs)
+        batch_calls.append(set(kwargs["bindings"]))
+        try:
+            after_batch_read.wait(timeout=5)
+        except threading.BrokenBarrierError:
+            pass
+        return current
+
+    monkeypatch.setattr(
+        backfill_module,
+        "published_for_signals",
+        synchronized_batch_reader,
+    )
+
+    def run_backfill() -> None:
+        try:
+            start.wait(timeout=5)
+            results.append(_run(postgres_engine, case, limit=1))
+        except BaseException as error:  # noqa: BLE001 - asserted by the test thread
+            errors.append(error)
+
+    first = threading.Thread(target=run_backfill, daemon=True)
+    second = threading.Thread(target=run_backfill, daemon=True)
+    try:
+        first.start()
+        second.start()
+        start.wait(timeout=5)
+        first.join(timeout=20)
+        second.join(timeout=20)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert errors == []
+        assert len(results) == 2
+        assert sorted(
+            (result.published, result.unchanged, result.failed)
+            for result in results
+        ) == [(0, 1, 0), (1, 0, 0)]
+        assert batch_calls == [
+            {case.signal_keys[0]},
+            {case.signal_keys[0]},
+        ]
+        with postgres_engine.connect() as connection:
+            rows = list(
+                connection.execute(
+                    sa.select(
+                        card_presentation_artifact.c.version,
+                        card_presentation_artifact.c.superseded_at,
+                    ).where(
+                        card_presentation_artifact.c.account_id == case.account_id,
+                        card_presentation_artifact.c.signal_key
+                        == case.signal_keys[0],
+                        card_presentation_artifact.c.language == "fr",
+                    )
+                ).mappings()
+            )
+        assert rows == [{"version": 1, "superseded_at": None}]
+    finally:
+        first.join(timeout=1)
+        second.join(timeout=1)
+        postgres_engine.dispose()

@@ -23,7 +23,10 @@ from signals.card_intelligence.contracts import (
 )
 from signals.card_intelligence.input import build_presentation_input
 from signals.card_intelligence.service import publish_factual_fallback
-from signals.card_intelligence.store import published_for_signals
+from signals.card_intelligence.store import (
+    lock_publication_source,
+    published_for_signals,
+)
 from signals.feed import policy as feed_policy
 from signals.feed.query import feed_page
 
@@ -179,12 +182,35 @@ def backfill_factual_presentations(
                 continue
             sources.append(source)
 
+        locked_sources: list[PresentationInput] = []
+        for source in sorted(
+            sources,
+            key=lambda item: (
+                item.signal_key,
+                item.account_id,
+                item.target_icp_id,
+                item.facts.source_award_binding,
+                item.facts.source_event_binding,
+                item.language,
+            ),
+        ):
+            try:
+                with connection.begin_nested():
+                    locked_source = lock_publication_source(
+                        connection,
+                        source=source,
+                    )
+            except Exception:  # noqa: BLE001 - one opaque, savepointed lock failure
+                failed += 1
+                continue
+            locked_sources.append(locked_source)
+
         bindings = {
             source.signal_key: (
                 source.signal_revision,
                 source.target_icp_revision,
             )
-            for source in sources
+            for source in locked_sources
         }
         current = published_for_signals(
             connection,
@@ -193,7 +219,7 @@ def backfill_factual_presentations(
             language=checked_language,
         )
 
-        for source in sources:
+        for source in locked_sources:
             if _current_factual(current.get(source.signal_key)):
                 unchanged += 1
                 continue
