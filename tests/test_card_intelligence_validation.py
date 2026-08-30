@@ -54,8 +54,6 @@ NOTIFICATION_DATE_FIELD_REF = (
     f"source-field:v1:contract_award:sha256-{AWARD_BINDING}:contract_notification_date"
 )
 PUBLICATION_DATE_FIELD_REF = f"source-field:v1:source_event:sha256-{EVENT_BINDING}:published_on"
-PERSISTED_WINNER_REF = "evidence:v1:winner-proof:winner"
-PERSISTED_BUYER_REF = "evidence:v1:buyer-proof:procedure_buyers"
 DIRECT_FIELD_REFS = (
     AWARDEE_FIELD_REF,
     BUYER_FIELD_REF,
@@ -112,11 +110,7 @@ def source() -> PresentationInput:
             publication_date=dt.date(2026, 8, 15),
             source_system="simap",
             source_notice_id="notice-123",
-            evidence_refs=(
-                *DIRECT_FIELD_REFS,
-                PERSISTED_WINNER_REF,
-                PERSISTED_BUYER_REF,
-            ),
+            evidence_refs=DIRECT_FIELD_REFS,
         ),
     )
 
@@ -192,30 +186,45 @@ def test_fallback_never_cuts_long_actor_names_into_a_new_fact(source):
     assert "Collectivite acheteuse tres longue Collectivite" not in rendered
 
 
-def test_fallback_bounds_semantic_evidence_to_sixteen(source):
-    winner_refs = tuple(f"evidence:v1:{index:064x}:winner" for index in range(20))
-    raw_refs = (*DIRECT_FIELD_REFS, *winner_refs)
-    facts = source.facts.model_copy(update={"evidence_refs": raw_refs})
-    payload = factual_fallback(source.model_copy(update={"facts": facts}))
+def test_fallback_never_propagates_more_than_sixteen_deceptive_catalog_extras(source):
+    deceptive_refs = (
+        "evidence:v1:not-winner:not-winner:winner",
+        "evidence:v1:space-anchor: winner ",
+        *(f"evidence:v1:{index:064x}:winner" for index in range(18)),
+    )
+    facts_dump = source.facts.model_dump()
+    facts_dump["evidence_refs"] = (*DIRECT_FIELD_REFS, *deceptive_refs)
+    facts = SourceFacts.model_validate(facts_dump)
+    source_dump = source.model_dump()
+    source_dump["facts"] = facts
+    forged = PresentationInput.model_validate(source_dump)
+
+    payload = factual_fallback(forged)
 
     claims = {claim.claim_id: claim for claim in payload.claims}
-    assert claims["FACT_HEADLINE"].evidence_refs[0] == AWARDEE_FIELD_REF
-    assert len(claims["FACT_HEADLINE"].evidence_refs) == 16
-    assert len(set(claims["FACT_HEADLINE"].evidence_refs)) == 16
-    assert claims["FACT_AWARD_CONTEXT"].evidence_refs[:2] == (
+    assert claims["FACT_HEADLINE"].evidence_refs == (AWARDEE_FIELD_REF,)
+    assert claims["FACT_AWARD_CONTEXT"].evidence_refs == (
         AWARDEE_FIELD_REF,
         BUYER_FIELD_REF,
     )
-    assert len(claims["FACT_AWARD_CONTEXT"].evidence_refs) == 16
-    assert claims["FACT_AMOUNT"].evidence_refs[:2] == (
+    assert claims["FACT_AMOUNT"].evidence_refs == (
         AMOUNT_FIELD_REF,
         CURRENCY_FIELD_REF,
     )
     assert claims["FACT_LOCATION"].evidence_refs == (LOCATION_FIELD_REF,)
     assert claims["FACT_PUBLICATION_DATE"].evidence_refs == (PUBLICATION_DATE_FIELD_REF,)
+    surfaced = {ref for claim in payload.claims for ref in claim.evidence_refs} | {
+        ref for unknown in payload.unknowns for ref in unknown.evidence_refs
+    }
+    assert surfaced <= set(DIRECT_FIELD_REFS)
+    assert not any(ref.startswith("evidence:v1:") for ref in surfaced)
 
-    absent_facts = facts.model_copy(update={"buyers": ()})
-    absent_payload = factual_fallback(source.model_copy(update={"facts": absent_facts}))
+    absent_dump = facts.model_dump()
+    absent_dump["buyers"] = ()
+    absent_facts = SourceFacts.model_validate(absent_dump)
+    absent_source_dump = forged.model_dump()
+    absent_source_dump["facts"] = absent_facts
+    absent_payload = factual_fallback(PresentationInput.model_validate(absent_source_dump))
     absent_claims = {claim.claim_id: claim for claim in absent_payload.claims}
     assert BUYER_FIELD_REF in absent_claims["FACT_AWARD_CONTEXT"].evidence_refs
     buyer_unknown = next(
@@ -235,9 +244,6 @@ def test_fallback_unknowns_are_bounded_proven_and_only_describe_absent_facts(sou
             "award_date": None,
             "contract_notification_date": None,
             "publication_date": None,
-            "evidence_refs": tuple(
-                ref for ref in source.facts.evidence_refs if ref != PERSISTED_BUYER_REF
-            ),
         }
     )
 
@@ -457,9 +463,8 @@ def test_input_is_built_from_the_current_tenant_owned_rows(engine, persisted_cas
     assert source.facts.award_date == dt.date(2026, 7, 17)
     assert source.facts.contract_notification_date is None
     assert source.facts.publication_date == dt.date(2026, 8, 18)
-    assert source.facts.evidence_refs
-    assert len(source.facts.evidence_refs) <= 32
-    assert all(ref.startswith("source-field:v1:") for ref in source.facts.evidence_refs[:8])
+    assert len(source.facts.evidence_refs) == 8
+    assert all(ref.startswith("source-field:v1:") for ref in source.facts.evidence_refs)
     assert source.facts.evidence_refs[0].endswith(":awardee_parties")
     assert source.facts.evidence_refs[1].endswith(":procedure_buyers")
     assert source.facts.evidence_refs[2].endswith(":amount")
@@ -593,35 +598,49 @@ def test_input_rejects_an_award_without_persisted_evidence(engine, persisted_cas
     _assert_unavailable(engine, persisted_case)
 
 
-def test_location_and_publication_claims_never_borrow_winner_or_buyer_evidence(
-    engine, persisted_case
+@pytest.mark.parametrize(
+    ("evidence_key", "anchors_ref"),
+    (
+        ("space-anchor", " winner "),
+        ("suffix-spoof", "not-winner:winner"),
+        (" malformed:key ", "winner"),
+    ),
+    ids=("anchor-whitespace", "anchor-suffix", "malformed-key"),
+)
+def test_persisted_evidence_is_only_an_existence_gate_and_never_public(
+    engine, persisted_case, evidence_key, anchors_ref
 ):
     with engine.begin() as connection:
-        connection.execute(
-            sa.delete(evidence).where(
-                evidence.c.award_key == persisted_case.award_key,
-                evidence.c.anchors_ref.not_in(("winner", "procedure_buyers")),
+        template = (
+            connection.execute(
+                sa.select(evidence).where(evidence.c.award_key == persisted_case.award_key).limit(1)
             )
+            .mappings()
+            .one()
         )
+        connection.execute(
+            sa.delete(evidence).where(evidence.c.award_key == persisted_case.award_key)
+        )
+        gate_row = dict(template)
+        gate_row.update(
+            evidence_key=evidence_key,
+            anchors_kind="award_fact",
+            anchors_ref=anchors_ref,
+        )
+        connection.execute(sa.insert(evidence).values(**gate_row))
 
     source = _build(engine, persisted_case)
     payload = factual_fallback(source)
-    claims = {claim.claim_id: claim for claim in payload.claims}
-    unrelated = {ref for ref in source.facts.evidence_refs if ref.startswith("evidence:v1:")}
 
-    assert unrelated
-    location_refs = claims["FACT_LOCATION"].evidence_refs
-    publication_refs = claims["FACT_PUBLICATION_DATE"].evidence_refs
-    assert location_refs
-    assert publication_refs
-    assert location_refs[0].startswith("source-field:v1:contract_award:")
-    assert location_refs[0].endswith(":place_of_performance")
-    assert publication_refs[0].startswith("source-field:v1:source_event:")
-    assert publication_refs[0].endswith(":published_on")
-    assert set(location_refs).isdisjoint(unrelated)
-    assert set(publication_refs).isdisjoint(unrelated)
-    assert all(ref.endswith(":place_of_performance") for ref in location_refs)
-    assert all(ref.endswith(":published_on") for ref in publication_refs)
+    assert len(source.facts.evidence_refs) == 8
+    assert all(ref.startswith("source-field:v1:") for ref in source.facts.evidence_refs)
+    rendered = payload.model_dump_json()
+    assert "evidence:v1:" not in rendered
+    assert evidence_key not in rendered
+    assert anchors_ref not in rendered
+    assert all(
+        ref in source.facts.evidence_refs for claim in payload.claims for ref in claim.evidence_refs
+    )
 
 
 def test_input_rejects_an_award_without_a_published_winner(engine, persisted_case):

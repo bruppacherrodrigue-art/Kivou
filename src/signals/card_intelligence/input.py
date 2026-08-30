@@ -232,7 +232,7 @@ def _evidence_refs(
     award_key: str,
     event_key: str,
 ) -> tuple[str, ...]:
-    """Return field pointers first, then fact-bound persisted evidence rows."""
+    """Return exact field pointers after gating on persisted award evidence."""
 
     field_refs = (
         _source_field_ref(table="contract_award", row_key=award_key, column="awardee_parties"),
@@ -248,23 +248,18 @@ def _evidence_refs(
         ),
         _source_field_ref(table="source_event", row_key=event_key, column="published_on"),
     )
-    rows = connection.execute(
-        sa.select(evidence.c.evidence_key, evidence.c.anchors_ref)
+    gate = connection.execute(
+        sa.select(sa.literal(1))
+        .select_from(evidence)
         .where(
             evidence.c.award_key == award_key,
             evidence.c.anchors_kind == "award_fact",
         )
-        .order_by(evidence.c.evidence_key)
-        .limit(32)
-    ).all()
-    if not rows:
+        .limit(1)
+    ).first()
+    if gate is None:
         _unavailable()
-    persisted_refs = tuple(
-        f"evidence:v1:{_clean_text(row.evidence_key, required=True)}:"
-        f"{_clean_text(row.anchors_ref, required=True)}"
-        for row in rows
-    )
-    return tuple(dict.fromkeys((*field_refs, *persisted_refs)))[:32]
+    return field_refs
 
 
 def _ensure_complete_icp(snapshot: TargetIcpSnapshot) -> None:

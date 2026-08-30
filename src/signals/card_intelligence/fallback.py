@@ -96,58 +96,12 @@ def _direct_evidence(
     return expected
 
 
-def _persisted_evidence(
-    source: PresentationInput,
-    *,
-    anchors: tuple[str, ...],
-) -> tuple[str, ...]:
-    return tuple(
-        ref
-        for ref in source.facts.evidence_refs
-        if ref.startswith("evidence:v1:") and any(ref.endswith(f":{anchor}") for anchor in anchors)
-    )
+def _award_evidence(source: PresentationInput, column: str) -> tuple[str, ...]:
+    return (_direct_evidence(source, table="contract_award", column=column),)
 
 
-def _semantic_evidence(
-    source: PresentationInput,
-    *,
-    table: str,
-    column: str,
-    anchors: tuple[str, ...] = (),
-) -> tuple[str, ...]:
-    """Reserve the exact field pointer before optional fact-bound evidence."""
-
-    direct = _direct_evidence(source, table=table, column=column)
-    persisted = _persisted_evidence(source, anchors=anchors)
-    return tuple(dict.fromkeys((direct, *persisted)))[:16]
-
-
-def _award_evidence(
-    source: PresentationInput,
-    column: str,
-    *,
-    anchors: tuple[str, ...] = (),
-) -> tuple[str, ...]:
-    return _semantic_evidence(
-        source,
-        table="contract_award",
-        column=column,
-        anchors=anchors,
-    )
-
-
-def _event_evidence(
-    source: PresentationInput,
-    column: str,
-    *,
-    anchors: tuple[str, ...] = (),
-) -> tuple[str, ...]:
-    return _semantic_evidence(
-        source,
-        table="source_event",
-        column=column,
-        anchors=anchors,
-    )
+def _event_evidence(source: PresentationInput, column: str) -> tuple[str, ...]:
+    return (_direct_evidence(source, table="source_event", column=column),)
 
 
 def _amount_evidence(source: PresentationInput) -> tuple[str, ...]:
@@ -155,8 +109,7 @@ def _amount_evidence(source: PresentationInput) -> tuple[str, ...]:
 
     amount = _direct_evidence(source, table="contract_award", column="amount")
     currency = _direct_evidence(source, table="contract_award", column="currency")
-    persisted = _persisted_evidence(source, anchors=("amount",))
-    return tuple(dict.fromkeys((amount, currency, *persisted)))[:16]
+    return (amount, currency)
 
 
 def _date(value: dt.date, *, language: str) -> str:
@@ -176,7 +129,7 @@ def _missing_fact_labels(source: PresentationInput) -> tuple[PresentationUnknown
             (
                 facts.buyer_name,
                 "Acheteur non publié.",
-                _event_evidence(source, "procedure_buyers", anchors=("procedure_buyers",)),
+                _event_evidence(source, "procedure_buyers"),
             ),
             (
                 facts.amount,
@@ -191,7 +144,7 @@ def _missing_fact_labels(source: PresentationInput) -> tuple[PresentationUnknown
             (
                 facts.award_date,
                 "Date d'attribution non publiée.",
-                _award_evidence(source, "award_date", anchors=("award_date",)),
+                _award_evidence(source, "award_date"),
             ),
             (
                 facts.contract_notification_date,
@@ -209,7 +162,7 @@ def _missing_fact_labels(source: PresentationInput) -> tuple[PresentationUnknown
             (
                 facts.buyer_name,
                 "The buyer is not published.",
-                _event_evidence(source, "procedure_buyers", anchors=("procedure_buyers",)),
+                _event_evidence(source, "procedure_buyers"),
             ),
             (
                 facts.amount,
@@ -224,7 +177,7 @@ def _missing_fact_labels(source: PresentationInput) -> tuple[PresentationUnknown
             (
                 facts.award_date,
                 "The award date is not published.",
-                _award_evidence(source, "award_date", anchors=("award_date",)),
+                _award_evidence(source, "award_date"),
             ),
             (
                 facts.contract_notification_date,
@@ -252,7 +205,7 @@ def _dated_claims(source: PresentationInput) -> tuple[PresentationClaim, ...]:
                 "FACT_AWARD_DATE",
                 facts.award_date,
                 "Date d'attribution publiée : {date}.",
-                _award_evidence(source, "award_date", anchors=("award_date",)),
+                _award_evidence(source, "award_date"),
             ),
             (
                 "FACT_NOTIFICATION_DATE",
@@ -273,7 +226,7 @@ def _dated_claims(source: PresentationInput) -> tuple[PresentationClaim, ...]:
                 "FACT_AWARD_DATE",
                 facts.award_date,
                 "Published award date: {date}.",
-                _award_evidence(source, "award_date", anchors=("award_date",)),
+                _award_evidence(source, "award_date"),
             ),
             (
                 "FACT_NOTIFICATION_DATE",
@@ -314,36 +267,9 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
     buyer = actor_label(facts.buyer_name) if facts.buyer_name is not None else None
     awardee_count = len(facts.awardees)
     buyer_count = len(facts.buyers)
-    awardee_evidence = _award_evidence(
-        source,
-        "awardee_parties",
-        anchors=("winner",),
-    )
-    buyer_evidence = _event_evidence(
-        source,
-        "procedure_buyers",
-        anchors=("procedure_buyers",),
-    )
-    awardee_direct = _direct_evidence(
-        source,
-        table="contract_award",
-        column="awardee_parties",
-    )
-    buyer_direct = _direct_evidence(
-        source,
-        table="source_event",
-        column="procedure_buyers",
-    )
-    actor_evidence = tuple(
-        dict.fromkeys(
-            (
-                awardee_direct,
-                buyer_direct,
-                *awardee_evidence,
-                *buyer_evidence,
-            )
-        )
-    )[:16]
+    awardee_evidence = _award_evidence(source, "awardee_parties")
+    buyer_evidence = _event_evidence(source, "procedure_buyers")
+    actor_evidence = (awardee_evidence[0], buyer_evidence[0])
 
     if source.language == "fr":
         headline = bounded(
