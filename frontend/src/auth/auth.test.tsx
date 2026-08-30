@@ -1,6 +1,7 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useNavigate } from 'react-router-dom'
 import { AppRoutes } from '../App'
 import {
   AUTHENTICATED,
@@ -18,7 +19,19 @@ import {
 
 /* SPEC-015 §48 — les sept vérifications d'authentification. */
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.useRealTimers()
+  vi.unstubAllGlobals()
+})
+
+function ResetSearchChanger() {
+  const navigate = useNavigate()
+  return (
+    <button type="button" onClick={() => navigate('/reset-password?token=jeton-deux')}>
+      Changer le jeton URL
+    </button>
+  )
+}
 
 const APP_ROUTES = {
   'GET /signals': { body: feedPage([]) },
@@ -32,7 +45,9 @@ describe('protection des routes', () => {
     mockApi(APP_ROUTES)
     renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/app/signals' })
 
-    expect(await screen.findByRole('heading', { name: 'Se connecter' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Retrouver vos signaux' }),
+    ).toBeInTheDocument()
     // Le feed ne doit pas avoir été demandé : la redirection précède l'appel.
     expect(callsTo('/signals', 'GET')).toHaveLength(0)
   })
@@ -48,7 +63,9 @@ describe('protection des routes', () => {
     mockApi(APP_ROUTES)
     renderApp(<AppRoutes />, { session: EXPIRED, route: '/app/signals' })
 
-    expect(await screen.findByRole('heading', { name: 'Se connecter' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Retrouver vos signaux' }),
+    ).toBeInTheDocument()
     expect(screen.getByText(/session a expiré/i)).toBeInTheDocument()
   })
 
@@ -59,56 +76,108 @@ describe('protection des routes', () => {
       route: '/app/signals',
     })
 
-    expect(screen.queryByRole('heading', { name: 'Se connecter' })).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole('heading', { name: 'Retrouver vos signaux' }),
+    ).not.toBeInTheDocument()
     expect(screen.getByText('Chargement…')).toBeInTheDocument()
   })
 })
 
 describe('inscription', () => {
+  it('conserve les contraintes HTML natives sur le formulaire de référence', () => {
+    mockApi({ 'POST /auth/signup': { body: ME } })
+    renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/signup' })
+
+    const form = screen.getByRole('button', { name: 'Continuer vers le ciblage' }).closest('form')!
+    expect(form).not.toHaveAttribute('novalidate')
+    expect(screen.getByLabelText('Entreprise')).toBeRequired()
+    expect(screen.getByLabelText(/Adresse e-mail/)).toHaveAttribute('type', 'email')
+    expect(screen.getByLabelText(/^Mot de passe$/)).toHaveAttribute('minlength', '12')
+  })
+
+  it.each([
+    ['une entreprise composée uniquement d’espaces', 'signup', 'company'],
+    ['une adresse vide', 'signup', 'empty-email'],
+    ['une adresse invalide', 'signup', 'invalid-email'],
+    ['un mot de passe vide', 'login', 'empty-password'],
+  ] as const)('refuse %s sans appeler l’API', async (_label, mode, invalidField) => {
+    const user = userEvent.setup()
+    const endpoint = mode === 'signup' ? '/auth/signup' : '/auth/login'
+    mockApi({ [`POST ${endpoint}`]: { body: ME } })
+    renderApp(<AppRoutes />, {
+      session: UNAUTHENTICATED,
+      route: mode === 'signup' ? '/signup' : '/login',
+    })
+
+    if (mode === 'signup') {
+      await user.type(
+        screen.getByLabelText('Entreprise'),
+        invalidField === 'company' ? '   ' : 'Acme',
+      )
+    }
+    if (invalidField !== 'empty-email') {
+      await user.type(
+        screen.getByLabelText(/Adresse e-mail/),
+        invalidField === 'invalid-email' ? 'adresse-invalide' : 'claire@acme.test',
+      )
+    }
+    if (invalidField !== 'empty-password') {
+      await user.type(screen.getByLabelText(/^Mot de passe$/), 'motdepassesolide')
+    }
+    if (mode === 'signup') {
+      await user.type(screen.getByLabelText('Confirmer le mot de passe'), 'motdepassesolide')
+      await user.click(screen.getByRole('checkbox'))
+    }
+
+    await user.click(
+      screen.getByRole('button', {
+        name: mode === 'signup' ? 'Continuer vers le ciblage' : 'Se connecter',
+      }),
+    )
+
+    expect(callsTo(endpoint)).toHaveLength(0)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      invalidField === 'company'
+        ? /nom de votre entreprise/i
+        : invalidField === 'empty-password'
+          ? /mot de passe/i
+          : /adresse e-mail valide/i,
+    )
+  })
+
   it('affiche la validation du mot de passe sans appeler le serveur', async () => {
     const user = userEvent.setup()
     mockApi({ 'POST /auth/signup': { body: ME } })
     renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/signup' })
 
-    await user.type(screen.getByLabelText(/Nom de votre entreprise/), 'Acme')
+    await user.type(screen.getByLabelText('Entreprise'), 'Acme')
     await user.type(screen.getByLabelText(/Adresse e-mail/), 'claire@acme.test')
-    await user.type(screen.getByLabelText('Mot de passe'), 'court')
-    await user.click(screen.getByRole('button', { name: 'Créer mon compte' }))
+    await user.type(screen.getByLabelText(/^Mot de passe$/), 'court')
+    await user.type(screen.getByLabelText('Confirmer le mot de passe'), 'court')
+    await user.click(screen.getByRole('button', { name: 'Continuer vers le ciblage' }))
 
     // L'aide RESTE affichée à côté de l'erreur : un message qui remplacerait
     // l'instruction la ferait disparaître au moment où elle sert.
-    expect(await screen.findAllByText(/Au moins 12 caractères/)).toHaveLength(2)
-    expect(screen.getByLabelText('Mot de passe')).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByText('12 caractères minimum.')).toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent(/au moins 12 caractères/i)
+    expect(screen.getByLabelText(/^Mot de passe$/)).toHaveAttribute('aria-invalid', 'true')
     expect(callsTo('/auth/signup')).toHaveLength(0)
   })
 
-  /* P0-02 §4 — ce que l'inscription annonce, et ce qu'elle se garde d'annoncer.
-   *
-   * La suite du parcours est dite pour que le client sache pourquoi on lui
-   * demandera son métier juste après. Le NOMBRE de signaux, lui, n'appartient
-   * pas à cet écran : aucun déblocage n'existe tant qu'aucun ciblage n'a été
-   * enregistré, et l'annoncer ici promettrait un résultat que le serveur n'a
-   * pas produit. */
-  it('annonce la suite du parcours et l’absence de carte bancaire', async () => {
+  it('reprend la composition de référence sans ancien parcours de démonstration', () => {
     mockApi({ 'POST /auth/signup': { body: ME } })
     renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/signup' })
 
     expect(
-      screen.getByText(
-        'Ensuite, indiquez ce que vous vendez et où vous intervenez. Kivou préparera vos premiers signaux.',
-      ),
+      screen.getByRole('heading', { name: 'Commencer avec un ciblage clair' }),
     ).toBeInTheDocument()
     expect(
       screen.getByText(
-        'Aucune carte bancaire n’est nécessaire pour découvrir vos premiers signaux.',
+        'Créez votre accès, puis décrivez simplement ce que vous vendez et à qui.',
       ),
     ).toBeInTheDocument()
-
-    // La mise en route est située, et l'inscription en est le premier jalon.
-    const progress = screen.getByRole('navigation', { name: 'Votre mise en route' })
-    const steps = within(progress).getAllByRole('listitem')
-    expect(steps[0]).toHaveAttribute('aria-current', 'step')
-    expect(steps[0]).toHaveTextContent('Compte')
+    expect(document.querySelector('.auth-shell')).not.toBeNull()
+    expect(screen.queryByRole('navigation', { name: 'Votre mise en route' })).not.toBeInTheDocument()
   })
 
   /* REVUE #1 — la promesse chiffrée ne doit pas revenir.
@@ -129,11 +198,10 @@ describe('inscription', () => {
     expect(page).not.toContain('Trois signaux réels vous attendent')
     expect(page).not.toMatch(/\b3 signaux\b/)
     expect(page).not.toMatch(/\btrois signaux\b/i)
-    // La valeur reste dite, sans chiffre.
-    expect(screen.getByText(/Vos premiers signaux réels/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Commencer avec un ciblage clair' })).toBeVisible()
   })
 
-  it('ne promet aucun nombre de signaux avant attribution — EN', async () => {
+  it('reste en français sans sélecteur même si la langue initiale est l’anglais', () => {
     mockApi({ 'POST /auth/signup': { body: ME } })
     renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/signup', locale: 'en' })
 
@@ -141,7 +209,10 @@ describe('inscription', () => {
     expect(page).not.toContain('Three real signals are waiting')
     expect(page).not.toMatch(/\b3 signals\b/)
     expect(page).not.toMatch(/\bthree signals\b/i)
-    expect(screen.getByText(/Your first real signals/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Commencer avec un ciblage clair' })).toBeVisible()
+    expect(screen.queryByLabelText(/langue/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /English/i })).not.toBeInTheDocument()
+    expect(document.documentElement).toHaveAttribute('lang', 'fr')
   })
 
   it('n’envoie que les champs du contrat backend — jamais d’account_id', async () => {
@@ -149,21 +220,50 @@ describe('inscription', () => {
     mockApi({
       'POST /auth/signup': { status: 201, body: { ...ME, onboarding_status: 'account_created' } },
     })
-    renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/signup' })
+    renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/signup', locale: 'en' })
 
-    await user.type(screen.getByLabelText(/Nom de votre entreprise/), 'Acme Solutions')
+    await user.type(screen.getByLabelText('Entreprise'), 'Acme Solutions')
     await user.type(screen.getByLabelText(/Adresse e-mail/), 'claire@acme.test')
-    await user.type(screen.getByLabelText('Mot de passe'), 'motdepassesolide')
-    await user.click(screen.getByRole('button', { name: 'Créer mon compte' }))
+    await user.type(screen.getByLabelText(/^Mot de passe$/), 'motdepassesolide')
+    await user.type(screen.getByLabelText('Confirmer le mot de passe'), 'motdepassesolide')
+    await user.click(screen.getByRole('checkbox'))
+    await user.click(screen.getByRole('button', { name: 'Continuer vers le ciblage' }))
 
     await waitFor(() => expect(callsTo('/auth/signup')).toHaveLength(1))
     const sent = callsTo('/auth/signup')[0].body as Record<string, unknown>
     expect(Object.keys(sent).sort()).toEqual(['company_name', 'email', 'locale', 'password'])
     expect(sent).not.toHaveProperty('account_id')
+    expect(sent).toEqual({
+      company_name: 'Acme Solutions',
+      email: 'claire@acme.test',
+      locale: 'fr',
+      password: 'motdepassesolide',
+    })
   })
 })
 
 describe('connexion', () => {
+  it('accepte un mot de passe historique d’un caractère et appelle la connexion une seule fois', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'POST /auth/login': { body: ME },
+      ...APP_ROUTES,
+    })
+    renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/login' })
+
+    await user.type(screen.getByLabelText(/Adresse e-mail/), 'claire@acme.test')
+    const password = screen.getByLabelText('Mot de passe')
+    expect(password).toHaveAttribute('minlength', '1')
+    await user.type(password, 'x')
+    await user.click(screen.getByRole('button', { name: 'Se connecter' }))
+
+    await waitFor(() => expect(callsTo('/auth/login')).toHaveLength(1))
+    expect(callsTo('/auth/login')[0].body).toEqual({
+      email: 'claire@acme.test',
+      password: 'x',
+    })
+  })
+
   it('affiche un échec générique qui ne révèle pas l’existence du compte', async () => {
     const user = userEvent.setup()
     mockApi({
@@ -197,7 +297,7 @@ describe('connexion', () => {
     await user.click(screen.getByRole('button', { name: 'Se connecter' }))
 
     expect(
-      await screen.findByRole('heading', { name: 'Configurer votre profil de ciblage' }),
+      await screen.findByRole('heading', { name: 'Définir ce que Kivou doit surveiller' }),
     ).toBeInTheDocument()
   })
 })
@@ -209,10 +309,52 @@ describe('déconnexion', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     await screen.findByRole('heading', { name: 'Signaux' })
+    await user.click(screen.getByRole('link', { name: 'Compte' }))
+    await screen.findByRole('heading', { level: 1, name: 'Compte' })
+    const security = screen.getAllByRole('link', { name: 'Sécurité' }).find(
+      (link) => link.getAttribute('href') === '/app/settings/security',
+    )
+    expect(security).toBeDefined()
+    await user.click(security as HTMLElement)
+    await screen.findByRole('heading', { level: 1, name: 'Sécurité' })
     await user.click(screen.getByRole('button', { name: 'Se déconnecter' }))
 
     await waitFor(() => expect(callsTo('/auth/logout')).toHaveLength(1))
-    expect(await screen.findByRole('heading', { name: 'Se connecter' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('heading', { name: 'Retrouver vos signaux' }),
+    ).toBeInTheDocument()
+  })
+
+  it('verrouille un double clic et ignore une réponse tardive après démontage', async () => {
+    let release: ((response: { status: number }) => void) | undefined
+    mockApi({
+      ...APP_ROUTES,
+      'POST /auth/logout': () =>
+        new Promise((resolve) => {
+          release = resolve
+        }),
+    })
+    const view = renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/settings' })
+
+    await screen.findByText(`${ICP.label} · ${ICP.customer_input.territories[0]}`)
+    const user = userEvent.setup()
+    const security = screen.getAllByRole('link', { name: 'Sécurité' }).find(
+      (link) => link.getAttribute('href') === '/app/settings/security',
+    )
+    expect(security).toBeDefined()
+    await user.click(security as HTMLElement)
+    const logout = screen.getByRole('button', { name: 'Se déconnecter' })
+    act(() => {
+      fireEvent.click(logout)
+      fireEvent.click(logout)
+    })
+    await waitFor(() => expect(callsTo('/auth/logout')).toHaveLength(1))
+
+    view.unmount()
+    await act(async () => {
+      release?.({ status: 204 })
+    })
+    expect(callsTo('/auth/logout')).toHaveLength(1)
   })
 })
 
@@ -223,9 +365,93 @@ describe('mot de passe oublié', () => {
     renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/forgot-password' })
 
     await user.type(screen.getByLabelText(/Adresse e-mail/), 'peut-etre@acme.test')
-    await user.click(screen.getByRole('button', { name: 'Envoyer le lien' }))
+    await user.click(screen.getByRole('button', { name: 'Demander un lien' }))
 
-    const confirmation = await screen.findByRole('alert')
-    expect(confirmation).toHaveTextContent('Si un compte existe pour cette adresse')
+    const confirmation = await screen.findByRole('status')
+    expect(confirmation).toHaveTextContent('Si un compte correspond à cette adresse')
+    expect(callsTo('/auth/password-reset/request')[0].body).toEqual({
+      email: 'peut-etre@acme.test',
+    })
+  })
+
+  it('confirme le nouveau mot de passe avec le jeton de l’URL', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'POST /auth/password-reset/confirm': { status: 204 },
+    })
+    renderApp(<AppRoutes />, {
+      session: UNAUTHENTICATED,
+      route: '/reset-password?token=jeton-test',
+    })
+
+    await user.type(screen.getByLabelText('Nouveau mot de passe'), 'nouveaumotdepasse')
+    await user.type(
+      screen.getByLabelText('Confirmer le nouveau mot de passe'),
+      'nouveaumotdepasse',
+    )
+    await user.click(screen.getByRole('button', { name: 'Valider le nouveau mot de passe' }))
+
+    expect(await screen.findByRole('status')).toHaveTextContent('Mot de passe remplacé')
+    expect(callsTo('/auth/password-reset/confirm')[0].body).toEqual({
+      reset_token: 'jeton-test',
+      new_password: 'nouveaumotdepasse',
+    })
+  })
+
+  it('traite un jeton URL vide ou composé d’espaces comme absent', () => {
+    mockApi({})
+    renderApp(<AppRoutes />, {
+      session: UNAUTHENTICATED,
+      route: '/reset-password?token=%20%20%20',
+    })
+
+    expect(screen.getByLabelText('Jeton de réinitialisation')).toBeRequired()
+  })
+
+  it('resynchronise le jeton quand la recherche change sans remonter la page', async () => {
+    const user = userEvent.setup()
+    mockApi({ 'POST /auth/password-reset/confirm': { status: 204 } })
+    renderApp(
+      <>
+        <AppRoutes />
+        <ResetSearchChanger />
+      </>,
+      { session: UNAUTHENTICATED, route: '/reset-password?token=jeton-un' },
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Changer le jeton URL' }))
+    await user.type(screen.getByLabelText('Nouveau mot de passe'), 'nouveaumotdepasse')
+    await user.type(
+      screen.getByLabelText('Confirmer le nouveau mot de passe'),
+      'nouveaumotdepasse',
+    )
+    await user.click(screen.getByRole('button', { name: 'Valider le nouveau mot de passe' }))
+
+    await waitFor(() => expect(callsTo('/auth/password-reset/confirm')).toHaveLength(1))
+    expect(callsTo('/auth/password-reset/confirm')[0].body).toMatchObject({
+      reset_token: 'jeton-deux',
+    })
+  })
+
+  it('annule la redirection différée du reset quand la surface est démontée', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    mockApi({ 'POST /auth/password-reset/confirm': { status: 204 } })
+    const view = renderApp(<AppRoutes />, {
+      session: UNAUTHENTICATED,
+      route: '/reset-password?token=jeton-test',
+    })
+
+    await user.type(screen.getByLabelText('Nouveau mot de passe'), 'nouveaumotdepasse')
+    await user.type(
+      screen.getByLabelText('Confirmer le nouveau mot de passe'),
+      'nouveaumotdepasse',
+    )
+    await user.click(screen.getByRole('button', { name: 'Valider le nouveau mot de passe' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Mot de passe remplacé')
+    expect(vi.getTimerCount()).toBeGreaterThan(0)
+
+    view.unmount()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })

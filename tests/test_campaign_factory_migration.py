@@ -28,7 +28,8 @@ COMPANY = "0022_saas_company_profile"
 EMAIL = "0023_transactional_email_runtime"
 SCHEDULED_PLAN = "0024_scheduled_plan_change"
 ALERT_RECIPIENT_CONTEXT = "0025_alert_recipient_context"
-LATEST = "0026_acquisition_runtime"
+RUNTIME = "0026_acquisition_runtime"
+LATEST = "0027_signal_notes"
 TABLES = (
     acquisition_campaign,
     acquisition_campaign_member,
@@ -48,7 +49,8 @@ def test_campaign_migration_is_linear_and_adds_exactly_four_tables(tmp_path) -> 
     assert set(sa.inspect(engine).get_table_names()) - before == {table.name for table in TABLES}
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == ALERT_RECIPIENT_CONTEXT
+    assert scripts.get_revision(LATEST).down_revision == RUNTIME
+    assert scripts.get_revision(RUNTIME).down_revision == ALERT_RECIPIENT_CONTEXT
     assert scripts.get_revision(ALERT_RECIPIENT_CONTEXT).down_revision == SCHEDULED_PLAN
     assert scripts.get_revision(SCHEDULED_PLAN).down_revision == EMAIL
     assert scripts.get_revision(EMAIL).down_revision == COMPANY

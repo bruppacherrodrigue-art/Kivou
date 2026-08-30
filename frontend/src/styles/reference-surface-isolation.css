@@ -1,0 +1,36 @@
+html[data-kivou-surface="public"] body {
+  line-height: normal;
+}
+
+html[data-kivou-surface="public"] code {
+  font-family: monospace;
+}
+
+html[data-kivou-surface="public"] h3 {
+  font-weight: 700;
+}
+
+html[data-kivou-surface="public"] .card-link,
+html[data-kivou-surface="public"] .text-link,
+html[data-kivou-surface="public"] .company-lines a {
+  text-decoration: underline;
+}
+
+html[data-kivou-surface="public"] .legal-toc ol,
+html[data-kivou-surface="public"] .legal-subsection ol {
+  list-style: decimal;
+}
+
+html[data-kivou-surface="public"] .legal-subsection ul {
+  list-style: disc;
+}
+
+html[data-kivou-surface="public"] .legal-subsection h3 {
+  font-weight: 700;
+}
+
+html[data-kivou-surface="public"] .legal-toc a,
+html[data-kivou-surface="public"] .legal-subsection a,
+html[data-kivou-surface="public"] .back-top {
+  text-decoration: underline;
+}

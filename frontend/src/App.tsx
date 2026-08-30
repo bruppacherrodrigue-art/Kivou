@@ -1,12 +1,11 @@
-import { useEffect } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { useLayoutEffect } from 'react'
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
 import { I18nProvider, useI18n } from './i18n'
 import { SessionProvider, accountLocale, useSession } from './auth/SessionProvider'
 import { RedirectIfAuthenticated, RequireAuth } from './auth/RequireAuth'
 import { PublicLayout } from './layouts/PublicLayout'
 import { AppShell } from './layouts/AppShell'
 import { Landing } from './pages/Landing'
-import { DashboardDemoCapture } from './pages/DashboardDemoCapture'
 import { PublicSignalDemo } from './pages/PublicSignalDemo'
 import { LegalInformation } from './pages/LegalInformation'
 import { Contact } from './pages/Contact'
@@ -18,14 +17,16 @@ import { ForgotPassword, ResetPassword } from './pages/PasswordReset'
 import { Onboarding } from './pages/Onboarding'
 import { Dashboard } from './pages/Dashboard'
 import { SignalsFeed } from './pages/SignalsFeed'
-import { CompanyProfile } from './pages/CompanyProfile'
 import { Companies } from './pages/Companies'
 import { Icps } from './pages/Icps'
 import { Billing } from './pages/Billing'
 import { Notifications } from './pages/Notifications'
 import { Settings } from './pages/Settings'
-import { CheckoutCancel, CheckoutSuccess } from './pages/Checkout'
+import { ProfileSettings } from './pages/ProfileSettings'
+import { SecuritySettings } from './pages/SecuritySettings'
+import { Checkout, CheckoutCancel, CheckoutSuccess } from './pages/Checkout'
 import { NotFound } from './pages/NotFound'
+import { SurfaceBoundary } from './reference/surface/SurfaceBoundary'
 
 /* Les routes.
  *
@@ -59,25 +60,15 @@ export function App() {
  * repartirait d'un appel réseau à `/me`. */
 export function AppRoutes() {
   return (
-    <>
-      <LocaleFollowsAccount />
-      <Routes>
-        {import.meta.env.DEV ? (
-          <Route path="__capture/dashboard-demo" element={<DashboardDemoCapture />} />
-        ) : null}
+    <Routes>
+      <Route element={<RouteLocaleBoundary connected={false} />}>
         <Route element={<PublicLayout />}>
           <Route index element={<Landing />} />
-          {/* Publique et sans garde : un visiteur doit pouvoir examiner un
-            signal complet sans compte, et sans qu'aucun appel de session ne
-            soit requis pour rendre la page. */}
-          <Route path="exemple-de-signal" element={<PublicSignalDemo />} />
           <Route path="produit" element={<Product />} />
           <Route path="tarifs" element={<PublicPricing />} />
-          <Route path="informations-legales" element={<LegalInformation />} />
+          <Route path="exemple-de-signal" element={<PublicSignalDemo />} />
           <Route path="contact" element={<Contact />} />
-          {/* Compatibilité des anciennes URL : `replace` évite d'emprisonner
-              le bouton précédent sur la redirection, tandis que HashTarget
-              déplace ensuite le focus vers la section canonique. */}
+          <Route path="informations-legales" element={<LegalInformation />} />
           <Route
             path="mentions-legales"
             element={<Navigate to="/informations-legales#mentions-legales" replace />}
@@ -87,7 +78,10 @@ export function AppRoutes() {
             element={<Navigate to="/informations-legales#confidentialite" replace />}
           />
           <Route path="cgu" element={<Navigate to="/informations-legales#cgu" replace />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
 
+        <Route element={<DashboardSurface />}>
           <Route element={<RedirectIfAuthenticated />}>
             <Route path="login" element={<Login />} />
             <Route path="signup" element={<Signup />} />
@@ -96,52 +90,67 @@ export function AppRoutes() {
           <Route path="forgot-password" element={<ForgotPassword />} />
           <Route path="reset-password" element={<ResetPassword />} />
         </Route>
+      </Route>
 
-        <Route element={<RequireAuth />}>
-          <Route path="onboarding" element={<Onboarding />} />
+      <Route element={<RouteLocaleBoundary connected />}>
+        <Route element={<DashboardSurface />}>
+          <Route element={<RequireAuth />}>
+            <Route path="onboarding" element={<Onboarding />} />
+            <Route path="checkout" element={<Checkout />} />
 
-          <Route path="app" element={<AppShell />}>
-            <Route index element={<Navigate to="/app/dashboard" replace />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="signals" element={<SignalsFeed />} />
-            <Route path="signals/:signalKey" element={<SignalsFeed />} />
-            <Route path="companies" element={<Companies />} />
-            <Route path="companies/:companyKey" element={<CompanyProfile />} />
-            <Route path="icps" element={<Icps />} />
-            <Route path="billing" element={<Billing />} />
-            <Route path="settings" element={<Settings />} />
-            <Route path="notifications" element={<Notifications />} />
+            <Route path="app" element={<AppShell />}>
+              <Route index element={<Navigate to="/app/dashboard" replace />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="signals" element={<SignalsFeed />} />
+              <Route path="signals/:signalKey" element={<SignalsFeed />} />
+              <Route path="companies" element={<Companies />} />
+              <Route path="companies/:companyKey" element={<Companies />} />
+              <Route path="icps" element={<Icps />} />
+              <Route path="billing" element={<Billing />} />
+              <Route path="notifications" element={<Notifications />} />
+              <Route path="settings" element={<Settings />} />
+              <Route path="settings/profile" element={<ProfileSettings />} />
+              <Route path="settings/security" element={<SecuritySettings />} />
+            </Route>
+
+            <Route path="checkout/success" element={<CheckoutSuccess />} />
+            <Route path="checkout/cancel" element={<CheckoutCancel />} />
+            <Route path="billing/success" element={<Navigate to="/checkout/success" replace />} />
+            <Route path="billing/cancel" element={<Navigate to="/checkout/cancel" replace />} />
+            <Route path="billing" element={<Navigate to="/app/billing" replace />} />
           </Route>
-
-          <Route path="checkout/success" element={<CheckoutSuccess />} />
-          <Route path="checkout/cancel" element={<CheckoutCancel />} />
-          {/* Alias des URL de retour Stripe par défaut. */}
-          <Route path="billing/success" element={<Navigate to="/checkout/success" replace />} />
-          <Route path="billing/cancel" element={<Navigate to="/checkout/cancel" replace />} />
-          <Route path="billing" element={<Navigate to="/app/billing" replace />} />
         </Route>
+      </Route>
+    </Routes>
+  )
+}
 
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </>
+function DashboardSurface() {
+  return (
+    <SurfaceBoundary surface="dashboard">
+      <Outlet />
+    </SurfaceBoundary>
   )
 }
 
 /** Une fois connecté, `account.locale` fait autorité — l'API renvoie déjà ses
  *  libellés dans cette langue, et laisser l'interface en choisir une autre
- *  ferait cohabiter deux langues sur le même écran. */
-function LocaleFollowsAccount() {
+ *  ferait cohabiter deux langues sur le même écran.
+ *
+ * @internal Exposée pour tester la frontière de rendu sans dupliquer son contrat. */
+export function RouteLocaleBoundary({ connected }: { connected: boolean }) {
   const { state } = useSession()
   const { locale, setLocale } = useI18n()
+  const wanted =
+    connected && state.status === 'authenticated'
+      ? accountLocale(state.me) ?? 'fr'
+      : 'fr'
 
-  useEffect(() => {
-    const accountValue = accountLocale(state.status === 'authenticated' ? state.me : null)
-    if (accountValue && accountValue !== locale) setLocale(accountValue)
-  }, [state, locale, setLocale])
+  useLayoutEffect(() => {
+    if (wanted !== locale) setLocale(wanted)
+    else document.documentElement.lang = wanted
+  }, [wanted, locale, setLocale])
 
-  useEffect(() => {
-    document.documentElement.lang = locale
-  }, [locale])
-
-  return null
+  if (locale !== wanted) return null
+  return <Outlet />
 }

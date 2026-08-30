@@ -39,6 +39,12 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1, max_length=1024)
 
 
+class PatchMeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    locale: Literal["fr", "en"]
+
+
 class PasswordResetRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -176,6 +182,22 @@ def me(request: Request) -> MeResponse:
     now = request_now(request)
     with request.app.state.engine.connect() as connection:
         session = current_session(request, connection, now)
+        user = service.current_user(connection, user_id=session.user_id)
+    return _me_response(user, request)
+
+
+@router.patch("/me")
+def patch_me(payload: PatchMeRequest, request: Request) -> MeResponse:
+    enforce_origin(request, request.app.state.config)
+    now = request_now(request)
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        service.update_locale(
+            connection,
+            account_id=session.account_id,
+            locale=payload.locale,
+            now=now,
+        )
         user = service.current_user(connection, user_id=session.user_id)
     return _me_response(user, request)
 

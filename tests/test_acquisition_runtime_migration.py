@@ -24,6 +24,7 @@ from signals.persistence.schema import (
 
 PREVIOUS = "0025_alert_recipient_context"
 HEAD = "0026_acquisition_runtime"
+CURRENT_HEAD = "0027_signal_notes"
 RUNTIME_TABLES = {
     acquisition_runtime_approval.name,
     acquisition_runtime_lease.name,
@@ -48,7 +49,7 @@ def test_acquisition_runtime_migration_is_one_additive_revision(tmp_path) -> Non
 
     scripts = ScriptDirectory.from_config(config)
     assert set(sa.inspect(engine).get_table_names()) - before == RUNTIME_TABLES
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
     assert (pathlib.Path(scripts.versions) / "0026_acquisition_runtime.py").is_file()
 

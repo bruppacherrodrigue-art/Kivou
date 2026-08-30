@@ -1,5 +1,5 @@
 import { describe, expect, it, afterEach, vi } from 'vitest'
-import { screen, within } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
@@ -7,10 +7,10 @@ import {
   CATALOGUE,
   DISCOVERY_STATUS,
   ICP,
-  LOCKED_DETAIL,
   LOCKED_ITEM,
   ME,
   PRO_STATUS,
+  callsTo,
   feedPage,
   mockApi,
   renderApp,
@@ -49,11 +49,12 @@ function render(route: string, locale: 'fr' | 'en' = 'fr') {
   renderApp(<AppRoutes />, { session, route, locale })
 }
 
-async function selectLockedPreview() {
+async function openLockedBilling() {
   const user = userEvent.setup()
-  const workspace = await screen.findByTestId('signal-workspace')
-  await user.click(await within(workspace).findByRole('button', { name: /signal verrouillé/i }))
-  return within(workspace).findByRole('region', { name: 'Détail du signal sélectionné' })
+  await user.click(
+    await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) }),
+  )
+  return screen.findByRole('heading', { level: 1, name: /Abonnement|Subscription/ })
 }
 
 // ─── 1. le retour depuis le paiement ─────────────────────────────────────────
@@ -138,11 +139,12 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals')
 
-    const panel = await selectLockedPreview()
+    await openLockedBilling()
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('réservés aux offres payantes')
     expect(page).not.toContain('réservées aux offres payantes')
-    expect(panel).toHaveTextContent('Ces informations ne sont pas incluses dans votre accès actuel.')
+    expect(screen.getByRole('button', { name: 'Gérer ma facturation' })).toBeInTheDocument()
+    expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
   })
 
   it('le teaser propose une action universelle, jamais « Voir les offres »', async () => {
@@ -153,56 +155,54 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals')
 
-    const panel = await selectLockedPreview()
+    await openLockedBilling()
     expect(screen.queryByRole('link', { name: 'Voir les offres' })).not.toBeInTheDocument()
-    expect(within(panel).getByRole('link', { name: 'Gérer mon accès' })).toHaveAttribute(
-      'href',
-      '/app/billing',
-    )
+    expect(screen.getByRole('button', { name: 'Gérer ma facturation' })).toBeInTheDocument()
   })
 
   it('le détail n’invite pas à comparer une grille qu’un payant ne verra pas', async () => {
     mockApi({
       ...BILLING,
       'GET /billing/status': { body: PRO_STATUS },
-      'GET /signals/sig_locked_1': { body: LOCKED_DETAIL },
+      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
     })
     render('/app/signals/sig_locked_1')
 
-    await screen.findByText('Ce signal est verrouillé')
+    await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
+    await screen.findByText('Historique 365 jours')
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('Comparez les offres')
     expect(page).not.toContain('offres payantes')
+    expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
   })
 
   it('le détail conserve la vérité sur droits et fenêtre d’historique', async () => {
     mockApi({
       ...BILLING,
       'GET /billing/status': { body: PRO_STATUS },
-      'GET /signals/sig_locked_1': { body: LOCKED_DETAIL },
+      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
     })
     render('/app/signals/sig_locked_1')
 
-    await screen.findByText('Ce signal est verrouillé')
+    await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
+    await screen.findByText('Historique 365 jours')
     const page = document.body.textContent ?? ''
-    expect(page).toMatch(/droits/)
-    expect(page).toMatch(/fenêtre d’historique/)
+    expect(page).toMatch(/Historique 365 jours/)
   })
 
   it('le détail garde une action universelle vers la facturation', async () => {
     mockApi({
       ...BILLING,
       'GET /billing/status': { body: PRO_STATUS },
-      'GET /signals/sig_locked_1': { body: LOCKED_DETAIL },
+      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
     })
     render('/app/signals/sig_locked_1')
 
-    await screen.findByText('Ce signal est verrouillé')
+    await screen.findByRole('heading', { level: 1, name: 'Abonnement' })
     expect(screen.queryByRole('link', { name: 'Voir les offres' })).not.toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Gérer mon accès' })).toHaveAttribute(
-      'href',
-      '/app/billing',
-    )
+    expect(
+      await screen.findByRole('button', { name: 'Gérer ma facturation' }),
+    ).toBeInTheDocument()
   })
 
   it('reste vrai pour un compte Découverte', async () => {
@@ -213,29 +213,27 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals')
 
-    const panel = await selectLockedPreview()
+    await openLockedBilling()
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('réservés aux offres payantes')
-    expect(within(panel).getByRole('link', { name: 'Gérer mon accès' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Offre')).toBeInTheDocument()
   })
 
   it('reste vrai en anglais', async () => {
     mockApi({
       ...BILLING,
       'GET /billing/status': { body: PRO_STATUS },
-      'GET /signals/sig_locked_1': { body: LOCKED_DETAIL },
+      'GET /signals': { body: feedPage([LOCKED_ITEM]) },
     })
     render('/app/signals/sig_locked_1', 'en')
 
-    await screen.findByText('This signal is locked')
+    await screen.findByRole('heading', { level: 1, name: 'Subscription' })
+    await screen.findByText('365 days of history')
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('reserved for paid plans')
     expect(page).not.toContain('Compare the plans')
-    expect(page).toMatch(/history window/)
-    expect(screen.getByRole('link', { name: 'Manage my access' })).toHaveAttribute(
-      'href',
-      '/app/billing',
-    )
+    expect(page).toMatch(/365 days of history/)
+    expect(screen.getByRole('button', { name: 'Manage billing' })).toBeInTheDocument()
   })
 
   it('ne laisse fuir aucune donnée protégée, quel que soit le plan', async () => {
@@ -246,10 +244,11 @@ describe('signal verrouillé sur un compte payant', () => {
     })
     render('/app/signals')
 
-    await screen.findByText('Verrouillé')
+    await screen.findByRole('button', { name: new RegExp(LOCKED_ITEM.headline) })
     const page = document.body.textContent ?? ''
     for (const secret of ['Constructions Bertrand', '12345678900011', 'boamp.fr']) {
       expect(page).not.toContain(secret)
     }
+    expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
   })
 })

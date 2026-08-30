@@ -1,186 +1,191 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { useI18n, interpolate } from '../i18n'
-import { Callout, Card } from '../components/Surfaces'
-import { Button, ButtonLink } from '../components/Button'
-import { PaymentConfirmedIllustration } from '../assets/Illustrations'
-import { clearCheckoutIntent, readCheckoutIntent } from '../billing/checkoutIntent'
+import { useEffect, useRef, useState } from 'react'
+import { CircleCheckBig, CircleX } from 'lucide-react'
 import { billing } from '../api/endpoints'
 import type { BillingStatus } from '../api/types'
-import styles from './Checkout.module.css'
-
-/* Le retour de paiement.
- *
- * RÈGLE CENTRALE : cette page n'accorde AUCUN accès.
- *
- * Être arrivé ici ne prouve rien — l'URL de retour est une simple redirection,
- * et n'importe qui peut l'ouvrir directement. La seule autorité est l'état de
- * facturation du compte, qui ne bascule que lorsque le webhook Stripe a été
- * reçu et traité côté serveur. La page interroge donc `/billing/status`
- * jusqu'à ce que le plan change, et n'écrit jamais rien.
- *
- * L'attente est BORNÉE. Un sondage infini masquerait une panne de webhook
- * derrière une animation, et laisserait le client devant un écran qui tourne
- * sans rien lui dire. Au terme du délai, la page explique ce qui se passe et
- * rend la main.
- *
- * Ce que la page annonce, et ce qu'elle se garde d'annoncer
- * ────────────────────────────────────────────────────────
- * Elle dit « accès payant actif », jamais « paiement confirmé ». La nuance
- * n'est pas cosmétique : n'importe qui peut ouvrir cette adresse, et un client
- * payant depuis des semaines peut la rouvrir à la main. Affirmer un paiement
- * qui vient d'avoir lieu serait alors faux. Ce que la page constate, elle le
- * tient du serveur : des droits payants sont ouverts.
- */
+import { clearCheckoutIntent, readCheckoutIntent } from '../billing/checkoutIntent'
+import { useI18n, interpolate } from '../i18n'
+import { ReferenceLink } from '../reference/router/ReferenceLink'
+import { CheckoutHandoff } from '../reference/dashboard/CheckoutHandoff'
+import { SystemState } from '../reference/dashboard/SystemState'
+import { Button } from '../reference/dashboard/ui/button'
 
 const POLL_INTERVAL_MS = 2500
 const POLL_TIMEOUT_MS = 45_000
 
+export function Checkout() {
+  return <CheckoutHandoff />
+}
+
+/** Une URL de retour n'accorde aucun droit. Seul `/billing/status`, mis à jour
+ * par le webhook Stripe, peut confirmer que le plan du compte a changé. */
 export function CheckoutSuccess() {
   const { t } = useI18n()
   const [status, setStatus] = useState<BillingStatus | null>(null)
-  /* Le signal qui a déclenché l'achat, lu UNE fois au montage. Il ne prouve
-   * rien et n'ouvre rien : il ne sert qu'à savoir où ramener le client une fois
-   * que le serveur, lui, a confirmé. Si le détail répond ensuite `locked`,
-   * c'est `locked` qui s'affiche. */
   const [intent] = useState(() => readCheckoutIntent())
   const [timedOut, setTimedOut] = useState(false)
-  const startedAt = useRef(Date.now())
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [verificationRun, setVerificationRun] = useState(0)
+  const mountedRef = useRef(false)
+  const generationRef = useRef(0)
+  const waitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const requestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const refreshBusyRef = useRef(false)
 
   const confirmed = status !== null && status.plan_code !== 'discovery'
 
-  const poll = useCallback(async () => {
-    try {
-      const next = await billing.status()
-      setStatus(next)
-      if (next.plan_code !== 'discovery') return
-    } catch {
-      // Une lecture qui échoue ne conclut rien : on retente jusqu'au délai.
-    }
-
-    if (Date.now() - startedAt.current >= POLL_TIMEOUT_MS) {
-      setTimedOut(true)
-      return
-    }
-    timer.current = setTimeout(() => void poll(), POLL_INTERVAL_MS)
-  }, [])
-
   useEffect(() => {
-    void poll()
-    return () => {
-      if (timer.current) clearTimeout(timer.current)
-    }
-  }, [poll])
+    mountedRef.current = true
+    refreshBusyRef.current = true
+    const generation = ++generationRef.current
+    const deadline = Date.now() + POLL_TIMEOUT_MS
 
-  /* L'intention est consommée dès que le serveur confirme, pas au clic.
-   * La lier au CTA laissait le stockage sale dès que le client choisissait
-   * « Voir tous mes signaux » — ou fermait simplement l'onglet — et la clé
-   * ressurgissait sur une page de succès ultérieure. `intent` reste en état
-   * React pour CE rendu : ce qui est effacé est le stockage, pas l'affichage. */
+    const current = () =>
+      mountedRef.current && generationRef.current === generation
+
+    const expire = () => {
+      if (!current()) return
+      refreshBusyRef.current = false
+      setTimedOut(true)
+    }
+
+    const poll = async () => {
+      if (!current()) return
+      const remaining = deadline - Date.now()
+      if (remaining <= 0) {
+        expire()
+        return
+      }
+
+      let requestTimeout: ReturnType<typeof setTimeout> | null = null
+      const attempt = billing.status().then(
+        (next) => ({ kind: 'status' as const, next }),
+        () => ({ kind: 'error' as const }),
+      )
+      const timeout = new Promise<{ kind: 'timeout' }>((resolve) => {
+        requestTimeout = setTimeout(() => resolve({ kind: 'timeout' }), remaining)
+        requestTimerRef.current = requestTimeout
+      })
+      const result = await Promise.race([attempt, timeout])
+      if (requestTimeout !== null) clearTimeout(requestTimeout)
+      if (requestTimerRef.current === requestTimeout) requestTimerRef.current = null
+      if (!current()) return
+
+      if (result.kind === 'timeout') {
+        expire()
+        return
+      }
+      if (result.kind === 'status') {
+        if (result.next.plan_code !== 'discovery') clearCheckoutIntent()
+        setStatus(result.next)
+        if (result.next.plan_code !== 'discovery') {
+          refreshBusyRef.current = false
+          return
+        }
+      }
+
+      const nextDelay = Math.min(POLL_INTERVAL_MS, deadline - Date.now())
+      if (nextDelay <= 0) {
+        expire()
+        return
+      }
+      const waitTimer = setTimeout(() => {
+        if (waitTimerRef.current === waitTimer) waitTimerRef.current = null
+        void poll()
+      }, nextDelay)
+      waitTimerRef.current = waitTimer
+    }
+
+    // Le premier tour est différé afin que le montage de contrôle de
+    // StrictMode puisse être nettoyé avant toute requête réelle.
+    const initialTimer = setTimeout(() => {
+      if (waitTimerRef.current === initialTimer) waitTimerRef.current = null
+      void poll()
+    }, 0)
+    waitTimerRef.current = initialTimer
+
+    return () => {
+      mountedRef.current = false
+      generationRef.current += 1
+      refreshBusyRef.current = false
+      if (waitTimerRef.current !== null) {
+        clearTimeout(waitTimerRef.current)
+        waitTimerRef.current = null
+      }
+      if (requestTimerRef.current !== null) {
+        clearTimeout(requestTimerRef.current)
+        requestTimerRef.current = null
+      }
+    }
+  }, [verificationRun])
+
   useEffect(() => {
     if (confirmed) clearCheckoutIntent()
   }, [confirmed])
 
   function refresh() {
-    startedAt.current = Date.now()
+    if (refreshBusyRef.current) return
+    refreshBusyRef.current = true
     setTimedOut(false)
-    void poll()
+    setVerificationRun((current) => current + 1)
   }
 
+  const description = (
+    <p role="status" aria-live="polite">
+      {confirmed
+        ? interpolate(t.checkout.successBody, {
+            plan: t.billing.plans[status.plan_code],
+          })
+        : timedOut
+          ? t.checkout.successTimeout
+          : t.checkout.successPendingBody}
+    </p>
+  )
+
+  const primary = confirmed
+    ? intent
+      ? { label: t.checkout.returnToSignal, href: `/app/signals/${encodeURIComponent(intent)}` }
+      : { label: t.checkout.goToSignals, href: '/app/signals' }
+    : undefined
+  const secondary = confirmed && intent
+    ? { label: t.checkout.seeAllSignals, href: '/app/signals' }
+    : undefined
+
   return (
-    <main className={styles.page} id="kivou-main">
-      <Card padding="lg" className={styles.card}>
-        <PaymentConfirmedIllustration className={styles.illustration} />
-
-        <h1 className={styles.title}>
-          {confirmed ? t.checkout.successTitle : t.checkout.successPending}
-        </h1>
-
-        {/* UNE seule région live, qui ne se démonte jamais.
-         *
-         * Elle vivait auparavant dans la branche « en attente ». Au moment où
-         * l'accès devenait actif, ce nœud disparaissait et le texte de
-         * confirmation apparaissait ailleurs : un lecteur d'écran n'annonce
-         * pas le contenu d'une région qui vient de naître, seulement le
-         * changement d'une région qui existait déjà. L'annonce était donc
-         * perdue précisément à l'instant qui compte. */}
-        <p className={styles.body} role="status" aria-live="polite">
-          {confirmed
-            ? interpolate(t.checkout.successBody, {
-                plan: t.billing.plans[status.plan_code],
-              })
-            : timedOut
-              ? t.checkout.successTimeout
-              : t.checkout.successPendingBody}
-        </p>
-
-        <div className={styles.actions}>
-          {confirmed ? (
-            intent !== null ? (
-              <>
-                <ButtonLink to={`/app/signals/${encodeURIComponent(intent)}`} size="lg">
-                  {t.checkout.returnToSignal}
-                </ButtonLink>
-                <ButtonLink to="/app/signals" variant="secondary" size="lg">
-                  {t.checkout.seeAllSignals}
-                </ButtonLink>
-              </>
-            ) : (
-              <ButtonLink to="/app/signals" size="lg">
-                {t.checkout.goToSignals}
-              </ButtonLink>
-            )
-          ) : (
-            <Button variant="secondary" size="lg" onClick={refresh} disabled={!timedOut}>
-              {t.checkout.refresh}
-            </Button>
-          )}
-          <ButtonLink to="/app/billing" variant="quiet">
-            {t.checkout.seeBilling}
-          </ButtonLink>
+    <SystemState
+      icon={CircleCheckBig}
+      eyebrow="Retour Stripe"
+      title={confirmed ? t.checkout.successTitle : t.checkout.successPending}
+      description={description}
+      primary={primary}
+      secondary={secondary}
+    >
+      {!confirmed ? (
+        <div className="checkout-state-links">
+          <Button type="button" variant="outline" onClick={refresh} disabled={!timedOut}>
+            {t.checkout.refresh}
+          </Button>
         </div>
-      </Card>
-    </main>
+      ) : null}
+      <div className="checkout-state-links">
+        <ReferenceLink href="/app/billing">{t.checkout.seeBilling}</ReferenceLink>
+      </div>
+    </SystemState>
   )
 }
 
-/** Le retour depuis le parcours de paiement.
- *
- *  Cette page ne SAIT presque rien, et sa copy s'arrête là.
- *
- *  C'est une URL de retour : n'importe qui peut l'ouvrir, à n'importe quel
- *  moment, y compris un client payant depuis des mois. Elle ne reçoit rien de
- *  Stripe et n'interroge rien. Elle ne peut donc affirmer ni qu'un paiement a
- *  été interrompu, ni qu'aucun débit n'a eu lieu, ni que l'offre n'a pas
- *  changé — trois assertions qu'elle portait pourtant.
- *
- *  Ce qu'elle sait : le client est revenu, et elle-même ne modifie rien. Pour
- *  l'état réel, elle renvoie à la facturation, qui l'interroge vraiment. */
+/** Le retour d'annulation ne reçoit aucune preuve Stripe et n'affirme donc ni
+ * échec, ni débit, ni changement de plan. */
 export function CheckoutCancel() {
   const { t } = useI18n()
-
-  /* Le parcours d'achat est abandonné : l'intention n'a plus d'objet. La
-   * garder ferait réapparaître « revenir à ce signal » après un achat
-   * ultérieur, sans rapport avec celui-ci. */
   useEffect(() => clearCheckoutIntent(), [])
 
   return (
-    <main className={styles.page} id="kivou-main">
-      <Card padding="lg" className={styles.card}>
-        <h1 className={styles.title}>{t.checkout.cancelTitle}</h1>
-        <Callout tone="info">{t.checkout.cancelBody}</Callout>
-
-        <div className={styles.actions}>
-          {/* La facturation est la seule surface qui interroge réellement
-              l'état de l'abonnement — et elle sait, elle, quoi proposer. */}
-          <ButtonLink to="/app/billing" size="lg">
-            {t.checkout.seeBilling}
-          </ButtonLink>
-          <ButtonLink to="/app/signals" variant="secondary" size="lg">
-            {t.checkout.backToSignals}
-          </ButtonLink>
-        </div>
-      </Card>
-    </main>
+    <SystemState
+      icon={CircleX}
+      eyebrow="Retour Stripe"
+      title={t.checkout.cancelTitle}
+      description={t.checkout.cancelBody}
+      primary={{ label: t.checkout.seeBilling, href: '/app/billing' }}
+      secondary={{ label: t.checkout.backToSignals, href: '/app/signals' }}
+    />
   )
 }

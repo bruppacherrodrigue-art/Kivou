@@ -10,20 +10,6 @@ export const LOCALES: readonly Locale[] = ['fr', 'en'] as const
 
 const DICTIONARIES: Record<Locale, Dictionary> = { fr, en }
 
-/** La locale du navigateur, repliée sur le français — la langue par défaut du
- *  backend. Elle ne sert QUE pour les pages publiques : une fois connecté,
- *  `account.locale` fait autorité. */
-export function preferredLocale(): Locale {
-  if (typeof navigator === 'undefined') return 'fr'
-  const langs = navigator.languages?.length ? navigator.languages : [navigator.language]
-  for (const raw of langs) {
-    const base = (raw ?? '').slice(0, 2).toLowerCase()
-    if (base === 'en') return 'en'
-    if (base === 'fr') return 'fr'
-  }
-  return 'fr'
-}
-
 /** Substitue `{clé}` par sa valeur. Une clé absente reste littérale plutôt que
  *  de disparaître : un trou visible se corrige, un trou silencieux se propage. */
 export function interpolate(template: string, values?: Record<string, string | number>): string {
@@ -65,7 +51,7 @@ export function I18nProvider({
   children: ReactNode
   initialLocale?: Locale
 }) {
-  const [locale, setLocaleState] = useState<Locale>(initialLocale ?? preferredLocale())
+  const [locale, setLocaleState] = useState<Locale>(initialLocale ?? 'fr')
 
   const setLocale = useCallback((next: Locale) => {
     setLocaleState(next)

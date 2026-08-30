@@ -400,6 +400,22 @@ def confirm_password_reset(
 # ─── utilisateur courant et onboarding ────────────────────────────────────────
 
 
+def update_locale(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    locale: str,
+    now: dt.datetime,
+) -> None:
+    if locale not in SUPPORTED_LOCALES:
+        raise UnsupportedLocale(f"locale non prise en charge : {locale}")
+    connection.execute(
+        sa.update(account)
+        .where(account.c.account_id == account_id)
+        .values(locale=locale, updated_at=now)
+    )
+
+
 def current_user(connection: sa.Connection, *, user_id: str) -> CurrentUser:
     row = connection.execute(
         sa.select(

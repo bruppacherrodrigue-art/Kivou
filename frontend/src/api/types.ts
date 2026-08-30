@@ -412,6 +412,12 @@ export type LockedDetail = LockedFeedItem & {
 
 export type SignalDetail = UnlockedDetail | LockedDetail
 
+export interface SignalNote {
+  signal_id: string
+  note: string | null
+  updated_at: string | null
+}
+
 // ─── Fiche entreprise SaaS ──────────────────────────────────────────────────
 
 export interface CompanyOfficialIdentifier {
