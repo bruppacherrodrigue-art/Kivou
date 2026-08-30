@@ -1092,8 +1092,12 @@ Il ne dépend d'aucune variable ou fonction de la fenêtre précédente. Le poin
 fixe est résolu et borné ; seul un rollout `PREPARED` peut être restauré. Un
 rollout `COMMITTED` ou `ROLLED_BACK` est refusé. Le rollback conserve toutes les
 captures, releases et sauvegardes. Si cette reprise est elle-même interrompue,
-rouvrir `sudo -i` et relancer ce bloc en entier : le statut reste `PREPARED`, un
-nouvel attempt unique est créé et chaque restauration peut être rejouée.
+rouvrir `sudo -i` et relancer ce bloc en entier : le statut reste `PREPARED`.
+Avant de créer un nouvel attempt, le bloc valide les manifests `root:root:600`
+des anciens attempts et évacue uniquement leurs temporaires nginx/systemd
+enregistrés. Un nettoyage impossible conserve l'attempt et son manifest, sort
+avec le code 78 et interdit toute phase ou validation nginx ; après correction,
+la relance reprend ce nettoyage exact puis rejoue les restaurations idempotentes.
 
 ```bash
 set -euo pipefail
@@ -1171,38 +1175,111 @@ KIVOU_NGINX_WAS_ACTIVE=$(sed -n '1p' "$KIVOU_ROLLBACK_DIR/nginx.active")
 case "$KIVOU_NGINX_WAS_ENABLED" in (enabled|disabled) ;; (*) exit 69 ;; esac
 case "$KIVOU_NGINX_WAS_ACTIVE" in (active|inactive) ;; (*) exit 69 ;; esac
 
+# KIVOU_AUTONOMOUS_RECOVERY_SOURCE_BEGIN
+kivou_recovery_validate_attempt_dir() {
+  KIVOU_CLEANUP_ATTEMPT_DIR=$1
+  case "$KIVOU_CLEANUP_ATTEMPT_DIR" in ("$KIVOU_ROLLBACK_DIR"/recovery-attempt.??????) ;; (*) return 69 ;; esac
+  test -d "$KIVOU_CLEANUP_ATTEMPT_DIR" || return $?
+  test ! -L "$KIVOU_CLEANUP_ATTEMPT_DIR" || return $?
+  test "$(readlink -f "$KIVOU_CLEANUP_ATTEMPT_DIR")" = "$KIVOU_CLEANUP_ATTEMPT_DIR" || return $?
+  test "$(stat -c '%U:%G:%a' "$KIVOU_CLEANUP_ATTEMPT_DIR")" = root:root:700 || return $?
+  KIVOU_CLEANUP_ATTEMPT_ID=${KIVOU_CLEANUP_ATTEMPT_DIR##*.}
+  case "$KIVOU_CLEANUP_ATTEMPT_ID" in (*[!A-Za-z0-9]*|'') return 69 ;; esac
+  test "${#KIVOU_CLEANUP_ATTEMPT_ID}" = 6 || return $?
+}
+
+kivou_recovery_validate_external_temp() {
+  KIVOU_EXTERNAL_TEMP=$1
+  KIVOU_EXTERNAL_TEMP_ATTEMPT_ID=$2
+  case "$KIVOU_EXTERNAL_TEMP_ATTEMPT_ID" in (*[!A-Za-z0-9]*|'') return 69 ;; esac
+  test "${#KIVOU_EXTERNAL_TEMP_ATTEMPT_ID}" = 6 || return $?
+  case "$KIVOU_EXTERNAL_TEMP" in (*$'\n'*) return 69 ;; esac
+  KIVOU_EXTERNAL_TEMP_PARENT=${KIVOU_EXTERNAL_TEMP%/*}
+  KIVOU_EXTERNAL_TEMP_NAME=${KIVOU_EXTERNAL_TEMP##*/}
+  KIVOU_EXTERNAL_TEMP_PARENT_REAL=$(readlink -f "$KIVOU_EXTERNAL_TEMP_PARENT")
+  test "$KIVOU_EXTERNAL_TEMP_PARENT_REAL" = "$KIVOU_EXTERNAL_TEMP_PARENT" || return $?
+  if [ "$KIVOU_EXTERNAL_TEMP_PARENT" = "$KIVOU_SYSTEMD_UNIT_ROOT" ]; then
+    case "$KIVOU_EXTERNAL_TEMP_NAME" in (kivou-*.recovery-"$KIVOU_EXTERNAL_TEMP_ATTEMPT_ID"-new) ;; (*) return 69 ;; esac
+  else
+    case "$KIVOU_EXTERNAL_TEMP_PARENT" in ("$KIVOU_NGINX_ROOT"|"$KIVOU_NGINX_ROOT"/*) ;; (*) return 69 ;; esac
+    case "$KIVOU_EXTERNAL_TEMP_NAME" in (*.recovery-"$KIVOU_EXTERNAL_TEMP_ATTEMPT_ID"-new) ;; (*) return 69 ;; esac
+  fi
+}
+
+kivou_recovery_cleanup_attempt() {
+  KIVOU_CLEANUP_ATTEMPT_DIR=$1
+  kivou_recovery_validate_attempt_dir "$KIVOU_CLEANUP_ATTEMPT_DIR" || return $?
+  KIVOU_CLEANUP_ATTEMPT_ID=${KIVOU_CLEANUP_ATTEMPT_DIR##*.}
+  KIVOU_CLEANUP_MANIFEST=$KIVOU_CLEANUP_ATTEMPT_DIR/external-temporaries.manifest
+  case "$KIVOU_CLEANUP_MANIFEST" in ("$KIVOU_CLEANUP_ATTEMPT_DIR"/external-temporaries.manifest) ;; (*) return 69 ;; esac
+  if ! test -e "$KIVOU_CLEANUP_MANIFEST" && ! test -L "$KIVOU_CLEANUP_MANIFEST"; then
+    KIVOU_CLEANUP_LEFTOVER=$(find "$KIVOU_CLEANUP_ATTEMPT_DIR" -mindepth 1 -print -quit) || return $?
+    test -z "$KIVOU_CLEANUP_LEFTOVER" || return 69
+    rmdir "$KIVOU_CLEANUP_ATTEMPT_DIR" || return $?
+    return 0
+  fi
+  test -f "$KIVOU_CLEANUP_MANIFEST" || return $?
+  test ! -L "$KIVOU_CLEANUP_MANIFEST" || return $?
+  test "$(stat -c '%U:%G:%a' "$KIVOU_CLEANUP_MANIFEST")" = root:root:600 || return $?
+  KIVOU_EXTERNAL_TEMP_INDEX=0
+  while IFS= read -r KIVOU_EXTERNAL_TEMP; do
+    test -n "$KIVOU_EXTERNAL_TEMP" || return 69
+    kivou_recovery_validate_external_temp "$KIVOU_EXTERNAL_TEMP" "$KIVOU_CLEANUP_ATTEMPT_ID" || return $?
+    KIVOU_EXTERNAL_TEMP_INDEX=$((KIVOU_EXTERNAL_TEMP_INDEX + 1))
+    if test -e "$KIVOU_EXTERNAL_TEMP" || test -L "$KIVOU_EXTERNAL_TEMP"; then
+      KIVOU_EXTERNAL_TEMP_EVAC=$KIVOU_CLEANUP_ATTEMPT_DIR/cleanup-external-$KIVOU_EXTERNAL_TEMP_INDEX
+      case "$KIVOU_EXTERNAL_TEMP_EVAC" in ("$KIVOU_CLEANUP_ATTEMPT_DIR"/cleanup-external-[1-9]*) ;; (*) return 69 ;; esac
+      test ! -e "$KIVOU_EXTERNAL_TEMP_EVAC" || return $?
+      test ! -L "$KIVOU_EXTERNAL_TEMP_EVAC" || return $?
+      mv -Tf "$KIVOU_EXTERNAL_TEMP" "$KIVOU_EXTERNAL_TEMP_EVAC" || return $?
+    fi
+    if test -e "$KIVOU_EXTERNAL_TEMP" || test -L "$KIVOU_EXTERNAL_TEMP"; then return 77; fi
+  done <"$KIVOU_CLEANUP_MANIFEST"
+  while IFS= read -r KIVOU_EXTERNAL_TEMP; do
+    kivou_recovery_validate_external_temp "$KIVOU_EXTERNAL_TEMP" "$KIVOU_CLEANUP_ATTEMPT_ID" || return $?
+    if test -e "$KIVOU_EXTERNAL_TEMP" || test -L "$KIVOU_EXTERNAL_TEMP"; then return 77; fi
+  done <"$KIVOU_CLEANUP_MANIFEST"
+  find "$KIVOU_CLEANUP_ATTEMPT_DIR" -xdev -depth -mindepth 1 \
+    ! -path "$KIVOU_CLEANUP_MANIFEST" -delete || return $?
+  KIVOU_CLEANUP_LEFTOVER=$(find "$KIVOU_CLEANUP_ATTEMPT_DIR" -mindepth 1 \
+    ! -path "$KIVOU_CLEANUP_MANIFEST" -print -quit) || return $?
+  test -z "$KIVOU_CLEANUP_LEFTOVER" || return 69
+  unlink "$KIVOU_CLEANUP_MANIFEST" || return $?
+  rmdir "$KIVOU_CLEANUP_ATTEMPT_DIR" || return $?
+}
+
+kivou_recovery_resume_pending_attempts() {
+  KIVOU_PENDING_CLEANUP_FAILED=0
+  shopt -s nullglob
+  KIVOU_PENDING_ATTEMPTS=("$KIVOU_ROLLBACK_DIR"/recovery-attempt.*)
+  shopt -u nullglob
+  for KIVOU_PENDING_ATTEMPT in "${KIVOU_PENDING_ATTEMPTS[@]}"; do
+    kivou_recovery_cleanup_attempt "$KIVOU_PENDING_ATTEMPT"
+    KIVOU_PENDING_CLEANUP_RC=$?
+    if [ "$KIVOU_PENDING_CLEANUP_RC" -ne 0 ]; then KIVOU_PENDING_CLEANUP_FAILED=78; fi
+  done
+  return "$KIVOU_PENDING_CLEANUP_FAILED"
+}
+
+set +e
+kivou_recovery_resume_pending_attempts
+KIVOU_PENDING_CLEANUP_RC=$?
+set -e
+if [ "$KIVOU_PENDING_CLEANUP_RC" -ne 0 ]; then exit "$KIVOU_PENDING_CLEANUP_RC"; fi
+
 KIVOU_RECOVERY_ATTEMPT_DIR=$(mktemp -d "$KIVOU_ROLLBACK_DIR/recovery-attempt.XXXXXX")
 case "$KIVOU_RECOVERY_ATTEMPT_DIR" in ("$KIVOU_ROLLBACK_DIR"/recovery-attempt.??????) ;; (*) exit 69 ;; esac
-test -d "$KIVOU_RECOVERY_ATTEMPT_DIR"; test ! -L "$KIVOU_RECOVERY_ATTEMPT_DIR"
-test "$(stat -c '%U:%G:%a' "$KIVOU_RECOVERY_ATTEMPT_DIR")" = root:root:700
+kivou_recovery_validate_attempt_dir "$KIVOU_RECOVERY_ATTEMPT_DIR"
 KIVOU_RECOVERY_ATTEMPT_ID=${KIVOU_RECOVERY_ATTEMPT_DIR##*.}
-case "$KIVOU_RECOVERY_ATTEMPT_ID" in (*[!A-Za-z0-9]*|'') exit 69 ;; esac
-test "${#KIVOU_RECOVERY_ATTEMPT_ID}" = 6
-# KIVOU_AUTONOMOUS_RECOVERY_SOURCE_BEGIN
 KIVOU_FAILED_DIR=$KIVOU_RECOVERY_ATTEMPT_DIR
 KIVOU_RECOVERY_EXTERNAL_TEMPS=$KIVOU_RECOVERY_ATTEMPT_DIR/external-temporaries.manifest
 case "$KIVOU_RECOVERY_EXTERNAL_TEMPS" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/external-temporaries.manifest) ;; (*) exit 69 ;; esac
 : >"$KIVOU_RECOVERY_EXTERNAL_TEMPS"
 chmod 600 "$KIVOU_RECOVERY_EXTERNAL_TEMPS"
 
-kivou_recovery_validate_external_temp() {
-  KIVOU_EXTERNAL_TEMP=$1
-  case "$KIVOU_EXTERNAL_TEMP" in (*$'\n'*) return 69 ;; esac
-  KIVOU_EXTERNAL_TEMP_PARENT=${KIVOU_EXTERNAL_TEMP%/*}
-  KIVOU_EXTERNAL_TEMP_NAME=${KIVOU_EXTERNAL_TEMP##*/}
-  KIVOU_EXTERNAL_TEMP_PARENT_REAL=$(readlink -f "$KIVOU_EXTERNAL_TEMP_PARENT")
-  test "$KIVOU_EXTERNAL_TEMP_PARENT_REAL" = "$KIVOU_EXTERNAL_TEMP_PARENT"
-  if [ "$KIVOU_EXTERNAL_TEMP_PARENT" = "$KIVOU_SYSTEMD_UNIT_ROOT" ]; then
-    case "$KIVOU_EXTERNAL_TEMP_NAME" in (kivou-*.recovery-"$KIVOU_RECOVERY_ATTEMPT_ID"-new) ;; (*) return 69 ;; esac
-  else
-    case "$KIVOU_EXTERNAL_TEMP_PARENT" in ("$KIVOU_NGINX_ROOT"|"$KIVOU_NGINX_ROOT"/*) ;; (*) return 69 ;; esac
-    case "$KIVOU_EXTERNAL_TEMP_NAME" in (*.recovery-"$KIVOU_RECOVERY_ATTEMPT_ID"-new) ;; (*) return 69 ;; esac
-  fi
-}
-
 kivou_recovery_register_external_temp() {
   KIVOU_EXTERNAL_TEMP=$1
-  kivou_recovery_validate_external_temp "$KIVOU_EXTERNAL_TEMP"
+  kivou_recovery_validate_external_temp "$KIVOU_EXTERNAL_TEMP" "$KIVOU_RECOVERY_ATTEMPT_ID"
   test -f "$KIVOU_RECOVERY_EXTERNAL_TEMPS"
   test ! -L "$KIVOU_RECOVERY_EXTERNAL_TEMPS"
   if ! grep -Fqx -- "$KIVOU_EXTERNAL_TEMP" "$KIVOU_RECOVERY_EXTERNAL_TEMPS"; then
@@ -1211,23 +1288,8 @@ kivou_recovery_register_external_temp() {
 }
 
 kivou_recovery_cleanup() {
-  case "$KIVOU_RECOVERY_ATTEMPT_DIR" in ("$KIVOU_ROLLBACK_DIR"/recovery-attempt.??????) ;; (*) return 69 ;; esac
-  if test -e "$KIVOU_RECOVERY_ATTEMPT_DIR"; then
-    test -d "$KIVOU_RECOVERY_ATTEMPT_DIR"; test ! -L "$KIVOU_RECOVERY_ATTEMPT_DIR"
-    test -f "$KIVOU_RECOVERY_EXTERNAL_TEMPS"; test ! -L "$KIVOU_RECOVERY_EXTERNAL_TEMPS"
-    KIVOU_EXTERNAL_TEMP_INDEX=0
-    while IFS= read -r KIVOU_EXTERNAL_TEMP; do
-      test -n "$KIVOU_EXTERNAL_TEMP"
-      kivou_recovery_validate_external_temp "$KIVOU_EXTERNAL_TEMP"
-      if test -e "$KIVOU_EXTERNAL_TEMP" || test -L "$KIVOU_EXTERNAL_TEMP"; then
-        KIVOU_EXTERNAL_TEMP_INDEX=$((KIVOU_EXTERNAL_TEMP_INDEX + 1))
-        KIVOU_EXTERNAL_TEMP_EVAC=$KIVOU_RECOVERY_ATTEMPT_DIR/cleanup-external-$KIVOU_EXTERNAL_TEMP_INDEX
-        case "$KIVOU_EXTERNAL_TEMP_EVAC" in ("$KIVOU_RECOVERY_ATTEMPT_DIR"/cleanup-external-[1-9]*) ;; (*) return 69 ;; esac
-        test ! -e "$KIVOU_EXTERNAL_TEMP_EVAC"; test ! -L "$KIVOU_EXTERNAL_TEMP_EVAC"
-        mv -Tf "$KIVOU_EXTERNAL_TEMP" "$KIVOU_EXTERNAL_TEMP_EVAC"
-      fi
-    done <"$KIVOU_RECOVERY_EXTERNAL_TEMPS"
-    find "$KIVOU_RECOVERY_ATTEMPT_DIR" -xdev -depth -delete
+  if test -e "$KIVOU_RECOVERY_ATTEMPT_DIR" || test -L "$KIVOU_RECOVERY_ATTEMPT_DIR"; then
+    kivou_recovery_cleanup_attempt "$KIVOU_RECOVERY_ATTEMPT_DIR"
   fi
 }
 
@@ -1237,6 +1299,9 @@ kivou_recovery_on_exit() {
   set +e
   kivou_recovery_cleanup
   KIVOU_RECOVERY_CLEANUP_RC=$?
+  if [ "$KIVOU_RECOVERY_CLEANUP_RC" -ne 0 ]; then
+    printf 'Kivou recovery cleanup failed rc=%s; durable attempt retained\n' "$KIVOU_RECOVERY_CLEANUP_RC" >&2
+  fi
   if [ "$KIVOU_RECOVERY_EXIT_RC" -eq 0 ] && [ "$KIVOU_RECOVERY_CLEANUP_RC" -ne 0 ]; then
     KIVOU_RECOVERY_EXIT_RC=$KIVOU_RECOVERY_CLEANUP_RC
   fi

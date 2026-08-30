@@ -1729,8 +1729,8 @@ def test_autonomous_recovery_uses_a_unique_retry_safe_attempt_directory() -> Non
         assert f"trap 'kivou_recovery_request_exit {status}' {signal}" in manual
     assert_fragments_in_order(
         manual,
-        "kivou_recovery_cleanup()",
-        'case "$KIVOU_RECOVERY_ATTEMPT_DIR" in',
+        "kivou_recovery_validate_attempt_dir()",
+        'case "$KIVOU_CLEANUP_ATTEMPT_DIR" in',
         '"$KIVOU_ROLLBACK_DIR"/recovery-attempt.??????',
     )
     assert "/srv/kivou/app.recovery" not in manual
@@ -1820,8 +1820,10 @@ def prepare_autonomous_recovery_fixture(
     readiness.chmod(0o555)
     api_state = root / "api.state"
     nginx_state = root / "nginx.state"
+    cleanup_mv_status = root / "cleanup-mv.rc"
     api_state.write_text("active\n", encoding="utf-8")
     nginx_state.write_text("active\n", encoding="utf-8")
+    cleanup_mv_status.write_text("0\n", encoding="utf-8")
     return {
         "runtime": runtime,
         "backend_old": backend_old,
@@ -1836,6 +1838,7 @@ def prepare_autonomous_recovery_fixture(
         "trace": trace,
         "api_state": api_state,
         "nginx_state": nginx_state,
+        "cleanup_mv_status": cleanup_mv_status,
     }
 
 
@@ -1860,11 +1863,10 @@ KIVOU_NGINX_CAPTURE_PATHS=({quoted["nginx_path"]})
 KIVOU_NGINX_SITE_LINKS=()
 KIVOU_NGINX_WAS_ENABLED=enabled
 KIVOU_NGINX_WAS_ACTIVE=active
-KIVOU_RECOVERY_ATTEMPT_DIR=$(mktemp -d "$KIVOU_ROLLBACK_DIR/recovery-attempt.XXXXXX")
-KIVOU_RECOVERY_ATTEMPT_ID=${{KIVOU_RECOVERY_ATTEMPT_DIR##*.}}
 KIVOU_TEST_TRACE={quoted["trace"]}
 KIVOU_TEST_API_STATE={quoted["api_state"]}
 KIVOU_TEST_NGINX_STATE={quoted["nginx_state"]}
+KIVOU_TEST_CLEANUP_MV_STATUS={quoted["cleanup_mv_status"]}
 KIVOU_TEST_INTERRUPT_AT={shlex.quote(interrupt_at or "none")}
 KIVOU_TEST_PARENT_PID=$$
 
@@ -1914,6 +1916,22 @@ cp() {{
         ;;
     esac
   fi
+}}
+mv() {{
+  KIVOU_TEST_MOVE_SOURCE=$1
+  KIVOU_TEST_MOVE_TARGET=${{@: -1}}
+  case "$KIVOU_TEST_MOVE_TARGET" in
+    (*/recovery-attempt.??????/cleanup-external-*)
+      printf 'cleanup-external-mv %s\n' "$KIVOU_TEST_MOVE_SOURCE" >>"$KIVOU_TEST_TRACE"
+      read -r KIVOU_TEST_CLEANUP_RC <"$KIVOU_TEST_CLEANUP_MV_STATUS"
+      if [ "$KIVOU_TEST_CLEANUP_RC" = TERM ]; then
+        kill -TERM "$KIVOU_TEST_PARENT_PID"
+        return 143
+      fi
+      if [ "$KIVOU_TEST_CLEANUP_RC" -ne 0 ]; then return "$KIVOU_TEST_CLEANUP_RC"; fi
+      ;;
+  esac
+  command mv "$@"
 }}
 nginx() {{
   if /usr/bin/find "$KIVOU_NGINX_ROOT" -name '*.recovery-*-new' -print -quit | grep -q .; then
@@ -2017,9 +2035,9 @@ def test_autonomous_recovery_registers_every_external_temp_before_creation() -> 
     assert 'test "$KIVOU_EXTERNAL_TEMP_PARENT_REAL"' in validator
     assert_fragments_in_order(
         source,
-        "kivou_recovery_cleanup()",
+        "kivou_recovery_cleanup_attempt()",
         'while IFS= read -r KIVOU_EXTERNAL_TEMP',
-        'kivou_recovery_validate_external_temp "$KIVOU_EXTERNAL_TEMP"',
+        'kivou_recovery_validate_external_temp "$KIVOU_EXTERNAL_TEMP" "$KIVOU_CLEANUP_ATTEMPT_ID"',
         'mv -Tf "$KIVOU_EXTERNAL_TEMP" "$KIVOU_EXTERNAL_TEMP_EVAC"',
     )
     for temp, creation in (
@@ -2030,8 +2048,8 @@ def test_autonomous_recovery_registers_every_external_temp_before_creation() -> 
         create = source.index(creation, register)
         assert register < create
     cleanup = source[
-        source.index("kivou_recovery_cleanup()") : source.index(
-            "kivou_recovery_on_exit()"
+        source.index("kivou_recovery_cleanup_attempt()") : source.index(
+            "kivou_recovery_resume_pending_attempts()"
         )
     ]
     assert "rm " not in cleanup
@@ -2084,6 +2102,144 @@ def test_real_recovery_cleans_interrupted_nginx_temp_before_retry(
     assert not tuple(fixture["rollout"].glob("recovery-attempt.*"))
     assert unregistered.read_text(encoding="utf-8") == "keep\n"
     assert canonical_sentinel.read_text(encoding="utf-8") == "keep\n"
+
+
+@pytest.mark.parametrize("cleanup_failure", ("77", "TERM"))
+def test_real_recovery_preserves_failed_cleanup_evidence_then_resumes(
+    tmp_path: pathlib.Path, cleanup_failure: str
+) -> None:
+    source = autonomous_recovery_source(read(PRODUCTION_RUNBOOK))
+    fixture = prepare_autonomous_recovery_fixture(tmp_path, readiness_rc=0)
+    fixture["cleanup_mv_status"].write_text(
+        f"{cleanup_failure}\n", encoding="utf-8"
+    )
+    unregistered = fixture["unit_root"] / "unregistered.recovery-OTHER1-new"
+    unregistered.write_text("keep\n", encoding="utf-8")
+    canonical_sentinel = fixture["nginx_root"] / "canonical-keep.conf"
+    canonical_sentinel.write_text("keep\n", encoding="utf-8")
+
+    interrupted = subprocess.run(
+        ["bash"],
+        input=autonomous_recovery_harness(
+            source, fixture, interrupt_at="nginx-temp"
+        ),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    expected_interrupted_rc = -15 if cleanup_failure == "TERM" else 143
+    assert interrupted.returncode == expected_interrupted_rc, interrupted.stderr
+    assert fixture["status"].read_text(encoding="utf-8") == "PREPARED\n"
+    attempts = tuple(fixture["rollout"].glob("recovery-attempt.*"))
+    assert len(attempts) == 1
+    manifest = attempts[0] / "external-temporaries.manifest"
+    assert manifest.is_file()
+    assert manifest.stat().st_mode & 0o777 == 0o600
+    registered_temps = tuple(
+        pathlib.Path(line)
+        for line in manifest.read_text(encoding="utf-8").splitlines()
+    )
+    assert any(path.exists() for path in registered_temps)
+    attempt_id = attempts[0].name.removeprefix("recovery-attempt.")
+    registered_systemd = (
+        fixture["unit_root"] / f"kivou-extra.service.recovery-{attempt_id}-new"
+    )
+    registered_systemd.write_text("registered\n", encoding="utf-8")
+    with manifest.open("a", encoding="utf-8") as stream:
+        stream.write(f"{registered_systemd}\n")
+
+    fixture["cleanup_mv_status"].write_text("0\n", encoding="utf-8")
+    fixture["trace"].write_text("", encoding="utf-8")
+    completed = subprocess.run(
+        ["bash"],
+        input=autonomous_recovery_harness(source, fixture, interrupt_at=None),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert fixture["status"].read_text(encoding="utf-8") == "ROLLED_BACK\n"
+    trace = fixture["trace"].read_text(encoding="utf-8")
+    assert_fragments_in_order(
+        trace,
+        "cleanup-external-mv",
+        "systemctl is-enabled --quiet kivou-api.service",
+        "readiness",
+        "nginx-test",
+        "systemctl reload nginx",
+    )
+    assert "nginx-duplicate-temp" not in trace
+    assert not tuple(fixture["rollout"].glob("recovery-attempt.*"))
+    assert not tuple(fixture["nginx_root"].glob("**/*.recovery-*-new"))
+    assert not registered_systemd.exists()
+    assert unregistered.read_text(encoding="utf-8") == "keep\n"
+    assert canonical_sentinel.read_text(encoding="utf-8") == "keep\n"
+
+
+def test_real_recovery_fails_closed_when_old_cleanup_still_fails(
+    tmp_path: pathlib.Path,
+) -> None:
+    source = autonomous_recovery_source(read(PRODUCTION_RUNBOOK))
+    fixture = prepare_autonomous_recovery_fixture(tmp_path, readiness_rc=0)
+    fixture["cleanup_mv_status"].write_text("77\n", encoding="utf-8")
+    interrupted = subprocess.run(
+        ["bash"],
+        input=autonomous_recovery_harness(
+            source, fixture, interrupt_at="nginx-temp"
+        ),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert interrupted.returncode == 143, interrupted.stderr
+
+    fixture["trace"].write_text("", encoding="utf-8")
+    blocked = subprocess.run(
+        ["bash"],
+        input=autonomous_recovery_harness(source, fixture, interrupt_at=None),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert blocked.returncode == 78, blocked.stderr
+    assert fixture["status"].read_text(encoding="utf-8") == "PREPARED\n"
+    assert "nginx-test" not in fixture["trace"].read_text(encoding="utf-8")
+    attempts = tuple(fixture["rollout"].glob("recovery-attempt.*"))
+    assert len(attempts) == 1
+    assert (attempts[0] / "external-temporaries.manifest").is_file()
+
+
+def test_autonomous_recovery_resumes_durable_cleanup_before_new_attempt() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    manual = body[body.index("## 11. Rollback immédiat") :]
+    source = autonomous_recovery_source(body)
+
+    assert "kivou_recovery_resume_pending_attempts()" in source
+    assert_fragments_in_order(
+        source,
+        "kivou_recovery_resume_pending_attempts\n",
+        'KIVOU_RECOVERY_ATTEMPT_DIR=$(mktemp -d "$KIVOU_ROLLBACK_DIR/recovery-attempt.XXXXXX")',
+        "kivou_recovery_rollback()",
+    )
+    cleanup = source[
+        source.index("kivou_recovery_cleanup_attempt()") : source.index(
+            "kivou_recovery_resume_pending_attempts()"
+        )
+    ]
+    assert 'test "$(stat -c \'%U:%G:%a\' "$KIVOU_CLEANUP_MANIFEST")" = root:root:600' in cleanup
+    assert_fragments_in_order(
+        cleanup,
+        'mv -Tf "$KIVOU_EXTERNAL_TEMP" "$KIVOU_EXTERNAL_TEMP_EVAC"',
+        'if test -e "$KIVOU_EXTERNAL_TEMP"',
+        "then return 77",
+        'find "$KIVOU_CLEANUP_ATTEMPT_DIR"',
+    )
+    assert 'find "$KIVOU_CLEANUP_ATTEMPT_DIR" -xdev -depth -delete' not in cleanup
+    assert "KIVOU_PENDING_CLEANUP_FAILED=78" in source
+    assert 'printf \'%s\\n\' ROLLED_BACK' in manual
 
 
 def test_successful_nginx_publish_is_enabled_and_active_even_when_already_active() -> None:
