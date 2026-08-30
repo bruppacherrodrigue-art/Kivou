@@ -880,7 +880,7 @@ def _full_payload(source: PresentationInput) -> CardPresentationPayload:
                 claim_id="FACT_AWARD_CONTEXT",
                 kind=ClaimKind.FACT,
                 text=award_summary,
-                evidence_refs=(AWARDEE_FIELD_REF, BUYER_FIELD_REF),
+                evidence_refs=DIRECT_FIELD_REFS,
             ),
             PresentationClaim(
                 claim_id="INFERENCE_IMPORTANCE",
@@ -1065,7 +1065,7 @@ def test_invalid_calendar_date_fails_closed(source, full_payload):
     "claim",
     (
         "Montant publié : 250 000 CHF.",
-        "Lieu d'exécution : 1200 Genève.",
+        "Code postal de référence : 1200.",
         "Référence CPV 44110000 et projet 2026.",
     ),
     ids=("amount", "postcode", "cpv-project"),
@@ -1402,3 +1402,207 @@ def test_administrative_title_check_does_not_match_a_numeric_fragment(
     )
 
     assert validate_payload(payload, numeric_source).valid
+
+
+def test_claimed_amount_must_equal_the_typed_source_value(source, full_payload):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Montant publié : 999999 CHF.",
+    )
+
+    assert "amount_value_mismatch" in validate_payload(payload, source).errors
+
+
+def test_actor_claim_must_cite_the_actor_source_field(source, full_payload):
+    data = full_payload.model_dump(mode="python")
+    headline_claim = next(
+        claim for claim in data["claims"] if claim["text"] == data["headline"]
+    )
+    headline_claim["evidence_refs"] = (AMOUNT_FIELD_REF,)
+    payload = CardPresentationPayload.model_validate(data)
+
+    assert "claim_evidence_mismatch" in validate_payload(payload, source).errors
+
+
+@pytest.mark.parametrize(
+    "claim",
+    (
+        "Acheteur : Société Inventée SA.",
+        "Attributaire : Egli Gartenbau.",
+    ),
+    ids=("unknown-buyer", "truncated-awardee"),
+)
+def test_every_labeled_actor_assertion_resolves_exactly_to_its_source_role(
+    source, full_payload, claim
+):
+    payload = _replace_public_text(full_payload, "award_summary", claim)
+
+    assert "actor_reference_unbound" in validate_payload(payload, source).errors
+
+
+@pytest.mark.parametrize(
+    ("claim", "expected_error"),
+    (
+        ("Contacter jean dupont pour le suivi.", "invented_person"),
+        ("Jean Dupont suivra ce dossier.", "invented_person"),
+        ("Traiter ce dossier en priorité.", "unsupported_urgency"),
+        ("La vente issue de cette attribution est assurée.", "unsupported_certainty"),
+    ),
+    ids=(
+        "lowercase-contact",
+        "named-owner",
+        "priority-urgency",
+        "assured-sale",
+    ),
+)
+def test_lowercase_people_priority_and_assured_outcomes_fail_closed(
+    source, full_payload, claim, expected_error
+):
+    payload = _replace_public_text(full_payload, "recommended_action", claim)
+
+    assert expected_error in validate_payload(payload, source).errors
+
+
+def test_two_qualified_date_pairs_can_share_one_sentence(source, full_payload):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        (
+            "Date d'attribution : 19 mai 2026 et "
+            "date de publication : 15 août 2026."
+        ),
+    )
+
+    assert validate_payload(payload, source).valid
+
+
+def test_iso_project_reference_is_not_treated_as_a_published_date(
+    source, full_payload
+):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Référence projet 2026-05-19.",
+    )
+
+    assert validate_payload(payload, source).valid
+
+
+def test_substantial_normalized_prefix_of_a_long_raw_title_is_rejected(
+    source, full_payload
+):
+    long_title = " ".join(
+        (
+            "DOSSIER ADMINISTRATIF ACCORD CADRE FOURNITURES TECHNIQUES "
+            "PROCEDURE OUVERTE DESCRIPTION OFFICIELLE LOT PRINCIPAL"
+        )
+        for _ in range(25)
+    )
+    facts = source.facts.model_copy(update={"award_title": long_title})
+    long_title_source = PresentationInput.model_validate(
+        source.model_copy(update={"facts": facts})
+    )
+    copied_prefix = long_title[:400].rsplit(" ", 1)[0]
+    payload = _replace_public_text(
+        _full_payload(long_title_source),
+        "award_summary",
+        copied_prefix,
+    )
+
+    assert "administrative_title_reused" in validate_payload(
+        payload, long_title_source
+    ).errors
+
+
+def test_proven_functional_role_label_is_not_treated_as_a_person(
+    source, full_payload
+):
+    payload = _replace_public_text(
+        full_payload,
+        "recommended_action",
+        "Contacter le responsable des achats au sujet des matériaux.",
+    )
+
+    assert validate_payload(payload, source).valid
+
+
+def test_project_identifier_and_qualified_publication_date_can_share_a_sentence(
+    source, full_payload
+):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Référence projet 2026-05-19 et date de publication : 15 août 2026.",
+    )
+
+    assert validate_payload(payload, source).valid
+
+
+def test_lowercase_currency_cannot_bypass_typed_amount_validation(
+    source, full_payload
+):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Montant publié : 999999 chf.",
+    )
+
+    assert "amount_value_mismatch" in validate_payload(payload, source).errors
+
+
+def test_labeled_amount_without_its_atomic_currency_fails_closed(
+    source, full_payload
+):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Montant publié : 999999.",
+    )
+
+    errors = validate_payload(payload, source).errors
+
+    assert "amount_currency_unbound" in errors
+    assert "amount_value_mismatch" in errors
+
+
+def test_labeled_location_must_equal_the_typed_source_location(
+    source, full_payload
+):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Lieu d'exécution publié : Paris, FR.",
+    )
+
+    assert "location_value_mismatch" in validate_payload(payload, source).errors
+
+
+def test_functional_role_copy_must_match_a_proven_target_role(
+    source, full_payload
+):
+    payload = _replace_public_text(
+        full_payload,
+        "recommended_action",
+        "Contacter Project Manager au sujet des matériaux.",
+    )
+
+    assert "target_role_unbound" in validate_payload(payload, source).errors
+
+
+def test_typed_date_claim_must_cite_its_exact_date_field(source, full_payload):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Date d'attribution : 19 mai 2026.",
+    )
+    data = payload.model_dump(mode="python")
+    summary_claim = next(
+        claim for claim in data["claims"] if claim["text"] == data["award_summary"]
+    )
+    summary_claim["evidence_refs"] = (AWARDEE_FIELD_REF,)
+    forged_evidence = CardPresentationPayload.model_validate(data)
+
+    assert "claim_evidence_mismatch" in validate_payload(
+        forged_evidence, source
+    ).errors

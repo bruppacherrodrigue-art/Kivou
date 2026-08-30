@@ -12,7 +12,9 @@ import datetime as dt
 import re
 import unicodedata
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from itertools import combinations
+from typing import cast
 
 from pydantic import ValidationError
 
@@ -21,6 +23,8 @@ from signals.card_intelligence.contracts import (
     ClaimKind,
     PresentationInput,
     PresentationVariant,
+    SourceTable,
+    source_field_ref,
 )
 
 _OFFER_TO_NEED = {
@@ -208,13 +212,54 @@ _DATE_KIND_PATTERNS = {
     ),
 }
 
+_IDENTIFIER_DATE_CONTEXT = re.compile(
+    r"\b(?:reference|ref|projet|project|cpv|lot|code\s+postal|postcode)\b"
+)
+
+_BUYER_ASSERTION = re.compile(
+    r"\b(?:(?:acheteur(?:s)?|acheteuse(?:s)?)(?:\s+publie(?:e|es|s)?)?|"
+    r"(?:published\s+)?buyers?|buying\s+authority|contracting\s+authority|purchaser)"
+    r"\s*[:\-]"
+)
+_AWARDEE_ASSERTION = re.compile(
+    r"\b(?:entreprise(?:s)?\s+attributaire(?:s)?(?:\s+publie(?:e|es|s)?)?|"
+    r"attributaire(?:s)?(?:\s+publie(?:e|es|s)?)?|titulaire|adjudicataire|"
+    r"(?:published\s+)?awardees?|awarded\s+compan(?:y|ies)|"
+    r"successful\s+tenderer|contractor|winner)\s*[:\-]"
+)
+
+_AMOUNT_AFTER = re.compile(
+    r"(?<![\w-])(?P<amount>\d[\d\s\u00a0'’]*(?:[.,]\d+)?)\s*"
+    r"(?P<currency>[A-Z]{3})(?![A-Z])",
+    re.IGNORECASE,
+)
+_AMOUNT_BEFORE = re.compile(
+    r"(?<![A-Z])(?P<currency>[A-Z]{3})\s*"
+    r"(?P<amount>\d[\d\s\u00a0'’]*(?:[.,]\d+)?)(?![\w-])",
+    re.IGNORECASE,
+)
+_AMOUNT_CONTEXT = re.compile(r"\b(?:montant|amount|valeur|value|prix|price)\b", re.IGNORECASE)
+_LABELED_AMOUNT_WITHOUT_CURRENCY = re.compile(
+    r"\b(?:montant|amount|valeur|value|prix|price)(?:\s+publie(?:e|es|s)?|\s+published)?"
+    r"\s*[:\-]\s*(?P<amount>\d(?:[\d\s\u00a0'’]*\d)?(?:[.,]\d+)?)"
+    r"(?!\d)(?!\s*[a-z]{3}\b)"
+)
+_LOCATION_ASSERTION = re.compile(
+    r"\b(?:(?:lieu\s+d[' ]execution|location)(?:\s+publie(?:e|es|s)?)?|"
+    r"(?:published\s+)?place\s+of\s+performance)\s*[:\-]"
+)
+
 _URGENCY = re.compile(
-    r"\b(?:urgent|urgente|urgents|urgentes|urgence|immediatement|sans\s+delai|"
-    r"asap|emergency|immediately|time\s+critical)\b"
+    r"\b(?:urgent|urgente|urgents|urgentes|urgence|immediat(?:e|es|s|ement)|"
+    r"sans\s+delai|en\s+priorite|prioritaire|priorite|au\s+plus\s+vite|"
+    r"des\s+que\s+possible|asap|emergency|immediate(?:ly)?|time\s+critical|"
+    r"high\s+priority|priority|right\s+away)\b"
 )
 _CERTAINTY = re.compile(
     r"\b(?:garanti(?:e|es|s)?|garantit|achat\s+certain|besoin\s+confirme|"
-    r"demande\s+certaine|sans\s+aucun\s+doute|va\s+(?:acheter|recruter|embaucher)|"
+    r"demande\s+certaine|vente\s+certaine|succes\s+assure|conversion\s+assuree?|"
+    r"est\s+assuree?|is\s+assured|sans\s+aucun\s+doute|inevitable|"
+    r"va\s+(?:acheter|recruter|embaucher)|"
     r"guaranteed|definitely|certain\s+(?:demand|opportunity)|"
     r"will\s+(?:definitely|buy|hire|purchase|need)|must\s+(?:buy|hire|purchase))\b"
 )
@@ -227,15 +272,34 @@ _NAMED_CONTACT = re.compile(
     r"\s+(?:directement\s+)?(?P<name>[A-ZÀ-ÖØ-Þ][\wÀ-ÖØ-öø-ÿ'-]+\s+"
     r"[A-ZÀ-ÖØ-Þ][\wÀ-ÖØ-öø-ÿ'-]+)\b"
 )
-_FUNCTIONAL_CONTACT_LABELS = {
-    "procurement manager",
-    "site procurement manager",
-    "project manager",
-    "works manager",
-    "supply manager",
-    "responsable achats",
-    "fonction achats",
+_NORMALIZED_NAMED_CONTACT = re.compile(
+    r"\b(?:contact|contactez|contacter|joindre|appelez|appeler|call|email|reach)"
+    r"\s+(?:out\s+to\s+|directement\s+)?(?P<name>[a-z][\w'-]+\s+[a-z][\w'-]+)\b"
+)
+_CONTACT_VERBS = r"(?:contact|contactez|contacter|joindre|appelez|appeler|call|email|reach)"
+_TITLE_CASE_NAME = re.compile(
+    r"\b(?P<name>[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ][\wÀ-ÖØ-öø-ÿ'-]*\s+"
+    r"[A-ZÀ-ÖØ-Þ][a-zà-öø-ÿ][\wÀ-ÖØ-öø-ÿ'-]*)\b"
+)
+_FUNCTIONAL_LABELS_BY_ROLE = {
+    "PROCUREMENT_MANAGER": {
+        "procurement manager",
+        "responsable achats",
+        "responsable des achats",
+        "directeur des achats",
+        "fonction achats",
+    },
+    "SITE_PROCUREMENT_MANAGER": {
+        "site procurement manager",
+        "responsable achats site",
+    },
+    "PROJECT_MANAGER": {"project manager", "chef de projet"},
+    "WORKS_MANAGER": {"works manager", "conducteur de travaux"},
+    "SUPPLY_MANAGER": {"supply manager", "responsable approvisionnements"},
 }
+_FUNCTIONAL_CONTACT_LABELS = frozenset(
+    label for labels in _FUNCTIONAL_LABELS_BY_ROLE.values() for label in labels
+)
 
 
 @dataclass(frozen=True)
@@ -292,6 +356,171 @@ def _public_texts(payload: CardPresentationPayload) -> tuple[str, ...]:
     return tuple(dict.fromkeys(value for value in values if value))
 
 
+def _source_ref(
+    source: PresentationInput,
+    *,
+    table: str,
+    column: str,
+) -> str:
+    binding = (
+        source.facts.source_award_binding
+        if table == "contract_award"
+        else source.facts.source_event_binding
+    )
+    return source_field_ref(
+        table=cast(SourceTable, table),
+        binding=binding,
+        column=column,
+    )
+
+
+def _decimal_amount(raw: str) -> Decimal | None:
+    compact = re.sub(r"[\s\u00a0'’]", "", raw)
+    if not compact:
+        return None
+    if "," in compact and "." in compact:
+        decimal_separator = "," if compact.rfind(",") > compact.rfind(".") else "."
+        thousands_separator = "." if decimal_separator == "," else ","
+        compact = compact.replace(thousands_separator, "").replace(decimal_separator, ".")
+    elif "," in compact or "." in compact:
+        separator = "," if "," in compact else "."
+        groups = compact.split(separator)
+        grouped_thousands = (
+            len(groups) > 2 and all(len(group) == 3 for group in groups[1:])
+        ) or (len(groups) == 2 and len(groups[1]) == 3 and len(groups[0]) <= 3)
+        if grouped_thousands:
+            compact = "".join(groups)
+        else:
+            compact = compact.replace(separator, ".")
+    try:
+        return Decimal(compact)
+    except InvalidOperation:
+        return None
+
+
+def _amount_mentions(
+    text: str,
+    *,
+    source_currency: str | None,
+) -> tuple[tuple[Decimal | None, str], ...]:
+    def is_amount_context(match: re.Match[str]) -> bool:
+        currency = match.group("currency").upper()
+        return currency == source_currency or bool(
+            _AMOUNT_CONTEXT.search(text[max(0, match.start() - 48) : match.start()])
+        )
+
+    after = tuple(match for match in _AMOUNT_AFTER.finditer(text) if is_amount_context(match))
+    before = tuple(
+        match
+        for match in _AMOUNT_BEFORE.finditer(text)
+        if is_amount_context(match)
+    )
+    matches = (*after, *before)
+    return tuple(
+        (_decimal_amount(match.group("amount")), match.group("currency").upper())
+        for match in matches
+    )
+
+
+def _claim_evidence_errors(
+    payload: CardPresentationPayload,
+    source: PresentationInput,
+) -> set[str]:
+    errors: set[str] = set()
+    typed_refs = {
+        "awardee": _source_ref(
+            source,
+            table="contract_award",
+            column="awardee_parties",
+        ),
+        "buyer": _source_ref(
+            source,
+            table="source_event",
+            column="procedure_buyers",
+        ),
+        "amount": _source_ref(source, table="contract_award", column="amount"),
+        "currency": _source_ref(source, table="contract_award", column="currency"),
+        "location": _source_ref(
+            source,
+            table="contract_award",
+            column="place_of_performance",
+        ),
+        "award": _source_ref(source, table="contract_award", column="award_date"),
+        "notification": _source_ref(
+            source,
+            table="contract_award",
+            column="contract_notification_date",
+        ),
+        "publication": _source_ref(source, table="source_event", column="published_on"),
+    }
+    buyer_labels = tuple(_normalize(actor.display_name) for actor in source.facts.buyers)
+    awardee_labels = tuple(_normalize(actor.display_name) for actor in source.facts.awardees)
+    location = _normalize(source.facts.location) if source.facts.location else None
+
+    for claim in payload.claims:
+        normalized = _normalize(claim.text)
+        required: set[str] = set()
+        if any(_contains_phrase(normalized, actor) for actor in buyer_labels):
+            required.add(typed_refs["buyer"])
+        if any(_contains_phrase(normalized, actor) for actor in awardee_labels):
+            required.add(typed_refs["awardee"])
+        if location and _contains_phrase(normalized, location):
+            required.add(typed_refs["location"])
+
+        amount_mentions = _amount_mentions(
+            claim.text,
+            source_currency=source.facts.currency,
+        )
+        if amount_mentions:
+            required.update((typed_refs["amount"], typed_refs["currency"]))
+            if source.facts.amount is None or source.facts.currency is None:
+                errors.add("amount_value_unbound")
+            elif any(
+                amount is None
+                or amount != source.facts.amount
+                or currency != source.facts.currency
+                for amount, currency in amount_mentions
+            ):
+                errors.add("amount_value_mismatch")
+
+        folded_claim = _normalize_date_text(claim.text)
+        amount_without_currency = (
+            ()
+            if amount_mentions
+            else tuple(_LABELED_AMOUNT_WITHOUT_CURRENCY.finditer(folded_claim))
+        )
+        if amount_without_currency:
+            required.update((typed_refs["amount"], typed_refs["currency"]))
+            errors.add("amount_currency_unbound")
+            if source.facts.amount is None or any(
+                _decimal_amount(match.group("amount")) != source.facts.amount
+                for match in amount_without_currency
+            ):
+                errors.add("amount_value_mismatch")
+
+        for assertion in _LOCATION_ASSERTION.finditer(folded_claim):
+            required.add(typed_refs["location"])
+            if location is None:
+                errors.add("location_value_unbound")
+            elif not _contains_phrase(
+                _normalize(folded_claim[assertion.end() :]),
+                location,
+            ):
+                errors.add("location_value_mismatch")
+
+        date_text = folded_claim
+        for mention in _extract_dates(date_text):
+            if _is_identifier_date(date_text, mention):
+                continue
+            kind = _date_kind(date_text, mention)
+            if kind is not None:
+                required.add(typed_refs[kind])
+
+        if not required <= set(claim.evidence_refs):
+            errors.add("claim_evidence_mismatch")
+    return errors
+
+
 def _validate_evidence(
     payload: CardPresentationPayload,
     source: PresentationInput,
@@ -307,6 +536,7 @@ def _validate_evidence(
         errors.add("evidence_ref_unknown")
     if any(not reference.startswith("source-field:v1:") for reference in references):
         errors.add("evidence_ref_not_direct")
+    errors.update(_claim_evidence_errors(payload, source))
     return errors
 
 
@@ -379,11 +609,42 @@ def _has_truncated_actor_reference(raw_text: str, actor_labels: set[str]) -> boo
     return False
 
 
+def _labeled_actor_errors(
+    raw_text: str,
+    *,
+    buyers: set[str],
+    awardees: set[str],
+) -> set[str]:
+    folded = _normalize_date_text(raw_text)
+    assertions = [
+        *(("buyer", match) for match in _BUYER_ASSERTION.finditer(folded)),
+        *(("awardee", match) for match in _AWARDEE_ASSERTION.finditer(folded)),
+    ]
+    assertions.sort(key=lambda item: item[1].start())
+    errors: set[str] = set()
+    for index, (role, match) in enumerate(assertions):
+        end = assertions[index + 1][1].start() if index + 1 < len(assertions) else len(folded)
+        segment = _normalize(folded[match.end() : end])
+        expected = buyers if role == "buyer" else awardees
+        if not any(_contains_phrase(segment, actor) for actor in expected):
+            errors.add("actor_reference_unbound")
+    return errors
+
+
 def _validate_actor_roles(texts: tuple[str, ...], source: PresentationInput) -> set[str]:
     normalized_texts = tuple(_normalize(text) for text in texts)
     buyer_labels = {_normalize(actor.display_name) for actor in source.facts.buyers}
     awardee_labels = {_normalize(actor.display_name) for actor in source.facts.awardees}
     errors: set[str] = set()
+
+    for text in texts:
+        errors.update(
+            _labeled_actor_errors(
+                text,
+                buyers=buyer_labels,
+                awardees=awardee_labels,
+            )
+        )
 
     for label in buyer_labels & awardee_labels:
         if any(_contains_phrase(text, label) for text in normalized_texts):
@@ -458,14 +719,54 @@ def _sentence_bounds(text: str, mention: _DateMention) -> tuple[int, int]:
 def _date_kind(text: str, mention: _DateMention) -> str | None:
     start, end = _sentence_bounds(text, mention)
     segment = text[start:end]
-    kinds = {
-        kind
+    markers = [
+        (kind, match)
         for kind, pattern in _DATE_KIND_PATTERNS.items()
-        if pattern.search(segment) is not None
+        for match in pattern.finditer(segment)
+    ]
+    if not markers:
+        return None
+
+    local_start = mention.start - start
+    local_end = mention.end - start
+
+    def distance(match: re.Match[str]) -> int:
+        return _span_distance(local_start, local_end, match)
+
+    closest_distance = min(distance(match) for _, match in markers)
+    if closest_distance > 80:
+        return None
+    closest_kinds = {
+        kind for kind, match in markers if distance(match) == closest_distance
     }
-    if len(kinds) == 1:
-        return next(iter(kinds))
-    return None
+    return next(iter(closest_kinds)) if len(closest_kinds) == 1 else None
+
+
+def _span_distance(start: int, end: int, match: re.Match[str]) -> int:
+    if match.end() <= start:
+        return start - match.end()
+    if end <= match.start():
+        return match.start() - end
+    return 0
+
+
+def _is_identifier_date(text: str, mention: _DateMention) -> bool:
+    start, end = _sentence_bounds(text, mention)
+    segment = text[start:end]
+    local_start = mention.start - start
+    local_end = mention.end - start
+    identifier_distances = [
+        _span_distance(local_start, local_end, match)
+        for match in _IDENTIFIER_DATE_CONTEXT.finditer(segment)
+    ]
+    if not identifier_distances or min(identifier_distances) > 48:
+        return False
+    semantic_distances = [
+        _span_distance(local_start, local_end, match)
+        for pattern in _DATE_KIND_PATTERNS.values()
+        for match in pattern.finditer(segment)
+    ]
+    return not semantic_distances or min(identifier_distances) < min(semantic_distances)
 
 
 def _validate_dates(texts: tuple[str, ...], source: PresentationInput) -> set[str]:
@@ -478,10 +779,12 @@ def _validate_dates(texts: tuple[str, ...], source: PresentationInput) -> set[st
     for raw_text in texts:
         text = _normalize_date_text(raw_text)
         for mention in _extract_dates(text):
+            kind = _date_kind(text, mention)
+            if _is_identifier_date(text, mention):
+                continue
             if mention.value is None:
                 errors.add("date_invalid")
                 continue
-            kind = _date_kind(text, mention)
             if kind is None:
                 errors.add("date_semantics_unbound")
                 continue
@@ -571,6 +874,7 @@ def _validate_fit(
 
 
 def _validate_certainty(
+    payload: CardPresentationPayload,
     texts: tuple[str, ...],
     source: PresentationInput,
 ) -> set[str]:
@@ -579,8 +883,28 @@ def _validate_certainty(
         _normalize(actor.display_name)
         for actor in (*source.facts.buyers, *source.facts.awardees)
     }
+    allowed_functional = {
+        label
+        for role in payload.target_roles
+        for label in _FUNCTIONAL_LABELS_BY_ROLE[role.role.value]
+    }
     for raw_text in texts:
         normalized = _mask_actor_labels(raw_text, source)
+        contact_scan = _normalize(raw_text)
+        for label in _FUNCTIONAL_CONTACT_LABELS - allowed_functional:
+            if _contains_phrase(contact_scan, label):
+                errors.add("target_role_unbound")
+        allowed_contacts = actor_labels | allowed_functional
+        for allowed in sorted(allowed_contacts, key=len, reverse=True):
+            contact_scan = re.sub(
+                rf"\b{_CONTACT_VERBS}\s+(?:(?:le|la|les|un|une|the|a)\s+)?"
+                rf"{_phrase_pattern(allowed)}",
+                " functional_contact ",
+                contact_scan,
+            )
+        for actor in sorted(actor_labels, key=len, reverse=True):
+            contact_scan = re.sub(_phrase_pattern(actor), " ", contact_scan)
+        contact_scan = " ".join(contact_scan.split())
         if _URGENCY.search(normalized):
             errors.add("unsupported_urgency")
         if _CERTAINTY.search(normalized):
@@ -592,9 +916,63 @@ def _validate_certainty(
                 errors.add("invented_person")
         for match in _NAMED_CONTACT.finditer(raw_text):
             name = _normalize(match.group("name"))
-            if name not in _FUNCTIONAL_CONTACT_LABELS and name not in actor_labels:
+            if name not in allowed_functional and name not in actor_labels:
                 errors.add("invented_person")
+        for match in _NORMALIZED_NAMED_CONTACT.finditer(contact_scan):
+            name = match.group("name")
+            if name not in _FUNCTIONAL_CONTACT_LABELS:
+                errors.add("invented_person")
+        for match in _TITLE_CASE_NAME.finditer(raw_text):
+            name = _normalize(match.group("name"))
+            if name in allowed_functional:
+                continue
+            if any(_contains_phrase(actor, name) for actor in actor_labels):
+                continue
+            errors.add("invented_person")
     return errors
+
+
+def _longest_common_token_run(
+    title_tokens: tuple[str, ...],
+    surface_tokens: tuple[str, ...],
+) -> tuple[int, int, int]:
+    previous = [(0, 0, 0)] * (len(surface_tokens) + 1)
+    best = (0, 0, 0)
+    for title_token in title_tokens:
+        current = [(0, 0, 0)] * (len(surface_tokens) + 1)
+        for index, surface_token in enumerate(surface_tokens, start=1):
+            if title_token != surface_token:
+                continue
+            prior_count, prior_chars, prior_alpha = previous[index - 1]
+            candidate = (
+                prior_count + 1,
+                prior_chars + len(title_token) + (1 if prior_count else 0),
+                prior_alpha + int(title_token.isalpha() and len(title_token) >= 3),
+            )
+            current[index] = candidate
+            if (candidate[1], candidate[0]) > (best[1], best[0]):
+                best = candidate
+        previous = current
+    return best
+
+
+def _is_substantial_title_copy(title: str, surface: str) -> bool:
+    if _contains_phrase(surface, title):
+        return True
+    title_tokens = tuple(title.split())
+    surface_tokens = tuple(surface.split())
+    if not surface_tokens:
+        return False
+    token_count, character_count, alphabetic_count = _longest_common_token_run(
+        title_tokens,
+        surface_tokens,
+    )
+    return (
+        token_count >= 10
+        and alphabetic_count >= 8
+        and character_count >= 80
+        and character_count >= int(len(surface) * 0.55)
+    )
 
 
 def _validate_administrative_copy(
@@ -608,7 +986,7 @@ def _validate_administrative_copy(
         return set()
     return (
         {"administrative_title_reused"}
-        if any(_contains_phrase(_normalize(text), title) for text in texts)
+        if any(_is_substantial_title_copy(title, _normalize(text)) for text in texts)
         else set()
     )
 
@@ -644,6 +1022,6 @@ def validate_payload(
     errors.update(_validate_actor_roles(texts, checked_source))
     errors.update(_validate_dates(texts, checked_source))
     errors.update(_validate_fit(checked_payload, checked_source, texts))
-    errors.update(_validate_certainty(texts, checked_source))
+    errors.update(_validate_certainty(checked_payload, texts, checked_source))
     errors.update(_validate_administrative_copy(texts, checked_source))
     return ValidationResult(tuple(sorted(errors)))
