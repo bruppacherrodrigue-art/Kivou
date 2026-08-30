@@ -18,7 +18,7 @@ from signals.persistence.database import (
 PREVIOUS = "0024_scheduled_plan_change"
 HEAD = "0025_alert_recipient_context"
 RUNTIME = "0026_acquisition_runtime"
-LATEST = "0027_signal_notes"
+LATEST = "0028_card_presentation"
 COLUMN = "recipient_context_fingerprint"
 INDEX = "ix_signal_alert_delivery_recipient_context_refusal"
 NOW = dt.datetime(2026, 8, 25, 10, 0, tzinfo=dt.UTC)
@@ -175,3 +175,4 @@ def test_postgresql_offline_sql_is_additive_and_never_classifies_history(
     assert f"drop column {COLUMN}" in downgrade_sql
     for forbidden in ("@kivou", "smtp_recipient_refused", "token", "password"):
         assert forbidden not in upgrade_sql
+

@@ -12,7 +12,7 @@ from signals.persistence.schema import acquisition_response_evaluation
 CAMPAIGN_FACTORY = "0016_campaign_factory"
 PREVIOUS = "0017_target_icp_revision"
 HEAD = "0018_response_intelligence"
-CURRENT_HEAD = "0027_signal_notes"
+CURRENT_HEAD = "0028_card_presentation"
 
 
 def test_response_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> None:
@@ -144,3 +144,4 @@ def test_response_postgresql_offline_sql_creates_one_table(capsys) -> None:
     assert sql.count("CREATE TABLE acquisition_") == 1
     for forbidden in ("reply_text", "reply_html", "raw_model_response", "raw_provider_json"):
         assert forbidden not in sql
+

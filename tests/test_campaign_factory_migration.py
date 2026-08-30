@@ -29,7 +29,7 @@ EMAIL = "0023_transactional_email_runtime"
 SCHEDULED_PLAN = "0024_scheduled_plan_change"
 ALERT_RECIPIENT_CONTEXT = "0025_alert_recipient_context"
 RUNTIME = "0026_acquisition_runtime"
-LATEST = "0027_signal_notes"
+LATEST = "0028_card_presentation"
 TABLES = (
     acquisition_campaign,
     acquisition_campaign_member,
@@ -178,3 +178,4 @@ def test_campaign_postgresql_offline_sql_has_exactly_four_tables(capsys) -> None
     assert "business_email" not in sql
     assert "raw_response" not in sql
     assert sql.count("CREATE TABLE acquisition_") == 4
+

@@ -9,7 +9,7 @@ from signals.persistence.schema import acquisition_personalization_artifact
 
 PREVIOUS = "0012_decision_engine"
 HEAD = "0013_personalization"
-CURRENT_HEAD = "0027_signal_notes"
+CURRENT_HEAD = "0028_card_presentation"
 
 
 def test_personalization_migration_is_linear_and_adds_one_artifact_table(tmp_path) -> None:
@@ -68,3 +68,4 @@ def test_personalization_postgresql_offline_sql_is_one_table(capsys) -> None:
     assert "proposal_fingerprint" in sql
     assert "first_name" not in sql
     assert "business_email" not in sql
+

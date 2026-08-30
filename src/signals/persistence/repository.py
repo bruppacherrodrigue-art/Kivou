@@ -87,6 +87,7 @@ class StoredAward:
 class StoredEvidence:
     """Un ancrage vérifiable."""
 
+    evidence_key: str
     anchors_kind: str
     anchors_ref: str
     source_system: str
@@ -110,6 +111,9 @@ class StoredSignal:
     #: l'identité logique du signal, qui est `opportunity_key`.
     materialization_award_key: str
     target_icp_id: str
+    # Exact ICP snapshot used by this materialization. Presentation artifacts
+    # bind to it so stale copy cannot survive an ICP revision.
+    target_icp_revision: int
     revision: int
     content_fingerprint: str
     event: StoredEvent
@@ -289,6 +293,7 @@ def load_evidence(connection: sa.Connection, award_key: str) -> tuple[StoredEvid
     ).all()
     return tuple(
         StoredEvidence(
+            evidence_key=anchor.evidence_key,
             anchors_kind=anchor.anchors_kind,
             anchors_ref=anchor.anchors_ref,
             source_system=anchor.source_system,
@@ -316,6 +321,7 @@ def signal_from_row(row: sa.Row, *, evidence: tuple[StoredEvidence, ...] = ()) -
         opportunity_key=row.opportunity_key,
         materialization_award_key=row.materialization_award_key,
         target_icp_id=row.target_icp_id,
+        target_icp_revision=row.target_icp_revision,
         revision=row.revision,
         content_fingerprint=row.content_fingerprint,
         event=_event(row),

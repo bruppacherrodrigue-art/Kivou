@@ -34,7 +34,7 @@ EMAIL_REVISION = "0023_transactional_email_runtime"
 SCHEDULED_PLAN_REVISION = "0024_scheduled_plan_change"
 ALERT_RECIPIENT_CONTEXT_REVISION = "0025_alert_recipient_context"
 ACQUISITION_RUNTIME_REVISION = "0026_acquisition_runtime"
-CURRENT_HEAD = "0027_signal_notes"
+CURRENT_HEAD = "0028_card_presentation"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -185,3 +185,4 @@ def test_postgresql_migration_widens_only_contract_reference(capsys):
     sql = capsys.readouterr().out
     assert "ALTER TABLE contract_award ALTER COLUMN contract_reference TYPE TEXT;" in sql
     assert sql.count("ALTER TABLE") == 1
+

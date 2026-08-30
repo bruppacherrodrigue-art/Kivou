@@ -119,7 +119,7 @@ def test_an_empty_database_reaches_the_latest_schema_through_every_migration(
     } <= tables
     # SPEC-016A — operational ingestion state remains an additive migration.
     assert {"ingestion_checkpoint", "ingestion_run"} <= tables
-    assert current_revision(engine) == "0027_signal_notes"
+    assert current_revision(engine) == "0028_card_presentation"
 
 
 def test_a_spec010_database_upgrades_without_losing_its_signals(tmp_path: pathlib.Path):
@@ -357,3 +357,4 @@ def test_no_account_column_uses_a_dialect_specific_type():
         for column in table.columns:
             module = type(column.type).__module__
             assert "dialects" not in module, f"{table.name}.{column.name} : {column.type!r}"
+

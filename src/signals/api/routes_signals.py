@@ -46,6 +46,7 @@ from signals.billing.access import (
     eligible_upgrade_plans,
     feed_access,
 )
+from signals.card_intelligence.store import published_for_signals
 from signals.companies.service import ensure_company_for_unlocked_signal
 from signals.engagement import analytics, feedback
 from signals.feed import policy, query, view
@@ -148,6 +149,20 @@ def list_signals(
             # Le profil d'un autre compte se comporte comme un profil inexistant.
             raise api_error(404, "target_icp_not_found", "profil de ciblage introuvable") from error
 
+        # One account-scoped batch read after ownership and entitlement. Drafts,
+        # stale revisions and locked cards never cross the API boundary.
+        presentation_bindings = {
+            item.signal.signal_key: (item.signal.revision, item.signal.target_icp_revision)
+            for item in page.items
+            if access.is_unlocked(item)
+        }
+        presentations = published_for_signals(
+            connection,
+            account_id=session.account_id,
+            bindings=presentation_bindings,
+            language=lang,
+        )
+
         # §34 — UNE consultation par appel de feed, jamais une par carte : une
         # ligne par signal affiché noierait la table et ne dirait rien de plus.
         analytics.record(
@@ -166,7 +181,15 @@ def list_signals(
         )
 
     return {
-        "items": [_render(item, access, lang=lang) for item in page.items],
+        "items": [
+            _render(
+                item,
+                access,
+                lang=lang,
+                presentation=presentations.get(item.signal.signal_key),
+            )
+            for item in page.items
+        ],
         "total_returned": len(page.items),
         "page": {
             "limit": page.limit,
@@ -190,10 +213,16 @@ def list_signals(
     }
 
 
-def _render(item, access: FeedAccess, *, lang: str) -> dict[str, Any]:
+def _render(
+    item,
+    access: FeedAccess,
+    *,
+    lang: str,
+    presentation: dict[str, object] | None = None,
+) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
-        card = view.feed_item(item, lang=lang)
+        card = view.feed_item(item, lang=lang, presentation=presentation)
         card["locked"] = False
         return card
     return paywall.locked_teaser(item, lang=lang)
@@ -233,6 +262,7 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
     # La consultation est ENREGISTRÉE : d'où une transaction plutôt qu'une
     # simple lecture.
     company_key = None
+    presentation = None
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         lang = _language(connection, user_id=session.user_id)
@@ -282,6 +312,17 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
                     item=item,
                     now=now,
                 )
+                presentation = published_for_signals(
+                    connection,
+                    account_id=session.account_id,
+                    bindings={
+                        item.signal.signal_key: (
+                            item.signal.revision,
+                            item.signal.target_icp_revision,
+                        )
+                    },
+                    language=lang,
+                ).get(item.signal.signal_key)
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
@@ -296,7 +337,7 @@ def get_signal(signal_key: str, request: Request) -> dict[str, Any]:
         locked["language"] = lang
         return locked
 
-    detail = view.signal_detail(item, lang=lang)
+    detail = view.signal_detail(item, lang=lang, presentation=presentation)
     detail["read_at"] = as_of.isoformat()
     detail["language"] = lang
     detail["locked"] = False

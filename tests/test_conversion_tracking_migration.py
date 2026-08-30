@@ -19,7 +19,7 @@ from signals.persistence.schema import (
 )
 
 HEAD = "0019_conversion_tracking"
-CURRENT_HEAD = "0027_signal_notes"
+CURRENT_HEAD = "0028_card_presentation"
 SPEC028_TABLES = {
     "acquisition_conversion_journey",
     "acquisition_conversion_event",
@@ -150,3 +150,4 @@ def test_postgresql_offline_sql_contains_one_linear_revision(capsys) -> None:
     assert 'CREATE TABLE acquisition_conversion_journey' in sql
     assert 'CREATE TABLE acquisition_conversion_event' in sql
     assert "0019_conversion_tracking" in sql
+

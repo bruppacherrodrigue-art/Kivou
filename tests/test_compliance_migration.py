@@ -13,7 +13,7 @@ from signals.persistence.schema import (
 PREVIOUS = "0013_personalization"
 #: La migration que CE fichier décrit, distincte de la tête de chaîne courante.
 COMPLIANCE = "0014_compliance"
-CURRENT_HEAD = "0027_signal_notes"
+CURRENT_HEAD = "0028_card_presentation"
 
 
 def test_compliance_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
@@ -130,3 +130,4 @@ def test_compliance_postgresql_offline_sql_has_exactly_two_tables_and_index(caps
     assert "ix_contact_suppression_identity" in sql
     assert "business_email" not in sql
     assert "CREATE TABLE acquisition_" in sql
+

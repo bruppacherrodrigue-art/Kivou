@@ -9,7 +9,7 @@ from signals.persistence.schema import METADATA, acquisition_event, acquisition_
 
 PREVIOUS_REVISION = "0006_award_text_capacity"
 ACQUISITION_REVISION = "0007_acquisition_event_store"
-CURRENT_HEAD = "0027_signal_notes"
+CURRENT_HEAD = "0028_card_presentation"
 
 
 def test_upgrade_from_0006_adds_only_acquisition_memory_tables(tmp_path) -> None:
@@ -112,3 +112,4 @@ def test_postgresql_offline_migration_creates_only_the_two_acquisition_tables(
     assert sql.count("CREATE TABLE") == 2
     assert "NUMERIC(18, 6)" in sql
     assert "ON DELETE RESTRICT" in sql
+

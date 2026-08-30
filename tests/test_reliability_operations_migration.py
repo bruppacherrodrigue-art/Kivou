@@ -15,7 +15,7 @@ from signals.persistence.schema import (
 
 PREVIOUS = "0020_hermes_learning_loop"
 HEAD = "0021_reliability_operations"
-CURRENT_HEAD = "0027_signal_notes"
+CURRENT_HEAD = "0028_card_presentation"
 TABLES = (acquisition_operational_incident, acquisition_dead_letter)
 
 
@@ -91,3 +91,4 @@ def test_reliability_core_tables_exclude_raw_payload_and_pii_columns() -> None:
     }
     for table in TABLES:
         assert forbidden.isdisjoint(column.name for column in table.columns)
+

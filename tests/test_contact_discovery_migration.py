@@ -9,7 +9,7 @@ from signals.persistence.schema import acquisition_contact, contact_discovery_ru
 
 PREVIOUS = "0009_supplier_discovery"
 HEAD = "0010_contact_discovery"
-CURRENT_HEAD = "0027_signal_notes"
+CURRENT_HEAD = "0028_card_presentation"
 
 
 def test_contact_discovery_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
@@ -94,3 +94,4 @@ def test_postgresql_offline_migration_contains_only_contact_tables(capsys) -> No
     assert sql.count("CREATE TABLE") == 2
     assert "UNIQUE (policy_evaluation_id)" in sql
     assert "ON DELETE RESTRICT" in sql
+

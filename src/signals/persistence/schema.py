@@ -405,7 +405,7 @@ acquisition_event = sa.Table(
     sa.Column("supervisor_version", sa.String(100)),
     sa.Column("confidence", sa.Numeric(5, 4)),
     sa.Column("estimated_cost", sa.Numeric(18, 6)),
-    sa.Column("payload", sa.JSON, nullable=False),
+    sa.Column("payload", sa.JSON),
     sa.UniqueConstraint(
         "acquisition_opportunity_id",
         "stream_sequence",
@@ -2440,5 +2440,96 @@ acquisition_runtime_stage_attempt = sa.Table(
         "ix_acquisition_runtime_attempt_cycle",
         "cycle_ref",
         "completed_at",
+    ),
+)
+
+
+# Pre-generated, account-scoped customer copy for award and signal cards.
+#
+# The HTTP layer only reads a published row from this table. Generation and QA
+# happen in a bounded worker/command before publication, so a GET can never
+# call a model provider or expose an unreviewed draft.
+card_presentation_artifact = sa.Table(
+    "card_presentation_artifact",
+    METADATA,
+    sa.Column("artifact_id", sa.String(64), primary_key=True),
+    sa.Column(
+        "account_id",
+        sa.String(64),
+        sa.ForeignKey("account.account_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    ),
+    sa.Column(
+        "signal_key",
+        sa.String(64),
+        sa.ForeignKey("materialized_signal.signal_key", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    ),
+    sa.Column(
+        "target_icp_id",
+        sa.String(128),
+        sa.ForeignKey("target_icp.target_icp_id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    ),
+    sa.Column("artifact_kind", sa.String(32), nullable=False),
+    sa.Column("language", sa.String(8), nullable=False),
+    sa.Column("version", sa.Integer, nullable=False),
+    sa.Column("signal_revision", sa.Integer, nullable=False),
+    sa.Column("target_icp_revision", sa.Integer, nullable=False),
+    sa.Column("input_fingerprint", sa.String(64), nullable=False),
+    sa.Column("schema_version", sa.String(64), nullable=False),
+    sa.Column("prompt_version", sa.String(64), nullable=False),
+    sa.Column("model_id", sa.String(128)),
+    sa.Column("provider", sa.String(64)),
+    sa.Column("input_snapshot", sa.JSON, nullable=False),
+    # Failed REGENERATE attempts keep provenance and reasons without exposing
+    # or fabricating content. PASS/FALLBACK publication still requires a
+    # payload in the service and database status constraint.
+    sa.Column("payload", sa.JSON),
+    sa.Column("qa_status", sa.String(16), nullable=False, index=True),
+    sa.Column("qa_reasons", sa.JSON, nullable=False),
+    sa.Column("qa_model_id", sa.String(128)),
+    sa.Column("qa_provider", sa.String(64)),
+    sa.Column("qa_policy_version", sa.String(64), nullable=False),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("published_at", sa.DateTime(timezone=True)),
+    sa.Column("superseded_at", sa.DateTime(timezone=True)),
+    sa.UniqueConstraint(
+        "account_id",
+        "signal_key",
+        "target_icp_id",
+        "artifact_kind",
+        "language",
+        "version",
+        name="uq_card_presentation_version",
+    ),
+    sa.CheckConstraint(
+        "version >= 1 AND signal_revision >= 1 AND target_icp_revision >= 1",
+        name="ck_card_presentation_version",
+    ),
+    sa.CheckConstraint(
+        "artifact_kind IN ('AWARD_SUMMARY', 'SIGNAL_CARD')",
+        name="ck_card_presentation_kind",
+    ),
+    sa.CheckConstraint(
+        "qa_status IN ('PASS', 'REGENERATE', 'FALLBACK', 'REVIEW')",
+        name="ck_card_presentation_qa_status",
+    ),
+    sa.CheckConstraint(
+        "published_at IS NULL OR "
+        "(qa_status IN ('PASS', 'FALLBACK') AND payload IS NOT NULL)",
+        name="ck_card_presentation_publishable_status",
+    ),
+    sa.Index(
+        "ix_card_presentation_published",
+        "account_id",
+        "signal_key",
+        "target_icp_id",
+        "artifact_kind",
+        "language",
+        "superseded_at",
     ),
 )

@@ -302,7 +302,12 @@ def _evidence(item: FeedSignal, *, lang: str) -> dict[str, Any]:
     }
 
 
-def feed_item(item: FeedSignal, *, lang: str) -> dict[str, Any]:
+def feed_item(
+    item: FeedSignal,
+    *,
+    lang: str,
+    presentation: dict[str, object] | None = None,
+) -> dict[str, Any]:
     """La carte du feed : compacte, sans preuve, sans raisonnement long (§16)."""
     feed_copy.check_language(lang)
     return {
@@ -312,13 +317,21 @@ def feed_item(item: FeedSignal, *, lang: str) -> dict[str, Any]:
         "event": _event(item, lang=lang),
         "contract": _contract(item),
         "analysis": _analysis(item, lang=lang, full=False),
+        # Pre-generated and published outside this request. `None` is an
+        # explicit backwards-compatible foundation state, never raw source copy.
+        "presentation": presentation,
         "source": _source(item),
     }
 
 
-def signal_detail(item: FeedSignal, *, lang: str) -> dict[str, Any]:
+def signal_detail(
+    item: FeedSignal,
+    *,
+    lang: str,
+    presentation: dict[str, object] | None = None,
+) -> dict[str, Any]:
     """Le détail : la carte, plus de quoi VÉRIFIER (§15)."""
-    detail = feed_item(item, lang=lang)
+    detail = feed_item(item, lang=lang, presentation=presentation)
     detail["analysis"] = _analysis(item, lang=lang, full=True)
     detail["evidence"] = _evidence(item, lang=lang)
     detail["opportunity_id"] = item.signal.opportunity_key

@@ -30,7 +30,7 @@ from signals.policy.store import PolicyStore
 
 PREVIOUS = "0007_acquisition_event_store"
 HEAD = "0008_policy_gateway"
-CURRENT_HEAD = "0027_signal_notes"
+CURRENT_HEAD = "0028_card_presentation"
 
 
 def control(revision: int, **overrides: object) -> PolicyControlSnapshot:
@@ -456,3 +456,4 @@ def test_concurrency_failure_writes_neither_audit_surface(engine) -> None:
     with engine.connect() as connection:
         assert connection.scalar(sa.select(sa.func.count()).select_from(policy_evaluation)) == 0
         assert connection.scalar(sa.select(sa.func.count()).select_from(acquisition_event)) == 1
+

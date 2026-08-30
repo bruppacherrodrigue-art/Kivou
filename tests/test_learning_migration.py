@@ -22,7 +22,7 @@ EMAIL = "0023_transactional_email_runtime"
 SCHEDULED_PLAN = "0024_scheduled_plan_change"
 ALERT_RECIPIENT_CONTEXT = "0025_alert_recipient_context"
 RUNTIME = "0026_acquisition_runtime"
-LATEST = "0027_signal_notes"
+LATEST = "0028_card_presentation"
 TABLES = {"acquisition_learning_snapshot", "acquisition_allocation_proposal"}
 
 
@@ -119,3 +119,4 @@ def test_postgresql_offline_sql_contains_two_tables_and_linear_revision(capsys) 
     assert "CREATE TABLE acquisition_allocation_proposal" in sql
     assert "CREATE UNIQUE INDEX uq_learning_snapshot_selected_proposal" in sql
     assert "0020_hermes_learning_loop" in sql
+

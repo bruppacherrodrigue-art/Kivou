@@ -12,6 +12,7 @@ from signals.persistence.database import (
 
 PREVIOUS = "0026_acquisition_runtime"
 HEAD = "0027_signal_notes"
+CURRENT_HEAD = "0028_card_presentation"
 
 
 def _engine(tmp_path, name):
@@ -26,7 +27,7 @@ def test_signal_note_migration_is_one_additive_table(tmp_path):
     command.upgrade(config, HEAD)
     assert set(sa.inspect(engine).get_table_names()) - before == {"signal_note"}
     assert current_revision(engine) == HEAD
-    assert ScriptDirectory.from_config(config).get_heads() == [HEAD]
+    assert ScriptDirectory.from_config(config).get_heads() == [CURRENT_HEAD]
 
 
 def test_signal_note_schema_has_exact_account_scope_and_note_capacity(tmp_path):
