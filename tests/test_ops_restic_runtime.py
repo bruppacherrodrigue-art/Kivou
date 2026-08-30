@@ -215,8 +215,8 @@ def test_verified_dump_is_uploaded_before_remote_retention(runtime: Runtime) -> 
         ),
         (
             "restic\tforget\t--tag\tkivou-postgresql\t--host\t"
-            "kivou-production-01\t--keep-daily\t30\t--keep-monthly\t12\t"
-            "--keep-yearly\t3\t--prune"
+            "kivou-production-01\t--group-by\thost,tags\t--keep-daily\t30\t"
+            "--keep-monthly\t12\t--keep-yearly\t3\t--prune"
         ),
     ]
     assert runtime.uploaded_hashes()[0].split("\t")[0] == hashlib.sha256(

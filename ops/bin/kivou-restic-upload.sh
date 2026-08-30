@@ -186,6 +186,7 @@ fi
 if ! "${RESTIC}" forget \
         --tag kivou-postgresql \
         --host kivou-production-01 \
+        --group-by host,tags \
         --keep-daily 30 \
         --keep-monthly 12 \
         --keep-yearly 3 \
