@@ -209,10 +209,15 @@ Expected: detached clean checkout at the exact SHA; backend and frontend tests/l
 Before the first migration, run `ops/bin/kivou-backup.sh` from the exact
 candidate in a transient `kivou` unit with `production.env`,
 `InaccessiblePaths=/srv/kivou/.ssh`, `ReadWritePaths=/srv/kivou/backups` and
-`TimeoutStartSec=2h`. Require a new regular `kivou:kivou 0600` dump, validate it
-with `pg_restore --list`, restore it into a uniquely named temporary PostgreSQL
-database and prove that the restored public schema is empty. Drop only that
-temporary restore database after the proof; retain the pre-migration dump.
+`TimeoutStartSec=2h`. First prove that the public schema has zero tables, then
+set `Environment=KIVOU_BACKUP_MIN_BYTES=1` only for this empty-database dump:
+the normal 4 KiB floor deliberately rejects PostgreSQL's valid 871-byte empty
+custom archive. Require a new regular `kivou:kivou 0600` dump, validate it with
+`pg_restore --list`, restore a protected temporary copy into a uniquely named
+temporary PostgreSQL database and prove that the restored public schema is
+empty. Drop only that temporary restore database and remove only its protected
+copy after the proof; retain the source pre-migration dump. All post-migration
+and scheduled backups use the normal 4 KiB minimum unchanged.
 
 - [ ] **Step 3: Apply migrations through a bounded transient systemd unit**
 
