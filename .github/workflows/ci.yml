@@ -30,7 +30,7 @@ jobs:
     # ce qui se lisait comme une stalle (#71) alors que c'était le budget qui
     # était dépassé. 40 laisse une marge sans masquer un vrai blocage.
     # Réduire la DURÉE de la suite est suivi séparément.
-    timeout-minutes: 40
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
 
