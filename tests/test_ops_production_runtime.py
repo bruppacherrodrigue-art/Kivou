@@ -1620,6 +1620,245 @@ def test_durable_recovery_is_published_before_mutation_and_is_autonomous() -> No
         assert recovery_contract in manual
 
 
+def test_rollback_readiness_asset_is_immutable_before_mutation() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    before_mutation = body[: body.index("KIVOU_FIRST_RUNTIME_MUTATION=1")]
+
+    assert_fragments_in_order(
+        before_mutation,
+        "KIVOU_ROLLBACK_READINESS=$KIVOU_ROLLBACK_DIR/kivou-api-readiness.sh",
+        'ops/bin/kivou-api-readiness.sh" "$KIVOU_ROLLBACK_READINESS"',
+        'test ! -L "$KIVOU_ROLLBACK_READINESS"',
+        'stat -c \'%U:%G:%a\' "$KIVOU_ROLLBACK_READINESS"',
+        "root:root:555",
+    )
+
+
+def test_automatic_rollback_requires_previous_api_readiness_before_nginx() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    engine = rollback_engine(body)
+    units = engine[
+        engine.index("kivou_rollback_units_phase()") : engine.index(
+            "kivou_rollback_nginx_phase()"
+        )
+    ]
+    nginx = engine[
+        engine.index("kivou_rollback_nginx_phase()") : engine.index(
+            "kivou_rollout_rollback()"
+        )
+    ]
+
+    assert_fragments_in_order(
+        units,
+        "kivou_restore_unit_states",
+        "kivou_verify_rollback_api_readiness",
+    )
+    assert '"$KIVOU_ROLLBACK_READINESS" kivou-api.service 8000' in body[
+        body.index("kivou_verify_rollback_api_readiness()") : body.index(
+            "kivou_require_rollback_api_readiness()"
+        )
+    ]
+    assert_fragments_in_order(
+        nginx,
+        "kivou_require_rollback_api_readiness",
+        "KIVOU_NGINX_CAPTURE_VALID=0",
+        "kivou_publish_captured_nginx_bundle",
+    )
+    assert body.index("kivou_verify_rollback_api_readiness", body.index("# KIVOU_ROLLBACK_ENGINE_BEGIN")) < body.index(
+        "kivou_mark_rollout_status ROLLED_BACK"
+    )
+    assert "if ! kivou_rollback_api_readiness_required" not in body
+    assert "KIVOU_READINESS_REQUIRED_RC=$?" in body
+
+
+def test_autonomous_recovery_requires_previous_api_readiness_before_nginx() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    manual = body[body.index("## 11. Rollback immédiat") :]
+    units = manual[
+        manual.index("kivou_rollback_units_phase()") : manual.index(
+            "kivou_rollback_nginx_phase()"
+        )
+    ]
+    nginx = manual[
+        manual.index("kivou_rollback_nginx_phase()") : manual.index(
+            "kivou_recovery_rollback()"
+        )
+    ]
+
+    assert_fragments_in_order(
+        units,
+        "kivou_recovery_restore_unit_states",
+        "kivou_verify_rollback_api_readiness",
+    )
+    verify = manual[
+        manual.index("kivou_verify_rollback_api_readiness()") : manual.index(
+            "kivou_require_rollback_api_readiness()"
+        )
+    ]
+    assert '"$KIVOU_ROLLBACK_READINESS" kivou-api.service 8000' in verify
+    assert_fragments_in_order(
+        nginx,
+        "kivou_require_rollback_api_readiness",
+        'test -d "$KIVOU_ROLLBACK_DIR/nginx"',
+        "kivou_recovery_capture_nginx",
+        "nginx -t",
+        "systemctl reload nginx",
+    )
+    assert manual.index("kivou_verify_rollback_api_readiness") < manual.index(
+        "printf '%s\\n' ROLLED_BACK"
+    )
+
+
+def test_failed_rollback_readiness_blocks_nginx_and_success_status(
+    tmp_path: pathlib.Path,
+) -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    helper_start = body.index("kivou_rollback_api_readiness_required()")
+    helper_end = body.index("# KIVOU_ROLLBACK_ENGINE_BEGIN", helper_start)
+    helpers = body[helper_start:helper_end]
+    engine = rollback_engine(body)
+    capture = tmp_path / "systemd"
+    capture.mkdir()
+    (capture / "kivou-api.service.active").write_text("active\n", encoding="utf-8")
+    marker = tmp_path / "missing-readiness.ok"
+    status = tmp_path / "rollout.status"
+    status.write_text("PREPARED\n", encoding="utf-8")
+    script = f"""\
+set -Eeuo pipefail
+sudo() {{ "$@"; }}
+KIVOU_UNIT_CAPTURE_DIR={capture}
+KIVOU_PREVIOUS_APP_TARGET=/srv/kivou/releases/backend-previous
+KIVOU_ROLLBACK_READINESS_MARKER={marker}
+{helpers}
+{engine}
+kivou_rollback_stop_phase() {{ :; }}
+kivou_rollback_app_phase() {{ :; }}
+kivou_rollback_frontend_phase() {{ :; }}
+kivou_rollback_units_phase() {{ return 75; }}
+kivou_rollback_nginx_phase() {{
+  kivou_require_rollback_api_readiness
+  printf 'nginx-reloaded\\n'
+}}
+set +e
+kivou_rollout_rollback
+KIVOU_TEST_RC=$?
+set -e
+if [ "$KIVOU_TEST_RC" -eq 0 ]; then printf 'ROLLED_BACK\\n' >{status}; fi
+printf 'rollback_rc=%s\\n' "$KIVOU_TEST_RC"
+"""
+    result = subprocess.run(
+        ["bash"], input=script, text=True, capture_output=True, check=False
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "rollback_rc=75" in result.stdout
+    assert "nginx-reloaded" not in result.stdout
+    assert status.read_text(encoding="utf-8") == "PREPARED\n"
+
+
+def test_autonomous_recovery_uses_a_unique_retry_safe_attempt_directory() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    manual = body[body.index("## 11. Rollback immédiat") :]
+
+    assert 'mktemp -d "$KIVOU_ROLLBACK_DIR/recovery-attempt.XXXXXX"' in manual
+    assert 'trap \'kivou_recovery_on_exit $?\' EXIT' in manual
+    for signal, status in (("HUP", 129), ("INT", 130), ("TERM", 143)):
+        assert f"trap 'kivou_recovery_request_exit {status}' {signal}" in manual
+    assert_fragments_in_order(
+        manual,
+        "kivou_recovery_cleanup()",
+        'case "$KIVOU_RECOVERY_ATTEMPT_DIR" in',
+        '"$KIVOU_ROLLBACK_DIR"/recovery-attempt.??????',
+    )
+    assert "/srv/kivou/app.recovery" not in manual
+    assert "/srv/kivou/frontend.recovery" not in manual
+    assert "KIVOU_APP_RECOVERY_NEW=$KIVOU_RECOVERY_ATTEMPT_DIR/app-link.new" in manual
+    assert (
+        "KIVOU_FRONTEND_RECOVERY_NEW="
+        "$KIVOU_RECOVERY_ATTEMPT_DIR/frontend-link.new"
+    ) in manual
+    assert "$KIVOU_UNIT_PATH.recovery-new" not in manual
+    assert "$KIVOU_NGINX_PATH.recovery-new" not in manual
+    assert 'test ! -e "$KIVOU_UNIT_RECOVERY_NEW"' not in manual
+    assert 'test ! -e "$KIVOU_NGINX_NEW"' not in manual
+    assert 'mv -Tf "$KIVOU_UNIT_RECOVERY_NEW" "$KIVOU_UNIT_STALE"' in manual
+    assert 'mv -Tf "$KIVOU_NGINX_NEW" "$KIVOU_NGINX_STALE"' in manual
+    assert "KIVOU_RECOVERY_ATTEMPT_ID" in manual
+    assert (
+        '"$KIVOU_ROLLBACK_DIR"/nginx|'
+        '"$KIVOU_RECOVERY_ATTEMPT_DIR"/nginx-current'
+    ) in manual
+    assert '"$KIVOU_RECOVERY_ATTEMPT_DIR"/nginx-*' in manual
+    assert "/srv/kivou/rollbacks/recovery-*" not in manual
+    assert manual.index("kivou_recovery_rollback") < manual.index(
+        "printf '%s\\n' ROLLED_BACK"
+    )
+
+
+def test_autonomous_recovery_retries_after_interruption(tmp_path: pathlib.Path) -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    manual = body[body.index("## 11. Rollback immédiat") :]
+    lifecycle_start = manual.index("kivou_recovery_cleanup()")
+    lifecycle_end_marker = "trap 'kivou_recovery_on_exit $?' EXIT"
+    lifecycle_end = manual.index(lifecycle_end_marker, lifecycle_start) + len(
+        lifecycle_end_marker
+    )
+    lifecycle = manual[lifecycle_start:lifecycle_end]
+    rollout = tmp_path / "rollout-test"
+    rollout.mkdir(mode=0o700)
+    status = rollout / "rollout.status"
+    status.write_text("PREPARED\n", encoding="utf-8")
+    state = tmp_path / "runtime-state"
+    state.mkdir()
+
+    setup = f"""\
+set -Eeuo pipefail
+KIVOU_ROLLBACK_DIR={rollout}
+KIVOU_RECOVERY_ATTEMPT_DIR=$(mktemp -d "$KIVOU_ROLLBACK_DIR/recovery-attempt.XXXXXX")
+{lifecycle}
+"""
+    interrupted = subprocess.run(
+        ["bash"],
+        input=setup
+        + f"""\
+printf 'old-app\n' >{state / "app"}
+kill -TERM $$
+printf 'must-not-continue\n'
+""",
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert interrupted.returncode == 143, interrupted.stderr
+    assert status.read_text(encoding="utf-8") == "PREPARED\n"
+    assert (state / "app").read_text(encoding="utf-8") == "old-app\n"
+    assert not (state / "frontend").exists()
+    assert not tuple(rollout.glob("recovery-attempt.*"))
+
+    completed = subprocess.run(
+        ["bash"],
+        input=setup
+        + f"""\
+printf 'old-app\n' >{state / "app"}
+printf 'old-frontend\n' >{state / "frontend"}
+printf 'old-units\n' >{state / "units"}
+printf 'old-nginx\n' >{state / "nginx"}
+kivou_recovery_cleanup
+printf 'ROLLED_BACK\n' >{status}.new
+mv -Tf {status}.new {status}
+trap - HUP INT TERM EXIT
+""",
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert status.read_text(encoding="utf-8") == "ROLLED_BACK\n"
+    assert not tuple(rollout.glob("recovery-attempt.*"))
+
+
 def test_successful_nginx_publish_is_enabled_and_active_even_when_already_active() -> None:
     body = read(PRODUCTION_RUNBOOK)
     mutation = body[
