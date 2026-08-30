@@ -20,12 +20,17 @@ from pydantic import ValidationError
 
 from signals.accounts.schema import target_icp
 from signals.card_intelligence.contracts import (
+    CardPresentationPayload,
     ClaimKind,
+    PresentationClaim,
     PresentationInput,
+    PresentationUnknown,
     PresentationVariant,
     SourceActor,
     SourceFacts,
     TargetIcpSnapshot,
+    TargetRole,
+    TargetRoleKind,
 )
 from signals.card_intelligence.fallback import factual_fallback
 from signals.card_intelligence.input import (
@@ -33,6 +38,7 @@ from signals.card_intelligence.input import (
     _source_field_ref,
     build_presentation_input,
 )
+from signals.card_intelligence.validation import validate_payload
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import (
     contract_award,
@@ -837,3 +843,562 @@ def test_input_matched_needs_are_copied_from_the_exact_materialized_row(engine, 
     source = _build(engine, persisted_case)
     assert source.icp_matched_needs == tuple(stored)
     assert json.loads(source.model_dump_json())["icp_matched_needs"] == stored
+
+
+def _full_payload(source: PresentationInput) -> CardPresentationPayload:
+    headline = f"Attribution publiée pour {source.facts.winner_name}."
+    buyer = source.facts.buyer_name or "Acheteur non publié"
+    award_summary = f"Acheteur : {buyer}. Attributaire : {source.facts.winner_name}."
+    commercial_importance = "Les matériaux représentent une opportunité commerciale à examiner."
+    fit_reason = "L'adéquation concerne le besoin ICP de matériaux."
+    timing = "Le calendrier commercial reste à vérifier."
+    recommended_action = "Examiner le besoin de matériaux avec la fonction achats."
+    return CardPresentationPayload(
+        variant=PresentationVariant.FULL,
+        headline=headline,
+        award_summary=award_summary,
+        commercial_importance=commercial_importance,
+        fit_reason=fit_reason,
+        timing=timing,
+        recommended_action=recommended_action,
+        target_roles=(
+            TargetRole(
+                role=TargetRoleKind.PROCUREMENT_MANAGER,
+                rationale="Le besoin de matériaux relève de la fonction achats.",
+                evidence_refs=(AWARDEE_FIELD_REF,),
+            ),
+        ),
+        fit_need_categories=("materials_or_components",),
+        claims=(
+            PresentationClaim(
+                claim_id="FACT_HEADLINE",
+                kind=ClaimKind.FACT,
+                text=headline,
+                evidence_refs=(AWARDEE_FIELD_REF,),
+            ),
+            PresentationClaim(
+                claim_id="FACT_AWARD_CONTEXT",
+                kind=ClaimKind.FACT,
+                text=award_summary,
+                evidence_refs=(AWARDEE_FIELD_REF, BUYER_FIELD_REF),
+            ),
+            PresentationClaim(
+                claim_id="INFERENCE_IMPORTANCE",
+                kind=ClaimKind.INFERENCE,
+                text=commercial_importance,
+                evidence_refs=(AWARDEE_FIELD_REF,),
+                confidence="medium",
+            ),
+            PresentationClaim(
+                claim_id="INFERENCE_FIT",
+                kind=ClaimKind.INFERENCE,
+                text=fit_reason,
+                evidence_refs=(AWARDEE_FIELD_REF,),
+                confidence="medium",
+            ),
+            PresentationClaim(
+                claim_id="INFERENCE_TIMING",
+                kind=ClaimKind.INFERENCE,
+                text=timing,
+                evidence_refs=(PUBLICATION_DATE_FIELD_REF,),
+                confidence="low",
+            ),
+            PresentationClaim(
+                claim_id="RECOMMENDATION_ACTION",
+                kind=ClaimKind.RECOMMENDATION,
+                text=recommended_action,
+                evidence_refs=(AWARDEE_FIELD_REF,),
+            ),
+        ),
+    )
+
+
+def _replace_public_text(
+    payload: CardPresentationPayload,
+    field: str,
+    text: str,
+) -> CardPresentationPayload:
+    data = payload.model_dump(mode="python")
+    old_text = data[field]
+    data[field] = text
+    for claim in data["claims"]:
+        if claim["text"] == old_text:
+            claim["text"] = text
+            break
+    return CardPresentationPayload.model_validate(data)
+
+
+def _source_with_actors(
+    source: PresentationInput,
+    *,
+    buyers: tuple[SourceActor, ...],
+    awardees: tuple[SourceActor, ...],
+    award_date: dt.date | None = dt.date(2026, 5, 19),
+) -> PresentationInput:
+    facts = source.facts.model_copy(
+        update={"buyers": buyers, "awardees": awardees, "award_date": award_date}
+    )
+    return PresentationInput.model_validate(source.model_copy(update={"facts": facts}))
+
+
+@pytest.fixture
+def full_payload(source) -> CardPresentationPayload:
+    return _full_payload(source)
+
+
+@pytest.fixture
+def source_without_award_date(source) -> PresentationInput:
+    return _source_with_actors(
+        source,
+        buyers=(SourceActor(actor_ref="3" * 64, display_name="Ville de Sion"),),
+        awardees=(SourceActor(actor_ref="4" * 64, display_name="Acheteur SA"),),
+        award_date=None,
+    )
+
+
+@pytest.mark.parametrize(
+    ("claim", "expected_error"),
+    (
+        (
+            "La société Acheteur SA a attribué le marché à Ville de Sion le 12 août 2026.",
+            "actor_role_inversion",
+        ),
+        ("Marché attribué le 15 août 2026.", "award_date_unbound"),
+        ("Marché attribué le 15 août 26.", "award_date_unbound"),
+        ("Awarded on August 15, 2026.", "award_date_unbound"),
+        ("Attribution du 15/08/2026 confirmée.", "award_date_unbound"),
+        (
+            "Besoin urgent de personnel pour livrer les matériaux.",
+            "materials_staffing_mismatch",
+        ),
+    ),
+    ids=(
+        "roles-inverted",
+        "fr-long-date",
+        "fr-two-digit-year",
+        "en-long-date",
+        "numeric-date",
+        "materials-to-staffing",
+    ),
+)
+def test_adversarial_claims_fail_closed(
+    source_without_award_date, claim, expected_error
+):
+    payload = _replace_public_text(
+        _full_payload(source_without_award_date), "award_summary", claim
+    )
+
+    result = validate_payload(payload, source_without_award_date)
+
+    assert expected_error in result.errors
+
+
+@pytest.mark.parametrize(
+    "claim",
+    (
+        "Date d'attribution : 19 mai 2026.",
+        "Attribution du 19/05/2026 confirmée.",
+        "Attribué le 19-05-26.",
+        "Awarded on May 19, 2026.",
+        "Award date: 2026-05-19.",
+        "Date de notification du contrat : 22 mai 2026.",
+        "Contract notification date: May 22, 26.",
+        "Date de publication : 15 août 2026.",
+        "Date de publication : 15 aout 26.",
+        "Publication date: August 15, 2026.",
+    ),
+    ids=(
+        "award-fr-name",
+        "award-fr-slash",
+        "award-fr-dash-short-year",
+        "award-en-name",
+        "award-iso",
+        "notification-fr",
+        "notification-en-short-year",
+        "publication-fr-accented",
+        "publication-fr-unaccented-short-year",
+        "publication-en",
+    ),
+)
+def test_localized_dates_pass_only_when_bound_to_the_exact_source_field(
+    source, full_payload, claim
+):
+    payload = _replace_public_text(full_payload, "award_summary", claim)
+
+    assert validate_payload(payload, source).valid
+
+
+def test_publication_date_cannot_be_presented_as_the_award_date(source, full_payload):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Date d'attribution : 15 août 2026.",
+    )
+
+    errors = validate_payload(payload, source).errors
+
+    assert "award_date_mismatch" in errors
+    assert "publication_as_award_date" in errors
+
+
+def test_a_real_date_without_a_semantic_date_kind_fails_closed(source, full_payload):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Dossier examiné le 19 mai 2026.",
+    )
+
+    assert "date_semantics_unbound" in validate_payload(payload, source).errors
+
+
+def test_invalid_calendar_date_fails_closed(source, full_payload):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Date d'attribution : 31 février 2026.",
+    )
+
+    assert "date_invalid" in validate_payload(payload, source).errors
+
+
+@pytest.mark.parametrize(
+    "claim",
+    (
+        "Montant publié : 250 000 CHF.",
+        "Lieu d'exécution : 1200 Genève.",
+        "Référence CPV 44110000 et projet 2026.",
+    ),
+    ids=("amount", "postcode", "cpv-project"),
+)
+def test_isolated_amount_postcode_and_project_numbers_are_not_dates(
+    source, full_payload, claim
+):
+    payload = _replace_public_text(full_payload, "award_summary", claim)
+
+    assert validate_payload(payload, source).valid
+
+
+def test_factual_renderer_output_passes_the_same_validator(source):
+    assert validate_payload(factual_fallback(source), source).valid
+
+
+@pytest.mark.parametrize(
+    ("claim", "expected_error"),
+    (
+        ("Examiner ce dossier en urgence.", "unsupported_urgency"),
+        ("Proceed immediately with this opportunity.", "unsupported_urgency"),
+        ("Contact ASAP.", "unsupported_urgency"),
+        ("Emergency procurement response required.", "unsupported_urgency"),
+        ("Contacter Mme Dupont.", "invented_person"),
+        ("Contact Jane Doe.", "invented_person"),
+        ("Cette attribution garantit une vente.", "unsupported_certainty"),
+        ("This opportunity will definitely convert.", "unsupported_certainty"),
+    ),
+    ids=(
+        "urgent-fr",
+        "immediate-en",
+        "asap",
+        "emergency",
+        "honorific-fr",
+        "named-contact-en",
+        "guarantee-fr",
+        "certainty-en",
+    ),
+)
+def test_urgency_people_and_absolute_certainty_are_never_invented(
+    source, full_payload, claim, expected_error
+):
+    payload = _replace_public_text(full_payload, "recommended_action", claim)
+
+    assert expected_error in validate_payload(payload, source).errors
+
+
+def test_unicode_actor_labels_are_matched_by_exact_normalized_role(source):
+    localized_source = _source_with_actors(
+        source,
+        buyers=(SourceActor(actor_ref="5" * 64, display_name="Énergie   Genève SA"),),
+        awardees=(SourceActor(actor_ref="6" * 64, display_name="Bâtiments Réunis SA"),),
+    )
+    payload = _replace_public_text(
+        _full_payload(localized_source),
+        "award_summary",
+        "ACHETEUR : Energie Geneve SA. ATTRIBUTAIRE : Batiments Reunis SA.",
+    )
+
+    assert validate_payload(payload, localized_source).valid
+
+
+def test_explicit_actor_labels_cannot_swap_buyer_and_awardee(source, full_payload):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Acheteur : Egli Gartenbau AG Sursee. Attributaire : Gemeinde Root.",
+    )
+
+    assert "actor_role_inversion" in validate_payload(payload, source).errors
+
+
+def test_cross_role_homonym_is_ambiguous(source):
+    homonym_source = _source_with_actors(
+        source,
+        buyers=(SourceActor(actor_ref="7" * 64, display_name="Entreprise Homonyme SA"),),
+        awardees=(SourceActor(actor_ref="8" * 64, display_name="Entreprise Homonyme SA"),),
+    )
+
+    errors = validate_payload(_full_payload(homonym_source), homonym_source).errors
+
+    assert "actor_role_ambiguous" in errors
+
+
+def test_distinct_homonymous_identities_in_one_role_remain_representable(source):
+    same_role_source = _source_with_actors(
+        source,
+        buyers=(
+            SourceActor(actor_ref="7" * 64, display_name="Entreprise Homonyme SA"),
+            SourceActor(actor_ref="8" * 64, display_name="Entreprise Homonyme SA"),
+        ),
+        awardees=(SourceActor(actor_ref="9" * 64, display_name="Attributaire Unique SA"),),
+    )
+
+    assert validate_payload(_full_payload(same_role_source), same_role_source).valid
+
+
+def test_truncated_actor_prefix_collision_fails_ambiguous(source):
+    collision_source = _source_with_actors(
+        source,
+        buyers=(
+            SourceActor(actor_ref="7" * 64, display_name="Alpha Construction SA"),
+            SourceActor(actor_ref="8" * 64, display_name="Alpha Construction Services SA"),
+        ),
+        awardees=(SourceActor(actor_ref="9" * 64, display_name="Bêta Bâtiment SA"),),
+    )
+    payload = _replace_public_text(
+        _full_payload(collision_source),
+        "award_summary",
+        "Acheteur : Alpha Construction… Attributaire : Bêta Bâtiment SA.",
+    )
+
+    assert "actor_reference_ambiguous" in validate_payload(payload, collision_source).errors
+
+
+def test_single_actor_truncation_with_ellipsis_fails_ambiguous(source, full_payload):
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Attributaire : Egli Gartenbau…",
+    )
+
+    assert "actor_reference_ambiguous" in validate_payload(payload, source).errors
+
+
+@pytest.mark.parametrize(
+    ("buyer_name", "claim"),
+    (
+        ("AG", "Diagnostic documenté."),
+        ("Ville de Sion", "Lieu : Ville de Sionnet."),
+    ),
+    ids=("short-substring", "word-boundary"),
+)
+def test_actor_name_substrings_never_match_another_actor(
+    source, buyer_name, claim
+):
+    bounded_source = _source_with_actors(
+        source,
+        buyers=(SourceActor(actor_ref="7" * 64, display_name=buyer_name),),
+        awardees=(SourceActor(actor_ref="9" * 64, display_name="Bêta Bâtiment SA"),),
+    )
+    payload = _replace_public_text(
+        _full_payload(bounded_source), "award_summary", claim
+    )
+
+    assert validate_payload(payload, bounded_source).valid
+
+
+def test_materials_cannot_be_rewritten_as_staffing(source, full_payload):
+    payload = _replace_public_text(
+        full_payload,
+        "fit_reason",
+        "Le besoin de personnel découle des matériaux à livrer.",
+    )
+
+    errors = validate_payload(payload, source).errors
+
+    assert "materials_staffing_mismatch" in errors
+    assert "commercial_claim_unbound_to_icp" in errors
+
+
+def test_actor_names_are_masked_before_materials_staffing_validation(source):
+    legal_name_source = _source_with_actors(
+        source,
+        buyers=source.facts.buyers,
+        awardees=(SourceActor(actor_ref="9" * 64, display_name="Personnel Matériaux SA"),),
+    )
+
+    assert validate_payload(_full_payload(legal_name_source), legal_name_source).valid
+
+
+def test_materials_claim_without_staffing_is_valid(source, full_payload):
+    assert validate_payload(full_payload, source).valid
+
+
+def test_fit_categories_must_be_an_exact_subset_of_current_matched_needs(
+    source, full_payload
+):
+    data = full_payload.model_dump(mode="python")
+    data["fit_need_categories"] = (
+        "materials_or_components",
+        "workforce_capacity",
+    )
+    payload = CardPresentationPayload.model_validate(data)
+
+    assert "fit_need_unmatched" in validate_payload(payload, source).errors
+
+
+def test_commercial_claims_must_name_a_current_icp_need(source, full_payload):
+    payload = _replace_public_text(
+        full_payload,
+        "commercial_importance",
+        "Cette opportunité mérite une analyse commerciale.",
+    )
+
+    assert "commercial_claim_unbound_to_icp" in validate_payload(payload, source).errors
+
+
+def test_additional_commercial_claims_cannot_introduce_an_unmatched_need(
+    source, full_payload
+):
+    extra = PresentationClaim(
+        claim_id="INFERENCE_EXTRA",
+        kind=ClaimKind.INFERENCE,
+        text="La location d'équipement constitue une autre opportunité.",
+        evidence_refs=(AWARDEE_FIELD_REF,),
+        confidence="low",
+    )
+    payload = CardPresentationPayload.model_validate(
+        full_payload.model_copy(update={"claims": (*full_payload.claims, extra)})
+    )
+
+    assert "commercial_claim_unbound_to_icp" in validate_payload(payload, source).errors
+
+
+def test_matched_need_must_still_be_backed_by_the_captured_customer_icp(
+    source, full_payload
+):
+    staffing_icp = source.target_icp_customer_input.model_copy(
+        update={"offers": ("staffing_and_labour",)}
+    )
+    forged_source = PresentationInput.model_validate(
+        source.model_copy(update={"target_icp_customer_input": staffing_icp})
+    )
+
+    assert "icp_need_unbound" in validate_payload(full_payload, forged_source).errors
+
+
+@pytest.mark.parametrize("surface", ("claim", "role", "unknown"))
+def test_claim_role_and_unknown_evidence_stay_inside_the_closed_catalog(
+    source, full_payload, surface
+):
+    foreign = "source-field:v1:contract_award:sha256-" + "f" * 64 + ":amount"
+    data = full_payload.model_dump(mode="python")
+    if surface == "claim":
+        data["claims"][0]["evidence_refs"] = (foreign,)
+    elif surface == "role":
+        data["target_roles"][0]["evidence_refs"] = (foreign,)
+    else:
+        data["unknowns"] = (
+            PresentationUnknown(text="Information non publiée.", evidence_refs=(foreign,)),
+        )
+    payload = CardPresentationPayload.model_validate(data)
+
+    assert "evidence_ref_unknown" in validate_payload(payload, source).errors
+
+
+def test_forged_nested_payload_fails_closed_without_raising(source, full_payload):
+    forged_claim = full_payload.claims[0].model_copy(update={"evidence_refs": ()})
+    forged_payload = full_payload.model_copy(
+        update={"claims": (forged_claim, *full_payload.claims[1:])}
+    )
+
+    result = validate_payload(forged_payload, source)
+
+    assert not result.valid
+    assert "payload_contract_invalid" in result.errors
+
+
+def test_forged_nested_source_fails_closed_without_raising(source, full_payload):
+    forged_facts = source.facts.model_copy(update={"amount": None})
+    forged_source = source.model_copy(update={"facts": forged_facts})
+
+    result = validate_payload(full_payload, forged_source)
+
+    assert not result.valid
+    assert "source_contract_invalid" in result.errors
+
+
+def test_validation_never_rewrites_payload_or_source(source, full_payload):
+    payload_before = full_payload.model_dump(mode="python")
+    source_before = source.model_dump(mode="python")
+
+    first = validate_payload(full_payload, source)
+    second = validate_payload(full_payload, source)
+
+    assert first == second
+    assert first.errors == tuple(sorted(set(first.errors)))
+    assert full_payload.model_dump(mode="python") == payload_before
+    assert source.model_dump(mode="python") == source_before
+
+
+def test_source_proven_legal_actor_names_are_masked_from_copy_heuristics(source):
+    legal_name_source = _source_with_actors(
+        source,
+        buyers=source.facts.buyers,
+        awardees=(SourceActor(actor_ref="9" * 64, display_name="Dr Urgence Garantie SA"),),
+    )
+
+    assert validate_payload(_full_payload(legal_name_source), legal_name_source).valid
+
+
+def test_date_semantics_never_bleed_between_distinct_public_fields(source, full_payload):
+    headline = _replace_public_text(
+        full_payload,
+        "headline",
+        "Attribution publiée pour Egli Gartenbau AG Sursee",
+    )
+    payload = _replace_public_text(
+        headline,
+        "award_summary",
+        "Dossier examiné le 1 janvier 2025.",
+    )
+
+    errors = validate_payload(payload, source).errors
+
+    assert "date_semantics_unbound" in errors
+    assert "award_date_mismatch" not in errors
+
+
+def test_normalized_raw_administrative_title_is_never_republished(
+    source, full_payload
+):
+    payload = _replace_public_text(
+        full_payload,
+        "headline",
+        "Fourniture lot 7 accord cadre administratif",
+    )
+
+    assert "administrative_title_reused" in validate_payload(payload, source).errors
+
+
+def test_administrative_title_check_does_not_match_a_numeric_fragment(
+    source, full_payload
+):
+    facts = source.facts.model_copy(update={"award_title": "LOT 7"})
+    numeric_source = PresentationInput.model_validate(
+        source.model_copy(update={"facts": facts})
+    )
+    payload = _replace_public_text(
+        full_payload,
+        "award_summary",
+        "Montant documenté : 250 000 CHF pour le projet 1200.",
+    )
+
+    assert validate_payload(payload, numeric_source).valid
