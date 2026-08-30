@@ -14,13 +14,15 @@ Ce design traduit :
 
 Le SHA de départ audité était
 `a1ffc5021f1d981059f4e9017d295683a389605b`. Avant le premier changement
-produit, `main` a avancé à
-`9b73cc370ef6657e0a53a9fb53fde1d226500fc9` avec #115. Ce delta isole la
-console fondateur, ajoute son build à la CI et ne change ni les contrats
-Signaux, ni les entreprises, ni la persistance métier. La branche de fondation
-a donc été recréée proprement depuis `9b73cc3`, sans rebase ni force-push. La
-migration courante reste `0027_signal_notes`. Chaque création de branche et
-chaque fusion reverra la tête distante avant d'agir.
+produit, `main` a avancé à `9b73cc370ef6657e0a53a9fb53fde1d226500fc9`
+avec #115, puis à `c568cede29cfcca2b729ce487c0d68f166197c6b` avec
+#116. Ces deltas isolent puis connectent la console fondateur, ajoutent son
+build à la CI et ne changent ni les contrats Signaux, ni les entreprises, ni
+la persistance métier. Le run `33319551071` a réellement exécuté ses jobs
+backend et frontend avec succès. La branche de fondation a donc été recréée
+proprement depuis `c568ced`, sans rebase ni force-push. La migration courante
+reste `0027_signal_notes`. Chaque création de branche et chaque fusion reverra
+la tête distante avant d'agir.
 
 Les drafts ne sont pas des dépendances Git. Aucune ne sera fusionnée, rebasée
 ou réécrite. Leurs éléments utiles seront réimplémentés dans de nouvelles

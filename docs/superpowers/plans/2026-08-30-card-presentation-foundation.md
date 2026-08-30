@@ -14,17 +14,19 @@
 
 - The initial audited `origin/main` was
   `a1ffc5021f1d981059f4e9017d295683a389605b`. Immediately before product code,
-  it was revalidated at `9b73cc370ef6657e0a53a9fb53fde1d226500fc9`.
-  The intervening #115 delta adds an isolated Founder Console and its CI build;
-  it does not modify Signals/company persistence. The clean implementation
-  branch starts at `9b73cc3`, whose migration head remains
-  `0027_signal_notes`.
+  it was revalidated first at `9b73cc370ef6657e0a53a9fb53fde1d226500fc9`
+  and again at `c568cede29cfcca2b729ce487c0d68f166197c6b`. The intervening
+  #115/#116 delta adds and connects an isolated Founder Console and its CI
+  build; it does not modify Signals/company persistence. CI run `33319551071`
+  executed non-empty backend and frontend jobs successfully, including the
+  customer and Founder Console builds. The clean implementation branch starts
+  at `c568ced`, whose migration head remains `0027_signal_notes`.
 - Immediately before implementation, fetch `origin/main`. If it advanced,
   inspect the complete delta and create a new clean foundation branch from the
   new SHA; port the reviewed documentation and implementation commits normally.
   Do not rebase or force-push a published branch.
 - The implementation branch is
-  `feat/119-card-presentation-foundation-v3`. It replaces draft #123 without
+  `feat/119-card-presentation-foundation-v4`. It replaces draft #123 without
   cherry-picking its commits.
 - `CONTRIBUTING.md` prohibits history rewriting and force-push. Every push in
   this plan is a normal fast-forward push.
@@ -1115,11 +1117,11 @@ generation wiring.
 - [ ] **Step 4: Push without force and create the replacement PR**
 
 ```bash
-git push -u origin feat/119-card-presentation-foundation-v3
+git push -u origin feat/119-card-presentation-foundation-v4
 gh pr create \
   --repo bruppacherrodrigue-art/Kivou \
   --base main \
-  --head feat/119-card-presentation-foundation-v3 \
+  --head feat/119-card-presentation-foundation-v4 \
   --title "feat(signals): found Card Intelligence publication" \
   --body-file /tmp/kivou-pr1-body.md
 ```
