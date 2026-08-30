@@ -212,7 +212,8 @@ def _evidence_refs(
     field_refs = (
         _source_field_ref(table="contract_award", row_key=award_key, column="awardee_parties"),
         _source_field_ref(table="source_event", row_key=event_key, column="procedure_buyers"),
-        _source_field_ref(table="contract_award", row_key=award_key, column="amount_currency"),
+        _source_field_ref(table="contract_award", row_key=award_key, column="amount"),
+        _source_field_ref(table="contract_award", row_key=award_key, column="currency"),
         _source_field_ref(table="contract_award", row_key=award_key, column="place_of_performance"),
         _source_field_ref(table="contract_award", row_key=award_key, column="award_date"),
         _source_field_ref(

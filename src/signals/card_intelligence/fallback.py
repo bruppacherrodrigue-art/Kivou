@@ -67,6 +67,36 @@ def bounded(text: str, limit: int, *, fallback: str) -> str:
     return candidate if len(candidate) <= limit else replacement
 
 
+def _direct_evidence(
+    source: PresentationInput,
+    *,
+    table: str,
+    column: str,
+) -> str:
+    direct = tuple(
+        ref
+        for ref in source.facts.evidence_refs
+        if ref.startswith(f"source-field:v1:{table}:") and ref.endswith(f":{column}")
+    )
+    if len(direct) != 1:
+        raise ValueError(
+            f"factual fallback requires exactly one source-field proof for {table}.{column}"
+        )
+    return direct[0]
+
+
+def _persisted_evidence(
+    source: PresentationInput,
+    *,
+    anchors: tuple[str, ...],
+) -> tuple[str, ...]:
+    return tuple(
+        ref
+        for ref in source.facts.evidence_refs
+        if ref.startswith("evidence:v1:") and any(ref.endswith(f":{anchor}") for anchor in anchors)
+    )
+
+
 def _semantic_evidence(
     source: PresentationInput,
     *,
@@ -74,21 +104,11 @@ def _semantic_evidence(
     column: str,
     anchors: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
-    """Select only pointers that establish this exact persisted source fact."""
+    """Reserve the exact field pointer before optional fact-bound evidence."""
 
-    direct = tuple(
-        ref
-        for ref in source.facts.evidence_refs
-        if ref.startswith(f"source-field:v1:{table}:") and ref.endswith(f":{column}")
-    )
-    if not direct:
-        raise ValueError(f"factual fallback lacks source-field proof for {table}.{column}")
-    persisted = tuple(
-        ref
-        for ref in source.facts.evidence_refs
-        if ref.startswith("evidence:v1:") and any(ref.endswith(f":{anchor}") for anchor in anchors)
-    )
-    return tuple(dict.fromkeys((*direct, *persisted)))[:16]
+    direct = _direct_evidence(source, table=table, column=column)
+    persisted = _persisted_evidence(source, anchors=anchors)
+    return tuple(dict.fromkeys((direct, *persisted)))[:16]
 
 
 def _award_evidence(
@@ -119,6 +139,15 @@ def _event_evidence(
     )
 
 
+def _amount_evidence(source: PresentationInput) -> tuple[str, ...]:
+    """Reserve both real columns of the atomic amount/currency pair."""
+
+    amount = _direct_evidence(source, table="contract_award", column="amount")
+    currency = _direct_evidence(source, table="contract_award", column="currency")
+    persisted = _persisted_evidence(source, anchors=("amount",))
+    return tuple(dict.fromkeys((amount, currency, *persisted)))[:16]
+
+
 def _date(value: dt.date, *, language: str) -> str:
     if language == "fr":
         return f"{value.day} {_FR_MONTHS[value.month - 1]} {value.year}"
@@ -141,7 +170,7 @@ def _missing_fact_labels(source: PresentationInput) -> tuple[PresentationUnknown
             (
                 facts.amount,
                 "Montant non publié.",
-                _award_evidence(source, "amount_currency", anchors=("amount",)),
+                _amount_evidence(source),
             ),
             (
                 facts.location,
@@ -174,7 +203,7 @@ def _missing_fact_labels(source: PresentationInput) -> tuple[PresentationUnknown
             (
                 facts.amount,
                 "The amount is not published.",
-                _award_evidence(source, "amount_currency", anchors=("amount",)),
+                _amount_evidence(source),
             ),
             (
                 facts.location,
@@ -281,7 +310,26 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
         "procedure_buyers",
         anchors=("procedure_buyers",),
     )
-    actor_evidence = tuple(dict.fromkeys((*awardee_evidence, *buyer_evidence)))[:16]
+    awardee_direct = _direct_evidence(
+        source,
+        table="contract_award",
+        column="awardee_parties",
+    )
+    buyer_direct = _direct_evidence(
+        source,
+        table="source_event",
+        column="procedure_buyers",
+    )
+    actor_evidence = tuple(
+        dict.fromkeys(
+            (
+                awardee_direct,
+                buyer_direct,
+                *awardee_evidence,
+                *buyer_evidence,
+            )
+        )
+    )[:16]
 
     if source.language == "fr":
         headline = bounded(
@@ -352,11 +400,7 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
                 claim_id="FACT_AMOUNT",
                 kind=ClaimKind.FACT,
                 text=amount_text,
-                evidence_refs=_award_evidence(
-                    source,
-                    "amount_currency",
-                    anchors=("amount",),
-                ),
+                evidence_refs=_amount_evidence(source),
             )
         )
     if facts.location is not None:

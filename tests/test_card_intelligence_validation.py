@@ -40,7 +40,8 @@ from signals.persistence.schema import (
 NOW = dt.datetime(2026, 8, 30, 9, 0, tzinfo=dt.UTC)
 AWARDEE_FIELD_REF = "source-field:v1:contract_award:award-1:awardee_parties"
 BUYER_FIELD_REF = "source-field:v1:source_event:event-1:procedure_buyers"
-AMOUNT_FIELD_REF = "source-field:v1:contract_award:award-1:amount_currency"
+AMOUNT_FIELD_REF = "source-field:v1:contract_award:award-1:amount"
+CURRENCY_FIELD_REF = "source-field:v1:contract_award:award-1:currency"
 LOCATION_FIELD_REF = "source-field:v1:contract_award:award-1:place_of_performance"
 AWARD_DATE_FIELD_REF = "source-field:v1:contract_award:award-1:award_date"
 NOTIFICATION_DATE_FIELD_REF = "source-field:v1:contract_award:award-1:contract_notification_date"
@@ -51,6 +52,7 @@ DIRECT_FIELD_REFS = (
     AWARDEE_FIELD_REF,
     BUYER_FIELD_REF,
     AMOUNT_FIELD_REF,
+    CURRENCY_FIELD_REF,
     LOCATION_FIELD_REF,
     AWARD_DATE_FIELD_REF,
     NOTIFICATION_DATE_FIELD_REF,
@@ -185,8 +187,26 @@ def test_fallback_deduplicates_and_bounds_evidence_to_sixteen(source):
     assert claims["FACT_HEADLINE"].evidence_refs[0] == AWARDEE_FIELD_REF
     assert len(claims["FACT_HEADLINE"].evidence_refs) == 16
     assert len(set(claims["FACT_HEADLINE"].evidence_refs)) == 16
+    assert claims["FACT_AWARD_CONTEXT"].evidence_refs[:2] == (
+        AWARDEE_FIELD_REF,
+        BUYER_FIELD_REF,
+    )
+    assert len(claims["FACT_AWARD_CONTEXT"].evidence_refs) == 16
+    assert claims["FACT_AMOUNT"].evidence_refs[:2] == (
+        AMOUNT_FIELD_REF,
+        CURRENCY_FIELD_REF,
+    )
     assert claims["FACT_LOCATION"].evidence_refs == (LOCATION_FIELD_REF,)
     assert claims["FACT_PUBLICATION_DATE"].evidence_refs == (PUBLICATION_DATE_FIELD_REF,)
+
+    absent_facts = facts.model_copy(update={"buyer_name": None})
+    absent_payload = factual_fallback(source.model_copy(update={"facts": absent_facts}))
+    absent_claims = {claim.claim_id: claim for claim in absent_payload.claims}
+    assert BUYER_FIELD_REF in absent_claims["FACT_AWARD_CONTEXT"].evidence_refs
+    buyer_unknown = next(
+        unknown for unknown in absent_payload.unknowns if "Acheteur" in unknown.text
+    )
+    assert buyer_unknown.evidence_refs == (BUYER_FIELD_REF,)
 
 
 def test_fallback_unknowns_are_bounded_proven_and_only_describe_absent_facts(source):
@@ -215,6 +235,10 @@ def test_fallback_unknowns_are_bounded_proven_and_only_describe_absent_facts(sou
 
     by_text = {unknown.text: unknown for unknown in unknowns}
     assert by_text["Acheteur non publié."].evidence_refs == (BUYER_FIELD_REF,)
+    assert by_text["Montant non publié."].evidence_refs == (
+        AMOUNT_FIELD_REF,
+        CURRENCY_FIELD_REF,
+    )
     assert by_text["Date d'attribution non publiée."].evidence_refs == (AWARD_DATE_FIELD_REF,)
     assert by_text["Date de notification du contrat non publiée."].evidence_refs == (
         NOTIFICATION_DATE_FIELD_REF,
@@ -230,6 +254,15 @@ def test_fallback_fails_closed_when_a_present_fact_lacks_its_field_proof(source)
         }
     )
     with pytest.raises(ValueError, match="place_of_performance"):
+        factual_fallback(source.model_copy(update={"facts": facts}))
+
+
+def test_fallback_rejects_multiple_direct_refs_for_one_source_field(source):
+    duplicate = "source-field:v1:contract_award:another-award:awardee_parties"
+    facts = source.facts.model_copy(
+        update={"evidence_refs": (*source.facts.evidence_refs, duplicate)}
+    )
+    with pytest.raises(ValueError, match="exactly one source-field proof"):
         factual_fallback(source.model_copy(update={"facts": facts}))
 
 
@@ -342,9 +375,11 @@ def test_input_is_built_from_the_current_tenant_owned_rows(engine, persisted_cas
     assert source.facts.publication_date == dt.date(2026, 8, 18)
     assert source.facts.evidence_refs
     assert len(source.facts.evidence_refs) <= 32
-    assert all(ref.startswith("source-field:v1:") for ref in source.facts.evidence_refs[:7])
+    assert all(ref.startswith("source-field:v1:") for ref in source.facts.evidence_refs[:8])
     assert source.facts.evidence_refs[0].endswith(":awardee_parties")
     assert source.facts.evidence_refs[1].endswith(":procedure_buyers")
+    assert source.facts.evidence_refs[2].endswith(":amount")
+    assert source.facts.evidence_refs[3].endswith(":currency")
     select_sql = next(sql for sql, _ in statements if "FROM target_icp" in sql)
     assert "target_icp.account_id = ?" in select_sql
     assert "materialized_signal.invalidated_at IS NULL" in select_sql
