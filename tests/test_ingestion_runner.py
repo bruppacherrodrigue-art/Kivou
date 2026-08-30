@@ -12,6 +12,8 @@ from feed_helpers import LINKED_BOAMP, LINKED_DECP
 from signals.connectors.decp import DecpBatch, DecpClient, DecpWindowLimitError
 from signals.connectors.ted import NoticeRef, TedClient
 from signals.connectors.ted.errors import TedHttpError
+from signals.ingestion import runner as runner_module
+from signals.ingestion.cli import summarize
 from signals.ingestion.pipeline import IngestionPipeline, PipelineFailure, PipelineResult
 from signals.ingestion.runner import IngestionRunner, RunOptions
 from signals.ingestion.sources import (
@@ -590,6 +592,127 @@ def test_partial_acquisition_and_pipeline_progress_are_kept_in_the_run_audit(tmp
 
     assert pipeline_result.outcomes[0].counters.records_persisted == 2
     assert pipeline_result.outcomes[0].counters.signals_materialized == 1
+
+
+def test_generic_source_failure_exposes_root_type_and_keeps_work_pending(tmp_path):
+    marker = "private-boamp-marker"
+    partial = AcquisitionResult(
+        source="boamp",
+        publications=(),
+        fetched=3,
+        accepted=1,
+        rejected=0,
+        complete=False,
+        cursor_after={"window_end": NOW.date().isoformat()},
+    )
+    source = SourceStub(
+        "boamp",
+        error=AcquisitionFailure(TypeError(marker), partial=partial),
+    )
+
+    engine = _engine(tmp_path)
+    result = IngestionRunner(
+        engine,
+        sources={"boamp": source},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("boamp",)))
+
+    outcome = result.outcomes[0]
+    assert outcome.error_category == "unexpected"
+    assert outcome.error_type == "TypeError"
+    assert outcome.work_pending is True
+    assert "error=unexpected error_type=TypeError pending=1" in summarize(outcome)
+    assert marker not in summarize(outcome)
+    with engine.connect() as connection:
+        run = connection.execute(sa.select(ingestion_run)).one()
+    assert run.error_message == marker
+
+
+def test_ted_failure_exposes_root_error_type(tmp_path):
+    partial = AcquisitionResult(
+        source="ted",
+        publications=(),
+        fetched=2,
+        accepted=0,
+        rejected=0,
+        complete=False,
+        cursor_after=None,
+    )
+
+    class FailingTedSource:
+        source = "ted"
+        page_size = 25
+
+        def acquire_unit(self, cursor, *, retrieved_at):
+            raise AcquisitionFailure(TypeError("private-ted-marker"), partial=partial)
+
+    result = IngestionRunner(
+        _engine(tmp_path),
+        sources={"ted": FailingTedSource()},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("ted",)))
+
+    assert result.outcomes[0].error_type == "TypeError"
+
+
+def test_decp_failure_exposes_root_error_type(tmp_path):
+    partial = AcquisitionResult(
+        source="decp",
+        publications=(),
+        fetched=2,
+        accepted=0,
+        rejected=0,
+        complete=False,
+        cursor_after=None,
+    )
+    source = SourceStub(
+        "decp",
+        error=AcquisitionFailure(TypeError("private-decp-marker"), partial=partial),
+    )
+
+    result = IngestionRunner(
+        _engine(tmp_path),
+        sources={"decp": source},
+        pipeline=PipelineStub(),
+        clock=lambda: NOW,
+    ).run(RunOptions(sources=("decp",)))
+
+    assert result.outcomes[0].error_type == "TypeError"
+
+
+def test_error_type_follows_only_explicit_nested_causes():
+    root = TypeError("private-root-marker")
+    middle = RuntimeError("middle")
+    middle.cause = root
+    outer = RuntimeError("outer")
+    outer.cause = middle
+
+    assert runner_module._error_type(outer) == "TypeError"
+
+    python_chained = RuntimeError("python chained")
+    python_chained.__cause__ = root
+    assert runner_module._error_type(python_chained) == "RuntimeError"
+
+
+def test_error_type_is_cycle_safe():
+    outer = ValueError("outer")
+    inner = TypeError("inner")
+    outer.cause = inner
+    inner.cause = outer
+
+    assert runner_module._error_type(outer) == "TypeError"
+
+
+@pytest.mark.parametrize(
+    "unsafe_name",
+    ("not an identifier", "E" * 65),
+)
+def test_error_type_rejects_unsafe_exception_class_names(unsafe_name):
+    unsafe_error = type(unsafe_name, (Exception,), {})()
+
+    assert runner_module._error_type(unsafe_error) == "Exception"
 
 
 class _BoampRecordClient:

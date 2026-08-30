@@ -56,6 +56,7 @@ class SourceOutcome:
     counters: IngestionCounters
     duration_seconds: float
     error_category: str | None = None
+    error_type: str | None = None
     work_pending: bool = False
 
 
@@ -137,6 +138,18 @@ def _category(error: BaseException) -> str:
     if "timeout" in name:
         return "timeout"
     return "network" if status is None and "http" in name else "unexpected"
+
+
+def _error_type(error: BaseException) -> str:
+    root = error
+    seen = {id(root)}
+    while isinstance(cause := getattr(root, "cause", None), BaseException):
+        if id(cause) in seen:
+            break
+        seen.add(id(cause))
+        root = cause
+    name = type(root).__name__
+    return name if len(name) <= 64 and name.isidentifier() else "Exception"
 
 
 class IngestionRunner:
@@ -457,6 +470,7 @@ class IngestionRunner:
                 total,
                 (finished - started).total_seconds(),
                 error_category=category,
+                error_type=_error_type(error),
                 work_pending=True,
             )
 
@@ -679,6 +693,7 @@ class IngestionRunner:
                 total,
                 (finished - started).total_seconds(),
                 error_category=category,
+                error_type=_error_type(error),
                 work_pending=True,
             )
 
@@ -869,6 +884,8 @@ class IngestionRunner:
                         counters,
                         (finished - started).total_seconds(),
                         error_category=category,
+                        error_type=_error_type(error),
+                        work_pending=True,
                     )
                 )
                 if category == IngestionTerminated.category:

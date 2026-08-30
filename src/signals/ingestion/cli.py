@@ -40,12 +40,13 @@ DEFAULT_TED_TIME_BUDGET_SECONDS = 1200
 def summarize(outcome: SourceOutcome) -> str:
     counters = outcome.counters
     error = f" error={outcome.error_category}" if outcome.error_category else ""
+    error_type = f" error_type={outcome.error_type}" if outcome.error_type else ""
     return (
         f"source={outcome.source} fetched={counters.records_fetched} "
         f"persisted={counters.records_persisted} linked={counters.representations_linked} "
         f"materialized={counters.signals_materialized} skipped={counters.records_rejected} "
         f"conflicts={counters.opportunity_conflicts} "
-        f"rate_limited={counters.rate_limited_count} status={outcome.status}{error} "
+        f"rate_limited={counters.rate_limited_count} status={outcome.status}{error}{error_type} "
         f"pending={int(outcome.work_pending)} "
         f"duration={outcome.duration_seconds:.3f}s"
     )
