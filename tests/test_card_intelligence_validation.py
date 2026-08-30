@@ -1346,6 +1346,20 @@ def test_cross_role_homonym_is_ambiguous(source):
     assert "actor_role_ambiguous" in errors
 
 
+def test_canonical_fallback_rejects_a_name_shared_across_actor_roles(source):
+    homonym_source = _source_with_actors(
+        source,
+        buyers=(SourceActor(actor_ref="7" * 64, display_name="Entreprise Homonyme SA"),),
+        awardees=(SourceActor(actor_ref="8" * 64, display_name="Entreprise Homonyme SA"),),
+    )
+    payload = factual_fallback(homonym_source)
+
+    result = validate_payload(payload, homonym_source)
+
+    assert not result.valid
+    assert result.errors == ("actor_role_ambiguous",)
+
+
 def test_distinct_homonymous_identities_in_one_role_remain_representable(source):
     same_role_source = _source_with_actors(
         source,

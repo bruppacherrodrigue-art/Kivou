@@ -726,6 +726,12 @@ def _validate_actor_roles(texts: tuple[str, ...], source: PresentationInput) -> 
     return errors
 
 
+def _structural_actor_role_errors(source: PresentationInput) -> set[str]:
+    buyer_names = {_normalize(actor.display_name) for actor in source.facts.buyers}
+    awardee_names = {_normalize(actor.display_name) for actor in source.facts.awardees}
+    return {"actor_role_ambiguous"} if buyer_names & awardee_names else set()
+
+
 def _two_or_four_digit_year(raw: str) -> int:
     year = int(raw)
     if len(raw) == 4:
@@ -1085,11 +1091,12 @@ def validate_payload(
         return ValidationResult(tuple(sorted(errors)))
 
     canonical_fallback = factual_fallback(checked_source)
+    errors.update(_structural_actor_role_errors(checked_source))
     if (
         checked_payload.variant is PresentationVariant.FACTUAL_FALLBACK
         and checked_payload == canonical_fallback
     ):
-        return ValidationResult(())
+        return ValidationResult(tuple(sorted(errors)))
     if checked_payload.variant is PresentationVariant.FULL:
         errors.add("full_variant_not_authorized")
     else:
