@@ -267,6 +267,7 @@ sudo systemd-run --unit=kivou-api-green.service --collect \
   --property=EnvironmentFile=/etc/kivou/production.env \
   --property=UMask=0077 --property=NoNewPrivileges=yes \
   --property=TimeoutStartSec=2min \
+  --property=RuntimeMaxSec=5min --property=TimeoutStopSec=30s \
   --property=ProtectSystem=strict --property=ProtectHome=yes \
   --property=InaccessiblePaths=/srv/kivou/.ssh \
   --property=ReadOnlyPaths="$KIVOU_BACKEND_RELEASE_DIR" \
