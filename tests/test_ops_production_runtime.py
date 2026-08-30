@@ -15,6 +15,10 @@ PRODUCTION_SECURITY_HEADERS = NGINX / "kivou-production-security-headers.conf"
 PRODUCTION_SENSITIVE_SECURITY_HEADERS = (
     NGINX / "kivou-production-sensitive-link-security-headers.conf"
 )
+SAFE_PRODUCTION_PATH_SET = "set $kivou_safe_request_path $kivou_safe_path_map;"
+SAFE_PRODUCTION_ACCESS_LOG = (
+    "access_log /var/log/nginx/kivou_access.log kivou_safe_json;"
+)
 
 STAGING_SOURCES = {
     "simap": "*-*-* 00/2:05:00",
@@ -70,6 +74,36 @@ def nginx_server_blocks(body: str) -> tuple[tuple[str, ...], ...]:
         assert depth == 0, "unterminated nginx server block"
         blocks.append(tuple(block))
     return tuple(blocks)
+
+
+def assert_production_www_contract(body: str) -> None:
+    assert nginx_active_directives(body) == (
+        "server {",
+        "listen 80;",
+        "listen [::]:80;",
+        "server_name PRODUCTION_WWW_HOST;",
+        SAFE_PRODUCTION_PATH_SET,
+        SAFE_PRODUCTION_ACCESS_LOG,
+        "location /.well-known/acme-challenge/ {",
+        "root /var/www/certbot;",
+        "}",
+        "location / {",
+        "return 301 https://PRODUCTION_HOST$request_uri;",
+        "}",
+        "}",
+        "server {",
+        "listen 443 ssl http2;",
+        "listen [::]:443 ssl http2;",
+        "server_name PRODUCTION_WWW_HOST;",
+        SAFE_PRODUCTION_PATH_SET,
+        SAFE_PRODUCTION_ACCESS_LOG,
+        "ssl_certificate /etc/letsencrypt/live/PRODUCTION_HOST/fullchain.pem;",
+        "ssl_certificate_key /etc/letsencrypt/live/PRODUCTION_HOST/privkey.pem;",
+        "ssl_trusted_certificate /etc/letsencrypt/live/PRODUCTION_HOST/chain.pem;",
+        "include /etc/nginx/kivou-production-security-headers.conf;",
+        "return 301 https://PRODUCTION_HOST$request_uri;",
+        "}",
+    )
 
 
 def parse_active_directives(body: str) -> ParsedUnit:
@@ -581,6 +615,24 @@ def test_production_headers_remove_only_staging_hsts(
 
 
 @pytest.mark.parametrize(
+    "path",
+    (PRODUCTION_SECURITY_HEADERS, PRODUCTION_SENSITIVE_SECURITY_HEADERS),
+)
+def test_production_header_install_comments_use_production_paths(
+    path: pathlib.Path,
+) -> None:
+    install_commands = tuple(
+        line.strip()
+        for line in read(path).splitlines()
+        if line.strip().startswith("#   sudo cp ")
+    )
+
+    assert install_commands == (
+        f"#   sudo cp ops/nginx/{path.name} /etc/nginx/{path.name}",
+    )
+
+
+@pytest.mark.parametrize(
     ("path", "referrer_policy"),
     (
         (PRODUCTION_SECURITY_HEADERS, "strict-origin-when-cross-origin"),
@@ -642,35 +694,43 @@ def test_production_sites_use_only_canonical_host_placeholders() -> None:
 
 def test_production_www_redirects_http_and_https_to_the_canonical_host() -> None:
     body = read(PRODUCTION_WWW_NGINX)
-    directives = nginx_active_directives(body)
-    servers = nginx_server_blocks(body)
 
-    assert len(servers) == 2
-    assert directives.count("server_name PRODUCTION_WWW_HOST;") == 2
-    assert directives.count("return 301 https://PRODUCTION_HOST$request_uri;") == 2
+    assert_production_www_contract(body)
     assert "proxy_pass" not in body
 
-    http, https = servers
-    for expected in (
-        "listen 80;",
-        "listen [::]:80;",
-        "server_name PRODUCTION_WWW_HOST;",
-        "location /.well-known/acme-challenge/ {",
-        "root /var/www/certbot;",
-        "return 301 https://PRODUCTION_HOST$request_uri;",
-    ):
-        assert http.count(expected) == 1
-    for expected in (
-        "listen 443 ssl http2;",
-        "listen [::]:443 ssl http2;",
-        "server_name PRODUCTION_WWW_HOST;",
-        "ssl_certificate /etc/letsencrypt/live/PRODUCTION_HOST/fullchain.pem;",
-        "ssl_certificate_key /etc/letsencrypt/live/PRODUCTION_HOST/privkey.pem;",
-        "ssl_trusted_certificate /etc/letsencrypt/live/PRODUCTION_HOST/chain.pem;",
-        "include /etc/nginx/kivou-production-security-headers.conf;",
-        "return 301 https://PRODUCTION_HOST$request_uri;",
-    ):
-        assert https.count(expected) == 1
+
+
+def test_production_www_contract_rejects_a_redirect_nested_under_acme() -> None:
+    body = read(PRODUCTION_WWW_NGINX)
+    separate_locations = """    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+    }
+
+    location / {
+        return 301 https://PRODUCTION_HOST$request_uri;
+    }"""
+    redirect_nested_under_acme = """    location /.well-known/acme-challenge/ {
+        root /var/www/certbot;
+        return 301 https://PRODUCTION_HOST$request_uri;
+    }"""
+    mutated = body.replace(
+        separate_locations,
+        redirect_nested_under_acme,
+        1,
+    )
+
+    assert mutated != body
+    with pytest.raises(AssertionError):
+        assert_production_www_contract(mutated)
+
+
+def test_production_www_certificate_sans_must_be_verified_before_activation() -> None:
+    body = read(PRODUCTION_WWW_NGINX)
+
+    assert "avant toute activation" in body.lower()
+    assert "couvre exactement PRODUCTION_HOST et PRODUCTION_WWW_HOST" in body
+    assert "openssl x509" in body
+    assert "subjectAltName" in body
 
 
 def test_production_default_site_rejects_unknown_http_and_tls_hosts() -> None:
@@ -679,12 +739,16 @@ def test_production_default_site_rejects_unknown_http_and_tls_hosts() -> None:
         "listen 80 default_server;",
         "listen [::]:80 default_server;",
         "server_name _;",
+        SAFE_PRODUCTION_PATH_SET,
+        SAFE_PRODUCTION_ACCESS_LOG,
         "return 444;",
         "}",
         "server {",
         "listen 443 ssl default_server;",
         "listen [::]:443 ssl default_server;",
         "server_name _;",
+        SAFE_PRODUCTION_PATH_SET,
+        SAFE_PRODUCTION_ACCESS_LOG,
         "ssl_reject_handshake on;",
         "}",
     )
