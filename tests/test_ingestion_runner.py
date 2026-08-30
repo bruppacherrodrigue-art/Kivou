@@ -11,7 +11,7 @@ from feed_helpers import LINKED_BOAMP, LINKED_DECP
 
 from signals.connectors.decp import DecpBatch, DecpClient, DecpWindowLimitError
 from signals.connectors.ted import NoticeRef, TedClient
-from signals.connectors.ted.errors import TedHttpError
+from signals.connectors.ted.errors import TedHttpError, TedMappingError, TedParseError
 from signals.ingestion import runner as runner_module
 from signals.ingestion.cli import summarize
 from signals.ingestion.pipeline import IngestionPipeline, PipelineFailure, PipelineResult
@@ -777,6 +777,52 @@ def test_error_type_reads_native_state_without_executing_dict_or_reduce_override
 )
 def test_error_type_uses_closed_builtin_family_labels(error, expected):
     assert runner_module._error_type(error) == expected
+
+
+@pytest.mark.parametrize(
+    ("error", "expected"),
+    (
+        (
+            TedHttpError(
+                "private-ted-http-marker",
+                status_code=503,
+                url="https://private-ted-http-marker.invalid",
+            ),
+            "TedHttpError",
+        ),
+        (TedParseError("private-ted-parse-marker"), "TedParseError"),
+        (TedMappingError("private-ted-mapping-marker"), "TedMappingError"),
+    ),
+)
+def test_error_type_uses_closed_ted_connector_labels_without_payload(error, expected):
+    outer = RuntimeError("private-wrapper-marker")
+    outer.cause = error
+
+    error_type = runner_module._error_type(outer)
+    outcome = runner_module.SourceOutcome(
+        "ted",
+        "failed",
+        runner_module.IngestionCounters(),
+        0,
+        "unexpected",
+        True,
+        error_type,
+    )
+    summary = summarize(outcome)
+
+    assert error_type == expected
+    assert "private-" not in summary
+    assert str(error) not in summary
+
+
+def test_error_type_rejects_unlisted_ted_exception_subclasses():
+    class ThirdPartyTedParseError(TedParseError):
+        pass
+
+    assert (
+        runner_module._error_type(ThirdPartyTedParseError("private-subclass-marker"))
+        == "Exception"
+    )
 
 
 def test_custom_type_error_subclass_uses_the_builtin_family_label():

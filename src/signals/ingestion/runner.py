@@ -9,6 +9,7 @@ from typing import Any
 import sqlalchemy as sa
 
 from signals.connectors.decp import PAGE_SIZE as DECP_PAGE_SIZE
+from signals.connectors.ted.errors import TedHttpError, TedMappingError, TedParseError
 from signals.ingestion.convergence import (
     advance_decp_batch,
     decp_checkpoint_high_water,
@@ -149,6 +150,12 @@ _ERROR_TYPE_FAMILIES: tuple[tuple[type[BaseException], str], ...] = (
     (RuntimeError, "RuntimeError"),
 )
 
+_TED_ERROR_TYPES: tuple[tuple[type[BaseException], str], ...] = (
+    (TedHttpError, "TedHttpError"),
+    (TedParseError, "TedParseError"),
+    (TedMappingError, "TedMappingError"),
+)
+
 
 def _error_type(error: BaseException) -> str:
     root = error
@@ -170,6 +177,9 @@ def _error_type(error: BaseException) -> str:
             break
         seen.add(id(cause))
         root = cause
+    for error_class, label in _TED_ERROR_TYPES:
+        if type(root) is error_class:
+            return label
     for family, label in _ERROR_TYPE_FAMILIES:
         if isinstance(root, family):
             return label
