@@ -92,6 +92,30 @@ def assert_unit_contract(
         )
 
 
+def staging_services_using_the_shared_runtime() -> tuple[pathlib.Path, ...]:
+    paths: list[pathlib.Path] = []
+    for path in sorted(SYSTEMD.glob("*.service")):
+        runtime_directories = parse_active_directives(read(path)).get("Service", {}).get(
+            "RuntimeDirectory", []
+        )
+        if "kivou" in runtime_directories:
+            paths.append(path)
+    return tuple(paths)
+
+
+@pytest.mark.parametrize(
+    "path",
+    staging_services_using_the_shared_runtime(),
+    ids=lambda path: path.name,
+)
+def test_every_staging_service_using_the_shared_runtime_preserves_it(
+    path: pathlib.Path,
+) -> None:
+    service = parse_active_directives(read(path))["Service"]
+
+    assert service.get("RuntimeDirectoryPreserve") == ["yes"]
+
+
 def test_contract_ignores_commented_directives() -> None:
     body = "[Service]\n# RuntimeDirectoryPreserve=yes\n"
 
