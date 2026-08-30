@@ -22,6 +22,36 @@ def actor_label(value: str, *, limit: int = 88) -> str:
     return f"{prefix or compact[: limit - 1]}…"
 
 
+def actor_binding(source: PresentationInput) -> str:
+    """Render the only actor/role wording accepted for a presentation summary."""
+    facts = source.facts
+    winner = actor_label(facts.winner_name)
+    buyer = actor_label(facts.buyer_name) if facts.buyer_name else None
+    if source.language == "en":
+        return (
+            f"{buyer} is identified as the buyer and {winner} as the awarded company"
+            if buyer
+            else f"{winner} is identified as the awarded company"
+        )
+    return (
+        f"{buyer} est indiqué comme acheteur et {winner} comme entreprise attributaire"
+        if buyer
+        else f"{winner} est indiqué comme entreprise attributaire"
+    )
+
+
+def _claim_evidence(source: PresentationInput) -> tuple[str, ...]:
+    """Keep the canonical source reference, then a bounded evidence sample."""
+    canonical = (
+        f"source:{source.facts.source_system}:{source.facts.source_notice_id}"
+    )
+    refs = list(dict.fromkeys(source.facts.evidence_refs))
+    if canonical in refs:
+        refs.remove(canonical)
+        refs.insert(0, canonical)
+    return tuple(refs[:16])
+
+
 def _amount(value: Decimal, currency: str) -> str:
     rendered = format(value, "f")
     if "." in rendered:
@@ -44,13 +74,11 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
     buyer = actor_label(facts.buyer_name) if facts.buyer_name else None
     if source.language == "en":
         if buyer:
-            sentences = [
-                f"{buyer} is identified as the buyer and {winner} as the awarded company."
-            ]
+            sentences = [f"{actor_binding(source)}."]
         else:
             sentences = [
                 (
-                    f"{winner} is identified as the awarded company. Buyer not published "
+                    f"{actor_binding(source)}. Buyer not published "
                     "in the available data."
                 )
             ]
@@ -78,13 +106,11 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
         headline = f"Documented public award — {actor_label(facts.winner_name, limit=120)}"
     else:
         if buyer:
-            sentences = [
-                f"{buyer} est indiqué comme acheteur et {winner} comme entreprise attributaire."
-            ]
+            sentences = [f"{actor_binding(source)}."]
         else:
             sentences = [
                 (
-                    f"{winner} est indiqué comme entreprise attributaire. Acheteur non publié "
+                    f"{actor_binding(source)}. Acheteur non publié "
                     "dans les données disponibles."
                 )
             ]
@@ -125,7 +151,7 @@ def factual_fallback(source: PresentationInput) -> CardPresentationPayload:
                     if source.language == "en"
                     else f"Entreprise attributaire : {winner}"
                 ),
-                evidence_refs=facts.evidence_refs,
+                evidence_refs=_claim_evidence(source),
             ),
         ),
     )

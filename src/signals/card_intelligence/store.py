@@ -14,8 +14,10 @@ from signals.card_intelligence.contracts import (
     ArtifactKind,
     CardPresentationPayload,
     PresentationInput,
+    PresentationVariant,
     QaStatus,
 )
+from signals.card_intelligence.validation import validate_payload
 from signals.persistence.schema import card_presentation_artifact, materialized_signal
 
 
@@ -36,8 +38,8 @@ def _artifact_id(source: PresentationInput, kind: ArtifactKind, version: int) ->
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
-def _assert_current_owned_signal(connection: Connection, source: PresentationInput) -> None:
-    row = connection.execute(
+def _current_owned_signal_query(source: PresentationInput) -> sa.Select:
+    return (
         sa.select(
             materialized_signal.c.revision,
             materialized_signal.c.target_icp_revision,
@@ -52,10 +54,21 @@ def _assert_current_owned_signal(connection: Connection, source: PresentationInp
         .where(
             target_icp.c.account_id == source.account_id,
             target_icp.c.target_icp_id == source.target_icp_id,
+            target_icp.c.status == "active",
+            target_icp.c.matching_revision == source.target_icp_revision,
             materialized_signal.c.signal_key == source.signal_key,
             materialized_signal.c.invalidated_at.is_(None),
         )
-    ).mappings().one_or_none()
+        # Version allocation and publication are serialized per signal on
+        # PostgreSQL. SQLite ignores FOR UPDATE; the partial unique index stays
+        # the final fail-closed guard there.
+        .with_for_update(of=materialized_signal)
+    )
+
+
+def _assert_current_owned_signal(connection: Connection, source: PresentationInput) -> None:
+    query = _current_owned_signal_query(source)
+    row = connection.execute(query).mappings().one_or_none()
     if row is None or (
         row["revision"] != source.signal_revision
         or row["target_icp_revision"] != source.target_icp_revision
@@ -101,7 +114,24 @@ def append_attempt(
         raise PresentationPublicationConflict(f"{qa_status.value} is not publishable")
     if publish and payload is None:
         raise PresentationPublicationConflict("a published artifact requires content")
+    if publish and payload is not None:
+        expected_variant = {
+            QaStatus.PASS: PresentationVariant.FULL,
+            QaStatus.FALLBACK: PresentationVariant.FACTUAL_FALLBACK,
+        }.get(qa_status)
+        if payload.variant is not expected_variant:
+            raise PresentationPublicationConflict(
+                f"{qa_status.value} cannot publish {payload.variant.value}"
+            )
     _assert_current_owned_signal(connection, source)
+    if publish:
+        assert payload is not None
+        validation = validate_payload(payload, source)
+        if not validation.valid:
+            raise PresentationPublicationConflict(
+                "deterministic publication validation failed: "
+                + ",".join(validation.errors)
+            )
     version = _next_version(connection, source, kind)
     artifact_id = _artifact_id(source, kind, version)
     values = {
@@ -154,18 +184,30 @@ def append_attempt(
     ).mappings().one()
 
 
-def _public_contract(row: Mapping[str, object]) -> dict[str, object]:
+def _public_contract(row: Mapping[str, object]) -> dict[str, object] | None:
     published_at = row["published_at"]
-    payload = row["payload"]
-    assert isinstance(published_at, dt.datetime)
-    assert isinstance(payload, dict)
+    if not isinstance(published_at, dt.datetime):
+        return None
+    try:
+        payload = CardPresentationPayload.model_validate(row["payload"])
+    except (TypeError, ValueError):
+        return None
+    status = row["qa_status"]
+    expected_variant = {
+        QaStatus.PASS.value: PresentationVariant.FULL,
+        QaStatus.FALLBACK.value: PresentationVariant.FACTUAL_FALLBACK,
+    }.get(status)
+    if expected_variant is None or payload.variant is not expected_variant:
+        return None
+    if row["schema_version"] != payload.schema_version:
+        return None
     return {
         "artifact_id": row["artifact_id"],
         "schema_version": row["schema_version"],
         "version": row["version"],
-        "status": row["qa_status"],
+        "status": status,
         "published_at": published_at.isoformat(),
-        "content": payload,
+        "content": payload.model_dump(mode="json"),
     }
 
 
@@ -182,8 +224,32 @@ def published_for_signals(
         return {}
     rows = connection.execute(
         sa.select(card_presentation_artifact)
+        .select_from(
+            card_presentation_artifact.join(
+                materialized_signal,
+                card_presentation_artifact.c.signal_key
+                == materialized_signal.c.signal_key,
+            ).join(
+                target_icp,
+                sa.and_(
+                    card_presentation_artifact.c.target_icp_id
+                    == target_icp.c.target_icp_id,
+                    materialized_signal.c.target_icp_id
+                    == target_icp.c.target_icp_id,
+                ),
+            )
+        )
         .where(
             card_presentation_artifact.c.account_id == account_id,
+            target_icp.c.account_id == account_id,
+            target_icp.c.status == "active",
+            target_icp.c.matching_revision
+            == materialized_signal.c.target_icp_revision,
+            card_presentation_artifact.c.signal_revision
+            == materialized_signal.c.revision,
+            card_presentation_artifact.c.target_icp_revision
+            == materialized_signal.c.target_icp_revision,
+            materialized_signal.c.invalidated_at.is_(None),
             card_presentation_artifact.c.signal_key.in_(sorted(bindings)),
             card_presentation_artifact.c.artifact_kind == kind.value,
             card_presentation_artifact.c.language == language,
@@ -198,7 +264,9 @@ def published_for_signals(
         expected = bindings.get(str(row["signal_key"]))
         if expected != (row["signal_revision"], row["target_icp_revision"]):
             continue
-        published.setdefault(str(row["signal_key"]), _public_contract(row))
+        contract = _public_contract(row)
+        if contract is not None:
+            published.setdefault(str(row["signal_key"]), contract)
     return published
 
 
@@ -210,8 +278,30 @@ def current_publication_row(
 ) -> Mapping[str, object] | None:
     rows = connection.execute(
         sa.select(card_presentation_artifact)
+        .select_from(
+            card_presentation_artifact.join(
+                materialized_signal,
+                card_presentation_artifact.c.signal_key
+                == materialized_signal.c.signal_key,
+            ).join(
+                target_icp,
+                sa.and_(
+                    card_presentation_artifact.c.target_icp_id
+                    == target_icp.c.target_icp_id,
+                    materialized_signal.c.target_icp_id
+                    == target_icp.c.target_icp_id,
+                ),
+            )
+        )
         .where(
             card_presentation_artifact.c.account_id == source.account_id,
+            target_icp.c.account_id == source.account_id,
+            target_icp.c.status == "active",
+            target_icp.c.matching_revision == source.target_icp_revision,
+            materialized_signal.c.revision == source.signal_revision,
+            materialized_signal.c.target_icp_revision
+            == source.target_icp_revision,
+            materialized_signal.c.invalidated_at.is_(None),
             card_presentation_artifact.c.signal_key == source.signal_key,
             card_presentation_artifact.c.target_icp_id == source.target_icp_id,
             card_presentation_artifact.c.artifact_kind == kind.value,

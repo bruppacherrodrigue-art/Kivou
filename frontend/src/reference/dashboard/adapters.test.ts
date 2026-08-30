@@ -130,6 +130,18 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
   })
 
   it.each([
+    ['identifiant d’artefact absent', {
+      ...UNLOCKED_PRESENTATION,
+      artifact_id: '',
+    }],
+    ['version d’artefact invalide', {
+      ...UNLOCKED_PRESENTATION,
+      version: 0,
+    }],
+    ['date de publication absente', {
+      ...UNLOCKED_PRESENTATION,
+      published_at: '',
+    }],
     ['schéma externe inconnu', {
       ...UNLOCKED_PRESENTATION,
       schema_version: 'card-presentation-v2',
@@ -141,6 +153,17 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     ['champ commercial FULL absent', {
       ...UNLOCKED_PRESENTATION,
       content: { ...UNLOCKED_PRESENTATION.content, fit_reason: null },
+    }],
+    ['rôle cible FULL absent', {
+      ...UNLOCKED_PRESENTATION,
+      content: { ...UNLOCKED_PRESENTATION.content, target_roles: [] },
+    }],
+    ['schéma de contenu inconnu', {
+      ...UNLOCKED_PRESENTATION,
+      content: {
+        ...UNLOCKED_PRESENTATION.content,
+        schema_version: 'card-presentation-v2',
+      },
     }],
   ])('échoue fermé pour un artefact invalide : %s', (_label, presentation) => {
     const item = {

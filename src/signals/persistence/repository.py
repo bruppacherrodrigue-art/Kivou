@@ -111,9 +111,6 @@ class StoredSignal:
     #: l'identité logique du signal, qui est `opportunity_key`.
     materialization_award_key: str
     target_icp_id: str
-    # Exact ICP snapshot used by this materialization. Presentation artifacts
-    # bind to it so stale copy cannot survive an ICP revision.
-    target_icp_revision: int
     revision: int
     content_fingerprint: str
     event: StoredEvent
@@ -151,6 +148,10 @@ class StoredSignal:
 
     engine_versions: dict[str, str]
     materialized_at: dt.datetime
+    # Exact ICP snapshot used by this materialization. The default keeps
+    # existing read-model test fixtures source-compatible; hydrated production
+    # rows always provide the persisted revision explicitly.
+    target_icp_revision: int = 1
 
     def current_recency(self, *, as_of: dt.date) -> AwardRecency:
         """Réévalue la fraîcheur à une date donnée, depuis les dates BRUTES stockées.

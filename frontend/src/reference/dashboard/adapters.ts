@@ -17,6 +17,14 @@ import type {
   TargetProfileView,
 } from './models'
 
+const CARD_PRESENTATION_TARGET_ROLES = new Set([
+  'PROCUREMENT_MANAGER',
+  'SITE_PROCUREMENT_MANAGER',
+  'PROJECT_MANAGER',
+  'WORKS_MANAGER',
+  'SUPPLY_MANAGER',
+])
+
 function publishedPresentationContent(
   presentation: CardPresentation | null,
 ): CardPresentationContent | null {
@@ -31,7 +39,11 @@ function publishedPresentationContent(
   const unknowns = content.unknowns
   const claims = content.claims
   const hasCommonShape = (
-    candidate.schema_version === 'card-presentation-v1'
+    hasText(candidate.artifact_id)
+    && candidate.schema_version === 'card-presentation-v1'
+    && Number.isInteger(candidate.version)
+    && Number(candidate.version) > 0
+    && hasText(candidate.published_at)
     && content.schema_version === 'card-presentation-v1'
     && hasText(content.headline)
     && hasText(content.award_summary)
@@ -43,7 +55,15 @@ function publishedPresentationContent(
   if (!hasCommonShape) return null
   const publishedTargetRoles = targetRoles as unknown[]
   const publishedFitNeedCategories = fitNeedCategories as unknown[]
+  const publishedUnknowns = unknowns as unknown[]
   const publishedClaims = claims as unknown[]
+  if (
+    !publishedUnknowns.every(hasText)
+    || publishedClaims.length === 0
+    || !publishedClaims.every(isPublishedClaim)
+  ) {
+    return null
+  }
 
   if (candidate.status === 'PASS' && content.variant === 'FULL') {
     const commercialFields = [
@@ -52,7 +72,14 @@ function publishedPresentationContent(
       content.timing,
       content.recommended_action,
     ]
-    return commercialFields.every(hasText)
+    const hasCommercialShape = (
+      commercialFields.every(hasText)
+      && publishedTargetRoles.length > 0
+      && publishedTargetRoles.every(isPublishedTargetRole)
+      && publishedFitNeedCategories.length > 0
+      && publishedFitNeedCategories.every(hasText)
+    )
+    return hasCommercialShape
       ? content as unknown as CardPresentationContent
       : null
   }
@@ -81,6 +108,29 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function hasText(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0
+}
+
+function isPublishedTargetRole(value: unknown): boolean {
+  return typeof value === 'string' && CARD_PRESENTATION_TARGET_ROLES.has(value)
+}
+
+function isPublishedClaim(value: unknown): boolean {
+  if (!isRecord(value) || !hasText(value.claim_id) || !hasText(value.text)) return false
+  if (!Array.isArray(value.evidence_refs) || !value.evidence_refs.every(hasText)) return false
+
+  const confidenceIsValid = (
+    value.confidence === null
+    || value.confidence === 'high'
+    || value.confidence === 'medium'
+    || value.confidence === 'low'
+  )
+  if (!confidenceIsValid) return false
+
+  if (value.kind === 'FACT') return value.evidence_refs.length > 0
+  if (value.kind === 'INFERENCE') {
+    return value.evidence_refs.length > 0 && value.confidence !== null
+  }
+  return value.kind === 'RECOMMENDATION'
 }
 
 export function toOverviewAwardCard(item: FeedItem): OverviewAwardCardView {

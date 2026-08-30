@@ -326,17 +326,32 @@ export type CardPresentationTargetRole =
   | 'WORKS_MANAGER'
   | 'SUPPLY_MANAGER'
 
-export interface CardPresentationClaim {
+interface CardPresentationClaimBase {
   claim_id: string
-  kind: 'FACT' | 'INFERENCE' | 'RECOMMENDATION'
   text: string
   evidence_refs: string[]
   confidence: 'high' | 'medium' | 'low' | null
 }
 
-export interface FactualCardPresentationClaim extends CardPresentationClaim {
+export interface FactualCardPresentationClaim extends CardPresentationClaimBase {
   kind: 'FACT'
+  evidence_refs: [string, ...string[]]
 }
+
+export interface InferenceCardPresentationClaim extends CardPresentationClaimBase {
+  kind: 'INFERENCE'
+  evidence_refs: [string, ...string[]]
+  confidence: 'high' | 'medium' | 'low'
+}
+
+export interface RecommendationCardPresentationClaim extends CardPresentationClaimBase {
+  kind: 'RECOMMENDATION'
+}
+
+export type CardPresentationClaim =
+  | FactualCardPresentationClaim
+  | InferenceCardPresentationClaim
+  | RecommendationCardPresentationClaim
 
 interface CardPresentationContentBase {
   schema_version: 'card-presentation-v1'
@@ -351,9 +366,9 @@ export interface FullCardPresentationContent extends CardPresentationContentBase
   fit_reason: string
   timing: string
   recommended_action: string
-  target_roles: CardPresentationTargetRole[]
-  fit_need_categories: string[]
-  claims: CardPresentationClaim[]
+  target_roles: [CardPresentationTargetRole, ...CardPresentationTargetRole[]]
+  fit_need_categories: [string, ...string[]]
+  claims: [CardPresentationClaim, ...CardPresentationClaim[]]
 }
 
 export interface FactualFallbackCardPresentationContent extends CardPresentationContentBase {
@@ -364,7 +379,7 @@ export interface FactualFallbackCardPresentationContent extends CardPresentation
   recommended_action: null
   target_roles: []
   fit_need_categories: []
-  claims: FactualCardPresentationClaim[]
+  claims: [FactualCardPresentationClaim, ...FactualCardPresentationClaim[]]
 }
 
 export type CardPresentationContent =

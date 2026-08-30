@@ -4,6 +4,7 @@ import datetime as dt
 
 import pytest
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 from signals.card_intelligence.contracts import (
     ArtifactKind,
@@ -18,6 +19,8 @@ from signals.card_intelligence.contracts import (
 from signals.card_intelligence.fallback import factual_fallback
 from signals.card_intelligence.store import (
     ForeignOrStalePresentationInput,
+    PresentationPublicationConflict,
+    _current_owned_signal_query,
     append_attempt,
     published_for_signals,
 )
@@ -35,7 +38,8 @@ def connection():
         connection.exec_driver_sql("CREATE TABLE account (account_id VARCHAR(64) PRIMARY KEY)")
         connection.exec_driver_sql(
             "CREATE TABLE target_icp ("
-            "target_icp_id VARCHAR(128) PRIMARY KEY, account_id VARCHAR(64) NOT NULL)"
+            "target_icp_id VARCHAR(128) PRIMARY KEY, account_id VARCHAR(64) NOT NULL, "
+            "matching_revision INTEGER NOT NULL, status VARCHAR(16) NOT NULL)"
         )
         connection.exec_driver_sql(
             "CREATE TABLE materialized_signal ("
@@ -47,7 +51,7 @@ def connection():
         connection.execute(sa.text("INSERT INTO account VALUES ('account-1')"))
         connection.execute(sa.text("INSERT INTO account VALUES ('account-2')"))
         connection.execute(
-            sa.text("INSERT INTO target_icp VALUES ('icp-1', 'account-1')")
+            sa.text("INSERT INTO target_icp VALUES ('icp-1', 'account-1', 2, 'active')")
         )
         connection.execute(
             sa.text("INSERT INTO materialized_signal VALUES ('signal-1', 'icp-1', 3, 2, NULL)")
@@ -198,3 +202,180 @@ def test_tenant_and_revision_binding_fail_closed(connection):
         bindings={"signal-1": (3, 2)},
         language="fr",
     ) == {}
+
+
+def test_direct_publish_cannot_bypass_deterministic_validation_or_supersede_current(
+    connection,
+):
+    current = append(
+        connection,
+        payload=factual_fallback(source()),
+        status=QaStatus.FALLBACK,
+        publish=True,
+    )
+    inverted = full_payload().model_copy(
+        update={
+            "award_summary": (
+                "Gagneraud Construction est indiqué comme acheteur et Syndicat des crues "
+                "comme entreprise attributaire."
+            )
+        }
+    )
+
+    with pytest.raises(PresentationPublicationConflict, match="actor_role_mismatch"):
+        append(
+            connection,
+            payload=inverted,
+            status=QaStatus.PASS,
+            when=NOW + dt.timedelta(seconds=1),
+            publish=True,
+        )
+
+    rows = connection.execute(sa.select(card_presentation_artifact)).mappings().all()
+    assert len(rows) == 1
+    assert rows[0]["artifact_id"] == current["artifact_id"]
+    assert rows[0]["superseded_at"] is None
+
+
+def test_status_variant_mismatch_cannot_supersede_current_publication(connection):
+    current = append(
+        connection,
+        payload=full_payload(),
+        status=QaStatus.PASS,
+        publish=True,
+    )
+
+    with pytest.raises(
+        PresentationPublicationConflict,
+        match="PASS cannot publish FACTUAL_FALLBACK",
+    ):
+        append(
+            connection,
+            payload=factual_fallback(source()),
+            status=QaStatus.PASS,
+            when=NOW + dt.timedelta(seconds=1),
+            publish=True,
+        )
+
+    rows = connection.execute(sa.select(card_presentation_artifact)).mappings().all()
+    assert len(rows) == 1
+    assert rows[0]["artifact_id"] == current["artifact_id"]
+    assert rows[0]["superseded_at"] is None
+
+
+def test_invalidated_signal_and_changed_icp_never_publish_or_read_stale_content(connection):
+    append(
+        connection,
+        payload=factual_fallback(source()),
+        status=QaStatus.FALLBACK,
+        publish=True,
+    )
+    connection.execute(
+        sa.text("UPDATE materialized_signal SET invalidated_at = :now WHERE signal_key = 'signal-1'"),
+        {"now": NOW},
+    )
+    assert published_for_signals(
+        connection,
+        account_id="account-1",
+        bindings={"signal-1": (3, 2)},
+        language="fr",
+    ) == {}
+
+    connection.execute(
+        sa.text("UPDATE materialized_signal SET invalidated_at = NULL WHERE signal_key = 'signal-1'")
+    )
+    connection.execute(
+        sa.text("UPDATE target_icp SET matching_revision = 3 WHERE target_icp_id = 'icp-1'")
+    )
+    with pytest.raises(ForeignOrStalePresentationInput):
+        append(
+            connection,
+            payload=factual_fallback(source()),
+            status=QaStatus.FALLBACK,
+            publish=True,
+        )
+    assert published_for_signals(
+        connection,
+        account_id="account-1",
+        bindings={"signal-1": (3, 2)},
+        language="fr",
+    ) == {}
+
+    connection.execute(
+        sa.text(
+            "UPDATE target_icp SET matching_revision = 2, status = 'inactive' "
+            "WHERE target_icp_id = 'icp-1'"
+        )
+    )
+    with pytest.raises(ForeignOrStalePresentationInput):
+        append(
+            connection,
+            payload=factual_fallback(source()),
+            status=QaStatus.FALLBACK,
+            publish=True,
+        )
+
+
+def test_reader_ignores_malformed_published_json_instead_of_raising(connection):
+    row = append(
+        connection,
+        payload=factual_fallback(source()),
+        status=QaStatus.FALLBACK,
+        publish=True,
+    )
+    connection.execute(
+        sa.update(card_presentation_artifact)
+        .where(card_presentation_artifact.c.artifact_id == row["artifact_id"])
+        .values(payload="malformed")
+    )
+    assert published_for_signals(
+        connection,
+        account_id="account-1",
+        bindings={"signal-1": (3, 2)},
+        language="fr",
+    ) == {}
+
+
+def test_database_rejects_null_published_payload_and_two_active_publications(connection):
+    empty = append(
+        connection,
+        payload=None,
+        status=QaStatus.REGENERATE,
+    )
+    with pytest.raises(sa.exc.IntegrityError), connection.begin_nested():
+        connection.execute(
+            sa.update(card_presentation_artifact)
+            .where(card_presentation_artifact.c.artifact_id == empty["artifact_id"])
+            .values(qa_status="PASS", published_at=NOW)
+        )
+
+    first = append(
+        connection,
+        payload=factual_fallback(source()),
+        status=QaStatus.FALLBACK,
+        when=NOW + dt.timedelta(seconds=1),
+        publish=True,
+    )
+    append(
+        connection,
+        payload=full_payload(),
+        status=QaStatus.PASS,
+        when=NOW + dt.timedelta(seconds=2),
+        publish=True,
+    )
+    with pytest.raises(sa.exc.IntegrityError), connection.begin_nested():
+        connection.execute(
+            sa.update(card_presentation_artifact)
+            .where(card_presentation_artifact.c.artifact_id == first["artifact_id"])
+            .values(superseded_at=None)
+        )
+
+
+def test_version_allocation_locks_the_materialized_signal_on_postgresql():
+    sql = str(
+        _current_owned_signal_query(source()).compile(
+            dialect=postgresql.dialect(),
+            compile_kwargs={"literal_binds": True},
+        )
+    )
+    assert "FOR UPDATE OF materialized_signal" in sql
