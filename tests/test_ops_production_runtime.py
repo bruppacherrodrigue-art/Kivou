@@ -1,12 +1,15 @@
 from __future__ import annotations
 
 import pathlib
+import re
+import subprocess
 
 import pytest
 
 REPOSITORY = pathlib.Path(__file__).resolve().parents[1]
 SYSTEMD = REPOSITORY / "ops/systemd"
 PRODUCTION = SYSTEMD / "production"
+PRODUCTION_RUNBOOK = REPOSITORY / "ops/production/README.md"
 NGINX = REPOSITORY / "ops/nginx"
 PRODUCTION_NGINX = NGINX / "kivou-production.conf"
 PRODUCTION_WWW_NGINX = NGINX / "kivou-production-www.conf"
@@ -39,6 +42,18 @@ PRODUCTION_SERVICES = (
 )
 ExpectedDirectives = dict[tuple[str, str], str | tuple[str, ...]]
 ParsedUnit = dict[str, dict[str, list[str]]]
+
+
+def runbook_shell_blocks(body: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"^```bash\n(.*?)^```$", body, flags=re.MULTILINE | re.DOTALL))
+
+
+def assert_fragments_in_order(body: str, *fragments: str) -> None:
+    offset = 0
+    for fragment in fragments:
+        position = body.find(fragment, offset)
+        assert position >= 0, f"missing or out-of-order runbook fragment: {fragment}"
+        offset = position + len(fragment)
 
 
 def read(path: pathlib.Path) -> str:
@@ -762,3 +777,200 @@ def test_production_default_site_rejects_unknown_http_and_tls_hosts() -> None:
         "ssl_reject_handshake on;",
         "}",
     )
+
+
+def test_release_one_runbook_is_explicitly_non_executing_and_fail_closed() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    commands = "\n".join(runbook_shell_blocks(body))
+
+    assert "Release 1" in body
+    assert "documentation uniquement" in body.lower()
+    assert "ne pas exécuter" in body.lower()
+    for excluded in ("DNS", "Stripe", "SMTP", "provider", "Acquisition"):
+        assert excluded.lower() in body.lower()
+    assert "aucune ancienne release" in body.lower()
+    assert "aucune sauvegarde" in body.lower()
+    assert "source /etc/kivou/" not in commands
+    assert ". /etc/kivou/" not in commands
+    assert "8001" not in commands
+    assert "certbot --nginx" not in commands
+    assert not re.search(r"systemctl\s+enable(?:\s+--now)?\s+\S*acquisition", commands)
+    assert not re.search(r"rm\s+[^\n]*(?:/srv/kivou/releases|/srv/kivou/backups)", commands)
+
+
+def test_every_release_one_shell_block_is_strict_and_syntax_valid() -> None:
+    blocks = runbook_shell_blocks(read(PRODUCTION_RUNBOOK))
+
+    assert len(blocks) >= 10
+    for index, block in enumerate(blocks, start=1):
+        assert block.startswith("set -euo pipefail\n"), index
+        result = subprocess.run(
+            ["bash", "-n"],
+            input=block,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert result.returncode == 0, f"block {index}: {result.stderr}"
+
+
+def test_runbook_fetches_only_the_reviewed_remote_main_commit() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    assert "^[0-9a-f]{40}$" in body
+    assert "kivou:kivou:600" in body
+    assert "root:root:644" in body
+    assert "StrictHostKeyChecking=yes" in body
+    assert "GIT_CONFIG_GLOBAL=/dev/null" in body
+    assert "GIT_CONFIG_NOSYSTEM=1" in body
+    assert_fragments_in_order(
+        body,
+        "git ls-remote --exit-code",
+        'test "$KIVOU_REMOTE_MAIN_SHA" = "$KIVOU_RELEASE_SHA"',
+        "fetch --no-tags origin",
+        'checkout --detach "$KIVOU_RELEASE_SHA"',
+        'rev-parse HEAD)" = "$KIVOU_RELEASE_SHA"',
+        "status --porcelain",
+    )
+
+
+def test_runbook_builds_locked_separate_immutable_releases() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    assert "backend-$KIVOU_RELEASE_UTC-$KIVOU_RELEASE_SHORT" in body
+    assert "frontend-$KIVOU_RELEASE_UTC-$KIVOU_RELEASE_SHORT" in body
+    assert_fragments_in_order(
+        body,
+        "uv sync --frozen --extra server --extra postgres",
+        "uv run pytest",
+        "uv run ruff check .",
+        "npm ci",
+        "npm run test -- --run",
+        "npm run build",
+        "npm run typecheck",
+        "npm run lint",
+        "frontend/dist/index.html",
+        "chown -R root:root",
+        "chmod -R a-w",
+    )
+    assert "find \"$KIVOU_BACKEND_RELEASE_DIR\" -perm /222" in body
+    assert "find \"$KIVOU_FRONTEND_RELEASE_DIR\" -perm /222" in body
+
+
+def test_runbook_validates_secrets_and_units_before_atomic_install() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    for path in ("/etc/kivou/production.env", "/etc/kivou/swiss-backup.env"):
+        assert path in body
+    assert "root:root:600" in body
+    assert_fragments_in_order(
+        body,
+        "systemctl disable --now",
+        "systemd-analyze verify",
+        "chown root:root",
+        "chmod 644",
+        "mv -Tf",
+        "systemctl daemon-reload",
+    )
+    install_section = body[body.index("## 4. Installer les unités"):body.index("## 5.")]
+    assert "systemctl enable" not in install_section
+
+
+def test_runbook_exercises_local_offsite_and_real_restore_without_side_effects() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    assert_fragments_in_order(
+        body,
+        "systemctl start kivou-backup.service",
+        "pg_restore --list",
+        "trap kivou_restore_cleanup EXIT",
+        "restic restore latest",
+        "chown -R postgres:postgres",
+        "createdb",
+        "pg_restore --exit-on-error",
+        "SELECT version_num FROM alembic_version",
+    )
+    assert "dropdb" in body
+    restore = body[body.index("## 6. Exercer une restauration"):body.index("## 7.")]
+    assert "--host kivou-production-01" in restore
+    assert "--tag kivou-postgresql" in restore
+    assert "KIVOU_RESTORE_DB" in restore
+    assert "provider" not in "\n".join(runbook_shell_blocks(restore)).lower()
+
+
+def test_runbook_proves_certificate_and_nginx_candidate_before_publication() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    assert "KIVOU_PRODUCTION_HOST=kivou.eu" in body
+    assert "KIVOU_PRODUCTION_WWW_HOST=www.kivou.eu" in body
+    assert "KIVOU_API_PORT=8000" in body
+    assert "openssl x509" in body
+    assert "-ext subjectAltName" in body
+    assert "PRODUCTION_HOST|PRODUCTION_WWW_HOST|KIVOU_API_PORT" in body
+    assert "kivou-production-default-deny.conf" in body
+    assert_fragments_in_order(
+        body,
+        "openssl x509",
+        "kivou-production-default-deny.conf",
+        'nginx -t -c "$KIVOU_NGINX_CANDIDATE/nginx.conf"',
+        'readlink -f "$KIVOU_SITE_LINK"',
+    )
+
+
+def test_runbook_switches_both_releases_then_publishes_nginx() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    assert "readlink -f /srv/kivou/app" in body
+    assert "readlink -f /srv/kivou/frontend" in body
+    assert "ABSENT" in body
+    assert_fragments_in_order(
+        body,
+        'ln -s "$KIVOU_BACKEND_RELEASE_DIR"',
+        'mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app',
+        'ln -s "$KIVOU_FRONTEND_RELEASE_DIR"',
+        'mv -Tf "$KIVOU_FRONTEND_LINK_NEW" /srv/kivou/frontend',
+        "systemctl enable --now kivou-api.service",
+        "kivou-api-readiness.sh kivou-api.service 8000",
+        "sites-enabled",
+        "nginx -t",
+        "systemctl reload nginx",
+        "KIVOU_HTTPS_HEALTH_URL=https://kivou.eu/",
+    )
+
+
+def test_runbook_activates_only_proven_ingestion_and_smoked_job_timers() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    source_section = body[body.index("## 10. Prouver les sources"):body.index("## 11.")]
+    for source in ("simap", "boamp", "decp", "ted"):
+        assert_fragments_in_order(
+            source_section,
+            f"systemctl start kivou-ingest@{source}.service",
+            f"systemctl is-failed --quiet kivou-ingest@{source}.service",
+            f"systemctl enable --now kivou-ingest-{source}.timer",
+        )
+    assert_fragments_in_order(
+        body,
+        "systemctl start kivou-backup.service",
+        "systemctl enable --now kivou-backup.timer",
+    )
+    assert "systemctl disable --now kivou-alerts.timer kivou-alerts.service" in body
+    assert "systemctl start kivou-alerts.service" not in body
+
+
+def test_runbook_rollback_uses_only_captured_targets_and_preserves_artifacts() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    rollback = body[body.index("## 11. Rollback immédiat") :]
+
+    assert_fragments_in_order(
+        rollback,
+        "systemctl disable --now",
+        "KIVOU_PREVIOUS_APP_TARGET",
+        "KIVOU_PREVIOUS_FRONTEND_TARGET",
+        "mv -Tf",
+        "nginx -t",
+        "systemctl reload nginx",
+    )
+    assert "ABSENT" in rollback
+    assert "chmod -R a-w" in body
+    assert not re.search(r"rm\s+[^\n]*(?:/srv/kivou/releases|/srv/kivou/backups)", rollback)
