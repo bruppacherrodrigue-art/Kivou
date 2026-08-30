@@ -971,7 +971,7 @@ def test_all_fallible_prevalidations_and_captures_precede_the_mutation_window() 
         "KIVOU_UNIT_CAPTURE_DIR",
         "KIVOU_NGINX_WAS_ENABLED",
         "KIVOU_NGINX_WAS_ACTIVE",
-        'chmod -R a-w "$KIVOU_ROLLBACK_DIR"',
+        'chmod -R a-w "$KIVOU_UNIT_CAPTURE_DIR" "$KIVOU_ROLLBACK_DIR/nginx"',
     ):
         assert body.index(required_prevalidation) < first_mutation, required_prevalidation
 
@@ -988,7 +988,9 @@ def test_all_fallible_prevalidations_and_captures_precede_the_mutation_window() 
     ):
         assert body.index(long_preflight) < first_runtime_mutation
     first_rollout_lock = body.index("flock --exclusive 9")
-    assert body.count('exec 9<>"$KIVOU_ROLLOUT_LOCK"') == 1
+    manual_recovery = body.index("## 11. Rollback immédiat autonome")
+    assert body[:manual_recovery].count('exec 9<>"$KIVOU_ROLLOUT_LOCK"') == 1
+    assert body[manual_recovery:].count('exec 9<>"$KIVOU_ROLLOUT_LOCK"') == 1
     assert first_rollout_lock < body.index("KIVOU_UNIT_CAPTURE_DIR")
     assert first_rollout_lock < body.index("restic restore latest")
 
@@ -1082,7 +1084,11 @@ def test_real_backup_smoke_occurs_only_after_switch_and_before_timer() -> None:
 
 def test_runbook_activates_only_proven_ingestion_and_smoked_job_timers() -> None:
     body = read(PRODUCTION_RUNBOOK)
-    mutation = body[body.index("KIVOU_MUTATION_WINDOW_BEGIN") :]
+    mutation = body[
+        body.index("KIVOU_MUTATION_WINDOW_BEGIN") : body.index(
+            "KIVOU_MUTATION_WINDOW_END"
+        )
+    ]
     grouped_timers = (
         "kivou-ingest-simap.timer",
         "kivou-ingest-boamp.timer",
@@ -1129,7 +1135,7 @@ def test_runbook_rollback_uses_only_captured_targets_and_preserves_artifacts() -
     assert_fragments_in_order(
         rollback,
         "flock --exclusive",
-        "kivou_rollout_rollback",
+        "kivou_recovery_rollback",
     )
     assert_fragments_in_order(
         window,
@@ -1186,13 +1192,14 @@ def test_mutation_window_is_locked_and_trapped_before_every_runtime_mutation() -
         "kivou_rollout_rollback()",
         "kivou_rollout_on_err()",
         "KIVOU_ROLLOUT_RC=$?",
-        "trap - ERR",
-        "flock --exclusive",
+        "kivou_arm_rollout_traps()",
         "trap 'kivou_rollout_on_err' ERR",
+        "flock --exclusive",
+        "kivou_arm_rollout_traps",
     )
     assert "exit \"$KIVOU_ROLLOUT_RC\"" in window
     mutation_commands = window[
-        first_mutation : window.index("trap - ERR", first_mutation)
+        first_mutation : window.rindex("kivou_disarm_rollout_traps")
     ]
     assert not re.search(r"(?:^|[;\s])exit\s+[0-9]+", mutation_commands)
     assert "kivou_fail 70" in mutation_commands
@@ -1349,7 +1356,7 @@ def test_nginx_rollback_reverts_disk_bundle_when_candidate_restore_is_invalid() 
     app_restore = rollback.index('case "$KIVOU_PREVIOUS_APP_TARGET" in')
     nginx_capture_probe = rollback.index("KIVOU_NGINX_CAPTURE_VALID=0")
     assert app_restore < nginx_capture_probe
-    assert_fragments_in_order(manual, "flock --exclusive", "kivou_rollout_rollback")
+    assert_fragments_in_order(manual, "flock --exclusive", "kivou_recovery_rollback")
 
 
 def rollback_engine(body: str) -> str:
@@ -1404,10 +1411,14 @@ set -Eeuo pipefail
 {engine}
 kivou_rollback_stop_phase() {{ false; true; }}
 kivou_rollback_app_phase() {{ :; }}
-kivou_rollback_frontend_phase() {{ :; }}
-kivou_rollback_units_phase() {{ :; }}
-kivou_rollback_nginx_phase() {{ :; }}
-trap 'kivou_rollout_on_err' ERR
+    kivou_rollback_frontend_phase() {{ :; }}
+    kivou_rollback_units_phase() {{ :; }}
+    kivou_rollback_nginx_phase() {{ :; }}
+KIVOU_ROLLOUT_STATUS=/nonexistent
+KIVOU_MUTATION_STARTED=1
+KIVOU_COMMITTED=0
+KIVOU_ROLLBACK_RUNNING=0
+kivou_arm_rollout_traps
 (exit 23)
 printf 'handler-continued-success\n'
 """
@@ -1434,4 +1445,187 @@ def test_alerts_are_inactive_before_the_first_runtime_mutation() -> None:
     assert "systemctl stop" not in gate
     assert body.index("systemctl is-active --quiet kivou-alerts.service") < body.index(
         "KIVOU_FIRST_RUNTIME_MUTATION=1"
+    )
+
+
+def test_nginx_candidate_counts_every_default_deny_listener() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    default_deny = read(PRODUCTION_DEFAULT_DENY_NGINX)
+    expected = len(
+        re.findall(r"^[^#\n]*listen\s+[^;]*default_server;", default_deny, re.MULTILINE)
+    )
+
+    assert expected == 4
+    assert f"KIVOU_EXPECTED_DEFAULT_SERVER_DIRECTIVES={expected}" in body
+
+
+def test_root_shell_gate_precedes_every_preflight_and_lock_open() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    first_block = runbook_shell_blocks(body)[0]
+
+    assert "sudo -i" in body[: body.index("## 1.")]
+    assert_fragments_in_order(
+        first_block,
+        "set -euo pipefail",
+        'test "$(id -u)" -eq 0',
+        "git ls-remote --exit-code",
+    )
+    assert body.index('test "$(id -u)" -eq 0') < body.index(
+        'exec 9<>"$KIVOU_ROLLOUT_LOCK"'
+    )
+
+
+@pytest.mark.parametrize(
+    ("event", "expected_status"),
+    (
+        ("false", 1),
+        ("kill -HUP $$", 129),
+        ("kill -INT $$", 130),
+        ("kill -TERM $$", 143),
+        ("exit 23", 23),
+    ),
+)
+def test_session_loss_rolls_back_once_and_preserves_status(
+    event: str, expected_status: int, tmp_path: pathlib.Path
+) -> None:
+    engine = rollback_engine(read(PRODUCTION_RUNBOOK))
+    trace = tmp_path / "rollback.trace"
+    missing_status = tmp_path / "missing.status"
+    script = f"""\
+set -Eeuo pipefail
+{engine}
+kivou_rollback_stop_phase() {{ printf 'rollback\\n' >>"$KIVOU_TEST_TRACE"; }}
+kivou_rollback_app_phase() {{ :; }}
+kivou_rollback_frontend_phase() {{ :; }}
+kivou_rollback_units_phase() {{ :; }}
+kivou_rollback_nginx_phase() {{ :; }}
+KIVOU_TEST_TRACE={trace}
+KIVOU_ROLLOUT_STATUS={missing_status}
+KIVOU_MUTATION_STARTED=1
+KIVOU_COMMITTED=0
+KIVOU_ROLLBACK_RUNNING=0
+kivou_arm_rollout_traps
+{event}
+printf 'continued-after-event\\n'
+"""
+    result = subprocess.run(
+        ["bash"], input=script, text=True, capture_output=True, check=False
+    )
+
+    assert result.returncode == expected_status, result.stderr
+    assert trace.read_text(encoding="utf-8").splitlines() == ["rollback"]
+    assert "continued-after-event" not in result.stdout
+
+
+def test_committed_success_skips_session_loss_rollback(tmp_path: pathlib.Path) -> None:
+    engine = rollback_engine(read(PRODUCTION_RUNBOOK))
+    trace = tmp_path / "rollback.trace"
+    committed_status = tmp_path / "rollout.status"
+    committed_status.write_text("COMMITTED\n", encoding="utf-8")
+    script = f"""\
+set -Eeuo pipefail
+{engine}
+kivou_rollback_stop_phase() {{ printf 'rollback\\n' >>"$KIVOU_TEST_TRACE"; }}
+kivou_rollback_app_phase() {{ :; }}
+kivou_rollback_frontend_phase() {{ :; }}
+kivou_rollback_units_phase() {{ :; }}
+kivou_rollback_nginx_phase() {{ :; }}
+KIVOU_TEST_TRACE={trace}
+KIVOU_ROLLOUT_STATUS={committed_status}
+KIVOU_MUTATION_STARTED=1
+KIVOU_COMMITTED=1
+KIVOU_ROLLBACK_RUNNING=0
+kivou_arm_rollout_traps
+exit 0
+"""
+    result = subprocess.run(
+        ["bash"], input=script, text=True, capture_output=True, check=False
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert not trace.exists()
+
+
+def test_session_loss_rollback_reentrancy_guard_preserves_status(
+    tmp_path: pathlib.Path,
+) -> None:
+    engine = rollback_engine(read(PRODUCTION_RUNBOOK))
+    trace = tmp_path / "rollback.trace"
+    script = f"""\
+set -Eeuo pipefail
+{engine}
+kivou_rollout_rollback() {{ printf 'rollback\\n' >>"$KIVOU_TEST_TRACE"; }}
+KIVOU_TEST_TRACE={trace}
+KIVOU_ROLLOUT_STATUS={tmp_path / "missing.status"}
+KIVOU_MUTATION_STARTED=1
+KIVOU_COMMITTED=0
+KIVOU_ROLLBACK_RUNNING=1
+kivou_arm_rollout_traps
+exit 31
+"""
+    result = subprocess.run(
+        ["bash"], input=script, text=True, capture_output=True, check=False
+    )
+
+    assert result.returncode == 31, result.stderr
+    assert not trace.exists()
+
+
+def test_durable_recovery_is_published_before_mutation_and_is_autonomous() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    engine = rollback_engine(body)
+    first_mutation = body.index("KIVOU_FIRST_RUNTIME_MUTATION=1")
+    manual = body[body.index("## 11. Rollback immédiat") :]
+
+    for durable in (
+        "KIVOU_ROLLBACK_DIR=/srv/kivou/rollbacks/rollout-",
+        "KIVOU_ROLLOUT_STATUS",
+        "PREPARED",
+        "/srv/kivou/rollbacks/current",
+        "chown root:root",
+        "chmod 600",
+        "mv -Tf",
+    ):
+        assert body.index(durable) < first_mutation, durable
+
+    assert "kivou_mark_rollout_status ROLLED_BACK" in engine
+
+    assert 'test "$(id -u)" -eq 0' in manual
+    assert "readlink -f /srv/kivou/rollbacks/current" in manual
+    assert "/srv/kivou/rollbacks/rollout-*" in manual
+    assert "PREPARED" in manual
+    assert "COMMITTED" in manual
+    assert "source " not in manual
+    assert "eval " not in manual
+    for recovery_contract in (
+        "KIVOU_PREVIOUS_APP_TARGET",
+        "KIVOU_PREVIOUS_FRONTEND_TARGET",
+        "/etc/systemd/system/$KIVOU_UNIT",
+        "KIVOU_NGINX_CAPTURE_PATHS",
+        "kivou_rollback_stop_phase",
+        "kivou_rollback_app_phase",
+        "kivou_rollback_frontend_phase",
+        "kivou_rollback_units_phase",
+        "kivou_rollback_nginx_phase",
+    ):
+        assert recovery_contract in manual
+
+
+def test_successful_nginx_publish_is_enabled_and_active_even_when_already_active() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    mutation = body[
+        body.index("KIVOU_FIRST_RUNTIME_MUTATION=1") : body.index(
+            "KIVOU_MUTATION_WINDOW_END"
+        )
+    ]
+
+    assert_fragments_in_order(
+        mutation,
+        "nginx -t",
+        'if [ "$KIVOU_NGINX_WAS_ACTIVE" = active ]; then',
+        "systemctl enable nginx",
+        "systemctl reload nginx",
+        "systemctl enable --now nginx",
+        "systemctl is-enabled --quiet nginx",
+        "systemctl is-active --quiet nginx",
     )
