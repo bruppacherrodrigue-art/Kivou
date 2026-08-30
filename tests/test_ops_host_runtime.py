@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).parents[1]
 HOST = ROOT / "ops" / "host"
 
@@ -8,21 +10,56 @@ def text(name: str) -> str:
     return (HOST / name).read_text(encoding="utf-8")
 
 
+SSH_POLICY = {
+    "permitrootlogin": "no",
+    "passwordauthentication": "no",
+    "kbdinteractiveauthentication": "no",
+    "pubkeyauthentication": "yes",
+    "authenticationmethods": "publickey",
+    "x11forwarding": "no",
+    "allowagentforwarding": "no",
+    "allowtcpforwarding": "local",
+    "permittunnel": "no",
+    "permituserenvironment": "no",
+    "maxauthtries": "3",
+    "logingracetime": "30",
+    "clientaliveinterval": "300",
+    "clientalivecountmax": "2",
+    "allowusers": "ubuntu",
+}
+
+
+def assert_effective_ssh_policy(policy: str) -> None:
+    effective: dict[str, str] = {}
+    seen: set[str] = set()
+    for raw_line in policy.splitlines():
+        line = raw_line.split("#", 1)[0].strip()
+        if not line:
+            continue
+        key, separator, value = line.partition(" ")
+        assert separator
+        normalized = key.casefold()
+        assert normalized != "match"
+        assert normalized not in seen
+        seen.add(normalized)
+        if normalized in SSH_POLICY:
+            effective[normalized] = value.strip()
+    assert effective == SSH_POLICY
+
+
 def test_ssh_policy_is_key_only_and_disables_forwarding() -> None:
     policy = text("sshd-kivou-production.conf")
-    required = {
-        "PermitRootLogin no",
-        "PasswordAuthentication no",
-        "KbdInteractiveAuthentication no",
-        "PubkeyAuthentication yes",
-        "X11Forwarding no",
-        "AllowAgentForwarding no",
-        "PermitTunnel no",
-        "MaxAuthTries 3",
-        "LoginGraceTime 30",
-        "AllowUsers ubuntu",
-    }
-    assert required <= set(policy.splitlines())
+    assert_effective_ssh_policy(policy)
+
+
+@pytest.mark.parametrize(
+    "duplicate",
+    ("PasswordAuthentication no", "PasswordAuthentication yes"),
+)
+def test_ssh_policy_rejects_duplicate_or_contradictory_directives(duplicate: str) -> None:
+    policy = text("sshd-kivou-production.conf")
+    with pytest.raises(AssertionError):
+        assert_effective_ssh_policy(f"{policy}\n{duplicate}\n")
 
 
 def test_journal_is_persistent_and_bounded() -> None:
