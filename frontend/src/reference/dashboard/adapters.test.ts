@@ -3,6 +3,8 @@ import type {
   BillingStatus,
   CardPresentation,
   CompanyProfile,
+  Evidence,
+  EvidenceItem,
   FeedPage,
   LockedFeedItem,
   TargetIcp,
@@ -40,6 +42,62 @@ const REFERENCE_ONLY_COPY = [
 ]
 
 describe('adaptateurs de présentation du dashboard de référence', () => {
+  it('ferme statiquement la présence de présentation selon le verrouillage', () => {
+    const unlockedWithUndefinedPresentation = { ...UNLOCKED_ITEM, presentation: undefined }
+    // @ts-expect-error Un item déverrouillé porte toujours la clé nullable de l'API.
+    const invalidUnlocked: UnlockedFeedItem = unlockedWithUndefinedPresentation
+    const lockedWithPresentation = { ...LOCKED_ITEM, presentation: null }
+    // @ts-expect-error Un teaser verrouillé interdit explicitement cette clé.
+    const invalidLocked: LockedFeedItem = lockedWithPresentation
+
+    expect(invalidUnlocked.presentation).toBeUndefined()
+    expect(invalidLocked.presentation).toBeNull()
+  })
+
+  it('ferme statiquement FALLBACK aux claims factuelles uniquement', () => {
+    const invalidFallback = {
+      artifact_id: 'b'.repeat(64),
+      version: 1,
+      status: 'FALLBACK',
+      schema_version: 'card-presentation-v1',
+      published_at: '2026-08-30T12:00:00Z',
+      content: {
+        schema_version: 'card-presentation-v1',
+        variant: 'FACTUAL_FALLBACK',
+        headline: 'Attribution documentée',
+        award_summary: 'Attribution documentée depuis la source.',
+        commercial_importance: null,
+        fit_reason: null,
+        timing: null,
+        recommended_action: null,
+        target_roles: [],
+        fit_need_categories: [],
+        unknowns: [],
+        claims: [{
+          claim_id: 'INVALID_INFERENCE',
+          kind: 'INFERENCE',
+          text: 'Inférence interdite',
+          evidence_refs: ['source:award'],
+          // @ts-expect-error FALLBACK ne peut porter la confiance d'une inférence.
+          confidence: 'medium',
+        }],
+      },
+    } satisfies CardPresentation
+
+    expect(invalidFallback.status).toBe('FALLBACK')
+  })
+
+  it('ferme statiquement les groupes de preuve à la taxonomie Need Graph', () => {
+    const invalidGroup: Evidence['analysis_inputs']['groups'][number] = {
+      // @ts-expect-error Une catégorie inconnue ne peut pas relier une preuve.
+      plausible_need: 'unknown_need_category',
+      label: 'Inconnue',
+      items: [],
+    }
+
+    expect(invalidGroup.items).toEqual([])
+  })
+
   it.each([
     [{ clock: 'award', status: 'recent_award' }, 'award'],
     [{ clock: 'notification', status: 'recently_notified_contract' }, 'notification'],
@@ -119,8 +177,93 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
 
     expect(toSignalDetailView(detail).primaryNeed).toEqual({
       label: 'Matériaux',
-      evidenceRefs: ['https://source.test/materials'],
+      evidenceRefs: [
+        `evidence:url:${encodeURIComponent('https://source.test/materials')}`,
+      ],
     })
+  })
+
+  it('produit une seule référence canonique pour une URL et son chemin', () => {
+    const detail = detailWithEvidenceItems([{
+      ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
+      url: 'https://source.test/notice/42',
+      path: '/awards/0',
+      notice_id: 'notice-ignored-because-url-resolves',
+      procedure_id: 'procedure-ignored-because-url-resolves',
+    }])
+
+    expect(toSignalDetailView(detail).primaryNeed?.evidenceRefs).toEqual([
+      `evidence:url:${encodeURIComponent('https://source.test/notice/42')}`
+        + `:path:${encodeURIComponent('/awards/0')}`,
+    ])
+  })
+
+  it('évite les collisions entre deux avis qui partagent le même chemin', () => {
+    const detail = detailWithEvidenceItems([
+      {
+        ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
+        source_system: 'TED',
+        url: null,
+        notice_id: 'notice-1',
+        procedure_id: null,
+        path: '/awards/0',
+      },
+      {
+        ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
+        source_system: 'TED',
+        url: null,
+        notice_id: 'notice-2',
+        procedure_id: null,
+        path: '/awards/0',
+      },
+    ])
+
+    const refs = toSignalDetailView(detail).primaryNeed?.evidenceRefs ?? []
+    expect(refs).toHaveLength(2)
+    expect(new Set(refs).size).toBe(2)
+    expect(refs.every((reference) => reference.startsWith('evidence:source:'))).toBe(true)
+    expect(refs).not.toContain('/awards/0')
+    expect(refs).not.toContain('notice-1')
+    expect(refs).not.toContain('notice-2')
+  })
+
+  it('évite les collisions entre deux systèmes qui réutilisent le même identifiant', () => {
+    const detail = detailWithEvidenceItems([
+      {
+        ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
+        source_system: 'TED',
+        url: null,
+        notice_id: 'shared-42',
+        procedure_id: null,
+        path: null,
+      },
+      {
+        ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
+        source_system: 'BOAMP',
+        url: null,
+        notice_id: 'shared-42',
+        procedure_id: null,
+        path: null,
+      },
+    ])
+
+    const refs = toSignalDetailView(detail).primaryNeed?.evidenceRefs ?? []
+    expect(refs).toHaveLength(2)
+    expect(new Set(refs).size).toBe(2)
+    expect(refs).not.toContain('shared-42')
+  })
+
+  it('rejette un chemin isolé sans source résoluble', () => {
+    const detail = detailWithEvidenceItems([{
+      ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
+      source_system: null,
+      url: null,
+      notice_id: null,
+      procedure_id: null,
+      path: '/awards/0',
+    }])
+
+    expect(toSignalDetailView(detail).primaryNeed).toBeNull()
   })
 
   it('ne sélectionne aucun besoin ciblé sans référence de preuve exploitable', () => {
@@ -309,9 +452,9 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       primaryNeed: {
         label: detail.analysis.plausible_needs.items[0].label,
         evidenceRefs: [
-          detail.evidence.analysis_inputs.groups[0].items[0].url,
-          detail.evidence.analysis_inputs.groups[0].items[0].notice_id,
-          detail.evidence.analysis_inputs.groups[0].items[0].procedure_id,
+          `evidence:url:${encodeURIComponent(
+            detail.evidence.analysis_inputs.groups[0].items[0].url!,
+          )}`,
         ],
       },
       fitReason: detail.analysis.fit.reasons[0],
@@ -403,5 +546,22 @@ function expectNoReferenceOnlyCopy(value: unknown) {
   const serialized = JSON.stringify(value)
   for (const forbidden of REFERENCE_ONLY_COPY) {
     expect(serialized).not.toContain(forbidden)
+  }
+}
+
+function detailWithEvidenceItems(items: EvidenceItem[]): UnlockedDetail {
+  return {
+    ...UNLOCKED_DETAIL,
+    evidence: {
+      ...UNLOCKED_DETAIL.evidence,
+      analysis_inputs: {
+        ...UNLOCKED_DETAIL.evidence.analysis_inputs,
+        groups: [{
+          plausible_need: 'materials_or_components',
+          label: 'Matériaux ou composants',
+          items,
+        }],
+      },
+    },
   }
 }

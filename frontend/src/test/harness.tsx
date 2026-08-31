@@ -136,6 +136,7 @@ export const UNLOCKED_ITEM: UnlockedFeedItem = {
   locked: false,
   signal_id: 'sig_unlocked_1',
   target_icp_id: 'icp_1',
+  presentation: null,
   company: {
     name: 'Constructions Bertrand SA',
     country: 'FR',

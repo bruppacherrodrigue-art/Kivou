@@ -287,15 +287,25 @@ interface CardPresentationClaimBase {
   evidence_refs: [string, ...string[]]
 }
 
+export type CardPresentationFactClaim = CardPresentationClaimBase & {
+  kind: 'FACT'
+  confidence: null
+}
+
+export type CardPresentationInferenceClaim = CardPresentationClaimBase & {
+  kind: 'INFERENCE'
+  confidence: CardPresentationConfidence
+}
+
+export type CardPresentationRecommendationClaim = CardPresentationClaimBase & {
+  kind: 'RECOMMENDATION'
+  confidence: null
+}
+
 export type CardPresentationClaim =
-  | (CardPresentationClaimBase & {
-      kind: 'INFERENCE'
-      confidence: CardPresentationConfidence
-    })
-  | (CardPresentationClaimBase & {
-      kind: 'FACT' | 'RECOMMENDATION'
-      confidence: null
-    })
+  | CardPresentationFactClaim
+  | CardPresentationInferenceClaim
+  | CardPresentationRecommendationClaim
 
 export interface CardPresentationTargetRole {
   role: CardPresentationTargetRoleKind
@@ -313,7 +323,6 @@ interface CardPresentationContentBase {
   headline: string
   award_summary: string
   unknowns: CardPresentationUnknown[]
-  claims: [CardPresentationClaim, ...CardPresentationClaim[]]
 }
 
 export interface FullCardPresentationContent extends CardPresentationContentBase {
@@ -324,6 +333,7 @@ export interface FullCardPresentationContent extends CardPresentationContentBase
   recommended_action: string
   target_roles: [CardPresentationTargetRole, ...CardPresentationTargetRole[]]
   fit_need_categories: [NeedCategory, ...NeedCategory[]]
+  claims: [CardPresentationClaim, ...CardPresentationClaim[]]
 }
 
 export interface FactualFallbackCardPresentationContent extends CardPresentationContentBase {
@@ -334,6 +344,7 @@ export interface FactualFallbackCardPresentationContent extends CardPresentation
   recommended_action: null
   target_roles: []
   fit_need_categories: []
+  claims: [CardPresentationFactClaim, ...CardPresentationFactClaim[]]
 }
 
 interface CardPresentationEnvelopeBase {
@@ -427,7 +438,7 @@ export interface Evidence {
   public_facts: { fact: string; label: string; items: EvidenceItem[] }[]
   analysis_inputs: {
     note: string
-    groups: { plausible_need: string; label: string; items: EvidenceItem[] }[]
+    groups: { plausible_need: NeedCategory; label: string; items: EvidenceItem[] }[]
   }
 }
 
@@ -449,9 +460,7 @@ export interface UnlockedFeedItem {
   contract: Contract
   analysis: Analysis
   source: SignalSource
-  /** Toujours présent dans l'API PR1; optionnel ici jusqu'à la migration de
-   *  toutes les fixtures historiques. L'adaptateur normalise l'absence à null. */
-  presentation?: CardPresentation | null
+  presentation: CardPresentation | null
 }
 
 export interface LockedFeedItem {
@@ -475,6 +484,8 @@ export interface LockedFeedItem {
     plausible_need_count: number
   }
   headline: string
+  /** La surface verrouillée de PR1 interdit cette clé, même à `null`. */
+  presentation?: never
 }
 
 export type FeedItem = UnlockedFeedItem | LockedFeedItem

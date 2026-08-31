@@ -76,7 +76,7 @@ export function toSignalCard(item: FeedItem): SignalCardView {
     }
   }
 
-  const presentation = item.presentation ?? null
+  const presentation = item.presentation
   const matchReasons = concreteMatchReasons(item.analysis.fit.reasons)
   const fitReason = matchReasons[0] ?? null
   return {
@@ -108,7 +108,7 @@ export function toSignalCards(page: FeedPage): SignalCardView[] {
 
 export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
   const primaryNeed = firstEvidenceBoundTargetedNeed(detail)
-  const presentation = detail.presentation ?? null
+  const presentation = detail.presentation
   const fitReason = concreteMatchReasons(detail.analysis.fit.reasons)[0] ?? null
 
   return {
@@ -162,17 +162,33 @@ function firstEvidenceBoundTargetedNeed(detail: UnlockedDetail): EvidenceBoundLa
     const evidenceRefs = detail.evidence.analysis_inputs.groups
       .filter((group) => group.plausible_need === need.category)
       .flatMap((group) => group.items)
-      .flatMap(directEvidenceRefs)
+      .map(canonicalEvidenceRef)
+      .filter((reference): reference is string => reference !== null)
     const uniqueRefs = [...new Set(evidenceRefs)]
     if (uniqueRefs.length > 0) return { label, evidenceRefs: uniqueRefs }
   }
   return null
 }
 
-function directEvidenceRefs(item: EvidenceItem): string[] {
-  return [item.url, item.path, item.notice_id, item.procedure_id]
-    .map((reference) => reference?.trim() ?? '')
-    .filter(Boolean)
+function canonicalEvidenceRef(item: EvidenceItem): string | null {
+  const url = item.url?.trim() ?? ''
+  const path = item.path?.trim() ?? ''
+  if (url) {
+    return `evidence:url:${encodeURIComponent(url)}`
+      + (path ? `:path:${encodeURIComponent(path)}` : '')
+  }
+
+  const sourceSystem = item.source_system?.trim() ?? ''
+  const noticeId = item.notice_id?.trim() ?? ''
+  const procedureId = item.procedure_id?.trim() ?? ''
+  if (!sourceSystem || (!noticeId && !procedureId)) return null
+
+  return [
+    `evidence:source:${encodeURIComponent(sourceSystem)}`,
+    noticeId ? `notice:${encodeURIComponent(noticeId)}` : null,
+    procedureId ? `procedure:${encodeURIComponent(procedureId)}` : null,
+    path ? `path:${encodeURIComponent(path)}` : null,
+  ].filter((part): part is string => part !== null).join(':')
 }
 
 export function toTargetProfileView(profile: TargetIcp): TargetProfileView {
