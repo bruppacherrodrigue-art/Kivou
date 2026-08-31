@@ -1226,9 +1226,9 @@ def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> 
         "KIVOU_HISTORICAL_ARTIFACT_VERSION",
         "pinnedSignalId: item.signal_id",
         "pinnedHeadline:",
-        "const expectedSelectionHref =",
+        ".signal-item:not(.is-locked)",
         "url.pathname === `/app/signals/${encodeURIComponent(api.pinnedSignalId)}`",
-        "selected.searchParams.get('presentation') === api.pinnedArtifactId",
+        "selected.searchParams.get('presentation_artifact_id') === api.pinnedArtifactId",
         "const expectedDetailPath =",
         "path === expectedDetailPath",
         "const expectedNotePath =",
@@ -1241,11 +1241,11 @@ def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> 
     ):
         assert fragment in commands or fragment in current_script
 
-    assert "path.includes(`presentation_artifact_id=${artifactId}`)" not in current_script
+    assert "searchParams.get('presentation')" not in current_script
     _assert_in_order(
         current_script,
         "pinnedSignalId: item.signal_id",
-        "const expectedSelectionHref =",
+        ".signal-item:not(.is-locked)",
         "path === expectedDetailPath",
         "method === 'GET' && path === expectedNotePath",
     )
@@ -1256,6 +1256,8 @@ def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> 
         "detail.presentation.artifact_id !== artifactId",
         "detail.presentation.version !== artifactVersion",
         "historicalDetail.presentation.content.headline",
+        "historicalUrl.searchParams.set('presentation_artifact_id', historicalArtifactId)",
+        "url.searchParams.get('presentation_artifact_id') === historicalArtifactId",
         "const historicalDetailResponsePromise = waitForExactGetResponse(",
         "const historicalNoteResponsePromise = waitForExactGetResponse(",
         "historicalDetailResponse.status() === 200",
@@ -1264,6 +1266,7 @@ def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> 
         "await headline.count() === 1",
     ):
         assert fragment in historical_script
+    assert "searchParams.get('presentation')" not in historical_script
 
 
 def test_signal_detail_and_note_waiters_are_armed_before_navigation() -> None:
@@ -1312,7 +1315,7 @@ def test_signal_detail_and_note_waiters_are_armed_before_navigation() -> None:
     )
 
 
-def test_locked_teaser_is_bound_to_one_exact_signal_and_forbids_any_detail_get() -> None:
+def test_locked_teaser_is_unique_presentation_free_and_forbids_any_detail_get() -> None:
     section = _between(
         _body(),
         "## 8. Smoke navigateur desktop et mobile",
@@ -1326,7 +1329,7 @@ def test_locked_teaser_is_bound_to_one_exact_signal_and_forbids_any_detail_get()
         "\n}\n", 1
     )[0]
 
-    assert 'data-signal-id="<signal_id>"' in section
+    assert "`.signal-item.is-locked`" in section
     for fragment in (
         "const signalIds = feed.items.map((item) => item?.signal_id)",
         "signalIds.some((signalId) => (",
@@ -1339,7 +1342,7 @@ def test_locked_teaser_is_bound_to_one_exact_signal_and_forbids_any_detail_get()
         "new Set(signalIds).size !== signalIds.length",
         "lockedSignalId: locked[0].signal_id",
         "async function smokeSignals",
-        "`[data-signal-id=\"${api.lockedSignalId}\"]`",
+        "page.locator('.signal-list .signal-item.is-locked')",
         "await lockedBinding.count() === 1",
     )
     api_function = "async function verifyPublishedApi" + api_guard
@@ -1415,7 +1418,7 @@ verifyPublishedApi(page, asOf).then(
     real_check = run_duplicate_payload_check(api_function)
     assert real_check.returncode == 0, real_check.stderr
     for fragment in (
-        "`[data-signal-id=\"${api.lockedSignalId}\"]`",
+        "page.locator('.signal-list .signal-item.is-locked')",
         "await lockedBinding.count() === 1",
         "const lockedControl = lockedBinding",
         "element.tagName === 'BUTTON' || element.tagName === 'A'",
@@ -1433,27 +1436,7 @@ verifyPublishedApi(page, asOf).then(
         "/^\\/signals\\/[^/?]+(?:\\/note)?(?:\\?|$)/.test(path)",
     ):
         assert fragment in smoke
-    assert "button[data-signal-id" not in smoke
-    assert "a[data-signal-id" not in smoke
-
-    selector = re.search(
-        r"const lockedBinding = page\.locator\(\s*`([^`]+)`,\s*\)", smoke
-    )
-    assert selector is not None
-    assert selector.group(1) == '[data-signal-id="${api.lockedSignalId}"]'
-    adversarial_dom = (
-        '<button data-signal-id="locked"></button>'
-        '<span data-signal-id="locked"></span>'
-    )
-    assert len(re.findall(r'<[^>]+ data-signal-id="locked"', adversarial_dom)) == 2
-    assert (
-        len(
-            re.findall(
-                r'<(?:button|a) data-signal-id="locked"', adversarial_dom
-            )
-        )
-        == 1
-    )
+    assert "data-signal-id" not in smoke
     assert "getByText(api.lockedHeadline, { exact: true }).first()" not in smoke
     _assert_in_order(
         smoke,
