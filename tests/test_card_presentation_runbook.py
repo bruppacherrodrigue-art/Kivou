@@ -441,6 +441,42 @@ def test_backup_is_unique_verified_restored_and_dropped_before_migration() -> No
     )
 
 
+def test_remote_rollout_shells_use_shared_cwd_and_private_backup_identity() -> None:
+    commands = _commands(
+        _between(
+            _body(),
+            "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
+            "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        )
+    )
+
+    shared_prefix = "set -euo pipefail\ncd /srv/kivou\n"
+    assert commands.count(shared_prefix) == 6
+    assert commands.count(shared_prefix + "KIVOU_FINAL_SHORT=$1") == 1
+    assert commands.count(shared_prefix + "KIVOU_FINAL_SHA=$1") == 1
+    assert commands.count(shared_prefix + "KIVOU_RELEASE_DIR=$1") == 4
+    backup_identity_check = (
+        'test "$(sudo -u kivou stat -c \'%U:%G:%a\' '
+        '"$KIVOU_BACKUP_FILE")" = "kivou:kivou:600"'
+    )
+    unsafe_backup_identity_check = (
+        'test "$(stat -c \'%U:%G:%a\' '
+        '"$KIVOU_BACKUP_FILE")" = "kivou:kivou:600"'
+    )
+    backup_bytes_capture = (
+        'KIVOU_BACKUP_BYTES=$(sudo -u kivou stat -c \'%s\' '
+        '"$KIVOU_BACKUP_FILE")'
+    )
+    unsafe_backup_bytes_capture = (
+        'KIVOU_BACKUP_BYTES=$(stat -c \'%s\' '
+        '"$KIVOU_BACKUP_FILE")'
+    )
+    assert commands.count(backup_identity_check) == 1
+    assert commands.count(backup_bytes_capture) == 1
+    assert unsafe_backup_identity_check not in commands
+    assert unsafe_backup_bytes_capture not in commands
+
+
 def test_backend_release_migrates_0027_to_0028_before_versioned_blue_green() -> None:
     body = _body()
 
