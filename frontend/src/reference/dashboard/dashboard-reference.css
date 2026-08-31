@@ -318,6 +318,13 @@ a:focus-visible {
   background: var(--canvas);
 }
 
+.dashboard-workspace-contained {
+  height: 100svh;
+  height: 100dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .topbar {
   position: sticky;
   z-index: 8;

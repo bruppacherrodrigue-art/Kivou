@@ -254,7 +254,10 @@ export function ReferenceSignalDetail({
           </dl>
           {detail.companyKey ? (
             <Button asChild className="primary-action company-profile-action">
-              <ReferenceLink dashboard href={`/companies?company=${encodeURIComponent(detail.companyKey)}`}>
+              <ReferenceLink
+                dashboard
+                href={`/companies?company=${encodeURIComponent(detail.companyKey)}&signal=${encodeURIComponent(detail.id)}`}
+              >
                 {t.reference.signalsPage.viewCompany} <ArrowRight aria-hidden="true" />
               </ReferenceLink>
             </Button>
