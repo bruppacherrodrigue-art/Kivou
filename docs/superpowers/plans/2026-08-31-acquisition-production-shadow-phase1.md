@@ -1098,6 +1098,21 @@ et son appel, aujourd'hui ligne 673 :
     )
 ```
 
+**Le constructeur de domaine doit aussi cesser d'exiger le staging.** `composition.py:155` construit inconditionnellement `StagingQaRecipientOverride`, qui lève pour toute configuration de production — le runtime ne peut donc pas se composer en production sans ce correctif :
+
+```python
+    recipient_override = (
+        StagingQaRecipientOverride(
+            runtime_config,
+            transport_keyring=suppression_keyring,
+        )
+        if runtime_config.environment == "STAGING"
+        else None
+    )
+```
+
+`CampaignWorker` accepte déjà `recipient_override: CampaignRecipientOverride | None = None` et garde chaque usage derrière un test de nullité. Passer `None` n'est pas un contournement : c'est l'exigence D3 rendue vraie au niveau de la composition — en production, un message part au vrai contact ou ne part pas, jamais vers une boîte de repli.
+
 Ajouter l'import en tête de `execution.py` :
 
 ```python
