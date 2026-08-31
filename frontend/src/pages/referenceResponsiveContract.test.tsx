@@ -11,6 +11,7 @@ import {
   PRO_STATUS,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
+  factualFallbackPresentation,
   feedPage,
   mockApi,
   renderApp,
@@ -32,6 +33,16 @@ function mobileMatchMedia(query: string): MediaQueryList {
 afterEach(() => {
   vi.unstubAllGlobals()
 })
+
+const PUBLISHED_UNLOCKED_ITEM = {
+  ...UNLOCKED_ITEM,
+  presentation: factualFallbackPresentation(UNLOCKED_ITEM.contract.title!, '1'.repeat(64)),
+}
+
+const PUBLISHED_UNLOCKED_DETAIL = {
+  ...UNLOCKED_DETAIL,
+  presentation: PUBLISHED_UNLOCKED_ITEM.presentation,
+}
 
 describe('contrat responsive connecté à 390 px', () => {
   it('conserve un main, un h1, la navigation mobile et un retour vers la liste', async () => {
@@ -133,15 +144,16 @@ describe('contrat responsive connecté à 390 px', () => {
     vi.stubGlobal('innerWidth', 390)
     const user = userEvent.setup()
     const second = {
-      ...UNLOCKED_ITEM,
+      ...PUBLISHED_UNLOCKED_ITEM,
       signal_id: 'sig_mobile_2',
       company: { ...UNLOCKED_ITEM.company, name: 'Deuxième entreprise mobile' },
       contract: { ...UNLOCKED_ITEM.contract, title: 'Deuxième marché mobile' },
+      presentation: factualFallbackPresentation('Deuxième marché mobile', '6'.repeat(64)),
     }
-    const secondDetail = { ...UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_2' }
+    const secondDetail = { ...PUBLISHED_UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_2' }
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, second]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM, second]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
       [`GET /signals/${second.signal_id}`]: { body: secondDetail },
       [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
         body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
@@ -169,15 +181,16 @@ describe('contrat responsive connecté à 390 px', () => {
     const user = userEvent.setup()
     let resolveDetail!: (value: { body: typeof UNLOCKED_DETAIL }) => void
     const second = {
-      ...UNLOCKED_ITEM,
+      ...PUBLISHED_UNLOCKED_ITEM,
       signal_id: 'sig_mobile_delayed',
       company: { ...UNLOCKED_ITEM.company, name: 'Entreprise mobile différée' },
       contract: { ...UNLOCKED_ITEM.contract, title: 'Marché mobile différé' },
+      presentation: factualFallbackPresentation('Marché mobile différé', '7'.repeat(64)),
     }
-    const secondDetail = { ...UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_delayed' }
+    const secondDetail = { ...PUBLISHED_UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_delayed' }
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, second]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM, second]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
       [`GET /signals/${second.signal_id}`]: () => new Promise((resolve) => { resolveDetail = resolve }),
       [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
         body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
@@ -219,8 +232,8 @@ describe('contrat responsive connecté à 390 px', () => {
 
 function mockSignalRoute() {
   mockApi({
-    'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
-    [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+    'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM]) },
+    [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
     [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
       body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
     },

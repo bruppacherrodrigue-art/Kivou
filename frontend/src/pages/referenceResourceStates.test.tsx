@@ -10,6 +10,7 @@ import {
   PRO_STATUS,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
+  factualFallbackPresentation,
   feedPage,
   mockApi,
   renderApp,
@@ -17,10 +18,20 @@ import {
 
 afterEach(() => vi.unstubAllGlobals())
 
+const PUBLISHED_UNLOCKED_ITEM = {
+  ...UNLOCKED_ITEM,
+  presentation: factualFallbackPresentation(UNLOCKED_ITEM.contract.title!, '1'.repeat(64)),
+}
+
+const PUBLISHED_UNLOCKED_DETAIL = {
+  ...UNLOCKED_DETAIL,
+  presentation: PUBLISHED_UNLOCKED_ITEM.presentation,
+}
+
 describe('états indépendants des vues de référence', () => {
   it('conserve les signaux réels et annonce localement une panne de facturation', async () => {
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM, LOCKED_ITEM]) },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': {
         status: 503,
@@ -81,8 +92,8 @@ describe('états indépendants des vues de référence', () => {
 
   it('conserve le détail quand la note privée échoue', async () => {
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
       [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
         status: 503,
         body: { detail: { code: 'note_unavailable' } },

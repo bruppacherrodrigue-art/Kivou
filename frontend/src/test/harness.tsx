@@ -9,6 +9,7 @@ import { SessionProvider } from '../auth/SessionProvider'
 import type { SessionState } from '../auth/SessionProvider'
 import type {
   BillingStatus,
+  CardPresentation,
   CompanyProfile,
   LockedDetail,
   LockedFeedItem,
@@ -131,6 +132,49 @@ export const UNAUTHENTICATED: SessionState = {
   expired: false,
 }
 export const EXPIRED: SessionState = { status: 'unauthenticated', me: null, expired: true }
+
+export function factualFallbackPresentation(
+  headline: string,
+  artifactId: string,
+): CardPresentation {
+  const awardSummary = `Attribution documentée : ${headline}`
+  return {
+    artifact_id: artifactId,
+    version: 1,
+    status: 'FALLBACK',
+    schema_version: 'card-presentation-v1',
+    published_at: '2026-08-30T12:00:00Z',
+    content: {
+      schema_version: 'card-presentation-v1',
+      variant: 'FACTUAL_FALLBACK',
+      headline,
+      award_summary: awardSummary,
+      commercial_importance: null,
+      fit_reason: null,
+      timing: null,
+      recommended_action: null,
+      target_roles: [],
+      fit_need_categories: [],
+      unknowns: [],
+      claims: [
+        {
+          claim_id: 'HEADLINE',
+          kind: 'FACT',
+          text: headline,
+          evidence_refs: ['source:contract-title'],
+          confidence: null,
+        },
+        {
+          claim_id: 'AWARD_SUMMARY',
+          kind: 'FACT',
+          text: awardSummary,
+          evidence_refs: ['source:award'],
+          confidence: null,
+        },
+      ],
+    },
+  }
+}
 
 export const UNLOCKED_ITEM: UnlockedFeedItem = {
   locked: false,

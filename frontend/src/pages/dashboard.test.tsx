@@ -18,6 +18,7 @@ import {
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
   callsTo,
+  factualFallbackPresentation,
   feedPage,
   mockApi,
   renderApp,
@@ -348,6 +349,16 @@ const EXACT_OVERVIEW_ROUTES = {
   'GET /target-icps': { body: [ICP] },
 }
 
+const PUBLISHED_UNLOCKED_ITEM = {
+  ...UNLOCKED_ITEM,
+  presentation: factualFallbackPresentation(UNLOCKED_ITEM.contract.title!, '1'.repeat(64)),
+}
+
+const PUBLISHED_UNLOCKED_DETAIL = {
+  ...UNLOCKED_DETAIL,
+  presentation: PUBLISHED_UNLOCKED_ITEM.presentation,
+}
+
 const OVERVIEW_SECOND_ITEM = {
   ...UNLOCKED_ITEM,
   signal_id: 'sig_overview_second',
@@ -357,6 +368,7 @@ const OVERVIEW_SECOND_ITEM = {
     title: 'Deuxième marché public',
     dates: { ...UNLOCKED_ITEM.contract.dates, award: '2026-08-03' },
   },
+  presentation: factualFallbackPresentation('Deuxième marché public', '2'.repeat(64)),
 }
 
 function OverviewAccountSwitcher() {
@@ -375,7 +387,9 @@ describe('vue d’ensemble exacte connectée', () => {
   it('rend uniquement la composition de référence depuis les API réelles', async () => {
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, OVERVIEW_SECOND_ITEM, LOCKED_ITEM]) },
+      'GET /signals': {
+        body: feedPage([PUBLISHED_UNLOCKED_ITEM, OVERVIEW_SECOND_ITEM, LOCKED_ITEM]),
+      },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
@@ -438,7 +452,7 @@ describe('vue d’ensemble exacte connectée', () => {
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
       'GET /signals': {
-        body: feedPage([LOCKED_ITEM, OVERVIEW_SECOND_ITEM, UNLOCKED_ITEM]),
+        body: feedPage([LOCKED_ITEM, OVERVIEW_SECOND_ITEM, PUBLISHED_UNLOCKED_ITEM]),
       },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
@@ -468,7 +482,7 @@ describe('vue d’ensemble exacte connectée', () => {
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
       'GET /signals': {
-        body: feedPage([LOCKED_ITEM, OVERVIEW_SECOND_ITEM, UNLOCKED_ITEM]),
+        body: feedPage([LOCKED_ITEM, OVERVIEW_SECOND_ITEM, PUBLISHED_UNLOCKED_ITEM]),
       },
       [`GET /signals/${OVERVIEW_SECOND_ITEM.signal_id}`]: { body: secondDetail },
       [`GET /signals/${OVERVIEW_SECOND_ITEM.signal_id}/note`]: {
@@ -547,7 +561,7 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
         feedCalls += 1
         return feedCalls === 1
           ? { status: 503, body: { detail: { code: 'temporarily_unavailable' } } }
-          : { body: feedPage([UNLOCKED_ITEM]) }
+          : { body: feedPage([PUBLISHED_UNLOCKED_ITEM]) }
       },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
@@ -566,7 +580,7 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
     let profileCalls = 0
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM]) },
       'GET /target-icps': () => {
         profileCalls += 1
         return profileCalls <= 2
@@ -617,6 +631,7 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
       ...OVERVIEW_SECOND_ITEM,
       signal_id: 'sig_current_overview',
       contract: { ...OVERVIEW_SECOND_ITEM.contract, title: 'Lecture la plus récente' },
+      presentation: factualFallbackPresentation('Lecture la plus récente', '3'.repeat(64)),
     }
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
@@ -640,7 +655,7 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
     })
     expect(await screen.findByText('Lecture la plus récente')).toBeVisible()
     await act(async () => {
-      resolveStale({ body: feedPage([UNLOCKED_ITEM]) })
+      resolveStale({ body: feedPage([PUBLISHED_UNLOCKED_ITEM]) })
     })
     expect(screen.getByText('Lecture la plus récente')).toBeVisible()
     expect(screen.queryByText(UNLOCKED_ITEM.contract.title!)).toBeNull()
@@ -653,10 +668,12 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
     const accountAItem = {
       ...UNLOCKED_ITEM,
       contract: { ...UNLOCKED_ITEM.contract, title: 'Marché privé du compte A' },
+      presentation: factualFallbackPresentation('Marché privé du compte A', '4'.repeat(64)),
     }
     const accountBItem = {
       ...OVERVIEW_SECOND_ITEM,
       contract: { ...OVERVIEW_SECOND_ITEM.contract, title: 'Marché du compte B' },
+      presentation: factualFallbackPresentation('Marché du compte B', '5'.repeat(64)),
     }
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
@@ -760,8 +777,8 @@ describe('autorités, navigation et garde-fous Overview', () => {
     const user = userEvent.setup()
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
       [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
         body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
       },
@@ -815,7 +832,7 @@ describe('autorités, navigation et garde-fous Overview', () => {
     sessionStorage.clear()
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM, LOCKED_ITEM]) },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
