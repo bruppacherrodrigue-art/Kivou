@@ -607,8 +607,16 @@ sudo test ! -L "$KIVOU_FRONTEND_RELEASE"
 sudo install -o kivou -g kivou -m 700 -d "$KIVOU_FRONTEND_BUILD"
 sudo install -o root -g root -m 755 -d "$KIVOU_FRONTEND_RELEASE"
 
-sudo -u kivou git -C "$KIVOU_RELEASE_DIR" archive "$KIVOU_FINAL_SHA" frontend | \
-  sudo -u kivou tar -C "$KIVOU_FRONTEND_BUILD" -xf -
+kivou_frontend_build_owner() {
+  sudo -u kivou /usr/bin/env -i \
+    --chdir="$KIVOU_FRONTEND_BUILD" \
+    HOME=/srv/kivou PATH=/usr/local/bin:/usr/bin:/bin "$@"
+}
+
+sudo -u kivou /usr/bin/env -i --chdir="$KIVOU_RELEASE_DIR" \
+  HOME=/srv/kivou PATH=/usr/local/bin:/usr/bin:/bin \
+  git -C "$KIVOU_RELEASE_DIR" archive "$KIVOU_FINAL_SHA" frontend | \
+  kivou_frontend_build_owner tar -xf -
 sudo -u kivou /usr/bin/env -i \
   --chdir="$KIVOU_FRONTEND_BUILD/frontend" \
   HOME=/srv/kivou PATH=/usr/local/bin:/usr/bin:/bin npm ci
@@ -621,8 +629,10 @@ sudo -u kivou /usr/bin/env -i \
 sudo -u kivou /usr/bin/env -i \
   --chdir="$KIVOU_FRONTEND_BUILD/frontend" \
   HOME=/srv/kivou PATH=/usr/local/bin:/usr/bin:/bin npm run lint
-test -f "$KIVOU_FRONTEND_BUILD/frontend/dist/index.html"
-find "$KIVOU_FRONTEND_BUILD/frontend/dist/assets" -type f -print -quit | grep -q .
+kivou_frontend_build_owner test -f frontend/dist/index.html
+kivou_frontend_build_owner /bin/sh -eu -c '
+  find frontend/dist/assets -type f -print -quit | grep -q .
+'
 
 KIVOU_FRONTEND_BUILD_MANIFEST="$KIVOU_FRONTEND_BUILD/build.manifest.sha256"
 KIVOU_FRONTEND_RELEASE_MANIFEST="$KIVOU_FRONTEND_BUILD/release.manifest.sha256"
@@ -635,30 +645,33 @@ for KIVOU_FRONTEND_MANIFEST in \
     ("$KIVOU_FRONTEND_BUILD"/*.manifest.sha256) ;;
     (*) exit 69 ;;
   esac
-  test ! -e "$KIVOU_FRONTEND_MANIFEST"
-  test ! -L "$KIVOU_FRONTEND_MANIFEST"
+  kivou_frontend_build_owner test ! -e "$KIVOU_FRONTEND_MANIFEST"
+  kivou_frontend_build_owner test ! -L "$KIVOU_FRONTEND_MANIFEST"
 done
-test "$(readlink -f "$KIVOU_FRONTEND_BUILD/frontend/dist")" = \
+kivou_frontend_build_owner test \
+  "$(kivou_frontend_build_owner readlink -f \
+    "$KIVOU_FRONTEND_BUILD/frontend/dist")" = \
   "$KIVOU_FRONTEND_BUILD/frontend/dist"
-test ! -L "$KIVOU_FRONTEND_BUILD/frontend/dist"
-KIVOU_FRONTEND_BUILD_INVALID=$(find \
+kivou_frontend_build_owner test ! -L \
+  "$KIVOU_FRONTEND_BUILD/frontend/dist"
+KIVOU_FRONTEND_BUILD_INVALID=$(kivou_frontend_build_owner find \
   "$KIVOU_FRONTEND_BUILD/frontend/dist" -xdev \
   ! -type d ! -type f -print -quit)
 test -z "$KIVOU_FRONTEND_BUILD_INVALID"
 unset KIVOU_FRONTEND_BUILD_INVALID
-KIVOU_FRONTEND_BUILD_HARDLINKS=$(find \
+KIVOU_FRONTEND_BUILD_HARDLINKS=$(kivou_frontend_build_owner find \
   "$KIVOU_FRONTEND_BUILD/frontend/dist" -xdev \
   -type f -links +1 -print -quit)
 test -z "$KIVOU_FRONTEND_BUILD_HARDLINKS"
 unset KIVOU_FRONTEND_BUILD_HARDLINKS
-sudo -u kivou /bin/sh -eu -c '
-  cd "$1"
+kivou_frontend_build_owner /bin/sh -eu -c '
+  cd frontend/dist
   find . -xdev -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum
-' sh "$KIVOU_FRONTEND_BUILD/frontend/dist" | \
-  sudo -u kivou tee "$KIVOU_FRONTEND_BUILD_MANIFEST" >/dev/null
-test -s "$KIVOU_FRONTEND_BUILD_MANIFEST"
+' | kivou_frontend_build_owner tee \
+  "$KIVOU_FRONTEND_BUILD_MANIFEST" >/dev/null
+kivou_frontend_build_owner test -s "$KIVOU_FRONTEND_BUILD_MANIFEST"
 
-sudo -u kivou tar -C "$KIVOU_FRONTEND_BUILD/frontend/dist" -cf - . | \
+kivou_frontend_build_owner tar -C frontend/dist -cf - . | \
   sudo tar -C "$KIVOU_FRONTEND_RELEASE" -xf -
 printf '%s\n' "$KIVOU_FINAL_SHA" | \
   sudo tee "$KIVOU_FRONTEND_RELEASE/KIVOU_RELEASE_SHA" >/dev/null
@@ -710,15 +723,18 @@ kivou_revalidate_frontend_release() {
     find . -xdev -type f ! -name KIVOU_RELEASE_SHA -print0 |
       LC_ALL=C sort -z | xargs -0 -r sha256sum
   ' sh "$KIVOU_FRONTEND_RELEASE" | \
-    sudo -u kivou tee "$KIVOU_REVALIDATION_MANIFEST" >/dev/null
-  test -s "$KIVOU_REVALIDATION_MANIFEST"
-  cmp --silent "$KIVOU_FRONTEND_BUILD_MANIFEST" \
+    kivou_frontend_build_owner tee \
+      "$KIVOU_REVALIDATION_MANIFEST" >/dev/null
+  kivou_frontend_build_owner test -s "$KIVOU_REVALIDATION_MANIFEST"
+  kivou_frontend_build_owner cmp --silent \
+    "$KIVOU_FRONTEND_BUILD_MANIFEST" \
     "$KIVOU_REVALIDATION_MANIFEST"
-  test "$(sha256sum "$KIVOU_REVALIDATION_MANIFEST" | awk '{print $1}')" = \
+  test "$(kivou_frontend_build_owner sha256sum \
+    "$KIVOU_REVALIDATION_MANIFEST" | awk '{print $1}')" = \
     "$KIVOU_EXPECTED_FRONTEND_MANIFEST_SHA"
 }
 
-KIVOU_EXPECTED_FRONTEND_MANIFEST_SHA=$(sha256sum \
+KIVOU_EXPECTED_FRONTEND_MANIFEST_SHA=$(kivou_frontend_build_owner sha256sum \
   "$KIVOU_FRONTEND_BUILD_MANIFEST" | awk '{print $1}')
 printf '%s\n' "$KIVOU_EXPECTED_FRONTEND_MANIFEST_SHA" | \
   grep -Eq '^[0-9a-f]{64}$'
@@ -866,15 +882,16 @@ test "$(cat /srv/kivou/frontend/KIVOU_RELEASE_SHA)" = "$KIVOU_FINAL_SHA"
 kivou_cleanup_frontend_switch_dir
 trap - EXIT
 
-KIVOU_FRONTEND_BUILD_REAL=$(readlink -f "$KIVOU_FRONTEND_BUILD")
-test "$KIVOU_FRONTEND_BUILD_REAL" = "$KIVOU_FRONTEND_BUILD"
+KIVOU_FRONTEND_BUILD_REAL=$(kivou_frontend_build_owner readlink -f \
+  "$KIVOU_FRONTEND_BUILD")
 case "$KIVOU_FRONTEND_BUILD_REAL" in
-  (/srv/kivou/releases/.frontend-build-*) ;;
+  ("$KIVOU_FRONTEND_BUILD") ;;
   (*) exit 69 ;;
 esac
-sudo find "$KIVOU_FRONTEND_BUILD_REAL" -depth -mindepth 1 -delete
+kivou_frontend_build_owner find "$KIVOU_FRONTEND_BUILD_REAL" \
+  -depth -mindepth 1 -delete
 case "$KIVOU_FRONTEND_BUILD_REAL" in
-  (/srv/kivou/releases/.frontend-build-*) ;;
+  ("$KIVOU_FRONTEND_BUILD") ;;
   (*) exit 69 ;;
 esac
 sudo rmdir "$KIVOU_FRONTEND_BUILD_REAL"
@@ -1519,6 +1536,15 @@ Checklist obligatoire, captures desktop et mobile à l'appui :
 
 Sur les trois surfaces, vérifier aussi qu'aucune date de publication comme date d’attribution n'est affichée, qu'aucune association « Matériaux → personnel » n'apparaît et qu'aucune personne ni urgence inventée n'est présentée.
 
+Le contrat DOM normatif de `MasterDetailFrame` porte
+`data-master-detail-pane="list"` et `data-master-detail-pane="detail"`
+directement sur les deux panes `overflow-y:auto`. Avant sélection C002, seule
+la pane liste visible doit déborder : le placeholder détail peut rester court.
+Après sélection desktop, les deux panes visibles doivent déborder et être
+manipulées séparément; sur mobile, une seule pane est visible à chaque état.
+L'absence, la duplication ou l'ambiguïté de ces attributs impose STOP et doit
+être corrigée dans la PR UI concernée.
+
 Exécuter ce smoke local depuis le checkout du SHA final. Il utilise les rôles,
 noms accessibles et URLs normatifs des plans C001–C003; l'absence d'un de ces
 contrats est un échec, jamais une raison de relâcher un sélecteur. Il ne crée,
@@ -1766,6 +1792,20 @@ function installFailureCollectors(page, origin, errors, requests, responses) {
   })
 }
 
+function waitForExactGetResponse(page, origin, expectedPath) {
+  return page.waitForResponse((response) => {
+    let url
+    try {
+      url = new URL(response.url())
+    } catch {
+      return false
+    }
+    return response.request().method() === 'GET' &&
+      url.origin === origin &&
+      `${url.pathname}${url.search}` === expectedPath
+  })
+}
+
 async function expectFocusedHeading(page) {
   await page.waitForFunction(() => /^H[1-3]$/.test(document.activeElement?.tagName || ''))
 }
@@ -1778,46 +1818,73 @@ async function expectLocatorFocused(locator) {
   throw new Error()
 }
 
-async function setScrollContract(page, viewport, pane) {
-  const expectedCount = viewport.name === 'desktop' ? 2 : 1
-  const index = pane === 'list' ? 0 : expectedCount - 1
-  return page.locator('main *').evaluateAll((elements, contract) => {
-    const panes = elements.filter((element) => {
-      const overflow = getComputedStyle(element).overflowY
-      const bounds = element.getBoundingClientRect()
-      return bounds.width > 0 && bounds.height > 0 &&
-        (overflow === 'auto' || overflow === 'scroll') &&
-        element.scrollHeight - element.clientHeight >= 200
-    })
-    if (panes.length !== contract.expectedCount) throw new Error()
-    const element = panes[contract.index]
-    const target = 120 + contract.index * 40
-    if (element.scrollHeight - element.clientHeight < target) throw new Error()
+async function visibleMasterDetailPane(page, viewport, pane, phase) {
+  requireTrue(viewport.name === 'desktop' || viewport.name === 'mobile')
+  requireTrue(pane === 'list' || pane === 'detail')
+  requireTrue(typeof phase === 'string' && phase.length > 0)
+  const locator = page.locator(
+    `[data-master-detail-pane="${pane}"]:visible`,
+  )
+  await locator.first().waitFor()
+  requireTrue(await locator.count() === 1)
+  if (viewport.name === 'mobile') {
+    const otherPane = pane === 'list' ? 'detail' : 'list'
+    const otherLocator = page.locator(
+      `[data-master-detail-pane="${otherPane}"]:visible`,
+    )
+    await otherLocator.first().waitFor({ state: 'hidden' })
+    requireTrue(await otherLocator.count() === 0)
+  }
+  return locator
+}
+
+async function setScrollContract(page, viewport, pane, phase) {
+  const locator = await visibleMasterDetailPane(page, viewport, pane, phase)
+  return locator.evaluate((element, contract) => {
+    const overflow = getComputedStyle(element).overflowY
+    const bounds = element.getBoundingClientRect()
+    const maximum = element.scrollHeight - element.clientHeight
+    if (element.getAttribute('data-master-detail-pane') !== contract.pane ||
+        bounds.width <= 0 || bounds.height <= 0 ||
+        !(overflow === 'auto' || overflow === 'scroll') || maximum < 200) {
+      throw new Error()
+    }
+    const main = element.closest('main')
+    if (!main) throw new Error()
+    const path = []
+    let cursor = element
+    while (cursor !== main) {
+      const parent = cursor.parentElement
+      if (!parent) throw new Error()
+      path.unshift(Array.from(parent.children).indexOf(cursor))
+      cursor = parent
+    }
+    const target = contract.pane === 'list' ? 120 : 160
     element.scrollTop = target
     element.dispatchEvent(new Event('scroll', { bubbles: true }))
     if (!(element.scrollTop > 0) || Math.abs(element.scrollTop - target) > 2) {
       throw new Error()
     }
-    return panes.map((candidate) => candidate.scrollTop)
-  }, { expectedCount, index })
+    return { position: element.scrollTop, panePath: path.join('.') }
+  }, { pane, phase })
 }
 
-async function expectScrollContractRestored(page, viewport, pane, expected) {
-  const expectedCount = viewport.name === 'desktop' ? 2 : 1
-  const index = pane === 'list' ? 0 : expectedCount - 1
-  await page.waitForFunction(({ expectedCount, index, expected }) => {
-    const panes = Array.from(document.querySelectorAll('main *')).filter((element) => {
+async function expectScrollContractRestored(page, viewport, pane, phase, expected) {
+  requireTrue(expected.position > 0)
+  const locator = await visibleMasterDetailPane(page, viewport, pane, phase)
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const actual = await locator.evaluate((element, expectedPane) => {
       const overflow = getComputedStyle(element).overflowY
       const bounds = element.getBoundingClientRect()
-      return bounds.width > 0 && bounds.height > 0 &&
-        (overflow === 'auto' || overflow === 'scroll') &&
-        element.scrollHeight - element.clientHeight >= 200
-    })
-    if (panes.length !== expectedCount) return false
-    const actual = panes.map((element) => element.scrollTop)
-    return expected[index] > 0 && actual[index] > 0 &&
-      Math.abs(actual[index] - expected[index]) <= 2
-  }, { expectedCount, index, expected })
+      if (element.getAttribute('data-master-detail-pane') !== expectedPane ||
+          bounds.width <= 0 || bounds.height <= 0 ||
+          !(overflow === 'auto' || overflow === 'scroll')) return -1
+      return element.scrollTop
+    }, pane)
+    if (actual > 0 && Math.abs(actual - expected.position) <= 2) return
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error()
 }
 
 async function smokeDashboard(page, origin, evidencePath) {
@@ -1851,42 +1918,45 @@ async function smokeCompanies(page, origin, viewport, evidencePath, requests) {
   const award = page.getByRole('button', { name: /attribution|award/i }).first()
   await award.waitFor()
   await award.focus()
-  const companyListScroll = await setScrollContract(page, viewport, 'list')
+  let companyListScroll = await setScrollContract(page, viewport, 'list', 'companies-initial-list')
   await award.evaluate((element) => element.click())
   await page.waitForURL(/\/app\/companies\/[^?]+\?signal=[^&]+$/)
   const selectedUrl = page.url()
   await expectFocusedHeading(page)
   requireTrue(await page.locator('a[href^="/app/signals/"]').count() >= 1)
-  const companyDetailScroll = await setScrollContract(page, viewport, 'detail')
   if (viewport.name === 'desktop') {
-    await expectScrollContractRestored(
-      page, viewport, 'list', companyListScroll,
-    )
+    companyListScroll = await setScrollContract(page, viewport, 'list', 'companies-selected-list')
+  }
+  const companyDetailScroll = await setScrollContract(page, viewport, 'detail', 'companies-selected-detail')
+  if (viewport.name === 'desktop') {
+    requireTrue(companyListScroll.panePath !== companyDetailScroll.panePath)
   }
   await page.goBack({ waitUntil: 'networkidle' })
   await page.waitForURL(/\/app\/companies$/)
   await award.waitFor()
   await expectLocatorFocused(award)
-  await expectScrollContractRestored(page, viewport, 'list', companyListScroll)
+  await expectScrollContractRestored(
+    page, viewport, 'list', 'companies-back-list', companyListScroll,
+  )
   await page.goForward({ waitUntil: 'networkidle' })
   requireTrue(page.url() === selectedUrl)
   await expectFocusedHeading(page)
   await expectScrollContractRestored(
-    page, viewport, 'detail', companyDetailScroll,
+    page, viewport, 'detail', 'companies-forward-detail', companyDetailScroll,
   )
   if (viewport.name === 'desktop') {
     await expectScrollContractRestored(
-      page, viewport, 'list', companyListScroll,
+      page, viewport, 'list', 'companies-forward-list', companyListScroll,
     )
   }
   await page.reload({ waitUntil: 'networkidle' })
   requireTrue(page.url() === selectedUrl)
   await expectScrollContractRestored(
-    page, viewport, 'detail', companyDetailScroll,
+    page, viewport, 'detail', 'companies-reload-detail', companyDetailScroll,
   )
   if (viewport.name === 'desktop') {
     await expectScrollContractRestored(
-      page, viewport, 'list', companyListScroll,
+      page, viewport, 'list', 'companies-reload-list', companyListScroll,
     )
   }
   await page.screenshot({ path: evidencePath, fullPage: true })
@@ -1900,7 +1970,9 @@ async function smokeCompanies(page, origin, viewport, evidencePath, requests) {
     await page.waitForURL(/\/app\/companies$/)
     await award.waitFor()
     await expectLocatorFocused(award)
-    await expectScrollContractRestored(page, viewport, 'list', companyListScroll)
+    await expectScrollContractRestored(
+      page, viewport, 'list', 'companies-return-list', companyListScroll,
+    )
   }
 }
 
@@ -1943,7 +2015,18 @@ async function smokeSignals(
   requireTrue(await selection.count() === 1)
   await selection.waitFor()
   await selection.focus()
-  const signalListScroll = await setScrollContract(page, viewport, 'list')
+  let signalListScroll = await setScrollContract(page, viewport, 'list', 'signals-initial-list')
+  const expectedDetailPath =
+    `/signals/${encodeURIComponent(api.pinnedSignalId)}` +
+    `?presentation_artifact_id=${encodeURIComponent(api.pinnedArtifactId)}`
+  const expectedNotePath =
+    `/signals/${encodeURIComponent(api.pinnedSignalId)}/note`
+  const currentDetailResponsePromise = waitForExactGetResponse(
+    page, origin, expectedDetailPath,
+  )
+  const currentNoteResponsePromise = waitForExactGetResponse(
+    page, origin, expectedNotePath,
+  )
   const selectionRequestStart = requests.length
   const selectionResponseStart = responses.length
   await selection.evaluate((element) => element.click())
@@ -1963,11 +2046,12 @@ async function smokeSignals(
   requireTrue(Number.isInteger(api.pinnedVersion) && api.pinnedVersion >= 1)
   await expectFocusedHeading(page)
   await page.getByText(api.pinnedHeadline, { exact: true }).first().waitFor()
-  const expectedDetailPath =
-    `/signals/${encodeURIComponent(api.pinnedSignalId)}` +
-    `?presentation_artifact_id=${encodeURIComponent(api.pinnedArtifactId)}`
-  const expectedNotePath =
-    `/signals/${encodeURIComponent(api.pinnedSignalId)}/note`
+  const [currentDetailResponse, currentNoteResponse] = await Promise.all([
+    currentDetailResponsePromise,
+    currentNoteResponsePromise,
+  ])
+  requireTrue(currentDetailResponse.status() === 200)
+  requireTrue(currentNoteResponse.status() === 200)
   requireTrue(requests.slice(selectionRequestStart).some(({ method, path }) => (
     method === 'GET' && path === expectedDetailPath
   )))
@@ -1986,27 +2070,40 @@ async function smokeSignals(
   requireTrue(!requests.some(({ method, path }) => (
     method !== 'GET' && /\/signals\/[^/]+\/note(?:\?|$)/.test(path)
   )))
-  const signalDetailScroll = await setScrollContract(page, viewport, 'detail')
   if (viewport.name === 'desktop') {
-    await expectScrollContractRestored(page, viewport, 'list', signalListScroll)
+    signalListScroll = await setScrollContract(page, viewport, 'list', 'signals-selected-list')
+  }
+  const signalDetailScroll = await setScrollContract(page, viewport, 'detail', 'signals-selected-detail')
+  if (viewport.name === 'desktop') {
+    requireTrue(signalListScroll.panePath !== signalDetailScroll.panePath)
   }
   await page.goBack({ waitUntil: 'networkidle' })
   await page.waitForURL(/\/app\/signals$/)
   await selection.waitFor()
   await expectLocatorFocused(selection)
-  await expectScrollContractRestored(page, viewport, 'list', signalListScroll)
+  await expectScrollContractRestored(
+    page, viewport, 'list', 'signals-back-list', signalListScroll,
+  )
   await page.goForward({ waitUntil: 'networkidle' })
   requireTrue(page.url() === selectedUrl)
   await expectFocusedHeading(page)
-  await expectScrollContractRestored(page, viewport, 'detail', signalDetailScroll)
+  await expectScrollContractRestored(
+    page, viewport, 'detail', 'signals-forward-detail', signalDetailScroll,
+  )
   if (viewport.name === 'desktop') {
-    await expectScrollContractRestored(page, viewport, 'list', signalListScroll)
+    await expectScrollContractRestored(
+      page, viewport, 'list', 'signals-forward-list', signalListScroll,
+    )
   }
   await page.reload({ waitUntil: 'networkidle' })
   requireTrue(page.url() === selectedUrl)
-  await expectScrollContractRestored(page, viewport, 'detail', signalDetailScroll)
+  await expectScrollContractRestored(
+    page, viewport, 'detail', 'signals-reload-detail', signalDetailScroll,
+  )
   if (viewport.name === 'desktop') {
-    await expectScrollContractRestored(page, viewport, 'list', signalListScroll)
+    await expectScrollContractRestored(
+      page, viewport, 'list', 'signals-reload-list', signalListScroll,
+    )
   }
   await page.screenshot({ path: evidencePath, fullPage: true })
 
@@ -2020,13 +2117,26 @@ async function smokeSignals(
     await page.waitForURL(/\/app\/signals$/)
     await selection.waitFor()
     await expectLocatorFocused(selection)
-    await expectScrollContractRestored(page, viewport, 'list', signalListScroll)
+    await expectScrollContractRestored(
+      page, viewport, 'list', 'signals-return-list', signalListScroll,
+    )
   }
 
   const historicalUrl = new URL(
     `/app/signals/${encodeURIComponent(api.historicalSignalId)}`, origin,
   )
   historicalUrl.searchParams.set('presentation', api.historicalArtifactId)
+  const expectedHistoricalDetailPath =
+    `/signals/${encodeURIComponent(api.historicalSignalId)}` +
+    `?presentation_artifact_id=${encodeURIComponent(api.historicalArtifactId)}`
+  const expectedHistoricalNotePath =
+    `/signals/${encodeURIComponent(api.historicalSignalId)}/note`
+  const historicalDetailResponsePromise = waitForExactGetResponse(
+    page, origin, expectedHistoricalDetailPath,
+  )
+  const historicalNoteResponsePromise = waitForExactGetResponse(
+    page, origin, expectedHistoricalNotePath,
+  )
   const historicalRequestStart = requests.length
   const historicalResponseStart = responses.length
   await page.goto(historicalUrl.toString(), { waitUntil: 'networkidle' })
@@ -2036,15 +2146,17 @@ async function smokeSignals(
     Array.from(url.searchParams).length === 1
   ))
   await page.getByText(api.historicalHeadline, { exact: true }).first().waitFor()
-  const expectedHistoricalDetailPath =
-    `/signals/${encodeURIComponent(api.historicalSignalId)}` +
-    `?presentation_artifact_id=${encodeURIComponent(api.historicalArtifactId)}`
+  const [historicalDetailResponse, historicalNoteResponse] = await Promise.all([
+    historicalDetailResponsePromise,
+    historicalNoteResponsePromise,
+  ])
+  requireTrue(historicalDetailResponse.status() === 200)
+  requireTrue(historicalNoteResponse.status() === 200)
   requireTrue(requests.slice(historicalRequestStart).some(({ method, path }) => (
     method === 'GET' && path === expectedHistoricalDetailPath
   )))
   requireTrue(requests.slice(historicalRequestStart).some(({ method, path }) => (
-    method === 'GET' &&
-    path === `/signals/${encodeURIComponent(api.historicalSignalId)}/note`
+    method === 'GET' && path === expectedHistoricalNotePath
   )))
   requireTrue(responses.slice(historicalResponseStart).some(({
     method, path, status,
@@ -2052,7 +2164,7 @@ async function smokeSignals(
   requireTrue(responses.slice(historicalResponseStart).some(({
     method, path, status,
   }) => method === 'GET' && status === 200 &&
-    path === `/signals/${encodeURIComponent(api.historicalSignalId)}/note`))
+    path === expectedHistoricalNotePath))
   requireTrue(!requests.some(({ method, path }) => (
     method !== 'GET' && /\/signals\/[^/]+\/note(?:\?|$)/.test(path)
   )))

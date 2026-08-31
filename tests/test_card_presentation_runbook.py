@@ -80,6 +80,44 @@ def _embedded_awk_after(commands: str, anchor: str) -> str:
     return commands.split(prefix, 1)[1].split(suffix, 1)[0]
 
 
+def _frontend_build_read_violations(section: str) -> tuple[str, ...]:
+    """Find build-tree reads not executed across the documented user boundary."""
+    logical = _logical_shell(section)
+    logical = logical.split(
+        'sudo install -o kivou -g kivou -m 700 -d "$KIVOU_FRONTEND_BUILD"',
+        1,
+    )[1]
+    build_names = (
+        "$KIVOU_FRONTEND_BUILD",
+        "$KIVOU_FRONTEND_BUILD_MANIFEST",
+        "$KIVOU_FRONTEND_MANIFEST",
+        "$KIVOU_FRONTEND_RELEASE_MANIFEST",
+        "$KIVOU_FRONTEND_RELEASE_RECHECK_MANIFEST",
+        "$KIVOU_REVALIDATION_MANIFEST",
+        "$KIVOU_FRONTEND_BUILD_REAL",
+    )
+    read_primitive = re.compile(
+        r"(?:^|[ ($|;])(?:test|readlink|find|cmp|sha256sum|cat|grep|tar|tee)(?: |$)"
+    )
+    violations = []
+    for line in logical.splitlines():
+        if not any(
+            re.search(re.escape(name) + r"(?![A-Z0-9_])", line)
+            for name in build_names
+        ):
+            continue
+        if not read_primitive.search(line):
+            continue
+        if (
+            "kivou_frontend_build_owner" in line
+            or "sudo -u kivou" in line
+            or "--property=User=kivou" in line
+        ):
+            continue
+        violations.append(line.strip())
+    return tuple(violations)
+
+
 def test_every_documented_shell_and_embedded_script_parses() -> None:
     body = _body()
     for index, block in enumerate(_shell_blocks(body)):
@@ -682,6 +720,60 @@ def test_every_closed_build_environment_sets_an_accessible_cwd_before_assignment
         assert chdir < invocation.index("PATH=")
 
 
+def test_frontend_build_tree_reads_cross_the_kivou_700_permission_boundary(
+    tmp_path: Path,
+) -> None:
+    section = _between(
+        _body(),
+        "## 6. Construire et basculer le frontend du même SHA",
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+    )
+    commands = _commands(section)
+
+    assert _frontend_build_read_violations(section) == ()
+    assert 'sudo -u kivou tar -C "$KIVOU_FRONTEND_BUILD"' not in commands
+    assert "kivou_frontend_build_owner tar -xf -" in commands
+    unsafe_fixture = section.replace(
+        'kivou_frontend_build_owner test -s "$KIVOU_FRONTEND_BUILD_MANIFEST"',
+        'test -s "$KIVOU_FRONTEND_BUILD_MANIFEST"',
+        1,
+    )
+    assert _frontend_build_read_violations(unsafe_fixture), (
+        "the permission-boundary test must reject an operator-shell manifest read"
+    )
+
+    helper_start = "kivou_frontend_build_owner() {\n"
+    assert commands.count(helper_start) == 1
+    helper = helper_start + commands.split(helper_start, 1)[1].split("\n}\n", 1)[0]
+    helper += "\n}\n"
+    build = tmp_path / "build"
+    dist = build / "frontend" / "dist"
+    dist.mkdir(parents=True)
+    (dist / "index.html").write_text("ok", encoding="utf-8")
+    build.chmod(0o700)
+    harness = f"""
+sudo() {{
+  test "$1" = -u
+  test "$2" = kivou
+  shift 2
+  "$@"
+}}
+KIVOU_FRONTEND_BUILD=$1
+{helper}
+kivou_frontend_build_owner /bin/sh -eu -c '
+  test "$PWD" = "$1"
+  test -f frontend/dist/index.html
+' sh "$KIVOU_FRONTEND_BUILD"
+"""
+    executed = subprocess.run(
+        ["bash", "-eu", "-c", harness, "sh", str(build)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert executed.returncode == 0, executed.stderr
+
+
 def test_qa_gate_precedes_separate_bounded_fr_en_factual_backfills() -> None:
     body = _body()
     qa_section = _between(
@@ -974,6 +1066,49 @@ def test_signal_smoke_pins_exact_signal_note_and_historical_artifact() -> None:
     )
 
 
+def test_signal_detail_and_note_waiters_are_armed_before_navigation() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    script = _javascript_heredocs(section)[0]
+    helper = script.split("function waitForExactGetResponse", 1)[1].split(
+        "\n}\n", 1
+    )[0]
+    smoke = script.split("async function smokeSignals", 1)[1].split(
+        "\n}\n", 1
+    )[0]
+
+    for fragment in (
+        "page.waitForResponse",
+        "response.request().method() === 'GET'",
+        "url.origin === origin",
+        "`${url.pathname}${url.search}` === expectedPath",
+    ):
+        assert fragment in helper
+
+    _assert_in_order(
+        smoke,
+        "const expectedDetailPath =",
+        "const expectedNotePath =",
+        "const currentDetailResponsePromise = waitForExactGetResponse(",
+        "const currentNoteResponsePromise = waitForExactGetResponse(",
+        "await selection.evaluate((element) => element.click())",
+        "const [currentDetailResponse, currentNoteResponse] = await Promise.all([",
+        "currentDetailResponse.status() === 200",
+        "currentNoteResponse.status() === 200",
+        "const expectedHistoricalDetailPath =",
+        "const expectedHistoricalNotePath =",
+        "const historicalDetailResponsePromise = waitForExactGetResponse(",
+        "const historicalNoteResponsePromise = waitForExactGetResponse(",
+        "await page.goto(historicalUrl.toString()",
+        "const [historicalDetailResponse, historicalNoteResponse] = await Promise.all([",
+        "historicalDetailResponse.status() === 200",
+        "historicalNoteResponse.status() === 200",
+    )
+
+
 def test_scroll_contract_mutates_and_restores_nonzero_positions() -> None:
     section = _between(
         _body(),
@@ -988,7 +1123,7 @@ def test_scroll_contract_mutates_and_restores_nonzero_positions() -> None:
         "async function expectScrollContractRestored",
         "element.scrollTop = target",
         "element.scrollTop > 0",
-        "Math.abs(actual[index] - expected[index])",
+        "Math.abs(actual - expected.position)",
         "companyListScroll",
         "companyDetailScroll",
         "signalListScroll",
@@ -1009,6 +1144,68 @@ def test_scroll_contract_mutates_and_restores_nonzero_positions() -> None:
             "await page.reload(",
             "expectScrollContractRestored",
         )
+
+
+def test_scroll_contract_targets_named_master_detail_panes_by_phase() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    script = _javascript_heredocs(section)[0]
+    companies = script.split("async function smokeCompanies", 1)[1].split(
+        "\n}\n", 1
+    )[0]
+    signals = script.split("async function smokeSignals", 1)[1].split(
+        "\n}\n", 1
+    )[0]
+
+    assert "data-master-detail-pane" in section
+    assert "page.locator('main *').evaluateAll" not in script
+    for fragment in (
+        "pane === 'list' || pane === 'detail'",
+        "typeof phase === 'string' && phase.length > 0",
+        '`[data-master-detail-pane="${pane}"]:visible`',
+        "await locator.count() === 1",
+        "if (viewport.name === 'mobile')",
+        "const otherPane = pane === 'list' ? 'detail' : 'list'",
+        '`[data-master-detail-pane="${otherPane}"]:visible`',
+        "await otherLocator.count() === 0",
+        "overflow === 'auto' || overflow === 'scroll'",
+    ):
+        assert fragment in script
+
+    company_before_selection, company_after_selection = companies.split(
+        "await award.evaluate((element) => element.click())", 1
+    )
+    assert (
+        "setScrollContract(page, viewport, 'list', 'companies-initial-list')"
+        in company_before_selection
+    )
+    assert "setScrollContract(page, 'detail'" not in company_before_selection
+    _assert_in_order(
+        company_after_selection,
+        "if (viewport.name === 'desktop')",
+        "setScrollContract(page, viewport, 'list', 'companies-selected-list')",
+        "setScrollContract(page, viewport, 'detail', 'companies-selected-detail')",
+        "companyListScroll.panePath !== companyDetailScroll.panePath",
+    )
+
+    signal_before_selection, signal_after_selection = signals.split(
+        "await selection.evaluate((element) => element.click())", 1
+    )
+    assert (
+        "setScrollContract(page, viewport, 'list', 'signals-initial-list')"
+        in signal_before_selection
+    )
+    assert "setScrollContract(page, 'detail'" not in signal_before_selection
+    _assert_in_order(
+        signal_after_selection,
+        "if (viewport.name === 'desktop')",
+        "setScrollContract(page, viewport, 'list', 'signals-selected-list')",
+        "setScrollContract(page, viewport, 'detail', 'signals-selected-detail')",
+        "signalListScroll.panePath !== signalDetailScroll.panePath",
+    )
 
 
 def test_smoke_journal_boundary_and_card_worker_inventory_are_fail_closed() -> None:
