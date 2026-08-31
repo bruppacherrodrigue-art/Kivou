@@ -395,6 +395,24 @@ describe('détail exact d’un signal réel', () => {
     },
   )
 
+  it('n’affiche pas une coche de publication quand la présentation est absente', async () => {
+    const detail = {
+      ...UNLOCKED_DETAIL,
+      presentation: null,
+    }
+    mockApi(detailRoutes(detail))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel()
+    const status = panel.querySelector('.published-status') as HTMLElement
+    expect(status).toHaveTextContent('Présentation non publiée')
+    expect(status.querySelector('.lucide-info')).not.toBeNull()
+    expect(status.querySelector('.lucide-file-check-2')).toBeNull()
+  })
+
   it('garde le titre administratif uniquement dans les faits clairement libellés', async () => {
     const administrativeTitle = 'ACCORD-CADRE LOT 7 PERSONNEL ET MATÉRIAUX'
     const detail = {

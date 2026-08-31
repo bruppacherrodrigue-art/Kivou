@@ -2,7 +2,9 @@ import type { Page } from '@playwright/test'
 
 import type {
   BillingStatus,
+  CardPresentation,
   CompanyProfile,
+  FeedItem,
   FeedPage,
   LockedFeedItem,
   Me,
@@ -612,6 +614,59 @@ function toUnlockedItem(record: AwardSignal): UnlockedFeedItem {
 
 export const VISUAL_UNLOCKED_ITEMS = awardSignals.map(toUnlockedItem)
 
+export const VISUAL_FALLBACK_PROVIDER_METADATA = {
+  provider: null,
+  model_id: null,
+  prompt_version: null,
+  qa_provider: null,
+  qa_model_id: null,
+} as const
+
+function factualFallbackPresentation(
+  record: AwardSignal,
+  artifactId: string,
+): CardPresentation {
+  const headline = `${record.company.name} est identifiée comme entreprise attributaire.`
+  const awardSummary = `L’avis ${record.notice} identifie ${record.company.name} comme entreprise attributaire du marché « ${record.shortTitle} ».`
+  const evidenceRef = `source:notice:${record.notice}`
+  return {
+    artifact_id: artifactId,
+    version: 1,
+    status: 'FALLBACK',
+    schema_version: 'card-presentation-v1',
+    published_at: '2026-08-29T09:00:00+00:00',
+    content: {
+      schema_version: 'card-presentation-v1',
+      variant: 'FACTUAL_FALLBACK',
+      headline,
+      award_summary: awardSummary,
+      commercial_importance: null,
+      fit_reason: null,
+      timing: null,
+      recommended_action: null,
+      target_roles: [],
+      fit_need_categories: [],
+      unknowns: [{
+        text: 'Les besoins fournisseurs encore ouverts ne sont pas publiés.',
+        evidence_refs: [`${evidenceRef}:unknowns`],
+      }],
+      claims: [{
+        claim_id: 'HEADLINE',
+        kind: 'FACT',
+        text: headline,
+        evidence_refs: [`${evidenceRef}:awardee`],
+        confidence: null,
+      }, {
+        claim_id: 'AWARD_SUMMARY',
+        kind: 'FACT',
+        text: awardSummary,
+        evidence_refs: [`${evidenceRef}:award`],
+        confidence: null,
+      }],
+    },
+  }
+}
+
 function toLockedItem(item: UnlockedFeedItem): LockedFeedItem {
   return {
     locked: true,
@@ -638,6 +693,52 @@ function toLockedItem(item: UnlockedFeedItem): LockedFeedItem {
 }
 
 export const VISUAL_LOCKED_ITEMS = VISUAL_UNLOCKED_ITEMS.slice(3).map(toLockedItem)
+
+const visualAwardItem = VISUAL_UNLOCKED_ITEMS.find(
+  (item) => item.signal_id === 'h-huether-munich',
+)!
+const visualPublicationItem = VISUAL_UNLOCKED_ITEMS.find(
+  (item) => item.signal_id === 'tm-ausbau-campus-ost',
+)!
+const visualLockedItem = VISUAL_UNLOCKED_ITEMS.find(
+  (item) => item.signal_id === 'gsh-gunzenhausen',
+)!
+
+export const VISUAL_SIGNAL_UNLOCKED_ITEMS = [{
+  ...visualAwardItem,
+  presentation: factualFallbackPresentation(awardSignals[0], 'a'.repeat(64)),
+}, {
+  ...visualPublicationItem,
+  presentation: factualFallbackPresentation(awardSignals[2], 'c'.repeat(64)),
+  event: {
+    ...visualPublicationItem.event,
+    status: 'recently_published_award',
+    type: 'recently_published_award',
+    clock: 'publication',
+    date: visualPublicationItem.contract.dates.publication,
+    age_days: 4,
+    headline: 'L’avis d’attribution a été publié le 25 août 2026.',
+    why_now: 'La publication de l’avis d’attribution est récente.',
+    award_date_note: 'La date d’attribution est publiée séparément.',
+    award_clock_status: 'publication_recent',
+  },
+  contract: {
+    ...visualPublicationItem.contract,
+    buyer: null,
+  },
+  analysis: {
+    ...visualPublicationItem.analysis,
+    fit: {
+      ...visualPublicationItem.analysis.fit,
+      reasons: [],
+    },
+  },
+}] satisfies UnlockedFeedItem[]
+
+export const VISUAL_SIGNAL_ITEMS = [
+  ...VISUAL_SIGNAL_UNLOCKED_ITEMS,
+  toLockedItem(visualLockedItem),
+] satisfies FeedItem[]
 
 function toDetail(record: AwardSignal): UnlockedDetail {
   const item = toUnlockedItem(record)
@@ -695,6 +796,12 @@ function toDetail(record: AwardSignal): UnlockedDetail {
 }
 
 export const VISUAL_DETAILS = awardSignals.map(toDetail)
+
+export const VISUAL_SIGNAL_DETAILS = VISUAL_SIGNAL_UNLOCKED_ITEMS.map((item) => {
+  const detail = VISUAL_DETAILS.find((candidate) => candidate.signal_id === item.signal_id)
+  if (!detail) throw new Error(`Missing visual detail for ${item.signal_id}`)
+  return { ...detail, ...item }
+}) satisfies UnlockedDetail[]
 
 function toCompanyProfile(record: AwardSignal): CompanyProfile {
   const item = toUnlockedItem(record)
@@ -864,7 +971,7 @@ export const LOCAL_REFERENCE_ROUTES = [
 
 function feedPage(scenario: ConnectedVisualScenario): FeedPage {
   const items = scenario === 'connected-discovery'
-    ? [...VISUAL_UNLOCKED_ITEMS.slice(0, 3), ...VISUAL_LOCKED_ITEMS]
+    ? VISUAL_SIGNAL_ITEMS
     : VISUAL_UNLOCKED_ITEMS
   return {
     items,
@@ -896,9 +1003,10 @@ function responseForConnected(
 
   const noteMatch = /^GET \/signals\/([^/]+)\/note$/.exec(key)
   if (noteMatch) {
-    const signal = VISUAL_DETAILS.find((candidate) => candidate.signal_id === noteMatch[1])
+    const details = scenario === 'connected-discovery' ? VISUAL_SIGNAL_DETAILS : VISUAL_DETAILS
+    const signal = details.find((candidate) => candidate.signal_id === noteMatch[1])
     const allowed = scenario === 'connected-pro'
-      || VISUAL_UNLOCKED_ITEMS.slice(0, 3).some((candidate) => candidate.signal_id === noteMatch[1])
+      || VISUAL_SIGNAL_UNLOCKED_ITEMS.some((candidate) => candidate.signal_id === noteMatch[1])
     if (!signal || !allowed) return null
     return {
       body: { signal_id: signal.signal_id, note: null, updated_at: null },
@@ -907,9 +1015,10 @@ function responseForConnected(
 
   const detailMatch = /^GET \/signals\/([^/]+)$/.exec(key)
   if (detailMatch) {
-    const detail = VISUAL_DETAILS.find((candidate) => candidate.signal_id === detailMatch[1])
+    const details = scenario === 'connected-discovery' ? VISUAL_SIGNAL_DETAILS : VISUAL_DETAILS
+    const detail = details.find((candidate) => candidate.signal_id === detailMatch[1])
     const allowed = scenario === 'connected-pro'
-      || VISUAL_UNLOCKED_ITEMS.slice(0, 3).some((candidate) => candidate.signal_id === detailMatch[1])
+      || VISUAL_SIGNAL_UNLOCKED_ITEMS.some((candidate) => candidate.signal_id === detailMatch[1])
     return detail && allowed ? { body: detail } : null
   }
 

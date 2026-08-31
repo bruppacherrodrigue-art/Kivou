@@ -3,9 +3,13 @@ import { resolve } from 'node:path'
 
 import { expect, test, type Page } from '@playwright/test'
 
+import { publishedPresentation } from '../../src/reference/dashboard/adapters'
 import {
   LOCAL_REFERENCE_ROUTES,
-  VISUAL_DETAILS,
+  VISUAL_FALLBACK_PROVIDER_METADATA,
+  VISUAL_SIGNAL_DETAILS,
+  VISUAL_SIGNAL_ITEMS,
+  VISUAL_SIGNAL_UNLOCKED_ITEMS,
   installReferenceApi,
   normalizeConnectedText,
   type VisualScenario,
@@ -28,6 +32,34 @@ const EXPECTED_GOLDENS = [
 test.beforeAll(() => {
   const actual = readdirSync(resolve('tests/visual/reference-goldens')).sort()
   expect(actual).toEqual(EXPECTED_GOLDENS)
+})
+
+test('dashboard-signals adversarial fixture contract', () => {
+  expect(VISUAL_SIGNAL_ITEMS).toHaveLength(3)
+  expect(VISUAL_SIGNAL_ITEMS.filter((item) => item.locked)).toHaveLength(1)
+  expect(VISUAL_SIGNAL_UNLOCKED_ITEMS.map((item) => item.event.clock).sort()).toEqual([
+    'award',
+    'publication',
+  ])
+
+  const publicationItem = VISUAL_SIGNAL_UNLOCKED_ITEMS.find(
+    (item) => item.event.clock === 'publication',
+  )
+  expect(publicationItem?.contract.buyer).toBeNull()
+  expect(publicationItem?.analysis.fit.reasons).toEqual([])
+
+  for (const item of VISUAL_SIGNAL_UNLOCKED_ITEMS) {
+    expect(item.presentation?.status).toBe('FALLBACK')
+    expect(item.presentation?.content.variant).toBe('FACTUAL_FALLBACK')
+    expect(publishedPresentation(item.presentation)).toBe(item.presentation)
+  }
+  expect(Object.values(VISUAL_FALLBACK_PROVIDER_METADATA)).toEqual([
+    null,
+    null,
+    null,
+    null,
+    null,
+  ])
 })
 
 const HEADINGS: Record<(typeof LOCAL_REFERENCE_ROUTES)[number]['golden'], string> = {
@@ -101,11 +133,40 @@ async function waitForScenario(
     await expect(page.locator('.recent-list .recent-signal')).toHaveCount(5)
   }
   if (golden === 'dashboard-signals') {
-    await expect(page.locator('.signal-list .signal-item')).toHaveCount(6)
+    await expect(page.locator('.signal-list .signal-item')).toHaveCount(3)
+    await expect(page.locator('.signal-list .signal-item.is-locked')).toHaveCount(1)
+    const selected = page.locator('.signal-list .signal-item.is-selected')
+    await expect(selected).toHaveCount(1)
+    await expect(selected).toHaveAttribute('aria-pressed', 'true')
+    await expect(selected).toContainText('Acheteur : Non publié')
+    await expect(selected).toContainText('Date de publication')
+    await expect(selected.locator('.signal-match')).toHaveCount(0)
+    await expect(
+      page.locator('.signal-list .signal-item').filter({ hasText: 'H. Hüther GmbH' }),
+    ).toContainText('Date d’attribution')
     await expect(page.locator('#detail-title')).toHaveText(
-      VISUAL_DETAILS.find((detail) => detail.signal_id === 'tm-ausbau-campus-ost')!.contract.title!,
+      VISUAL_SIGNAL_DETAILS.find(
+        (detail) => detail.signal_id === 'tm-ausbau-campus-ost',
+      )!.presentation!.content.headline,
     )
+    await expect(page.locator('.published-status')).toContainText('Présentation publiée')
+    const buyerFact = page.locator('.fact-grid div').filter({ has: page.getByText('Acheteur', { exact: true }) })
+    await expect(buyerFact).toContainText('Non publié')
+    const awardeeFact = page.locator('.fact-grid div').filter({
+      has: page.getByText('Entreprise attributaire', { exact: true }),
+    })
+    await expect(awardeeFact).toContainText('TM Ausbau GmbH')
+    await expect(page.getByText('Rôle cible non disponible', { exact: true })).toBeVisible()
     await expect(page.locator('.signal-note-card textarea')).toBeEnabled()
+    expect(await page.evaluate(() => (
+      document.documentElement.scrollWidth - document.documentElement.clientWidth
+    ))).toBeLessThanOrEqual(1)
+    const horizontallyClipped = await page.locator(
+      '.workspace-grid, .signal-item, .detail-panel, .facts-card, .signal-note-card',
+    ).evaluateAll((elements) => elements
+      .filter((element) => element.scrollWidth - element.clientWidth > 1)
+      .map((element) => element.className))
+    expect(horizontallyClipped).toEqual([])
   }
   if (golden === 'dashboard-companies') {
     await expect(page.locator('.companies-list .company-list-item')).toHaveCount(6)

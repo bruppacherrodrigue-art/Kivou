@@ -137,7 +137,9 @@ export function ReferenceSignalDetail({
           </p>
         </div>
         <span className="published-status">
-          <FileCheck2 aria-hidden="true" />{' '}
+          {detail.presentation
+            ? <FileCheck2 aria-hidden="true" />
+            : <Info aria-hidden="true" />}{' '}
           {detail.presentation
             ? detail.sourceSystem
               ? interpolate(t.reference.signalsPage.presentationPublishedWithSource, {
