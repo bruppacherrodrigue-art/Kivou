@@ -156,6 +156,16 @@ async function installDeterministicFonts(page: Page) {
   expect(fontsReady).toBe(true)
 }
 
+async function resetDocumentScroll(page: Page) {
+  await expect.poll(() => page.evaluate(async () => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' })
+    await new Promise<void>((resolve) => {
+      window.requestAnimationFrame(() => resolve())
+    })
+    return window.scrollY
+  })).toBe(0)
+}
+
 async function waitForScenario(
   page: Page,
   scenario: VisualScenario,
@@ -274,9 +284,8 @@ async function waitForScenario(
     )
     await expect(publicationCard).toBeFocused()
     await publicationCard.evaluate((element) => element.blur())
-    await page.evaluate(() => window.scrollTo(0, 0))
     await expect(publicationCard).not.toBeFocused()
-    expect(await page.evaluate(() => window.scrollY)).toBe(0)
+    await resetDocumentScroll(page)
 
     await expect(page.locator('.signal-note-card textarea')).toBeEnabled()
     expect(await page.evaluate(() => (
@@ -468,4 +477,20 @@ test('connected text normalization survives a late shell rerender', async ({ pag
 
   await expect(page.locator('aside')).toHaveText('Texte')
   await expect(page.locator('main')).toHaveText('Texte')
+})
+
+test('connected scroll normalization survives a late history restoration', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.setContent('<main style="height: 2400px">Signals</main>')
+  await page.evaluate(() => {
+    window.scrollTo(0, 1200)
+    window.requestAnimationFrame(() => window.scrollTo(0, 785))
+  })
+
+  await resetDocumentScroll(page)
+  await page.evaluate(() => new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => resolve())
+  }))
+
+  expect(await page.evaluate(() => window.scrollY)).toBe(0)
 })
