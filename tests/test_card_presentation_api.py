@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import ast
 import datetime as dt
+import pathlib
 from collections.abc import Iterator, Mapping
 
 import pytest
@@ -473,9 +475,6 @@ def test_gets_never_call_generation_qa_or_fallback_publication_surfaces(
     monkeypatch.setattr(card_service, "publish_factual_fallback", _explode)
     monkeypatch.setattr(card_service, "run_offline_candidate_pipeline", _explode)
     monkeypatch.setattr(fallback_renderer, "factual_fallback", _explode)
-    monkeypatch.setattr(routes_signals, "publish_factual_fallback", _explode, raising=False)
-    monkeypatch.setattr(routes_signals, "run_offline_candidate_pipeline", _explode, raising=False)
-    monkeypatch.setattr(routes_signals, "factual_fallback", _explode, raising=False)
 
     feed_item = next(
         item for item in _feed(alice)["items"] if item["signal_id"] == signal_key
@@ -484,6 +483,32 @@ def test_gets_never_call_generation_qa_or_fallback_publication_surfaces(
 
     assert feed_item["presentation"] == published.model_dump(mode="json")
     assert detail["presentation"] == feed_item["presentation"]
+
+
+def test_signal_get_routes_import_only_card_intelligence_read_contracts() -> None:
+    route_path = pathlib.Path(routes_signals.__file__)
+    tree = ast.parse(route_path.read_text(encoding="utf-8"), filename=str(route_path))
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            imported.update(f"{module}.{alias.name}" for alias in node.names)
+
+    card_intelligence_imports = {
+        name for name in imported if name.startswith("signals.card_intelligence.")
+    }
+    assert card_intelligence_imports == {
+        "signals.card_intelligence.contracts.PublishedCardPresentation",
+        "signals.card_intelligence.store.published_artifact_for_signal",
+        "signals.card_intelligence.store.published_for_signals",
+    }
+    forbidden_tokens = ("fallback", "protocol", "provider", "hermes", "worker", ".qa")
+    assert all(
+        not any(token in name.casefold() for token in forbidden_tokens)
+        for name in imported
+    )
 
 
 def test_public_response_contains_only_the_published_contract_not_private_qa_metadata(
