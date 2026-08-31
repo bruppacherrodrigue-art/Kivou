@@ -5,7 +5,6 @@ import hashlib
 import hmac
 from decimal import Decimal
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 import sqlalchemy as sa
@@ -24,11 +23,9 @@ from signals.acquisition_runtime.contracts import (
     AcquisitionRuntimeDeployment,
     AcquisitionRuntimeLimits,
     AcquisitionRuntimeStage,
-    RuntimeActionResult,
     RuntimeDependencyState,
     RuntimeQaScope,
     RuntimeStageDependency,
-    RuntimeStageStatus,
 )
 from signals.acquisition_runtime.execution import (
     RuntimeExecutionConfigurationError,
@@ -313,51 +310,6 @@ def _apollo(provider: NoNetworkProvider) -> ApolloComponents:
     )
 
 
-def _closed_domain_builder(**_kwargs):
-    """A domain builder that never touches production transport.
-
-    Updated in Task 6 fix round 1. The *original* reason this stub existed
-    is now fixed: `build_acquisition_domain_composition` (composition.py) no
-    longer unconditionally builds a `StagingQaRecipientOverride`
-    (transport.py) — it only does so for `environment == "STAGING"`, and
-    passes `None` for production, matching `CampaignWorker`'s existing
-    `recipient_override: CampaignRecipientOverride | None = None` support.
-
-    But composing the real domain for a production config is *still*
-    blocked, by a second, deeper precondition discovered while verifying
-    that fix: `AcquisitionDomainActions.__init__` (domain.py) requires
-    `qa_transport_recipient_identity` / `qa_transport_recipient_key_version`
-    as non-optional, SHA-256-validated strings, read unconditionally from
-    `recipient_override.transport_recipient_identity` /
-    `.transport_key_version` — which crashes with `AttributeError` when
-    `recipient_override is None`. That is domain.py business logic (the
-    campaign handoff truth-binding), not composition wiring, and is out of
-    scope for both this task and the fix round that touched composition.py.
-    See `tests/test_acquisition_runtime_composition.py::
-    test_production_domain_composition_still_blocked_by_qa_transport_binding`
-    (an `xfail(strict=True)` regression pin) for the durable, executable
-    proof, and the fix-round report for the full writeup.
-
-    Standing in for the domain with closed fakes isolates the composition-
-    and-run-once mechanics this task actually tests (opportunity selection
-    routed through the real store/registry/runner, and so the real
-    `resume_or_create_cycle`) from that still-open domain.py gap, exactly as
-    `test_fake_full_cycle_uses_real_store_registry_runner_and_closed_supervisor`
-    already does in tests/test_acquisition_runtime_execution.py.
-    """
-
-    def handler(context):
-        return RuntimeActionResult(
-            status=RuntimeStageStatus.SUCCEEDED,
-            result_refs=(f"result:{context.stage.value.lower()}",),
-            reason_codes=("STAGE_COMPLETE",),
-        )
-
-    return SimpleNamespace(
-        handlers={stage: handler for stage in AcquisitionRuntimeStage}
-    )
-
-
 @pytest.fixture
 def engine():
     value = _engine()
@@ -378,7 +330,6 @@ def production_arguments(engine: sa.Engine, tmp_path):
         "instantly_provider": provider,
         "hermes_runtime": ClosedFakeHermes(),
         "dependency_probe": ReadyDependencyProbe(),
-        "domain_builder": _closed_domain_builder,
         "clock": lambda: NOW,
     }
 

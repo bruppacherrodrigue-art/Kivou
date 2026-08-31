@@ -6,7 +6,6 @@ import hmac
 from decimal import Decimal
 from pathlib import Path
 
-import pytest
 import sqlalchemy as sa
 
 from signals.acquisition_connectivity.apollo import ApolloComponents
@@ -280,26 +279,20 @@ def test_builder_still_gives_staging_its_qa_recipient_override() -> None:
     assert isinstance(override, StagingQaRecipientOverride)
 
 
-@pytest.mark.xfail(
-    raises=AttributeError,
-    strict=True,
-    reason=(
-        "NEW FINDING (Task 6 fix round 1, not yet fixed): recipient_override is "
-        "correctly None for a production runtime_config, but "
-        "AcquisitionDomainActions.__init__ (domain.py) still requires "
-        "qa_transport_recipient_identity/qa_transport_recipient_key_version as "
-        "non-optional, SHA-256-validated strings, sourced unconditionally from "
-        "recipient_override.transport_recipient_identity/.transport_key_version "
-        "at composition.py. A full production domain composition therefore still "
-        "crashes here. This is a second, deeper precondition beyond this fix "
-        "round's scope (composition.py's recipient_override only) — fixing it "
-        "means deciding what campaign handoff truth-binding means with no fixed "
-        "QA recipient, which is a domain.py business-logic change, not wiring. "
-        "strict=True: this test starts failing the day someone fixes it, so it "
-        "cannot go stale silently."
-    ),
-)
-def test_production_domain_composition_still_blocked_by_qa_transport_binding() -> None:
+def test_production_domain_composition_succeeds_with_no_qa_transport_binding() -> None:
+    """Task 6B: the fourth staging-only coupling is gone. `recipient_override`
+    is `None` for a production `runtime_config` (Task 6), and
+    `AcquisitionDomainActions.__init__` (domain.py) now accepts an absent QA
+    transport binding instead of dereferencing `None`. A full production
+    domain composition succeeds through the real builder, and it carries an
+    explicit `(None, None)` binding rather than a fixed QA recipient —
+    asserting that no redirection took place.
+
+    Supersedes
+    `test_production_domain_composition_still_blocked_by_qa_transport_binding`,
+    the `xfail(strict=True)` trip-wire this fix was required to clear.
+    """
+
     engine = sa.create_engine("sqlite+pysqlite:///:memory:")
     provider = NoNetworkProvider()
     apollo = ApolloComponents(
@@ -313,7 +306,7 @@ def test_production_domain_composition_still_blocked_by_qa_transport_binding() -
         keys={"suppression-v1": b"synthetic-suppression-key"},
     )
 
-    build_acquisition_domain_composition(
+    composition = build_acquisition_domain_composition(
         engine=engine,
         runtime_config=_production_runtime_config(),
         apollo=apollo,
@@ -341,3 +334,6 @@ def test_production_domain_composition_still_blocked_by_qa_transport_binding() -
         ),
         clock=lambda: NOW,
     )
+
+    assert composition.campaign_worker._recipient_override is None
+    assert composition.actions._qa_transport_binding == (None, None)

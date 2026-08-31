@@ -457,6 +457,8 @@ def _actions(
     *,
     decision: Decision = Decision.SEND,
     worker: FakeCampaignWorker | None = None,
+    qa_transport_recipient_identity: str | None = QA_TRANSPORT_IDENTITY,
+    qa_transport_recipient_key_version: str | None = QA_TRANSPORT_KEY_VERSION,
 ) -> tuple[AcquisitionDomainActions, FakeCampaignWorker, FakeApprovals]:
     campaign_worker = worker or FakeCampaignWorker(truth)
     approvals = FakeApprovals()
@@ -473,13 +475,61 @@ def _actions(
         authorization_factory=FakeAuthorizations(),
         approval_provider=approvals,
         maximum_provider_operations=3,
-        qa_transport_recipient_identity=QA_TRANSPORT_IDENTITY,
-        qa_transport_recipient_key_version=QA_TRANSPORT_KEY_VERSION,
+        qa_transport_recipient_identity=qa_transport_recipient_identity,
+        qa_transport_recipient_key_version=qa_transport_recipient_key_version,
         qa_scope=RuntimeQaScope(
             country="CH", language="fr", wedge="construction"
         ),
     )
     return actions, campaign_worker, approvals
+
+
+def test_production_domain_actions_accept_no_qa_transport_binding() -> None:
+    """Production has no QA transport override at all: both binding
+    components are absent, and construction must not raise."""
+
+    truth = FakeTruth()
+
+    actions, _, _ = _actions(
+        truth,
+        qa_transport_recipient_identity=None,
+        qa_transport_recipient_key_version=None,
+    )
+
+    assert actions._qa_transport_binding == (None, None)
+
+
+def test_a_single_qa_transport_binding_component_is_refused() -> None:
+    """The identity and the key version travel together: one present
+    without the other is refused, in either direction."""
+
+    truth = FakeTruth()
+
+    with pytest.raises(ValueError, match="all or nothing"):
+        _actions(
+            truth,
+            qa_transport_recipient_identity=QA_TRANSPORT_IDENTITY,
+            qa_transport_recipient_key_version=None,
+        )
+    with pytest.raises(ValueError, match="all or nothing"):
+        _actions(
+            truth,
+            qa_transport_recipient_identity=None,
+            qa_transport_recipient_key_version=QA_TRANSPORT_KEY_VERSION,
+        )
+
+
+def test_staging_still_requires_a_well_formed_qa_transport_binding() -> None:
+    """A present identity that is not a SHA-256 HMAC is still refused."""
+
+    truth = FakeTruth()
+
+    with pytest.raises(ValueError, match="SHA-256"):
+        _actions(
+            truth,
+            qa_transport_recipient_identity="not-a-sha256-value",
+            qa_transport_recipient_key_version=QA_TRANSPORT_KEY_VERSION,
+        )
 
 
 def test_full_domain_cycle_composes_each_existing_stage_without_network() -> None:

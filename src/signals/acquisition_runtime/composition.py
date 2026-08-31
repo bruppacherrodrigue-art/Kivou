@@ -188,9 +188,13 @@ def build_acquisition_domain_composition(
         maximum_provider_operations=(runtime_config.deployment.limits.maximum_provider_operations),
         qa_transport_recipient_identity=(
             recipient_override.transport_recipient_identity
+            if recipient_override is not None
+            else None
         ),
         qa_transport_recipient_key_version=(
             recipient_override.transport_key_version
+            if recipient_override is not None
+            else None
         ),
         qa_scope=runtime_config.deployment.qa_scope,
         targeting=targeting,
