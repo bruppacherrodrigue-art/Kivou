@@ -167,10 +167,10 @@ def _seed(engine: sa.Engine, *, key: str, country: str, published_on: dt.date) -
         connection.execute(
             sa.insert(source_event).values(
                 event_key=f"event-{key}",
-                source_system="BOAMP",
+                source_system="boamp",
                 source_notice_id=f"notice-{key}",
                 source_country=country,
-                event_type="AWARD",
+                event_type="award_notice",
                 published_on=published_on,
                 procedure_buyers=[],
                 created_at=NOW,
