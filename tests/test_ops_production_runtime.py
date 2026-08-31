@@ -1151,6 +1151,18 @@ def test_release_asset_probe_runs_from_an_accessible_working_directory() -> None
     )
 
 
+def test_backup_probe_runs_from_an_accessible_working_directory() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    assert "sudo -u kivou find /srv/kivou/backups" not in body
+    assert re.search(
+        r"sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \\\n"
+        r"\s+/usr/bin/env --chdir=/srv/kivou/backups \\\n"
+        r"\s+/usr/bin/find /srv/kivou/backups -maxdepth 1 -type f ",
+        body,
+    )
+
+
 def test_systemd_preflight_verifies_candidate_paths_without_active_app_link() -> None:
     body = read(PRODUCTION_RUNBOOK)
     preflight = body[body.index("## 3.") : body.index("## 4.")]
