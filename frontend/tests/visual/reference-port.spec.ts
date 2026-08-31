@@ -85,6 +85,21 @@ test('dashboard-signals adversarial fixture contract', () => {
   }
 })
 
+test('dashboard-companies published fixture contract', () => {
+  expect(VISUAL_UNLOCKED_ITEMS).toHaveLength(6)
+  expect(new Set(VISUAL_UNLOCKED_ITEMS.map((item) => (
+    publishedPresentation(item.presentation)?.artifact_id
+  ))).size).toBe(VISUAL_UNLOCKED_ITEMS.length)
+  for (const item of VISUAL_UNLOCKED_ITEMS) {
+    const presentation = publishedPresentation(item.presentation)
+    expect(presentation).not.toBeNull()
+    expect(presentation?.status).toBe('FALLBACK')
+    expect(presentation?.content.variant).toBe('FACTUAL_FALLBACK')
+    expect(presentation?.content.award_summary).not.toBe(item.contract.title)
+    expect(presentation?.content.award_summary).not.toBe(item.event.headline)
+  }
+})
+
 const HEADINGS: Record<(typeof LOCAL_REFERENCE_ROUTES)[number]['golden'], string> = {
   'public-home': 'Repérez les entreprises qui viennent de gagner un marché public.',
   'public-product': 'Kivou suit ce qui se passe après l’attribution.',
@@ -96,7 +111,7 @@ const HEADINGS: Record<(typeof LOCAL_REFERENCE_ROUTES)[number]['golden'], string
   'dashboard-signup': 'Commencer avec un ciblage clair',
   'dashboard-overview': 'Vue d’ensemble',
   'dashboard-signals': 'Signaux',
-  'dashboard-companies': 'Entreprises',
+  'dashboard-companies': 'Entreprises attributaires',
   'dashboard-targeting': 'Profil de ciblage',
   'dashboard-account': 'Compte',
 }
@@ -295,8 +310,52 @@ async function waitForScenario(
     expect(verticallyClipped).toEqual([])
   }
   if (golden === 'dashboard-companies') {
-    await expect(page.locator('.companies-list .company-list-item')).toHaveCount(6)
+    const cards = page.locator('.companies-list .company-list-item')
+    const listPanel = page.locator('.companies-panel')
+    const detailPanel = page.locator('.company-detail')
+    const selectedItem = VISUAL_UNLOCKED_ITEMS.find(
+      (item) => item.signal_id === 'h-huether-munich',
+    )!
+    const selectedPresentation = publishedPresentation(selectedItem.presentation)!
+    await expect(cards).toHaveCount(6)
     await expect(page.locator('.company-detail .company-timeline-item')).toHaveCount(1)
+    await expect(cards.filter({ hasText: selectedItem.company.name })).toHaveAttribute(
+      'aria-current',
+      'true',
+    )
+    await expect(page.locator('#company-name')).toHaveText(
+      selectedPresentation.content.award_summary,
+    )
+    const workspaceText = await page.locator('.companies-workspace').innerText()
+    for (const forbidden of [
+      selectedItem.contract.title,
+      selectedItem.event.headline,
+      selectedItem.event.why_now,
+      ...selectedItem.analysis.fit.reasons,
+    ].filter((value): value is string => Boolean(value))) {
+      expect(workspaceText).not.toContain(forbidden)
+    }
+    const mobile = (page.viewportSize()?.width ?? 0) < 1180
+    if (mobile) {
+      await expect(listPanel).toBeHidden()
+      await expect(detailPanel).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Retour aux attributions' })).toBeVisible()
+    } else {
+      await expect(listPanel).toBeVisible()
+      await expect(detailPanel).toBeVisible()
+      const overflow = await page.locator('.companies-workspace').evaluate(() => {
+        const list = document.querySelector<HTMLElement>('.companies-panel')
+        const detail = document.querySelector<HTMLElement>('.company-detail')
+        return {
+          list: list ? getComputedStyle(list).overflowY : null,
+          detail: detail ? getComputedStyle(detail).overflowY : null,
+        }
+      })
+      expect(overflow).toEqual({ list: 'auto', detail: 'auto' })
+    }
+    expect(await page.evaluate(() => (
+      document.documentElement.scrollWidth - document.documentElement.clientWidth
+    ))).toBeLessThanOrEqual(1)
   }
   if (golden === 'dashboard-targeting') {
     await expect(page.locator('.target-definition-card[role="status"]')).toHaveCount(0)

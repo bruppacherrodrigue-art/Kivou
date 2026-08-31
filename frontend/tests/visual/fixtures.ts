@@ -612,14 +612,12 @@ function toUnlockedItem(record: AwardSignal): UnlockedFeedItem {
   } satisfies UnlockedFeedItem
 }
 
-export const VISUAL_UNLOCKED_ITEMS = awardSignals.map(toUnlockedItem)
-
 function factualFallbackPresentation(
   record: AwardSignal,
   artifactId: string,
 ): CardPresentation {
   const headline = `${record.company.name} est identifiée comme entreprise attributaire.`
-  const awardSummary = `L’avis ${record.notice} identifie ${record.company.name} comme entreprise attributaire du marché « ${record.shortTitle} ».`
+  const awardSummary = `L’avis ${record.notice} documente une attribution publique de ${record.buyer} à ${record.company.name}.`
   const evidenceRef = `source:notice:${record.notice}`
   return {
     artifact_id: artifactId,
@@ -659,6 +657,17 @@ function factualFallbackPresentation(
   }
 }
 
+function visualArtifactId(record: AwardSignal): string {
+  const index = awardSignals.findIndex((candidate) => candidate.id === record.id)
+  if (index < 0 || index > 25) throw new Error(`Missing visual artifact index for ${record.id}`)
+  return String.fromCharCode('a'.charCodeAt(0) + index).repeat(64)
+}
+
+export const VISUAL_UNLOCKED_ITEMS = awardSignals.map((record) => ({
+  ...toUnlockedItem(record),
+  presentation: factualFallbackPresentation(record, visualArtifactId(record)),
+})) satisfies UnlockedFeedItem[]
+
 function offlineFallbackArtifact(record: AwardSignal, artifactId: string) {
   return {
     signal_id: record.id,
@@ -674,8 +683,8 @@ function offlineFallbackArtifact(record: AwardSignal, artifactId: string) {
 }
 
 export const VISUAL_SIGNAL_OFFLINE_ARTIFACTS = [
-  offlineFallbackArtifact(awardSignals[0], 'a'.repeat(64)),
-  offlineFallbackArtifact(awardSignals[2], 'c'.repeat(64)),
+  offlineFallbackArtifact(awardSignals[0], visualArtifactId(awardSignals[0])),
+  offlineFallbackArtifact(awardSignals[2], visualArtifactId(awardSignals[2])),
 ] as const
 
 function toLockedItem(item: UnlockedFeedItem): LockedFeedItem {
@@ -761,6 +770,7 @@ function toDetail(record: AwardSignal): UnlockedDetail {
   const item = toUnlockedItem(record)
   return {
     ...item,
+    presentation: factualFallbackPresentation(record, visualArtifactId(record)),
     company_key: record.company.id,
     analysis: {
       ...item.analysis,
@@ -981,7 +991,7 @@ export const LOCAL_REFERENCE_ROUTES = [
   { golden: 'dashboard-signup', source: '/signup', local: '/signup', scenario: 'auth' },
   { golden: 'dashboard-overview', source: '/', local: '/app/dashboard', scenario: 'connected-pro' },
   { golden: 'dashboard-signals', source: '/signals?signal=tm-ausbau-campus-ost', local: '/app/signals/tm-ausbau-campus-ost', scenario: 'connected-discovery' },
-  { golden: 'dashboard-companies', source: '/companies', local: '/app/companies', scenario: 'connected-pro' },
+  { golden: 'dashboard-companies', source: '/companies', local: '/app/companies/h-huether?signal=h-huether-munich', scenario: 'connected-pro' },
   { golden: 'dashboard-targeting', source: '/targeting', local: '/app/icps', scenario: 'connected-pro' },
   { golden: 'dashboard-account', source: '/settings', local: '/app/settings', scenario: 'connected-pro' },
 ] as const
