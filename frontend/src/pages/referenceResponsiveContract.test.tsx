@@ -11,6 +11,7 @@ import {
   PRO_STATUS,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
+  factualFallbackPresentation,
   feedPage,
   mockApi,
   renderApp,
@@ -33,6 +34,25 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+const PUBLISHED_HEADLINE = 'Attribution documentée pour le lot communal de voirie'
+const PUBLISHED_AWARD_SUMMARY = 'La source officielle documente l’attribution de ce lot communal.'
+
+const PUBLISHED_UNLOCKED_ITEM = {
+  ...UNLOCKED_ITEM,
+  presentation: factualFallbackPresentation({
+    artifactId: '1'.repeat(64),
+    headline: PUBLISHED_HEADLINE,
+    awardSummary: PUBLISHED_AWARD_SUMMARY,
+    headlineEvidenceRefs: ['source:notice:26-104412:headline'],
+    awardSummaryEvidenceRefs: ['source:notice:26-104412:award-summary'],
+  }),
+}
+
+const PUBLISHED_UNLOCKED_DETAIL = {
+  ...UNLOCKED_DETAIL,
+  presentation: PUBLISHED_UNLOCKED_ITEM.presentation,
+}
+
 describe('contrat responsive connecté à 390 px', () => {
   it('conserve un main, un h1, la navigation mobile et un retour vers la liste', async () => {
     vi.stubGlobal('matchMedia', mobileMatchMedia)
@@ -44,7 +64,10 @@ describe('contrat responsive connecté à 390 px', () => {
       session: AUTHENTICATED,
     })
 
-    await screen.findByRole('heading', { name: UNLOCKED_ITEM.contract.title! })
+    await screen.findByRole('heading', {
+      name: PUBLISHED_UNLOCKED_DETAIL.presentation.content.headline,
+    })
+    expect(screen.queryByRole('heading', { name: UNLOCKED_ITEM.contract.title! })).toBeNull()
     expect(screen.getAllByRole('main')).toHaveLength(1)
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(screen.getByRole('button', { name: 'Ouvrir la navigation' })).toBeVisible()
@@ -133,15 +156,22 @@ describe('contrat responsive connecté à 390 px', () => {
     vi.stubGlobal('innerWidth', 390)
     const user = userEvent.setup()
     const second = {
-      ...UNLOCKED_ITEM,
+      ...PUBLISHED_UNLOCKED_ITEM,
       signal_id: 'sig_mobile_2',
       company: { ...UNLOCKED_ITEM.company, name: 'Deuxième entreprise mobile' },
       contract: { ...UNLOCKED_ITEM.contract, title: 'Deuxième marché mobile' },
+      presentation: factualFallbackPresentation({
+        artifactId: '6'.repeat(64),
+        headline: 'Présentation publiée pour le second signal mobile',
+        awardSummary: 'La source mobile documente la seconde attribution publiée.',
+        headlineEvidenceRefs: ['source:mobile:second:headline'],
+        awardSummaryEvidenceRefs: ['source:mobile:second:award-summary'],
+      }),
     }
-    const secondDetail = { ...UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_2' }
+    const secondDetail = { ...PUBLISHED_UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_2' }
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, second]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM, second]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
       [`GET /signals/${second.signal_id}`]: { body: secondDetail },
       [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
         body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
@@ -156,7 +186,10 @@ describe('contrat responsive connecté à 390 px', () => {
 
     const row = await screen.findByRole('button', { name: /Deuxième entreprise mobile/ })
     await user.click(row)
-    const heading = await screen.findByRole('heading', { name: second.contract.title })
+    const heading = await screen.findByRole('heading', {
+      name: second.presentation.content.headline,
+    })
+    expect(screen.queryByRole('heading', { name: second.contract.title })).toBeNull()
     await waitFor(() => expect(heading).toHaveFocus())
 
     await user.click(screen.getByRole('button', { name: 'Retour à la liste' }))
@@ -169,15 +202,22 @@ describe('contrat responsive connecté à 390 px', () => {
     const user = userEvent.setup()
     let resolveDetail!: (value: { body: typeof UNLOCKED_DETAIL }) => void
     const second = {
-      ...UNLOCKED_ITEM,
+      ...PUBLISHED_UNLOCKED_ITEM,
       signal_id: 'sig_mobile_delayed',
       company: { ...UNLOCKED_ITEM.company, name: 'Entreprise mobile différée' },
       contract: { ...UNLOCKED_ITEM.contract, title: 'Marché mobile différé' },
+      presentation: factualFallbackPresentation({
+        artifactId: '7'.repeat(64),
+        headline: 'Présentation publiée pour le signal mobile différé',
+        awardSummary: 'La source mobile documente l’attribution publiée après chargement.',
+        headlineEvidenceRefs: ['source:mobile:delayed:headline'],
+        awardSummaryEvidenceRefs: ['source:mobile:delayed:award-summary'],
+      }),
     }
-    const secondDetail = { ...UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_delayed' }
+    const secondDetail = { ...PUBLISHED_UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_delayed' }
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, second]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM, second]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
       [`GET /signals/${second.signal_id}`]: () => new Promise((resolve) => { resolveDetail = resolve }),
       [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
         body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
@@ -194,7 +234,10 @@ describe('contrat responsive connecté à 390 px', () => {
     await screen.findByRole('heading', { name: 'Chargement…' })
     await act(async () => resolveDetail({ body: secondDetail }))
 
-    const heading = await screen.findByRole('heading', { name: second.contract.title })
+    const heading = await screen.findByRole('heading', {
+      name: second.presentation.content.headline,
+    })
+    expect(screen.queryByRole('heading', { name: second.contract.title })).toBeNull()
     await waitFor(() => expect(heading).toHaveFocus())
   })
 
@@ -219,8 +262,8 @@ describe('contrat responsive connecté à 390 px', () => {
 
 function mockSignalRoute() {
   mockApi({
-    'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
-    [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+    'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM]) },
+    [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
     [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
       body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
     },

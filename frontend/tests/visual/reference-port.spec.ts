@@ -3,9 +3,14 @@ import { resolve } from 'node:path'
 
 import { expect, test, type Page } from '@playwright/test'
 
+import { publishedPresentation } from '../../src/reference/dashboard/adapters'
 import {
   LOCAL_REFERENCE_ROUTES,
-  VISUAL_DETAILS,
+  VISUAL_SIGNAL_DETAILS,
+  VISUAL_SIGNAL_ITEMS,
+  VISUAL_SIGNAL_OFFLINE_ARTIFACTS,
+  VISUAL_SIGNAL_UNLOCKED_ITEMS,
+  VISUAL_UNLOCKED_ITEMS,
   installReferenceApi,
   normalizeConnectedText,
   type VisualScenario,
@@ -28,6 +33,56 @@ const EXPECTED_GOLDENS = [
 test.beforeAll(() => {
   const actual = readdirSync(resolve('tests/visual/reference-goldens')).sort()
   expect(actual).toEqual(EXPECTED_GOLDENS)
+})
+
+test('dashboard-signals adversarial fixture contract', () => {
+  expect(VISUAL_SIGNAL_ITEMS).toHaveLength(3)
+  expect(VISUAL_SIGNAL_ITEMS.filter((item) => item.locked)).toHaveLength(1)
+  expect(VISUAL_SIGNAL_UNLOCKED_ITEMS.map((item) => item.event.clock).sort()).toEqual([
+    'award',
+    'publication',
+  ])
+
+  const publicationItem = VISUAL_SIGNAL_UNLOCKED_ITEMS.find(
+    (item) => item.event.clock === 'publication',
+  )
+  expect(publicationItem?.contract.buyer).toBeNull()
+  expect(publicationItem?.analysis.fit.reasons).toEqual([])
+
+  for (const item of VISUAL_SIGNAL_UNLOCKED_ITEMS) {
+    expect(item.presentation?.status).toBe('FALLBACK')
+    expect(item.presentation?.content.variant).toBe('FACTUAL_FALLBACK')
+    expect(Object.hasOwn(item, 'provider_metadata')).toBe(false)
+    expect(publishedPresentation(item.presentation)).toBe(item.presentation)
+  }
+
+  expect(VISUAL_SIGNAL_OFFLINE_ARTIFACTS).toHaveLength(VISUAL_SIGNAL_UNLOCKED_ITEMS.length)
+  expect(new Set(
+    VISUAL_SIGNAL_OFFLINE_ARTIFACTS.map((artifact) => artifact.presentation.artifact_id),
+  ).size).toBe(VISUAL_SIGNAL_OFFLINE_ARTIFACTS.length)
+  for (const item of VISUAL_SIGNAL_UNLOCKED_ITEMS) {
+    const artifact = VISUAL_SIGNAL_OFFLINE_ARTIFACTS.find(
+      (candidate) => candidate.signal_id === item.signal_id,
+    )
+    expect(artifact).toBeDefined()
+    expect(item.presentation).toBe(artifact?.presentation)
+    expect(Object.keys(artifact?.provider_metadata ?? {}).sort()).toEqual([
+      'model_id',
+      'prompt_version',
+      'provider',
+      'qa_model_id',
+      'qa_provider',
+    ])
+    expect(Object.values(artifact?.provider_metadata ?? {})).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+    ])
+    expect(Object.hasOwn(artifact?.presentation ?? {}, 'provider_metadata')).toBe(false)
+    expect(publishedPresentation(artifact?.presentation)).toBe(artifact?.presentation)
+  }
 })
 
 const HEADINGS: Record<(typeof LOCAL_REFERENCE_ROUTES)[number]['golden'], string> = {
@@ -101,11 +156,143 @@ async function waitForScenario(
     await expect(page.locator('.recent-list .recent-signal')).toHaveCount(5)
   }
   if (golden === 'dashboard-signals') {
-    await expect(page.locator('.signal-list .signal-item')).toHaveCount(6)
-    await expect(page.locator('#detail-title')).toHaveText(
-      VISUAL_DETAILS.find((detail) => detail.signal_id === 'tm-ausbau-campus-ost')!.contract.title!,
+    const signalItems = page.locator('.signal-list .signal-item')
+    const locked = signalItems.filter({ has: page.locator('.signal-lock-note') })
+    const awardCard = signalItems.filter({ hasText: 'H. Hüther GmbH' })
+    const publicationCard = signalItems.filter({ hasText: 'TM Ausbau GmbH' })
+    const awardDetail = VISUAL_SIGNAL_DETAILS.find(
+      (detail) => detail.signal_id === 'h-huether-munich',
+    )!
+    const publicationDetail = VISUAL_SIGNAL_DETAILS.find(
+      (detail) => detail.signal_id === 'tm-ausbau-campus-ost',
+    )!
+
+    await expect(signalItems).toHaveCount(3)
+    await expect(locked).toHaveCount(1)
+    await expect(locked).toHaveClass(/\bis-locked\b/)
+    await expect(locked.locator('.signal-item-head strong')).toHaveText('Non publié')
+    await expect(locked.locator('.signal-item-head > span')).toHaveText('Accès payant requis')
+    await expect(locked.locator('.signal-event')).toHaveText(
+      'Un marché public vient d’être attribué.',
     )
+    await expect(locked.locator('.signal-meta')).toHaveCount(1)
+    await expect(locked.locator('.signal-meta')).toHaveText('Non publié · Non publié')
+    await expect(locked.locator('.signal-fit')).toHaveText(
+      'Date d’attribution : 18 août 2026',
+    )
+    await expect(locked.locator('.signal-lock-note')).toHaveText(
+      'Votre accès actuel conserve cet aperçu sans révéler les données protégées.',
+    )
+    await expect(
+      locked.locator('.signal-match, .published-status, [data-presentation-icon]'),
+    ).toHaveCount(0)
+
+    const lockedSource = VISUAL_UNLOCKED_ITEMS.find(
+      (item) => item.signal_id === 'gsh-gunzenhausen',
+    )!
+    const protectedFixtureValues = [
+      lockedSource.signal_id,
+      lockedSource.company.name,
+      lockedSource.contract.buyer?.name,
+      lockedSource.contract.title,
+      lockedSource.contract.reference,
+      lockedSource.event.headline,
+      lockedSource.analysis.fit.label,
+      ...lockedSource.analysis.fit.reasons,
+    ].filter((value): value is string => Boolean(value))
+    const lockedMarkup = await locked.evaluate((element) => element.outerHTML)
+    for (const protectedValue of protectedFixtureValues) {
+      expect(lockedMarkup).not.toContain(protectedValue)
+    }
+    expect(lockedMarkup).not.toContain('presentation')
+
+    await expect(awardCard.locator('.signal-fit')).toHaveText(
+      'Date d’attribution : 14 août 2026',
+    )
+    await expect(publicationCard.locator('.signal-fit')).toHaveText(
+      'Date de publication : 25 août 2026',
+    )
+    await expect(publicationCard).not.toContainText('Date d’attribution')
+
+    const selected = page.locator('.signal-list .signal-item.is-selected')
+    await expect(selected).toHaveCount(1)
+    await expect(selected).toHaveAttribute('aria-pressed', 'true')
+    await expect(selected).toContainText('Acheteur : Non publié')
+    await expect(selected.locator('.signal-match')).toHaveCount(0)
+    await expect(page.locator('#detail-title')).toHaveText(
+      publicationDetail.presentation!.content.headline,
+    )
+    await expect(page.locator('.published-status')).toContainText('Présentation publiée')
+    const buyerFact = page.locator('.fact-grid div').filter({ has: page.getByText('Acheteur', { exact: true }) })
+    await expect(buyerFact).toContainText('Non publié')
+    const awardeeFact = page.locator('.fact-grid div').filter({
+      has: page.getByText('Entreprise attributaire', { exact: true }),
+    })
+    await expect(awardeeFact).toContainText('TM Ausbau GmbH')
+    const publicationFact = page.locator('.fact-grid > div').filter({
+      has: page.getByText('Date de publication', { exact: true }),
+    })
+    await expect(publicationFact.locator('dt')).toHaveText('Date de publication')
+    await expect(publicationFact.locator('dd')).toHaveText('25 août 2026')
+    await expect(
+      page.locator('.fact-grid dt').filter({ hasText: 'Date d’attribution' }),
+    ).toHaveCount(0)
+    await expect(page.getByText('Rôle cible non disponible', { exact: true })).toBeVisible()
+
+    await awardCard.focus()
+    await expect(awardCard).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(page).toHaveURL(/\/app\/signals\/h-huether-munich$/)
+    await expect(page.locator('#detail-title')).toHaveText(
+      awardDetail.presentation!.content.headline,
+    )
+    await expect(page.locator('#detail-title')).toBeFocused()
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/app\/signals\/tm-ausbau-campus-ost$/)
+    await expect(publicationCard).toHaveAttribute('aria-pressed', 'true')
+    await expect(page.locator('#detail-title')).toHaveText(
+      publicationDetail.presentation!.content.headline,
+    )
+    await expect(publicationCard).toBeFocused()
+    await publicationCard.evaluate((element) => element.blur())
+    await page.evaluate(() => window.scrollTo(0, 0))
+    await expect(publicationCard).not.toBeFocused()
+    expect(await page.evaluate(() => window.scrollY)).toBe(0)
+
     await expect(page.locator('.signal-note-card textarea')).toBeEnabled()
+    expect(await page.evaluate(() => (
+      document.documentElement.scrollWidth - document.documentElement.clientWidth
+    ))).toBeLessThanOrEqual(1)
+    const horizontallyClipped = await page.locator(
+      '.workspace-grid, .signal-item, .detail-panel, .facts-card, .signal-note-card',
+    ).evaluateAll((elements) => elements
+      .filter((element) => element.scrollWidth - element.clientWidth > 1)
+      .map((element) => element.className))
+    expect(horizontallyClipped).toEqual([])
+    const verticallyClipped = await page.locator(
+      '.signal-item, .detail-panel, .facts-card, .verification-card, .company-card, .signal-note-card',
+    ).evaluateAll((elements) => {
+      const documentHeight = Math.max(
+        document.documentElement.scrollHeight,
+        document.body.scrollHeight,
+      )
+      return elements.flatMap((element) => {
+        const rect = element.getBoundingClientRect()
+        const top = rect.top + window.scrollY
+        const bottom = rect.bottom + window.scrollY
+        const verticalOverflow = element.scrollHeight - element.clientHeight
+        if (verticalOverflow <= 1 && top >= -1 && bottom <= documentHeight + 1) return []
+        return [{
+          className: element.className,
+          verticalOverflow,
+          top,
+          bottom,
+          documentHeight,
+        }]
+      })
+    })
+    expect(verticallyClipped).toEqual([])
   }
   if (golden === 'dashboard-companies') {
     await expect(page.locator('.companies-list .company-list-item')).toHaveCount(6)

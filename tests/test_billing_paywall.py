@@ -281,6 +281,7 @@ def test_a_locked_teaser_never_names_the_company(alice, engine):
         "context",
         "headline",
     }
+    assert "presentation" not in item
     assert item["locked"] is True
     visible = json.dumps(
         {key: value for key, value in item.items() if key not in {"signal_id", "target_icp_id"}},
@@ -357,11 +358,25 @@ def test_the_detail_of_a_locked_signal_never_returns_the_full_card(alice, engine
     locked = next(item for item in items if item["locked"])
 
     detail = alice.get(f"/signals/{locked['signal_id']}").json()
+    assert set(detail) == {
+        "signal_id",
+        "target_icp_id",
+        "locked",
+        "unlock_required",
+        "event",
+        "context",
+        "headline",
+        "access",
+        "read_at",
+        "language",
+    }
+    assert set(detail["access"]) == {"granted", "reason", "upgrade_to"}
     assert detail["locked"] is True
     assert detail["access"]["granted"] is False
     assert "evidence" not in detail
     assert "company" not in detail
     assert "contract" not in detail
+    assert "presentation" not in detail
 
 
 def test_the_detail_of_an_unlocked_signal_is_complete(alice, engine):

@@ -10,6 +10,7 @@ import {
   PRO_STATUS,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
+  factualFallbackPresentation,
   feedPage,
   mockApi,
   renderApp,
@@ -17,10 +18,29 @@ import {
 
 afterEach(() => vi.unstubAllGlobals())
 
+const PUBLISHED_HEADLINE = 'Attribution documentée pour le lot communal de voirie'
+const PUBLISHED_AWARD_SUMMARY = 'La source officielle documente l’attribution de ce lot communal.'
+
+const PUBLISHED_UNLOCKED_ITEM = {
+  ...UNLOCKED_ITEM,
+  presentation: factualFallbackPresentation({
+    artifactId: '1'.repeat(64),
+    headline: PUBLISHED_HEADLINE,
+    awardSummary: PUBLISHED_AWARD_SUMMARY,
+    headlineEvidenceRefs: ['source:notice:26-104412:headline'],
+    awardSummaryEvidenceRefs: ['source:notice:26-104412:award-summary'],
+  }),
+}
+
+const PUBLISHED_UNLOCKED_DETAIL = {
+  ...UNLOCKED_DETAIL,
+  presentation: PUBLISHED_UNLOCKED_ITEM.presentation,
+}
+
 describe('états indépendants des vues de référence', () => {
   it('conserve les signaux réels et annonce localement une panne de facturation', async () => {
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM, LOCKED_ITEM]) },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': {
         status: 503,
@@ -30,7 +50,9 @@ describe('états indépendants des vues de référence', () => {
 
     renderApp(<AppRoutes />, { route: '/app/dashboard', session: AUTHENTICATED })
 
-    expect(await screen.findByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(
+      await screen.findByText(PUBLISHED_UNLOCKED_ITEM.presentation.content.headline),
+    ).toBeVisible()
     const priority = document.querySelector('.priority-card') as HTMLElement
     expect(within(priority).getAllByRole('alert')).toHaveLength(1)
     expect(within(priority).getByRole('alert')).toHaveTextContent(/offre/i)
@@ -81,8 +103,8 @@ describe('états indépendants des vues de référence', () => {
 
   it('conserve le détail quand la note privée échoue', async () => {
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
       [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
         status: 503,
         body: { detail: { code: 'note_unavailable' } },
@@ -96,7 +118,35 @@ describe('états indépendants des vues de référence', () => {
       session: AUTHENTICATED,
     })
 
-    expect(await screen.findByRole('heading', { name: UNLOCKED_DETAIL.contract.title! })).toBeVisible()
+    expect(UNLOCKED_ITEM.presentation).toBeNull()
+    expect(
+      PUBLISHED_UNLOCKED_DETAIL.presentation.content.claims.map(
+        ({ claim_id, text, evidence_refs }) => ({ claim_id, text, evidence_refs }),
+      ),
+    ).toEqual([
+      {
+        claim_id: 'HEADLINE',
+        text: PUBLISHED_HEADLINE,
+        evidence_refs: ['source:notice:26-104412:headline'],
+      },
+      {
+        claim_id: 'AWARD_SUMMARY',
+        text: PUBLISHED_AWARD_SUMMARY,
+        evidence_refs: ['source:notice:26-104412:award-summary'],
+      },
+    ])
+    expect(PUBLISHED_UNLOCKED_DETAIL.presentation.content.headline).not.toBe(
+      UNLOCKED_DETAIL.contract.title,
+    )
+    expect(
+      await screen.findByRole('heading', {
+        name: PUBLISHED_UNLOCKED_DETAIL.presentation.content.headline,
+      }),
+    ).toBeVisible()
+    expect(document.querySelector('.detail-summary')).toHaveTextContent(
+      PUBLISHED_UNLOCKED_DETAIL.presentation.content.award_summary,
+    )
+    expect(screen.queryByRole('heading', { name: UNLOCKED_DETAIL.contract.title! })).toBeNull()
     expect(await screen.findByRole('alert')).toHaveTextContent(/note.*chargée/i)
     expect(screen.getByRole('textbox', { name: 'Note sur ce signal' })).toBeDisabled()
   })

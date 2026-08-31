@@ -69,6 +69,11 @@ export function ReferenceSignalDetail({
     )
   }
 
+  const eventDateLabel = detail.eventDateKind === 'award'
+    ? t.reference.fields.signalDateAward
+    : detail.eventDateKind === 'notification'
+      ? t.reference.fields.signalDateNotification
+      : t.reference.fields.signalDatePublication
   const facts = [
     {
       label: t.reference.fields.amount,
@@ -76,9 +81,11 @@ export function ReferenceSignalDetail({
         ? amount(detail.facts.amount.value, detail.facts.amount.currency) ?? missing
         : missing,
     },
-    { label: t.reference.fields.awardDate, value: date(detail.facts.awardDate) ?? missing },
+    { label: eventDateLabel, value: date(detail.eventDate) ?? missing },
     { label: t.reference.fields.execution, value: detail.facts.execution ?? missing },
-    { label: t.reference.fields.buyer, value: detail.facts.buyer ?? missing },
+    { label: t.reference.fields.signalBuyer, value: detail.buyerName ?? missing },
+    { label: t.reference.fields.signalAwardee, value: detail.awardedCompanyName ?? missing },
+    { label: t.reference.fields.officialTitle, value: detail.facts.officialTitle ?? missing },
   ]
   const scope = detail.scope.length > 0
     ? detail.scope
@@ -120,17 +127,26 @@ export function ReferenceSignalDetail({
       <div className="detail-hero">
         <div>
           <p className="section-label">{t.reference.headings.selectedSignal}</p>
-          <h2 id="detail-title" tabIndex={-1}>{detail.title ?? missing}</h2>
+          <h2 id="detail-title" tabIndex={-1}>
+            {detail.title ?? t.reference.signalsPage.presentationNotPublished}
+          </h2>
           <p className="detail-summary">
-            {detail.summary ?? detail.brief.whyNow}{' '}
-            {t.reference.signalsPage.summaryQualification}
+            {detail.summary
+              ? `${detail.summary} ${t.reference.signalsPage.summaryQualification}`
+              : t.reference.signalsPage.presentationNotPublished}
           </p>
         </div>
         <span className="published-status">
-          <FileCheck2 aria-hidden="true" />{' '}
-          {detail.sourceSystem
-            ? interpolate(t.reference.signalsPage.publishedOn, { source: detail.sourceSystem })
-            : t.reference.overviewPage.publishedAward}
+          {detail.presentation
+            ? <FileCheck2 aria-hidden="true" data-presentation-icon="published" />
+            : <Info aria-hidden="true" data-presentation-icon="unpublished" />}{' '}
+          {detail.presentation
+            ? detail.sourceSystem
+              ? interpolate(t.reference.signalsPage.presentationPublishedWithSource, {
+                  source: detail.sourceSystem,
+                })
+              : t.reference.signalsPage.presentationPublished
+            : t.reference.signalsPage.presentationNotPublished}
         </span>
       </div>
 
@@ -139,29 +155,12 @@ export function ReferenceSignalDetail({
         <p>{t.reference.signalsPage.dataNotice}</p>
       </div>
 
-      <section className="commercial-brief-card" aria-labelledby="commercial-brief-title">
-        <div className="card-heading">
-          <div>
-            <p className="card-kicker">{t.reference.signalsPage.commercialBrief}</p>
-            <h3 id="commercial-brief-title">{t.reference.headings.commercialBrief}</h3>
-          </div>
-          <span>
-            {interpolate(t.reference.signalsPage.targetProfile, {
-              profile: detail.targetProfileLabel ?? missing,
-            })}
-          </span>
-        </div>
-        <div className="commercial-brief-grid">
-          <div><span>{t.reference.fields.whyNow}</span><p>{detail.brief.whyNow}</p></div>
-          <div><span>{t.reference.fields.offerCoverage}</span><p>{detail.brief.offerCoverage ?? missing}</p></div>
-          <div>
-            <span>{t.reference.fields.roleToFind}</span>
-            <p>{detail.brief.functionToFind ?? missing}</p>
-            <small>{t.reference.signalsPage.noEnrichedContact}</small>
-          </div>
-          <div><span>{t.reference.fields.unknown}</span><p>{detail.brief.unknown ?? missing}</p></div>
-        </div>
-      </section>
+      {detail.presentation?.status !== 'PASS' ? (
+        <p className="signal-limit">
+          <span>{t.reference.fields.signalTargetRoleUnavailable}</span>.{' '}
+          {t.reference.signalsPage.noEnrichedContact}
+        </p>
+      ) : null}
 
       <section className="facts-card" aria-labelledby="facts-title">
         <div className="card-heading">
@@ -228,7 +227,7 @@ export function ReferenceSignalDetail({
             <ul className="questions-list">
               {questions.map((question, index) => <li key={`${question}-${index}`}>{question}</li>)}
             </ul>
-            <p className="signal-limit">{detail.brief.unknown ?? t.reference.signalsPage.verificationLimit}</p>
+            <p className="signal-limit">{t.reference.signalsPage.verificationLimit}</p>
           </section>
         </div>
 

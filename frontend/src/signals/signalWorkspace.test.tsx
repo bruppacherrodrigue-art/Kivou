@@ -191,7 +191,10 @@ describe('workspace partagé des signaux', () => {
 
       const second = await screen.findByRole('button', { name: /Deuxième SA/ })
       await user.click(second)
-      const detailTitle = await screen.findByRole('heading', { level: 2, name: SECOND_DETAIL.contract.title! })
+      const detailTitle = await screen.findByRole('heading', {
+        level: 2,
+        name: 'Présentation non publiée',
+      })
       await waitFor(() => expect(detailTitle).toHaveFocus())
       expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
 
@@ -241,7 +244,9 @@ describe('workspace partagé des signaux', () => {
       resolvePageTwo({ body: feedPage([DEEP_ITEM], { offset: 20 }) as FeedPage })
     })
 
-    expect(await screen.findByRole('heading', { level: 2, name: 'Marché trouvé en page deux' })).toBeVisible()
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Présentation non publiée' }),
+    ).toBeVisible()
     expect(callsTo(`/signals/${DEEP_ITEM.signal_id}`, 'GET')).toHaveLength(1)
   })
 
@@ -307,7 +312,9 @@ describe('workspace partagé des signaux', () => {
       resolveHistorical({ body: feedPage([historical], { freshness: 'all' }) as FeedPage })
     })
 
-    expect(await screen.findByRole('heading', { level: 2, name: historical.contract.title! })).toBeVisible()
+    expect(
+      await screen.findByRole('heading', { level: 2, name: 'Présentation non publiée' }),
+    ).toBeVisible()
     expect(callsTo(`/signals/${historical.signal_id}`, 'GET')).toHaveLength(1)
     const list = document.querySelector('.signal-list') as HTMLElement
     expect(within(list).queryByText('Deep Link SA')).toBeNull()

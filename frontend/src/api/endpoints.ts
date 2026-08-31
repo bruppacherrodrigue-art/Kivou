@@ -90,11 +90,15 @@ export interface FeedQuery extends QueryParams {
   offset?: number
 }
 
+export interface SignalDetailQuery extends QueryParams {
+  presentation_artifact_id?: string | null
+}
+
 export const signals = {
   feed: (query: FeedQuery = {}) => request<FeedPage>('/signals', { query }),
 
-  detail: (signalKey: string) =>
-    request<SignalDetail>(`/signals/${encodeURIComponent(signalKey)}`),
+  detail: (signalKey: string, query: SignalDetailQuery = {}) =>
+    request<SignalDetail>(`/signals/${encodeURIComponent(signalKey)}`, { query }),
 }
 
 export const signalNotes = {

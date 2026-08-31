@@ -207,8 +207,15 @@ export const fr = {
       territory: 'Territoire',
       amount: 'Montant total du marché',
       awardDate: 'Date d’attribution',
+      signalDateAward: 'Date d’attribution',
+      signalDateNotification: 'Date de notification',
+      signalDatePublication: 'Date de publication',
       execution: 'Période d’exécution',
       buyer: 'Acheteur public',
+      signalBuyer: 'Acheteur',
+      signalAwardee: 'Entreprise attributaire',
+      signalTargetRoleUnavailable: 'Rôle cible non disponible',
+      officialTitle: 'Titre officiel de la source',
       whyNow: 'Pourquoi maintenant',
       offerCoverage: 'Ce que l’offre peut couvrir',
       roleToFind: 'Fonction à rechercher',
@@ -302,7 +309,8 @@ export const fr = {
       documentedAwards: 'Attributions documentées',
       accessibleWith: 'Accessible avec {plan}',
       paidAccessRequired: 'Accès payant requis',
-      publishedOn: 'Attribution publiée sur {source}',
+      presentationPublished: 'Présentation publiée',
+      presentationPublishedWithSource: 'Présentation publiée · Source : {source}',
       dataNotice:
         'Les données réelles ci-dessous proviennent des informations publiées et des API Kivou.',
       summaryQualification:
@@ -310,6 +318,7 @@ export const fr = {
       targetProfile: 'Profil : {profile}',
       noticeReference: 'Avis {source} {notice}',
       eventDate: 'Date de l’événement : {date}',
+      presentationNotPublished: 'Présentation non publiée',
       contractConcluded: 'Contrat conclu le {date}',
       lockedReason:
         'Votre accès actuel conserve cet aperçu sans révéler les données protégées.',

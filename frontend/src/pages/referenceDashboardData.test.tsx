@@ -10,6 +10,7 @@ import {
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
   callsTo,
+  factualFallbackPresentation,
   feedPage,
   mockApi,
   recordedCalls,
@@ -18,11 +19,30 @@ import {
 
 afterEach(() => vi.unstubAllGlobals())
 
+const PUBLISHED_HEADLINE = 'Attribution documentée pour le lot communal de voirie'
+const PUBLISHED_AWARD_SUMMARY = 'La source officielle documente l’attribution de ce lot communal.'
+
+const PUBLISHED_UNLOCKED_ITEM = {
+  ...UNLOCKED_ITEM,
+  presentation: factualFallbackPresentation({
+    artifactId: '1'.repeat(64),
+    headline: PUBLISHED_HEADLINE,
+    awardSummary: PUBLISHED_AWARD_SUMMARY,
+    headlineEvidenceRefs: ['source:notice:26-104412:headline'],
+    awardSummaryEvidenceRefs: ['source:notice:26-104412:award-summary'],
+  }),
+}
+
+const PUBLISHED_UNLOCKED_DETAIL = {
+  ...UNLOCKED_DETAIL,
+  presentation: PUBLISHED_UNLOCKED_ITEM.presentation,
+}
+
 describe('vue d’ensemble de référence connectée aux données réelles', () => {
   it('ouvre la vue exacte à /app/dashboard sans réafficher l’ancien workspace', async () => {
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM, LOCKED_ITEM]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: DISCOVERY_STATUS },
     })
@@ -35,7 +55,10 @@ describe('vue d’ensemble de référence connectée aux données réelles', () 
     expect(
       screen.getByRole('heading', { level: 2, name: /attributions documentées/i }),
     ).toBeVisible()
-    expect(screen.getByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(
+      screen.getByText(PUBLISHED_UNLOCKED_ITEM.presentation.content.headline),
+    ).toBeVisible()
+    expect(screen.queryByText(UNLOCKED_ITEM.contract.title!)).toBeNull()
     expect(document.querySelector('.overview-focus-grid .priority-card')).not.toBeNull()
     expect(document.querySelector('.workspace-grid')).toBeNull()
     const priority = document.querySelector('.priority-card') as HTMLElement

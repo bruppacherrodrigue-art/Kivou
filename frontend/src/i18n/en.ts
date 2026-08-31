@@ -201,8 +201,15 @@ export const en: Dictionary = {
       territory: 'Territory',
       amount: 'Total contract amount',
       awardDate: 'Award date',
+      signalDateAward: 'Award date',
+      signalDateNotification: 'Notification date',
+      signalDatePublication: 'Publication date',
       execution: 'Execution period',
       buyer: 'Public buyer',
+      signalBuyer: 'Buyer',
+      signalAwardee: 'Awarded company',
+      signalTargetRoleUnavailable: 'Target role unavailable',
+      officialTitle: 'Official source title',
       whyNow: 'Why now',
       offerCoverage: 'What the offer can cover',
       roleToFind: 'Role to find',
@@ -296,7 +303,8 @@ export const en: Dictionary = {
       documentedAwards: 'Documented awards',
       accessibleWith: 'Available with {plan}',
       paidAccessRequired: 'Paid access required',
-      publishedOn: 'Award published on {source}',
+      presentationPublished: 'Presentation published',
+      presentationPublishedWithSource: 'Presentation published · Source: {source}',
       dataNotice:
         'The real data below comes from published information and Kivou APIs.',
       summaryQualification:
@@ -304,6 +312,7 @@ export const en: Dictionary = {
       targetProfile: 'Profile: {profile}',
       noticeReference: '{source} notice {notice}',
       eventDate: 'Event date: {date}',
+      presentationNotPublished: 'Presentation not published',
       contractConcluded: 'Contract concluded on {date}',
       lockedReason:
         'Your current access keeps this preview without revealing protected data.',

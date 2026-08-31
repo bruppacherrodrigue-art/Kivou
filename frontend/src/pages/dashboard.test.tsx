@@ -18,6 +18,7 @@ import {
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
   callsTo,
+  factualFallbackPresentation,
   feedPage,
   mockApi,
   renderApp,
@@ -348,6 +349,25 @@ const EXACT_OVERVIEW_ROUTES = {
   'GET /target-icps': { body: [ICP] },
 }
 
+const PUBLISHED_HEADLINE = 'Attribution documentée pour le lot communal de voirie'
+const PUBLISHED_AWARD_SUMMARY = 'La source officielle documente l’attribution de ce lot communal.'
+
+const PUBLISHED_UNLOCKED_ITEM = {
+  ...UNLOCKED_ITEM,
+  presentation: factualFallbackPresentation({
+    artifactId: '1'.repeat(64),
+    headline: PUBLISHED_HEADLINE,
+    awardSummary: PUBLISHED_AWARD_SUMMARY,
+    headlineEvidenceRefs: ['source:notice:26-104412:headline'],
+    awardSummaryEvidenceRefs: ['source:notice:26-104412:award-summary'],
+  }),
+}
+
+const PUBLISHED_UNLOCKED_DETAIL = {
+  ...UNLOCKED_DETAIL,
+  presentation: PUBLISHED_UNLOCKED_ITEM.presentation,
+}
+
 const OVERVIEW_SECOND_ITEM = {
   ...UNLOCKED_ITEM,
   signal_id: 'sig_overview_second',
@@ -357,6 +377,13 @@ const OVERVIEW_SECOND_ITEM = {
     title: 'Deuxième marché public',
     dates: { ...UNLOCKED_ITEM.contract.dates, award: '2026-08-03' },
   },
+  presentation: factualFallbackPresentation({
+    artifactId: '2'.repeat(64),
+    headline: 'Attribution publiée pour le second lot communal de voirie',
+    awardSummary: 'La source officielle documente l’attribution du second lot communal.',
+    headlineEvidenceRefs: ['source:notice:26-104413:headline'],
+    awardSummaryEvidenceRefs: ['source:notice:26-104413:award-summary'],
+  }),
 }
 
 function OverviewAccountSwitcher() {
@@ -375,7 +402,9 @@ describe('vue d’ensemble exacte connectée', () => {
   it('rend uniquement la composition de référence depuis les API réelles', async () => {
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, OVERVIEW_SECOND_ITEM, LOCKED_ITEM]) },
+      'GET /signals': {
+        body: feedPage([PUBLISHED_UNLOCKED_ITEM, OVERVIEW_SECOND_ITEM, LOCKED_ITEM]),
+      },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
@@ -391,7 +420,10 @@ describe('vue d’ensemble exacte connectée', () => {
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
 
     const priority = document.querySelector('.priority-card') as HTMLElement
-    expect(within(priority).getByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(
+      within(priority).getByText(PUBLISHED_UNLOCKED_ITEM.presentation.content.headline),
+    ).toBeVisible()
+    expect(within(priority).queryByText(UNLOCKED_ITEM.contract.title!)).toBeNull()
     expect(within(priority).getByText('Attribution publiée sur BOAMP')).toBeVisible()
     for (const reason of UNLOCKED_ITEM.analysis.fit.reasons) {
       expect(within(priority).getByText(reason)).toBeVisible()
@@ -438,13 +470,16 @@ describe('vue d’ensemble exacte connectée', () => {
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
       'GET /signals': {
-        body: feedPage([LOCKED_ITEM, OVERVIEW_SECOND_ITEM, UNLOCKED_ITEM]),
+        body: feedPage([LOCKED_ITEM, OVERVIEW_SECOND_ITEM, PUBLISHED_UNLOCKED_ITEM]),
       },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
     const priority = document.querySelector('.priority-card') as HTMLElement
-    expect(await within(priority).findByText(OVERVIEW_SECOND_ITEM.contract.title!)).toBeVisible()
+    expect(
+      await within(priority).findByText(OVERVIEW_SECOND_ITEM.presentation.content.headline),
+    ).toBeVisible()
+    expect(within(priority).queryByText(OVERVIEW_SECOND_ITEM.contract.title!)).toBeNull()
     expect(within(priority).getByRole('link', { name: 'Examiner le signal' })).toHaveAttribute(
       'href',
       `/app/signals/${OVERVIEW_SECOND_ITEM.signal_id}`,
@@ -468,7 +503,7 @@ describe('vue d’ensemble exacte connectée', () => {
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
       'GET /signals': {
-        body: feedPage([LOCKED_ITEM, OVERVIEW_SECOND_ITEM, UNLOCKED_ITEM]),
+        body: feedPage([LOCKED_ITEM, OVERVIEW_SECOND_ITEM, PUBLISHED_UNLOCKED_ITEM]),
       },
       [`GET /signals/${OVERVIEW_SECOND_ITEM.signal_id}`]: { body: secondDetail },
       [`GET /signals/${OVERVIEW_SECOND_ITEM.signal_id}/note`]: {
@@ -482,7 +517,9 @@ describe('vue d’ensemble exacte connectée', () => {
     })
 
     expect(
-      await screen.findByRole('heading', { name: OVERVIEW_SECOND_ITEM.contract.title! }),
+      await screen.findByRole('heading', {
+        name: OVERVIEW_SECOND_ITEM.presentation.content.headline,
+      }),
     ).toBeVisible()
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
@@ -547,14 +584,16 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
         feedCalls += 1
         return feedCalls === 1
           ? { status: 503, body: { detail: { code: 'temporarily_unavailable' } } }
-          : { body: feedPage([UNLOCKED_ITEM]) }
+          : { body: feedPage([PUBLISHED_UNLOCKED_ITEM]) }
       },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
     const priority = document.querySelector('.priority-card') as HTMLElement
     await user.click(await within(priority).findByRole('button', { name: 'Réessayer' }))
-    expect(await within(priority).findByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(
+      await within(priority).findByText(PUBLISHED_UNLOCKED_ITEM.presentation.content.headline),
+    ).toBeVisible()
     expect(screen.getByText(ICP.label)).toBeVisible()
     expect(callsTo('/signals', 'GET')).toHaveLength(2)
     expect(callsTo('/target-icps', 'GET')).toHaveLength(2)
@@ -566,7 +605,7 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
     let profileCalls = 0
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM]) },
       'GET /target-icps': () => {
         profileCalls += 1
         return profileCalls <= 2
@@ -576,7 +615,9 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
-    expect(await screen.findByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(
+      await screen.findByText(PUBLISHED_UNLOCKED_ITEM.presentation.content.headline),
+    ).toBeVisible()
     const targeting = document.querySelector('.targeting-card') as HTMLElement
     await user.click(await within(targeting).findByRole('button', { name: 'Réessayer' }))
     expect(await within(targeting).findByText(ICP.label)).toBeVisible()
@@ -617,6 +658,13 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
       ...OVERVIEW_SECOND_ITEM,
       signal_id: 'sig_current_overview',
       contract: { ...OVERVIEW_SECOND_ITEM.contract, title: 'Lecture la plus récente' },
+      presentation: factualFallbackPresentation({
+        artifactId: '3'.repeat(64),
+        headline: 'Publication la plus récente pour le lot départemental',
+        awardSummary: 'La source officielle documente la dernière attribution départementale.',
+        headlineEvidenceRefs: ['source:notice:26-104414:headline'],
+        awardSummaryEvidenceRefs: ['source:notice:26-104414:award-summary'],
+      }),
     }
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
@@ -638,11 +686,12 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
       retry.click()
       retry.click()
     })
-    expect(await screen.findByText('Lecture la plus récente')).toBeVisible()
+    expect(await screen.findByText(currentItem.presentation.content.headline)).toBeVisible()
     await act(async () => {
-      resolveStale({ body: feedPage([UNLOCKED_ITEM]) })
+      resolveStale({ body: feedPage([PUBLISHED_UNLOCKED_ITEM]) })
     })
-    expect(screen.getByText('Lecture la plus récente')).toBeVisible()
+    expect(screen.getByText(currentItem.presentation.content.headline)).toBeVisible()
+    expect(screen.queryByText(currentItem.contract.title!)).toBeNull()
     expect(screen.queryByText(UNLOCKED_ITEM.contract.title!)).toBeNull()
   })
 
@@ -653,10 +702,24 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
     const accountAItem = {
       ...UNLOCKED_ITEM,
       contract: { ...UNLOCKED_ITEM.contract, title: 'Marché privé du compte A' },
+      presentation: factualFallbackPresentation({
+        artifactId: '4'.repeat(64),
+        headline: 'Attribution publiée pour le compte A',
+        awardSummary: 'La source du compte A documente une attribution publiée.',
+        headlineEvidenceRefs: ['source:account-a:award:headline'],
+        awardSummaryEvidenceRefs: ['source:account-a:award:summary'],
+      }),
     }
     const accountBItem = {
       ...OVERVIEW_SECOND_ITEM,
       contract: { ...OVERVIEW_SECOND_ITEM.contract, title: 'Marché du compte B' },
+      presentation: factualFallbackPresentation({
+        artifactId: '5'.repeat(64),
+        headline: 'Attribution publiée pour le compte B',
+        awardSummary: 'La source du compte B documente une attribution publiée.',
+        headlineEvidenceRefs: ['source:account-b:award:headline'],
+        awardSummaryEvidenceRefs: ['source:account-b:award:summary'],
+      }),
     }
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
@@ -677,11 +740,13 @@ describe('ressources indépendantes de la vue d’ensemble', () => {
 
     await waitFor(() => expect(callsTo('/signals', 'GET')).toHaveLength(1))
     await user.click(screen.getByRole('button', { name: 'Basculer sur le compte B' }))
-    expect(await screen.findByText('Marché du compte B')).toBeVisible()
+    expect(await screen.findByText(accountBItem.presentation.content.headline)).toBeVisible()
     await act(async () => {
       resolveAccountA({ body: feedPage([accountAItem]) })
     })
-    expect(screen.getByText('Marché du compte B')).toBeVisible()
+    expect(screen.getByText(accountBItem.presentation.content.headline)).toBeVisible()
+    expect(screen.queryByText(accountBItem.contract.title!)).toBeNull()
+    expect(screen.queryByText(accountAItem.presentation.content.headline)).toBeNull()
     expect(screen.queryByText('Marché privé du compte A')).toBeNull()
   })
 
@@ -760,8 +825,8 @@ describe('autorités, navigation et garde-fous Overview', () => {
     const user = userEvent.setup()
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
       [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
         body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
       },
@@ -776,13 +841,19 @@ describe('autorités, navigation et garde-fous Overview', () => {
 
     await user.click(await screen.findByRole('link', { name: 'Examiner le signal' }))
     expect(
-      await screen.findByRole('heading', { level: 2, name: UNLOCKED_ITEM.contract.title! }),
+      await screen.findByRole('heading', {
+        level: 2,
+        name: PUBLISHED_UNLOCKED_DETAIL.presentation.content.headline,
+      }),
     ).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Historique précédent' }))
     expect(await screen.findByRole('heading', { level: 1, name: 'Vue d’ensemble' })).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Historique suivant' }))
     expect(
-      await screen.findByRole('heading', { level: 2, name: UNLOCKED_ITEM.contract.title! }),
+      await screen.findByRole('heading', {
+        level: 2,
+        name: PUBLISHED_UNLOCKED_DETAIL.presentation.content.headline,
+      }),
     ).toBeVisible()
   })
 
@@ -815,11 +886,14 @@ describe('autorités, navigation et garde-fous Overview', () => {
     sessionStorage.clear()
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
+      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM, LOCKED_ITEM]) },
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
 
-    expect(await screen.findByText(UNLOCKED_ITEM.contract.title!)).toBeVisible()
+    expect(
+      await screen.findByText(PUBLISHED_UNLOCKED_ITEM.presentation.content.headline),
+    ).toBeVisible()
+    expect(screen.queryByText(UNLOCKED_ITEM.contract.title!)).toBeNull()
     expect(storageWrite).not.toHaveBeenCalled()
     expect(localStorage).toHaveLength(0)
     expect(sessionStorage).toHaveLength(0)
