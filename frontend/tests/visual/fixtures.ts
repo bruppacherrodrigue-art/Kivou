@@ -614,14 +614,6 @@ function toUnlockedItem(record: AwardSignal): UnlockedFeedItem {
 
 export const VISUAL_UNLOCKED_ITEMS = awardSignals.map(toUnlockedItem)
 
-export const VISUAL_FALLBACK_PROVIDER_METADATA = {
-  provider: null,
-  model_id: null,
-  prompt_version: null,
-  qa_provider: null,
-  qa_model_id: null,
-} as const
-
 function factualFallbackPresentation(
   record: AwardSignal,
   artifactId: string,
@@ -667,6 +659,25 @@ function factualFallbackPresentation(
   }
 }
 
+function offlineFallbackArtifact(record: AwardSignal, artifactId: string) {
+  return {
+    signal_id: record.id,
+    presentation: factualFallbackPresentation(record, artifactId),
+    provider_metadata: {
+      provider: null,
+      model_id: null,
+      prompt_version: null,
+      qa_provider: null,
+      qa_model_id: null,
+    },
+  } as const
+}
+
+export const VISUAL_SIGNAL_OFFLINE_ARTIFACTS = [
+  offlineFallbackArtifact(awardSignals[0], 'a'.repeat(64)),
+  offlineFallbackArtifact(awardSignals[2], 'c'.repeat(64)),
+] as const
+
 function toLockedItem(item: UnlockedFeedItem): LockedFeedItem {
   return {
     locked: true,
@@ -703,13 +714,19 @@ const visualPublicationItem = VISUAL_UNLOCKED_ITEMS.find(
 const visualLockedItem = VISUAL_UNLOCKED_ITEMS.find(
   (item) => item.signal_id === 'gsh-gunzenhausen',
 )!
+const visualAwardArtifact = VISUAL_SIGNAL_OFFLINE_ARTIFACTS.find(
+  (artifact) => artifact.signal_id === visualAwardItem.signal_id,
+)!
+const visualPublicationArtifact = VISUAL_SIGNAL_OFFLINE_ARTIFACTS.find(
+  (artifact) => artifact.signal_id === visualPublicationItem.signal_id,
+)!
 
 export const VISUAL_SIGNAL_UNLOCKED_ITEMS = [{
   ...visualAwardItem,
-  presentation: factualFallbackPresentation(awardSignals[0], 'a'.repeat(64)),
+  presentation: visualAwardArtifact.presentation,
 }, {
   ...visualPublicationItem,
-  presentation: factualFallbackPresentation(awardSignals[2], 'c'.repeat(64)),
+  presentation: visualPublicationArtifact.presentation,
   event: {
     ...visualPublicationItem.event,
     status: 'recently_published_award',

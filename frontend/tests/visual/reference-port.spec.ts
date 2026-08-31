@@ -6,9 +6,9 @@ import { expect, test, type Page } from '@playwright/test'
 import { publishedPresentation } from '../../src/reference/dashboard/adapters'
 import {
   LOCAL_REFERENCE_ROUTES,
-  VISUAL_FALLBACK_PROVIDER_METADATA,
   VISUAL_SIGNAL_DETAILS,
   VISUAL_SIGNAL_ITEMS,
+  VISUAL_SIGNAL_OFFLINE_ARTIFACTS,
   VISUAL_SIGNAL_UNLOCKED_ITEMS,
   installReferenceApi,
   normalizeConnectedText,
@@ -51,15 +51,37 @@ test('dashboard-signals adversarial fixture contract', () => {
   for (const item of VISUAL_SIGNAL_UNLOCKED_ITEMS) {
     expect(item.presentation?.status).toBe('FALLBACK')
     expect(item.presentation?.content.variant).toBe('FACTUAL_FALLBACK')
+    expect(Object.hasOwn(item, 'provider_metadata')).toBe(false)
     expect(publishedPresentation(item.presentation)).toBe(item.presentation)
   }
-  expect(Object.values(VISUAL_FALLBACK_PROVIDER_METADATA)).toEqual([
-    null,
-    null,
-    null,
-    null,
-    null,
-  ])
+
+  expect(VISUAL_SIGNAL_OFFLINE_ARTIFACTS).toHaveLength(VISUAL_SIGNAL_UNLOCKED_ITEMS.length)
+  expect(new Set(
+    VISUAL_SIGNAL_OFFLINE_ARTIFACTS.map((artifact) => artifact.presentation.artifact_id),
+  ).size).toBe(VISUAL_SIGNAL_OFFLINE_ARTIFACTS.length)
+  for (const item of VISUAL_SIGNAL_UNLOCKED_ITEMS) {
+    const artifact = VISUAL_SIGNAL_OFFLINE_ARTIFACTS.find(
+      (candidate) => candidate.signal_id === item.signal_id,
+    )
+    expect(artifact).toBeDefined()
+    expect(item.presentation).toBe(artifact?.presentation)
+    expect(Object.keys(artifact?.provider_metadata ?? {}).sort()).toEqual([
+      'model_id',
+      'prompt_version',
+      'provider',
+      'qa_model_id',
+      'qa_provider',
+    ])
+    expect(Object.values(artifact?.provider_metadata ?? {})).toEqual([
+      null,
+      null,
+      null,
+      null,
+      null,
+    ])
+    expect(Object.hasOwn(artifact?.presentation ?? {}, 'provider_metadata')).toBe(false)
+    expect(publishedPresentation(artifact?.presentation)).toBe(artifact?.presentation)
+  }
 })
 
 const HEADINGS: Record<(typeof LOCAL_REFERENCE_ROUTES)[number]['golden'], string> = {
