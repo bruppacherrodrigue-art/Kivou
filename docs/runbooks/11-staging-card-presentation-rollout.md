@@ -194,6 +194,196 @@ case "$KIVOU_PREVIOUS_FRONTEND" in (/srv/kivou/releases/frontend-*) ;; (*) exit 
 test "$KIVOU_CURRENT_REVISION" = "0027_signal_notes"
 ~~~
 
+Avant la première mutation de staging, valider l'approbation QA et sa session
+protégée avec le backend actuellement servi. Ce garde-fou partagé ne fait que
+des `SELECT` dans une transaction explicitement read-only et des requêtes HTTP
+`GET/HEAD`; il n'exécute aucun backfill, provider ou worker. L'installation
+locale des dépendances navigateur ne touche pas staging. Garder la fonction
+dans le même shell : elle sera rejouée juste avant chaque backfill en étape 7.
+
+~~~bash
+KIVOU_QA_READ_DATE=$(date -u +%F)
+printf '%s\n' "$KIVOU_QA_READ_DATE" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+: "${KIVOU_QA_STORAGE_STATE:?STOP: storage state QA protégé non fourni}"
+printf '%s\n' "$KIVOU_QA_STORAGE_STATE" | grep -Eq '^/[A-Za-z0-9._/-]+$'
+test -f "$KIVOU_QA_STORAGE_STATE"
+test ! -L "$KIVOU_QA_STORAGE_STATE"
+KIVOU_QA_STORAGE_STATE_REAL=$(readlink -f "$KIVOU_QA_STORAGE_STATE")
+test "$KIVOU_QA_STORAGE_STATE_REAL" = "$KIVOU_QA_STORAGE_STATE"
+test "$(stat -c '%U:%a' "$KIVOU_QA_STORAGE_STATE_REAL")" = "$(id -un):600"
+test -r "$KIVOU_QA_STORAGE_STATE_REAL"
+KIVOU_OPERATOR_ROOT=$(git rev-parse --show-toplevel)
+case "$KIVOU_QA_STORAGE_STATE_REAL" in
+  ("$KIVOU_OPERATOR_ROOT"/*) exit 69 ;;
+  (*) ;;
+esac
+(
+  cd frontend
+  npm ci
+  npx playwright install chromium
+)
+
+kivou_validate_qa_read_only() {
+  KIVOU_QA_APP_DIR=$1
+  case "$KIVOU_QA_APP_DIR" in
+    (/srv/kivou/releases/backend-*) ;;
+    (*) return 69 ;;
+  esac
+  KIVOU_QA_SCOPE_SUMMARY=$(ssh kivou-staging 'bash -s' -- \
+    "$KIVOU_QA_APP_DIR" "$KIVOU_QA_READ_DATE" <<'REMOTE'
+set -euo pipefail
+KIVOU_QA_APP_DIR=$1
+KIVOU_QA_READ_DATE=$2
+KIVOU_QA_ENV=/etc/kivou/card-presentation-qa.env
+case "$KIVOU_QA_APP_DIR" in (/srv/kivou/releases/backend-*) ;; (*) exit 69 ;; esac
+test -L /srv/kivou/app
+KIVOU_QA_SERVED_APP=$(readlink -f /srv/kivou/app)
+case "$KIVOU_QA_SERVED_APP" in
+  (/srv/kivou/releases/backend-*) ;;
+  (*) exit 69 ;;
+esac
+test -d "$KIVOU_QA_SERVED_APP"
+test "$KIVOU_QA_SERVED_APP" = "$KIVOU_QA_APP_DIR"
+printf '%s\n' "$KIVOU_QA_READ_DATE" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+test "$(hostname -s)" = "kivou-staging-01"
+test -f "$KIVOU_QA_ENV"
+test ! -L "$KIVOU_QA_ENV"
+test "$(stat -c '%U:%G:%a' "$KIVOU_QA_ENV")" = "root:kivou:640"
+test "$(sudo awk 'NF && $1 !~ /^#/ {count++} END {print count+0}' \
+  "$KIVOU_QA_ENV")" = 1
+sudo grep -Eq \
+  '^KIVOU_CARD_QA_ACCOUNT_ID=[0-9A-Za-z][0-9A-Za-z_-]{0,63}$' \
+  "$KIVOU_QA_ENV"
+test "$(sudo awk -F= 'NF && $1 !~ /^#/ {print $1}' "$KIVOU_QA_ENV")" = \
+  KIVOU_CARD_QA_ACCOUNT_ID
+
+sudo systemd-run --quiet --wait --collect --pipe \
+  --unit="kivou-card-qa-read-only-$$" --property=Type=oneshot \
+  --property=User=kivou --property=Group=kivou \
+  --property=WorkingDirectory="$KIVOU_QA_APP_DIR" \
+  --property=EnvironmentFile=/etc/kivou/staging.env \
+  --property=EnvironmentFile="$KIVOU_QA_ENV" \
+  -- "$KIVOU_QA_APP_DIR/.venv/bin/python" - <<'PY'
+import hashlib
+import os
+import sys
+
+import sqlalchemy as sa
+
+from signals.persistence.database import create_database_engine
+
+
+def main() -> None:
+    account_id = os.environ["KIVOU_CARD_QA_ACCOUNT_ID"]
+    engine = create_database_engine()
+    with engine.connect() as connection:
+        connection.exec_driver_sql("SET TRANSACTION READ ONLY")
+        account_count = connection.scalar(sa.text(
+            "SELECT count(*) FROM account WHERE account_id=:account_id"
+        ), {"account_id": account_id})
+        active_users = connection.scalar(sa.text(
+            "SELECT count(*) FROM auth_user "
+            "WHERE account_id=:account_id AND is_active"
+        ), {"account_id": account_id})
+        active_icps = connection.scalar(sa.text(
+            "SELECT count(*) FROM target_icp WHERE account_id=:account_id "
+            "AND status='active' AND plan_limit_code IS NULL"
+        ), {"account_id": account_id})
+        current_signals = connection.scalar(sa.text(
+            "SELECT count(*) FROM materialized_signal AS signal "
+            "JOIN target_icp AS icp "
+            "ON icp.target_icp_id=signal.target_icp_id "
+            "WHERE icp.account_id=:account_id AND icp.status='active' "
+            "AND icp.plan_limit_code IS NULL "
+            "AND signal.invalidated_at IS NULL "
+            "AND signal.target_icp_revision=icp.matching_revision"
+        ), {"account_id": account_id})
+    assert account_count == 1
+    assert active_users >= 1
+    assert active_icps >= 1
+    assert current_signals >= 1
+    fingerprint = hashlib.sha256(account_id.encode("utf-8")).hexdigest()[:16]
+    print(f"qa_read_only_scope_ok fingerprint={fingerprint}")
+
+
+try:
+    main()
+except Exception:
+    print("qa_read_only_scope_failed", file=sys.stderr)
+    raise SystemExit(1) from None
+PY
+REMOTE
+  )
+  printf '%s\n' "$KIVOU_QA_SCOPE_SUMMARY" | \
+    grep -Eq '^qa_read_only_scope_ok fingerprint=[0-9a-f]{16}$'
+  KIVOU_QA_READ_ONLY_FINGERPRINT=$(printf '%s\n' "$KIVOU_QA_SCOPE_SUMMARY" | \
+    sed -E 's/^qa_read_only_scope_ok fingerprint=([0-9a-f]{16})$/\1/')
+  unset KIVOU_QA_SCOPE_SUMMARY
+  printf '%s\n' "$KIVOU_QA_READ_ONLY_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
+  if test -z "${KIVOU_QA_APPROVED_FINGERPRINT+x}"; then
+    KIVOU_QA_APPROVED_FINGERPRINT=$KIVOU_QA_READ_ONLY_FINGERPRINT
+  else
+    test "$KIVOU_QA_READ_ONLY_FINGERPRINT" = \
+      "$KIVOU_QA_APPROVED_FINGERPRINT"
+  fi
+  export KIVOU_QA_APPROVED_FINGERPRINT
+  readonly KIVOU_QA_APPROVED_FINGERPRINT
+
+  (
+    cd frontend
+    KIVOU_QA_STORAGE_STATE="$KIVOU_QA_STORAGE_STATE_REAL" \
+    KIVOU_QA_READ_DATE="$KIVOU_QA_READ_DATE" \
+    KIVOU_QA_ORIGIN=https://staging.kivou.eu node <<'JS'
+async function run() {
+  const { chromium } = require('playwright')
+  const { createHash } = require('node:crypto')
+  const origin = process.env.KIVOU_QA_ORIGIN
+  const expectedFingerprint = process.env.KIVOU_QA_APPROVED_FINGERPRINT
+  const storageState = process.env.KIVOU_QA_STORAGE_STATE
+  if (!origin || !expectedFingerprint || !storageState) {
+    throw new Error()
+  }
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const context = await browser.newContext({ storageState })
+    const requests = [{ method: 'GET', path: '/me' }]
+    const meResponse = await context.request.get(`${origin}/me`)
+    if (meResponse.status() !== 200) throw new Error()
+    const me = await meResponse.json()
+    if (typeof me.account_id !== 'string' || me.account_id.length === 0) {
+      throw new Error()
+    }
+    const fingerprint = createHash('sha256')
+      .update(me.account_id, 'utf8')
+      .digest('hex')
+      .slice(0, 16)
+    if (fingerprint !== expectedFingerprint) throw new Error()
+    const onlyReadMethods =
+      !requests.some(({ method }) => !['GET', 'HEAD'].includes(method))
+    if (!onlyReadMethods || requests.length !== 1 || requests[0].path !== '/me') {
+      throw new Error()
+    }
+    await context.close()
+  } finally {
+    await browser.close()
+  }
+}
+
+run()
+  .then(() => console.log("qa_read_only_gate_ok"))
+  .catch(() => {
+    console.error("qa_read_only_gate_failed")
+    process.exitCode = 1
+  })
+JS
+  )
+  unset KIVOU_QA_READ_ONLY_FINGERPRINT KIVOU_QA_APP_DIR
+}
+# Fin du garde-fou QA partagé en lecture seule.
+
+kivou_validate_qa_read_only "$KIVOU_PREVIOUS_BACKEND"
+~~~
+
 Conserver ces deux chemins exacts. Ne jamais redécouvrir un rollback target par
 un glob ou par le seul suffixe du SHA.
 
@@ -1055,10 +1245,12 @@ REMOTE
 )
 printf '%s\n' "$KIVOU_QA_SCOPE_SUMMARY" | grep -Eq \
   '^qa_scope_ok fingerprint=[0-9a-f]{16} active_users=[1-9][0-9]* active_icps=[1-9][0-9]* current_signals=[1-9][0-9]*$'
-KIVOU_QA_DB_FINGERPRINT=$(printf '%s\n' "$KIVOU_QA_SCOPE_SUMMARY" | \
+KIVOU_QA_SCOPE_FINGERPRINT=$(printf '%s\n' "$KIVOU_QA_SCOPE_SUMMARY" | \
   sed -E 's/^qa_scope_ok fingerprint=([0-9a-f]{16}) .*$/\1/')
 unset KIVOU_QA_SCOPE_SUMMARY
-printf '%s\n' "$KIVOU_QA_DB_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
+printf '%s\n' "$KIVOU_QA_SCOPE_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
+test "$KIVOU_QA_SCOPE_FINGERPRINT" = "$KIVOU_QA_APPROVED_FINGERPRINT"
+unset KIVOU_QA_SCOPE_FINGERPRINT
 
 : "${KIVOU_QA_STORAGE_STATE:?STOP: storage state QA protégé non fourni}"
 printf '%s\n' "$KIVOU_QA_STORAGE_STATE" | \
@@ -1079,14 +1271,13 @@ esac
   npm ci
   npx playwright install chromium
   KIVOU_QA_STORAGE_STATE="$KIVOU_QA_STORAGE_STATE_REAL" \
-  KIVOU_QA_DB_FINGERPRINT="$KIVOU_QA_DB_FINGERPRINT" \
   KIVOU_BACKFILL_AS_OF="$KIVOU_BACKFILL_AS_OF" \
   KIVOU_QA_ORIGIN=https://staging.kivou.eu node <<'JS'
 async function run() {
   const { chromium } = require('playwright')
   const origin = process.env.KIVOU_QA_ORIGIN
   const asOf = process.env.KIVOU_BACKFILL_AS_OF
-  const expectedFingerprint = process.env.KIVOU_QA_DB_FINGERPRINT
+  const expectedFingerprint = process.env.KIVOU_QA_APPROVED_FINGERPRINT
   const storageState = process.env.KIVOU_QA_STORAGE_STATE
   if (!origin || !asOf || !expectedFingerprint || !storageState) throw new Error()
   const browser = await chromium.launch({ headless: true })
@@ -1109,12 +1300,14 @@ async function run() {
         .slice(0, 16)
       if (fingerprint !== expectedFingerprint) throw new Error()
       const feedResponse = await fetch(
-        `/signals?as_of=${encodeURIComponent(asOf)}&limit=50&offset=0`,
+        `/signals?freshness=new&limit=20&offset=0`,
         { credentials: 'same-origin' },
       )
       if (feedResponse.status !== 200) throw new Error()
       const feed = await feedResponse.json()
-      if (feed.read_at !== asOf || !Array.isArray(feed.items)) throw new Error()
+      if (feed.read_at !== asOf || feed.freshness !== 'new' ||
+          feed.page?.limit !== 20 || feed.page.offset !== 0 ||
+          !Array.isArray(feed.items)) throw new Error()
       if (!feed.items.some((item) => item && item.locked === false)) {
         throw new Error()
       }
@@ -1136,17 +1329,18 @@ run()
 JS
 )
 
+kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"
 ssh kivou-staging 'bash -s' -- \
   "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_BACKFILL_AS_OF" \
-  "$KIVOU_QA_DB_FINGERPRINT" <<'REMOTE'
+  "$KIVOU_QA_APPROVED_FINGERPRINT" <<'REMOTE'
 set -euo pipefail
 KIVOU_RELEASE_DIR=$1
 KIVOU_FINAL_SHA=$2
 KIVOU_BACKFILL_AS_OF=$3
-KIVOU_QA_DB_FINGERPRINT=$4
+KIVOU_QA_APPROVED_FINGERPRINT=$4
 KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
 KIVOU_QA_ENV=/etc/kivou/card-presentation-qa.env
-printf '%s\n' "$KIVOU_QA_DB_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
+printf '%s\n' "$KIVOU_QA_APPROVED_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
 
 kivou_revalidate_qa_binding() {
   test -f "$KIVOU_QA_ENV"
@@ -1164,7 +1358,7 @@ kivou_revalidate_qa_binding() {
   KIVOU_QA_BOUND_FINGERPRINT=$(printf '%s' "$KIVOU_QA_BOUND_ACCOUNT" | \
     sha256sum | cut -c1-16)
   unset KIVOU_QA_BOUND_ACCOUNT
-  test "$KIVOU_QA_BOUND_FINGERPRINT" = "$KIVOU_QA_DB_FINGERPRINT"
+  test "$KIVOU_QA_BOUND_FINGERPRINT" = "$KIVOU_QA_APPROVED_FINGERPRINT"
   unset KIVOU_QA_BOUND_FINGERPRINT
 }
 
@@ -1190,7 +1384,7 @@ KIVOU_FR_SUMMARY=$(sudo systemd-run --quiet --wait --collect --pipe \
   --setenv=HOME=/srv/kivou \
   --setenv="PATH=$KIVOU_RELEASE_DIR/.venv/bin:/usr/bin:/bin" \
   --setenv="KIVOU_BACKFILL_AS_OF=$KIVOU_BACKFILL_AS_OF" \
-  --setenv="KIVOU_QA_DB_FINGERPRINT=$KIVOU_QA_DB_FINGERPRINT" \
+  --setenv="KIVOU_QA_APPROVED_FINGERPRINT=$KIVOU_QA_APPROVED_FINGERPRINT" \
   -- "$KIVOU_RELEASE_DIR/.venv/bin/python" - <<'PY'
 import grp
 import hashlib
@@ -1248,7 +1442,7 @@ def approved_account_id() -> str:
 
 def main() -> None:
     file_account_id = approved_account_id()
-    expected = os.environ["KIVOU_QA_DB_FINGERPRINT"]
+    expected = os.environ["KIVOU_QA_APPROVED_FINGERPRINT"]
     if re.fullmatch(r"[0-9a-f]{16}", expected) is None:
         raise ValueError()
     actual = hashlib.sha256(file_account_id.encode("utf-8")).hexdigest()[:16]
@@ -1275,6 +1469,52 @@ PY
 )
 kivou_validate_backfill_summary "$KIVOU_FR_SUMMARY"
 printf 'fr_%s\n' "$KIVOU_FR_SUMMARY"
+REMOTE
+
+kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"
+ssh kivou-staging 'bash -s' -- \
+  "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_BACKFILL_AS_OF" \
+  "$KIVOU_QA_APPROVED_FINGERPRINT" <<'REMOTE'
+set -euo pipefail
+KIVOU_RELEASE_DIR=$1
+KIVOU_FINAL_SHA=$2
+KIVOU_BACKFILL_AS_OF=$3
+KIVOU_QA_APPROVED_FINGERPRINT=$4
+KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
+KIVOU_QA_ENV=/etc/kivou/card-presentation-qa.env
+printf '%s\n' "$KIVOU_QA_APPROVED_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
+
+kivou_revalidate_qa_binding() {
+  test -f "$KIVOU_QA_ENV"
+  test ! -L "$KIVOU_QA_ENV"
+  test "$(stat -c '%U:%G:%a' "$KIVOU_QA_ENV")" = "root:kivou:640"
+  test "$(sudo awk 'NF && $1 !~ /^#/ {count++} END {print count+0}' \
+    "$KIVOU_QA_ENV")" = 1
+  sudo grep -Eq \
+    '^KIVOU_CARD_QA_ACCOUNT_ID=[0-9A-Za-z][0-9A-Za-z_-]{0,63}$' \
+    "$KIVOU_QA_ENV"
+  test "$(sudo awk -F= 'NF && $1 !~ /^#/ {print $1}' \
+    "$KIVOU_QA_ENV")" = KIVOU_CARD_QA_ACCOUNT_ID
+  KIVOU_QA_BOUND_ACCOUNT=$(sudo awk -F= \
+    '$1 == "KIVOU_CARD_QA_ACCOUNT_ID" {print $2}' "$KIVOU_QA_ENV")
+  KIVOU_QA_BOUND_FINGERPRINT=$(printf '%s' "$KIVOU_QA_BOUND_ACCOUNT" | \
+    sha256sum | cut -c1-16)
+  unset KIVOU_QA_BOUND_ACCOUNT
+  test "$KIVOU_QA_BOUND_FINGERPRINT" = "$KIVOU_QA_APPROVED_FINGERPRINT"
+  unset KIVOU_QA_BOUND_FINGERPRINT
+}
+
+kivou_validate_backfill_summary() {
+  printf '%s\n' "$1" | awk '
+    BEGIN { ok=0 }
+    /^scanned=[0-9]+ published=[0-9]+ unchanged=[0-9]+ failed=0 next_offset=(none|[0-9]+) scan_truncated=0$/ {
+      split($1, scanned, "="); split($2, published, "="); split($3, unchanged, "=")
+      if (scanned[2] <= 50 && published[2] <= 50 && unchanged[2] <= 50 &&
+          published[2] + unchanged[2] <= scanned[2]) ok=1
+    }
+    END { exit !ok }
+  '
+}
 
 kivou_revalidate_qa_binding
 KIVOU_EN_SUMMARY=$(sudo systemd-run --quiet --wait --collect --pipe \
@@ -1286,7 +1526,7 @@ KIVOU_EN_SUMMARY=$(sudo systemd-run --quiet --wait --collect --pipe \
   --setenv=HOME=/srv/kivou \
   --setenv="PATH=$KIVOU_RELEASE_DIR/.venv/bin:/usr/bin:/bin" \
   --setenv="KIVOU_BACKFILL_AS_OF=$KIVOU_BACKFILL_AS_OF" \
-  --setenv="KIVOU_QA_DB_FINGERPRINT=$KIVOU_QA_DB_FINGERPRINT" \
+  --setenv="KIVOU_QA_APPROVED_FINGERPRINT=$KIVOU_QA_APPROVED_FINGERPRINT" \
   -- "$KIVOU_RELEASE_DIR/.venv/bin/python" - <<'PY'
 import grp
 import hashlib
@@ -1344,7 +1584,7 @@ def approved_account_id() -> str:
 
 def main() -> None:
     file_account_id = approved_account_id()
-    expected = os.environ["KIVOU_QA_DB_FINGERPRINT"]
+    expected = os.environ["KIVOU_QA_APPROVED_FINGERPRINT"]
     if re.fullmatch(r"[0-9a-f]{16}", expected) is None:
         raise ValueError()
     actual = hashlib.sha256(file_account_id.encode("utf-8")).hexdigest()[:16]
@@ -1394,31 +1634,32 @@ Un historique n'est jamais fabriqué pour ce smoke : aucune révision ICP/source
 n'est modifiée et aucune publication supplémentaire n'est autorisée au-delà des
 deux backfills bornés ci-dessus. La preuve factuelle courante est obligatoire
 et indépendante. La même lecture découvre seulement un état historique opaque
-`available|absent`; un éventuel artefact doit être légitimement supersédé,
-compatible avec la révision courante et la locale du compte. Sur une table 0028
-fraîche, `absent` est normal. Il ne bloque ni les preuves factuelles courantes,
-ni les six captures, ni l'audit journal, ni les probes finales. La décision
-STOP historique est différée après toutes ces preuves. Les identifiants ne sont
-transportés vers le navigateur que pour l'état `available`, sans être affichés
-ou consignés.
+`available|NOT_APPLICABLE_NO_LEGITIMATE_HISTORY`; un éventuel artefact doit
+être légitimement supersédé, compatible avec la révision courante et la locale
+du compte. Sur une table 0028 fraîche,
+`NOT_APPLICABLE_NO_LEGITIMATE_HISTORY` est normal : il autorise le statut
+global `PASS` si toutes les surfaces courantes passent. Le smoke historique
+devient bloquant uniquement lorsqu'un artefact légitimement supersédé a
+réellement été découvert. Les identifiants ne sont transportés vers le
+navigateur que pour l'état `available`, sans être affichés ou consignés.
 
 ~~~bash
 KIVOU_QA_FACTUAL_PROOF=$(ssh kivou-staging 'bash -s' -- \
   "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" \
-  "$KIVOU_QA_DB_FINGERPRINT" <<'REMOTE'
+  "$KIVOU_QA_APPROVED_FINGERPRINT" <<'REMOTE'
 set -euo pipefail
 KIVOU_RELEASE_DIR=$1
 KIVOU_FINAL_SHA=$2
-KIVOU_QA_DB_FINGERPRINT=$3
+KIVOU_QA_APPROVED_FINGERPRINT=$3
 KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
-printf '%s\n' "$KIVOU_QA_DB_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
+printf '%s\n' "$KIVOU_QA_APPROVED_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
 sudo systemd-run --quiet --wait --collect --pipe \
   --unit="kivou-card-factual-proof-$KIVOU_FINAL_SHORT" --property=Type=oneshot \
   --property=User=kivou --property=Group=kivou \
   --property=WorkingDirectory="$KIVOU_RELEASE_DIR" \
   --property=EnvironmentFile=/etc/kivou/staging.env \
   --property=EnvironmentFile=/etc/kivou/card-presentation-qa.env \
-  --setenv="KIVOU_QA_DB_FINGERPRINT=$KIVOU_QA_DB_FINGERPRINT" \
+  --setenv="KIVOU_QA_APPROVED_FINGERPRINT=$KIVOU_QA_APPROVED_FINGERPRINT" \
   -- "$KIVOU_RELEASE_DIR/.venv/bin/python" - <<'PY'
 import hashlib
 import hmac
@@ -1438,7 +1679,7 @@ from signals.persistence.database import create_database_engine
 
 def main() -> None:
     account_id = os.environ["KIVOU_CARD_QA_ACCOUNT_ID"]
-    expected = os.environ["KIVOU_QA_DB_FINGERPRINT"]
+    expected = os.environ["KIVOU_QA_APPROVED_FINGERPRINT"]
     actual = hashlib.sha256(account_id.encode("utf-8")).hexdigest()[:16]
     assert re.fullmatch(r"[0-9a-f]{16}", expected)
     assert hmac.compare_digest(actual, expected)
@@ -1517,7 +1758,7 @@ def main() -> None:
         language: sum(row["language"] == language for row in rows)
         for language in ("fr", "en")
     }
-    history = {"status": "absent"}
+    history = {"status": "NOT_APPLICABLE_NO_LEGITIMATE_HISTORY"}
     if historical is not None:
         assert re.fullmatch(r"[0-9a-f]{64}", historical["signal_key"])
         assert re.fullmatch(r"[0-9a-f]{64}", historical["artifact_id"])
@@ -1548,7 +1789,8 @@ REMOTE
 printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | jq -e '
   .status == "qa_factual_ok" and .fr > 0 and .en > 0 and
   .ai_enabled == 0 and
-  ((.history.status == "absent" and (.history | keys) == ["status"]) or
+  ((.history.status == "NOT_APPLICABLE_NO_LEGITIMATE_HISTORY" and
+    (.history | keys) == ["status"]) or
    (.history.status == "available" and
     (.history.signal_id | type == "string" and test("^[0-9a-f]{64}$")) and
     (.history.artifact_id | type == "string" and test("^[0-9a-f]{64}$")) and
@@ -1557,7 +1799,7 @@ printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | jq -e '
 KIVOU_HISTORICAL_STATUS=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
   jq -r '.history.status')
 case "$KIVOU_HISTORICAL_STATUS" in
-  (absent) ;;
+  (NOT_APPLICABLE_NO_LEGITIMATE_HISTORY) ;;
   (available)
     KIVOU_HISTORICAL_SIGNAL_ID=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
       jq -r '.history.signal_id')
@@ -1631,7 +1873,7 @@ test "$(git rev-parse HEAD)" = "$KIVOU_FINAL_SHA"
 KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
 printf '%s\n' "$KIVOU_FINAL_SHORT" | grep -Eq '^[0-9a-f]{12}$'
 printf '%s\n' "$KIVOU_BACKFILL_AS_OF" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-printf '%s\n' "$KIVOU_QA_DB_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
+printf '%s\n' "$KIVOU_QA_APPROVED_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
 : "${KIVOU_QA_STORAGE_STATE_REAL:?STOP: storage state QA protégé absent}"
 test -f "$KIVOU_QA_STORAGE_STATE_REAL"
 test ! -L "$KIVOU_QA_STORAGE_STATE_REAL"
@@ -1727,7 +1969,6 @@ printf '%s\n' "$KIVOU_CARD_JOURNAL_SINCE" | \
 (
   cd frontend
   KIVOU_QA_STORAGE_STATE="$KIVOU_QA_STORAGE_STATE_REAL" \
-  KIVOU_QA_DB_FINGERPRINT="$KIVOU_QA_DB_FINGERPRINT" \
   KIVOU_BACKFILL_AS_OF="$KIVOU_BACKFILL_AS_OF" \
   KIVOU_BROWSER_EVIDENCE_DIR="$KIVOU_BROWSER_EVIDENCE_DIR" \
   KIVOU_QA_ORIGIN=https://staging.kivou.eu node <<'JS'
@@ -1757,12 +1998,14 @@ async function accountFingerprint(page, expectedFingerprint) {
 async function verifyPublishedApi(page, asOf) {
   return page.evaluate(async (readDate) => {
     const feedResponse = await fetch(
-      `/signals?as_of=${encodeURIComponent(readDate)}&limit=50&offset=0`,
+      `/signals?freshness=new&limit=20&offset=0`,
       { credentials: 'same-origin' },
     )
     if (feedResponse.status !== 200) throw new Error()
     const feed = await feedResponse.json()
-    if (feed.read_at !== readDate || !Array.isArray(feed.items)) throw new Error()
+    if (feed.read_at !== readDate || feed.freshness !== 'new' ||
+        feed.page?.limit !== 20 || feed.page.offset !== 0 ||
+        !Array.isArray(feed.items)) throw new Error()
     const unlocked = feed.items.filter((item) => item && item.locked === false)
     const locked = feed.items.filter((item) => item && item.locked === true)
     if (unlocked.length === 0 || locked.length === 0) throw new Error()
@@ -1791,7 +2034,11 @@ async function verifyPublishedApi(page, asOf) {
             !Array.isArray(claim.evidence_refs) || claim.evidence_refs.length === 0
           ))) throw new Error()
     }
-    const item = published[0]
+    const pinnedIndex = feed.items.findIndex((item) => (
+      item && item.locked === false && Boolean(item.presentation)
+    ))
+    if (pinnedIndex < 0) throw new Error()
+    const item = feed.items[pinnedIndex]
     const artifact = item.presentation
     const detailResponse = await fetch(
       `/signals/${encodeURIComponent(item.signal_id)}` +
@@ -1803,12 +2050,16 @@ async function verifyPublishedApi(page, asOf) {
     if (!detail.presentation ||
         detail.signal_id !== item.signal_id ||
         detail.presentation.artifact_id !== artifact.artifact_id ||
-        detail.presentation.version !== artifact.version) throw new Error()
+        detail.presentation.version !== artifact.version ||
+        detail.presentation.content?.headline !== artifact.content.headline) {
+      throw new Error()
+    }
     if (typeof locked[0].headline !== 'string' ||
         locked[0].headline.length === 0) throw new Error()
     return {
       lockedSignalId: locked[0].signal_id,
       lockedHeadline: locked[0].headline,
+      pinnedIndex,
       pinnedSignalId: item.signal_id,
       pinnedArtifactId: artifact.artifact_id,
       pinnedVersion: artifact.version,
@@ -2074,11 +2325,15 @@ async function smokeSignals(
   await page.waitForURL(/\/app\/signals$/)
   await lockedControl.waitFor()
   await expectLocatorFocused(lockedControl)
-  const selection = page.locator(
-    '.signal-list .signal-item:not(.is-locked)',
-  ).filter({ hasText: api.pinnedHeadline })
+  const selection = page.locator('.signal-list .signal-item').nth(api.pinnedIndex)
   requireTrue(await selection.count() === 1)
   await selection.waitFor()
+  requireTrue(await selection.evaluate((element) => (
+    !element.classList.contains('is-locked')
+  )))
+  const selectedHeadline = selection.getByText(api.pinnedHeadline, { exact: true })
+  requireTrue(await selectedHeadline.count() === 1)
+  await selectedHeadline.waitFor()
   await selection.focus()
   let signalListScroll = await setScrollContract(page, viewport, 'list', 'signals-initial-list')
   const expectedDetailPath =
@@ -2112,7 +2367,15 @@ async function smokeSignals(
   requireTrue(Array.from(selected.searchParams).length === 1)
   requireTrue(Number.isInteger(api.pinnedVersion) && api.pinnedVersion >= 1)
   await expectFocusedHeading(page)
-  await page.getByText(api.pinnedHeadline, { exact: true }).first().waitFor()
+  const visibleDetailPane = page.locator(
+    `[data-master-detail-pane="detail"]:visible`,
+  )
+  requireTrue(await visibleDetailPane.count() === 1)
+  const detailHeadline = visibleDetailPane.getByRole('heading', {
+    name: api.pinnedHeadline, exact: true,
+  })
+  requireTrue(await detailHeadline.count() === 1)
+  await detailHeadline.waitFor()
   const [currentDetailResponse, currentNoteResponse] = await Promise.all([
     currentDetailResponsePromise,
     currentNoteResponsePromise,
@@ -2195,7 +2458,7 @@ async function run() {
   const { chromium } = require('playwright')
   const origin = process.env.KIVOU_QA_ORIGIN
   const asOf = process.env.KIVOU_BACKFILL_AS_OF
-  const expectedFingerprint = process.env.KIVOU_QA_DB_FINGERPRINT
+  const expectedFingerprint = process.env.KIVOU_QA_APPROVED_FINGERPRINT
   const storageState = process.env.KIVOU_QA_STORAGE_STATE
   const evidenceDir = process.env.KIVOU_BROWSER_EVIDENCE_DIR
   requireTrue(Boolean(origin && asOf && expectedFingerprint && storageState &&
@@ -2396,21 +2659,21 @@ REMOTE
 Les preuves factuelles courantes, les six captures, leur inspection humaine,
 l'audit journal et les probes finaux ci-dessus restent valides quel que soit
 l'état historique découvert. Traiter maintenant cet état séparément. Si aucun
-historique légitime n'existe, produire explicitement **STOP / NON-EXÉCUTABLE**
-et obtenir une validation propriétaire; ne jamais déclarer le parcours
-historique réussi et ne fabriquer aucune donnée. Si l'état est `available`, le
-second smoke ci-dessous prouve le pin exact, la version, le headline dans la
-pane détail et les GET détail/note 200, puis rejoue l'audit journal depuis la
+artefact supersédé légitime n'existe, inscrire
+`NOT_APPLICABLE_NO_LEGITIMATE_HISTORY` sans fabriquer de révision : les preuves
+courantes peuvent conclure globalement `PASS`, sans prétendre qu'un parcours
+historique a été exécuté. Si l'état est `available`, le second smoke ci-dessous
+devient bloquant et prouve le pin exact, la version, le headline dans la pane
+détail et les GET détail/note 200, puis rejoue l'audit journal depuis la
 frontière antérieure.
 
 ~~~bash
 case "$KIVOU_HISTORICAL_STATUS" in
-  (absent)
-    KIVOU_HISTORICAL_SMOKE_STATUS=STOP_NON_EXECUTABLE
-    KIVOU_ROLLOUT_STATUS=STOP_INCOMPLETE
+  (NOT_APPLICABLE_NO_LEGITIMATE_HISTORY)
+    KIVOU_HISTORICAL_SMOKE_STATUS=NOT_APPLICABLE_NO_LEGITIMATE_HISTORY
+    KIVOU_ROLLOUT_STATUS=PASS
     printf '%s\n' \
-      'historical_smoke=STOP / NON-EXÉCUTABLE; validation propriétaire requise' \
-      >&2
+      'historical_smoke=NOT_APPLICABLE_NO_LEGITIMATE_HISTORY'
     ;;
   (available)
     : "${KIVOU_HISTORICAL_SIGNAL_ID:?STOP: historical signal absent}"
@@ -2424,7 +2687,6 @@ case "$KIVOU_HISTORICAL_STATUS" in
     (
   cd frontend
   KIVOU_QA_STORAGE_STATE="$KIVOU_QA_STORAGE_STATE_REAL" \
-  KIVOU_QA_DB_FINGERPRINT="$KIVOU_QA_DB_FINGERPRINT" \
   KIVOU_HISTORICAL_SIGNAL_ID="$KIVOU_HISTORICAL_SIGNAL_ID" \
   KIVOU_HISTORICAL_ARTIFACT_ID="$KIVOU_HISTORICAL_ARTIFACT_ID" \
   KIVOU_HISTORICAL_ARTIFACT_VERSION="$KIVOU_HISTORICAL_ARTIFACT_VERSION" \
@@ -2469,7 +2731,7 @@ function waitForExactGetResponse(page, origin, expectedPath) {
 async function run() {
   const { chromium } = require('playwright')
   const origin = process.env.KIVOU_QA_ORIGIN
-  const expectedFingerprint = process.env.KIVOU_QA_DB_FINGERPRINT
+  const expectedFingerprint = process.env.KIVOU_QA_APPROVED_FINGERPRINT
   const storageState = process.env.KIVOU_QA_STORAGE_STATE
   const historicalSignalId = process.env.KIVOU_HISTORICAL_SIGNAL_ID
   const historicalArtifactId = process.env.KIVOU_HISTORICAL_ARTIFACT_ID
@@ -2776,18 +3038,20 @@ réinterpréter :
 : "${KIVOU_HISTORICAL_SMOKE_STATUS:?STOP: historical smoke status absent}"
 : "${KIVOU_ROLLOUT_STATUS:?STOP: rollout status absent}"
 case "$KIVOU_HISTORICAL_SMOKE_STATUS:$KIVOU_ROLLOUT_STATUS" in
-  (PASS:PASS|STOP_NON_EXECUTABLE:STOP_INCOMPLETE) ;;
+  (PASS:PASS|NOT_APPLICABLE_NO_LEGITIMATE_HISTORY:PASS) ;;
   (*) exit 69 ;;
 esac
 printf 'historical_smoke_status=%s rollout_status=%s\n' \
   "$KIVOU_HISTORICAL_SMOKE_STATUS" "$KIVOU_ROLLOUT_STATUS"
 ~~~
 
-Si `KIVOU_HISTORICAL_SMOKE_STATUS != PASS`, toute formulation présentant le
-rollout global, le parcours historique ou la livraison comme complète est
-**interdite**. Le rapport reste `rollout_status=STOP_INCOMPLETE`, tout en
-conservant les preuves courantes, les cibles de rollback et leur préparation.
-L'absence d'historique légitime n'autorise aucune fabrication de donnée.
+Si un artefact supersédé légitime a été découvert, son smoke doit être `PASS` :
+tout échec est bloquant et interdit de présenter la livraison comme complète.
+Le statut `NOT_APPLICABLE_NO_LEGITIMATE_HISTORY` signifie qu'aucun artefact supersédé légitime
+n'existait après la migration additive; il autorise le
+`rollout_status=PASS` pour les surfaces courantes, mais ne permet pas de
+présenter le parcours historique comme exécuté. Dans tous les cas, ne jamais fabriquer
+de révision ou de donnée historique.
 
 Le rapport doit aussi porter la ligne :
 
