@@ -133,11 +133,19 @@ export const UNAUTHENTICATED: SessionState = {
 }
 export const EXPIRED: SessionState = { status: 'unauthenticated', me: null, expired: true }
 
-export function factualFallbackPresentation(
-  headline: string,
-  artifactId: string,
-): CardPresentation {
-  const awardSummary = `Attribution documentée : ${headline}`
+export function factualFallbackPresentation({
+  artifactId,
+  headline,
+  awardSummary,
+  headlineEvidenceRefs,
+  awardSummaryEvidenceRefs,
+}: {
+  artifactId: string
+  headline: string
+  awardSummary: string
+  headlineEvidenceRefs: [string, ...string[]]
+  awardSummaryEvidenceRefs: [string, ...string[]]
+}): CardPresentation {
   return {
     artifact_id: artifactId,
     version: 1,
@@ -161,14 +169,14 @@ export function factualFallbackPresentation(
           claim_id: 'HEADLINE',
           kind: 'FACT',
           text: headline,
-          evidence_refs: ['source:contract-title'],
+          evidence_refs: headlineEvidenceRefs,
           confidence: null,
         },
         {
           claim_id: 'AWARD_SUMMARY',
           kind: 'FACT',
           text: awardSummary,
-          evidence_refs: ['source:award'],
+          evidence_refs: awardSummaryEvidenceRefs,
           confidence: null,
         },
       ],
