@@ -51,13 +51,22 @@ const FACTUAL_FALLBACK: CardPresentation = {
     target_roles: [],
     fit_need_categories: [],
     unknowns: [],
-    claims: [{
-      claim_id: 'HEADLINE',
-      kind: 'FACT',
-      text: 'Attribution publique documentée',
-      evidence_refs: ['source:award'],
-      confidence: null,
-    }],
+    claims: [
+      {
+        claim_id: 'HEADLINE',
+        kind: 'FACT',
+        text: 'Attribution publique documentée',
+        evidence_refs: ['source:award'],
+        confidence: null,
+      },
+      {
+        claim_id: 'AWARD_SUMMARY',
+        kind: 'FACT',
+        text: 'Une entreprise identifiée est attributaire du marché.',
+        evidence_refs: ['source:award_summary'],
+        confidence: null,
+      },
+    ],
   },
 }
 
@@ -253,7 +262,13 @@ describe('détail exact d’un signal réel', () => {
       }
       expect(panel).toHaveTextContent('TITRE ADMINISTRATIF SOURCE')
       if (presentation) {
-        expect(panel).toHaveTextContent(presentation.content.award_summary)
+        expect(presentation.content.claims.map((claim) => claim.text)).toEqual([
+          presentation.content.headline,
+          presentation.content.award_summary,
+        ])
+        for (const claim of presentation.content.claims) {
+          expect(panel).toHaveTextContent(claim.text)
+        }
       }
     },
   )
