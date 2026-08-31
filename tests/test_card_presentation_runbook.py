@@ -451,19 +451,22 @@ def test_remote_rollout_shells_use_shared_cwd_and_private_backup_identity() -> N
     )
 
     shared_prefix = "set -euo pipefail\ncd /srv/kivou\n"
+    assert commands.count(shared_prefix) == 6
     assert commands.count(shared_prefix + "KIVOU_FINAL_SHORT=$1") == 1
     assert commands.count(shared_prefix + "KIVOU_FINAL_SHA=$1") == 1
     assert commands.count(shared_prefix + "KIVOU_RELEASE_DIR=$1") == 4
-    assert (
+    backup_identity_check = (
         'test "$(sudo -u kivou stat -c \'%U:%G:%a\' '
         '"$KIVOU_BACKUP_FILE")" = "kivou:kivou:600"'
-        in commands
     )
-    assert (
+    backup_bytes_capture = (
         'KIVOU_BACKUP_BYTES=$(sudo -u kivou stat -c \'%s\' '
         '"$KIVOU_BACKUP_FILE")'
-        in commands
     )
+    assert commands.count(backup_identity_check) == 1
+    assert commands.count(backup_bytes_capture) == 1
+    assert 'test "$(stat -c \'%U:%G:%a\' ' not in commands
+    assert 'KIVOU_BACKUP_BYTES=$(stat -c \'%s\' ' not in commands
 
 
 def test_backend_release_migrates_0027_to_0028_before_versioned_blue_green() -> None:
