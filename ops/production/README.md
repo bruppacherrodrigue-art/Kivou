@@ -446,7 +446,10 @@ sudo systemd-run --wait --pipe --collect --unit=kivou-backup-local-preflight \
   --property=RestrictSUIDSGID=yes --property=LockPersonality=yes \
   --property="RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6" \
   -- "$KIVOU_BACKEND_RELEASE_DIR/ops/bin/kivou-backup.sh"
-KIVOU_LOCAL_DUMP=$(sudo -u kivou find /srv/kivou/backups -maxdepth 1 -type f -name 'kivou-*.dump' -printf '%T@ %p\n' | sort -nr | awk 'NR == 1 {print $2}')
+KIVOU_LOCAL_DUMP=$(sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
+  /usr/bin/env --chdir=/srv/kivou/backups \
+  /usr/bin/find /srv/kivou/backups -maxdepth 1 -type f -name 'kivou-*.dump' -printf '%T@ %p\n' | \
+  sort -nr | awk 'NR == 1 {print $2}')
 case "$KIVOU_LOCAL_DUMP" in (/srv/kivou/backups/kivou-*.dump) ;; (*) exit 66 ;; esac
 sudo -u kivou test -f "$KIVOU_LOCAL_DUMP"
 sudo -u kivou test ! -L "$KIVOU_LOCAL_DUMP"
