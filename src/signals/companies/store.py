@@ -129,7 +129,11 @@ def get_or_create_companies(
     }
     if not unique:
         return {}
-    values = [_candidate_values(candidate, now=now) for candidate in unique.values()]
+    fingerprints = tuple(sorted(unique))
+    values = [
+        _candidate_values(unique[fingerprint], now=now)
+        for fingerprint in fingerprints
+    ]
     if connection.dialect.name == "postgresql":
         statement = postgresql_insert(saas_company).on_conflict_do_nothing(
             index_elements=[saas_company.c.identity_fingerprint],
@@ -141,7 +145,7 @@ def get_or_create_companies(
     else:  # pragma: no cover - supported runtimes are PostgreSQL and SQLite
         raise RuntimeError("unsupported company store dialect")
     connection.execute(statement, values)
-    stored = _by_fingerprints(connection, tuple(unique))
+    stored = _by_fingerprints(connection, fingerprints)
     if len(stored) != len(unique):  # pragma: no cover - insert/select invariant
         raise RuntimeError("company batch could not be read")
     return stored
