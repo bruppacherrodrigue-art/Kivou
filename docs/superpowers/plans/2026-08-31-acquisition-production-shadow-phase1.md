@@ -13,7 +13,7 @@
 ## Contraintes globales
 
 - Socle : `origin/main` à `c8ea78c`. Rebaser avant de commencer.
-- **Aucune migration.** La phase 1 n'ajoute ni ne modifie aucune table. La tête reste `0028_card_presentation`.
+- **Une seule migration, `0029`**, et elle ne fait qu'élargir une contrainte CHECK — aucune table n'est ajoutée ni modifiée. La tête devient `0029`. Toute autre tâche que la 7B qui produirait une migration est une erreur.
 - **Le staging ne change pas de comportement.** Toute modification d'un chemin `STAGING` doit être une extension, jamais une substitution. La garantie mécanique porte sur trois artefacts : `src/signals/acquisition_runtime/transport.py`, `src/signals/operations/qa_policy_window.py` et `tests/test_acquisition_runtime_execution.py`, qui gardent un diff nul.
 - **Un test qui affirme « la production est impossible » n'est pas un test de comportement staging** : c'est un test de périmètre, périmé par conception. Deux existent et changent — `test_capability_rejects_environment_registry_and_dependency_drift` (santé) et `test_runtime_is_staging_only` (config). Les amender ne viole pas la contrainte ci-dessus.
 - `maximum_suppliers` et `maximum_contacts` restent `Literal[1]`. Aucune tâche ne les touche.
@@ -1292,6 +1292,86 @@ git commit -m "test(acquisition): verrouiller l'absence de mutation et de fuite 
 
 ---
 
+### Task 7B : lever le verrou staging au niveau de la base
+
+**Files:**
+- Create: `src/signals/persistence/migrations/versions/0029_production_observation_boundary.py`
+- Modify: `src/signals/persistence/schema.py:2368-2372`
+- Test: `tests/test_acquisition_runtime_migration.py` *(étendu)*
+
+**Pourquoi cette tâche existe.** Elle ne figurait pas au plan initial, et son ajout a demandé une autorisation explicite de l'utilisateur le 2026-09-01, parce que la spec promettait qu'aucune migration ne serait introduite.
+
+`ck_acquisition_runtime_observation_boundary` impose `environment = 'STAGING' AND qa_only IS TRUE` **au niveau de la base**. La tâche 6 ayant fait porter `environment="PRODUCTION"` et `qa_only=False` à l'évidence de capacité, toute observation de production est rejetée par PostgreSQL. Un cycle de production échoue donc à sa **première écriture**, avant le moindre stage — et le timer de la tâche 9 échouerait à chaque tir, indéfiniment.
+
+C'est le cinquième et dernier couplage staging-only. Les quatre autres vivaient dans le code Python ; celui-ci vit dans une chaîne SQL, ce qu'aucune recherche d'identifiant ne pouvait révéler.
+
+**Interfaces:**
+- Consomme : l'évidence de capacité de la tâche 6, qui porte désormais un environnement réel.
+- Produit : une base qui accepte une observation de production, et refuse toujours tout le reste.
+
+**Ce qui ne doit pas s'affaiblir.** La contrainte nouvelle est plus stricte, pas plus permissive, dans les deux environnements : `mode = 'SHADOW'` et `native_tools = 0` restent exigés sans condition ; le staging continue d'exiger `qa_only IS TRUE` ; et la production exige `qa_only IS FALSE`. La base refuse donc d'elle-même une observation de production qui se prétendrait QA — une garantie qui n'existait pas avant, puisque la production n'existait pas.
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+Dans `tests/test_acquisition_runtime_migration.py`, quatre exigences :
+
+- une observation `STAGING` avec `qa_only` vrai est acceptée — inchangé ;
+- une observation `STAGING` avec `qa_only` faux est refusée — inchangé ;
+- une observation `PRODUCTION` avec `qa_only` faux est **acceptée** — nouveau ;
+- une observation `PRODUCTION` avec `qa_only` vrai est **refusée** — nouveau.
+
+Reprendre le montage de base jetable déjà utilisé par ce fichier ; ne pas en inventer un.
+
+- [ ] **Étape 2 : lancer le test et vérifier qu'il échoue**
+
+Commande : `uv run pytest tests/test_acquisition_runtime_migration.py -q`
+Attendu : le troisième échoue sur une violation de contrainte.
+
+- [ ] **Étape 3 : modifier le schéma**
+
+Dans `src/signals/persistence/schema.py`, remplacer l'expression de la contrainte :
+
+```python
+    sa.CheckConstraint(
+        "mode = 'SHADOW' AND native_tools = 0 AND ("
+        "(environment = 'STAGING' AND qa_only IS TRUE) OR "
+        "(environment = 'PRODUCTION' AND qa_only IS FALSE))",
+        name="ck_acquisition_runtime_observation_boundary",
+    ),
+```
+
+- [ ] **Étape 4 : écrire la migration**
+
+Créer `0029_production_observation_boundary.py`, de révision précédente `0028_card_presentation`. Le `upgrade()` supprime la contrainte nommée puis la recrée avec l'expression ci-dessus. Le `downgrade()` rétablit l'expression d'origine.
+
+Écrire dans le docstring du module ce que le downgrade suppose : il **échoue** si une observation de production existe déjà, puisque la contrainte restaurée la rejetterait. La procédure de retour arrière doit supprimer cette ligne avant de redescendre, ou renoncer au downgrade. Ne pas masquer cette condition par un `DELETE` silencieux dans la migration — une migration qui efface des données sans le dire est un piège.
+
+Suivre exactement la forme des migrations voisines pour l'en-tête de révision, l'import et la nomenclature.
+
+- [ ] **Étape 5 : lancer les tests et vérifier qu'ils passent**
+
+```bash
+uv run pytest tests/test_acquisition_runtime_migration.py tests/test_acquisition_runtime_health.py tests/test_acquisition_runtime_store.py -q
+uv run ruff check
+```
+
+Vérifier aussi que la tête Alembic est bien `0029` et qu'il n'existe qu'une seule tête :
+
+```bash
+uv run alembic -c <config> heads
+```
+
+Si la commande n'est pas disponible telle quelle, relever son invocation réelle dans le dépôt plutôt que d'inventer un chemin de configuration.
+
+- [ ] **Étape 6 : commit**
+
+```bash
+git add src/signals/persistence/schema.py src/signals/persistence/migrations/versions/0029_production_observation_boundary.py tests/test_acquisition_runtime_migration.py
+git commit -m "feat(persistence): autoriser une observation de production sans relâcher le staging"
+```
+
+---
+
 ### Task 8 : amorcer le premier contrôle Policy
 
 **Files:**
@@ -1843,7 +1923,7 @@ Attendu : **aucune ligne modifiée** dans ces trois fichiers. `tests/test_acquis
 git diff --stat origin/main -- src/signals/persistence/migrations/
 ```
 
-Attendu : aucun fichier. La tête reste `0028_card_presentation`.
+Attendu : **exactement un fichier**, `0029_production_observation_boundary.py`, livré par la tâche 7B. Tout autre fichier de migration est une erreur à corriger avant fusion.
 
 - [ ] **Étape 5 : ouvrir la pull request**
 

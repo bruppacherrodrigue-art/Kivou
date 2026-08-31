@@ -231,9 +231,30 @@ versionné avec les unités dans `ops/`.
 `sudo systemctl disable --now kivou-acquisition.timer`, arrêt de l'unité,
 puis restauration de l'artefact précédent par la procédure de release normale.
 
-La vérité en base est préservée : la phase 1 n'introduit **aucune migration**. Le
-contrôle Policy amorcé reste en place — il est non exécutable, donc inoffensif —
-et `activate-kill-switch` redevient disponible dès qu'un contrôle existe.
+La phase 1 introduit **une migration, `0029`**, et une seule. Elle remplace la
+contrainte `ck_acquisition_runtime_observation_boundary`, qui imposait
+`environment = 'STAGING' AND qa_only IS TRUE` au niveau de la base et rendait
+donc toute observation de production impossible — un cycle de production
+échouait à sa première écriture, avant le moindre stage.
+
+La contrainte nouvelle n'affaiblit pas le staging d'un iota : `mode = 'SHADOW'`
+et `native_tools = 0` restent exigés sans condition, le staging continue
+d'exiger `qa_only IS TRUE`, et la production exige `qa_only IS FALSE`. La base
+refuse donc d'elle-même une observation de production qui se prétendrait QA.
+
+Cette révision était annoncée absente dans une version antérieure de ce
+document. Elle a été découverte par l'exécution, et son ajout a été autorisé
+explicitement le 2026-09-01.
+
+Le downgrade rétablit la contrainte d'origine. Il n'est exécutable que si aucune
+ligne d'observation de production n'existe — sans quoi la contrainte restaurée
+rejetterait des lignes déjà écrites. La procédure de retour arrière doit donc
+supprimer l'observation de production avant de redescendre, ou renoncer au
+downgrade et se contenter de désactiver le timer.
+
+Le contrôle Policy amorcé reste en place — il est non exécutable, donc
+inoffensif — et `activate-kill-switch` redevient disponible dès qu'un contrôle
+existe.
 
 Aucune réactivation automatique.
 
