@@ -386,7 +386,10 @@ def _load_production(
         "KIVOU_ACQUISITION_QA_RECIPIENT",
         "KIVOU_ACQUISITION_QA_RECIPIENT_KEY",
     ):
-        if (source.get(name) or "").strip():
+        # PRÉSENCE, pas véracité : `KIVOU_ACQUISITION_QA_RECIPIENT=` déclaré vide
+        # par une substitution de gabarit ratée doit refuser le démarrage, pas
+        # passer pour une absence. La spec dit « seulement présents ».
+        if name in source:
             raise RuntimeConfigurationError("PRODUCTION_FORBIDS_FALLBACK_RECIPIENT")
     if not deployment.is_production:
         raise RuntimeConfigurationError("WRONG_DEPLOYMENT_SCHEMA")
