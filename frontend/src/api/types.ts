@@ -36,6 +36,19 @@ export type CustomerEventType =
   | 'recently_notified_contract'
   | 'recently_published_award'
 
+/** Horloge qualifiée par le backend pour la date publiée dans `event.date`. */
+export type SignalEventClock = 'award' | 'notification' | 'publication'
+
+/** Taxonomie fermée du Need Graph exposée par le backend. */
+export type NeedCategory =
+  | 'workforce_capacity'
+  | 'equipment_or_rental'
+  | 'materials_or_components'
+  | 'logistics_and_transport'
+  | 'specialist_subcontracting'
+  | 'safety_and_ppe'
+  | 'waste_and_environment'
+
 export type MagnitudeBand = 'under_50k' | '50k_250k' | '250k_1m' | '1m_5m' | 'over_5m'
 
 export type OfferKind =
@@ -247,7 +260,7 @@ export interface Place {
 export interface SignalEvent {
   status: EventStatus
   type: CustomerEventType | null
-  clock: string | null
+  clock: SignalEventClock
   date: string | null
   age_days: number | null
   /** Phrase produite par `recency.claim` — la seule autorité sur ce que Kivou
@@ -258,6 +271,91 @@ export interface SignalEvent {
   award_clock_status: string
   is_new_opportunity: boolean
 }
+
+export type CardPresentationClaimKind = 'FACT' | 'INFERENCE' | 'RECOMMENDATION'
+export type CardPresentationConfidence = 'high' | 'medium' | 'low'
+export type CardPresentationTargetRoleKind =
+  | 'PROCUREMENT_MANAGER'
+  | 'SITE_PROCUREMENT_MANAGER'
+  | 'PROJECT_MANAGER'
+  | 'WORKS_MANAGER'
+  | 'SUPPLY_MANAGER'
+
+interface CardPresentationClaimBase {
+  claim_id: string
+  text: string
+  evidence_refs: [string, ...string[]]
+}
+
+export type CardPresentationClaim =
+  | (CardPresentationClaimBase & {
+      kind: 'INFERENCE'
+      confidence: CardPresentationConfidence
+    })
+  | (CardPresentationClaimBase & {
+      kind: 'FACT' | 'RECOMMENDATION'
+      confidence: null
+    })
+
+export interface CardPresentationTargetRole {
+  role: CardPresentationTargetRoleKind
+  rationale: string
+  evidence_refs: [string, ...string[]]
+}
+
+export interface CardPresentationUnknown {
+  text: string
+  evidence_refs: [string, ...string[]]
+}
+
+interface CardPresentationContentBase {
+  schema_version: 'card-presentation-v1'
+  headline: string
+  award_summary: string
+  unknowns: CardPresentationUnknown[]
+  claims: [CardPresentationClaim, ...CardPresentationClaim[]]
+}
+
+export interface FullCardPresentationContent extends CardPresentationContentBase {
+  variant: 'FULL'
+  commercial_importance: string
+  fit_reason: string
+  timing: string
+  recommended_action: string
+  target_roles: [CardPresentationTargetRole, ...CardPresentationTargetRole[]]
+  fit_need_categories: [NeedCategory, ...NeedCategory[]]
+}
+
+export interface FactualFallbackCardPresentationContent extends CardPresentationContentBase {
+  variant: 'FACTUAL_FALLBACK'
+  commercial_importance: null
+  fit_reason: null
+  timing: null
+  recommended_action: null
+  target_roles: []
+  fit_need_categories: []
+}
+
+interface CardPresentationEnvelopeBase {
+  artifact_id: string
+  version: number
+  schema_version: 'card-presentation-v1'
+  published_at: string
+}
+
+/**
+ * Enveloppe publique exacte de PR1. Le couple statut/variante est discriminé
+ * afin qu'un PASS/FALLBACK incohérent ne puisse pas être consommé comme typé.
+ */
+export type CardPresentation =
+  | (CardPresentationEnvelopeBase & {
+      status: 'PASS'
+      content: FullCardPresentationContent
+    })
+  | (CardPresentationEnvelopeBase & {
+      status: 'FALLBACK'
+      content: FactualFallbackCardPresentationContent
+    })
 
 export interface Contract {
   title: string | null
@@ -284,7 +382,7 @@ export interface SignalSource {
 }
 
 export interface PlausibleNeed {
-  category: string | null
+  category: NeedCategory | null
   label: string | null
   statement: string | null
   confidence: string | null
@@ -351,6 +449,9 @@ export interface UnlockedFeedItem {
   contract: Contract
   analysis: Analysis
   source: SignalSource
+  /** Toujours présent dans l'API PR1; optionnel ici jusqu'à la migration de
+   *  toutes les fixtures historiques. L'adaptateur normalise l'absence à null. */
+  presentation?: CardPresentation | null
 }
 
 export interface LockedFeedItem {

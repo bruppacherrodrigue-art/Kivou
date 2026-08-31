@@ -1,50 +1,104 @@
 import type {
   BillingStatus,
   CompanyProfile,
+  EventStatus,
+  EvidenceItem,
   FeedItem,
   FeedPage,
+  SignalEventClock,
   TargetIcp,
   UnlockedDetail,
 } from '../../api/types'
 import type {
   BillingAccessView,
   CompanySummaryView,
+  EvidenceBoundLabel,
   SignalCardView,
   SignalDetailView,
+  SignalEventDateKind,
   TargetProfileView,
 } from './models'
 
-export function toSignalCard(_item: FeedItem): SignalCardView {
-  if (_item.locked) {
+const EVENT_DATE_KIND_BY_CLOCK = {
+  award: 'award',
+  notification: 'notification',
+  publication: 'publication',
+} as const satisfies Record<SignalEventClock, SignalEventDateKind>
+
+const EVENT_CLOCK_BY_STATUS = {
+  recent_award: 'award',
+  recently_notified_contract: 'notification',
+  recently_published_award: 'publication',
+  aging_award: 'award',
+  stale_award: 'award',
+  award_date_unknown: 'publication',
+  invalid_award_date: 'award',
+} as const satisfies Record<EventStatus, SignalEventClock>
+
+/** Le type de date est celui choisi par le backend, jamais déduit du titre. */
+export function eventDateKind(
+  clock: SignalEventClock,
+  status: EventStatus,
+): SignalEventDateKind {
+  if (EVENT_CLOCK_BY_STATUS[status] !== clock) {
+    throw new Error(`Horloge d'événement incohérente pour le statut ${status}`)
+  }
+  return EVENT_DATE_KIND_BY_CLOCK[clock]
+}
+
+export function concreteMatchReasons(reasons: readonly string[]): string[] {
+  return reasons.map((reason) => reason.trim()).filter(Boolean)
+}
+
+export function toSignalCard(item: FeedItem): SignalCardView {
+  if (item.locked) {
+    const clock = EVENT_CLOCK_BY_STATUS[item.event.status]
     return {
-      id: _item.signal_id,
+      signalId: item.signal_id,
+      id: item.signal_id,
       locked: true,
       companyName: null,
-      eventTitle: _item.headline,
+      awardedCompanyName: null,
+      buyerName: null,
+      eventTitle: item.headline,
       amount: null,
       location: null,
-      eventDate: _item.event.date,
+      eventDate: item.event.date,
+      eventDateKind: eventDateKind(clock, item.event.status),
       awardDate: null,
       matchLabel: null,
       matchReasons: [],
+      primaryNeed: null,
+      fitReason: null,
+      presentation: null,
       sourceSystem: null,
-      whyNow: _item.event.why_now,
+      whyNow: item.event.why_now,
     }
   }
 
+  const presentation = item.presentation ?? null
+  const matchReasons = concreteMatchReasons(item.analysis.fit.reasons)
+  const fitReason = matchReasons[0] ?? null
   return {
-    id: _item.signal_id,
+    signalId: item.signal_id,
+    id: item.signal_id,
     locked: false,
-    companyName: _item.company.name,
-    eventTitle: _item.contract.title,
-    amount: _item.contract.amount,
-    location: _item.contract.location,
-    eventDate: _item.event.date,
-    awardDate: _item.contract.dates.award,
-    matchLabel: _item.analysis.fit.label,
-    matchReasons: _item.analysis.fit.reasons,
-    sourceSystem: _item.source.system,
-    whyNow: _item.event.why_now,
+    companyName: item.company.name,
+    awardedCompanyName: item.company.name,
+    buyerName: item.contract.buyer?.name ?? null,
+    eventTitle: presentation?.content.headline ?? null,
+    amount: item.contract.amount,
+    location: item.contract.location,
+    eventDate: item.event.date,
+    eventDateKind: eventDateKind(item.event.clock, item.event.status),
+    awardDate: item.contract.dates.award,
+    matchLabel: fitReason,
+    matchReasons,
+    primaryNeed: null,
+    fitReason,
+    presentation,
+    sourceSystem: item.source.system,
+    whyNow: item.event.why_now,
   }
 }
 
@@ -53,21 +107,32 @@ export function toSignalCards(page: FeedPage): SignalCardView[] {
 }
 
 export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
-  const firstNeed = detail.analysis.plausible_needs.items[0]
+  const primaryNeed = firstEvidenceBoundTargetedNeed(detail)
+  const presentation = detail.presentation ?? null
+  const fitReason = concreteMatchReasons(detail.analysis.fit.reasons)[0] ?? null
 
   return {
+    signalId: detail.signal_id,
     id: detail.signal_id,
-    title: detail.contract.title,
+    locked: false,
+    eventDate: detail.event.date,
+    eventDateKind: eventDateKind(detail.event.clock, detail.event.status),
+    buyerName: detail.contract.buyer?.name ?? null,
+    awardedCompanyName: detail.company.name,
+    primaryNeed,
+    fitReason,
+    presentation,
+    title: presentation?.content.headline ?? null,
     companyName: detail.company.name,
     companyKey: detail.company_key ?? null,
     companyCountry: detail.company.country,
     companyIdentifier: detail.company.identifier,
     targetProfileLabel: detail.analysis.fit.target_icp_label,
     sourceSystem: detail.source.system,
-    summary: detail.analysis.contract_reading?.summary ?? null,
+    summary: presentation?.content.award_summary ?? null,
     brief: {
       whyNow: detail.event.why_now,
-      offerCoverage: firstNeed?.statement ?? null,
+      offerCoverage: primaryNeed?.label ?? null,
       functionToFind: null,
       unknown: detail.analysis.plausible_needs.note || null,
     },
@@ -76,6 +141,7 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
       awardDate: detail.contract.dates.award,
       execution: null,
       buyer: detail.contract.buyer?.name ?? null,
+      officialTitle: detail.contract.title,
       notice: detail.source.notice_id,
       cpv: detail.contract.cpv,
       sourceUrl: detail.source.url,
@@ -86,6 +152,27 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
     scope: [],
     questions: [],
   }
+}
+
+function firstEvidenceBoundTargetedNeed(detail: UnlockedDetail): EvidenceBoundLabel | null {
+  for (const need of detail.analysis.plausible_needs.items) {
+    const label = need.label?.trim() ?? ''
+    if (!need.targeted_by_your_profile || !label || !need.category) continue
+
+    const evidenceRefs = detail.evidence.analysis_inputs.groups
+      .filter((group) => group.plausible_need === need.category)
+      .flatMap((group) => group.items)
+      .flatMap(directEvidenceRefs)
+    const uniqueRefs = [...new Set(evidenceRefs)]
+    if (uniqueRefs.length > 0) return { label, evidenceRefs: uniqueRefs }
+  }
+  return null
+}
+
+function directEvidenceRefs(item: EvidenceItem): string[] {
+  return [item.url, item.path, item.notice_id, item.procedure_id]
+    .map((reference) => reference?.trim() ?? '')
+    .filter(Boolean)
 }
 
 export function toTargetProfileView(profile: TargetIcp): TargetProfileView {

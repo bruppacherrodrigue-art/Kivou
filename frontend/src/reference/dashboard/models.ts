@@ -1,18 +1,36 @@
 import type {
   BillingAction,
+  CardPresentation,
   Money,
   Place,
   PlanCode,
 } from '../../api/types'
 
-export interface SignalCardView {
-  id: string
+export type SignalEventDateKind = 'award' | 'notification' | 'publication'
+
+export interface EvidenceBoundLabel {
+  label: string
+  evidenceRefs: string[]
+}
+
+export interface SignalFactView {
+  signalId: string
   locked: boolean
+  eventDate: string | null
+  eventDateKind: SignalEventDateKind
+  buyerName: string | null
+  awardedCompanyName: string | null
+  primaryNeed: EvidenceBoundLabel | null
+  fitReason: string | null
+  presentation: CardPresentation | null
+}
+
+export interface SignalCardView extends SignalFactView {
+  id: string
   companyName: string | null
   eventTitle: string | null
   amount: Money | null
   location: Place | null
-  eventDate: string | null
   awardDate: string | null
   matchLabel: string | null
   matchReasons: string[]
@@ -20,7 +38,7 @@ export interface SignalCardView {
   whyNow: string
 }
 
-export interface SignalDetailView {
+export interface SignalDetailView extends SignalFactView {
   id: string
   title: string | null
   companyName: string | null
@@ -41,6 +59,7 @@ export interface SignalDetailView {
     awardDate: string | null
     execution: string | null
     buyer: string | null
+    officialTitle: string | null
     notice: string | null
     cpv: string | null
     sourceUrl: string | null
