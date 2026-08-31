@@ -459,14 +459,22 @@ def test_remote_rollout_shells_use_shared_cwd_and_private_backup_identity() -> N
         'test "$(sudo -u kivou stat -c \'%U:%G:%a\' '
         '"$KIVOU_BACKUP_FILE")" = "kivou:kivou:600"'
     )
+    unsafe_backup_identity_check = (
+        'test "$(stat -c \'%U:%G:%a\' '
+        '"$KIVOU_BACKUP_FILE")" = "kivou:kivou:600"'
+    )
     backup_bytes_capture = (
         'KIVOU_BACKUP_BYTES=$(sudo -u kivou stat -c \'%s\' '
         '"$KIVOU_BACKUP_FILE")'
     )
+    unsafe_backup_bytes_capture = (
+        'KIVOU_BACKUP_BYTES=$(stat -c \'%s\' '
+        '"$KIVOU_BACKUP_FILE")'
+    )
     assert commands.count(backup_identity_check) == 1
     assert commands.count(backup_bytes_capture) == 1
-    assert 'test "$(stat -c \'%U:%G:%a\' ' not in commands
-    assert 'KIVOU_BACKUP_BYTES=$(stat -c \'%s\' ' not in commands
+    assert unsafe_backup_identity_check not in commands
+    assert unsafe_backup_bytes_capture not in commands
 
 
 def test_backend_release_migrates_0027_to_0028_before_versioned_blue_green() -> None:
