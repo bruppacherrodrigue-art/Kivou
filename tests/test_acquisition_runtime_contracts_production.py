@@ -3,13 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError, SecretStr
+from pydantic import SecretStr, ValidationError
 
 from signals.acquisition_runtime.contracts import (
     ACQUISITION_PRODUCTION_SCHEMA_VERSION,
     ACQUISITION_RUNTIME_SCHEMA_VERSION,
-    AcquisitionRuntimeDeployment,
     AcquisitionRuntimeConfig,
+    AcquisitionRuntimeDeployment,
 )
 
 LIMITS = {
