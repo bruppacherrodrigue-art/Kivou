@@ -21,6 +21,7 @@ import { useIsMobile } from '../reference/dashboard/use-mobile'
 import type { SignalCardView } from '../reference/dashboard/models'
 
 const PAGE_SIZE = 20
+const PRESENTATION_ARTIFACT_ID = /^[0-9a-f]{64}$/
 
 export interface ActivationNavigationState {
   activationCompleted?: boolean
@@ -64,6 +65,14 @@ export function SignalsFeed() {
   const navigationType = useNavigationType()
   const isMobile = useIsMobile()
   const { signalKey } = useParams()
+  const requestedArtifactId = new URLSearchParams(location.search).get(
+    'presentation_artifact_id',
+  )
+  const routePresentationPin = requestedArtifactId === null
+    ? undefined
+    : PRESENTATION_ARTIFACT_ID.test(requestedArtifactId)
+      ? requestedArtifactId
+      : null
   const mounted = useRef(false)
   const feedGeneration = useRef(0)
   const appliedFeedGeneration = useRef(0)
@@ -335,7 +344,12 @@ export function SignalsFeed() {
 
     const generation = ++detailGeneration.current
     const feedPresentation = publishedPresentation(selectedItem.presentation)
-    const presentationArtifactId = feedPresentation?.artifact_id ?? null
+    const feedArtifactId = feedPresentation?.artifact_id ?? null
+    const presentationArtifactId = routePresentationPin === undefined
+      ? feedArtifactId
+      : routePresentationPin === feedArtifactId
+        ? feedArtifactId
+        : null
     setDetail({ key: selectedKey, data: null, loading: true, error: null })
     signals.detail(selectedKey, { presentation_artifact_id: presentationArtifactId }).then(
       (data) => {
@@ -373,6 +387,7 @@ export function SignalsFeed() {
     feed.loading,
     selectedItem,
     selectedKey,
+    routePresentationPin,
     selectionLookupError,
     selectionResolving,
   ])
@@ -406,7 +421,17 @@ export function SignalsFeed() {
     return () => window.cancelAnimationFrame(frame)
   }, [items, location.state, navigationType])
 
-  const cards = items.map(toSignalCard)
+  const cards = items.map((item) => {
+    if (
+      item.signal_id === selectedKey
+      && !item.locked
+      && routePresentationPin !== undefined
+      && publishedPresentation(item.presentation)?.artifact_id !== routePresentationPin
+    ) {
+      return toSignalCard({ ...item, presentation: null })
+    }
+    return toSignalCard(item)
+  })
   const visibleDetail = detail.key === selectedKey
     ? detail
     : { key: selectedKey, data: null, loading: Boolean(selectedKey), error: null }

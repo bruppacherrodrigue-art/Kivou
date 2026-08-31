@@ -71,6 +71,19 @@
   grid-column: 1 / -1;
 }
 
+.awardCount {
+  display: inline-flex;
+  width: max-content;
+  margin-top: 7px;
+  padding: 3px 6px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  color: var(--green);
+  font-size: 8px;
+  font-weight: 730;
+  text-transform: uppercase;
+}
+
 .mobileBack {
   display: none;
   align-items: center;

@@ -31,6 +31,7 @@ const PRESENTATION = factualFallbackPresentation({
 })
 const PUBLISHED_ITEM = {
   ...BASE_ITEM,
+  company_key: COMPANY_PROFILE.company_key,
   presentation: PRESENTATION,
   contract: { ...BASE_ITEM.contract, title: 'TITRE ADMINISTRATIF INTERDIT' },
   event: {
@@ -69,17 +70,19 @@ function authorizedRoutes(profile: CompanyProfile = COMPANY_PROFILE) {
 }
 
 describe('fiche entreprise officielle dans le workspace autorisé', () => {
-  it('traverse la route profonde seulement après feed et détail déverrouillé', async () => {
+  it('traverse la route profonde seulement après le feed déverrouillé porteur de la clé', async () => {
     const routes = readFileSync(join(process.cwd(), 'src/App.tsx'), 'utf8')
     expect(routes).toContain('<Route path="companies/:companyKey" element={<Companies />} />')
     mockApi(authorizedRoutes())
 
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
-    expect(await screen.findByRole('heading', { level: 2, name: SUMMARY })).toBeVisible()
-    const detailCall = callsTo(`/signals/${PUBLISHED_ITEM.signal_id}`, 'GET')[0]
+    await screen.findByText('Adresse officielle')
+    expect(screen.getByRole('heading', { level: 2, name: SUMMARY })).toBeVisible()
+    const feedCall = callsTo('/signals', 'GET')[0]
     const companyCall = callsTo(ENDPOINT, 'GET')[0]
-    expect(recordedCalls.indexOf(detailCall)).toBeLessThan(recordedCalls.indexOf(companyCall))
+    expect(recordedCalls.indexOf(feedCall)).toBeLessThan(recordedCalls.indexOf(companyCall))
+    expect(callsTo(`/signals/${PUBLISHED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
 
@@ -87,7 +90,8 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
     mockApi(authorizedRoutes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
-    expect(await screen.findByRole('heading', { level: 2, name: SUMMARY })).toBeVisible()
+    await screen.findByText(COMPANY_PROFILE.official_identity.address!)
+    expect(screen.getByRole('heading', { level: 2, name: SUMMARY })).toBeVisible()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
     expect(document.querySelectorAll('main')).toHaveLength(1)
     expect(screen.getByText('12 rue des Ateliers, 31270 Villeneuve')).toBeVisible()
@@ -104,10 +108,35 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
     expect(screen.getByText('Aucune action commerciale n’est publiée pour cette attribution.')).toBeVisible()
     expect(screen.getByRole('link', { name: /Ouvrir le signal/ })).toHaveAttribute(
       'href',
-      `/app/signals/${PUBLISHED_ITEM.signal_id}`,
+      `/app/signals/${PUBLISHED_ITEM.signal_id}?presentation_artifact_id=${PRESENTATION.artifact_id}`,
     )
     expect(screen.queryByText('Pourquoi cette entreprise mérite votre attention')).not.toBeInTheDocument()
     expect(screen.queryByText('Sources et couverture')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['publication', '2026-08-20', 'Avis publié le 20 août 2026'],
+    ['notification', '2026-08-21', 'Notification du marché le 21 août 2026'],
+  ] as const)('présente la date %s comme telle, jamais comme une attribution', async (clock, eventDate, statement) => {
+    const datedItem = {
+      ...PUBLISHED_ITEM,
+      event: { ...PUBLISHED_ITEM.event, clock, date: eventDate },
+      contract: {
+        ...PUBLISHED_ITEM.contract,
+        dates: { ...PUBLISHED_ITEM.contract.dates, award: '2026-08-04' },
+      },
+    }
+    mockApi({
+      ...authorizedRoutes(),
+      'GET /signals': { body: feedPage([datedItem], { freshness: 'all' }) },
+    })
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
+
+    await screen.findByText(COMPANY_PROFILE.official_identity.address!)
+    expect(screen.getAllByText(statement)).not.toHaveLength(0)
+    expect(screen.queryByText('Attribuée le 4 août 2026')).not.toBeInTheDocument()
+    const machineDate = document.querySelector(`time[datetime="${eventDate}"]`)
+    expect(machineDate).toHaveTextContent(statement)
   })
 
   it('garde les champs absents honnêtes et annonce une couverture partielle une seule fois', async () => {
@@ -128,7 +157,7 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
     mockApi(authorizedRoutes(partial))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
-    await screen.findByRole('heading', { name: SUMMARY })
+    await screen.findByText('Adresse officielle')
     expect(screen.getByText('Adresse officielle').nextElementSibling).toHaveTextContent('Non publié')
     expect(screen.getByText('Pays officiel').nextElementSibling).toHaveTextContent('Non publié')
     expect(screen.queryByText('Identifiants officiels')).not.toBeInTheDocument()
@@ -145,7 +174,7 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
     }))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
-    await screen.findByRole('heading', { name: SUMMARY })
+    await screen.findByText(COMPANY_PROFILE.official_identity.address!)
     expect(screen.queryByRole('link', { name: /site de l’entreprise/i })).not.toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Preuves et source officielle' })).toBeVisible()
   })
@@ -158,11 +187,14 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
       locale: 'en',
     })
 
-    await screen.findByRole('heading', { name: SUMMARY })
+    await screen.findByText(COMPANY_PROFILE.official_identity.address!)
     expect(screen.getByText(/BOAMP/)).toBeVisible()
     expect(screen.getAllByText(/4 August 2026/)).not.toHaveLength(0)
     expect(screen.getByRole('heading', { name: 'Other awards for this company' })).toBeVisible()
-    expect(screen.getByRole('link', { name: /Open signal/ })).toHaveAttribute('href', '/app/signals/sig_unlocked_1')
+    expect(screen.getByRole('link', { name: /Open signal/ })).toHaveAttribute(
+      'href',
+      `/app/signals/sig_unlocked_1?presentation_artifact_id=${PRESENTATION.artifact_id}`,
+    )
     expect(screen.getByText('No commercial action is published for this award.')).toBeVisible()
   })
 
@@ -201,7 +233,7 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
     expect(heading).toBeVisible()
     await waitFor(() => expect(heading).toHaveFocus())
     expect(callsTo('/signals', 'GET')).toHaveLength(1)
-    expect(callsTo(`/signals/${PUBLISHED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
+    expect(callsTo(`/signals/${PUBLISHED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(ENDPOINT, 'GET')).toHaveLength(2)
   })
 
@@ -226,7 +258,8 @@ describe('fiche entreprise officielle dans le workspace autorisé', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: PATH })
 
-    expect(await screen.findByRole('status', { name: 'Chargement…' })).toBeVisible()
+    const loading = await screen.findByRole('status', { name: SUMMARY })
+    expect(loading).toHaveTextContent('Chargement')
     await waitFor(() => expect(resolveProfile).toBeTypeOf('function'))
     await act(async () => {
       resolveProfile({ body: COMPANY_PROFILE })

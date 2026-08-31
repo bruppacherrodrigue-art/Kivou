@@ -454,6 +454,7 @@ export interface Interaction {
 export interface UnlockedFeedItem {
   locked: false
   signal_id: string
+  company_key?: string | null
   target_icp_id: string | null
   company: Company
   event: SignalEvent

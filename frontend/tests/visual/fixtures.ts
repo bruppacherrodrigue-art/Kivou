@@ -540,6 +540,7 @@ function toUnlockedItem(record: AwardSignal): UnlockedFeedItem {
     locked: false,
     signal_id: record.id,
     target_icp_id: VISUAL_ICP.target_icp_id,
+    company_key: record.company.id,
     presentation: null,
     company: {
       name: record.company.name,

@@ -20,7 +20,6 @@ import { companies, signals } from '../api/endpoints'
 import { ApiError } from '../api/client'
 import type {
   CompanyProfile as CompanyProfilePayload,
-  UnlockedDetail,
   UnlockedFeedItem,
 } from '../api/types'
 import { interpolate, plural, useI18n } from '../i18n'
@@ -36,13 +35,11 @@ import {
 import styles from './Companies.module.css'
 
 const FEED_LIMIT = 20
-const DETAIL_CONCURRENCY = 4
 const SINGLE_PANE_QUERY = '(max-width: 1179px)'
 
 interface AccessSnapshot {
   status: 'loading' | 'ready' | 'error'
   companies: AuthorizedCompany[]
-  details: Map<string, UnlockedDetail>
   unresolved: UnlockedFeedItem[]
   nextOffset: number | null
   scanTruncated: boolean
@@ -62,7 +59,6 @@ interface CompanySelectionNavigationState {
 const INITIAL_ACCESS: AccessSnapshot = {
   status: 'loading',
   companies: [],
-  details: new Map(),
   unresolved: [],
   nextOffset: null,
   scanTruncated: false,
@@ -70,91 +66,39 @@ const INITIAL_ACCESS: AccessSnapshot = {
   retrying: false,
 }
 
-interface DetailResult {
-  item: UnlockedFeedItem
-  detail: UnlockedDetail | null
-  failed: boolean
-}
-
-async function boundedDetails(
-  items: UnlockedFeedItem[],
-  isCurrent: () => boolean,
-): Promise<DetailResult[]> {
-  const results: DetailResult[] = new Array(items.length)
-  let cursor = 0
-  const worker = async () => {
-    while (cursor < items.length && isCurrent()) {
-      const index = cursor
-      cursor += 1
-      const item = items[index]
-      try {
-        const feedPresentation = publishedPresentation(item.presentation)
-        const presentationArtifactId = feedPresentation?.artifact_id ?? null
-        const payload = await signals.detail(item.signal_id, {
-          presentation_artifact_id: presentationArtifactId,
-        })
-        const detailPresentation = payload.locked === false
-          ? publishedPresentation(payload.presentation)
-          : null
-        const pinnedPresentation = presentationArtifactId !== null
-          && detailPresentation?.artifact_id === presentationArtifactId
-          ? detailPresentation
-          : null
-        results[index] = {
-          item,
-          detail: payload.locked === false && payload.signal_id === item.signal_id
-            ? { ...payload, presentation: pinnedPresentation } as UnlockedDetail
-            : null,
-          failed: false,
-        }
-      } catch {
-        results[index] = { item, detail: null, failed: true }
-      }
-    }
-  }
-  await Promise.all(Array.from(
-    { length: Math.min(DETAIL_CONCURRENCY, items.length) },
-    () => worker(),
-  ))
-  return results
-}
-
-function companiesFrom(
-  orderedItems: UnlockedFeedItem[],
-  details: Map<string, UnlockedDetail>,
-): AuthorizedCompany[] {
+function companiesFrom(orderedItems: UnlockedFeedItem[]): AuthorizedCompany[] {
   const grouped = new Map<string, AuthorizedCompany>()
   for (const item of orderedItems) {
-    const detail = details.get(item.signal_id)
-    if (!detail || detail.locked || !detail.company_key || !detail.company.name) continue
-    const presentation = publishedPresentation(detail.presentation)
+    if (!item.company_key || !item.company.name) continue
+    const presentation = publishedPresentation(item.presentation)
     const signal: AuthorizedCompanySignal = {
-      signalId: detail.signal_id,
+      signalId: item.signal_id,
+      presentationArtifactId: presentation?.artifact_id ?? null,
       summary: presentation?.content.award_summary ?? null,
-      buyerName: detail.contract.buyer?.name ?? null,
-      location: detail.contract.location,
-      amountValue: detail.contract.amount?.value ?? null,
-      amountCurrency: detail.contract.amount?.currency ?? null,
-      awardDate: detail.contract.dates.award,
-      eventDate: detail.event.date,
-      eventClock: detail.event.clock,
+      buyerName: item.contract.buyer?.name ?? null,
+      location: item.contract.location,
+      amountValue: item.contract.amount?.value ?? null,
+      amountCurrency: item.contract.amount?.currency ?? null,
+      awardDate: item.contract.dates.award,
+      eventDate: item.event.date,
+      eventClock: item.event.clock,
       fitReason: presentation?.content.fit_reason ?? null,
       recommendedAction: presentation?.content.recommended_action ?? null,
-      sourceSystem: detail.source.system,
-      sourceNoticeId: detail.source.notice_id,
-      sourceUrl: detail.source.url,
+      sourceSystem: item.source.system,
+      sourceNoticeId: item.source.notice_id,
+      sourceUrl: item.source.url,
     }
-    const existing = grouped.get(detail.company_key)
+    const existing = grouped.get(item.company_key)
     if (existing) {
       if (!existing.signals.some((candidate) => candidate.signalId === signal.signalId)) {
         existing.signals.push(signal)
       }
       continue
     }
-    grouped.set(detail.company_key, {
-      key: detail.company_key,
-      name: detail.company.name,
-      country: detail.company.country,
+    grouped.set(item.company_key, {
+      key: item.company_key,
+      name: item.company.name,
+      country: item.company.country,
       signals: [signal],
     })
   }
@@ -269,18 +213,11 @@ export function Companies() {
       return
     }
 
-    const detailResults = await boundedDetails(orderedItemsRef.current, isCurrent)
-    if (!isCurrent()) return
-    const details = new Map<string, UnlockedDetail>()
-    const unresolved: UnlockedFeedItem[] = []
-    for (const result of detailResults) {
-      if (result.detail) details.set(result.item.signal_id, result.detail)
-      else if (result.failed) unresolved.push(result.item)
-    }
-    const resolvedCompanies = companiesFrom(orderedItemsRef.current, details)
+    const unresolved = orderedItemsRef.current.filter((item) => !item.company_key)
+    const resolvedCompanies = companiesFrom(orderedItemsRef.current)
     if (resolvedCompanies.length === 0 && unresolved.length > 0 && !pageFailure && !scanTruncated) {
       publishAccess({
-        status: 'error', companies: [], details, unresolved, nextOffset,
+        status: 'error', companies: [], unresolved, nextOffset,
         scanTruncated, error: new Error('company_details_unavailable'), retrying: false,
       })
       return
@@ -288,7 +225,6 @@ export function Companies() {
     publishAccess({
       status: 'ready',
       companies: resolvedCompanies,
-      details,
       unresolved,
       nextOffset,
       scanTruncated,
@@ -310,11 +246,13 @@ export function Companies() {
   const retryIncomplete = useCallback(async () => {
     const previous = accessRef.current
     if (previous.retrying) return
+    if (previous.unresolved.length > 0) {
+      await loadAccess()
+      return
+    }
     const generation = ++accessGeneration.current
     const isCurrent = () => mounted.current && accessGeneration.current === generation
     publishAccess({ ...previous, retrying: true })
-    const details = new Map(previous.details)
-    const unresolvedById = new Map(previous.unresolved.map((item) => [item.signal_id, item]))
     let nextOffset = previous.nextOffset
     let scanTruncated = previous.scanTruncated
     let pageFailure: unknown | null = null
@@ -329,7 +267,6 @@ export function Companies() {
           if (item.locked || seenSignals.has(item.signal_id)) continue
           seenSignals.add(item.signal_id)
           orderedItemsRef.current.push(item)
-          unresolvedById.set(item.signal_id, item)
         }
         scanTruncated ||= page.page.scan_truncated
         if (!page.page.has_more) nextOffset = null
@@ -348,20 +285,13 @@ export function Companies() {
       }
     }
 
-    const retried = await boundedDetails([...unresolvedById.values()], isCurrent)
-    if (!isCurrent()) return
-    const stillUnresolved: UnlockedFeedItem[] = []
-    for (const result of retried) {
-      if (result.detail) details.set(result.item.signal_id, result.detail)
-      else if (result.failed) stillUnresolved.push(result.item)
-    }
-    const resolvedCompanies = companiesFrom(orderedItemsRef.current, details)
+    const stillUnresolved = orderedItemsRef.current.filter((item) => !item.company_key)
+    const resolvedCompanies = companiesFrom(orderedItemsRef.current)
     publishAccess({
       status: resolvedCompanies.length === 0 && stillUnresolved.length > 0 && !pageFailure && !scanTruncated
         ? 'error'
         : 'ready',
       companies: resolvedCompanies,
-      details,
       unresolved: stillUnresolved,
       nextOffset,
       scanTruncated,
@@ -370,7 +300,7 @@ export function Companies() {
         : null),
       retrying: false,
     })
-  }, [publishAccess])
+  }, [loadAccess, publishAccess])
 
   const selectedCompany = useMemo(() => (
     companyKey
@@ -448,11 +378,12 @@ export function Companies() {
       !pendingDetailFocus.current
       || pendingDetailFocus.current !== selectedSignal?.signalId
       || profileKey !== selectedCompany?.key
-      || (profileStatus !== 'ready' && profileStatus !== 'error')
+      || (profileStatus !== 'loading' && profileStatus !== 'ready' && profileStatus !== 'error')
     ) return
+    const terminal = profileStatus === 'ready' || profileStatus === 'error'
     const frame = window.requestAnimationFrame(() => {
       detailPanelRef.current?.querySelector<HTMLElement>('#company-name')?.focus({ preventScroll: true })
-      pendingDetailFocus.current = null
+      if (terminal) pendingDetailFocus.current = null
     })
     return () => window.cancelAnimationFrame(frame)
   }, [focusRequest, profileKey, profileStatus, selectedCompany?.key, selectedSignal?.signalId])
@@ -585,20 +516,19 @@ export function Companies() {
               && signal.signalId === selectedSignal?.signalId
             const publishedAmount = amount(signal.amountValue, signal.amountCurrency)
               ?? t.reference.missingValue
-            const awardDate = date(signal.awardDate)
             const eventDate = date(signal.eventDate)
-            const publishedDate = awardDate
-              ? interpolate(copy.awardedOn, { date: awardDate })
-              : eventDate
-                ? interpolate(
-                    signal.eventClock === 'notification'
-                      ? copy.notifiedOn
-                      : signal.eventClock === 'publication'
-                        ? copy.publishedOn
-                        : copy.awardedOn,
-                    { date: eventDate },
-                  )
-                : copy.awardDateMissing
+            const awardDate = eventDate ?? date(signal.awardDate)
+            const publishedDate = signal.eventClock === 'notification'
+              ? eventDate
+                ? interpolate(copy.notifiedOn, { date: eventDate })
+                : copy.notificationDateMissing
+              : signal.eventClock === 'publication'
+                ? eventDate
+                  ? interpolate(copy.publishedOn, { date: eventDate })
+                  : copy.publicationDateMissing
+                : awardDate
+                  ? interpolate(copy.awardedOn, { date: awardDate })
+                  : copy.awardDateMissing
             const count = company.signals.length
             const href = companyAwardHref(company.key, signal.signalId)
             return (
@@ -622,7 +552,6 @@ export function Companies() {
                 <span className="company-list-content">
                   <span className="company-list-heading">
                     <strong>{company.name}</strong>
-                    <span>{interpolate(plural(count, copy.contractOne, copy.contractOther), { count })}</span>
                   </span>
                   <span className={styles.companyRole}>{copy.winningCompany}</span>
                   {selected ? (
@@ -643,6 +572,9 @@ export function Companies() {
                     <span>{publishedAmount}</span>
                     <span>{publishedDate}</span>
                     <span>{displayTerritory(company, signal)}</span>
+                  </span>
+                  <span className={styles.awardCount}>
+                    {interpolate(plural(count, copy.contractOne, copy.contractOther), { count })}
                   </span>
                 </span>
               </Link>
@@ -738,13 +670,20 @@ function renderDetail({
   emptyTitle: string
   emptyBody: string
 }) {
-  const message = (title: string, body: string, tone: 'status' | 'alert' | null = 'status', retry?: () => void) => (
+  const message = (
+    title: string,
+    body: string,
+    tone: 'status' | 'alert' | null = 'status',
+    retry?: () => void,
+    busy = false,
+  ) => (
     <CompanyDetailMessage
       panelRef={panelRef}
       title={title}
       body={body}
       tone={tone}
       retry={retry}
+      busy={busy}
       backToList={backToList}
     />
   )
@@ -782,7 +721,13 @@ function renderDetail({
     || profileStatus === 'loading'
     || profileStatus === 'idle'
     || (profile !== null && profile.company_key !== selectedCompany.key)
-  ) return message(loading, copy.loadingProfile)
+  ) return message(
+    selectedSignal.summary ?? copy.objectMissing,
+    copy.loadingProfile,
+    'status',
+    undefined,
+    true,
+  )
 
   if (profileStatus === 'error' || !profile) {
     if (profileError instanceof ApiError && profileError.status === 404) {

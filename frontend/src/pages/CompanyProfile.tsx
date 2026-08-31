@@ -13,6 +13,7 @@ import styles from './Companies.module.css'
 
 export interface AuthorizedCompanySignal {
   signalId: string
+  presentationArtifactId: string | null
   summary: string | null
   buyerName: string | null
   location: Place | null
@@ -38,6 +39,14 @@ export interface AuthorizedCompany {
 export function companyAwardHref(companyKey: string, signalId: string): string {
   const query = new URLSearchParams({ signal: signalId })
   return `/app/companies/${encodeURIComponent(companyKey)}?${query.toString()}`
+}
+
+function signalAnalysisHref(signal: AuthorizedCompanySignal): string {
+  const query = new URLSearchParams({ signal: signal.signalId })
+  if (signal.presentationArtifactId) {
+    query.set('presentation_artifact_id', signal.presentationArtifactId)
+  }
+  return `/signals?${query.toString()}`
 }
 
 export function companyInitials(name: string): string {
@@ -86,17 +95,21 @@ export function CompanyProfileView({
   const summary = signal.summary ?? copy.objectMissing
   const publishedAmount = amount(signal.amountValue, signal.amountCurrency) ?? t.reference.missingValue
   const dateStatementFor = (candidate: AuthorizedCompanySignal) => {
-    const publishedAwardDate = date(candidate.awardDate)
-    if (publishedAwardDate) return interpolate(copy.awardedOn, { date: publishedAwardDate })
     const observedDate = date(candidate.eventDate)
-    if (!observedDate) return copy.awardDateMissing
     if (candidate.eventClock === 'notification') {
-      return interpolate(copy.notifiedOn, { date: observedDate })
+      return observedDate
+        ? interpolate(copy.notifiedOn, { date: observedDate })
+        : copy.notificationDateMissing
     }
     if (candidate.eventClock === 'publication') {
-      return interpolate(copy.publishedOn, { date: observedDate })
+      return observedDate
+        ? interpolate(copy.publishedOn, { date: observedDate })
+        : copy.publicationDateMissing
     }
-    return interpolate(copy.awardedOn, { date: observedDate })
+    const awardDate = observedDate ?? date(candidate.awardDate)
+    return awardDate
+      ? interpolate(copy.awardedOn, { date: awardDate })
+      : copy.awardDateMissing
   }
   const dateStatement = dateStatementFor(signal)
   const territory = placeLabel(signal.location, localizedCountry) ?? copy.territoryMissing
@@ -139,13 +152,15 @@ export function CompanyProfileView({
           <article className="company-timeline-item">
             <span className="timeline-marker" aria-hidden="true" />
             <div>
-              <time dateTime={signal.awardDate ?? signal.eventDate ?? undefined}>{dateStatement}</time>
+              <time dateTime={(signal.eventClock === 'award'
+                ? signal.eventDate ?? signal.awardDate
+                : signal.eventDate) ?? undefined}>{dateStatement}</time>
               <strong>{summary}</strong>
               <p>{publishedAmount}</p>
             </div>
             <ReferenceLink
               dashboard
-              href={`/signals?signal=${encodeURIComponent(signal.signalId)}`}
+              href={signalAnalysisHref(signal)}
               aria-label={interpolate(copy.openSignal, { title: summary })}
             >
               <ArrowRight aria-hidden="true" />
@@ -155,7 +170,7 @@ export function CompanyProfileView({
             <div><dt>{copy.winningCompany}</dt><dd>{identity.name}</dd></div>
             <div><dt>{copy.publicBuyer}</dt><dd>{signal.buyerName ?? copy.buyerMissing}</dd></div>
             <div><dt>{copy.publishedAmount}</dt><dd>{publishedAmount}</dd></div>
-            <div><dt>{copy.awardDate}</dt><dd>{dateStatement}</dd></div>
+            <div><dt>{copy.signalDate}</dt><dd>{dateStatement}</dd></div>
             <div><dt>{copy.territory}</dt><dd>{territory}</dd></div>
           </dl>
         </section>
@@ -210,7 +225,7 @@ export function CompanyProfileView({
           <ReferenceLink
             dashboard
             className="primary-action"
-            href={`/signals?signal=${encodeURIComponent(signal.signalId)}`}
+            href={signalAnalysisHref(signal)}
           >
             {copy.reviewSignal}
           </ReferenceLink>
@@ -256,13 +271,14 @@ export function CompanyProfileView({
               <article className="company-timeline-item" key={candidate.signalId}>
                 <span className="timeline-marker" aria-hidden="true" />
                 <div>
-                  <time dateTime={candidate.awardDate ?? candidate.eventDate ?? undefined}>{candidateDate}</time>
+                  <time dateTime={(candidate.eventClock === 'award'
+                    ? candidate.eventDate ?? candidate.awardDate
+                    : candidate.eventDate) ?? undefined}>{candidateDate}</time>
                   <strong>{candidateSummary}</strong>
                   <p>{candidateAmount}</p>
                 </div>
                 <Link
                   to={companyAwardHref(company.key, candidate.signalId)}
-                  replace
                   state={{
                     companySelection: {
                       kind: 'company-award',
@@ -290,6 +306,7 @@ export function CompanyDetailMessage({
   title,
   body,
   retry,
+  busy = false,
   tone = 'status',
   backToList,
 }: {
@@ -297,6 +314,7 @@ export function CompanyDetailMessage({
   title: string
   body: string
   retry?: () => void
+  busy?: boolean
   tone?: 'status' | 'alert' | null
   backToList?: () => void
 }) {
@@ -308,7 +326,7 @@ export function CompanyDetailMessage({
       id="company-detail"
       aria-labelledby="company-name"
       aria-live={tone === 'status' ? 'polite' : undefined}
-      aria-busy={tone === 'status' && title === t.reference.loading}
+      aria-busy={busy || (tone === 'status' && title === t.reference.loading)}
       role={tone ?? undefined}
     >
       {backToList ? (

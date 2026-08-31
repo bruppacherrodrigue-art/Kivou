@@ -33,6 +33,7 @@ const FIRST_PRESENTATION = factualFallbackPresentation({
 })
 const FIRST_ITEM: UnlockedFeedItem = {
   ...BASE_ITEM,
+  company_key: COMPANY_PROFILE.company_key,
   presentation: FIRST_PRESENTATION,
   contract: { ...BASE_ITEM.contract, title: 'TITRE ADMINISTRATIF BRUT INTERDIT' },
   event: {
@@ -67,6 +68,7 @@ const SECOND_PRESENTATION = factualFallbackPresentation({
 const SECOND_ITEM: UnlockedFeedItem = {
   ...FIRST_ITEM,
   signal_id: 'sig_company_second',
+  company_key: 'cmp_company_second',
   company: { ...FIRST_ITEM.company, name: 'Atelier Alpha SA' },
   contract: { ...FIRST_ITEM.contract, title: 'Second marché documenté' },
   presentation: SECOND_PRESENTATION,
@@ -80,6 +82,19 @@ const SECOND_DETAIL: UnlockedDetail = {
   ...SECOND_ITEM,
   company_key: 'cmp_company_second',
   presentation: SECOND_PRESENTATION,
+}
+const SAME_COMPANY_PRESENTATION = factualFallbackPresentation({
+  artifactId: 'd'.repeat(64),
+  headline: 'Deuxième attribution documentée à Constructions Bertrand SA',
+  awardSummary: 'Une deuxième attribution documentée concerne Constructions Bertrand SA.',
+  headlineEvidenceRefs: ['source:same-company-headline'],
+  awardSummaryEvidenceRefs: ['source:same-company-award-summary'],
+})
+const SAME_COMPANY_ITEM: UnlockedFeedItem = {
+  ...SECOND_ITEM,
+  company_key: COMPANY_PROFILE.company_key,
+  company: FIRST_ITEM.company,
+  presentation: SAME_COMPANY_PRESENTATION,
 }
 const SECOND_PROFILE: CompanyProfile = {
   ...COMPANY_PROFILE,
@@ -105,9 +120,10 @@ const FIRST_PATH = `/app/companies/${COMPANY_PROFILE.company_key}?signal=${FIRST
 const SECOND_PATH = `/app/companies/${SECOND_PROFILE.company_key}?signal=${SECOND_ITEM.signal_id}`
 const FIRST_SUMMARY = FIRST_PRESENTATION.content.award_summary
 const SECOND_SUMMARY = SECOND_PRESENTATION.content.award_summary
+const SAME_COMPANY_SUMMARY = SAME_COMPANY_PRESENTATION.content.award_summary
 
 describe('workspace Entreprises exact et borné par les signaux accessibles', () => {
-  it('résout les entreprises uniquement via les détails de signaux déverrouillés', async () => {
+  it('résout les entreprises depuis le feed sans N+1 de détails', async () => {
     mockApi({
       'GET /signals': { body: feedPage([FIRST_ITEM, LOCKED_ITEM]) },
       [`GET /signals/${FIRST_ITEM.signal_id}`]: { body: FIRST_DETAIL },
@@ -120,10 +136,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
 
     await screen.findAllByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) })
     expect(document.querySelector('.companies-workspace .companies-panel + .company-detail')).not.toBeNull()
-    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(1)
-    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')[0].search.get(
-      'presentation_artifact_id',
-    )).toBe(FIRST_PRESENTATION.artifact_id)
+    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')).toHaveLength(0)
     expect(screen.getByRole('heading', { name: 'Sélectionnez une attribution pour afficher son contexte' })).toBeVisible()
@@ -139,17 +152,20 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
   })
 
   it.each([
-    ['un artefact détail différent', FIRST_ITEM, SECOND_PRESENTATION, FIRST_PRESENTATION.artifact_id],
-    ['aucun artefact feed', { ...FIRST_ITEM, presentation: null }, SECOND_PRESENTATION, null],
+    ['aucun artefact feed', { ...FIRST_ITEM, presentation: null }],
+    ['artefact feed invalide', {
+      ...FIRST_ITEM,
+      presentation: { ...FIRST_PRESENTATION, status: 'PASS', content: {
+        ...FIRST_PRESENTATION.content,
+        variant: 'FACTUAL_FALLBACK',
+      } },
+    } as unknown as UnlockedFeedItem],
   ] as const)(
-    'échoue fermé face à %s sans adopter une publication opportuniste',
-    async (_case, feedItem, detailPresentation, expectedPin) => {
+    'échoue fermé face à %s sans reconstruire depuis les champs bruts',
+    async (_case, feedItem) => {
       mockApi({
         ...shellRoutes,
         'GET /signals': { body: feedPage([feedItem], { freshness: 'all' }) },
-        [`GET /signals/${FIRST_ITEM.signal_id}`]: {
-          body: { ...FIRST_DETAIL, presentation: detailPresentation },
-        },
       })
 
       renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
@@ -157,12 +173,8 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
       const row = await screen.findByRole('link', {
         name: new RegExp(COMPANY_PROFILE.official_identity.name),
       })
-      expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')[0].search.get(
-        'presentation_artifact_id',
-      )).toBe(expectedPin)
-      expect(row).toHaveTextContent('Objet de l’attribution non renseigné dans la source')
-      expect(row).not.toHaveTextContent(detailPresentation.content.headline)
-      expect(row).not.toHaveTextContent(detailPresentation.content.award_summary)
+      expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(0)
+      expect(row).toHaveTextContent('Résumé de l’attribution non publié')
       expect(row).not.toHaveTextContent(FIRST_ITEM.contract.title!)
       expect(row).not.toHaveTextContent(FIRST_ITEM.event.headline)
     },
@@ -224,22 +236,15 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
 
   it('remonte le détail sans déplacer la liste lors d’un changement d’attribution', async () => {
     const user = userEvent.setup()
-    const sameCompanyDetail: UnlockedDetail = {
-      ...SECOND_DETAIL,
-      company_key: COMPANY_PROFILE.company_key,
-      company: FIRST_DETAIL.company,
-    }
     mockApi({
       ...shellRoutes,
-      'GET /signals': { body: feedPage([FIRST_ITEM, SECOND_ITEM], { freshness: 'all' }) },
-      [`GET /signals/${FIRST_ITEM.signal_id}`]: { body: FIRST_DETAIL },
-      [`GET /signals/${SECOND_ITEM.signal_id}`]: { body: sameCompanyDetail },
+      'GET /signals': { body: feedPage([FIRST_ITEM, SAME_COMPANY_ITEM], { freshness: 'all' }) },
       [`GET /companies/${COMPANY_PROFILE.company_key}`]: { body: COMPANY_PROFILE },
     })
 
     renderApp(<AppRoutes />, { route: FIRST_PATH, session: AUTHENTICATED })
 
-    await screen.findByRole('heading', { name: FIRST_SUMMARY })
+    await screen.findByText(COMPANY_PROFILE.official_identity.address!)
     const list = document.querySelector<HTMLElement>('.companies-panel')
     const detail = document.getElementById('company-detail')
     expect(list).not.toBeNull()
@@ -247,8 +252,8 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     if (list) list.scrollTop = 240
     if (detail) detail.scrollTop = 180
 
-    await user.click(screen.getByRole('link', { name: `Ouvrir l’attribution ${SECOND_SUMMARY}` }))
-    await waitFor(() => expect(screen.getByRole('heading', { name: SECOND_SUMMARY })).toHaveFocus())
+    await user.click(await screen.findByRole('link', { name: `Ouvrir l’attribution ${SAME_COMPANY_SUMMARY}` }))
+    await waitFor(() => expect(screen.getByRole('heading', { name: SAME_COMPANY_SUMMARY })).toHaveFocus())
     expect(document.getElementById('company-detail')).toBe(detail)
     expect(detail?.scrollTop).toBe(0)
     expect(list?.scrollTop).toBe(240)
@@ -302,7 +307,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     expect(rows[0]).toHaveTextContent(COMPANY_PROFILE.official_identity.name)
     expect(rows[1]).toHaveTextContent(SECOND_PROFILE.official_identity.name)
     expect(callsTo('/signals', 'GET').map((call) => call.search.get('offset'))).toEqual(['0', '20'])
-    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(1)
+    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
 
@@ -331,25 +336,20 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
       session: AUTHENTICATED,
     })
 
-    expect(await screen.findByRole('heading', { name: SECOND_SUMMARY })).toBeVisible()
+    await screen.findByText(SECOND_PROFILE.official_identity.address!)
+    expect(screen.getByRole('heading', { name: SECOND_SUMMARY })).toBeVisible()
     expect(callsTo('/signals', 'GET').map((call) => call.search.get('offset'))).toEqual(['0', '20'])
-    const detailCall = callsTo(`/signals/${SECOND_ITEM.signal_id}`, 'GET')[0]
+    const feedCall = callsTo('/signals', 'GET')[0]
     const companyCall = callsTo(`/companies/${SECOND_PROFILE.company_key}`, 'GET')[0]
-    expect(recordedCalls.indexOf(detailCall)).toBeLessThan(recordedCalls.indexOf(companyCall))
+    expect(recordedCalls.indexOf(feedCall)).toBeLessThan(recordedCalls.indexOf(companyCall))
+    expect(callsTo(`/signals/${SECOND_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
 
   it('présente chaque attribution comme une carte distincte, même pour la même entreprise', async () => {
-    const sameCompanyDetail: UnlockedDetail = {
-      ...SECOND_DETAIL,
-      company_key: COMPANY_PROFILE.company_key,
-      company: FIRST_DETAIL.company,
-    }
     mockApi({
       ...shellRoutes,
-      'GET /signals': { body: feedPage([FIRST_ITEM, SECOND_ITEM], { freshness: 'all' }) },
-      [`GET /signals/${FIRST_ITEM.signal_id}`]: { body: FIRST_DETAIL },
-      [`GET /signals/${SECOND_ITEM.signal_id}`]: { body: sameCompanyDetail },
+      'GET /signals': { body: feedPage([FIRST_ITEM, SAME_COMPANY_ITEM], { freshness: 'all' }) },
       [`GET /companies/${COMPANY_PROFILE.company_key}`]: { body: COMPANY_PROFILE },
     })
 
@@ -380,7 +380,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     expect(document.body.textContent).not.toContain(COMPANY_PROFILE.official_identity.address!)
   })
 
-  it('ne demande une route profonde autorisée qu’après le détail déverrouillé qui fournit sa clé', async () => {
+  it('ne demande une route profonde autorisée qu’après le feed qui fournit sa clé', async () => {
     mockApi({
       ...shellRoutes,
       'GET /signals': { body: feedPage([FIRST_ITEM]) },
@@ -393,32 +393,24 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
       session: AUTHENTICATED,
     })
 
-    expect(
-      await screen.findByRole('heading', { level: 2, name: FIRST_SUMMARY }),
-    ).toBeVisible()
-    const detailCall = callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')[0]
+    await screen.findByText(COMPANY_PROFILE.official_identity.address!)
+    expect(screen.getByRole('heading', { level: 2, name: FIRST_SUMMARY })).toBeVisible()
+    const feedCall = callsTo('/signals', 'GET')[0]
     const companyCall = callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')[0]
-    expect(detailCall).toBeDefined()
+    expect(feedCall).toBeDefined()
     expect(companyCall).toBeDefined()
+    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
-    expect(detailCall && companyCall && recordedCalls.indexOf(detailCall)).toBeLessThan(
+    expect(feedCall && companyCall && recordedCalls.indexOf(feedCall)).toBeLessThan(
       companyCall ? recordedCalls.indexOf(companyCall) : -1,
     )
   })
 
-  it('reste fail-closed si le détail révoque entre-temps l’accès annoncé par le feed', async () => {
+  it('reste fail-closed si le feed ne fournit pas la clé entreprise annoncée par la route', async () => {
+    const itemWithoutCompanyKey = { ...FIRST_ITEM, company_key: null }
     mockApi({
       ...shellRoutes,
-      'GET /signals': { body: feedPage([FIRST_ITEM, LOCKED_ITEM]) },
-      [`GET /signals/${FIRST_ITEM.signal_id}`]: {
-        body: {
-          ...LOCKED_ITEM,
-          signal_id: FIRST_ITEM.signal_id,
-          access: { granted: false, reason: 'plan_entitlement_required', upgrade_to: [] },
-          read_at: '2026-08-29',
-          language: 'fr',
-        },
-      },
+      'GET /signals': { body: feedPage([itemWithoutCompanyKey, LOCKED_ITEM]) },
       [`GET /companies/${COMPANY_PROFILE.company_key}`]: { body: COMPANY_PROFILE },
     })
 
@@ -427,45 +419,28 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
       session: AUTHENTICATED,
     })
 
-    expect(await screen.findByRole('heading', { name: 'Fiche entreprise inaccessible' })).toBeVisible()
+    expect(await screen.findByRole('heading', { name: 'Les entreprises n’ont pas pu être vérifiées' })).toBeVisible()
     expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')).toHaveLength(0)
+    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
 
-  it('borne la concurrence des détails même si une page API contient beaucoup de signaux', async () => {
-    let active = 0
-    let peak = 0
+  it('ne demande aucun détail même si une page API contient beaucoup de signaux', async () => {
     const items = Array.from({ length: 12 }, (_, index): UnlockedFeedItem => ({
       ...FIRST_ITEM,
       signal_id: `sig_company_pool_${index}`,
+      company_key: `cmp_pool_${index}`,
       company: { ...FIRST_ITEM.company, name: `Entreprise ${index}` },
     }))
-    const routes: Parameters<typeof mockApi>[0] = {
+    mockApi({
       ...shellRoutes,
       'GET /signals': { body: feedPage(items, { freshness: 'all' }) },
-      [`GET /companies/${COMPANY_PROFILE.company_key}`]: { body: COMPANY_PROFILE },
-    }
-    for (const [index, item] of items.entries()) {
-      routes[`GET /signals/${item.signal_id}`] = async () => {
-        active += 1
-        peak = Math.max(peak, active)
-        await Promise.resolve()
-        active -= 1
-        return {
-          body: {
-            ...FIRST_DETAIL,
-            ...item,
-            company_key: index === 0 ? COMPANY_PROFILE.company_key : `cmp_pool_${index}`,
-          },
-        }
-      }
-    }
-    mockApi(routes)
+    })
 
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
 
     await waitFor(() => expect(document.querySelectorAll('.company-list-item')).toHaveLength(12))
-    expect(peak).toBeLessThanOrEqual(4)
+    for (const item of items) expect(callsTo(`/signals/${item.signal_id}`, 'GET')).toHaveLength(0)
   })
 
   it('annonce une résolution tronquée sans présenter la liste comme exhaustive', async () => {
@@ -605,7 +580,8 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
 
     await user.click(screen.getByRole('link', { name: new RegExp(SECOND_PROFILE.official_identity.name) }))
     await waitFor(() => expect(resolveSecond).toBeTypeOf('function'))
-    expect(screen.queryByRole('heading', { name: SECOND_SUMMARY })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('Chargement')
+    await waitFor(() => expect(screen.getByRole('heading', { name: SECOND_SUMMARY })).toHaveFocus())
     await act(async () => {
       resolveSecond({ body: SECOND_PROFILE })
       await Promise.resolve()
@@ -668,15 +644,15 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     expect(document.body.textContent).not.toContain(COMPANY_PROFILE.official_identity.address!)
   })
 
-  it('arrête le pool de détails du compte précédent avant de lancer une tâche restante', async () => {
+  it('ne lance aucun détail lorsqu’un changement de compte remplace un grand feed', async () => {
     const accountAItems = Array.from({ length: 5 }, (_, index): UnlockedFeedItem => ({
       ...FIRST_ITEM,
       signal_id: `sig_account_a_${index}`,
+      company_key: `cmp_private_a_${index}`,
       company: { ...FIRST_ITEM.company, name: `Privée A ${index}` },
     }))
-    const resolvers: Array<(value: { body: UnlockedDetail }) => void> = []
     let feedCalls = 0
-    const routes: Parameters<typeof mockApi>[0] = {
+    mockApi({
       ...shellRoutes,
       'GET /signals': () => {
         feedCalls += 1
@@ -684,27 +660,16 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
           ? { body: feedPage(accountAItems, { freshness: 'all' }) }
           : { body: feedPage([SECOND_ITEM], { freshness: 'all' }) }
       },
-      [`GET /signals/${SECOND_ITEM.signal_id}`]: { body: SECOND_DETAIL },
       [`GET /companies/${SECOND_PROFILE.company_key}`]: { body: SECOND_PROFILE },
-    }
-    for (const item of accountAItems.slice(0, 4)) {
-      routes[`GET /signals/${item.signal_id}`] = () => new Promise((resolve) => resolvers.push(resolve))
-    }
-    routes[`GET /signals/${accountAItems[4].signal_id}`] = { body: FIRST_DETAIL }
-    mockApi(routes)
+    })
 
     renderApp(<><AppRoutes /><AdoptSecondAccount /></>, { route: '/app/companies', session: AUTHENTICATED })
-    await waitFor(() => expect(resolvers).toHaveLength(4))
+    await waitFor(() => expect(document.querySelectorAll('.company-list-item')).toHaveLength(5))
     fireEvent.click(screen.getByRole('button', { name: 'Basculer sur le compte B' }))
     expect(await screen.findByRole('link', { name: new RegExp(SECOND_PROFILE.official_identity.name) })).toBeVisible()
 
-    await act(async () => {
-      resolvers.forEach((resolve, index) => resolve({
-        body: { ...FIRST_DETAIL, ...accountAItems[index], company_key: `cmp_private_a_${index}` },
-      }))
-      await Promise.resolve()
-    })
-    expect(callsTo(`/signals/${accountAItems[4].signal_id}`, 'GET')).toHaveLength(0)
+    for (const item of accountAItems) expect(callsTo(`/signals/${item.signal_id}`, 'GET')).toHaveLength(0)
+    expect(callsTo(`/signals/${SECOND_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
 
   it('conserve les entreprises déjà autorisées quand une page suivante échoue et annonce le résultat partiel', async () => {
@@ -731,18 +696,20 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     expect(callsTo('/signals', 'GET').map((call) => call.search.get('offset'))).toEqual(['0', '20'])
   })
 
-  it('garde le résultat autorisé si un détail échoue et permet une reprise locale honnête', async () => {
+  it('garde les clés autorisées si le feed en omet une et permet une reprise honnête', async () => {
     const user = userEvent.setup()
-    let secondAttempts = 0
+    let feedAttempts = 0
+    const secondWithoutCompanyKey = { ...SECOND_ITEM, company_key: null }
     mockApi({
       ...shellRoutes,
-      'GET /signals': { body: feedPage([FIRST_ITEM, SECOND_ITEM], { freshness: 'all' }) },
-      [`GET /signals/${FIRST_ITEM.signal_id}`]: { body: FIRST_DETAIL },
-      [`GET /signals/${SECOND_ITEM.signal_id}`]: () => {
-        secondAttempts += 1
-        return secondAttempts === 1
-          ? { status: 503, body: { detail: { code: 'temporarily_unavailable' } } }
-          : { body: SECOND_DETAIL }
+      'GET /signals': () => {
+        feedAttempts += 1
+        return {
+          body: feedPage(
+            feedAttempts === 1 ? [FIRST_ITEM, secondWithoutCompanyKey] : [FIRST_ITEM, SECOND_ITEM],
+            { freshness: 'all' },
+          ),
+        }
       },
       [`GET /companies/${COMPANY_PROFILE.company_key}`]: { body: COMPANY_PROFILE },
     })
@@ -754,20 +721,17 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     ).toBeVisible()
     expect(screen.getByRole('alert')).toHaveTextContent('Liste partielle')
     await user.click(screen.getByRole('button', { name: 'Réessayer' }))
-    await waitFor(() => expect(callsTo(`/signals/${SECOND_ITEM.signal_id}`, 'GET')).toHaveLength(2))
+    await waitFor(() => expect(callsTo('/signals', 'GET')).toHaveLength(2))
     expect(await screen.findByRole('link', { name: new RegExp(SECOND_PROFILE.official_identity.name) })).toBeVisible()
-    expect(callsTo('/signals', 'GET')).toHaveLength(1)
-    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(1)
+    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(0)
+    expect(callsTo(`/signals/${SECOND_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
 
-  it('n’annonce qu’une seule fois la panne quand tous les détails échouent', async () => {
+  it('n’annonce qu’une seule fois la panne quand toutes les clés entreprise manquent', async () => {
+    const itemWithoutCompanyKey = { ...FIRST_ITEM, company_key: null }
     mockApi({
       ...shellRoutes,
-      'GET /signals': { body: feedPage([FIRST_ITEM], { freshness: 'all' }) },
-      [`GET /signals/${FIRST_ITEM.signal_id}`]: {
-        status: 503,
-        body: { detail: { code: 'temporarily_unavailable' } },
-      },
+      'GET /signals': { body: feedPage([itemWithoutCompanyKey], { freshness: 'all' }) },
     })
 
     renderApp(<AppRoutes />, { route: '/app/companies', session: AUTHENTICATED })
@@ -776,6 +740,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
     expect(screen.getByRole('alert')).toHaveTextContent('Les attributions n’ont pas pu être chargées')
     expect(screen.getByRole('button', { name: 'Réessayer' })).toBeVisible()
     expect(screen.getByRole('heading', { name: 'Les entreprises n’ont pas pu être vérifiées' })).toBeVisible()
+    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
 
   it('réessaie uniquement le profil après une panne du GET entreprise autorisé', async () => {
@@ -804,7 +769,7 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
       await screen.findByRole('heading', { level: 2, name: FIRST_SUMMARY }),
     ).toBeVisible()
     expect(callsTo('/signals', 'GET')).toHaveLength(1)
-    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(1)
+    expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')).toHaveLength(2)
   })
 

@@ -22,7 +22,10 @@ from signals.companies.contracts import (
     CompanySignalEvent,
 )
 from signals.companies.identity import ResolvedOfficialCompany, official_company_identity
-from signals.companies.indexing import index_signal_company_identity
+from signals.companies.indexing import (
+    index_signal_company_identities,
+    index_signal_company_identity,
+)
 from signals.companies.store import StoredCompany, get_company_by_key, get_or_create_company
 from signals.feed import query as feed_query
 from signals.feed import view as feed_view
@@ -90,6 +93,41 @@ def ensure_company_for_unlocked_signal(
         now=now,
     )
     return stored.company_key
+
+
+def ensure_companies_for_unlocked_signals(
+    connection: sa.Connection,
+    *,
+    items: tuple[feed_query.FeedSignal, ...],
+    now: dt.datetime,
+) -> dict[str, str]:
+    """Resolve company keys for an authorised feed page in one identity batch."""
+    if not items:
+        return {}
+    by_signal_key = {item.signal.signal_key: item for item in items}
+    indexed = index_signal_company_identities(
+        connection,
+        signal_keys=tuple(by_signal_key),
+    )
+    company_key_by_fingerprint: dict[str, str] = {}
+    resolved_keys: dict[str, str] = {}
+    for signal_key, item in by_signal_key.items():
+        identity = indexed.get(signal_key)
+        if identity is None:
+            continue
+        known_key = company_key_by_fingerprint.get(identity.resolved.identity_fingerprint)
+        if known_key is None:
+            stored = get_or_create_company(
+                connection,
+                resolved=identity.resolved,
+                source_award_key=identity.source_award_key,
+                origin_signal_key=item.signal.signal_key,
+                now=now,
+            )
+            known_key = stored.company_key
+            company_key_by_fingerprint[identity.resolved.identity_fingerprint] = known_key
+        resolved_keys[signal_key] = known_key
+    return resolved_keys
 
 
 def _current_signal_query(

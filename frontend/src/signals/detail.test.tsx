@@ -192,6 +192,42 @@ describe('détail exact d’un signal réel', () => {
     expect(panel).not.toHaveTextContent(detailPresentation.content.headline)
   })
 
+  it('honore le deep-link seulement si son artefact est encore celui du feed', async () => {
+    const publicationA = presentationFixture('a'.repeat(64), 'Publication A épinglée')
+    mockApi({
+      ...detailRoutes({ ...UNLOCKED_DETAIL, presentation: publicationA }),
+      'GET /signals': { body: feedPage([{ ...UNLOCKED_ITEM, presentation: publicationA }]) },
+    })
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}?presentation_artifact_id=${publicationA.artifact_id}`,
+    })
+
+    expect(await screen.findByRole('heading', { name: publicationA.content.headline })).toBeVisible()
+    const detailCall = callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')[0]
+    expect(detailCall.search.get('presentation_artifact_id')).toBe(publicationA.artifact_id)
+  })
+
+  it('échoue fermé si le deep-link vise une publication remplacée dans le feed', async () => {
+    const publicationA = presentationFixture('a'.repeat(64), 'Publication A devenue obsolète')
+    const publicationB = presentationFixture('c'.repeat(64), 'Publication B interdite pour ce lien')
+    mockApi({
+      ...detailRoutes({ ...UNLOCKED_DETAIL, presentation: publicationB }),
+      'GET /signals': { body: feedPage([{ ...UNLOCKED_ITEM, presentation: publicationB }]) },
+    })
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}?presentation_artifact_id=${publicationA.artifact_id}`,
+    })
+
+    const panel = await detailPanel()
+    const detailCall = callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')[0]
+    expect(detailCall.search.get('presentation_artifact_id')).toBeNull()
+    expect(panel).not.toHaveTextContent(publicationA.content.headline)
+    expect(panel).not.toHaveTextContent(publicationB.content.headline)
+    expect(document.body).not.toHaveTextContent(publicationB.content.headline)
+  })
+
   it('n’adopte aucune publication du détail quand le feed n’en publie pas', async () => {
     const detailPresentation = presentationFixture('c'.repeat(64), 'Publication B interdite')
     mockApi({
