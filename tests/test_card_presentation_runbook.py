@@ -1342,35 +1342,78 @@ def test_locked_teaser_is_bound_to_one_exact_signal_and_forbids_any_detail_get()
         "`[data-signal-id=\"${api.lockedSignalId}\"]`",
         "await lockedBinding.count() === 1",
     )
-    duplicate_payload_check = subprocess.run(
-        ["node"],
-        input=(
-            "async function verifyPublishedApi"
-            + api_guard
-            + """
+    api_function = "async function verifyPublishedApi" + api_guard
+    uniqueness_guard = " || new Set(signalIds).size !== signalIds.length"
+    assert api_function.count(uniqueness_guard) == 1
+    mutant_api_function = api_function.replace(uniqueness_guard, "", 1)
+    duplicate_payload_harness = """
 const duplicateId = 'a'.repeat(64)
-global.fetch = async () => ({
-  status: 200,
-  json: async () => ({
-    read_at: '2026-08-31T00:00:00Z',
-    items: [
-      { signal_id: duplicateId, locked: false },
-      { signal_id: duplicateId, locked: true },
-    ],
-  }),
-})
+const artifactId = 'b'.repeat(64)
+const asOf = '2026-08-31T00:00:00Z'
+const artifact = {
+  artifact_id: artifactId,
+  version: 1,
+  status: 'FALLBACK',
+  content: {
+    headline: 'Factual published signal',
+    variant: 'FACTUAL_FALLBACK',
+    claims: [{ evidence_refs: ['source:1'] }],
+  },
+}
+const feedPath = `/signals?as_of=${encodeURIComponent(asOf)}&limit=50&offset=0`
+const detailPath =
+  `/signals/${duplicateId}?presentation_artifact_id=${artifactId}`
+const requests = []
+global.fetch = async (path, options) => {
+  requests.push(path)
+  if (options?.credentials !== 'same-origin') return { status: 401 }
+  if (path === feedPath) {
+    return {
+      status: 200,
+      json: async () => ({
+        read_at: asOf,
+        items: [
+          { signal_id: duplicateId, locked: false, presentation: artifact },
+          { signal_id: duplicateId, locked: true, headline: 'Locked signal' },
+        ],
+      }),
+    }
+  }
+  if (path === detailPath) {
+    return {
+      status: 200,
+      json: async () => ({ signal_id: duplicateId, presentation: artifact }),
+    }
+  }
+  return { status: 404 }
+}
 const page = { evaluate: async (fn, argument) => fn(argument) }
-verifyPublishedApi(page, '2026-08-31T00:00:00Z').then(
-  () => process.exit(1),
+verifyPublishedApi(page, asOf).then(
+  (result) => {
+    if (requests.length !== 2 ||
+        requests[0] !== feedPath || requests[1] !== detailPath ||
+        result.lockedSignalId !== duplicateId ||
+        result.pinnedSignalId !== duplicateId ||
+        result.pinnedArtifactId !== artifactId || result.pinnedVersion !== 1 ||
+        result.pinnedHeadline !== artifact.content.headline) process.exit(43)
+    process.exit(42)
+  },
   () => process.exit(0),
 )
 """
-        ),
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert duplicate_payload_check.returncode == 0, duplicate_payload_check.stderr
+    def run_duplicate_payload_check(api_source: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            ["node"],
+            input=api_source + duplicate_payload_harness,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    mutant_check = run_duplicate_payload_check(mutant_api_function)
+    assert mutant_check.returncode == 42, mutant_check.stderr
+    real_check = run_duplicate_payload_check(api_function)
+    assert real_check.returncode == 0, real_check.stderr
     for fragment in (
         "`[data-signal-id=\"${api.lockedSignalId}\"]`",
         "await lockedBinding.count() === 1",
