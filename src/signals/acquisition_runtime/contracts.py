@@ -314,6 +314,10 @@ class AcquisitionRuntimeConfig(_FrozenModel):
             self.qa_recipient is not None and self.qa_recipient_hmac_key is not None
         ):
             raise ValueError("staging runtime requires its QA recipient binding")
+        if self.environment == "PRODUCTION" and not self.deployment.is_production:
+            raise ValueError("production environment requires production deployment schema")
+        if self.environment == "STAGING" and self.deployment.is_production:
+            raise ValueError("staging environment forbids production deployment schema")
         return self
 
     def normalized_qa_recipient(self) -> str:
@@ -323,7 +327,7 @@ class AcquisitionRuntimeConfig(_FrozenModel):
             TypeAdapter(EmailStr).validate_python(
                 self.qa_recipient.get_secret_value()
             )
-        ).strip().casefold()
+        ).casefold()
 
 
 class RuntimeLeaseResult(_FrozenModel):
