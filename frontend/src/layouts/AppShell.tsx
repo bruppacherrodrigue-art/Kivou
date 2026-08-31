@@ -232,7 +232,9 @@ function ConnectedShell({
         </SidebarFooter>
       </Sidebar>
 
-      <SidebarInset className="dashboard-workspace">
+      <SidebarInset className={`dashboard-workspace${activeView === 'companies'
+        ? ' dashboard-workspace-contained'
+        : ''}`}>
         <header className="topbar">
           <div className="topbar-title">
             <SidebarTrigger
@@ -303,7 +305,7 @@ function connectedLocation(
     return { active: 'signals', title: t.reference.signals }
   }
   if (pathname.startsWith('/app/companies')) {
-    return { active: 'companies', title: t.reference.companies }
+    return { active: 'companies', title: t.companiesIndex.title }
   }
   if (pathname.startsWith('/app/icps')) {
     return { active: 'target', title: t.reference.targeting }

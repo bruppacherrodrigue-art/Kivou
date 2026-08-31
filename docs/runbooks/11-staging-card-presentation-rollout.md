@@ -1572,7 +1572,7 @@ Checklist obligatoire, captures desktop et mobile à l'appui :
 - **C002 Entreprises** : aucune rafale navigateur vers `/signals/:id`,
   master-detail et scroll indépendant desktop, sélection et rechargement du
   deep-link, `Back`, `Forward`, restauration du focus, navigation mobile puis
-  `Retour aux entreprises`, faits du profil et lien canonique Signaux;
+  `Retour aux attributions`, faits du profil et lien canonique Signaux;
 - **C003 Signaux** : feed/détail sur le même artifact ID et la même version,
   sélection courante, deep-link/rechargement, `Back`, `Forward`, scroll
   indépendant, focus, `Retour aux signaux`, note chargée sans mutation et lien
@@ -1594,11 +1594,11 @@ manipulées séparément; sur mobile, une seule pane est visible à chaque état
 L'absence, la duplication ou l'ambiguïté de ces attributs impose STOP et doit
 être corrigée dans la PR UI concernée.
 
-Le contrôle interactif racine de chaque teaser verrouillé porte exactement une
-fois `data-signal-id="<signal_id>"`. Cet identifiant provient déjà du payload
-autorisé; il sert uniquement à lier sans collision le DOM au signal verrouillé
-exact. Le contrôle ne porte ni présentation ni identité entreprise et son clic
-ne doit déclencher aucun GET détail/note Signaux.
+Le feed contrôlé expose exactement un contrôle interactif verrouillé identifié
+par `.signal-item.is-locked`. Son texte doit correspondre exactement au headline
+borné du payload, sans recopier le signal ID dans le DOM. Le contrôle ne porte
+ni présentation ni identité entreprise et son clic ne doit déclencher aucun GET
+détail/note Signaux.
 
 Exécuter ce smoke local depuis le checkout du SHA final. Il utilise les rôles,
 noms accessibles et URLs normatifs des plans C001–C003; l'absence d'un de ces
@@ -1934,7 +1934,7 @@ async function smokeDashboard(page, origin, evidencePath) {
     name: /Attributions récentes pertinentes|Relevant recent awards/i,
   }).waitFor()
   const links = page.locator(
-    'a[href^="/app/signals/"][href*="presentation="]',
+    'a[href^="/app/signals/"][href*="presentation_artifact_id="]',
   )
   const count = await links.count()
   requireTrue(count >= 1 && count <= 6)
@@ -1942,7 +1942,9 @@ async function smokeDashboard(page, origin, evidencePath) {
     const href = await links.nth(index).getAttribute('href')
     requireTrue(Boolean(href))
     const url = new URL(href, origin)
-    requireTrue(/^[0-9a-f]{64}$/.test(url.searchParams.get('presentation') || ''))
+    requireTrue(/^[0-9a-f]{64}$/.test(
+      url.searchParams.get('presentation_artifact_id') || '',
+    ))
   }
   await page.screenshot({ path: evidencePath, fullPage: true })
 }
@@ -1956,7 +1958,7 @@ async function smokeCompanies(page, origin, viewport, evidencePath, requests) {
   requireTrue(!requests.slice(requestStart).some(({ method, path }) => (
     method === 'GET' && /^\/signals\/[^?]+(?:\?|$)/.test(path)
   )))
-  const award = page.getByRole('button', { name: /attribution|award/i }).first()
+  const award = page.getByRole('link', { name: /attribution|award/i }).first()
   await award.waitFor()
   await award.focus()
   let companyListScroll = await setScrollContract(page, viewport, 'list', 'companies-initial-list')
@@ -2003,9 +2005,9 @@ async function smokeCompanies(page, origin, viewport, evidencePath, requests) {
   await page.screenshot({ path: evidencePath, fullPage: true })
   if (viewport.name === 'mobile') {
     const back = page.getByRole('button', {
-      name: /Retour aux entreprises|Back to companies/i,
+      name: /Retour aux attributions|Back to awards/i,
     }).or(page.getByRole('link', {
-      name: /Retour aux entreprises|Back to companies/i,
+      name: /Retour aux attributions|Back to awards/i,
     })).first()
     await back.click()
     await page.waitForURL(/\/app\/companies$/)
@@ -2022,11 +2024,9 @@ async function smokeSignals(
 ) {
   await page.goto(`${origin}/app/signals`, { waitUntil: 'networkidle' })
   await page.getByRole('heading', {
-    name: /Signaux commerciaux|Commercial signals/i,
+    name: /Signaux détectés|Detected signals/i,
   }).waitFor()
-  const lockedBinding = page.locator(
-    `[data-signal-id="${api.lockedSignalId}"]`,
-  )
+  const lockedBinding = page.locator('.signal-list .signal-item.is-locked')
   requireTrue(await lockedBinding.count() === 1)
   const lockedControl = lockedBinding
   requireTrue(await lockedControl.evaluate((element) => (
@@ -2054,10 +2054,9 @@ async function smokeSignals(
   await page.waitForURL(/\/app\/signals$/)
   await lockedControl.waitFor()
   await expectLocatorFocused(lockedControl)
-  const expectedSelectionHref =
-    `/app/signals/${encodeURIComponent(api.pinnedSignalId)}` +
-    `?presentation=${encodeURIComponent(api.pinnedArtifactId)}`
-  const selection = page.locator(`a[href="${expectedSelectionHref}"]`)
+  const selection = page.locator(
+    '.signal-list .signal-item:not(.is-locked)',
+  ).filter({ hasText: api.pinnedHeadline })
   requireTrue(await selection.count() === 1)
   await selection.waitFor()
   await selection.focus()
@@ -2078,16 +2077,18 @@ async function smokeSignals(
   await selection.evaluate((element) => element.click())
   await page.waitForURL((url) => (
     url.pathname === `/app/signals/${encodeURIComponent(api.pinnedSignalId)}` &&
-    url.searchParams.get('presentation') === api.pinnedArtifactId &&
+    url.searchParams.get('presentation_artifact_id') === api.pinnedArtifactId &&
     Array.from(url.searchParams).length === 1
   ))
   const selectedUrl = page.url()
   const selected = new URL(selectedUrl)
-  const artifactId = selected.searchParams.get('presentation')
+  const artifactId = selected.searchParams.get('presentation_artifact_id')
   requireTrue(Boolean(artifactId && /^[0-9a-f]{64}$/.test(artifactId)))
   requireTrue(selected.pathname ===
     `/app/signals/${encodeURIComponent(api.pinnedSignalId)}`)
-  requireTrue(selected.searchParams.get('presentation') === api.pinnedArtifactId)
+  requireTrue(
+    selected.searchParams.get('presentation_artifact_id') === api.pinnedArtifactId,
+  )
   requireTrue(Array.from(selected.searchParams).length === 1)
   requireTrue(Number.isInteger(api.pinnedVersion) && api.pinnedVersion >= 1)
   await expectFocusedHeading(page)
@@ -2517,7 +2518,7 @@ async function run() {
     const historicalUrl = new URL(
       `/app/signals/${encodeURIComponent(historicalSignalId)}`, origin,
     )
-    historicalUrl.searchParams.set('presentation', historicalArtifactId)
+    historicalUrl.searchParams.set('presentation_artifact_id', historicalArtifactId)
     const expectedHistoricalDetailPath =
       `/signals/${encodeURIComponent(historicalSignalId)}` +
       `?presentation_artifact_id=${encodeURIComponent(historicalArtifactId)}`
@@ -2533,7 +2534,7 @@ async function run() {
     await page.goto(historicalUrl.toString(), { waitUntil: 'networkidle' })
     await page.waitForURL((url) => (
       url.pathname === `/app/signals/${encodeURIComponent(historicalSignalId)}` &&
-      url.searchParams.get('presentation') === historicalArtifactId &&
+      url.searchParams.get('presentation_artifact_id') === historicalArtifactId &&
       Array.from(url.searchParams).length === 1
     ))
     const [historicalDetailResponse, historicalNoteResponse] = await Promise.all([

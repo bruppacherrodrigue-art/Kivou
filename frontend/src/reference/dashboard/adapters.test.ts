@@ -25,6 +25,8 @@ import {
   publishedPresentation,
   toBillingAccessView,
   toCompanySummary,
+  toOverviewAwardCard,
+  toOverviewAwardCards,
   toSignalCard,
   toSignalCards,
   toSignalDetailView,
@@ -406,6 +408,96 @@ const STRICT_PRESENTATION_MUTANTS = [
 ] satisfies readonly PresentationMutant[]
 
 describe('adaptateurs de présentation du dashboard de référence', () => {
+  it('projette le Dashboard depuis le même artefact FALLBACK publié sans titre brut', () => {
+    const item: UnlockedFeedItem = {
+      ...UNLOCKED_ITEM,
+      presentation: VALID_FALLBACK,
+      contract: {
+        ...UNLOCKED_ITEM.contract,
+        title: 'TITRE ADMINISTRATIF INTERDIT',
+        buyer: { name: 'Commune acheteuse', country: 'FR', identifier: null },
+      },
+    }
+
+    expect(toOverviewAwardCard(item)).toEqual(expect.objectContaining({
+      id: item.signal_id,
+      locked: false,
+      presentationArtifactId: VALID_FALLBACK.artifact_id,
+      companyName: item.company.name,
+      buyerName: 'Commune acheteuse',
+      headline: VALID_FALLBACK.content.headline,
+      awardSummary: VALID_FALLBACK.content.award_summary,
+      commercialImportance: null,
+      fitReason: null,
+      timing: null,
+      recommendedAction: null,
+      presentationVariant: 'FACTUAL_FALLBACK',
+      eventDate: item.event.date,
+      eventDateKind: 'award',
+    }))
+    expect(JSON.stringify(toOverviewAwardCard(item))).not.toContain(item.contract.title)
+  })
+
+  it('expose les conclusions commerciales uniquement depuis un artefact PASS/FULL valide', () => {
+    const card = toOverviewAwardCard({ ...UNLOCKED_ITEM, presentation: VALID_FULL })
+
+    expect(card).toEqual(expect.objectContaining({
+      presentationArtifactId: VALID_FULL.artifact_id,
+      headline: VALID_FULL.content.headline,
+      awardSummary: VALID_FULL.content.award_summary,
+      commercialImportance: VALID_FULL.content.commercial_importance,
+      fitReason: VALID_FULL.content.fit_reason,
+      timing: VALID_FULL.content.timing,
+      recommendedAction: VALID_FULL.content.recommended_action,
+      presentationVariant: 'FULL',
+    }))
+  })
+
+  it('échoue fermé sur une présentation absente ou malformée sans perdre les faits structurés', () => {
+    const malformed = mutatePresentation(VALID_FALLBACK, (value) => {
+      value.content.claims[0].evidence_refs = []
+    })
+
+    for (const presentation of [null, malformed]) {
+      const card = toOverviewAwardCard({
+        ...UNLOCKED_ITEM,
+        presentation: presentation as CardPresentation | null,
+        contract: { ...UNLOCKED_ITEM.contract, title: 'TITRE BRUT À NE PAS RECONSTRUIRE' },
+      })
+      expect(card).toEqual(expect.objectContaining({
+        presentationArtifactId: null,
+        headline: null,
+        awardSummary: null,
+        commercialImportance: null,
+        fitReason: null,
+        amount: UNLOCKED_ITEM.contract.amount,
+        eventDate: UNLOCKED_ITEM.event.date,
+      }))
+      expect(JSON.stringify(card)).not.toContain('TITRE BRUT À NE PAS RECONSTRUIRE')
+    }
+  })
+
+  it('ignore toute présentation injectée dans un teaser verrouillé', () => {
+    const leakingLocked = { ...LOCKED_ITEM, presentation: VALID_FULL } as unknown as FeedPage['items'][number]
+    const card = toOverviewAwardCard(leakingLocked)
+
+    expect(card.locked).toBe(true)
+    expect(card.presentationArtifactId).toBeNull()
+    expect(card.headline).toBeNull()
+    expect(card.awardSummary).toBeNull()
+    expect(JSON.stringify(card)).not.toContain(VALID_FULL.content.headline)
+  })
+
+  it('conserve strictement l’ordre du feed dans la projection Overview', () => {
+    const first = { ...UNLOCKED_ITEM, presentation: VALID_FALLBACK }
+    const second = { ...LOCKED_ITEM, signal_id: 'sig_locked_second' }
+
+    expect(toOverviewAwardCards(feedPage([first, second]) as FeedPage).map((card) => card.id)).toEqual([
+      first.signal_id,
+      second.signal_id,
+    ])
+  })
+
   it.each([
     ['FALLBACK/FACTUAL_FALLBACK', VALID_FALLBACK],
     ['PASS/FULL', VALID_FULL],
@@ -869,6 +961,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       },
       facts: {
         amount: detail.contract.amount,
+        location: detail.contract.location,
         awardDate: detail.contract.dates.award,
         execution: null,
         buyer: detail.contract.buyer?.name ?? null,

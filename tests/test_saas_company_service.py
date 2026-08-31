@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 import datetime as dt
+import os
+import threading
+import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import pytest
 import sqlalchemy as sa
@@ -20,10 +25,15 @@ from signals.billing import discovery
 from signals.billing.access import feed_access
 from signals.billing.schema import billing_subscription
 from signals.companies import service as company_service
+from signals.companies import store as company_store
+from signals.companies.contracts import CompanyOfficialIdentity
+from signals.companies.identity import IdentityMethod, ResolvedOfficialCompany
+from signals.companies.indexing import index_signal_company_identity
 from signals.companies.service import (
     company_profile_for_account,
     ensure_company_for_unlocked_signal,
 )
+from signals.companies.store import CompanyCandidate, get_or_create_companies
 from signals.feed import query
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import materialized_signal
@@ -37,6 +47,40 @@ def engine(tmp_path):
     value = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'service.db'}")
     migrate_to_latest(value)
     return value
+
+
+@contextmanager
+def _isolated_postgres_engine() -> Iterator[sa.Engine]:
+    dsn = os.environ.get("KIVOU_TEST_POSTGRES_DSN")
+    if not dsn:
+        pytest.skip(
+            "KIVOU_TEST_POSTGRES_DSN is required for PostgreSQL interleaving tests"
+        )
+
+    schema = f"company_batch_{uuid.uuid4().hex}"
+    admin_engine = create_database_engine(dsn, pool_pre_ping=True)
+    postgres_engine: sa.Engine | None = None
+    try:
+        with admin_engine.begin() as connection:
+            connection.execute(sa.schema.CreateSchema(schema))
+        postgres_engine = create_database_engine(
+            dsn,
+            pool_pre_ping=True,
+            connect_args={
+                "options": (
+                    f"-c search_path={schema} "
+                    "-c statement_timeout=10000 -c lock_timeout=8000"
+                )
+            },
+        )
+        migrate_to_latest(postgres_engine)
+        yield postgres_engine
+    finally:
+        if postgres_engine is not None:
+            postgres_engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(sa.schema.DropSchema(schema, cascade=True, if_exists=True))
+        admin_engine.dispose()
 
 
 def _paid_account(connection, *, email: str):
@@ -103,6 +147,181 @@ def _identity_variant(
     party = template_party.model_copy(update={"members": (member,)})
     award = awards[0].model_copy(update={"awardee_parties": (party,)})
     return materialize(connection, event, award, target_icp_id=target_icp_id)
+
+
+def test_feed_company_resolution_uses_one_store_batch(engine, monkeypatch) -> None:
+    with engine.begin() as connection:
+        account_id, icp_id = _paid_account(connection, email="batch-service@kivou.test")
+        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
+        item = _item(
+            connection,
+            account_id=account_id,
+            signal_key=signal.signal_key,
+            icp_id=icp_id,
+        )
+
+        def forbid_single_store_call(*args, **kwargs):
+            raise AssertionError("feed company resolution must use the batch store")
+
+        monkeypatch.setattr(
+            company_service,
+            "get_or_create_company",
+            forbid_single_store_call,
+        )
+        resolved = company_service.ensure_companies_for_unlocked_signals(
+            connection,
+            items=(item,),
+            now=NOW,
+        )
+
+    assert resolved[signal.signal_key].startswith("cmp_")
+
+
+def test_company_store_batch_has_constant_statement_count(engine, monkeypatch) -> None:
+    statements: list[str] = []
+    candidate_order: list[str] = []
+
+    def record_statement(connection, cursor, statement, parameters, context, executemany):
+        if "saas_company" in statement:
+            statements.append(statement)
+
+    original_candidate_values = company_store._candidate_values
+
+    def record_candidate_values(candidate, *, now):
+        candidate_order.append(candidate.resolved.identity_fingerprint)
+        return original_candidate_values(candidate, now=now)
+
+    monkeypatch.setattr(company_store, "_candidate_values", record_candidate_values)
+
+    with engine.begin() as connection:
+        _, icp_id = _paid_account(connection, email="batch-store@kivou.test")
+        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
+        indexed = index_signal_company_identity(
+            connection,
+            signal_key=signal.signal_key,
+        )
+        assert indexed is not None
+        candidates = tuple(
+            CompanyCandidate(
+                resolved=ResolvedOfficialCompany(
+                    official=CompanyOfficialIdentity(
+                        name=f"Entreprise batch {index}",
+                        country="CH",
+                        observed_at=NOW,
+                    ),
+                    identity_fingerprint=f"{index + 1:064x}",
+                    identity_method=IdentityMethod.OPPORTUNITY,
+                    validation_evidence={"opportunity_key": f"opp_batch_{index}"},
+                ),
+                source_award_key=indexed.source_award_key,
+                origin_signal_key=signal.signal_key,
+            )
+            for index in reversed(range(5))
+        )
+        sa.event.listen(connection, "before_cursor_execute", record_statement)
+        first = get_or_create_companies(connection, candidates=candidates, now=NOW)
+        assert len(first) == len(candidates)
+        assert len(statements) == 2
+        assert candidate_order == sorted(candidate_order)
+
+        statements.clear()
+        candidate_order.clear()
+        second = get_or_create_companies(connection, candidates=candidates, now=NOW)
+        assert second.keys() == first.keys()
+        assert len(statements) == 2
+        assert candidate_order == sorted(candidate_order)
+
+
+def test_postgresql_opposed_company_batches_do_not_deadlock() -> None:
+    with _isolated_postgres_engine() as postgres_engine:
+        with postgres_engine.begin() as connection:
+            _, icp_id = _paid_account(connection, email="batch-postgres@kivou.test")
+            signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
+            indexed = index_signal_company_identity(
+                connection,
+                signal_key=signal.signal_key,
+            )
+            assert indexed is not None
+            connection.execute(
+                sa.text(
+                    """
+                    CREATE FUNCTION slow_company_batch_insert() RETURNS trigger AS $$
+                    BEGIN
+                        PERFORM pg_sleep(0.5);
+                        RETURN NEW;
+                    END;
+                    $$ LANGUAGE plpgsql
+                    """
+                )
+            )
+            connection.execute(
+                sa.text(
+                    """
+                    CREATE TRIGGER slow_company_batch_insert
+                    AFTER INSERT ON saas_company
+                    FOR EACH ROW EXECUTE FUNCTION slow_company_batch_insert()
+                    """
+                )
+            )
+
+        def candidate(fingerprint: str) -> CompanyCandidate:
+            return CompanyCandidate(
+                resolved=ResolvedOfficialCompany(
+                    official=CompanyOfficialIdentity(
+                        name=f"Entreprise concurrente {fingerprint[-1]}",
+                        country="CH",
+                        observed_at=NOW,
+                    ),
+                    identity_fingerprint=fingerprint,
+                    identity_method=IdentityMethod.OPPORTUNITY,
+                    validation_evidence={"opportunity_key": f"opp_{fingerprint[-1]}"},
+                ),
+                source_award_key=indexed.source_award_key,
+                origin_signal_key=signal.signal_key,
+            )
+
+        low = candidate("1" * 64)
+        high = candidate("2" * 64)
+        start = threading.Barrier(3)
+        results: list[dict[str, object]] = []
+        errors: list[BaseException] = []
+
+        def run(candidates: tuple[CompanyCandidate, ...]) -> None:
+            try:
+                with postgres_engine.begin() as connection:
+                    start.wait(timeout=3)
+                    results.append(
+                        get_or_create_companies(
+                            connection,
+                            candidates=candidates,
+                            now=NOW,
+                        )
+                    )
+            except BaseException as error:  # noqa: BLE001 - asserted from the thread
+                errors.append(error)
+
+        first = threading.Thread(target=run, args=((low, high),), daemon=True)
+        second = threading.Thread(target=run, args=((high, low),), daemon=True)
+        try:
+            first.start()
+            second.start()
+            start.wait(timeout=3)
+            first.join(timeout=15)
+            second.join(timeout=15)
+
+            assert not first.is_alive()
+            assert not second.is_alive()
+            assert errors == []
+            assert len(results) == 2
+            assert all(set(result) == {"1" * 64, "2" * 64} for result in results)
+            with postgres_engine.connect() as connection:
+                count = connection.scalar(
+                    sa.select(sa.func.count()).select_from(company_store.saas_company)
+                )
+            assert count == 2
+        finally:
+            first.join(timeout=1)
+            second.join(timeout=1)
 
 
 def test_current_unlocked_signal_authorizes_official_profile(engine) -> None:

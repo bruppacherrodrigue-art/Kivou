@@ -52,7 +52,10 @@ from signals.card_intelligence.store import (
     published_artifact_for_signal,
     published_for_signals,
 )
-from signals.companies.service import ensure_company_for_unlocked_signal
+from signals.companies.service import (
+    ensure_companies_for_unlocked_signals,
+    ensure_company_for_unlocked_signal,
+)
 from signals.engagement import analytics, feedback
 from signals.feed import policy, query, view
 from signals.persistence.schema import materialized_signal
@@ -189,6 +192,11 @@ def list_signals(
             bindings=presentation_bindings,
             language=lang,
         )
+        company_keys = ensure_companies_for_unlocked_signals(
+            connection,
+            items=unlocked_items,
+            now=now,
+        )
 
         # §34 — UNE consultation par appel de feed, jamais une par carte : une
         # ligne par signal affiché noierait la table et ne dirait rien de plus.
@@ -214,6 +222,7 @@ def list_signals(
                 access,
                 lang=lang,
                 presentation=presentations.get(item.signal.signal_key),
+                company_key=company_keys.get(item.signal.signal_key),
             )
             for item in page.items
         ],
@@ -246,11 +255,14 @@ def _render(
     *,
     lang: str,
     presentation: PublishedCardPresentation | None,
+    company_key: str | None,
 ) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
         card = view.feed_item(item, lang=lang, presentation=presentation)
         card["locked"] = False
+        if company_key is not None:
+            card["company_key"] = company_key
         return card
     return paywall.locked_teaser(item, lang=lang)
 

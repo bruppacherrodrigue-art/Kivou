@@ -6,11 +6,19 @@ import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
 import type { BillingAction, BillingStatus, TargetIcp } from '../api/types'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { interpolate, plural, useI18n } from '../i18n'
-import { toSignalCards } from '../reference/dashboard/adapters'
-import type { SignalCardView } from '../reference/dashboard/models'
+import { toOverviewAwardCards } from '../reference/dashboard/adapters'
+import type { OverviewAwardCardView } from '../reference/dashboard/models'
 import { useResource } from '../reference/dashboard/resources'
 import { Button } from '../reference/dashboard/ui/button'
 import { ReferenceLink } from '../reference/router/ReferenceLink'
+
+function signalHref(card: OverviewAwardCardView): string {
+  const query = new URLSearchParams({ signal: card.id })
+  if (card.presentationArtifactId) {
+    query.set('presentation_artifact_id', card.presentationArtifactId)
+  }
+  return `/signals?${query.toString()}`
+}
 
 export function Dashboard() {
   const me = useCurrentUser()
@@ -30,9 +38,11 @@ function ReadyDashboard() {
   const feed = useResource(loadFeed)
   const profiles = useResource(loadProfiles)
   const access = useResource(loadBilling)
-  const cards = feed.data ? toSignalCards(feed.data) : []
+  const cards = feed.data ? toOverviewAwardCards(feed.data) : []
   const priority = cards.find((card) => !card.locked) ?? null
-  const additional = priority ? cards.filter((card) => card.id !== priority.id) : cards
+  const additional = (
+    priority ? cards.filter((card) => card.id !== priority.id) : cards
+  ).slice(0, priority ? 5 : 6)
   const activeProfile = profiles.data?.find((profile) => profile.status === 'active') ?? null
   const documentedCount = feed.data?.total_returned ?? null
   const countCopy = feed.error && !feed.data
@@ -48,11 +58,11 @@ function ReadyDashboard() {
         { count: `${documentedCount}${feed.data?.page.has_more ? '+' : ''}` },
       )
 
-  const displayAmount = (card: SignalCardView) =>
+  const displayAmount = (card: OverviewAwardCardView) =>
     card.amount
       ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
       : t.reference.missingValue
-  const displayLocation = (card: SignalCardView) => {
+  const displayLocation = (card: OverviewAwardCardView) => {
     if (!card.location) return t.reference.missingValue
     const territory = MVP_TERRITORIES.find(
       (candidate) => candidate.code === card.location?.country,
@@ -66,6 +76,11 @@ function ReadyDashboard() {
   }
   const displayDate = (value: string | null) =>
     date(value) ?? t.reference.missingValue
+  const displayDateLabel = (card: OverviewAwardCardView) => {
+    if (card.eventDateKind === 'notification') return t.reference.fields.signalDateNotification
+    if (card.eventDateKind === 'publication') return t.reference.fields.signalDatePublication
+    return t.reference.fields.signalDateAward
+  }
   const additionalCountCopy = feed.loading && !feed.data
     ? t.reference.loading
     : feed.error && !feed.data
@@ -104,6 +119,7 @@ function ReadyDashboard() {
           billingError={access.error}
           onRetryFeed={() => void feed.retry()}
           onRetryBilling={() => void access.retry()}
+          displayAmount={displayAmount}
           displayLocation={displayLocation}
           displayDate={displayDate}
         />
@@ -131,9 +147,9 @@ function ReadyDashboard() {
         <div className="overview-card-heading">
           <div>
             <p className="card-kicker">{t.reference.headings.otherDocumentedAwards}</p>
-            <h3 id="other-awards-title">{additionalCountCopy}</h3>
+            <h3 id="other-awards-title">{t.reference.overviewPage.recentRelevantAwards}</h3>
           </div>
-          <span className="signal-count">{t.reference.overviewPage.publicSources}</span>
+          <span className="signal-count">{additionalCountCopy}</span>
         </div>
 
         <div className="recent-list">
@@ -141,21 +157,37 @@ function ReadyDashboard() {
               <ReferenceLink
                 dashboard
                 className="recent-signal"
-                href={`/signals?signal=${encodeURIComponent(card.id)}`}
+                href={signalHref(card)}
                 key={card.id}
               >
                 <span className="recent-company">
                   <strong>{card.companyName ?? t.reference.missingValue}</strong>
-                  <span>{card.eventTitle ?? t.reference.missingValue}</span>
+                  {!card.locked ? <span>{t.reference.fields.signalAwardee}</span> : null}
+                  <span className="recent-award-summary">
+                    {card.locked
+                      ? card.teaserHeadline ?? t.reference.missingValue
+                      : card.awardSummary ?? t.reference.overviewPage.summaryUnavailable}
+                  </span>
                 </span>
                 <span className="recent-value">
                   <strong>{displayAmount(card)}</strong>
-                  <span>{displayDate(card.awardDate)} · {displayLocation(card)}</span>
+                  <span>{displayDateLabel(card)} : {displayDate(card.eventDate)}</span>
+                  {!card.locked ? (
+                    <span>
+                      {t.reference.fields.signalBuyer} : {card.buyerName ?? t.reference.overviewPage.buyerUnavailable}
+                    </span>
+                  ) : null}
+                  <span>{displayLocation(card)}</span>
                 </span>
-                <span className="recent-match">
-                  {card.locked
-                    ? t.reference.overviewPage.paidAccessRequired
-                    : card.matchLabel ?? t.reference.missingValue}
+                {card.locked ? (
+                  <span className="recent-match">{t.reference.overviewPage.paidAccessRequired}</span>
+                ) : card.fitReason ? (
+                  <span className="recent-match">
+                    {t.reference.overviewPage.match}: {card.fitReason}
+                  </span>
+                ) : null}
+                <span className="recent-award-action">
+                  {t.reference.overviewPage.viewAward} <ArrowRight aria-hidden="true" />
                 </span>
               </ReferenceLink>
           ))}
@@ -178,10 +210,11 @@ function PriorityCard({
   billingError,
   onRetryFeed,
   onRetryBilling,
+  displayAmount,
   displayLocation,
   displayDate,
 }: {
-  card: SignalCardView | null
+  card: OverviewAwardCardView | null
   feedLoading: boolean
   feedError: unknown | null
   billing: BillingStatus | null
@@ -189,7 +222,8 @@ function PriorityCard({
   billingError: unknown | null
   onRetryFeed: () => void
   onRetryBilling: () => void
-  displayLocation: (card: SignalCardView) => string
+  displayAmount: (card: OverviewAwardCardView) => string
+  displayLocation: (card: OverviewAwardCardView) => string
   displayDate: (value: string | null) => string
 }) {
   const { t } = useI18n()
@@ -260,16 +294,23 @@ function PriorityCard({
     )
   }
 
-  const reasons = card.matchReasons.length > 0
-    ? card.matchReasons
-    : [t.reference.missingValue]
+  const insights = [card.commercialImportance, card.fitReason, card.timing]
+    .filter((value): value is string => Boolean(value))
+  const eventDateLabel = card.eventDateKind === 'notification'
+    ? t.reference.fields.signalDateNotification
+    : card.eventDateKind === 'publication'
+      ? t.reference.fields.signalDatePublication
+      : t.reference.fields.signalDateAward
 
   return (
     <article className="priority-card" aria-labelledby="priority-title">
       <div className="priority-heading">
         <div>
           <p className="card-kicker">{t.reference.overviewPage.reviewFirst}</p>
-          <h3 id="priority-title">{card.eventTitle ?? t.reference.missingValue}</h3>
+          <h3 id="priority-title">
+            {card.headline ?? t.reference.overviewPage.analysisUnavailable}
+          </h3>
+          <p>{t.reference.fields.signalAwardee} : {card.companyName ?? t.reference.missingValue}</p>
         </div>
         <span className="published-status">
           <FileCheck2 aria-hidden="true" />{' '}
@@ -279,7 +320,9 @@ function PriorityCard({
         </span>
       </div>
 
-      <p className="priority-summary">{card.whyNow}</p>
+      <p className="priority-summary">
+        {card.awardSummary ?? t.reference.overviewPage.summaryUnavailable}
+      </p>
 
       {billingError ? (
         <ResourceError
@@ -292,21 +335,30 @@ function PriorityCard({
       ) : null}
 
       <dl className="priority-facts">
-        <div><dt>{t.reference.fields.award}</dt><dd>{displayDate(card.awardDate)}</dd></div>
-        <div><dt>{t.reference.fields.plannedStart}</dt><dd>{t.reference.missingValue}</dd></div>
+        <div><dt>{t.reference.fields.amount}</dt><dd>{displayAmount(card)}</dd></div>
+        <div><dt>{eventDateLabel}</dt><dd>{displayDate(card.eventDate)}</dd></div>
+        <div><dt>{t.reference.fields.signalBuyer}</dt><dd>{card.buyerName ?? t.reference.overviewPage.buyerUnavailable}</dd></div>
         <div><dt>{t.reference.fields.location}</dt><dd>{displayLocation(card)}</dd></div>
       </dl>
 
       <div className="priority-why">
         <p className="card-kicker">{t.reference.overviewPage.whyFirst}</p>
-        <div>{reasons.map((reason) => <span key={reason}>{reason}</span>)}</div>
+        {insights.length > 0 ? (
+          <div>{insights.map((insight) => <span key={insight}>{insight}</span>)}</div>
+        ) : (
+          <p className="priority-analysis-unavailable">
+            {card.presentationVariant === 'FACTUAL_FALLBACK'
+              ? t.reference.overviewPage.factualSummaryBody
+              : t.reference.overviewPage.analysisUnavailableBody}
+          </p>
+        )}
       </div>
 
       <div className="priority-footer">
         <p>{t.reference.overviewPage.honestyLimit}</p>
         <Button asChild className="primary-action priority-action">
-          <ReferenceLink dashboard href={`/signals?signal=${encodeURIComponent(card.id)}`}>
-            {t.reference.overviewPage.reviewSignal} <ArrowRight aria-hidden="true" />
+          <ReferenceLink dashboard href={signalHref(card)}>
+            {t.reference.overviewPage.viewAward} <ArrowRight aria-hidden="true" />
           </ReferenceLink>
         </Button>
       </div>

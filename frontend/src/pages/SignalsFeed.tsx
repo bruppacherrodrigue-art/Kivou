@@ -9,7 +9,7 @@ import type {
   BillingStatus,
   SignalDetail as SignalDetailPayload,
 } from '../api/types'
-import { useI18n } from '../i18n'
+import { interpolate, useI18n } from '../i18n'
 import {
   publishedPresentation,
   toSignalCard,
@@ -21,6 +21,7 @@ import { useIsMobile } from '../reference/dashboard/use-mobile'
 import type { SignalCardView } from '../reference/dashboard/models'
 
 const PAGE_SIZE = 20
+const PRESENTATION_ARTIFACT_ID = /^[0-9a-f]{64}$/
 
 export interface ActivationNavigationState {
   activationCompleted?: boolean
@@ -64,6 +65,14 @@ export function SignalsFeed() {
   const navigationType = useNavigationType()
   const isMobile = useIsMobile()
   const { signalKey } = useParams()
+  const requestedArtifactId = new URLSearchParams(location.search).get(
+    'presentation_artifact_id',
+  )
+  const routePresentationPin = requestedArtifactId === null
+    ? undefined
+    : PRESENTATION_ARTIFACT_ID.test(requestedArtifactId)
+      ? requestedArtifactId
+      : null
   const mounted = useRef(false)
   const feedGeneration = useRef(0)
   const appliedFeedGeneration = useRef(0)
@@ -75,7 +84,7 @@ export function SignalsFeed() {
   const lastSelection = useRef<string | null>(null)
   const previousLocationKey = useRef(location.key)
   const initialFocusRestored = useRef(false)
-  const pendingDetailFocus = useRef<string | null>(null)
+  const pendingDetailFocus = useRef<string | null>(signalKey ?? null)
   const navigateRef = useRef(navigate)
   navigateRef.current = navigate
 
@@ -335,7 +344,12 @@ export function SignalsFeed() {
 
     const generation = ++detailGeneration.current
     const feedPresentation = publishedPresentation(selectedItem.presentation)
-    const presentationArtifactId = feedPresentation?.artifact_id ?? null
+    const feedArtifactId = feedPresentation?.artifact_id ?? null
+    const presentationArtifactId = routePresentationPin === undefined
+      ? feedArtifactId
+      : routePresentationPin === feedArtifactId
+        ? feedArtifactId
+        : null
     setDetail({ key: selectedKey, data: null, loading: true, error: null })
     signals.detail(selectedKey, { presentation_artifact_id: presentationArtifactId }).then(
       (data) => {
@@ -373,6 +387,7 @@ export function SignalsFeed() {
     feed.loading,
     selectedItem,
     selectedKey,
+    routePresentationPin,
     selectionLookupError,
     selectionResolving,
   ])
@@ -406,7 +421,17 @@ export function SignalsFeed() {
     return () => window.cancelAnimationFrame(frame)
   }, [items, location.state, navigationType])
 
-  const cards = items.map(toSignalCard)
+  const cards = items.map((item) => {
+    if (
+      item.signal_id === selectedKey
+      && !item.locked
+      && routePresentationPin !== undefined
+      && publishedPresentation(item.presentation)?.artifact_id !== routePresentationPin
+    ) {
+      return toSignalCard({ ...item, presentation: null })
+    }
+    return toSignalCard(item)
+  })
   const visibleDetail = detail.key === selectedKey
     ? detail
     : { key: selectedKey, data: null, loading: Boolean(selectedKey), error: null }
@@ -470,11 +495,15 @@ export function SignalsFeed() {
 
   return (
     <div className="workspace-grid">
-      <aside className="feed-panel" aria-labelledby="signals-list-title">
+      <aside
+        className="feed-panel"
+        data-master-detail-pane="list"
+        aria-labelledby="signals-list-title"
+      >
         <div className="panel-heading">
           <div>
-            <p className="section-label">{t.reference.headings.awardedContracts}</p>
-            <h2 id="signals-list-title">{t.reference.signalsPage.documentedAwards}</h2>
+            <p className="section-label">{t.reference.signalsPage.sourceType}</p>
+            <h2 id="signals-list-title">{t.reference.signalsPage.detectedSignals}</h2>
           </div>
           <span className="signal-count">{signalCount}</span>
         </div>
@@ -504,11 +533,21 @@ export function SignalsFeed() {
                 && note.state !== 'loading'
                 && note.state !== 'read-error'
               const hasSelectedNote = selectedNoteIsKnown && note.value.trim().length > 0
+              const presentationMode = card.presentation?.status === 'PASS'
+                ? 'full'
+                : card.presentation?.status === 'FALLBACK'
+                  ? 'factualFallback'
+                  : 'unavailable'
               const badge = card.locked
                 ? t.reference.signalsPage.paidAccessRequired
-                : hasSelectedNote
-                  ? t.reference.statuses.noteAdded
-                  : t.reference.statuses.documentedSignal
+                : t.reference.signalsPage.presentationStatus[presentationMode]
+              const badgeClass = card.locked
+                ? 'access-unavailable'
+                : `presentation-${presentationMode}`
+              const cardTitle = card.locked
+                ? card.eventTitle
+                : card.presentation?.content.headline
+                  ?? t.reference.signalsPage.presentationNotPublished
               return (
                 <button
                   type="button"
@@ -517,6 +556,16 @@ export function SignalsFeed() {
                     else rowRefs.current.delete(card.id)
                   }}
                   className={`signal-item${selected ? ' is-selected' : ''}${card.locked ? ' is-locked' : ''}`}
+                  aria-label={card.locked
+                    ? interpolate(t.reference.signalsPage.openLockedSignal, {
+                        headline: cardTitle ?? t.reference.missingValue,
+                        status: badge,
+                      })
+                    : interpolate(t.reference.signalsPage.openSignal, {
+                        company: card.companyName ?? t.reference.missingValue,
+                        headline: cardTitle ?? t.reference.missingValue,
+                        status: badge,
+                      })}
                   aria-pressed={selected}
                   onClick={() => {
                     if (card.locked) {
@@ -529,7 +578,10 @@ export function SignalsFeed() {
                       navigate('/app/billing', { state: { lockedSignalKey: card.id } })
                     } else {
                       lastSelection.current = card.id
-                      navigate(`/app/signals/${encodeURIComponent(card.id)}`, {
+                      const artifactQuery = card.presentation
+                        ? `?presentation_artifact_id=${encodeURIComponent(card.presentation.artifact_id)}`
+                        : ''
+                      navigate(`/app/signals/${encodeURIComponent(card.id)}${artifactQuery}`, {
                         state: selectionState(card.id, appliedFeedGeneration.current),
                       })
                     }
@@ -547,11 +599,17 @@ export function SignalsFeed() {
                             </>
                           )}
                     </strong>
-                    <span>{badge}</span>
+                    <span className={badgeClass}>{badge}</span>
                   </span>
                   <span className="signal-event">
-                    {card.eventTitle ?? t.reference.signalsPage.presentationNotPublished}
+                    {cardTitle ?? t.reference.missingValue}
                   </span>
+                  {!card.locked ? (
+                    <span className="signal-card-summary">
+                      {card.presentation?.content.award_summary
+                        ?? t.reference.signalsPage.presentationUnavailableBody}
+                    </span>
+                  ) : null}
                   {!card.locked ? (
                     <span className="signal-meta">
                       {t.reference.fields.signalBuyer} : {card.buyerName ?? t.reference.missingValue}
@@ -561,14 +619,27 @@ export function SignalsFeed() {
                   <span className="signal-fit">
                     <span>{displayDateLabel(card)}</span> : {displayDate(card.eventDate)}
                   </span>
-                  {!card.locked && card.fitReason ? (
-                    <span className="signal-match">{card.fitReason}</span>
+                  {!card.locked && card.presentation?.status === 'PASS' ? (
+                    <span className="signal-match">{card.presentation.content.fit_reason}</span>
+                  ) : null}
+                  {!card.locked && card.presentation?.status === 'PASS' ? (
+                    <span className="signal-reason">{card.presentation.content.timing}</span>
                   ) : null}
                   {card.locked ? (
                     <span className="signal-reason signal-lock-note">
                       <LockKeyhole aria-hidden="true" />
                       {t.reference.signalsPage.lockedReason}
                     </span>
+                  ) : null}
+                  {!card.locked ? (
+                    <span className="signal-card-action">
+                      {card.presentation?.status === 'PASS'
+                        ? t.reference.signalsPage.viewAnalysis
+                        : t.reference.signalsPage.viewPublishedFacts}
+                    </span>
+                  ) : null}
+                  {hasSelectedNote ? (
+                    <span className="signal-note-state">{t.reference.statuses.noteAdded}</span>
                   ) : null}
                 </button>
               )
@@ -608,6 +679,7 @@ export function SignalsFeed() {
 
       <section
         className="detail-panel"
+        data-master-detail-pane="detail"
         id="signal-detail"
         aria-labelledby="detail-title"
         tabIndex={-1}

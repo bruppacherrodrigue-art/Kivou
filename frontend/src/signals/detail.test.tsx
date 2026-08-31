@@ -15,6 +15,7 @@ import {
   UNLOCKED_ITEM,
   callsTo,
   feedPage,
+  fullPresentation,
   mockApi,
   renderApp,
 } from '../test/harness'
@@ -192,6 +193,42 @@ describe('détail exact d’un signal réel', () => {
     expect(panel).not.toHaveTextContent(detailPresentation.content.headline)
   })
 
+  it('honore le deep-link seulement si son artefact est encore celui du feed', async () => {
+    const publicationA = presentationFixture('a'.repeat(64), 'Publication A épinglée')
+    mockApi({
+      ...detailRoutes({ ...UNLOCKED_DETAIL, presentation: publicationA }),
+      'GET /signals': { body: feedPage([{ ...UNLOCKED_ITEM, presentation: publicationA }]) },
+    })
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}?presentation_artifact_id=${publicationA.artifact_id}`,
+    })
+
+    expect(await screen.findByRole('heading', { name: publicationA.content.headline })).toBeVisible()
+    const detailCall = callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')[0]
+    expect(detailCall.search.get('presentation_artifact_id')).toBe(publicationA.artifact_id)
+  })
+
+  it('échoue fermé si le deep-link vise une publication remplacée dans le feed', async () => {
+    const publicationA = presentationFixture('a'.repeat(64), 'Publication A devenue obsolète')
+    const publicationB = presentationFixture('c'.repeat(64), 'Publication B interdite pour ce lien')
+    mockApi({
+      ...detailRoutes({ ...UNLOCKED_DETAIL, presentation: publicationB }),
+      'GET /signals': { body: feedPage([{ ...UNLOCKED_ITEM, presentation: publicationB }]) },
+    })
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}?presentation_artifact_id=${publicationA.artifact_id}`,
+    })
+
+    const panel = await detailPanel()
+    const detailCall = callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')[0]
+    expect(detailCall.search.get('presentation_artifact_id')).toBeNull()
+    expect(panel).not.toHaveTextContent(publicationA.content.headline)
+    expect(panel).not.toHaveTextContent(publicationB.content.headline)
+    expect(document.body).not.toHaveTextContent(publicationB.content.headline)
+  })
+
   it('n’adopte aucune publication du détail quand le feed n’en publie pas', async () => {
     const detailPresentation = presentationFixture('c'.repeat(64), 'Publication B interdite')
     mockApi({
@@ -221,16 +258,16 @@ describe('détail exact d’un signal réel', () => {
     const panel = await detailPanel()
     for (const heading of [
       'Détails du marché',
-      'Questions avant de contacter l’entreprise',
       'Constructions Bertrand SA',
       'Note sur ce signal',
     ]) {
       expect(within(panel).getByRole('heading', { name: heading })).toBeVisible()
     }
+    expect(within(panel).getByText('Signal d’attribution')).toBeVisible()
     expect(within(panel).getByText('Commune de Villeneuve')).toBeVisible()
     expect(panel.querySelector('.commercial-brief-card')).toBeNull()
     expect(panel.querySelector('.facts-card')).not.toBeNull()
-    expect(panel.querySelector('.verification-card')).not.toBeNull()
+    expect(panel.querySelector('.verification-card')).toBeNull()
     expect(panel.querySelector('.signal-note-card')).not.toBeNull()
     expect(panel.querySelector('[class*="evidence"]')).toBeNull()
     const notice = panel.querySelector('.prototype-notice')
@@ -240,16 +277,63 @@ describe('détail exact d’un signal réel', () => {
     expect(within(panel).getAllByText('France').length).toBeGreaterThan(0)
     expect(within(panel).getByText('SIRET 12345678900011')).toBeVisible()
     expect(within(panel).getAllByText(/BOAMP.*26-104412/).length).toBeGreaterThan(1)
-    expect(within(panel).getByText('Date d’attribution')).toBeVisible()
+    expect(within(panel).getAllByText('Date d’attribution').length).toBeGreaterThan(0)
     expect(within(panel).queryByText('Contrat conclu')).not.toBeInTheDocument()
-    const scope = panel.querySelector('.volume-grid')
-    expect(scope).toHaveTextContent('Non publié')
-    expect(scope).not.toHaveTextContent('Le marché est attribué')
-    expect(scope?.querySelectorAll('.volume-item')).toHaveLength(5)
-    expect(panel.querySelectorAll('.questions-list > li')).toHaveLength(3)
-    for (const item of panel.querySelectorAll('.volume-item, .questions-list > li')) {
-      expect(item).toHaveTextContent('Non publié')
+    expect(panel.querySelector('.volume-grid')).toBeNull()
+    expect(panel.querySelector('.questions-list')).toBeNull()
+  })
+
+  it('sépare conclusion, faits, inférences, recommandation et inconnues d’un FULL publié', async () => {
+    const presentation = fullPresentation()
+    const detail = {
+      ...UNLOCKED_DETAIL,
+      presentation,
+      analysis: {
+        ...UNLOCKED_DETAIL.analysis,
+        fit: {
+          ...UNLOCKED_DETAIL.analysis.fit,
+          reasons: ['RAISON ANALYSIS INTERDITE'],
+        },
+      },
+      event: { ...UNLOCKED_DETAIL.event, why_now: 'URGENCE EVENT INTERDITE' },
     }
+    mockApi(detailRoutes(detail))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel(presentation.content.headline)
+    expect(within(panel).getByText('Analyse publiée')).toBeVisible()
+    expect(within(panel).getByRole('heading', { name: 'Conclusion commerciale' })).toBeVisible()
+    expect(within(panel).getByRole('heading', { name: 'Fait publié' })).toBeVisible()
+    expect(within(panel).getByRole('heading', { name: 'Interprétation Kivou' })).toBeVisible()
+    expect(within(panel).getByRole('heading', { name: 'Recommandation' })).toBeVisible()
+    expect(within(panel).getByRole('heading', { name: 'À vérifier' })).toBeVisible()
+    expect(within(panel).getByText('Responsable achats')).toBeVisible()
+    expect(within(panel).getByText('Fonction pertinente pour vérifier le besoin documenté.')).toBeVisible()
+    expect(panel).toHaveTextContent('Confiance moyenne · Fondé sur les preuves publiées')
+    for (const claim of presentation.content.claims) {
+      expect(panel).toHaveTextContent(claim.text)
+    }
+    expect(panel).not.toHaveTextContent('RAISON ANALYSIS INTERDITE')
+    expect(panel).not.toHaveTextContent('URGENCE EVENT INTERDITE')
+  })
+
+  it('limite un FALLBACK aux faits publiés sans conclusion ni conseil commercial', async () => {
+    const detail = { ...UNLOCKED_DETAIL, presentation: FACTUAL_FALLBACK }
+    mockApi(detailRoutes(detail))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel(FACTUAL_FALLBACK.content.headline)
+    expect(within(panel).getByText('Faits publiés uniquement')).toBeVisible()
+    expect(within(panel).getByRole('heading', { name: 'Fait publié' })).toBeVisible()
+    expect(within(panel).queryByRole('heading', { name: 'Interprétation Kivou' })).toBeNull()
+    expect(within(panel).queryByRole('heading', { name: 'Recommandation' })).toBeNull()
+    expect(panel.querySelector('.commercial-brief-card')).toBeNull()
   })
 
   it.each([
@@ -273,7 +357,7 @@ describe('détail exact d’un signal réel', () => {
     })
 
     const panel = await detailPanel()
-    expect(within(panel).getByText(label)).toBeVisible()
+    expect(within(panel).getAllByText(label).length).toBeGreaterThan(0)
     expect(panel).toHaveTextContent('15 août 2026')
   })
 
@@ -294,7 +378,7 @@ describe('détail exact d’un signal réel', () => {
     })
 
     const panel = await detailPanel()
-    expect(within(panel).getByText('Date de publication')).toBeVisible()
+    expect(within(panel).getAllByText('Date de publication').length).toBeGreaterThan(0)
     expect(within(panel).queryByText("Date d’attribution")).not.toBeInTheDocument()
   })
 
@@ -306,8 +390,9 @@ describe('détail exact d’un signal réel', () => {
     })
 
     const panel = await detailPanel()
-    const buyerLabel = within(panel).getByText('Acheteur', { selector: 'dt' })
-    const awardeeLabel = within(panel).getByText('Entreprise attributaire', { selector: 'dt' })
+    const factGrid = panel.querySelector('.signal-fact-grid') as HTMLElement
+    const buyerLabel = within(factGrid).getByText('Acheteur', { selector: 'dt' })
+    const awardeeLabel = within(factGrid).getByText('Entreprise attributaire', { selector: 'dt' })
     expect(buyerLabel.parentElement).toHaveTextContent('Commune de Villeneuve')
     expect(buyerLabel.parentElement).not.toHaveTextContent('Constructions Bertrand SA')
     expect(awardeeLabel.parentElement).toHaveTextContent('Constructions Bertrand SA')
@@ -418,9 +503,7 @@ describe('détail exact d’un signal réel', () => {
       expect(within(panel).getByRole('heading', { level: 2 })).toHaveTextContent(
         'Présentation non publiée',
       )
-      expect(panel.querySelector('.published-status')).toHaveTextContent(
-        'Présentation non publiée',
-      )
+      expect(panel.querySelector('.published-status')).toHaveTextContent('Analyse indisponible')
       expect(panel).toHaveTextContent('Constructions Bertrand SA')
       expect(panel).toHaveTextContent('Commune de Villeneuve')
       expect(panel).not.toHaveTextContent(presentation.content.headline)
@@ -429,13 +512,13 @@ describe('détail exact d’un signal réel', () => {
   )
 
   it.each([
-    ['absence', null, 'BOAMP', 'Présentation non publiée'],
-    ['publication sans source', FACTUAL_FALLBACK, null, 'Présentation publiée'],
+    ['absence', null, 'BOAMP', 'Analyse indisponible'],
+    ['publication sans source', FACTUAL_FALLBACK, null, 'Faits publiés uniquement'],
     [
       'publication avec source',
       FACTUAL_FALLBACK,
       'BOAMP',
-      'Présentation publiée · Source : BOAMP',
+      'Faits publiés uniquement',
     ],
   ] as const)(
     'distingue le statut artefact de la source optionnelle : %s',
@@ -459,11 +542,11 @@ describe('détail exact d’un signal réel', () => {
   )
 
   it.each([
-    ['absente', null, 'Présentation non publiée', 'unpublished'],
+    ['absente', null, 'Analyse indisponible', 'unpublished'],
     [
       'publiée',
       FACTUAL_FALLBACK,
-      'Présentation publiée · Source : BOAMP',
+      'Faits publiés uniquement',
       'published',
     ],
   ] as const)(
@@ -578,7 +661,7 @@ describe('détail exact d’un signal réel', () => {
     const link = await screen.findByRole('link', { name: 'Voir l’entreprise' })
     expect(link).toHaveAttribute(
       'href',
-      `/app/companies/${UNLOCKED_DETAIL.company_key}`,
+      `/app/companies/${UNLOCKED_DETAIL.company_key}?signal=${UNLOCKED_ITEM.signal_id}`,
     )
     expect(link).not.toHaveAttribute('state')
   })

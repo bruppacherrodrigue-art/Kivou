@@ -534,12 +534,17 @@ export const VISUAL_ICP = {
   updated_at: '2026-08-29T09:00:00+00:00',
 } satisfies TargetIcp
 
+function visualCompanyKey(record: AwardSignal): string {
+  return `cmp_${record.company.id}_reference`
+}
+
 function toUnlockedItem(record: AwardSignal): UnlockedFeedItem {
   const meta = metadata(record)
   return {
     locked: false,
     signal_id: record.id,
     target_icp_id: VISUAL_ICP.target_icp_id,
+    company_key: visualCompanyKey(record),
     presentation: null,
     company: {
       name: record.company.name,
@@ -612,14 +617,12 @@ function toUnlockedItem(record: AwardSignal): UnlockedFeedItem {
   } satisfies UnlockedFeedItem
 }
 
-export const VISUAL_UNLOCKED_ITEMS = awardSignals.map(toUnlockedItem)
-
 function factualFallbackPresentation(
   record: AwardSignal,
   artifactId: string,
 ): CardPresentation {
   const headline = `${record.company.name} est identifiée comme entreprise attributaire.`
-  const awardSummary = `L’avis ${record.notice} identifie ${record.company.name} comme entreprise attributaire du marché « ${record.shortTitle} ».`
+  const awardSummary = `L’avis ${record.notice} documente une attribution publique de ${record.buyer} à ${record.company.name}.`
   const evidenceRef = `source:notice:${record.notice}`
   return {
     artifact_id: artifactId,
@@ -659,6 +662,17 @@ function factualFallbackPresentation(
   }
 }
 
+function visualArtifactId(record: AwardSignal): string {
+  const index = awardSignals.findIndex((candidate) => candidate.id === record.id)
+  if (index < 0 || index > 25) throw new Error(`Missing visual artifact index for ${record.id}`)
+  return String.fromCharCode('a'.charCodeAt(0) + index).repeat(64)
+}
+
+export const VISUAL_UNLOCKED_ITEMS = awardSignals.map((record) => ({
+  ...toUnlockedItem(record),
+  presentation: factualFallbackPresentation(record, visualArtifactId(record)),
+})) satisfies UnlockedFeedItem[]
+
 function offlineFallbackArtifact(record: AwardSignal, artifactId: string) {
   return {
     signal_id: record.id,
@@ -674,8 +688,8 @@ function offlineFallbackArtifact(record: AwardSignal, artifactId: string) {
 }
 
 export const VISUAL_SIGNAL_OFFLINE_ARTIFACTS = [
-  offlineFallbackArtifact(awardSignals[0], 'a'.repeat(64)),
-  offlineFallbackArtifact(awardSignals[2], 'c'.repeat(64)),
+  offlineFallbackArtifact(awardSignals[0], visualArtifactId(awardSignals[0])),
+  offlineFallbackArtifact(awardSignals[2], visualArtifactId(awardSignals[2])),
 ] as const
 
 function toLockedItem(item: UnlockedFeedItem): LockedFeedItem {
@@ -761,7 +775,8 @@ function toDetail(record: AwardSignal): UnlockedDetail {
   const item = toUnlockedItem(record)
   return {
     ...item,
-    company_key: record.company.id,
+    presentation: factualFallbackPresentation(record, visualArtifactId(record)),
+    company_key: visualCompanyKey(record),
     analysis: {
       ...item.analysis,
       contract_reading: {
@@ -823,7 +838,7 @@ export const VISUAL_SIGNAL_DETAILS = VISUAL_SIGNAL_UNLOCKED_ITEMS.map((item) => 
 function toCompanyProfile(record: AwardSignal): CompanyProfile {
   const item = toUnlockedItem(record)
   return {
-    company_key: record.company.id,
+    company_key: visualCompanyKey(record),
     official_identity: {
       name: record.company.name,
       country: metadata(record).companyCountry,
@@ -981,7 +996,7 @@ export const LOCAL_REFERENCE_ROUTES = [
   { golden: 'dashboard-signup', source: '/signup', local: '/signup', scenario: 'auth' },
   { golden: 'dashboard-overview', source: '/', local: '/app/dashboard', scenario: 'connected-pro' },
   { golden: 'dashboard-signals', source: '/signals?signal=tm-ausbau-campus-ost', local: '/app/signals/tm-ausbau-campus-ost', scenario: 'connected-discovery' },
-  { golden: 'dashboard-companies', source: '/companies', local: '/app/companies', scenario: 'connected-pro' },
+  { golden: 'dashboard-companies', source: '/companies', local: '/app/companies/cmp_h-huether_reference?signal=h-huether-munich', scenario: 'connected-pro' },
   { golden: 'dashboard-targeting', source: '/targeting', local: '/app/icps', scenario: 'connected-pro' },
   { golden: 'dashboard-account', source: '/settings', local: '/app/settings', scenario: 'connected-pro' },
 ] as const

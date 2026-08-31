@@ -121,7 +121,7 @@ describe('accueil connecté', () => {
     )
   })
 
-  it('rend une seule ligne entreprise depuis le détail déverrouillé sans demander le détail verrouillé', async () => {
+  it('rend une seule ligne entreprise depuis le feed sans demander aucun détail', async () => {
     const protectedIdentity = 'ENTREPRISE PROTÉGÉE'
     mockApi({
       'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
@@ -136,19 +136,19 @@ describe('accueil connecté', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/companies' })
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Entreprises' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Entreprises attributaires' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Entreprises' })).toHaveAttribute('href', '/app/companies')
-    const companyButton = await screen.findByRole('button', { name: /Constructions Bertrand SA/ })
+    const companyButton = await screen.findByRole('link', { name: /Constructions Bertrand SA/ })
     const directory = document.querySelector('.companies-list') as HTMLElement
-    const rows = within(directory).getAllByRole('button')
+    const rows = within(directory).getAllByRole('link')
     expect(rows).toHaveLength(1)
-    expect(companyButton).toBe(within(directory).getByRole('button', { name: /Constructions Bertrand SA/ }))
-    expect(companyButton).toHaveTextContent('1 marché')
-    expect(companyButton).toHaveTextContent('France')
-    expect(companyButton).toHaveAttribute('aria-pressed', 'true')
+    expect(companyButton).toBe(within(directory).getByRole('link', { name: /Constructions Bertrand SA/ }))
+    expect(companyButton).toHaveTextContent('1 attribution')
+    expect(companyButton).toHaveTextContent('Villeneuve')
+    expect(companyButton).not.toHaveAttribute('aria-current')
     companyButton.focus()
     expect(companyButton).toHaveFocus()
-    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
+    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(document.body.textContent).not.toContain(protectedIdentity)
     expect(document.body.textContent).not.toContain('cmp_protected')
@@ -161,6 +161,7 @@ describe('accueil connecté', () => {
     const secondItem = {
       ...UNLOCKED_ITEM,
       signal_id: 'sig_current_company',
+      company_key: 'cmp_current_company',
       company: { ...UNLOCKED_ITEM.company, name: 'Actuelle SA' },
     }
     const secondDetail = {
@@ -197,99 +198,70 @@ describe('accueil connecté', () => {
       retry.click()
     })
     await waitFor(() => expect(feedCall).toBe(3))
-    expect(await screen.findByRole('button', { name: /Actuelle SA/ })).toBeInTheDocument()
+    expect(await screen.findByRole('link', { name: /Actuelle SA/ })).toBeInTheDocument()
     await act(async () => {
       resolveOutdatedFeed?.({ body: feedPage([UNLOCKED_ITEM]) })
       await Promise.resolve()
     })
     expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
-    expect(screen.getByRole('button', { name: /Actuelle SA/ })).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: /Constructions Bertrand SA/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: /Actuelle SA/ })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /Constructions Bertrand SA/ })).not.toBeInTheDocument()
   })
 
-  it('conserve les entreprises chargées et annonce une liste partielle si un détail échoue', async () => {
+  it('conserve les entreprises chargées et annonce une liste partielle si une clé feed manque', async () => {
     const user = userEvent.setup()
-    let resolveRefresh: ((value: {
-      status: number
-      body: { detail: { code: string } }
-    }) => void) | undefined
-    let rejectedAttempts = 0
+    let feedAttempts = 0
     const rejectedItem = {
       ...UNLOCKED_ITEM,
       signal_id: 'sig_company_rejected',
+      company_key: null,
       company: { ...UNLOCKED_ITEM.company, name: 'Détail indisponible SA' },
     }
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, rejectedItem]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
-      [`GET /signals/${rejectedItem.signal_id}`]: () => {
-        rejectedAttempts += 1
-        if (rejectedAttempts === 1) {
-          return { status: 503, body: { detail: { code: 'temporarily_unavailable' } } }
-        }
-        return new Promise((resolve) => { resolveRefresh = resolve })
+      'GET /signals': () => {
+        feedAttempts += 1
+        return { body: feedPage([UNLOCKED_ITEM, rejectedItem]) }
       },
     })
 
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/companies' })
 
-    const companyButton = await screen.findByRole('button', { name: /Constructions Bertrand SA/ })
+    await screen.findByRole('link', { name: /Constructions Bertrand SA/ })
     const partial = screen.getByText('Liste partielle').closest('[role="alert"]') as HTMLElement
     expect(partial).toHaveTextContent(
-      'Certaines entreprises n’ont pas pu être chargées.',
+      'Certaines attributions n’ont pas pu être chargées.',
     )
     const retry = within(partial).getByRole('button', { name: 'Réessayer' })
     await user.click(retry)
 
-    await waitFor(() => expect(callsTo(`/signals/${rejectedItem.signal_id}`, 'GET')).toHaveLength(2))
-    expect(callsTo('/signals', 'GET')).toHaveLength(1)
-    expect(companyButton).toBeInTheDocument()
-    expect(partial).toBeInTheDocument()
-    expect(retry).toBeInTheDocument()
-    expect(retry).toBeDisabled()
-    expect(retry).toHaveTextContent('Chargement')
-    expect(retry).toHaveFocus()
-
-    await act(async () => {
-      resolveRefresh?.({
-        status: 503,
-        body: { detail: { code: 'temporarily_unavailable' } },
-      })
-      await Promise.resolve()
-    })
-
+    await waitFor(() => expect(callsTo('/signals', 'GET')).toHaveLength(2))
     const refreshError = screen.getByText('Liste partielle').closest('[role="alert"]') as HTMLElement
     expect(within(refreshError).getByRole('button', { name: 'Réessayer' })).toBeInTheDocument()
-    expect(companyButton).toBeInTheDocument()
-    expect(partial).toBeInTheDocument()
-    expect(document.body.textContent).not.toContain('temporarily_unavailable')
+    expect(screen.getByRole('link', { name: /Constructions Bertrand SA/ })).toBeInTheDocument()
+    expect(feedAttempts).toBe(2)
+    expect(callsTo(`/signals/${rejectedItem.signal_id}`, 'GET')).toHaveLength(0)
   })
 
-  it('rend une erreur réessayable plutôt qu’un faux vide si tous les détails échouent', async () => {
+  it('rend une erreur réessayable plutôt qu’un faux vide si toutes les clés feed manquent', async () => {
     const secondItem = {
       ...UNLOCKED_ITEM,
       signal_id: 'sig_company_rejected_too',
+      company_key: null,
       company: { ...UNLOCKED_ITEM.company, name: 'Autre détail indisponible SA' },
     }
+    const firstItem = { ...UNLOCKED_ITEM, company_key: null }
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, secondItem]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: {
-        status: 503,
-        body: { detail: { code: 'temporarily_unavailable' } },
-      },
-      [`GET /signals/${secondItem.signal_id}`]: {
-        status: 503,
-        body: { detail: { code: 'temporarily_unavailable' } },
-      },
+      'GET /signals': { body: feedPage([firstItem, secondItem]) },
     })
 
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/companies' })
 
     const error = await screen.findByRole('alert')
-    expect(error).toHaveTextContent('Les entreprises n’ont pas pu être chargées.')
+    expect(error).toHaveTextContent('Les attributions n’ont pas pu être chargées.')
     expect(within(error).getByRole('button', { name: 'Réessayer' })).toBeInTheDocument()
-    expect(screen.queryByText('Aucune entreprise accessible pour le moment.')).not.toBeInTheDocument()
-    expect(document.body.textContent).not.toContain('temporarily_unavailable')
+    expect(screen.queryByText('Aucune attribution accessible pour le moment.')).not.toBeInTheDocument()
+    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
+    expect(callsTo(`/signals/${secondItem.signal_id}`, 'GET')).toHaveLength(0)
   })
 
   it('redirige un compte incomplet avant tout appel aux API du dashboard', async () => {
@@ -423,13 +395,18 @@ describe('vue d’ensemble exacte connectée', () => {
     expect(
       within(priority).getByText(PUBLISHED_UNLOCKED_ITEM.presentation.content.headline),
     ).toBeVisible()
+    expect(
+      within(priority).getByText(PUBLISHED_UNLOCKED_ITEM.presentation.content.award_summary),
+    ).toBeVisible()
     expect(within(priority).queryByText(UNLOCKED_ITEM.contract.title!)).toBeNull()
     expect(within(priority).getByText('Attribution publiée sur BOAMP')).toBeVisible()
+    expect(within(priority).getByText('Un résumé factuel est publié, sans interprétation commerciale.')).toBeVisible()
     for (const reason of UNLOCKED_ITEM.analysis.fit.reasons) {
-      expect(within(priority).getByText(reason)).toBeVisible()
+      expect(within(priority).queryByText(reason)).not.toBeInTheDocument()
     }
-    expect(within(priority).getByText('Début prévu')).toBeVisible()
-    expect(within(priority).getByText('Non publié')).toBeVisible()
+    expect(within(priority).getByText('Montant total du marché')).toBeVisible()
+    expect(within(priority).getByText('Date d’attribution')).toBeVisible()
+    expect(within(priority).getByText('Acheteur')).toBeVisible()
 
     const targeting = document.querySelector('.target-profile-snapshot') as HTMLElement
     expect(within(targeting).getByText(ICP.label)).toBeVisible()
@@ -441,11 +418,105 @@ describe('vue d’ensemble exacte connectée', () => {
     )
   })
 
+  it('borne la vue à six attributions sans changer l’ordre autoritaire du feed', async () => {
+    const items = Array.from({ length: 8 }, (_, index) => ({
+      ...PUBLISHED_UNLOCKED_ITEM,
+      signal_id: `sig_overview_bounded_${index}`,
+      company_key: `cmp_overview_bounded_${index}`,
+      company: {
+        ...PUBLISHED_UNLOCKED_ITEM.company,
+        name: `Attributaire ${index + 1}`,
+      },
+      presentation: factualFallbackPresentation({
+        artifactId: `${index + 1}`.repeat(64),
+        headline: `Attribution publiée numéro ${index + 1}`,
+        awardSummary: `La source documente l’attribution numéro ${index + 1}.`,
+        headlineEvidenceRefs: [`source:bounded:${index}:headline`],
+        awardSummaryEvidenceRefs: [`source:bounded:${index}:summary`],
+      }),
+    }))
+    mockApi({
+      ...EXACT_OVERVIEW_ROUTES,
+      'GET /signals': { body: feedPage(items) },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByText('Attribution publiée numéro 1')).toBeVisible()
+    expect(document.querySelectorAll('.priority-card, .recent-list .recent-signal')).toHaveLength(6)
+    expect(screen.getByText('La source documente l’attribution numéro 6.')).toBeVisible()
+    expect(screen.queryByText('La source documente l’attribution numéro 7.')).toBeNull()
+    expect(screen.queryByText('La source documente l’attribution numéro 8.')).toBeNull()
+  })
+
+  it('échoue fermé sur un artefact invalide sans reconstruire depuis le titre administratif', async () => {
+    const forbiddenHeadline = 'TEXTE ÉDITORIAL SANS PREUVE'
+    const forbiddenTitle = 'TITRE ADMINISTRATIF À NE PAS RÉÉCRIRE'
+    const invalidPresentation = structuredClone(PUBLISHED_UNLOCKED_ITEM.presentation)
+    invalidPresentation.content.headline = forbiddenHeadline
+    invalidPresentation.content.claims[0].text = forbiddenHeadline
+    invalidPresentation.content.claims[0].evidence_refs = [] as unknown as [string, ...string[]]
+    const item = {
+      ...PUBLISHED_UNLOCKED_ITEM,
+      contract: { ...PUBLISHED_UNLOCKED_ITEM.contract, title: forbiddenTitle },
+      presentation: invalidPresentation,
+    }
+    mockApi({
+      ...EXACT_OVERVIEW_ROUTES,
+      'GET /signals': { body: feedPage([item]) },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    expect(await screen.findByRole('heading', { level: 3, name: 'Présentation non publiée' })).toBeVisible()
+    expect(screen.getByText(/Résumé de l’attribution non publié/)).toBeVisible()
+    expect(screen.getByText('Aucune analyse n’est publiée pour cette attribution.')).toBeVisible()
+    expect(document.body).not.toHaveTextContent(forbiddenHeadline)
+    expect(document.body).not.toHaveTextContent(forbiddenTitle)
+    expect(screen.getByRole('link', { name: 'Voir l’attribution' })).toHaveAttribute(
+      'href',
+      `/app/signals/${item.signal_id}`,
+    )
+  })
+
+  it('qualifie une publication comme publication sans la présenter comme attribution', async () => {
+    const item = {
+      ...PUBLISHED_UNLOCKED_ITEM,
+      company: { ...PUBLISHED_UNLOCKED_ITEM.company, name: 'Entreprise attributaire distincte' },
+      event: {
+        ...PUBLISHED_UNLOCKED_ITEM.event,
+        status: 'recently_published_award' as const,
+        type: 'recently_published_award' as const,
+        clock: 'publication' as const,
+        date: '2026-08-20',
+      },
+      contract: {
+        ...PUBLISHED_UNLOCKED_ITEM.contract,
+        buyer: { name: 'Commune acheteuse distincte', country: 'FR', identifier: null },
+        dates: { ...PUBLISHED_UNLOCKED_ITEM.contract.dates, award: '2026-01-03' },
+      },
+    }
+    mockApi({
+      ...EXACT_OVERVIEW_ROUTES,
+      'GET /signals': { body: feedPage([item]) },
+    })
+
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
+
+    const priority = document.querySelector('.priority-card') as HTMLElement
+    expect(await within(priority).findByText('Date de publication')).toBeVisible()
+    expect(within(priority).getByText('20 août 2026')).toBeVisible()
+    expect(within(priority).queryByText('Date d’attribution')).toBeNull()
+    expect(within(priority).getByText(/Entreprise attributaire distincte/)).toBeVisible()
+    expect(within(priority).getByText('Commune acheteuse distincte')).toBeVisible()
+  })
+
   it('rend les compteurs 0, 1, pluriel et pagination sans inventer un total', async () => {
     mockApi(EXACT_OVERVIEW_ROUTES)
     const empty = renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
     expect(await screen.findByRole('heading', { level: 2, name: '0 attributions documentées' })).toBeVisible()
-    expect(screen.getByRole('heading', { level: 3, name: '0 marchés à parcourir' })).toBeVisible()
+    expect(screen.getByRole('heading', { level: 3, name: 'Attributions récentes pertinentes' })).toBeVisible()
+    expect(document.querySelector('.overview-awards-card .signal-count')).toHaveTextContent('0 marchés à parcourir')
     empty.unmount()
 
     mockApi({ ...EXACT_OVERVIEW_ROUTES, 'GET /signals': { body: feedPage([UNLOCKED_ITEM]) } })
@@ -463,7 +534,7 @@ describe('vue d’ensemble exacte connectée', () => {
     })
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
     expect(await screen.findByRole('heading', { level: 2, name: '3+ attributions documentées' })).toBeVisible()
-    expect(screen.getByRole('heading', { level: 3, name: '2 marchés à parcourir' })).toBeVisible()
+    expect(document.querySelector('.overview-awards-card .signal-count')).toHaveTextContent('2 marchés à parcourir')
   })
 
   it('choisit le premier signal déverrouillé et garde les autres dans l’ordre serveur', async () => {
@@ -480,9 +551,9 @@ describe('vue d’ensemble exacte connectée', () => {
       await within(priority).findByText(OVERVIEW_SECOND_ITEM.presentation.content.headline),
     ).toBeVisible()
     expect(within(priority).queryByText(OVERVIEW_SECOND_ITEM.contract.title!)).toBeNull()
-    expect(within(priority).getByRole('link', { name: 'Examiner le signal' })).toHaveAttribute(
+    expect(within(priority).getByRole('link', { name: 'Voir l’attribution' })).toHaveAttribute(
       'href',
-      `/app/signals/${OVERVIEW_SECOND_ITEM.signal_id}`,
+      `/app/signals/${OVERVIEW_SECOND_ITEM.signal_id}?presentation_artifact_id=${OVERVIEW_SECOND_ITEM.presentation.artifact_id}`,
     )
     const rows = Array.from(document.querySelectorAll('.recent-list .recent-signal'))
     expect(rows).toHaveLength(2)
@@ -839,7 +910,7 @@ describe('autorités, navigation et garde-fous Overview', () => {
       { session: AUTHENTICATED, route: '/app/dashboard' },
     )
 
-    await user.click(await screen.findByRole('link', { name: 'Examiner le signal' }))
+    await user.click(await screen.findByRole('link', { name: 'Voir l’attribution' }))
     expect(
       await screen.findByRole('heading', {
         level: 2,
@@ -870,7 +941,7 @@ describe('autorités, navigation et garde-fous Overview', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Overview' })).toBeVisible()
     expect(screen.getByRole('heading', { level: 2, name: '1 documented award' })).toBeVisible()
-    expect(screen.getByRole('link', { name: 'Review signal' })).toHaveAttribute(
+    expect(screen.getByRole('link', { name: 'View award' })).toHaveAttribute(
       'href',
       `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     )

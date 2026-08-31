@@ -4,6 +4,7 @@ import datetime as dt
 
 import pytest
 from billing_helpers import subscribe
+from engagement_helpers import events
 from fastapi.testclient import TestClient
 from feed_helpers import (
     COMPLETE_ICP_INPUT,
@@ -114,6 +115,22 @@ def test_unlocked_signal_detail_links_to_the_official_company_profile(app, engin
     assert "contact_ref" not in response.text.lower()
 
 
+def test_unlocked_feed_links_to_company_without_opening_every_signal_detail(app, engine) -> None:
+    client = _signup(app, email="company-feed-api@example.com")
+    signal_key = _seed_unlocked(engine, client)
+
+    feed = client.get("/signals?freshness=all&limit=50")
+
+    assert feed.status_code == 200
+    card = next(item for item in feed.json()["items"] if item["signal_id"] == signal_key)
+    assert card["locked"] is False
+    assert card["company_key"].startswith("cmp_")
+    profile = client.get(f"/companies/{card['company_key']}")
+    assert profile.status_code == 200
+    assert profile.json()["company_key"] == card["company_key"]
+    assert events(engine, event_type="signal_detail_viewed") == []
+
+
 def test_known_company_key_is_not_an_inter_account_oracle(app, engine) -> None:
     alice = _signup(app, email="alice-company-api@example.com")
     signal_key = _seed_unlocked(engine, alice)
@@ -145,6 +162,8 @@ def test_locked_signal_detail_never_reveals_a_company_key(app, engine) -> None:
     response = client.get(f"/signals/{locked_key}")
 
     assert locked_key in keys
+    locked_card = next(card for card in cards if card["signal_id"] == locked_key)
+    assert "company_key" not in locked_card
     assert response.status_code == 200
     assert response.json()["locked"] is True
     assert "company_key" not in response.json()

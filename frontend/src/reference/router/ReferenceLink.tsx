@@ -5,11 +5,20 @@ function dashboardDestination(href: string): string {
   if (url.pathname === '/') return '/app/dashboard'
   if (url.pathname === '/signals') {
     const signal = url.searchParams.get('signal')
-    return signal ? `/app/signals/${encodeURIComponent(signal)}` : '/app/signals'
+    const artifactId = url.searchParams.get('presentation_artifact_id')
+    const artifactQuery = artifactId
+      ? `?presentation_artifact_id=${encodeURIComponent(artifactId)}`
+      : ''
+    return signal
+      ? `/app/signals/${encodeURIComponent(signal)}${artifactQuery}`
+      : '/app/signals'
   }
   if (url.pathname === '/companies') {
     const company = url.searchParams.get('company')
-    return company ? `/app/companies/${encodeURIComponent(company)}` : '/app/companies'
+    const signal = url.searchParams.get('signal')
+    return company
+      ? `/app/companies/${encodeURIComponent(company)}${signal ? `?signal=${encodeURIComponent(signal)}` : ''}`
+      : '/app/companies'
   }
   const routes: Record<string, string> = {
     '/targeting': '/app/icps',

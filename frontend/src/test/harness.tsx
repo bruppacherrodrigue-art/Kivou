@@ -184,10 +184,93 @@ export function factualFallbackPresentation({
   }
 }
 
+export function fullPresentation({
+  artifactId = 'a'.repeat(64),
+  headline = 'Attribution qualifiée pour un marché public documenté',
+  awardSummary = 'La source officielle documente l’attribution et les faits essentiels du marché.',
+  commercialImportance = 'Le montant publié rend ce marché commercialement significatif.',
+  fitReason = 'Le besoin documenté correspond au ciblage déclaré.',
+  timing = 'Le calendrier opérationnel reste à confirmer avant tout contact.',
+  recommendedAction = 'Vérifier le besoin auprès de la fonction achats, sans supposer un achat ouvert.',
+} = {}): Extract<CardPresentation, { status: 'PASS' }> {
+  return {
+    artifact_id: artifactId,
+    version: 1,
+    status: 'PASS',
+    schema_version: 'card-presentation-v1',
+    published_at: '2026-08-30T14:00:00Z',
+    content: {
+      schema_version: 'card-presentation-v1',
+      variant: 'FULL',
+      headline,
+      award_summary: awardSummary,
+      commercial_importance: commercialImportance,
+      fit_reason: fitReason,
+      timing,
+      recommended_action: recommendedAction,
+      target_roles: [{
+        role: 'PROCUREMENT_MANAGER',
+        rationale: 'Fonction pertinente pour vérifier le besoin documenté.',
+        evidence_refs: ['source:role'],
+      }],
+      fit_need_categories: ['materials_or_components'],
+      unknowns: [{
+        text: 'La date de début opérationnelle n’est pas publiée.',
+        evidence_refs: ['source:unknown'],
+      }],
+      claims: [
+        {
+          claim_id: 'HEADLINE',
+          kind: 'FACT',
+          text: headline,
+          evidence_refs: ['source:headline'],
+          confidence: null,
+        },
+        {
+          claim_id: 'AWARD_SUMMARY',
+          kind: 'FACT',
+          text: awardSummary,
+          evidence_refs: ['source:award-summary'],
+          confidence: null,
+        },
+        {
+          claim_id: 'COMMERCIAL_IMPORTANCE',
+          kind: 'INFERENCE',
+          text: commercialImportance,
+          evidence_refs: ['source:amount'],
+          confidence: 'high',
+        },
+        {
+          claim_id: 'FIT_REASON',
+          kind: 'INFERENCE',
+          text: fitReason,
+          evidence_refs: ['source:fit'],
+          confidence: 'medium',
+        },
+        {
+          claim_id: 'TIMING',
+          kind: 'INFERENCE',
+          text: timing,
+          evidence_refs: ['source:date'],
+          confidence: 'low',
+        },
+        {
+          claim_id: 'RECOMMENDED_ACTION',
+          kind: 'RECOMMENDATION',
+          text: recommendedAction,
+          evidence_refs: ['source:action'],
+          confidence: null,
+        },
+      ],
+    },
+  }
+}
+
 export const UNLOCKED_ITEM: UnlockedFeedItem = {
   locked: false,
   signal_id: 'sig_unlocked_1',
   target_icp_id: 'icp_1',
+  company_key: 'cmp_0123456789abcdefghijklmnop',
   presentation: null,
   company: {
     name: 'Constructions Bertrand SA',

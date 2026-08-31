@@ -38,6 +38,33 @@ export interface SignalCardView extends SignalFactView {
   whyNow: string
 }
 
+/** Projection dédiée au Dashboard.
+ *
+ * Les textes éditoriaux proviennent exclusivement de l'artefact publié. Les
+ * faits structurés restent séparés et le titre administratif n'entre jamais
+ * dans cette vue.
+ */
+export interface OverviewAwardCardView {
+  id: string
+  locked: boolean
+  presentationArtifactId: string | null
+  companyName: string | null
+  buyerName: string | null
+  teaserHeadline: string | null
+  headline: string | null
+  awardSummary: string | null
+  commercialImportance: string | null
+  fitReason: string | null
+  timing: string | null
+  recommendedAction: string | null
+  presentationVariant: 'FULL' | 'FACTUAL_FALLBACK' | null
+  amount: Money | null
+  location: Place | null
+  eventDate: string | null
+  eventDateKind: SignalEventDateKind
+  sourceSystem: string | null
+}
+
 export interface SignalDetailView extends SignalFactView {
   id: string
   title: string | null
@@ -56,6 +83,7 @@ export interface SignalDetailView extends SignalFactView {
   }
   facts: {
     amount: Money | null
+    location: Place | null
     awardDate: string | null
     execution: string | null
     buyer: string | null

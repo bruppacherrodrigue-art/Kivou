@@ -22,8 +22,17 @@ from signals.companies.contracts import (
     CompanySignalEvent,
 )
 from signals.companies.identity import ResolvedOfficialCompany, official_company_identity
-from signals.companies.indexing import index_signal_company_identity
-from signals.companies.store import StoredCompany, get_company_by_key, get_or_create_company
+from signals.companies.indexing import (
+    index_signal_company_identities,
+    index_signal_company_identity,
+)
+from signals.companies.store import (
+    CompanyCandidate,
+    StoredCompany,
+    get_company_by_key,
+    get_or_create_companies,
+    get_or_create_company,
+)
 from signals.feed import query as feed_query
 from signals.feed import view as feed_view
 from signals.persistence.repository import SIGNAL_SELECT, signal_from_row
@@ -90,6 +99,47 @@ def ensure_company_for_unlocked_signal(
         now=now,
     )
     return stored.company_key
+
+
+def ensure_companies_for_unlocked_signals(
+    connection: sa.Connection,
+    *,
+    items: tuple[feed_query.FeedSignal, ...],
+    now: dt.datetime,
+) -> dict[str, str]:
+    """Resolve company keys for an authorised feed page in one identity batch."""
+    if not items:
+        return {}
+    by_signal_key = {item.signal.signal_key: item for item in items}
+    indexed = index_signal_company_identities(
+        connection,
+        signal_keys=tuple(by_signal_key),
+    )
+    candidates: dict[str, CompanyCandidate] = {}
+    fingerprint_by_signal_key: dict[str, str] = {}
+    for signal_key, item in by_signal_key.items():
+        identity = indexed.get(signal_key)
+        if identity is None:
+            continue
+        fingerprint = identity.resolved.identity_fingerprint
+        fingerprint_by_signal_key[signal_key] = fingerprint
+        candidates.setdefault(
+            fingerprint,
+            CompanyCandidate(
+                resolved=identity.resolved,
+                source_award_key=identity.source_award_key,
+                origin_signal_key=item.signal.signal_key,
+            ),
+        )
+    stored = get_or_create_companies(
+        connection,
+        candidates=tuple(candidates.values()),
+        now=now,
+    )
+    return {
+        signal_key: stored[fingerprint].company_key
+        for signal_key, fingerprint in fingerprint_by_signal_key.items()
+    }
 
 
 def _current_signal_query(
