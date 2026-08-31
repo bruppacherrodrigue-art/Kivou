@@ -933,7 +933,15 @@ def select_production_opportunity_key(
     if observed_at.tzinfo is None or observed_at.utcoffset() is None:
         raise ValueError("selection timestamp must be timezone-aware")
     horizon = observed_at.astimezone(dt.UTC).date()
-    already_played = sa.select(acquisition_runtime_cycle.c.opportunity_key)
+    # Seuls les cycles TERMINAUX retirent une opportunité du vivier. Un cycle
+    # FAILED, CANCELLED ou encore en vol est REPRIS par
+    # `AcquisitionRuntimeStore.resume_or_create_cycle` — l'exclure à jamais
+    # empêcherait la reprise au lieu de la protéger. Le filtre NOT NULL est
+    # défensif : un NULL dans la sous-requête ferait taire le NOT IN entier.
+    already_played = sa.select(acquisition_runtime_cycle.c.opportunity_key).where(
+        acquisition_runtime_cycle.c.opportunity_key.isnot(None),
+        acquisition_runtime_cycle.c.status.in_(("SUCCEEDED", "SUPPRESSED")),
+    )
     latest = sa.func.max(source_event.c.published_on).label("latest")
     statement = (
         sa.select(opportunity_representation.c.opportunity_key, latest)
