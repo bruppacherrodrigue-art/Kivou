@@ -37,7 +37,7 @@ export function PublicPricing() {
         description="Les quatre offres mensuelles Kivou, de Découverte à Scale."
         canonicalPath="/tarifs"
       />
-      <main id="main" className="pricing-page">
+      <main id="main" className="pricing-page" tabIndex={-1}>
         <header className="pricing-hero container">
           <p className="eyebrow">Tarifs mensuels</p>
           <h1>Choisissez la couverture adaptée à votre prospection.</h1>

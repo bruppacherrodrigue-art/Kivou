@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
@@ -39,6 +40,25 @@ const AGGREGATE_DOWNGRADES: Array<[
 ]
 
 describe('tarifs publics exacts et autoritaires', () => {
+  it('réapplique l’empilement mobile après la règle desktop du bandeau dashboard', () => {
+    const css = readFileSync(
+      resolve(process.cwd(), 'src/reference/public/public-reference.css'),
+      'utf8',
+    )
+    const desktopRule = css.lastIndexOf('.dashboard-intro { display: flex;')
+    const responsiveRule = css.indexOf('@media (max-width: 820px)', desktopRule)
+    const nextMediaRule = css.indexOf('@media', responsiveRule + 1)
+
+    expect(desktopRule).toBeGreaterThan(-1)
+    expect(responsiveRule).toBeGreaterThan(desktopRule)
+    expect(css.slice(responsiveRule, nextMediaRule)).toMatch(
+      /\.dashboard-intro\s*\{\s*display:\s*block;/,
+    )
+    expect(css.slice(responsiveRule, nextMediaRule)).toMatch(
+      /\.dashboard-intro\s*>\s*\.text-link\s*\{[^}]*display:\s*inline-block;[^}]*margin-top:\s*18px;/,
+    )
+  })
+
   it('rend les quatre cartes et montants exclusivement depuis le catalogue API', async () => {
     mockApi({ 'GET /billing/plans': { body: catalogueWithEssentialPrice(1234) } })
     const { container } = renderApp(<AppRoutes />, { route: '/tarifs' })

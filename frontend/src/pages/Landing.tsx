@@ -33,7 +33,7 @@ export function Landing() {
         description="Kivou transforme les marchés publics attribués en signaux commerciaux documentés."
         canonicalPath="/"
       />
-      <main id="main">
+      <main id="main" tabIndex={-1}>
         <section className="home-hero">
           <div className="container hero-grid">
             <div className="hero-copy">

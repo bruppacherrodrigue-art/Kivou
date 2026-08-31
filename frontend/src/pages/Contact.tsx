@@ -8,7 +8,7 @@ export function Contact() {
         description="Écrivez à Kivou."
         canonicalPath="/contact"
       />
-      <main id="main" className="contact-page">
+      <main id="main" className="contact-page" tabIndex={-1}>
         <section className="contact-form-wrap container" aria-labelledby="contact-title">
           <h1 id="contact-title">Contact</h1>
           <form className="glass contact-form" action="mailto:contact@kivou.eu?subject=Contact%20Kivou" method="post" encType="text/plain">

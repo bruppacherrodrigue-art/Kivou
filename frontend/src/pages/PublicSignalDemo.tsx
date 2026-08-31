@@ -22,7 +22,7 @@ export function PublicSignalDemo() {
         description="Un signal Kivou construit à partir d’un avis d’attribution réel."
         canonicalPath="/exemple-de-signal"
       />
-      <main id="main">
+      <main id="main" tabIndex={-1}>
         <section className="page-hero">
           <div className="container hero-grid">
             <div className="hero-copy">

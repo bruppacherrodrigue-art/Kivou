@@ -701,6 +701,29 @@ def test_production_nginx_preserves_the_exact_staging_route_contract() -> None:
     assert nginx_active_directives(read(PRODUCTION_NGINX)) == expected
 
 
+@pytest.mark.parametrize(
+    "path",
+    (
+        NGINX / "kivou-staging.conf",
+        PRODUCTION_NGINX,
+    ),
+)
+def test_nginx_serves_exact_billing_alias_without_shadowing_billing_api(
+    path: pathlib.Path,
+) -> None:
+    body = read(path)
+
+    assert re.search(
+        r"location = /billing\s*\{\s*try_files /index\.html =404;\s*\}",
+        body,
+    )
+    assert (
+        "location ~ "
+        "^/(auth|me|target-icps|signals|companies|billing|"
+        "notification-preferences)(/|$) {"
+    ) in body
+
+
 def test_pre_hsts_production_nginx_does_not_claim_hsts_is_active() -> None:
     for path in (
         PRODUCTION_NGINX,

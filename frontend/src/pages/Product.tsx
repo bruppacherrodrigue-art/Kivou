@@ -20,7 +20,7 @@ export function Product() {
         description="La méthode Kivou, du ciblage à l’analyse d’un marché public attribué."
         canonicalPath="/produit"
       />
-      <main id="main">
+      <main id="main" tabIndex={-1}>
         <section className="page-hero">
           <div className="container hero-grid">
             <div className="hero-copy">

@@ -648,6 +648,8 @@ details.technical p { margin-top: 12px; color: var(--muted); font-size: 12px; li
 }
 
 @media (max-width: 820px) {
+  .dashboard-intro { display: block; }
+  .dashboard-intro > .text-link { display: inline-block; margin-top: 18px; }
   .summary-grid, .offers-overview { grid-template-columns: 1fr; }
   .summary-grid { gap: 34px; }
   .offers-overview { gap: 38px; }
