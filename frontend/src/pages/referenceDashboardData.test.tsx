@@ -63,14 +63,14 @@ describe('vue d’ensemble de référence connectée aux données réelles', () 
     expect(document.querySelector('.workspace-grid')).toBeNull()
     const priority = document.querySelector('.priority-card') as HTMLElement
     const facts = priority.querySelector('.priority-facts') as HTMLElement
-    expect(within(facts).getByText('Attribution')).toBeVisible()
-    expect(within(facts).getByText('Début prévu')).toBeVisible()
+    expect(within(facts).getByText('Montant total du marché')).toBeVisible()
+    expect(within(facts).getByText('Date d’attribution')).toBeVisible()
+    expect(within(facts).getByText('Acheteur')).toBeVisible()
     expect(within(facts).getByText('Lieu')).toBeVisible()
-    expect(within(facts).queryByText('Montant total du marché')).toBeNull()
-    expect(within(facts).getByText('Non publié')).toBeVisible()
     for (const reason of UNLOCKED_ITEM.analysis.fit.reasons) {
-      expect(within(priority).getByText(reason)).toBeVisible()
+      expect(within(priority).queryByText(reason)).toBeNull()
     }
+    expect(within(priority).getByText('Un résumé factuel est publié, sans interprétation commerciale.')).toBeVisible()
     expect(within(priority).getByText(/Attribution publiée sur BOAMP/)).toBeVisible()
   })
 

@@ -95,7 +95,7 @@ describe('états indépendants des vues de référence', () => {
       session: AUTHENTICATED,
     })
 
-    const list = await screen.findByRole('heading', { name: 'Attributions documentées' })
+    const list = await screen.findByRole('heading', { name: 'Signaux détectés' })
     expect(within(list.closest('.feed-panel') as HTMLElement).getByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
     expect(await screen.findByRole('alert')).toHaveTextContent(/signal/i)
     expect(screen.getByRole('button', { name: /réessayer/i })).toBeVisible()
@@ -213,7 +213,7 @@ describe('états indépendants des vues de référence', () => {
     expect(screen.getByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
     expect(within(document.querySelector('.workspace-grid') as HTMLElement).getAllByRole('status')).toHaveLength(1)
     await act(async () => rejectRefresh(new Error('refresh failed')))
-    const feedPanel = screen.getByRole('heading', { name: 'Attributions documentées' })
+    const feedPanel = screen.getByRole('heading', { name: 'Signaux détectés' })
       .closest('.feed-panel') as HTMLElement
     expect(await within(feedPanel).findByRole('alert')).toHaveTextContent(
       'L’actualisation a échoué. Les données affichées peuvent être anciennes.',

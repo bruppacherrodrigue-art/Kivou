@@ -3925,14 +3925,6 @@ a:focus-visible {
   margin-top: 0;
 }
 
-@media (max-width: 760px) {
-  .presentation-targets ul,
-  .presentation-claim-groups ul,
-  .signal-fact-grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 /* Shared public, authentication and account lifecycle */
 
 :root {
@@ -6527,6 +6519,12 @@ button.public-cta {
   }
 
   .signal-list {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .presentation-targets ul,
+  .presentation-claim-groups ul,
+  .signal-fact-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
