@@ -1133,6 +1133,95 @@ git commit -m "feat(acquisition): composer un cycle de production sur l'opportun
 
 ---
 
+### Task 6B : rendre la liaison de transport QA facultative
+
+**Files:**
+- Modify: `src/signals/acquisition_runtime/domain.py:789-828` et la construction d'empreinte vers `:1430-1452`
+- Modify: `src/signals/acquisition_runtime/composition.py:189-194`
+- Test: `tests/test_acquisition_runtime_domain.py` *(étendu)*, `tests/test_acquisition_runtime_composition.py` *(étendu)*, `tests/test_acquisition_runtime_execution_production.py` *(le stub disparaît)*
+
+**Pourquoi cette tâche existe.** Elle ne figurait pas au plan initial. C'est le quatrième couplage staging-only découvert par l'exécution, et le dernier : `AcquisitionDomainActions.__init__` exige `qa_transport_recipient_identity` et `qa_transport_recipient_key_version` comme chaînes SHA-256 non optionnelles, lues sur le détournement de destinataire. Or la tâche 6 a rendu ce détournement nul en production. La composition de production échoue donc sur un `AttributeError`, et le runtime ne peut toujours pas démarrer.
+
+**Interfaces:**
+- Consomme : la composition de la tâche 6, qui construit `recipient_override=None` hors staging.
+- Produit : une composition de domaine qui réussit en production, sans liaison de transport QA.
+
+**Ce qui ne doit pas s'affaiblir.** La liaison est repliée dans l'empreinte de passage de relais (`domain.py:1430-1452`), comparée pour détecter `QA_TRANSPORT_BINDING_MISMATCH` (`:1297`, `:1314`). Cette détection reste **entière en staging**. En production, l'empreinte porte des valeurs nulles explicites : elle atteste alors qu'aucune redirection n'a eu lieu, ce qui est le fait exact à prouver dans cet environnement. Les deux paramètres restent liés — les deux présents ou les deux absents, jamais un seul.
+
+- [ ] **Étape 1 : écrire les tests qui échouent**
+
+Trois exigences, chacune son test, nommées pour ce qu'elles protègent :
+
+- `test_production_domain_actions_accept_no_qa_transport_binding` — une production sans liaison construit son domaine sans lever.
+- `test_a_single_qa_transport_binding_component_is_refused` — l'identité et la version de clé vont par paire, jamais l'une sans l'autre.
+- `test_staging_still_requires_a_well_formed_qa_transport_binding` — une identité qui n'est pas un SHA-256 reste refusée en staging.
+
+Reprendre le montage de `tests/test_acquisition_runtime_domain.py` pour construire `AcquisitionDomainActions` ; ne pas en inventer un.
+
+- [ ] **Étape 2 : lancer les tests et vérifier qu'ils échouent**
+
+Commande : `uv run pytest tests/test_acquisition_runtime_domain.py -q`
+Attendu : le premier échoue sur la validation SHA-256 du constructeur.
+
+- [ ] **Étape 3 : implémenter**
+
+Rendre les deux paramètres facultatifs, valider seulement s'ils sont présents, et exiger qu'ils aillent par paire :
+
+```python
+        qa_transport_recipient_identity: str | None,
+        qa_transport_recipient_key_version: str | None,
+```
+
+```python
+        if (qa_transport_recipient_identity is None) != (
+            qa_transport_recipient_key_version is None
+        ):
+            raise ValueError("QA transport binding is all or nothing")
+        if qa_transport_recipient_identity is not None:
+            if re.fullmatch(r"[0-9a-f]{64}", qa_transport_recipient_identity) is None:
+                raise ValueError("QA transport recipient identity must be a SHA-256 HMAC")
+            if (
+                not qa_transport_recipient_key_version
+                or len(qa_transport_recipient_key_version) > 64
+            ):
+                raise ValueError("QA transport recipient key version is invalid")
+```
+
+Adapter la construction d'empreinte pour accepter une liaison absente, en inscrivant des valeurs nulles explicites plutôt qu'en omettant les clés — une clé omise changerait l'empreinte du staging et casserait la détection de désaccord.
+
+Dans `composition.py`, transmettre l'absence au lieu de déréférencer :
+
+```python
+        qa_transport_recipient_identity=(
+            recipient_override.transport_recipient_identity
+            if recipient_override is not None
+            else None
+        ),
+        qa_transport_recipient_key_version=(
+            recipient_override.transport_key_version
+            if recipient_override is not None
+            else None
+        ),
+```
+
+- [ ] **Étape 4 : retirer l'échafaudage de la tâche 6**
+
+Le test `test_production_domain_composition_still_blocked_by_qa_transport_binding` est un `xfail(strict=True)` : il **échouera** dès que ce correctif fonctionne, et c'est le signal attendu, non une régression. Le supprimer. Puis retirer le `domain_builder` factice de la fixture `production_arguments` dans `tests/test_acquisition_runtime_execution_production.py`, pour que le VRAI constructeur soit exercé. Si un cinquième verrou apparaît alors, le signaler — ne pas réinstaller le stub.
+
+- [ ] **Étape 5 : lancer les tests et vérifier qu'ils passent**
+
+Commande : `uv run pytest tests/test_acquisition_runtime_domain.py tests/test_acquisition_runtime_composition.py tests/test_acquisition_runtime_execution_production.py tests/test_acquisition_runtime_execution.py tests/test_acquisition_runtime_execution_policy.py -q`
+Attendu : tout passe, sans aucun xfail restant, et les tests d'exécution du staging inchangés.
+
+- [ ] **Étape 6 : commit**
+
+```bash
+git add src/signals/acquisition_runtime/domain.py src/signals/acquisition_runtime/composition.py tests/
+git commit -m "feat(acquisition): rendre la liaison de transport QA facultative hors staging"
+```
+
+---
+
 ### Task 7 : verrouiller les invariants 5 et 6 de la spec
 
 **Files:**
