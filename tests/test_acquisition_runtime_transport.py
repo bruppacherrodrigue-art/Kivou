@@ -7,6 +7,7 @@ import json
 import pytest
 
 from signals.acquisition_runtime.config import load_runtime_config
+from signals.acquisition_runtime.contracts import ACQUISITION_PRODUCTION_SCHEMA_VERSION
 from signals.acquisition_runtime.transport import StagingQaRecipientOverride
 from signals.compliance.suppression import SuppressionIdentityKeyring
 
@@ -102,12 +103,14 @@ def test_override_rechecks_staging_qa_contract_even_after_unsafe_model_copy(
 
 
 def test_production_configuration_cannot_build_a_recipient_override(tmp_path) -> None:
-    import json
+    """Prove that no production configuration reachable through contracts can build the override.
 
-    from signals.acquisition_runtime.config import load_runtime_config
-    from signals.acquisition_runtime.contracts import (
-        ACQUISITION_PRODUCTION_SCHEMA_VERSION,
-    )
+    The StagingQaRecipientOverride guard (transport.py:32-38) is a four-way OR: environment,
+    qa_only, and qa_provider_mutations_capable. A valid production config trips three of
+    four simultaneously, not just one. Isolating a single condition would require violating
+    the contracts themselves, which is not a valid test. Defence in depth here is redundancy,
+    not dead code.
+    """
 
     path = tmp_path / "acquisition-production.json"
     path.write_text(
