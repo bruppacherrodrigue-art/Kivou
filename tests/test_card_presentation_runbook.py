@@ -45,12 +45,29 @@ def _between(body: str, start: str, end: str) -> str:
     return body.split(start, 1)[1].split(end, 1)[0]
 
 
+def _python_heredocs(body: str) -> tuple[str, ...]:
+    return tuple(
+        re.findall(
+            r"<<'PY'\n(.*?)^PY$",
+            body,
+            flags=re.MULTILINE | re.DOTALL,
+        )
+    )
+
+
 def _ci_jq_filter(body: str) -> str:
     prefix = 'jq -e --arg sha "$KIVOU_FINAL_SHA" \'\n'
     suffix = '\' "$KIVOU_CI_JSON" >/dev/null'
     assert body.count(prefix) == 1
     assert body.count(suffix) == 1
     return body.split(prefix, 1)[1].split(suffix, 1)[0]
+
+
+def _embedded_awk_after(commands: str, anchor: str) -> str:
+    prefix = f'{anchor} | awk \'\n'
+    suffix = "\n  '"
+    assert commands.count(prefix) == 1
+    return commands.split(prefix, 1)[1].split(suffix, 1)[0]
 
 
 def test_rollout_proves_exact_main_ci_jobs_and_executed_steps_before_ssh() -> None:
@@ -269,13 +286,13 @@ def test_backend_release_migrates_0027_to_0028_before_versioned_blue_green() -> 
         "card_presentation_artifact",
         "ix_card_presentation_tenant_read",
         "uq_card_presentation_active_publication",
-        "Reverse proxy public de staging (#84)",
+        r"Reverse proxy public de staging \(#84\)",
         "kivou-api-green.service 8001",
         "green_openapi_status=200",
         "green_me_status=401",
         'sudo mv -Tf "$KIVOU_APP_NEXT" /srv/kivou/app',
         "public-status.codes",
-        "reprendre au second bloc bash",
+        'git show "$KIVOU_FINAL_SHA:ops/README.md"',
     ):
         assert fragment in body
 
@@ -284,7 +301,7 @@ def test_backend_release_migrates_0027_to_0028_before_versioned_blue_green() -> 
         'assert after == "0028_card_presentation", after',
         "card_presentation_artifact",
         'print(f"migration={before}->{after}")',
-        "Démarrer et prouver le runtime vert sur 8001",
+        'git show "$KIVOU_FINAL_SHA:ops/README.md"',
         'sudo mv -Tf "$KIVOU_APP_NEXT" /srv/kivou/app',
     )
 
@@ -292,18 +309,117 @@ def test_backend_release_migrates_0027_to_0028_before_versioned_blue_green() -> 
         "## 5. Publier le backend par le blue/green versionné", 1
     )[1].split("## 6. Construire et basculer le frontend du même SHA", 1)[0]
     for fragment in (
-        'KIVOU_BLUE_GREEN_DOC="$KIVOU_RELEASE_DIR/ops/README.md"',
         'test "$(readlink -f /srv/kivou/app)" = "$KIVOU_PREVIOUS_BACKEND"',
-        "### Démarrer et prouver le runtime vert sur 8001",
-        "### Basculer l'application pendant le monitor public",
+        'git show "$KIVOU_FINAL_SHA:ops/README.md"',
+        "block >= 2 && block <= 6",
+        "| ssh kivou-staging 'bash -s' --",
     ):
         assert fragment in backend_rollout
     _assert_in_order(
         backend_rollout,
         'test "$(readlink -f /srv/kivou/app)" = "$KIVOU_PREVIOUS_BACKEND"',
-        "reprendre au second bloc bash",
+        "block >= 2 && block <= 6",
+        "| ssh kivou-staging 'bash -s' --",
         'test "$(readlink -f /srv/kivou/app)" = "$KIVOU_RELEASE_DIR"',
     )
+
+
+def test_blue_green_bootstrap_executes_authoritative_blocks_in_one_remote_shell() -> None:
+    body = _body()
+    rollout = _between(
+        body,
+        "## 5. Publier le backend par le blue/green versionné",
+        "## 6. Construire et basculer le frontend du même SHA",
+    )
+    commands = _commands(rollout)
+
+    for fragment in (
+        'git show "$KIVOU_FINAL_SHA:ops/README.md"',
+        r'/^## Reverse proxy public de staging \(#84\)$/',
+        "block >= 2 && block <= 6",
+        "if (emit && block == 3)",
+        "$KIVOU_PREVIOUS_RELEASE",
+        "$KIVOU_PREVIOUS_BACKEND",
+        "| ssh kivou-staging 'bash -s' --",
+        "KIVOU_RELEASE_DIR=$1",
+        "KIVOU_RELEASE_SHA=$2",
+        "KIVOU_STAGING_HOST=$3",
+        "KIVOU_API_PORT=$4",
+        "KIVOU_PREVIOUS_BACKEND=$5",
+        'test "$(hostname -s)" = "kivou-staging-01"',
+        'test "$KIVOU_STAGING_HOST" = "staging.kivou.eu"',
+        'test "$KIVOU_API_PORT" = 8001',
+        "kivou_git() {",
+        'printf \'%s\\n\' "$KIVOU_BLUE_GREEN_SCRIPT" | bash -n',
+    ):
+        assert fragment in commands
+
+    assert "reprendre au second bloc bash" not in rollout
+    assert commands.count("| ssh kivou-staging 'bash -s' --") == 1
+    _assert_in_order(
+        commands,
+        "KIVOU_RELEASE_DIR=$1",
+        "kivou_git() {",
+        'git show "$KIVOU_FINAL_SHA:ops/README.md"',
+        'printf \'%s\\n\' "$KIVOU_BLUE_GREEN_SCRIPT" | bash -n',
+        "| ssh kivou-staging 'bash -s' --",
+    )
+
+    awk_program = _embedded_awk_after(
+        commands,
+        'git show "$KIVOU_FINAL_SHA:ops/README.md"',
+    )
+    extracted = subprocess.run(
+        ["awk", awk_program],
+        input=OPERATIONS.read_text(encoding="utf-8"),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert extracted.returncode == 0, extracted.stderr
+    for fragment in (
+        "KIVOU_NGINX_CANDIDATE=",
+        "KIVOU_ROLLOUT_STATE=",
+        "--unit=kivou-api-green",
+        "# single public reload to green",
+        'sudo mv -Tf "$KIVOU_APP_NEXT" /srv/kivou/app',
+        'test "$KIVOU_PREVIOUS_RELEASE" = "$KIVOU_PREVIOUS_BACKEND"',
+    ):
+        assert extracted.stdout.count(fragment) == 1
+    assert "SHA main revu (40 hex)" not in extracted.stdout
+    syntax = subprocess.run(
+        ["bash", "-n"],
+        input=extracted.stdout,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert syntax.returncode == 0, syntax.stderr
+
+
+def test_backend_rollback_validates_root_only_state_against_captured_targets() -> None:
+    rollback = _body().split("## 9. Rollback applicatif", 1)[1]
+    commands = _commands(rollback)
+
+    for fragment in (
+        "KIVOU_ROLLOUT_STATE=/etc/kivou/kivou-safe-rollout.state",
+        (
+            'test "$(sudo stat -c \'%U:%G:%a\' "$KIVOU_ROLLOUT_STATE")" = '
+            '"root:root:600"'
+        ),
+        'sudo test ! -L "$KIVOU_ROLLOUT_STATE"',
+        'KIVOU_ROLLOUT_STATE_CONTENT=$(sudo cat "$KIVOU_ROLLOUT_STATE")',
+        'source /dev/stdin <<<"$KIVOU_ROLLOUT_STATE_CONTENT"',
+        "unset KIVOU_ROLLOUT_STATE_CONTENT",
+        'test "$KIVOU_SECURITY_RELEASE" = "$KIVOU_RELEASE_DIR"',
+        'test "$KIVOU_PREVIOUS_RELEASE" = "$KIVOU_PREVIOUS_BACKEND"',
+        'test "$KIVOU_RELEASE_SHA" = "$KIVOU_FINAL_SHA"',
+        'test "$KIVOU_STAGING_HOST" = "staging.kivou.eu"',
+    ):
+        assert fragment in commands
+
+    assert 'printf \'%s\\n\' "$KIVOU_ROLLOUT_STATE_CONTENT"' not in commands
+    assert 'echo "$KIVOU_ROLLOUT_STATE_CONTENT"' not in commands
 
 
 def test_frontend_uses_the_same_sha_and_switches_with_immediate_rollback() -> None:
@@ -334,10 +450,9 @@ def test_frontend_uses_the_same_sha_and_switches_with_immediate_rollback() -> No
         'sudo mv -Tf "$KIVOU_FRONTEND_ROLLBACK" /srv/kivou/frontend',
         'sudo test ! -L "$KIVOU_FRONTEND_BUILD"',
         'sudo test ! -L "$KIVOU_FRONTEND_RELEASE"',
-        'sudo test ! -L "$KIVOU_FRONTEND_NEXT"',
-        'sudo test ! -L "$KIVOU_FRONTEND_ROLLBACK"',
-        "KIVOU_ROLLBACK_ASSET_PATH=",
-        'kivou_frontend_http_smoke "$KIVOU_ROLLBACK_ASSET_PATH"',
+        'KIVOU_FRONTEND_NEXT="$KIVOU_FRONTEND_SWITCH_DIR/frontend.next"',
+        'KIVOU_FRONTEND_ROLLBACK="$KIVOU_FRONTEND_SWITCH_DIR/frontend.rollback"',
+        'kivou_frontend_http_smoke "$KIVOU_PREVIOUS_FRONTEND"',
         "/app/dashboard",
         "/app/companies",
         "/app/signals",
@@ -356,9 +471,89 @@ def test_frontend_uses_the_same_sha_and_switches_with_immediate_rollback() -> No
         "npm ci",
         "npm run build",
         'sudo mv -Tf "$KIVOU_FRONTEND_NEXT" /srv/kivou/frontend',
+        'kivou_frontend_http_smoke "$KIVOU_FRONTEND_RELEASE"',
         'sudo mv -Tf "$KIVOU_FRONTEND_ROLLBACK" /srv/kivou/frontend',
-        "KIVOU_ROLLBACK_ASSET_PATH=",
-        'kivou_frontend_http_smoke "$KIVOU_ROLLBACK_ASSET_PATH"',
+        'kivou_frontend_http_smoke "$KIVOU_PREVIOUS_FRONTEND"',
+    )
+
+
+def test_frontend_candidate_is_http_proven_before_live_switch() -> None:
+    section = _between(
+        _body(),
+        "## 6. Construire et basculer le frontend du même SHA",
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+    )
+    commands = _commands(section)
+
+    for fragment in (
+        "KIVOU_FRONTEND_PREVIEW_PORT=4174",
+        'KIVOU_FRONTEND_PREVIEW_UNIT="kivou-frontend-preview-$KIVOU_RELEASE_SHORT"',
+        "--strictPort",
+        'trap kivou_stop_frontend_preview EXIT',
+        "http://127.0.0.1:$KIVOU_FRONTEND_PREVIEW_PORT/",
+        "/app/dashboard",
+        "/app/companies",
+        "/app/signals",
+        "mapfile -t KIVOU_CANDIDATE_ASSET_PATHS",
+        'for KIVOU_ASSET_PATH in "${KIVOU_CANDIDATE_ASSET_PATHS[@]}"; do',
+        'test -f "$KIVOU_FRONTEND_RELEASE$KIVOU_ASSET_PATH"',
+    ):
+        assert fragment in commands
+
+    _assert_in_order(
+        commands,
+        "KIVOU_FRONTEND_PREVIEW_PORT=4174",
+        'trap kivou_stop_frontend_preview EXIT',
+        "mapfile -t KIVOU_CANDIDATE_ASSET_PATHS",
+        'for KIVOU_ASSET_PATH in "${KIVOU_CANDIDATE_ASSET_PATHS[@]}"; do',
+        'sudo mv -Tf "$KIVOU_FRONTEND_NEXT" /srv/kivou/frontend',
+    )
+    assert "head -n 1" not in commands.split(
+        'sudo mv -Tf "$KIVOU_FRONTEND_NEXT" /srv/kivou/frontend', 1
+    )[0]
+
+
+def test_frontend_switch_prearms_unique_next_and_rollback_before_atomic_mv() -> None:
+    section = _between(
+        _body(),
+        "## 6. Construire et basculer le frontend du même SHA",
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+    )
+    commands = _commands(section)
+    logical = _logical_shell(section)
+
+    for fragment in (
+        'KIVOU_FRONTEND_NEXT="$KIVOU_FRONTEND_SWITCH_DIR/frontend.next"',
+        'KIVOU_FRONTEND_ROLLBACK="$KIVOU_FRONTEND_SWITCH_DIR/frontend.rollback"',
+        'sudo ln -s "$KIVOU_FRONTEND_RELEASE" "$KIVOU_FRONTEND_NEXT"',
+        'sudo ln -s "$KIVOU_PREVIOUS_FRONTEND" "$KIVOU_FRONTEND_ROLLBACK"',
+        'test "$(readlink -f /srv/kivou/frontend)" = "$KIVOU_PREVIOUS_FRONTEND"',
+        'case "$KIVOU_FRONTEND_SWITCH_DIR_REAL" in',
+        "(/srv/kivou/.kivou-frontend-next.*)",
+    ):
+        assert fragment in commands
+    assert "sudo mktemp -d /srv/kivou/.kivou-frontend-next.XXXXXX" in logical
+    assert (
+        'test "$(sudo readlink -f "$KIVOU_FRONTEND_NEXT")" = '
+        '"$KIVOU_FRONTEND_RELEASE"'
+    ) in logical
+    assert (
+        'test "$(sudo readlink -f "$KIVOU_FRONTEND_ROLLBACK")" = '
+        '"$KIVOU_PREVIOUS_FRONTEND"'
+    ) in logical
+
+    assert "KIVOU_FRONTEND_NEXT=/srv/kivou/frontend.next" not in commands
+    assert "KIVOU_FRONTEND_ROLLBACK=/srv/kivou/frontend.rollback" not in commands
+    _assert_in_order(
+        logical,
+        'sudo ln -s "$KIVOU_FRONTEND_RELEASE" "$KIVOU_FRONTEND_NEXT"',
+        'sudo ln -s "$KIVOU_PREVIOUS_FRONTEND" "$KIVOU_FRONTEND_ROLLBACK"',
+        'test "$(sudo readlink -f "$KIVOU_FRONTEND_NEXT")" = '
+        '"$KIVOU_FRONTEND_RELEASE"',
+        'test "$(sudo readlink -f "$KIVOU_FRONTEND_ROLLBACK")" = '
+        '"$KIVOU_PREVIOUS_FRONTEND"',
+        'test "$(readlink -f /srv/kivou/frontend)" = "$KIVOU_PREVIOUS_FRONTEND"',
+        'sudo mv -Tf "$KIVOU_FRONTEND_NEXT" /srv/kivou/frontend',
     )
 
 
@@ -415,6 +610,24 @@ def test_qa_gate_precedes_separate_bounded_fr_en_factual_backfills() -> None:
         "provider IS NULL",
     )
     assert commands.count("python -m signals.card_intelligence backfill-fallbacks") == 2
+
+
+def test_every_qa_python_boundary_fails_with_only_an_opaque_error() -> None:
+    qa_section = _between(
+        _body(),
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    scripts = _python_heredocs(qa_section)
+
+    assert len(scripts) == 2
+    for script in scripts:
+        assert "def main() -> None:" in script
+        assert "try:\n    main()\nexcept Exception:" in script
+        assert re.search(r'print\("qa_[a-z_]+_failed", file=sys.stderr\)', script)
+        assert "raise SystemExit(1)" in script
+        assert "traceback" not in script.casefold()
+        assert not re.search(r"(?m)^\s*raise\s*$", script)
 
 
 def test_smoke_and_rollback_contract_retain_additive_migration() -> None:
@@ -493,9 +706,13 @@ def test_cleanup_and_mutation_commands_are_narrow_and_staging_only() -> None:
         assert (
             "KIVOU_RESTORE_DB" in line
             or "KIVOU_FRONTEND_BUILD_REAL" in line
+            or "KIVOU_FRONTEND_SWITCH_DIR_REAL" in line
+            or "KIVOU_FRONTEND_ROLLBACK_DIR_REAL" in line
         ), line
     assert commands.count('case "$KIVOU_RESTORE_DB" in') >= 2
     assert commands.count('case "$KIVOU_FRONTEND_BUILD_REAL" in') >= 2
+    assert commands.count('case "$KIVOU_FRONTEND_SWITCH_DIR_REAL" in') >= 2
+    assert commands.count('case "$KIVOU_FRONTEND_ROLLBACK_DIR_REAL" in') >= 2
 
 
 def test_ops_readme_points_to_the_single_versioned_staging_rollout() -> None:
