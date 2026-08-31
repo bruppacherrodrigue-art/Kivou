@@ -20,10 +20,14 @@ from signals.billing import discovery
 from signals.billing.access import feed_access
 from signals.billing.schema import billing_subscription
 from signals.companies import service as company_service
+from signals.companies.contracts import CompanyOfficialIdentity
+from signals.companies.identity import IdentityMethod, ResolvedOfficialCompany
+from signals.companies.indexing import index_signal_company_identity
 from signals.companies.service import (
     company_profile_for_account,
     ensure_company_for_unlocked_signal,
 )
+from signals.companies.store import CompanyCandidate, get_or_create_companies
 from signals.feed import query
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import materialized_signal
@@ -103,6 +107,77 @@ def _identity_variant(
     party = template_party.model_copy(update={"members": (member,)})
     award = awards[0].model_copy(update={"awardee_parties": (party,)})
     return materialize(connection, event, award, target_icp_id=target_icp_id)
+
+
+def test_feed_company_resolution_uses_one_store_batch(engine, monkeypatch) -> None:
+    with engine.begin() as connection:
+        account_id, icp_id = _paid_account(connection, email="batch-service@kivou.test")
+        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
+        item = _item(
+            connection,
+            account_id=account_id,
+            signal_key=signal.signal_key,
+            icp_id=icp_id,
+        )
+
+        def forbid_single_store_call(*args, **kwargs):
+            raise AssertionError("feed company resolution must use the batch store")
+
+        monkeypatch.setattr(
+            company_service,
+            "get_or_create_company",
+            forbid_single_store_call,
+        )
+        resolved = company_service.ensure_companies_for_unlocked_signals(
+            connection,
+            items=(item,),
+            now=NOW,
+        )
+
+    assert resolved[signal.signal_key].startswith("cmp_")
+
+
+def test_company_store_batch_has_constant_statement_count(engine) -> None:
+    statements: list[str] = []
+
+    def record_statement(connection, cursor, statement, parameters, context, executemany):
+        if "saas_company" in statement:
+            statements.append(statement)
+
+    with engine.begin() as connection:
+        _, icp_id = _paid_account(connection, email="batch-store@kivou.test")
+        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp_id)
+        indexed = index_signal_company_identity(
+            connection,
+            signal_key=signal.signal_key,
+        )
+        assert indexed is not None
+        candidates = tuple(
+            CompanyCandidate(
+                resolved=ResolvedOfficialCompany(
+                    official=CompanyOfficialIdentity(
+                        name=f"Entreprise batch {index}",
+                        country="CH",
+                        observed_at=NOW,
+                    ),
+                    identity_fingerprint=f"{index + 1:064x}",
+                    identity_method=IdentityMethod.OPPORTUNITY,
+                    validation_evidence={"opportunity_key": f"opp_batch_{index}"},
+                ),
+                source_award_key=indexed.source_award_key,
+                origin_signal_key=signal.signal_key,
+            )
+            for index in range(5)
+        )
+        sa.event.listen(connection, "before_cursor_execute", record_statement)
+        first = get_or_create_companies(connection, candidates=candidates, now=NOW)
+        assert len(first) == len(candidates)
+        assert len(statements) == 2
+
+        statements.clear()
+        second = get_or_create_companies(connection, candidates=candidates, now=NOW)
+        assert second.keys() == first.keys()
+        assert len(statements) == 2
 
 
 def test_current_unlocked_signal_authorizes_official_profile(engine) -> None:
