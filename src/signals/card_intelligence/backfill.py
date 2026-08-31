@@ -8,6 +8,7 @@ model, prompt, generator, or QA implementation.
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -32,6 +33,9 @@ from signals.feed.query import feed_page
 
 MAX_BACKFILL_ITEMS = 50
 _INVALID_ARGUMENTS = "invalid backfill arguments"
+_ACCOUNT_BACKFILL_LOCK_NAMESPACE = (
+    b"kivou:card-intelligence:factual-backfill:account:v1\x00"
+)
 
 
 class _InvalidFactualPublication(RuntimeError):
@@ -139,6 +143,33 @@ def _publication_lock_order(
     )
 
 
+def _account_backfill_lock_key(account_id: str) -> int:
+    """Return one namespaced signed bigint; collisions only over-serialize."""
+
+    digest = hashlib.sha256(
+        _ACCOUNT_BACKFILL_LOCK_NAMESPACE + account_id.encode("utf-8")
+    ).digest()
+    return int.from_bytes(digest[:8], byteorder="big", signed=True)
+
+
+def _lock_account_backfill_transaction(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+) -> None:
+    """Serialize one account's pages without locking business-table rows."""
+
+    dialect = connection.dialect.name
+    if dialect == "sqlite":
+        return
+    if dialect != "postgresql":
+        raise RuntimeError("unsupported database dialect for factual backfill")
+    connection.execute(
+        sa.text("SELECT pg_advisory_xact_lock(:lock_key)"),
+        {"lock_key": _account_backfill_lock_key(account_id)},
+    )
+
+
 def backfill_factual_presentations(
     engine: sa.Engine,
     *,
@@ -170,6 +201,10 @@ def backfill_factual_presentations(
     failed = 0
 
     with engine.begin() as connection:
+        _lock_account_backfill_transaction(
+            connection,
+            account_id=account_id,
+        )
         owned_account = connection.scalar(
             sa.select(account.c.account_id).where(account.c.account_id == account_id)
         )

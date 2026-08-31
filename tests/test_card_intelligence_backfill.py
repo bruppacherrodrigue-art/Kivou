@@ -49,6 +49,13 @@ class BackfillCase:
     signal_keys: tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class SameAccountPageCase:
+    account_id: str
+    target_icp_ids: tuple[str, str]
+    signal_keys: tuple[str, str, str, str]
+
+
 @pytest.fixture
 def engine(tmp_path) -> sa.Engine:
     database = create_database_engine(
@@ -361,6 +368,140 @@ def _seed_opposed_shared_awards(
         signal_keys=tuple(signal_key for signal_key, _ in assignments[1]),
     )
     return first_case, second_case
+
+
+def _seed_same_account_opposed_icp_pages(
+    engine: sa.Engine,
+) -> SameAccountPageCase:
+    """Create two disjoint pages that lock the same ICPs in opposite order."""
+
+    with engine.begin() as connection:
+        account_id = make_account(
+            connection,
+            "deadlock-same-account@test.invalid",
+            "Deadlock Same Account",
+        )
+        target_icp_ids = (
+            make_icp(connection, account_id, label="Page Lock A"),
+            make_icp(connection, account_id, label="Page Lock B"),
+        )
+        templates = tuple(
+            materialize_boamp(
+                connection,
+                BOAMP_AGING,
+                target_icp_id=target_icp_id,
+            )
+            for target_icp_id in target_icp_ids
+        )
+        template_signals = tuple(
+            dict(
+                connection.execute(
+                    sa.select(materialized_signal).where(
+                        materialized_signal.c.signal_key == template.signal_key
+                    )
+                ).mappings().one()
+            )
+            for template in templates
+        )
+        template_award = dict(
+            connection.execute(
+                sa.select(contract_award).where(
+                    contract_award.c.award_key
+                    == templates[0].materialization_award_key
+                )
+            ).mappings().one()
+        )
+        template_event = dict(
+            connection.execute(
+                sa.select(source_event).where(
+                    source_event.c.event_key == template_award["event_key"]
+                )
+            ).mappings().one()
+        )
+        template_evidence = dict(
+            connection.execute(
+                sa.select(evidence)
+                .where(
+                    evidence.c.award_key == template_award["award_key"],
+                    evidence.c.anchors_kind == "award_fact",
+                )
+                .order_by(evidence.c.evidence_key)
+                .limit(1)
+            ).mappings().one()
+        )
+        connection.execute(
+            sa.delete(materialized_signal).where(
+                materialized_signal.c.signal_key.in_(
+                    tuple(template.signal_key for template in templates)
+                )
+            )
+        )
+
+        event_keys = tuple(
+            sorted(
+                (f"backfill:same-account-event-{index}" for index in range(4)),
+                key=_digest,
+            )
+        )
+        # Feed pages are (1, 2) and (3, 4). Event-binding order makes their
+        # target lock orders A -> B and B -> A while every source row is disjoint.
+        assignments = (
+            ("1" * 64, 0, event_keys[0]),
+            ("2" * 64, 1, event_keys[3]),
+            ("3" * 64, 1, event_keys[1]),
+            ("4" * 64, 0, event_keys[2]),
+        )
+        common_materialized_at = template_signals[0]["materialized_at"]
+        for index, (signal_key, target_index, event_key) in enumerate(assignments):
+            namespace = f"backfill:same-account:{index}"
+            award_key = _digest(namespace + ":award")
+            connection.execute(
+                sa.insert(source_event).values(
+                    **{
+                        **template_event,
+                        "event_key": event_key,
+                        "source_notice_id": f"same-account-{index}",
+                    }
+                )
+            )
+            connection.execute(
+                sa.insert(contract_award).values(
+                    **{
+                        **template_award,
+                        "award_key": award_key,
+                        "event_key": event_key,
+                        "source_award_id": f"same-account-award-{index}",
+                    }
+                )
+            )
+            connection.execute(
+                sa.insert(evidence).values(
+                    **{
+                        **template_evidence,
+                        "evidence_key": _digest(namespace + ":evidence"),
+                        "award_key": award_key,
+                        "source_notice_id": f"same-account-{index}",
+                    }
+                )
+            )
+            connection.execute(
+                sa.insert(materialized_signal).values(
+                    **{
+                        **template_signals[target_index],
+                        "signal_key": signal_key,
+                        "opportunity_key": _digest(namespace + ":opportunity"),
+                        "materialization_award_key": award_key,
+                        "content_fingerprint": _digest(namespace + ":content"),
+                        "materialized_at": common_materialized_at,
+                    }
+                )
+            )
+
+    return SameAccountPageCase(
+        account_id=account_id,
+        target_icp_ids=target_icp_ids,
+        signal_keys=tuple(assignment[0] for assignment in assignments),
+    )
 
 
 def _run(
@@ -730,10 +871,16 @@ def test_one_invocation_executes_exactly_one_explicit_page(
     page_calls: list[tuple[int, int, int]] = []
     events: list[tuple[str, object]] = []
     presentation_calls: list[set[str]] = []
+    account_transaction_lock = backfill_module._lock_account_backfill_transaction
 
     def recorded_feed_page(connection, **kwargs):
+        events.append(("page", kwargs["account_id"]))
         page_calls.append((kwargs["offset"], kwargs["limit"], kwargs["scan_cap"]))
         return real_feed_page(connection, **kwargs)
+
+    def recorded_account_lock(connection, *, account_id):
+        events.append(("account_lock", account_id))
+        return account_transaction_lock(connection, account_id=account_id)
 
     def recorded_lock(connection, *, source):
         events.append(("lock", source.signal_key))
@@ -745,6 +892,11 @@ def test_one_invocation_executes_exactly_one_explicit_page(
         return published_for_signals(connection, **kwargs)
 
     monkeypatch.setattr(backfill_module, "feed_page", recorded_feed_page)
+    monkeypatch.setattr(
+        backfill_module,
+        "_lock_account_backfill_transaction",
+        recorded_account_lock,
+    )
     monkeypatch.setattr(
         backfill_module,
         "lock_publication_source",
@@ -762,7 +914,17 @@ def test_one_invocation_executes_exactly_one_explicit_page(
     assert result.next_offset == 3
     assert page_calls == [(1, 2, feed_policy.CANDIDATE_SCAN_CAP)]
     assert presentation_calls == [set(case.signal_keys[1:3])]
-    assert [event for event, _ in events] == ["lock", "lock", "batch"]
+    assert [event for event, _ in events] == [
+        "account_lock",
+        "page",
+        "lock",
+        "lock",
+        "batch",
+    ]
+    assert events[:2] == [
+        ("account_lock", case.account_id),
+        ("page", case.account_id),
+    ]
     assert {value for event, value in events if event == "lock"} == set(
         case.signal_keys[1:3]
     )
@@ -1274,3 +1436,195 @@ def test_postgresql_shared_authorities_use_one_global_lock_order_without_deadloc
         finally:
             first.join(timeout=1)
             second.join(timeout=1)
+
+
+def test_postgresql_same_account_pages_are_serialized_before_icp_row_locks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_postgres_engine() as postgres_engine:
+        case = _seed_same_account_opposed_icp_pages(postgres_engine)
+        with postgres_engine.connect() as connection:
+            page_sources = tuple(
+                tuple(
+                    build_presentation_input(
+                        connection,
+                        account_id=case.account_id,
+                        signal_key=signal_key,
+                        language="fr",
+                    )
+                    for signal_key in page
+                )
+                for page in (case.signal_keys[:2], case.signal_keys[2:])
+            )
+        first_authorities = {
+            (
+                source.facts.source_event_binding,
+                source.facts.source_award_binding,
+            )
+            for source in page_sources[0]
+        }
+        second_authorities = {
+            (
+                source.facts.source_event_binding,
+                source.facts.source_award_binding,
+            )
+            for source in page_sources[1]
+        }
+        assert first_authorities.isdisjoint(second_authorities)
+        assert {event for event, _ in first_authorities}.isdisjoint(
+            {event for event, _ in second_authorities}
+        )
+        assert {award for _, award in first_authorities}.isdisjoint(
+            {award for _, award in second_authorities}
+        )
+        assert [
+            source.target_icp_id
+            for source in sorted(
+                page_sources[0],
+                key=backfill_module._publication_lock_order,
+            )
+        ] == list(case.target_icp_ids)
+        assert [
+            source.target_icp_id
+            for source in sorted(
+                page_sources[1],
+                key=backfill_module._publication_lock_order,
+            )
+        ] == list(reversed(case.target_icp_ids))
+
+        start = threading.Barrier(3)
+        after_first_authority = threading.Barrier(2)
+        thread_state = threading.local()
+        batch_calls: list[set[str]] = []
+        lock_sqlstates: list[str | None] = []
+        results: dict[int, BackfillResult] = {}
+        errors: list[BaseException] = []
+
+        def synchronized_lock(connection, *, source):
+            try:
+                locked = lock_publication_source(connection, source=source)
+            except sa.exc.DBAPIError as error:
+                lock_sqlstates.append(getattr(error.orig, "sqlstate", None))
+                raise
+            if not getattr(thread_state, "first_authority_locked", False):
+                thread_state.first_authority_locked = True
+                try:
+                    after_first_authority.wait(timeout=2)
+                except threading.BrokenBarrierError:
+                    pass
+            return locked
+
+        def recorded_presentations(connection, **kwargs):
+            batch_calls.append(set(kwargs["bindings"]))
+            return published_for_signals(connection, **kwargs)
+
+        monkeypatch.setattr(
+            backfill_module,
+            "lock_publication_source",
+            synchronized_lock,
+        )
+        monkeypatch.setattr(
+            backfill_module,
+            "published_for_signals",
+            recorded_presentations,
+        )
+
+        def run_page(offset: int) -> None:
+            try:
+                start.wait(timeout=3)
+                results[offset] = backfill_factual_presentations(
+                    postgres_engine,
+                    account_id=case.account_id,
+                    as_of=DAY,
+                    language="fr",
+                    limit=2,
+                    offset=offset,
+                    now=NOW + dt.timedelta(minutes=offset),
+                )
+            except BaseException as error:  # noqa: BLE001 - asserted by test thread
+                errors.append(error)
+
+        first = threading.Thread(target=run_page, args=(0,), daemon=True)
+        second = threading.Thread(target=run_page, args=(2,), daemon=True)
+        try:
+            first.start()
+            second.start()
+            start.wait(timeout=3)
+            first.join(timeout=15)
+            second.join(timeout=15)
+
+            assert not first.is_alive()
+            assert not second.is_alive()
+            assert errors == []
+            assert "40P01" not in lock_sqlstates
+            assert results == {
+                0: BackfillResult(
+                    scanned=2,
+                    published=2,
+                    unchanged=0,
+                    failed=0,
+                    next_offset=2,
+                    scan_truncated=False,
+                ),
+                2: BackfillResult(
+                    scanned=2,
+                    published=2,
+                    unchanged=0,
+                    failed=0,
+                    next_offset=None,
+                    scan_truncated=False,
+                ),
+            }
+            assert len(batch_calls) == 2
+            assert {frozenset(call) for call in batch_calls} == {
+                frozenset(case.signal_keys[:2]),
+                frozenset(case.signal_keys[2:]),
+            }
+            with postgres_engine.connect() as connection:
+                rows = list(
+                    connection.execute(
+                        sa.select(
+                            card_presentation_artifact.c.signal_key,
+                            card_presentation_artifact.c.version,
+                            card_presentation_artifact.c.superseded_at,
+                        ).where(
+                            card_presentation_artifact.c.account_id == case.account_id
+                        )
+                    ).mappings()
+                )
+            assert {row["signal_key"] for row in rows} == set(case.signal_keys)
+            assert all(row["version"] == 1 for row in rows)
+            assert all(row["superseded_at"] is None for row in rows)
+        finally:
+            first.join(timeout=1)
+            second.join(timeout=1)
+
+
+def test_postgresql_account_backfill_lock_ends_with_its_transaction() -> None:
+    with _isolated_postgres_engine() as postgres_engine:
+        lock_count = sa.text(
+            "SELECT count(*) FROM pg_locks "
+            "WHERE pid = :pid AND locktype = 'advisory' AND granted"
+        )
+        for finish in ("commit", "rollback"):
+            connection = postgres_engine.connect()
+            transaction = connection.begin()
+            try:
+                backend_pid = int(connection.scalar(sa.text("SELECT pg_backend_pid()")))
+                backfill_module._lock_account_backfill_transaction(
+                    connection,
+                    account_id="transaction-scope-test",
+                )
+                with postgres_engine.connect() as observer:
+                    held = observer.scalar(lock_count, {"pid": backend_pid})
+                assert held == 1
+
+                getattr(transaction, finish)()
+
+                with postgres_engine.connect() as observer:
+                    remaining = observer.scalar(lock_count, {"pid": backend_pid})
+                assert remaining == 0
+            finally:
+                if transaction.is_active:
+                    transaction.rollback()
+                connection.close()
