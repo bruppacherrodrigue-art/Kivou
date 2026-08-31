@@ -441,6 +441,40 @@ def test_backup_is_unique_verified_restored_and_dropped_before_migration() -> No
     )
 
 
+def test_restore_catalog_checks_use_fail_closed_psql_stdin() -> None:
+    commands = _commands(
+        _between(
+            _body(),
+            "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
+            "## 4. Préparer la release backend immuable et migrer vers 0028",
+        )
+    )
+
+    assert commands.count("kivou_restore_db_count() {") == 1
+    assert commands.count("kivou_restore_table_count() {") == 1
+    assert commands.count("psql -X -qAt") == 2
+    assert commands.count("--set=ON_ERROR_STOP=1") == 2
+    assert '--set=db="$KIVOU_RESTORE_DB" <<\'SQL\'' in commands
+    assert '--set=table="$KIVOU_TABLE" <<\'SQL\'' in commands
+    assert "SELECT count(*) FROM pg_database WHERE datname = :'db';" in commands
+    assert (
+        "SELECT count(*) FROM pg_catalog.pg_class "
+        "WHERE oid = to_regclass(:'table');"
+    ) in commands
+    assert commands.count(
+        "KIVOU_RESTORE_DB_COUNT=$(kivou_restore_db_count)"
+    ) == 2
+    assert commands.count('test "$KIVOU_RESTORE_DB_COUNT" = 0') == 2
+    assert commands.count(
+        "KIVOU_RESTORE_TABLE_COUNT=$(kivou_restore_table_count)"
+    ) == 1
+    assert commands.count('test "$KIVOU_RESTORE_TABLE_COUNT" = 1') == 1
+    assert 'test "$(kivou_restore_db_count)"' not in commands
+    assert 'test "$(kivou_restore_table_count)"' not in commands
+    assert '-c "SELECT count(*) FROM pg_database WHERE datname = :\'db\'"' not in commands
+    assert "-c \"SELECT count(*) FROM pg_catalog.pg_class" not in commands
+
+
 def test_remote_rollout_shells_use_shared_cwd_and_private_backup_identity() -> None:
     commands = _commands(
         _between(
