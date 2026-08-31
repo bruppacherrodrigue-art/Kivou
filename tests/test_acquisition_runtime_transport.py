@@ -99,3 +99,44 @@ def test_override_rechecks_staging_qa_contract_even_after_unsafe_model_copy(
         StagingQaRecipientOverride(
             unsafe, transport_keyring=_transport_keyring()
         )
+
+
+def test_production_configuration_cannot_build_a_recipient_override(tmp_path) -> None:
+    import json
+
+    from signals.acquisition_runtime.config import load_runtime_config
+    from signals.acquisition_runtime.contracts import (
+        ACQUISITION_PRODUCTION_SCHEMA_VERSION,
+    )
+
+    path = tmp_path / "acquisition-production.json"
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": ACQUISITION_PRODUCTION_SCHEMA_VERSION,
+                "mode": "SHADOW",
+                "qa_scope": {
+                    "country": "FR",
+                    "language": "fr",
+                    "wedge": "construction",
+                },
+                "limits": {
+                    "maximum_cycle_cost": "10.00",
+                    "maximum_suppliers": 1,
+                    "maximum_contacts": 1,
+                    "maximum_provider_operations": 4,
+                    "maximum_wall_seconds": 900,
+                    "lease_seconds": 1200,
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+    config = load_runtime_config(
+        {
+            "KIVOU_ACQUISITION_ENVIRONMENT": "PRODUCTION",
+            "KIVOU_ACQUISITION_RUNTIME_CONFIG": str(path),
+        }
+    )
+    with pytest.raises(ValueError, match="staging QA runtime"):
+        StagingQaRecipientOverride(config, transport_keyring=_transport_keyring())
