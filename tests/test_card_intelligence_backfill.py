@@ -5,6 +5,8 @@ import hashlib
 import os
 import threading
 import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 
 import pytest
@@ -54,6 +56,50 @@ def engine(tmp_path) -> sa.Engine:
     )
     migrate_to_latest(database)
     return database
+
+
+@contextmanager
+def _isolated_postgres_engine() -> Iterator[sa.Engine]:
+    """Migrate a private schema and always remove it from the shared test DB."""
+
+    dsn = os.environ.get("KIVOU_TEST_POSTGRES_DSN")
+    if not dsn:
+        pytest.skip(
+            "KIVOU_TEST_POSTGRES_DSN is required for PostgreSQL interleaving tests"
+        )
+
+    schema = f"card_backfill_{uuid.uuid4().hex}"
+    admin_engine = create_database_engine(dsn, pool_pre_ping=True)
+    postgres_engine: sa.Engine | None = None
+    try:
+        with admin_engine.begin() as connection:
+            connection.execute(sa.schema.CreateSchema(schema))
+        postgres_engine = create_database_engine(
+            dsn,
+            pool_pre_ping=True,
+            connect_args={
+                "options": (
+                    f"-c search_path={schema} "
+                    "-c statement_timeout=10000 -c lock_timeout=8000"
+                )
+            },
+        )
+        migrate_to_latest(postgres_engine)
+        with postgres_engine.connect() as connection:
+            assert connection.scalar(sa.text("SELECT current_schema()")) == schema
+            assert connection.scalar(sa.text("SHOW statement_timeout")) == "10s"
+            assert connection.scalar(sa.text("SHOW lock_timeout")) == "8s"
+        yield postgres_engine
+    finally:
+        if postgres_engine is not None:
+            postgres_engine.dispose()
+        with admin_engine.begin() as connection:
+            connection.execute(sa.schema.DropSchema(schema, cascade=True, if_exists=True))
+            assert connection.scalar(
+                sa.text("SELECT to_regnamespace(:schema)"),
+                {"schema": schema},
+            ) is None
+        admin_engine.dispose()
 
 
 def _digest(value: str) -> str:
@@ -177,6 +223,146 @@ def _seed_candidates(
     )
 
 
+def _seed_opposed_shared_awards(
+    engine: sa.Engine,
+) -> tuple[BackfillCase, BackfillCase]:
+    """Give two tenants the same two awards in opposite signal-key order."""
+
+    with engine.begin() as connection:
+        account_ids = (
+            make_account(connection, "deadlock-a@test.invalid", "Deadlock A"),
+            make_account(connection, "deadlock-b@test.invalid", "Deadlock B"),
+        )
+        target_ids = tuple(
+            make_icp(connection, account_id, label=f"Shared authority {index}")
+            for index, account_id in enumerate(account_ids)
+        )
+        templates = tuple(
+            materialize_boamp(
+                connection,
+                BOAMP_AGING,
+                target_icp_id=target_icp_id,
+            )
+            for target_icp_id in target_ids
+        )
+        template_signals = tuple(
+            dict(
+                connection.execute(
+                    sa.select(materialized_signal).where(
+                        materialized_signal.c.signal_key == template.signal_key
+                    )
+                ).mappings().one()
+            )
+            for template in templates
+        )
+        first_award_key = templates[0].materialization_award_key
+        assert all(
+            template.materialization_award_key == first_award_key
+            for template in templates
+        )
+        first_award = dict(
+            connection.execute(
+                sa.select(contract_award).where(
+                    contract_award.c.award_key == first_award_key
+                )
+            ).mappings().one()
+        )
+        first_event = dict(
+            connection.execute(
+                sa.select(source_event).where(
+                    source_event.c.event_key == first_award["event_key"]
+                )
+            ).mappings().one()
+        )
+        first_evidence = dict(
+            connection.execute(
+                sa.select(evidence)
+                .where(
+                    evidence.c.award_key == first_award_key,
+                    evidence.c.anchors_kind == "award_fact",
+                )
+                .order_by(evidence.c.evidence_key)
+                .limit(1)
+            ).mappings().one()
+        )
+
+        second_event_key = "backfill:shared-event-b"
+        second_award_key = _digest("backfill:shared-award-b")
+        connection.execute(
+            sa.insert(source_event).values(
+                **{
+                    **first_event,
+                    "event_key": second_event_key,
+                    "source_notice_id": "backfill-shared-b",
+                }
+            )
+        )
+        connection.execute(
+            sa.insert(contract_award).values(
+                **{
+                    **first_award,
+                    "award_key": second_award_key,
+                    "event_key": second_event_key,
+                    "source_award_id": "backfill-shared-award-b",
+                }
+            )
+        )
+        connection.execute(
+            sa.insert(evidence).values(
+                **{
+                    **first_evidence,
+                    "evidence_key": _digest("backfill:shared-evidence-b"),
+                    "award_key": second_award_key,
+                    "source_notice_id": "backfill-shared-b",
+                }
+            )
+        )
+        connection.execute(
+            sa.delete(materialized_signal).where(
+                materialized_signal.c.signal_key.in_(
+                    tuple(template.signal_key for template in templates)
+                )
+            )
+        )
+
+        # signal-key order is award A -> B for tenant A, but B -> A for tenant B.
+        assignments = (
+            (("1" * 64, first_award_key), ("4" * 64, second_award_key)),
+            (("2" * 64, second_award_key), ("3" * 64, first_award_key)),
+        )
+        opportunity_keys = {
+            first_award_key: _digest("backfill:shared-opportunity-a"),
+            second_award_key: _digest("backfill:shared-opportunity-b"),
+        }
+        for tenant_index, tenant_assignments in enumerate(assignments):
+            for signal_key, award_key in tenant_assignments:
+                connection.execute(
+                    sa.insert(materialized_signal).values(
+                        **{
+                            **template_signals[tenant_index],
+                            "signal_key": signal_key,
+                            "opportunity_key": opportunity_keys[award_key],
+                            "materialization_award_key": award_key,
+                            "content_fingerprint": _digest(
+                                f"backfill:{tenant_index}:{signal_key}:content"
+                            ),
+                        }
+                    )
+                )
+
+    first_case = BackfillCase(
+        account_id=account_ids[0],
+        target_icp_id=target_ids[0],
+        signal_keys=tuple(signal_key for signal_key, _ in assignments[0]),
+    )
+    second_case = BackfillCase(
+        account_id=account_ids[1],
+        target_icp_id=target_ids[1],
+        signal_keys=tuple(signal_key for signal_key, _ in assignments[1]),
+    )
+    return first_case, second_case
+
+
 def _run(
     engine: sa.Engine,
     case: BackfillCase,
@@ -283,6 +469,49 @@ def test_scan_cap_stops_without_silently_advancing_past_it(
     assert _published_rows(engine) == []
 
 
+def test_cli_last_page_at_real_scan_cap_is_an_explicit_nonzero_truncation(
+    engine: sa.Engine,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    assert feed_policy.CANDIDATE_SCAN_CAP == 500
+    case = _seed_candidates(
+        engine,
+        count=feed_policy.CANDIDATE_SCAN_CAP + 1,
+        prefix="cli-real-scan-cap",
+    )
+    monkeypatch.setenv(
+        "KIVOU_DATABASE_URL",
+        engine.url.render_as_string(hide_password=False),
+    )
+
+    exit_code = main(
+        [
+            "backfill-fallbacks",
+            "--account-id",
+            case.account_id,
+            "--as-of",
+            DAY.isoformat(),
+            "--language",
+            "fr",
+            "--limit",
+            "1",
+            "--offset",
+            str(feed_policy.CANDIDATE_SCAN_CAP),
+        ],
+        clock=lambda: NOW,
+    )
+
+    captured = capsys.readouterr()
+    assert exit_code == 1
+    assert captured.err == ""
+    assert captured.out == (
+        "scanned=0 published=0 unchanged=0 failed=0 next_offset=none "
+        "scan_truncated=1\n"
+    )
+    assert _published_rows(engine) == []
+
+
 def test_each_failed_item_rolls_back_its_partial_work_and_preserves_the_page(
     engine: sa.Engine,
     monkeypatch: pytest.MonkeyPatch,
@@ -324,6 +553,35 @@ def test_each_failed_item_rolls_back_its_partial_work_and_preserves_the_page(
     assert {row["signal_key"] for row in _published_rows(engine)} == {
         case.signal_keys[1]
     }
+
+
+def test_incoherent_service_result_rolls_back_the_written_artifact(
+    engine: sa.Engine,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case = _seed_candidates(engine, count=1, prefix="incoherent-result")
+
+    def publish_then_hide_result(connection, *, source, now):
+        publish_factual_fallback(connection, source=source, now=now)
+        return {}
+
+    monkeypatch.setattr(
+        backfill_module,
+        "publish_factual_fallback",
+        publish_then_hide_result,
+    )
+
+    result = _run(engine, case, limit=1)
+
+    assert result == BackfillResult(
+        scanned=1,
+        published=0,
+        unchanged=0,
+        failed=1,
+        next_offset=None,
+        scan_truncated=False,
+    )
+    assert _published_rows(engine) == []
 
 
 def test_malformed_current_artifact_is_repaired_not_marked_unchanged(
@@ -504,10 +762,11 @@ def test_one_invocation_executes_exactly_one_explicit_page(
     assert result.next_offset == 3
     assert page_calls == [(1, 2, feed_policy.CANDIDATE_SCAN_CAP)]
     assert presentation_calls == [set(case.signal_keys[1:3])]
-    assert events == [
-        *(("lock", signal_key) for signal_key in case.signal_keys[1:3]),
-        ("batch", set(case.signal_keys[1:3])),
-    ]
+    assert [event for event, _ in events] == ["lock", "lock", "batch"]
+    assert {value for event, value in events if event == "lock"} == set(
+        case.signal_keys[1:3]
+    )
+    assert events[-1] == ("batch", set(case.signal_keys[1:3]))
     assert len(_published_rows(engine)) == 2
 
 
@@ -672,7 +931,8 @@ def test_cli_returns_nonzero_for_any_item_failure_and_prints_only_opaque_counts(
     assert exit_code == 1
     assert captured.err == ""
     assert captured.out == (
-        "scanned=2 published=1 unchanged=0 failed=1 next_offset=none\n"
+        "scanned=2 published=1 unchanged=0 failed=1 next_offset=none "
+        "scan_truncated=0\n"
     )
     rendered = captured.out + captured.err
     for forbidden in (
@@ -751,7 +1011,8 @@ def test_cli_rejects_invalid_arguments_without_echoing_them(
     captured = capsys.readouterr()
     assert captured.out == ""
     assert captured.err == (
-        "scanned=0 published=0 unchanged=0 failed=1 next_offset=none\n"
+        "scanned=0 published=0 unchanged=0 failed=1 next_offset=none "
+        "scan_truncated=0\n"
     )
     assert "PRIVATE-ARGUMENT" not in captured.err
 
@@ -783,7 +1044,8 @@ def test_cli_sanitizes_runtime_failure_and_returns_nonzero(
     assert exit_code != 0
     assert captured.out == ""
     assert captured.err == (
-        "scanned=0 published=0 unchanged=0 failed=1 next_offset=none\n"
+        "scanned=0 published=0 unchanged=0 failed=1 next_offset=none "
+        "scan_truncated=0\n"
     )
     assert secret not in captured.err
     assert "SECRET" not in captured.err
@@ -825,7 +1087,8 @@ def test_cli_sanitizes_engine_disposal_failure_and_returns_nonzero(
     assert exit_code == 1
     assert captured.out == ""
     assert captured.err == (
-        "scanned=0 published=0 unchanged=0 failed=1 next_offset=none\n"
+        "scanned=0 published=0 unchanged=0 failed=1 next_offset=none "
+        "scan_truncated=0\n"
     )
     assert secret not in captured.err
     assert "DISPOSE-SECRET" not in captured.err
@@ -834,84 +1097,180 @@ def test_cli_sanitizes_engine_disposal_failure_and_returns_nonzero(
 def test_postgresql_concurrent_identical_backfills_publish_one_version(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    dsn = os.environ.get("KIVOU_TEST_POSTGRES_DSN")
-    if not dsn:
-        pytest.skip(
-            "KIVOU_TEST_POSTGRES_DSN is required for the backfill interleaving test"
+    with _isolated_postgres_engine() as postgres_engine:
+        case = _seed_candidates(
+            postgres_engine,
+            count=1,
+            prefix="concurrent-identical",
+        )
+        start = threading.Barrier(3)
+        after_batch_read = threading.Barrier(2)
+        batch_calls: list[set[str]] = []
+        results: list[BackfillResult] = []
+        errors: list[BaseException] = []
+
+        def synchronized_batch_reader(connection, **kwargs):
+            current = published_for_signals(connection, **kwargs)
+            batch_calls.append(set(kwargs["bindings"]))
+            try:
+                after_batch_read.wait(timeout=2)
+            except threading.BrokenBarrierError:
+                pass
+            return current
+
+        monkeypatch.setattr(
+            backfill_module,
+            "published_for_signals",
+            synchronized_batch_reader,
         )
 
-    postgres_engine = create_database_engine(dsn, pool_pre_ping=True)
-    migrate_to_latest(postgres_engine)
-    case = _seed_candidates(
-        postgres_engine,
-        count=1,
-        prefix=f"concurrent-{uuid.uuid4().hex}",
-    )
-    start = threading.Barrier(3)
-    after_batch_read = threading.Barrier(2)
-    batch_calls: list[set[str]] = []
-    results: list[BackfillResult] = []
-    errors: list[BaseException] = []
+        def run_backfill() -> None:
+            try:
+                start.wait(timeout=3)
+                results.append(_run(postgres_engine, case, limit=1))
+            except BaseException as error:  # noqa: BLE001 - asserted by test thread
+                errors.append(error)
 
-    def synchronized_batch_reader(connection, **kwargs):
-        current = published_for_signals(connection, **kwargs)
-        batch_calls.append(set(kwargs["bindings"]))
+        first = threading.Thread(target=run_backfill, daemon=True)
+        second = threading.Thread(target=run_backfill, daemon=True)
         try:
-            after_batch_read.wait(timeout=5)
-        except threading.BrokenBarrierError:
-            pass
-        return current
+            first.start()
+            second.start()
+            start.wait(timeout=3)
+            first.join(timeout=15)
+            second.join(timeout=15)
 
-    monkeypatch.setattr(
-        backfill_module,
-        "published_for_signals",
-        synchronized_batch_reader,
-    )
+            assert not first.is_alive()
+            assert not second.is_alive()
+            assert errors == []
+            assert len(results) == 2
+            assert sorted(
+                (result.published, result.unchanged, result.failed)
+                for result in results
+            ) == [(0, 1, 0), (1, 0, 0)]
+            assert batch_calls == [
+                {case.signal_keys[0]},
+                {case.signal_keys[0]},
+            ]
+            with postgres_engine.connect() as connection:
+                rows = list(
+                    connection.execute(
+                        sa.select(
+                            card_presentation_artifact.c.version,
+                            card_presentation_artifact.c.superseded_at,
+                        ).where(
+                            card_presentation_artifact.c.account_id == case.account_id,
+                            card_presentation_artifact.c.signal_key
+                            == case.signal_keys[0],
+                            card_presentation_artifact.c.language == "fr",
+                        )
+                    ).mappings()
+                )
+            assert rows == [{"version": 1, "superseded_at": None}]
+        finally:
+            first.join(timeout=1)
+            second.join(timeout=1)
 
-    def run_backfill() -> None:
+
+def test_postgresql_shared_authorities_use_one_global_lock_order_without_deadlock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with _isolated_postgres_engine() as postgres_engine:
+        first_case, second_case = _seed_opposed_shared_awards(postgres_engine)
+        start = threading.Barrier(3)
+        after_first_lock = threading.Barrier(2)
+        thread_state = threading.local()
+        batch_calls: list[set[str]] = []
+        lock_sqlstates: list[str | None] = []
+        results: dict[str, BackfillResult] = {}
+        errors: list[BaseException] = []
+
+        def synchronized_lock(connection, *, source):
+            try:
+                locked = lock_publication_source(connection, source=source)
+            except sa.exc.DBAPIError as error:
+                lock_sqlstates.append(getattr(error.orig, "sqlstate", None))
+                raise
+            if not getattr(thread_state, "first_authority_locked", False):
+                thread_state.first_authority_locked = True
+                try:
+                    after_first_lock.wait(timeout=2)
+                except threading.BrokenBarrierError:
+                    pass
+            return locked
+
+        def recorded_presentations(connection, **kwargs):
+            batch_calls.append(set(kwargs["bindings"]))
+            return published_for_signals(connection, **kwargs)
+
+        monkeypatch.setattr(
+            backfill_module,
+            "lock_publication_source",
+            synchronized_lock,
+        )
+        monkeypatch.setattr(
+            backfill_module,
+            "published_for_signals",
+            recorded_presentations,
+        )
+
+        def run_backfill(case: BackfillCase) -> None:
+            try:
+                start.wait(timeout=3)
+                results[case.account_id] = _run(postgres_engine, case, limit=2)
+            except BaseException as error:  # noqa: BLE001 - asserted by test thread
+                errors.append(error)
+
+        first = threading.Thread(target=run_backfill, args=(first_case,), daemon=True)
+        second = threading.Thread(target=run_backfill, args=(second_case,), daemon=True)
         try:
-            start.wait(timeout=5)
-            results.append(_run(postgres_engine, case, limit=1))
-        except BaseException as error:  # noqa: BLE001 - asserted by the test thread
-            errors.append(error)
+            first.start()
+            second.start()
+            start.wait(timeout=3)
+            first.join(timeout=15)
+            second.join(timeout=15)
 
-    first = threading.Thread(target=run_backfill, daemon=True)
-    second = threading.Thread(target=run_backfill, daemon=True)
-    try:
-        first.start()
-        second.start()
-        start.wait(timeout=5)
-        first.join(timeout=20)
-        second.join(timeout=20)
-
-        assert not first.is_alive()
-        assert not second.is_alive()
-        assert errors == []
-        assert len(results) == 2
-        assert sorted(
-            (result.published, result.unchanged, result.failed)
-            for result in results
-        ) == [(0, 1, 0), (1, 0, 0)]
-        assert batch_calls == [
-            {case.signal_keys[0]},
-            {case.signal_keys[0]},
-        ]
-        with postgres_engine.connect() as connection:
-            rows = list(
-                connection.execute(
-                    sa.select(
-                        card_presentation_artifact.c.version,
-                        card_presentation_artifact.c.superseded_at,
-                    ).where(
-                        card_presentation_artifact.c.account_id == case.account_id,
-                        card_presentation_artifact.c.signal_key
-                        == case.signal_keys[0],
-                        card_presentation_artifact.c.language == "fr",
-                    )
-                ).mappings()
-            )
-        assert rows == [{"version": 1, "superseded_at": None}]
-    finally:
-        first.join(timeout=1)
-        second.join(timeout=1)
-        postgres_engine.dispose()
+            assert not first.is_alive()
+            assert not second.is_alive()
+            assert errors == []
+            assert "40P01" not in lock_sqlstates
+            assert results == {
+                first_case.account_id: BackfillResult(
+                    scanned=2,
+                    published=2,
+                    unchanged=0,
+                    failed=0,
+                    next_offset=None,
+                    scan_truncated=False,
+                ),
+                second_case.account_id: BackfillResult(
+                    scanned=2,
+                    published=2,
+                    unchanged=0,
+                    failed=0,
+                    next_offset=None,
+                    scan_truncated=False,
+                ),
+            }
+            assert len(batch_calls) == 2
+            assert {frozenset(call) for call in batch_calls} == {
+                frozenset(first_case.signal_keys),
+                frozenset(second_case.signal_keys),
+            }
+            with postgres_engine.connect() as connection:
+                rows = list(
+                    connection.execute(
+                        sa.select(
+                            card_presentation_artifact.c.account_id,
+                            card_presentation_artifact.c.signal_key,
+                            card_presentation_artifact.c.version,
+                            card_presentation_artifact.c.superseded_at,
+                        )
+                    ).mappings()
+                )
+            assert len(rows) == 4
+            assert all(row["version"] == 1 for row in rows)
+            assert all(row["superseded_at"] is None for row in rows)
+        finally:
+            first.join(timeout=1)
+            second.join(timeout=1)

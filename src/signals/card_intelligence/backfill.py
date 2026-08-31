@@ -34,6 +34,10 @@ MAX_BACKFILL_ITEMS = 50
 _INVALID_ARGUMENTS = "invalid backfill arguments"
 
 
+class _InvalidFactualPublication(RuntimeError):
+    """Force the enclosing item savepoint to roll back an unsafe result."""
+
+
 @dataclass(frozen=True)
 class BackfillResult:
     """Opaque progress for exactly one explicit page."""
@@ -120,6 +124,21 @@ def _was_published_factual(
     )
 
 
+def _publication_lock_order(
+    source: PresentationInput,
+) -> tuple[str, str, str, str, str, str]:
+    """Order shared authority rows before tenant-specific publication rows."""
+
+    return (
+        source.facts.source_event_binding,
+        source.facts.source_award_binding,
+        source.account_id,
+        source.target_icp_id,
+        source.signal_key,
+        source.language,
+    )
+
+
 def backfill_factual_presentations(
     engine: sa.Engine,
     *,
@@ -185,14 +204,7 @@ def backfill_factual_presentations(
         locked_sources: list[PresentationInput] = []
         for source in sorted(
             sources,
-            key=lambda item: (
-                item.signal_key,
-                item.account_id,
-                item.target_icp_id,
-                item.facts.source_award_binding,
-                item.facts.source_event_binding,
-                item.language,
-            ),
+            key=_publication_lock_order,
         ):
             try:
                 with connection.begin_nested():
@@ -230,13 +242,12 @@ def backfill_factual_presentations(
                         source=source,
                         now=now,
                     )
+                    if not _was_published_factual(stored, source=source):
+                        raise _InvalidFactualPublication
             except Exception:  # noqa: BLE001 - one opaque, savepointed item failure
                 failed += 1
                 continue
-            if _was_published_factual(stored, source=source):
-                published += 1
-            else:
-                failed += 1
+            published += 1
 
         next_candidate = offset + len(page.items)
         next_offset = (

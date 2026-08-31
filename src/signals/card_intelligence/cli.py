@@ -19,7 +19,8 @@ from signals.feed.policy import CANDIDATE_SCAN_CAP
 from signals.persistence.database import create_database_engine
 
 _FAILED_SUMMARY = (
-    "scanned=0 published=0 unchanged=0 failed=1 next_offset=none"
+    "scanned=0 published=0 unchanged=0 failed=1 next_offset=none "
+    "scan_truncated=0"
 )
 
 EngineFactory = Callable[[], sa.Engine]
@@ -95,7 +96,8 @@ def _summary(result: BackfillResult) -> str:
     return (
         f"scanned={result.scanned} published={result.published} "
         f"unchanged={result.unchanged} failed={result.failed} "
-        f"next_offset={next_offset}"
+        f"next_offset={next_offset} "
+        f"scan_truncated={int(result.scan_truncated)}"
     )
 
 
@@ -140,7 +142,9 @@ def main(
         return exit_code or 1
 
     print(_summary(result))
-    return 1 if result.failed else 0
+    # A capped raw window is operationally incomplete even when an explicit
+    # next offset exists; the operator must never mistake it for a completed run.
+    return 1 if result.failed or result.scan_truncated else 0
 
 
 __all__ = ["main"]
