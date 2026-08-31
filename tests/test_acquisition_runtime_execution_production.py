@@ -316,16 +316,34 @@ def _apollo(provider: NoNetworkProvider) -> ApolloComponents:
 def _closed_domain_builder(**_kwargs):
     """A domain builder that never touches production transport.
 
-    The default `build_acquisition_domain_composition` unconditionally builds
-    a `StagingQaRecipientOverride` (transport.py), which is deliberately
-    staging-only and raises for any non-STAGING `AcquisitionRuntimeConfig`.
-    That precondition is orthogonal to opportunity selection (this task's
-    subject) and transport.py is out of scope here (zero-diff constraint).
+    Updated in Task 6 fix round 1. The *original* reason this stub existed
+    is now fixed: `build_acquisition_domain_composition` (composition.py) no
+    longer unconditionally builds a `StagingQaRecipientOverride`
+    (transport.py) — it only does so for `environment == "STAGING"`, and
+    passes `None` for production, matching `CampaignWorker`'s existing
+    `recipient_override: CampaignRecipientOverride | None = None` support.
+
+    But composing the real domain for a production config is *still*
+    blocked, by a second, deeper precondition discovered while verifying
+    that fix: `AcquisitionDomainActions.__init__` (domain.py) requires
+    `qa_transport_recipient_identity` / `qa_transport_recipient_key_version`
+    as non-optional, SHA-256-validated strings, read unconditionally from
+    `recipient_override.transport_recipient_identity` /
+    `.transport_key_version` — which crashes with `AttributeError` when
+    `recipient_override is None`. That is domain.py business logic (the
+    campaign handoff truth-binding), not composition wiring, and is out of
+    scope for both this task and the fix round that touched composition.py.
+    See `tests/test_acquisition_runtime_composition.py::
+    test_production_domain_composition_still_blocked_by_qa_transport_binding`
+    (an `xfail(strict=True)` regression pin) for the durable, executable
+    proof, and the fix-round report for the full writeup.
+
     Standing in for the domain with closed fakes isolates the composition-
-    and-run-once mechanics under test, exactly as
+    and-run-once mechanics this task actually tests (opportunity selection
+    routed through the real store/registry/runner, and so the real
+    `resume_or_create_cycle`) from that still-open domain.py gap, exactly as
     `test_fake_full_cycle_uses_real_store_registry_runner_and_closed_supervisor`
-    already does in tests/test_acquisition_runtime_execution.py — the real
-    store, registry and runner (and so `resume_or_create_cycle`) still run.
+    already does in tests/test_acquisition_runtime_execution.py.
     """
 
     def handler(context):

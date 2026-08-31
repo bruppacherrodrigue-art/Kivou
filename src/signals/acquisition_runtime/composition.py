@@ -152,9 +152,17 @@ def build_acquisition_domain_composition(
         clock=clock,
         attribution_link_builder=attribution_link_builder,
     )
-    recipient_override = StagingQaRecipientOverride(
-        runtime_config,
-        transport_keyring=suppression_keyring,
+    # The override is a staging-only redirection to one controlled QA mailbox;
+    # production must have no fallback recipient at all — a message reaches its
+    # real contact or it does not go. `CampaignWorker` already accepts
+    # `recipient_override=None` and guards every use behind `is not None`.
+    recipient_override = (
+        StagingQaRecipientOverride(
+            runtime_config,
+            transport_keyring=suppression_keyring,
+        )
+        if runtime_config.environment == "STAGING"
+        else None
     )
     campaign_worker = CampaignWorker(
         engine,
