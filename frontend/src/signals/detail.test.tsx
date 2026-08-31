@@ -33,7 +33,7 @@ function detailRoutes(detail: unknown = UNLOCKED_DETAIL) {
 }
 
 async function detailPanel(): Promise<HTMLElement> {
-  await screen.findByRole('heading', { level: 2, name: UNLOCKED_ITEM.contract.title! })
+  await screen.findByRole('heading', { level: 2, name: 'Présentation non publiée' })
   const panel = document.querySelector('.detail-panel')
   if (!(panel instanceof HTMLElement)) throw new Error('detail-panel absent')
   return panel
@@ -82,6 +82,114 @@ describe('détail exact d’un signal réel', () => {
     }
   })
 
+  it.each([
+    ['award', 'recent_award', "Date d’attribution"],
+    ['notification', 'recently_notified_contract', 'Date de notification'],
+    ['publication', 'recently_published_award', 'Date de publication'],
+  ] as const)('libelle la date de détail %s sans en changer le sens', async (clock, status, label) => {
+    const detail = {
+      ...UNLOCKED_DETAIL,
+      event: {
+        ...UNLOCKED_DETAIL.event,
+        clock,
+        status,
+        date: '2026-08-15',
+      },
+    }
+    mockApi(detailRoutes(detail))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel()
+    expect(within(panel).getByText(label)).toBeVisible()
+    expect(panel).toHaveTextContent('15 août 2026')
+  })
+
+  it('ne présente jamais une publication comme une attribution dans le détail', async () => {
+    const detail = {
+      ...UNLOCKED_DETAIL,
+      event: {
+        ...UNLOCKED_DETAIL.event,
+        clock: 'publication' as const,
+        status: 'recently_published_award' as const,
+        date: '2026-08-15',
+      },
+    }
+    mockApi(detailRoutes(detail))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel()
+    expect(within(panel).getByText('Date de publication')).toBeVisible()
+    expect(within(panel).queryByText("Date d’attribution")).not.toBeInTheDocument()
+  })
+
+  it('maintient acheteur et attributaire sous des libellés distincts et non inversables', async () => {
+    mockApi(detailRoutes())
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel()
+    const buyerLabel = within(panel).getByText('Acheteur', { selector: 'dt' })
+    const awardeeLabel = within(panel).getByText('Entreprise attributaire', { selector: 'dt' })
+    expect(buyerLabel.parentElement).toHaveTextContent('Commune de Villeneuve')
+    expect(buyerLabel.parentElement).not.toHaveTextContent('Constructions Bertrand SA')
+    expect(awardeeLabel.parentElement).toHaveTextContent('Constructions Bertrand SA')
+    expect(awardeeLabel.parentElement).not.toHaveTextContent('Commune de Villeneuve')
+  })
+
+  it('affiche un rôle indisponible sans inventer personne, fonction ou urgence', async () => {
+    const detail = {
+      ...UNLOCKED_DETAIL,
+      presentation: null,
+      event: {
+        ...UNLOCKED_DETAIL.event,
+        headline: 'URGENT : Jean Dupont doit être appelé',
+        why_now: 'Contacter immédiatement le directeur des achats.',
+      },
+    }
+    mockApi(detailRoutes(detail))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel()
+    expect(within(panel).getByText('Rôle cible non disponible')).toBeVisible()
+    expect(within(panel).queryByText('Pourquoi maintenant')).not.toBeInTheDocument()
+    expect(panel).not.toHaveTextContent(/urgent|jean dupont|directeur|responsable|chef de projet/i)
+  })
+
+  it('garde le titre administratif uniquement dans les faits clairement libellés', async () => {
+    const administrativeTitle = 'ACCORD-CADRE LOT 7 PERSONNEL ET MATÉRIAUX'
+    const detail = {
+      ...UNLOCKED_DETAIL,
+      presentation: null,
+      contract: { ...UNLOCKED_DETAIL.contract, title: administrativeTitle },
+    }
+    mockApi(detailRoutes(detail))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    const panel = await detailPanel()
+    expect(within(panel).getByRole('heading', { level: 2 })).toHaveTextContent(
+      'Présentation non publiée',
+    )
+    const officialTitleLabel = within(panel).getByText('Titre officiel de la source', {
+      selector: 'dt',
+    })
+    expect(officialTitleLabel.parentElement).toHaveTextContent(administrativeTitle)
+    expect(panel.querySelector('.commercial-brief-card')).not.toHaveTextContent(administrativeTitle)
+  })
+
   it('conserve le statut d’hypothèse et n’invente aucune certitude d’achat', async () => {
     mockApi(detailRoutes())
     renderApp(<AppRoutes />, {
@@ -91,9 +199,7 @@ describe('détail exact d’un signal réel', () => {
 
     const panel = await detailPanel()
     expect(panel).toHaveTextContent(UNLOCKED_DETAIL.analysis.plausible_needs.note)
-    expect(panel).toHaveTextContent(
-      UNLOCKED_DETAIL.analysis.plausible_needs.items[0].statement!,
-    )
+    expect(panel).toHaveTextContent(UNLOCKED_DETAIL.analysis.plausible_needs.items[0].label!)
     expect(panel.textContent?.toLowerCase()).not.toMatch(
       /va acheter|achètera|achat prévu|achat certain|client garanti/,
     )
@@ -229,7 +335,7 @@ describe('détail exact d’un signal réel', () => {
       route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
     })
 
-    const heading = await screen.findByRole('heading', { level: 2, name: 'Non publié' })
+    const heading = await screen.findByRole('heading', { level: 2, name: 'Présentation non publiée' })
     const panel = heading.closest('.detail-panel') as HTMLElement
     expect(within(panel).getAllByText('Non publié').length).toBeGreaterThan(3)
     expect(within(panel).queryByRole('link', { name: /avis|entreprise/i })).not.toBeInTheDocument()
@@ -247,7 +353,7 @@ describe('détail exact d’un signal réel', () => {
       },
     )
 
-    expect(await screen.findByRole('heading', { level: 2, name: UNLOCKED_ITEM.contract.title! })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Présentation non publiée' })).toBeVisible()
     expect(document.querySelector('.workspace-grid .feed-panel + .detail-panel')).not.toBeNull()
   })
 })

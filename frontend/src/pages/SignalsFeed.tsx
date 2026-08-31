@@ -9,7 +9,7 @@ import type {
   BillingStatus,
   SignalDetail as SignalDetailPayload,
 } from '../api/types'
-import { useI18n, interpolate } from '../i18n'
+import { useI18n } from '../i18n'
 import { toSignalCard, toSignalDetailView } from '../reference/dashboard/adapters'
 import { ReferenceSignalDetail } from '../reference/dashboard/ReferenceSignalDetail'
 import { useSignalNote } from '../reference/dashboard/useSignalNote'
@@ -434,6 +434,16 @@ export function SignalsFeed() {
       ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
       : t.reference.missingValue
   const displayDate = (value: string | null) => date(value) ?? t.reference.missingValue
+  const displayDateLabel = (card: SignalCardView) => {
+    switch (card.eventDateKind) {
+      case 'award':
+        return t.reference.fields.signalDateAward
+      case 'notification':
+        return t.reference.fields.signalDateNotification
+      case 'publication':
+        return t.reference.fields.signalDatePublication
+    }
+  }
   const displayLocation = (card: SignalCardView) => {
     if (!card.location) return t.reference.missingValue
     const region = [card.location.locality, card.location.postal_code, card.location.country]
@@ -482,8 +492,6 @@ export function SignalsFeed() {
                 ? t.reference.signalsPage.paidAccessRequired
                 : hasSelectedNote
                   ? t.reference.statuses.noteAdded
-                : card.id === firstUnlocked?.signal_id
-                  ? t.reference.statuses.reviewFirst
                   : t.reference.statuses.documentedSignal
               return (
                 <button
@@ -513,23 +521,37 @@ export function SignalsFeed() {
                   key={card.id}
                 >
                   <span className="signal-item-head">
-                    <strong>{card.companyName ?? t.reference.missingValue}</strong>
+                    <strong>
+                      {card.locked
+                        ? t.reference.missingValue
+                        : (
+                            <>
+                              <span>{t.reference.fields.signalAwardee}</span> :{' '}
+                              <span>{card.awardedCompanyName ?? t.reference.missingValue}</span>
+                            </>
+                          )}
+                    </strong>
                     <span>{badge}</span>
                   </span>
-                  <span className="signal-event">{card.eventTitle ?? t.reference.missingValue}</span>
+                  <span className="signal-event">
+                    {card.eventTitle ?? t.reference.signalsPage.presentationNotPublished}
+                  </span>
+                  {!card.locked ? (
+                    <span className="signal-meta">
+                      {t.reference.fields.signalBuyer} : {card.buyerName ?? t.reference.missingValue}
+                    </span>
+                  ) : null}
                   <span className="signal-meta">{displayAmount(card)} · {displayLocation(card)}</span>
                   <span className="signal-fit">
-                    {interpolate(t.reference.signalsPage.eventDate, {
-                      date: displayDate(card.eventDate),
-                    })}
+                    <span>{displayDateLabel(card)}</span> : {displayDate(card.eventDate)}
                   </span>
-                  <span className="signal-match">
-                    {card.locked ? badge : card.matchLabel ?? t.reference.missingValue}
-                  </span>
-                  {card.locked || card.id === firstUnlocked?.signal_id ? (
-                    <span className={`signal-reason${card.locked ? ' signal-lock-note' : ''}`}>
-                      {card.locked ? <LockKeyhole aria-hidden="true" /> : null}
-                      {card.locked ? t.reference.signalsPage.lockedReason : card.whyNow}
+                  {!card.locked && card.fitReason ? (
+                    <span className="signal-match">{card.fitReason}</span>
+                  ) : null}
+                  {card.locked ? (
+                    <span className="signal-reason signal-lock-note">
+                      <LockKeyhole aria-hidden="true" />
+                      {t.reference.signalsPage.lockedReason}
                     </span>
                   ) : null}
                 </button>

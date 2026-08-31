@@ -65,7 +65,7 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
     expect(
       await screen.findByRole('heading', {
         level: 2,
-        name: UNLOCKED_ITEM.contract.title!,
+        name: 'Présentation non publiée',
       }),
     ).toBeVisible()
     expect(document.querySelector('.workspace-grid .feed-panel + .detail-panel')).not.toBeNull()
