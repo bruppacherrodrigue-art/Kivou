@@ -69,18 +69,25 @@ def _seed(engine, *, key: str, country: str, published_on: dt.date) -> None:
         )
 
 
-def _seed_cycle(engine, *, opportunity_key: str) -> None:
+_TERMINAL_STATUSES = ("SUCCEEDED", "SUPPRESSED")
+
+
+def _seed_cycle(engine, *, opportunity_key: str, status: str) -> None:
+    """Insère un cycle. `completed_at` suit la contrainte CHECK du cycle de vie
+    (schema.py:2327-2331) : posé seulement pour un statut terminal, sinon NULL.
+    """
+
     with engine.begin() as connection:
         connection.execute(
             sa.insert(acquisition_runtime_cycle).values(
                 cycle_ref=f"cycle-{opportunity_key}",
                 opportunity_key=opportunity_key,
                 config_fingerprint="f" * 64,
-                status="SUCCEEDED",
+                status=status,
                 spent_cost=0,
                 started_at=NOW,
                 updated_at=NOW,
-                completed_at=NOW,
+                completed_at=NOW if status in _TERMINAL_STATUSES else None,
             )
         )
 
@@ -105,16 +112,57 @@ def test_the_most_recent_french_opportunity_is_selected(tmp_path) -> None:
     )
 
 
-def test_an_opportunity_already_taken_by_a_cycle_is_never_selected_again(
+def test_an_opportunity_already_succeeded_by_a_cycle_is_never_selected_again(
     tmp_path,
 ) -> None:
     engine = _engine(tmp_path)
     _seed(engine, key="fr-newer", country="FR", published_on=dt.date(2026, 8, 30))
     _seed(engine, key="fr-older", country="FR", published_on=dt.date(2026, 8, 28))
-    _seed_cycle(engine, opportunity_key="fr-newer")
+    _seed_cycle(engine, opportunity_key="fr-newer", status="SUCCEEDED")
     assert (
         select_production_opportunity_key(engine, country="FR", observed_at=NOW)
         == "fr-older"
+    )
+
+
+def test_an_opportunity_suppressed_by_a_cycle_is_never_selected_again(
+    tmp_path,
+) -> None:
+    engine = _engine(tmp_path)
+    _seed(engine, key="fr-newer", country="FR", published_on=dt.date(2026, 8, 30))
+    _seed(engine, key="fr-older", country="FR", published_on=dt.date(2026, 8, 28))
+    _seed_cycle(engine, opportunity_key="fr-newer", status="SUPPRESSED")
+    assert (
+        select_production_opportunity_key(engine, country="FR", observed_at=NOW)
+        == "fr-older"
+    )
+
+
+def test_an_opportunity_whose_cycle_failed_is_selectable_again(tmp_path) -> None:
+    """FAILED n'est pas terminal : `resume_or_create_cycle` (store.py:411-412)
+    reprend un cycle FAILED plutôt que d'en créer un nouveau. L'exclure du
+    vivier empêcherait cette reprise au lieu de la protéger."""
+
+    engine = _engine(tmp_path)
+    _seed(engine, key="fr-newer", country="FR", published_on=dt.date(2026, 8, 30))
+    _seed_cycle(engine, opportunity_key="fr-newer", status="FAILED")
+    assert (
+        select_production_opportunity_key(engine, country="FR", observed_at=NOW)
+        == "fr-newer"
+    )
+
+
+def test_an_opportunity_whose_cycle_was_cancelled_is_selectable_again(
+    tmp_path,
+) -> None:
+    """CANCELLED n'est pas terminal, pour la même raison que FAILED."""
+
+    engine = _engine(tmp_path)
+    _seed(engine, key="fr-newer", country="FR", published_on=dt.date(2026, 8, 30))
+    _seed_cycle(engine, opportunity_key="fr-newer", status="CANCELLED")
+    assert (
+        select_production_opportunity_key(engine, country="FR", observed_at=NOW)
+        == "fr-newer"
     )
 
 

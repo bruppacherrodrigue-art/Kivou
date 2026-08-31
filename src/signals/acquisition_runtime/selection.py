@@ -19,20 +19,31 @@ from signals.persistence.schema import (
 def select_production_opportunity_key(
     engine: Engine, *, country: str, observed_at: dt.datetime
 ) -> str | None:
-    """La plus récente opportunité du pays jamais retenue par un cycle.
+    """La plus récente opportunité du pays non retirée par un cycle terminal.
 
     Déterministe : à base identique, deux appels rendent la même clé. Le
     départage se fait sur la clé elle-même, pour que deux publications de même
     date ne dépendent jamais de l'ordre de lecture du moteur.
 
-    La preuve qu'une opportunité a déjà servi est l'enregistrement durable des
-    cycles, jamais un fichier ni une mémoire de processus.
+    Seul un cycle porté à un état TERMINAL (SUCCEEDED, SUPPRESSED) retire une
+    opportunité du vivier. Un cycle FAILED, CANCELLED ou encore en vol la
+    laisse sélectionnable, parce que `AcquisitionRuntimeStore.resume_or_create_cycle`
+    reprend ce cycle plutôt que d'en créer un nouveau — l'exclure à jamais
+    empêcherait cette reprise au lieu de la protéger.
     """
 
     if observed_at.tzinfo is None or observed_at.utcoffset() is None:
         raise ValueError("selection timestamp must be timezone-aware")
     horizon = observed_at.astimezone(dt.UTC).date()
-    already_played = sa.select(acquisition_runtime_cycle.c.opportunity_key)
+    # Seuls les cycles TERMINAUX retirent une opportunité du vivier. Un cycle
+    # FAILED, CANCELLED ou encore en vol est REPRIS par
+    # `AcquisitionRuntimeStore.resume_or_create_cycle` — l'exclure à jamais
+    # empêcherait la reprise au lieu de la protéger. Le filtre NOT NULL est
+    # défensif : un NULL dans la sous-requête ferait taire le NOT IN entier.
+    already_played = sa.select(acquisition_runtime_cycle.c.opportunity_key).where(
+        acquisition_runtime_cycle.c.opportunity_key.isnot(None),
+        acquisition_runtime_cycle.c.status.in_(("SUCCEEDED", "SUPPRESSED")),
+    )
     latest = sa.func.max(source_event.c.published_on).label("latest")
     statement = (
         sa.select(opportunity_representation.c.opportunity_key, latest)
