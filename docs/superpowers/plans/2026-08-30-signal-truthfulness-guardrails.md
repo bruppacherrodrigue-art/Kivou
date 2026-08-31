@@ -20,7 +20,7 @@
 
 **Modify:**
 
-- `frontend/src/api/types.ts` — retain the strict presentation envelope added by PR 1 and document typed date sources.
+- `frontend/src/api/types.ts` — type the strict presentation envelope exposed by PR 1 and document typed date sources.
 - `frontend/src/reference/dashboard/models.ts` — add date-kind and source-fact view-model fields.
 - `frontend/src/reference/dashboard/adapters.ts` — select targeted needs, concrete fit and typed dates conservatively.
 - `frontend/src/reference/dashboard/adapters.test.ts` — adversarial adapter matrix.
