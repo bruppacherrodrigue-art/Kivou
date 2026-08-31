@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import os
 import pathlib
 import re
 import shlex
@@ -11,6 +13,10 @@ REPOSITORY = pathlib.Path(__file__).resolve().parents[1]
 SYSTEMD = REPOSITORY / "ops/systemd"
 PRODUCTION = SYSTEMD / "production"
 PRODUCTION_RUNBOOK = REPOSITORY / "ops/production/README.md"
+PRODUCTION_RELEASE_PLAN = (
+    REPOSITORY
+    / "docs/superpowers/plans/2026-08-30-production-saas-signal-engine-release.md"
+)
 NGINX = REPOSITORY / "ops/nginx"
 PRODUCTION_NGINX = NGINX / "kivou-production.conf"
 PRODUCTION_WWW_NGINX = NGINX / "kivou-production-www.conf"
@@ -900,6 +906,13 @@ def test_release_one_runbook_is_explicitly_non_executing_and_fail_closed() -> No
     assert not re.search(r"rm\s+[^\n]*(?:/srv/kivou/releases|/srv/kivou/backups)", commands)
 
 
+def test_release_two_plan_uses_the_public_stripe_webhook_route() -> None:
+    body = read(PRODUCTION_RELEASE_PLAN)
+
+    assert "https://kivou.eu/webhooks/stripe" in body
+    assert "https://kivou.eu/api/webhooks/stripe" not in body
+
+
 def test_every_release_one_shell_block_is_strict_and_syntax_valid() -> None:
     blocks = runbook_shell_blocks(read(PRODUCTION_RUNBOOK))
 
@@ -963,6 +976,71 @@ def test_runbook_builds_locked_separate_immutable_releases() -> None:
         'find "$KIVOU_FRONTEND_RELEASE_DIR" \\( -type f -o -type d \\) -perm /222'
         in body
     )
+
+
+def test_runbook_inspects_root_owned_release_with_isolated_root_git() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    after_root_ownership = body.split(
+        'sudo chown -R root:root "$KIVOU_BACKEND_RELEASE_DIR"', maxsplit=1
+    )[1]
+
+    assert "GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1" in after_root_ownership
+    assert "GIT_OPTIONAL_LOCKS=0" in after_root_ownership
+    assert after_root_ownership.count("kivou_release_git") >= 3
+    assert (
+        'sudo -u kivou /usr/bin/git -C "$KIVOU_BACKEND_RELEASE_DIR"'
+        not in after_root_ownership
+    )
+
+
+def test_immutable_git_integrity_check_does_not_refresh_index(tmp_path: pathlib.Path) -> None:
+    repository = tmp_path / "release"
+    repository.mkdir()
+    subprocess.run(["git", "init", "--quiet", repository], check=True)
+    subprocess.run(
+        ["git", "-C", repository, "config", "user.name", "Kivou test"], check=True
+    )
+    subprocess.run(
+        ["git", "-C", repository, "config", "user.email", "test@invalid"], check=True
+    )
+    tracked = repository / "tracked.txt"
+    tracked.write_text("immutable\n", encoding="utf-8")
+    subprocess.run(["git", "-C", repository, "add", "tracked.txt"], check=True)
+    subprocess.run(
+        ["git", "-C", repository, "commit", "--quiet", "-m", "fixture"], check=True
+    )
+    stat = tracked.stat()
+    os.utime(tracked, ns=(stat.st_atime_ns, stat.st_mtime_ns + 2_000_000_000))
+    for path in sorted(repository.rglob("*"), reverse=True):
+        try:
+            path.chmod(0o555 if path.is_dir() else 0o444)
+        except FileNotFoundError:
+            # Git maintenance lock files may disappear after rglob snapshots them.
+            if path.relative_to(repository).as_posix() == ".git/objects/maintenance.lock":
+                continue
+            raise
+    repository.chmod(0o555)
+
+    index = repository / ".git" / "index"
+    before = hashlib.sha256(index.read_bytes()).digest()
+    result = subprocess.run(
+        ["git", "-C", repository, "status", "--porcelain"],
+        env={
+            "HOME": str(tmp_path / "isolated-home"),
+            "PATH": os.environ["PATH"],
+            "GIT_CONFIG_GLOBAL": "/dev/null",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_OPTIONAL_LOCKS": "0",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == ""
+    assert hashlib.sha256(index.read_bytes()).digest() == before
+    assert not index.stat().st_mode & 0o222
 
 
 def test_every_immutability_guard_allows_real_release_and_capture_symlinks(
@@ -1068,7 +1146,6 @@ def test_runbook_exercises_local_offsite_and_real_restore_without_side_effects()
         "systemd-run --wait --pipe --collect --unit=kivou-backup-offsite-preflight",
         "trap kivou_restore_cleanup EXIT",
         "restic restore latest",
-        "chown -R postgres:postgres",
         "createdb",
         "pg_restore --exit-on-error",
         "SELECT version_num FROM alembic_version",
@@ -1079,6 +1156,18 @@ def test_runbook_exercises_local_offsite_and_real_restore_without_side_effects()
     assert "--tag kivou-postgresql" in restore
     assert "KIVOU_RESTORE_DB" in restore
     assert "provider" not in "\n".join(runbook_shell_blocks(restore)).lower()
+
+
+def test_runbook_streams_private_restore_into_postgres_without_broadening_access() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    restore = body[body.index("## 6. Prévalider la sauvegarde"):body.index("## 7.")]
+
+    assert 'install -o kivou -g kivou -m 700 -d "$KIVOU_RESTORE_ROOT"' in restore
+    assert "chown -R postgres:postgres" not in restore
+    assert (
+        "sudo -u postgres pg_restore --exit-on-error --no-owner --no-privileges \\\n"
+        '  --dbname "$KIVOU_RESTORE_DB" < "$KIVOU_RESTORED_DUMP"'
+    ) in restore
 
 
 def test_runbook_proves_certificate_and_nginx_candidate_before_publication() -> None:

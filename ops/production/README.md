@@ -147,8 +147,14 @@ sudo chown -R root:root "$KIVOU_BACKEND_RELEASE_DIR" "$KIVOU_FRONTEND_RELEASE_DI
 sudo chmod -R a-w "$KIVOU_BACKEND_RELEASE_DIR" "$KIVOU_FRONTEND_RELEASE_DIR"
 test -z "$(sudo find "$KIVOU_BACKEND_RELEASE_DIR" \( -type f -o -type d \) -perm /222 -print -quit)"
 test -z "$(sudo find "$KIVOU_FRONTEND_RELEASE_DIR" \( -type f -o -type d \) -perm /222 -print -quit)"
-test "$(sudo -u kivou /usr/bin/git -C "$KIVOU_BACKEND_RELEASE_DIR" rev-parse HEAD)" = "$KIVOU_RELEASE_SHA"
-test -z "$(sudo -u kivou /usr/bin/git -C "$KIVOU_BACKEND_RELEASE_DIR" status --porcelain)"
+kivou_release_git() {
+  /usr/bin/env -i HOME=/root PATH=/usr/bin:/bin \
+    GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 \
+    GIT_OPTIONAL_LOCKS=0 \
+    /usr/bin/git -C "$KIVOU_BACKEND_RELEASE_DIR" "$@"
+}
+test "$(kivou_release_git rev-parse HEAD)" = "$KIVOU_RELEASE_SHA"
+test -z "$(kivou_release_git status --porcelain)"
 ```
 
 Stop gate : backend et frontend ont des répertoires séparés, horodatés,
@@ -489,11 +495,10 @@ case "$KIVOU_RESTORED_DUMP" in ("$KIVOU_RESTORE_DIR"/*) ;; (*) exit 66 ;; esac
 sudo test -f "$KIVOU_RESTORED_DUMP"
 sudo test ! -L "$KIVOU_RESTORED_DUMP"
 sudo -u kivou pg_restore --list "$KIVOU_RESTORED_DUMP" >/dev/null
-sudo chown -R postgres:postgres "$KIVOU_RESTORE_DIR"
 sudo -u postgres createdb --template=template0 "$KIVOU_RESTORE_DB"
 KIVOU_RESTORE_DB_CREATED=1
 sudo -u postgres pg_restore --exit-on-error --no-owner --no-privileges \
-  --dbname "$KIVOU_RESTORE_DB" "$KIVOU_RESTORED_DUMP"
+  --dbname "$KIVOU_RESTORE_DB" < "$KIVOU_RESTORED_DUMP"
 KIVOU_RESTORED_ALEMBIC=$(sudo -u postgres psql -Atqc 'SELECT version_num FROM alembic_version' "$KIVOU_RESTORE_DB")
 test -n "$KIVOU_RESTORED_ALEMBIC"
 sudo -u postgres dropdb "$KIVOU_RESTORE_DB"
@@ -611,7 +616,7 @@ test -z "$(sudo find "$KIVOU_UNIT_CAPTURE_DIR" "$KIVOU_ROLLBACK_DIR/nginx" \( -t
 test "$(sudo stat -c '%U:%G:%a' "$KIVOU_ROLLOUT_STATE")" = root:root:600
 test "$(sudo stat -c '%U:%G:%a' "$KIVOU_ROLLOUT_STATUS")" = root:root:600
 test "$(sudo readlink -f /srv/kivou/rollbacks/current)" = "$KIVOU_ROLLBACK_DIR"
-test "$(sudo -u kivou /usr/bin/git -C "$KIVOU_BACKEND_RELEASE_DIR" rev-parse HEAD)" = "$KIVOU_RELEASE_SHA"
+test "$(kivou_release_git rev-parse HEAD)" = "$KIVOU_RELEASE_SHA"
 test -z "$(sudo find "$KIVOU_BACKEND_RELEASE_DIR" "$KIVOU_FRONTEND_RELEASE_DIR" \( -type f -o -type d \) -perm /222 -print -quit)"
 test "$(sudo sed -n '1p' "$KIVOU_UNIT_CAPTURE_DIR/kivou-alerts.timer.enabled")" != enabled
 test "$(sudo sed -n '1p' "$KIVOU_UNIT_CAPTURE_DIR/kivou-alerts.service.active")" != active
