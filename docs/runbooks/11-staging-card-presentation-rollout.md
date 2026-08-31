@@ -2024,11 +2024,14 @@ async function smokeSignals(
   await page.getByRole('heading', {
     name: /Signaux commerciaux|Commercial signals/i,
   }).waitFor()
-  const lockedControl = page.locator(
-    `button[data-signal-id="${api.lockedSignalId}"], ` +
-    `a[data-signal-id="${api.lockedSignalId}"]`,
+  const lockedBinding = page.locator(
+    `[data-signal-id="${api.lockedSignalId}"]`,
   )
-  requireTrue(await lockedControl.count() === 1)
+  requireTrue(await lockedBinding.count() === 1)
+  const lockedControl = lockedBinding
+  requireTrue(await lockedControl.evaluate((element) => (
+    element.tagName === 'BUTTON' || element.tagName === 'A'
+  )))
   await lockedControl.waitFor()
   const lockedText = lockedControl.getByText(api.lockedHeadline, { exact: true })
   requireTrue(await lockedText.count() === 1)

@@ -1266,9 +1266,10 @@ def test_locked_teaser_is_bound_to_one_exact_signal_and_forbids_any_detail_get()
 
     assert 'data-signal-id="<signal_id>"' in section
     for fragment in (
-        "`button[data-signal-id=\"${api.lockedSignalId}\"], ` +",
-        "`a[data-signal-id=\"${api.lockedSignalId}\"]`",
-        "await lockedControl.count() === 1",
+        "`[data-signal-id=\"${api.lockedSignalId}\"]`",
+        "await lockedBinding.count() === 1",
+        "const lockedControl = lockedBinding",
+        "element.tagName === 'BUTTON' || element.tagName === 'A'",
         "lockedControl.getByText(api.lockedHeadline, { exact: true })",
         "await lockedText.count() === 1",
         "!element.outerHTML.includes('presentation')",
@@ -1283,10 +1284,33 @@ def test_locked_teaser_is_bound_to_one_exact_signal_and_forbids_any_detail_get()
         "/^\\/signals\\/[^/?]+(?:\\/note)?(?:\\?|$)/.test(path)",
     ):
         assert fragment in smoke
+    assert "button[data-signal-id" not in smoke
+    assert "a[data-signal-id" not in smoke
+
+    selector = re.search(
+        r"const lockedBinding = page\.locator\(\s*`([^`]+)`,\s*\)", smoke
+    )
+    assert selector is not None
+    assert selector.group(1) == '[data-signal-id="${api.lockedSignalId}"]'
+    adversarial_dom = (
+        '<button data-signal-id="locked"></button>'
+        '<span data-signal-id="locked"></span>'
+    )
+    assert len(re.findall(r'<[^>]+ data-signal-id="locked"', adversarial_dom)) == 2
+    assert (
+        len(
+            re.findall(
+                r'<(?:button|a) data-signal-id="locked"', adversarial_dom
+            )
+        )
+        == 1
+    )
     assert "getByText(api.lockedHeadline, { exact: true }).first()" not in smoke
     _assert_in_order(
         smoke,
-        "await lockedControl.count() === 1",
+        "await lockedBinding.count() === 1",
+        "const lockedControl = lockedBinding",
+        "element.tagName === 'BUTTON' || element.tagName === 'A'",
         "const lockedRequestStart = requests.length",
         "await lockedControl.click()",
         "await page.waitForURL(/\\/app\\/billing",
