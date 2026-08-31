@@ -207,6 +207,7 @@ exacte; ne lancer aucun nettoyage générique.
 ~~~bash
 ssh kivou-staging 'bash -s' -- "$KIVOU_FINAL_SHORT" <<'REMOTE'
 set -euo pipefail
+cd /srv/kivou
 KIVOU_FINAL_SHORT=$1
 printf '%s\n' "$KIVOU_FINAL_SHORT" | grep -Eq '^[0-9a-f]{12}$'
 test "$(hostname -s)" = "kivou-staging-01"
@@ -221,13 +222,13 @@ mapfile -t KIVOU_BACKUP_FILES < <(
 test "${#KIVOU_BACKUP_FILES[@]}" -eq 1
 KIVOU_BACKUP_FILE=${KIVOU_BACKUP_FILES[0]}
 case "$KIVOU_BACKUP_FILE" in (/srv/kivou/backups/kivou-*.dump) ;; (*) exit 69 ;; esac
-test "$(stat -c '%U:%G:%a' "$KIVOU_BACKUP_FILE")" = "kivou:kivou:600"
+test "$(sudo -u kivou stat -c '%U:%G:%a' "$KIVOU_BACKUP_FILE")" = "kivou:kivou:600"
 
 KIVOU_BACKUP_MIN_BYTES=$(sudo awk -F= \
   '$1 == "KIVOU_BACKUP_MIN_BYTES" {print $2}' /etc/kivou/staging.env)
 test -n "$KIVOU_BACKUP_MIN_BYTES" || KIVOU_BACKUP_MIN_BYTES=4096
 printf '%s\n' "$KIVOU_BACKUP_MIN_BYTES" | grep -Eq '^[1-9][0-9]*$'
-KIVOU_BACKUP_BYTES=$(stat -c '%s' "$KIVOU_BACKUP_FILE")
+KIVOU_BACKUP_BYTES=$(sudo -u kivou stat -c '%s' "$KIVOU_BACKUP_FILE")
 test "$KIVOU_BACKUP_BYTES" -ge "$KIVOU_BACKUP_MIN_BYTES"
 KIVOU_BACKUP_SHA=$(sudo -u kivou sha256sum "$KIVOU_BACKUP_FILE" | awk '{print $1}')
 printf '%s\n' "$KIVOU_BACKUP_SHA" | grep -Eq '^[0-9a-f]{64}$'
@@ -314,6 +315,7 @@ KIVOU_RELEASE_DIR="/srv/kivou/releases/backend-$KIVOU_RELEASE_UTC-$KIVOU_RELEASE
 ssh kivou-staging 'bash -s' -- \
   "$KIVOU_FINAL_SHA" "$KIVOU_RELEASE_UTC" "$KIVOU_PREVIOUS_BACKEND" <<'REMOTE'
 set -euo pipefail
+cd /srv/kivou
 KIVOU_FINAL_SHA=$1
 KIVOU_RELEASE_UTC=$2
 KIVOU_EXPECTED_PREVIOUS=$3
@@ -379,6 +381,7 @@ vide.
 ssh kivou-staging 'bash -s' -- \
   "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" <<'REMOTE'
 set -euo pipefail
+cd /srv/kivou
 KIVOU_RELEASE_DIR=$1
 KIVOU_FINAL_SHA=$2
 KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
@@ -489,6 +492,7 @@ set -euo pipefail
 KIVOU_BLUE_GREEN_SCRIPT=$(
   sed -n 'p' <<'KIVOU_BLUE_GREEN_BOOTSTRAP'
 set -euo pipefail
+cd /srv/kivou
 KIVOU_RELEASE_DIR=$1
 KIVOU_RELEASE_SHA=$2
 KIVOU_STAGING_HOST=$3
@@ -573,6 +577,7 @@ green; cette procédure ne migre rien.
 ssh kivou-staging 'bash -s' -- \
   "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_PREVIOUS_BACKEND" <<'REMOTE'
 set -euo pipefail
+cd /srv/kivou
 KIVOU_RELEASE_DIR=$1
 KIVOU_FINAL_SHA=$2
 KIVOU_PREVIOUS_BACKEND=$3
@@ -617,6 +622,7 @@ ssh kivou-staging 'bash -s' -- \
   "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_RELEASE_UTC" \
   "$KIVOU_PREVIOUS_FRONTEND" <<'REMOTE'
 set -euo pipefail
+cd /srv/kivou
 KIVOU_RELEASE_DIR=$1
 KIVOU_FINAL_SHA=$2
 KIVOU_RELEASE_UTC=$3
