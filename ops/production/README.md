@@ -495,11 +495,10 @@ case "$KIVOU_RESTORED_DUMP" in ("$KIVOU_RESTORE_DIR"/*) ;; (*) exit 66 ;; esac
 sudo test -f "$KIVOU_RESTORED_DUMP"
 sudo test ! -L "$KIVOU_RESTORED_DUMP"
 sudo -u kivou pg_restore --list "$KIVOU_RESTORED_DUMP" >/dev/null
-sudo chown -R postgres:postgres "$KIVOU_RESTORE_DIR"
 sudo -u postgres createdb --template=template0 "$KIVOU_RESTORE_DB"
 KIVOU_RESTORE_DB_CREATED=1
 sudo -u postgres pg_restore --exit-on-error --no-owner --no-privileges \
-  --dbname "$KIVOU_RESTORE_DB" "$KIVOU_RESTORED_DUMP"
+  --dbname "$KIVOU_RESTORE_DB" < "$KIVOU_RESTORED_DUMP"
 KIVOU_RESTORED_ALEMBIC=$(sudo -u postgres psql -Atqc 'SELECT version_num FROM alembic_version' "$KIVOU_RESTORE_DB")
 test -n "$KIVOU_RESTORED_ALEMBIC"
 sudo -u postgres dropdb "$KIVOU_RESTORE_DB"

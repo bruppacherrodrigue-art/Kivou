@@ -1146,7 +1146,6 @@ def test_runbook_exercises_local_offsite_and_real_restore_without_side_effects()
         "systemd-run --wait --pipe --collect --unit=kivou-backup-offsite-preflight",
         "trap kivou_restore_cleanup EXIT",
         "restic restore latest",
-        "chown -R postgres:postgres",
         "createdb",
         "pg_restore --exit-on-error",
         "SELECT version_num FROM alembic_version",
@@ -1157,6 +1156,18 @@ def test_runbook_exercises_local_offsite_and_real_restore_without_side_effects()
     assert "--tag kivou-postgresql" in restore
     assert "KIVOU_RESTORE_DB" in restore
     assert "provider" not in "\n".join(runbook_shell_blocks(restore)).lower()
+
+
+def test_runbook_streams_private_restore_into_postgres_without_broadening_access() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    restore = body[body.index("## 6. Prévalider la sauvegarde"):body.index("## 7.")]
+
+    assert 'install -o kivou -g kivou -m 700 -d "$KIVOU_RESTORE_ROOT"' in restore
+    assert "chown -R postgres:postgres" not in restore
+    assert (
+        "sudo -u postgres pg_restore --exit-on-error --no-owner --no-privileges \\\n"
+        '  --dbname "$KIVOU_RESTORE_DB" < "$KIVOU_RESTORED_DUMP"'
+    ) in restore
 
 
 def test_runbook_proves_certificate_and_nginx_candidate_before_publication() -> None:
