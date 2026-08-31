@@ -135,7 +135,9 @@ sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
   /usr/bin/env --chdir="$KIVOU_BACKEND_RELEASE_DIR/frontend" /usr/bin/npm run lint
 sudo -u kivou test -f "$KIVOU_BACKEND_RELEASE_DIR/frontend/dist/index.html"
 sudo -u kivou test ! -L "$KIVOU_BACKEND_RELEASE_DIR/frontend/dist/index.html"
-test -n "$(sudo -u kivou find "$KIVOU_BACKEND_RELEASE_DIR/frontend/dist/assets" -type f -print -quit)"
+test -n "$(sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \
+  /usr/bin/env --chdir="$KIVOU_BACKEND_RELEASE_DIR/frontend/dist" \
+  /usr/bin/find assets -type f -print -quit)"
 test -z "$(kivou_git -C "$KIVOU_BACKEND_RELEASE_DIR" status --porcelain)"
 
 sudo install -o root -g root -m 755 -d "$KIVOU_FRONTEND_RELEASE_DIR"
@@ -184,12 +186,27 @@ KIVOU_ROLLOUT_UNITS=(
   kivou-ingest@decp.service kivou-ingest-decp.timer
   kivou-ingest@ted.service kivou-ingest-ted.timer
 )
-sudo systemd-analyze verify "$KIVOU_BACKEND_RELEASE_DIR"/ops/systemd/production/*.service "$KIVOU_BACKEND_RELEASE_DIR"/ops/systemd/production/*.timer
+KIVOU_UNIT_VERIFY_DIR=/root/kivou-rollouts/production-unit-verify-$KIVOU_RELEASE_UTC-$KIVOU_RELEASE_SHORT
+case "$KIVOU_UNIT_VERIFY_DIR" in (/root/kivou-rollouts/production-unit-verify-*) ;; (*) exit 69 ;; esac
+sudo install -o root -g root -m 700 -d /root/kivou-rollouts
+sudo test ! -e "$KIVOU_UNIT_VERIFY_DIR"
+sudo test ! -L "$KIVOU_UNIT_VERIFY_DIR"
+sudo install -o root -g root -m 700 -d "$KIVOU_UNIT_VERIFY_DIR"
+sudo cp -a "$KIVOU_BACKEND_RELEASE_DIR"/ops/systemd/production/*.service "$KIVOU_UNIT_VERIFY_DIR/"
+sudo cp -a "$KIVOU_BACKEND_RELEASE_DIR"/ops/systemd/production/*.timer "$KIVOU_UNIT_VERIFY_DIR/"
+sudo chown root:root "$KIVOU_UNIT_VERIFY_DIR"/*
+sudo chmod 644 "$KIVOU_UNIT_VERIFY_DIR"/*
+sudo sed -i "s#/srv/kivou/app#$KIVOU_BACKEND_RELEASE_DIR#g" "$KIVOU_UNIT_VERIFY_DIR"/*.service "$KIVOU_UNIT_VERIFY_DIR"/*.timer
+if sudo grep -R -F -l /srv/kivou/app "$KIVOU_UNIT_VERIFY_DIR" >/dev/null; then exit 69; fi
+sudo grep -R -F -q "$KIVOU_BACKEND_RELEASE_DIR" "$KIVOU_UNIT_VERIFY_DIR"
+sudo systemd-analyze verify "$KIVOU_UNIT_VERIFY_DIR"/*.service "$KIVOU_UNIT_VERIFY_DIR"/*.timer
 ```
 
 Stop gate : les deux fichiers sont des fichiers réguliers non symboliques en
-`root:root 600` et `systemd-analyze verify` est vert. Aucun état actif n'a
-changé.
+`root:root 600`. Les unités sont vérifiées sur des copies temporaires qui
+résolvent `/srv/kivou/app` vers la release candidate exacte, sans créer ni
+modifier le lien actif ; `systemd-analyze verify` est vert. Aucun état actif
+n'a changé.
 
 ## 4. Stager les unités et capturer leur baseline
 

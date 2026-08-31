@@ -1136,6 +1136,42 @@ def test_runbook_validates_secrets_and_units_before_atomic_install() -> None:
     )
 
 
+def test_release_asset_probe_runs_from_an_accessible_working_directory() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    assert (
+        'sudo -u kivou find "$KIVOU_BACKEND_RELEASE_DIR/frontend/dist/assets"'
+        not in body
+    )
+    assert re.search(
+        r"sudo -u kivou /usr/bin/env -i HOME=/srv/kivou PATH=/usr/bin:/bin \\\n"
+        r'\s+/usr/bin/env --chdir="\$KIVOU_BACKEND_RELEASE_DIR/frontend/dist" \\\n'
+        r"\s+/usr/bin/find assets -type f -print -quit",
+        body,
+    )
+
+
+def test_systemd_preflight_verifies_candidate_paths_without_active_app_link() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+    preflight = body[body.index("## 3.") : body.index("## 4.")]
+
+    assert "KIVOU_UNIT_VERIFY_DIR=" in preflight
+    assert 'test ! -e "$KIVOU_UNIT_VERIFY_DIR"' in preflight
+    assert (
+        's#/srv/kivou/app#$KIVOU_BACKEND_RELEASE_DIR#g' in preflight
+    )
+    assert (
+        'systemd-analyze verify "$KIVOU_UNIT_VERIFY_DIR"/*.service '
+        '"$KIVOU_UNIT_VERIFY_DIR"/*.timer'
+        in preflight
+    )
+    assert (
+        'systemd-analyze verify "$KIVOU_BACKEND_RELEASE_DIR"/ops/systemd/'
+        not in preflight
+    )
+    assert 'ln -s "$KIVOU_BACKEND_RELEASE_DIR" /srv/kivou/app' not in preflight
+
+
 def test_runbook_exercises_local_offsite_and_real_restore_without_side_effects() -> None:
     body = read(PRODUCTION_RUNBOOK)
 
