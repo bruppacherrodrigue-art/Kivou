@@ -188,6 +188,7 @@ export const UNLOCKED_ITEM: UnlockedFeedItem = {
   locked: false,
   signal_id: 'sig_unlocked_1',
   target_icp_id: 'icp_1',
+  company_key: 'cmp_0123456789abcdefghijklmnop',
   presentation: null,
   company: {
     name: 'Constructions Bertrand SA',

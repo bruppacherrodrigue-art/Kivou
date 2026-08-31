@@ -1427,7 +1427,7 @@ a:focus-visible {
 
 .priority-facts {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 1px;
   margin: 21px 0 0;
   overflow: hidden;
@@ -1654,8 +1654,8 @@ a:focus-visible {
 }
 
 .overview-awards-card .recent-signal {
-  grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 112px;
+  grid-template-columns: minmax(0, 1fr);
+  min-height: 236px;
   align-content: start;
   align-items: start;
   padding: 16px;
@@ -1669,15 +1669,47 @@ a:focus-visible {
 }
 
 .overview-awards-card .recent-value {
-  grid-column: 1 / -1;
+  grid-column: 1;
   grid-row: 2;
   text-align: left;
 }
 
 .overview-awards-card .recent-match {
-  grid-column: 2;
-  grid-row: 1;
+  grid-column: 1;
+  grid-row: 3;
   align-self: start;
+}
+
+.recent-award-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+}
+
+.recent-award-action {
+  display: inline-flex;
+  grid-column: 1;
+  align-items: center;
+  align-self: end;
+  gap: 6px;
+  margin-top: auto;
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 690;
+}
+
+.recent-award-action svg {
+  width: 13px;
+  height: 13px;
+}
+
+.priority-analysis-unavailable {
+  margin: 9px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .recent-company,

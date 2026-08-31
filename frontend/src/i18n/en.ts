@@ -277,11 +277,22 @@ export const en: Dictionary = {
       documentedAwardOne: '{count} documented award',
       documentedAwardOther: '{count} documented awards',
       lead:
-        'Each signal separates published facts from what still needs checking before contacting a company.',
+        'This overview shows up to six awards using only facts and artefacts that were actually published.',
       reviewFirst: 'Review first',
       publishedAward: 'Published award',
       publishedOn: 'Award published on {source}',
       whyFirst: 'Why it appears first',
+      recentRelevantAwards: 'Recent relevant awards',
+      summaryUnavailable:
+        'Award summary not published. Open the signal to review the available facts.',
+      analysisUnavailable: 'Presentation not published',
+      analysisUnavailableBody:
+        'No analysis is published for this award.',
+      factualSummaryBody:
+        'A factual summary is published without commercial interpretation.',
+      buyerUnavailable: 'Buyer not published',
+      match: 'Match',
+      viewAward: 'View award',
       honestyLimit:
         'The public notice documents the contract without proving that a supplier purchase remains open.',
       reviewSignal: 'Review signal',

@@ -283,11 +283,22 @@ export const fr = {
       documentedAwardOne: '{count} attribution documentée',
       documentedAwardOther: '{count} attributions documentées',
       lead:
-        'Chaque signal sépare les faits publiés de ce qu’il reste à vérifier avant de contacter une entreprise.',
+        'Cette vue présente jusqu’à six attributions à partir des faits et artefacts réellement publiés.',
       reviewFirst: 'À examiner en premier',
       publishedAward: 'Attribution publiée',
       publishedOn: 'Attribution publiée sur {source}',
       whyFirst: 'Pourquoi il remonte en premier',
+      recentRelevantAwards: 'Attributions récentes pertinentes',
+      summaryUnavailable:
+        'Résumé de l’attribution non publié. Ouvrez le signal pour consulter les faits disponibles.',
+      analysisUnavailable: 'Présentation non publiée',
+      analysisUnavailableBody:
+        'Aucune analyse n’est publiée pour cette attribution.',
+      factualSummaryBody:
+        'Un résumé factuel est publié, sans interprétation commerciale.',
+      buyerUnavailable: 'Acheteur non publié',
+      match: 'Correspondance',
+      viewAward: 'Voir l’attribution',
       honestyLimit:
         'L’avis public documente le marché, sans prouver qu’un achat fournisseur reste ouvert.',
       reviewSignal: 'Examiner le signal',

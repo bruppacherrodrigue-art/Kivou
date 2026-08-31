@@ -14,6 +14,7 @@ import type {
   BillingAccessView,
   CompanySummaryView,
   EvidenceBoundLabel,
+  OverviewAwardCardView,
   SignalCardView,
   SignalDetailView,
   SignalEventDateKind,
@@ -332,6 +333,59 @@ export function toSignalCard(item: FeedItem): SignalCardView {
 
 export function toSignalCards(page: FeedPage): SignalCardView[] {
   return page.items.map(toSignalCard)
+}
+
+export function toOverviewAwardCard(item: FeedItem): OverviewAwardCardView {
+  if (item.locked) {
+    const clock = EVENT_CLOCK_BY_STATUS[item.event.status]
+    return {
+      id: item.signal_id,
+      locked: true,
+      presentationArtifactId: null,
+      companyName: null,
+      buyerName: null,
+      teaserHeadline: item.headline,
+      headline: null,
+      awardSummary: null,
+      commercialImportance: null,
+      fitReason: null,
+      timing: null,
+      recommendedAction: null,
+      presentationVariant: null,
+      amount: null,
+      location: null,
+      eventDate: item.event.date,
+      eventDateKind: eventDateKind(clock, item.event.status),
+      sourceSystem: null,
+    }
+  }
+
+  const presentation = publishedPresentation(item.presentation)
+  const content = presentation?.content
+  return {
+    id: item.signal_id,
+    locked: false,
+    presentationArtifactId: presentation?.artifact_id ?? null,
+    companyName: item.company.name,
+    buyerName: item.contract.buyer?.name ?? null,
+    teaserHeadline: null,
+    headline: content?.headline ?? null,
+    awardSummary: content?.award_summary ?? null,
+    commercialImportance: content?.commercial_importance ?? null,
+    fitReason: content?.fit_reason ?? null,
+    timing: content?.timing ?? null,
+    recommendedAction: content?.recommended_action ?? null,
+    presentationVariant: content?.variant ?? null,
+    amount: item.contract.amount,
+    location: item.contract.location,
+    eventDate: item.event.date,
+    eventDateKind: eventDateKind(item.event.clock, item.event.status),
+    sourceSystem: item.source.system,
+  }
+}
+
+export function toOverviewAwardCards(page: FeedPage): OverviewAwardCardView[] {
+  return page.items.map(toOverviewAwardCard)
 }
 
 export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
