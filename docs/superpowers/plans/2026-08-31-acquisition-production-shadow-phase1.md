@@ -14,13 +14,14 @@
 
 - Socle : `origin/main` à `c8ea78c`. Rebaser avant de commencer.
 - **Aucune migration.** La phase 1 n'ajoute ni ne modifie aucune table. La tête reste `0028_card_presentation`.
-- **Le staging ne change pas de comportement.** Toute modification d'un chemin `STAGING` doit être une extension, jamais une substitution. `tests/test_acquisition_runtime_*.py` existants passent sans modification, sauf ajout.
+- **Le staging ne change pas de comportement.** Toute modification d'un chemin `STAGING` doit être une extension, jamais une substitution. La garantie mécanique porte sur trois artefacts : `src/signals/acquisition_runtime/transport.py`, `src/signals/operations/qa_policy_window.py` et `tests/test_acquisition_runtime_execution.py`, qui gardent un diff nul.
+- **Un test qui affirme « la production est impossible » n'est pas un test de comportement staging** : c'est un test de périmètre, périmé par conception. Deux existent et changent — `test_capability_rejects_environment_registry_and_dependency_drift` (santé) et `test_runtime_is_staging_only` (config). Les amender ne viole pas la contrainte ci-dessus.
 - `maximum_suppliers` et `maximum_contacts` restent `Literal[1]`. Aucune tâche ne les touche.
 - `mode` reste `Literal[RuntimeExecutionMode.SHADOW]`. Aucune tâche ne l'élargit.
 - `transport.py` n'est **pas modifié**. Son garde est déjà correct ; on ajoute la preuve.
 - Aucun secret, aucune adresse, aucun objet fournisseur brut, aucun prompt ni réponse de modèle dans un journal, un message d'exception ou une sortie de CLI.
 - Les commandes lisent `KIVOU_DATABASE_URL` depuis l'environnement ; jamais d'URL ni d'horloge en argument.
-- Tests : `uv run pytest`. Lint : `uv run ruff check`. Types : `uv run mypy src`.
+- Tests : `uv run pytest`. Lint : `uv run ruff check`. **Pas de contrôle de types** : `mypy` n'est pas une dépendance de ce projet.
 
 ### Réconciliation de nommage, à lire avant la tâche 1
 
@@ -450,6 +451,109 @@ Attendu : tout passe, sans avoir touché le fichier de test du staging.
 ```bash
 git add src/signals/acquisition_runtime/config.py tests/test_acquisition_runtime_config_production.py
 git commit -m "feat(acquisition): charger une configuration de production sans destinataire de repli"
+```
+
+---
+
+### Task 2B : ouvrir `PRODUCTION` dans le module de connectivité
+
+**Files:**
+- Modify: `src/signals/acquisition_connectivity/contracts.py:100` et `:187`
+- Modify: `src/signals/acquisition_connectivity/config.py:80-85`
+- Modify: `src/signals/acquisition_connectivity/service.py:275`
+- Test: `tests/test_acquisition_connectivity_production.py` *(créé)*
+
+**Pourquoi cette tâche existe.** Elle ne figurait pas au plan initial. `build_runtime_execution_composition` exige un `AcquisitionConnectivityConfig`, et `python -m signals.acquisition_runtime check-dependencies` — la commande que le runbook de production fait tourner — passe par ce module. Or `load_connectivity_config` lève `WRONG_ENVIRONMENT` hors `STAGING`, le préflight de `service.py` refuse de même, et les deux contrats portent `Literal["STAGING"]`. Sans cette tâche, les tâches 6 et 9 sont impossibles.
+
+**Interfaces:**
+- Consomme : rien des tâches précédentes.
+- Produit : `load_connectivity_config()` acceptant `PRODUCTION` ; `AcquisitionConnectivityConfig.environment: Literal["STAGING", "PRODUCTION"]`.
+
+**Ce qui ne change pas.** Le préflight garde toutes ses autres exigences : Policy en `SHADOW`, `read_only`, coupe-circuit armé. Ce sont précisément les propriétés du contrôle d'amorçage de la tâche 8, donc l'ouverture est cohérente et n'affaiblit rien. Le document de déploiement de connectivité — référence de workspace Instantly et trois mailboxes — garde exactement la même forme dans les deux environnements : il n'y a pas ici de champ propre à la QA.
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```python
+# tests/test_acquisition_connectivity_production.py
+from __future__ import annotations
+
+import pytest
+
+from signals.acquisition_connectivity.config import load_connectivity_config
+from signals.acquisition_connectivity.contracts import ConnectivityFailure
+
+
+def test_production_connectivity_configuration_loads(production_connectivity_environment) -> None:
+    config = load_connectivity_config(production_connectivity_environment)
+    assert config.environment == "PRODUCTION"
+
+
+def test_staging_connectivity_configuration_still_loads(staging_connectivity_environment) -> None:
+    config = load_connectivity_config(staging_connectivity_environment)
+    assert config.environment == "STAGING"
+
+
+@pytest.mark.parametrize("value", ["production", "LOCAL", "", "UNCONFIGURED"])
+def test_unknown_environments_are_still_refused(
+    staging_connectivity_environment, value: str
+) -> None:
+    values = dict(staging_connectivity_environment)
+    values["KIVOU_ACQUISITION_ENVIRONMENT"] = value
+    with pytest.raises(ConnectivityFailure):
+        load_connectivity_config(values)
+```
+
+> Construire les deux fixtures d'environnement localement, en reprenant le montage de `tests/test_acquisition_connectivity_config.py` — mêmes variables, même document de déploiement, seul `KIVOU_ACQUISITION_ENVIRONMENT` change. Relever au passage le nom exact de l'exception et du code d'erreur : la CLI et le service peuvent ne pas lever le même type.
+
+- [ ] **Étape 2 : lancer le test et vérifier qu'il échoue**
+
+Commande : `uv run pytest tests/test_acquisition_connectivity_production.py -v`
+Attendu : ÉCHEC sur le premier test, `WRONG_ENVIRONMENT`.
+
+- [ ] **Étape 3 : implémenter**
+
+Dans `contracts.py`, élargir les deux littéraux :
+
+```python
+    environment: Literal["STAGING", "PRODUCTION"] = "STAGING"
+```
+
+```python
+    environment: Literal["STAGING", "PRODUCTION"]
+```
+
+Dans `config.py`, accepter les deux environnements et transmettre celui qui a été lu — ne pas réécrire une valeur en dur :
+
+```python
+    environment = _required(source, "KIVOU_ACQUISITION_ENVIRONMENT")
+    if environment not in {"STAGING", "PRODUCTION"}:
+        raise ConnectivityFailure(ConnectivityErrorCode.WRONG_ENVIRONMENT)
+    shadow_path = _absolute_path(source, "KIVOU_ACQUISITION_SHADOW_CONFIG")
+    return AcquisitionConnectivityConfig(
+        environment=environment,
+        ...
+    )
+```
+
+Dans `service.py`, remplacer le refus du préflight :
+
+```python
+        if self._config.environment not in {"STAGING", "PRODUCTION"}:
+            raise ConnectivityFailure(ConnectivityErrorCode.WRONG_ENVIRONMENT)
+```
+
+Ne toucher à aucune autre exigence du préflight.
+
+- [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
+
+Commande : `uv run pytest tests/test_acquisition_connectivity_production.py tests/test_acquisition_connectivity_config.py tests/test_acquisition_connectivity_service.py tests/test_acquisition_connectivity_architecture.py -q`
+Attendu : tout passe, y compris les tests de connectivité préexistants, non modifiés.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add src/signals/acquisition_connectivity tests/test_acquisition_connectivity_production.py
+git commit -m "feat(acquisition): ouvrir la connectivité fournisseur à l'environnement de production"
 ```
 
 ---
@@ -1603,22 +1707,20 @@ Attendu : la suite entière passe. Relever le nombre de tests et le comparer au 
 
 ```bash
 uv run ruff check
-uv run mypy src
 ```
 
-Attendu : aucun diagnostic.
+Attendu : aucun diagnostic. `mypy` n'est pas installé dans ce projet et n'est pas exécuté.
 
 - [ ] **Étape 3 : prouver que le chemin staging n'a pas bougé**
 
 ```bash
 git diff --stat origin/main -- \
-  tests/test_acquisition_runtime_config.py \
   tests/test_acquisition_runtime_execution.py \
   src/signals/acquisition_runtime/transport.py \
   src/signals/operations/qa_policy_window.py
 ```
 
-Attendu : **aucune ligne modifiée** dans ces quatre fichiers. Une différence signifie que le chemin staging a été touché, contrairement aux contraintes globales — arrêter et corriger.
+Attendu : **aucune ligne modifiée** dans ces trois fichiers. `tests/test_acquisition_runtime_config.py` a été retiré de cette liste : il porte `test_runtime_is_staging_only`, un test de périmètre que la phase 1 rend caduc par conception. Une différence signifie que le chemin staging a été touché, contrairement aux contraintes globales — arrêter et corriger.
 
 - [ ] **Étape 4 : vérifier l'absence de migration**
 
