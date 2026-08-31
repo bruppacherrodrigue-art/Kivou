@@ -1211,6 +1211,45 @@ def test_runbook_switches_both_releases_then_publishes_nginx() -> None:
     )
 
 
+def test_runbook_migrates_the_exact_candidate_after_restore_and_before_api_start() -> None:
+    body = read(PRODUCTION_RUNBOOK)
+
+    assert_fragments_in_order(
+        body,
+        "restic restore latest",
+        "KIVOU_FIRST_RUNTIME_MUTATION=1",
+        "--unit=kivou-database-migration-$KIVOU_RELEASE_SHORT",
+        "create_database_engine()",
+        "ScriptDirectory.from_config(alembic_config(engine)).get_current_head()",
+        'expected != "0028_card_presentation"',
+        "before = current_revision(engine)",
+        'before not in {"0027_signal_notes", "0028_card_presentation"}',
+        "migrate_to_latest(engine)",
+        "actual = current_revision(engine)",
+        'mv -Tf "$KIVOU_APP_LINK_NEW" /srv/kivou/app',
+        "systemctl enable --now kivou-api.service",
+    )
+    migration_unit = body.index("--unit=kivou-database-migration-$KIVOU_RELEASE_SHORT")
+    migration_start = body.rfind(
+        "sudo systemd-run --wait --pipe --collect", 0, migration_unit
+    )
+    assert migration_start >= 0
+    migration = body[
+        migration_start : body.index(
+            'KIVOU_APP_LINK_NEW=/srv/kivou/app.new-$KIVOU_RELEASE_SHORT'
+        )
+    ]
+    assert "EnvironmentFile=/etc/kivou/production.env" in migration
+    assert 'WorkingDirectory="$KIVOU_BACKEND_RELEASE_DIR"' in migration
+    assert '"$KIVOU_BACKEND_RELEASE_DIR/.venv/bin/python"' in migration
+    assert "--wait --pipe --collect" in migration
+    assert "TimeoutStartSec=30m" in migration
+    assert "InaccessiblePaths=/srv/kivou/.ssh" in migration
+    assert "ReadOnlyPaths=\"$KIVOU_BACKEND_RELEASE_DIR\"" in migration
+    assert "IPAddressDeny=any" in migration
+    assert "IPAddressAllow=localhost" in migration
+
+
 def test_all_fallible_prevalidations_and_captures_precede_the_mutation_window() -> None:
     body = read(PRODUCTION_RUNBOOK)
     first_mutation = min(

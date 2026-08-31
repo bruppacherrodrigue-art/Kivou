@@ -644,6 +644,9 @@ Ce bloc unique définit le rollback avant la première mutation, acquiert le
 verrou global, puis arme un trap `ERR` qui conserve le code original. Toute la
 fenêtre doit rester dans cette même session shell. En cas d'échec, services et
 timers sont arrêtés, app/frontend puis unités puis nginx sont restaurés.
+La migration candidate doit avoir été revue comme compatible avec le retour à
+l'ancienne release : `0028_card_presentation` ajoute uniquement une table et
+ses index. Le rollback ne tente jamais un downgrade destructif du schéma.
 Chaque phase de rollback est un sous-shell strict indépendant ; son statut est
 capturé sur l'instruction immédiatement suivante, jamais dans `if !` ou `||`,
 car ces contextes désactivent `errexit` jusque dans le sous-shell Bash.
@@ -977,6 +980,53 @@ KIVOU_FIRST_RUNTIME_MUTATION=1
 for KIVOU_UNIT in "${KIVOU_ROLLOUT_UNITS[@]}"; do
   if sudo systemctl list-unit-files "$KIVOU_UNIT" --no-legend | grep -q .; then sudo systemctl disable --now "$KIVOU_UNIT"; fi
 done
+
+sudo systemd-run --wait --pipe --collect \
+  --unit=kivou-database-migration-$KIVOU_RELEASE_SHORT \
+  --expand-environment=no \
+  --property=Type=oneshot \
+  --property=User=kivou --property=Group=kivou \
+  --property=WorkingDirectory="$KIVOU_BACKEND_RELEASE_DIR" \
+  --property=EnvironmentFile=/etc/kivou/production.env \
+  --property=TimeoutStartSec=30m \
+  --property=UMask=0077 \
+  --property=NoNewPrivileges=yes \
+  --property=PrivateTmp=yes --property=PrivateDevices=yes \
+  --property=ProtectSystem=strict --property=ProtectHome=yes \
+  --property=InaccessiblePaths=/srv/kivou/.ssh \
+  --property=ReadOnlyPaths="$KIVOU_BACKEND_RELEASE_DIR" \
+  --property=ProtectKernelTunables=yes \
+  --property=ProtectKernelModules=yes \
+  --property=ProtectControlGroups=yes \
+  --property=RestrictSUIDSGID=yes --property=LockPersonality=yes \
+  --property="RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6" \
+  --property=IPAddressDeny=any --property=IPAddressAllow=localhost \
+  -- "$KIVOU_BACKEND_RELEASE_DIR/.venv/bin/python" -c '
+from alembic.script import ScriptDirectory
+from signals.persistence.database import (
+    alembic_config,
+    create_database_engine,
+    current_revision,
+    migrate_to_latest,
+)
+
+engine = create_database_engine()
+try:
+    expected = ScriptDirectory.from_config(alembic_config(engine)).get_current_head()
+    if expected != "0028_card_presentation":
+        raise RuntimeError("le head Alembic candidat n’est pas celui revu pour ce rollout")
+    before = current_revision(engine)
+    if before not in {"0027_signal_notes", "0028_card_presentation"}:
+        raise RuntimeError("la révision Alembic initiale n’est pas autorisée pour ce rollout")
+    migrate_to_latest(engine)
+    actual = current_revision(engine)
+    if actual != expected:
+        raise RuntimeError("la base de production n’est pas au head Alembic candidat")
+    print(f"database_revision={actual}")
+finally:
+    engine.dispose()
+'
+
 for KIVOU_UNIT in "${KIVOU_UNIT_NAMES[@]}"; do
   KIVOU_UNIT_PATH=/etc/systemd/system/$KIVOU_UNIT
   KIVOU_UNIT_NEW=$KIVOU_UNIT_PATH.new
@@ -1085,10 +1135,11 @@ kivou_disarm_rollout_traps
 KIVOU_MUTATION_WINDOW_END=1
 ```
 
-Stop gate : une seule fenêtre protégée a installé les unités, basculé les deux
-releases, prouvé l'API 8000, publié nginx, vérifié HTTPS, fumé backup, puis fumé
-les quatre sources avec tous leurs timers désactivés avant leur activation
-groupée. Alertes et SMTP restent bloqués en attente d'une autorisation séparée.
+Stop gate : une seule fenêtre protégée a arrêté l'ancien runtime, migré la base
+au head Alembic du SHA candidat, installé les unités, basculé les deux releases,
+prouvé l'API 8000, publié nginx, vérifié HTTPS, fumé backup, puis fumé les quatre
+sources avec tous leurs timers désactivés avant leur activation groupée. Alertes
+et SMTP restent bloqués en attente d'une autorisation séparée.
 
 ## 11. Rollback immédiat autonome après perte de session
 
