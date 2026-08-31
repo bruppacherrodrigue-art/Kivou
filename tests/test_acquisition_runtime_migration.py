@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import datetime as dt
 import pathlib
 
+import pytest
 import sqlalchemy as sa
 from alembic import command
 from alembic.script import ScriptDirectory
@@ -24,7 +26,7 @@ from signals.persistence.schema import (
 
 PREVIOUS = "0025_alert_recipient_context"
 HEAD = "0026_acquisition_runtime"
-CURRENT_HEAD = "0028_card_presentation"
+CURRENT_HEAD = "0029_production_observation_boundary"
 RUNTIME_TABLES = {
     acquisition_runtime_approval.name,
     acquisition_runtime_lease.name,
@@ -35,8 +37,45 @@ RUNTIME_TABLES = {
 }
 
 
+NOW = dt.datetime(2026, 9, 1, 9, tzinfo=dt.UTC)
+
+
 def _engine(tmp_path: pathlib.Path, name: str) -> sa.Engine:
     return create_database_engine(f"sqlite+pysqlite:///{tmp_path / name}")
+
+
+def _observation_values(**overrides: object) -> dict[str, object]:
+    values: dict[str, object] = {
+        "runtime_name": "acquisition-run-once",
+        "capability_fingerprint": "f" * 64,
+        "environment": "STAGING",
+        "mode": "SHADOW",
+        "qa_only": True,
+        "hermes_repository": "kivou/hermes",
+        "hermes_tag": "v1.0.0",
+        "hermes_commit": "a" * 40,
+        "hermes_version": "1.0.0",
+        "hermes_python_contract": ">=3.11,<3.13",
+        "registry_identity": "b" * 64,
+        "native_tools": 0,
+        "commands": ["signal_seed"],
+        "dependencies": [],
+        "observed_at": NOW,
+        "heartbeat_at": NOW,
+        "last_cycle_ref": None,
+        "last_cycle_status": None,
+        "last_cycle_at": None,
+        "updated_at": NOW,
+    }
+    values.update(overrides)
+    return values
+
+
+def _insert_observation(engine: sa.Engine, values: dict[str, object]) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(acquisition_runtime_observation).values(**values)
+        )
 
 
 def test_acquisition_runtime_migration_is_one_additive_revision(tmp_path) -> None:
@@ -131,3 +170,39 @@ def test_acquisition_runtime_postgresql_sql_is_bounded_and_secret_free(capsys) -
         "phone",
     ):
         assert forbidden not in upgrade_sql
+
+
+def test_observation_boundary_accepts_staging_qa_only(tmp_path) -> None:
+    engine = _engine(tmp_path, "runtime-boundary-staging-qa-only.db")
+    command.upgrade(alembic_config(engine), "head")
+
+    _insert_observation(engine, _observation_values())
+
+
+def test_observation_boundary_rejects_staging_non_qa_only(tmp_path) -> None:
+    engine = _engine(tmp_path, "runtime-boundary-staging-non-qa-only.db")
+    command.upgrade(alembic_config(engine), "head")
+
+    with pytest.raises(sa.exc.IntegrityError):
+        _insert_observation(engine, _observation_values(qa_only=False))
+
+
+def test_observation_boundary_accepts_production_non_qa_only(tmp_path) -> None:
+    engine = _engine(tmp_path, "runtime-boundary-production-non-qa-only.db")
+    command.upgrade(alembic_config(engine), "head")
+
+    _insert_observation(
+        engine,
+        _observation_values(environment="PRODUCTION", qa_only=False),
+    )
+
+
+def test_observation_boundary_rejects_production_qa_only(tmp_path) -> None:
+    engine = _engine(tmp_path, "runtime-boundary-production-qa-only.db")
+    command.upgrade(alembic_config(engine), "head")
+
+    with pytest.raises(sa.exc.IntegrityError):
+        _insert_observation(
+            engine,
+            _observation_values(environment="PRODUCTION", qa_only=True),
+        )
