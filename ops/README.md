@@ -5,6 +5,10 @@ Aujourd'hui : la sauvegarde PostgreSQL (RTL-03 / #39), le runtime des alertes
 transactionnelles (RTL-05), les ingestions DECP (#77) et TED (#82) bornées et l'outillage de
 rotation expurgée des secrets de staging (#81).
 
+Le rollout staging Card Intelligence × QA Signals suit exclusivement le
+runbook versionné
+[`11-staging-card-presentation-rollout.md`](../docs/runbooks/11-staging-card-presentation-rollout.md).
+
 > Un service systemd qui appelle un fichier absent de la branche déployable
 > échoue au premier déploiement propre. C'est exactement ce qu'a révélé #39 :
 > `kivou-backup.service` sortait en code 69 parce que le script ne vivait que
