@@ -805,7 +805,7 @@ ne peut pas être faite, STOP.
 ~~~bash
 KIVOU_BACKFILL_AS_OF=$(date -u +%F)
 printf '%s\n' "$KIVOU_BACKFILL_AS_OF" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
-ssh kivou-staging 'bash -s' -- \
+KIVOU_QA_SCOPE_SUMMARY=$(ssh kivou-staging 'bash -s' -- \
   "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_BACKFILL_AS_OF" <<'REMOTE'
 set -euo pipefail
 KIVOU_RELEASE_DIR=$1
@@ -881,6 +881,109 @@ except Exception:
     print("qa_scope_failed", file=sys.stderr)
     raise SystemExit(1) from None
 PY
+REMOTE
+)
+printf '%s\n' "$KIVOU_QA_SCOPE_SUMMARY" | grep -Eq \
+  '^qa_scope_ok fingerprint=[0-9a-f]{16} active_users=[1-9][0-9]* active_icps=[1-9][0-9]* current_signals=[1-9][0-9]*$'
+KIVOU_QA_DB_FINGERPRINT=$(printf '%s\n' "$KIVOU_QA_SCOPE_SUMMARY" | \
+  sed -E 's/^qa_scope_ok fingerprint=([0-9a-f]{16}) .*$/\1/')
+unset KIVOU_QA_SCOPE_SUMMARY
+printf '%s\n' "$KIVOU_QA_DB_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
+
+: "${KIVOU_QA_STORAGE_STATE:?STOP: storage state QA protégé non fourni}"
+printf '%s\n' "$KIVOU_QA_STORAGE_STATE" | \
+  grep -Eq '^/[A-Za-z0-9._/-]+$'
+test -f "$KIVOU_QA_STORAGE_STATE"
+test ! -L "$KIVOU_QA_STORAGE_STATE"
+KIVOU_QA_STORAGE_STATE_REAL=$(readlink -f "$KIVOU_QA_STORAGE_STATE")
+test "$KIVOU_QA_STORAGE_STATE_REAL" = "$KIVOU_QA_STORAGE_STATE"
+test "$(stat -c '%U:%a' "$KIVOU_QA_STORAGE_STATE")" = "$(id -un):600"
+test -r "$KIVOU_QA_STORAGE_STATE"
+KIVOU_OPERATOR_ROOT=$(git rev-parse --show-toplevel)
+case "$KIVOU_QA_STORAGE_STATE_REAL" in
+  ("$KIVOU_OPERATOR_ROOT"/*) exit 69 ;;
+  (*) ;;
+esac
+(
+  cd frontend
+  npm ci
+  npx playwright install chromium
+  KIVOU_QA_STORAGE_STATE="$KIVOU_QA_STORAGE_STATE_REAL" \
+  KIVOU_QA_DB_FINGERPRINT="$KIVOU_QA_DB_FINGERPRINT" \
+  KIVOU_BACKFILL_AS_OF="$KIVOU_BACKFILL_AS_OF" \
+  KIVOU_QA_ORIGIN=https://staging.kivou.eu node <<'JS'
+async function run() {
+  const { chromium } = require('playwright')
+  const origin = process.env.KIVOU_QA_ORIGIN
+  const asOf = process.env.KIVOU_BACKFILL_AS_OF
+  const expectedFingerprint = process.env.KIVOU_QA_DB_FINGERPRINT
+  const storageState = process.env.KIVOU_QA_STORAGE_STATE
+  if (!origin || !asOf || !expectedFingerprint || !storageState) throw new Error()
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const context = await browser.newContext({ storageState })
+    const page = await context.newPage()
+    await page.goto(`${origin}/app/signals`, { waitUntil: 'networkidle' })
+    const verified = await page.evaluate(async ({ asOf, expectedFingerprint }) => {
+      const meResponse = await fetch('/me', { credentials: 'same-origin' })
+      if (meResponse.status !== 200) throw new Error()
+      const me = await meResponse.json()
+      if (typeof me.account_id !== 'string' || me.account_id.length === 0) {
+        throw new Error()
+      }
+      const bytes = new TextEncoder().encode(me.account_id)
+      const digest = await crypto.subtle.digest('SHA-256', bytes)
+      const fingerprint = Array.from(new Uint8Array(digest))
+        .map((value) => value.toString(16).padStart(2, '0'))
+        .join('')
+        .slice(0, 16)
+      if (fingerprint !== expectedFingerprint) throw new Error()
+      const feedResponse = await fetch(
+        `/signals?as_of=${encodeURIComponent(asOf)}&limit=50&offset=0`,
+        { credentials: 'same-origin' },
+      )
+      if (feedResponse.status !== 200) throw new Error()
+      const feed = await feedResponse.json()
+      if (feed.read_at !== asOf || !Array.isArray(feed.items)) throw new Error()
+      if (!feed.items.some((item) => item && item.locked === false)) {
+        throw new Error()
+      }
+      return true
+    }, { asOf, expectedFingerprint })
+    if (verified !== true) throw new Error()
+    await context.close()
+  } finally {
+    await browser.close()
+  }
+}
+
+run()
+  .then(() => console.log("qa_browser_gate_ok"))
+  .catch(() => {
+    console.error("qa_browser_gate_failed")
+    process.exitCode = 1
+  })
+JS
+)
+
+ssh kivou-staging 'bash -s' -- \
+  "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_BACKFILL_AS_OF" <<'REMOTE'
+set -euo pipefail
+KIVOU_RELEASE_DIR=$1
+KIVOU_FINAL_SHA=$2
+KIVOU_BACKFILL_AS_OF=$3
+KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
+KIVOU_QA_ENV=/etc/kivou/card-presentation-qa.env
+test -f "$KIVOU_QA_ENV"
+test ! -L "$KIVOU_QA_ENV"
+test "$(stat -c '%U:%G:%a' "$KIVOU_QA_ENV")" = "root:kivou:640"
+test "$(sudo awk 'NF && $1 !~ /^#/ {count++} END {print count+0}' \
+  "$KIVOU_QA_ENV")" = 1
+sudo grep -Eq \
+  '^KIVOU_CARD_QA_ACCOUNT_ID=[0-9A-Za-z][0-9A-Za-z_-]{0,63}$' \
+  "$KIVOU_QA_ENV"
+test "$(sudo awk -F= 'NF && $1 !~ /^#/ {print $1}' "$KIVOU_QA_ENV")" = \
+  KIVOU_CARD_QA_ACCOUNT_ID
 
 kivou_validate_backfill_summary() {
   printf '%s\n' "$1" | awk '
@@ -1038,6 +1141,385 @@ Checklist obligatoire, captures desktop et mobile à l'appui :
   génération ou QA pendant les GET, aucune erreur console, aucun 5xx.
 
 Sur les trois surfaces, vérifier aussi qu'aucune date de publication comme date d’attribution n'est affichée, qu'aucune association « Matériaux → personnel » n'apparaît et qu'aucune personne ni urgence inventée n'est présentée.
+
+Exécuter ce smoke local depuis le checkout du SHA final. Il utilise les rôles,
+noms accessibles et URLs normatifs des plans C001–C003; l'absence d'un de ces
+contrats est un échec, jamais une raison de relâcher un sélecteur. Il ne crée,
+ne copie ni ne réécrit le storage state protégé :
+
+~~~bash
+set -euo pipefail
+test "$(git rev-parse HEAD)" = "$KIVOU_FINAL_SHA"
+KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
+printf '%s\n' "$KIVOU_FINAL_SHORT" | grep -Eq '^[0-9a-f]{12}$'
+printf '%s\n' "$KIVOU_BACKFILL_AS_OF" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
+printf '%s\n' "$KIVOU_QA_DB_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
+: "${KIVOU_QA_STORAGE_STATE_REAL:?STOP: storage state QA protégé absent}"
+test -f "$KIVOU_QA_STORAGE_STATE_REAL"
+test ! -L "$KIVOU_QA_STORAGE_STATE_REAL"
+test "$(readlink -f "$KIVOU_QA_STORAGE_STATE_REAL")" = \
+  "$KIVOU_QA_STORAGE_STATE_REAL"
+test "$(stat -c '%U:%a' "$KIVOU_QA_STORAGE_STATE_REAL")" = \
+  "$(id -un):600"
+KIVOU_OPERATOR_ROOT=$(git rev-parse --show-toplevel)
+case "$KIVOU_QA_STORAGE_STATE_REAL" in
+  ("$KIVOU_OPERATOR_ROOT"/*) exit 69 ;;
+  (*) ;;
+esac
+KIVOU_BROWSER_EVIDENCE_DIR="artifacts/staging/card-presentation-$KIVOU_FINAL_SHORT"
+install -m 700 -d "$KIVOU_BROWSER_EVIDENCE_DIR"
+for KIVOU_CAPTURE in \
+  desktop-dashboard.png desktop-companies.png desktop-signals.png \
+  mobile-dashboard.png mobile-companies.png mobile-signals.png; do
+  test ! -e "$KIVOU_BROWSER_EVIDENCE_DIR/$KIVOU_CAPTURE"
+done
+(
+  cd frontend
+  KIVOU_QA_STORAGE_STATE="$KIVOU_QA_STORAGE_STATE_REAL" \
+  KIVOU_QA_DB_FINGERPRINT="$KIVOU_QA_DB_FINGERPRINT" \
+  KIVOU_BACKFILL_AS_OF="$KIVOU_BACKFILL_AS_OF" \
+  KIVOU_BROWSER_EVIDENCE_DIR="../$KIVOU_BROWSER_EVIDENCE_DIR" \
+  KIVOU_QA_ORIGIN=https://staging.kivou.eu node <<'JS'
+function requireTrue(value) {
+  if (!value) throw new Error()
+}
+
+async function accountFingerprint(page, expectedFingerprint) {
+  return page.evaluate(async (expected) => {
+    const response = await fetch('/me', { credentials: 'same-origin' })
+    if (response.status !== 200) throw new Error()
+    const me = await response.json()
+    if (typeof me.account_id !== 'string' || me.account_id.length === 0) {
+      throw new Error()
+    }
+    const bytes = new TextEncoder().encode(me.account_id)
+    const digest = await crypto.subtle.digest('SHA-256', bytes)
+    const fingerprint = Array.from(new Uint8Array(digest))
+      .map((value) => value.toString(16).padStart(2, '0'))
+      .join('')
+      .slice(0, 16)
+    if (fingerprint !== expected) throw new Error()
+    return true
+  }, expectedFingerprint)
+}
+
+async function verifyPublishedApi(page, asOf) {
+  return page.evaluate(async (readDate) => {
+    const feedResponse = await fetch(
+      `/signals?as_of=${encodeURIComponent(readDate)}&limit=50&offset=0`,
+      { credentials: 'same-origin' },
+    )
+    if (feedResponse.status !== 200) throw new Error()
+    const feed = await feedResponse.json()
+    if (feed.read_at !== readDate || !Array.isArray(feed.items)) throw new Error()
+    const unlocked = feed.items.filter((item) => item && item.locked === false)
+    const locked = feed.items.filter((item) => item && item.locked === true)
+    if (unlocked.length === 0 || locked.length === 0) throw new Error()
+    if (locked.some((item) => (
+      Object.hasOwn(item, 'presentation') || Object.hasOwn(item, 'company_key')
+    ))) throw new Error()
+    const published = unlocked.filter((item) => item.presentation)
+    if (published.length === 0) throw new Error()
+    for (const item of published) {
+      const artifact = item.presentation
+      if (artifact.status !== 'FALLBACK') throw new Error()
+      if (!artifact.content || artifact.content.variant !== 'FACTUAL_FALLBACK') {
+        throw new Error()
+      }
+      if (!Array.isArray(artifact.content.claims) ||
+          artifact.content.claims.length === 0 ||
+          artifact.content.claims.some((claim) => (
+            !Array.isArray(claim.evidence_refs) || claim.evidence_refs.length === 0
+          ))) throw new Error()
+    }
+    const item = published[0]
+    const artifact = item.presentation
+    const detailResponse = await fetch(
+      `/signals/${encodeURIComponent(item.signal_id)}` +
+      `?presentation_artifact_id=${encodeURIComponent(artifact.artifact_id)}`,
+      { credentials: 'same-origin' },
+    )
+    if (detailResponse.status !== 200) throw new Error()
+    const detail = await detailResponse.json()
+    if (!detail.presentation ||
+        detail.presentation.artifact_id !== artifact.artifact_id ||
+        detail.presentation.version !== artifact.version) throw new Error()
+    return {
+      lockedSignalId: locked[0].signal_id,
+      lockedHeadline: locked[0].headline,
+      pinnedArtifactId: artifact.artifact_id,
+      pinnedVersion: artifact.version,
+    }
+  }, asOf)
+}
+
+function installFailureCollectors(page, origin, errors, requests) {
+  page.on('console', (message) => {
+    if (message.type() === 'error') errors.push('console')
+  })
+  page.on('pageerror', () => errors.push('pageerror'))
+  page.on('requestfailed', () => errors.push('requestfailed'))
+  page.on('response', (response) => {
+    if (response.status() >= 500) errors.push('http5xx')
+  })
+  page.on('request', (request) => {
+    let url
+    try {
+      url = new URL(request.url())
+    } catch {
+      errors.push('invalid-url')
+      return
+    }
+    if (url.origin !== origin) errors.push('external-request')
+    requests.push({ method: request.method(), path: `${url.pathname}${url.search}` })
+  })
+}
+
+async function expectFocusedHeading(page) {
+  await page.waitForFunction(() => /^H[1-3]$/.test(document.activeElement?.tagName || ''))
+}
+
+async function expectLocatorFocused(locator) {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    if (await locator.evaluate((element) => document.activeElement === element)) return
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error()
+}
+
+async function verifyDesktopPanes(page) {
+  const independent = await page.locator('main *').evaluateAll((elements) => {
+    const panes = elements.filter((element) => {
+      const overflow = getComputedStyle(element).overflowY
+      return (overflow === 'auto' || overflow === 'scroll') &&
+        element.scrollHeight > element.clientHeight
+    })
+    if (panes.length < 2) return false
+    panes[0].scrollTop = Math.min(80, panes[0].scrollHeight - panes[0].clientHeight)
+    const firstScrollTop = panes[0].scrollTop
+    const untouchedSecond = panes[1].scrollTop
+    panes[1].scrollTop = Math.min(80, panes[1].scrollHeight - panes[1].clientHeight)
+    return firstScrollTop > 0 && panes[0].scrollTop === firstScrollTop &&
+      panes[1].scrollTop > untouchedSecond
+  })
+  requireTrue(independent)
+}
+
+async function smokeDashboard(page, origin, evidencePath) {
+  await page.goto(`${origin}/app/dashboard`, { waitUntil: 'networkidle' })
+  await page.getByRole('heading', {
+    name: /Attributions récentes pertinentes|Relevant recent awards/i,
+  }).waitFor()
+  const links = page.locator(
+    'a[href^="/app/signals/"][href*="presentation="]',
+  )
+  const count = await links.count()
+  requireTrue(count >= 1 && count <= 6)
+  for (let index = 0; index < count; index += 1) {
+    const href = await links.nth(index).getAttribute('href')
+    requireTrue(Boolean(href))
+    const url = new URL(href, origin)
+    requireTrue(/^[0-9a-f]{64}$/.test(url.searchParams.get('presentation') || ''))
+  }
+  await page.screenshot({ path: evidencePath, fullPage: true })
+}
+
+async function smokeCompanies(page, origin, viewport, evidencePath, requests) {
+  const requestStart = requests.length
+  await page.goto(`${origin}/app/companies`, { waitUntil: 'networkidle' })
+  await page.getByRole('heading', {
+    name: /Entreprises attributaires|Awarded companies/i,
+  }).waitFor()
+  requireTrue(!requests.slice(requestStart).some(({ method, path }) => (
+    method === 'GET' && /^\/signals\/[^?]+(?:\?|$)/.test(path)
+  )))
+  const award = page.getByRole('button', { name: /attribution|award/i }).first()
+  await award.waitFor()
+  await award.focus()
+  await award.click()
+  await page.waitForURL(/\/app\/companies\/[^?]+\?signal=[^&]+$/)
+  const selectedUrl = page.url()
+  await expectFocusedHeading(page)
+  requireTrue(await page.locator('a[href^="/app/signals/"]').count() >= 1)
+  if (viewport.name === 'desktop') await verifyDesktopPanes(page)
+  await page.goBack({ waitUntil: 'networkidle' })
+  await page.waitForURL(/\/app\/companies$/)
+  await award.waitFor()
+  await expectLocatorFocused(award)
+  await page.goForward({ waitUntil: 'networkidle' })
+  requireTrue(page.url() === selectedUrl)
+  await expectFocusedHeading(page)
+  await page.reload({ waitUntil: 'networkidle' })
+  requireTrue(page.url() === selectedUrl)
+  const scrollTop = await page.locator('main').evaluate((element) => element.scrollTop)
+  requireTrue(Number.isFinite(scrollTop))
+  await page.screenshot({ path: evidencePath, fullPage: true })
+  if (viewport.name === 'mobile') {
+    const back = page.getByRole('button', {
+      name: /Retour aux entreprises|Back to companies/i,
+    }).or(page.getByRole('link', {
+      name: /Retour aux entreprises|Back to companies/i,
+    })).first()
+    await back.click()
+    await page.waitForURL(/\/app\/companies$/)
+    await award.waitFor()
+    await expectLocatorFocused(award)
+  }
+}
+
+async function smokeSignals(page, origin, viewport, evidencePath, requests, api) {
+  await page.goto(`${origin}/app/signals`, { waitUntil: 'networkidle' })
+  await page.getByRole('heading', {
+    name: /Signaux commerciaux|Commercial signals/i,
+  }).waitFor()
+  const lockedText = page.getByText(api.lockedHeadline, { exact: true }).first()
+  await lockedText.waitFor()
+  const lockedControl = lockedText.locator(
+    'xpath=ancestor::button[1] | ancestor::a[1]',
+  ).first()
+  await lockedControl.waitFor()
+  requireTrue(await lockedControl.evaluate((element) => (
+    !element.outerHTML.includes('presentation') &&
+    !element.outerHTML.includes('company_key') &&
+    !element.querySelector('a[href^="/app/companies/"]')
+  )))
+  await lockedControl.focus()
+  await lockedControl.click()
+  await page.waitForURL(/\/app\/billing(?:\?|$)/)
+  requireTrue(!requests.some(({ method, path }) => (
+    method === 'GET' && (
+      path.startsWith(`/signals/${encodeURIComponent(api.lockedSignalId)}?`) ||
+      path === `/signals/${encodeURIComponent(api.lockedSignalId)}` ||
+      path.startsWith(`/signals/${encodeURIComponent(api.lockedSignalId)}/note`)
+    )
+  )))
+  await page.goBack({ waitUntil: 'networkidle' })
+  await page.waitForURL(/\/app\/signals$/)
+  await lockedControl.waitFor()
+  await expectLocatorFocused(lockedControl)
+  const selection = page.locator(
+    'a[href^="/app/signals/"][href*="presentation="]',
+  ).first()
+  await selection.waitFor()
+  await selection.focus()
+  const selectionRequestStart = requests.length
+  await selection.click()
+  await page.waitForURL(/\/app\/signals\/[^?]+\?presentation=[0-9a-f]{64}$/)
+  const selectedUrl = page.url()
+  const selected = new URL(selectedUrl)
+  const artifactId = selected.searchParams.get('presentation')
+  requireTrue(Boolean(artifactId && /^[0-9a-f]{64}$/.test(artifactId)))
+  requireTrue(artifactId === api.pinnedArtifactId)
+  requireTrue(Number.isInteger(api.pinnedVersion) && api.pinnedVersion >= 1)
+  await expectFocusedHeading(page)
+  requireTrue(requests.slice(selectionRequestStart).some(({ method, path }) => (
+    method === 'GET' && path.includes(`presentation_artifact_id=${artifactId}`)
+  )))
+  requireTrue(await page.locator(
+    'a[href^="/app/companies/"][href*="signal="]',
+  ).count() >= 1)
+  requireTrue(!requests.some(({ method, path }) => (
+    method !== 'GET' && /\/signals\/[^/]+\/note(?:\?|$)/.test(path)
+  )))
+  if (viewport.name === 'desktop') await verifyDesktopPanes(page)
+  await page.goBack({ waitUntil: 'networkidle' })
+  await page.waitForURL(/\/app\/signals$/)
+  await selection.waitFor()
+  await expectLocatorFocused(selection)
+  await page.goForward({ waitUntil: 'networkidle' })
+  requireTrue(page.url() === selectedUrl)
+  await expectFocusedHeading(page)
+  await page.reload({ waitUntil: 'networkidle' })
+  requireTrue(page.url() === selectedUrl)
+  const scrollTop = await page.locator('main').evaluate((element) => element.scrollTop)
+  requireTrue(Number.isFinite(scrollTop))
+  await page.screenshot({ path: evidencePath, fullPage: true })
+  if (viewport.name === 'mobile') {
+    const back = page.getByRole('button', {
+      name: /Retour aux signaux|Back to signals/i,
+    }).or(page.getByRole('link', {
+      name: /Retour aux signaux|Back to signals/i,
+    })).first()
+    await back.click()
+    await page.waitForURL(/\/app\/signals$/)
+    await selection.waitFor()
+    await expectLocatorFocused(selection)
+  }
+}
+
+async function run() {
+  const { chromium } = require('playwright')
+  const origin = process.env.KIVOU_QA_ORIGIN
+  const asOf = process.env.KIVOU_BACKFILL_AS_OF
+  const expectedFingerprint = process.env.KIVOU_QA_DB_FINGERPRINT
+  const storageState = process.env.KIVOU_QA_STORAGE_STATE
+  const evidenceDir = process.env.KIVOU_BROWSER_EVIDENCE_DIR
+  requireTrue(Boolean(origin && asOf && expectedFingerprint && storageState && evidenceDir))
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const viewports = [
+      { name: 'desktop', width: 1440, height: 900 },
+      { name: 'mobile', width: 390, height: 844 },
+    ]
+    for (const viewport of viewports) {
+      const context = await browser.newContext({
+        storageState: process.env.KIVOU_QA_STORAGE_STATE,
+        viewport: { width: viewport.width, height: viewport.height },
+      })
+      const page = await context.newPage()
+      const errors = []
+      const requests = []
+      installFailureCollectors(page, origin, errors, requests)
+      await page.goto(`${origin}/app/signals`, { waitUntil: 'networkidle' })
+      requireTrue(await accountFingerprint(page, expectedFingerprint))
+      const api = await verifyPublishedApi(page, asOf)
+      await smokeDashboard(
+        page, origin, `${evidenceDir}/${viewport.name}-dashboard.png`,
+      )
+      await smokeCompanies(
+        page, origin, viewport,
+        `${evidenceDir}/${viewport.name}-companies.png`, requests,
+      )
+      await smokeSignals(
+        page, origin, viewport,
+        `${evidenceDir}/${viewport.name}-signals.png`, requests, api,
+      )
+      requireTrue(!requests.some(({ path }) => (
+        path.startsWith(`/signals/${encodeURIComponent(api.lockedSignalId)}?`) ||
+        path === `/signals/${encodeURIComponent(api.lockedSignalId)}` ||
+        path.startsWith(`/signals/${encodeURIComponent(api.lockedSignalId)}/note`)
+      )))
+      requireTrue(errors.length === 0)
+      await context.close()
+    }
+  } finally {
+    await browser.close()
+  }
+}
+
+run()
+  .then(() => console.log("card_smoke_ok"))
+  .catch(() => {
+    console.error("card_smoke_failed")
+    process.exitCode = 1
+  })
+JS
+)
+find "$KIVOU_BROWSER_EVIDENCE_DIR" -maxdepth 1 -type f -name '*.png' \
+  -exec chmod 600 {} +
+test "$(find "$KIVOU_BROWSER_EVIDENCE_DIR" -maxdepth 1 -type f \
+  \( -name '*-dashboard.png' -o -name '*-companies.png' -o \
+  -name '*-signals.png' \) | wc -l)" = 6
+~~~
+
+Le script est une gate automatisée, pas l'**inspection visuelle humaine**.
+Ouvrir séparément les six PNG à leur résolution originale et contrôler la
+hiérarchie, les intitulés acheteur/attributaire, les dates qualifiées, les
+valeurs manquantes, les deux scrolls desktop, la pile mobile, les focus, le
+teaser verrouillé, l'absence de débordement et tout texte potentiellement
+inventé. Consigner le verdict de chaque image dans le rapport. **STOP** avant
+la validation finale si une capture n'a pas été réellement inspectée ou si un
+doute subsiste; `card_smoke_ok` seul ne vaut jamais validation visuelle.
 
 Vérifier enfin le marker frontend, le SHA backend, la migration et les probes
 publiques après la navigation :

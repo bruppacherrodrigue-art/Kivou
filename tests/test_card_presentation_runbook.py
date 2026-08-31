@@ -55,6 +55,16 @@ def _python_heredocs(body: str) -> tuple[str, ...]:
     )
 
 
+def _javascript_heredocs(body: str) -> tuple[str, ...]:
+    return tuple(
+        re.findall(
+            r"<<'JS'\n(.*?)^JS$",
+            body,
+            flags=re.MULTILINE | re.DOTALL,
+        )
+    )
+
+
 def _ci_jq_filter(body: str) -> str:
     prefix = 'jq -e --arg sha "$KIVOU_FINAL_SHA" \'\n'
     suffix = '\' "$KIVOU_CI_JSON" >/dev/null'
@@ -628,6 +638,121 @@ def test_every_qa_python_boundary_fails_with_only_an_opaque_error() -> None:
         assert "raise SystemExit(1)" in script
         assert "traceback" not in script.casefold()
         assert not re.search(r"(?m)^\s*raise\s*$", script)
+
+
+def test_pre_backfill_browser_gate_matches_protected_session_to_db_scope() -> None:
+    section = _between(
+        _body(),
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    commands = _commands(section)
+    scripts = _javascript_heredocs(section)
+
+    assert len(scripts) == 1
+    script = scripts[0]
+    for fragment in (
+        'KIVOU_QA_SCOPE_SUMMARY=$(ssh kivou-staging',
+        'KIVOU_QA_STORAGE_STATE_REAL=$(readlink -f "$KIVOU_QA_STORAGE_STATE")',
+        'test ! -L "$KIVOU_QA_STORAGE_STATE"',
+        (
+            'test "$(stat -c \'%U:%a\' "$KIVOU_QA_STORAGE_STATE")" = '
+            '"$(id -un):600"'
+        ),
+        "const storageState = process.env.KIVOU_QA_STORAGE_STATE",
+        "browser.newContext({ storageState })",
+        "await page.goto(`${origin}/app/signals`",
+        "await fetch('/me'",
+        "crypto.subtle.digest('SHA-256'",
+        "fingerprint !== expectedFingerprint",
+        "`/signals?as_of=${encodeURIComponent(asOf)}&limit=50&offset=0`",
+        "item.locked === false",
+        'console.log("qa_browser_gate_ok")',
+        'console.error("qa_browser_gate_failed")',
+        "process.exitCode = 1",
+    ):
+        assert fragment in commands or fragment in script
+
+    _assert_in_order(
+        section,
+        "qa_scope_ok fingerprint=",
+        "KIVOU_QA_DB_FINGERPRINT=",
+        "qa_browser_gate_ok",
+        "--language fr --limit 50 --offset 0",
+        "--language en --limit 50 --offset 0",
+    )
+    assert "writeFile" not in script
+    assert "copyFile" not in script
+    assert "console.log(me.account_id)" not in script
+    assert "console.error(error" not in script
+    assert ".catch((error)" not in script
+    syntax = subprocess.run(
+        ["node", "--check"],
+        input=script,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert syntax.returncode == 0, syntax.stderr
+
+
+def test_browser_smoke_is_executable_fail_closed_and_collects_two_viewports() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    commands = _commands(section)
+    scripts = _javascript_heredocs(section)
+
+    assert len(scripts) == 1
+    script = scripts[0]
+    for fragment in (
+        "card-presentation-$KIVOU_FINAL_SHORT",
+        'install -m 700 -d "$KIVOU_BROWSER_EVIDENCE_DIR"',
+        "storageState: process.env.KIVOU_QA_STORAGE_STATE",
+        "{ name: 'desktop', width: 1440, height: 900 }",
+        "{ name: 'mobile', width: 390, height: 844 }",
+        "page.on('console'",
+        "page.on('pageerror'",
+        "page.on('requestfailed'",
+        "page.on('response'",
+        "response.status() >= 500",
+        "await fetch('/me'",
+        "crypto.subtle.digest('SHA-256'",
+        "presentation_artifact_id",
+        "detail.presentation.artifact_id !== artifact.artifact_id",
+        "detail.presentation.version !== artifact.version",
+        "Object.hasOwn(item, 'presentation')",
+        "Object.hasOwn(item, 'company_key')",
+        "await page.reload(",
+        "await page.goBack(",
+        "await page.goForward(",
+        "document.activeElement",
+        "scrollTop",
+        "Retour aux entreprises",
+        "Retour aux signaux",
+        "await page.screenshot",
+        'console.log("card_smoke_ok")',
+        'console.error("card_smoke_failed")',
+        "process.exitCode = 1",
+    ):
+        assert fragment in commands or fragment in script
+
+    for route in ("/app/dashboard", "/app/companies", "/app/signals"):
+        assert route in script
+    assert "errors.length === 0" in script
+    assert "browser.close()" in script
+    assert "inspection visuelle humaine" in section
+    assert "STOP" in section.split("inspection visuelle humaine", 1)[1]
+    syntax = subprocess.run(
+        ["node", "--check"],
+        input=script,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert syntax.returncode == 0, syntax.stderr
 
 
 def test_smoke_and_rollback_contract_retain_additive_migration() -> None:
