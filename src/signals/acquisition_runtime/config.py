@@ -1,4 +1,4 @@
-"""Strict, staging-only acquisition runtime configuration loader."""
+"""Strict acquisition runtime configuration loader for staging and production."""
 
 from __future__ import annotations
 
@@ -64,15 +64,32 @@ def _identity_hmac(address: str, key: str) -> str:
     ).hexdigest()
 
 
-def load_runtime_config(
-    environ: Mapping[str, str] | None = None,
+def _load_production(
+    source: Mapping[str, str], path: Path, deployment: AcquisitionRuntimeDeployment
 ) -> AcquisitionRuntimeConfig:
-    source = os.environ if environ is None else environ
-    environment = _required(source, "KIVOU_ACQUISITION_ENVIRONMENT")
-    if environment != "STAGING":
-        raise RuntimeConfigurationError("WRONG_ENVIRONMENT")
-    path = Path(_required(source, "KIVOU_ACQUISITION_RUNTIME_CONFIG"))
-    deployment = _deployment(path)
+    for name in (
+        "KIVOU_ACQUISITION_QA_RECIPIENT",
+        "KIVOU_ACQUISITION_QA_RECIPIENT_KEY",
+    ):
+        if (source.get(name) or "").strip():
+            raise RuntimeConfigurationError("PRODUCTION_FORBIDS_FALLBACK_RECIPIENT")
+    if not deployment.is_production:
+        raise RuntimeConfigurationError("WRONG_DEPLOYMENT_SCHEMA")
+    try:
+        return AcquisitionRuntimeConfig(
+            environment="PRODUCTION",
+            deployment_path=path,
+            deployment=deployment,
+        )
+    except (TypeError, ValueError, ValidationError):
+        raise RuntimeConfigurationError("NOT_CONFIGURED") from None
+
+
+def _load_staging(
+    source: Mapping[str, str], path: Path, deployment: AcquisitionRuntimeDeployment
+) -> AcquisitionRuntimeConfig:
+    if deployment.is_production:
+        raise RuntimeConfigurationError("WRONG_DEPLOYMENT_SCHEMA")
     recipient = _required(source, "KIVOU_ACQUISITION_QA_RECIPIENT")
     key = _required(source, "KIVOU_ACQUISITION_QA_RECIPIENT_KEY")
     try:
@@ -87,9 +104,24 @@ def load_runtime_config(
     except (TypeError, ValueError, ValidationError):
         raise RuntimeConfigurationError("NOT_CONFIGURED") from None
     observed = _identity_hmac(normalized, key)
+    assert deployment.qa_recipient_identity_hmac is not None
     if not hmac.compare_digest(observed, deployment.qa_recipient_identity_hmac):
         raise RuntimeConfigurationError("QA_RECIPIENT_BINDING_MISMATCH")
     return config
+
+
+def load_runtime_config(
+    environ: Mapping[str, str] | None = None,
+) -> AcquisitionRuntimeConfig:
+    source = os.environ if environ is None else environ
+    environment = _required(source, "KIVOU_ACQUISITION_ENVIRONMENT")
+    if environment not in {"STAGING", "PRODUCTION"}:
+        raise RuntimeConfigurationError("WRONG_ENVIRONMENT")
+    path = Path(_required(source, "KIVOU_ACQUISITION_RUNTIME_CONFIG"))
+    deployment = _deployment(path)
+    if environment == "PRODUCTION":
+        return _load_production(source, path, deployment)
+    return _load_staging(source, path, deployment)
 
 
 __all__ = ["RuntimeConfigurationError", "load_runtime_config"]
