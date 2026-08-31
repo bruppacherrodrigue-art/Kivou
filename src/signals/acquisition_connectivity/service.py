@@ -293,6 +293,7 @@ class AcquisitionConnectivityService:
         if ambiguous:
             raise ConnectivityFailure(ConnectivityErrorCode.OPERATIONAL_AMBIGUITY)
         return control, ShadowPreflightEvidence(
+            environment=self._config.environment,
             policy_control_revision=control.control_revision,
             policy_version=control.policy_version,
         )

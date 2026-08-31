@@ -50,9 +50,9 @@ def _deployment() -> ShadowConnectivityDocument:
     )
 
 
-def _config() -> AcquisitionConnectivityConfig:
+def _config(*, environment: str = "STAGING") -> AcquisitionConnectivityConfig:
     return AcquisitionConnectivityConfig(
-        environment="STAGING",
+        environment=environment,
         shadow_config_path=Path("/etc/kivou/acquisition-shadow.json"),
         apollo_api_key=SecretStr("synthetic-apollo-value"),
         instantly_api_key=SecretStr("synthetic-instantly-value"),
@@ -186,12 +186,13 @@ def _service(
     apollo: FakeApollo | None = None,
     instantly: FakeInstantly | None = None,
     hermes: FakeHermes | None = None,
+    environment: str = "STAGING",
 ) -> tuple[AcquisitionConnectivityService, FakeApollo, FakeInstantly, FakeHermes]:
     apollo = apollo or FakeApollo()
     instantly = instantly or FakeInstantly()
     hermes = hermes or FakeHermes()
     service = AcquisitionConnectivityService(
-        config=_config(),
+        config=_config(environment=environment),
         policy_store=FakePolicyStore(control or _control()),
         campaign_store=store or FakeCampaignStore(),
         apollo_identity=apollo,
@@ -260,6 +261,18 @@ def test_success_returns_only_bounded_advisory_evidence_and_zero_delta() -> None
     assert result.mutation_delta.model_dump() == ZERO
     assert store.count_calls == 2
     assert (apollo.calls, instantly.calls, hermes.calls) == (1, 1, 1)
+
+
+@pytest.mark.parametrize("environment", ["STAGING", "PRODUCTION"])
+def test_preflight_evidence_reports_the_environment_it_actually_ran_in(
+    environment: str,
+) -> None:
+    store = FakeCampaignStore(ZERO, ZERO)
+    service, _, _, _ = _service(store=store, environment=environment)
+
+    result = service.check(observed_at=NOW)
+
+    assert result.preflight.environment == environment
 
 
 @pytest.mark.parametrize(
