@@ -309,7 +309,8 @@ export const fr = {
       documentedAwards: 'Attributions documentées',
       accessibleWith: 'Accessible avec {plan}',
       paidAccessRequired: 'Accès payant requis',
-      publishedOn: 'Attribution publiée sur {source}',
+      presentationPublished: 'Présentation publiée',
+      presentationPublishedWithSource: 'Présentation publiée · Source : {source}',
       dataNotice:
         'Les données réelles ci-dessous proviennent des informations publiées et des API Kivou.',
       summaryQualification:

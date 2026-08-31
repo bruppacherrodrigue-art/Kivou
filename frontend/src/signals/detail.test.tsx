@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { AppRoutes } from '../App'
 import { SignalDetail } from '../pages/SignalDetail'
+import type { CardPresentation } from '../api/types'
 import {
   AUTHENTICATED,
   CATALOGUE,
@@ -32,8 +33,38 @@ function detailRoutes(detail: unknown = UNLOCKED_DETAIL) {
   }
 }
 
-async function detailPanel(): Promise<HTMLElement> {
-  await screen.findByRole('heading', { level: 2, name: 'Présentation non publiée' })
+const FACTUAL_FALLBACK: CardPresentation = {
+  artifact_id: 'b'.repeat(64),
+  version: 1,
+  status: 'FALLBACK',
+  schema_version: 'card-presentation-v1',
+  published_at: '2026-08-30T12:00:00Z',
+  content: {
+    schema_version: 'card-presentation-v1',
+    variant: 'FACTUAL_FALLBACK',
+    headline: 'Attribution publique documentée',
+    award_summary: 'Une entreprise identifiée est attributaire du marché.',
+    commercial_importance: null,
+    fit_reason: null,
+    timing: null,
+    recommended_action: null,
+    target_roles: [],
+    fit_need_categories: [],
+    unknowns: [],
+    claims: [{
+      claim_id: 'HEADLINE',
+      kind: 'FACT',
+      text: 'Attribution publique documentée',
+      evidence_refs: ['source:award'],
+      confidence: null,
+    }],
+  },
+}
+
+async function detailPanel(
+  heading = 'Présentation non publiée',
+): Promise<HTMLElement> {
+  await screen.findByRole('heading', { level: 2, name: heading })
   const panel = document.querySelector('.detail-panel')
   if (!(panel instanceof HTMLElement)) throw new Error('detail-panel absent')
   return panel
@@ -49,7 +80,6 @@ describe('détail exact d’un signal réel', () => {
 
     const panel = await detailPanel()
     for (const heading of [
-      'Le signal en quatre points',
       'Détails du marché',
       'Questions avant de contacter l’entreprise',
       'Constructions Bertrand SA',
@@ -58,7 +88,7 @@ describe('détail exact d’un signal réel', () => {
       expect(within(panel).getByRole('heading', { name: heading })).toBeVisible()
     }
     expect(within(panel).getByText('Commune de Villeneuve')).toBeVisible()
-    expect(panel.querySelector('.commercial-brief-card')).not.toBeNull()
+    expect(panel.querySelector('.commercial-brief-card')).toBeNull()
     expect(panel.querySelector('.facts-card')).not.toBeNull()
     expect(panel.querySelector('.verification-card')).not.toBeNull()
     expect(panel.querySelector('.signal-note-card')).not.toBeNull()
@@ -66,7 +96,7 @@ describe('détail exact d’un signal réel', () => {
     const notice = panel.querySelector('.prototype-notice')
     expect(notice).toHaveTextContent(/données réelles|informations publiées/i)
     expect(notice).not.toHaveTextContent(/démonstration|jeu d’exemples|maquette/i)
-    expect(within(panel).getByText('Profil : Matériaux — Occitanie')).toBeVisible()
+    expect(within(panel).queryByText('Profil : Matériaux — Occitanie')).not.toBeInTheDocument()
     expect(within(panel).getAllByText('France').length).toBeGreaterThan(0)
     expect(within(panel).getByText('SIRET 12345678900011')).toBeVisible()
     expect(within(panel).getAllByText(/BOAMP.*26-104412/).length).toBeGreaterThan(1)
@@ -166,6 +196,98 @@ describe('détail exact d’un signal réel', () => {
     expect(panel).not.toHaveTextContent(/urgent|jean dupont|directeur|responsable|chef de projet/i)
   })
 
+  it.each([
+    ['absente', null, 'Présentation non publiée'],
+    ['fallback factuel', FACTUAL_FALLBACK, FACTUAL_FALLBACK.content.headline],
+  ] as const)(
+    'ne reconstruit aucune copie commerciale depuis analysis quand la présentation est %s',
+    async (_case, presentation, heading) => {
+      const poisonedAnalysis = {
+        ...UNLOCKED_DETAIL.analysis,
+        fit: {
+          ...UNLOCKED_DETAIL.analysis.fit,
+          target_icp_label: 'PROFIL ANALYSIS INTERDIT',
+          reasons: [],
+        },
+        plausible_needs: {
+          note: 'BESOIN ANALYSIS INTERDIT',
+          items: [{
+            ...UNLOCKED_DETAIL.analysis.plausible_needs.items[0],
+            label: 'OFFRE ANALYSIS INTERDITE',
+            statement: 'COPIE ANALYSIS INTERDITE',
+          }],
+        },
+      }
+      const detail = {
+        ...UNLOCKED_DETAIL,
+        presentation,
+        analysis: poisonedAnalysis,
+        event: {
+          ...UNLOCKED_DETAIL.event,
+          headline: 'HEADLINE EVENT INTERDIT',
+          why_now: 'URGENCE EVENT INTERDITE',
+        },
+        contract: {
+          ...UNLOCKED_DETAIL.contract,
+          title: 'TITRE ADMINISTRATIF SOURCE',
+        },
+      }
+      mockApi(detailRoutes(detail))
+      renderApp(<AppRoutes />, {
+        session: AUTHENTICATED,
+        route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+      })
+
+      const panel = await detailPanel(heading)
+      expect(panel.querySelector('.commercial-brief-card')).toBeNull()
+      expect(within(panel).getByText('Rôle cible non disponible')).toBeVisible()
+      for (const forbidden of [
+        'PROFIL ANALYSIS INTERDIT',
+        'BESOIN ANALYSIS INTERDIT',
+        'OFFRE ANALYSIS INTERDITE',
+        'COPIE ANALYSIS INTERDITE',
+        'HEADLINE EVENT INTERDIT',
+        'URGENCE EVENT INTERDITE',
+      ]) {
+        expect(panel).not.toHaveTextContent(forbidden)
+      }
+      expect(panel).toHaveTextContent('TITRE ADMINISTRATIF SOURCE')
+      if (presentation) {
+        expect(panel).toHaveTextContent(presentation.content.award_summary)
+      }
+    },
+  )
+
+  it.each([
+    ['absence', null, 'BOAMP', 'Présentation non publiée'],
+    ['publication sans source', FACTUAL_FALLBACK, null, 'Présentation publiée'],
+    [
+      'publication avec source',
+      FACTUAL_FALLBACK,
+      'BOAMP',
+      'Présentation publiée · Source : BOAMP',
+    ],
+  ] as const)(
+    'distingue le statut artefact de la source optionnelle : %s',
+    async (_case, presentation, sourceSystem, expected) => {
+      const detail = {
+        ...UNLOCKED_DETAIL,
+        presentation,
+        source: { ...UNLOCKED_DETAIL.source, system: sourceSystem },
+      }
+      mockApi(detailRoutes(detail))
+      renderApp(<AppRoutes />, {
+        session: AUTHENTICATED,
+        route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+      })
+
+      const panel = await detailPanel(
+        presentation?.content.headline ?? 'Présentation non publiée',
+      )
+      expect(panel.querySelector('.published-status')).toHaveTextContent(expected)
+    },
+  )
+
   it('garde le titre administratif uniquement dans les faits clairement libellés', async () => {
     const administrativeTitle = 'ACCORD-CADRE LOT 7 PERSONNEL ET MATÉRIAUX'
     const detail = {
@@ -187,10 +309,10 @@ describe('détail exact d’un signal réel', () => {
       selector: 'dt',
     })
     expect(officialTitleLabel.parentElement).toHaveTextContent(administrativeTitle)
-    expect(panel.querySelector('.commercial-brief-card')).not.toHaveTextContent(administrativeTitle)
+    expect(panel.querySelector('.commercial-brief-card')).toBeNull()
   })
 
-  it('conserve le statut d’hypothèse et n’invente aucune certitude d’achat', async () => {
+  it('ne reprend aucun besoin plausible hors d’un artefact publié', async () => {
     mockApi(detailRoutes())
     renderApp(<AppRoutes />, {
       session: AUTHENTICATED,
@@ -198,8 +320,8 @@ describe('détail exact d’un signal réel', () => {
     })
 
     const panel = await detailPanel()
-    expect(panel).toHaveTextContent(UNLOCKED_DETAIL.analysis.plausible_needs.note)
-    expect(panel).toHaveTextContent(UNLOCKED_DETAIL.analysis.plausible_needs.items[0].label!)
+    expect(panel).not.toHaveTextContent(UNLOCKED_DETAIL.analysis.plausible_needs.note)
+    expect(panel).not.toHaveTextContent(UNLOCKED_DETAIL.analysis.plausible_needs.items[0].label!)
     expect(panel.textContent?.toLowerCase()).not.toMatch(
       /va acheter|achètera|achat prévu|achat certain|client garanti/,
     )

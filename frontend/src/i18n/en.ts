@@ -303,7 +303,8 @@ export const en: Dictionary = {
       documentedAwards: 'Documented awards',
       accessibleWith: 'Available with {plan}',
       paidAccessRequired: 'Paid access required',
-      publishedOn: 'Award published on {source}',
+      presentationPublished: 'Presentation published',
+      presentationPublishedWithSource: 'Presentation published · Source: {source}',
       dataNotice:
         'The real data below comes from published information and Kivou APIs.',
       summaryQualification:
