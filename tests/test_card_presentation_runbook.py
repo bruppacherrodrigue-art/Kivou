@@ -67,7 +67,7 @@ def _javascript_heredocs(body: str) -> tuple[str, ...]:
 
 def _ci_jq_filter(body: str) -> str:
     prefix = 'jq -e --arg sha "$KIVOU_FINAL_SHA" \'\n'
-    suffix = '\' "$KIVOU_CI_JSON" >/dev/null'
+    suffix = '\' <<<"$KIVOU_CI_JSON_PAYLOAD" >/dev/null'
     assert body.count(prefix) == 1
     assert body.count(suffix) == 1
     return body.split(prefix, 1)[1].split(suffix, 1)[0]
@@ -177,6 +177,109 @@ def test_rollout_proves_exact_main_ci_jobs_and_executed_steps_before_ssh() -> No
         "ssh kivou-staging",
     )
     assert "kivou-production" not in body
+
+
+def test_final_checkout_and_runbook_blob_are_exact_before_first_mutation_or_ssh() -> None:
+    body = _body()
+    step_one = _between(
+        body,
+        "## 1. Geler le SHA final et prouver la CI réellement exécutée",
+        "## 2. Prouver staging et capturer les deux rollback targets",
+    )
+    commands = _commands(body)
+    step_commands = _commands(step_one)
+
+    assert "ssh " not in step_commands
+    _assert_in_order(
+        step_commands,
+        "git fetch origin main",
+        "KIVOU_FINAL_SHA=$(git rev-parse origin/main)",
+        "KIVOU_CI_JSON_PAYLOAD=$(gh run view",
+        "jq -e --arg sha",
+        'repos/$KIVOU_REPOSITORY/commits/main',
+        'test "$(git rev-parse HEAD)" = "$KIVOU_FINAL_SHA"',
+        "git status --porcelain=v1 --untracked-files=all",
+        'git hash-object "$KIVOU_RUNBOOK_PATH"',
+        'git rev-parse "$KIVOU_FINAL_SHA:$KIVOU_RUNBOOK_PATH"',
+        "kivou_validate_evidence_root",
+        'install -m 700 -d "$KIVOU_EVIDENCE_DIR"',
+    )
+    first_ssh = commands.index("ssh kivou-staging")
+    assert commands.index('test "$(git rev-parse HEAD)" = "$KIVOU_FINAL_SHA"') < first_ssh
+    assert commands.index("git status --porcelain=v1 --untracked-files=all") < first_ssh
+
+
+def test_evidence_root_is_absolute_external_private_and_semantically_guarded(
+    tmp_path: Path,
+) -> None:
+    body = _body()
+    commands = _commands(body)
+    step_one = _between(
+        body,
+        "## 1. Geler le SHA final et prouver la CI réellement exécutée",
+        "## 2. Prouver staging et capturer les deux rollback targets",
+    )
+    smoke = _between(
+        body,
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+
+    assert "artifacts/staging" not in body
+    for fragment in (
+        ': "${KIVOU_CARD_EVIDENCE_ROOT:?STOP:',
+        'case "$KIVOU_CARD_EVIDENCE_ROOT" in',
+        '(/*) ;;',
+        'test ! -L "$KIVOU_CARD_EVIDENCE_ROOT"',
+        'KIVOU_CARD_EVIDENCE_ROOT_REAL=$(readlink -f',
+        'test "$KIVOU_CARD_EVIDENCE_ROOT_REAL" = "$KIVOU_CARD_EVIDENCE_ROOT"',
+        '"$(id -un):700"',
+        'KIVOU_OPERATOR_ROOT_REAL=$(readlink -f',
+        '("$KIVOU_OPERATOR_ROOT_REAL"|"$KIVOU_OPERATOR_ROOT_REAL"/*)',
+        'KIVOU_EVIDENCE_DIR="$KIVOU_CARD_EVIDENCE_ROOT_REAL/card-presentation-$KIVOU_FINAL_SHA"',
+        'KIVOU_CI_JSON="$KIVOU_EVIDENCE_DIR/github-ci.json"',
+        'chmod 600 "$KIVOU_CI_JSON"',
+        'KIVOU_BROWSER_EVIDENCE_DIR="$KIVOU_EVIDENCE_DIR/browser"',
+        'test "$(stat -c \'%U:%a\' "$KIVOU_BROWSER_EVIDENCE_DIR")" =',
+        "umask 077",
+        'sha256sum "$KIVOU_CI_JSON"',
+        "verdict=ci_green",
+        "verdict=visual_",
+    ):
+        assert fragment in commands or fragment in smoke
+    assert '../$KIVOU_BROWSER_EVIDENCE_DIR' not in commands
+
+    helper_start = "kivou_validate_evidence_root() {\n"
+    assert step_one.count(helper_start) == 1
+    helper = helper_start + step_one.split(helper_start, 1)[1].split("\n}\n", 1)[0]
+    helper += "\n}\n"
+    valid_root = tmp_path / "evidence"
+    valid_root.mkdir(mode=0o700)
+    harness = f"""
+set -eu
+KIVOU_CARD_EVIDENCE_ROOT=$1
+{helper}
+kivou_validate_evidence_root
+test "$KIVOU_CARD_EVIDENCE_ROOT_REAL" = "$1"
+"""
+    valid = subprocess.run(
+        ["bash", "-c", harness, "sh", str(valid_root)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert valid.returncode == 0, valid.stderr
+    symlink = tmp_path / "evidence-link"
+    symlink.symlink_to(valid_root, target_is_directory=True)
+    rejected = subprocess.run(
+        ["bash", "-c", harness, "sh", str(symlink)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert rejected.returncode != 0
 
 
 def test_documented_ci_filter_accepts_executed_green_steps_and_rejects_empty_jobs() -> None:
@@ -947,10 +1050,10 @@ def test_browser_smoke_is_executable_fail_closed_and_collects_two_viewports() ->
     commands = _commands(section)
     scripts = _javascript_heredocs(section)
 
-    assert len(scripts) == 1
+    assert len(scripts) == 2
     script = scripts[0]
     for fragment in (
-        "card-presentation-$KIVOU_FINAL_SHORT",
+        "card-presentation-$KIVOU_FINAL_SHA",
         'install -m 700 -d "$KIVOU_BROWSER_EVIDENCE_DIR"',
         "storageState: process.env.KIVOU_QA_STORAGE_STATE",
         "{ name: 'desktop', width: 1440, height: 900 }",
@@ -975,8 +1078,8 @@ def test_browser_smoke_is_executable_fail_closed_and_collects_two_viewports() ->
         "Retour aux entreprises",
         "Retour aux signaux",
         "await page.screenshot",
-        'console.log("card_smoke_ok")',
-        'console.error("card_smoke_failed")',
+        'console.log("card_current_smoke_ok")',
+        'console.error("card_current_smoke_failed")',
         "process.exitCode = 1",
     ):
         assert fragment in commands or fragment in script
@@ -997,7 +1100,7 @@ def test_browser_smoke_is_executable_fail_closed_and_collects_two_viewports() ->
     assert syntax.returncode == 0, syntax.stderr
 
 
-def test_signal_smoke_pins_exact_signal_note_and_historical_artifact() -> None:
+def test_current_proofs_complete_before_optional_history_gate_or_stop() -> None:
     body = _body()
     qa_section = _between(
         body,
@@ -1009,11 +1112,14 @@ def test_signal_smoke_pins_exact_signal_note_and_historical_artifact() -> None:
         "## 8. Smoke navigateur desktop et mobile",
         "## 9. Rollback applicatif",
     )
-    commands = _commands(section)
-    script = _javascript_heredocs(section)[0]
+    scripts = _javascript_heredocs(section)
+    assert len(scripts) == 2
+    current_script, historical_script = scripts
 
     for fragment in (
-        "ce gate **ne peut donc pas passer**",
+        '"status": "absent"',
+        '"status": "available"',
+        "KIVOU_HISTORICAL_STATUS=",
         "SET TRANSACTION READ ONLY",
         "old.superseded_at IS NOT NULL",
         "current.superseded_at IS NULL",
@@ -1022,9 +1128,38 @@ def test_signal_smoke_pins_exact_signal_note_and_historical_artifact() -> None:
         "icp.matching_revision=old.target_icp_revision",
     ):
         assert fragment in qa_section
+    assert "assert historical is not None" not in qa_section
     historical_gate = qa_section.split("Un historique n'est jamais fabriqué", 1)[1]
     assert "INSERT " not in historical_gate
     assert "UPDATE " not in historical_gate
+    assert "historical" not in current_script.casefold()
+
+    _assert_in_order(
+        section,
+        'console.log("card_current_smoke_ok")',
+        'printf "%s\\n" "card_get_journal_ok"',
+        "inspection visuelle humaine",
+        'test "$KIVOU_FINAL_REVISION" = "0028_card_presentation"',
+        'case "$KIVOU_HISTORICAL_STATUS" in',
+        "(absent)",
+        "STOP / NON-EXÉCUTABLE",
+        "validation propriétaire",
+        'console.log("card_historical_browser_ok")',
+        'printf \'%s\\n\' "card_historical_smoke_ok"',
+    )
+    assert 'process.exitCode = 1' in current_script
+    assert 'process.exitCode = 1' in historical_script
+
+
+def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> None:
+    body = _body()
+    section = _between(
+        body,
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    commands = _commands(section)
+    current_script, historical_script = _javascript_heredocs(section)
 
     for fragment in (
         "KIVOU_HISTORICAL_SIGNAL_ID",
@@ -1032,11 +1167,6 @@ def test_signal_smoke_pins_exact_signal_note_and_historical_artifact() -> None:
         "KIVOU_HISTORICAL_ARTIFACT_VERSION",
         "pinnedSignalId: item.signal_id",
         "pinnedHeadline:",
-        "historicalSignalId",
-        "historicalArtifactId",
-        "historicalArtifactVersion",
-        "historicalDetail.presentation.artifact_id !== historicalArtifactId",
-        "historicalDetail.presentation.version !== historicalArtifactVersion",
         "const expectedSelectionHref =",
         "url.pathname === `/app/signals/${encodeURIComponent(api.pinnedSignalId)}`",
         "selected.searchParams.get('presentation') === api.pinnedArtifactId",
@@ -1049,21 +1179,32 @@ def test_signal_smoke_pins_exact_signal_note_and_historical_artifact() -> None:
         "method !== 'GET' && /\\/signals\\/[^/]+\\/note",
         "!requests.some(({ method }) => !['GET', 'HEAD'].includes(method))",
         "page.getByText(api.pinnedHeadline, { exact: true })",
-        "page.getByText(api.historicalHeadline, { exact: true })",
     ):
-        assert fragment in commands or fragment in script
+        assert fragment in commands or fragment in current_script
 
-    assert "path.includes(`presentation_artifact_id=${artifactId}`)" not in script
+    assert "path.includes(`presentation_artifact_id=${artifactId}`)" not in current_script
     _assert_in_order(
-        script,
-        "const historicalDetailResponse = await fetch(",
-        "historicalDetail.presentation.artifact_id !== historicalArtifactId",
-        "return {",
+        current_script,
         "pinnedSignalId: item.signal_id",
         "const expectedSelectionHref =",
         "path === expectedDetailPath",
         "method === 'GET' && path === expectedNotePath",
     )
+    for fragment in (
+        "historicalSignalId",
+        "historicalArtifactId",
+        "historicalArtifactVersion",
+        "detail.presentation.artifact_id !== artifactId",
+        "detail.presentation.version !== artifactVersion",
+        "historicalDetail.presentation.content.headline",
+        "const historicalDetailResponsePromise = waitForExactGetResponse(",
+        "const historicalNoteResponsePromise = waitForExactGetResponse(",
+        "historicalDetailResponse.status() === 200",
+        "historicalNoteResponse.status() === 200",
+        '`[data-master-detail-pane="detail"]:visible`',
+        "await headline.count() === 1",
+    ):
+        assert fragment in historical_script
 
 
 def test_signal_detail_and_note_waiters_are_armed_before_navigation() -> None:
@@ -1072,11 +1213,11 @@ def test_signal_detail_and_note_waiters_are_armed_before_navigation() -> None:
         "## 8. Smoke navigateur desktop et mobile",
         "## 9. Rollback applicatif",
     )
-    script = _javascript_heredocs(section)[0]
-    helper = script.split("function waitForExactGetResponse", 1)[1].split(
+    current_script, historical_script = _javascript_heredocs(section)
+    helper = current_script.split("function waitForExactGetResponse", 1)[1].split(
         "\n}\n", 1
     )[0]
-    smoke = script.split("async function smokeSignals", 1)[1].split(
+    smoke = current_script.split("async function smokeSignals", 1)[1].split(
         "\n}\n", 1
     )[0]
 
@@ -1098,6 +1239,9 @@ def test_signal_detail_and_note_waiters_are_armed_before_navigation() -> None:
         "const [currentDetailResponse, currentNoteResponse] = await Promise.all([",
         "currentDetailResponse.status() === 200",
         "currentNoteResponse.status() === 200",
+    )
+    _assert_in_order(
+        historical_script,
         "const expectedHistoricalDetailPath =",
         "const expectedHistoricalNotePath =",
         "const historicalDetailResponsePromise = waitForExactGetResponse(",
@@ -1107,6 +1251,60 @@ def test_signal_detail_and_note_waiters_are_armed_before_navigation() -> None:
         "historicalDetailResponse.status() === 200",
         "historicalNoteResponse.status() === 200",
     )
+
+
+def test_locked_teaser_is_bound_to_one_exact_signal_and_forbids_any_detail_get() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    current_script = _javascript_heredocs(section)[0]
+    smoke = current_script.split("async function smokeSignals", 1)[1].split(
+        "\n}\n", 1
+    )[0]
+
+    assert 'data-signal-id="<signal_id>"' in section
+    for fragment in (
+        "`button[data-signal-id=\"${api.lockedSignalId}\"], ` +",
+        "`a[data-signal-id=\"${api.lockedSignalId}\"]`",
+        "await lockedControl.count() === 1",
+        "lockedControl.getByText(api.lockedHeadline, { exact: true })",
+        "await lockedText.count() === 1",
+        "!element.outerHTML.includes('presentation')",
+        "!element.outerHTML.includes('company_key')",
+        "!element.querySelector('a[href^=\"/app/companies/\"]')",
+        "const lockedRequestStart = requests.length",
+        "await lockedControl.click()",
+        "await page.waitForURL(/\\/app\\/billing",
+        "await page.waitForLoadState('networkidle')",
+        "requests.slice(lockedRequestStart)",
+        "method === 'GET'",
+        "/^\\/signals\\/[^/?]+(?:\\/note)?(?:\\?|$)/.test(path)",
+    ):
+        assert fragment in smoke
+    assert "getByText(api.lockedHeadline, { exact: true }).first()" not in smoke
+    _assert_in_order(
+        smoke,
+        "await lockedControl.count() === 1",
+        "const lockedRequestStart = requests.length",
+        "await lockedControl.click()",
+        "await page.waitForURL(/\\/app\\/billing",
+        "await page.waitForLoadState('networkidle')",
+        "requests.slice(lockedRequestStart)",
+    )
+
+
+def test_qa_signal_scope_uses_only_plan_limit_code_authority() -> None:
+    body = _body()
+    qa_section = _between(
+        body,
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+
+    assert "plan_limited_at" not in body
+    assert qa_section.count("plan_limit_code IS NULL") >= 3
 
 
 def test_scroll_contract_mutates_and_restores_nonzero_positions() -> None:

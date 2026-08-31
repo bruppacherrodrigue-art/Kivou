@@ -13,9 +13,9 @@ d'environnement, un cookie, une donnée de compte ou un fait source.
 
 **STOP immédiat** si le SHA final, la CI push exacte, ses jobs et étapes, le
 hostname, les deux liens de release, la révision de base, la sauvegarde, la
-procédure blue/green ou l'approbation QA ne sont pas prouvés exactement. Une
-topologie différente de celle documentée exige une validation du propriétaire
-avant la première mutation.
+procédure blue/green, le root de preuves externe ou l'approbation QA ne sont pas
+prouvés exactement. Une topologie différente de celle documentée exige une
+validation du propriétaire avant la première mutation.
 
 ## 1. Geler le SHA final et prouver la CI réellement exécutée
 
@@ -29,7 +29,6 @@ set -euo pipefail
 KIVOU_REPOSITORY=bruppacherrodrigue-art/Kivou
 
 git fetch origin main
-test -z "$(git status --porcelain)"
 KIVOU_FINAL_SHA=$(git rev-parse origin/main)
 printf '%s\n' "$KIVOU_FINAL_SHA" | grep -Eq '^[0-9a-f]{40}$'
 KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
@@ -43,11 +42,8 @@ KIVOU_CI_RUN_ID=$(gh run list --repo "$KIVOU_REPOSITORY" \
   --jq '.[0].databaseId')
 test -n "$KIVOU_CI_RUN_ID"
 
-KIVOU_EVIDENCE_DIR="artifacts/staging/card-presentation-$KIVOU_FINAL_SHORT"
-install -m 700 -d "$KIVOU_EVIDENCE_DIR"
-KIVOU_CI_JSON="$KIVOU_EVIDENCE_DIR/github-ci.json"
-gh run view "$KIVOU_CI_RUN_ID" --repo "$KIVOU_REPOSITORY" \
-  --json headSha,status,conclusion,jobs >"$KIVOU_CI_JSON"
+KIVOU_CI_JSON_PAYLOAD=$(gh run view "$KIVOU_CI_RUN_ID" \
+  --repo "$KIVOU_REPOSITORY" --json headSha,status,conclusion,jobs)
 
 jq -e --arg sha "$KIVOU_FINAL_SHA" '
   def one_successful_job($name; $required):
@@ -82,10 +78,52 @@ jq -e --arg sha "$KIVOU_FINAL_SHA" '
      "Installer Chromium verrouillé", "Régression visuelle des références",
      "Build", "Build Founder Console", "Typecheck", "Lint"]
   )
-' "$KIVOU_CI_JSON" >/dev/null
+' <<<"$KIVOU_CI_JSON_PAYLOAD" >/dev/null
 
 test "$(gh api "repos/$KIVOU_REPOSITORY/commits/main" --jq .sha)" = \
   "$KIVOU_FINAL_SHA"
+test "$(git rev-parse HEAD)" = "$KIVOU_FINAL_SHA"
+test -z "$(git status --porcelain=v1 --untracked-files=all)"
+KIVOU_RUNBOOK_PATH=docs/runbooks/11-staging-card-presentation-rollout.md
+test "$(git hash-object "$KIVOU_RUNBOOK_PATH")" = \
+  "$(git rev-parse "$KIVOU_FINAL_SHA:$KIVOU_RUNBOOK_PATH")"
+
+: "${KIVOU_CARD_EVIDENCE_ROOT:?STOP: evidence root absolu opérateur requis}"
+kivou_validate_evidence_root() {
+  case "$KIVOU_CARD_EVIDENCE_ROOT" in
+    (/*) ;;
+    (*) return 69 ;;
+  esac
+  test -d "$KIVOU_CARD_EVIDENCE_ROOT"
+  test ! -L "$KIVOU_CARD_EVIDENCE_ROOT"
+  KIVOU_CARD_EVIDENCE_ROOT_REAL=$(readlink -f \
+    "$KIVOU_CARD_EVIDENCE_ROOT")
+  test "$KIVOU_CARD_EVIDENCE_ROOT_REAL" = "$KIVOU_CARD_EVIDENCE_ROOT"
+  test "$(stat -c '%U:%a' "$KIVOU_CARD_EVIDENCE_ROOT_REAL")" = \
+    "$(id -un):700"
+  KIVOU_OPERATOR_ROOT_REAL=$(readlink -f "$(git rev-parse --show-toplevel)")
+  case "$KIVOU_CARD_EVIDENCE_ROOT_REAL" in
+    ("$KIVOU_OPERATOR_ROOT_REAL"|"$KIVOU_OPERATOR_ROOT_REAL"/*) return 69 ;;
+    (*) ;;
+  esac
+}
+kivou_validate_evidence_root
+KIVOU_EVIDENCE_DIR="$KIVOU_CARD_EVIDENCE_ROOT_REAL/card-presentation-$KIVOU_FINAL_SHA"
+test ! -e "$KIVOU_EVIDENCE_DIR"
+install -m 700 -d "$KIVOU_EVIDENCE_DIR"
+test ! -L "$KIVOU_EVIDENCE_DIR"
+test "$(readlink -f "$KIVOU_EVIDENCE_DIR")" = "$KIVOU_EVIDENCE_DIR"
+test "$(stat -c '%U:%a' "$KIVOU_EVIDENCE_DIR")" = "$(id -un):700"
+KIVOU_CI_JSON="$KIVOU_EVIDENCE_DIR/github-ci.json"
+test ! -e "$KIVOU_CI_JSON"
+umask 077
+printf '%s\n' "$KIVOU_CI_JSON_PAYLOAD" >"$KIVOU_CI_JSON"
+chmod 600 "$KIVOU_CI_JSON"
+test ! -L "$KIVOU_CI_JSON"
+test "$(stat -c '%U:%a' "$KIVOU_CI_JSON")" = "$(id -un):600"
+KIVOU_CI_JSON_SHA256=$(sha256sum "$KIVOU_CI_JSON" | awk '{print $1}')
+printf '%s\n' "$KIVOU_CI_JSON_SHA256" | grep -Eq '^[0-9a-f]{64}$'
+unset KIVOU_CI_JSON_PAYLOAD
 ~~~
 
 Si `main` avance après ce point, STOP : qualifier le delta et obtenir une
@@ -965,14 +1003,14 @@ def main() -> None:
         ), {"account_id": account_id})
         active_icps = connection.scalar(sa.text(
             "SELECT count(*) FROM target_icp WHERE account_id=:account_id "
-            "AND status='active' AND plan_limited_at IS NULL"
+            "AND status='active' AND plan_limit_code IS NULL"
         ), {"account_id": account_id})
         current_signals = connection.scalar(sa.text(
             "SELECT count(*) FROM materialized_signal AS signal "
             "JOIN target_icp AS icp "
             "ON icp.target_icp_id=signal.target_icp_id "
             "WHERE icp.account_id=:account_id AND icp.status='active' "
-            "AND icp.plan_limited_at IS NULL "
+            "AND icp.plan_limit_code IS NULL "
             "AND signal.invalidated_at IS NULL "
             "AND signal.target_icp_revision=icp.matching_revision"
         ), {"account_id": account_id})
@@ -1334,18 +1372,15 @@ prédicats attendus sont `provider IS NULL`, `model_id IS NULL`,
 
 Un historique n'est jamais fabriqué pour ce smoke : aucune révision ICP/source
 n'est modifiée et aucune publication supplémentaire n'est autorisée au-delà des
-deux backfills bornés ci-dessus. La preuve suivante exige en lecture seule un
-artefact QA légitimement supersédé, encore compatible avec la révision courante
-et la locale du compte. Sur une table fraîche, son absence est normale mais
-rend le smoke historique **non exécutable : STOP** et validation propriétaire
-requise. La sortie structurée qui transporte ses identifiants vers le navigateur
-est capturée sans jamais être affichée ni consignée. Après la seule migration
-0028 et les backfills factuels FR/EN idempotents, une version unique par stream
-est attendue : ce gate **ne peut donc pas passer**. Il ne devient exécutable que
-si un superseding légitime existe déjà dans le stream courant. Le reader pinned
-refuse par contrat une ancienne révision source/ICP; conserver les mêmes
-révisions et le même input fingerprint est donc volontaire, pas une tentative
-de fabriquer un historique.
+deux backfills bornés ci-dessus. La preuve factuelle courante est obligatoire
+et indépendante. La même lecture découvre seulement un état historique opaque
+`available|absent`; un éventuel artefact doit être légitimement supersédé,
+compatible avec la révision courante et la locale du compte. Sur une table 0028
+fraîche, `absent` est normal. Il ne bloque ni les preuves factuelles courantes,
+ni les six captures, ni l'audit journal, ni les probes finales. La décision
+STOP historique est différée après toutes ces preuves. Les identifiants ne sont
+transportés vers le navigateur que pour l'état `available`, sans être affichés
+ou consignés.
 
 ~~~bash
 KIVOU_QA_FACTUAL_PROOF=$(ssh kivou-staging 'bash -s' -- \
@@ -1440,17 +1475,12 @@ def main() -> None:
             "AND signal.revision=old.signal_revision "
             "AND signal.target_icp_revision=old.target_icp_revision "
             "AND icp.status='active' AND icp.plan_limit_code IS NULL "
-            "AND icp.plan_limited_at IS NULL "
             "AND icp.matching_revision=old.target_icp_revision "
             "ORDER BY old.signal_key, old.version, old.artifact_id LIMIT 1"
         ), {"account_id": account_id}).mappings().one_or_none()
     assert rows
     assert foreign_rows == 0
     assert duplicates == 0
-    assert historical is not None
-    assert re.fullmatch(r"[0-9a-f]{64}", historical["signal_key"])
-    assert re.fullmatch(r"[0-9a-f]{64}", historical["artifact_id"])
-    assert type(historical["version"]) is int and historical["version"] >= 1
     assert {row["language"] for row in rows} == {"fr", "en"}
     for row in rows:
         assert row["qa_status"] == "FALLBACK"
@@ -1467,16 +1497,23 @@ def main() -> None:
         language: sum(row["language"] == language for row in rows)
         for language in ("fr", "en")
     }
+    history = {"status": "absent"}
+    if historical is not None:
+        assert re.fullmatch(r"[0-9a-f]{64}", historical["signal_key"])
+        assert re.fullmatch(r"[0-9a-f]{64}", historical["artifact_id"])
+        assert type(historical["version"]) is int and historical["version"] >= 1
+        history = {
+            "status": "available",
+            "signal_id": historical["signal_key"],
+            "artifact_id": historical["artifact_id"],
+            "version": historical["version"],
+        }
     print(json.dumps({
         "status": "qa_factual_ok",
         "fr": counts["fr"],
         "en": counts["en"],
         "ai_enabled": 0,
-        "historical": {
-            "signal_id": historical["signal_key"],
-            "artifact_id": historical["artifact_id"],
-            "version": historical["version"],
-        },
+        "history": history,
     }, sort_keys=True, separators=(",", ":")))
 
 
@@ -1491,20 +1528,32 @@ REMOTE
 printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | jq -e '
   .status == "qa_factual_ok" and .fr > 0 and .en > 0 and
   .ai_enabled == 0 and
-  (.historical.signal_id | type == "string" and test("^[0-9a-f]{64}$")) and
-  (.historical.artifact_id | type == "string" and test("^[0-9a-f]{64}$")) and
-  (.historical.version | type == "number" and . >= 1 and floor == .)
+  ((.history.status == "absent" and (.history | keys) == ["status"]) or
+   (.history.status == "available" and
+    (.history.signal_id | type == "string" and test("^[0-9a-f]{64}$")) and
+    (.history.artifact_id | type == "string" and test("^[0-9a-f]{64}$")) and
+    (.history.version | type == "number" and . >= 1 and floor == .)))
 ' >/dev/null
-KIVOU_HISTORICAL_SIGNAL_ID=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
-  jq -r '.historical.signal_id')
-KIVOU_HISTORICAL_ARTIFACT_ID=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
-  jq -r '.historical.artifact_id')
-KIVOU_HISTORICAL_ARTIFACT_VERSION=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
-  jq -r '.historical.version')
+KIVOU_HISTORICAL_STATUS=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
+  jq -r '.history.status')
+case "$KIVOU_HISTORICAL_STATUS" in
+  (absent) ;;
+  (available)
+    KIVOU_HISTORICAL_SIGNAL_ID=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
+      jq -r '.history.signal_id')
+    KIVOU_HISTORICAL_ARTIFACT_ID=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
+      jq -r '.history.artifact_id')
+    KIVOU_HISTORICAL_ARTIFACT_VERSION=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
+      jq -r '.history.version')
+    printf '%s\n' "$KIVOU_HISTORICAL_SIGNAL_ID" | grep -Eq '^[0-9a-f]{64}$'
+    printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_ID" | grep -Eq '^[0-9a-f]{64}$'
+    printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_VERSION" | \
+      grep -Eq '^[1-9][0-9]*$'
+    ;;
+  (*) exit 69 ;;
+esac
 unset KIVOU_QA_FACTUAL_PROOF
-printf '%s\n' "$KIVOU_HISTORICAL_SIGNAL_ID" | grep -Eq '^[0-9a-f]{64}$'
-printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_ID" | grep -Eq '^[0-9a-f]{64}$'
-printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_VERSION" | grep -Eq '^[1-9][0-9]*$'
+printf 'qa_factual_proof_ok history=%s\n' "$KIVOU_HISTORICAL_STATUS"
 ~~~
 
 ## 8. Smoke navigateur desktop et mobile
@@ -1525,9 +1574,9 @@ Checklist obligatoire, captures desktop et mobile à l'appui :
   deep-link, `Back`, `Forward`, restauration du focus, navigation mobile puis
   `Retour aux entreprises`, faits du profil et lien canonique Signaux;
 - **C003 Signaux** : feed/détail sur le même artifact ID et la même version,
-  sélection, deep-link/rechargement/historique, `Back`, `Forward`, scroll
+  sélection courante, deep-link/rechargement, `Back`, `Forward`, scroll
   indépendant, focus, `Retour aux signaux`, note chargée sans mutation et lien
-  canonique Entreprise;
+  canonique Entreprise; le parcours historique est la gate séparée finale;
 - **teaser verrouillé** : le JSON ne contient ni la clé `presentation` ni la
   clé `company_key`, aucune identité entreprise/attributaire, aucune requête détail/note et le CTA reste
   l'action de facturation réelle;
@@ -1545,6 +1594,12 @@ manipulées séparément; sur mobile, une seule pane est visible à chaque état
 L'absence, la duplication ou l'ambiguïté de ces attributs impose STOP et doit
 être corrigée dans la PR UI concernée.
 
+Le contrôle interactif racine de chaque teaser verrouillé porte exactement une
+fois `data-signal-id="<signal_id>"`. Cet identifiant provient déjà du payload
+autorisé; il sert uniquement à lier sans collision le DOM au signal verrouillé
+exact. Le contrôle ne porte ni présentation ni identité entreprise et son clic
+ne doit déclencher aucun GET détail/note Signaux.
+
 Exécuter ce smoke local depuis le checkout du SHA final. Il utilise les rôles,
 noms accessibles et URLs normatifs des plans C001–C003; l'absence d'un de ces
 contrats est un échec, jamais une raison de relâcher un sélecteur. Il ne crée,
@@ -1557,10 +1612,6 @@ KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
 printf '%s\n' "$KIVOU_FINAL_SHORT" | grep -Eq '^[0-9a-f]{12}$'
 printf '%s\n' "$KIVOU_BACKFILL_AS_OF" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
 printf '%s\n' "$KIVOU_QA_DB_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
-printf '%s\n' "$KIVOU_HISTORICAL_SIGNAL_ID" | grep -Eq '^[0-9a-f]{64}$'
-printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_ID" | grep -Eq '^[0-9a-f]{64}$'
-printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_VERSION" | \
-  grep -Eq '^[1-9][0-9]*$'
 : "${KIVOU_QA_STORAGE_STATE_REAL:?STOP: storage state QA protégé absent}"
 test -f "$KIVOU_QA_STORAGE_STATE_REAL"
 test ! -L "$KIVOU_QA_STORAGE_STATE_REAL"
@@ -1568,13 +1619,25 @@ test "$(readlink -f "$KIVOU_QA_STORAGE_STATE_REAL")" = \
   "$KIVOU_QA_STORAGE_STATE_REAL"
 test "$(stat -c '%U:%a' "$KIVOU_QA_STORAGE_STATE_REAL")" = \
   "$(id -un):600"
-KIVOU_OPERATOR_ROOT=$(git rev-parse --show-toplevel)
 case "$KIVOU_QA_STORAGE_STATE_REAL" in
-  ("$KIVOU_OPERATOR_ROOT"/*) exit 69 ;;
+  ("$KIVOU_OPERATOR_ROOT_REAL"|"$KIVOU_OPERATOR_ROOT_REAL"/*) exit 69 ;;
   (*) ;;
 esac
-KIVOU_BROWSER_EVIDENCE_DIR="artifacts/staging/card-presentation-$KIVOU_FINAL_SHORT"
+kivou_validate_evidence_root
+test "$KIVOU_EVIDENCE_DIR" = \
+  "$KIVOU_CARD_EVIDENCE_ROOT_REAL/card-presentation-$KIVOU_FINAL_SHA"
+test ! -L "$KIVOU_EVIDENCE_DIR"
+test "$(readlink -f "$KIVOU_EVIDENCE_DIR")" = "$KIVOU_EVIDENCE_DIR"
+test "$(stat -c '%U:%a' "$KIVOU_EVIDENCE_DIR")" = "$(id -un):700"
+KIVOU_BROWSER_EVIDENCE_DIR="$KIVOU_EVIDENCE_DIR/browser"
+test ! -e "$KIVOU_BROWSER_EVIDENCE_DIR"
 install -m 700 -d "$KIVOU_BROWSER_EVIDENCE_DIR"
+test ! -L "$KIVOU_BROWSER_EVIDENCE_DIR"
+test "$(readlink -f "$KIVOU_BROWSER_EVIDENCE_DIR")" = \
+  "$KIVOU_BROWSER_EVIDENCE_DIR"
+test "$(stat -c '%U:%a' "$KIVOU_BROWSER_EVIDENCE_DIR")" = \
+  "$(id -un):700"
+umask 077
 for KIVOU_CAPTURE in \
   desktop-dashboard.png desktop-companies.png desktop-signals.png \
   mobile-dashboard.png mobile-companies.png mobile-signals.png; do
@@ -1646,10 +1709,7 @@ printf '%s\n' "$KIVOU_CARD_JOURNAL_SINCE" | \
   KIVOU_QA_STORAGE_STATE="$KIVOU_QA_STORAGE_STATE_REAL" \
   KIVOU_QA_DB_FINGERPRINT="$KIVOU_QA_DB_FINGERPRINT" \
   KIVOU_BACKFILL_AS_OF="$KIVOU_BACKFILL_AS_OF" \
-  KIVOU_HISTORICAL_SIGNAL_ID="$KIVOU_HISTORICAL_SIGNAL_ID" \
-  KIVOU_HISTORICAL_ARTIFACT_ID="$KIVOU_HISTORICAL_ARTIFACT_ID" \
-  KIVOU_HISTORICAL_ARTIFACT_VERSION="$KIVOU_HISTORICAL_ARTIFACT_VERSION" \
-  KIVOU_BROWSER_EVIDENCE_DIR="../$KIVOU_BROWSER_EVIDENCE_DIR" \
+  KIVOU_BROWSER_EVIDENCE_DIR="$KIVOU_BROWSER_EVIDENCE_DIR" \
   KIVOU_QA_ORIGIN=https://staging.kivou.eu node <<'JS'
 function requireTrue(value) {
   if (!value) throw new Error()
@@ -1674,13 +1734,8 @@ async function accountFingerprint(page, expectedFingerprint) {
   }, expectedFingerprint)
 }
 
-async function verifyPublishedApi(page, asOf, historicalBinding) {
-  return page.evaluate(async ({
-    readDate,
-    historicalSignalId,
-    historicalArtifactId,
-    historicalArtifactVersion,
-  }) => {
+async function verifyPublishedApi(page, asOf) {
+  return page.evaluate(async (readDate) => {
     const feedResponse = await fetch(
       `/signals?as_of=${encodeURIComponent(readDate)}&limit=50&offset=0`,
       { credentials: 'same-origin' },
@@ -1691,6 +1746,10 @@ async function verifyPublishedApi(page, asOf, historicalBinding) {
     const unlocked = feed.items.filter((item) => item && item.locked === false)
     const locked = feed.items.filter((item) => item && item.locked === true)
     if (unlocked.length === 0 || locked.length === 0) throw new Error()
+    const signalIds = feed.items.map((item) => item?.signal_id)
+    if (signalIds.some((signalId) => (
+      typeof signalId !== 'string' || !/^[0-9a-f]{64}$/.test(signalId)
+    )) || new Set(signalIds).size !== signalIds.length) throw new Error()
     if (locked.some((item) => (
       Object.hasOwn(item, 'presentation') || Object.hasOwn(item, 'company_key')
     ))) throw new Error()
@@ -1698,6 +1757,10 @@ async function verifyPublishedApi(page, asOf, historicalBinding) {
     if (published.length === 0) throw new Error()
     for (const item of published) {
       const artifact = item.presentation
+      if (!/^[0-9a-f]{64}$/.test(artifact.artifact_id) ||
+          !Number.isInteger(artifact.version) || artifact.version < 1 ||
+          typeof artifact.content?.headline !== 'string' ||
+          artifact.content.headline.length === 0) throw new Error()
       if (artifact.status !== 'FALLBACK') throw new Error()
       if (!artifact.content || artifact.content.variant !== 'FACTUAL_FALLBACK') {
         throw new Error()
@@ -1708,10 +1771,7 @@ async function verifyPublishedApi(page, asOf, historicalBinding) {
             !Array.isArray(claim.evidence_refs) || claim.evidence_refs.length === 0
           ))) throw new Error()
     }
-    const item = published.find((candidate) => (
-      candidate.signal_id === historicalSignalId
-    ))
-    if (!item) throw new Error()
+    const item = published[0]
     const artifact = item.presentation
     const detailResponse = await fetch(
       `/signals/${encodeURIComponent(item.signal_id)}` +
@@ -1724,23 +1784,8 @@ async function verifyPublishedApi(page, asOf, historicalBinding) {
         detail.signal_id !== item.signal_id ||
         detail.presentation.artifact_id !== artifact.artifact_id ||
         detail.presentation.version !== artifact.version) throw new Error()
-    if (historicalArtifactId === artifact.artifact_id ||
-        historicalArtifactVersion >= artifact.version) throw new Error()
-    const historicalDetailResponse = await fetch(
-      `/signals/${encodeURIComponent(historicalSignalId)}` +
-      `?presentation_artifact_id=${encodeURIComponent(historicalArtifactId)}`,
-      { credentials: 'same-origin' },
-    )
-    if (historicalDetailResponse.status !== 200) throw new Error()
-    const historicalDetail = await historicalDetailResponse.json()
-    if (historicalDetail.signal_id !== historicalSignalId ||
-        !historicalDetail.presentation ||
-        historicalDetail.presentation.artifact_id !== historicalArtifactId ||
-        historicalDetail.presentation.version !== historicalArtifactVersion ||
-        historicalDetail.presentation.status !== 'FALLBACK' ||
-        historicalDetail.presentation.content?.variant !== 'FACTUAL_FALLBACK') {
-      throw new Error()
-    }
+    if (typeof locked[0].headline !== 'string' ||
+        locked[0].headline.length === 0) throw new Error()
     return {
       lockedSignalId: locked[0].signal_id,
       lockedHeadline: locked[0].headline,
@@ -1748,12 +1793,8 @@ async function verifyPublishedApi(page, asOf, historicalBinding) {
       pinnedArtifactId: artifact.artifact_id,
       pinnedVersion: artifact.version,
       pinnedHeadline: artifact.content.headline,
-      historicalSignalId,
-      historicalArtifactId,
-      historicalArtifactVersion,
-      historicalHeadline: historicalDetail.presentation.content.headline,
     }
-  }, { readDate: asOf, ...historicalBinding })
+  }, asOf)
 }
 
 function installFailureCollectors(page, origin, errors, requests, responses) {
@@ -1983,26 +2024,28 @@ async function smokeSignals(
   await page.getByRole('heading', {
     name: /Signaux commerciaux|Commercial signals/i,
   }).waitFor()
-  const lockedText = page.getByText(api.lockedHeadline, { exact: true }).first()
-  await lockedText.waitFor()
-  const lockedControl = lockedText.locator(
-    'xpath=ancestor::button[1] | ancestor::a[1]',
-  ).first()
+  const lockedControl = page.locator(
+    `button[data-signal-id="${api.lockedSignalId}"], ` +
+    `a[data-signal-id="${api.lockedSignalId}"]`,
+  )
+  requireTrue(await lockedControl.count() === 1)
   await lockedControl.waitFor()
+  const lockedText = lockedControl.getByText(api.lockedHeadline, { exact: true })
+  requireTrue(await lockedText.count() === 1)
+  await lockedText.waitFor()
   requireTrue(await lockedControl.evaluate((element) => (
     !element.outerHTML.includes('presentation') &&
     !element.outerHTML.includes('company_key') &&
     !element.querySelector('a[href^="/app/companies/"]')
   )))
   await lockedControl.focus()
+  const lockedRequestStart = requests.length
   await lockedControl.click()
   await page.waitForURL(/\/app\/billing(?:\?|$)/)
-  requireTrue(!requests.some(({ method, path }) => (
-    method === 'GET' && (
-      path.startsWith(`/signals/${encodeURIComponent(api.lockedSignalId)}?`) ||
-      path === `/signals/${encodeURIComponent(api.lockedSignalId)}` ||
-      path.startsWith(`/signals/${encodeURIComponent(api.lockedSignalId)}/note`)
-    )
+  await page.waitForLoadState('networkidle')
+  requireTrue(!requests.slice(lockedRequestStart).some(({ method, path }) => (
+    method === 'GET' &&
+    /^\/signals\/[^/?]+(?:\/note)?(?:\?|$)/.test(path)
   )))
   await page.goBack({ waitUntil: 'networkidle' })
   await page.waitForURL(/\/app\/signals$/)
@@ -2122,52 +2165,6 @@ async function smokeSignals(
     )
   }
 
-  const historicalUrl = new URL(
-    `/app/signals/${encodeURIComponent(api.historicalSignalId)}`, origin,
-  )
-  historicalUrl.searchParams.set('presentation', api.historicalArtifactId)
-  const expectedHistoricalDetailPath =
-    `/signals/${encodeURIComponent(api.historicalSignalId)}` +
-    `?presentation_artifact_id=${encodeURIComponent(api.historicalArtifactId)}`
-  const expectedHistoricalNotePath =
-    `/signals/${encodeURIComponent(api.historicalSignalId)}/note`
-  const historicalDetailResponsePromise = waitForExactGetResponse(
-    page, origin, expectedHistoricalDetailPath,
-  )
-  const historicalNoteResponsePromise = waitForExactGetResponse(
-    page, origin, expectedHistoricalNotePath,
-  )
-  const historicalRequestStart = requests.length
-  const historicalResponseStart = responses.length
-  await page.goto(historicalUrl.toString(), { waitUntil: 'networkidle' })
-  await page.waitForURL((url) => (
-    url.pathname === `/app/signals/${encodeURIComponent(api.historicalSignalId)}` &&
-    url.searchParams.get('presentation') === api.historicalArtifactId &&
-    Array.from(url.searchParams).length === 1
-  ))
-  await page.getByText(api.historicalHeadline, { exact: true }).first().waitFor()
-  const [historicalDetailResponse, historicalNoteResponse] = await Promise.all([
-    historicalDetailResponsePromise,
-    historicalNoteResponsePromise,
-  ])
-  requireTrue(historicalDetailResponse.status() === 200)
-  requireTrue(historicalNoteResponse.status() === 200)
-  requireTrue(requests.slice(historicalRequestStart).some(({ method, path }) => (
-    method === 'GET' && path === expectedHistoricalDetailPath
-  )))
-  requireTrue(requests.slice(historicalRequestStart).some(({ method, path }) => (
-    method === 'GET' && path === expectedHistoricalNotePath
-  )))
-  requireTrue(responses.slice(historicalResponseStart).some(({
-    method, path, status,
-  }) => method === 'GET' && status === 200 && path === expectedHistoricalDetailPath))
-  requireTrue(responses.slice(historicalResponseStart).some(({
-    method, path, status,
-  }) => method === 'GET' && status === 200 &&
-    path === expectedHistoricalNotePath))
-  requireTrue(!requests.some(({ method, path }) => (
-    method !== 'GET' && /\/signals\/[^/]+\/note(?:\?|$)/.test(path)
-  )))
 }
 
 async function run() {
@@ -2177,22 +2174,8 @@ async function run() {
   const expectedFingerprint = process.env.KIVOU_QA_DB_FINGERPRINT
   const storageState = process.env.KIVOU_QA_STORAGE_STATE
   const evidenceDir = process.env.KIVOU_BROWSER_EVIDENCE_DIR
-  const historicalSignalId = process.env.KIVOU_HISTORICAL_SIGNAL_ID
-  const historicalArtifactId = process.env.KIVOU_HISTORICAL_ARTIFACT_ID
-  const historicalArtifactVersion = Number.parseInt(
-    process.env.KIVOU_HISTORICAL_ARTIFACT_VERSION || '', 10,
-  )
   requireTrue(Boolean(origin && asOf && expectedFingerprint && storageState &&
-    evidenceDir && historicalSignalId && historicalArtifactId))
-  requireTrue(/^[0-9a-f]{64}$/.test(historicalSignalId))
-  requireTrue(/^[0-9a-f]{64}$/.test(historicalArtifactId))
-  requireTrue(Number.isInteger(historicalArtifactVersion) &&
-    historicalArtifactVersion >= 1)
-  const historicalBinding = {
-    historicalSignalId,
-    historicalArtifactId,
-    historicalArtifactVersion,
-  }
+    evidenceDir))
   const browser = await chromium.launch({ headless: true })
   try {
     const viewports = [
@@ -2211,7 +2194,7 @@ async function run() {
       installFailureCollectors(page, origin, errors, requests, responses)
       await page.goto(`${origin}/app/signals`, { waitUntil: 'networkidle' })
       requireTrue(await accountFingerprint(page, expectedFingerprint))
-      const api = await verifyPublishedApi(page, asOf, historicalBinding)
+      const api = await verifyPublishedApi(page, asOf)
       await smokeDashboard(
         page, origin, `${evidenceDir}/${viewport.name}-dashboard.png`,
       )
@@ -2238,16 +2221,17 @@ async function run() {
 }
 
 run()
-  .then(() => console.log("card_smoke_ok"))
+  .then(() => console.log("card_current_smoke_ok"))
   .catch(() => {
-    console.error("card_smoke_failed")
+    console.error("card_current_smoke_failed")
     process.exitCode = 1
   })
 JS
 )
 
-ssh kivou-staging 'bash -s' -- \
-  "$KIVOU_CARD_JOURNAL_CURSOR" "$KIVOU_CARD_JOURNAL_SINCE" <<'REMOTE'
+kivou_audit_card_get_journal() {
+  ssh kivou-staging 'bash -s' -- \
+    "$KIVOU_CARD_JOURNAL_CURSOR" "$KIVOU_CARD_JOURNAL_SINCE" <<'REMOTE'
 set -euo pipefail
 KIVOU_CARD_JOURNAL_CURSOR=$1
 KIVOU_CARD_JOURNAL_SINCE=$2
@@ -2301,12 +2285,29 @@ unset KIVOU_CARD_GET_JOURNAL
 kivou_assert_no_card_ai_runtime
 printf "%s\n" "card_get_journal_ok"
 REMOTE
+}
+kivou_audit_card_get_journal
 
 find "$KIVOU_BROWSER_EVIDENCE_DIR" -maxdepth 1 -type f -name '*.png' \
   -exec chmod 600 {} +
 test "$(find "$KIVOU_BROWSER_EVIDENCE_DIR" -maxdepth 1 -type f \
   \( -name '*-dashboard.png' -o -name '*-companies.png' -o \
   -name '*-signals.png' \) | wc -l)" = 6
+printf 'name=%s sha256=%s verdict=ci_green\n' \
+  "$(basename "$KIVOU_CI_JSON")" "$KIVOU_CI_JSON_SHA256"
+for KIVOU_CAPTURE in \
+  desktop-dashboard.png desktop-companies.png desktop-signals.png \
+  mobile-dashboard.png mobile-companies.png mobile-signals.png; do
+  KIVOU_CAPTURE_FILE="$KIVOU_BROWSER_EVIDENCE_DIR/$KIVOU_CAPTURE"
+  test -f "$KIVOU_CAPTURE_FILE"
+  test ! -L "$KIVOU_CAPTURE_FILE"
+  test "$(stat -c '%U:%a' "$KIVOU_CAPTURE_FILE")" = "$(id -un):600"
+  KIVOU_CAPTURE_SHA256=$(sha256sum "$KIVOU_CAPTURE_FILE" | awk '{print $1}')
+  printf '%s\n' "$KIVOU_CAPTURE_SHA256" | grep -Eq '^[0-9a-f]{64}$'
+  printf 'name=%s sha256=%s verdict=visual_pending\n' \
+    "$KIVOU_CAPTURE" "$KIVOU_CAPTURE_SHA256"
+done
+unset KIVOU_CAPTURE_FILE KIVOU_CAPTURE_SHA256
 ~~~
 
 Le curseur journald est la frontière autoritaire; le timestamp UTC est conservé
@@ -2325,7 +2326,11 @@ valeurs manquantes, les deux scrolls desktop, la pile mobile, les focus, le
 teaser verrouillé, l'absence de débordement et tout texte potentiellement
 inventé. Consigner le verdict de chaque image dans le rapport. **STOP** avant
 la validation finale si une capture n'a pas été réellement inspectée ou si un
-doute subsiste; `card_smoke_ok` seul ne vaut jamais validation visuelle.
+doute subsiste; `card_current_smoke_ok` seul ne vaut jamais validation visuelle.
+Le rapport ne conserve pour chaque preuve que `name`, `sha256` et `verdict` :
+`verdict=ci_green` pour le JSON CI et `verdict=visual_pass|visual_fail` après
+l'inspection humaine. Ne jamais y copier un chemin absolu, le JSON, une capture,
+un cookie ou une donnée compte/source.
 
 Vérifier enfin le marker frontend, le SHA backend, la migration et les probes
 publiques après la navigation :
@@ -2362,6 +2367,213 @@ for KIVOU_PATH in / /app/dashboard /app/companies /app/signals \
     "https://staging.kivou.eu$KIVOU_PATH")" = 200
 done
 REMOTE
+~~~
+
+Les preuves factuelles courantes, les six captures, leur inspection humaine,
+l'audit journal et les probes finaux ci-dessus restent valides quel que soit
+l'état historique découvert. Traiter maintenant cet état séparément. Si aucun
+historique légitime n'existe, produire explicitement **STOP / NON-EXÉCUTABLE**
+et obtenir une validation propriétaire; ne jamais déclarer le parcours
+historique réussi et ne fabriquer aucune donnée. Si l'état est `available`, le
+second smoke ci-dessous prouve le pin exact, la version, le headline dans la
+pane détail et les GET détail/note 200, puis rejoue l'audit journal depuis la
+frontière antérieure.
+
+~~~bash
+case "$KIVOU_HISTORICAL_STATUS" in
+  (absent)
+    printf '%s\n' \
+      'historical_smoke=STOP / NON-EXÉCUTABLE; validation propriétaire requise' \
+      >&2
+    exit 69
+    ;;
+  (available)
+    : "${KIVOU_HISTORICAL_SIGNAL_ID:?STOP: historical signal absent}"
+    : "${KIVOU_HISTORICAL_ARTIFACT_ID:?STOP: historical artifact absent}"
+    : "${KIVOU_HISTORICAL_ARTIFACT_VERSION:?STOP: historical version absent}"
+    printf '%s\n' "$KIVOU_HISTORICAL_SIGNAL_ID" | grep -Eq '^[0-9a-f]{64}$'
+    printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_ID" | grep -Eq '^[0-9a-f]{64}$'
+    printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_VERSION" | \
+      grep -Eq '^[1-9][0-9]*$'
+    ;;
+  (*) exit 69 ;;
+esac
+
+(
+  cd frontend
+  KIVOU_QA_STORAGE_STATE="$KIVOU_QA_STORAGE_STATE_REAL" \
+  KIVOU_QA_DB_FINGERPRINT="$KIVOU_QA_DB_FINGERPRINT" \
+  KIVOU_HISTORICAL_SIGNAL_ID="$KIVOU_HISTORICAL_SIGNAL_ID" \
+  KIVOU_HISTORICAL_ARTIFACT_ID="$KIVOU_HISTORICAL_ARTIFACT_ID" \
+  KIVOU_HISTORICAL_ARTIFACT_VERSION="$KIVOU_HISTORICAL_ARTIFACT_VERSION" \
+  KIVOU_QA_ORIGIN=https://staging.kivou.eu node <<'JS'
+function requireTrue(value) {
+  if (!value) throw new Error()
+}
+
+async function accountFingerprint(page, expectedFingerprint) {
+  return page.evaluate(async (expected) => {
+    const response = await fetch('/me', { credentials: 'same-origin' })
+    if (response.status !== 200) throw new Error()
+    const me = await response.json()
+    if (typeof me.account_id !== 'string' || me.account_id.length === 0) {
+      throw new Error()
+    }
+    const bytes = new TextEncoder().encode(me.account_id)
+    const digest = await crypto.subtle.digest('SHA-256', bytes)
+    const fingerprint = Array.from(new Uint8Array(digest))
+      .map((value) => value.toString(16).padStart(2, '0'))
+      .join('')
+      .slice(0, 16)
+    if (fingerprint !== expected) throw new Error()
+    return true
+  }, expectedFingerprint)
+}
+
+function waitForExactGetResponse(page, origin, expectedPath) {
+  return page.waitForResponse((response) => {
+    let url
+    try {
+      url = new URL(response.url())
+    } catch {
+      return false
+    }
+    return response.request().method() === 'GET' &&
+      url.origin === origin &&
+      `${url.pathname}${url.search}` === expectedPath
+  })
+}
+
+async function run() {
+  const { chromium } = require('playwright')
+  const origin = process.env.KIVOU_QA_ORIGIN
+  const expectedFingerprint = process.env.KIVOU_QA_DB_FINGERPRINT
+  const storageState = process.env.KIVOU_QA_STORAGE_STATE
+  const historicalSignalId = process.env.KIVOU_HISTORICAL_SIGNAL_ID
+  const historicalArtifactId = process.env.KIVOU_HISTORICAL_ARTIFACT_ID
+  const historicalArtifactVersion = Number.parseInt(
+    process.env.KIVOU_HISTORICAL_ARTIFACT_VERSION || '', 10,
+  )
+  requireTrue(Boolean(origin && expectedFingerprint && storageState &&
+    historicalSignalId && historicalArtifactId))
+  requireTrue(/^[0-9a-f]{64}$/.test(historicalSignalId))
+  requireTrue(/^[0-9a-f]{64}$/.test(historicalArtifactId))
+  requireTrue(Number.isInteger(historicalArtifactVersion) &&
+    historicalArtifactVersion >= 1)
+  const browser = await chromium.launch({ headless: true })
+  try {
+    const context = await browser.newContext({ storageState })
+    const page = await context.newPage()
+    const errors = []
+    const requests = []
+    page.on('console', (message) => {
+      if (message.type() === 'error') errors.push('console')
+    })
+    page.on('pageerror', () => errors.push('pageerror'))
+    page.on('requestfailed', () => errors.push('requestfailed'))
+    page.on('response', (response) => {
+      if (response.status() >= 500) errors.push('http5xx')
+    })
+    page.on('request', (request) => {
+      let url
+      try {
+        url = new URL(request.url())
+      } catch {
+        errors.push('invalid-url')
+        return
+      }
+      if (url.origin !== origin) errors.push('external-request')
+      requests.push({
+        method: request.method(),
+        path: `${url.pathname}${url.search}`,
+      })
+    })
+    await page.goto(`${origin}/app/signals`, { waitUntil: 'networkidle' })
+    requireTrue(await accountFingerprint(page, expectedFingerprint))
+    const historicalDetail = await page.evaluate(async ({
+      signalId, artifactId, artifactVersion,
+    }) => {
+      const response = await fetch(
+        `/signals/${encodeURIComponent(signalId)}` +
+        `?presentation_artifact_id=${encodeURIComponent(artifactId)}`,
+        { credentials: 'same-origin' },
+      )
+      if (response.status !== 200) throw new Error()
+      const detail = await response.json()
+      if (detail.signal_id !== signalId || !detail.presentation ||
+          detail.presentation.artifact_id !== artifactId ||
+          detail.presentation.version !== artifactVersion ||
+          detail.presentation.status !== 'FALLBACK' ||
+          detail.presentation.content?.variant !== 'FACTUAL_FALLBACK' ||
+          typeof detail.presentation.content?.headline !== 'string' ||
+          detail.presentation.content.headline.length === 0) throw new Error()
+      return detail
+    }, {
+      signalId: historicalSignalId,
+      artifactId: historicalArtifactId,
+      artifactVersion: historicalArtifactVersion,
+    })
+    const historicalUrl = new URL(
+      `/app/signals/${encodeURIComponent(historicalSignalId)}`, origin,
+    )
+    historicalUrl.searchParams.set('presentation', historicalArtifactId)
+    const expectedHistoricalDetailPath =
+      `/signals/${encodeURIComponent(historicalSignalId)}` +
+      `?presentation_artifact_id=${encodeURIComponent(historicalArtifactId)}`
+    const expectedHistoricalNotePath =
+      `/signals/${encodeURIComponent(historicalSignalId)}/note`
+    const historicalDetailResponsePromise = waitForExactGetResponse(
+      page, origin, expectedHistoricalDetailPath,
+    )
+    const historicalNoteResponsePromise = waitForExactGetResponse(
+      page, origin, expectedHistoricalNotePath,
+    )
+    const historicalRequestStart = requests.length
+    await page.goto(historicalUrl.toString(), { waitUntil: 'networkidle' })
+    await page.waitForURL((url) => (
+      url.pathname === `/app/signals/${encodeURIComponent(historicalSignalId)}` &&
+      url.searchParams.get('presentation') === historicalArtifactId &&
+      Array.from(url.searchParams).length === 1
+    ))
+    const [historicalDetailResponse, historicalNoteResponse] = await Promise.all([
+      historicalDetailResponsePromise,
+      historicalNoteResponsePromise,
+    ])
+    requireTrue(historicalDetailResponse.status() === 200)
+    requireTrue(historicalNoteResponse.status() === 200)
+    const detailPane = page.locator(
+      `[data-master-detail-pane="detail"]:visible`,
+    )
+    requireTrue(await detailPane.count() === 1)
+    const headline = detailPane.getByText(
+      historicalDetail.presentation.content.headline, { exact: true },
+    )
+    requireTrue(await headline.count() === 1)
+    await headline.waitFor()
+    requireTrue(requests.slice(historicalRequestStart).some(({ method, path }) => (
+      method === 'GET' && path === expectedHistoricalDetailPath
+    )))
+    requireTrue(requests.slice(historicalRequestStart).some(({ method, path }) => (
+      method === 'GET' && path === expectedHistoricalNotePath
+    )))
+    requireTrue(!requests.some(({ method }) => !['GET', 'HEAD'].includes(method)))
+    requireTrue(errors.length === 0)
+    await context.close()
+  } finally {
+    await browser.close()
+  }
+}
+
+run()
+  .then(() => console.log("card_historical_browser_ok"))
+  .catch(() => {
+    console.error("card_historical_browser_failed")
+    process.exitCode = 1
+  })
+JS
+)
+kivou_audit_card_get_journal
+printf '%s\n' "card_historical_smoke_ok"
 ~~~
 
 ## 9. Rollback applicatif
