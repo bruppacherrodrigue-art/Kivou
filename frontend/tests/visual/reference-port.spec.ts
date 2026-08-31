@@ -237,7 +237,7 @@ async function waitForScenario(
     await expect(page.locator('#detail-title')).toHaveText(
       publicationDetail.presentation!.content.headline,
     )
-    await expect(page.locator('.published-status')).toContainText('Présentation publiée')
+    await expect(page.locator('.published-status')).toContainText('Faits publiés uniquement')
     const buyerFact = page.locator('.fact-grid div').filter({ has: page.getByText('Acheteur', { exact: true }) })
     await expect(buyerFact).toContainText('Non publié')
     const awardeeFact = page.locator('.fact-grid div').filter({
@@ -257,7 +257,9 @@ async function waitForScenario(
     await awardCard.focus()
     await expect(awardCard).toBeFocused()
     await page.keyboard.press('Enter')
-    await expect(page).toHaveURL(/\/app\/signals\/h-huether-munich$/)
+    await expect(page).toHaveURL(new RegExp(
+      `/app/signals/h-huether-munich\\?presentation_artifact_id=${awardDetail.presentation!.artifact_id}$`,
+    ))
     await expect(page.locator('#detail-title')).toHaveText(
       awardDetail.presentation!.content.headline,
     )

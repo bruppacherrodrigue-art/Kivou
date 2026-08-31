@@ -537,6 +537,9 @@ export function SignalsFeed() {
               const badge = card.locked
                 ? t.reference.signalsPage.paidAccessRequired
                 : t.reference.signalsPage.presentationStatus[presentationMode]
+              const badgeClass = card.locked
+                ? 'access-unavailable'
+                : `presentation-${presentationMode}`
               const cardTitle = card.locked
                 ? card.eventTitle
                 : card.presentation?.content.headline
@@ -592,7 +595,7 @@ export function SignalsFeed() {
                             </>
                           )}
                     </strong>
-                    <span className={`presentation-${presentationMode}`}>{badge}</span>
+                    <span className={badgeClass}>{badge}</span>
                   </span>
                   <span className="signal-event">
                     {cardTitle ?? t.reference.missingValue}

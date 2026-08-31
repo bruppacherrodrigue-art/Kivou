@@ -3753,6 +3753,7 @@ a:focus-visible {
 }
 
 .signal-item-head span.presentation-unavailable,
+.signal-item-head span.access-unavailable,
 .published-status.presentation-unavailable {
   border-color: var(--line);
   background: var(--surface-subtle);
