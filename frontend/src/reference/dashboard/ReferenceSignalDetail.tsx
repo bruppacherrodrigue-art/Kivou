@@ -138,8 +138,8 @@ export function ReferenceSignalDetail({
         </div>
         <span className="published-status">
           {detail.presentation
-            ? <FileCheck2 aria-hidden="true" />
-            : <Info aria-hidden="true" />}{' '}
+            ? <FileCheck2 aria-hidden="true" data-presentation-icon="published" />
+            : <Info aria-hidden="true" data-presentation-icon="unpublished" />}{' '}
           {detail.presentation
             ? detail.sourceSystem
               ? interpolate(t.reference.signalsPage.presentationPublishedWithSource, {
