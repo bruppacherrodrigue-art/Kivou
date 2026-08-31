@@ -425,11 +425,43 @@ def test_backend_rollback_validates_root_only_state_against_captured_targets() -
         'test "$KIVOU_PREVIOUS_RELEASE" = "$KIVOU_PREVIOUS_BACKEND"',
         'test "$KIVOU_RELEASE_SHA" = "$KIVOU_FINAL_SHA"',
         'test "$KIVOU_STAGING_HOST" = "staging.kivou.eu"',
+        'printf \'%s\\n\' "$KIVOU_BACKEND_ROLLBACK_SCRIPT" | bash -n',
+        "| ssh kivou-staging 'bash -s' --",
     ):
         assert fragment in commands
 
     assert 'printf \'%s\\n\' "$KIVOU_ROLLOUT_STATE_CONTENT"' not in commands
     assert 'echo "$KIVOU_ROLLOUT_STATE_CONTENT"' not in commands
+
+    awk_program = _embedded_awk_after(
+        commands,
+        'git show "$KIVOU_FINAL_SHA:ops/README.md"',
+    )
+    extracted = subprocess.run(
+        ["awk", awk_program],
+        input=OPERATIONS.read_text(encoding="utf-8"),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert extracted.returncode == 0, extracted.stderr
+    for fragment in (
+        "KIVOU_ROLLOUT_STATE=/etc/kivou/kivou-safe-rollout.state",
+        "KIVOU_ROLLBACK_GREEN_UNIT=",
+        'KIVOU_ROLLBACK_NEXT="$KIVOU_ROLLBACK_NEXT_DIR/app.next"',
+        'sudo mv -Tf "$KIVOU_ROLLBACK_NEXT" /srv/kivou/app',
+        'test "$KIVOU_ROLLBACK_NORMAL_OPENAPI_STATUS" = 200',
+        'test "$KIVOU_ROLLBACK_NORMAL_ME_STATUS" = 401',
+    ):
+        assert fragment in extracted.stdout
+    syntax = subprocess.run(
+        ["bash", "-n"],
+        input=extracted.stdout,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert syntax.returncode == 0, syntax.stderr
 
 
 def test_frontend_uses_the_same_sha_and_switches_with_immediate_rollback() -> None:
