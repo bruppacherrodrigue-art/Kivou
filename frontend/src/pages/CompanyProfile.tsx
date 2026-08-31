@@ -121,6 +121,7 @@ export function CompanyProfileView({
     <section
       ref={panelRef}
       className="company-detail"
+      data-master-detail-pane="detail"
       id="company-detail"
       aria-labelledby="company-name"
     >
@@ -323,6 +324,7 @@ export function CompanyDetailMessage({
     <section
       ref={panelRef}
       className="company-detail"
+      data-master-detail-pane="detail"
       id="company-detail"
       aria-labelledby="company-name"
       aria-live={tone === 'status' ? 'polite' : undefined}

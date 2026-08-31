@@ -69,6 +69,14 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
       }),
     ).toBeVisible()
     expect(document.querySelector('.workspace-grid .feed-panel + .detail-panel')).not.toBeNull()
+    expect(document.querySelector('.feed-panel')).toHaveAttribute(
+      'data-master-detail-pane',
+      'list',
+    )
+    expect(document.querySelector('.detail-panel')).toHaveAttribute(
+      'data-master-detail-pane',
+      'detail',
+    )
   })
 
   it('enregistre la valeur exacte après 500 ms et annonce honnêtement le résultat', async () => {

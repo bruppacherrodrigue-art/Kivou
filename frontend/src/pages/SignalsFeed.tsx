@@ -495,7 +495,11 @@ export function SignalsFeed() {
 
   return (
     <div className="workspace-grid">
-      <aside className="feed-panel" aria-labelledby="signals-list-title">
+      <aside
+        className="feed-panel"
+        data-master-detail-pane="list"
+        aria-labelledby="signals-list-title"
+      >
         <div className="panel-heading">
           <div>
             <p className="section-label">{t.reference.signalsPage.sourceType}</p>
@@ -675,6 +679,7 @@ export function SignalsFeed() {
 
       <section
         className="detail-panel"
+        data-master-detail-pane="detail"
         id="signal-detail"
         aria-labelledby="detail-title"
         tabIndex={-1}

@@ -1572,7 +1572,7 @@ Checklist obligatoire, captures desktop et mobile à l'appui :
 - **C002 Entreprises** : aucune rafale navigateur vers `/signals/:id`,
   master-detail et scroll indépendant desktop, sélection et rechargement du
   deep-link, `Back`, `Forward`, restauration du focus, navigation mobile puis
-  `Retour aux entreprises`, faits du profil et lien canonique Signaux;
+  `Retour aux attributions`, faits du profil et lien canonique Signaux;
 - **C003 Signaux** : feed/détail sur le même artifact ID et la même version,
   sélection courante, deep-link/rechargement, `Back`, `Forward`, scroll
   indépendant, focus, `Retour aux signaux`, note chargée sans mutation et lien
@@ -1958,7 +1958,7 @@ async function smokeCompanies(page, origin, viewport, evidencePath, requests) {
   requireTrue(!requests.slice(requestStart).some(({ method, path }) => (
     method === 'GET' && /^\/signals\/[^?]+(?:\?|$)/.test(path)
   )))
-  const award = page.getByRole('button', { name: /attribution|award/i }).first()
+  const award = page.getByRole('link', { name: /attribution|award/i }).first()
   await award.waitFor()
   await award.focus()
   let companyListScroll = await setScrollContract(page, viewport, 'list', 'companies-initial-list')
@@ -2005,9 +2005,9 @@ async function smokeCompanies(page, origin, viewport, evidencePath, requests) {
   await page.screenshot({ path: evidencePath, fullPage: true })
   if (viewport.name === 'mobile') {
     const back = page.getByRole('button', {
-      name: /Retour aux entreprises|Back to companies/i,
+      name: /Retour aux attributions|Back to awards/i,
     }).or(page.getByRole('link', {
-      name: /Retour aux entreprises|Back to companies/i,
+      name: /Retour aux attributions|Back to awards/i,
     })).first()
     await back.click()
     await page.waitForURL(/\/app\/companies$/)

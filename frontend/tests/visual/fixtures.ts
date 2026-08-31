@@ -534,13 +534,17 @@ export const VISUAL_ICP = {
   updated_at: '2026-08-29T09:00:00+00:00',
 } satisfies TargetIcp
 
+function visualCompanyKey(record: AwardSignal): string {
+  return `cmp_${record.company.id}_reference`
+}
+
 function toUnlockedItem(record: AwardSignal): UnlockedFeedItem {
   const meta = metadata(record)
   return {
     locked: false,
     signal_id: record.id,
     target_icp_id: VISUAL_ICP.target_icp_id,
-    company_key: record.company.id,
+    company_key: visualCompanyKey(record),
     presentation: null,
     company: {
       name: record.company.name,
@@ -772,7 +776,7 @@ function toDetail(record: AwardSignal): UnlockedDetail {
   return {
     ...item,
     presentation: factualFallbackPresentation(record, visualArtifactId(record)),
-    company_key: record.company.id,
+    company_key: visualCompanyKey(record),
     analysis: {
       ...item.analysis,
       contract_reading: {
@@ -834,7 +838,7 @@ export const VISUAL_SIGNAL_DETAILS = VISUAL_SIGNAL_UNLOCKED_ITEMS.map((item) => 
 function toCompanyProfile(record: AwardSignal): CompanyProfile {
   const item = toUnlockedItem(record)
   return {
-    company_key: record.company.id,
+    company_key: visualCompanyKey(record),
     official_identity: {
       name: record.company.name,
       country: metadata(record).companyCountry,
@@ -992,7 +996,7 @@ export const LOCAL_REFERENCE_ROUTES = [
   { golden: 'dashboard-signup', source: '/signup', local: '/signup', scenario: 'auth' },
   { golden: 'dashboard-overview', source: '/', local: '/app/dashboard', scenario: 'connected-pro' },
   { golden: 'dashboard-signals', source: '/signals?signal=tm-ausbau-campus-ost', local: '/app/signals/tm-ausbau-campus-ost', scenario: 'connected-discovery' },
-  { golden: 'dashboard-companies', source: '/companies', local: '/app/companies/h-huether?signal=h-huether-munich', scenario: 'connected-pro' },
+  { golden: 'dashboard-companies', source: '/companies', local: '/app/companies/cmp_h-huether_reference?signal=h-huether-munich', scenario: 'connected-pro' },
   { golden: 'dashboard-targeting', source: '/targeting', local: '/app/icps', scenario: 'connected-pro' },
   { golden: 'dashboard-account', source: '/settings', local: '/app/settings', scenario: 'connected-pro' },
 ] as const

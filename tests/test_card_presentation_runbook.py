@@ -1075,7 +1075,7 @@ def test_browser_smoke_is_executable_fail_closed_and_collects_two_viewports() ->
         "await page.goForward(",
         "document.activeElement",
         "scrollTop",
-        "Retour aux entreprises",
+        "Retour aux attributions",
         "Retour aux signaux",
         "await page.screenshot",
         'console.log("card_current_smoke_ok")',
@@ -1083,6 +1083,7 @@ def test_browser_smoke_is_executable_fail_closed_and_collects_two_viewports() ->
         "process.exitCode = 1",
     ):
         assert fragment in commands or fragment in script
+    assert "page.getByRole('link', { name: /attribution|award/i })" in script
 
     for route in ("/app/dashboard", "/app/companies", "/app/signals"):
         assert route in script

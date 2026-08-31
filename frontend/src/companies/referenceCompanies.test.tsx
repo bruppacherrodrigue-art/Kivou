@@ -136,6 +136,14 @@ describe('workspace Entreprises exact et borné par les signaux accessibles', ()
 
     await screen.findAllByRole('link', { name: new RegExp(COMPANY_PROFILE.official_identity.name) })
     expect(document.querySelector('.companies-workspace .companies-panel + .company-detail')).not.toBeNull()
+    expect(document.querySelector('.companies-panel')).toHaveAttribute(
+      'data-master-detail-pane',
+      'list',
+    )
+    expect(document.querySelector('.company-detail')).toHaveAttribute(
+      'data-master-detail-pane',
+      'detail',
+    )
     expect(callsTo(`/signals/${FIRST_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
     expect(callsTo(`/companies/${COMPANY_PROFILE.company_key}`, 'GET')).toHaveLength(0)

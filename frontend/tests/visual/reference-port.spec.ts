@@ -91,6 +91,7 @@ test('dashboard-companies published fixture contract', () => {
     publishedPresentation(item.presentation)?.artifact_id
   ))).size).toBe(VISUAL_UNLOCKED_ITEMS.length)
   for (const item of VISUAL_UNLOCKED_ITEMS) {
+    expect(item.company_key).toMatch(/^cmp_[A-Za-z0-9_-]{12,60}$/)
     const presentation = publishedPresentation(item.presentation)
     expect(presentation).not.toBeNull()
     expect(presentation?.status).toBe('FALLBACK')

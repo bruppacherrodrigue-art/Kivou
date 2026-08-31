@@ -474,6 +474,7 @@ export function Companies() {
       <aside
         ref={listPanelRef}
         className={`companies-panel ${styles.listPanel}`}
+        data-master-detail-pane="list"
         aria-labelledby="companies-list-title"
       >
         <div className="panel-heading">
