@@ -367,6 +367,12 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
           text: 'Attribution publique documentée',
           evidence_refs: ['source:award'],
           confidence: null,
+        }, {
+          claim_id: 'AWARD_SUMMARY',
+          kind: 'FACT',
+          text: 'Le marché public a été attribué à une entreprise identifiée.',
+          evidence_refs: ['source:award_summary'],
+          confidence: null,
         }],
       },
     }

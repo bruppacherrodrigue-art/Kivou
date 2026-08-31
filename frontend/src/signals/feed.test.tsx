@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
+import type { CardPresentation } from '../api/types'
 import {
   AUTHENTICATED,
   CATALOGUE,
@@ -19,6 +20,111 @@ import {
 } from '../test/harness'
 
 afterEach(() => vi.unstubAllGlobals())
+
+const FACTUAL_FALLBACK: CardPresentation = {
+  artifact_id: 'b'.repeat(64),
+  version: 1,
+  status: 'FALLBACK',
+  schema_version: 'card-presentation-v1',
+  published_at: '2026-08-30T12:00:00Z',
+  content: {
+    schema_version: 'card-presentation-v1',
+    variant: 'FACTUAL_FALLBACK',
+    headline: 'Attribution publique documentée',
+    award_summary: 'Une entreprise identifiée est attributaire du marché.',
+    commercial_importance: null,
+    fit_reason: null,
+    timing: null,
+    recommended_action: null,
+    target_roles: [],
+    fit_need_categories: [],
+    unknowns: [],
+    claims: [
+      {
+        claim_id: 'HEADLINE',
+        kind: 'FACT',
+        text: 'Attribution publique documentée',
+        evidence_refs: ['source:award'],
+        confidence: null,
+      },
+      {
+        claim_id: 'AWARD_SUMMARY',
+        kind: 'FACT',
+        text: 'Une entreprise identifiée est attributaire du marché.',
+        evidence_refs: ['source:award_summary'],
+        confidence: null,
+      },
+    ],
+  },
+}
+
+const MALFORMED_PRESENTATIONS = [
+  [
+    'une claim sans evidence_refs',
+    {
+      ...FACTUAL_FALLBACK,
+      content: {
+        ...FACTUAL_FALLBACK.content,
+        headline: 'HEADLINE SANS PREUVE INTERDIT',
+        award_summary: 'RÉSUMÉ SANS PREUVE INTERDIT',
+        claims: [{
+          claim_id: 'HEADLINE',
+          kind: 'FACT',
+          text: 'HEADLINE SANS PREUVE INTERDIT',
+          confidence: null,
+        }, FACTUAL_FALLBACK.content.claims[1]],
+      },
+    },
+  ],
+  [
+    'une claim avec evidence_refs vide',
+    {
+      ...FACTUAL_FALLBACK,
+      content: {
+        ...FACTUAL_FALLBACK.content,
+        headline: 'HEADLINE PREUVE VIDE INTERDIT',
+        award_summary: 'RÉSUMÉ PREUVE VIDE INTERDIT',
+        claims: [{
+          claim_id: 'HEADLINE',
+          kind: 'FACT',
+          text: 'HEADLINE PREUVE VIDE INTERDIT',
+          evidence_refs: [],
+          confidence: null,
+        }, FACTUAL_FALLBACK.content.claims[1]],
+      },
+    },
+  ],
+  [
+    'un couple statut variante invalide',
+    {
+      ...FACTUAL_FALLBACK,
+      content: {
+        ...FACTUAL_FALLBACK.content,
+        variant: 'FULL',
+        headline: 'HEADLINE COUPLE INVALIDE INTERDIT',
+        award_summary: 'RÉSUMÉ COUPLE INVALIDE INTERDIT',
+      },
+    },
+  ],
+  [
+    'une claim mal formée',
+    {
+      ...FACTUAL_FALLBACK,
+      content: {
+        ...FACTUAL_FALLBACK.content,
+        headline: 'HEADLINE CLAIM MAL FORMÉE INTERDIT',
+        award_summary: 'RÉSUMÉ CLAIM MAL FORMÉE INTERDIT',
+        claims: [{
+          claim_id: 'HEADLINE',
+          kind: 'FACT',
+          text: 42,
+          evidence_refs: ['source:award'],
+          confidence: null,
+        }, FACTUAL_FALLBACK.content.claims[1]],
+      },
+    },
+  ],
+] as const
 
 const BASE = {
   'GET /billing/status': { body: DISCOVERY_STATUS },
@@ -167,6 +273,32 @@ describe('feed de signaux dans le workspace de référence', () => {
     expect(row).toHaveTextContent('Constructions Bertrand SA')
     expect(row).toHaveTextContent('Commune de Villeneuve')
     expect(row).not.toHaveTextContent(/urgent|jean dupont|directeur des achats|examiner d’abord/i)
+  })
+
+  it.each(MALFORMED_PRESENTATIONS)(
+    'traite %s reçue du feed API comme une présentation absente',
+    async (_case, presentation) => {
+      const item = { ...UNLOCKED_ITEM, presentation }
+      mockApi(feedWith([item]))
+      renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+      const row = (await signalList()).querySelector('.signal-item') as HTMLElement
+      expect(row).toHaveTextContent('Présentation non publiée')
+      expect(row).toHaveTextContent('Constructions Bertrand SA')
+      expect(row).toHaveTextContent('Commune de Villeneuve')
+      expect(row).not.toHaveTextContent(presentation.content.headline)
+      expect(row).not.toHaveTextContent(presentation.content.award_summary)
+    },
+  )
+
+  it('continue de rendre un FALLBACK factuel valide sans le réécrire', async () => {
+    const item = { ...UNLOCKED_ITEM, presentation: FACTUAL_FALLBACK }
+    mockApi(feedWith([item]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const row = (await signalList()).querySelector('.signal-item') as HTMLElement
+    expect(row).toHaveTextContent(FACTUAL_FALLBACK.content.headline)
+    expect(row).not.toHaveTextContent('Présentation non publiée')
   })
 
   it('choisit le premier élément réellement déverrouillé sans promouvoir le teaser précédent', async () => {

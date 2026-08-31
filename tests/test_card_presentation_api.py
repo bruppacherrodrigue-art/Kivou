@@ -473,6 +473,9 @@ def test_gets_never_call_generation_qa_or_fallback_publication_surfaces(
     monkeypatch.setattr(card_service, "publish_factual_fallback", _explode)
     monkeypatch.setattr(card_service, "run_offline_candidate_pipeline", _explode)
     monkeypatch.setattr(fallback_renderer, "factual_fallback", _explode)
+    monkeypatch.setattr(routes_signals, "publish_factual_fallback", _explode, raising=False)
+    monkeypatch.setattr(routes_signals, "run_offline_candidate_pipeline", _explode, raising=False)
+    monkeypatch.setattr(routes_signals, "factual_fallback", _explode, raising=False)
 
     feed_item = next(
         item for item in _feed(alice)["items"] if item["signal_id"] == signal_key

@@ -70,6 +70,74 @@ const FACTUAL_FALLBACK: CardPresentation = {
   },
 }
 
+const MALFORMED_PRESENTATIONS = [
+  [
+    'une claim sans evidence_refs',
+    {
+      ...FACTUAL_FALLBACK,
+      content: {
+        ...FACTUAL_FALLBACK.content,
+        headline: 'HEADLINE SANS PREUVE INTERDIT',
+        award_summary: 'RÉSUMÉ SANS PREUVE INTERDIT',
+        claims: [{
+          claim_id: 'HEADLINE',
+          kind: 'FACT',
+          text: 'HEADLINE SANS PREUVE INTERDIT',
+          confidence: null,
+        }, FACTUAL_FALLBACK.content.claims[1]],
+      },
+    },
+  ],
+  [
+    'une claim avec evidence_refs vide',
+    {
+      ...FACTUAL_FALLBACK,
+      content: {
+        ...FACTUAL_FALLBACK.content,
+        headline: 'HEADLINE PREUVE VIDE INTERDIT',
+        award_summary: 'RÉSUMÉ PREUVE VIDE INTERDIT',
+        claims: [{
+          claim_id: 'HEADLINE',
+          kind: 'FACT',
+          text: 'HEADLINE PREUVE VIDE INTERDIT',
+          evidence_refs: [],
+          confidence: null,
+        }, FACTUAL_FALLBACK.content.claims[1]],
+      },
+    },
+  ],
+  [
+    'un couple statut variante invalide',
+    {
+      ...FACTUAL_FALLBACK,
+      content: {
+        ...FACTUAL_FALLBACK.content,
+        variant: 'FULL',
+        headline: 'HEADLINE COUPLE INVALIDE INTERDIT',
+        award_summary: 'RÉSUMÉ COUPLE INVALIDE INTERDIT',
+      },
+    },
+  ],
+  [
+    'une claim mal formée',
+    {
+      ...FACTUAL_FALLBACK,
+      content: {
+        ...FACTUAL_FALLBACK.content,
+        headline: 'HEADLINE CLAIM MAL FORMÉE INTERDIT',
+        award_summary: 'RÉSUMÉ CLAIM MAL FORMÉE INTERDIT',
+        claims: [{
+          claim_id: 'HEADLINE',
+          kind: 'FACT',
+          text: 42,
+          evidence_refs: ['source:award'],
+          confidence: null,
+        }, FACTUAL_FALLBACK.content.claims[1]],
+      },
+    },
+  ],
+] as const
+
 async function detailPanel(
   heading = 'Présentation non publiée',
 ): Promise<HTMLElement> {
@@ -270,6 +338,30 @@ describe('détail exact d’un signal réel', () => {
           expect(panel).toHaveTextContent(claim.text)
         }
       }
+    },
+  )
+
+  it.each(MALFORMED_PRESENTATIONS)(
+    'traite %s reçue du détail API comme une présentation absente',
+    async (_case, presentation) => {
+      const detail = { ...UNLOCKED_DETAIL, presentation }
+      mockApi(detailRoutes(detail))
+      renderApp(<AppRoutes />, {
+        session: AUTHENTICATED,
+        route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+      })
+
+      const panel = await detailPanel()
+      expect(within(panel).getByRole('heading', { level: 2 })).toHaveTextContent(
+        'Présentation non publiée',
+      )
+      expect(panel.querySelector('.published-status')).toHaveTextContent(
+        'Présentation non publiée',
+      )
+      expect(panel).toHaveTextContent('Constructions Bertrand SA')
+      expect(panel).toHaveTextContent('Commune de Villeneuve')
+      expect(panel).not.toHaveTextContent(presentation.content.headline)
+      expect(panel).not.toHaveTextContent(presentation.content.award_summary)
     },
   )
 

@@ -1,5 +1,6 @@
 import type {
   BillingStatus,
+  CardPresentation,
   CompanyProfile,
   EventStatus,
   EvidenceItem,
@@ -34,6 +35,141 @@ const EVENT_CLOCK_BY_STATUS = {
   award_date_unknown: 'publication',
   invalid_award_date: 'award',
 } as const satisfies Record<EventStatus, SignalEventClock>
+
+const CLAIM_KINDS = new Set(['FACT', 'INFERENCE', 'RECOMMENDATION'])
+const CLAIM_CONFIDENCES = new Set(['high', 'medium', 'low'])
+const TARGET_ROLE_KINDS = new Set([
+  'PROCUREMENT_MANAGER',
+  'SITE_PROCUREMENT_MANAGER',
+  'PROJECT_MANAGER',
+  'WORKS_MANAGER',
+  'SUPPLY_MANAGER',
+])
+const NEED_CATEGORIES = new Set([
+  'workforce_capacity',
+  'equipment_or_rental',
+  'materials_or_components',
+  'logistics_and_transport',
+  'specialist_subcontracting',
+  'safety_and_ppe',
+  'waste_and_environment',
+])
+
+type UnknownRecord = Record<string, unknown>
+
+function isRecord(value: unknown): value is UnknownRecord {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function isNonBlankString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+function hasEvidenceRefs(value: unknown): boolean {
+  return Array.isArray(value)
+    && value.length > 0
+    && value.every(isNonBlankString)
+}
+
+function isEvidencedClaim(value: unknown): value is UnknownRecord {
+  if (!isRecord(value)) return false
+  if (
+    !isNonBlankString(value.claim_id)
+    || !isNonBlankString(value.text)
+    || typeof value.kind !== 'string'
+    || !CLAIM_KINDS.has(value.kind)
+    || !hasEvidenceRefs(value.evidence_refs)
+  ) return false
+  return value.kind === 'INFERENCE'
+    ? typeof value.confidence === 'string' && CLAIM_CONFIDENCES.has(value.confidence)
+    : value.confidence === null
+}
+
+function isEvidencedUnknown(value: unknown): boolean {
+  return isRecord(value)
+    && isNonBlankString(value.text)
+    && hasEvidenceRefs(value.evidence_refs)
+}
+
+function isEvidencedRole(value: unknown): boolean {
+  return isRecord(value)
+    && typeof value.role === 'string'
+    && TARGET_ROLE_KINDS.has(value.role)
+    && isNonBlankString(value.rationale)
+    && hasEvidenceRefs(value.evidence_refs)
+}
+
+function hasExactClaim(
+  claims: UnknownRecord[],
+  text: unknown,
+  kind: 'FACT' | 'INFERENCE' | 'RECOMMENDATION',
+): boolean {
+  return isNonBlankString(text)
+    && claims.some((claim) => claim.kind === kind && claim.text === text)
+}
+
+/**
+ * Garde transitoire de consommation. PR5 centralisera le parseur complet et
+ * l'identité d'artefact ; ici, toute copie effectivement rendue doit déjà être
+ * structurellement cohérente et reliée à une preuve. Aucun champ n'est réparé.
+ */
+function publishedPresentation(value: unknown): CardPresentation | null {
+  if (!isRecord(value) || !isRecord(value.content)) return null
+  const content = value.content
+  if (
+    !isNonBlankString(value.artifact_id)
+    || !Number.isInteger(value.version)
+    || (value.version as number) < 1
+    || !isNonBlankString(value.published_at)
+    || value.schema_version !== 'card-presentation-v1'
+    || content.schema_version !== 'card-presentation-v1'
+    || !isNonBlankString(content.headline)
+    || !isNonBlankString(content.award_summary)
+    || !Array.isArray(content.claims)
+    || content.claims.length === 0
+    || !content.claims.every(isEvidencedClaim)
+    || !Array.isArray(content.unknowns)
+    || !content.unknowns.every(isEvidencedUnknown)
+  ) return null
+
+  const claims = content.claims
+  if (
+    !hasExactClaim(claims, content.headline, 'FACT')
+    || !hasExactClaim(claims, content.award_summary, 'FACT')
+  ) return null
+
+  if (value.status === 'FALLBACK' && content.variant === 'FACTUAL_FALLBACK') {
+    if (
+      content.commercial_importance !== null
+      || content.fit_reason !== null
+      || content.timing !== null
+      || content.recommended_action !== null
+      || !Array.isArray(content.target_roles)
+      || content.target_roles.length !== 0
+      || !Array.isArray(content.fit_need_categories)
+      || content.fit_need_categories.length !== 0
+      || !claims.every((claim) => claim.kind === 'FACT')
+    ) return null
+    return value as unknown as CardPresentation
+  }
+
+  if (value.status !== 'PASS' || content.variant !== 'FULL') return null
+  if (
+    !Array.isArray(content.target_roles)
+    || content.target_roles.length === 0
+    || !content.target_roles.every(isEvidencedRole)
+    || !Array.isArray(content.fit_need_categories)
+    || content.fit_need_categories.length === 0
+    || !content.fit_need_categories.every(
+      (category) => typeof category === 'string' && NEED_CATEGORIES.has(category),
+    )
+    || !hasExactClaim(claims, content.commercial_importance, 'INFERENCE')
+    || !hasExactClaim(claims, content.fit_reason, 'INFERENCE')
+    || !hasExactClaim(claims, content.timing, 'INFERENCE')
+    || !hasExactClaim(claims, content.recommended_action, 'RECOMMENDATION')
+  ) return null
+  return value as unknown as CardPresentation
+}
 
 /** Le type de date est celui choisi par le backend, jamais déduit du titre. */
 export function eventDateKind(
@@ -76,7 +212,7 @@ export function toSignalCard(item: FeedItem): SignalCardView {
     }
   }
 
-  const presentation = item.presentation
+  const presentation = publishedPresentation(item.presentation)
   const matchReasons = concreteMatchReasons(item.analysis.fit.reasons)
   const fitReason = matchReasons[0] ?? null
   return {
@@ -108,7 +244,7 @@ export function toSignalCards(page: FeedPage): SignalCardView[] {
 
 export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
   const primaryNeed = firstEvidenceBoundTargetedNeed(detail)
-  const presentation = detail.presentation
+  const presentation = publishedPresentation(detail.presentation)
   const fitReason = concreteMatchReasons(detail.analysis.fit.reasons)[0] ?? null
 
   return {
