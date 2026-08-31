@@ -15,6 +15,7 @@ import {
   UNLOCKED_ITEM,
   callsTo,
   feedPage,
+  fullPresentation,
   mockApi,
   renderApp,
 } from '../test/harness'
@@ -143,7 +144,7 @@ function feedWith(items: unknown[], overrides = {}) {
 }
 
 async function signalList(): Promise<HTMLElement> {
-  await screen.findByRole('heading', { level: 2, name: /attributions documentées/i })
+  await screen.findByRole('heading', { level: 2, name: /signaux détectés/i })
   const list = document.querySelector('.signal-list')
   if (!(list instanceof HTMLElement)) throw new Error('signal-list absente')
   return list
@@ -298,7 +299,53 @@ describe('feed de signaux dans le workspace de référence', () => {
 
     const row = (await signalList()).querySelector('.signal-item') as HTMLElement
     expect(row).toHaveTextContent(FACTUAL_FALLBACK.content.headline)
+    expect(row).toHaveTextContent(FACTUAL_FALLBACK.content.award_summary)
+    expect(row).toHaveTextContent('Faits publiés uniquement')
+    expect(row).toHaveTextContent('Voir les faits publiés')
+    expect(row.querySelector('.signal-match')).toBeNull()
+    expect(row.querySelector('.signal-reason:not(.signal-lock-note)')).toBeNull()
     expect(row).not.toHaveTextContent('Présentation non publiée')
+  })
+
+  it('rend un artefact FULL comme aide à la décision sans recycler analysis', async () => {
+    const presentation = fullPresentation()
+    const item = {
+      ...UNLOCKED_ITEM,
+      presentation,
+      analysis: {
+        ...UNLOCKED_ITEM.analysis,
+        fit: {
+          ...UNLOCKED_ITEM.analysis.fit,
+          label: 'LABEL ANALYSIS INTERDIT',
+          reasons: ['RAISON ANALYSIS INTERDITE'],
+        },
+      },
+      event: {
+        ...UNLOCKED_ITEM.event,
+        headline: 'URGENCE EVENT INTERDITE',
+        why_now: 'APPELER JEAN DUPONT IMMÉDIATEMENT',
+      },
+      contract: { ...UNLOCKED_ITEM.contract, title: 'TITRE ADMINISTRATIF INTERDIT' },
+    }
+    mockApi(feedWith([item]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const row = (await signalList()).querySelector('.signal-item') as HTMLElement
+    expect(row).toHaveTextContent(presentation.content.headline)
+    expect(row).toHaveTextContent(presentation.content.award_summary)
+    expect(row).toHaveTextContent(presentation.content.fit_reason)
+    expect(row).toHaveTextContent(presentation.content.timing)
+    expect(row).toHaveTextContent('Analyse publiée')
+    expect(row).toHaveTextContent('Voir l’analyse')
+    for (const forbidden of [
+      'LABEL ANALYSIS INTERDIT',
+      'RAISON ANALYSIS INTERDITE',
+      'URGENCE EVENT INTERDITE',
+      'APPELER JEAN DUPONT IMMÉDIATEMENT',
+      'TITRE ADMINISTRATIF INTERDIT',
+    ]) {
+      expect(row).not.toHaveTextContent(forbidden)
+    }
   })
 
   it('choisit le premier élément réellement déverrouillé sans promouvoir le teaser précédent', async () => {
@@ -500,7 +547,7 @@ describe('feed de signaux dans le workspace de référence', () => {
       locale: 'en',
     })
 
-    await screen.findByRole('heading', { level: 2, name: 'Documented awards' })
+    await screen.findByRole('heading', { level: 2, name: 'Detected signals' })
     const row = document.querySelector('.signal-list .signal-item')!
     expect(row).toHaveTextContent('Constructions Bertrand SA')
     expect(row).toHaveTextContent('Award date')

@@ -311,11 +311,55 @@ export const en: Dictionary = {
       noActiveProfile: 'No active profile is published.',
     },
     signalsPage: {
+      sourceType: 'From awarded public contracts',
+      detectedSignals: 'Detected signals',
+      awardSignal: 'Award signal',
       documentedAwards: 'Documented awards',
       accessibleWith: 'Available with {plan}',
       paidAccessRequired: 'Paid access required',
       presentationPublished: 'Presentation published',
       presentationPublishedWithSource: 'Presentation published · Source: {source}',
+      presentationStatus: {
+        full: 'Published analysis',
+        factualFallback: 'Published facts only',
+        unavailable: 'Analysis unavailable',
+      },
+      presentationUnavailableBody:
+        'Published facts remain available. No summary, relevance reason, need or advice is shown without a validated presentation.',
+      factualFallbackBody:
+        'Only a validated factual summary is available. No relevance, priority or commercial action is inferred.',
+      presentationDataNotice:
+        'This analysis was pre-generated, checked and then published. Facts, inferences and recommendations remain separate.',
+      commercialConclusion: 'Commercial conclusion',
+      commercialImportance: 'Commercial importance',
+      fitReason: 'Match with your targeting',
+      timing: 'Timing',
+      recommendedAction: 'Recommended action',
+      targetRoles: 'Roles to target',
+      unknowns: 'To verify',
+      qualifiedClaims: 'Facts, inferences and recommendations',
+      claimKinds: {
+        FACT: 'Published fact',
+        INFERENCE: 'Kivou interpretation',
+        RECOMMENDATION: 'Recommendation',
+      },
+      confidence: {
+        high: 'High confidence',
+        medium: 'Medium confidence',
+        low: 'Low confidence',
+      },
+      linkedEvidence: 'Based on published evidence',
+      viewAnalysis: 'View analysis',
+      viewPublishedFacts: 'View published facts',
+      openSignal: 'Open signal “{headline}” for {company} — {status}',
+      openLockedSignal: '{status} for signal “{headline}”',
+      targetRoleLabels: {
+        PROCUREMENT_MANAGER: 'Procurement manager',
+        SITE_PROCUREMENT_MANAGER: 'Site procurement manager',
+        PROJECT_MANAGER: 'Project manager',
+        WORKS_MANAGER: 'Works manager',
+        SUPPLY_MANAGER: 'Supply manager',
+      },
       dataNotice:
         'The real data below comes from published information and Kivou APIs.',
       summaryQualification:

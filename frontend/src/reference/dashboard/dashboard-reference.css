@@ -3707,6 +3707,232 @@ a:focus-visible {
   font-weight: 680;
 }
 
+/* C003 — cartes de décision et artefact Card Intelligence publié. */
+.signal-event {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.signal-card-summary {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 7px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.48;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.signal-card-action,
+.signal-note-state {
+  display: block;
+  width: fit-content;
+  margin-top: 9px;
+  font-size: 10px;
+  font-weight: 690;
+}
+
+.signal-card-action {
+  color: var(--blue);
+}
+
+.signal-note-state {
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.signal-item-head span.presentation-factualFallback,
+.published-status.presentation-factualFallback {
+  border-color: var(--blue-border);
+  background: var(--blue-soft);
+  color: var(--blue-hover);
+}
+
+.signal-item-head span.presentation-unavailable,
+.published-status.presentation-unavailable {
+  border-color: var(--line);
+  background: var(--surface-subtle);
+  color: var(--text-muted);
+}
+
+.signal-match,
+.signal-reason:not(.signal-lock-note) {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+#signal-detail .detail-hero h2 {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.signal-presentation-hero > div:first-child {
+  min-width: 0;
+}
+
+.signal-context-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 22px;
+  margin: 19px 0 0;
+}
+
+.signal-context-row > div {
+  display: grid;
+  gap: 3px;
+}
+
+.signal-context-row dt {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 690;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.signal-context-row dd {
+  margin: 0;
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 660;
+}
+
+.presentation-targets {
+  display: grid;
+  gap: 9px;
+  margin-top: 17px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.presentation-targets > span {
+  color: var(--green);
+  font-size: 9px;
+  font-weight: 730;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.presentation-targets ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.presentation-targets li {
+  display: grid;
+  gap: 5px;
+  padding: 12px;
+  border: 1px solid var(--brand-border);
+  border-radius: 10px;
+  background: var(--green-state);
+}
+
+.presentation-targets strong {
+  color: var(--green);
+  font-size: 11px;
+}
+
+.presentation-targets span,
+.presentation-targets small {
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.presentation-claims,
+.presentation-unknowns {
+  margin-top: 20px;
+}
+
+.presentation-claim-groups {
+  display: grid;
+  gap: 16px;
+  margin-top: 17px;
+}
+
+.presentation-claim-groups section {
+  display: grid;
+  gap: 9px;
+}
+
+.presentation-claim-groups h4 {
+  margin: 0;
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 720;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.presentation-claim-groups ul {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 9px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.presentation-claim-groups li {
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-subtle);
+}
+
+.presentation-claim-groups p,
+.presentation-unknowns p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.presentation-claim-groups li > span,
+.presentation-unknowns li > span {
+  display: block;
+  margin-top: 7px;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.signal-fact-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.signal-support-grid {
+  margin-top: 20px;
+}
+
+.signal-support-grid .signal-note-card,
+.signal-support-grid .signal-company-card {
+  position: static;
+  margin-top: 0;
+}
+
+@media (max-width: 760px) {
+  .presentation-targets ul,
+  .presentation-claim-groups ul,
+  .signal-fact-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* Shared public, authentication and account lifecycle */
 
 :root {

@@ -13,6 +13,7 @@ import {
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
   callsTo,
+  factualFallbackPresentation,
   feedPage,
   mockApi,
   renderApp,
@@ -70,10 +71,11 @@ function commonRoutes() {
 }
 
 function LocationProbe() {
-  const { pathname, state } = useLocation()
+  const { pathname, search, state } = useLocation()
   return (
     <>
       <output data-testid="location-path">{pathname}</output>
+      <output data-testid="location-search">{search}</output>
       <output data-testid="location-state">{JSON.stringify(state)}</output>
     </>
   )
@@ -90,6 +92,41 @@ function HistoryControls() {
 }
 
 describe('workspace partagé des signaux', () => {
+  it('épingle dans la route l’artefact publié de la carte ouverte', async () => {
+    const user = userEvent.setup()
+    const presentation = factualFallbackPresentation({
+      artifactId: 'd'.repeat(64),
+      headline: 'Attribution publiée à ouvrir',
+      awardSummary: 'La source documente cette attribution publique.',
+      headlineEvidenceRefs: ['source:route:headline'],
+      awardSummaryEvidenceRefs: ['source:route:summary'],
+    })
+    const item = { ...UNLOCKED_ITEM, presentation }
+    const detail = { ...UNLOCKED_DETAIL, presentation }
+    mockApi({
+      ...commonRoutes(),
+      'GET /signals': { body: feedPage([item]) },
+      [`GET /signals/${item.signal_id}`]: { body: detail },
+    })
+    renderApp(
+      <>
+        <AppRoutes />
+        <LocationProbe />
+      </>,
+      { route: '/app/signals', session: AUTHENTICATED },
+    )
+
+    await user.click(await screen.findByRole('button', { name: /Constructions Bertrand SA/ }))
+
+    expect(screen.getByTestId('location-search')).toHaveTextContent(
+      `presentation_artifact_id=${presentation.artifact_id}`,
+    )
+    await waitFor(() => {
+      const detailCall = callsTo(`/signals/${item.signal_id}`, 'GET').at(-1)
+      expect(detailCall?.search.get('presentation_artifact_id')).toBe(presentation.artifact_id)
+    })
+  })
+
   it('porte la sélection réelle dans la route et dans l’état de navigation', async () => {
     const user = userEvent.setup()
     mockApi(commonRoutes())

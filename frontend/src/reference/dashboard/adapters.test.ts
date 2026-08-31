@@ -961,6 +961,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       },
       facts: {
         amount: detail.contract.amount,
+        location: detail.contract.location,
         awardDate: detail.contract.dates.award,
         execution: null,
         buyer: detail.contract.buyer?.name ?? null,

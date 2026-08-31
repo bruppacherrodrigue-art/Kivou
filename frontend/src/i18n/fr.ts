@@ -317,11 +317,55 @@ export const fr = {
       noActiveProfile: 'Aucun profil actif publié.',
     },
     signalsPage: {
+      sourceType: 'Issus de marchés attribués',
+      detectedSignals: 'Signaux détectés',
+      awardSignal: 'Signal d’attribution',
       documentedAwards: 'Attributions documentées',
       accessibleWith: 'Accessible avec {plan}',
       paidAccessRequired: 'Accès payant requis',
       presentationPublished: 'Présentation publiée',
       presentationPublishedWithSource: 'Présentation publiée · Source : {source}',
+      presentationStatus: {
+        full: 'Analyse publiée',
+        factualFallback: 'Faits publiés uniquement',
+        unavailable: 'Analyse indisponible',
+      },
+      presentationUnavailableBody:
+        'Les faits publiés restent consultables. Aucun résumé, motif de pertinence, besoin ou conseil n’est affiché sans présentation validée.',
+      factualFallbackBody:
+        'Seul un résumé factuel validé est disponible. Aucune pertinence, priorité ou action commerciale n’est déduite.',
+      presentationDataNotice:
+        'Cette analyse a été pré-générée, contrôlée puis publiée. Les faits, inférences et recommandations restent séparés.',
+      commercialConclusion: 'Conclusion commerciale',
+      commercialImportance: 'Importance commerciale',
+      fitReason: 'Correspondance avec votre ciblage',
+      timing: 'Timing',
+      recommendedAction: 'Action recommandée',
+      targetRoles: 'Fonctions à cibler',
+      unknowns: 'À vérifier',
+      qualifiedClaims: 'Faits, inférences et recommandations',
+      claimKinds: {
+        FACT: 'Fait publié',
+        INFERENCE: 'Interprétation Kivou',
+        RECOMMENDATION: 'Recommandation',
+      },
+      confidence: {
+        high: 'Confiance élevée',
+        medium: 'Confiance moyenne',
+        low: 'Confiance faible',
+      },
+      linkedEvidence: 'Fondé sur les preuves publiées',
+      viewAnalysis: 'Voir l’analyse',
+      viewPublishedFacts: 'Voir les faits publiés',
+      openSignal: 'Ouvrir le signal « {headline} » pour {company} — {status}',
+      openLockedSignal: '{status} pour le signal « {headline} »',
+      targetRoleLabels: {
+        PROCUREMENT_MANAGER: 'Responsable achats',
+        SITE_PROCUREMENT_MANAGER: 'Responsable achats chantier',
+        PROJECT_MANAGER: 'Responsable projet',
+        WORKS_MANAGER: 'Responsable travaux',
+        SUPPLY_MANAGER: 'Responsable approvisionnement',
+      },
       dataNotice:
         'Les données réelles ci-dessous proviennent des informations publiées et des API Kivou.',
       summaryQualification:

@@ -83,6 +83,7 @@ export interface SignalDetailView extends SignalFactView {
   }
   facts: {
     amount: Money | null
+    location: Place | null
     awardDate: string | null
     execution: string | null
     buyer: string | null
