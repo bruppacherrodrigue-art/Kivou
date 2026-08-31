@@ -505,6 +505,7 @@ def _assert_static_card_intelligence_imports_are_read_only(
         if isinstance(node, ast.Import):
             imported.update(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
+            assert node.level == 0, "relative imports are outside the allowed static boundary"
             module = node.module or ""
             imported.update(f"{module}.{alias.name}" for alias in node.names)
 
@@ -540,9 +541,12 @@ def test_signal_get_routes_import_only_card_intelligence_read_contracts() -> Non
         "from signals import card_intelligence",
         "import signals.card_intelligence as ci",
         "import signals as root",
+        "from ..card_intelligence import service",
     ),
 )
-def test_static_import_guard_rejects_parent_and_bare_signal_imports(source: str) -> None:
+def test_static_import_guard_rejects_parent_bare_and_relative_signal_imports(
+    source: str,
+) -> None:
     with pytest.raises(AssertionError):
         _assert_static_card_intelligence_imports_are_read_only(source)
 
