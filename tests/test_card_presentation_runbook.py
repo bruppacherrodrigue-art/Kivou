@@ -1151,6 +1151,65 @@ def test_current_proofs_complete_before_optional_history_gate_or_stop() -> None:
     assert 'process.exitCode = 1' in historical_script
 
 
+def test_absent_history_records_nonfatal_stop_and_reaches_rollback_report() -> None:
+    body = _body()
+    smoke_section = _between(
+        body,
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    history_commands = _commands(smoke_section).split(
+        'case "$KIVOU_HISTORICAL_STATUS" in', 1
+    )[1]
+    absent_branch = history_commands.split("(absent)", 1)[1].split(
+        "(available)", 1
+    )[0]
+    available_branch = history_commands.split("(available)", 1)[1].split(
+        "\n  (*)", 1
+    )[0]
+
+    for fragment in (
+        "KIVOU_HISTORICAL_SMOKE_STATUS=STOP_NON_EXECUTABLE",
+        "KIVOU_ROLLOUT_STATUS=STOP_INCOMPLETE",
+        "STOP / NON-EXÉCUTABLE",
+        "validation propriétaire",
+    ):
+        assert fragment in absent_branch
+    assert not re.search(r"\b(?:exit|return|kill|unset)\b", absent_branch)
+    assert "node <<'JS'" not in absent_branch
+
+    _assert_in_order(
+        available_branch,
+        "KIVOU_HISTORICAL_ARTIFACT_VERSION",
+        "node <<'JS'",
+        'console.log("card_historical_browser_ok")',
+        "kivou_audit_card_get_journal",
+        'printf \'%s\\n\' "card_historical_smoke_ok"',
+        "KIVOU_HISTORICAL_SMOKE_STATUS=PASS",
+        "KIVOU_ROLLOUT_STATUS=PASS",
+    )
+    after_case = history_commands.split("esac", 1)[1]
+    assert "export KIVOU_HISTORICAL_SMOKE_STATUS KIVOU_ROLLOUT_STATUS" in after_case
+
+    report = body.split("## 10. Rapport de preuve", 1)[1]
+    for fragment in (
+        'case "$KIVOU_HISTORICAL_SMOKE_STATUS:$KIVOU_ROLLOUT_STATUS" in',
+        "PASS:PASS",
+        "STOP_NON_EXECUTABLE:STOP_INCOMPLETE",
+        "historical_smoke_status=%s rollout_status=%s",
+        "interdite",
+        "KIVOU_HISTORICAL_SMOKE_STATUS != PASS",
+    ):
+        assert fragment in report
+    _assert_in_order(
+        body,
+        "KIVOU_HISTORICAL_SMOKE_STATUS=STOP_NON_EXECUTABLE",
+        "## 9. Rollback applicatif",
+        "## 10. Rapport de preuve",
+        "historical_smoke_status=%s rollout_status=%s",
+    )
+
+
 def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> None:
     body = _body()
     section = _between(
@@ -1260,11 +1319,58 @@ def test_locked_teaser_is_bound_to_one_exact_signal_and_forbids_any_detail_get()
         "## 9. Rollback applicatif",
     )
     current_script = _javascript_heredocs(section)[0]
+    api_guard = current_script.split("async function verifyPublishedApi", 1)[1].split(
+        "\nfunction installFailureCollectors", 1
+    )[0]
     smoke = current_script.split("async function smokeSignals", 1)[1].split(
         "\n}\n", 1
     )[0]
 
     assert 'data-signal-id="<signal_id>"' in section
+    for fragment in (
+        "const signalIds = feed.items.map((item) => item?.signal_id)",
+        "signalIds.some((signalId) => (",
+        "new Set(signalIds).size !== signalIds.length",
+    ):
+        assert fragment in api_guard
+    _assert_in_order(
+        current_script,
+        "const signalIds = feed.items.map((item) => item?.signal_id)",
+        "new Set(signalIds).size !== signalIds.length",
+        "lockedSignalId: locked[0].signal_id",
+        "async function smokeSignals",
+        "`[data-signal-id=\"${api.lockedSignalId}\"]`",
+        "await lockedBinding.count() === 1",
+    )
+    duplicate_payload_check = subprocess.run(
+        ["node"],
+        input=(
+            "async function verifyPublishedApi"
+            + api_guard
+            + """
+const duplicateId = 'a'.repeat(64)
+global.fetch = async () => ({
+  status: 200,
+  json: async () => ({
+    read_at: '2026-08-31T00:00:00Z',
+    items: [
+      { signal_id: duplicateId, locked: false },
+      { signal_id: duplicateId, locked: true },
+    ],
+  }),
+})
+const page = { evaluate: async (fn, argument) => fn(argument) }
+verifyPublishedApi(page, '2026-08-31T00:00:00Z').then(
+  () => process.exit(1),
+  () => process.exit(0),
+)
+"""
+        ),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert duplicate_payload_check.returncode == 0, duplicate_payload_check.stderr
     for fragment in (
         "`[data-signal-id=\"${api.lockedSignalId}\"]`",
         "await lockedBinding.count() === 1",

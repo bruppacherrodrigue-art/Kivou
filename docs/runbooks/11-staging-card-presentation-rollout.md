@@ -2385,10 +2385,11 @@ frontière antérieure.
 ~~~bash
 case "$KIVOU_HISTORICAL_STATUS" in
   (absent)
+    KIVOU_HISTORICAL_SMOKE_STATUS=STOP_NON_EXECUTABLE
+    KIVOU_ROLLOUT_STATUS=STOP_INCOMPLETE
     printf '%s\n' \
       'historical_smoke=STOP / NON-EXÉCUTABLE; validation propriétaire requise' \
       >&2
-    exit 69
     ;;
   (available)
     : "${KIVOU_HISTORICAL_SIGNAL_ID:?STOP: historical signal absent}"
@@ -2398,11 +2399,8 @@ case "$KIVOU_HISTORICAL_STATUS" in
     printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_ID" | grep -Eq '^[0-9a-f]{64}$'
     printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_VERSION" | \
       grep -Eq '^[1-9][0-9]*$'
-    ;;
-  (*) exit 69 ;;
-esac
 
-(
+    (
   cd frontend
   KIVOU_QA_STORAGE_STATE="$KIVOU_QA_STORAGE_STATE_REAL" \
   KIVOU_QA_DB_FINGERPRINT="$KIVOU_QA_DB_FINGERPRINT" \
@@ -2574,9 +2572,15 @@ run()
     process.exitCode = 1
   })
 JS
-)
-kivou_audit_card_get_journal
-printf '%s\n' "card_historical_smoke_ok"
+    )
+    kivou_audit_card_get_journal
+    printf '%s\n' "card_historical_smoke_ok"
+    KIVOU_HISTORICAL_SMOKE_STATUS=PASS
+    KIVOU_ROLLOUT_STATUS=PASS
+    ;;
+  (*) exit 69 ;;
+esac
+export KIVOU_HISTORICAL_SMOKE_STATUS KIVOU_ROLLOUT_STATUS
 ~~~
 
 ## 9. Rollback applicatif
@@ -2743,6 +2747,26 @@ Le rapport final doit associer sans ambiguïté : SHA final `main`, run CI et
 compteurs FR/EN, captures inspectées, matrice Dashboard/Entreprises/Signaux,
 deep-links/Retour/focus/scroll/teaser/console, rollback targets et éventuel
 rollback exécuté.
+
+Valider et inscrire le statut historique et le statut global sans les
+réinterpréter :
+
+~~~bash
+: "${KIVOU_HISTORICAL_SMOKE_STATUS:?STOP: historical smoke status absent}"
+: "${KIVOU_ROLLOUT_STATUS:?STOP: rollout status absent}"
+case "$KIVOU_HISTORICAL_SMOKE_STATUS:$KIVOU_ROLLOUT_STATUS" in
+  (PASS:PASS|STOP_NON_EXECUTABLE:STOP_INCOMPLETE) ;;
+  (*) exit 69 ;;
+esac
+printf 'historical_smoke_status=%s rollout_status=%s\n' \
+  "$KIVOU_HISTORICAL_SMOKE_STATUS" "$KIVOU_ROLLOUT_STATUS"
+~~~
+
+Si `KIVOU_HISTORICAL_SMOKE_STATUS != PASS`, toute formulation présentant le
+rollout global, le parcours historique ou la livraison comme complète est
+**interdite**. Le rapport reste `rollout_status=STOP_INCOMPLETE`, tout en
+conservant les preuves courantes, les cibles de rollback et leur préparation.
+L'absence d'historique légitime n'autorise aucune fabrication de donnée.
 
 Le rapport doit aussi porter la ligne :
 
