@@ -261,8 +261,21 @@ esac
 printf '%s\n' "$KIVOU_RESTORE_DB" | grep -Eq '^[a-z0-9_]{1,63}$'
 printf '%s\n' "$KIVOU_RESTORE_DB" | \
   grep -Eq '^kivou_card_restore_[0-9a-f]{12}_[0-9]{14}_[0-9]{1,8}$'
-test "$(sudo -u postgres psql -At -d postgres -v db="$KIVOU_RESTORE_DB" \
-  -c "SELECT count(*) FROM pg_database WHERE datname = :'db'")" = 0
+kivou_restore_db_count() {
+  sudo -u postgres psql -X -qAt --dbname=postgres \
+    --set=ON_ERROR_STOP=1 --set=db="$KIVOU_RESTORE_DB" <<'SQL'
+SELECT count(*) FROM pg_database WHERE datname = :'db';
+SQL
+}
+kivou_restore_table_count() {
+  sudo -u postgres psql -X -qAt --dbname="$KIVOU_RESTORE_DB" \
+    --set=ON_ERROR_STOP=1 --set=table="$KIVOU_TABLE" <<'SQL'
+SELECT count(*) FROM pg_catalog.pg_class WHERE oid = to_regclass(:'table');
+SQL
+}
+KIVOU_RESTORE_DB_COUNT=$(kivou_restore_db_count)
+test "$KIVOU_RESTORE_DB_COUNT" = 0
+unset KIVOU_RESTORE_DB_COUNT
 sudo -u postgres createdb --template=template0 --owner="$KIVOU_LIVE_OWNER" \
   "$KIVOU_RESTORE_DB"
 sudo -u kivou /usr/bin/cat "$KIVOU_BACKUP_FILE" | \
@@ -272,9 +285,9 @@ sudo -u kivou /usr/bin/cat "$KIVOU_BACKUP_FILE" | \
 test "$(sudo -u postgres psql -At -d "$KIVOU_RESTORE_DB" \
   -c 'SELECT version_num FROM alembic_version')" = "0027_signal_notes"
 for KIVOU_TABLE in account target_icp materialized_signal contract_award alembic_version; do
-  test "$(sudo -u postgres psql -At -d "$KIVOU_RESTORE_DB" \
-    -v table="$KIVOU_TABLE" \
-    -c "SELECT count(*) FROM pg_catalog.pg_class WHERE oid = to_regclass(:'table')")" = 1
+  KIVOU_RESTORE_TABLE_COUNT=$(kivou_restore_table_count)
+  test "$KIVOU_RESTORE_TABLE_COUNT" = 1
+  unset KIVOU_RESTORE_TABLE_COUNT
   KIVOU_TABLE_COUNT=$(sudo -u postgres psql -At -d "$KIVOU_RESTORE_DB" \
     -c "SELECT count(*) FROM $KIVOU_TABLE")
   printf '%s\n' "$KIVOU_TABLE_COUNT" | grep -Eq '^[0-9]+$'
@@ -289,8 +302,9 @@ case "$KIVOU_RESTORE_DB" in
 esac
 printf '%s\n' "$KIVOU_RESTORE_DB" | grep -Eq '^[a-z0-9_]{1,63}$'
 sudo -u postgres dropdb "$KIVOU_RESTORE_DB"
-test "$(sudo -u postgres psql -At -d postgres -v db="$KIVOU_RESTORE_DB" \
-  -c "SELECT count(*) FROM pg_database WHERE datname = :'db'")" = 0
+KIVOU_RESTORE_DB_COUNT=$(kivou_restore_db_count)
+test "$KIVOU_RESTORE_DB_COUNT" = 0
+unset KIVOU_RESTORE_DB_COUNT
 
 printf 'backup_file=%s\nbackup_bytes=%s\nbackup_sha256=%s\ntoc_lines=%s\nrestore_revision=0027_signal_notes\nrestore_size_positive=1\n' \
   "$(basename "$KIVOU_BACKUP_FILE")" "$KIVOU_BACKUP_BYTES" \
