@@ -36,6 +36,31 @@ const EVENT_CLOCK_BY_STATUS = {
   invalid_award_date: 'award',
 } as const satisfies Record<EventStatus, SignalEventClock>
 
+const ENVELOPE_KEYS = new Set([
+  'artifact_id',
+  'version',
+  'status',
+  'schema_version',
+  'published_at',
+  'content',
+])
+const CONTENT_KEYS = new Set([
+  'schema_version',
+  'variant',
+  'headline',
+  'award_summary',
+  'commercial_importance',
+  'fit_reason',
+  'timing',
+  'recommended_action',
+  'target_roles',
+  'fit_need_categories',
+  'unknowns',
+  'claims',
+])
+const CLAIM_KEYS = new Set(['claim_id', 'kind', 'text', 'evidence_refs', 'confidence'])
+const TARGET_ROLE_KEYS = new Set(['role', 'rationale', 'evidence_refs'])
+const UNKNOWN_KEYS = new Set(['text', 'evidence_refs'])
 const CLAIM_KINDS = new Set(['FACT', 'INFERENCE', 'RECOMMENDATION'])
 const CLAIM_CONFIDENCES = new Set(['high', 'medium', 'low'])
 const TARGET_ROLE_KINDS = new Set([
@@ -54,6 +79,9 @@ const NEED_CATEGORIES = new Set([
   'safety_and_ppe',
   'waste_and_environment',
 ])
+const ARTIFACT_ID_PATTERN = /^[0-9a-f]{64}$/
+const CLAIM_ID_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/
+const AWARE_ISO_DATETIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/
 
 type UnknownRecord = Record<string, unknown>
 
@@ -61,21 +89,64 @@ function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function isNonBlankString(value: unknown): value is string {
-  return typeof value === 'string' && value.trim().length > 0
+function hasExactKeys(value: UnknownRecord, expected: ReadonlySet<string>): boolean {
+  const actual = Object.keys(value)
+  return actual.length === expected.size && actual.every((key) => expected.has(key))
 }
 
-function hasEvidenceRefs(value: unknown): boolean {
+function isStrictText(value: unknown, maximum: number): value is string {
+  return typeof value === 'string'
+    && value === value.trim()
+    && [...value].length >= 1
+    && [...value].length <= maximum
+}
+
+function isAwareIsoDateTime(value: unknown): value is string {
+  if (typeof value !== 'string' || value !== value.trim()) return false
+  const match = AWARE_ISO_DATETIME_PATTERN.exec(value)
+  if (!match) return false
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+  const hour = Number(match[4])
+  const minute = Number(match[5])
+  const second = Number(match[6])
+  if (
+    year < 1
+    || month < 1
+    || month > 12
+    || hour > 23
+    || minute > 59
+    || second > 59
+  ) return false
+
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)
+  const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+  if (day < 1 || day > daysInMonth[month - 1]) return false
+
+  const zone = match[8]
+  if (zone !== 'Z') {
+    const offsetHour = Number(zone.slice(1, 3))
+    const offsetMinute = Number(zone.slice(4, 6))
+    if (offsetHour > 23 || offsetMinute > 59) return false
+  }
+  return true
+}
+
+function hasEvidenceRefs(value: unknown): value is string[] {
   return Array.isArray(value)
     && value.length > 0
-    && value.every(isNonBlankString)
+    && value.length <= 16
+    && value.every((reference) => isStrictText(reference, 256))
 }
 
 function isEvidencedClaim(value: unknown): value is UnknownRecord {
-  if (!isRecord(value)) return false
+  if (!isRecord(value) || !hasExactKeys(value, CLAIM_KEYS)) return false
   if (
-    !isNonBlankString(value.claim_id)
-    || !isNonBlankString(value.text)
+    typeof value.claim_id !== 'string'
+    || !CLAIM_ID_PATTERN.test(value.claim_id)
+    || !isStrictText(value.text, 420)
     || typeof value.kind !== 'string'
     || !CLAIM_KINDS.has(value.kind)
     || !hasEvidenceRefs(value.evidence_refs)
@@ -85,17 +156,19 @@ function isEvidencedClaim(value: unknown): value is UnknownRecord {
     : value.confidence === null
 }
 
-function isEvidencedUnknown(value: unknown): boolean {
+function isEvidencedUnknown(value: unknown): value is UnknownRecord {
   return isRecord(value)
-    && isNonBlankString(value.text)
+    && hasExactKeys(value, UNKNOWN_KEYS)
+    && isStrictText(value.text, 240)
     && hasEvidenceRefs(value.evidence_refs)
 }
 
-function isEvidencedRole(value: unknown): boolean {
+function isEvidencedRole(value: unknown): value is UnknownRecord {
   return isRecord(value)
+    && hasExactKeys(value, TARGET_ROLE_KEYS)
     && typeof value.role === 'string'
     && TARGET_ROLE_KINDS.has(value.role)
-    && isNonBlankString(value.rationale)
+    && isStrictText(value.rationale, 420)
     && hasEvidenceRefs(value.evidence_refs)
 }
 
@@ -104,37 +177,64 @@ function hasExactClaim(
   text: unknown,
   kind: 'FACT' | 'INFERENCE' | 'RECOMMENDATION',
 ): boolean {
-  return isNonBlankString(text)
+  return typeof text === 'string'
     && claims.some((claim) => claim.kind === kind && claim.text === text)
 }
 
 /**
- * Garde transitoire de consommation. PR5 centralisera le parseur complet et
- * l'identité d'artefact ; ici, toute copie effectivement rendue doit déjà être
- * structurellement cohérente et reliée à une preuve. Aucun champ n'est réparé.
+ * Garde exact du contrat public au point de consommation. PR5 pourra en
+ * centraliser l'emplacement et le réemploi ; ici, aucun champ n'est réparé,
+ * normalisé ou complété avant rendu.
  */
-function publishedPresentation(value: unknown): CardPresentation | null {
-  if (!isRecord(value) || !isRecord(value.content)) return null
+export function publishedPresentation(value: unknown): CardPresentation | null {
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, ENVELOPE_KEYS)
+    || !isRecord(value.content)
+    || !hasExactKeys(value.content, CONTENT_KEYS)
+  ) return null
   const content = value.content
   if (
-    !isNonBlankString(value.artifact_id)
+    typeof value.artifact_id !== 'string'
+    || !ARTIFACT_ID_PATTERN.test(value.artifact_id)
     || !Number.isInteger(value.version)
     || (value.version as number) < 1
-    || !isNonBlankString(value.published_at)
+    || !isAwareIsoDateTime(value.published_at)
     || value.schema_version !== 'card-presentation-v1'
     || content.schema_version !== 'card-presentation-v1'
-    || !isNonBlankString(content.headline)
-    || !isNonBlankString(content.award_summary)
+    || !isStrictText(content.headline, 160)
+    || !isStrictText(content.award_summary, 420)
+    || !(content.commercial_importance === null
+      || isStrictText(content.commercial_importance, 420))
+    || !(content.fit_reason === null || isStrictText(content.fit_reason, 420))
+    || !(content.timing === null || isStrictText(content.timing, 320))
+    || !(content.recommended_action === null
+      || isStrictText(content.recommended_action, 320))
     || !Array.isArray(content.claims)
     || content.claims.length === 0
+    || content.claims.length > 12
     || !content.claims.every(isEvidencedClaim)
     || !Array.isArray(content.unknowns)
+    || content.unknowns.length > 8
     || !content.unknowns.every(isEvidencedUnknown)
+    || !Array.isArray(content.target_roles)
+    || content.target_roles.length > 6
+    || !content.target_roles.every(isEvidencedRole)
+    || !Array.isArray(content.fit_need_categories)
+    || content.fit_need_categories.length > 8
+    || !content.fit_need_categories.every(
+      (category) => typeof category === 'string' && NEED_CATEGORIES.has(category),
+    )
   ) return null
 
   const claims = content.claims
+  const roles = content.target_roles
+  const categories = content.fit_need_categories
   if (
-    !hasExactClaim(claims, content.headline, 'FACT')
+    new Set(claims.map((claim) => claim.claim_id)).size !== claims.length
+    || new Set(roles.map((role) => role.role)).size !== roles.length
+    || new Set(categories).size !== categories.length
+    || !hasExactClaim(claims, content.headline, 'FACT')
     || !hasExactClaim(claims, content.award_summary, 'FACT')
   ) return null
 
@@ -144,10 +244,8 @@ function publishedPresentation(value: unknown): CardPresentation | null {
       || content.fit_reason !== null
       || content.timing !== null
       || content.recommended_action !== null
-      || !Array.isArray(content.target_roles)
-      || content.target_roles.length !== 0
-      || !Array.isArray(content.fit_need_categories)
-      || content.fit_need_categories.length !== 0
+      || roles.length !== 0
+      || categories.length !== 0
       || !claims.every((claim) => claim.kind === 'FACT')
     ) return null
     return value as unknown as CardPresentation
@@ -155,14 +253,8 @@ function publishedPresentation(value: unknown): CardPresentation | null {
 
   if (value.status !== 'PASS' || content.variant !== 'FULL') return null
   if (
-    !Array.isArray(content.target_roles)
-    || content.target_roles.length === 0
-    || !content.target_roles.every(isEvidencedRole)
-    || !Array.isArray(content.fit_need_categories)
-    || content.fit_need_categories.length === 0
-    || !content.fit_need_categories.every(
-      (category) => typeof category === 'string' && NEED_CATEGORIES.has(category),
-    )
+    roles.length === 0
+    || categories.length === 0
     || !hasExactClaim(claims, content.commercial_importance, 'INFERENCE')
     || !hasExactClaim(claims, content.fit_reason, 'INFERENCE')
     || !hasExactClaim(claims, content.timing, 'INFERENCE')

@@ -22,6 +22,7 @@ import {
 } from '../../test/harness'
 import {
   eventDateKind,
+  publishedPresentation,
   toBillingAccessView,
   toCompanySummary,
   toSignalCard,
@@ -41,7 +42,391 @@ const REFERENCE_ONLY_COPY = [
   'Mode démonstration',
 ]
 
+const VALID_FALLBACK: CardPresentation = {
+  artifact_id: 'b'.repeat(64),
+  version: 1,
+  status: 'FALLBACK',
+  schema_version: 'card-presentation-v1',
+  published_at: '2026-08-30T12:00:00Z',
+  content: {
+    schema_version: 'card-presentation-v1',
+    variant: 'FACTUAL_FALLBACK',
+    headline: 'Attribution publique documentée',
+    award_summary: 'Une entreprise identifiée est attributaire du marché.',
+    commercial_importance: null,
+    fit_reason: null,
+    timing: null,
+    recommended_action: null,
+    target_roles: [],
+    fit_need_categories: [],
+    unknowns: [{
+      text: 'Date de début non publiée',
+      evidence_refs: ['source:unknown'],
+    }],
+    claims: [{
+      claim_id: 'HEADLINE',
+      kind: 'FACT',
+      text: 'Attribution publique documentée',
+      evidence_refs: ['source:award'],
+      confidence: null,
+    }, {
+      claim_id: 'AWARD_SUMMARY',
+      kind: 'FACT',
+      text: 'Une entreprise identifiée est attributaire du marché.',
+      evidence_refs: ['source:award_summary'],
+      confidence: null,
+    }],
+  },
+}
+
+const VALID_FULL: CardPresentation = {
+  artifact_id: 'c'.repeat(64),
+  version: 2,
+  status: 'PASS',
+  schema_version: 'card-presentation-v1',
+  published_at: '2026-08-30T14:00:00+02:00',
+  content: {
+    schema_version: 'card-presentation-v1',
+    variant: 'FULL',
+    headline: 'Attribution publique documentée',
+    award_summary: 'Une entreprise identifiée est attributaire du marché.',
+    commercial_importance: 'Le montant publié rend le marché commercialement significatif.',
+    fit_reason: 'Le besoin documenté correspond au ciblage déclaré.',
+    timing: 'Le calendrier opérationnel reste à confirmer.',
+    recommended_action: 'Vérifier le besoin auprès du responsable achats.',
+    target_roles: [{
+      role: 'PROCUREMENT_MANAGER',
+      rationale: 'Fonction pertinente pour vérifier le besoin documenté.',
+      evidence_refs: ['source:role'],
+    }],
+    fit_need_categories: ['materials_or_components'],
+    unknowns: [{
+      text: 'Date de début non publiée',
+      evidence_refs: ['source:unknown'],
+    }],
+    claims: [{
+      claim_id: 'HEADLINE',
+      kind: 'FACT',
+      text: 'Attribution publique documentée',
+      evidence_refs: ['source:award'],
+      confidence: null,
+    }, {
+      claim_id: 'AWARD_SUMMARY',
+      kind: 'FACT',
+      text: 'Une entreprise identifiée est attributaire du marché.',
+      evidence_refs: ['source:award_summary'],
+      confidence: null,
+    }, {
+      claim_id: 'COMMERCIAL_IMPORTANCE',
+      kind: 'INFERENCE',
+      text: 'Le montant publié rend le marché commercialement significatif.',
+      evidence_refs: ['source:amount'],
+      confidence: 'high',
+    }, {
+      claim_id: 'FIT_REASON',
+      kind: 'INFERENCE',
+      text: 'Le besoin documenté correspond au ciblage déclaré.',
+      evidence_refs: ['source:fit'],
+      confidence: 'medium',
+    }, {
+      claim_id: 'TIMING',
+      kind: 'INFERENCE',
+      text: 'Le calendrier opérationnel reste à confirmer.',
+      evidence_refs: ['source:date'],
+      confidence: 'low',
+    }, {
+      claim_id: 'RECOMMENDED_ACTION',
+      kind: 'RECOMMENDATION',
+      text: 'Vérifier le besoin auprès du responsable achats.',
+      evidence_refs: ['source:action'],
+      confidence: null,
+    }],
+  },
+}
+
+type MutableObject = Record<string, unknown>
+type MutablePresentation = MutableObject & {
+  content: MutableObject & {
+    claims: MutableObject[]
+    target_roles: MutableObject[]
+    fit_need_categories: unknown[]
+    unknowns: MutableObject[]
+  }
+}
+type PresentationMutant = readonly [
+  string,
+  CardPresentation,
+  (presentation: MutablePresentation) => void,
+]
+
+function mutatePresentation(
+  source: CardPresentation,
+  mutate: (presentation: MutablePresentation) => void,
+): MutablePresentation {
+  const candidate = structuredClone(source) as unknown as MutablePresentation
+  mutate(candidate)
+  return candidate
+}
+
+function setClaimedText(
+  presentation: MutablePresentation,
+  field: string,
+  claimIndex: number,
+  text: string,
+) {
+  presentation.content[field] = text
+  presentation.content.claims[claimIndex].text = text
+}
+
+function appendFactClaim(
+  presentation: MutablePresentation,
+  claimId: string,
+  text: string,
+) {
+  presentation.content.claims.push({
+    claim_id: claimId,
+    kind: 'FACT',
+    text,
+    evidence_refs: ['source:extra'],
+    confidence: null,
+  })
+}
+
+const STRICT_PRESENTATION_MUTANTS = [
+  ['extra envelope key', VALID_FALLBACK, (value) => { value.qa_status = 'PASS' }],
+  ['missing envelope key', VALID_FALLBACK, (value) => { delete value.published_at }],
+  ['short artifact id', VALID_FALLBACK, (value) => { value.artifact_id = 'a'.repeat(63) }],
+  ['uppercase artifact id', VALID_FALLBACK, (value) => { value.artifact_id = 'A'.repeat(64) }],
+  ['non hexadecimal artifact id', VALID_FALLBACK, (value) => { value.artifact_id = 'g'.repeat(64) }],
+  ['zero version', VALID_FALLBACK, (value) => { value.version = 0 }],
+  ['fractional version', VALID_FALLBACK, (value) => { value.version = 1.5 }],
+  ['string version', VALID_FALLBACK, (value) => { value.version = '1' }],
+  ['invalid calendar datetime', VALID_FALLBACK, (value) => {
+    value.published_at = '2026-02-30T12:00:00Z'
+  }],
+  ['datetime without timezone', VALID_FALLBACK, (value) => {
+    value.published_at = '2026-08-30T12:00:00'
+  }],
+  ['datetime with invalid offset', VALID_FALLBACK, (value) => {
+    value.published_at = '2026-08-30T12:00:00+24:00'
+  }],
+  ['untrimmed datetime', VALID_FALLBACK, (value) => {
+    value.published_at = ' 2026-08-30T12:00:00Z'
+  }],
+  ['extra content key', VALID_FALLBACK, (value) => { value.content.provider = 'private' }],
+  ['missing content key', VALID_FALLBACK, (value) => {
+    delete (value.content as MutableObject).unknowns
+  }],
+  ['mismatched status variant', VALID_FALLBACK, (value) => { value.content.variant = 'FULL' }],
+  ['mismatched schema', VALID_FALLBACK, (value) => {
+    value.content.schema_version = 'card-presentation-v2'
+  }],
+  ['untrimmed headline', VALID_FALLBACK, (value) => {
+    setClaimedText(value, 'headline', 0, ' Attribution publique documentée')
+  }],
+  ['headline longer than 160 code points', VALID_FALLBACK, (value) => {
+    setClaimedText(value, 'headline', 0, 'é'.repeat(161))
+  }],
+  ['summary longer than 420 code points', VALID_FALLBACK, (value) => {
+    setClaimedText(value, 'award_summary', 1, 'é'.repeat(421))
+  }],
+  ['commercial text longer than 420 code points', VALID_FULL, (value) => {
+    setClaimedText(value, 'commercial_importance', 2, 'é'.repeat(421))
+  }],
+  ['action text longer than 320 code points', VALID_FULL, (value) => {
+    setClaimedText(value, 'recommended_action', 5, 'é'.repeat(321))
+  }],
+  ['claims is not an array', VALID_FALLBACK, (value) => { value.content.claims = null as never }],
+  ['claims is empty', VALID_FALLBACK, (value) => { value.content.claims = [] }],
+  ['more than twelve claims', VALID_FALLBACK, (value) => {
+    while (value.content.claims.length < 13) {
+      const index = value.content.claims.length
+      appendFactClaim(value, `EXTRA_${index}`, `Fait supplémentaire ${index}`)
+    }
+  }],
+  ['extra claim key', VALID_FALLBACK, (value) => { value.content.claims[0].provider = 'private' }],
+  ['missing claim key', VALID_FALLBACK, (value) => {
+    delete value.content.claims[0].evidence_refs
+  }],
+  ['invalid claim id grammar', VALID_FALLBACK, (value) => {
+    value.content.claims[0].claim_id = 'headline-invalid'
+  }],
+  ['duplicate claim ids', VALID_FALLBACK, (value) => {
+    value.content.claims[1].claim_id = value.content.claims[0].claim_id
+  }],
+  ['invalid claim kind', VALID_FALLBACK, (value) => {
+    value.content.claims[0].kind = 'OPINION'
+  }],
+  ['inference without confidence', VALID_FULL, (value) => {
+    value.content.claims[2].confidence = null
+  }],
+  ['fact with confidence', VALID_FALLBACK, (value) => {
+    value.content.claims[0].confidence = 'high'
+  }],
+  ['non string claim text', VALID_FALLBACK, (value) => {
+    value.content.claims[0].text = 42
+  }],
+  ['untrimmed claim text', VALID_FALLBACK, (value) => {
+    appendFactClaim(value, 'EXTRA', ' Fait supplémentaire')
+  }],
+  ['claim text longer than 420 code points', VALID_FALLBACK, (value) => {
+    appendFactClaim(value, 'EXTRA', 'é'.repeat(421))
+  }],
+  ['claim evidence is not an array', VALID_FALLBACK, (value) => {
+    value.content.claims[0].evidence_refs = 'source:award'
+  }],
+  ['claim evidence is empty', VALID_FALLBACK, (value) => {
+    value.content.claims[0].evidence_refs = []
+  }],
+  ['more than sixteen claim refs', VALID_FALLBACK, (value) => {
+    value.content.claims[0].evidence_refs = Array.from(
+      { length: 17 },
+      (_, index) => `source:award:${index}`,
+    )
+  }],
+  ['untrimmed evidence ref', VALID_FALLBACK, (value) => {
+    value.content.claims[0].evidence_refs = [' source:award']
+  }],
+  ['evidence ref longer than 256 code points', VALID_FALLBACK, (value) => {
+    value.content.claims[0].evidence_refs = ['r'.repeat(257)]
+  }],
+  ['headline without exact fact claim', VALID_FALLBACK, (value) => {
+    value.content.headline = 'Titre sans claim exacte'
+  }],
+  ['summary without exact fact claim', VALID_FALLBACK, (value) => {
+    value.content.award_summary = 'Résumé sans claim exacte'
+  }],
+  ['commercial field without exact inference', VALID_FULL, (value) => {
+    value.content.fit_reason = 'Adéquation sans claim exacte'
+  }],
+  ['unknowns is not an array', VALID_FALLBACK, (value) => { value.content.unknowns = null as never }],
+  ['more than eight unknowns', VALID_FALLBACK, (value) => {
+    value.content.unknowns = Array.from({ length: 9 }, (_, index) => ({
+      text: `Inconnue ${index}`,
+      evidence_refs: [`source:unknown:${index}`],
+    }))
+  }],
+  ['extra unknown key', VALID_FALLBACK, (value) => {
+    value.content.unknowns[0].provider = 'private'
+  }],
+  ['missing unknown key', VALID_FALLBACK, (value) => {
+    delete value.content.unknowns[0].evidence_refs
+  }],
+  ['untrimmed unknown text', VALID_FALLBACK, (value) => {
+    value.content.unknowns[0].text = ' Date de début non publiée'
+  }],
+  ['unknown longer than 240 code points', VALID_FALLBACK, (value) => {
+    value.content.unknowns[0].text = 'é'.repeat(241)
+  }],
+  ['unknown without proof', VALID_FALLBACK, (value) => {
+    value.content.unknowns[0].evidence_refs = []
+  }],
+  ['more than sixteen unknown refs', VALID_FALLBACK, (value) => {
+    value.content.unknowns[0].evidence_refs = Array.from(
+      { length: 17 },
+      (_, index) => `source:unknown:${index}`,
+    )
+  }],
+  ['target roles is not an array', VALID_FULL, (value) => {
+    value.content.target_roles = null as never
+  }],
+  ['more than six target roles', VALID_FULL, (value) => {
+    value.content.target_roles = Array.from({ length: 7 }, () => ({
+      ...value.content.target_roles[0],
+    }))
+  }],
+  ['extra role key', VALID_FULL, (value) => {
+    value.content.target_roles[0].provider = 'private'
+  }],
+  ['missing role key', VALID_FULL, (value) => {
+    delete value.content.target_roles[0].evidence_refs
+  }],
+  ['invalid role kind', VALID_FULL, (value) => {
+    value.content.target_roles[0].role = 'CHIEF_EXECUTIVE'
+  }],
+  ['duplicate roles', VALID_FULL, (value) => {
+    value.content.target_roles.push({ ...value.content.target_roles[0] })
+  }],
+  ['untrimmed role rationale', VALID_FULL, (value) => {
+    value.content.target_roles[0].rationale = ' Fonction pertinente'
+  }],
+  ['role rationale longer than 420 code points', VALID_FULL, (value) => {
+    value.content.target_roles[0].rationale = 'é'.repeat(421)
+  }],
+  ['role without proof', VALID_FULL, (value) => {
+    value.content.target_roles[0].evidence_refs = []
+  }],
+  ['more than sixteen role refs', VALID_FULL, (value) => {
+    value.content.target_roles[0].evidence_refs = Array.from(
+      { length: 17 },
+      (_, index) => `source:role:${index}`,
+    )
+  }],
+  ['need categories is not an array', VALID_FULL, (value) => {
+    value.content.fit_need_categories = null as never
+  }],
+  ['more than eight need categories', VALID_FULL, (value) => {
+    value.content.fit_need_categories = Array.from(
+      { length: 9 },
+      () => 'materials_or_components',
+    )
+  }],
+  ['invalid need category', VALID_FULL, (value) => {
+    value.content.fit_need_categories[0] = 'personnel'
+  }],
+  ['duplicate need categories', VALID_FULL, (value) => {
+    value.content.fit_need_categories.push('materials_or_components')
+  }],
+  ['fallback with commercial text', VALID_FALLBACK, (value) => {
+    value.content.fit_reason = 'Conclusion commerciale interdite'
+  }],
+  ['fallback with target role', VALID_FALLBACK, (value) => {
+    value.content.target_roles = structuredClone(
+      VALID_FULL.content.target_roles,
+    ) as unknown as MutableObject[]
+  }],
+  ['fallback with need category', VALID_FALLBACK, (value) => {
+    value.content.fit_need_categories = ['materials_or_components']
+  }],
+  ['fallback with inference claim', VALID_FALLBACK, (value) => {
+    value.content.claims.push(
+      structuredClone(VALID_FULL.content.claims[2]) as unknown as MutableObject,
+    )
+  }],
+  ['full without commercial text', VALID_FULL, (value) => {
+    value.content.commercial_importance = null
+  }],
+  ['full without target role', VALID_FULL, (value) => { value.content.target_roles = [] }],
+  ['full without need category', VALID_FULL, (value) => {
+    value.content.fit_need_categories = []
+  }],
+] satisfies readonly PresentationMutant[]
+
 describe('adaptateurs de présentation du dashboard de référence', () => {
+  it.each([
+    ['FALLBACK/FACTUAL_FALLBACK', VALID_FALLBACK],
+    ['PASS/FULL', VALID_FULL],
+  ] as const)('accepte sans réécrire un artefact public valide %s', (_case, presentation) => {
+    expect(publishedPresentation(presentation)).toBe(presentation)
+  })
+
+  it.each(STRICT_PRESENTATION_MUTANTS)(
+    'rejette le mutant de contrat public : %s',
+    (_case, source, mutate) => {
+      const presentation = mutatePresentation(source, mutate)
+      expect(publishedPresentation(presentation)).toBeNull()
+    },
+  )
+
+  it('ne normalise jamais un texte invalide avant de le refuser', () => {
+    const presentation = mutatePresentation(VALID_FALLBACK, (value) => {
+      setClaimedText(value, 'headline', 0, ' Attribution publique documentée ')
+    })
+
+    expect(publishedPresentation(presentation)).toBeNull()
+    expect(presentation.content.headline).toBe(' Attribution publique documentée ')
+  })
+
   it('ferme statiquement la présence de présentation selon le verrouillage', () => {
     const unlockedWithUndefinedPresentation = { ...UNLOCKED_ITEM, presentation: undefined }
     // @ts-expect-error Un item déverrouillé porte toujours la clé nullable de l'API.
