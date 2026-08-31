@@ -593,7 +593,7 @@ export function LegalInformation() {
         description="Consultez les mentions légales, la politique de confidentialité et les Conditions générales de Kivou."
         canonicalPath="/informations-legales"
       />
-      <main id="main">
+      <main id="main" tabIndex={-1}>
         <header className="legal-hero container">
           <p className="eyebrow">INFORMATIONS PUBLIQUES</p>
           <h1>Informations légales et contractuelles</h1>

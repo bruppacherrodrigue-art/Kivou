@@ -48,6 +48,17 @@ describe('port exact de la référence publique', () => {
     },
   )
 
+  it.each(['/', '/produit', '/tarifs', '/exemple-de-signal', '/contact', '/informations-legales'])(
+    'keeps the skip-link target programmatically focusable on %s',
+    (route) => {
+      mockApi({ 'GET /billing/plans': () => new Promise<never>(() => undefined) })
+      const view = renderApp(<AppRoutes />, { route, session: UNAUTHENTICATED })
+
+      expect(screen.getByRole('main')).toHaveAttribute('tabindex', '-1')
+      view.unmount()
+    },
+  )
+
   it('uses catalogue prices in the exact reference pricing cards and table', async () => {
     const catalogue = {
       ...CATALOGUE,
