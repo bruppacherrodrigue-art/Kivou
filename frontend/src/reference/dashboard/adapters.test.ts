@@ -201,6 +201,9 @@ const STRICT_PRESENTATION_MUTANTS = [
   ['zero version', VALID_FALLBACK, (value) => { value.version = 0 }],
   ['fractional version', VALID_FALLBACK, (value) => { value.version = 1.5 }],
   ['string version', VALID_FALLBACK, (value) => { value.version = '1' }],
+  ['unsafe integer version', VALID_FALLBACK, (value) => {
+    value.version = Number.MAX_SAFE_INTEGER + 1
+  }],
   ['invalid calendar datetime', VALID_FALLBACK, (value) => {
     value.published_at = '2026-02-30T12:00:00Z'
   }],

@@ -197,7 +197,7 @@ export function publishedPresentation(value: unknown): CardPresentation | null {
   if (
     typeof value.artifact_id !== 'string'
     || !ARTIFACT_ID_PATTERN.test(value.artifact_id)
-    || !Number.isInteger(value.version)
+    || !Number.isSafeInteger(value.version)
     || (value.version as number) < 1
     || !isAwareIsoDateTime(value.published_at)
     || value.schema_version !== 'card-presentation-v1'
