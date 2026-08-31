@@ -947,6 +947,184 @@ kivou_frontend_build_owner /bin/sh -eu -c '
     assert executed.returncode == 0, executed.stderr
 
 
+def test_read_only_qa_gate_precedes_rollout_mutations_and_each_backfill() -> None:
+    body = _body()
+    commands = _commands(body)
+    qa_gate = _between(
+        body,
+        "kivou_validate_qa_read_only() {",
+        "# Fin du garde-fou QA partagé en lecture seule.",
+    )
+    section = _between(
+        body,
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    section_commands = _commands(section)
+
+    for fragment in (
+        'connection.exec_driver_sql("SET TRANSACTION READ ONLY")',
+        "!requests.some(({ method }) => !['GET', 'HEAD'].includes(method))",
+        "context.request.get(`${origin}/me`)",
+        'console.log("qa_read_only_gate_ok")',
+        'console.error("qa_read_only_gate_failed")',
+    ):
+        assert fragment in qa_gate
+    assert "/signals?" not in qa_gate
+    assert "/app/signals" not in qa_gate
+    for forbidden in ("INSERT ", "UPDATE ", "DELETE ", "cli_main", "backfill-fallbacks"):
+        assert forbidden not in qa_gate
+
+    first_gate = 'kivou_validate_qa_read_only "$KIVOU_PREVIOUS_BACKEND"'
+    assert commands.count(first_gate) == 1
+    for first_mutation in (
+        "sudo systemctl start kivou-backup.service",
+        "sudo -u postgres createdb",
+        "sudo -u postgres pg_restore",
+        "sudo install -o kivou -g kivou -m 755 -d \"$KIVOU_RELEASE_DIR\"",
+        "migrate_to_latest(engine)",
+        "sudo mv -Tf",
+    ):
+        assert commands.index(first_gate) < commands.index(first_mutation)
+
+    replay = 'kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"'
+    assert section_commands.count(replay) == 2
+    _assert_in_order(
+        section_commands,
+        replay,
+        'kivou-card-backfill-fr-$KIVOU_FINAL_SHORT',
+        replay,
+        'kivou-card-backfill-en-$KIVOU_FINAL_SHORT',
+    )
+
+
+def test_qa_approved_fingerprint_is_frozen_once_and_compared_before_backfills() -> None:
+    body = _body()
+    commands = _commands(body)
+    qa_gate = _between(
+        body,
+        "kivou_validate_qa_read_only() {",
+        "# Fin du garde-fou QA partagé en lecture seule.",
+    )
+    section = _between(
+        body,
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    section_commands = _commands(section)
+
+    assignments = re.findall(
+        r"^\s*KIVOU_QA_APPROVED_FINGERPRINT="
+        r"\$KIVOU_QA_READ_ONLY_FINGERPRINT$",
+        commands,
+        flags=re.MULTILINE,
+    )
+    assert len(assignments) == 1
+    _assert_in_order(
+        qa_gate,
+        'if test -z "${KIVOU_QA_APPROVED_FINGERPRINT+x}"',
+        "KIVOU_QA_APPROVED_FINGERPRINT=$KIVOU_QA_READ_ONLY_FINGERPRINT",
+        'test "$KIVOU_QA_READ_ONLY_FINGERPRINT" =',
+        '"$KIVOU_QA_APPROVED_FINGERPRINT"',
+        "fi",
+        "export KIVOU_QA_APPROVED_FINGERPRINT",
+        "readonly KIVOU_QA_APPROVED_FINGERPRINT",
+    )
+    assert "KIVOU_QA_APPROVED_FINGERPRINT=$KIVOU_QA_READ_ONLY_FINGERPRINT" not in (
+        qa_gate.split("else", 1)[1]
+    )
+    assert "KIVOU_QA_DB_FINGERPRINT=$KIVOU_QA_READ_ONLY_FINGERPRINT" not in body
+    assert "KIVOU_QA_APPROVED_FINGERPRINT=$(" not in section_commands
+    overwriting_mutant = section_commands.replace(
+        "KIVOU_QA_SCOPE_FINGERPRINT=$(",
+        "KIVOU_QA_APPROVED_FINGERPRINT=$(",
+        1,
+    )
+    assert "KIVOU_QA_APPROVED_FINGERPRINT=$(" in overwriting_mutant
+
+    replay = 'kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"'
+    comparison = (
+        'test "$KIVOU_QA_SCOPE_FINGERPRINT" = '
+        '"$KIVOU_QA_APPROVED_FINGERPRINT"'
+    )
+    _assert_in_order(
+        section_commands,
+        comparison,
+        replay,
+        'kivou-card-backfill-fr-$KIVOU_FINAL_SHORT',
+        replay,
+        'kivou-card-backfill-en-$KIVOU_FINAL_SHORT',
+    )
+    assert section_commands.count(comparison) >= 1
+    backfill_commands = section_commands.split("KIVOU_QA_FACTUAL_PROOF=", 1)[0]
+    assert backfill_commands.count(
+        '--setenv="KIVOU_QA_APPROVED_FINGERPRINT='
+        '$KIVOU_QA_APPROVED_FINGERPRINT"'
+    ) == 2
+    assert section_commands.count(
+        'hmac.compare_digest(actual, expected)'
+    ) >= 2
+
+
+def test_preinitialized_approved_fingerprint_is_exported_and_readonly() -> None:
+    qa_gate = _between(
+        _body(),
+        "kivou_validate_qa_read_only() {",
+        "# Fin du garde-fou QA partagé en lecture seule.",
+    )
+    freeze = qa_gate.split(
+        '  if test -z "${KIVOU_QA_APPROVED_FINGERPRINT+x}"; then\n', 1
+    )[1].split("\n\n  (\n    cd frontend", 1)[0]
+    freeze = (
+        'if test -z "${KIVOU_QA_APPROVED_FINGERPRINT+x}"; then\n' + freeze
+    )
+    fingerprint = "0123456789abcdef"
+    harness = f"""
+set -eu
+KIVOU_QA_APPROVED_FINGERPRINT={fingerprint}
+KIVOU_QA_READ_ONLY_FINGERPRINT={fingerprint}
+{freeze}
+test "$KIVOU_QA_APPROVED_FINGERPRINT" = {fingerprint}
+export -p | grep -Eq 'KIVOU_QA_APPROVED_FINGERPRINT="{fingerprint}"'
+readonly -p | grep -Eq 'KIVOU_QA_APPROVED_FINGERPRINT="{fingerprint}"'
+if (KIVOU_QA_APPROVED_FINGERPRINT=fedcba9876543210) 2>/dev/null; then
+  exit 42
+fi
+"""
+    executed = subprocess.run(
+        ["bash", "-c", harness],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert executed.returncode == 0, executed.stderr
+
+
+def test_read_only_qa_gate_binds_to_the_exact_backend_currently_served() -> None:
+    qa_gate = _between(
+        _body(),
+        "kivou_validate_qa_read_only() {",
+        "# Fin du garde-fou QA partagé en lecture seule.",
+    )
+    for fragment in (
+        "test -L /srv/kivou/app",
+        "KIVOU_QA_SERVED_APP=$(readlink -f /srv/kivou/app)",
+        'case "$KIVOU_QA_SERVED_APP" in',
+        "(/srv/kivou/releases/backend-*)",
+        'test "$KIVOU_QA_SERVED_APP" = "$KIVOU_QA_APP_DIR"',
+        'test -d "$KIVOU_QA_SERVED_APP"',
+    ):
+        assert fragment in qa_gate
+    _assert_in_order(
+        qa_gate,
+        "test -L /srv/kivou/app",
+        "KIVOU_QA_SERVED_APP=$(readlink -f /srv/kivou/app)",
+        'case "$KIVOU_QA_SERVED_APP" in',
+        'test "$KIVOU_QA_SERVED_APP" = "$KIVOU_QA_APP_DIR"',
+        "sudo systemd-run",
+    )
+
+
 def test_qa_gate_precedes_separate_bounded_fr_en_factual_backfills() -> None:
     body = _body()
     qa_section = _between(
@@ -1021,10 +1199,11 @@ def test_each_backfill_rebinds_approved_account_fingerprint_inside_unit() -> Non
     for unit in ("kivou-card-backfill-fr-", "kivou-card-backfill-en-"):
         invocation = commands.split(unit, 1)[1].split("PY\n)", 1)[0]
         assert (
-            '--setenv="KIVOU_QA_DB_FINGERPRINT=$KIVOU_QA_DB_FINGERPRINT"'
+            '--setenv="KIVOU_QA_APPROVED_FINGERPRINT='
+            '$KIVOU_QA_APPROVED_FINGERPRINT"'
             in invocation
         )
-    assert '"$KIVOU_QA_DB_FINGERPRINT" <<\'REMOTE\'' in commands
+    assert '"$KIVOU_QA_APPROVED_FINGERPRINT" <<\'REMOTE\'' in commands
     assert commands.count("kivou_revalidate_qa_binding") >= 3
     for language, script in zip(("fr", "en"), backfills, strict=True):
         for fragment in (
@@ -1034,7 +1213,7 @@ def test_each_backfill_rebinds_approved_account_fingerprint_inside_unit() -> Non
             'environment_account_id = os.environ["KIVOU_CARD_QA_ACCOUNT_ID"]',
             "file_account_id",
             "hmac.compare_digest(file_account_id, environment_account_id)",
-            'expected = os.environ["KIVOU_QA_DB_FINGERPRINT"]',
+            'expected = os.environ["KIVOU_QA_APPROVED_FINGERPRINT"]',
             'hashlib.sha256(file_account_id.encode("utf-8")).hexdigest()[:16]',
             "hmac.compare_digest(actual, expected)",
             "cli_main([",
@@ -1080,7 +1259,11 @@ def test_pre_backfill_browser_gate_matches_protected_session_to_db_scope() -> No
         "await fetch('/me'",
         "crypto.subtle.digest('SHA-256'",
         "fingerprint !== expectedFingerprint",
-        "`/signals?as_of=${encodeURIComponent(asOf)}&limit=50&offset=0`",
+        "`/signals?freshness=new&limit=20&offset=0`",
+        "feed.read_at !== asOf",
+        "feed.freshness !== 'new'",
+        "feed.page?.limit !== 20",
+        "feed.page.offset !== 0",
         "item.locked === false",
         'console.log("qa_browser_gate_ok")',
         'console.error("qa_browser_gate_failed")',
@@ -1091,7 +1274,8 @@ def test_pre_backfill_browser_gate_matches_protected_session_to_db_scope() -> No
     _assert_in_order(
         section,
         "qa_scope_ok fingerprint=",
-        "KIVOU_QA_DB_FINGERPRINT=",
+        "KIVOU_QA_SCOPE_FINGERPRINT=",
+        'test "$KIVOU_QA_SCOPE_FINGERPRINT" = "$KIVOU_QA_APPROVED_FINGERPRINT"',
         "qa_browser_gate_ok",
         '"--language", "fr"',
         '"--language", "en"',
@@ -1188,7 +1372,7 @@ def test_current_proofs_complete_before_optional_history_gate_or_stop() -> None:
     current_script, historical_script = scripts
 
     for fragment in (
-        '"status": "absent"',
+        '"status": "NOT_APPLICABLE_NO_LEGITIMATE_HISTORY"',
         '"status": "available"',
         "KIVOU_HISTORICAL_STATUS=",
         "SET TRANSACTION READ ONLY",
@@ -1212,9 +1396,8 @@ def test_current_proofs_complete_before_optional_history_gate_or_stop() -> None:
         "inspection visuelle humaine",
         'test "$KIVOU_FINAL_REVISION" = "0028_card_presentation"',
         'case "$KIVOU_HISTORICAL_STATUS" in',
-        "(absent)",
-        "STOP / NON-EXÉCUTABLE",
-        "validation propriétaire",
+        "(NOT_APPLICABLE_NO_LEGITIMATE_HISTORY)",
+        "KIVOU_ROLLOUT_STATUS=PASS",
         'console.log("card_historical_browser_ok")',
         'printf \'%s\\n\' "card_historical_smoke_ok"',
     )
@@ -1222,7 +1405,7 @@ def test_current_proofs_complete_before_optional_history_gate_or_stop() -> None:
     assert 'process.exitCode = 1' in historical_script
 
 
-def test_absent_history_records_nonfatal_stop_and_reaches_rollback_report() -> None:
+def test_no_legitimate_history_is_not_applicable_and_allows_global_pass() -> None:
     body = _body()
     smoke_section = _between(
         body,
@@ -1232,7 +1415,9 @@ def test_absent_history_records_nonfatal_stop_and_reaches_rollback_report() -> N
     history_commands = _commands(smoke_section).split(
         'case "$KIVOU_HISTORICAL_STATUS" in', 1
     )[1]
-    absent_branch = history_commands.split("(absent)", 1)[1].split(
+    not_applicable_branch = history_commands.split(
+        "(NOT_APPLICABLE_NO_LEGITIMATE_HISTORY)", 1
+    )[1].split(
         "(available)", 1
     )[0]
     available_branch = history_commands.split("(available)", 1)[1].split(
@@ -1240,14 +1425,13 @@ def test_absent_history_records_nonfatal_stop_and_reaches_rollback_report() -> N
     )[0]
 
     for fragment in (
-        "KIVOU_HISTORICAL_SMOKE_STATUS=STOP_NON_EXECUTABLE",
-        "KIVOU_ROLLOUT_STATUS=STOP_INCOMPLETE",
-        "STOP / NON-EXÉCUTABLE",
-        "validation propriétaire",
+        "KIVOU_HISTORICAL_SMOKE_STATUS=NOT_APPLICABLE_NO_LEGITIMATE_HISTORY",
+        "KIVOU_ROLLOUT_STATUS=PASS",
+        "historical_smoke=NOT_APPLICABLE_NO_LEGITIMATE_HISTORY",
     ):
-        assert fragment in absent_branch
-    assert not re.search(r"\b(?:exit|return|kill|unset)\b", absent_branch)
-    assert "node <<'JS'" not in absent_branch
+        assert fragment in not_applicable_branch
+    assert not re.search(r"\b(?:exit|return|kill|unset)\b", not_applicable_branch)
+    assert "node <<'JS'" not in not_applicable_branch
 
     _assert_in_order(
         available_branch,
@@ -1266,18 +1450,249 @@ def test_absent_history_records_nonfatal_stop_and_reaches_rollback_report() -> N
     for fragment in (
         'case "$KIVOU_HISTORICAL_SMOKE_STATUS:$KIVOU_ROLLOUT_STATUS" in',
         "PASS:PASS",
-        "STOP_NON_EXECUTABLE:STOP_INCOMPLETE",
+        "NOT_APPLICABLE_NO_LEGITIMATE_HISTORY:PASS",
         "historical_smoke_status=%s rollout_status=%s",
-        "interdite",
-        "KIVOU_HISTORICAL_SMOKE_STATUS != PASS",
+        "aucun artefact supersédé légitime",
+        "ne jamais fabriquer",
     ):
         assert fragment in report
     _assert_in_order(
         body,
-        "KIVOU_HISTORICAL_SMOKE_STATUS=STOP_NON_EXECUTABLE",
+        "KIVOU_HISTORICAL_SMOKE_STATUS=NOT_APPLICABLE_NO_LEGITIMATE_HISTORY",
         "## 9. Rollback applicatif",
         "## 10. Rapport de preuve",
         "historical_smoke_status=%s rollout_status=%s",
+    )
+
+
+def test_c003_never_selects_outside_exact_ui_first_page() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    current_script = _javascript_heredocs(section)[0]
+    api_guard = current_script.split("async function verifyPublishedApi", 1)[1].split(
+        "\nfunction installFailureCollectors", 1
+    )[0]
+    api_function = "async function verifyPublishedApi" + api_guard
+    harness = r"""
+const readDate = '2026-08-31'
+const firstPagePath = '/signals?freshness=new&limit=20&offset=0'
+const requests = []
+global.fetch = async (path, options) => {
+  requests.push(path)
+  if (options?.credentials !== 'same-origin' || path !== firstPagePath) {
+    return { status: 404 }
+  }
+  return {
+    status: 200,
+    json: async () => ({
+      read_at: readDate,
+      freshness: 'new',
+      page: { limit: 20, offset: 0, has_more: true, scan_truncated: false },
+      items: Array.from({ length: 20 }, (_, index) => ({
+        signal_id: index.toString(16).padStart(64, '0'),
+        locked: true,
+        headline: `Locked ${index}`,
+      })),
+    }),
+  }
+}
+const page = { evaluate: async (fn, argument) => fn(argument) }
+verifyPublishedApi(page, readDate).then(
+  () => process.exit(42),
+  () => process.exit(
+    requests.length === 1 && requests[0] === firstPagePath ? 0 : 43,
+  ),
+)
+"""
+    executed = subprocess.run(
+        ["node"],
+        input=api_function + harness,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert executed.returncode == 0, executed.stderr
+    assert "`/signals?freshness=new&limit=20&offset=0`" in api_guard
+    assert "feed.read_at !== readDate" in api_guard
+    assert "feed.freshness !== 'new'" in api_guard
+    assert "feed.page?.limit !== 20" in api_guard
+    assert "feed.page.offset !== 0" in api_guard
+    assert "limit=50" not in api_guard
+    assert "offset=20" not in api_guard
+
+
+def test_c003_selects_ordered_row_when_headlines_are_duplicated() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    current_script = _javascript_heredocs(section)[0]
+    api_guard = current_script.split("async function verifyPublishedApi", 1)[1].split(
+        "\nfunction installFailureCollectors", 1
+    )[0]
+    api_function = "async function verifyPublishedApi" + api_guard
+    harness = r"""
+const readDate = '2026-08-31'
+const feedPath = '/signals?freshness=new&limit=20&offset=0'
+const lockedId = 'a'.repeat(64)
+const firstId = 'b'.repeat(64)
+const secondId = 'c'.repeat(64)
+const firstArtifactId = 'd'.repeat(64)
+const secondArtifactId = 'e'.repeat(64)
+const headline = 'Same factual headline'
+const presentation = (artifactId) => ({
+  artifact_id: artifactId,
+  version: 1,
+  status: 'FALLBACK',
+  content: {
+    headline,
+    variant: 'FACTUAL_FALLBACK',
+    claims: [{ evidence_refs: ['source:1'] }],
+  },
+})
+const firstPresentation = presentation(firstArtifactId)
+const requests = []
+global.fetch = async (path, options) => {
+  requests.push(path)
+  if (options?.credentials !== 'same-origin') return { status: 401 }
+  if (path === feedPath) return {
+    status: 200,
+    json: async () => ({
+      read_at: readDate,
+      freshness: 'new',
+      page: { limit: 20, offset: 0, has_more: false, scan_truncated: false },
+      items: [
+        { signal_id: lockedId, locked: true, headline: 'Locked' },
+        { signal_id: firstId, locked: false, presentation: firstPresentation },
+        { signal_id: secondId, locked: false, presentation: presentation(secondArtifactId) },
+      ],
+    }),
+  }
+  if (path === `/signals/${firstId}?presentation_artifact_id=${firstArtifactId}`) {
+    return {
+      status: 200,
+      json: async () => ({ signal_id: firstId, presentation: firstPresentation }),
+    }
+  }
+  return { status: 404 }
+}
+const page = { evaluate: async (fn, argument) => fn(argument) }
+verifyPublishedApi(page, readDate).then(
+  (result) => process.exit(
+    result.pinnedIndex === 1 && result.pinnedSignalId === firstId &&
+    result.pinnedHeadline === headline && requests.length === 2 ? 0 : 43,
+  ),
+  () => process.exit(44),
+)
+"""
+    executed = subprocess.run(
+        ["node"],
+        input=api_function + harness,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert executed.returncode == 0, executed.stderr
+    for fragment in (
+        "const pinnedIndex = feed.items.findIndex",
+        "pinnedIndex,",
+        "page.locator('.signal-list .signal-item').nth(api.pinnedIndex)",
+        "selection.getByText(api.pinnedHeadline, { exact: true })",
+        "await selectedHeadline.count() === 1",
+    ):
+        assert fragment in current_script
+    assert ".filter({ hasText: api.pinnedHeadline })" not in current_script
+
+
+def test_c003_rejects_detail_headline_drift_and_checks_visible_detail_pane() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    current_script = _javascript_heredocs(section)[0]
+    api_guard = current_script.split("async function verifyPublishedApi", 1)[1].split(
+        "\nfunction installFailureCollectors", 1
+    )[0]
+    api_function = "async function verifyPublishedApi" + api_guard
+    harness = r"""
+const readDate = '2026-08-31'
+const feedPath = '/signals?freshness=new&limit=20&offset=0'
+const signalId = 'a'.repeat(64)
+const lockedId = 'b'.repeat(64)
+const artifactId = 'c'.repeat(64)
+const feedHeadline = 'Same factual headline'
+const feedPresentation = {
+  artifact_id: artifactId,
+  version: 1,
+  status: 'FALLBACK',
+  content: {
+    headline: feedHeadline,
+    variant: 'FACTUAL_FALLBACK',
+    claims: [{ evidence_refs: ['source:1'] }],
+  },
+}
+global.fetch = async (path, options) => {
+  if (options?.credentials !== 'same-origin') return { status: 401 }
+  if (path === feedPath) return {
+    status: 200,
+    json: async () => ({
+      read_at: readDate,
+      freshness: 'new',
+      page: { limit: 20, offset: 0, has_more: false, scan_truncated: false },
+      items: [
+        { signal_id: signalId, locked: false, presentation: feedPresentation },
+        { signal_id: lockedId, locked: true, headline: 'Locked signal' },
+      ],
+    }),
+  }
+  if (path === `/signals/${signalId}?presentation_artifact_id=${artifactId}`) {
+    return {
+      status: 200,
+      json: async () => ({
+        signal_id: signalId,
+        presentation: {
+          ...feedPresentation,
+          content: { ...feedPresentation.content, headline: 'DIFFERENT DETAIL HEADLINE' },
+        },
+      }),
+    }
+  }
+  return { status: 404 }
+}
+const page = { evaluate: async (fn, argument) => fn(argument) }
+verifyPublishedApi(page, readDate).then(
+  () => process.exit(42),
+  () => process.exit(0),
+)
+"""
+    executed = subprocess.run(
+        ["node"],
+        input=api_function + harness,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert executed.returncode == 0, executed.stderr
+    assert (
+        "detail.presentation.content?.headline !== artifact.content.headline"
+        in api_guard
+    )
+    for fragment in (
+        "const visibleDetailPane = page.locator(",
+        '`[data-master-detail-pane="detail"]:visible`',
+        "const detailHeadline = visibleDetailPane.getByRole('heading', {",
+        "name: api.pinnedHeadline, exact: true,",
+        "await detailHeadline.count() === 1",
+        "await detailHeadline.waitFor()",
+    ):
+        assert fragment in current_script
+    assert "page.getByText(api.pinnedHeadline, { exact: true }).first()" not in (
+        current_script
     )
 
 
@@ -1296,8 +1711,10 @@ def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> 
         "KIVOU_HISTORICAL_ARTIFACT_ID",
         "KIVOU_HISTORICAL_ARTIFACT_VERSION",
         "pinnedSignalId: item.signal_id",
+        "pinnedIndex,",
         "pinnedHeadline:",
-        ".signal-item:not(.is-locked)",
+        "page.locator('.signal-list .signal-item').nth(api.pinnedIndex)",
+        "selection.getByText(api.pinnedHeadline, { exact: true })",
         "url.pathname === `/app/signals/${encodeURIComponent(api.pinnedSignalId)}`",
         "selected.searchParams.get('presentation_artifact_id') === api.pinnedArtifactId",
         "const expectedDetailPath =",
@@ -1308,7 +1725,8 @@ def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> 
         "status === 200 && path === expectedNotePath",
         "method !== 'GET' && /\\/signals\\/[^/]+\\/note",
         "!requests.some(({ method }) => !['GET', 'HEAD'].includes(method))",
-        "page.getByText(api.pinnedHeadline, { exact: true })",
+        "visibleDetailPane.getByRole('heading', {",
+        "name: api.pinnedHeadline, exact: true,",
     ):
         assert fragment in commands or fragment in current_script
 
@@ -1316,7 +1734,7 @@ def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> 
     _assert_in_order(
         current_script,
         "pinnedSignalId: item.signal_id",
-        ".signal-item:not(.is-locked)",
+        "page.locator('.signal-list .signal-item').nth(api.pinnedIndex)",
         "path === expectedDetailPath",
         "method === 'GET' && path === expectedNotePath",
     )
@@ -1423,7 +1841,7 @@ def test_locked_teaser_is_unique_presentation_free_and_forbids_any_detail_get() 
     duplicate_payload_harness = """
 const duplicateId = 'a'.repeat(64)
 const artifactId = 'b'.repeat(64)
-const asOf = '2026-08-31T00:00:00Z'
+const asOf = '2026-08-31'
 const artifact = {
   artifact_id: artifactId,
   version: 1,
@@ -1434,7 +1852,7 @@ const artifact = {
     claims: [{ evidence_refs: ['source:1'] }],
   },
 }
-const feedPath = `/signals?as_of=${encodeURIComponent(asOf)}&limit=50&offset=0`
+const feedPath = '/signals?freshness=new&limit=20&offset=0'
 const detailPath =
   `/signals/${duplicateId}?presentation_artifact_id=${artifactId}`
 const requests = []
@@ -1444,9 +1862,11 @@ global.fetch = async (path, options) => {
   if (path === feedPath) {
     return {
       status: 200,
-      json: async () => ({
-        read_at: asOf,
-        items: [
+          json: async () => ({
+            read_at: asOf,
+            freshness: 'new',
+            page: { limit: 20, offset: 0, has_more: false, scan_truncated: false },
+            items: [
           { signal_id: duplicateId, locked: false, presentation: artifact },
           { signal_id: duplicateId, locked: true, headline: 'Locked signal' },
         ],
