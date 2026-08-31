@@ -80,6 +80,30 @@ def _embedded_awk_after(commands: str, anchor: str) -> str:
     return commands.split(prefix, 1)[1].split(suffix, 1)[0]
 
 
+def test_every_documented_shell_and_embedded_script_parses() -> None:
+    body = _body()
+    for index, block in enumerate(_shell_blocks(body)):
+        parsed = subprocess.run(
+            ["bash", "-n"],
+            input=block,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert parsed.returncode == 0, f"bash block {index}: {parsed.stderr}"
+    for index, script in enumerate(_python_heredocs(body)):
+        compile(script, f"runbook-python-{index}", "exec")
+    for index, script in enumerate(_javascript_heredocs(body)):
+        parsed = subprocess.run(
+            ["node", "--check"],
+            input=script,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        assert parsed.returncode == 0, f"javascript block {index}: {parsed.stderr}"
+
+
 def test_rollout_proves_exact_main_ci_jobs_and_executed_steps_before_ssh() -> None:
     body = _body()
     commands = _commands(body)
@@ -555,6 +579,50 @@ def test_frontend_candidate_is_http_proven_before_live_switch() -> None:
     )[0]
 
 
+def test_frontend_preview_serves_exact_revalidated_immutable_release() -> None:
+    section = _between(
+        _body(),
+        "## 6. Construire et basculer le frontend du même SHA",
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+    )
+    commands = _commands(section)
+    logical = _logical_shell(section)
+
+    for fragment in (
+        'KIVOU_FRONTEND_BUILD_MANIFEST=',
+        'KIVOU_FRONTEND_RELEASE_MANIFEST=',
+        'KIVOU_FRONTEND_RELEASE_RECHECK_MANIFEST=',
+        'find . -xdev -type f -print0',
+        '! -name KIVOU_RELEASE_SHA',
+        'cmp --silent "$KIVOU_FRONTEND_BUILD_MANIFEST"',
+        'KIVOU_EXPECTED_FRONTEND_MANIFEST_SHA=',
+        'test ! -L "$KIVOU_FRONTEND_RELEASE"',
+        'sudo find "$KIVOU_FRONTEND_RELEASE" -xdev ! -type d ! -type f',
+        'sudo find "$KIVOU_FRONTEND_RELEASE" -xdev -type f -links +1',
+        'kivou_revalidate_frontend_release',
+        '--property=WorkingDirectory="$KIVOU_FRONTEND_RELEASE"',
+        '--outDir "$KIVOU_FRONTEND_RELEASE"',
+    ):
+        assert fragment in logical
+
+    preview = commands.split("sudo systemd-run --quiet --collect", 1)[1].split(
+        "KIVOU_FRONTEND_PREVIEW_STATUS=000", 1
+    )[0]
+    assert 'WorkingDirectory="$KIVOU_FRONTEND_BUILD/frontend"' not in preview
+    assert '--outDir "$KIVOU_FRONTEND_RELEASE"' in preview
+    assert commands.count("kivou_revalidate_frontend_release") >= 3
+    _assert_in_order(
+        logical,
+        'tar -C "$KIVOU_FRONTEND_RELEASE" -xf -',
+        'cmp --silent "$KIVOU_FRONTEND_BUILD_MANIFEST"',
+        '--property=WorkingDirectory="$KIVOU_FRONTEND_RELEASE"',
+        "kivou_stop_frontend_preview",
+        'kivou_revalidate_frontend_release "$KIVOU_FRONTEND_RELEASE_RECHECK_MANIFEST"',
+        'test "$(readlink -f /srv/kivou/frontend)" = "$KIVOU_PREVIOUS_FRONTEND"',
+        'sudo mv -Tf "$KIVOU_FRONTEND_NEXT" /srv/kivou/frontend',
+    )
+
+
 def test_frontend_switch_prearms_unique_next_and_rollback_before_atomic_mv() -> None:
     section = _between(
         _body(),
@@ -621,7 +689,6 @@ def test_qa_gate_precedes_separate_bounded_fr_en_factual_backfills() -> None:
         "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
         "## 8. Smoke navigateur desktop et mobile",
     )
-    commands = _commands(qa_section)
 
     for fragment in (
         "/etc/kivou/card-presentation-qa.env",
@@ -629,8 +696,8 @@ def test_qa_gate_precedes_separate_bounded_fr_en_factual_backfills() -> None:
         "KIVOU_CARD_QA_ACCOUNT_ID",
         "ne crée pas ce fichier",
         "ne déduit jamais le compte",
-        "--language fr --limit 50 --offset 0",
-        "--language en --limit 50 --offset 0",
+        '"--language", "fr"',
+        '"--language", "en"',
         "scan_truncated=0",
         "failed=0",
         "ne pas suivre `next_offset`",
@@ -647,11 +714,14 @@ def test_qa_gate_precedes_separate_bounded_fr_en_factual_backfills() -> None:
     _assert_in_order(
         qa_section,
         "KIVOU_CARD_QA_ACCOUNT_ID",
-        "--language fr --limit 50 --offset 0",
-        "--language en --limit 50 --offset 0",
+        '"--language", "fr"',
+        '"--language", "en"',
         "provider IS NULL",
     )
-    assert commands.count("python -m signals.card_intelligence backfill-fallbacks") == 2
+    backfill_scripts = tuple(
+        script for script in _python_heredocs(qa_section) if "cli_main" in script
+    )
+    assert len(backfill_scripts) == 2
 
 
 def test_every_qa_python_boundary_fails_with_only_an_opaque_error() -> None:
@@ -662,7 +732,7 @@ def test_every_qa_python_boundary_fails_with_only_an_opaque_error() -> None:
     )
     scripts = _python_heredocs(qa_section)
 
-    assert len(scripts) == 2
+    assert len(scripts) == 4
     for script in scripts:
         assert "def main() -> None:" in script
         assert "try:\n    main()\nexcept Exception:" in script
@@ -670,6 +740,54 @@ def test_every_qa_python_boundary_fails_with_only_an_opaque_error() -> None:
         assert "raise SystemExit(1)" in script
         assert "traceback" not in script.casefold()
         assert not re.search(r"(?m)^\s*raise\s*$", script)
+
+
+def test_each_backfill_rebinds_approved_account_fingerprint_inside_unit() -> None:
+    section = _between(
+        _body(),
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    commands = _commands(section)
+    scripts = _python_heredocs(section)
+    backfills = tuple(script for script in scripts if "cli_main" in script)
+
+    assert len(backfills) == 2
+    for unit in ("kivou-card-backfill-fr-", "kivou-card-backfill-en-"):
+        invocation = commands.split(unit, 1)[1].split("PY\n)", 1)[0]
+        assert (
+            '--setenv="KIVOU_QA_DB_FINGERPRINT=$KIVOU_QA_DB_FINGERPRINT"'
+            in invocation
+        )
+    assert '"$KIVOU_QA_DB_FINGERPRINT" <<\'REMOTE\'' in commands
+    assert commands.count("kivou_revalidate_qa_binding") >= 3
+    for language, script in zip(("fr", "en"), backfills, strict=True):
+        for fragment in (
+            "file_descriptor = os.open(",
+            "os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW",
+            "qa_stat = os.fstat(file_descriptor)",
+            'environment_account_id = os.environ["KIVOU_CARD_QA_ACCOUNT_ID"]',
+            "file_account_id",
+            "hmac.compare_digest(file_account_id, environment_account_id)",
+            'expected = os.environ["KIVOU_QA_DB_FINGERPRINT"]',
+            'hashlib.sha256(file_account_id.encode("utf-8")).hexdigest()[:16]',
+            "hmac.compare_digest(actual, expected)",
+            "cli_main([",
+            '"--account-id", file_account_id',
+            '"--limit", "50"',
+            '"--offset", "0"',
+        ):
+            assert fragment in script
+        _assert_in_order(
+            script,
+            "file_descriptor = os.open(",
+            "qa_stat = os.fstat(file_descriptor)",
+            "hmac.compare_digest(file_account_id, environment_account_id)",
+            "hmac.compare_digest(actual, expected)",
+            "cli_main([",
+        )
+        assert f'"--language", "{language}"' in script
+        assert "print(account_id" not in script
 
 
 def test_pre_backfill_browser_gate_matches_protected_session_to_db_scope() -> None:
@@ -710,8 +828,8 @@ def test_pre_backfill_browser_gate_matches_protected_session_to_db_scope() -> No
         "qa_scope_ok fingerprint=",
         "KIVOU_QA_DB_FINGERPRINT=",
         "qa_browser_gate_ok",
-        "--language fr --limit 50 --offset 0",
-        "--language en --limit 50 --offset 0",
+        '"--language", "fr"',
+        '"--language", "en"',
     )
     assert "writeFile" not in script
     assert "copyFile" not in script
@@ -787,6 +905,150 @@ def test_browser_smoke_is_executable_fail_closed_and_collects_two_viewports() ->
     assert syntax.returncode == 0, syntax.stderr
 
 
+def test_signal_smoke_pins_exact_signal_note_and_historical_artifact() -> None:
+    body = _body()
+    qa_section = _between(
+        body,
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    section = _between(
+        body,
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    commands = _commands(section)
+    script = _javascript_heredocs(section)[0]
+
+    for fragment in (
+        "ce gate **ne peut donc pas passer**",
+        "SET TRANSACTION READ ONLY",
+        "old.superseded_at IS NOT NULL",
+        "current.superseded_at IS NULL",
+        "current.input_fingerprint=old.input_fingerprint",
+        "signal.revision=old.signal_revision",
+        "icp.matching_revision=old.target_icp_revision",
+    ):
+        assert fragment in qa_section
+    historical_gate = qa_section.split("Un historique n'est jamais fabriqué", 1)[1]
+    assert "INSERT " not in historical_gate
+    assert "UPDATE " not in historical_gate
+
+    for fragment in (
+        "KIVOU_HISTORICAL_SIGNAL_ID",
+        "KIVOU_HISTORICAL_ARTIFACT_ID",
+        "KIVOU_HISTORICAL_ARTIFACT_VERSION",
+        "pinnedSignalId: item.signal_id",
+        "pinnedHeadline:",
+        "historicalSignalId",
+        "historicalArtifactId",
+        "historicalArtifactVersion",
+        "historicalDetail.presentation.artifact_id !== historicalArtifactId",
+        "historicalDetail.presentation.version !== historicalArtifactVersion",
+        "const expectedSelectionHref =",
+        "url.pathname === `/app/signals/${encodeURIComponent(api.pinnedSignalId)}`",
+        "selected.searchParams.get('presentation') === api.pinnedArtifactId",
+        "const expectedDetailPath =",
+        "path === expectedDetailPath",
+        "const expectedNotePath =",
+        "method === 'GET' && path === expectedNotePath",
+        "responses.slice(selectionResponseStart)",
+        "status === 200 && path === expectedNotePath",
+        "method !== 'GET' && /\\/signals\\/[^/]+\\/note",
+        "!requests.some(({ method }) => !['GET', 'HEAD'].includes(method))",
+        "page.getByText(api.pinnedHeadline, { exact: true })",
+        "page.getByText(api.historicalHeadline, { exact: true })",
+    ):
+        assert fragment in commands or fragment in script
+
+    assert "path.includes(`presentation_artifact_id=${artifactId}`)" not in script
+    _assert_in_order(
+        script,
+        "const historicalDetailResponse = await fetch(",
+        "historicalDetail.presentation.artifact_id !== historicalArtifactId",
+        "return {",
+        "pinnedSignalId: item.signal_id",
+        "const expectedSelectionHref =",
+        "path === expectedDetailPath",
+        "method === 'GET' && path === expectedNotePath",
+    )
+
+
+def test_scroll_contract_mutates_and_restores_nonzero_positions() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    script = _javascript_heredocs(section)[0]
+
+    assert "Number.isFinite(scrollTop)" not in script
+    for fragment in (
+        "async function setScrollContract",
+        "async function expectScrollContractRestored",
+        "element.scrollTop = target",
+        "element.scrollTop > 0",
+        "Math.abs(actual[index] - expected[index])",
+        "companyListScroll",
+        "companyDetailScroll",
+        "signalListScroll",
+        "signalDetailScroll",
+    ):
+        assert fragment in script
+    for function_name in ("smokeCompanies", "smokeSignals"):
+        function = script.split(f"async function {function_name}", 1)[1].split(
+            "\n}\n", 1
+        )[0]
+        _assert_in_order(
+            function,
+            "setScrollContract",
+            "await page.goBack(",
+            "expectScrollContractRestored",
+            "await page.goForward(",
+            "expectScrollContractRestored",
+            "await page.reload(",
+            "expectScrollContractRestored",
+        )
+
+
+def test_smoke_journal_boundary_and_card_worker_inventory_are_fail_closed() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    commands = _commands(section)
+    logical = _logical_shell(section)
+
+    for fragment in (
+        "KIVOU_CARD_JOURNAL_CURSOR=",
+        "KIVOU_CARD_JOURNAL_SINCE=",
+        "journalctl -u kivou-api.service -n 0 --show-cursor",
+        'journalctl -u kivou-api.service --after-cursor "$KIVOU_CARD_JOURNAL_CURSOR"',
+        "kivou_assert_no_card_ai_runtime",
+        "systemctl list-unit-files",
+        "systemctl list-units",
+        "/etc/kivou/staging.env",
+        "KIVOU_CARD_(AI|INTELLIGENCE|GENERATION|GENERATOR|PROVIDER|QA_PROVIDER|WORKER)",
+        "Traceback|unhandled|exception",
+        "card[_ -]?(generation|provider|qa[_ -]?worker)",
+        'printf "%s\\n" "card_get_journal_ok"',
+    ):
+        assert fragment in logical
+
+    assert "journalctl -u kivou-acquisition" not in commands
+    assert 'printf "%s\\n" "$KIVOU_CARD_GET_JOURNAL"' not in commands
+    _assert_in_order(
+        logical,
+        "kivou_assert_no_card_ai_runtime",
+        "journalctl -u kivou-api.service -n 0 --show-cursor",
+        "KIVOU_QA_ORIGIN=https://staging.kivou.eu node <<'JS'",
+        'journalctl -u kivou-api.service --after-cursor "$KIVOU_CARD_JOURNAL_CURSOR"',
+        "kivou_assert_no_card_ai_runtime",
+        'printf "%s\\n" "card_get_journal_ok"',
+    )
+
+
 def test_smoke_and_rollback_contract_retain_additive_migration() -> None:
     body = _body()
 
@@ -850,8 +1112,12 @@ def test_cleanup_and_mutation_commands_are_narrow_and_staging_only() -> None:
     direct_ssh_targets = re.findall(r"(?m)^\s*ssh\s+([^\s]+)", commands)
     assert direct_ssh_targets
     assert set(direct_ssh_targets) == {"kivou-staging"}
-    for forbidden in ("Hermes", "openai", "anthropic", "ollama", "worker"):
+    for forbidden in ("Hermes", "openai", "anthropic", "ollama"):
         assert forbidden.casefold() not in commands.casefold()
+    assert not re.search(r"systemctl\s+(?:start|enable).*kivou-card", commands)
+    assert not re.search(
+        r"python[^\n]*(?:generate|provider|worker)", commands, re.IGNORECASE
+    )
 
     destructive_lines = tuple(
         line.strip()

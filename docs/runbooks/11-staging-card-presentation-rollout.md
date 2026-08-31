@@ -568,7 +568,11 @@ REMOTE
 
 Le build est détaché du lien actif et de tout home de connexion. Le Founder
 Console n'est ni construit ni copié ici. La release frontend reçoit un marker
-appartenant à root et contenant uniquement le SHA final.
+appartenant à root et contenant uniquement le SHA final. Le manifest complet
+du `dist` est comparé au manifest de la release (le marker étant vérifié à
+part), sans symlink, hardlink, fichier spécial ni chemin hors release. Le
+preview sert ensuite cette release root-owned exacte; la même preuve est
+recalculée immédiatement avant le switch.
 
 ~~~bash
 ssh kivou-staging 'bash -s' -- \
@@ -620,6 +624,40 @@ sudo -u kivou /usr/bin/env -i \
 test -f "$KIVOU_FRONTEND_BUILD/frontend/dist/index.html"
 find "$KIVOU_FRONTEND_BUILD/frontend/dist/assets" -type f -print -quit | grep -q .
 
+KIVOU_FRONTEND_BUILD_MANIFEST="$KIVOU_FRONTEND_BUILD/build.manifest.sha256"
+KIVOU_FRONTEND_RELEASE_MANIFEST="$KIVOU_FRONTEND_BUILD/release.manifest.sha256"
+KIVOU_FRONTEND_RELEASE_RECHECK_MANIFEST="$KIVOU_FRONTEND_BUILD/release.recheck.manifest.sha256"
+for KIVOU_FRONTEND_MANIFEST in \
+  "$KIVOU_FRONTEND_BUILD_MANIFEST" \
+  "$KIVOU_FRONTEND_RELEASE_MANIFEST" \
+  "$KIVOU_FRONTEND_RELEASE_RECHECK_MANIFEST"; do
+  case "$KIVOU_FRONTEND_MANIFEST" in
+    ("$KIVOU_FRONTEND_BUILD"/*.manifest.sha256) ;;
+    (*) exit 69 ;;
+  esac
+  test ! -e "$KIVOU_FRONTEND_MANIFEST"
+  test ! -L "$KIVOU_FRONTEND_MANIFEST"
+done
+test "$(readlink -f "$KIVOU_FRONTEND_BUILD/frontend/dist")" = \
+  "$KIVOU_FRONTEND_BUILD/frontend/dist"
+test ! -L "$KIVOU_FRONTEND_BUILD/frontend/dist"
+KIVOU_FRONTEND_BUILD_INVALID=$(find \
+  "$KIVOU_FRONTEND_BUILD/frontend/dist" -xdev \
+  ! -type d ! -type f -print -quit)
+test -z "$KIVOU_FRONTEND_BUILD_INVALID"
+unset KIVOU_FRONTEND_BUILD_INVALID
+KIVOU_FRONTEND_BUILD_HARDLINKS=$(find \
+  "$KIVOU_FRONTEND_BUILD/frontend/dist" -xdev \
+  -type f -links +1 -print -quit)
+test -z "$KIVOU_FRONTEND_BUILD_HARDLINKS"
+unset KIVOU_FRONTEND_BUILD_HARDLINKS
+sudo -u kivou /bin/sh -eu -c '
+  cd "$1"
+  find . -xdev -type f -print0 | LC_ALL=C sort -z | xargs -0 -r sha256sum
+' sh "$KIVOU_FRONTEND_BUILD/frontend/dist" | \
+  sudo -u kivou tee "$KIVOU_FRONTEND_BUILD_MANIFEST" >/dev/null
+test -s "$KIVOU_FRONTEND_BUILD_MANIFEST"
+
 sudo -u kivou tar -C "$KIVOU_FRONTEND_BUILD/frontend/dist" -cf - . | \
   sudo tar -C "$KIVOU_FRONTEND_RELEASE" -xf -
 printf '%s\n' "$KIVOU_FINAL_SHA" | \
@@ -631,6 +669,60 @@ test "$(stat -c '%U:%G:%a' "$KIVOU_FRONTEND_RELEASE/KIVOU_RELEASE_SHA")" = \
   "root:root:444"
 test "$(cat "$KIVOU_FRONTEND_RELEASE/KIVOU_RELEASE_SHA")" = "$KIVOU_FINAL_SHA"
 test $((8#$(stat -c '%a' "$KIVOU_FRONTEND_RELEASE") & 8#022)) -eq 0
+
+kivou_revalidate_frontend_release() {
+  KIVOU_REVALIDATION_MANIFEST=$1
+  case "$KIVOU_REVALIDATION_MANIFEST" in
+    ("$KIVOU_FRONTEND_BUILD"/*.manifest.sha256) ;;
+    (*) return 69 ;;
+  esac
+  case "$KIVOU_FRONTEND_RELEASE" in
+    (/srv/kivou/releases/frontend-*-$KIVOU_RELEASE_SHORT) ;;
+    (*) return 69 ;;
+  esac
+  test "$(sudo readlink -f "$KIVOU_FRONTEND_RELEASE")" = \
+    "$KIVOU_FRONTEND_RELEASE"
+  test ! -L "$KIVOU_FRONTEND_RELEASE"
+  KIVOU_RELEASE_INVALID=$(sudo find "$KIVOU_FRONTEND_RELEASE" -xdev \
+    ! -type d ! -type f -print -quit)
+  test -z "$KIVOU_RELEASE_INVALID"
+  unset KIVOU_RELEASE_INVALID
+  KIVOU_RELEASE_HARDLINKS=$(sudo find "$KIVOU_FRONTEND_RELEASE" -xdev \
+    -type f -links +1 -print -quit)
+  test -z "$KIVOU_RELEASE_HARDLINKS"
+  unset KIVOU_RELEASE_HARDLINKS
+  KIVOU_RELEASE_WRONG_OWNER=$(sudo find "$KIVOU_FRONTEND_RELEASE" -xdev \
+    \( ! -user root -o ! -group root \) -print -quit)
+  test -z "$KIVOU_RELEASE_WRONG_OWNER"
+  unset KIVOU_RELEASE_WRONG_OWNER
+  KIVOU_RELEASE_WRONG_DIR_MODE=$(sudo find "$KIVOU_FRONTEND_RELEASE" -xdev \
+    -type d ! -perm 0755 -print -quit)
+  test -z "$KIVOU_RELEASE_WRONG_DIR_MODE"
+  unset KIVOU_RELEASE_WRONG_DIR_MODE
+  KIVOU_RELEASE_WRONG_FILE_MODE=$(sudo find "$KIVOU_FRONTEND_RELEASE" -xdev \
+    -type f ! -perm 0444 -print -quit)
+  test -z "$KIVOU_RELEASE_WRONG_FILE_MODE"
+  unset KIVOU_RELEASE_WRONG_FILE_MODE
+  test "$(cat "$KIVOU_FRONTEND_RELEASE/KIVOU_RELEASE_SHA")" = \
+    "$KIVOU_FINAL_SHA"
+  sudo /bin/sh -eu -c '
+    cd "$1"
+    find . -xdev -type f ! -name KIVOU_RELEASE_SHA -print0 |
+      LC_ALL=C sort -z | xargs -0 -r sha256sum
+  ' sh "$KIVOU_FRONTEND_RELEASE" | \
+    sudo -u kivou tee "$KIVOU_REVALIDATION_MANIFEST" >/dev/null
+  test -s "$KIVOU_REVALIDATION_MANIFEST"
+  cmp --silent "$KIVOU_FRONTEND_BUILD_MANIFEST" \
+    "$KIVOU_REVALIDATION_MANIFEST"
+  test "$(sha256sum "$KIVOU_REVALIDATION_MANIFEST" | awk '{print $1}')" = \
+    "$KIVOU_EXPECTED_FRONTEND_MANIFEST_SHA"
+}
+
+KIVOU_EXPECTED_FRONTEND_MANIFEST_SHA=$(sha256sum \
+  "$KIVOU_FRONTEND_BUILD_MANIFEST" | awk '{print $1}')
+printf '%s\n' "$KIVOU_EXPECTED_FRONTEND_MANIFEST_SHA" | \
+  grep -Eq '^[0-9a-f]{64}$'
+kivou_revalidate_frontend_release "$KIVOU_FRONTEND_RELEASE_MANIFEST"
 
 KIVOU_FRONTEND_PREVIEW_PORT=4174
 KIVOU_FRONTEND_PREVIEW_UNIT="kivou-frontend-preview-$KIVOU_RELEASE_SHORT"
@@ -658,10 +750,11 @@ KIVOU_FRONTEND_PREVIEW_STARTED=1
 sudo systemd-run --quiet --collect \
   --unit="$KIVOU_FRONTEND_PREVIEW_UNIT" --property=Type=exec \
   --property=User=kivou --property=Group=kivou \
-  --property=WorkingDirectory="$KIVOU_FRONTEND_BUILD/frontend" \
+  --property=WorkingDirectory="$KIVOU_FRONTEND_RELEASE" \
   --property=NoNewPrivileges=yes --property=PrivateTmp=yes \
   -- /usr/bin/env -i HOME=/srv/kivou PATH=/usr/local/bin:/usr/bin:/bin \
   "$KIVOU_FRONTEND_BUILD/frontend/node_modules/.bin/vite" preview \
+  --outDir "$KIVOU_FRONTEND_RELEASE" \
   --host 127.0.0.1 --port "$KIVOU_FRONTEND_PREVIEW_PORT" --strictPort
 KIVOU_FRONTEND_PREVIEW_STATUS=000
 for KIVOU_PREVIEW_ATTEMPT in 1 2 3 4 5; do
@@ -758,6 +851,8 @@ test "$(sudo readlink -f "$KIVOU_FRONTEND_NEXT")" = \
   "$KIVOU_FRONTEND_RELEASE"
 test "$(sudo readlink -f "$KIVOU_FRONTEND_ROLLBACK")" = \
   "$KIVOU_PREVIOUS_FRONTEND"
+kivou_revalidate_frontend_release \
+  "$KIVOU_FRONTEND_RELEASE_RECHECK_MANIFEST"
 test "$(readlink -f /srv/kivou/frontend)" = "$KIVOU_PREVIOUS_FRONTEND"
 sudo mv -Tf "$KIVOU_FRONTEND_NEXT" /srv/kivou/frontend
 if ! kivou_frontend_http_smoke "$KIVOU_FRONTEND_RELEASE"; then
@@ -967,23 +1062,36 @@ JS
 )
 
 ssh kivou-staging 'bash -s' -- \
-  "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_BACKFILL_AS_OF" <<'REMOTE'
+  "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_BACKFILL_AS_OF" \
+  "$KIVOU_QA_DB_FINGERPRINT" <<'REMOTE'
 set -euo pipefail
 KIVOU_RELEASE_DIR=$1
 KIVOU_FINAL_SHA=$2
 KIVOU_BACKFILL_AS_OF=$3
+KIVOU_QA_DB_FINGERPRINT=$4
 KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
 KIVOU_QA_ENV=/etc/kivou/card-presentation-qa.env
-test -f "$KIVOU_QA_ENV"
-test ! -L "$KIVOU_QA_ENV"
-test "$(stat -c '%U:%G:%a' "$KIVOU_QA_ENV")" = "root:kivou:640"
-test "$(sudo awk 'NF && $1 !~ /^#/ {count++} END {print count+0}' \
-  "$KIVOU_QA_ENV")" = 1
-sudo grep -Eq \
-  '^KIVOU_CARD_QA_ACCOUNT_ID=[0-9A-Za-z][0-9A-Za-z_-]{0,63}$' \
-  "$KIVOU_QA_ENV"
-test "$(sudo awk -F= 'NF && $1 !~ /^#/ {print $1}' "$KIVOU_QA_ENV")" = \
-  KIVOU_CARD_QA_ACCOUNT_ID
+printf '%s\n' "$KIVOU_QA_DB_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
+
+kivou_revalidate_qa_binding() {
+  test -f "$KIVOU_QA_ENV"
+  test ! -L "$KIVOU_QA_ENV"
+  test "$(stat -c '%U:%G:%a' "$KIVOU_QA_ENV")" = "root:kivou:640"
+  test "$(sudo awk 'NF && $1 !~ /^#/ {count++} END {print count+0}' \
+    "$KIVOU_QA_ENV")" = 1
+  sudo grep -Eq \
+    '^KIVOU_CARD_QA_ACCOUNT_ID=[0-9A-Za-z][0-9A-Za-z_-]{0,63}$' \
+    "$KIVOU_QA_ENV"
+  test "$(sudo awk -F= 'NF && $1 !~ /^#/ {print $1}' \
+    "$KIVOU_QA_ENV")" = KIVOU_CARD_QA_ACCOUNT_ID
+  KIVOU_QA_BOUND_ACCOUNT=$(sudo awk -F= \
+    '$1 == "KIVOU_CARD_QA_ACCOUNT_ID" {print $2}' "$KIVOU_QA_ENV")
+  KIVOU_QA_BOUND_FINGERPRINT=$(printf '%s' "$KIVOU_QA_BOUND_ACCOUNT" | \
+    sha256sum | cut -c1-16)
+  unset KIVOU_QA_BOUND_ACCOUNT
+  test "$KIVOU_QA_BOUND_FINGERPRINT" = "$KIVOU_QA_DB_FINGERPRINT"
+  unset KIVOU_QA_BOUND_FINGERPRINT
+}
 
 kivou_validate_backfill_summary() {
   printf '%s\n' "$1" | awk '
@@ -997,6 +1105,7 @@ kivou_validate_backfill_summary() {
   '
 }
 
+kivou_revalidate_qa_binding
 KIVOU_FR_SUMMARY=$(sudo systemd-run --quiet --wait --collect --pipe \
   --unit="kivou-card-backfill-fr-$KIVOU_FINAL_SHORT" --property=Type=oneshot \
   --property=User=kivou --property=Group=kivou \
@@ -1006,10 +1115,93 @@ KIVOU_FR_SUMMARY=$(sudo systemd-run --quiet --wait --collect --pipe \
   --setenv=HOME=/srv/kivou \
   --setenv="PATH=$KIVOU_RELEASE_DIR/.venv/bin:/usr/bin:/bin" \
   --setenv="KIVOU_BACKFILL_AS_OF=$KIVOU_BACKFILL_AS_OF" \
-  -- /bin/sh -eu -c 'exec python -m signals.card_intelligence backfill-fallbacks --account-id "$KIVOU_CARD_QA_ACCOUNT_ID" --as-of "$KIVOU_BACKFILL_AS_OF" --language fr --limit 50 --offset 0')
+  --setenv="KIVOU_QA_DB_FINGERPRINT=$KIVOU_QA_DB_FINGERPRINT" \
+  -- "$KIVOU_RELEASE_DIR/.venv/bin/python" - <<'PY'
+import grp
+import hashlib
+import hmac
+import os
+import re
+import stat
+import sys
+
+from signals.card_intelligence.cli import main as cli_main
+
+
+def approved_account_id() -> str:
+    qa_env = "/etc/kivou/card-presentation-qa.env"
+    file_descriptor = os.open(
+        qa_env, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
+    )
+    try:
+        qa_stat = os.fstat(file_descriptor)
+        if (
+            not stat.S_ISREG(qa_stat.st_mode)
+            or stat.S_IMODE(qa_stat.st_mode) != 0o640
+            or qa_stat.st_uid != 0
+            or grp.getgrgid(qa_stat.st_gid).gr_name != "kivou"
+        ):
+            raise ValueError()
+        handle = os.fdopen(file_descriptor, "r", encoding="utf-8")
+        file_descriptor = -1
+        with handle:
+            contents = handle.read(257)
+    finally:
+        if file_descriptor >= 0:
+            os.close(file_descriptor)
+    if len(contents) > 256:
+        raise ValueError()
+    assignments = [
+        line for line in contents.splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+    if len(assignments) != 1:
+        raise ValueError()
+    key, separator, file_account_id = assignments[0].partition("=")
+    if (
+        separator != "="
+        or key != "KIVOU_CARD_QA_ACCOUNT_ID"
+        or re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z_-]{0,63}", file_account_id)
+        is None
+    ):
+        raise ValueError()
+    environment_account_id = os.environ["KIVOU_CARD_QA_ACCOUNT_ID"]
+    if not hmac.compare_digest(file_account_id, environment_account_id):
+        raise ValueError()
+    return file_account_id
+
+
+def main() -> None:
+    file_account_id = approved_account_id()
+    expected = os.environ["KIVOU_QA_DB_FINGERPRINT"]
+    if re.fullmatch(r"[0-9a-f]{16}", expected) is None:
+        raise ValueError()
+    actual = hashlib.sha256(file_account_id.encode("utf-8")).hexdigest()[:16]
+    if not hmac.compare_digest(actual, expected):
+        raise ValueError()
+    exit_code = cli_main([
+        "backfill-fallbacks",
+        "--account-id", file_account_id,
+        "--as-of", os.environ["KIVOU_BACKFILL_AS_OF"],
+        "--language", "fr",
+        "--limit", "50",
+        "--offset", "0",
+    ])
+    if exit_code != 0:
+        raise ValueError()
+
+
+try:
+    main()
+except Exception:
+    print("qa_backfill_failed", file=sys.stderr)
+    raise SystemExit(1) from None
+PY
+)
 kivou_validate_backfill_summary "$KIVOU_FR_SUMMARY"
 printf 'fr_%s\n' "$KIVOU_FR_SUMMARY"
 
+kivou_revalidate_qa_binding
 KIVOU_EN_SUMMARY=$(sudo systemd-run --quiet --wait --collect --pipe \
   --unit="kivou-card-backfill-en-$KIVOU_FINAL_SHORT" --property=Type=oneshot \
   --property=User=kivou --property=Group=kivou \
@@ -1019,7 +1211,89 @@ KIVOU_EN_SUMMARY=$(sudo systemd-run --quiet --wait --collect --pipe \
   --setenv=HOME=/srv/kivou \
   --setenv="PATH=$KIVOU_RELEASE_DIR/.venv/bin:/usr/bin:/bin" \
   --setenv="KIVOU_BACKFILL_AS_OF=$KIVOU_BACKFILL_AS_OF" \
-  -- /bin/sh -eu -c 'exec python -m signals.card_intelligence backfill-fallbacks --account-id "$KIVOU_CARD_QA_ACCOUNT_ID" --as-of "$KIVOU_BACKFILL_AS_OF" --language en --limit 50 --offset 0')
+  --setenv="KIVOU_QA_DB_FINGERPRINT=$KIVOU_QA_DB_FINGERPRINT" \
+  -- "$KIVOU_RELEASE_DIR/.venv/bin/python" - <<'PY'
+import grp
+import hashlib
+import hmac
+import os
+import re
+import stat
+import sys
+
+from signals.card_intelligence.cli import main as cli_main
+
+
+def approved_account_id() -> str:
+    qa_env = "/etc/kivou/card-presentation-qa.env"
+    file_descriptor = os.open(
+        qa_env, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW
+    )
+    try:
+        qa_stat = os.fstat(file_descriptor)
+        if (
+            not stat.S_ISREG(qa_stat.st_mode)
+            or stat.S_IMODE(qa_stat.st_mode) != 0o640
+            or qa_stat.st_uid != 0
+            or grp.getgrgid(qa_stat.st_gid).gr_name != "kivou"
+        ):
+            raise ValueError()
+        handle = os.fdopen(file_descriptor, "r", encoding="utf-8")
+        file_descriptor = -1
+        with handle:
+            contents = handle.read(257)
+    finally:
+        if file_descriptor >= 0:
+            os.close(file_descriptor)
+    if len(contents) > 256:
+        raise ValueError()
+    assignments = [
+        line for line in contents.splitlines()
+        if line.strip() and not line.startswith("#")
+    ]
+    if len(assignments) != 1:
+        raise ValueError()
+    key, separator, file_account_id = assignments[0].partition("=")
+    if (
+        separator != "="
+        or key != "KIVOU_CARD_QA_ACCOUNT_ID"
+        or re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z_-]{0,63}", file_account_id)
+        is None
+    ):
+        raise ValueError()
+    environment_account_id = os.environ["KIVOU_CARD_QA_ACCOUNT_ID"]
+    if not hmac.compare_digest(file_account_id, environment_account_id):
+        raise ValueError()
+    return file_account_id
+
+
+def main() -> None:
+    file_account_id = approved_account_id()
+    expected = os.environ["KIVOU_QA_DB_FINGERPRINT"]
+    if re.fullmatch(r"[0-9a-f]{16}", expected) is None:
+        raise ValueError()
+    actual = hashlib.sha256(file_account_id.encode("utf-8")).hexdigest()[:16]
+    if not hmac.compare_digest(actual, expected):
+        raise ValueError()
+    exit_code = cli_main([
+        "backfill-fallbacks",
+        "--account-id", file_account_id,
+        "--as-of", os.environ["KIVOU_BACKFILL_AS_OF"],
+        "--language", "en",
+        "--limit", "50",
+        "--offset", "0",
+    ])
+    if exit_code != 0:
+        raise ValueError()
+
+
+try:
+    main()
+except Exception:
+    print("qa_backfill_failed", file=sys.stderr)
+    raise SystemExit(1) from None
+PY
+)
 kivou_validate_backfill_summary "$KIVOU_EN_SUMMARY"
 printf 'en_%s\n' "$KIVOU_EN_SUMMARY"
 REMOTE
@@ -1027,7 +1301,13 @@ REMOTE
 
 Ce sont deux unités, processus et transactions distincts, FR puis EN. Exiger
 `failed=0` et `scan_truncated=0`; **ne pas suivre `next_offset`** même s'il est
-présent. Une page explicite de 50 est l'unique portée autorisée par langue.
+présent. Dans chaque unité, le fichier d'approbation est rouvert avec
+`O_NOFOLLOW`, validé par `fstat` comme fichier régulier `root:kivou:640`, puis
+son identifiant est comparé en temps constant à l'EnvironmentFile et à
+l'empreinte DB avant l'appel CLI. Un remplacement du fichier ne peut donc pas
+rediriger la mutation vers un autre compte. Une page explicite de 50 est
+l'unique portée autorisée par langue : `--language fr --limit 50 --offset 0`,
+puis `--language en --limit 50 --offset 0` dans l'unité suivante.
 
 Vérifier ensuite en lecture seule, toujours au seul compte approuvé : statuts
 `FALLBACK`, variantes `FACTUAL_FALLBACK`, preuve non vide sur chaque claim,
@@ -1035,20 +1315,44 @@ aucun `PASS/FULL`, aucun doublon actif et payload strictement décodable. Les
 prédicats attendus sont `provider IS NULL`, `model_id IS NULL`,
 `prompt_version IS NULL`, `qa_provider IS NULL` et `qa_model_id IS NULL`.
 
+Un historique n'est jamais fabriqué pour ce smoke : aucune révision ICP/source
+n'est modifiée et aucune publication supplémentaire n'est autorisée au-delà des
+deux backfills bornés ci-dessus. La preuve suivante exige en lecture seule un
+artefact QA légitimement supersédé, encore compatible avec la révision courante
+et la locale du compte. Sur une table fraîche, son absence est normale mais
+rend le smoke historique **non exécutable : STOP** et validation propriétaire
+requise. La sortie structurée qui transporte ses identifiants vers le navigateur
+est capturée sans jamais être affichée ni consignée. Après la seule migration
+0028 et les backfills factuels FR/EN idempotents, une version unique par stream
+est attendue : ce gate **ne peut donc pas passer**. Il ne devient exécutable que
+si un superseding légitime existe déjà dans le stream courant. Le reader pinned
+refuse par contrat une ancienne révision source/ICP; conserver les mêmes
+révisions et le même input fingerprint est donc volontaire, pas une tentative
+de fabriquer un historique.
+
 ~~~bash
-ssh kivou-staging 'bash -s' -- "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" <<'REMOTE'
+KIVOU_QA_FACTUAL_PROOF=$(ssh kivou-staging 'bash -s' -- \
+  "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" \
+  "$KIVOU_QA_DB_FINGERPRINT" <<'REMOTE'
 set -euo pipefail
 KIVOU_RELEASE_DIR=$1
 KIVOU_FINAL_SHA=$2
+KIVOU_QA_DB_FINGERPRINT=$3
 KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
+printf '%s\n' "$KIVOU_QA_DB_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
 sudo systemd-run --quiet --wait --collect --pipe \
   --unit="kivou-card-factual-proof-$KIVOU_FINAL_SHORT" --property=Type=oneshot \
   --property=User=kivou --property=Group=kivou \
   --property=WorkingDirectory="$KIVOU_RELEASE_DIR" \
   --property=EnvironmentFile=/etc/kivou/staging.env \
   --property=EnvironmentFile=/etc/kivou/card-presentation-qa.env \
+  --setenv="KIVOU_QA_DB_FINGERPRINT=$KIVOU_QA_DB_FINGERPRINT" \
   -- "$KIVOU_RELEASE_DIR/.venv/bin/python" - <<'PY'
+import hashlib
+import hmac
+import json
 import os
+import re
 import sys
 
 import sqlalchemy as sa
@@ -1062,8 +1366,13 @@ from signals.persistence.database import create_database_engine
 
 def main() -> None:
     account_id = os.environ["KIVOU_CARD_QA_ACCOUNT_ID"]
+    expected = os.environ["KIVOU_QA_DB_FINGERPRINT"]
+    actual = hashlib.sha256(account_id.encode("utf-8")).hexdigest()[:16]
+    assert re.fullmatch(r"[0-9a-f]{16}", expected)
+    assert hmac.compare_digest(actual, expected)
     engine = create_database_engine()
     with engine.connect() as connection:
+        connection.exec_driver_sql("SET TRANSACTION READ ONLY")
         rows = connection.execute(sa.text(
             "SELECT language, qa_status, payload_variant, payload, provider, "
             "model_id, prompt_version, qa_provider, qa_model_id "
@@ -1080,9 +1389,51 @@ def main() -> None:
             "WHERE published_at IS NOT NULL AND superseded_at IS NULL "
             "GROUP BY 1,2,3,4,5 HAVING count(*)>1) AS duplicate"
         ))
+        historical = connection.execute(sa.text(
+            "SELECT old.signal_key, old.artifact_id, old.version "
+            "FROM card_presentation_artifact AS old "
+            "JOIN account AS qa ON qa.account_id=old.account_id "
+            "JOIN target_icp AS icp "
+            "ON icp.target_icp_id=old.target_icp_id "
+            "AND icp.account_id=old.account_id "
+            "JOIN materialized_signal AS signal "
+            "ON signal.signal_key=old.signal_key "
+            "AND signal.target_icp_id=old.target_icp_id "
+            "JOIN card_presentation_artifact AS current "
+            "ON current.account_id=old.account_id "
+            "AND current.signal_key=old.signal_key "
+            "AND current.target_icp_id=old.target_icp_id "
+            "AND current.artifact_kind=old.artifact_kind "
+            "AND current.language=old.language "
+            "AND current.signal_revision=old.signal_revision "
+            "AND current.target_icp_revision=old.target_icp_revision "
+            "AND current.input_fingerprint=old.input_fingerprint "
+            "WHERE old.account_id=:account_id "
+            "AND old.artifact_kind='CARD_PRESENTATION' "
+            "AND old.language=CASE WHEN qa.locale IN ('fr','en') "
+            "THEN qa.locale ELSE 'fr' END "
+            "AND old.published_at IS NOT NULL "
+            "AND old.superseded_at IS NOT NULL "
+            "AND old.qa_status='FALLBACK' "
+            "AND old.payload_variant='FACTUAL_FALLBACK' "
+            "AND current.published_at IS NOT NULL "
+            "AND current.superseded_at IS NULL "
+            "AND current.version>old.version "
+            "AND signal.invalidated_at IS NULL "
+            "AND signal.revision=old.signal_revision "
+            "AND signal.target_icp_revision=old.target_icp_revision "
+            "AND icp.status='active' AND icp.plan_limit_code IS NULL "
+            "AND icp.plan_limited_at IS NULL "
+            "AND icp.matching_revision=old.target_icp_revision "
+            "ORDER BY old.signal_key, old.version, old.artifact_id LIMIT 1"
+        ), {"account_id": account_id}).mappings().one_or_none()
     assert rows
     assert foreign_rows == 0
     assert duplicates == 0
+    assert historical is not None
+    assert re.fullmatch(r"[0-9a-f]{64}", historical["signal_key"])
+    assert re.fullmatch(r"[0-9a-f]{64}", historical["artifact_id"])
+    assert type(historical["version"]) is int and historical["version"] >= 1
     assert {row["language"] for row in rows} == {"fr", "en"}
     for row in rows:
         assert row["qa_status"] == "FALLBACK"
@@ -1099,9 +1450,17 @@ def main() -> None:
         language: sum(row["language"] == language for row in rows)
         for language in ("fr", "en")
     }
-    print(
-        f"qa_factual_ok fr={counts['fr']} en={counts['en']} ai_enabled=0"
-    )
+    print(json.dumps({
+        "status": "qa_factual_ok",
+        "fr": counts["fr"],
+        "en": counts["en"],
+        "ai_enabled": 0,
+        "historical": {
+            "signal_id": historical["signal_key"],
+            "artifact_id": historical["artifact_id"],
+            "version": historical["version"],
+        },
+    }, sort_keys=True, separators=(",", ":")))
 
 
 try:
@@ -1111,6 +1470,24 @@ except Exception:
     raise SystemExit(1) from None
 PY
 REMOTE
+)
+printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | jq -e '
+  .status == "qa_factual_ok" and .fr > 0 and .en > 0 and
+  .ai_enabled == 0 and
+  (.historical.signal_id | type == "string" and test("^[0-9a-f]{64}$")) and
+  (.historical.artifact_id | type == "string" and test("^[0-9a-f]{64}$")) and
+  (.historical.version | type == "number" and . >= 1 and floor == .)
+' >/dev/null
+KIVOU_HISTORICAL_SIGNAL_ID=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
+  jq -r '.historical.signal_id')
+KIVOU_HISTORICAL_ARTIFACT_ID=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
+  jq -r '.historical.artifact_id')
+KIVOU_HISTORICAL_ARTIFACT_VERSION=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
+  jq -r '.historical.version')
+unset KIVOU_QA_FACTUAL_PROOF
+printf '%s\n' "$KIVOU_HISTORICAL_SIGNAL_ID" | grep -Eq '^[0-9a-f]{64}$'
+printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_ID" | grep -Eq '^[0-9a-f]{64}$'
+printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_VERSION" | grep -Eq '^[1-9][0-9]*$'
 ~~~
 
 ## 8. Smoke navigateur desktop et mobile
@@ -1154,6 +1531,10 @@ KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
 printf '%s\n' "$KIVOU_FINAL_SHORT" | grep -Eq '^[0-9a-f]{12}$'
 printf '%s\n' "$KIVOU_BACKFILL_AS_OF" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'
 printf '%s\n' "$KIVOU_QA_DB_FINGERPRINT" | grep -Eq '^[0-9a-f]{16}$'
+printf '%s\n' "$KIVOU_HISTORICAL_SIGNAL_ID" | grep -Eq '^[0-9a-f]{64}$'
+printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_ID" | grep -Eq '^[0-9a-f]{64}$'
+printf '%s\n' "$KIVOU_HISTORICAL_ARTIFACT_VERSION" | \
+  grep -Eq '^[1-9][0-9]*$'
 : "${KIVOU_QA_STORAGE_STATE_REAL:?STOP: storage state QA protégé absent}"
 test -f "$KIVOU_QA_STORAGE_STATE_REAL"
 test ! -L "$KIVOU_QA_STORAGE_STATE_REAL"
@@ -1173,11 +1554,75 @@ for KIVOU_CAPTURE in \
   mobile-dashboard.png mobile-companies.png mobile-signals.png; do
   test ! -e "$KIVOU_BROWSER_EVIDENCE_DIR/$KIVOU_CAPTURE"
 done
+
+KIVOU_CARD_JOURNAL_BOUNDARY=$(ssh kivou-staging 'bash -s' <<'REMOTE'
+set -euo pipefail
+kivou_assert_no_card_ai_runtime() {
+  KIVOU_CARD_UNIT_FILES=$(systemctl list-unit-files --no-legend --no-pager \
+    'kivou-card-ai*' 'kivou-card-intelligence*' \
+    'kivou-card-generation*' 'kivou-card-generator*' \
+    'kivou-card-provider*' 'kivou-card-qa-worker*')
+  test -z "$KIVOU_CARD_UNIT_FILES"
+  unset KIVOU_CARD_UNIT_FILES
+  KIVOU_CARD_UNITS=$(systemctl list-units --all --no-legend --no-pager \
+    'kivou-card-ai*' 'kivou-card-intelligence*' \
+    'kivou-card-generation*' 'kivou-card-generator*' \
+    'kivou-card-provider*' 'kivou-card-qa-worker*')
+  test -z "$KIVOU_CARD_UNITS"
+  unset KIVOU_CARD_UNITS
+  test -f /etc/kivou/staging.env
+  test ! -L /etc/kivou/staging.env
+  KIVOU_CARD_CONFIG_KEYS=$(sudo awk -F= '
+    $1 ~ /^KIVOU_CARD_(AI|INTELLIGENCE|GENERATION|GENERATOR|PROVIDER|QA_PROVIDER|WORKER)/ {
+      print "configured"; exit
+    }
+  ' /etc/kivou/staging.env)
+  test -z "$KIVOU_CARD_CONFIG_KEYS"
+  unset KIVOU_CARD_CONFIG_KEYS
+  KIVOU_API_UNIT_TEXT=$(sudo systemctl cat kivou-api.service)
+  KIVOU_CARD_API_UNIT_DIRECTIVES=$(printf '%s\n' "$KIVOU_API_UNIT_TEXT" | \
+    awk 'BEGIN { IGNORECASE=1 }
+      /card[_ -]?(generation|generator|provider|qa[_ -]?worker)/ {
+        print "configured"; exit
+      }')
+  unset KIVOU_API_UNIT_TEXT
+  test -z "$KIVOU_CARD_API_UNIT_DIRECTIVES"
+  unset KIVOU_CARD_API_UNIT_DIRECTIVES
+}
+kivou_assert_no_card_ai_runtime
+KIVOU_CARD_JOURNAL_CURSOR=$(sudo journalctl -u kivou-api.service -n 0 \
+  --show-cursor --no-pager | sed -n 's/^-- cursor: //p')
+printf '%s\n' "$KIVOU_CARD_JOURNAL_CURSOR" | \
+  grep -Eq '^[A-Za-z0-9:;._=-]+$'
+KIVOU_CARD_JOURNAL_SINCE=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+printf '%s\n' "$KIVOU_CARD_JOURNAL_SINCE" | \
+  grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+printf 'cursor=%s\nsince=%s\n' \
+  "$KIVOU_CARD_JOURNAL_CURSOR" "$KIVOU_CARD_JOURNAL_SINCE"
+REMOTE
+)
+test "$(printf '%s\n' "$KIVOU_CARD_JOURNAL_BOUNDARY" | wc -l)" = 2
+printf '%s\n' "$KIVOU_CARD_JOURNAL_BOUNDARY" | grep -Eq \
+  '^cursor=[A-Za-z0-9:;._=-]+$'
+printf '%s\n' "$KIVOU_CARD_JOURNAL_BOUNDARY" | grep -Eq \
+  '^since=[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+KIVOU_CARD_JOURNAL_CURSOR=$(printf '%s\n' "$KIVOU_CARD_JOURNAL_BOUNDARY" | \
+  sed -n 's/^cursor=//p')
+KIVOU_CARD_JOURNAL_SINCE=$(printf '%s\n' "$KIVOU_CARD_JOURNAL_BOUNDARY" | \
+  sed -n 's/^since=//p')
+unset KIVOU_CARD_JOURNAL_BOUNDARY
+printf '%s\n' "$KIVOU_CARD_JOURNAL_CURSOR" | \
+  grep -Eq '^[A-Za-z0-9:;._=-]+$'
+printf '%s\n' "$KIVOU_CARD_JOURNAL_SINCE" | \
+  grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 (
   cd frontend
   KIVOU_QA_STORAGE_STATE="$KIVOU_QA_STORAGE_STATE_REAL" \
   KIVOU_QA_DB_FINGERPRINT="$KIVOU_QA_DB_FINGERPRINT" \
   KIVOU_BACKFILL_AS_OF="$KIVOU_BACKFILL_AS_OF" \
+  KIVOU_HISTORICAL_SIGNAL_ID="$KIVOU_HISTORICAL_SIGNAL_ID" \
+  KIVOU_HISTORICAL_ARTIFACT_ID="$KIVOU_HISTORICAL_ARTIFACT_ID" \
+  KIVOU_HISTORICAL_ARTIFACT_VERSION="$KIVOU_HISTORICAL_ARTIFACT_VERSION" \
   KIVOU_BROWSER_EVIDENCE_DIR="../$KIVOU_BROWSER_EVIDENCE_DIR" \
   KIVOU_QA_ORIGIN=https://staging.kivou.eu node <<'JS'
 function requireTrue(value) {
@@ -1203,8 +1648,13 @@ async function accountFingerprint(page, expectedFingerprint) {
   }, expectedFingerprint)
 }
 
-async function verifyPublishedApi(page, asOf) {
-  return page.evaluate(async (readDate) => {
+async function verifyPublishedApi(page, asOf, historicalBinding) {
+  return page.evaluate(async ({
+    readDate,
+    historicalSignalId,
+    historicalArtifactId,
+    historicalArtifactVersion,
+  }) => {
     const feedResponse = await fetch(
       `/signals?as_of=${encodeURIComponent(readDate)}&limit=50&offset=0`,
       { credentials: 'same-origin' },
@@ -1232,7 +1682,10 @@ async function verifyPublishedApi(page, asOf) {
             !Array.isArray(claim.evidence_refs) || claim.evidence_refs.length === 0
           ))) throw new Error()
     }
-    const item = published[0]
+    const item = published.find((candidate) => (
+      candidate.signal_id === historicalSignalId
+    ))
+    if (!item) throw new Error()
     const artifact = item.presentation
     const detailResponse = await fetch(
       `/signals/${encodeURIComponent(item.signal_id)}` +
@@ -1242,18 +1695,42 @@ async function verifyPublishedApi(page, asOf) {
     if (detailResponse.status !== 200) throw new Error()
     const detail = await detailResponse.json()
     if (!detail.presentation ||
+        detail.signal_id !== item.signal_id ||
         detail.presentation.artifact_id !== artifact.artifact_id ||
         detail.presentation.version !== artifact.version) throw new Error()
+    if (historicalArtifactId === artifact.artifact_id ||
+        historicalArtifactVersion >= artifact.version) throw new Error()
+    const historicalDetailResponse = await fetch(
+      `/signals/${encodeURIComponent(historicalSignalId)}` +
+      `?presentation_artifact_id=${encodeURIComponent(historicalArtifactId)}`,
+      { credentials: 'same-origin' },
+    )
+    if (historicalDetailResponse.status !== 200) throw new Error()
+    const historicalDetail = await historicalDetailResponse.json()
+    if (historicalDetail.signal_id !== historicalSignalId ||
+        !historicalDetail.presentation ||
+        historicalDetail.presentation.artifact_id !== historicalArtifactId ||
+        historicalDetail.presentation.version !== historicalArtifactVersion ||
+        historicalDetail.presentation.status !== 'FALLBACK' ||
+        historicalDetail.presentation.content?.variant !== 'FACTUAL_FALLBACK') {
+      throw new Error()
+    }
     return {
       lockedSignalId: locked[0].signal_id,
       lockedHeadline: locked[0].headline,
+      pinnedSignalId: item.signal_id,
       pinnedArtifactId: artifact.artifact_id,
       pinnedVersion: artifact.version,
+      pinnedHeadline: artifact.content.headline,
+      historicalSignalId,
+      historicalArtifactId,
+      historicalArtifactVersion,
+      historicalHeadline: historicalDetail.presentation.content.headline,
     }
-  }, asOf)
+  }, { readDate: asOf, ...historicalBinding })
 }
 
-function installFailureCollectors(page, origin, errors, requests) {
+function installFailureCollectors(page, origin, errors, requests, responses) {
   page.on('console', (message) => {
     if (message.type() === 'error') errors.push('console')
   })
@@ -1261,6 +1738,20 @@ function installFailureCollectors(page, origin, errors, requests) {
   page.on('requestfailed', () => errors.push('requestfailed'))
   page.on('response', (response) => {
     if (response.status() >= 500) errors.push('http5xx')
+    let url
+    try {
+      url = new URL(response.url())
+    } catch {
+      errors.push('invalid-response-url')
+      return
+    }
+    if (url.origin === origin) {
+      responses.push({
+        method: response.request().method(),
+        path: `${url.pathname}${url.search}`,
+        status: response.status(),
+      })
+    }
   })
   page.on('request', (request) => {
     let url
@@ -1287,22 +1778,46 @@ async function expectLocatorFocused(locator) {
   throw new Error()
 }
 
-async function verifyDesktopPanes(page) {
-  const independent = await page.locator('main *').evaluateAll((elements) => {
+async function setScrollContract(page, viewport, pane) {
+  const expectedCount = viewport.name === 'desktop' ? 2 : 1
+  const index = pane === 'list' ? 0 : expectedCount - 1
+  return page.locator('main *').evaluateAll((elements, contract) => {
     const panes = elements.filter((element) => {
       const overflow = getComputedStyle(element).overflowY
-      return (overflow === 'auto' || overflow === 'scroll') &&
-        element.scrollHeight > element.clientHeight
+      const bounds = element.getBoundingClientRect()
+      return bounds.width > 0 && bounds.height > 0 &&
+        (overflow === 'auto' || overflow === 'scroll') &&
+        element.scrollHeight - element.clientHeight >= 200
     })
-    if (panes.length < 2) return false
-    panes[0].scrollTop = Math.min(80, panes[0].scrollHeight - panes[0].clientHeight)
-    const firstScrollTop = panes[0].scrollTop
-    const untouchedSecond = panes[1].scrollTop
-    panes[1].scrollTop = Math.min(80, panes[1].scrollHeight - panes[1].clientHeight)
-    return firstScrollTop > 0 && panes[0].scrollTop === firstScrollTop &&
-      panes[1].scrollTop > untouchedSecond
-  })
-  requireTrue(independent)
+    if (panes.length !== contract.expectedCount) throw new Error()
+    const element = panes[contract.index]
+    const target = 120 + contract.index * 40
+    if (element.scrollHeight - element.clientHeight < target) throw new Error()
+    element.scrollTop = target
+    element.dispatchEvent(new Event('scroll', { bubbles: true }))
+    if (!(element.scrollTop > 0) || Math.abs(element.scrollTop - target) > 2) {
+      throw new Error()
+    }
+    return panes.map((candidate) => candidate.scrollTop)
+  }, { expectedCount, index })
+}
+
+async function expectScrollContractRestored(page, viewport, pane, expected) {
+  const expectedCount = viewport.name === 'desktop' ? 2 : 1
+  const index = pane === 'list' ? 0 : expectedCount - 1
+  await page.waitForFunction(({ expectedCount, index, expected }) => {
+    const panes = Array.from(document.querySelectorAll('main *')).filter((element) => {
+      const overflow = getComputedStyle(element).overflowY
+      const bounds = element.getBoundingClientRect()
+      return bounds.width > 0 && bounds.height > 0 &&
+        (overflow === 'auto' || overflow === 'scroll') &&
+        element.scrollHeight - element.clientHeight >= 200
+    })
+    if (panes.length !== expectedCount) return false
+    const actual = panes.map((element) => element.scrollTop)
+    return expected[index] > 0 && actual[index] > 0 &&
+      Math.abs(actual[index] - expected[index]) <= 2
+  }, { expectedCount, index, expected })
 }
 
 async function smokeDashboard(page, origin, evidencePath) {
@@ -1336,23 +1851,44 @@ async function smokeCompanies(page, origin, viewport, evidencePath, requests) {
   const award = page.getByRole('button', { name: /attribution|award/i }).first()
   await award.waitFor()
   await award.focus()
-  await award.click()
+  const companyListScroll = await setScrollContract(page, viewport, 'list')
+  await award.evaluate((element) => element.click())
   await page.waitForURL(/\/app\/companies\/[^?]+\?signal=[^&]+$/)
   const selectedUrl = page.url()
   await expectFocusedHeading(page)
   requireTrue(await page.locator('a[href^="/app/signals/"]').count() >= 1)
-  if (viewport.name === 'desktop') await verifyDesktopPanes(page)
+  const companyDetailScroll = await setScrollContract(page, viewport, 'detail')
+  if (viewport.name === 'desktop') {
+    await expectScrollContractRestored(
+      page, viewport, 'list', companyListScroll,
+    )
+  }
   await page.goBack({ waitUntil: 'networkidle' })
   await page.waitForURL(/\/app\/companies$/)
   await award.waitFor()
   await expectLocatorFocused(award)
+  await expectScrollContractRestored(page, viewport, 'list', companyListScroll)
   await page.goForward({ waitUntil: 'networkidle' })
   requireTrue(page.url() === selectedUrl)
   await expectFocusedHeading(page)
+  await expectScrollContractRestored(
+    page, viewport, 'detail', companyDetailScroll,
+  )
+  if (viewport.name === 'desktop') {
+    await expectScrollContractRestored(
+      page, viewport, 'list', companyListScroll,
+    )
+  }
   await page.reload({ waitUntil: 'networkidle' })
   requireTrue(page.url() === selectedUrl)
-  const scrollTop = await page.locator('main').evaluate((element) => element.scrollTop)
-  requireTrue(Number.isFinite(scrollTop))
+  await expectScrollContractRestored(
+    page, viewport, 'detail', companyDetailScroll,
+  )
+  if (viewport.name === 'desktop') {
+    await expectScrollContractRestored(
+      page, viewport, 'list', companyListScroll,
+    )
+  }
   await page.screenshot({ path: evidencePath, fullPage: true })
   if (viewport.name === 'mobile') {
     const back = page.getByRole('button', {
@@ -1364,10 +1900,13 @@ async function smokeCompanies(page, origin, viewport, evidencePath, requests) {
     await page.waitForURL(/\/app\/companies$/)
     await award.waitFor()
     await expectLocatorFocused(award)
+    await expectScrollContractRestored(page, viewport, 'list', companyListScroll)
   }
 }
 
-async function smokeSignals(page, origin, viewport, evidencePath, requests, api) {
+async function smokeSignals(
+  page, origin, viewport, evidencePath, requests, responses, api,
+) {
   await page.goto(`${origin}/app/signals`, { waitUntil: 'networkidle' })
   await page.getByRole('heading', {
     name: /Signaux commerciaux|Commercial signals/i,
@@ -1397,43 +1936,80 @@ async function smokeSignals(page, origin, viewport, evidencePath, requests, api)
   await page.waitForURL(/\/app\/signals$/)
   await lockedControl.waitFor()
   await expectLocatorFocused(lockedControl)
-  const selection = page.locator(
-    'a[href^="/app/signals/"][href*="presentation="]',
-  ).first()
+  const expectedSelectionHref =
+    `/app/signals/${encodeURIComponent(api.pinnedSignalId)}` +
+    `?presentation=${encodeURIComponent(api.pinnedArtifactId)}`
+  const selection = page.locator(`a[href="${expectedSelectionHref}"]`)
+  requireTrue(await selection.count() === 1)
   await selection.waitFor()
   await selection.focus()
+  const signalListScroll = await setScrollContract(page, viewport, 'list')
   const selectionRequestStart = requests.length
-  await selection.click()
-  await page.waitForURL(/\/app\/signals\/[^?]+\?presentation=[0-9a-f]{64}$/)
+  const selectionResponseStart = responses.length
+  await selection.evaluate((element) => element.click())
+  await page.waitForURL((url) => (
+    url.pathname === `/app/signals/${encodeURIComponent(api.pinnedSignalId)}` &&
+    url.searchParams.get('presentation') === api.pinnedArtifactId &&
+    Array.from(url.searchParams).length === 1
+  ))
   const selectedUrl = page.url()
   const selected = new URL(selectedUrl)
   const artifactId = selected.searchParams.get('presentation')
   requireTrue(Boolean(artifactId && /^[0-9a-f]{64}$/.test(artifactId)))
-  requireTrue(artifactId === api.pinnedArtifactId)
+  requireTrue(selected.pathname ===
+    `/app/signals/${encodeURIComponent(api.pinnedSignalId)}`)
+  requireTrue(selected.searchParams.get('presentation') === api.pinnedArtifactId)
+  requireTrue(Array.from(selected.searchParams).length === 1)
   requireTrue(Number.isInteger(api.pinnedVersion) && api.pinnedVersion >= 1)
   await expectFocusedHeading(page)
+  await page.getByText(api.pinnedHeadline, { exact: true }).first().waitFor()
+  const expectedDetailPath =
+    `/signals/${encodeURIComponent(api.pinnedSignalId)}` +
+    `?presentation_artifact_id=${encodeURIComponent(api.pinnedArtifactId)}`
+  const expectedNotePath =
+    `/signals/${encodeURIComponent(api.pinnedSignalId)}/note`
   requireTrue(requests.slice(selectionRequestStart).some(({ method, path }) => (
-    method === 'GET' && path.includes(`presentation_artifact_id=${artifactId}`)
+    method === 'GET' && path === expectedDetailPath
   )))
+  requireTrue(requests.slice(selectionRequestStart).some(({ method, path }) => (
+    method === 'GET' && path === expectedNotePath
+  )))
+  requireTrue(responses.slice(selectionResponseStart).some(({
+    method, path, status,
+  }) => method === 'GET' && status === 200 && path === expectedDetailPath))
+  requireTrue(responses.slice(selectionResponseStart).some(({
+    method, path, status,
+  }) => method === 'GET' && status === 200 && path === expectedNotePath))
   requireTrue(await page.locator(
     'a[href^="/app/companies/"][href*="signal="]',
   ).count() >= 1)
   requireTrue(!requests.some(({ method, path }) => (
     method !== 'GET' && /\/signals\/[^/]+\/note(?:\?|$)/.test(path)
   )))
-  if (viewport.name === 'desktop') await verifyDesktopPanes(page)
+  const signalDetailScroll = await setScrollContract(page, viewport, 'detail')
+  if (viewport.name === 'desktop') {
+    await expectScrollContractRestored(page, viewport, 'list', signalListScroll)
+  }
   await page.goBack({ waitUntil: 'networkidle' })
   await page.waitForURL(/\/app\/signals$/)
   await selection.waitFor()
   await expectLocatorFocused(selection)
+  await expectScrollContractRestored(page, viewport, 'list', signalListScroll)
   await page.goForward({ waitUntil: 'networkidle' })
   requireTrue(page.url() === selectedUrl)
   await expectFocusedHeading(page)
+  await expectScrollContractRestored(page, viewport, 'detail', signalDetailScroll)
+  if (viewport.name === 'desktop') {
+    await expectScrollContractRestored(page, viewport, 'list', signalListScroll)
+  }
   await page.reload({ waitUntil: 'networkidle' })
   requireTrue(page.url() === selectedUrl)
-  const scrollTop = await page.locator('main').evaluate((element) => element.scrollTop)
-  requireTrue(Number.isFinite(scrollTop))
+  await expectScrollContractRestored(page, viewport, 'detail', signalDetailScroll)
+  if (viewport.name === 'desktop') {
+    await expectScrollContractRestored(page, viewport, 'list', signalListScroll)
+  }
   await page.screenshot({ path: evidencePath, fullPage: true })
+
   if (viewport.name === 'mobile') {
     const back = page.getByRole('button', {
       name: /Retour aux signaux|Back to signals/i,
@@ -1444,7 +2020,42 @@ async function smokeSignals(page, origin, viewport, evidencePath, requests, api)
     await page.waitForURL(/\/app\/signals$/)
     await selection.waitFor()
     await expectLocatorFocused(selection)
+    await expectScrollContractRestored(page, viewport, 'list', signalListScroll)
   }
+
+  const historicalUrl = new URL(
+    `/app/signals/${encodeURIComponent(api.historicalSignalId)}`, origin,
+  )
+  historicalUrl.searchParams.set('presentation', api.historicalArtifactId)
+  const historicalRequestStart = requests.length
+  const historicalResponseStart = responses.length
+  await page.goto(historicalUrl.toString(), { waitUntil: 'networkidle' })
+  await page.waitForURL((url) => (
+    url.pathname === `/app/signals/${encodeURIComponent(api.historicalSignalId)}` &&
+    url.searchParams.get('presentation') === api.historicalArtifactId &&
+    Array.from(url.searchParams).length === 1
+  ))
+  await page.getByText(api.historicalHeadline, { exact: true }).first().waitFor()
+  const expectedHistoricalDetailPath =
+    `/signals/${encodeURIComponent(api.historicalSignalId)}` +
+    `?presentation_artifact_id=${encodeURIComponent(api.historicalArtifactId)}`
+  requireTrue(requests.slice(historicalRequestStart).some(({ method, path }) => (
+    method === 'GET' && path === expectedHistoricalDetailPath
+  )))
+  requireTrue(requests.slice(historicalRequestStart).some(({ method, path }) => (
+    method === 'GET' &&
+    path === `/signals/${encodeURIComponent(api.historicalSignalId)}/note`
+  )))
+  requireTrue(responses.slice(historicalResponseStart).some(({
+    method, path, status,
+  }) => method === 'GET' && status === 200 && path === expectedHistoricalDetailPath))
+  requireTrue(responses.slice(historicalResponseStart).some(({
+    method, path, status,
+  }) => method === 'GET' && status === 200 &&
+    path === `/signals/${encodeURIComponent(api.historicalSignalId)}/note`))
+  requireTrue(!requests.some(({ method, path }) => (
+    method !== 'GET' && /\/signals\/[^/]+\/note(?:\?|$)/.test(path)
+  )))
 }
 
 async function run() {
@@ -1454,7 +2065,22 @@ async function run() {
   const expectedFingerprint = process.env.KIVOU_QA_DB_FINGERPRINT
   const storageState = process.env.KIVOU_QA_STORAGE_STATE
   const evidenceDir = process.env.KIVOU_BROWSER_EVIDENCE_DIR
-  requireTrue(Boolean(origin && asOf && expectedFingerprint && storageState && evidenceDir))
+  const historicalSignalId = process.env.KIVOU_HISTORICAL_SIGNAL_ID
+  const historicalArtifactId = process.env.KIVOU_HISTORICAL_ARTIFACT_ID
+  const historicalArtifactVersion = Number.parseInt(
+    process.env.KIVOU_HISTORICAL_ARTIFACT_VERSION || '', 10,
+  )
+  requireTrue(Boolean(origin && asOf && expectedFingerprint && storageState &&
+    evidenceDir && historicalSignalId && historicalArtifactId))
+  requireTrue(/^[0-9a-f]{64}$/.test(historicalSignalId))
+  requireTrue(/^[0-9a-f]{64}$/.test(historicalArtifactId))
+  requireTrue(Number.isInteger(historicalArtifactVersion) &&
+    historicalArtifactVersion >= 1)
+  const historicalBinding = {
+    historicalSignalId,
+    historicalArtifactId,
+    historicalArtifactVersion,
+  }
   const browser = await chromium.launch({ headless: true })
   try {
     const viewports = [
@@ -1469,10 +2095,11 @@ async function run() {
       const page = await context.newPage()
       const errors = []
       const requests = []
-      installFailureCollectors(page, origin, errors, requests)
+      const responses = []
+      installFailureCollectors(page, origin, errors, requests, responses)
       await page.goto(`${origin}/app/signals`, { waitUntil: 'networkidle' })
       requireTrue(await accountFingerprint(page, expectedFingerprint))
-      const api = await verifyPublishedApi(page, asOf)
+      const api = await verifyPublishedApi(page, asOf, historicalBinding)
       await smokeDashboard(
         page, origin, `${evidenceDir}/${viewport.name}-dashboard.png`,
       )
@@ -1482,13 +2109,14 @@ async function run() {
       )
       await smokeSignals(
         page, origin, viewport,
-        `${evidenceDir}/${viewport.name}-signals.png`, requests, api,
+        `${evidenceDir}/${viewport.name}-signals.png`, requests, responses, api,
       )
       requireTrue(!requests.some(({ path }) => (
         path.startsWith(`/signals/${encodeURIComponent(api.lockedSignalId)}?`) ||
         path === `/signals/${encodeURIComponent(api.lockedSignalId)}` ||
         path.startsWith(`/signals/${encodeURIComponent(api.lockedSignalId)}/note`)
       )))
+      requireTrue(!requests.some(({ method }) => !['GET', 'HEAD'].includes(method)))
       requireTrue(errors.length === 0)
       await context.close()
     }
@@ -1505,12 +2133,78 @@ run()
   })
 JS
 )
+
+ssh kivou-staging 'bash -s' -- \
+  "$KIVOU_CARD_JOURNAL_CURSOR" "$KIVOU_CARD_JOURNAL_SINCE" <<'REMOTE'
+set -euo pipefail
+KIVOU_CARD_JOURNAL_CURSOR=$1
+KIVOU_CARD_JOURNAL_SINCE=$2
+printf '%s\n' "$KIVOU_CARD_JOURNAL_CURSOR" | \
+  grep -Eq '^[A-Za-z0-9:;._=-]+$'
+printf '%s\n' "$KIVOU_CARD_JOURNAL_SINCE" | \
+  grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
+kivou_assert_no_card_ai_runtime() {
+  KIVOU_CARD_UNIT_FILES=$(systemctl list-unit-files --no-legend --no-pager \
+    'kivou-card-ai*' 'kivou-card-intelligence*' \
+    'kivou-card-generation*' 'kivou-card-generator*' \
+    'kivou-card-provider*' 'kivou-card-qa-worker*')
+  test -z "$KIVOU_CARD_UNIT_FILES"
+  unset KIVOU_CARD_UNIT_FILES
+  KIVOU_CARD_UNITS=$(systemctl list-units --all --no-legend --no-pager \
+    'kivou-card-ai*' 'kivou-card-intelligence*' \
+    'kivou-card-generation*' 'kivou-card-generator*' \
+    'kivou-card-provider*' 'kivou-card-qa-worker*')
+  test -z "$KIVOU_CARD_UNITS"
+  unset KIVOU_CARD_UNITS
+  test -f /etc/kivou/staging.env
+  test ! -L /etc/kivou/staging.env
+  KIVOU_CARD_CONFIG_KEYS=$(sudo awk -F= '
+    $1 ~ /^KIVOU_CARD_(AI|INTELLIGENCE|GENERATION|GENERATOR|PROVIDER|QA_PROVIDER|WORKER)/ {
+      print "configured"; exit
+    }
+  ' /etc/kivou/staging.env)
+  test -z "$KIVOU_CARD_CONFIG_KEYS"
+  unset KIVOU_CARD_CONFIG_KEYS
+  KIVOU_API_UNIT_TEXT=$(sudo systemctl cat kivou-api.service)
+  KIVOU_CARD_API_UNIT_DIRECTIVES=$(printf '%s\n' "$KIVOU_API_UNIT_TEXT" | \
+    awk 'BEGIN { IGNORECASE=1 }
+      /card[_ -]?(generation|generator|provider|qa[_ -]?worker)/ {
+        print "configured"; exit
+      }')
+  unset KIVOU_API_UNIT_TEXT
+  test -z "$KIVOU_CARD_API_UNIT_DIRECTIVES"
+  unset KIVOU_CARD_API_UNIT_DIRECTIVES
+}
+KIVOU_CARD_GET_JOURNAL=$(sudo journalctl -u kivou-api.service \
+  --after-cursor "$KIVOU_CARD_JOURNAL_CURSOR" --no-pager --output=cat)
+if printf '%s\n' "$KIVOU_CARD_GET_JOURNAL" | \
+  grep -Eqi 'Traceback|unhandled|exception'; then
+  exit 69
+fi
+if printf '%s\n' "$KIVOU_CARD_GET_JOURNAL" | grep -Eqi \
+  'signals\.card_intelligence|signals\.qa_signals|card[_ -]?(generation|provider|qa[_ -]?worker)|card[_ -]?generator'; then
+  exit 69
+fi
+unset KIVOU_CARD_GET_JOURNAL
+kivou_assert_no_card_ai_runtime
+printf "%s\n" "card_get_journal_ok"
+REMOTE
+
 find "$KIVOU_BROWSER_EVIDENCE_DIR" -maxdepth 1 -type f -name '*.png' \
   -exec chmod 600 {} +
 test "$(find "$KIVOU_BROWSER_EVIDENCE_DIR" -maxdepth 1 -type f \
   \( -name '*-dashboard.png' -o -name '*-companies.png' -o \
   -name '*-signals.png' \) | wc -l)" = 6
 ~~~
+
+Le curseur journald est la frontière autoritaire; le timestamp UTC est conservé
+comme repère opérateur secondaire. Le filtre ne lit que le journal de
+`kivou-api.service` entre cette frontière et la fin du smoke. Il prouve
+l'absence d'exception non gérée et de trace d'invocation Card Intelligence,
+génération, provider Card ou worker QA pendant ces GET, sans afficher les
+journaux. L'inventaire avant et après vérifie séparément qu'aucune unité ni clé
+de configuration **Card AI** approuvée n'existe. Il ne prétend pas auditer ni
+interdire un provider d'acquisition indépendant dans un autre service.
 
 Le script est une gate automatisée, pas l'**inspection visuelle humaine**.
 Ouvrir séparément les six PNG à leur résolution originale et contrôler la
