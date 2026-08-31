@@ -22,8 +22,9 @@ import {
 afterEach(() => vi.unstubAllGlobals())
 
 function detailRoutes(detail: unknown = UNLOCKED_DETAIL) {
+  const presentation = (detail as { presentation?: CardPresentation | null }).presentation ?? null
   return {
-    'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+    'GET /signals': { body: feedPage([{ ...UNLOCKED_ITEM, presentation }]) },
     [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: detail },
     [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
       body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
@@ -33,7 +34,9 @@ function detailRoutes(detail: unknown = UNLOCKED_DETAIL) {
   }
 }
 
-const FACTUAL_FALLBACK: CardPresentation = {
+type FactualFallbackPresentation = Extract<CardPresentation, { status: 'FALLBACK' }>
+
+const FACTUAL_FALLBACK: FactualFallbackPresentation = {
   artifact_id: 'b'.repeat(64),
   version: 1,
   status: 'FALLBACK',
@@ -68,6 +71,23 @@ const FACTUAL_FALLBACK: CardPresentation = {
       },
     ],
   },
+}
+
+function presentationFixture(artifactId: string, headline: string): CardPresentation {
+  const awardSummary = `${headline} — synthèse publiée`
+  return {
+    ...FACTUAL_FALLBACK,
+    artifact_id: artifactId,
+    content: {
+      ...FACTUAL_FALLBACK.content,
+      headline,
+      award_summary: awardSummary,
+      claims: [
+        { ...FACTUAL_FALLBACK.content.claims[0], text: headline },
+        { ...FACTUAL_FALLBACK.content.claims[1], text: awardSummary },
+      ],
+    },
+  }
 }
 
 const MALFORMED_PRESENTATIONS = [
@@ -148,6 +168,49 @@ async function detailPanel(
 }
 
 describe('détail exact d’un signal réel', () => {
+  it('épingle le détail sur l’artefact publié du feed et refuse une autre publication', async () => {
+    const feedPresentation = presentationFixture('a'.repeat(64), 'Publication A vue dans le feed')
+    const detailPresentation = presentationFixture('c'.repeat(64), 'Publication B interdite')
+    mockApi({
+      ...detailRoutes({ ...UNLOCKED_DETAIL, presentation: detailPresentation }),
+      'GET /signals': {
+        body: feedPage([{ ...UNLOCKED_ITEM, presentation: feedPresentation }]),
+      },
+    })
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    await screen.findByText('Commune de Villeneuve')
+    const detailCalls = callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')
+    expect(detailCalls).toHaveLength(1)
+    expect(detailCalls[0].search.get('presentation_artifact_id')).toBe(
+      feedPresentation.artifact_id,
+    )
+    const panel = await detailPanel()
+    expect(panel).not.toHaveTextContent(detailPresentation.content.headline)
+  })
+
+  it('n’adopte aucune publication du détail quand le feed n’en publie pas', async () => {
+    const detailPresentation = presentationFixture('c'.repeat(64), 'Publication B interdite')
+    mockApi({
+      ...detailRoutes({ ...UNLOCKED_DETAIL, presentation: detailPresentation }),
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+    })
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    await screen.findByText('Commune de Villeneuve')
+    const detailCalls = callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')
+    expect(detailCalls).toHaveLength(1)
+    expect(detailCalls[0].search.get('presentation_artifact_id')).toBeNull()
+    const panel = await detailPanel()
+    expect(panel).not.toHaveTextContent(detailPresentation.content.headline)
+  })
+
   it('compose les cartes exactes depuis le détail API sans réintroduire l’ancien DOM', async () => {
     mockApi(detailRoutes())
     renderApp(<AppRoutes />, {

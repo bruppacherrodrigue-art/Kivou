@@ -10,7 +10,11 @@ import type {
   SignalDetail as SignalDetailPayload,
 } from '../api/types'
 import { useI18n } from '../i18n'
-import { toSignalCard, toSignalDetailView } from '../reference/dashboard/adapters'
+import {
+  publishedPresentation,
+  toSignalCard,
+  toSignalDetailView,
+} from '../reference/dashboard/adapters'
 import { ReferenceSignalDetail } from '../reference/dashboard/ReferenceSignalDetail'
 import { useSignalNote } from '../reference/dashboard/useSignalNote'
 import { useIsMobile } from '../reference/dashboard/use-mobile'
@@ -330,8 +334,10 @@ export function SignalsFeed() {
     }
 
     const generation = ++detailGeneration.current
+    const feedPresentation = publishedPresentation(selectedItem.presentation)
+    const presentationArtifactId = feedPresentation?.artifact_id ?? null
     setDetail({ key: selectedKey, data: null, loading: true, error: null })
-    signals.detail(selectedKey).then(
+    signals.detail(selectedKey, { presentation_artifact_id: presentationArtifactId }).then(
       (data) => {
         if (mounted.current && generation === detailGeneration.current) {
           if (data.locked) {
@@ -343,7 +349,17 @@ export function SignalsFeed() {
             })
             return
           }
-          setDetail({ key: selectedKey, data, loading: false, error: null })
+          const detailPresentation = publishedPresentation(data.presentation)
+          const pinnedPresentation = presentationArtifactId !== null
+            && detailPresentation?.artifact_id === presentationArtifactId
+            ? detailPresentation
+            : null
+          setDetail({
+            key: selectedKey,
+            data: { ...data, presentation: pinnedPresentation },
+            loading: false,
+            error: null,
+          })
         }
       },
       (error) => {
