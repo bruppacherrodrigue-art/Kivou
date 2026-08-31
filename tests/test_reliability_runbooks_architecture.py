@@ -14,6 +14,7 @@ RUNBOOKS = (
     "08-acquisition-shadow-provider-connectivity.md",
     "09-staging-secret-rotation.md",
     "10-acquisition-runtime.md",
+    "11-staging-card-presentation-rollout.md",
 )
 SECRET_ROTATION_RUNBOOK = Path("docs/runbooks/09-staging-secret-rotation.md")
 OPERATIONS_README = Path("ops/README.md")

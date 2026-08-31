@@ -25,6 +25,23 @@ jobs:
   backend:
     name: Backend (Python 3.12 · uv)
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: kivou_test
+          POSTGRES_USER: kivou_test
+          POSTGRES_PASSWORD: kivou_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kivou_test -d kivou_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      KIVOU_TEST_POSTGRES_DSN: >-
+        postgresql+psycopg://kivou_test:kivou_test_password@127.0.0.1:5432/kivou_test
     # À arbre backend identique, les runners partagés ont varié de 19 min 11 s à
     # 30 min 09 s, et les runs lentes censurées projetaient 66 min 04 s à
     # 71 min 59 s. Une marge de 20 % sur le pire cas donne 86 min 23 s ; 90 est
@@ -48,7 +65,7 @@ jobs:
       # C'est ce qui garantit que la CI teste EXACTEMENT les versions verrouillées
       # dans le dépôt, et non ce que PyPI publiait ce matin.
       - name: Synchroniser les dépendances verrouillées
-        run: uv sync --locked
+        run: uv sync --locked --extra postgres
 
       - name: Tests
         run: uv run pytest -q

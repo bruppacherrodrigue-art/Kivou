@@ -18,7 +18,8 @@ from signals.persistence.database import (
 PREVIOUS = "0024_scheduled_plan_change"
 HEAD = "0025_alert_recipient_context"
 RUNTIME = "0026_acquisition_runtime"
-LATEST = "0027_signal_notes"
+SIGNAL_NOTES = "0027_signal_notes"
+LATEST = "0028_card_presentation"
 COLUMN = "recipient_context_fingerprint"
 INDEX = "ix_signal_alert_delivery_recipient_context_refusal"
 NOW = dt.datetime(2026, 8, 25, 10, 0, tzinfo=dt.UTC)
@@ -113,7 +114,8 @@ def test_0025_is_additive_and_precedes_the_runtime_head(tmp_path) -> None:
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
-    assert scripts.get_revision(LATEST).down_revision == RUNTIME
+    assert scripts.get_revision(LATEST).down_revision == SIGNAL_NOTES
+    assert scripts.get_revision(SIGNAL_NOTES).down_revision == RUNTIME
     assert scripts.get_revision(RUNTIME).down_revision == HEAD
     assert current_revision(engine) == HEAD
     inspector = sa.inspect(engine)

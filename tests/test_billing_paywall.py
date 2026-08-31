@@ -17,6 +17,7 @@ débloqués une fois, conservés, et qui ne tournent plus.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import pathlib
 
 import pytest
@@ -271,9 +272,22 @@ def locked_item(alice, engine) -> dict:
 
 def test_a_locked_teaser_never_names_the_company(alice, engine):
     item = locked_item(alice, engine)
-    body = str(item)
-    for forbidden in ("company", "winner", "Egli", "AG", "GmbH", "SA "):
-        assert forbidden not in body, forbidden
+    assert set(item) == {
+        "signal_id",
+        "target_icp_id",
+        "locked",
+        "unlock_required",
+        "event",
+        "context",
+        "headline",
+    }
+    assert item["locked"] is True
+    visible = json.dumps(
+        {key: value for key, value in item.items() if key not in {"signal_id", "target_icp_id"}},
+        ensure_ascii=False,
+    )
+    for forbidden in ("company", "winner", "Egli", "GmbH", "SA "):
+        assert forbidden not in visible, forbidden
 
 
 def test_a_locked_teaser_carries_no_source_url_and_no_evidence(alice, engine):
