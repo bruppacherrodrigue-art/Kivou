@@ -272,3 +272,35 @@ def test_sigterm_interrupts_the_cycle_and_restores_the_process_handler() -> None
         "status=CANCELLED cycle_ref=cycle-001 reason=PROCESS_TERMINATED\n"
     )
     assert completed.stderr == ""
+
+
+def test_production_refuses_the_qa_mutation_gate(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("KIVOU_ACQUISITION_ENVIRONMENT", "PRODUCTION")
+    called = False
+
+    def execute(_allow: bool):
+        nonlocal called
+        called = True
+        raise AssertionError("the runtime must not be reached")
+
+    from signals.acquisition_runtime.cli import main
+
+    code = main(["run-once", "--allow-qa-provider-mutations"], execute=execute)
+    assert code == 2
+    assert called is False
+    assert "status=INVALID_ARGUMENTS" in capsys.readouterr().err
+
+
+def test_staging_still_accepts_the_qa_mutation_gate(monkeypatch) -> None:
+    monkeypatch.setenv("KIVOU_ACQUISITION_ENVIRONMENT", "STAGING")
+    seen: list[bool] = []
+
+    from signals.acquisition_runtime.cli import main
+    from signals.acquisition_runtime.contracts import RuntimeRunResult, RuntimeRunStatus
+
+    def execute(allow: bool) -> RuntimeRunResult:
+        seen.append(allow)
+        return RuntimeRunResult(status=RuntimeRunStatus.COMPLETED)
+
+    assert main(["run-once", "--allow-qa-provider-mutations"], execute=execute) == 0
+    assert seen == [True]
