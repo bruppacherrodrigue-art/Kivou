@@ -71,7 +71,9 @@ def _load_production(
         "KIVOU_ACQUISITION_QA_RECIPIENT",
         "KIVOU_ACQUISITION_QA_RECIPIENT_KEY",
     ):
-        if (source.get(name) or "").strip():
+        # PRESENCE, not truthiness: a var declared empty by a failed template
+        # substitution must refuse to start, not read as absent.
+        if name in source:
             raise RuntimeConfigurationError("PRODUCTION_FORBIDS_FALLBACK_RECIPIENT")
     if not deployment.is_production:
         raise RuntimeConfigurationError("WRONG_DEPLOYMENT_SCHEMA")

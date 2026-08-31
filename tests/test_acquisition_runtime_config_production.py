@@ -56,12 +56,19 @@ def test_production_configuration_loads_without_any_recipient(tmp_path) -> None:
     "name",
     ["KIVOU_ACQUISITION_QA_RECIPIENT", "KIVOU_ACQUISITION_QA_RECIPIENT_KEY"],
 )
+@pytest.mark.parametrize(
+    "value",
+    ["someone@example.com", "", "   "],
+    ids=["address", "empty", "whitespace-only"],
+)
 def test_production_refuses_to_start_when_a_fallback_recipient_is_present(
-    tmp_path, name: str
+    tmp_path, name: str, value: str
 ) -> None:
+    # PRESENCE, not truthiness: an empty or whitespace-only value (a failed
+    # template substitution, a half-edited EnvironmentFile) must still refuse.
     path = _write(tmp_path, DOCUMENT)
     with pytest.raises(RuntimeConfigurationError) as error:
-        load_runtime_config(_environment(path, **{name: "someone@example.com"}))
+        load_runtime_config(_environment(path, **{name: value}))
     assert error.value.code == "PRODUCTION_FORBIDS_FALLBACK_RECIPIENT"
 
 
