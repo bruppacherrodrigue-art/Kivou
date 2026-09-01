@@ -56,7 +56,7 @@ and batches containing unrenderable winner names.
 
 - [x] **Step 2: Run the focused test and retain RED evidence**
 
-Run: `uv run pytest -q tests/test_feed_history.py`  
+Run: `uv run pytest -q tests/test_feed_history.py`
 Expected: FAIL because `signals.feed.history` and `history_page` do not exist.
 
 - [x] **Step 3: Implement the closed cursor and factual date**
@@ -90,7 +90,7 @@ past consumed rows without skipping the look-ahead result.
 
 - [x] **Step 5: Verify history and existing pagination**
 
-Run: `uv run pytest -q tests/test_feed_history.py tests/test_feed_pagination.py tests/test_feed_recency.py`  
+Run: `uv run pytest -q tests/test_feed_history.py tests/test_feed_pagination.py tests/test_feed_recency.py`
 Expected: PASS with no overlap or missing expected signal.
 
 - [x] **Step 6: Commit**
@@ -119,7 +119,7 @@ Discovery/Essential/Pro/Scale rights.
 
 - [x] **Step 2: Run the API tests and retain RED evidence**
 
-Run: `uv run pytest -q tests/test_feed_history.py tests/test_billing_paywall.py -k 'history or filter'`  
+Run: `uv run pytest -q tests/test_feed_history.py tests/test_billing_paywall.py -k 'history or filter'`
 Expected: FAIL because the route does not accept the new contract.
 
 - [x] **Step 3: Extend existing filter requirements**
@@ -145,7 +145,7 @@ cursor to closed 422 and never fall back to offset.
 
 - [x] **Step 5: Verify feed and paywall regressions**
 
-Run: `uv run pytest -q tests/test_feed_history.py tests/test_feed_pagination.py tests/test_feed_ownership.py tests/test_billing_paywall.py tests/test_billing_upgrade_eligibility.py`  
+Run: `uv run pytest -q tests/test_feed_history.py tests/test_feed_pagination.py tests/test_feed_ownership.py tests/test_billing_paywall.py tests/test_billing_upgrade_eligibility.py`
 Expected: PASS.
 
 - [x] **Step 6: Commit**
@@ -172,7 +172,7 @@ roles, recommendations, `analysis` values or an identifier as title.
 
 - [x] **Step 2: Run and retain RED evidence**
 
-Run: `uv run pytest -q tests/test_feed_factual_display.py tests/test_feed_facts.py`  
+Run: `uv run pytest -q tests/test_feed_factual_display.py tests/test_feed_facts.py`
 Expected: FAIL because `factual_display` is absent.
 
 - [x] **Step 3: Implement bounded fact-only copy**
@@ -189,7 +189,7 @@ and keep the optional presentation contract untouched for other surfaces.
 
 - [x] **Step 5: Verify boundaries**
 
-Run: `uv run pytest -q tests/test_feed_factual_display.py tests/test_feed_facts.py tests/test_billing_paywall.py tests/test_card_presentation_api.py`  
+Run: `uv run pytest -q tests/test_feed_factual_display.py tests/test_feed_facts.py tests/test_billing_paywall.py tests/test_card_presentation_api.py`
 Expected: PASS and locked payloads still lack `presentation`.
 
 - [x] **Step 6: Commit**
@@ -216,7 +216,7 @@ boundary.
 
 - [x] **Step 2: Run and retain RED evidence**
 
-Run: `uv run pytest -q tests/test_winner_enrichment_migration.py tests/test_saas_company_architecture.py`  
+Run: `uv run pytest -q tests/test_winner_enrichment_migration.py tests/test_saas_company_architecture.py`
 Expected: FAIL because revision 0030 and its table do not exist.
 
 - [x] **Step 3: Define the additive work-state table**
@@ -241,7 +241,7 @@ company projections pending. Perform no network call.
 
 - [x] **Step 5: Verify migrations and core schema**
 
-Run: `uv run pytest -q tests/test_winner_enrichment_migration.py tests/test_saas_company_migration.py tests/test_persistence_migrations.py tests/test_saas_company_architecture.py`  
+Run: `uv run pytest -q tests/test_winner_enrichment_migration.py tests/test_saas_company_migration.py tests/test_persistence_migrations.py tests/test_saas_company_architecture.py`
 Expected: PASS and head `0030_winner_enrichment`.
 
 - [x] **Step 6: Commit**
@@ -274,7 +274,7 @@ assert feed/detail/company GET still succeed with constant statement counts.
 
 - [x] **Step 2: Run and retain RED evidence**
 
-Run: `uv run pytest -q tests/test_winner_enrichment.py tests/test_winner_enrichment_api.py tests/test_saas_company_service.py tests/test_saas_company_api.py`  
+Run: `uv run pytest -q tests/test_winner_enrichment.py tests/test_winner_enrichment_api.py tests/test_saas_company_service.py tests/test_saas_company_api.py`
 Expected: FAIL because the state/worker contract is absent.
 
 - [x] **Step 3: Implement the explicit non-autostart worker API**
@@ -316,7 +316,7 @@ URL and retrieval timestamp. Never return raw validation payloads or paths.
 
 - [x] **Step 6: Verify worker, company, ingestion and provider boundaries**
 
-Run: `uv run pytest -q tests/test_winner_enrichment.py tests/test_winner_enrichment_api.py tests/test_saas_company_service.py tests/test_saas_company_api.py tests/test_ingestion_e2e.py tests/test_saas_company_architecture.py`  
+Run: `uv run pytest -q tests/test_winner_enrichment.py tests/test_winner_enrichment_api.py tests/test_saas_company_service.py tests/test_saas_company_api.py tests/test_ingestion_e2e.py tests/test_saas_company_architecture.py`
 Expected: PASS with no provider call on GET and no N+1.
 
 - [x] **Step 7: Commit**
@@ -344,7 +344,7 @@ presentation, plausible need, fit, target role or recommended action.
 
 - [x] **Step 2: Run and retain RED evidence**
 
-Run: `cd frontend && npm test -- --run src/reference/dashboard/adapters.test.ts`  
+Run: `cd frontend && npm test -- --run src/reference/dashboard/adapters.test.ts`
 Expected: FAIL on missing factual/enrichment contracts.
 
 - [x] **Step 3: Add exact TypeScript contracts**
@@ -361,7 +361,7 @@ surfaces, but remove it from Signaux conversions.
 
 - [x] **Step 5: Verify adapters and typecheck**
 
-Run: `cd frontend && npm test -- --run src/reference/dashboard/adapters.test.ts && npm run typecheck`  
+Run: `cd frontend && npm test -- --run src/reference/dashboard/adapters.test.ts && npm run typecheck`
 Expected: PASS.
 
 - [x] **Step 6: Commit**
@@ -382,7 +382,7 @@ git commit -m "refactor(signals): consume factual display contract"
 - Modify: `frontend/src/i18n/fr.ts`
 - Modify: `frontend/src/i18n/en.ts`
 
-- [ ] **Step 1: Add failing workspace tests**
+- [x] **Step 1: Add failing workspace tests**
 
 Cover first/long-scroll/repeated selection, active state during slow detail,
 detail error, independent pane scroll positions, mobile focus, back/forward,
@@ -399,40 +399,40 @@ expect(detailPanel.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: 'auto' })
 expect(detailTitle).toHaveFocus()
 ```
 
-- [ ] **Step 2: Run and retain RED evidence**
+- [x] **Step 2: Run and retain RED evidence**
 
-Run: `cd frontend && npm test -- --run src/signals/signalWorkspace.test.tsx src/signals/feed.test.tsx src/companies/referenceCompanies.test.tsx`  
+Run: `cd frontend && npm test -- --run src/signals/signalWorkspace.test.tsx src/signals/feed.test.tsx src/companies/referenceCompanies.test.tsx`
 Expected: FAIL on pane isolation, URL filters and cursor pagination.
 
-- [ ] **Step 3: Reuse the Entreprises pane behavior**
+- [x] **Step 3: Reuse the Entreprises pane behavior**
 
 Add list/detail refs, `useLayoutEffect` detail reset,
 `focus({preventScroll:true})`, responsive `data-pane=list|detail` CSS and mobile
 Back focus restoration. Remove window `scrollIntoView`.
 
-- [ ] **Step 4: Make view and filters URL-owned**
+- [x] **Step 4: Make view and filters URL-owned**
 
 Parse/serialize `view`, `from`, `to`, `country`, `subdivision`, `status` and
 `cpv`; retain the search string on `/app/signals/:signalKey`. A new filter starts
 a generation, ignores stale responses and keeps prior data during refresh.
 
-- [ ] **Step 5: Page recent by offset and history by cursor**
+- [x] **Step 5: Page recent by offset and history by cursor**
 
 Append only unseen signal IDs, pass `next_cursor` verbatim, and never derive a
 cursor. Display the server access/filter metadata and local retry/end states.
 
-- [ ] **Step 6: Render factual cards and compact real states**
+- [x] **Step 6: Render factual cards and compact real states**
 
 Show company, object, amount, place, useful date, buyer and server status. Do
 not show administrative identifiers, a repeated large facts-only badge or any
 commercial presentation text.
 
-- [ ] **Step 7: Verify focused frontend regressions**
+- [x] **Step 7: Verify focused frontend regressions**
 
-Run: `cd frontend && npm test -- --run src/signals src/companies/referenceCompanies.test.tsx src/reference/dashboard/adapters.test.ts`  
+Run: `cd frontend && npm test -- --run src/signals src/companies/referenceCompanies.test.tsx src/reference/dashboard/adapters.test.ts`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add frontend/src/pages/SignalsFeed.tsx frontend/src/pages/SignalsFeed.module.css frontend/src/signals frontend/src/companies/referenceCompanies.test.tsx frontend/src/i18n
@@ -449,7 +449,7 @@ git commit -m "fix(signals): preserve list detail navigation"
 - Modify: `frontend/src/i18n/fr.ts`
 - Modify: `frontend/src/i18n/en.ts`
 
-- [ ] **Step 1: Add failing hierarchy/no-commercial tests**
+- [x] **Step 1: Add failing hierarchy/no-commercial tests**
 
 Assert DOM order: winner, market summary, amount/date/place/buyer, company
 facts, Kivou award history, sources/proofs, missing data, then collapsed
@@ -457,30 +457,30 @@ identifiers. Cover completed/partial/pending/failed and missing amount/place.
 Even with a legacy PASS fixture, assert the DOM omits its importance, fit,
 timing, role, need and recommendation strings.
 
-- [ ] **Step 2: Run and retain RED evidence**
+- [x] **Step 2: Run and retain RED evidence**
 
-Run: `cd frontend && npm test -- --run src/signals/detail.test.tsx src/signals/referenceSignalWorkspace.test.tsx`  
+Run: `cd frontend && npm test -- --run src/signals/detail.test.tsx src/signals/referenceSignalWorkspace.test.tsx`
 Expected: FAIL because the current detail is presentation-first.
 
-- [ ] **Step 3: Rebuild around factual blocks**
+- [x] **Step 3: Rebuild around factual blocks**
 
 Use the server title/summary and render the discrete notice: “Analyse
 commerciale non disponible pour ce signal. Les informations affichées
 ci-dessous proviennent des sources vérifiées.” Render enrichment honestly and
 never block the detail while it is pending/failed.
 
-- [ ] **Step 4: Collapse sources/technical facts by default**
+- [x] **Step 4: Collapse sources/technical facts by default**
 
 Use native `<details>` with “Sources et vérification”. List safe official links,
 evidence excerpts and retrieval dates before identifiers, references, CPV and
 opportunity ID. Absent/unsafe URLs are text, not links.
 
-- [ ] **Step 5: Verify detail, accessibility and Companies**
+- [x] **Step 5: Verify detail, accessibility and Companies**
 
-Run: `cd frontend && npm test -- --run src/signals src/reference/dashboard/adapters.test.ts src/companies`  
+Run: `cd frontend && npm test -- --run src/signals src/reference/dashboard/adapters.test.ts src/companies`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/src/reference/dashboard/ReferenceSignalDetail.tsx frontend/src/reference/dashboard/ReferenceSignalDetail.module.css frontend/src/signals frontend/src/i18n
@@ -496,31 +496,31 @@ git commit -m "fix(signals): prioritise verified award facts"
 - Modify: `frontend/tests/visual/reference-goldens/dashboard-signals-mobile.png`
 - Create: `output/playwright/signals-phase1/` inspection artifacts (untracked).
 
-- [ ] **Step 1: Add deterministic rich/old/missing/state scenarios**
+- [x] **Step 1: Add deterministic rich/old/missing/state scenarios**
 
 Include rich current, old, no amount, no place and all real enrichment states.
 Add browser assertions for list scroll retention, active selection, history
 Load More, mobile Back/focus and zero console errors.
 
-- [ ] **Step 2: Run Signals visual regression before recapture**
+- [x] **Step 2: Run Signals visual regression before recapture**
 
-Run: `cd frontend && npx playwright test tests/visual/reference-port.spec.ts --grep 'dashboard-signals'`  
+Run: `cd frontend && npx playwright test tests/visual/reference-port.spec.ts --grep 'dashboard-signals'`
 Expected: FAIL only on intentional Signaux snapshots/assertions.
 
-- [ ] **Step 3: Recapture only two Signaux goldens**
+- [x] **Step 3: Recapture only two Signaux goldens**
 
-Run: `cd frontend && npx playwright test tests/visual/reference-port.spec.ts --grep 'dashboard-signals' --update-snapshots`  
+Run: `cd frontend && npx playwright test tests/visual/reference-port.spec.ts --grep 'dashboard-signals' --update-snapshots`
 Expected: PASS and exactly desktop/mobile Signaux files updated.
 
-- [ ] **Step 4: Inspect original-resolution desktop/mobile images**
+- [x] **Step 4: Inspect original-resolution desktop/mobile images**
 
 Verify hierarchy, no clipping, isolated panes, filters, compact states,
 collapsed sources, mobile single pane and focus. Use Playwright CLI to save
 additional rich/old/missing/error captures under `output/playwright/signals-phase1/`.
 
-- [ ] **Step 5: Run full visual suite and commit**
+- [x] **Step 5: Run full visual suite and commit**
 
-Run: `cd frontend && npm run test:visual`  
+Run: `cd frontend && npm run test:visual`
 Expected: PASS with no non-Signaux golden changed.
 
 ```bash
@@ -544,7 +544,7 @@ uv run pytest -q tests/test_persistence_migrations.py tests/test_winner_enrichme
 
 Expected: all tests PASS, Ruff clean, one head 0030.
 
-- [ ] **Step 2: Run frontend gates**
+- [x] **Step 2: Run frontend gates**
 
 ```bash
 cd frontend
@@ -557,7 +557,7 @@ npm run test:visual
 
 Expected: all PASS.
 
-- [ ] **Step 3: Run integration/repository checks**
+- [x] **Step 3: Run integration/repository checks**
 
 ```bash
 uv run pytest -q tests/test_ingestion_e2e.py tests/test_winner_enrichment_api.py tests/test_feed_history.py
@@ -567,7 +567,7 @@ git status --short
 
 Expected: PASS and only intended committed files.
 
-- [ ] **Step 4: Review every requirement and write the report**
+- [x] **Step 4: Review every requirement and write the report**
 
 Search changed production files for provider/model/prompt/Hermes/Acquisition/
 pricing imports and commercial copy. Inspect locked contracts, statement-count
@@ -575,7 +575,7 @@ tests and screenshots. Record causes, architecture, exact results, migration,
 backfill, captures, limitations, risks, rollback and `IA commerciale :
 DÉSACTIVÉE` in the verification report.
 
-- [ ] **Step 5: Commit report**
+- [x] **Step 5: Commit report**
 
 ```bash
 git add docs/superpowers/plans/2026-09-01-signals-phase1-factual-history.md docs/superpowers/reports/2026-09-01-signals-phase1-factual-history-verification.md
@@ -594,5 +594,5 @@ risks, limits, rollback, no deploy, no merge and AI disabled. Never force-push.
 
 - [ ] **Step 7: Verify remote state without merging**
 
-Run: `gh pr view --json number,url,state,isDraft,headRefName,baseRefName,headRefOid,statusCheckRollup`  
+Run: `gh pr view --json number,url,state,isDraft,headRefName,baseRefName,headRefOid,statusCheckRollup`
 Expected: open PR against main at the exact head SHA, not merged and not deployed.

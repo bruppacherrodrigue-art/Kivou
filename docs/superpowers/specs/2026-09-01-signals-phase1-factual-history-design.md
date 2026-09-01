@@ -1,7 +1,7 @@
 # Signaux Phase 1 — historique et enrichissement factuel
 
-**Date :** 2026-09-01  
-**Branche :** `fix/signals-phase1-factual-history`  
+**Date :** 2026-09-01
+**Branche :** `fix/signals-phase1-factual-history`
 **Base :** `68888298c5e4f2a4bb1ea8d34eaf4c156ee586ae`
 
 ## Périmètre
