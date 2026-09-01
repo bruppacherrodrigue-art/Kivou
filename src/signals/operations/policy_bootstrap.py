@@ -35,12 +35,37 @@ def bootstrap_policy_control(
     language: str,
     wedge: str,
 ) -> PolicyControlSnapshot:
-    """Pose une autorité NON exécutable. Ce n'est pas un levier d'activation.
+    """Pose la première autorité Policy exécutable de l'environnement.
 
-    Le mode reste SHADOW, la lecture seule et le coupe-circuit sont armés, et le
-    plafond de volume vaut zéro. Le coupe-circuit n'entrave pas le cycle
-    d'observation : il laisse passer les classes READ_ONLY, PREPARATORY,
-    RISK_REDUCTION et HUMAN_REVIEW, et tout le cycle est PREPARATORY.
+    Décidé le 2026-09-01 : le mode est ASSISTED, pas SHADOW.
+    `evaluator.py:296` rend `executable` inconditionnellement faux sous
+    SHADOW, quelle que soit la classe de risque de la commande — l'ancien
+    amorçage SHADOW (+ `shadow_target_mode=ASSISTED`) arrêtait donc chaque
+    cycle à sa toute première étape évaluée par la Policy, sans jamais
+    produire de mesure. `shadow_target_mode` vaut maintenant None : le
+    contrat l'interdit hors SHADOW. La lecture seule et le coupe-circuit
+    sont désarmés ; le plafond de volume quotidien vaut zéro.
+
+    Ce n'est PAS pour autant un levier d'envoi. Trois des onze commandes du
+    cycle — `prepare_campaign`, `schedule_campaign`,
+    `execute_provider_operations` — sont COMMERCIAL_MUTATION ; les huit
+    autres restent READ_ONLY ou PREPARATORY (le cycle entier n'est donc pas
+    PREPARATORY, contrairement à ce que ce docstring affirmait). Rien
+    n'atteint un fournisseur ou une boîte de réception : cinq gardes
+    indépendants retiennent l'envoi, aucun d'eux porté par ce seul contrôle.
+
+    1. `PROVIDER_HANDOFF` reste `WAITING` inconditionnel tant que le cycle
+       n'a pas reçu `--allow-qa-provider-mutations` (`runner.py`,
+       `registry.py`) ;
+    2. le CLI refuse ce drapeau dès que l'environnement est PRODUCTION
+       (`cli.py`) ;
+    3. `daily_volume_cap=0` fait échouer `schedule_campaign` et
+       `execute_provider_operations` en BUDGET_EXCEEDED — ce sont les deux
+       seules commandes du registre portant `uses_volume=True` ;
+    4. sous ASSISTED, toute commande COMMERCIAL_MUTATION exige un accord
+       humain à usage unique (`evaluator.py`), absent d'un cycle automatisé ;
+    5. la composition de production ne construit aucun détournement de
+       destinataire.
     """
 
     if at.tzinfo is None or at.utcoffset() is None:
@@ -61,8 +86,8 @@ def bootstrap_policy_control(
         "acquisition-policy-bootstrap:v1",
         {
             "control_revision": 1,
-            "autonomy_mode": AutonomyMode.SHADOW.value,
-            "shadow_target_mode": AutonomyMode.ASSISTED.value,
+            "autonomy_mode": AutonomyMode.ASSISTED.value,
+            "shadow_target_mode": None,
             "country": country,
             "language": language,
             "wedge": wedge,
@@ -77,10 +102,10 @@ def bootstrap_policy_control(
         control = PolicyControlSnapshot(
             policy_snapshot_id=fingerprint,
             control_revision=1,
-            autonomy_mode=AutonomyMode.SHADOW,
-            shadow_target_mode=AutonomyMode.ASSISTED,
-            read_only=True,
-            kill_switch=True,
+            autonomy_mode=AutonomyMode.ASSISTED,
+            shadow_target_mode=None,
+            read_only=False,
+            kill_switch=False,
             allowed_commands=RUNTIME_COMMANDS,
             allowed_countries=(country,),
             allowed_languages=(language,),

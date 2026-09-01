@@ -10,6 +10,7 @@ from signals.operations.policy_bootstrap import (
     PolicyBootstrapError,
     bootstrap_policy_control,
 )
+from signals.operations.qa_policy_window import RUNTIME_COMMANDS
 from signals.persistence.schema import METADATA, acquisition_policy_snapshot
 from signals.policy.contracts import AutonomyMode
 from signals.policy.store import PolicyStore
@@ -40,13 +41,25 @@ def _bootstrap(engine):
     )
 
 
-def test_the_first_control_is_a_non_executable_shadow_authority(tmp_path) -> None:
+def test_the_first_control_is_an_executable_assisted_authority_with_a_zero_volume_cap(
+    tmp_path,
+) -> None:
+    """2026-09-01: the human decided to bootstrap in ASSISTED, not SHADOW.
+
+    `evaluator.py:296` makes `executable` unconditionally false under
+    SHADOW, whatever the command's risk class — the old SHADOW+ASSISTED
+    posture stopped every cycle at its first policy-evaluated stage and
+    produced no measurement. Under ASSISTED, the send is withheld instead
+    by five independent guards documented on `bootstrap_policy_control`,
+    not by the mode itself: `daily_volume_cap=0` is the one this control
+    owns directly.
+    """
     control = _bootstrap(_engine(tmp_path))
     assert control.control_revision == 1
-    assert control.autonomy_mode is AutonomyMode.SHADOW
-    assert control.shadow_target_mode is AutonomyMode.ASSISTED
-    assert control.read_only is True
-    assert control.kill_switch is True
+    assert control.autonomy_mode is AutonomyMode.ASSISTED
+    assert control.shadow_target_mode is None
+    assert control.read_only is False
+    assert control.kill_switch is False
     assert control.daily_volume_cap == 0
     assert control.currency == "CHF"
     assert control.daily_cost_cap == Decimal("30.00")
@@ -58,7 +71,7 @@ def test_the_scope_is_exact_so_a_cycle_can_compose(tmp_path) -> None:
     assert control.allowed_countries == ("FR",)
     assert control.allowed_languages == ("fr",)
     assert control.allowed_wedges == ("construction",)
-    assert control.allowed_commands != ()
+    assert control.allowed_commands == RUNTIME_COMMANDS
 
 
 def test_the_control_becomes_the_effective_one(tmp_path) -> None:

@@ -78,7 +78,7 @@ def _parser(*, opaque_errors: bool = False) -> argparse.ArgumentParser:
     close_window.add_argument("--reason-code", required=True)
     bootstrap = commands.add_parser(
         "bootstrap-policy-control",
-        help="append the very first non-executable Policy authority",
+        help="append the very first Policy authority, ASSISTED with a zero volume cap",
     )
     bootstrap.add_argument("--reason-code", required=True)
     bootstrap.add_argument("--actor", required=True)
@@ -200,7 +200,9 @@ def _run_mutation(arguments: argparse.Namespace, *, clock: Callable[[], dt.datet
                 "acquisition_ops bootstrap status=APPENDED "
                 f"revision={control.control_revision} "
                 f"autonomy={control.autonomy_mode.value} "
-                "read_only=true kill_switch=true volume_cap=0"
+                f"read_only={'true' if control.read_only else 'false'} "
+                f"kill_switch={'true' if control.kill_switch else 'false'} "
+                f"volume_cap={control.daily_volume_cap}"
             )
             return 0
         if arguments.command == "activate-kill-switch":

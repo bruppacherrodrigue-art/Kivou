@@ -1,14 +1,23 @@
 # Runtime Acquisition PRODUCTION/SHADOW — phase 1
 
 Ce runbook installe le second orchestrateur borné, distinct de celui du
-staging décrit au runbook 10. Le cycle de production tourne en `PRODUCTION`,
-en `SHADOW`, **sans aucun chemin d'envoi** : `--allow-qa-provider-mutations`
-est un argument invalide dès que `KIVOU_ACQUISITION_ENVIRONMENT=PRODUCTION`,
-et l'unité de production ne le passe jamais. Chaque cycle sélectionne
-automatiquement une opportunité France encore jamais retenue, l'observe de
-bout en bout, et n'émet aucune mutation commerciale. Il ne remplace ni le
-runbook 07 (promotion staging → production), ni le runbook 10 (staging), qui
-restent inchangés.
+staging décrit au runbook 10. Le cycle de production tourne en
+`PRODUCTION` avec zéro outil natif Hermes — `RuntimeExecutionMode` reste
+`SHADOW` au sens mécanique de ce champ, Hermes n'agissant jamais autrement
+que par les commandes fermées du registre Kivou. Cela ne veut plus dire que
+le cycle est inerte : l'autorité Policy posée à l'étape 6 est **ASSISTED**,
+pas SHADOW, et le cycle est réellement exécutable. Il reste **sans aucun
+chemin d'envoi**, mais par construction, jamais par le mode seul : cinq
+gardes indépendants le retiennent (détaillés à l'étape 6), dont
+`--allow-qa-provider-mutations`, un argument invalide dès que
+`KIVOU_ACQUISITION_ENVIRONMENT=PRODUCTION` et que l'unité de production ne le
+passe jamais. Chaque cycle sélectionne
+automatiquement une opportunité France encore jamais retenue par un cycle
+terminal et dont le cycle précédent, s'il existe, a dépassé le
+refroidissement de 20 heures (`selection.py`), la fait progresser aussi loin
+que la Policy l'y autorise, et n'émet aucune mutation commerciale. Il ne
+remplace ni le runbook 07 (promotion staging → production), ni le
+runbook 10 (staging), qui restent inchangés.
 
 Les commandes mutantes lisent exclusivement `KIVOU_DATABASE_URL` depuis
 l'`EnvironmentFile` protégé et utilisent l'horloge UTC du serveur. Elles
@@ -259,9 +268,22 @@ le bloc de vérification de l'étape 3** avant de continuer.
 ## 6. Amorçage du premier contrôle Policy de production
 
 Une seule commande, exécutée une seule fois par environnement, pose le tout
-premier contrôle Policy — non exécutable, en lecture seule, coupe-circuit
-armé, plafond de volume quotidien à zéro. Elle échoue si un contrôle existe
-déjà : ne jamais la répéter après un premier succès.
+premier contrôle Policy — décidé le 2026-09-01 : ASSISTED (pas SHADOW),
+lecture seule et coupe-circuit désarmés, plafond de volume quotidien à zéro.
+Elle échoue si un contrôle existe déjà : ne jamais la répéter après un
+premier succès.
+
+Ce contrôle est exécutable, mais ce n'est pas un levier d'envoi : cinq gardes
+indépendants retiennent la commercial mutation, aucun d'eux porté par ce seul
+contrôle — `PROVIDER_HANDOFF` reste `WAITING` inconditionnel sans
+`--allow-qa-provider-mutations`, un drapeau que le CLI refuse de toute façon
+dès que l'environnement est PRODUCTION (étape 8) ; `daily_volume_cap=0` fait
+échouer en `BUDGET_EXCEEDED` les deux seules commandes du registre qui
+portent un volume (`schedule_campaign`, `execute_provider_operations`) ;
+sous ASSISTED, toute commande COMMERCIAL_MUTATION exige un accord humain à
+usage unique, qu'aucun cycle automatisé ne fournit ; et la composition de
+production ne construit aucun détournement de destinataire. Le détail complet
+de ces cinq gardes vit dans le docstring de `bootstrap_policy_control`.
 
 ```bash
 sudo systemd-run --wait --collect --pipe \
@@ -290,7 +312,12 @@ fois le plafond quotidien atteint, la Policy répond `BUDGET_EXCEEDED` et les
 cycles suivants s'arrêtent d'eux-mêmes jusqu'au lendemain. Ces deux valeurs
 ne sont révisées qu'après le relevé à sept jours, pas avant.
 
-La sortie attendue commence par `acquisition_ops bootstrap status=APPENDED`.
+La sortie attendue est exactement une ligne :
+
+```
+acquisition_ops bootstrap status=APPENDED revision=1 autonomy=ASSISTED read_only=false kill_switch=false volume_cap=0
+```
+
 `status=REFUSED` arrête cette étape ; lire le `reason=` affiché et corriger
 avant de réessayer.
 
@@ -358,11 +385,22 @@ sudo journalctl -u kivou-acquisition-production.service \
   --since "today" --output=short-iso --no-pager
 ```
 
-Un `status=COMPLETED` avec un `cycle_ref` opaque est le résultat attendu. Un
-`status=WAITING` répété au même stage signale une reprise fournisseur
-ambiguë (identique à la sémantique déjà documentée au runbook 10) ; un
-`status=BLOCKED` ou `status=FAILED` doit être investigué avant l'étape 9 — ne
-jamais activer le timer sur un premier cycle en échec.
+`status=COMPLETED` exige que les onze stages, y compris `PROVIDER_HANDOFF`,
+se terminent `SUCCEEDED` — structurellement hors d'atteinte en phase 1, car
+`PROVIDER_HANDOFF` reste `WAITING` inconditionnel sans
+`--allow-qa-provider-mutations`, que la production ne passe jamais. Le
+résultat attendu est donc `status=WAITING`, avec l'un de ces deux
+`reason_code` : `POLICY_APPROVAL_REQUIRED` si le cycle a atteint une
+commande COMMERCIAL_MUTATION (`PERSONALIZATION`/`prepare_campaign` en
+premier) sans accord humain à usage unique préexistant, ou
+`QA_PROVIDER_MUTATION_NOT_AUTHORIZED` s'il a atteint `PROVIDER_HANDOFF`. Un
+`status=WAITING` répété au même stage avec l'un de ces deux `reason_code` est
+sain, pas un échec. Un `status=WAITING` répété au même stage avec
+`APOLLO_PROVIDER_OUTCOME_AMBIGUOUS` signale en revanche une reprise
+fournisseur ambiguë (identique à la sémantique déjà documentée au
+runbook 10) et doit être investigué, de même qu'un `status=BLOCKED` ou
+`status=FAILED` — ne jamais activer le timer sur un premier cycle dans l'un
+de ces trois états.
 
 ## 9. Activation du timer et observation du premier tir automatique
 
@@ -418,9 +456,10 @@ sudo systemd-run --wait --collect --pipe \
 
 Un health `READY` exige une observation durable récente, le pin Hermes
 exact, le registre fermé, zéro outil natif, Policy et les onze dépendances du
-cycle. La readiness reste honnêtement bornée : un cycle de production
-`SHADOW` sain ne constitue jamais une autorisation d'envoi — la phase 2,
-hors périmètre, en décidera séparément.
+cycle. La readiness reste honnêtement bornée : un cycle de production sain
+— zéro outil natif Hermes, Policy ASSISTED plafonnée à un volume nul — ne
+constitue jamais une autorisation d'envoi — la phase 2, hors périmètre, en
+décidera séparément.
 
 ## Rollback
 
@@ -475,6 +514,8 @@ Restaurer le code avant ce contrôle supprimerait précisément la migration
 
 Restaurer ensuite l'artefact applicatif précédent et conserver le timer
 désactivé jusqu'au smoke test du rollback. Le contrôle Policy de production
-posé à l'étape 6 n'est jamais supprimé par ce rollback : il reste une trace
-d'audit, non exécutable, et ne doit pas être réutilisé par un futur
-amorçage — `bootstrap-policy-control` le refuserait de toute façon.
+posé à l'étape 6 n'est jamais supprimé par ce rollback : il reste en place,
+ASSISTED avec un plafond de volume quotidien toujours à zéro, mais plus aucun
+cycle ne l'invoque tant que le timer reste désactivé. Il ne doit pas être
+réutilisé par un futur amorçage — `bootstrap-policy-control` le refuserait de
+toute façon.
