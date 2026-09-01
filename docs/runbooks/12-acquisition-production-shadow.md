@@ -163,6 +163,7 @@ sudo -u kivou \
 Sinon, installer exactement comme au runbook 08 :
 
 ```bash
+set -euo pipefail
 sudo install -d -m 0755 -o root -g root /opt/kivou/hermes-agent
 sudo git clone --no-checkout https://github.com/NousResearch/hermes-agent.git \
   /opt/kivou/hermes-agent/e624e9fde561e1add9388384012b295fde669ade
@@ -184,9 +185,12 @@ sudo -u kivou \
   -c 'import importlib.metadata; assert importlib.metadata.version("hermes-agent") == "0.20.4"'
 ```
 
-Tout écart de version, de commit ou de tag arrête l'installation. Ne jamais
-substituer un tag plus récent, une branche, un autre paquet, ou un modèle de
-repli.
+`set -euo pipefail` en tête du bloc est ce qui rend cette phrase vraie : sans
+lui, un `test` en échec sur le commit ou le tag laisserait `uv sync`, `chown`
+et l'assertion finale s'exécuter quand même, sur un checkout potentiellement
+faux. Coller ce bloc en une fois, jamais ligne par ligne. Tout écart de
+version, de commit ou de tag arrête l'installation. Ne jamais substituer un
+tag plus récent, une branche, un autre paquet, ou un modèle de repli.
 
 ## 5. Provisionnement des fichiers protégés
 
@@ -196,6 +200,7 @@ limites), le document de connectivité (workspace Instantly + boîtes), et le
 répertoire HOME de Hermes en production.
 
 ```bash
+set -euo pipefail
 sudo install -d -m 0700 -o kivou -g kivou /var/lib/kivou/hermes
 sudo install -d -m 0700 -o kivou -g kivou /var/lib/kivou/hermes/work
 sudo install -m 0600 -o kivou -g kivou ops/examples/hermes-shadow-config.yaml \
@@ -214,6 +219,10 @@ sudoedit /etc/kivou/acquisition-production.env
 sudoedit /etc/kivou/acquisition-production.json
 sudoedit /etc/kivou/acquisition-production-connectivity.json
 ```
+
+Coller ce bloc en une fois : `set -euo pipefail` arrête le provisionnement au
+premier `install`/`sudoedit` en échec plutôt que de laisser les étapes
+suivantes s'exécuter contre un fichier absent ou mal posé.
 
 Dans `/var/lib/kivou/hermes/.env`, saisir uniquement l'identifiant OpenRouter
 sous la variable `OPENROUTER_API_KEY`. Ne jamais le coller dans une commande,
@@ -288,6 +297,7 @@ avant de réessayer.
 ## 7. Installation des unités et vérification des dépendances
 
 ```bash
+set -euo pipefail
 sudo install -o root -g root -m 644 \
   ops/systemd/kivou-acquisition-production.service \
   ops/systemd/kivou-acquisition-production.timer \
@@ -297,6 +307,10 @@ sudo systemd-analyze verify \
   /etc/systemd/system/kivou-acquisition-production.timer
 sudo systemctl daemon-reload
 ```
+
+Sans `set -euo pipefail`, un `systemd-analyze verify` en échec n'empêcherait
+pas `daemon-reload` de recharger une unité invalide ou absente ; coller ce
+bloc en une fois.
 
 Puis, avant tout cycle, prouver que les onze dépendances du runtime sont
 `READY` à partir de sondes fraîches en lecture seule — aucune mutation
@@ -353,6 +367,7 @@ jamais activer le timer sur un premier cycle en échec.
 ## 9. Activation du timer et observation du premier tir automatique
 
 ```bash
+set -euo pipefail
 sudo systemctl enable --now kivou-acquisition-production.timer
 sudo systemctl list-timers kivou-acquisition-production.timer --no-pager
 ```
@@ -365,17 +380,34 @@ stage durable non terminal, jamais depuis le début.
 
 ## Santé, readiness et arrêt d'urgence
 
+Ces trois commandes sont indépendantes — exécuter chacune séparément, selon
+le besoin, jamais comme un script unique. En particulier,
+`activate-kill-switch` est l'action d'urgence : elle ne doit jamais dépendre
+d'un `health`/`readiness` préalable réussi, donc ces trois blocs restent
+volontairement séparés plutôt que chaînés par `set -euo pipefail` — chaîner
+l'arrêt d'urgence derrière deux sondes de lecture le bloquerait précisément
+quand la base ou le réseau est déjà en mauvais état, c'est-à-dire au moment
+où l'opérateur en a le plus besoin. Chacun des trois blocs ci-dessous est une
+seule commande shell (les sauts de ligne ne sont que de la continuation) ;
+`set -euo pipefail` n'y ajoute donc rien.
+
 ```bash
 sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
   --property=EnvironmentFile=/etc/kivou/production.env \
   /srv/kivou/app/.venv/bin/python -m signals.operations health
+```
+
+```bash
 sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
   --property=EnvironmentFile=/etc/kivou/production.env \
   /srv/kivou/app/.venv/bin/python -m signals.operations readiness
+```
+
+```bash
 sudo systemd-run --wait --collect --pipe \
   --uid=kivou --gid=kivou \
   --working-directory=/srv/kivou/app \
@@ -393,12 +425,18 @@ hors périmètre, en décidera séparément.
 ## Rollback
 
 ```bash
+set -euo pipefail
 sudo systemctl disable --now kivou-acquisition-production.timer
 sudo systemctl stop kivou-acquisition-production.service
 sudo rm /etc/systemd/system/kivou-acquisition-production.service \
   /etc/systemd/system/kivou-acquisition-production.timer
 sudo systemctl daemon-reload
 ```
+
+Si `disable --now` ou `stop` échoue, ne pas continuer vers `rm` : supprimer
+les fichiers d'unité pendant qu'un cycle tourne encore ou que systemd les
+croit toujours actifs laisse un état incohérent. `set -euo pipefail` arrête
+le bloc à la première commande en échec.
 
 Le downgrade de `0029_production_observation_boundary` restaure l'ancienne
 contrainte `environment = 'STAGING' AND ... AND qa_only IS TRUE`, qui rejette

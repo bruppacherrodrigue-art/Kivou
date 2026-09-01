@@ -244,3 +244,54 @@ def test_the_production_runbook_covers_the_full_bring_up_sequence() -> None:
     assert "EnvironmentFile=/etc/kivou/acquisition-production.env" in runbook
     assert "EnvironmentFile=/etc/kivou/staging.env" not in runbook
     assert "acquisition-runtime.env" not in runbook
+
+
+def test_the_runbooks_multi_command_blocks_fail_fast() -> None:
+    """Pin `set -euo pipefail` on the runbook's known multi-command blocks.
+
+    A general "does this fenced ```bash block contain more than one
+    command" check was considered and rejected as brittle: several blocks
+    in this runbook pass a multi-line ``python -c '...'`` argument (a
+    single quoted string spanning many physical lines) to one command. A
+    naive line- or backslash-continuation-based counter misreads each
+    Python line inside that quoted argument as a separate shell command,
+    which would either demand a pointless ``set -euo pipefail`` on blocks
+    that are genuinely one command, or require bespoke exceptions that
+    silently drift out of sync with the prose. A real fix would need an
+    actual shell parser (e.g. `bashlex`), which is disproportionate for a
+    documentation-linting property.
+
+    Instead, this anchors on a unique, stable substring from each block
+    that this task's review identified as safety-critical and
+    multi-command, and asserts that block starts with `set -euo pipefail`
+    — precise for the known set, not a general claim about every block.
+    """
+    from pathlib import Path
+
+    runbook = Path("docs/runbooks/12-acquisition-production-shadow.md").read_text(
+        encoding="utf-8"
+    )
+    fenced_blocks = [
+        block.split("\n```", 1)[0]
+        for block in runbook.split("```bash\n")[1:]
+    ]
+    # Each anchor identifies one specific multi-command block that must be
+    # fail-fast: a `test` (or `install`/`systemd-analyze`) in the middle of
+    # the block failing silently must not let later commands run anyway.
+    multi_command_anchors = (
+        "kivou-backup-pre-0029",  # backup, then apply migration 0029
+        "kivou_credential_isolation_check",  # Apollo/Instantly isolation gate
+        "git clone --no-checkout",  # Hermes pin: clone, checkout, verify commit/tag
+        "hermes-shadow-config.yaml",  # provision env/JSON/Hermes HOME files
+        "sudo systemd-analyze verify",  # install units, verify, then reload
+        "systemctl list-timers",  # enable timer, then inspect it
+        "sudo systemctl stop kivou-acquisition-production.service",  # rollback teardown
+    )
+    for anchor in multi_command_anchors:
+        matches = [block for block in fenced_blocks if anchor in block]
+        assert len(matches) == 1, f"expected exactly one block containing {anchor!r}"
+        first_line = matches[0].split("\n", 1)[0]
+        assert first_line == "set -euo pipefail", (
+            f"block containing {anchor!r} must start with 'set -euo pipefail', "
+            f"got {first_line!r}"
+        )
