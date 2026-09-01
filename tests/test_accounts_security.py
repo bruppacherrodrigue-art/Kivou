@@ -192,6 +192,7 @@ def test_the_session_cookie_is_http_only(client: TestClient):
     assert "httponly" in header
     assert "samesite=lax" in header
     assert "path=/" in header
+    assert "max-age=1209600" in header
 
 
 def test_the_cookie_is_marked_secure_when_configured(engine, clock: Clock):

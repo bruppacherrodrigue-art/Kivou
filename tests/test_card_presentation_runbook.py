@@ -3770,7 +3770,7 @@ def test_ops_readme_points_to_the_single_versioned_staging_rollout() -> None:
     assert "Card Intelligence × QA Signals" in body
 
 
-def test_0029_recovery_final_is_exact_child_with_two_file_allowlist(
+def test_0029_recovery_final_is_exact_child_with_four_file_allowlist(
     tmp_path: Path,
 ) -> None:
     step_one = _commands(
@@ -3801,6 +3801,8 @@ def test_0029_recovery_final_is_exact_child_with_two_file_allowlist(
             '"$KIVOU_FINAL_SHA"'
         ),
         "docs/runbooks/11-staging-card-presentation-rollout.md",
+        "src/signals/api/routes_auth.py",
+        "tests/test_accounts_security.py",
         "tests/test_card_presentation_runbook.py",
         "readonly KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA",
         "readonly KIVOU_EXPECTED_FINAL_REVISION",
@@ -3848,6 +3850,8 @@ def test_0029_recovery_final_is_exact_child_with_two_file_allowlist(
     base = "3f3db99afaf925bed746739a79059cffe3b8be8c"
     exact = (
         "docs/runbooks/11-staging-card-presentation-rollout.md\n"
+        "src/signals/api/routes_auth.py\n"
+        "tests/test_accounts_security.py\n"
         "tests/test_card_presentation_runbook.py"
     )
     assert evaluate(parent=base, count="1", diff=exact) == 0
@@ -3907,6 +3911,8 @@ def test_resume_executes_exact_card_subdelta_then_compat_delta_without_full_diff
     )
     compat_files = (
         "docs/runbooks/11-staging-card-presentation-rollout.md",
+        "src/signals/api/routes_auth.py",
+        "tests/test_accounts_security.py",
         "tests/test_card_presentation_runbook.py",
     )
     full_files = card_files + tuple(

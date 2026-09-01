@@ -90,8 +90,10 @@ mapfile -t KIVOU_RECOVERY_COMPATIBILITY_DIFF < <(
 )
 mapfile -t KIVOU_RECOVERY_COMPATIBILITY_EXPECTED_DIFF < <(printf '%s\n' \
   docs/runbooks/11-staging-card-presentation-rollout.md \
+  src/signals/api/routes_auth.py \
+  tests/test_accounts_security.py \
   tests/test_card_presentation_runbook.py | LC_ALL=C sort)
-test "${#KIVOU_RECOVERY_COMPATIBILITY_DIFF[@]}" -eq 2
+test "${#KIVOU_RECOVERY_COMPATIBILITY_DIFF[@]}" -eq 4
 test "${KIVOU_RECOVERY_COMPATIBILITY_DIFF[*]}" = \
   "${KIVOU_RECOVERY_COMPATIBILITY_EXPECTED_DIFF[*]}"
 unset KIVOU_RECOVERY_COMPATIBILITY_EXPECTED_DIFF
@@ -1586,7 +1588,7 @@ if target == "scratch":
     url = make_url(os.environ["KIVOU_DATABASE_URL"]).set(
         database=os.environ["KIVOU_SCRATCH_DATABASE"]
     )
-    os.environ["KIVOU_DATABASE_URL"] = url.render_as_string(hide_password=False)
+    os.environ["KIVOU_DATABASE_URL"] = url.render_as_string(False)
 elif target != "live":
     raise AssertionError(target)
 engine = create_database_engine()
