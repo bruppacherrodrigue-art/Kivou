@@ -71,7 +71,31 @@ def test_the_scope_is_exact_so_a_cycle_can_compose(tmp_path) -> None:
     assert control.allowed_countries == ("FR",)
     assert control.allowed_languages == ("fr",)
     assert control.allowed_wedges == ("construction",)
-    assert control.allowed_commands == RUNTIME_COMMANDS
+    assert set(control.allowed_commands) <= set(RUNTIME_COMMANDS)
+
+
+def test_the_bootstrapped_authority_never_names_a_sending_command(tmp_path) -> None:
+    """Task 12 / change 2: the bootstrapped authority must not itself name a
+    command capable of a real provider mutation.
+
+    `RUNTIME_COMMANDS` (staging's complete eleven-command set, from
+    `qa_policy_window.py`) includes `schedule_campaign` (`CAMPAIGN`) and
+    `execute_provider_operations` (`PROVIDER_HANDOFF`) — the only two
+    commands with `uses_volume=True`. The phase must never execute either,
+    so this control names the other nine only. `prepare_campaign`
+    (`PERSONALIZATION`) stays allowed: under ASSISTED autonomy it is where a
+    COMMERCIAL_MUTATION command parks awaiting a human's one-time approval —
+    the intended stopping point, not a sending command.
+    """
+    control = _bootstrap(_engine(tmp_path))
+    assert "schedule_campaign" not in control.allowed_commands
+    assert "execute_provider_operations" not in control.allowed_commands
+    assert "prepare_campaign" in control.allowed_commands
+    assert len(control.allowed_commands) == 9
+    assert set(control.allowed_commands) == set(RUNTIME_COMMANDS) - {
+        "schedule_campaign",
+        "execute_provider_operations",
+    }
 
 
 def test_the_control_becomes_the_effective_one(tmp_path) -> None:

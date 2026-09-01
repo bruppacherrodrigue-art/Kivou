@@ -206,3 +206,37 @@ def test_observation_boundary_rejects_production_qa_only(tmp_path) -> None:
             engine,
             _observation_values(environment="PRODUCTION", qa_only=True),
         )
+
+
+@pytest.mark.parametrize(
+    ("environment", "environment_overrides"),
+    (
+        pytest.param("STAGING", {}, id="staging"),
+        pytest.param("PRODUCTION", {"qa_only": False}, id="production"),
+    ),
+)
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        pytest.param("mode", "LIVE", id="mode-not-shadow"),
+        pytest.param("native_tools", 1, id="native-tools-not-zero"),
+    ),
+)
+def test_observation_boundary_rejects_the_unconditional_prefix(
+    tmp_path, environment, environment_overrides, field, value
+) -> None:
+    """`ck_acquisition_runtime_observation_boundary`'s `mode = 'SHADOW' AND
+    native_tools = 0` prefix is unconditional — it must hold for a STAGING
+    row exactly as much as a PRODUCTION one. Every other boundary test above
+    only ever varies `environment`/`qa_only`, so a regression that folded
+    this prefix into only the STAGING branch (e.g. moving it inside the
+    first `OR` arm) would still pass every one of them. These four cases —
+    both environments, crossed with a non-SHADOW `mode` and a non-zero
+    `native_tools` — pin the prefix to both branches directly.
+    """
+    engine = _engine(tmp_path, "runtime-boundary-prefix.db")
+    command.upgrade(alembic_config(engine), "head")
+
+    overrides = {"environment": environment, **environment_overrides, field: value}
+    with pytest.raises(sa.exc.IntegrityError):
+        _insert_observation(engine, _observation_values(**overrides))

@@ -8,6 +8,7 @@ from decimal import Decimal
 from pydantic import ValidationError
 from sqlalchemy.engine import Engine
 
+from signals.acquisition_runtime.contracts import AcquisitionRuntimeStage
 from signals.operations.contracts import canonical_fingerprint
 from signals.operations.qa_policy_window import RUNTIME_COMMANDS
 from signals.policy.contracts import (
@@ -16,6 +17,23 @@ from signals.policy.contracts import (
     PolicyControlUnavailable,
 )
 from signals.policy.store import PolicyStore
+
+# The two commands capable of a real provider mutation — `CAMPAIGN`'s
+# `schedule_campaign` and `PROVIDER_HANDOFF`'s `execute_provider_operations`,
+# the only stages with `uses_volume=True`. This phase must never execute
+# either, so the bootstrapped authority never names them, even though
+# `RUNTIME_COMMANDS` (staging's complete command set) includes both. This is
+# a local exclusion, not a change to `RUNTIME_COMMANDS` itself: that constant
+# belongs to staging's QA window and must keep its own zero diff.
+_SENDING_COMMANDS = frozenset(
+    {
+        AcquisitionRuntimeStage.CAMPAIGN.command,
+        AcquisitionRuntimeStage.PROVIDER_HANDOFF.command,
+    }
+)
+BOOTSTRAP_ALLOWED_COMMANDS = tuple(
+    command for command in RUNTIME_COMMANDS if command not in _SENDING_COMMANDS
+)
 
 
 class PolicyBootstrapError(RuntimeError):
@@ -51,21 +69,30 @@ def bootstrap_policy_control(
     `execute_provider_operations` — sont COMMERCIAL_MUTATION ; les huit
     autres restent READ_ONLY ou PREPARATORY (le cycle entier n'est donc pas
     PREPARATORY, contrairement à ce que ce docstring affirmait). Rien
-    n'atteint un fournisseur ou une boîte de réception : cinq gardes
-    indépendants retiennent l'envoi, aucun d'eux porté par ce seul contrôle.
+    n'atteint un fournisseur ou une boîte de réception : six gardes
+    indépendants retiennent l'envoi, aucun d'eux porté par ce seul contrôle
+    à lui seul (sauf le sixième, que ce contrôle pose directement).
 
     1. `PROVIDER_HANDOFF` reste `WAITING` inconditionnel tant que le cycle
        n'a pas reçu `--allow-qa-provider-mutations` (`runner.py`,
-       `registry.py`) ;
-    2. le CLI refuse ce drapeau dès que l'environnement est PRODUCTION
-       (`cli.py`) ;
+       `registry.py`, `domain.py:handoff_provider`) ;
+    2. ce drapeau est refusé en PRODUCTION à deux endroits indépendants : le
+       CLI, sur la variable d'environnement (`cli.py`), et la composition
+       elle-même, sur `runtime_config.deployment.is_production`
+       (`execution.py:build_runtime_execution_composition`) — un appelant
+       qui contourne le CLI reste donc arrêté ;
     3. `daily_volume_cap=0` fait échouer `schedule_campaign` et
        `execute_provider_operations` en BUDGET_EXCEEDED — ce sont les deux
        seules commandes du registre portant `uses_volume=True` ;
     4. sous ASSISTED, toute commande COMMERCIAL_MUTATION exige un accord
        humain à usage unique (`evaluator.py`), absent d'un cycle automatisé ;
     5. la composition de production ne construit aucun détournement de
-       destinataire.
+       destinataire ;
+    6. cette autorité elle-même ne nomme ni `schedule_campaign` ni
+       `execute_provider_operations` dans `allowed_commands`
+       (`BOOTSTRAP_ALLOWED_COMMANDS` ci-dessous) — l'évaluateur refuse toute
+       commande absente de cette liste (`evaluator.py:147`), indépendamment
+       des cinq gardes précédents.
     """
 
     if at.tzinfo is None or at.utcoffset() is None:
@@ -106,7 +133,7 @@ def bootstrap_policy_control(
             shadow_target_mode=None,
             read_only=False,
             kill_switch=False,
-            allowed_commands=RUNTIME_COMMANDS,
+            allowed_commands=BOOTSTRAP_ALLOWED_COMMANDS,
             allowed_countries=(country,),
             allowed_languages=(language,),
             allowed_wedges=(wedge,),

@@ -257,7 +257,15 @@ def test_a_production_cycle_emits_no_commercial_mutation(
 def test_the_production_journal_never_carries_a_secret_or_an_address(
     production_composition, captured_journal
 ) -> None:
-    """Invariant 6: no secret, address, provider object, prompt or completion."""
+    """Invariant 6: no secret, address, provider object, prompt or completion.
+
+    Limitation: every stage handler here is faked (`_canary_domain_builder`),
+    so no stage ever generates real personalization or contact-discovery
+    content. This proves the closed events schema holds structurally across
+    a deep, multi-stage cycle, and that this montage's own configured
+    secrets (all prefixed `synthetic-`) do not leak — it does not prove that
+    real PII, once produced by the live domain, would be redacted.
+    """
 
     _run_once(production_composition)
     journal = captured_journal.getvalue()

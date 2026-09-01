@@ -381,3 +381,35 @@ def test_staging_composition_is_unchanged(staging_arguments) -> None:
     composition = build_runtime_execution_composition(**staging_arguments)
     assert composition.capability.environment == "STAGING"
     assert composition.capability.qa_only is True
+
+
+def test_production_composition_refuses_the_qa_mutation_flag_on_its_own(
+    production_arguments,
+) -> None:
+    """Task 12 / change 1: the composition boundary refuses the flag itself.
+
+    Until now, the only thing standing between `allow_qa_provider_mutations=
+    True` and a production cycle was `cli.py`'s `os.environ` check — a
+    caller that reaches `build_runtime_execution_composition` any other way
+    (a direct import, a script, a different entry point) was never asked.
+    The guard must fire before `NO_ELIGIBLE_OPPORTUNITY` or any other
+    precondition, so this montage deliberately has no seeded opportunity:
+    the refusal must not depend on how far composition would otherwise get.
+    """
+
+    with pytest.raises(RuntimeExecutionConfigurationError) as error:
+        build_runtime_execution_composition(
+            **production_arguments, allow_qa_provider_mutations=True
+        )
+    assert "QA_PROVIDER_MUTATIONS_FORBIDDEN_IN_PRODUCTION" in str(error.value)
+
+
+def test_staging_composition_still_allows_the_qa_mutation_flag(
+    staging_arguments,
+) -> None:
+    """The guard is production-only: staging keeps composing normally."""
+
+    composition = build_runtime_execution_composition(
+        **staging_arguments, allow_qa_provider_mutations=True
+    )
+    assert composition.capability.environment == "STAGING"

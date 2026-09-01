@@ -536,12 +536,17 @@ def build_runtime_execution_composition(
     instantly_provider: InstantlyProvider | None = None,
     hermes_runtime: object | None = None,
     dependency_probe: RuntimeDependencyProbe | None = None,
+    allow_qa_provider_mutations: bool = False,
     domain_builder: Callable[..., AcquisitionDomainComposition] = (
         build_acquisition_domain_composition
     ),
 ) -> RuntimeExecutionComposition:
     """Compose all real boundaries; construction itself performs no provider I/O."""
 
+    if allow_qa_provider_mutations and runtime_config.deployment.is_production:
+        raise RuntimeExecutionConfigurationError(
+            "QA_PROVIDER_MUTATIONS_FORBIDDEN_IN_PRODUCTION"
+        )
     now = clock()
     if now.tzinfo is None or now.utcoffset() is None:
         raise RuntimeExecutionConfigurationError("CLOCK_NOT_CONFIGURED")
@@ -775,6 +780,7 @@ def execute_runtime_run_once(
                 apollo=apollo,
                 instantly_provider=instantly,
                 hermes_runtime=hermes,
+                allow_qa_provider_mutations=allow_qa_provider_mutations,
                 dependency_probe=ProductionRuntimeDependencyProbe(
                     apollo=apollo,
                     instantly_provider=instantly,
