@@ -221,10 +221,21 @@ versionné avec les unités dans `ops/`.
 4. `health` ne rapporte plus `POLICY_CONTROL_UNAVAILABLE` ni
    `RUNTIME_OBSERVATION_UNAVAILABLE`.
 5. Journal relu : aucun secret, aucune adresse.
-6. **Relevé à sept jours** : nombre d'opportunités traitées, nombre de
-   contrefactuels `APPROVED`, coût réel par opportunité, part de
-   `REVIEW_REQUIRED`, et les bloqueurs de readiness restants. C'est le dossier
-   d'entrée de la phase 2.
+6. **Relevé à sept jours** : nombre d'opportunités traitées, coût réel par
+   opportunité, qualité des décisions Hermes, et les bloqueurs de readiness
+   restants. C'est le dossier d'entrée de la phase 2.
+
+   **Ce que le relevé ne contiendra pas, et pourquoi.** Le cycle s'arrête à
+   `PERSONALIZATION`, dont la commande `prepare_campaign` est une mutation
+   commerciale exigeant un accord humain sous `ASSISTED`. Or `COMPLIANCE` vient
+   *après* elle dans l'ordre des étapes. Les verdicts de conformité — la part
+   `ALLOWED` contre `REVIEW_REQUIRED`, annoncée dans une version antérieure de
+   ce document — sont donc hors d'atteinte sans approuver chaque opportunité une
+   à une. C'est le chemin d'approbation de la phase 2, pas une mesure passive.
+
+   La phase 1 mesure donc l'entonnoir jusqu'à la décision Hermes incluse, à coût
+   réel. C'est moins que ce que ce document promettait d'abord, et c'est ce que
+   l'architecture permet.
 
 ## Retour arrière
 
