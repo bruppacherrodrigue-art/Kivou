@@ -119,17 +119,20 @@ class RuntimeLinkConfiguration:
     attribution_key_version: str
 
     def __post_init__(self) -> None:
+        # Les deux seules origines publiques légitimes. La liste est fermée à
+        # dessein : un hôte de préproduction oublié ou un domaine usurpé ne
+        # doit jamais signer de liens d'attribution.
+        allowed = {"https://staging.kivou.eu", "https://kivou.eu"}
         parsed = urlsplit(self.public_app_url)
         if (
             parsed.scheme != "https"
-            or parsed.hostname != "staging.kivou.eu"
             or parsed.port is not None
             or parsed.username
             or parsed.password
             or parsed.path not in {"", "/"}
             or parsed.query
             or parsed.fragment
-            or self.public_app_url.rstrip("/") != "https://staging.kivou.eu"
+            or self.public_app_url.rstrip("/") not in allowed
             or len(self.attribution_hmac_key) < 16
             or not self.attribution_key_version
             or len(self.attribution_key_version) > 100

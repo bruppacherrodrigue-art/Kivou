@@ -312,13 +312,14 @@ def test_link_configuration_is_required_and_never_exposes_key_material() -> None
 @pytest.mark.parametrize(
     "unsafe_origin",
     (
-        "https://kivou.eu",
+        "https://www.kivou.eu",
         "https://other.example.com",
         "http://staging.kivou.eu",
         "https://staging.kivou.eu:444",
+        "https://kivou.eu/chemin",
     ),
 )
-def test_staging_runtime_rejects_production_or_noncanonical_origins(
+def test_the_runtime_rejects_noncanonical_or_foreign_origins(
     unsafe_origin: str,
 ) -> None:
     with pytest.raises(RuntimeExecutionConfigurationError) as error:
@@ -331,6 +332,21 @@ def test_staging_runtime_rejects_production_or_noncanonical_origins(
         )
 
     assert error.value.code == "LINKS_NOT_CONFIGURED"
+
+
+@pytest.mark.parametrize("url", ("https://staging.kivou.eu", "https://kivou.eu"))
+def test_both_public_origins_configure_attribution_links(url: str) -> None:
+    """« https://kivou.eu » figurait dans la liste de rejet — quatrième test
+    « la production est impossible » de cette série. Les deux origines
+    publiques, et elles seules, savent signer des liens d'attribution."""
+    loaded = load_runtime_link_config(
+        {
+            "KIVOU_PUBLIC_APP_URL": url,
+            "KIVOU_ATTRIBUTION_HMAC_KEY": "synthetic-private-attribution-key",
+            "KIVOU_ATTRIBUTION_HMAC_KEY_VERSION": "attribution-v1",
+        }
+    )
+    assert loaded.public_app_url == url
 
 
 def test_production_dependency_probe_reports_real_bounded_component_readiness(

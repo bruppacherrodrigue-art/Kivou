@@ -69,6 +69,9 @@ def client_for(app, email: str, company: str) -> TestClient:
         json={"email": email, "password": PASSWORD, "company_name": company, "locale": "fr"},
     )
     assert response.status_code == 201, response.text
+    from feed_helpers import pin_session_cookie
+
+    pin_session_cookie(client, response)
     return client
 
 

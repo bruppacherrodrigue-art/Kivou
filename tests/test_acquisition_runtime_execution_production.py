@@ -270,7 +270,7 @@ def _connectivity_config(
 
 def _links() -> RuntimeLinkConfiguration:
     return RuntimeLinkConfiguration(
-        public_app_url="https://staging.kivou.eu",
+        public_app_url="https://kivou.eu",
         attribution_hmac_key=b"synthetic-attribution-key",
         attribution_key_version="attribution-v1",
     )
