@@ -34,8 +34,13 @@ FILTER_RANK: dict[str, int] = {"minimum": 0, "basic": 1, "advanced": 2}
 FILTER_REQUIREMENTS: dict[str, str] = {
     "target_icp_id": "minimum",
     "freshness": "minimum",
+    "date_from": "minimum",
+    "date_to": "minimum",
     "country": "basic",
+    "subdivision_code": "basic",
+    "status": "basic",
     "primary_event": "basic",
+    "cpv_prefix": "advanced",
     "winner": "advanced",
 }
 
@@ -64,6 +69,13 @@ def check_filters(entitlements: PlanEntitlements, requested: dict[str, object]) 
         required = FILTER_REQUIREMENTS.get(name, "minimum")
         if FILTER_RANK.get(required, 0) > available:
             raise FilterNotEntitled(name, required)
+
+
+def filter_is_available(entitlements: PlanEntitlements, filter_name: str) -> bool:
+    """Whether the existing plan level grants one declared feed filter."""
+    available = FILTER_RANK.get(entitlements.filter_level, 0)
+    required = FILTER_REQUIREMENTS.get(filter_name, "minimum")
+    return available >= FILTER_RANK.get(required, 0)
 
 
 @dataclasses.dataclass(frozen=True)

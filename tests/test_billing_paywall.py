@@ -490,6 +490,80 @@ def test_scale_unlocks_all_the_history_that_exists(alice, engine, clock: Clock):
     assert {fresh, old} <= set(items)
 
 
+def test_history_view_walks_every_owned_signal_with_the_server_cursor(alice, engine):
+    icp = icp_of(alice)
+    expected = set(seed(engine, icp, count=7))
+    pay(engine, alice, plan="scale")
+
+    seen: list[str] = []
+    cursor: str | None = None
+    while True:
+        params = {"view": "history", "limit": 2}
+        if cursor is not None:
+            params["cursor"] = cursor
+        response = alice.get("/signals", params=params)
+        assert response.status_code == 200, response.text
+        body = response.json()
+        seen.extend(item["signal_id"] for item in body["items"])
+        cursor = body["page"]["next_cursor"]
+        if cursor is None:
+            break
+
+    assert len(seen) == len(set(seen))
+    assert set(seen) == expected
+
+
+@pytest.mark.parametrize(
+    ("plan", "scope", "history_days"),
+    [
+        (None, "grants_only", 0),
+        ("essential", "window", 30),
+        ("pro", "window", 365),
+        ("scale", "all_available", None),
+    ],
+)
+def test_history_response_explains_the_existing_plan_limit(
+    alice, engine, plan: str | None, scope: str, history_days: int | None
+):
+    icp = icp_of(alice)
+    seed(engine, icp, count=2)
+    if plan is not None:
+        pay(engine, alice, plan=plan)
+
+    body = feed(alice, view="history", limit=2)
+
+    assert body["history_access"] == {
+        "scope": scope,
+        "history_days": history_days,
+    }
+
+
+def test_history_cursor_and_date_range_fail_closed(alice, engine):
+    icp = icp_of(alice)
+    seed(engine, icp, count=2)
+
+    malformed = alice.get("/signals", params={"view": "history", "cursor": "not-a-cursor"})
+    assert malformed.status_code == 422
+    assert malformed.json()["detail"]["code"] == "invalid_history_cursor"
+
+    inverted = alice.get(
+        "/signals",
+        params={"view": "history", "date_from": "2026-08-20", "date_to": "2026-08-01"},
+    )
+    assert inverted.status_code == 422
+    assert inverted.json()["detail"]["code"] == "invalid_history_date_range"
+
+    recent_cursor = alice.get("/signals", params={"view": "recent", "cursor": "opaque"})
+    assert recent_cursor.status_code == 422
+    assert recent_cursor.json()["detail"]["code"] == "cursor_requires_history_view"
+
+    recent_period = alice.get(
+        "/signals", params={"view": "recent", "date_from": "2026-08-01"}
+    )
+    assert recent_period.status_code == 422
+    assert recent_period.json()["detail"]["code"] == "history_filters_require_history_view"
+
+
 def test_a_history_window_never_authorises_recent_wording_on_an_old_signal(alice, engine):
     """§25 — payer plus n'autorise pas à mentir sur la date."""
     icp = icp_of(alice)
@@ -527,6 +601,54 @@ def test_essential_may_filter_by_country_but_not_by_winner(alice, engine):
     pay(engine, alice, plan="essential")
     assert alice.get("/signals?country=CH").status_code == 200
     assert alice.get("/signals?winner=Egli").status_code == 403
+
+
+def test_filter_access_is_derived_from_the_existing_plan_level(alice, engine):
+    icp = icp_of(alice)
+    seed(engine, icp, count=2)
+
+    discovery = feed(alice, view="history")
+    assert discovery["filter_access"] == {
+        "date_range": True,
+        "country": False,
+        "subdivision": False,
+        "status": False,
+        "sector": False,
+    }
+    assert alice.get("/signals?view=history&date_from=2026-08-01").status_code == 200
+    assert alice.get("/signals?view=history&subdivision_code=CH-ZH").status_code == 403
+    assert alice.get("/signals?view=history&status=recent_award").status_code == 403
+    assert alice.get("/signals?view=history&cpv_prefix=45").status_code == 403
+
+    pay(engine, alice, plan="essential")
+    essential = feed(alice, view="history")
+    assert essential["filter_access"]["country"] is True
+    assert essential["filter_access"]["subdivision"] is True
+    assert essential["filter_access"]["status"] is True
+    assert essential["filter_access"]["sector"] is False
+    assert alice.get("/signals?view=history&country=CH").status_code == 200
+    assert alice.get("/signals?view=history&status=recent_award").status_code == 200
+    assert alice.get("/signals?view=history&cpv_prefix=45").status_code == 403
+
+
+def test_history_filters_period_country_status_and_cpv_on_the_server(alice, engine):
+    icp = icp_of(alice)
+    expected = seed(engine, icp, count=4)
+    pay(engine, alice, plan="pro")
+
+    period = feed(
+        alice,
+        view="history",
+        date_from="2026-08-12",
+        date_to="2026-08-13",
+        country="CH",
+        status="recent_award",
+    )
+    assert [item["signal_id"] for item in period["items"]] == expected[:2]
+
+    cpv = feed(alice, view="history", cpv_prefix="45")
+    assert cpv["items"]
+    assert all(item["contract"]["cpv"].startswith("45") for item in cpv["items"])
 
 
 def test_pro_may_use_every_filter(alice, engine):

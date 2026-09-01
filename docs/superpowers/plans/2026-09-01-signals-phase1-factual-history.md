@@ -109,7 +109,7 @@ git commit -m "feat(signals): add stable historical cursor"
 - Test: `tests/test_feed_history.py`
 - Test: `tests/test_billing_paywall.py`
 
-- [ ] **Step 1: Add failing API tests**
+- [x] **Step 1: Add failing API tests**
 
 Request `view=history`, `cursor`, `date_from`, `date_to`, `country`,
 `subdivision_code`, `status` and `cpv_prefix`. Assert `date_from <= date_to`,
@@ -117,12 +117,12 @@ filter-level 403 responses, tenant isolation, exact cursor continuation,
 locked-only protected data and access metadata matching existing
 Discovery/Essential/Pro/Scale rights.
 
-- [ ] **Step 2: Run the API tests and retain RED evidence**
+- [x] **Step 2: Run the API tests and retain RED evidence**
 
 Run: `uv run pytest -q tests/test_feed_history.py tests/test_billing_paywall.py -k 'history or filter'`  
 Expected: FAIL because the route does not accept the new contract.
 
-- [ ] **Step 3: Extend existing filter requirements**
+- [x] **Step 3: Extend existing filter requirements**
 
 ```python
 FILTER_REQUIREMENTS |= {
@@ -137,18 +137,18 @@ FILTER_REQUIREMENTS |= {
 Compute `filter_access` from `FILTER_RANK` and `history_access` from the existing
 `history_days`/scope. Do not change catalogue plans, prices or checkout.
 
-- [ ] **Step 4: Route history through keyset pagination**
+- [x] **Step 4: Route history through keyset pagination**
 
 Keep offset fields for `view=recent`. For history, return additive
 `cursor`/`next_cursor`, `view`, `history_access` and `filter_access`. Map a bad
 cursor to closed 422 and never fall back to offset.
 
-- [ ] **Step 5: Verify feed and paywall regressions**
+- [x] **Step 5: Verify feed and paywall regressions**
 
 Run: `uv run pytest -q tests/test_feed_history.py tests/test_feed_pagination.py tests/test_feed_ownership.py tests/test_billing_paywall.py tests/test_billing_upgrade_eligibility.py`  
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/signals/api/routes_signals.py src/signals/billing/access.py src/signals/feed/query.py tests/test_feed_history.py tests/test_billing_paywall.py

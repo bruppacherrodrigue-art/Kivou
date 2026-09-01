@@ -474,6 +474,12 @@ def history_page(
     as_of: dt.date,
     target_icp_id: str | None = None,
     allowed_target_icp_ids: frozenset[str] | None = None,
+    country: str | None = None,
+    subdivision_code: str | None = None,
+    status: str | None = None,
+    cpv_prefix: str | None = None,
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
     limit: int = policy.DEFAULT_PAGE_SIZE,
     cursor: str | None = None,
     scan_cap: int = HISTORY_SCAN_CAP,
@@ -509,6 +515,14 @@ def history_page(
         base = base.where(
             materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids))
         )
+    if country is not None:
+        base = base.where(source_event.c.source_country == country)
+    if cpv_prefix is not None:
+        base = base.where(contract_award.c.cpv_main.like(f"{cpv_prefix}%"))
+    if date_from is not None:
+        base = base.where(effective >= date_from)
+    if date_to is not None:
+        base = base.where(effective <= date_to)
 
     selected: list[FeedSignal] = []
     excluded_without_name = 0
@@ -545,6 +559,13 @@ def history_page(
                 target_icp_label=profile.label,
                 display=display,
             )
+            place = signal.award.place_of_performance or {}
+            if (
+                (subdivision_code is not None and place.get("subdivision_code") != subdivision_code)
+                or (status is not None and item.status != status)
+            ):
+                excluded_by_filters += 1
+                continue
             if len(selected) == limit:
                 return HistoryFeedPage(
                     items=tuple(selected),
