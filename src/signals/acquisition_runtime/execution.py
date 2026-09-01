@@ -60,6 +60,7 @@ from signals.acquisition_runtime.runtime_policy import (
     RuntimePolicyConfigurationError,
     SqlRuntimePolicyReadinessSource,
 )
+from signals.acquisition_runtime.selection import select_production_opportunity_key
 from signals.acquisition_runtime.store import AcquisitionRuntimeStore
 from signals.acquisition_runtime.supervisor import (
     KIVOU_STAGE_COSTS,
@@ -484,12 +485,13 @@ def _runtime_capability(
     registry: AcquisitionActionRegistry,
     *,
     dependencies: tuple[RuntimeStageDependency, ...],
+    runtime_config: AcquisitionRuntimeConfig,
 ) -> RuntimeCapabilityEvidence:
     pin = load_hermes_pin()
     return RuntimeCapabilityEvidence(
-        environment="STAGING",
+        environment=runtime_config.environment,
         mode="SHADOW",
-        qa_only=True,
+        qa_only=runtime_config.deployment.qa_only,
         hermes=RuntimeHermesIdentityEvidence(
             repository=pin.repository,
             tag=pin.tag,
@@ -534,18 +536,34 @@ def build_runtime_execution_composition(
     instantly_provider: InstantlyProvider | None = None,
     hermes_runtime: object | None = None,
     dependency_probe: RuntimeDependencyProbe | None = None,
+    allow_qa_provider_mutations: bool = False,
     domain_builder: Callable[..., AcquisitionDomainComposition] = (
         build_acquisition_domain_composition
     ),
 ) -> RuntimeExecutionComposition:
     """Compose all real boundaries; construction itself performs no provider I/O."""
 
+    if allow_qa_provider_mutations and runtime_config.deployment.is_production:
+        raise RuntimeExecutionConfigurationError(
+            "QA_PROVIDER_MUTATIONS_FORBIDDEN_IN_PRODUCTION"
+        )
     now = clock()
     if now.tzinfo is None or now.utcoffset() is None:
         raise RuntimeExecutionConfigurationError("CLOCK_NOT_CONFIGURED")
     observed_at = now.astimezone(dt.UTC)
-    if len(runtime_config.deployment.allowed_opportunity_keys) != 1:
-        raise RuntimeExecutionConfigurationError("QA_SIGNAL_SCOPE_NOT_EXACT")
+    if runtime_config.deployment.is_production:
+        selected = select_production_opportunity_key(
+            engine,
+            country=runtime_config.deployment.qa_scope.country,
+            observed_at=observed_at,
+        )
+        if selected is None:
+            raise RuntimeExecutionConfigurationError("NO_ELIGIBLE_OPPORTUNITY")
+        opportunity_keys: tuple[str, ...] = (selected,)
+    else:
+        if len(runtime_config.deployment.allowed_opportunity_keys) != 1:
+            raise RuntimeExecutionConfigurationError("QA_SIGNAL_SCOPE_NOT_EXACT")
+        opportunity_keys = runtime_config.deployment.allowed_opportunity_keys
     if runtime_config.deployment.limits.maximum_cycle_cost < sum(
         KIVOU_STAGE_COSTS.values()
     ):
@@ -626,10 +644,7 @@ def build_runtime_execution_composition(
     authorization_factory = LiveRuntimePolicyAuthorizationFactory(
         engine,
         runtime_revision=runtime_revision,
-        qa_signal_ref=(
-            "procurement-opportunity:"
-            + runtime_config.deployment.allowed_opportunity_keys[0]
-        ),
+        qa_signal_ref=("procurement-opportunity:" + opportunity_keys[0]),
         qa_scope=runtime_config.deployment.qa_scope,
         readiness=SqlRuntimePolicyReadinessSource(
             engine,
@@ -671,14 +686,16 @@ def build_runtime_execution_composition(
         supervisor_runtime,
         registry=registry,
     )
-    capability = _runtime_capability(registry, dependencies=dependencies)
+    capability = _runtime_capability(
+        registry, dependencies=dependencies, runtime_config=runtime_config
+    )
     store = AcquisitionRuntimeStore(engine)
     limits = runtime_config.deployment.limits
     runner = AcquisitionRuntimeRunner(
         store=store,
         supervisor=supervisor,
         registry=registry,
-        allowed_opportunity_keys=runtime_config.deployment.allowed_opportunity_keys,
+        allowed_opportunity_keys=opportunity_keys,
         config_fingerprint=config_fingerprint,
         maximum_cycle_cost=limits.maximum_cycle_cost,
         maximum_wall_seconds=limits.maximum_wall_seconds,
@@ -763,6 +780,7 @@ def execute_runtime_run_once(
                 apollo=apollo,
                 instantly_provider=instantly,
                 hermes_runtime=hermes,
+                allow_qa_provider_mutations=allow_qa_provider_mutations,
                 dependency_probe=ProductionRuntimeDependencyProbe(
                     apollo=apollo,
                     instantly_provider=instantly,

@@ -30,7 +30,10 @@ SCHEDULED_PLAN = "0024_scheduled_plan_change"
 ALERT_RECIPIENT_CONTEXT = "0025_alert_recipient_context"
 RUNTIME = "0026_acquisition_runtime"
 SIGNAL_NOTES = "0027_signal_notes"
-LATEST = "0028_card_presentation"
+#: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
+#: direct de SIGNAL_NOTES, et écraser ce lien ferait passer un test faux.
+CARD_PRESENTATION = "0028_card_presentation"
+LATEST = "0029_production_observation"
 TABLES = (
     acquisition_campaign,
     acquisition_campaign_member,
@@ -50,7 +53,8 @@ def test_campaign_migration_is_linear_and_adds_exactly_four_tables(tmp_path) -> 
     assert set(sa.inspect(engine).get_table_names()) - before == {table.name for table in TABLES}
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == SIGNAL_NOTES
+    assert scripts.get_revision(LATEST).down_revision == CARD_PRESENTATION
+    assert scripts.get_revision(CARD_PRESENTATION).down_revision == SIGNAL_NOTES
     assert scripts.get_revision(SIGNAL_NOTES).down_revision == RUNTIME
     assert scripts.get_revision(RUNTIME).down_revision == ALERT_RECIPIENT_CONTEXT
     assert scripts.get_revision(ALERT_RECIPIENT_CONTEXT).down_revision == SCHEDULED_PLAN

@@ -76,6 +76,16 @@ def _parser(*, opaque_errors: bool = False) -> argparse.ArgumentParser:
     )
     close_window.add_argument("--actor-ref", required=True)
     close_window.add_argument("--reason-code", required=True)
+    bootstrap = commands.add_parser(
+        "bootstrap-policy-control",
+        help="append the very first Policy authority, ASSISTED with a zero volume cap",
+    )
+    bootstrap.add_argument("--reason-code", required=True)
+    bootstrap.add_argument("--actor", required=True)
+    bootstrap.add_argument("--daily-cost-cap", required=True)
+    bootstrap.add_argument("--country", required=True, choices=("CH", "FR"))
+    bootstrap.add_argument("--language", required=True, choices=("fr", "en"))
+    bootstrap.add_argument("--wedge", required=True)
     stop = commands.add_parser(
         "activate-kill-switch",
         help="append SHADOW + kill-switch + READ ONLY Policy authority",
@@ -100,6 +110,7 @@ _MUTATING_COMMANDS = frozenset(
         "approve-runtime-approval",
         "open-runtime-qa-policy-window",
         "close-runtime-qa-policy-window",
+        "bootstrap-policy-control",
         "activate-kill-switch",
     }
 )
@@ -113,6 +124,8 @@ def _mutation_error_label(command: str) -> str:
         return "runtime_qa_policy_window_invalid"
     if command == "approve-runtime-approval":
         return "runtime_approval_invalid"
+    if command == "bootstrap-policy-control":
+        return "acquisition_policy_bootstrap_invalid"
     return "acquisition_kill_switch_invalid"
 
 
@@ -155,6 +168,41 @@ def _run_mutation(arguments: argparse.Namespace, *, clock: Callable[[], dt.datet
             print(
                 f"runtime_approval approval_id={approval.approval_id} "
                 f"stage={approval.binding.stage.value} status={approval.status.value}"
+            )
+            return 0
+        if arguments.command == "bootstrap-policy-control":
+            from decimal import Decimal, InvalidOperation
+
+            from signals.operations.policy_bootstrap import (
+                PolicyBootstrapError,
+                bootstrap_policy_control,
+            )
+
+            try:
+                daily_cost_cap = Decimal(arguments.daily_cost_cap)
+            except InvalidOperation:
+                raise ValueError("daily cost cap must be a valid decimal") from None
+            try:
+                control = bootstrap_policy_control(
+                    engine,
+                    at=now,
+                    actor_ref=arguments.actor,
+                    reason_code=arguments.reason_code,
+                    daily_cost_cap=daily_cost_cap,
+                    country=arguments.country,
+                    language=arguments.language,
+                    wedge=arguments.wedge,
+                )
+            except PolicyBootstrapError as error:
+                print(f"acquisition_ops bootstrap status=REFUSED reason={error.code}")
+                return 1
+            print(
+                "acquisition_ops bootstrap status=APPENDED "
+                f"revision={control.control_revision} "
+                f"autonomy={control.autonomy_mode.value} "
+                f"read_only={'true' if control.read_only else 'false'} "
+                f"kill_switch={'true' if control.kill_switch else 'false'} "
+                f"volume_cap={control.daily_volume_cap}"
             )
             return 0
         if arguments.command == "activate-kill-switch":

@@ -150,8 +150,8 @@ def test_every_missing_or_empty_variable_fails_closed(
     assert "@" not in str(caught.value)
 
 
-def test_environment_must_be_exactly_staging(tmp_path: Path) -> None:
-    for value in ("PRODUCTION", "SHADOW", "staging", "UNCONFIGURED"):
+def test_unknown_environments_are_refused(tmp_path: Path) -> None:
+    for value in ("SHADOW", "staging", "UNCONFIGURED"):
         environment = _environment(tmp_path)
         environment["KIVOU_ACQUISITION_ENVIRONMENT"] = value
 

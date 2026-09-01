@@ -35,7 +35,10 @@ SCHEDULED_PLAN_REVISION = "0024_scheduled_plan_change"
 ALERT_RECIPIENT_CONTEXT_REVISION = "0025_alert_recipient_context"
 ACQUISITION_RUNTIME_REVISION = "0026_acquisition_runtime"
 SIGNAL_NOTES_REVISION = "0027_signal_notes"
-CURRENT_HEAD = "0028_card_presentation"
+#: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
+#: direct de SIGNAL_NOTES_REVISION, et écraser ce lien ferait passer un test faux.
+CARD_PRESENTATION_REVISION = "0028_card_presentation"
+CURRENT_HEAD = "0029_production_observation"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -120,7 +123,11 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
     assert script.get_revision(RESPONSE_REVISION).down_revision == TARGET_ICP_REVISION
     assert script.get_revision(CONVERSION_REVISION).down_revision == RESPONSE_REVISION
     assert script.get_revision(LEARNING_REVISION).down_revision == CONVERSION_REVISION
-    assert script.get_revision(CURRENT_HEAD).down_revision == SIGNAL_NOTES_REVISION
+    assert script.get_revision(CURRENT_HEAD).down_revision == CARD_PRESENTATION_REVISION
+    assert (
+        script.get_revision(CARD_PRESENTATION_REVISION).down_revision
+        == SIGNAL_NOTES_REVISION
+    )
     assert (
         script.get_revision(SIGNAL_NOTES_REVISION).down_revision
         == ACQUISITION_RUNTIME_REVISION

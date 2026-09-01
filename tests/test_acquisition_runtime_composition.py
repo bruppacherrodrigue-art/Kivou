@@ -16,12 +16,14 @@ from signals.acquisition_runtime.composition import (
     build_acquisition_domain_composition,
 )
 from signals.acquisition_runtime.contracts import (
+    ACQUISITION_PRODUCTION_SCHEMA_VERSION,
     AcquisitionRuntimeConfig,
     AcquisitionRuntimeDeployment,
     AcquisitionRuntimeLimits,
     AcquisitionRuntimeStage,
     RuntimeQaScope,
 )
+from signals.acquisition_runtime.transport import StagingQaRecipientOverride
 from signals.campaigns.contracts import CampaignDeploymentConfig
 from signals.campaigns.service import CampaignService
 from signals.campaigns.worker import CampaignWorker
@@ -202,3 +204,136 @@ def test_builder_refuses_supplier_limits_wider_than_one_candidate() -> None:
         assert "one candidate" in str(error)
     else:
         raise AssertionError("wider supplier targeting was accepted")
+
+
+def _production_runtime_config() -> AcquisitionRuntimeConfig:
+    return AcquisitionRuntimeConfig(
+        environment="PRODUCTION",
+        deployment_path=Path("/etc/kivou/acquisition-production.json"),
+        deployment=AcquisitionRuntimeDeployment(
+            schema_version=ACQUISITION_PRODUCTION_SCHEMA_VERSION,
+            qa_scope=RuntimeQaScope(
+                country="FR", language="fr", wedge="construction"
+            ),
+            limits=AcquisitionRuntimeLimits(
+                maximum_cycle_cost=Decimal("10"),
+                maximum_provider_operations=3,
+                maximum_wall_seconds=600,
+                lease_seconds=900,
+            ),
+        ),
+    )
+
+
+def test_builder_still_gives_staging_its_qa_recipient_override() -> None:
+    """Fix round 1 (Task 6): prove the staging branch of the new conditional
+    is unchanged. `build_acquisition_domain_composition` now only builds a
+    `StagingQaRecipientOverride` when `runtime_config.environment ==
+    "STAGING"`; this pins that a staging config still gets a real,
+    fully-bound override, not `None`.
+    """
+
+    engine = sa.create_engine("sqlite+pysqlite:///:memory:")
+    provider = NoNetworkProvider()
+    apollo = ApolloComponents(
+        organization_search=provider,
+        contact_discovery=provider,
+        company_research=provider,
+        identity=provider,
+    )
+    suppression = SuppressionIdentityKeyring(
+        current_key_version="suppression-v1",
+        keys={"suppression-v1": b"synthetic-suppression-key"},
+    )
+
+    composition = build_acquisition_domain_composition(
+        engine=engine,
+        runtime_config=_runtime_config(),
+        apollo=apollo,
+        instantly_provider=provider,
+        authorization_factory=AuthorizationFactory(),
+        approval_provider=ApprovalProvider(),
+        targeting=SupplierTargetingConfig(max_pages=1, per_page=1, candidate_cap=1),
+        suppression_keyring=suppression,
+        sender_config=SenderComplianceConfig(
+            sender_profile_ref="sender-profile:qa",
+            sender_identity_ready=True,
+            opt_out_ready=True,
+            privacy_notice_ready=True,
+            source_notice_ready=True,
+            valid_until=NOW + dt.timedelta(days=1),
+        ),
+        campaign_deployment=CampaignDeploymentConfig(),
+        mailbox_readiness=MailboxReadiness(),
+        attribution_link_builder=AttributionLinkBuilder(
+            public_site_url="https://staging.example.invalid",
+            keyring=AttributionTokenKeyring(
+                current_key_version="attribution-v1",
+                keys={"attribution-v1": b"synthetic-attribution-key"},
+            ),
+        ),
+        clock=lambda: NOW,
+    )
+
+    override = composition.campaign_worker._recipient_override
+    assert isinstance(override, StagingQaRecipientOverride)
+
+
+def test_production_domain_composition_succeeds_with_no_qa_transport_binding() -> None:
+    """Task 6B: the fourth staging-only coupling is gone. `recipient_override`
+    is `None` for a production `runtime_config` (Task 6), and
+    `AcquisitionDomainActions.__init__` (domain.py) now accepts an absent QA
+    transport binding instead of dereferencing `None`. A full production
+    domain composition succeeds through the real builder, and it carries an
+    explicit `(None, None)` binding rather than a fixed QA recipient —
+    asserting that no redirection took place.
+
+    Supersedes
+    `test_production_domain_composition_still_blocked_by_qa_transport_binding`,
+    the `xfail(strict=True)` trip-wire this fix was required to clear.
+    """
+
+    engine = sa.create_engine("sqlite+pysqlite:///:memory:")
+    provider = NoNetworkProvider()
+    apollo = ApolloComponents(
+        organization_search=provider,
+        contact_discovery=provider,
+        company_research=provider,
+        identity=provider,
+    )
+    suppression = SuppressionIdentityKeyring(
+        current_key_version="suppression-v1",
+        keys={"suppression-v1": b"synthetic-suppression-key"},
+    )
+
+    composition = build_acquisition_domain_composition(
+        engine=engine,
+        runtime_config=_production_runtime_config(),
+        apollo=apollo,
+        instantly_provider=provider,
+        authorization_factory=AuthorizationFactory(),
+        approval_provider=ApprovalProvider(),
+        targeting=SupplierTargetingConfig(max_pages=1, per_page=1, candidate_cap=1),
+        suppression_keyring=suppression,
+        sender_config=SenderComplianceConfig(
+            sender_profile_ref="sender-profile:prod",
+            sender_identity_ready=True,
+            opt_out_ready=True,
+            privacy_notice_ready=True,
+            source_notice_ready=True,
+            valid_until=NOW + dt.timedelta(days=1),
+        ),
+        campaign_deployment=CampaignDeploymentConfig(),
+        mailbox_readiness=MailboxReadiness(),
+        attribution_link_builder=AttributionLinkBuilder(
+            public_site_url="https://staging.kivou.eu",
+            keyring=AttributionTokenKeyring(
+                current_key_version="attribution-v1",
+                keys={"attribution-v1": b"synthetic-attribution-key"},
+            ),
+        ),
+        clock=lambda: NOW,
+    )
+
+    assert composition.campaign_worker._recipient_override is None
+    assert composition.actions._qa_transport_binding == (None, None)

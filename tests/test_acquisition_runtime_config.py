@@ -132,8 +132,8 @@ def test_missing_required_runtime_configuration_fails_closed_without_values(
     assert QA_KEY not in str(error.value)
 
 
-@pytest.mark.parametrize("environment", ["PRODUCTION", "production", "LOCAL", ""])
-def test_runtime_is_staging_only(environment, tmp_path) -> None:
+@pytest.mark.parametrize("environment", ["production", "LOCAL", ""])
+def test_runtime_refuses_unknown_environments(environment, tmp_path) -> None:
     path = tmp_path / "runtime.json"
     path.write_text(json.dumps(_document()))
     values = _environment(path)

@@ -272,7 +272,7 @@ class AcquisitionConnectivityService:
     def _preflight(
         self, observed_at: dt.datetime
     ) -> tuple[PolicyControlSnapshot, ShadowPreflightEvidence]:
-        if self._config.environment != "STAGING":
+        if self._config.environment not in {"STAGING", "PRODUCTION"}:
             raise ConnectivityFailure(ConnectivityErrorCode.WRONG_ENVIRONMENT)
         try:
             control = self._policy.get_effective_control(observed_at)
@@ -293,6 +293,7 @@ class AcquisitionConnectivityService:
         if ambiguous:
             raise ConnectivityFailure(ConnectivityErrorCode.OPERATIONAL_AMBIGUITY)
         return control, ShadowPreflightEvidence(
+            environment=self._config.environment,
             policy_control_revision=control.control_revision,
             policy_version=control.policy_version,
         )

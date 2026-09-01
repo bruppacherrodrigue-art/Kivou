@@ -78,11 +78,11 @@ def load_connectivity_config(
 ) -> AcquisitionConnectivityConfig:
     source = os.environ if environ is None else environ
     environment = _required(source, "KIVOU_ACQUISITION_ENVIRONMENT")
-    if environment != "STAGING":
+    if environment not in {"STAGING", "PRODUCTION"}:
         raise ConnectivityFailure(ConnectivityErrorCode.WRONG_ENVIRONMENT)
     shadow_path = _absolute_path(source, "KIVOU_ACQUISITION_SHADOW_CONFIG")
     return AcquisitionConnectivityConfig(
-        environment="STAGING",
+        environment=environment,
         shadow_config_path=shadow_path,
         apollo_api_key=SecretStr(_required(source, "KIVOU_APOLLO_API_KEY")),
         instantly_api_key=SecretStr(_required(source, "KIVOU_INSTANTLY_API_KEY")),

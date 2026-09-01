@@ -22,6 +22,7 @@ from pydantic import (
 )
 
 ACQUISITION_RUNTIME_SCHEMA_VERSION = "acquisition-runtime-v1"
+ACQUISITION_PRODUCTION_SCHEMA_VERSION = "acquisition-production-v1"
 
 OpaqueRef = Annotated[
     str,
@@ -150,9 +151,9 @@ class RuntimeStageDependency(_FrozenModel):
 
 
 class RuntimeCapabilityEvidence(_FrozenModel):
-    environment: Literal["STAGING"]
+    environment: Literal["STAGING", "PRODUCTION"]
     mode: Literal[RuntimeExecutionMode.SHADOW] = RuntimeExecutionMode.SHADOW
-    qa_only: Literal[True]
+    qa_only: bool
     hermes: RuntimeHermesIdentityEvidence
     registry_identity: Fingerprint
     native_tools: Literal[0] = 0
@@ -248,33 +249,80 @@ class RuntimeQaScope(_FrozenModel):
 
 
 class AcquisitionRuntimeDeployment(_FrozenModel):
-    schema_version: Literal["acquisition-runtime-v1"] = (
-        ACQUISITION_RUNTIME_SCHEMA_VERSION
-    )
+    schema_version: Literal[
+        "acquisition-runtime-v1", "acquisition-production-v1"
+    ] = ACQUISITION_RUNTIME_SCHEMA_VERSION
     mode: Literal[RuntimeExecutionMode.SHADOW] = RuntimeExecutionMode.SHADOW
-    qa_only: Literal[True]
-    allowed_opportunity_keys: tuple[OpaqueRef, ...] = Field(min_length=1, max_length=8)
+    qa_only: bool = False
+    allowed_opportunity_keys: tuple[OpaqueRef, ...] = Field(
+        default=(), max_length=8
+    )
     qa_scope: RuntimeQaScope
-    qa_recipient_identity_hmac: Fingerprint = Field(repr=False)
-    qa_recipient_key_version: OpaqueRef
-    qa_provider_mutations_capable: Literal[True]
+    qa_recipient_identity_hmac: Fingerprint | None = Field(default=None, repr=False)
+    qa_recipient_key_version: OpaqueRef | None = None
+    qa_provider_mutations_capable: bool = False
     limits: AcquisitionRuntimeLimits
 
+    @property
+    def is_production(self) -> bool:
+        return self.schema_version == ACQUISITION_PRODUCTION_SCHEMA_VERSION
+
     @model_validator(mode="after")
-    def unique_opportunities(self) -> AcquisitionRuntimeDeployment:
-        if len(self.allowed_opportunity_keys) != len(set(self.allowed_opportunity_keys)):
+    def bindings_match_schema(self) -> AcquisitionRuntimeDeployment:
+        if len(self.allowed_opportunity_keys) != len(
+            set(self.allowed_opportunity_keys)
+        ):
             raise ValueError("runtime opportunity allowlist must be unique")
+        qa_bindings = (
+            self.qa_recipient_identity_hmac,
+            self.qa_recipient_key_version,
+        )
+        if self.is_production:
+            if (
+                any(item is not None for item in qa_bindings)
+                or self.qa_only
+                or self.qa_provider_mutations_capable
+                or self.allowed_opportunity_keys
+            ):
+                raise ValueError("production runtime forbids every QA binding")
+            return self
+        if (
+            any(item is None for item in qa_bindings)
+            or not self.qa_only
+            or not self.qa_provider_mutations_capable
+            or not self.allowed_opportunity_keys
+        ):
+            raise ValueError("staging runtime requires its complete QA binding")
         return self
 
 
 class AcquisitionRuntimeConfig(_FrozenModel):
-    environment: Literal["STAGING"]
+    environment: Literal["STAGING", "PRODUCTION"]
     deployment_path: Path
     deployment: AcquisitionRuntimeDeployment = Field(repr=False)
-    qa_recipient: SecretStr = Field(repr=False)
-    qa_recipient_hmac_key: SecretStr = Field(repr=False)
+    qa_recipient: SecretStr | None = Field(default=None, repr=False)
+    qa_recipient_hmac_key: SecretStr | None = Field(default=None, repr=False)
+
+    @model_validator(mode="after")
+    def recipient_matches_environment(self) -> AcquisitionRuntimeConfig:
+        has_recipient = (
+            self.qa_recipient is not None or self.qa_recipient_hmac_key is not None
+        )
+        if self.environment == "PRODUCTION" and has_recipient:
+            raise ValueError("production runtime forbids a fallback recipient")
+        if self.environment == "STAGING" and not (
+            self.qa_recipient is not None and self.qa_recipient_hmac_key is not None
+        ):
+            raise ValueError("staging runtime requires its QA recipient binding")
+        if self.environment == "PRODUCTION" and not self.deployment.is_production:
+            raise ValueError("production environment requires production deployment schema")
+        if self.environment == "STAGING" and self.deployment.is_production:
+            raise ValueError("staging environment forbids production deployment schema")
+        return self
 
     def normalized_qa_recipient(self) -> str:
+        if self.qa_recipient is None:
+            raise ValueError("runtime has no QA recipient")
         return str(
             TypeAdapter(EmailStr).validate_python(
                 self.qa_recipient.get_secret_value()
@@ -433,6 +481,7 @@ def require_aware(value: dt.datetime) -> dt.datetime:
 
 
 __all__ = [
+    "ACQUISITION_PRODUCTION_SCHEMA_VERSION",
     "ACQUISITION_RUNTIME_SCHEMA_VERSION",
     "AcquisitionRuntimeConfig",
     "AcquisitionRuntimeDeployment",

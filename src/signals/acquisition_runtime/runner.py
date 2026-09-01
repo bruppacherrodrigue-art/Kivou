@@ -191,7 +191,7 @@ class AcquisitionRuntimeRunner:
         self.store = store
         self.supervisor = supervisor
         self.registry = registry
-        self._opportunities = allowed_opportunity_keys
+        self.allowed_opportunity_keys = allowed_opportunity_keys
         self._config_fingerprint = config_fingerprint
         self._maximum_cost = maximum_cycle_cost
         self._maximum_wall = dt.timedelta(seconds=maximum_wall_seconds)
@@ -262,7 +262,7 @@ class AcquisitionRuntimeRunner:
             cycle = self.store.resume_or_create_cycle(
                 owner_ref=request.owner_ref,
                 fencing_token=fencing_token,
-                opportunity_keys=self._opportunities,
+                opportunity_keys=self.allowed_opportunity_keys,
                 config_fingerprint=self._config_fingerprint,
                 at=now,
             )
