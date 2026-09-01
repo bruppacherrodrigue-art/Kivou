@@ -41,7 +41,19 @@ printf '%s\n' "$KIVOU_FINAL_SHA" | grep -Eq '^[0-9a-f]{40}$'
 KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
 KIVOU_ROLLOUT_PATH=${KIVOU_ROLLOUT_PATH:-initial_0027}
 KIVOU_RECOVERY_SOURCE_SHA=51202525d3163aeac259acbf9ac23086ed2cc256
-KIVOU_RECOVERY_DIFF=()
+KIVOU_RECOVERY_CARD_FIRST_FIX_SHA=0075ceb4c817effebc6e84c8c200aca29a59c085
+KIVOU_RECOVERY_CARD_MERGE_SHA=635e487d9883cecec42151d6e4ba2515ac540b48
+KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA=3f3db99afaf925bed746739a79059cffe3b8be8c
+KIVOU_EXPECTED_FINAL_REVISION=0029_production_observation
+test "$(git rev-parse "$KIVOU_RECOVERY_CARD_FIRST_FIX_SHA^")" = \
+  "$KIVOU_RECOVERY_SOURCE_SHA"
+test "$(git rev-parse "$KIVOU_RECOVERY_CARD_MERGE_SHA^")" = \
+  "$KIVOU_RECOVERY_CARD_FIRST_FIX_SHA"
+test "$(git rev-parse "$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA^")" = \
+  "$KIVOU_RECOVERY_CARD_MERGE_SHA"
+git merge-base --is-ancestor "$KIVOU_RECOVERY_SOURCE_SHA" \
+  "$KIVOU_RECOVERY_CARD_MERGE_SHA"
+KIVOU_RECOVERY_CARD_DIFF=()
 case "$KIVOU_ROLLOUT_PATH" in
   (initial_0027)
     KIVOU_EXPECTED_START_REVISION=0027_signal_notes
@@ -49,10 +61,9 @@ case "$KIVOU_ROLLOUT_PATH" in
   (resume_51202525)
     KIVOU_EXPECTED_START_REVISION=0028_card_presentation
     test "$KIVOU_FINAL_SHA" != "$KIVOU_RECOVERY_SOURCE_SHA"
-    git merge-base --is-ancestor \
-      "$KIVOU_RECOVERY_SOURCE_SHA" "$KIVOU_FINAL_SHA"
-    mapfile -t KIVOU_RECOVERY_DIFF < <(
-      git diff --name-only "$KIVOU_RECOVERY_SOURCE_SHA" "$KIVOU_FINAL_SHA"
+    mapfile -t KIVOU_RECOVERY_CARD_DIFF < <(
+      git diff --name-only "$KIVOU_RECOVERY_SOURCE_SHA" \
+        "$KIVOU_RECOVERY_CARD_MERGE_SHA"
     )
     mapfile -t KIVOU_RECOVERY_EXPECTED_DIFF < <(printf '%s\n' \
       src/signals/card_intelligence/backfill.py \
@@ -60,15 +71,30 @@ case "$KIVOU_ROLLOUT_PATH" in
       tests/test_card_intelligence_backfill.py \
       tests/test_card_presentation_runbook.py \
       docs/runbooks/11-staging-card-presentation-rollout.md | LC_ALL=C sort)
-    mapfile -t KIVOU_RECOVERY_DIFF < <(
-      printf '%s\n' "${KIVOU_RECOVERY_DIFF[@]}" | LC_ALL=C sort
+    mapfile -t KIVOU_RECOVERY_CARD_DIFF < <(
+      printf '%s\n' "${KIVOU_RECOVERY_CARD_DIFF[@]}" | LC_ALL=C sort
     )
-    test "${#KIVOU_RECOVERY_DIFF[@]}" -eq 5
-    test "${KIVOU_RECOVERY_DIFF[*]}" = "${KIVOU_RECOVERY_EXPECTED_DIFF[*]}"
+    test "${#KIVOU_RECOVERY_CARD_DIFF[@]}" -eq 5
+    test "${KIVOU_RECOVERY_CARD_DIFF[*]}" = \
+      "${KIVOU_RECOVERY_EXPECTED_DIFF[*]}"
     unset KIVOU_RECOVERY_EXPECTED_DIFF
     ;;
   (*) exit 69 ;;
 esac
+test "$KIVOU_FINAL_SHA" != "$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA"
+test "$(git rev-parse "$KIVOU_FINAL_SHA^")" = "$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA"
+test "$(git rev-list --count "$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA..$KIVOU_FINAL_SHA")" = 1
+mapfile -t KIVOU_RECOVERY_COMPATIBILITY_DIFF < <(
+  git diff --name-only "$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA" \
+    "$KIVOU_FINAL_SHA" | LC_ALL=C sort
+)
+mapfile -t KIVOU_RECOVERY_COMPATIBILITY_EXPECTED_DIFF < <(printf '%s\n' \
+  docs/runbooks/11-staging-card-presentation-rollout.md \
+  tests/test_card_presentation_runbook.py | LC_ALL=C sort)
+test "${#KIVOU_RECOVERY_COMPATIBILITY_DIFF[@]}" -eq 2
+test "${KIVOU_RECOVERY_COMPATIBILITY_DIFF[*]}" = \
+  "${KIVOU_RECOVERY_COMPATIBILITY_EXPECTED_DIFF[*]}"
+unset KIVOU_RECOVERY_COMPATIBILITY_EXPECTED_DIFF
 test "$(git rev-parse 'origin/main^{tree}')" = \
   "$(gh api "repos/$KIVOU_REPOSITORY/git/commits/$KIVOU_FINAL_SHA" --jq .tree.sha)"
 
@@ -80,7 +106,10 @@ KIVOU_CI_RUN_ID=$(gh run list --repo "$KIVOU_REPOSITORY" \
 test -n "$KIVOU_CI_RUN_ID"
 readonly KIVOU_ROLLOUT_PATH KIVOU_EXPECTED_START_REVISION
 readonly KIVOU_RECOVERY_SOURCE_SHA
-readonly -a KIVOU_RECOVERY_DIFF
+readonly KIVOU_RECOVERY_CARD_FIRST_FIX_SHA KIVOU_RECOVERY_CARD_MERGE_SHA
+readonly KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA
+readonly KIVOU_EXPECTED_FINAL_REVISION
+readonly -a KIVOU_RECOVERY_CARD_DIFF KIVOU_RECOVERY_COMPATIBILITY_DIFF
 
 KIVOU_CI_JSON_PAYLOAD=$(gh run view "$KIVOU_CI_RUN_ID" \
   --repo "$KIVOU_REPOSITORY" --json headSha,status,conclusion,jobs)
@@ -123,7 +152,7 @@ jq -e --arg sha "$KIVOU_FINAL_SHA" '
 test "$(gh api "repos/$KIVOU_REPOSITORY/commits/main" --jq .sha)" = \
   "$KIVOU_FINAL_SHA"
 if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
-  test "${#KIVOU_RECOVERY_DIFF[@]}" -eq 5
+  test "${#KIVOU_RECOVERY_CARD_DIFF[@]}" -eq 5
 fi
 test "$(git rev-parse HEAD)" = "$KIVOU_FINAL_SHA"
 test -z "$(git status --porcelain=v1 --untracked-files=all)"
@@ -512,28 +541,39 @@ kivou_validate_qa_read_only "$KIVOU_PREVIOUS_BACKEND"
 kivou_capture_recovery_fr_snapshot() {
   KIVOU_RECOVERY_APP_DIR=$1
   KIVOU_RECOVERY_SNAPSHOT_PHASE=${2:-post_fr}
+  KIVOU_RECOVERY_EXPECTED_REVISION=$3
   case "$KIVOU_RECOVERY_APP_DIR" in
     (/srv/kivou/releases/backend-*) ;;
     (*) return 69 ;;
   esac
   case "$KIVOU_RECOVERY_SNAPSHOT_PHASE" in
-    (baseline|post_fr|post_en) ;;
+    (baseline|pre_fr|post_fr|post_en) ;;
+    (*) return 69 ;;
+  esac
+  case "$KIVOU_RECOVERY_EXPECTED_REVISION" in
+    (0028_card_presentation|0029_production_observation) ;;
     (*) return 69 ;;
   esac
   ssh kivou-staging 'bash -s' -- \
     "$KIVOU_RECOVERY_APP_DIR" "$KIVOU_RECOVERY_SNAPSHOT_PHASE" \
+    "$KIVOU_RECOVERY_EXPECTED_REVISION" \
     "$KIVOU_QA_APPROVED_FINGERPRINT" <<'REMOTE'
 set -euo pipefail
 KIVOU_RECOVERY_APP_DIR=$1
 KIVOU_RECOVERY_SNAPSHOT_PHASE=$2
-KIVOU_QA_APPROVED_FINGERPRINT=$3
+KIVOU_RECOVERY_EXPECTED_REVISION=$3
+KIVOU_QA_APPROVED_FINGERPRINT=$4
 KIVOU_QA_ENV=/etc/kivou/card-presentation-qa.env
 case "$KIVOU_RECOVERY_APP_DIR" in
   (/srv/kivou/releases/backend-*) ;;
   (*) exit 69 ;;
 esac
 case "$KIVOU_RECOVERY_SNAPSHOT_PHASE" in
-  (baseline|post_fr|post_en) ;;
+  (baseline|pre_fr|post_fr|post_en) ;;
+  (*) exit 69 ;;
+esac
+case "$KIVOU_RECOVERY_EXPECTED_REVISION" in
+  (0028_card_presentation|0029_production_observation) ;;
   (*) exit 69 ;;
 esac
 test "$(readlink -f /srv/kivou/app)" = "$KIVOU_RECOVERY_APP_DIR"
@@ -548,6 +588,7 @@ sudo systemd-run --quiet --wait --collect --pipe \
   --property=EnvironmentFile=/etc/kivou/staging.env \
   --property=EnvironmentFile="$KIVOU_QA_ENV" \
   --setenv="KIVOU_RECOVERY_SNAPSHOT_PHASE=$KIVOU_RECOVERY_SNAPSHOT_PHASE" \
+  --setenv="KIVOU_RECOVERY_EXPECTED_REVISION=$KIVOU_RECOVERY_EXPECTED_REVISION" \
   --setenv="KIVOU_QA_APPROVED_FINGERPRINT=$KIVOU_QA_APPROVED_FINGERPRINT" \
   --property=NoNewPrivileges=yes --property=PrivateTmp=yes \
   --property=ProtectHome=yes \
@@ -573,11 +614,12 @@ from signals.persistence.database import create_database_engine, current_revisio
 def main() -> None:
     account_id = os.environ["KIVOU_CARD_QA_ACCOUNT_ID"]
     phase = os.environ["KIVOU_RECOVERY_SNAPSHOT_PHASE"]
+    expected_revision = os.environ["KIVOU_RECOVERY_EXPECTED_REVISION"]
     expected_fingerprint = os.environ["KIVOU_QA_APPROVED_FINGERPRINT"]
     actual_fingerprint = hashlib.sha256(account_id.encode("utf-8")).hexdigest()[:16]
     assert hmac.compare_digest(actual_fingerprint, expected_fingerprint)
     engine = create_database_engine()
-    assert current_revision(engine) == "0028_card_presentation"
+    assert current_revision(engine) == expected_revision
     with engine.connect() as connection:
         connection.exec_driver_sql("SET TRANSACTION READ ONLY")
         rows = connection.execute(sa.text(
@@ -818,7 +860,7 @@ if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   KIVOU_RECOVERY_BASELINE="$KIVOU_EVIDENCE_DIR/recovery-fr-baseline.json"
   test ! -e "$KIVOU_RECOVERY_BASELINE"
   KIVOU_RECOVERY_BASELINE_PAYLOAD=$(kivou_capture_recovery_fr_snapshot \
-    "$KIVOU_PREVIOUS_BACKEND" baseline)
+    "$KIVOU_PREVIOUS_BACKEND" baseline "$KIVOU_EXPECTED_START_REVISION")
   printf '%s\n' "$KIVOU_RECOVERY_BASELINE_PAYLOAD" > \
     "$KIVOU_RECOVERY_BASELINE"
   unset KIVOU_RECOVERY_BASELINE_PAYLOAD
@@ -857,10 +899,57 @@ if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   printf '%s\n' "$KIVOU_RECOVERY_BASELINE_ARTIFACT_DIGEST" | \
     grep -Eq '^[0-9a-f]{64}$'
 fi
+
+# Première mutation staging : mettre Acquisition en quarantaine persistante.
+# Seuls le premier passage normal et un retry déjà quarantiné sont acceptés.
+KIVOU_ACQUISITION_QUARANTINE=$(ssh kivou-staging 'bash -s' <<'REMOTE'
+set -euo pipefail
+test "$(hostname -s)" = "kivou-staging-01"
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+case "$KIVOU_ACQUISITION_TIMER_ENABLED:$KIVOU_ACQUISITION_TIMER_STATE" in
+  (enabled:active|disabled:inactive) ;;
+  (*) exit 69 ;;
+esac
+sudo systemctl disable --now kivou-acquisition.timer
+sudo systemctl stop kivou-acquisition.service
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active \
+  kivou-acquisition.service || test $? -eq 3)
+test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show \
+  kivou-acquisition.service --property=MainPID --value)
+test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0
+KIVOU_SHADOW_SMOKE_STATE=$(systemctl is-active \
+  kivou-acquisition-shadow-smoke.service || test $? -eq 3)
+test "$KIVOU_SHADOW_SMOKE_STATE" = inactive
+for KIVOU_PRODUCTION_UNIT in kivou-acquisition-production.service \
+  kivou-acquisition-production.timer; do
+  test "$(systemctl show "$KIVOU_PRODUCTION_UNIT" \
+    --property=LoadState --value)" = not-found
+  ! systemctl is-enabled "$KIVOU_PRODUCTION_UNIT" >/dev/null 2>&1
+  test ! -e "/etc/systemd/system/$KIVOU_PRODUCTION_UNIT"
+done
+printf '%s\n' \
+  'acquisition_timer=disabled_inactive acquisition_service=inactive acquisition_shadow_smoke=inactive'
+REMOTE
+)
+test "$KIVOU_ACQUISITION_QUARANTINE" = \
+  'acquisition_timer=disabled_inactive acquisition_service=inactive acquisition_shadow_smoke=inactive'
 ~~~
 
 Conserver ces deux chemins exacts. Ne jamais redécouvrir un rollback target par
-un glob ou par le seul suffixe du SHA.
+un glob ou par le seul suffixe du SHA. La quarantaine Acquisition ci-dessus est
+la première mutation après les preuves QA/baseline : tout tuple mixte,
+transitoire ou `failed`, ou tout échec entre `disable --now` et l'arrêt du
+service, impose STOP. Un retry n'est autorisé que depuis `disabled/inactive`.
 
 ## 3. Sauvegarder, lister et restaurer dans une base scratch unique
 
@@ -870,6 +959,7 @@ cas d'échec avant la suppression, STOP et faire qualifier la base scratch
 exacte; ne lancer aucun nettoyage générique.
 
 ~~~bash
+mapfile -t KIVOU_BACKUP_PROOF < <(
 ssh kivou-staging 'bash -s' -- \
   "$KIVOU_FINAL_SHORT" "$KIVOU_EXPECTED_START_REVISION" <<'REMOTE'
 set -euo pipefail
@@ -959,8 +1049,10 @@ KIVOU_RESTORED_REVISION=$(sudo -u postgres psql -X -qAt \
 test "$KIVOU_RESTORED_REVISION" = "$KIVOU_EXPECTED_START_REVISION"
 KIVOU_RESTORE_TABLES=(
   account target_icp materialized_signal contract_award alembic_version
+  acquisition_runtime_observation
 )
 if test "$KIVOU_EXPECTED_START_REVISION" = 0028_card_presentation; then
+  KIVOU_ORIGINAL_EXPRESSION="environment = 'STAGING' AND mode = 'SHADOW' AND qa_only IS TRUE AND native_tools = 0"
   KIVOU_RESTORE_TABLES+=(card_presentation_artifact)
 fi
 for KIVOU_TABLE in "${KIVOU_RESTORE_TABLES[@]}"; do
@@ -1000,29 +1092,131 @@ SQL
   )
   test "$KIVOU_RESTORE_CARD_INVENTORY" = "8|8|0|0|1|0"
   unset KIVOU_RESTORE_CARD_INVENTORY
+
+  KIVOU_RESTORE_PRODUCTION_ROWS=$(sudo -u postgres psql -X -qAt \
+    --dbname="$KIVOU_RESTORE_DB" --set=ON_ERROR_STOP=1 <<'SQL'
+SELECT count(*) FILTER (WHERE environment = 'PRODUCTION')
+FROM acquisition_runtime_observation;
+SQL
+  )
+  test "$KIVOU_RESTORE_PRODUCTION_ROWS" = 0
+  KIVOU_RESTORE_0028_CONSTRAINT=$(sudo -u postgres psql -X -qAt \
+    --dbname="$KIVOU_RESTORE_DB" --set=ON_ERROR_STOP=1 <<'SQL'
+SELECT convalidated::int::text || '|' || pg_get_constraintdef(oid)
+FROM pg_constraint
+WHERE conrelid = 'acquisition_runtime_observation'::regclass
+  AND conname = 'ck_acquisition_runtime_observation_boundary';
+SQL
+  )
+  KIVOU_RESTORE_CONSTRAINT_VALIDATED=${KIVOU_RESTORE_0028_CONSTRAINT%%|*}
+  KIVOU_RESTORE_CONSTRAINT_EXPRESSION=${KIVOU_RESTORE_0028_CONSTRAINT#*|}
+  test "$KIVOU_RESTORE_CONSTRAINT_VALIDATED" = 1
+  kivou_normalize_constraint() {
+    printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | \
+      sed -E 's/::(text|character varying|boolean|integer)//g; s/check//; s/[()[:space:]]//g'
+  }
+  test "$(kivou_normalize_constraint "$KIVOU_RESTORE_CONSTRAINT_EXPRESSION")" = \
+    "$(kivou_normalize_constraint "$KIVOU_ORIGINAL_EXPRESSION")"
+  KIVOU_RESTORE_NONCONFORMING_ROWS=$(sudo -u postgres psql -X -qAt \
+    --dbname="$KIVOU_RESTORE_DB" --set=ON_ERROR_STOP=1 <<'SQL'
+SELECT count(*) FROM acquisition_runtime_observation
+WHERE NOT (environment = 'STAGING' AND mode = 'SHADOW'
+  AND qa_only IS TRUE AND native_tools = 0);
+SQL
+  )
+  test "$KIVOU_RESTORE_NONCONFORMING_ROWS" = 0
+  KIVOU_RESTORE_CARD_LEDGER_CANONICAL=$(sudo -u postgres psql -X -qAt \
+    --dbname="$KIVOU_RESTORE_DB" --set=ON_ERROR_STOP=1 <<'SQL'
+SELECT COALESCE(jsonb_agg(to_jsonb(row_value) ORDER BY artifact_id), '[]')::text
+FROM card_presentation_artifact AS row_value;
+SQL
+  )
+  KIVOU_RESTORE_CARD_DIGEST_BEFORE=$(printf '%s' \
+    "$KIVOU_RESTORE_CARD_LEDGER_CANONICAL" | sha256sum | awk '{print $1}')
+  unset KIVOU_RESTORE_CARD_LEDGER_CANONICAL
+  printf '%s\n' "$KIVOU_RESTORE_CARD_DIGEST_BEFORE" | \
+    grep -Eq '^[0-9a-f]{64}$'
+  KIVOU_RESTORE_OBSERVATION_CANONICAL=$(sudo -u postgres psql -X -qAt \
+    --dbname="$KIVOU_RESTORE_DB" --set=ON_ERROR_STOP=1 <<'SQL'
+SELECT COALESCE(jsonb_agg(to_jsonb(row_value) ORDER BY runtime_name), '[]')::text
+FROM acquisition_runtime_observation AS row_value;
+SQL
+  )
+  KIVOU_RESTORE_OBSERVATION_DIGEST_BEFORE=$(printf '%s' \
+    "$KIVOU_RESTORE_OBSERVATION_CANONICAL" | sha256sum | awk '{print $1}')
+  unset KIVOU_RESTORE_OBSERVATION_CANONICAL
+  printf '%s\n' "$KIVOU_RESTORE_OBSERVATION_DIGEST_BEFORE" | \
+    grep -Eq '^[0-9a-f]{64}$'
+else
+  KIVOU_RESTORE_PRODUCTION_ROWS=NOT_APPLICABLE_0027
+  KIVOU_RESTORE_CARD_DIGEST_BEFORE=NOT_APPLICABLE_0027
+  KIVOU_RESTORE_OBSERVATION_DIGEST_BEFORE=NOT_APPLICABLE_0027
 fi
 KIVOU_RESTORE_BYTES=$(sudo -u postgres psql -At -d "$KIVOU_RESTORE_DB" \
   -c 'SELECT pg_database_size(current_database())')
 printf '%s\n' "$KIVOU_RESTORE_BYTES" | grep -Eq '^[1-9][0-9]*$'
 
-case "$KIVOU_RESTORE_DB" in
-  (kivou_card_restore_[0-9a-f]*_[0-9]*_[0-9]*) ;;
-  (*) exit 64 ;;
-esac
-printf '%s\n' "$KIVOU_RESTORE_DB" | grep -Eq '^[a-z0-9_]{1,63}$'
-sudo -u postgres dropdb "$KIVOU_RESTORE_DB"
-KIVOU_RESTORE_DB_COUNT=$(kivou_restore_db_count)
-test "$KIVOU_RESTORE_DB_COUNT" = 0
-unset KIVOU_RESTORE_DB_COUNT
-
-printf 'backup_file=%s\nbackup_bytes=%s\nbackup_sha256=%s\ntoc_lines=%s\nrestore_revision=%s\nrestore_size_positive=1\n' \
+printf 'backup_file=%s\nbackup_bytes=%s\nbackup_sha256=%s\ntoc_lines=%s\nrestore_revision=%s\nrestore_size_positive=1\nrestore_db=%s\nrestore_card_digest=%s\nrestore_observation_digest=%s\n' \
   "$(basename "$KIVOU_BACKUP_FILE")" "$KIVOU_BACKUP_BYTES" \
   "$KIVOU_BACKUP_SHA" "$KIVOU_BACKUP_TOC_LINES" \
-  "$KIVOU_RESTORED_REVISION"
+  "$KIVOU_RESTORED_REVISION" "$KIVOU_RESTORE_DB" \
+  "$KIVOU_RESTORE_CARD_DIGEST_BEFORE" \
+  "$KIVOU_RESTORE_OBSERVATION_DIGEST_BEFORE"
 REMOTE
+)
+kivou_validate_backup_proof() {
+  test "${#KIVOU_BACKUP_PROOF[@]}" -eq 9 || return 69
+  printf '%s\n' "${KIVOU_BACKUP_PROOF[0]}" | \
+    grep -Eq '^backup_file=kivou-[A-Za-z0-9_.-]+\.dump$' || return 69
+  printf '%s\n' "${KIVOU_BACKUP_PROOF[1]}" | \
+    grep -Eq '^backup_bytes=[1-9][0-9]*$' || return 69
+  printf '%s\n' "${KIVOU_BACKUP_PROOF[2]}" | \
+    grep -Eq '^backup_sha256=[0-9a-f]{64}$' || return 69
+  printf '%s\n' "${KIVOU_BACKUP_PROOF[3]}" | \
+    grep -Eq '^toc_lines=[1-9][0-9]*$' || return 69
+  test "${KIVOU_BACKUP_PROOF[4]}" = \
+    "restore_revision=$KIVOU_EXPECTED_START_REVISION" || return 69
+  test "${KIVOU_BACKUP_PROOF[5]}" = restore_size_positive=1 || return 69
+  printf '%s\n' "${KIVOU_BACKUP_PROOF[6]}" | grep -Eq \
+    '^restore_db=kivou_card_restore_[0-9a-f]{12}_[0-9]{14}_[0-9]{1,8}$' || \
+    return 69
+  case "$KIVOU_EXPECTED_START_REVISION" in
+    (0027_signal_notes)
+      test "${KIVOU_BACKUP_PROOF[7]}" = \
+        restore_card_digest=NOT_APPLICABLE_0027 || return 69
+      test "${KIVOU_BACKUP_PROOF[8]}" = \
+        restore_observation_digest=NOT_APPLICABLE_0027 || return 69
+      ;;
+    (0028_card_presentation)
+      printf '%s\n' "${KIVOU_BACKUP_PROOF[7]}" | \
+        grep -Eq '^restore_card_digest=[0-9a-f]{64}$' || return 69
+      printf '%s\n' "${KIVOU_BACKUP_PROOF[8]}" | \
+        grep -Eq '^restore_observation_digest=[0-9a-f]{64}$' || return 69
+      ;;
+    (*) return 69 ;;
+  esac
+}
+kivou_validate_backup_proof
+KIVOU_BACKUP_FILE_NAME=${KIVOU_BACKUP_PROOF[0]#backup_file=}
+KIVOU_BACKUP_BYTES=${KIVOU_BACKUP_PROOF[1]#backup_bytes=}
+KIVOU_BACKUP_SHA=${KIVOU_BACKUP_PROOF[2]#backup_sha256=}
+KIVOU_BACKUP_TOC_LINES=${KIVOU_BACKUP_PROOF[3]#toc_lines=}
+KIVOU_RESTORED_REVISION=${KIVOU_BACKUP_PROOF[4]#restore_revision=}
+test "${KIVOU_BACKUP_PROOF[5]}" = restore_size_positive=1
+KIVOU_RESTORE_DB=${KIVOU_BACKUP_PROOF[6]#restore_db=}
+KIVOU_RESTORE_CARD_DIGEST_BEFORE=${KIVOU_BACKUP_PROOF[7]#restore_card_digest=}
+KIVOU_RESTORE_OBSERVATION_DIGEST_BEFORE=${KIVOU_BACKUP_PROOF[8]#restore_observation_digest=}
+case "$KIVOU_RESTORE_DB" in
+  (kivou_card_restore_[0-9a-f]*_[0-9]*_[0-9]*) ;;
+  (*) exit 69 ;;
+esac
+readonly KIVOU_RESTORE_DB KIVOU_RESTORE_CARD_DIGEST_BEFORE
+readonly KIVOU_RESTORE_OBSERVATION_DIGEST_BEFORE
+unset -f kivou_validate_backup_proof
+unset KIVOU_BACKUP_PROOF
 ~~~
 
-## 4. Préparer la release backend immuable et migrer vers 0028
+## 4. Préparer la release backend immuable et migrer vers 0029
 
 Créer les deux noms de release à partir du même instant et du même SHA. La
 release backend vient exclusivement de `refs/heads/main`; aucune branche de
@@ -1096,22 +1290,172 @@ test -z "$(kivou_git -C "$KIVOU_RELEASE_DIR" status --porcelain)"
 REMOTE
 ~~~
 
+Avant de lire les digests live ou de migrer, capturer l'état des quatre
+ingesters, armer leur restauration bornée, puis les quiescer. Acquisition reste
+quarantinée et ne fait partie d'aucun bitmap ni watchdog. Toute unité transitoire,
+tout binding inattendu ou toute surface production installée impose STOP. Le
+contrôle ne charge ni n'affiche aucune valeur secrète.
+
+~~~bash
+KIVOU_PRE_MIGRATION_WRITER_STATE=$(ssh kivou-staging 'bash -s' -- \
+  "$KIVOU_FINAL_SHORT" <<'REMOTE'
+set -euo pipefail
+KIVOU_FINAL_SHORT=$1
+KIVOU_WRITER_TIMERS=(kivou-ingest-simap.timer kivou-ingest-boamp.timer \
+  kivou-ingest-decp.timer kivou-ingest-ted.timer)
+KIVOU_WRITER_SERVICES=(kivou-ingest-simap.service kivou-ingest-boamp.service \
+  kivou-ingest-decp.service kivou-ingest-ted.service)
+
+KIVOU_API_UNIT=$(systemctl cat kivou-api.service)
+test "$(grep -Ec '^EnvironmentFile=' <<<"$KIVOU_API_UNIT")" = 1
+grep -Fx 'EnvironmentFile=/etc/kivou/staging.env' <<<"$KIVOU_API_UNIT" >/dev/null
+KIVOU_ACQUISITION_UNIT=$(systemctl cat kivou-acquisition.service)
+test "$(grep -Ec '^EnvironmentFile=' <<<"$KIVOU_ACQUISITION_UNIT")" = 3
+for KIVOU_ENV_BINDING in /etc/kivou/staging.env \
+  /etc/kivou/acquisition-shadow.env /etc/kivou/acquisition-runtime.env; do
+  grep -Fx "EnvironmentFile=$KIVOU_ENV_BINDING" \
+    <<<"$KIVOU_ACQUISITION_UNIT" >/dev/null
+done
+test -z "$(grep -E '/etc/kivou/(production|acquisition-production)\.env' \
+  <<<"$KIVOU_API_UNIT$KIVOU_ACQUISITION_UNIT" || true)"
+unset KIVOU_API_UNIT KIVOU_ACQUISITION_UNIT KIVOU_ENV_BINDING
+
+for KIVOU_ENV_PROOF in \
+  /etc/kivou/staging.env:root:kivou:600 \
+  /etc/kivou/acquisition-shadow.env:root:kivou:600 \
+  /etc/kivou/acquisition-runtime.env:root:kivou:600 \
+  /etc/kivou/acquisition-shadow.json:root:kivou:640 \
+  /etc/kivou/acquisition-runtime.json:root:kivou:640; do
+  KIVOU_ENV_PATH=${KIVOU_ENV_PROOF%%:*}
+  KIVOU_ENV_OWNER_MODE=${KIVOU_ENV_PROOF#*:}
+  test -f "$KIVOU_ENV_PATH"
+  test ! -L "$KIVOU_ENV_PATH"
+  test "$(stat -c '%U:%G:%a' "$KIVOU_ENV_PATH")" = "$KIVOU_ENV_OWNER_MODE"
+done
+unset KIVOU_ENV_PROOF KIVOU_ENV_PATH KIVOU_ENV_OWNER_MODE
+test "$(sudo grep -Ec '^KIVOU_ACQUISITION_ENVIRONMENT=' \
+  /etc/kivou/acquisition-shadow.env)" = 1
+KIVOU_ACQUISITION_ENVIRONMENT=$(sudo awk -F= \
+  '$1 == "KIVOU_ACQUISITION_ENVIRONMENT" {print $2}' \
+  /etc/kivou/acquisition-shadow.env)
+test "$KIVOU_ACQUISITION_ENVIRONMENT" = STAGING
+unset KIVOU_ACQUISITION_ENVIRONMENT
+sudo grep -Eq '^KIVOU_HERMES_(HOME|CWD)=/var/lib/kivou/hermes-shadow(/|$)' \
+  /etc/kivou/acquisition-shadow.env
+test "$(sudo grep -Ec '^KIVOU_HERMES_(HOME|CWD)=' \
+  /etc/kivou/acquisition-shadow.env)" = 2
+
+for KIVOU_PRODUCTION_UNIT in kivou-acquisition-production.service \
+  kivou-acquisition-production.timer; do
+  test "$(systemctl show "$KIVOU_PRODUCTION_UNIT" \
+    --property=LoadState --value)" = not-found
+  ! systemctl is-enabled "$KIVOU_PRODUCTION_UNIT" >/dev/null 2>&1
+  test ! -e "/etc/systemd/system/$KIVOU_PRODUCTION_UNIT"
+done
+unset KIVOU_PRODUCTION_UNIT
+KIVOU_SHADOW_SMOKE_STATE=$(systemctl is-active \
+  kivou-acquisition-shadow-smoke.service || test $? -eq 3)
+test "$KIVOU_SHADOW_SMOKE_STATE" = inactive
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active \
+  kivou-acquisition.service || test $? -eq 3)
+test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show \
+  kivou-acquisition.service --property=MainPID --value)
+test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0
+unset KIVOU_SHADOW_SMOKE_STATE KIVOU_ACQUISITION_TIMER_ENABLED
+unset KIVOU_ACQUISITION_TIMER_STATE KIVOU_ACQUISITION_SERVICE_STATE
+unset KIVOU_ACQUISITION_SERVICE_MAIN_PID
+
+KIVOU_PRE_MIGRATION_TIMER_STATES=
+KIVOU_PRE_MIGRATION_ACTIVE_TIMERS=()
+for KIVOU_WRITER_TIMER in "${KIVOU_WRITER_TIMERS[@]}"; do
+  KIVOU_WRITER_TIMER_STATE=$(systemctl is-active "$KIVOU_WRITER_TIMER" || \
+    test $? -eq 3)
+  case "$KIVOU_WRITER_TIMER_STATE" in
+    (active)
+      KIVOU_PRE_MIGRATION_TIMER_STATES+=1
+      KIVOU_PRE_MIGRATION_ACTIVE_TIMERS+=("$KIVOU_WRITER_TIMER")
+      ;;
+    (inactive) KIVOU_PRE_MIGRATION_TIMER_STATES+=0 ;;
+    (*) exit 69 ;;
+  esac
+done
+KIVOU_PRE_MIGRATION_WATCHDOG="kivou-card-migration-resume-$KIVOU_FINAL_SHORT"
+test "$(systemctl show "$KIVOU_PRE_MIGRATION_WATCHDOG.timer" \
+  --property=LoadState --value)" = not-found
+KIVOU_PRE_MIGRATION_WATCHDOG_COMMAND=(/usr/bin/true)
+if test "${#KIVOU_PRE_MIGRATION_ACTIVE_TIMERS[@]}" -gt 0; then
+  KIVOU_PRE_MIGRATION_WATCHDOG_COMMAND=(/usr/bin/systemctl start \
+    "${KIVOU_PRE_MIGRATION_ACTIVE_TIMERS[@]}")
+fi
+sudo systemd-run --quiet --unit="$KIVOU_PRE_MIGRATION_WATCHDOG" \
+  --on-active=20m --timer-property=AccuracySec=1s -- \
+  "${KIVOU_PRE_MIGRATION_WATCHDOG_COMMAND[@]}"
+KIVOU_PRE_MIGRATION_WATCHDOG_TIMER_STATE=$(systemctl is-active \
+  "$KIVOU_PRE_MIGRATION_WATCHDOG.timer" || test $? -eq 3)
+test "$KIVOU_PRE_MIGRATION_WATCHDOG_TIMER_STATE" = active
+KIVOU_PRE_MIGRATION_WATCHDOG_SERVICE_STATE=$(systemctl is-active \
+  "$KIVOU_PRE_MIGRATION_WATCHDOG.service" || test $? -eq 3)
+test "$KIVOU_PRE_MIGRATION_WATCHDOG_SERVICE_STATE" = inactive
+unset KIVOU_PRE_MIGRATION_WATCHDOG_TIMER_STATE
+unset KIVOU_PRE_MIGRATION_WATCHDOG_SERVICE_STATE
+sudo systemctl stop "${KIVOU_WRITER_TIMERS[@]}"
+sudo systemctl stop "${KIVOU_WRITER_SERVICES[@]}"
+for KIVOU_WRITER_UNIT in "${KIVOU_WRITER_TIMERS[@]}" \
+  "${KIVOU_WRITER_SERVICES[@]}"; do
+  KIVOU_WRITER_STATE=$(systemctl is-active "$KIVOU_WRITER_UNIT" || test $? -eq 3)
+  test "$KIVOU_WRITER_STATE" = inactive
+done
+printf 'timer_states=%s watchdog=%s\n' "$KIVOU_PRE_MIGRATION_TIMER_STATES" \
+  "$KIVOU_PRE_MIGRATION_WATCHDOG"
+REMOTE
+)
+printf '%s\n' "$KIVOU_PRE_MIGRATION_WRITER_STATE" | grep -Eq \
+  '^timer_states=[01]{4} watchdog=kivou-card-migration-resume-[0-9a-f]{12}$'
+KIVOU_PRE_MIGRATION_TIMER_STATES=$(sed -E \
+  's/^timer_states=([01]{4}) watchdog=.*$/\1/' \
+  <<<"$KIVOU_PRE_MIGRATION_WRITER_STATE")
+KIVOU_PRE_MIGRATION_WATCHDOG=$(sed -E \
+  's/^.* watchdog=([a-z0-9-]+)$/\1/' \
+  <<<"$KIVOU_PRE_MIGRATION_WRITER_STATE")
+unset KIVOU_PRE_MIGRATION_WRITER_STATE
+readonly KIVOU_PRE_MIGRATION_TIMER_STATES KIVOU_PRE_MIGRATION_WATCHDOG
+~~~
+
 Vérifier ensuite la paire Alembic et appliquer la migration avec l'API interne
 de cette release, avant tout démarrage green. Le script compare aussi les
-comptes des tables existantes, la structure additive et l'état de publication
-vide.
+données métier, le ledger Card canonique, la structure Card issue de 0028 et la
+contrainte remplacée par 0029.
 
 ~~~bash
 ssh kivou-staging 'bash -s' -- \
-  "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_ROLLOUT_PATH" <<'REMOTE'
+  "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_ROLLOUT_PATH" \
+  "$KIVOU_RESTORE_DB" "$KIVOU_EXPECTED_START_REVISION" \
+  "$KIVOU_EXPECTED_FINAL_REVISION" "$KIVOU_RESTORE_CARD_DIGEST_BEFORE" \
+  "$KIVOU_RESTORE_OBSERVATION_DIGEST_BEFORE" <<'REMOTE'
 set -euo pipefail
 cd /srv/kivou
 KIVOU_RELEASE_DIR=$1
 KIVOU_FINAL_SHA=$2
 KIVOU_ROLLOUT_PATH=$3
+KIVOU_RESTORE_DB=$4
+KIVOU_EXPECTED_START_REVISION=$5
+KIVOU_EXPECTED_FINAL_REVISION=$6
+KIVOU_RESTORE_CARD_DIGEST_BEFORE=$7
+KIVOU_RESTORE_OBSERVATION_DIGEST_BEFORE=$8
 KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
 case "$KIVOU_RELEASE_DIR" in
   (/srv/kivou/releases/backend-*-$KIVOU_FINAL_SHORT) ;;
+  (*) exit 69 ;;
+esac
+case "$KIVOU_RESTORE_DB" in
+  (kivou_card_restore_[0-9a-f]*_[0-9]*_[0-9]*) ;;
   (*) exit 69 ;;
 esac
 test "$(sudo -u kivou /usr/bin/git -C "$KIVOU_RELEASE_DIR" rev-parse HEAD)" = \
@@ -1130,29 +1474,58 @@ from signals.persistence.database import MIGRATIONS_PATH
 config = Config()
 config.set_main_option("script_location", str(MIGRATIONS_PATH))
 script = ScriptDirectory.from_config(config)
-assert script.get_current_head() == "0028_card_presentation"
-path = Path("src/signals/persistence/migrations/versions/0028_card_presentation.py")
-spec = importlib.util.spec_from_file_location("kivou_0028", path)
+assert script.get_current_head() == "0029_production_observation"
+assert script.get_revision("0028_card_presentation").down_revision == "0027_signal_notes"
+path = Path(
+    "src/signals/persistence/migrations/versions/0029_production_observation.py"
+)
+spec = importlib.util.spec_from_file_location("kivou_0029", path)
 assert spec is not None and spec.loader is not None
 migration = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(migration)
-assert migration.revision == "0028_card_presentation"
-assert migration.down_revision == "0027_signal_notes"
+assert migration.revision == "0029_production_observation"
+assert migration.down_revision == "0028_card_presentation"
+assert migration.ORIGINAL_EXPRESSION == (
+    "environment = 'STAGING' AND mode = 'SHADOW' "
+    "AND qa_only IS TRUE AND native_tools = 0"
+)
+assert migration.NEW_EXPRESSION == (
+    "mode = 'SHADOW' AND native_tools = 0 AND ("
+    "(environment = 'STAGING' AND qa_only IS TRUE) OR "
+    "(environment = 'PRODUCTION' AND qa_only IS FALSE))"
+)
 PY
 
-KIVOU_MIGRATION_UNIT="kivou-card-migrate-$KIVOU_FINAL_SHORT"
-sudo systemd-run --quiet --wait --collect --pipe \
-  --unit="$KIVOU_MIGRATION_UNIT" --property=Type=oneshot \
-  --property=User=kivou --property=Group=kivou \
-  --property=WorkingDirectory="$KIVOU_RELEASE_DIR" \
-  --property=EnvironmentFile=/etc/kivou/staging.env \
-  --setenv="KIVOU_ROLLOUT_PATH=$KIVOU_ROLLOUT_PATH" \
-  --property=NoNewPrivileges=yes --property=PrivateTmp=yes \
-  --property=ProtectHome=yes \
-  -- "$KIVOU_RELEASE_DIR/.venv/bin/python" - <<'PY'
+kivou_run_0029_migration() {
+  KIVOU_MIGRATION_TARGET=$1
+  KIVOU_MIGRATION_EXPECTED_BEFORE=$2
+  KIVOU_MIGRATION_CARD_DIGEST=$3
+  KIVOU_MIGRATION_OBSERVATION_DIGEST=$4
+  KIVOU_MIGRATION_UNIT="kivou-card-migrate-$KIVOU_MIGRATION_TARGET-$KIVOU_FINAL_SHORT"
+  sudo systemd-run --quiet --wait --collect --pipe \
+    --unit="$KIVOU_MIGRATION_UNIT" --property=Type=oneshot \
+    --property=RuntimeMaxSec=5min \
+    --property=User=kivou --property=Group=kivou \
+    --property=WorkingDirectory="$KIVOU_RELEASE_DIR" \
+    --property=EnvironmentFile=/etc/kivou/staging.env \
+    --setenv="KIVOU_ROLLOUT_PATH=$KIVOU_ROLLOUT_PATH" \
+    --setenv="KIVOU_MIGRATION_TARGET=$KIVOU_MIGRATION_TARGET" \
+    --setenv="KIVOU_MIGRATION_EXPECTED_BEFORE=$KIVOU_MIGRATION_EXPECTED_BEFORE" \
+    --setenv="KIVOU_MIGRATION_EXPECTED_AFTER=$KIVOU_EXPECTED_FINAL_REVISION" \
+    --setenv="KIVOU_SCRATCH_DATABASE=$KIVOU_RESTORE_DB" \
+    --setenv="KIVOU_EXPECTED_CARD_DIGEST=$KIVOU_MIGRATION_CARD_DIGEST" \
+    --setenv="KIVOU_EXPECTED_OBSERVATION_DIGEST=$KIVOU_MIGRATION_OBSERVATION_DIGEST" \
+    --property=NoNewPrivileges=yes --property=PrivateTmp=yes \
+    --property=ProtectHome=yes \
+    -- "$KIVOU_RELEASE_DIR/.venv/bin/python" - <<'PY'
+import hashlib
+import json
 import os
+import re
 
 import sqlalchemy as sa
+from sqlalchemy import event
+from sqlalchemy.engine import make_url
 
 from signals.persistence.database import (
     create_database_engine,
@@ -1160,39 +1533,127 @@ from signals.persistence.database import (
     migrate_to_latest,
 )
 
+
+ORIGINAL_EXPRESSION = (
+    "environment = 'STAGING' AND mode = 'SHADOW' "
+    "AND qa_only IS TRUE AND native_tools = 0"
+)
+NEW_EXPRESSION = (
+    "mode = 'SHADOW' AND native_tools = 0 AND ("
+    "(environment = 'STAGING' AND qa_only IS TRUE) OR "
+    "(environment = 'PRODUCTION' AND qa_only IS FALSE))"
+)
+
+
+def normalized(expression: str) -> str:
+    value = expression.lower().removeprefix("check")
+    value = re.sub(r"::(?:text|character varying|boolean|integer)", "", value)
+    return re.sub(r"[()\s]", "", value)
+
+
+def card_ledger_digest(connection: sa.Connection) -> str:
+    inspector = sa.inspect(connection)
+    if "card_presentation_artifact" not in inspector.get_table_names():
+        canonical = "[]"
+    else:
+        canonical = connection.scalar(sa.text(
+            "SELECT COALESCE(jsonb_agg(to_jsonb(row_value) ORDER BY artifact_id), "
+            "'[]')::text FROM card_presentation_artifact AS row_value"
+        ))
+    return hashlib.sha256(str(canonical).encode()).hexdigest()
+
+
+def observation_digest(connection: sa.Connection) -> str:
+    canonical = connection.scalar(sa.text(
+        "SELECT COALESCE(jsonb_agg(to_jsonb(row_value) ORDER BY runtime_name), "
+        "'[]')::text FROM acquisition_runtime_observation AS row_value"
+    ))
+    return hashlib.sha256(str(canonical).encode()).hexdigest()
+
+
+def constraint_proof(connection: sa.Connection) -> tuple[bool, str]:
+    row = connection.execute(sa.text(
+        "SELECT convalidated, pg_get_constraintdef(oid) "
+        "FROM pg_constraint "
+        "WHERE conrelid='acquisition_runtime_observation'::regclass "
+        "AND conname='ck_acquisition_runtime_observation_boundary'"
+    )).one()
+    return bool(row[0]), str(row[1])
+
+
+target = os.environ["KIVOU_MIGRATION_TARGET"]
+if target == "scratch":
+    url = make_url(os.environ["KIVOU_DATABASE_URL"]).set(
+        database=os.environ["KIVOU_SCRATCH_DATABASE"]
+    )
+    os.environ["KIVOU_DATABASE_URL"] = url.render_as_string(hide_password=False)
+elif target != "live":
+    raise AssertionError(target)
 engine = create_database_engine()
-core_tables = ("account", "target_icp", "materialized_signal", "contract_award")
-rollout_path = os.environ["KIVOU_ROLLOUT_PATH"]
-with engine.connect() as connection:
+
+
+@event.listens_for(engine, "connect")
+def set_connection_timeouts(dbapi_connection, _connection_record) -> None:
+    previous_autocommit = dbapi_connection.autocommit
+    dbapi_connection.autocommit = True
+    try:
+        with dbapi_connection.cursor() as cursor:
+            cursor.execute("SET lock_timeout = '30s'")
+            cursor.execute("SET statement_timeout = '5min'")
+    finally:
+        dbapi_connection.autocommit = previous_autocommit
+
+
+expected_before = os.environ["KIVOU_MIGRATION_EXPECTED_BEFORE"]
+expected_after = os.environ["KIVOU_MIGRATION_EXPECTED_AFTER"]
+
+with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+    connection.exec_driver_sql("BEGIN TRANSACTION READ ONLY")
+    connection.exec_driver_sql("SET LOCAL statement_timeout = '5min'")
     before = current_revision(engine)
-    before_counts = {
-        table: connection.scalar(sa.text(f'SELECT count(*) FROM "{table}"'))
-        for table in core_tables
-    }
-if rollout_path == "initial_0027":
-    assert before == "0027_signal_notes", before
-    migrate_to_latest(engine)
-    after = current_revision(engine)
-    assert after == "0028_card_presentation", after
-elif rollout_path == "resume_51202525":
-    assert before == "0028_card_presentation", before
-    after = current_revision(engine)
-    assert after == "0028_card_presentation", after
-else:
-    raise AssertionError(rollout_path)
-with engine.connect() as connection:
+    assert before == expected_before, before
+    convalidated, constraint = constraint_proof(connection)
+    assert convalidated
+    assert normalized(constraint) == normalized(ORIGINAL_EXPRESSION)
+    assert connection.scalar(sa.text(
+        "SELECT count(*) FROM acquisition_runtime_observation "
+        "WHERE NOT (environment='STAGING' AND mode='SHADOW' "
+        "AND qa_only IS TRUE AND native_tools=0)"
+    )) == 0
+    assert connection.scalar(sa.text(
+        "SELECT count(*) FROM acquisition_runtime_observation "
+        "WHERE environment='PRODUCTION'"
+    )) == 0
+    card_ledger_digest_before = card_ledger_digest(connection)
+    observation_digest_before = observation_digest(connection)
+    if target == "scratch" and expected_before == "0028_card_presentation":
+        assert card_ledger_digest_before == os.environ["KIVOU_EXPECTED_CARD_DIGEST"]
+        assert observation_digest_before == os.environ[
+            "KIVOU_EXPECTED_OBSERVATION_DIGEST"
+        ]
+    connection.exec_driver_sql("ROLLBACK")
+
+migrate_to_latest(engine)
+after = current_revision(engine)
+assert after == "0029_production_observation", after
+assert after == expected_after, after
+with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as connection:
+    connection.exec_driver_sql("BEGIN TRANSACTION READ ONLY")
+    connection.exec_driver_sql("SET LOCAL statement_timeout = '5min'")
+    convalidated, constraint = constraint_proof(connection)
+    assert convalidated
+    assert normalized(constraint) == normalized(NEW_EXPRESSION)
+    assert connection.scalar(sa.text(
+        "SELECT count(*) FROM acquisition_runtime_observation "
+        "WHERE environment='PRODUCTION'"
+    )) == 0
+    card_ledger_digest_after = card_ledger_digest(connection)
+    observation_digest_after = observation_digest(connection)
+    assert card_ledger_digest_after == card_ledger_digest_before
+    assert observation_digest_after == observation_digest_before
     inspector = sa.inspect(connection)
     assert inspector.get_table_names().count("card_presentation_artifact") == 1
-    if rollout_path == "initial_0027":
-        assert connection.scalar(sa.text(
-            "SELECT count(*) FROM card_presentation_artifact"
-        )) == 0
-    after_counts = {
-        table: connection.scalar(sa.text(f'SELECT count(*) FROM "{table}"'))
-        for table in core_tables
-    }
-    assert after_counts == before_counts
-    checks = {
+    card_checks = {
         item["name"]
         for item in inspector.get_check_constraints("card_presentation_artifact")
     }
@@ -1200,24 +1661,99 @@ with engine.connect() as connection:
         "ck_card_presentation_publishable_pair",
         "ck_card_presentation_fallback_offline",
         "ck_card_presentation_payload_binding",
-    } <= checks
-    indexes = {
+    } <= card_checks
+    card_indexes = {
         item["name"]: item
         for item in inspector.get_indexes("card_presentation_artifact")
     }
-    assert "ix_card_presentation_tenant_read" in indexes
-    assert indexes["uq_card_presentation_active_publication"]["unique"] is True
+    assert "ix_card_presentation_tenant_read" in card_indexes
+    assert card_indexes["uq_card_presentation_active_publication"]["unique"] is True
+    connection.exec_driver_sql("ROLLBACK")
 print(f"database_transition={before}->{after}")
 print(f"migration={before}->{after}")
 PY
+}
+
+kivou_run_0029_migration scratch "$KIVOU_EXPECTED_START_REVISION" \
+  "$KIVOU_RESTORE_CARD_DIGEST_BEFORE" \
+  "$KIVOU_RESTORE_OBSERVATION_DIGEST_BEFORE"
+KIVOU_RESTORE_PRODUCTION_ROWS_AFTER=$(sudo -u postgres psql -X -qAt \
+  --dbname="$KIVOU_RESTORE_DB" --set=ON_ERROR_STOP=1 \
+  -c "SELECT count(*) FROM acquisition_runtime_observation WHERE environment='PRODUCTION'")
+test "$KIVOU_RESTORE_PRODUCTION_ROWS_AFTER" = 0
+sudo -u postgres dropdb "$KIVOU_RESTORE_DB"
+test "$(sudo -u postgres psql -X -qAt --dbname=postgres --set=ON_ERROR_STOP=1 \
+  -c "SELECT count(*) FROM pg_database WHERE datname='$KIVOU_RESTORE_DB'")" = 0
+
+kivou_run_0029_migration live "$KIVOU_EXPECTED_START_REVISION" \
+  NOT_APPLICABLE_LIVE NOT_APPLICABLE_LIVE
+REMOTE
+
+ssh kivou-staging 'bash -s' -- "$KIVOU_PRE_MIGRATION_TIMER_STATES" \
+  "$KIVOU_PRE_MIGRATION_WATCHDOG" <<'REMOTE'
+set -euo pipefail
+KIVOU_TIMER_STATES=$1
+KIVOU_WATCHDOG=$2
+KIVOU_TIMERS=(kivou-ingest-simap.timer kivou-ingest-boamp.timer \
+  kivou-ingest-decp.timer kivou-ingest-ted.timer)
+printf '%s\n' "$KIVOU_TIMER_STATES" | grep -Eq '^[01]{4}$'
+for KIVOU_INDEX in 0 1 2 3; do
+  if test "${KIVOU_TIMER_STATES:$KIVOU_INDEX:1}" = 1; then
+    sudo systemctl start "${KIVOU_TIMERS[$KIVOU_INDEX]}"
+    KIVOU_EXPECTED_TIMER_STATE=active
+  else
+    KIVOU_EXPECTED_TIMER_STATE=inactive
+  fi
+  KIVOU_TIMER_STATE=$(systemctl is-active "${KIVOU_TIMERS[$KIVOU_INDEX]}" || \
+    test $? -eq 3)
+  test "$KIVOU_TIMER_STATE" = "$KIVOU_EXPECTED_TIMER_STATE"
+done
+unset KIVOU_EXPECTED_TIMER_STATE KIVOU_TIMER_STATE
+for KIVOU_SERVICE in kivou-ingest-simap.service kivou-ingest-boamp.service \
+  kivou-ingest-decp.service kivou-ingest-ted.service; do
+  KIVOU_SERVICE_STATE=$(systemctl is-active "$KIVOU_SERVICE" || test $? -eq 3)
+  test "$KIVOU_SERVICE_STATE" = inactive
+done
+unset KIVOU_SERVICE KIVOU_SERVICE_STATE
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active \
+  kivou-acquisition.service || test $? -eq 3)
+test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show \
+  kivou-acquisition.service --property=MainPID --value)
+test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0
+KIVOU_SHADOW_SMOKE_STATE=$(systemctl is-active \
+  kivou-acquisition-shadow-smoke.service || test $? -eq 3)
+test "$KIVOU_SHADOW_SMOKE_STATE" = inactive
+unset KIVOU_ACQUISITION_TIMER_ENABLED KIVOU_ACQUISITION_TIMER_STATE
+unset KIVOU_ACQUISITION_SERVICE_STATE KIVOU_ACQUISITION_SERVICE_MAIN_PID
+unset KIVOU_SHADOW_SMOKE_STATE
+KIVOU_WATCHDOG_TIMER_STATE=$(systemctl is-active "$KIVOU_WATCHDOG.timer")
+test "$KIVOU_WATCHDOG_TIMER_STATE" = active
+KIVOU_WATCHDOG_SERVICE_STATE=$(systemctl is-active \
+  "$KIVOU_WATCHDOG.service" || test $? -eq 3)
+test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive
+sudo systemctl stop "$KIVOU_WATCHDOG.timer"
+KIVOU_WATCHDOG_TIMER_STATE=$(systemctl is-active \
+  "$KIVOU_WATCHDOG.timer" || test $? -eq 3)
+test "$KIVOU_WATCHDOG_TIMER_STATE" = inactive
+KIVOU_WATCHDOG_SERVICE_STATE=$(systemctl is-active \
+  "$KIVOU_WATCHDOG.service" || test $? -eq 3)
+test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive
 REMOTE
 ~~~
 
-Le résultat attendu est `database_transition=0027_signal_notes->0028_card_presentation`
-pour le chemin initial ou `database_transition=0028_card_presentation->0028_card_presentation`
-pour la reprise; la ligne `migration=` reflète la même transition. Le chemin de
-reprise ne rejoue aucune migration. Ne pas exécuter de downgrade : la migration
-est additive.
+Le résultat attendu est `database_transition=0027_signal_notes->0029_production_observation`
+pour le chemin initial ou `database_transition=0028_card_presentation->0029_production_observation`
+pour la reprise, d'abord sur la restauration scratch puis sur la base live. La
+ligne `migration=` reflète la même transition. 0029 remplace une contrainte mais reste compatible avec lignes staging 0028. Toute erreur de contrainte,
+digest, timeout ou migration transactionnelle échoue fermé; aucun downgrade
+n'est exécuté.
 
 ## 5. Publier le backend par le blue/green versionné
 
@@ -1312,17 +1848,19 @@ valent `200 401`.
 
 STOP si l'extraction ne trouve pas exactement ces six premiers blocs, si la
 topologie versionnée diffère, ou si une validation du bootstrap échoue. La
-migration 0028 doit déjà être verte avant la première commande de démarrage
+migration 0029 doit déjà être verte avant la première commande de démarrage
 green; cette procédure ne migre rien.
 
 ~~~bash
 ssh kivou-staging 'bash -s' -- \
-  "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_PREVIOUS_BACKEND" <<'REMOTE'
+  "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_PREVIOUS_BACKEND" \
+  "$KIVOU_EXPECTED_FINAL_REVISION" <<'REMOTE'
 set -euo pipefail
 cd /srv/kivou
 KIVOU_RELEASE_DIR=$1
 KIVOU_FINAL_SHA=$2
 KIVOU_PREVIOUS_BACKEND=$3
+KIVOU_EXPECTED_FINAL_REVISION=$4
 case "$KIVOU_RELEASE_DIR" in (/srv/kivou/releases/backend-*) ;; (*) exit 69 ;; esac
 case "$KIVOU_PREVIOUS_BACKEND" in (/srv/kivou/releases/backend-*) ;; (*) exit 69 ;; esac
 test "$(readlink -f /srv/kivou/app)" = "$KIVOU_RELEASE_DIR"
@@ -1345,7 +1883,14 @@ KIVOU_DEPLOYED_REVISION=$(sudo systemd-run --quiet --wait --collect --pipe \
   --property=EnvironmentFile=/etc/kivou/staging.env \
   -- "$KIVOU_RELEASE_DIR/.venv/bin/python" -c \
   'from signals.persistence.database import create_database_engine,current_revision; engine=create_database_engine(); print(current_revision(engine))')
-test "$KIVOU_DEPLOYED_REVISION" = "0028_card_presentation"
+test "$KIVOU_DEPLOYED_REVISION" = "$KIVOU_EXPECTED_FINAL_REVISION"
+for KIVOU_PRODUCTION_UNIT in kivou-acquisition-production.service \
+  kivou-acquisition-production.timer; do
+  test "$(systemctl show "$KIVOU_PRODUCTION_UNIT" \
+    --property=LoadState --value)" = not-found
+  ! systemctl is-enabled "$KIVOU_PRODUCTION_UNIT" >/dev/null 2>&1
+  test ! -e "/etc/systemd/system/$KIVOU_PRODUCTION_UNIT"
+done
 REMOTE
 ~~~
 
@@ -1913,8 +2458,9 @@ JS
 kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"
 
 # Fermer la fenêtre de drift entre le manifeste pré-FR et le snapshot post-EN.
-# Le watchdog restaure l'API et uniquement les timers auparavant actifs si la
-# session opérateur disparaît avant la restauration explicite.
+# Le watchdog restaure l'API et uniquement les quatre ingesters auparavant
+# actifs si la session opérateur disparaît avant la restauration explicite.
+# Acquisition reste disabled/inactive et n'est jamais restaurée ici.
 KIVOU_WRITER_STATE_FILE="$KIVOU_EVIDENCE_DIR/writer-quiescence.txt"
 test ! -e "$KIVOU_WRITER_STATE_FILE"
 KIVOU_WRITER_QUIESCENCE=$(ssh kivou-staging 'bash -s' -- \
@@ -1924,20 +2470,36 @@ KIVOU_FINAL_SHORT=$1
 printf '%s\n' "$KIVOU_FINAL_SHORT" | grep -Eq '^[0-9a-f]{12}$'
 test "$(hostname -s)" = "kivou-staging-01"
 KIVOU_WRITER_TIMERS=(
-  kivou-acquisition.timer
   kivou-ingest-simap.timer
   kivou-ingest-boamp.timer
   kivou-ingest-decp.timer
   kivou-ingest-ted.timer
 )
 KIVOU_WRITER_SERVICES=(
-  kivou-acquisition.service
   kivou-ingest-simap.service
   kivou-ingest-boamp.service
   kivou-ingest-decp.service
   kivou-ingest-ted.service
 )
 systemctl is-active --quiet kivou-api.service
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active \
+  kivou-acquisition.service || test $? -eq 3)
+test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show \
+  kivou-acquisition.service --property=MainPID --value)
+test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0
+KIVOU_SHADOW_SMOKE_STATE=$(systemctl is-active \
+  kivou-acquisition-shadow-smoke.service || test $? -eq 3)
+test "$KIVOU_SHADOW_SMOKE_STATE" = inactive
+unset KIVOU_ACQUISITION_TIMER_ENABLED KIVOU_ACQUISITION_TIMER_STATE
+unset KIVOU_ACQUISITION_SERVICE_STATE KIVOU_ACQUISITION_SERVICE_MAIN_PID
+unset KIVOU_SHADOW_SMOKE_STATE
 KIVOU_ACTIVE_TIMERS=()
 KIVOU_TIMER_STATES=
 for KIVOU_WRITER_TIMER in "${KIVOU_WRITER_TIMERS[@]}"; do
@@ -1952,13 +2514,20 @@ for KIVOU_WRITER_TIMER in "${KIVOU_WRITER_TIMERS[@]}"; do
     KIVOU_TIMER_STATES+=0
   fi
 done
-printf '%s\n' "$KIVOU_TIMER_STATES" | grep -Eq '^[01]{5}$'
+printf '%s\n' "$KIVOU_TIMER_STATES" | grep -Eq '^[01]{4}$'
 KIVOU_WRITER_WATCHDOG="kivou-card-writers-resume-$KIVOU_FINAL_SHORT"
 test "$(systemctl show "$KIVOU_WRITER_WATCHDOG.timer" \
   --property=LoadState --value)" = not-found
 sudo systemd-run --quiet --unit="$KIVOU_WRITER_WATCHDOG" --on-active=20m \
   --timer-property=AccuracySec=1s -- /usr/bin/systemctl start \
   kivou-api.service "${KIVOU_ACTIVE_TIMERS[@]}"
+KIVOU_WATCHDOG_TIMER_STATE=$(systemctl is-active \
+  "$KIVOU_WRITER_WATCHDOG.timer" || test $? -eq 3)
+test "$KIVOU_WATCHDOG_TIMER_STATE" = active
+KIVOU_WATCHDOG_SERVICE_STATE=$(systemctl is-active \
+  "$KIVOU_WRITER_WATCHDOG.service" || test $? -eq 3)
+test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive
+unset KIVOU_WATCHDOG_TIMER_STATE KIVOU_WATCHDOG_SERVICE_STATE
 if test "${#KIVOU_ACTIVE_TIMERS[@]}" -gt 0; then
   sudo systemctl stop "${KIVOU_ACTIVE_TIMERS[@]}"
 fi
@@ -1984,13 +2553,13 @@ chmod 600 "$KIVOU_WRITER_STATE_FILE"
 test ! -L "$KIVOU_WRITER_STATE_FILE"
 test "$(stat -c '%U:%a' "$KIVOU_WRITER_STATE_FILE")" = "$(id -un):600"
 printf '%s\n' "$KIVOU_WRITER_QUIESCENCE" | grep -Eq \
-  '^writer_quiesced=1 timer_states=[01]{5} watchdog=kivou-card-writers-resume-[0-9a-f]{12}$'
+  '^writer_quiesced=1 timer_states=[01]{4} watchdog=kivou-card-writers-resume-[0-9a-f]{12}$'
 KIVOU_WRITER_TIMER_STATES=$(printf '%s\n' "$KIVOU_WRITER_QUIESCENCE" | \
-  sed -E 's/^writer_quiesced=1 timer_states=([01]{5}) watchdog=.*$/\1/')
+  sed -E 's/^writer_quiesced=1 timer_states=([01]{4}) watchdog=.*$/\1/')
 KIVOU_WRITER_WATCHDOG=$(printf '%s\n' "$KIVOU_WRITER_QUIESCENCE" | \
   sed -E 's/^.* watchdog=([a-z0-9-]+)$/\1/')
 unset KIVOU_WRITER_QUIESCENCE
-printf '%s\n' "$KIVOU_WRITER_TIMER_STATES" | grep -Eq '^[01]{5}$'
+printf '%s\n' "$KIVOU_WRITER_TIMER_STATES" | grep -Eq '^[01]{4}$'
 test "$KIVOU_WRITER_WATCHDOG" = \
   "kivou-card-writers-resume-$KIVOU_FINAL_SHORT"
 readonly KIVOU_WRITER_TIMER_STATES KIVOU_WRITER_WATCHDOG
@@ -2002,14 +2571,12 @@ KIVOU_WRITER_WATCHDOG=$1
 printf '%s\n' "$KIVOU_WRITER_WATCHDOG" | \
   grep -Eq '^kivou-card-writers-resume-[0-9a-f]{12}$'
 KIVOU_WRITER_TIMERS=(
-  kivou-acquisition.timer
   kivou-ingest-simap.timer
   kivou-ingest-boamp.timer
   kivou-ingest-decp.timer
   kivou-ingest-ted.timer
 )
 KIVOU_WRITER_SERVICES=(
-  kivou-acquisition.service
   kivou-ingest-simap.service
   kivou-ingest-boamp.service
   kivou-ingest-decp.service
@@ -2027,6 +2594,21 @@ test "$KIVOU_WATCHDOG_TIMER_STATE" = active
 KIVOU_WATCHDOG_SERVICE_STATE=$(systemctl is-active \
   "$KIVOU_WRITER_WATCHDOG.service" || test $? -eq 3)
 test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active \
+  kivou-acquisition.service || test $? -eq 3)
+test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show \
+  kivou-acquisition.service --property=MainPID --value)
+test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0
+KIVOU_SHADOW_SMOKE_STATE=$(systemctl is-active \
+  kivou-acquisition-shadow-smoke.service || test $? -eq 3)
+test "$KIVOU_SHADOW_SMOKE_STATE" = inactive
 for KIVOU_WRITER_UNIT in kivou-api.service \
   "${KIVOU_WRITER_TIMERS[@]}" "${KIVOU_WRITER_SERVICES[@]}"; do
   KIVOU_WRITER_STATE=$(systemctl is-active "$KIVOU_WRITER_UNIT" || \
@@ -2034,7 +2616,9 @@ for KIVOU_WRITER_UNIT in kivou-api.service \
   test "$KIVOU_WRITER_STATE" = inactive
 done
 unset KIVOU_WRITER_STATE KIVOU_WATCHDOG_TIMER_STATE
-unset KIVOU_WATCHDOG_SERVICE_STATE
+unset KIVOU_WATCHDOG_SERVICE_STATE KIVOU_ACQUISITION_TIMER_ENABLED
+unset KIVOU_ACQUISITION_TIMER_STATE KIVOU_ACQUISITION_SERVICE_STATE
+unset KIVOU_ACQUISITION_SERVICE_MAIN_PID KIVOU_SHADOW_SMOKE_STATE
 sudo systemctl restart "$KIVOU_WRITER_WATCHDOG.timer"
 KIVOU_WATCHDOG_TIMER_STATE=$(systemctl is-active \
   "$KIVOU_WRITER_WATCHDOG.timer" || test $? -eq 3)
@@ -2042,6 +2626,21 @@ test "$KIVOU_WATCHDOG_TIMER_STATE" = active
 KIVOU_WATCHDOG_SERVICE_STATE=$(systemctl is-active \
   "$KIVOU_WRITER_WATCHDOG.service" || test $? -eq 3)
 test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active \
+  kivou-acquisition.service || test $? -eq 3)
+test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show \
+  kivou-acquisition.service --property=MainPID --value)
+test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0
+KIVOU_SHADOW_SMOKE_STATE=$(systemctl is-active \
+  kivou-acquisition-shadow-smoke.service || test $? -eq 3)
+test "$KIVOU_SHADOW_SMOKE_STATE" = inactive
 for KIVOU_WRITER_UNIT in kivou-api.service \
   "${KIVOU_WRITER_TIMERS[@]}" "${KIVOU_WRITER_SERVICES[@]}"; do
   KIVOU_WRITER_STATE=$(systemctl is-active "$KIVOU_WRITER_UNIT" || \
@@ -2049,12 +2648,15 @@ for KIVOU_WRITER_UNIT in kivou-api.service \
   test "$KIVOU_WRITER_STATE" = inactive
 done
 unset KIVOU_WRITER_STATE KIVOU_WATCHDOG_TIMER_STATE
-unset KIVOU_WATCHDOG_SERVICE_STATE
+unset KIVOU_WATCHDOG_SERVICE_STATE KIVOU_ACQUISITION_TIMER_ENABLED
+unset KIVOU_ACQUISITION_TIMER_STATE KIVOU_ACQUISITION_SERVICE_STATE
+unset KIVOU_ACQUISITION_SERVICE_MAIN_PID KIVOU_SHADOW_SMOKE_STATE
 printf 'writer_watchdog_rearmed=1 watchdog=%s\n' "$KIVOU_WRITER_WATCHDOG"
 REMOTE
 }
 
 kivou_resume_card_writers() {
+  printf '%s\n' "$KIVOU_WRITER_TIMER_STATES" | grep -Eq '^[01]{4}$' || return 69
   ssh kivou-staging 'bash -s' -- "$KIVOU_RELEASE_DIR" \
     "$KIVOU_WRITER_TIMER_STATES" "$KIVOU_WRITER_WATCHDOG" <<'REMOTE'
 set -euo pipefail
@@ -2065,26 +2667,40 @@ case "$KIVOU_RELEASE_DIR" in
   (/srv/kivou/releases/backend-*) ;;
   (*) exit 69 ;;
 esac
-printf '%s\n' "$KIVOU_TIMER_STATES" | grep -Eq '^[01]{5}$'
+printf '%s\n' "$KIVOU_TIMER_STATES" | grep -Eq '^[01]{4}$'
 printf '%s\n' "$KIVOU_WRITER_WATCHDOG" | \
   grep -Eq '^kivou-card-writers-resume-[0-9a-f]{12}$'
 KIVOU_WRITER_TIMERS=(
-  kivou-acquisition.timer
   kivou-ingest-simap.timer
   kivou-ingest-boamp.timer
   kivou-ingest-decp.timer
   kivou-ingest-ted.timer
 )
 KIVOU_RESTART_TIMERS=()
-for KIVOU_TIMER_INDEX in 0 1 2 3 4; do
+for KIVOU_TIMER_INDEX in 0 1 2 3; do
   if test "${KIVOU_TIMER_STATES:$KIVOU_TIMER_INDEX:1}" = 1; then
     KIVOU_RESTART_TIMERS+=("${KIVOU_WRITER_TIMERS[$KIVOU_TIMER_INDEX]}")
   fi
 done
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active \
+  kivou-acquisition.service || test $? -eq 3)
+test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show \
+  kivou-acquisition.service --property=MainPID --value)
+test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0
+KIVOU_SHADOW_SMOKE_STATE=$(systemctl is-active \
+  kivou-acquisition-shadow-smoke.service || test $? -eq 3)
+test "$KIVOU_SHADOW_SMOKE_STATE" = inactive
 sudo systemctl start kivou-api.service "${KIVOU_RESTART_TIMERS[@]}"
 "$KIVOU_RELEASE_DIR/ops/bin/kivou-api-readiness.sh" \
   kivou-api.service 8000
-for KIVOU_TIMER_INDEX in 0 1 2 3 4; do
+for KIVOU_TIMER_INDEX in 0 1 2 3; do
   KIVOU_WRITER_TIMER=${KIVOU_WRITER_TIMERS[$KIVOU_TIMER_INDEX]}
   if test "${KIVOU_TIMER_STATES:$KIVOU_TIMER_INDEX:1}" = 1; then
     systemctl is-active --quiet "$KIVOU_WRITER_TIMER"
@@ -2095,6 +2711,21 @@ for KIVOU_TIMER_INDEX in 0 1 2 3 4; do
     unset KIVOU_WRITER_TIMER_STATE
   fi
 done
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active \
+  kivou-acquisition.service || test $? -eq 3)
+test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show \
+  kivou-acquisition.service --property=MainPID --value)
+test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0
+KIVOU_SHADOW_SMOKE_STATE=$(systemctl is-active \
+  kivou-acquisition-shadow-smoke.service || test $? -eq 3)
+test "$KIVOU_SHADOW_SMOKE_STATE" = inactive
 sudo systemctl stop "$KIVOU_WRITER_WATCHDOG.timer"
 printf 'writer_resumed=1 timer_states=%s watchdog=%s\n' \
   "$KIVOU_TIMER_STATES" "$KIVOU_WRITER_WATCHDOG"
@@ -2115,7 +2746,8 @@ if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   KIVOU_RECOVERY_PRE_FR="$KIVOU_EVIDENCE_DIR/recovery-fr-preflight.json"
   test ! -e "$KIVOU_RECOVERY_PRE_FR"
   kivou_rearm_card_writer_watchdog
-  KIVOU_RECOVERY_PRE_FR_PAYLOAD=$(kivou_capture_recovery_fr_snapshot "$KIVOU_RELEASE_DIR" baseline)
+  KIVOU_RECOVERY_PRE_FR_PAYLOAD=$(kivou_capture_recovery_fr_snapshot \
+    "$KIVOU_RELEASE_DIR" pre_fr "$KIVOU_EXPECTED_FINAL_REVISION")
   printf '%s\n' "$KIVOU_RECOVERY_PRE_FR_PAYLOAD" > "$KIVOU_RECOVERY_PRE_FR"
   unset KIVOU_RECOVERY_PRE_FR_PAYLOAD
   chmod 600 "$KIVOU_RECOVERY_PRE_FR"
@@ -2381,7 +3013,7 @@ if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   test ! -e "$KIVOU_RECOVERY_POST_FR"
   kivou_rearm_card_writer_watchdog
   KIVOU_RECOVERY_POST_FR_PAYLOAD=$(kivou_capture_recovery_fr_snapshot \
-    "$KIVOU_RELEASE_DIR" post_fr)
+    "$KIVOU_RELEASE_DIR" post_fr "$KIVOU_EXPECTED_FINAL_REVISION")
   printf '%s\n' "$KIVOU_RECOVERY_POST_FR_PAYLOAD" > \
     "$KIVOU_RECOVERY_POST_FR"
   unset KIVOU_RECOVERY_POST_FR_PAYLOAD
@@ -2646,7 +3278,7 @@ if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   test ! -e "$KIVOU_RECOVERY_POST_EN"
   kivou_rearm_card_writer_watchdog
   KIVOU_RECOVERY_POST_EN_PAYLOAD=$(kivou_capture_recovery_fr_snapshot \
-    "$KIVOU_RELEASE_DIR" post_en)
+    "$KIVOU_RELEASE_DIR" post_en "$KIVOU_EXPECTED_FINAL_REVISION")
   printf '%s\n' "$KIVOU_RECOVERY_POST_EN_PAYLOAD" > \
     "$KIVOU_RECOVERY_POST_EN"
   unset KIVOU_RECOVERY_POST_EN_PAYLOAD
@@ -2705,7 +3337,7 @@ chmod 600 "$KIVOU_WRITER_RESUME_FILE"
 test ! -L "$KIVOU_WRITER_RESUME_FILE"
 test "$(stat -c '%U:%a' "$KIVOU_WRITER_RESUME_FILE")" = "$(id -un):600"
 tail -n 1 "$KIVOU_WRITER_RESUME_FILE" | grep -Eq \
-  '^writer_resumed=1 timer_states=[01]{5} watchdog=kivou-card-writers-resume-[0-9a-f]{12}$'
+  '^writer_resumed=1 timer_states=[01]{4} watchdog=kivou-card-writers-resume-[0-9a-f]{12}$'
 trap - EXIT
 ~~~
 
@@ -2759,15 +3391,17 @@ exactement les `N` items et bindings du preflight, `has_more=false` et
 `scan_truncated=false`; tout candidat apparu, disparu ou révisé entre les
 transactions arrête donc la reprise.
 
-La fenêtre pré-FR → post-EN est une maintenance staging quiescée : l'API, le
-runtime acquisition et les quatre services d'ingestion sont inactifs, et seuls
-les timers qui étaient actifs sont restaurés. Un watchdog systemd borné à vingt
-minutes restaure automatiquement l'API et ces timers si la session opérateur
-disparaît. Avant chacune des cinq phases pre-FR, FR, post-FR, EN et post-EN, son
-réarmement exige le timer watchdog exactement `active` et son service exactement
-`inactive`, puis revalide que l'API, les cinq services writers et leurs cinq
-timers sont exactement `inactive`. Après restart, ces treize états sont prouvés
-une seconde fois. Chaque snapshot et chaque backfill porte
+La fenêtre pré-FR → post-EN est une maintenance staging quiescée : l'API et les
+quatre services d'ingestion sont inactifs; seuls les quatre timers ingesters qui
+étaient actifs sont restaurés. Acquisition reste `disabled/inactive`, service
+`inactive` avec `MainPID=0`, et shadow-smoke `inactive`. Un watchdog systemd
+borné à vingt minutes restaure automatiquement l'API et ces seuls ingesters si
+la session opérateur disparaît. Avant chacune des cinq phases pre-FR, FR,
+post-FR, EN et post-EN, son réarmement exige le timer watchdog exactement
+`active` et son service exactement `inactive`, puis revalide l'API, les quatre
+services et quatre timers ingesters, ainsi que la quarantaine Acquisition.
+Après restart, toutes ces preuves sont rejouées une seconde fois. Chaque
+snapshot et chaque backfill porte
 `RuntimeMaxSec=5min`, donc reste strictement sous les vingt minutes. Tout échec
 de réarmement, de preuve de quiescence ou timeout échoue fermé avant la phase
 suivante. La restauration explicite annule ce watchdog, prouve readiness 8000
@@ -3781,15 +4415,39 @@ Vérifier enfin le marker frontend, le SHA backend, la migration et les probes
 publiques après la navigation :
 
 ~~~bash
-ssh kivou-staging 'bash -s' -- "$KIVOU_FINAL_SHA" "$KIVOU_RELEASE_DIR" <<'REMOTE'
+ssh kivou-staging 'bash -s' -- "$KIVOU_FINAL_SHA" "$KIVOU_RELEASE_DIR" \
+  "$KIVOU_EXPECTED_FINAL_REVISION" <<'REMOTE'
 set -euo pipefail
 KIVOU_FINAL_SHA=$1
 KIVOU_RELEASE_DIR=$2
+KIVOU_EXPECTED_FINAL_REVISION=$3
 test "$(readlink -f /srv/kivou/app)" = "$KIVOU_RELEASE_DIR"
 test "$(sudo -u kivou git -C /srv/kivou/app rev-parse HEAD)" = "$KIVOU_FINAL_SHA"
 test "$(cat /srv/kivou/frontend/KIVOU_RELEASE_SHA)" = "$KIVOU_FINAL_SHA"
 systemctl is-active --quiet kivou-api.service
 systemctl is-active --quiet nginx.service
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active \
+  kivou-acquisition.service || test $? -eq 3)
+test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show \
+  kivou-acquisition.service --property=MainPID --value)
+test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0
+KIVOU_SHADOW_SMOKE_STATE=$(systemctl is-active \
+  kivou-acquisition-shadow-smoke.service || test $? -eq 3)
+test "$KIVOU_SHADOW_SMOKE_STATE" = inactive
+for KIVOU_PRODUCTION_UNIT in kivou-acquisition-production.service \
+  kivou-acquisition-production.timer; do
+  test "$(systemctl show "$KIVOU_PRODUCTION_UNIT" \
+    --property=LoadState --value)" = not-found
+  ! systemctl is-enabled "$KIVOU_PRODUCTION_UNIT" >/dev/null 2>&1
+  test ! -e "/etc/systemd/system/$KIVOU_PRODUCTION_UNIT"
+done
 test "$(curl --silent --connect-timeout 2 --max-time 5 --output /dev/null \
   --write-out '%{http_code}' http://127.0.0.1:8000/me)" = 401
 KIVOU_FINAL_REVISION=$(sudo systemd-run --quiet --wait --collect --pipe \
@@ -3798,8 +4456,8 @@ KIVOU_FINAL_REVISION=$(sudo systemd-run --quiet --wait --collect --pipe \
   --property=WorkingDirectory="$KIVOU_RELEASE_DIR" \
   --property=EnvironmentFile=/etc/kivou/staging.env \
   -- "$KIVOU_RELEASE_DIR/.venv/bin/python" -c \
-  'from signals.persistence.database import create_database_engine,current_revision; engine=create_database_engine(); revision=current_revision(engine); assert revision == "0028_card_presentation", revision; print(revision)')
-test "$KIVOU_FINAL_REVISION" = "0028_card_presentation"
+  'from signals.persistence.database import create_database_engine,current_revision; engine=create_database_engine(); print(current_revision(engine))')
+test "$KIVOU_FINAL_REVISION" = "$KIVOU_EXPECTED_FINAL_REVISION"
 KIVOU_FINAL_ASSET_PATH=$(grep -Eo '/assets/[^"[:space:]]+' \
   /srv/kivou/frontend/index.html | head -n 1)
 case "$KIVOU_FINAL_ASSET_PATH" in (/assets/*) ;; (*) exit 69 ;; esac
@@ -4173,19 +4831,55 @@ bundle sûr sous monitor, puis commute `/srv/kivou/app` vers le
 d'état, ses permissions, ses quatre clés, le SHA, l'hôte ou l'un des deux
 targets ne correspondent pas exactement.
 
-La base doit rester à `0028_card_presentation` : **ne pas exécuter de downgrade** automatiquement. La table additive et les artefacts factuels sont
-conservés pour diagnostic; une modification de schéma demanderait une procédure
-d'incident distincte et approuvée.
+Le rollback applicatif ne lève jamais la quarantaine Acquisition. Après son
+exécution éventuelle, la preuve suivante est obligatoire :
+
+~~~bash
+ssh kivou-staging 'bash -s' <<'REMOTE'
+set -euo pipefail
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active \
+  kivou-acquisition.service || test $? -eq 3)
+test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show \
+  kivou-acquisition.service --property=MainPID --value)
+test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0
+KIVOU_SHADOW_SMOKE_STATE=$(systemctl is-active \
+  kivou-acquisition-shadow-smoke.service || test $? -eq 3)
+test "$KIVOU_SHADOW_SMOKE_STATE" = inactive
+for KIVOU_PRODUCTION_UNIT in kivou-acquisition-production.service \
+  kivou-acquisition-production.timer; do
+  test "$(systemctl show "$KIVOU_PRODUCTION_UNIT" \
+    --property=LoadState --value)" = not-found
+  ! systemctl is-enabled "$KIVOU_PRODUCTION_UNIT" >/dev/null 2>&1
+  test ! -e "/etc/systemd/system/$KIVOU_PRODUCTION_UNIT"
+done
+printf '%s\n' \
+  'acquisition_timer=disabled_inactive acquisition_service=inactive acquisition_shadow_smoke=inactive'
+REMOTE
+~~~
+
+La base doit rester à `0029_production_observation` : **ne pas exécuter de downgrade** automatiquement. 0029 remplace une contrainte mais reste compatible
+avec lignes staging 0028; les artefacts factuels sont conservés pour
+diagnostic. Une modification de schéma demanderait une procédure d'incident
+distincte et approuvée.
 
 Après rollback, revalider `/srv/kivou/frontend`, `/srv/kivou/app`, les routes et
-assets publics, readiness 8000, `/me=401`, nginx et la révision 0028.
+assets publics, readiness 8000, `/me=401`, nginx et la révision 0029.
+Toute réactivation Acquisition exige une procédure distincte, explicitement
+approuvée pour les providers et Hermes; elle est hors de ce runbook.
 
 ## 10. Rapport de preuve
 
 Le rapport final doit associer sans ambiguïté : chemin initial ou reprise, SHA
 final `main`, run CI et étapes, backup (nom/taille/SHA-256/TOC/restore),
-transition dynamique `0027_signal_notes → 0028_card_presentation` ou
-`0028_card_presentation → 0028_card_presentation`, releases backend/frontend,
+transition dynamique `0027_signal_notes → 0029_production_observation` ou
+`0028_card_presentation → 0029_production_observation`, releases backend/frontend,
 compteurs FR/EN, captures inspectées, matrice Dashboard/Entreprises/Signaux,
 deep-links/Retour/focus/scroll/teaser/console, rollback targets et éventuel
 rollback exécuté.
@@ -4196,6 +4890,29 @@ réinterpréter :
 ~~~bash
 : "${KIVOU_HISTORICAL_SMOKE_STATUS:?STOP: historical smoke status absent}"
 : "${KIVOU_ROLLOUT_STATUS:?STOP: rollout status absent}"
+KIVOU_ACQUISITION_FINAL_PROOF=$(ssh kivou-staging 'bash -s' <<'REMOTE'
+set -euo pipefail
+KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled \
+  kivou-acquisition.timer || test $? -eq 1)
+test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled
+KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active \
+  kivou-acquisition.timer || test $? -eq 3)
+test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active \
+  kivou-acquisition.service || test $? -eq 3)
+test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive
+KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show \
+  kivou-acquisition.service --property=MainPID --value)
+test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0
+KIVOU_SHADOW_SMOKE_STATE=$(systemctl is-active \
+  kivou-acquisition-shadow-smoke.service || test $? -eq 3)
+test "$KIVOU_SHADOW_SMOKE_STATE" = inactive
+printf '%s\n' \
+  'acquisition_timer=disabled_inactive acquisition_service=inactive acquisition_shadow_smoke=inactive'
+REMOTE
+)
+test "$KIVOU_ACQUISITION_FINAL_PROOF" = \
+  'acquisition_timer=disabled_inactive acquisition_service=inactive acquisition_shadow_smoke=inactive'
 for KIVOU_WRITER_PROOF in \
   "$KIVOU_WRITER_STATE_FILE" "$KIVOU_WRITER_RESUME_FILE"; do
   test -f "$KIVOU_WRITER_PROOF"
@@ -4211,14 +4928,14 @@ test "$(printf '%s\n' "$KIVOU_WRITER_STATE_SHA256" \
   "$KIVOU_WRITER_RESUME_SHA256" | grep -Ec '^[0-9a-f]{64}$')" = 2
 case "$KIVOU_ROLLOUT_PATH" in
   (initial_0027)
-    KIVOU_DATABASE_TRANSITION=0027_signal_notes-to-0028_card_presentation
+    KIVOU_DATABASE_TRANSITION=0027_signal_notes-to-0029_production_observation
     KIVOU_RECOVERY_STATUS=NOT_APPLICABLE_INITIAL_ROLLOUT
     KIVOU_RECOVERY_BASELINE_SHA256=NOT_APPLICABLE
     KIVOU_RECOVERY_POST_FR_SHA256=NOT_APPLICABLE
     KIVOU_RECOVERY_POST_EN_SHA256=NOT_APPLICABLE
     ;;
   (resume_51202525)
-    KIVOU_DATABASE_TRANSITION=0028_card_presentation-to-0028_card_presentation
+    KIVOU_DATABASE_TRANSITION=0028_card_presentation-to-0029_production_observation
     KIVOU_RECOVERY_STATUS=FR_BASELINE_PRESERVED
     for KIVOU_RECOVERY_PROOF in \
       "$KIVOU_RECOVERY_BASELINE" "$KIVOU_RECOVERY_POST_FR" \
@@ -4243,7 +4960,7 @@ case "$KIVOU_ROLLOUT_PATH" in
     test "$(sha256sum "$KIVOU_RECOVERY_POST_EN" | awk '{print $1}')" = \
       "$KIVOU_RECOVERY_POST_EN_SHA256"
     KIVOU_RECOVERY_FINAL_LIVE_PAYLOAD=$(kivou_capture_recovery_fr_snapshot \
-      "$KIVOU_RELEASE_DIR" post_en)
+      "$KIVOU_RELEASE_DIR" post_en "$KIVOU_EXPECTED_FINAL_REVISION")
     KIVOU_RECOVERY_FINAL_LIVE_SHA256=$(printf '%s\n' \
       "$KIVOU_RECOVERY_FINAL_LIVE_PAYLOAD" | sha256sum | awk '{print $1}')
     unset KIVOU_RECOVERY_FINAL_LIVE_PAYLOAD
@@ -4262,6 +4979,7 @@ printf 'historical_smoke_status=%s rollout_status=%s\n' \
   "$KIVOU_HISTORICAL_SMOKE_STATUS" "$KIVOU_ROLLOUT_STATUS"
 printf 'writer_quiescence_sha256=%s writer_resume_sha256=%s\n' \
   "$KIVOU_WRITER_STATE_SHA256" "$KIVOU_WRITER_RESUME_SHA256"
+printf '%s\n' "$KIVOU_ACQUISITION_FINAL_PROOF"
 printf 'rollout_path=%s recovery_source_sha=%s database_transition=%s recovery_status=%s\n' \
   "$KIVOU_ROLLOUT_PATH" "$KIVOU_RECOVERY_SOURCE_SHA" \
   "$KIVOU_DATABASE_TRANSITION" "$KIVOU_RECOVERY_STATUS"
@@ -4273,7 +4991,7 @@ printf 'original_rollout_status=%s recovery_baseline_sha256=%s recovery_post_fr_
 Si un artefact supersédé légitime a été découvert, son smoke doit être `PASS` :
 tout échec est bloquant et interdit de présenter la livraison comme complète.
 Le statut `NOT_APPLICABLE_NO_LEGITIMATE_HISTORY` signifie qu'aucun artefact supersédé légitime
-n'existait après la migration additive; il autorise le
+n'existait après la migration; il autorise le
 `rollout_status=PASS` pour les surfaces courantes, mais ne permet pas de
 présenter le parcours historique comme exécuté. Dans tous les cas, ne jamais fabriquer
 de révision ou de donnée historique.
