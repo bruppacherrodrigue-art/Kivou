@@ -127,6 +127,57 @@ function singlePaneMatchMedia() {
   }))
 }
 
+function changeableMatchMedia(initialMatches: boolean, legacy = false) {
+  let matches = initialMatches
+  const listeners = new Set<(event: MediaQueryListEvent) => void>()
+  const mediaQueryList = {
+    get matches() { return matches },
+    media: '(max-width: 1179px)',
+    onchange: null,
+    addListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener)
+    }),
+    removeListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener)
+    }),
+    dispatchEvent: vi.fn(() => true),
+  } as Record<string, unknown>
+  if (!legacy) {
+    mediaQueryList.addEventListener = vi.fn(
+      (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.add(listener)
+      },
+    )
+    mediaQueryList.removeEventListener = vi.fn(
+      (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.delete(listener)
+      },
+    )
+  }
+  const query = mediaQueryList as unknown as MediaQueryList
+  const unrelatedQuery = {
+    matches: false,
+    media: '',
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  } as MediaQueryList
+
+  return {
+    matchMedia: vi.fn((value: string) => (
+      value === '(max-width: 1179px)' ? query : unrelatedQuery
+    )),
+    setMatches(value: boolean) {
+      matches = value
+      const event = { matches, media: query.media } as MediaQueryListEvent
+      for (const listener of listeners) listener(event)
+    },
+  }
+}
+
 describe('navigation et historique du workspace Signaux', () => {
   it('porte la sélection dans la route, l’état et la carte active', async () => {
     const user = userEvent.setup()
@@ -262,6 +313,26 @@ describe('navigation et historique du workspace Signaux', () => {
     await waitFor(() => expect(screen.getByTestId('location-path')).toHaveTextContent('/app/signals'))
     await waitFor(() => expect(row).toHaveFocus())
     expect(list.scrollTop).toBe(280)
+  })
+
+  it.each([
+    ['moderne', false],
+    ['legacy', true],
+  ] as const)('affiche Retour si le viewport devient single-pane via l’API %s', async (_api, legacy) => {
+    const viewport = changeableMatchMedia(false, legacy)
+    vi.stubGlobal('matchMedia', viewport.matchMedia)
+    mockApi(commonRoutes())
+    renderApp(<AppRoutes />, {
+      route: `/app/signals/${SECOND_ITEM.signal_id}`,
+      session: AUTHENTICATED,
+    })
+
+    await screen.findByRole('heading', { level: 2, name: /Atelier Alpha SA remporte/ })
+    expect(screen.queryByRole('button', { name: 'Retour à la liste' })).not.toBeInTheDocument()
+
+    act(() => viewport.setMatches(true))
+
+    expect(screen.getByRole('button', { name: 'Retour à la liste' })).toBeVisible()
   })
 
   it('ne fait jamais défiler la fenêtre globale lors d’une sélection', async () => {

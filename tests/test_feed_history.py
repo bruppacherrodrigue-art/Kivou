@@ -6,8 +6,10 @@ import datetime as dt
 import pathlib
 
 import pytest
+import sqlalchemy as sa
 from feed_helpers import make_account, make_icp, materialize, simap_award
 
+from signals.accounts.schema import target_icp
 from signals.feed.history import (
     HistoryCursor,
     InvalidHistoryCursor,
@@ -16,6 +18,7 @@ from signals.feed.history import (
 )
 from signals.feed.query import history_page
 from signals.persistence.database import create_database_engine, migrate_to_latest
+from signals.persistence.schema import contract_award, materialized_signal
 
 READ_ON = dt.date(2026, 8, 25)
 NAMES = ("29997-02", "33112-02", "33885-03", "34794-02", "38918-02")
@@ -154,3 +157,176 @@ def test_history_cursor_never_crosses_the_account_boundary(engine, account) -> N
     keys = {item.signal.signal_key for item in page.items}
     assert keys == expected
     assert foreign not in keys
+
+
+def test_history_applies_authorised_winner_and_current_event_filters(engine, account) -> None:
+    account_id, icp_id = account
+    with engine.begin() as connection:
+        recent_event, recent_awards = simap_award("29997-02")
+        recent = recent_awards[0].model_copy(update={"award_date": dt.date(2026, 8, 13)})
+        recent_key = materialize(
+            connection, recent_event, recent, target_icp_id=icp_id
+        ).signal_key
+
+        stale_event, stale_awards = simap_award("33112-02")
+        stale = stale_awards[0].model_copy(update={"award_date": dt.date(2024, 1, 3)})
+        materialize(connection, stale_event, stale, target_icp_id=icp_id)
+
+        winner = recent.awardee_organizations()[0].legal_name
+        by_winner = history_page(
+            connection,
+            account_id=account_id,
+            as_of=READ_ON,
+            allowed_target_icp_ids=frozenset({icp_id}),
+            winner=winner,
+            limit=10,
+        )
+        by_event = history_page(
+            connection,
+            account_id=account_id,
+            as_of=READ_ON,
+            allowed_target_icp_ids=frozenset({icp_id}),
+            primary_event="recent_award",
+            limit=10,
+        )
+
+    assert [item.signal.signal_key for item in by_winner.items] == [recent_key]
+    assert [item.signal.signal_key for item in by_event.items] == [recent_key]
+
+
+def test_history_cursor_handles_equal_and_missing_dates_without_overlap(engine, account) -> None:
+    account_id, icp_id = account
+    dated: list[str] = []
+    with engine.begin() as connection:
+        for fixture in ("29997-02", "33112-02"):
+            event, awards = simap_award(fixture)
+            award = awards[0].model_copy(update={"award_date": dt.date(2026, 8, 12)})
+            dated.append(materialize(connection, event, award, target_icp_id=icp_id).signal_key)
+        event, awards = simap_award("33885-03")
+        missing_event = event.model_copy(update={"published_at": None})
+        missing_award = awards[0].model_copy(
+            update={"award_date": None, "contract_notification_date": None}
+        )
+        missing_key = materialize(
+            connection, missing_event, missing_award, target_icp_id=icp_id
+        ).signal_key
+
+    seen: list[str] = []
+    cursor: str | None = None
+    with engine.begin() as connection:
+        while True:
+            page = history_page(
+                connection,
+                account_id=account_id,
+                as_of=READ_ON,
+                allowed_target_icp_ids=frozenset({icp_id}),
+                limit=1,
+                cursor=cursor,
+            )
+            seen.extend(item.signal.signal_key for item in page.items)
+            if page.next_cursor is None:
+                break
+            cursor = page.next_cursor
+
+    assert seen[:2] == sorted(dated)
+    assert seen[-1] == missing_key
+    assert len(seen) == len(set(seen)) == 3
+
+
+def test_history_cursor_ignores_a_newer_concurrent_insert_until_a_new_walk(
+    engine, account
+) -> None:
+    account_id, icp_id = account
+    original = _seed(engine, icp_id, count=2)
+    with engine.begin() as connection:
+        first = history_page(
+            connection,
+            account_id=account_id,
+            as_of=READ_ON,
+            allowed_target_icp_ids=frozenset({icp_id}),
+            limit=1,
+        )
+    assert first.next_cursor is not None
+
+    with engine.begin() as connection:
+        event, awards = simap_award("33885-03")
+        newer_key = materialize(
+            connection,
+            event,
+            awards[0].model_copy(update={"award_date": dt.date(2026, 8, 14)}),
+            target_icp_id=icp_id,
+        ).signal_key
+        second = history_page(
+            connection,
+            account_id=account_id,
+            as_of=READ_ON,
+            allowed_target_icp_ids=frozenset({icp_id}),
+            limit=10,
+            cursor=first.next_cursor,
+        )
+        restarted = history_page(
+            connection,
+            account_id=account_id,
+            as_of=READ_ON,
+            allowed_target_icp_ids=frozenset({icp_id}),
+            limit=10,
+        )
+
+    walked = [item.signal.signal_key for item in first.items + second.items]
+    assert walked == original
+    assert newer_key not in walked
+    assert next(item.signal.signal_key for item in restarted.items) == newer_key
+
+
+def test_history_skips_non_renderable_batches_and_stale_icp_revisions(engine, account) -> None:
+    account_id, icp_id = account
+    with engine.begin() as connection:
+        event, awards = simap_award("29997-02")
+        hidden_key = materialize(
+            connection, event, awards[0], target_icp_id=icp_id
+        ).signal_key
+        award_key = connection.scalar(
+            sa.select(materialized_signal.c.materialization_award_key).where(
+                materialized_signal.c.signal_key == hidden_key
+            )
+        )
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == hidden_key)
+            .values(winner_name=None)
+        )
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key == award_key)
+            .values(awardee_parties=[{"members": []}])
+        )
+
+        visible_event, visible_awards = simap_award("33112-02")
+        visible_key = materialize(
+            connection, visible_event, visible_awards[0], target_icp_id=icp_id
+        ).signal_key
+        page = history_page(
+            connection,
+            account_id=account_id,
+            as_of=READ_ON,
+            allowed_target_icp_ids=frozenset({icp_id}),
+            limit=1,
+            scan_cap=10,
+        )
+
+        connection.execute(
+            sa.update(target_icp)
+            .where(target_icp.c.target_icp_id == icp_id)
+            .values(matching_revision=target_icp.c.matching_revision + 1)
+        )
+        stale = history_page(
+            connection,
+            account_id=account_id,
+            as_of=READ_ON,
+            allowed_target_icp_ids=frozenset({icp_id}),
+            limit=10,
+        )
+
+    assert [item.signal.signal_key for item in page.items] == [visible_key]
+    assert page.excluded_without_display_name == 1
+    assert stale.items == ()

@@ -191,6 +191,37 @@ def test_fact_copy_uses_the_account_language_without_changing_facts(client, engi
     assert french["contract"] == english["contract"]
 
 
+def test_history_api_applies_winner_and_current_event_filters(client, engine, icp) -> None:
+    recent_event, recent_awards = simap_award("29997-02")
+    recent_award = recent_awards[0].model_copy(
+        update={"award_date": dt.date(2026, 8, 13)}
+    )
+    stale_event, stale_awards = simap_award("33112-02")
+    stale_award = stale_awards[0].model_copy(
+        update={"award_date": dt.date(2024, 1, 3)}
+    )
+    with engine.begin() as connection:
+        recent_key = materialize(
+            connection, recent_event, recent_award, target_icp_id=icp
+        ).signal_key
+        materialize(connection, stale_event, stale_award, target_icp_id=icp)
+
+    winner = recent_award.awardee_organizations()[0].legal_name
+    winner_response = client.get(
+        "/signals",
+        params={"view": "history", "winner": winner, "limit": 50},
+    )
+    event_response = client.get(
+        "/signals",
+        params={"view": "history", "primary_event": "recent_award", "limit": 50},
+    )
+
+    assert winner_response.status_code == 200, winner_response.text
+    assert event_response.status_code == 200, event_response.text
+    assert [item["signal_id"] for item in winner_response.json()["items"]] == [recent_key]
+    assert [item["signal_id"] for item in event_response.json()["items"]] == [recent_key]
+
+
 def test_headline_is_bounded_after_composing_published_facts() -> None:
     headline = _headline(
         company="Entreprise " + "très longue " * 80,

@@ -102,11 +102,29 @@ function feedQuery(filters: FeedFilters): FeedQuery {
   }
 }
 
-function usesSinglePane(): boolean {
+function singlePaneSnapshot(): boolean {
   if (typeof window.matchMedia === 'function') {
     return window.matchMedia(SINGLE_PANE_QUERY).matches
   }
   return window.innerWidth < 1180
+}
+
+function useSinglePane(): boolean {
+  const [singlePane, setSinglePane] = useState(singlePaneSnapshot)
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return
+    const mediaQuery = window.matchMedia(SINGLE_PANE_QUERY)
+    const onChange = (event: MediaQueryListEvent) => setSinglePane(event.matches)
+    if (typeof mediaQuery.addEventListener === 'function') {
+      mediaQuery.addEventListener('change', onChange)
+      return () => mediaQuery.removeEventListener('change', onChange)
+    }
+    mediaQuery.addListener(onChange)
+    return () => mediaQuery.removeListener(onChange)
+  }, [])
+
+  return singlePane
 }
 
 export function SignalsFeed() {
@@ -117,6 +135,7 @@ export function SignalsFeed() {
   const { signalKey } = useParams()
   const filters = useMemo(() => filtersFrom(location.search), [location.search])
   const querySignature = JSON.stringify(filters)
+  const singlePane = useSinglePane()
 
   const mounted = useRef(false)
   const feedGeneration = useRef(0)
@@ -130,7 +149,7 @@ export function SignalsFeed() {
   const previousLocationKey = useRef(location.key)
   const initialFocusRestored = useRef(false)
   const pendingDetailFocus = useRef<string | null>(
-    signalKey && usesSinglePane() ? signalKey : null,
+    signalKey && singlePane ? signalKey : null,
   )
 
   const [activationMoment] = useState(
@@ -309,7 +328,7 @@ export function SignalsFeed() {
     if (previousLocationKey.current === location.key) return
     previousLocationKey.current = location.key
     const selection = readSelectionState(location.state)
-    if (signalKey && usesSinglePane()) {
+    if (signalKey && singlePane) {
       pendingDetailFocus.current = signalKey
       return
     }
@@ -320,7 +339,7 @@ export function SignalsFeed() {
       rowRefs.current.get(focusKey)?.focus({ preventScroll: true })
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [location.key, location.state, signalKey])
+  }, [location.key, location.state, signalKey, singlePane])
 
   useEffect(() => {
     if (initialFocusRestored.current) return
@@ -559,7 +578,7 @@ export function SignalsFeed() {
                     })
                     return
                   }
-                  if (usesSinglePane() || event.detail === 0) pendingDetailFocus.current = card.id
+                  if (singlePane || event.detail === 0) pendingDetailFocus.current = card.id
                   navigate(`/app/signals/${encodeURIComponent(card.id)}${location.search}`, {
                     state: selectionState(card.id, location.search, true),
                   })
@@ -610,7 +629,7 @@ export function SignalsFeed() {
       >
         {selectedKey ? (
           <>
-            {usesSinglePane() ? (
+            {singlePane ? (
               <button
                 type="button"
                 className="source-link signal-mobile-back"

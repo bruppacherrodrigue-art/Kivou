@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import socket
 
 import pytest
 import sqlalchemy as sa
@@ -10,7 +11,7 @@ from billing_helpers import subscribe
 from fastapi.testclient import TestClient
 from feed_helpers import COMPLETE_ICP_INPUT, ORIGIN, PASSWORD, materialize_simap
 
-from signals.api import ApiConfig, create_app
+from signals.api import ApiConfig, create_app, routes_signals
 from signals.companies.enrichment import run_winner_enrichment_batch
 from signals.companies.schema import saas_company
 from signals.persistence.database import create_database_engine, migrate_to_latest
@@ -83,6 +84,52 @@ def test_feed_and_detail_gets_do_not_create_a_company(engine, client) -> None:
     assert detail.json()["winner_enrichment"]["status"] == "pending"
     assert "company_key" not in card
     assert "company_key" not in detail.json()
+
+
+def test_multi_item_get_uses_one_enrichment_read_and_cannot_open_network(
+    engine,
+    client,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    signal_keys = {_seed(engine, client, fixture) for fixture in (
+        "29997-02",
+        "33112-02",
+        "33885-03",
+        "34794-02",
+    )}
+    reader_calls: list[tuple[str, ...]] = []
+    enrichment_selects: list[str] = []
+    original_reader = routes_signals.winner_enrichments_for_signals
+
+    def recorded_reader(connection, *, signal_keys):
+        reader_calls.append(tuple(signal_keys))
+        return original_reader(connection, signal_keys=signal_keys)
+
+    def forbidden_network(*_args, **_kwargs):
+        raise AssertionError("a Signal GET must not open a provider/network connection")
+
+    def capture(_connection, _cursor, statement, _parameters, _context, _many):
+        normalized = " ".join(statement.lower().split())
+        if normalized.startswith("select") and "winner_enrichment_job" in normalized:
+            enrichment_selects.append(normalized)
+
+    monkeypatch.setattr(routes_signals, "winner_enrichments_for_signals", recorded_reader)
+    monkeypatch.setattr(socket, "create_connection", forbidden_network)
+    monkeypatch.setattr(socket.socket, "connect", forbidden_network)
+    sa.event.listen(engine, "before_cursor_execute", capture)
+    try:
+        response = client.get("/signals", params={"view": "history", "limit": 50})
+    finally:
+        sa.event.remove(engine, "before_cursor_execute", capture)
+
+    assert response.status_code == 200, response.text
+    returned = {item["signal_id"] for item in response.json()["items"]}
+    assert returned == signal_keys
+    assert len(reader_calls) == 1
+    assert set(reader_calls[0]) == signal_keys
+    assert len(enrichment_selects) == 1
+    with engine.connect() as connection:
+        assert connection.scalar(sa.select(sa.func.count()).select_from(saas_company)) == 0
 
 
 def test_explicit_worker_makes_the_sourced_company_available(engine, client) -> None:

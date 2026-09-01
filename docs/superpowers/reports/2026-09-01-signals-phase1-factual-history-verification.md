@@ -13,7 +13,9 @@ La page Signaux est désormais un workspace master-detail factuel. La liste et
 le détail possèdent des scrolls indépendants sur desktop ; la vue mobile affiche
 un seul panneau, focalise le titre du détail sans déplacer la liste et rend le
 focus au retour. Les liens directs, précédent/suivant, les filtres URL et la
-sélection restent stables.
+sélection restent stables. La bascule desktop/mobile suit aussi les changements
+réels de `matchMedia`, y compris son API legacy, sans laisser le détail mobile
+orphelin du bouton Retour.
 
 L'historique passe par une pagination serveur à curseur fermé et un tri
 déterministe : date d'attribution réelle, sinon notification, sinon publication,
@@ -53,7 +55,10 @@ reçoit ni `presentation`, ni faits protégés, ni clé entreprise.
   compte et résiste aux insertions concurrentes placées avant le curseur.
 - `/signals` distingue `view=recent` et `view=history`. Les filtres période,
   pays, subdivision, statut et CPV sont vérifiés côté serveur selon le niveau de
-  filtre du plan. La réponse explique les limites au lieu de simuler un vide.
+  filtre du plan. Les filtres existants attributaire et événement courant sont
+  eux aussi appliqués en historique après leur contrôle d'entitlement ; aucun
+  filtre accepté n'est ignoré. La réponse explique les limites au lieu de
+  simuler un vide.
 - `factual_display` est construit uniquement depuis l'identité résolue et les
   faits structurés du marché. Les titres sont bornés à 220 caractères et ne
   requalifient jamais publication en attribution.
@@ -96,6 +101,11 @@ n'a été appliquée ni en staging ni en production.
   — **9 passed in 15.07s**.
 - régressions feed/paywall/faits ciblées — **107 passed in 160.24s**.
 - worker, API et GET sans provider ciblés — **36 passed, 1 skipped in 45.11s**.
+- filtres historiques et cas adversariaux ajoutés — **25 passed, 1 skipped in
+  31.58s** ; le skip local est l'interleaving PostgreSQL, exécuté par la CI qui
+  fournit `KIVOU_TEST_POSTGRES_DSN`.
+- régression étendue finale feed/paywall/Card/Entreprise/Winner — **141 passed,
+  2 skipped in 168.56s**.
 - `uv run ruff check .` — **PASS**, `All checks passed!`.
 
 ### Frontend
@@ -108,6 +118,9 @@ n'a été appliquée ni en staging ni en production.
   de taille de chunk uniquement.
 - `npm run build:founder` — **PASS**, 32 modules, 1.05s.
 - `npm run test:visual` — **33 passed in 44.7s**.
+- correction responsive finale : tests workspace + contrat responsive — **25
+  passed in 3.71s** ; visuels Signaux desktop/mobile et matrice adversariale —
+  **4 passed in 7.4s**.
 
 ### Dépôt
 

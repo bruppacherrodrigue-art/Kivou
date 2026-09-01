@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 import datetime as dt
+import os
+import threading
+import uuid
+from collections.abc import Iterator
+from contextlib import contextmanager
 
 import pytest
 import sqlalchemy as sa
@@ -10,6 +15,7 @@ from feed_helpers import make_account, make_icp, materialize_simap
 
 from signals.companies.enrichment import (
     MAX_ENRICHMENT_ATTEMPTS,
+    WinnerEnrichmentBatch,
     run_winner_enrichment_batch,
     winner_enrichments_for_signals,
 )
@@ -25,6 +31,37 @@ def engine(tmp_path):
     value = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'winner.db'}")
     migrate_to_latest(value)
     return value
+
+
+@contextmanager
+def _isolated_postgres_engine() -> Iterator[sa.Engine]:
+    dsn = os.environ.get("KIVOU_TEST_POSTGRES_DSN")
+    if not dsn:
+        pytest.skip("KIVOU_TEST_POSTGRES_DSN is required for the claim interleaving test")
+    schema = f"winner_claim_{uuid.uuid4().hex}"
+    admin = create_database_engine(dsn, pool_pre_ping=True)
+    isolated: sa.Engine | None = None
+    try:
+        with admin.begin() as connection:
+            connection.execute(sa.schema.CreateSchema(schema))
+        isolated = create_database_engine(
+            dsn,
+            pool_pre_ping=True,
+            connect_args={
+                "options": (
+                    f"-c search_path={schema} "
+                    "-c statement_timeout=10000 -c lock_timeout=8000"
+                )
+            },
+        )
+        migrate_to_latest(isolated)
+        yield isolated
+    finally:
+        if isolated is not None:
+            isolated.dispose()
+        with admin.begin() as connection:
+            connection.execute(sa.schema.DropSchema(schema, cascade=True))
+        admin.dispose()
 
 
 def _seed(connection, fixture: str = "33112-02"):
@@ -147,6 +184,66 @@ def test_two_worker_passes_cannot_claim_the_same_signal(engine) -> None:
     assert first.processed == 1
     assert second.processed == 0
     assert row.claimed_by == "worker-a"
+
+
+def test_postgresql_workers_skip_a_live_claim_without_waiting_or_double_processing() -> None:
+    with _isolated_postgres_engine() as postgres_engine:
+        with postgres_engine.begin() as connection:
+            signal = _seed(connection)
+
+        start = threading.Barrier(3)
+        claimed = threading.Event()
+        skipped = threading.Event()
+        release_claim = threading.Event()
+        results: list[WinnerEnrichmentBatch] = []
+        errors: list[BaseException] = []
+
+        def run(worker_ref: str) -> None:
+            try:
+                with postgres_engine.begin() as connection:
+                    start.wait(timeout=5)
+                    result = run_winner_enrichment_batch(
+                        connection,
+                        now=NOW,
+                        worker_ref=worker_ref,
+                        limit=1,
+                    )
+                    results.append(result)
+                    if result.processed == 1:
+                        claimed.set()
+                        assert release_claim.wait(timeout=8)
+                    else:
+                        skipped.set()
+            except BaseException as error:  # noqa: BLE001 - asserted from worker threads
+                errors.append(error)
+
+        first = threading.Thread(target=run, args=("worker-a",), daemon=True)
+        second = threading.Thread(target=run, args=("worker-b",), daemon=True)
+        first.start()
+        second.start()
+        try:
+            start.wait(timeout=5)
+            assert claimed.wait(timeout=5)
+            assert skipped.wait(
+                timeout=5
+            ), "SKIP LOCKED must return before the live claim commits"
+        finally:
+            release_claim.set()
+            first.join(timeout=10)
+            second.join(timeout=10)
+
+        assert not first.is_alive()
+        assert not second.is_alive()
+        assert errors == []
+        assert sorted(result.processed for result in results) == [0, 1]
+        with postgres_engine.connect() as connection:
+            row = connection.execute(
+                sa.select(winner_enrichment_job).where(
+                    winner_enrichment_job.c.signal_key == signal.signal_key
+                )
+            ).one()
+        assert row.attempt_count == 1
+        assert row.status in {"completed", "partial"}
 
 
 def test_batch_rejects_unbounded_or_unsafe_operator_inputs(engine) -> None:

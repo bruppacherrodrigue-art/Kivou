@@ -474,12 +474,14 @@ def history_page(
     as_of: dt.date,
     target_icp_id: str | None = None,
     allowed_target_icp_ids: frozenset[str] | None = None,
+    primary_event: str | None = None,
     country: str | None = None,
     subdivision_code: str | None = None,
     status: str | None = None,
     cpv_prefix: str | None = None,
     date_from: dt.date | None = None,
     date_to: dt.date | None = None,
+    winner: str | None = None,
     limit: int = policy.DEFAULT_PAGE_SIZE,
     cursor: str | None = None,
     scan_cap: int = HISTORY_SCAN_CAP,
@@ -517,6 +519,13 @@ def history_page(
         )
     if country is not None:
         base = base.where(source_event.c.source_country == country)
+    if winner is not None:
+        base = base.where(
+            sa.or_(
+                materialized_signal.c.winner_identifier_value == winner,
+                materialized_signal.c.winner_name == winner,
+            )
+        )
     if cpv_prefix is not None:
         base = base.where(contract_award.c.cpv_main.like(f"{cpv_prefix}%"))
     if date_from is not None:
@@ -563,6 +572,10 @@ def history_page(
             if (
                 (subdivision_code is not None and place.get("subdivision_code") != subdivision_code)
                 or (status is not None and item.status != status)
+                or (
+                    primary_event is not None
+                    and policy.customer_event_type(item.status) != primary_event
+                )
             ):
                 excluded_by_filters += 1
                 continue
