@@ -26,6 +26,7 @@ from signals.companies.indexing import (
     index_signal_company_identities,
     index_signal_company_identity,
 )
+from signals.companies.schema import saas_company
 from signals.companies.store import (
     CompanyCandidate,
     StoredCompany,
@@ -140,6 +141,29 @@ def ensure_companies_for_unlocked_signals(
         signal_key: stored[fingerprint].company_key
         for signal_key, fingerprint in fingerprint_by_signal_key.items()
     }
+
+
+def company_keys_for_signals(
+    connection: sa.Connection, *, signal_keys: tuple[str, ...]
+) -> dict[str, str]:
+    """Read already projected companies in one query; never create on a GET."""
+    if not signal_keys:
+        return {}
+    rows = connection.execute(
+        sa.select(
+            materialized_signal.c.signal_key,
+            saas_company.c.company_key,
+        )
+        .select_from(
+            materialized_signal.join(
+                saas_company,
+                materialized_signal.c.company_identity_fingerprint
+                == saas_company.c.identity_fingerprint,
+            )
+        )
+        .where(materialized_signal.c.signal_key.in_(signal_keys))
+    )
+    return {row.signal_key: row.company_key for row in rows}
 
 
 def _current_signal_query(

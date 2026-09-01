@@ -1,33 +1,37 @@
 import { useLocation, useNavigate } from 'react-router-dom'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AppRoutes } from '../App'
-import type { FeedPage, UnlockedDetail, UnlockedFeedItem } from '../api/types'
+import type { CompanyProfile, UnlockedDetail, UnlockedFeedItem } from '../api/types'
 import {
   AUTHENTICATED,
   CATALOGUE,
+  COMPANY_PROFILE,
   DISCOVERY_STATUS,
   ICP,
   LOCKED_ITEM,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
   callsTo,
-  factualFallbackPresentation,
   feedPage,
   mockApi,
   renderApp,
 } from '../test/harness'
 
-afterEach(() => {
-  vi.useRealTimers()
-  vi.unstubAllGlobals()
-})
+afterEach(() => vi.unstubAllGlobals())
 
 const SECOND_ITEM: UnlockedFeedItem = {
   ...UNLOCKED_ITEM,
   signal_id: 'sig_unlocked_2',
-  company: { ...UNLOCKED_ITEM.company, name: 'Deuxième SA' },
+  company_key: 'cmp_second_opaque',
+  company: { ...UNLOCKED_ITEM.company, name: 'Atelier Alpha SA' },
+  factual_display: {
+    ...UNLOCKED_ITEM.factual_display,
+    headline: 'Atelier Alpha SA remporte « Deuxième marché public »',
+    market_summary: 'Deuxième marché public',
+    object_short: 'Deuxième marché public',
+  },
   contract: {
     ...UNLOCKED_ITEM.contract,
     title: 'Deuxième marché public',
@@ -38,25 +42,42 @@ const SECOND_ITEM: UnlockedFeedItem = {
 const SECOND_DETAIL: UnlockedDetail = {
   ...UNLOCKED_DETAIL,
   ...SECOND_ITEM,
-  company_key: 'cmp_second_opaque',
+  company_key: SECOND_ITEM.company_key,
 }
 
-const DEEP_ITEM: UnlockedFeedItem = {
+const SECOND_PROFILE: CompanyProfile = {
+  ...COMPANY_PROFILE,
+  company_key: SECOND_ITEM.company_key!,
+  official_identity: {
+    ...COMPANY_PROFILE.official_identity,
+    name: SECOND_ITEM.company.name!,
+    address: '2 rue Alpha, 69000 Lyon',
+  },
+  related_signals: COMPANY_PROFILE.related_signals.map((signal) => ({
+    ...signal,
+    signal_id: SECOND_ITEM.signal_id,
+    contract_title: SECOND_ITEM.contract.title,
+  })),
+}
+
+const THIRD_ITEM: UnlockedFeedItem = {
   ...SECOND_ITEM,
-  signal_id: 'sig_deep_page_2',
-  company: { ...SECOND_ITEM.company, name: 'Deep Link SA' },
-  contract: { ...SECOND_ITEM.contract, title: 'Marché trouvé en page deux' },
+  signal_id: 'sig_old_2022',
+  company_key: 'cmp_old_opaque',
+  company: { ...SECOND_ITEM.company, name: 'Entreprise Historique SA' },
+  factual_display: {
+    ...SECOND_ITEM.factual_display,
+    headline: 'Entreprise Historique SA remporte « Marché ancien »',
+    market_summary: 'Marché ancien',
+    object_short: 'Marché ancien',
+    date: { value: '2022-03-04', kind: 'award' },
+  },
+  event: { ...SECOND_ITEM.event, date: '2022-03-04', status: 'stale_award' },
 }
 
-const DEEP_DETAIL: UnlockedDetail = {
-  ...SECOND_DETAIL,
-  ...DEEP_ITEM,
-  company_key: 'cmp_deep_opaque',
-}
-
-function commonRoutes() {
+function commonRoutes(items: UnlockedFeedItem[] = [UNLOCKED_ITEM, SECOND_ITEM]) {
   return {
-    'GET /signals': { body: feedPage([UNLOCKED_ITEM, SECOND_ITEM]) },
+    'GET /signals': { body: feedPage(items) },
     [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
     [`GET /signals/${SECOND_ITEM.signal_id}`]: { body: SECOND_DETAIL },
     [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
@@ -65,6 +86,8 @@ function commonRoutes() {
     [`GET /signals/${SECOND_ITEM.signal_id}/note`]: {
       body: { signal_id: SECOND_ITEM.signal_id, note: null, updated_at: null },
     },
+    [`GET /companies/${UNLOCKED_ITEM.company_key}`]: { body: COMPANY_PROFILE },
+    [`GET /companies/${SECOND_ITEM.company_key}`]: { body: SECOND_PROFILE },
     'GET /target-icps': { body: [ICP] },
     'GET /billing/status': { body: DISCOVERY_STATUS },
   }
@@ -85,518 +108,425 @@ function HistoryControls() {
   const navigate = useNavigate()
   return (
     <>
-      <button type="button" onClick={() => navigate(-1)}>Précédent</button>
-      <button type="button" onClick={() => navigate(1)}>Suivant</button>
+      <button type="button" onClick={() => navigate(-1)}>Historique précédent</button>
+      <button type="button" onClick={() => navigate(1)}>Historique suivant</button>
     </>
   )
 }
 
-describe('workspace partagé des signaux', () => {
-  it('épingle dans la route l’artefact publié de la carte ouverte', async () => {
-    const user = userEvent.setup()
-    const presentation = factualFallbackPresentation({
-      artifactId: 'd'.repeat(64),
-      headline: 'Attribution publiée à ouvrir',
-      awardSummary: 'La source documente cette attribution publique.',
-      headlineEvidenceRefs: ['source:route:headline'],
-      awardSummaryEvidenceRefs: ['source:route:summary'],
-    })
-    const item = { ...UNLOCKED_ITEM, presentation }
-    const detail = { ...UNLOCKED_DETAIL, presentation }
-    mockApi({
-      ...commonRoutes(),
-      'GET /signals': { body: feedPage([item]) },
-      [`GET /signals/${item.signal_id}`]: { body: detail },
-    })
-    renderApp(
-      <>
-        <AppRoutes />
-        <LocationProbe />
-      </>,
-      { route: '/app/signals', session: AUTHENTICATED },
+function singlePaneMatchMedia() {
+  return vi.fn((query: string): MediaQueryList => ({
+    matches: query === '(max-width: 1179px)',
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  }))
+}
+
+function changeableMatchMedia(initialMatches: boolean, legacy = false) {
+  let matches = initialMatches
+  const listeners = new Set<(event: MediaQueryListEvent) => void>()
+  const mediaQueryList = {
+    get matches() { return matches },
+    media: '(max-width: 1179px)',
+    onchange: null,
+    addListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
+      listeners.add(listener)
+    }),
+    removeListener: vi.fn((listener: (event: MediaQueryListEvent) => void) => {
+      listeners.delete(listener)
+    }),
+    dispatchEvent: vi.fn(() => true),
+  } as Record<string, unknown>
+  if (!legacy) {
+    mediaQueryList.addEventListener = vi.fn(
+      (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.add(listener)
+      },
     )
-
-    await user.click(await screen.findByRole('button', { name: /Constructions Bertrand SA/ }))
-
-    expect(screen.getByTestId('location-search')).toHaveTextContent(
-      `presentation_artifact_id=${presentation.artifact_id}`,
+    mediaQueryList.removeEventListener = vi.fn(
+      (_type: string, listener: (event: MediaQueryListEvent) => void) => {
+        listeners.delete(listener)
+      },
     )
-    await waitFor(() => {
-      const detailCall = callsTo(`/signals/${item.signal_id}`, 'GET').at(-1)
-      expect(detailCall?.search.get('presentation_artifact_id')).toBe(presentation.artifact_id)
-    })
-  })
+  }
+  const query = mediaQueryList as unknown as MediaQueryList
+  const unrelatedQuery = {
+    matches: false,
+    media: '',
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(() => true),
+  } as MediaQueryList
 
-  it('porte la sélection réelle dans la route et dans l’état de navigation', async () => {
+  return {
+    matchMedia: vi.fn((value: string) => (
+      value === '(max-width: 1179px)' ? query : unrelatedQuery
+    )),
+    setMatches(value: boolean) {
+      matches = value
+      const event = { matches, media: query.media } as MediaQueryListEvent
+      for (const listener of listeners) listener(event)
+    },
+  }
+}
+
+describe('navigation et historique du workspace Signaux', () => {
+  it('porte la sélection dans la route, l’état et la carte active', async () => {
     const user = userEvent.setup()
     mockApi(commonRoutes())
-    renderApp(
-      <>
-        <AppRoutes />
-        <LocationProbe />
-      </>,
-      { route: '/app/signals', session: AUTHENTICATED },
-    )
+    renderApp(<><AppRoutes /><LocationProbe /></>, {
+      route: '/app/signals',
+      session: AUTHENTICATED,
+    })
 
-    const second = await screen.findByRole('button', { name: /Deuxième SA/ })
+    const second = await screen.findByRole('button', { name: /Atelier Alpha SA/ })
     await user.click(second)
 
     expect(screen.getByTestId('location-path')).toHaveTextContent('/app/signals/sig_unlocked_2')
-    expect(screen.getByTestId('location-state')).toHaveTextContent(
-      '"signalSelection":{"kind":"feed","key":"sig_unlocked_2"',
-    )
+    expect(screen.getByTestId('location-state')).toHaveTextContent('"kind":"feed"')
+    expect(second).toHaveAttribute('aria-pressed', 'true')
     expect(await screen.findByText('Acheteur Deux')).toBeVisible()
   })
 
-  it('ignore une ancienne réponse détail et efface immédiatement le panneau précédent', async () => {
+  it('préserve le scroll de la liste et remonte seulement le panneau détail', async () => {
+    const user = userEvent.setup()
+    mockApi(commonRoutes())
+    renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
+
+    await screen.findByRole('button', { name: /Atelier Alpha SA/ })
+    const list = document.querySelector<HTMLElement>('.feed-panel')!
+    const detail = document.querySelector<HTMLElement>('.detail-panel')!
+    list.scrollTop = 360
+    detail.scrollTop = 240
+
+    await user.click(screen.getByRole('button', { name: /Atelier Alpha SA/ }))
+    await screen.findByRole('heading', { level: 2, name: /Atelier Alpha SA remporte/ })
+
+    expect(list.scrollTop).toBe(360)
+    expect(detail.scrollTop).toBe(0)
+    expect(document.querySelector('.detail-panel')).toBe(detail)
+  })
+
+  it('maintient la sélection et réserve la hauteur pendant un chargement lent', async () => {
+    const user = userEvent.setup()
+    let resolveSecond!: (value: { body: unknown }) => void
+    mockApi({
+      ...commonRoutes(),
+      [`GET /signals/${SECOND_ITEM.signal_id}`]: () => new Promise((resolve) => { resolveSecond = resolve }),
+    })
+    renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
+
+    const second = await screen.findByRole('button', { name: /Atelier Alpha SA/ })
+    await user.click(second)
+    expect(second).toHaveAttribute('aria-pressed', 'true')
+    const panel = document.querySelector('.detail-panel') as HTMLElement
+    expect(await within(panel).findByRole('heading', { name: 'Chargement…' })).toBeVisible()
+    expect(panel).not.toHaveTextContent('Commune de Villeneuve')
+
+    await act(async () => resolveSecond({ body: SECOND_DETAIL }))
+    expect(await within(panel).findByText('Acheteur Deux')).toBeVisible()
+    expect(second).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('ignore une ancienne réponse après plusieurs changements rapides', async () => {
     const user = userEvent.setup()
     let resolveFirst!: (value: { body: unknown }) => void
     let resolveSecond!: (value: { body: unknown }) => void
     mockApi({
       ...commonRoutes(),
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: () =>
-        new Promise((resolve) => { resolveFirst = resolve }),
-      [`GET /signals/${SECOND_ITEM.signal_id}`]: () =>
-        new Promise((resolve) => { resolveSecond = resolve }),
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: () => new Promise((resolve) => { resolveFirst = resolve }),
+      [`GET /signals/${SECOND_ITEM.signal_id}`]: () => new Promise((resolve) => { resolveSecond = resolve }),
     })
     renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
 
     await waitFor(() => expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1))
-    await user.click(await screen.findByRole('button', { name: /Deuxième SA/ }))
+    await user.click(await screen.findByRole('button', { name: /Atelier Alpha SA/ }))
     await waitFor(() => expect(callsTo(`/signals/${SECOND_ITEM.signal_id}`, 'GET')).toHaveLength(1))
-    const panel = document.querySelector('.detail-panel') as HTMLElement
-    expect(panel).toHaveTextContent('Chargement…')
-    expect(panel).not.toHaveTextContent('Commune de Villeneuve')
-
     await act(async () => resolveSecond({ body: SECOND_DETAIL }))
-    expect(await within(panel).findByText('Acheteur Deux')).toBeVisible()
+    expect(await screen.findByText('Acheteur Deux')).toBeVisible()
     await act(async () => resolveFirst({ body: UNLOCKED_DETAIL }))
-    expect(within(panel).getByText('Acheteur Deux')).toBeVisible()
-    expect(within(panel).queryByText('Commune de Villeneuve')).toBeNull()
+    expect(screen.getByText('Acheteur Deux')).toBeVisible()
   })
 
-  it('restaure la sélection et le focus lors des retours et avances historiques', async () => {
+  it('respecte précédent et suivant en restaurant le focus de la liste sur desktop', async () => {
     const user = userEvent.setup()
     mockApi(commonRoutes())
-    renderApp(
-      <>
-        <AppRoutes />
-        <LocationProbe />
-        <HistoryControls />
-      </>,
-      { route: '/app/signals', session: AUTHENTICATED },
-    )
+    renderApp(<><AppRoutes /><LocationProbe /><HistoryControls /></>, {
+      route: '/app/signals',
+      session: AUTHENTICATED,
+    })
 
     const first = await screen.findByRole('button', { name: /Constructions Bertrand SA/ })
-    const second = screen.getByRole('button', { name: /Deuxième SA/ })
+    const second = screen.getByRole('button', { name: /Atelier Alpha SA/ })
     await user.click(first)
     await user.click(second)
-    expect(screen.getByTestId('location-path')).toHaveTextContent('/app/signals/sig_unlocked_2')
+    await user.click(screen.getByRole('button', { name: 'Historique précédent' }))
 
-    await user.click(screen.getByRole('button', { name: 'Précédent' }))
     await waitFor(() => expect(screen.getByTestId('location-path')).toHaveTextContent('/app/signals/sig_unlocked_1'))
     await waitFor(() => expect(first).toHaveFocus())
+    expect(first).toHaveAttribute('aria-pressed', 'true')
 
-    await user.click(screen.getByRole('button', { name: 'Précédent' }))
-    await waitFor(() => expect(screen.getByTestId('location-path')).toHaveTextContent(/^\/app\/signals$/))
-    await waitFor(() => expect(first).toHaveFocus())
-
-    await user.click(screen.getByRole('button', { name: 'Suivant' }))
-    await waitFor(() => expect(screen.getByTestId('location-path')).toHaveTextContent('/app/signals/sig_unlocked_1'))
-    await waitFor(() => expect(first).toHaveFocus())
+    await user.click(screen.getByRole('button', { name: 'Historique suivant' }))
+    await waitFor(() => expect(second).toHaveFocus())
   })
 
-  it('focalise et fait défiler le détail mobile puis restaure la ligne au retour', async () => {
+  it('restaure un signal sélectionné au rechargement par deep-link', async () => {
+    mockApi(commonRoutes())
+    renderApp(<AppRoutes />, {
+      route: `/app/signals/${SECOND_ITEM.signal_id}?view=history`,
+      session: AUTHENTICATED,
+    })
+
+    expect(await screen.findByRole('heading', { level: 2, name: /Atelier Alpha SA remporte/ })).toBeVisible()
+    expect(screen.getByRole('button', { name: /Atelier Alpha SA/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(callsTo(`/signals/${SECOND_ITEM.signal_id}`, 'GET')).toHaveLength(1)
+  })
+
+  it('focalise le détail en vue étroite puis rend le focus et le scroll à la liste', async () => {
     const user = userEvent.setup()
-    const widthDescriptor = Object.getOwnPropertyDescriptor(window, 'innerWidth')
-    const originalScroll = HTMLElement.prototype.scrollIntoView
+    vi.stubGlobal('matchMedia', singlePaneMatchMedia())
+    mockApi(commonRoutes())
+    renderApp(<><AppRoutes /><LocationProbe /></>, {
+      route: '/app/signals',
+      session: AUTHENTICATED,
+    })
+
+    const row = await screen.findByRole('button', { name: /Atelier Alpha SA/ })
+    const list = document.querySelector<HTMLElement>('.feed-panel')!
+    list.scrollTop = 280
+    await user.click(row)
+
+    const title = await screen.findByRole('heading', { level: 2, name: /Atelier Alpha SA remporte/ })
+    await waitFor(() => expect(title).toHaveFocus())
+    expect(document.querySelector('.workspace-grid')).toHaveAttribute('data-pane', 'detail')
+    expect(list.scrollTop).toBe(280)
+
+    await user.click(screen.getByRole('button', { name: 'Retour à la liste' }))
+    await waitFor(() => expect(screen.getByTestId('location-path')).toHaveTextContent('/app/signals'))
+    await waitFor(() => expect(row).toHaveFocus())
+    expect(list.scrollTop).toBe(280)
+  })
+
+  it.each([
+    ['moderne', false],
+    ['legacy', true],
+  ] as const)('affiche Retour si le viewport devient single-pane via l’API %s', async (_api, legacy) => {
+    const viewport = changeableMatchMedia(false, legacy)
+    vi.stubGlobal('matchMedia', viewport.matchMedia)
+    mockApi(commonRoutes())
+    renderApp(<AppRoutes />, {
+      route: `/app/signals/${SECOND_ITEM.signal_id}`,
+      session: AUTHENTICATED,
+    })
+
+    await screen.findByRole('heading', { level: 2, name: /Atelier Alpha SA remporte/ })
+    expect(screen.queryByRole('button', { name: 'Retour à la liste' })).not.toBeInTheDocument()
+
+    act(() => viewport.setMatches(true))
+
+    expect(screen.getByRole('button', { name: 'Retour à la liste' })).toBeVisible()
+  })
+
+  it('ne fait jamais défiler la fenêtre globale lors d’une sélection', async () => {
+    const user = userEvent.setup()
     const scrollIntoView = vi.fn()
-    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 800 })
     Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
       configurable: true,
       value: scrollIntoView,
     })
-    try {
-      mockApi(commonRoutes())
-      renderApp(
-        <>
-          <AppRoutes />
-          <HistoryControls />
-        </>,
-        { route: '/app/signals', session: AUTHENTICATED },
-      )
+    mockApi(commonRoutes())
+    renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
 
-      const second = await screen.findByRole('button', { name: /Deuxième SA/ })
-      await user.click(second)
-      const detailTitle = await screen.findByRole('heading', {
-        level: 2,
-        name: 'Présentation non publiée',
-      })
-      await waitFor(() => expect(detailTitle).toHaveFocus())
-      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
-
-      await user.click(screen.getByRole('button', { name: 'Précédent' }))
-      await waitFor(() => expect(second).toHaveFocus())
-    } finally {
-      if (widthDescriptor) Object.defineProperty(window, 'innerWidth', widthDescriptor)
-      if (originalScroll) {
-        Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
-          configurable: true,
-          value: originalScroll,
-        })
-      } else {
-        Reflect.deleteProperty(HTMLElement.prototype, 'scrollIntoView')
-      }
-    }
+    await user.click(await screen.findByRole('button', { name: /Atelier Alpha SA/ }))
+    await screen.findByRole('heading', { level: 2, name: /Atelier Alpha SA remporte/ })
+    expect(scrollIntoView).not.toHaveBeenCalled()
   })
 
-  it('résout un deep-link débloqué par pagination avant tout GET détail', async () => {
-    let resolvePageTwo!: (value: { body: FeedPage }) => void
-    mockApi({
-      ...commonRoutes(),
-      'GET /signals': (request) => {
-        if (request.search.get('offset') === '20') {
-          return new Promise((resolve) => { resolvePageTwo = resolve })
-        }
-        return {
-          body: {
-            ...feedPage([UNLOCKED_ITEM]),
-            page: { limit: 20, offset: 0, has_more: true, scan_truncated: false },
-          },
-        }
-      },
-      [`GET /signals/${DEEP_ITEM.signal_id}`]: { body: DEEP_DETAIL },
-      [`GET /signals/${DEEP_ITEM.signal_id}/note`]: {
-        body: { signal_id: DEEP_ITEM.signal_id, note: null, updated_at: null },
-      },
-    })
-    renderApp(<AppRoutes />, {
-      route: `/app/signals/${DEEP_ITEM.signal_id}`,
-      session: AUTHENTICATED,
-    })
-
-    await waitFor(() => expect(callsTo('/signals', 'GET')).toHaveLength(2))
-    expect(callsTo(`/signals/${DEEP_ITEM.signal_id}`, 'GET')).toHaveLength(0)
-    await act(async () => {
-      resolvePageTwo({ body: feedPage([DEEP_ITEM], { offset: 20 }) as FeedPage })
-    })
-
-    expect(
-      await screen.findByRole('heading', { level: 2, name: 'Présentation non publiée' }),
-    ).toBeVisible()
-    expect(callsTo(`/signals/${DEEP_ITEM.signal_id}`, 'GET')).toHaveLength(1)
-  })
-
-  it('résout un deep-link verrouillé en page suivante sans détail ni note', async () => {
-    mockApi({
-      ...commonRoutes(),
-      'GET /signals': (request) => request.search.get('offset') === '20'
-        ? { body: feedPage([LOCKED_ITEM], { offset: 20 }) }
-        : {
-            body: {
-              ...feedPage([UNLOCKED_ITEM]),
-              page: { limit: 20, offset: 0, has_more: true, scan_truncated: false },
-            },
-          },
-      'GET /billing/plans': { body: CATALOGUE },
-    })
-    renderApp(<AppRoutes />, {
-      route: `/app/signals/${LOCKED_ITEM.signal_id}`,
-      session: AUTHENTICATED,
-    })
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
-    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
-    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}/note`, 'GET')).toHaveLength(0)
-  })
-
-  it('confirme un deep-link historique via le feed all avant tout GET détail', async () => {
-    const historical = {
-      ...DEEP_ITEM,
-      signal_id: 'sig_historical_unlocked',
-      event: {
-        ...DEEP_ITEM.event,
-        status: 'stale_award' as const,
-        type: null,
-        date: '2025-02-01',
-        headline: 'Deep Link SA a remporté un marché public en février 2025.',
-        why_now: 'Ce signal historique reste accessible selon le serveur.',
-        is_new_opportunity: false,
-      },
-    }
-    const historicalDetail = { ...DEEP_DETAIL, ...historical }
-    let resolveHistorical!: (value: { body: FeedPage }) => void
-    mockApi({
-      ...commonRoutes(),
-      'GET /signals': (request) => request.search.get('freshness') === 'all'
-        ? new Promise((resolve) => { resolveHistorical = resolve })
-        : { body: feedPage([UNLOCKED_ITEM]) },
-      [`GET /signals/${historical.signal_id}`]: { body: historicalDetail },
-      [`GET /signals/${historical.signal_id}/note`]: {
-        body: { signal_id: historical.signal_id, note: null, updated_at: null },
-      },
-    })
-    renderApp(<AppRoutes />, {
-      route: `/app/signals/${historical.signal_id}`,
-      session: AUTHENTICATED,
-    })
-
-    await waitFor(() => {
-      expect(callsTo('/signals', 'GET').some((call) => call.search.get('freshness') === 'all')).toBe(true)
-    })
-    expect(callsTo(`/signals/${historical.signal_id}`, 'GET')).toHaveLength(0)
-    await act(async () => {
-      resolveHistorical({ body: feedPage([historical], { freshness: 'all' }) as FeedPage })
-    })
-
-    expect(
-      await screen.findByRole('heading', { level: 2, name: 'Présentation non publiée' }),
-    ).toBeVisible()
-    expect(callsTo(`/signals/${historical.signal_id}`, 'GET')).toHaveLength(1)
-    const list = document.querySelector('.signal-list') as HTMLElement
-    expect(within(list).queryByText('Deep Link SA')).toBeNull()
-  })
-
-  it('ignore un lookup historique devenu obsolète après navigation vers un signal du feed', async () => {
+  it('ouvre l’historique avec une requête serveur dédiée', async () => {
     const user = userEvent.setup()
-    const staleLookupItem = {
-      ...DEEP_ITEM,
-      signal_id: 'sig_lookup_stale',
-      company: { ...DEEP_ITEM.company, name: 'Résultat historique obsolète SA' },
-    }
-    let resolveHistorical!: (value: { body: FeedPage }) => void
     mockApi({
       ...commonRoutes(),
-      'GET /signals': (request) => request.search.get('freshness') === 'all'
-        ? new Promise((resolve) => { resolveHistorical = resolve })
-        : { body: feedPage([SECOND_ITEM]) },
+      'GET /signals': (request) => ({
+        body: request.search.get('view') === 'history'
+          ? feedPage([THIRD_ITEM], {
+              view: 'history',
+              history_access: { scope: 'all_available', history_days: null },
+              filter_access: { date_range: true, country: true, subdivision: true, status: true, sector: true },
+            })
+          : feedPage([UNLOCKED_ITEM]),
+      }),
     })
-    renderApp(<AppRoutes />, {
-      route: `/app/signals/${staleLookupItem.signal_id}`,
+    renderApp(<><AppRoutes /><LocationProbe /></>, {
+      route: '/app/signals',
       session: AUTHENTICATED,
     })
 
-    await waitFor(() => {
-      expect(callsTo('/signals', 'GET').some((call) => call.search.get('freshness') === 'all')).toBe(true)
-    })
-    await user.click(screen.getByRole('button', { name: /Deuxième SA/ }))
-    expect(await screen.findByText('Acheteur Deux')).toBeVisible()
-    await act(async () => {
-      resolveHistorical({ body: feedPage([staleLookupItem], { freshness: 'all' }) as FeedPage })
-    })
-
-    expect(document.querySelector('.signal-list')).not.toHaveTextContent('Résultat historique obsolète SA')
-    expect(screen.getByText('Acheteur Deux')).toBeVisible()
-    expect(callsTo(`/signals/${staleLookupItem.signal_id}`, 'GET')).toHaveLength(0)
+    await user.click(await screen.findByRole('button', { name: 'Historique' }))
+    expect(await screen.findByText('Entreprise Historique SA')).toBeVisible()
+    expect(screen.getByTestId('location-search')).toHaveTextContent('view=history')
+    expect(callsTo('/signals', 'GET').at(-1)?.search.get('freshness')).toBeNull()
+    expect(callsTo('/signals', 'GET').at(-1)?.search.get('view')).toBe('history')
   })
 
-  it('ne transforme pas un lookup all borné en faux signal introuvable', async () => {
+  it('pagine l’historique par curseur opaque, déduplique et conserve l’ordre serveur', async () => {
+    const user = userEvent.setup()
+    const cursor = 'opaque.cursor.without.frontend.decoding'
     mockApi({
       ...commonRoutes(),
-      'GET /signals': (request) => request.search.get('freshness') === 'all'
+      'GET /signals': (request) => request.search.get('cursor') === cursor
         ? {
-            body: feedPage([], {
-              freshness: 'all',
-              page: { limit: 20, offset: 0, has_more: false, scan_truncated: true },
+            body: feedPage([SECOND_ITEM, THIRD_ITEM], {
+              view: 'history',
+              page: { limit: 20, cursor, next_cursor: null, has_more: false, scan_truncated: false },
             }),
           }
-        : { body: feedPage([UNLOCKED_ITEM]) },
-    })
-    renderApp(<AppRoutes />, {
-      route: '/app/signals/sig_beyond_scan_cap',
-      session: AUTHENTICATED,
-    })
-
-    expect(
-      await screen.findByRole('heading', {
-        level: 2,
-        name: 'La lecture a été bornée : des signaux plus anciens existent au-delà de cette page.',
-      }),
-    ).toBeVisible()
-    expect(screen.queryByText('Signal non disponible dans cette lecture')).toBeNull()
-    expect(callsTo('/signals/sig_beyond_scan_cap', 'GET')).toHaveLength(0)
-  })
-
-  it('déclare indisponible un deep-link uniquement après épuisement des pages', async () => {
-    const user = userEvent.setup()
-    mockApi({
-      ...commonRoutes(),
-      'GET /signals': (request) => request.search.get('freshness') === 'all'
-        ? { body: feedPage([], { freshness: 'all' }) }
-        : request.search.get('offset') === '20'
-          ? { body: feedPage([], { offset: 20 }) }
-          : {
-            body: {
-              ...feedPage([UNLOCKED_ITEM]),
-              page: { limit: 20, offset: 0, has_more: true, scan_truncated: false },
-            },
+        : {
+            body: feedPage([UNLOCKED_ITEM, SECOND_ITEM], {
+              view: 'history',
+              page: { limit: 20, cursor: null, next_cursor: cursor, has_more: true, scan_truncated: false },
+            }),
           },
     })
     renderApp(<AppRoutes />, {
-      route: '/app/signals/sig_absent',
+      route: '/app/signals?view=history',
       session: AUTHENTICATED,
     })
 
-    expect(
-      await screen.findByRole('heading', {
-        level: 2,
-        name: 'Signal non disponible dans cette lecture',
+    await user.click(await screen.findByRole('button', { name: 'Charger plus de signaux' }))
+    await waitFor(() => expect(document.querySelectorAll('.signal-list .signal-item')).toHaveLength(3))
+    expect(callsTo('/signals', 'GET').at(-1)?.search.get('cursor')).toBe(cursor)
+    const names = [...document.querySelectorAll('.signal-list .signal-item strong')].map((node) => node.textContent)
+    expect(names).toEqual(['Constructions Bertrand SA', 'Atelier Alpha SA', 'Entreprise Historique SA'])
+  })
+
+  it('conserve filtres, sélection et paramètres dans l’URL et la pagination', async () => {
+    mockApi({
+      ...commonRoutes(),
+      'GET /signals': (request) => ({
+        body: feedPage([UNLOCKED_ITEM, SECOND_ITEM], {
+          view: 'history',
+          history_access: { scope: 'all_available', history_days: null },
+          filter_access: { date_range: true, country: true, subdivision: true, status: true, sector: true },
+          page: { limit: 20, cursor: request.search.get('cursor'), next_cursor: null, has_more: false, scan_truncated: false },
+        }),
       }),
-    ).toBeVisible()
-    expect(callsTo('/signals', 'GET')).toHaveLength(3)
-    expect(callsTo('/signals/sig_absent', 'GET')).toHaveLength(0)
+    })
+    renderApp(<><AppRoutes /><LocationProbe /></>, {
+      route: `/app/signals/${SECOND_ITEM.signal_id}?view=history`,
+      session: AUTHENTICATED,
+    })
 
-    await user.click(screen.getByRole('button', { name: 'Réessayer' }))
-    await waitFor(() => expect(callsTo('/signals', 'GET')).toHaveLength(6))
-    expect(callsTo('/signals/sig_absent', 'GET')).toHaveLength(0)
+    await screen.findByRole('heading', { level: 2, name: /Atelier Alpha SA remporte/ })
+    fireEvent.change(screen.getByLabelText('Du'), { target: { value: '2022-01-01' } })
+    fireEvent.change(screen.getByLabelText('Au'), { target: { value: '2026-08-31' } })
+    fireEvent.change(screen.getByLabelText('Pays (code ISO)'), { target: { value: 'fr' } })
+    fireEvent.change(screen.getByLabelText('Zone'), { target: { value: 'fr-31' } })
+    fireEvent.change(screen.getByLabelText('Statut temporel'), { target: { value: 'stale_award' } })
+    fireEvent.change(screen.getByLabelText('Secteur (préfixe CPV)'), { target: { value: '4523x' } })
+
+    await waitFor(() => {
+      const call = callsTo('/signals', 'GET').at(-1)!
+      expect(call.search.get('date_from')).toBe('2022-01-01')
+      expect(call.search.get('date_to')).toBe('2026-08-31')
+      expect(call.search.get('country')).toBe('FR')
+      expect(call.search.get('subdivision_code')).toBe('FR-31')
+      expect(call.search.get('status')).toBe('stale_award')
+      expect(call.search.get('cpv_prefix')).toBe('4523')
+    })
+    expect(screen.getByTestId('location-path')).toHaveTextContent(`/app/signals/${SECOND_ITEM.signal_id}`)
+    expect(screen.getByRole('button', { name: /Atelier Alpha SA/ })).toHaveAttribute('aria-pressed', 'true')
   })
 
-  it('conserve la confidentialité au clic d’un teaser et ne déduit aucun plan ouvrant', async () => {
-    const user = userEvent.setup()
+  it.each([
+    ['grants_only', 0, 'Votre accès Découverte affiche uniquement vos signaux déjà débloqués.'],
+    ['window', 30, 'Votre historique accessible couvre les 30 derniers jours.'],
+    ['all_available', null, 'Tout l’historique disponible dans Kivou est accessible.'],
+  ] as const)('explique honnêtement l’entitlement historique %s', async (scope, days, message) => {
     mockApi({
       ...commonRoutes(),
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
+      'GET /signals': {
+        body: feedPage([UNLOCKED_ITEM], {
+          view: 'history',
+          history_access: { scope, history_days: days },
+          filter_access: {
+            date_range: true,
+            country: scope !== 'grants_only',
+            subdivision: scope === 'all_available',
+            status: scope === 'all_available',
+            sector: scope !== 'grants_only',
+          },
+        }),
+      },
     })
-    renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
+    renderApp(<AppRoutes />, { route: '/app/signals?view=history', session: AUTHENTICATED })
 
-    const locked = await screen.findByRole('button', { name: /accès payant requis/i })
-    expect(locked).not.toHaveAccessibleName(expect.stringMatching(/Essentiel|Pro|Scale/))
-    await act(async () => Promise.resolve())
-    expect(callsTo('/billing/plans', 'GET')).toHaveLength(0)
-    await user.click(locked)
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
-    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
+    expect(await screen.findByText(message)).toBeVisible()
+    if (scope === 'grants_only') {
+      expect(screen.getByLabelText('Pays (code ISO)')).toBeDisabled()
+      expect(screen.getByText('Ce filtre n’est pas inclus dans votre accès actuel.')).toBeVisible()
+    }
   })
 
-  it('restaure le focus du teaser verrouillé après retour depuis Billing', async () => {
+  it('garde les faits et filtres lors d’une erreur de pagination récupérable', async () => {
     const user = userEvent.setup()
-    mockApi({
-      ...commonRoutes(),
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
-      'GET /billing/plans': { body: CATALOGUE },
-    })
-    renderApp(
-      <>
-        <AppRoutes />
-        <HistoryControls />
-      </>,
-      { route: '/app/signals', session: AUTHENTICATED },
-    )
-
-    const locked = await screen.findByRole('button', { name: /accès payant requis/i })
-    await user.click(locked)
-    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
-    await user.click(screen.getByRole('button', { name: 'Précédent' }))
-
-    const restored = await screen.findByRole('button', { name: /accès payant requis/i })
-    await waitFor(() => expect(restored).toHaveFocus())
-    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
-    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}/note`, 'GET')).toHaveLength(0)
-  })
-
-  it('rend honnêtement une panne du refresh après un deep-link épuisé', async () => {
-    const user = userEvent.setup()
-    let firstPageCalls = 0
+    const cursor = 'retry-cursor'
+    let pageAttempts = 0
     mockApi({
       ...commonRoutes(),
       'GET /signals': (request) => {
-        if (request.search.get('freshness') === 'all') {
-          return { body: feedPage([], { freshness: 'all' }) }
+        if (request.search.get('cursor') === cursor) {
+          pageAttempts += 1
+          return pageAttempts === 1
+            ? { status: 503, body: { detail: { code: 'feed_unavailable' } } }
+            : { body: feedPage([THIRD_ITEM], { view: 'history' }) }
         }
-        if (request.search.get('offset') === '20') return { body: feedPage([], { offset: 20 }) }
-        firstPageCalls += 1
-        return firstPageCalls === 1
-          ? {
-              body: {
-                ...feedPage([UNLOCKED_ITEM]),
-                page: { limit: 20, offset: 0, has_more: true, scan_truncated: false },
-              },
-            }
-          : { status: 503, body: { detail: { code: 'feed_unavailable' } } }
+        return {
+          body: feedPage([UNLOCKED_ITEM], {
+            view: 'history',
+            page: { limit: 20, cursor: null, next_cursor: cursor, has_more: true, scan_truncated: false },
+          }),
+        }
       },
     })
-    renderApp(<AppRoutes />, {
-      route: '/app/signals/sig_absent_refresh_error',
-      session: AUTHENTICATED,
-    })
+    renderApp(<AppRoutes />, { route: '/app/signals?view=history', session: AUTHENTICATED })
 
-    await user.click(await screen.findByRole('button', { name: 'Réessayer' }))
-    const list = document.querySelector('.signal-list') as HTMLElement
-    const feedPanel = list.closest('.feed-panel') as HTMLElement
-    await waitFor(() => expect(within(feedPanel).getByRole('alert')).toBeVisible())
-    expect(within(feedPanel).getByRole('alert')).toHaveTextContent(
-      'L’actualisation a échoué. Les données affichées peuvent être anciennes.',
-    )
-    expect(within(list).getByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
-    expect(within(list).queryByText('Aucune attribution ne correspond à cette lecture.')).toBeNull()
-    expect(within(document.querySelector('.workspace-grid') as HTMLElement).getAllByRole('alert')).toHaveLength(1)
+    const panel = document.querySelector('.feed-panel') as HTMLElement
+    await user.click(await within(panel).findByRole('button', { name: 'Charger plus de signaux' }))
+    const alert = await within(panel).findByRole('alert')
+    expect(within(panel).getByText('Constructions Bertrand SA')).toBeVisible()
+    await user.click(within(alert).getByRole('button', { name: 'Réessayer le chargement de la suite' }))
+    expect(await within(panel).findByText('Entreprise Historique SA')).toBeVisible()
+    expect(pageAttempts).toBe(2)
   })
 
-  it('laisse le listener HTTP invalider une session expirée sans rejouer de détail', async () => {
+  it('préserve la confidentialité et restaure le focus du teaser après Billing', async () => {
+    const user = userEvent.setup()
     mockApi({
-      ...commonRoutes(),
-      'GET /signals': { status: 401, body: { detail: { code: 'not_authenticated' } } },
-    })
-    renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
-
-    expect(
-      await screen.findByRole('heading', { level: 1, name: 'Retrouver vos signaux' }),
-    ).toBeVisible()
-    expect(screen.getByRole('alert')).toHaveTextContent('Votre session a expiré')
-    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
-  })
-
-  it('préserve le paywall si le détail révoque un accès annoncé ouvert par le feed', async () => {
-    mockApi({
-      ...commonRoutes(),
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: {
-        body: {
-          ...LOCKED_ITEM,
-          signal_id: UNLOCKED_ITEM.signal_id,
-          access: { granted: false, reason: 'paid_plan_required', upgrade_to: [] },
-          read_at: '2026-08-29T18:00:00+00:00',
-          language: 'fr',
-        },
-      },
+      ...commonRoutes([UNLOCKED_ITEM]),
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
       'GET /billing/plans': { body: CATALOGUE },
     })
-    renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
-
-    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
-    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(1)
-    expect(callsTo(`/signals/${UNLOCKED_ITEM.signal_id}/note`, 'GET')).toHaveLength(0)
-  })
-
-  it('rend le compteur Discovery serveur relu après le feed d’activation', async () => {
-    let billingCalls = 0
-    let resolveFeed!: (value: { body: FeedPage }) => void
-    const refreshedDiscovery = {
-      ...DISCOVERY_STATUS,
-      discovery: {
-        ...DISCOVERY_STATUS.discovery,
-        granted_signal_count: 3,
-      },
-    }
-    mockApi({
-      ...commonRoutes(),
-      'GET /signals': () => new Promise((resolve) => { resolveFeed = resolve }),
-      'GET /billing/status': () => {
-        billingCalls += 1
-        return { body: billingCalls === 1 ? DISCOVERY_STATUS : refreshedDiscovery }
-      },
-    })
-    renderApp(<AppRoutes />, {
-      route: { pathname: '/app/signals', state: { activationCompleted: true } },
+    renderApp(<><AppRoutes /><HistoryControls /></>, {
+      route: '/app/signals',
       session: AUTHENTICATED,
     })
 
-    await waitFor(() => expect(callsTo('/billing/status', 'GET')).toHaveLength(1))
-    await act(async () => {
-      resolveFeed({ body: feedPage([UNLOCKED_ITEM]) as FeedPage })
-    })
+    const locked = await screen.findByRole('button', { name: /Accès payant requis/ })
+    expect(locked).not.toHaveTextContent('Constructions Bertrand')
+    await user.click(locked)
+    expect(await screen.findByRole('heading', { level: 1, name: 'Abonnement' })).toBeVisible()
+    expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
 
-    await waitFor(() => expect(callsTo('/billing/status', 'GET')).toHaveLength(2))
-    expect(document.querySelector('.signal-count')).toHaveTextContent('3 · Découverte')
+    await user.click(screen.getByRole('button', { name: 'Historique précédent' }))
+    const restored = await screen.findByRole('button', { name: /Accès payant requis/ })
+    await waitFor(() => expect(restored).toHaveFocus())
   })
 })

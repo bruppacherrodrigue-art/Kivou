@@ -22,7 +22,9 @@ import {
 } from '../../test/harness'
 import {
   eventDateKind,
+  publishedFactualDisplay,
   publishedPresentation,
+  publishedWinnerEnrichment,
   toBillingAccessView,
   toCompanySummary,
   toOverviewAwardCard,
@@ -534,6 +536,50 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     expect(invalidLocked.presentation).toBeNull()
   })
 
+  it('ferme aussi statiquement les faits et l’enrichissement d’un teaser verrouillé', () => {
+    const leaking = {
+      ...LOCKED_ITEM,
+      factual_display: UNLOCKED_ITEM.factual_display,
+      winner_enrichment: UNLOCKED_ITEM.winner_enrichment,
+    }
+    // @ts-expect-error Le teaser ne porte jamais ces clés protégées.
+    const invalid: LockedFeedItem = leaking
+
+    expect(invalid.factual_display).toBe(UNLOCKED_ITEM.factual_display)
+  })
+
+  it.each([
+    ['complétude inconnue', {
+      ...UNLOCKED_ITEM.factual_display,
+      completeness: 'smart',
+    }],
+    ['clé supplémentaire', {
+      ...UNLOCKED_ITEM.factual_display,
+      commercial_relevance: 'forte',
+    }],
+    ['résumé et objet divergents', {
+      ...UNLOCKED_ITEM.factual_display,
+      object_short: 'Objet reconstruit côté navigateur',
+    }],
+  ])('rejette un contrat factuel invalide : %s', (_case, display) => {
+    expect(publishedFactualDisplay(display)).toBeNull()
+    const item = { ...UNLOCKED_ITEM, factual_display: display } as unknown as UnlockedFeedItem
+    expect(toSignalCard(item).eventTitle).toBeNull()
+    expect(toSignalCard(item).factualCompleteness).toBeNull()
+  })
+
+  it('rejette un état d’enrichissement incohérent', () => {
+    const enrichment = {
+      ...UNLOCKED_ITEM.winner_enrichment,
+      status: 'completed',
+      error_code: 'unexpected_failure',
+    }
+
+    expect(publishedWinnerEnrichment(enrichment)).toBeNull()
+    const item = { ...UNLOCKED_ITEM, winner_enrichment: enrichment } as unknown as UnlockedFeedItem
+    expect(toSignalCard(item).winnerEnrichment).toBeNull()
+  })
+
   it('ferme statiquement FALLBACK aux claims factuelles uniquement', () => {
     const invalidFallback = {
       artifact_id: 'b'.repeat(64),
@@ -590,7 +636,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     expect(() => eventDateKind('publication', 'recent_award')).toThrow(/incohérent/i)
   })
 
-  it('sélectionne le premier besoin ciblé non blanc qui possède des preuves', () => {
+  it('ignore les besoins plausibles même lorsqu’ils possèdent des preuves', () => {
     const detail: UnlockedDetail = {
       ...UNLOCKED_DETAIL,
       analysis: {
@@ -655,12 +701,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       },
     }
 
-    expect(toSignalDetailView(detail).primaryNeed).toEqual({
-      label: 'Matériaux',
-      evidenceRefs: [
-        `evidence:url:${encodeURIComponent('https://source.test/materials')}`,
-      ],
-    })
+    expect(toSignalDetailView(detail).primaryNeed).toBeNull()
   })
 
   it('produit une seule référence canonique pour une URL et son chemin', () => {
@@ -672,10 +713,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       procedure_id: 'procedure-ignored-because-url-resolves',
     }])
 
-    expect(toSignalDetailView(detail).primaryNeed?.evidenceRefs).toEqual([
-      `evidence:url:${encodeURIComponent('https://source.test/notice/42')}`
-        + `:path:${encodeURIComponent('/awards/0')}`,
-    ])
+    expect(toSignalDetailView(detail).primaryNeed).toBeNull()
   })
 
   it('évite les collisions entre deux avis qui partagent le même chemin', () => {
@@ -698,13 +736,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       },
     ])
 
-    const refs = toSignalDetailView(detail).primaryNeed?.evidenceRefs ?? []
-    expect(refs).toHaveLength(2)
-    expect(new Set(refs).size).toBe(2)
-    expect(refs.every((reference) => reference.startsWith('evidence:source:'))).toBe(true)
-    expect(refs).not.toContain('/awards/0')
-    expect(refs).not.toContain('notice-1')
-    expect(refs).not.toContain('notice-2')
+    expect(toSignalDetailView(detail).primaryNeed).toBeNull()
   })
 
   it('évite les collisions entre deux systèmes qui réutilisent le même identifiant', () => {
@@ -727,10 +759,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       },
     ])
 
-    const refs = toSignalDetailView(detail).primaryNeed?.evidenceRefs ?? []
-    expect(refs).toHaveLength(2)
-    expect(new Set(refs).size).toBe(2)
-    expect(refs).not.toContain('shared-42')
+    expect(toSignalDetailView(detail).primaryNeed).toBeNull()
   })
 
   it('rejette un chemin isolé sans source résoluble', () => {
@@ -793,7 +822,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     expect(toSignalCard(item).matchLabel).toBeNull()
   })
 
-  it('retient uniquement la première raison backend non vide', () => {
+  it('ignore les raisons de fit existantes pendant la phase factuelle', () => {
     const item: UnlockedFeedItem = {
       ...UNLOCKED_ITEM,
       analysis: {
@@ -805,7 +834,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       },
     }
 
-    expect(toSignalCard(item).fitReason).toBe('Besoin visé : Matériaux')
+    expect(toSignalCard(item).fitReason).toBeNull()
   })
 
   it('ne promeut jamais le titre administratif du contrat dans la copie de carte', () => {
@@ -817,12 +846,12 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     } as UnlockedFeedItem
 
     const view = toSignalCard(item)
-    expect(view.eventTitle).toBeNull()
+    expect(view.eventTitle).toBe(UNLOCKED_ITEM.factual_display.headline)
     expect(JSON.stringify(view)).not.toContain(administrativeTitle)
     expect(view.presentation).toBeNull()
   })
 
-  it('transporte sans réécriture le fallback factuel publié par le backend', () => {
+  it('ignore aussi un ancien fallback de présentation sur la page Signaux', () => {
     const presentation: CardPresentation = {
       artifact_id: 'a'.repeat(64),
       version: 1,
@@ -859,8 +888,80 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     const item: UnlockedFeedItem = { ...UNLOCKED_ITEM, presentation }
 
     const view = toSignalCard(item)
-    expect(view.presentation).toBe(presentation)
-    expect(view.eventTitle).toBe(presentation.content.headline)
+    expect(view.presentation).toBeNull()
+    expect(view.eventTitle).toBe(UNLOCKED_ITEM.factual_display.headline)
+  })
+
+  it('préfère le contrat factuel serveur et ignore tout contenu commercial sur Signaux', () => {
+    const item = {
+      ...UNLOCKED_ITEM,
+      factual_display: {
+        headline: 'Constructions Bertrand remporte un marché de 1 240 000 € à Villeneuve',
+        market_summary: 'Réfection factuelle de la voirie',
+        object_short: 'Réfection factuelle de la voirie',
+        date: { value: '2026-08-04', kind: 'award' },
+        completeness: 'verified',
+        missing_fields: [],
+      },
+      winner_enrichment: {
+        status: 'partial',
+        missing_fields: ['website'],
+        last_verified_at: '2026-08-18T09:00:00Z',
+        error_code: null,
+        source: {
+          kind: 'public_notice',
+          connector: 'boamp',
+          notice_id: '26-12345',
+          url: 'https://www.boamp.fr/avis/26-12345',
+          retrieved_at: '2026-08-18T09:00:00Z',
+        },
+      },
+      presentation: VALID_FULL,
+    } as unknown as UnlockedFeedItem
+
+    const view = toSignalCard(item)
+
+    expect(view.eventTitle).toBe(item.factual_display.headline)
+    expect(view.presentation).toBeNull()
+    expect(view.fitReason).toBeNull()
+    expect(view.matchLabel).toBeNull()
+  })
+
+  it('le détail Signaux ne lit ni besoin plausible, ni fit, ni présentation', () => {
+    const detail = {
+      ...UNLOCKED_DETAIL,
+      factual_display: {
+        headline: 'Titre factuel publié par le serveur',
+        market_summary: 'Résumé factuel publié par le serveur',
+        object_short: 'Résumé factuel publié par le serveur',
+        date: { value: '2026-08-04', kind: 'award' },
+        completeness: 'partial',
+        missing_fields: ['location'],
+      },
+      winner_enrichment: {
+        status: 'in_progress',
+        missing_fields: ['address'],
+        last_verified_at: null,
+        error_code: null,
+        source: {
+          kind: 'public_notice',
+          connector: 'boamp',
+          notice_id: '26-12345',
+          url: null,
+          retrieved_at: '2026-08-18T09:00:00Z',
+        },
+      },
+      presentation: VALID_FULL,
+    } as unknown as UnlockedDetail
+
+    const view = toSignalDetailView(detail)
+
+    expect(view.title).toBe(detail.factual_display.headline)
+    expect(view.summary).toBe(detail.factual_display.market_summary)
+    expect(view.presentation).toBeNull()
+    expect(view.primaryNeed).toBeNull()
+    expect(view.fitReason).toBeNull()
+    expect(view.brief.offerCoverage).toBeNull()
   })
 
   it('mappe une carte déverrouillée uniquement depuis le contrat de feed', () => {
@@ -871,19 +972,23 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       companyName: UNLOCKED_ITEM.company.name,
       awardedCompanyName: UNLOCKED_ITEM.company.name,
       buyerName: UNLOCKED_ITEM.contract.buyer?.name,
-      eventTitle: null,
+      eventTitle: UNLOCKED_ITEM.factual_display.headline,
       amount: UNLOCKED_ITEM.contract.amount,
       location: UNLOCKED_ITEM.contract.location,
       eventDate: UNLOCKED_ITEM.event.date,
       eventDateKind: 'award',
       awardDate: UNLOCKED_ITEM.contract.dates.award,
-      matchLabel: UNLOCKED_ITEM.analysis.fit.reasons[0],
-      matchReasons: UNLOCKED_ITEM.analysis.fit.reasons,
+      matchLabel: null,
+      matchReasons: [],
       primaryNeed: null,
-      fitReason: UNLOCKED_ITEM.analysis.fit.reasons[0],
+      fitReason: null,
       presentation: null,
+      factualCompleteness: UNLOCKED_ITEM.factual_display.completeness,
+      missingFacts: UNLOCKED_ITEM.factual_display.missing_fields,
+      winnerEnrichment: UNLOCKED_ITEM.winner_enrichment,
       sourceSystem: UNLOCKED_ITEM.source.system,
       whyNow: UNLOCKED_ITEM.event.why_now,
+      objectShort: UNLOCKED_ITEM.factual_display.object_short,
     })
   })
 
@@ -908,8 +1013,12 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       primaryNeed: null,
       fitReason: null,
       presentation: null,
+      factualCompleteness: null,
+      missingFacts: [],
+      winnerEnrichment: null,
       sourceSystem: null,
       whyNow: locked.event.why_now,
+      objectShort: null,
     })
   })
 
@@ -935,29 +1044,25 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       eventDateKind: 'award',
       buyerName: detail.contract.buyer?.name,
       awardedCompanyName: detail.company.name,
-      primaryNeed: {
-        label: detail.analysis.plausible_needs.items[0].label,
-        evidenceRefs: [
-          `evidence:url:${encodeURIComponent(
-            detail.evidence.analysis_inputs.groups[0].items[0].url!,
-          )}`,
-        ],
-      },
-      fitReason: detail.analysis.fit.reasons[0],
+      primaryNeed: null,
+      fitReason: null,
       presentation: null,
-      title: null,
+      factualCompleteness: detail.factual_display.completeness,
+      missingFacts: detail.factual_display.missing_fields,
+      winnerEnrichment: detail.winner_enrichment,
+      title: detail.factual_display.headline,
       companyName: detail.company.name,
       companyKey: detail.company_key ?? null,
       companyCountry: detail.company.country,
       companyIdentifier: detail.company.identifier,
-      targetProfileLabel: detail.analysis.fit.target_icp_label,
+      targetProfileLabel: null,
       sourceSystem: detail.source.system,
-      summary: null,
+      summary: detail.factual_display.market_summary,
       brief: {
         whyNow: detail.event.why_now,
-        offerCoverage: detail.analysis.plausible_needs.items[0].label,
+        offerCoverage: null,
         functionToFind: null,
-        unknown: detail.analysis.plausible_needs.note,
+        unknown: null,
       },
       facts: {
         amount: detail.contract.amount,
@@ -972,6 +1077,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       },
       scope: [],
       questions: [],
+      publicEvidence: detail.evidence.public_facts,
     })
     expect(view.facts.sourceUrl).toBe(UNLOCKED_DETAIL.source.url)
     expect(view.brief.whyNow).toBe(UNLOCKED_DETAIL.event.why_now)

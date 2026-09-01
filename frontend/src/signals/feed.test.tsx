@@ -6,6 +6,7 @@ import type { CardPresentation } from '../api/types'
 import {
   AUTHENTICATED,
   CATALOGUE,
+  COMPANY_PROFILE,
   DISCOVERY_STATUS,
   ICP,
   LOCKED_ITEM,
@@ -134,6 +135,7 @@ const BASE = {
   [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
     body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
   },
+  [`GET /companies/${UNLOCKED_ITEM.company_key}`]: { body: COMPANY_PROFILE },
 }
 
 function feedWith(items: unknown[], overrides = {}) {
@@ -164,8 +166,9 @@ describe('feed de signaux dans le workspace de référence', () => {
     const rows = (await signalList()).querySelectorAll('button.signal-item')
     expect(rows).toHaveLength(2)
     expect(rows[0]).toHaveTextContent('Constructions Bertrand SA')
-    expect(rows[0]).toHaveTextContent('Présentation non publiée')
-    expect(rows[0]).not.toHaveTextContent('Réfection de la voirie communale — lot 2')
+    expect(rows[0]).toHaveTextContent('Faits vérifiés')
+    expect(rows[0]).toHaveTextContent('Réfection de la voirie communale — lot 2')
+    expect(rows[0]).not.toHaveTextContent('12345678900011')
     expect(rows[0].textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('1 240 000 €')
     expect(rows[0]).toHaveTextContent('4 août 2026')
     expect(rows[1]).toHaveTextContent('Deuxième selon le serveur SA')
@@ -179,6 +182,10 @@ describe('feed de signaux dans le workspace de référence', () => {
         date: '2026-02-03',
         age_days: 999,
         why_now: 'CALENDRIER SERVEUR — décision commerciale à examiner.',
+      },
+      factual_display: {
+        ...UNLOCKED_ITEM.factual_display,
+        date: { value: '2026-02-03', kind: 'award' as const },
       },
     }
     mockApi(feedWith([item]))
@@ -213,6 +220,10 @@ describe('feed de signaux dans le workspace de référence', () => {
         status,
         date: '2026-08-15',
       },
+      factual_display: {
+        ...UNLOCKED_ITEM.factual_display,
+        date: { value: '2026-08-15', kind: clock },
+      },
     }
     mockApi(feedWith([item]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
@@ -230,6 +241,10 @@ describe('feed de signaux dans le workspace de référence', () => {
         clock: 'publication' as const,
         status: 'recently_published_award' as const,
         date: '2026-08-15',
+      },
+      factual_display: {
+        ...UNLOCKED_ITEM.factual_display,
+        date: { value: '2026-08-15', kind: 'publication' as const },
       },
     }
     mockApi(feedWith([item]))
@@ -270,7 +285,7 @@ describe('feed de signaux dans le workspace de référence', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     const row = (await signalList()).querySelector('.signal-item') as HTMLElement
-    expect(row).toHaveTextContent('Présentation non publiée')
+    expect(row).toHaveTextContent('Constructions Bertrand SA remporte un marché')
     expect(row).toHaveTextContent('Constructions Bertrand SA')
     expect(row).toHaveTextContent('Commune de Villeneuve')
     expect(row).not.toHaveTextContent(/urgent|jean dupont|directeur des achats|examiner d’abord/i)
@@ -284,7 +299,7 @@ describe('feed de signaux dans le workspace de référence', () => {
       renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
       const row = (await signalList()).querySelector('.signal-item') as HTMLElement
-      expect(row).toHaveTextContent('Présentation non publiée')
+      expect(row).toHaveTextContent('Constructions Bertrand SA remporte un marché')
       expect(row).toHaveTextContent('Constructions Bertrand SA')
       expect(row).toHaveTextContent('Commune de Villeneuve')
       expect(row).not.toHaveTextContent(presentation.content.headline)
@@ -292,22 +307,22 @@ describe('feed de signaux dans le workspace de référence', () => {
     },
   )
 
-  it('continue de rendre un FALLBACK factuel valide sans le réécrire', async () => {
+  it('ignore un ancien artefact FALLBACK et consomme seulement le contrat factuel', async () => {
     const item = { ...UNLOCKED_ITEM, presentation: FACTUAL_FALLBACK }
     mockApi(feedWith([item]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     const row = (await signalList()).querySelector('.signal-item') as HTMLElement
-    expect(row).toHaveTextContent(FACTUAL_FALLBACK.content.headline)
-    expect(row).toHaveTextContent(FACTUAL_FALLBACK.content.award_summary)
-    expect(row).toHaveTextContent('Faits publiés uniquement')
+    expect(row).not.toHaveTextContent(FACTUAL_FALLBACK.content.headline)
+    expect(row).not.toHaveTextContent(FACTUAL_FALLBACK.content.award_summary)
+    expect(row).toHaveTextContent('Constructions Bertrand SA remporte un marché')
+    expect(row).toHaveTextContent('Faits vérifiés')
     expect(row).toHaveTextContent('Voir les faits publiés')
     expect(row.querySelector('.signal-match')).toBeNull()
     expect(row.querySelector('.signal-reason:not(.signal-lock-note)')).toBeNull()
-    expect(row).not.toHaveTextContent('Présentation non publiée')
   })
 
-  it('rend un artefact FULL comme aide à la décision sans recycler analysis', async () => {
+  it('ignore un ancien artefact FULL et toute analyse pendant la phase factuelle', async () => {
     const presentation = fullPresentation()
     const item = {
       ...UNLOCKED_ITEM,
@@ -331,12 +346,12 @@ describe('feed de signaux dans le workspace de référence', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     const row = (await signalList()).querySelector('.signal-item') as HTMLElement
-    expect(row).toHaveTextContent(presentation.content.headline)
-    expect(row).toHaveTextContent(presentation.content.award_summary)
-    expect(row).toHaveTextContent(presentation.content.fit_reason)
-    expect(row).toHaveTextContent(presentation.content.timing)
-    expect(row).toHaveTextContent('Analyse publiée')
-    expect(row).toHaveTextContent('Voir l’analyse')
+    expect(row).toHaveTextContent('Constructions Bertrand SA remporte un marché')
+    expect(row).not.toHaveTextContent(presentation.content.headline)
+    expect(row).not.toHaveTextContent(presentation.content.award_summary)
+    expect(row).not.toHaveTextContent(presentation.content.fit_reason)
+    expect(row).not.toHaveTextContent(presentation.content.timing)
+    expect(row).not.toHaveTextContent('Analyse publiée')
     for (const forbidden of [
       'LABEL ANALYSIS INTERDIT',
       'RAISON ANALYSIS INTERDITE',
@@ -356,7 +371,7 @@ describe('feed de signaux dans le workspace de référence', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     expect(
-      await screen.findByRole('heading', { level: 2, name: 'Présentation non publiée' }),
+      await screen.findByRole('heading', { level: 2, name: UNLOCKED_ITEM.factual_display.headline }),
     ).toBeVisible()
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
@@ -510,11 +525,12 @@ describe('feed de signaux dans le workspace de référence', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     await user.click(await screen.findByRole('button', { name: 'Charger plus de signaux' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent(
+    const feedPanel = (await signalList()).closest('.feed-panel') as HTMLElement
+    expect(await within(feedPanel).findByRole('alert')).toHaveTextContent(
       'Les informations n’ont pas pu être chargées.',
     )
     expect(within(await signalList()).getByText('Constructions Bertrand SA')).toBeVisible()
-    await user.click(screen.getByRole('button', { name: 'Réessayer le chargement de la suite' }))
+    await user.click(within(feedPanel).getByRole('button', { name: 'Réessayer le chargement de la suite' }))
     expect(await screen.findByText('Page réessayée SA')).toBeVisible()
   })
 

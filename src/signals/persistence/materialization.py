@@ -301,12 +301,16 @@ def _need_payload(needs: Any) -> list[dict[str, Any]]:
     ]
 
 
-def _index_company_identity(connection: sa.Connection, *, signal_key: str) -> None:
+def _index_company_identity(
+    connection: sa.Connection, *, signal_key: str, now: dt.datetime
+) -> None:
     # Import local pour garder la persistance générale indépendante au chargement
     # du module. La projection SaaS reste dans sa frontière dédiée.
+    from signals.companies.enrichment import enqueue_winner_enrichment
     from signals.companies.indexing import index_signal_company_identity
 
     index_signal_company_identity(connection, signal_key=signal_key)
+    enqueue_winner_enrichment(connection, signal_key=signal_key, now=now)
 
 
 def persist_award_facts(
@@ -436,7 +440,7 @@ def materialize_signal(
                 created_at=materialized_at,
             )
         )
-        _index_company_identity(connection, signal_key=key)
+        _index_company_identity(connection, signal_key=key, now=materialized_at)
         return MaterializationResult(
             key,
             persisted.opportunity_key,
@@ -449,7 +453,7 @@ def materialize_signal(
     revision, stored_fingerprint = current
     if stored_fingerprint == fingerprint:
         # Contenu identique au bit près : rien à réécrire, et surtout pas de révision.
-        _index_company_identity(connection, signal_key=key)
+        _index_company_identity(connection, signal_key=key, now=materialized_at)
         return MaterializationResult(
             key,
             persisted.opportunity_key,
@@ -464,7 +468,7 @@ def materialize_signal(
         .where(materialized_signal.c.signal_key == key)
         .values(**payload, revision=revision + 1, content_fingerprint=fingerprint)
     )
-    _index_company_identity(connection, signal_key=key)
+    _index_company_identity(connection, signal_key=key, now=materialized_at)
     return MaterializationResult(
         key,
         persisted.opportunity_key,

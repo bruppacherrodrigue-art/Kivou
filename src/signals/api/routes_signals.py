@@ -30,7 +30,8 @@ Aucun `POST` : un signal est produit par Kivou, jamais rédigé par un client.
 from __future__ import annotations
 
 import dataclasses
-from typing import Any, Literal
+import datetime as dt
+from typing import Annotated, Any, Literal
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request
@@ -46,24 +47,37 @@ from signals.billing.access import (
     check_filters,
     eligible_upgrade_plans,
     feed_access,
+    filter_is_available,
 )
 from signals.card_intelligence.contracts import PublishedCardPresentation
 from signals.card_intelligence.store import (
     published_artifact_for_signal,
     published_for_signals,
 )
+from signals.companies.contracts import WinnerEnrichmentView
+from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.service import (
-    ensure_companies_for_unlocked_signals,
-    ensure_company_for_unlocked_signal,
+    company_keys_for_signals,
 )
 from signals.engagement import analytics, feedback
 from signals.feed import policy, query, view
+from signals.feed.history import InvalidHistoryCursor
 from signals.persistence.schema import materialized_signal
 from signals.recency import RECENCY_POLICY_VERSION
 
 router = APIRouter()
 
 Freshness = Literal["new", "recent_or_aging", "all"]
+SignalView = Literal["recent", "history"]
+HistoryStatus = Literal[
+    "recent_award",
+    "recently_notified_contract",
+    "recently_published_award",
+    "aging_award",
+    "stale_award",
+    "invalid_award_date",
+    "award_date_unknown",
+]
 
 #: CLOSEOUT §3 — les seules valeurs qui désignent un événement client. Refuser
 #: les autres vaut mieux que de rendre une page vide sans dire pourquoi.
@@ -111,13 +125,25 @@ def _presentation_bindings(connection, items) -> dict[str, tuple[int, int]]:
 @router.get("/signals")
 def list_signals(
     request: Request,
+    view_mode: Annotated[SignalView, Query(alias="view")] = "recent",
     freshness: Freshness = policy.DEFAULT_FRESHNESS,
     target_icp_id: str | None = None,
     primary_event: PrimaryEvent | None = None,
     country: str | None = Query(default=None, min_length=2, max_length=2),
+    subdivision_code: str | None = Query(
+        default=None,
+        min_length=2,
+        max_length=16,
+        pattern=r"^[A-Z0-9-]+$",
+    ),
+    status: HistoryStatus | None = None,
+    cpv_prefix: str | None = Query(default=None, min_length=1, max_length=8, pattern=r"^\d+$"),
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
     winner: str | None = None,
     limit: int = Query(default=policy.DEFAULT_PAGE_SIZE, ge=1, le=policy.MAXIMUM_PAGE_SIZE),
     offset: int = Query(default=0, ge=0),
+    cursor: str | None = Query(default=None, max_length=512),
 ) -> dict[str, Any]:
     """Les signaux de CE compte, les plus actionnables d'abord.
 
@@ -127,6 +153,33 @@ def list_signals(
     """
     now = request_now(request)
     as_of = now.date()
+    if cursor is not None and view_mode != "history":
+        raise api_error(
+            422,
+            "cursor_requires_history_view",
+            "un curseur historique exige view=history",
+        )
+    if view_mode != "history" and any(
+        value is not None
+        for value in (date_from, date_to, subdivision_code, status, cpv_prefix)
+    ):
+        raise api_error(
+            422,
+            "history_filters_require_history_view",
+            "ces filtres exigent view=history",
+        )
+    if view_mode == "history" and offset != 0:
+        raise api_error(
+            422,
+            "offset_not_supported_for_history",
+            "l'historique utilise un curseur, pas un décalage",
+        )
+    if date_from is not None and date_to is not None and date_from > date_to:
+        raise api_error(
+            422,
+            "invalid_history_date_range",
+            "la date de début doit précéder la date de fin",
+        )
     # Une transaction, pas une simple lecture : un compte Discovery peut voir
     # ses trois déblocages écrits ici, une fois pour toutes (§20).
     with request.app.state.engine.begin() as connection:
@@ -144,8 +197,13 @@ def list_signals(
                 access.entitlements,
                 {
                     "target_icp_id": target_icp_id,
+                    "date_from": date_from,
+                    "date_to": date_to,
                     "country": country,
+                    "subdivision_code": subdivision_code,
+                    "status": status,
                     "primary_event": primary_event,
+                    "cpv_prefix": cpv_prefix,
                     "winner": winner,
                 },
             )
@@ -167,22 +225,47 @@ def list_signals(
         )
         access = _grant_discovery(connection, session.account_id, access, allowed, now)
         try:
-            page = query.feed_page(
-                connection,
-                account_id=session.account_id,
-                as_of=as_of,
-                freshness=freshness,
-                target_icp_id=target_icp_id,
-                allowed_target_icp_ids=allowed,
-                primary_event=primary_event,
-                country=country,
-                winner=winner,
-                limit=limit,
-                offset=offset,
-            )
+            if view_mode == "history":
+                page = query.history_page(
+                    connection,
+                    account_id=session.account_id,
+                    as_of=as_of,
+                    target_icp_id=target_icp_id,
+                    allowed_target_icp_ids=allowed,
+                    primary_event=primary_event,
+                    country=country,
+                    subdivision_code=subdivision_code,
+                    status=status,
+                    cpv_prefix=cpv_prefix,
+                    date_from=date_from,
+                    date_to=date_to,
+                    winner=winner,
+                    limit=limit,
+                    cursor=cursor,
+                )
+            else:
+                page = query.feed_page(
+                    connection,
+                    account_id=session.account_id,
+                    as_of=as_of,
+                    freshness=freshness,
+                    target_icp_id=target_icp_id,
+                    allowed_target_icp_ids=allowed,
+                    primary_event=primary_event,
+                    country=country,
+                    winner=winner,
+                    limit=limit,
+                    offset=offset,
+                )
         except query.ForeignTargetIcp as error:
             # Le profil d'un autre compte se comporte comme un profil inexistant.
             raise api_error(404, "target_icp_not_found", "profil de ciblage introuvable") from error
+        except InvalidHistoryCursor as error:
+            raise api_error(
+                422,
+                "invalid_history_cursor",
+                "curseur historique invalide",
+            ) from error
 
         unlocked_items = tuple(item for item in page.items if access.is_unlocked(item))
         presentation_bindings = _presentation_bindings(connection, unlocked_items)
@@ -192,10 +275,14 @@ def list_signals(
             bindings=presentation_bindings,
             language=lang,
         )
-        company_keys = ensure_companies_for_unlocked_signals(
+        unlocked_keys = tuple(item.signal.signal_key for item in unlocked_items)
+        company_keys = company_keys_for_signals(
             connection,
-            items=unlocked_items,
-            now=now,
+            signal_keys=unlocked_keys,
+        )
+        enrichments = winner_enrichments_for_signals(
+            connection,
+            signal_keys=unlocked_keys,
         )
 
         # §34 — UNE consultation par appel de feed, jamais une par carte : une
@@ -208,13 +295,31 @@ def list_signals(
             event_type="signal_feed_viewed",
             occurred_at=now,
             properties={
-                "freshness": freshness,
+                "freshness": "all" if view_mode == "history" else freshness,
+                "view": view_mode,
                 "returned": len(page.items),
                 "plan_code": access.plan_code,
-                "offset": offset,
+                "offset": 0 if view_mode == "history" else offset,
             },
         )
 
+    page_payload = (
+        {
+            "limit": page.limit,
+            "offset": 0,
+            "cursor": page.cursor,
+            "next_cursor": page.next_cursor,
+            "has_more": page.has_more,
+            "scan_truncated": page.scan_truncated,
+        }
+        if view_mode == "history"
+        else {
+            "limit": page.limit,
+            "offset": page.offset,
+            "has_more": page.has_more,
+            "scan_truncated": page.scan_truncated,
+        }
+    )
     return {
         "items": [
             _render(
@@ -223,29 +328,57 @@ def list_signals(
                 lang=lang,
                 presentation=presentations.get(item.signal.signal_key),
                 company_key=company_keys.get(item.signal.signal_key),
+                enrichment=enrichments.get(item.signal.signal_key),
             )
             for item in page.items
         ],
         "total_returned": len(page.items),
-        "page": {
-            "limit": page.limit,
-            "offset": page.offset,
-            "has_more": page.has_more,
-            "scan_truncated": page.scan_truncated,
-        },
+        "page": page_payload,
         "excluded": {
             "without_display_name": page.excluded_without_display_name,
-            "by_freshness": page.excluded_by_freshness,
+            "by_freshness": (
+                0 if view_mode == "history" else page.excluded_by_freshness
+            ),
+            "by_filters": (
+                page.excluded_by_filters if view_mode == "history" else 0
+            ),
         },
         "read_at": as_of.isoformat(),
-        "freshness": freshness,
+        "freshness": "all" if view_mode == "history" else freshness,
+        "view": view_mode,
         "language": lang,
         "plan_code": access.plan_code,
+        "history_access": _history_access(access),
+        "filter_access": _filter_access(access),
         "policy": {
             "feed": policy.FEED_POLICY_VERSION,
             "recency": RECENCY_POLICY_VERSION,
             "paywall": paywall.PAYWALL_VERSION,
         },
+    }
+
+
+def _history_access(access: FeedAccess) -> dict[str, Any]:
+    if not access.is_paid:
+        scope = "grants_only"
+    elif access.entitlements.history_days is None:
+        scope = "all_available"
+    else:
+        scope = "window"
+    return {
+        "scope": scope,
+        "history_days": access.entitlements.history_days,
+    }
+
+
+def _filter_access(access: FeedAccess) -> dict[str, bool]:
+    entitlements = access.entitlements
+    return {
+        "date_range": filter_is_available(entitlements, "date_from"),
+        "country": filter_is_available(entitlements, "country"),
+        "subdivision": filter_is_available(entitlements, "subdivision_code"),
+        "status": filter_is_available(entitlements, "status"),
+        "sector": filter_is_available(entitlements, "cpv_prefix"),
     }
 
 
@@ -256,6 +389,7 @@ def _render(
     lang: str,
     presentation: PublishedCardPresentation | None,
     company_key: str | None,
+    enrichment: WinnerEnrichmentView | None,
 ) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
@@ -263,6 +397,8 @@ def _render(
         card["locked"] = False
         if company_key is not None:
             card["company_key"] = company_key
+        if enrichment is not None:
+            card["winner_enrichment"] = enrichment.model_dump(mode="json")
         return card
     return paywall.locked_teaser(item, lang=lang)
 
@@ -310,6 +446,7 @@ def get_signal(
     # La consultation est ENREGISTRÉE : d'où une transaction plutôt qu'une
     # simple lecture.
     company_key = None
+    enrichment = None
     presentation = None
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
@@ -373,11 +510,13 @@ def get_signal(
                             language=lang,
                             artifact_id=presentation_artifact_id,
                         )
-                company_key = ensure_company_for_unlocked_signal(
+                company_key = company_keys_for_signals(
                     connection,
-                    item=item,
-                    now=now,
-                )
+                    signal_keys=(signal_key,),
+                ).get(signal_key)
+                enrichment = winner_enrichments_for_signals(
+                    connection, signal_keys=(signal_key,)
+                ).get(signal_key)
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
@@ -398,6 +537,8 @@ def get_signal(
     detail["locked"] = False
     if company_key is not None:
         detail["company_key"] = company_key
+    if enrichment is not None:
+        detail["winner_enrichment"] = enrichment.model_dump(mode="json")
     # §8 — l'avis du client vit dans SON bloc. Il n'est ni un fait publié ni une
     # inférence du moteur, et il ne doit contaminer ni `contract`, ni `event`,
     # ni `evidence`, ni `analysis`.

@@ -38,7 +38,8 @@ SIGNAL_NOTES_REVISION = "0027_signal_notes"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de SIGNAL_NOTES_REVISION, et écraser ce lien ferait passer un test faux.
 CARD_PRESENTATION_REVISION = "0028_card_presentation"
-CURRENT_HEAD = "0029_production_observation"
+PRODUCTION_OBSERVATION_REVISION = "0029_production_observation"
+CURRENT_HEAD = "0030_winner_enrichment"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -123,7 +124,14 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
     assert script.get_revision(RESPONSE_REVISION).down_revision == TARGET_ICP_REVISION
     assert script.get_revision(CONVERSION_REVISION).down_revision == RESPONSE_REVISION
     assert script.get_revision(LEARNING_REVISION).down_revision == CONVERSION_REVISION
-    assert script.get_revision(CURRENT_HEAD).down_revision == CARD_PRESENTATION_REVISION
+    assert (
+        script.get_revision(CURRENT_HEAD).down_revision
+        == PRODUCTION_OBSERVATION_REVISION
+    )
+    assert (
+        script.get_revision(PRODUCTION_OBSERVATION_REVISION).down_revision
+        == CARD_PRESENTATION_REVISION
+    )
     assert (
         script.get_revision(CARD_PRESENTATION_REVISION).down_revision
         == SIGNAL_NOTES_REVISION

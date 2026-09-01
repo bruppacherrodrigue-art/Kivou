@@ -9,6 +9,7 @@ import type { NoteSaveState } from '../reference/dashboard/useSignalNote'
 import {
   AUTHENTICATED,
   CATALOGUE,
+  COMPANY_PROFILE,
   DISCOVERY_STATUS,
   ICP,
   LOCKED_ITEM,
@@ -52,6 +53,7 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
       [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
         body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
       },
+      [`GET /companies/${UNLOCKED_ITEM.company_key}`]: { body: COMPANY_PROFILE },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: DISCOVERY_STATUS },
       'GET /billing/plans': { body: CATALOGUE },
@@ -65,7 +67,7 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
     expect(
       await screen.findByRole('heading', {
         level: 2,
-        name: 'Présentation non publiée',
+        name: /Constructions Bertrand SA remporte un marché/,
       }),
     ).toBeVisible()
     expect(document.querySelector('.workspace-grid .feed-panel + .detail-panel')).not.toBeNull()
@@ -97,6 +99,7 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
           },
         }
       },
+      [`GET /companies/${UNLOCKED_ITEM.company_key}`]: { body: COMPANY_PROFILE },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: DISCOVERY_STATUS },
     })
@@ -180,6 +183,7 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
               },
             }
       },
+      [`GET /companies/${UNLOCKED_ITEM.company_key}`]: { body: COMPANY_PROFILE },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: DISCOVERY_STATUS },
     })
@@ -221,6 +225,7 @@ describe('workspace Signaux de référence connecté aux données réelles', () 
       [`PUT /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
         body: { signal_id: UNLOCKED_ITEM.signal_id, note: 'écrasement', updated_at: null },
       },
+      [`GET /companies/${UNLOCKED_ITEM.company_key}`]: { body: COMPANY_PROFILE },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: DISCOVERY_STATUS },
     })

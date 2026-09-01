@@ -24,6 +24,7 @@ from typing import Any
 from signals.card_intelligence.contracts import PublishedCardPresentation
 from signals.feed import copy as feed_copy
 from signals.feed import policy
+from signals.feed.factual_display import factual_display
 from signals.feed.query import FeedSignal
 from signals.recency.claim import claim_for_status
 
@@ -315,6 +316,7 @@ def feed_item(
         "signal_id": item.signal.signal_key,
         "target_icp_id": item.signal.target_icp_id,
         "company": _company(item),
+        "factual_display": factual_display(item, lang=lang),
         "event": _event(item, lang=lang),
         "contract": _contract(item),
         "analysis": _analysis(item, lang=lang, full=False),

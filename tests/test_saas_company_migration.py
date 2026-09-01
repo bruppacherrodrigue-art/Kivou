@@ -13,7 +13,7 @@ from signals.persistence.schema import METADATA, materialized_signal
 
 PREVIOUS = "0021_reliability_operations"
 HEAD = "0022_saas_company_profile"
-CURRENT_HEAD = "0029_production_observation"
+CURRENT_HEAD = "0030_winner_enrichment"
 
 
 def test_company_migration_is_the_single_additive_head(tmp_path) -> None:
@@ -75,7 +75,9 @@ def test_company_postgresql_sql_is_scoped_and_client_safe(capsys) -> None:
 def test_company_migration_backfills_the_index_for_existing_signals(tmp_path) -> None:
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'backfill.db'}")
     config = alembic_config(engine)
-    command.upgrade(config, HEAD)
+    # Seed through the current application schema: current materialization also
+    # enqueues winner enrichment, which correctly requires revision 0030.
+    command.upgrade(config, CURRENT_HEAD)
     with engine.begin() as connection:
         account_id = make_account(connection, "company-backfill@kivou.test", "Backfill")
         icp_id = make_icp(connection, account_id)
