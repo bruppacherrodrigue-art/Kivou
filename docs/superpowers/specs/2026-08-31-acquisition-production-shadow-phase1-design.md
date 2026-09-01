@@ -30,7 +30,7 @@ Ce runtime est **un banc d'essai de staging, par construction** :
 
 | Barrière | Emplacement |
 | --- | --- |
-| `load_runtime_config` lève `WRONG_ENVIRONMENT` hors `STAGING` | `config.py:72` |
+| `load_runtime_config` lève `WRONG_ENVIRONMENT` hors `STAGING` | `config.py` |
 | `environment: Literal["STAGING"]` | `contracts.py:153`, `contracts.py:271` |
 | `mode: Literal[SHADOW]`, `qa_only: Literal[True]` | `contracts.py` |
 | détournement de destinataire vers une boîte QA liée par HMAC | `transport.py:33` |
@@ -91,8 +91,17 @@ déploiement de production. Elle n'a **aucun** champ QA — ni `qa_only`, ni
 `qa_provider_mutations_capable` — et remplace `allowed_opportunity_keys` par un
 bloc de ciblage : pays `FR`, langue `fr`, wedge.
 
-Le staging n'est donc pas touché d'une ligne, et une configuration de staging
-posée par erreur en production est rejetée par son seul `schema_version`.
+Le staging n'est donc pas touché d'une ligne, et un document de *runtime* de
+staging posé par erreur en production est rejeté par son seul `schema_version`.
+
+**Cette garantie ne s'étend pas au document de connectivité.** Il conserve
+`acquisition-shadow-connectivity-v1` des deux côtés, et le chargeur accepte
+désormais les deux environnements : un `KIVOU_ACQUISITION_SHADOW_CONFIG` resté
+pointé sur le fichier de staging se chargerait sans erreur. Ce qui l'attrape est
+d'une part le contrôle d'égalité de la référence de workspace contre la
+configuration de webhook, d'autre part l'étape d'isolation des identifiants du
+runbook — une vérification **manuelle**. C'est la faiblesse connue de ce
+dispositif.
 
 ### D2 — `load_runtime_config` branche sur l'environnement
 
@@ -115,7 +124,24 @@ manuelle de staging.
 Le garde de `transport.py` n'est pas modifié. Il continue d'exiger `STAGING`,
 `SHADOW`, `qa_only` et `qa_provider_mutations_capable` pour construire un
 détournement de destinataire. En production, ce constructeur ne peut donc jamais
-être instancié : il n'existe pas de destinataire de repli, et pas d'envoi.
+être instancié : il n'existe aucun destinataire de repli.
+
+**Correction d'une formulation antérieure de ce document.** Il affirmait que « le
+chemin d'envoi n'existe pas » en production. C'est faux, et la nuance compte : le
+`CampaignWorker` est bel et bien construit avec le vrai client Instantly, et sans
+détournement il viserait l'adresse réellement découverte. Ce qui retient l'envoi
+n'est pas une absence de code mais **cinq mécanismes indépendants** — le refus du
+drapeau de mutation QA en production, au niveau du processus *et* de la
+composition ; `PROVIDER_HANDOFF` mis en attente inconditionnelle par le runner ;
+le plafond de volume quotidien à zéro, qui frappe les deux seules commandes
+portant `uses_volume` ; l'accord humain à usage unique qu'exige `ASSISTED` pour
+toute mutation commerciale ; et l'absence des deux commandes d'envoi dans
+l'autorité amorcée.
+
+Il faut en tirer la conséquence honnête : le staging dispose d'un filet — toute
+erreur y redirige vers une boîte QA contrôlée. La production n'en a pas. Une
+défaillance simultanée des cinq mécanismes y atteindrait un vrai contact, alors
+qu'en staging elle n'atteindrait qu'une boîte de test.
 
 ### D4 — Sélection bornée de l'opportunité du cycle
 
@@ -131,6 +157,12 @@ PostgreSQL et le verrou `flock` existants s'en chargent.
 
 `maximum_suppliers` et `maximum_contacts` **restent à 1**. Le volume vient de la
 cadence, pas de l'élargissement des bornes.
+
+**La sélection filtre le pays, pas le wedge.** Ce document annonçait « pays `FR`,
+wedge configuré ». Aucune colonne de wedge n'existe sur les tables parcourues :
+le wedge n'est appliqué que comme périmètre statique de la Policy, jamais contre
+l'opportunité retenue. Le relevé mesure donc l'entonnoir français dans son
+ensemble, et non un wedge particulier.
 
 ### D5 — Amorçage du contrôle Policy
 
@@ -179,10 +211,15 @@ Ces énoncés sont vérifiés par des tests, et leur violation fait échouer la 
 2. `PRODUCTION` refuse `--allow-qa-provider-mutations`.
 3. Un déploiement `acquisition-runtime-v1` est rejeté en `PRODUCTION`.
 4. Un déploiement `acquisition-production-v1` est rejeté en `STAGING`.
-5. Le cycle de production n'émet aucune mutation commerciale : tout delta de
-   mutation fournisseur vaut zéro à la fin de chaque cycle, et un delta non nul
-   fait échouer le cycle. Le nombre exact de compteurs est celui que le runtime
-   expose déjà ; l'implémentation les assertera tous, sans en présumer le nombre.
+5. Le cycle de production n'émet aucune mutation commerciale. **Ce qui est
+   réellement vérifié**, et il faut le lire tel quel : le cycle atteint
+   `PROVIDER_HANDOFF`, s'y fait bloquer par le garde de production, un
+   gestionnaire canari enregistrerait puis ferait échouer toute mutation qui
+   passerait, la doublure fournisseur ne reçoit aucun appel mutant, et la table
+   `acquisition_provider_operation` reste vide. Il n'existe **pas** de mécanisme
+   de delta de mutation dans le cycle — celui du dépôt appartient au smoke de
+   connectivité — et une version antérieure de ce document affirmait le
+   contraire.
 6. Aucun secret, aucune adresse, aucun objet fournisseur brut, aucun prompt ni
    réponse de modèle n'entre dans le journal.
 7. Le staging reste inchangé : ses contrats, ses fichiers et son runbook ne sont
