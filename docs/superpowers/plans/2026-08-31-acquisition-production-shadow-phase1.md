@@ -1295,7 +1295,7 @@ git commit -m "test(acquisition): verrouiller l'absence de mutation et de fuite 
 ### Task 7B : lever le verrou staging au niveau de la base
 
 **Files:**
-- Create: `src/signals/persistence/migrations/versions/0029_production_observation_boundary.py`
+- Create: `src/signals/persistence/migrations/versions/0029_production_observation.py`
 - Modify: `src/signals/persistence/schema.py:2368-2372`
 - Test: `tests/test_acquisition_runtime_migration.py` *(étendu)*
 
@@ -1342,7 +1342,7 @@ Dans `src/signals/persistence/schema.py`, remplacer l'expression de la contraint
 
 - [ ] **Étape 4 : écrire la migration**
 
-Créer `0029_production_observation_boundary.py`, de révision précédente `0028_card_presentation`. Le `upgrade()` supprime la contrainte nommée puis la recrée avec l'expression ci-dessus. Le `downgrade()` rétablit l'expression d'origine.
+Créer `0029_production_observation.py`, de révision précédente `0028_card_presentation`. Le `upgrade()` supprime la contrainte nommée puis la recrée avec l'expression ci-dessus. Le `downgrade()` rétablit l'expression d'origine.
 
 Écrire dans le docstring du module ce que le downgrade suppose : il **échoue** si une observation de production existe déjà, puisque la contrainte restaurée la rejetterait. La procédure de retour arrière doit supprimer cette ligne avant de redescendre, ou renoncer au downgrade. Ne pas masquer cette condition par un `DELETE` silencieux dans la migration — une migration qui efface des données sans le dire est un piège.
 
@@ -1366,7 +1366,7 @@ Si la commande n'est pas disponible telle quelle, relever son invocation réelle
 - [ ] **Étape 6 : commit**
 
 ```bash
-git add src/signals/persistence/schema.py src/signals/persistence/migrations/versions/0029_production_observation_boundary.py tests/test_acquisition_runtime_migration.py
+git add src/signals/persistence/schema.py src/signals/persistence/migrations/versions/0029_production_observation.py tests/test_acquisition_runtime_migration.py
 git commit -m "feat(persistence): autoriser une observation de production sans relâcher le staging"
 ```
 
@@ -1923,7 +1923,7 @@ Attendu : **aucune ligne modifiée** dans ces trois fichiers. `tests/test_acquis
 git diff --stat origin/main -- src/signals/persistence/migrations/
 ```
 
-Attendu : **exactement un fichier**, `0029_production_observation_boundary.py`, livré par la tâche 7B. Tout autre fichier de migration est une erreur à corriger avant fusion.
+Attendu : **exactement un fichier**, `0029_production_observation.py`, livré par la tâche 7B. Tout autre fichier de migration est une erreur à corriger avant fusion.
 
 - [ ] **Étape 5 : ouvrir la pull request**
 

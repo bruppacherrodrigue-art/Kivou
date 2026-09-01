@@ -1,6 +1,6 @@
 """Allow a production observation while keeping staging QA-only.
 
-Revision ID: 0029_production_observation_boundary
+Revision ID: 0029_production_observation
 Revises: 0028_card_presentation
 
 `ck_acquisition_runtime_observation_boundary` pinned `environment = 'STAGING'
@@ -30,7 +30,7 @@ from __future__ import annotations
 
 from alembic import op
 
-revision = "0029_production_observation_boundary"
+revision = "0029_production_observation"
 down_revision = "0028_card_presentation"
 branch_labels = None
 depends_on = None

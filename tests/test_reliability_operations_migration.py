@@ -15,7 +15,7 @@ from signals.persistence.schema import (
 
 PREVIOUS = "0020_hermes_learning_loop"
 HEAD = "0021_reliability_operations"
-CURRENT_HEAD = "0029_production_observation_boundary"
+CURRENT_HEAD = "0029_production_observation"
 TABLES = (acquisition_operational_incident, acquisition_dead_letter)
 
 

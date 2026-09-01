@@ -26,7 +26,7 @@ SIGNAL_NOTES = "0027_signal_notes"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de SIGNAL_NOTES, et écraser ce lien ferait passer un test faux.
 CARD_PRESENTATION = "0028_card_presentation"
-LATEST = "0029_production_observation_boundary"
+LATEST = "0029_production_observation"
 TABLES = {"acquisition_learning_snapshot", "acquisition_allocation_proposal"}
 
 

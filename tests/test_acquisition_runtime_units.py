@@ -227,7 +227,7 @@ def test_the_production_runbook_covers_the_full_bring_up_sequence() -> None:
     runbook = Path("docs/runbooks/12-acquisition-production-shadow.md").read_text(
         encoding="utf-8"
     )
-    assert "0029_production_observation_boundary" in runbook
+    assert "0029_production_observation" in runbook
     assert "command.upgrade" in runbook
     assert "command.downgrade" in runbook
     assert "signals.operations" in runbook

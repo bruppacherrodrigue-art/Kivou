@@ -22,7 +22,7 @@ SIGNAL_NOTES = "0027_signal_notes"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de SIGNAL_NOTES, et écraser ce lien ferait passer un test faux.
 CARD_PRESENTATION = "0028_card_presentation"
-LATEST = "0029_production_observation_boundary"
+LATEST = "0029_production_observation"
 COLUMN = "recipient_context_fingerprint"
 INDEX = "ix_signal_alert_delivery_recipient_context_refusal"
 NOW = dt.datetime(2026, 8, 25, 10, 0, tzinfo=dt.UTC)

@@ -38,7 +38,7 @@ SIGNAL_NOTES_REVISION = "0027_signal_notes"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de SIGNAL_NOTES_REVISION, et écraser ce lien ferait passer un test faux.
 CARD_PRESENTATION_REVISION = "0028_card_presentation"
-CURRENT_HEAD = "0029_production_observation_boundary"
+CURRENT_HEAD = "0029_production_observation"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 

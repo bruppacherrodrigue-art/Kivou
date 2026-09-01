@@ -37,7 +37,7 @@ refusent tout remplacement en ligne de commande de la base ou de l'horloge.
   (étape 6) refuse d'écrire un second contrôle initial, par construction ;
 - la migration `0026_acquisition_runtime` et toutes celles qui suivent
   jusqu'à `0028_card_presentation` sont déjà appliquées à la base de
-  production ; `0029_production_observation_boundary` (étape 2) ne l'est
+  production ; `0029_production_observation` (étape 2) ne l'est
   **pas encore** ;
 - staging et production restent deux bases, deux jeux de secrets, deux
   comptes/espaces de travail fournisseur distincts (runbook 07) ;
@@ -46,9 +46,9 @@ refusent tout remplacement en ligne de commande de la base ou de l'horloge.
   (`qa_scope.wedge`, étape 5) et dans la commande `bootstrap-policy-control`
   (étape 6) ; un désaccord fait échouer chaque cycle avec `POLICY_SCOPE_NOT_EXACT`.
 
-## 2. Sauvegarde puis migration `0029_production_observation_boundary`
+## 2. Sauvegarde puis migration `0029_production_observation`
 
-`0029_production_observation_boundary` assouplit — sans jamais la relâcher —
+`0029_production_observation` assouplit — sans jamais la relâcher —
 la contrainte de vérification `ck_acquisition_runtime_observation_boundary`
 de la table `acquisition_runtime_observation` : elle continue d'exiger
 `mode = 'SHADOW'` et `native_tools = 0` sans exception, exige toujours
@@ -77,7 +77,7 @@ engine = create_database_engine(pool_pre_ping=True)
 try:
     print(f"before={current_revision(engine)}")
     config = alembic_config(engine)
-    command.upgrade(config, "0029_production_observation_boundary")
+    command.upgrade(config, "0029_production_observation")
     print(f"after={current_revision(engine)}")
 finally:
     engine.dispose()
@@ -90,7 +90,7 @@ un shell interactif continue après une commande en échec. Si la sauvegarde
 ligne par ligne.
 
 Vérifier que la ligne `after=` affiche exactement
-`0029_production_observation_boundary` avant de continuer. N'exécuter aucune
+`0029_production_observation` avant de continuer. N'exécuter aucune
 étape suivante si la sauvegarde ou la migration a échoué.
 
 ## 3. Vérification des identifiants Apollo et Instantly de production
@@ -477,7 +477,7 @@ les fichiers d'unité pendant qu'un cycle tourne encore ou que systemd les
 croit toujours actifs laisse un état incohérent. `set -euo pipefail` arrête
 le bloc à la première commande en échec.
 
-Le downgrade de `0029_production_observation_boundary` restaure l'ancienne
+Le downgrade de `0029_production_observation` restaure l'ancienne
 contrainte `environment = 'STAGING' AND ... AND qa_only IS TRUE`, qui rejette
 toute ligne `PRODUCTION`. **Il échoue avec une erreur d'intégrité si une
 observation de production existe déjà** — la migration ne supprime jamais
