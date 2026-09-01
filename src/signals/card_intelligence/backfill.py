@@ -83,9 +83,12 @@ class BackfillPrecondition:
     expected_candidate_count: int
     expected_active_publication_count: int
     expected_current_factual_artifact_digest: str
+    expected_candidate_binding_digest: str
+    expected_active_artifact_digest: str
     protected_language: Literal["fr", "en"] | None = None
     expected_protected_active_publication_count: int | None = None
     expected_protected_current_factual_artifact_digest: str | None = None
+    expected_protected_active_artifact_digest: str | None = None
 
     def __post_init__(self) -> None:
         if (
@@ -106,10 +109,20 @@ class BackfillPrecondition:
             is None
         ):
             _invalid()
+        if not all(
+            isinstance(value, str)
+            and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+            for value in (
+                self.expected_candidate_binding_digest,
+                self.expected_active_artifact_digest,
+            )
+        ):
+            _invalid()
         protected_values = (
             self.protected_language,
             self.expected_protected_active_publication_count,
             self.expected_protected_current_factual_artifact_digest,
+            self.expected_protected_active_artifact_digest,
         )
         if any(value is not None for value in protected_values) and not all(
             value is not None for value in protected_values
@@ -128,6 +141,15 @@ class BackfillPrecondition:
             or re.fullmatch(
                 r"[0-9a-f]{64}",
                 self.expected_protected_current_factual_artifact_digest,
+            )
+            is None
+            or not isinstance(
+                self.expected_protected_active_artifact_digest,
+                str,
+            )
+            or re.fullmatch(
+                r"[0-9a-f]{64}",
+                self.expected_protected_active_artifact_digest,
             )
             is None
         ):
@@ -217,25 +239,49 @@ def _current_factual_artifact_digest(
     return hashlib.sha256(canonical.encode("ascii")).hexdigest()
 
 
-def _active_publication_count(
+def _candidate_binding_digest(
+    bindings: Mapping[str, tuple[int, int]],
+) -> str:
+    canonical = json.dumps(
+        sorted(
+            (signal_key, signal_revision, target_icp_revision)
+            for signal_key, (
+                signal_revision,
+                target_icp_revision,
+            ) in bindings.items()
+        ),
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode("ascii")).hexdigest()
+
+
+def _active_artifact_state(
     connection: sa.Connection,
     *,
     account_id: str,
     language: Literal["fr", "en"],
-) -> int:
-    count = connection.scalar(
-        sa.select(sa.func.count())
-        .select_from(card_presentation_artifact)
-        .where(
-            card_presentation_artifact.c.account_id == account_id,
-            card_presentation_artifact.c.language == language,
-            card_presentation_artifact.c.published_at.is_not(None),
-            card_presentation_artifact.c.superseded_at.is_(None),
-        )
+) -> tuple[int, str]:
+    artifact_ids = list(
+        connection.execute(
+            sa.select(card_presentation_artifact.c.artifact_id).where(
+                card_presentation_artifact.c.account_id == account_id,
+                card_presentation_artifact.c.language == language,
+                card_presentation_artifact.c.published_at.is_not(None),
+                card_presentation_artifact.c.superseded_at.is_(None),
+            )
+        ).scalars()
     )
-    if type(count) is not int:
+    if any(
+        not isinstance(artifact_id, str)
+        or re.fullmatch(r"[0-9a-f]{64}", artifact_id) is None
+        for artifact_id in artifact_ids
+    ):
         raise _BackfillPreconditionFailed
-    return count
+    canonical = json.dumps(sorted(artifact_ids), separators=(",", ":"))
+    return (
+        len(artifact_ids),
+        hashlib.sha256(canonical.encode("ascii")).hexdigest(),
+    )
 
 
 def _stop_guarded() -> None:
@@ -500,6 +546,11 @@ def backfill_factual_presentations(
             )
             for source in locked_sources
         }
+        if precondition is not None and not hmac.compare_digest(
+            _candidate_binding_digest(bindings),
+            precondition.expected_candidate_binding_digest,
+        ):
+            _stop_guarded()
         if precondition is not None:
             _lock_guarded_artifact_table(connection)
         current = published_for_signals(
@@ -509,7 +560,7 @@ def backfill_factual_presentations(
             language=checked_language,
         )
         if precondition is not None:
-            active_count = _active_publication_count(
+            active_count, active_digest = _active_artifact_state(
                 connection,
                 account_id=account_id,
                 language=checked_language,
@@ -518,6 +569,10 @@ def backfill_factual_presentations(
             if (
                 active_count
                 != precondition.expected_active_publication_count
+                or not hmac.compare_digest(
+                    active_digest,
+                    precondition.expected_active_artifact_digest,
+                )
                 or not hmac.compare_digest(
                     actual_digest,
                     precondition.expected_current_factual_artifact_digest,
@@ -532,10 +587,12 @@ def backfill_factual_presentations(
                         bindings=bindings,
                         language=precondition.protected_language,
                     )
-                    protected_active_count = _active_publication_count(
-                        connection,
-                        account_id=account_id,
-                        language=precondition.protected_language,
+                    protected_active_count, protected_active_digest = (
+                        _active_artifact_state(
+                            connection,
+                            account_id=account_id,
+                            language=precondition.protected_language,
+                        )
                     )
                     protected_digest = _current_factual_artifact_digest(
                         protected_current
@@ -547,6 +604,14 @@ def backfill_factual_presentations(
                     != precondition.expected_protected_active_publication_count
                     or protected_active_count
                     != precondition.expected_protected_active_publication_count
+                    or (
+                        precondition.expected_protected_active_artifact_digest
+                        is not None
+                        and not hmac.compare_digest(
+                            protected_active_digest,
+                            precondition.expected_protected_active_artifact_digest,
+                        )
+                    )
                     or not hmac.compare_digest(
                         protected_digest,
                         precondition.expected_protected_current_factual_artifact_digest,

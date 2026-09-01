@@ -542,6 +542,7 @@ test ! -L "$KIVOU_QA_ENV"
 test "$(stat -c '%U:%G:%a' "$KIVOU_QA_ENV")" = "root:kivou:640"
 sudo systemd-run --quiet --wait --collect --pipe \
   --unit="kivou-card-recovery-snapshot-$$" --property=Type=oneshot \
+  --property=RuntimeMaxSec=5min \
   --property=User=kivou --property=Group=kivou \
   --property=WorkingDirectory="$KIVOU_RECOVERY_APP_DIR" \
   --property=EnvironmentFile=/etc/kivou/staging.env \
@@ -580,12 +581,13 @@ def main() -> None:
     with engine.connect() as connection:
         connection.exec_driver_sql("SET TRANSACTION READ ONLY")
         rows = connection.execute(sa.text(
-            "SELECT artifact_id, signal_key, signal_revision, target_icp_revision, "
-            "language, version, payload, payload_variant, qa_status, prompt_version, "
-            "model_id, provider, qa_model_id, qa_provider "
+            "SELECT artifact_id, signal_key, signal_revision, target_icp_id, "
+            "target_icp_revision, language, version, payload, payload_variant, "
+            "qa_status, prompt_version, model_id, provider, qa_model_id, "
+            "qa_provider, superseded_at "
             "FROM card_presentation_artifact "
             "WHERE account_id=:account_id AND published_at IS NOT NULL "
-            "AND superseded_at IS NULL ORDER BY artifact_id"
+            "ORDER BY artifact_id"
         ), {"account_id": account_id}).mappings().all()
         foreign_rows = connection.scalar(sa.text(
             "SELECT count(*) FROM card_presentation_artifact "
@@ -594,10 +596,6 @@ def main() -> None:
         total_rows = connection.scalar(sa.text(
             "SELECT count(*) FROM card_presentation_artifact "
             "WHERE account_id=:account_id"
-        ), {"account_id": account_id})
-        en_rows = connection.scalar(sa.text(
-            "SELECT count(*) FROM card_presentation_artifact "
-            "WHERE account_id=:account_id AND language='en'"
         ), {"account_id": account_id})
         ai_rows = connection.scalar(sa.text(
             "SELECT count(*) FROM card_presentation_artifact "
@@ -624,32 +622,60 @@ def main() -> None:
         )
         assert page.limit == 50
         assert page.offset == 0
-        assert len(page.items) == 44
+        assert 1 <= len(page.items) <= 50
         assert page.has_more is False
         assert page.scan_truncated is False
-        page_bindings = {
-            item.signal.signal_key: (
-                item.signal.revision,
-                item.signal.target_icp_revision,
-            )
+        page_signal_revisions = {
+            item.signal.signal_key: item.signal.revision
             for item in page.items
         }
-        assert len(page_bindings) == 44
-        expected_languages = ("fr",) if phase != "post_en" else ("fr", "en")
-        expected_current_count = 8 if phase == "baseline" else 44
-        for language in expected_languages:
+        binding_rows = connection.execute(sa.text(
+            "SELECT signal.signal_key, signal.revision, "
+            "signal.target_icp_id, signal.target_icp_revision "
+            "FROM materialized_signal AS signal "
+            "JOIN target_icp AS icp "
+            "ON icp.target_icp_id=signal.target_icp_id "
+            "WHERE icp.account_id=:account_id "
+            "AND icp.status='active' AND icp.plan_limit_code IS NULL "
+            "AND signal.invalidated_at IS NULL "
+            "AND signal.target_icp_revision=icp.matching_revision"
+        ), {"account_id": account_id}).mappings().all()
+        page_authorities = {
+            row["signal_key"]: (
+                row["revision"],
+                row["target_icp_id"],
+                row["target_icp_revision"],
+            )
+            for row in binding_rows
+            if row["signal_key"] in page_signal_revisions
+        }
+        assert len(page_authorities) == len(page.items)
+        assert set(page_authorities) == set(page_signal_revisions)
+        assert all(
+            revision == page_signal_revisions[signal_key]
+            for signal_key, (
+                revision,
+                _target_icp_id,
+                _target_revision,
+            ) in page_authorities.items()
+        )
+        page_bindings = {
+            signal_key: (signal_revision, target_icp_revision)
+            for signal_key, (
+                signal_revision,
+                _target_icp_id,
+                target_icp_revision,
+            ) in page_authorities.items()
+        }
+        current_by_language = {}
+        for language in ("fr", "en"):
             current = published_for_signals(
                 connection,
                 account_id=account_id,
                 bindings=page_bindings,
                 language=language,
             )
-            expected_rows = [row for row in rows if row["language"] == language]
-            assert len(current) == expected_current_count
-            assert set(current) == {row["signal_key"] for row in expected_rows}
-            assert {
-                presentation.artifact_id for presentation in current.values()
-            } == {row["artifact_id"] for row in expected_rows}
+            current_by_language[language] = current
             assert all(
                 presentation.status == "FALLBACK"
                 and presentation.content.variant
@@ -668,34 +694,115 @@ def main() -> None:
         assert payload.variant is PresentationVariant.FACTUAL_FALLBACK
         assert payload.claims
         assert all(claim.evidence_refs for claim in payload.claims)
-    if phase == "baseline":
-        assert len(rows) == 8
-        assert total_rows == 8
-        assert en_rows == 0
-        assert all(row["language"] == "fr" for row in rows)
-    elif phase == "post_fr":
-        assert len(rows) == 44
-        assert total_rows == 44
-        assert en_rows == 0
-        assert all(row["language"] == "fr" for row in rows)
-    else:
-        assert len(rows) == 88
-        assert total_rows == 88
-        assert en_rows == 44
-        assert sum(row["language"] == "fr" for row in rows) == 44
-        assert sum(row["language"] == "en" for row in rows) == 44
-    snapshot = [
+    active_rows = [row for row in rows if row["superseded_at"] is None]
+    active_ids = {
+        language: sorted(
+            row["artifact_id"]
+            for row in active_rows
+            if row["language"] == language
+        )
+        for language in ("fr", "en")
+    }
+    current_ids = {
+        language: sorted(
+            presentation.artifact_id
+            for presentation in current_by_language[language].values()
+        )
+        for language in ("fr", "en")
+    }
+    active_counts = {
+        language: len(active_ids[language]) for language in ("fr", "en")
+    }
+    current_counts = {
+        language: len(current_ids[language]) for language in ("fr", "en")
+    }
+    active_digests = {
+        language: hashlib.sha256(json.dumps(
+            active_ids[language], separators=(",", ":")
+        ).encode("ascii")).hexdigest()
+        for language in ("fr", "en")
+    }
+    current_digests = {
+        language: hashlib.sha256(json.dumps(
+            current_ids[language], separators=(",", ":")
+        ).encode("ascii")).hexdigest()
+        for language in ("fr", "en")
+    }
+    page_signal_keys = set(page_bindings)
+    active_outside_candidate_counts = {
+        language: sum(
+            row["signal_key"] not in page_signal_keys
+            for row in active_rows
+            if row["language"] == language
+        )
+        for language in ("fr", "en")
+    }
+    candidate_binding_digest = hashlib.sha256(json.dumps(sorted(
+        (signal_key, signal_revision, target_icp_revision)
+        for signal_key, (
+            signal_revision,
+            target_icp_revision,
+        ) in page_bindings.items()
+    ), separators=(",", ":")).encode("ascii")).hexdigest()
+    current_artifact_ids = {
+        artifact_id for ids in current_ids.values() for artifact_id in ids
+    }
+
+    def artifact_state(row) -> str:
+        if row["superseded_at"] is not None:
+            return "superseded"
+        authority = page_authorities.get(row["signal_key"])
+        assert authority is not None
+        signal_revision, target_icp_id, target_icp_revision = authority
+        assert row["target_icp_id"] == target_icp_id
+        assert row["target_icp_revision"] == target_icp_revision
+        if row["artifact_id"] in current_artifact_ids:
+            assert row["signal_revision"] == signal_revision
+            return "current"
+        assert row["signal_revision"] != signal_revision
+        return "signal_revision_changed"
+
+    artifacts = [
         {
             "artifact_id": row["artifact_id"],
             "language": row["language"],
             "version": row["version"],
+            "signal_revision": row["signal_revision"],
+            "target_icp_revision": row["target_icp_revision"],
+            "state": artifact_state(row),
             "payload_sha256": hashlib.sha256(
                 json.dumps(row["payload"], sort_keys=True, separators=(",", ":")).encode()
             ).hexdigest(),
         }
         for row in rows
     ]
-    print(json.dumps(snapshot, sort_keys=True, separators=(",", ":")))
+    if phase == "baseline":
+        assert len(artifacts) == 8
+        assert total_rows == 8
+        assert active_counts == {"fr": 8, "en": 0}
+        assert current_counts["en"] == 0
+        assert 0 <= current_counts["fr"] <= 8
+        assert sum(
+            artifact["state"] == "signal_revision_changed"
+            for artifact in artifacts
+        ) == 8 - current_counts["fr"]
+        assert all(
+            artifact["state"] in ("current", "signal_revision_changed")
+            for artifact in artifacts
+        )
+        assert active_outside_candidate_counts == {"fr": 0, "en": 0}
+        assert all(row["language"] == "fr" for row in rows)
+    print(json.dumps({
+        "candidate_count": len(page_bindings),
+        "candidate_binding_digest": candidate_binding_digest,
+        "active_counts": active_counts,
+        "active_digests": active_digests,
+        "current_counts": current_counts,
+        "current_digests": current_digests,
+        "active_outside_candidate_counts": active_outside_candidate_counts,
+        "active_artifact_ids": active_ids,
+        "artifacts": artifacts,
+    }, sort_keys=True, separators=(",", ":")))
 
 
 try:
@@ -718,18 +825,34 @@ if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   chmod 600 "$KIVOU_RECOVERY_BASELINE"
   test ! -L "$KIVOU_RECOVERY_BASELINE"
   test "$(stat -c '%U:%a' "$KIVOU_RECOVERY_BASELINE")" = "$(id -un):600"
-  jq -e 'length == 8 and all(.[];
-    .language == "fr"
-    and (.artifact_id | test("^[0-9a-f]{64}$"))
-    and (.version | type == "number" and . >= 1)
-    and (.payload_sha256 | test("^[0-9a-f]{64}$")))' \
+  jq -e '
+    .candidate_count >= 8 and .candidate_count <= 50
+    and (.candidate_binding_digest | test("^[0-9a-f]{64}$"))
+    and .active_counts == {"en":0,"fr":8}
+    and .current_counts.en == 0
+    and .current_counts.fr >= 0 and .current_counts.fr <= 8
+    and .active_outside_candidate_counts == {"en":0,"fr":0}
+    and (.active_artifact_ids.en | length) == 0
+    and (.active_artifact_ids.fr | length) == 8
+    and (.artifacts | length) == 8
+    and all(.artifacts[];
+      .language == "fr"
+      and (.artifact_id | test("^[0-9a-f]{64}$"))
+      and (.version | type == "number" and . >= 1)
+      and (.signal_revision | type == "number" and . >= 1)
+      and (.target_icp_revision | type == "number" and . >= 1)
+      and (.state == "current" or .state == "signal_revision_changed")
+      and (.payload_sha256 | test("^[0-9a-f]{64}$")))
+    and ([.artifacts[] | select(.state == "signal_revision_changed")] | length)
+      == (8 - .current_counts.fr)
+  ' \
     "$KIVOU_RECOVERY_BASELINE" >/dev/null
   KIVOU_RECOVERY_BASELINE_SHA256=$(sha256sum \
     "$KIVOU_RECOVERY_BASELINE" | awk '{print $1}')
   printf '%s\n' "$KIVOU_RECOVERY_BASELINE_SHA256" | \
     grep -Eq '^[0-9a-f]{64}$'
   KIVOU_RECOVERY_BASELINE_ARTIFACT_DIGEST=$(jq -j -c \
-    '[.[].artifact_id] | sort' "$KIVOU_RECOVERY_BASELINE" | sha256sum | \
+    '[.artifacts[].artifact_id] | sort' "$KIVOU_RECOVERY_BASELINE" | sha256sum | \
     awk '{print $1}')
   printf '%s\n' "$KIVOU_RECOVERY_BASELINE_ARTIFACT_DIGEST" | \
     grep -Eq '^[0-9a-f]{64}$'
@@ -1586,6 +1709,12 @@ case "$KIVOU_ROLLOUT_PATH" in
     KIVOU_RECOVERY_BASELINE_ARTIFACT_DIGEST=NOT_APPLICABLE
     KIVOU_RECOVERY_EMPTY_ARTIFACT_DIGEST=NOT_APPLICABLE
     KIVOU_RECOVERY_POST_FR_ARTIFACT_DIGEST=NOT_APPLICABLE
+    KIVOU_RECOVERY_CANDIDATE_COUNT=NOT_APPLICABLE
+    KIVOU_RECOVERY_FR_ACTIVE_COUNT=NOT_APPLICABLE
+    KIVOU_RECOVERY_FR_CURRENT_COUNT=NOT_APPLICABLE
+    KIVOU_RECOVERY_CANDIDATE_BINDING_DIGEST=NOT_APPLICABLE
+    KIVOU_RECOVERY_FR_ACTIVE_DIGEST=NOT_APPLICABLE
+    KIVOU_RECOVERY_FR_CURRENT_DIGEST=NOT_APPLICABLE
     ;;
   (resume_51202525)
     KIVOU_BACKFILL_AS_OF=2026-08-31
@@ -1782,24 +1911,272 @@ JS
 )
 
 kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"
+
+# Fermer la fenêtre de drift entre le manifeste pré-FR et le snapshot post-EN.
+# Le watchdog restaure l'API et uniquement les timers auparavant actifs si la
+# session opérateur disparaît avant la restauration explicite.
+KIVOU_WRITER_STATE_FILE="$KIVOU_EVIDENCE_DIR/writer-quiescence.txt"
+test ! -e "$KIVOU_WRITER_STATE_FILE"
+KIVOU_WRITER_QUIESCENCE=$(ssh kivou-staging 'bash -s' -- \
+  "$KIVOU_FINAL_SHORT" <<'REMOTE'
+set -euo pipefail
+KIVOU_FINAL_SHORT=$1
+printf '%s\n' "$KIVOU_FINAL_SHORT" | grep -Eq '^[0-9a-f]{12}$'
+test "$(hostname -s)" = "kivou-staging-01"
+KIVOU_WRITER_TIMERS=(
+  kivou-acquisition.timer
+  kivou-ingest-simap.timer
+  kivou-ingest-boamp.timer
+  kivou-ingest-decp.timer
+  kivou-ingest-ted.timer
+)
+KIVOU_WRITER_SERVICES=(
+  kivou-acquisition.service
+  kivou-ingest-simap.service
+  kivou-ingest-boamp.service
+  kivou-ingest-decp.service
+  kivou-ingest-ted.service
+)
+systemctl is-active --quiet kivou-api.service
+KIVOU_ACTIVE_TIMERS=()
+KIVOU_TIMER_STATES=
+for KIVOU_WRITER_TIMER in "${KIVOU_WRITER_TIMERS[@]}"; do
+  systemctl show "$KIVOU_WRITER_TIMER" --property=LoadState --value | \
+    grep -Fx loaded >/dev/null
+  if systemctl is-active --quiet "$KIVOU_WRITER_TIMER"; then
+    KIVOU_ACTIVE_TIMERS+=("$KIVOU_WRITER_TIMER")
+    KIVOU_TIMER_STATES+=1
+  else
+    test "$(systemctl is-active "$KIVOU_WRITER_TIMER" || test $? -eq 3)" = \
+      inactive
+    KIVOU_TIMER_STATES+=0
+  fi
+done
+printf '%s\n' "$KIVOU_TIMER_STATES" | grep -Eq '^[01]{5}$'
+KIVOU_WRITER_WATCHDOG="kivou-card-writers-resume-$KIVOU_FINAL_SHORT"
+test "$(systemctl show "$KIVOU_WRITER_WATCHDOG.timer" \
+  --property=LoadState --value)" = not-found
+sudo systemd-run --quiet --unit="$KIVOU_WRITER_WATCHDOG" --on-active=20m \
+  --timer-property=AccuracySec=1s -- /usr/bin/systemctl start \
+  kivou-api.service "${KIVOU_ACTIVE_TIMERS[@]}"
+if test "${#KIVOU_ACTIVE_TIMERS[@]}" -gt 0; then
+  sudo systemctl stop "${KIVOU_ACTIVE_TIMERS[@]}"
+fi
+for KIVOU_WRITER_SERVICE in "${KIVOU_WRITER_SERVICES[@]}"; do
+  systemctl show "$KIVOU_WRITER_SERVICE" --property=LoadState --value | \
+    grep -Fx loaded >/dev/null
+done
+sudo systemctl stop kivou-api.service "${KIVOU_WRITER_SERVICES[@]}"
+for KIVOU_WRITER_UNIT in kivou-api.service \
+  "${KIVOU_WRITER_TIMERS[@]}" "${KIVOU_WRITER_SERVICES[@]}"; do
+  KIVOU_WRITER_STATE=$(systemctl is-active "$KIVOU_WRITER_UNIT" || \
+    test $? -eq 3)
+  test "$KIVOU_WRITER_STATE" = inactive
+done
+unset KIVOU_WRITER_STATE
+printf 'writer_quiesced=1 timer_states=%s watchdog=%s\n' \
+  "$KIVOU_TIMER_STATES" "$KIVOU_WRITER_WATCHDOG"
+REMOTE
+)
+printf '%s\n' "$KIVOU_WRITER_QUIESCENCE" | tee \
+  "$KIVOU_WRITER_STATE_FILE" >/dev/null
+chmod 600 "$KIVOU_WRITER_STATE_FILE"
+test ! -L "$KIVOU_WRITER_STATE_FILE"
+test "$(stat -c '%U:%a' "$KIVOU_WRITER_STATE_FILE")" = "$(id -un):600"
+printf '%s\n' "$KIVOU_WRITER_QUIESCENCE" | grep -Eq \
+  '^writer_quiesced=1 timer_states=[01]{5} watchdog=kivou-card-writers-resume-[0-9a-f]{12}$'
+KIVOU_WRITER_TIMER_STATES=$(printf '%s\n' "$KIVOU_WRITER_QUIESCENCE" | \
+  sed -E 's/^writer_quiesced=1 timer_states=([01]{5}) watchdog=.*$/\1/')
+KIVOU_WRITER_WATCHDOG=$(printf '%s\n' "$KIVOU_WRITER_QUIESCENCE" | \
+  sed -E 's/^.* watchdog=([a-z0-9-]+)$/\1/')
+unset KIVOU_WRITER_QUIESCENCE
+printf '%s\n' "$KIVOU_WRITER_TIMER_STATES" | grep -Eq '^[01]{5}$'
+test "$KIVOU_WRITER_WATCHDOG" = \
+  "kivou-card-writers-resume-$KIVOU_FINAL_SHORT"
+readonly KIVOU_WRITER_TIMER_STATES KIVOU_WRITER_WATCHDOG
+
+kivou_rearm_card_writer_watchdog() {
+  ssh kivou-staging 'bash -s' -- "$KIVOU_WRITER_WATCHDOG" <<'REMOTE'
+set -euo pipefail
+KIVOU_WRITER_WATCHDOG=$1
+printf '%s\n' "$KIVOU_WRITER_WATCHDOG" | \
+  grep -Eq '^kivou-card-writers-resume-[0-9a-f]{12}$'
+KIVOU_WRITER_TIMERS=(
+  kivou-acquisition.timer
+  kivou-ingest-simap.timer
+  kivou-ingest-boamp.timer
+  kivou-ingest-decp.timer
+  kivou-ingest-ted.timer
+)
+KIVOU_WRITER_SERVICES=(
+  kivou-acquisition.service
+  kivou-ingest-simap.service
+  kivou-ingest-boamp.service
+  kivou-ingest-decp.service
+  kivou-ingest-ted.service
+)
+for KIVOU_WATCHDOG_UNIT in "$KIVOU_WRITER_WATCHDOG.timer" \
+  "$KIVOU_WRITER_WATCHDOG.service"; do
+  systemctl show "$KIVOU_WATCHDOG_UNIT" --property=LoadState --value | \
+    grep -Fx loaded >/dev/null
+done
+unset KIVOU_WATCHDOG_UNIT
+KIVOU_WATCHDOG_TIMER_STATE=$(systemctl is-active \
+  "$KIVOU_WRITER_WATCHDOG.timer" || test $? -eq 3)
+test "$KIVOU_WATCHDOG_TIMER_STATE" = active
+KIVOU_WATCHDOG_SERVICE_STATE=$(systemctl is-active \
+  "$KIVOU_WRITER_WATCHDOG.service" || test $? -eq 3)
+test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive
+for KIVOU_WRITER_UNIT in kivou-api.service \
+  "${KIVOU_WRITER_TIMERS[@]}" "${KIVOU_WRITER_SERVICES[@]}"; do
+  KIVOU_WRITER_STATE=$(systemctl is-active "$KIVOU_WRITER_UNIT" || \
+    test $? -eq 3)
+  test "$KIVOU_WRITER_STATE" = inactive
+done
+unset KIVOU_WRITER_STATE KIVOU_WATCHDOG_TIMER_STATE
+unset KIVOU_WATCHDOG_SERVICE_STATE
+sudo systemctl restart "$KIVOU_WRITER_WATCHDOG.timer"
+KIVOU_WATCHDOG_TIMER_STATE=$(systemctl is-active \
+  "$KIVOU_WRITER_WATCHDOG.timer" || test $? -eq 3)
+test "$KIVOU_WATCHDOG_TIMER_STATE" = active
+KIVOU_WATCHDOG_SERVICE_STATE=$(systemctl is-active \
+  "$KIVOU_WRITER_WATCHDOG.service" || test $? -eq 3)
+test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive
+for KIVOU_WRITER_UNIT in kivou-api.service \
+  "${KIVOU_WRITER_TIMERS[@]}" "${KIVOU_WRITER_SERVICES[@]}"; do
+  KIVOU_WRITER_STATE=$(systemctl is-active "$KIVOU_WRITER_UNIT" || \
+    test $? -eq 3)
+  test "$KIVOU_WRITER_STATE" = inactive
+done
+unset KIVOU_WRITER_STATE KIVOU_WATCHDOG_TIMER_STATE
+unset KIVOU_WATCHDOG_SERVICE_STATE
+printf 'writer_watchdog_rearmed=1 watchdog=%s\n' "$KIVOU_WRITER_WATCHDOG"
+REMOTE
+}
+
+kivou_resume_card_writers() {
+  ssh kivou-staging 'bash -s' -- "$KIVOU_RELEASE_DIR" \
+    "$KIVOU_WRITER_TIMER_STATES" "$KIVOU_WRITER_WATCHDOG" <<'REMOTE'
+set -euo pipefail
+KIVOU_RELEASE_DIR=$1
+KIVOU_TIMER_STATES=$2
+KIVOU_WRITER_WATCHDOG=$3
+case "$KIVOU_RELEASE_DIR" in
+  (/srv/kivou/releases/backend-*) ;;
+  (*) exit 69 ;;
+esac
+printf '%s\n' "$KIVOU_TIMER_STATES" | grep -Eq '^[01]{5}$'
+printf '%s\n' "$KIVOU_WRITER_WATCHDOG" | \
+  grep -Eq '^kivou-card-writers-resume-[0-9a-f]{12}$'
+KIVOU_WRITER_TIMERS=(
+  kivou-acquisition.timer
+  kivou-ingest-simap.timer
+  kivou-ingest-boamp.timer
+  kivou-ingest-decp.timer
+  kivou-ingest-ted.timer
+)
+KIVOU_RESTART_TIMERS=()
+for KIVOU_TIMER_INDEX in 0 1 2 3 4; do
+  if test "${KIVOU_TIMER_STATES:$KIVOU_TIMER_INDEX:1}" = 1; then
+    KIVOU_RESTART_TIMERS+=("${KIVOU_WRITER_TIMERS[$KIVOU_TIMER_INDEX]}")
+  fi
+done
+sudo systemctl start kivou-api.service "${KIVOU_RESTART_TIMERS[@]}"
+"$KIVOU_RELEASE_DIR/ops/bin/kivou-api-readiness.sh" \
+  kivou-api.service 8000
+for KIVOU_TIMER_INDEX in 0 1 2 3 4; do
+  KIVOU_WRITER_TIMER=${KIVOU_WRITER_TIMERS[$KIVOU_TIMER_INDEX]}
+  if test "${KIVOU_TIMER_STATES:$KIVOU_TIMER_INDEX:1}" = 1; then
+    systemctl is-active --quiet "$KIVOU_WRITER_TIMER"
+  else
+    KIVOU_WRITER_TIMER_STATE=$(systemctl is-active "$KIVOU_WRITER_TIMER" || \
+      test $? -eq 3)
+    test "$KIVOU_WRITER_TIMER_STATE" = inactive
+    unset KIVOU_WRITER_TIMER_STATE
+  fi
+done
+sudo systemctl stop "$KIVOU_WRITER_WATCHDOG.timer"
+printf 'writer_resumed=1 timer_states=%s watchdog=%s\n' \
+  "$KIVOU_TIMER_STATES" "$KIVOU_WRITER_WATCHDOG"
+REMOTE
+}
+
+kivou_resume_card_writers_on_exit() {
+  KIVOU_ROLLOUT_EXIT_STATUS=$?
+  trap - EXIT
+  if ! kivou_resume_card_writers; then
+    KIVOU_ROLLOUT_EXIT_STATUS=1
+  fi
+  exit "$KIVOU_ROLLOUT_EXIT_STATUS"
+}
+trap kivou_resume_card_writers_on_exit EXIT
+
 if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   KIVOU_RECOVERY_PRE_FR="$KIVOU_EVIDENCE_DIR/recovery-fr-preflight.json"
   test ! -e "$KIVOU_RECOVERY_PRE_FR"
+  kivou_rearm_card_writer_watchdog
   KIVOU_RECOVERY_PRE_FR_PAYLOAD=$(kivou_capture_recovery_fr_snapshot "$KIVOU_RELEASE_DIR" baseline)
   printf '%s\n' "$KIVOU_RECOVERY_PRE_FR_PAYLOAD" > "$KIVOU_RECOVERY_PRE_FR"
   unset KIVOU_RECOVERY_PRE_FR_PAYLOAD
   chmod 600 "$KIVOU_RECOVERY_PRE_FR"
   test ! -L "$KIVOU_RECOVERY_PRE_FR"
   test "$(stat -c '%U:%a' "$KIVOU_RECOVERY_PRE_FR")" = "$(id -un):600"
-  cmp --silent "$KIVOU_RECOVERY_BASELINE" "$KIVOU_RECOVERY_PRE_FR"
-  test "$(jq -j -c '[.[].artifact_id] | sort' \
+  jq -e --slurpfile baseline "$KIVOU_RECOVERY_BASELINE" '
+    .candidate_count >= 8 and .candidate_count <= 50
+    and (.candidate_binding_digest | test("^[0-9a-f]{64}$"))
+    and .active_counts == {"en":0,"fr":8}
+    and .current_counts.en == 0
+    and .current_counts.fr >= 0 and .current_counts.fr <= 8
+    and .active_outside_candidate_counts == {"en":0,"fr":0}
+    and ([.artifacts[] | del(.state)]
+      == [$baseline[0].artifacts[] | del(.state)])
+    and all(.artifacts[];
+      .state == "current" or .state == "signal_revision_changed")
+    and ([.artifacts[] | select(.state == "signal_revision_changed")] | length)
+      == (8 - .current_counts.fr)
+    and .active_artifact_ids == $baseline[0].active_artifact_ids
+    and .active_digests == $baseline[0].active_digests
+  ' "$KIVOU_RECOVERY_PRE_FR" >/dev/null
+  test "$(jq -j -c '[.artifacts[].artifact_id] | sort' \
     "$KIVOU_RECOVERY_PRE_FR" | sha256sum | awk '{print $1}')" = \
     "$KIVOU_RECOVERY_BASELINE_ARTIFACT_DIGEST"
+  KIVOU_RECOVERY_CANDIDATE_COUNT=$(jq -r '.candidate_count' \
+    "$KIVOU_RECOVERY_PRE_FR")
+  KIVOU_RECOVERY_FR_ACTIVE_COUNT=$(jq -r '.active_counts.fr' \
+    "$KIVOU_RECOVERY_PRE_FR")
+  KIVOU_RECOVERY_FR_CURRENT_COUNT=$(jq -r '.current_counts.fr' \
+    "$KIVOU_RECOVERY_PRE_FR")
+  KIVOU_RECOVERY_CANDIDATE_BINDING_DIGEST=$(jq -r \
+    '.candidate_binding_digest' "$KIVOU_RECOVERY_PRE_FR")
+  KIVOU_RECOVERY_FR_ACTIVE_DIGEST=$(jq -r '.active_digests.fr' \
+    "$KIVOU_RECOVERY_PRE_FR")
+  KIVOU_RECOVERY_FR_CURRENT_DIGEST=$(jq -r '.current_digests.fr' \
+    "$KIVOU_RECOVERY_PRE_FR")
+  printf '%s\n' "$KIVOU_RECOVERY_CANDIDATE_COUNT" | \
+    grep -Eq '^([89]|[1-4][0-9]|50)$'
+  test "$KIVOU_RECOVERY_FR_ACTIVE_COUNT" = 8
+  printf '%s\n' "$KIVOU_RECOVERY_FR_CURRENT_COUNT" | grep -Eq '^[0-8]$'
+  for KIVOU_RECOVERY_DIGEST in \
+    "$KIVOU_RECOVERY_CANDIDATE_BINDING_DIGEST" \
+    "$KIVOU_RECOVERY_FR_ACTIVE_DIGEST" \
+    "$KIVOU_RECOVERY_FR_CURRENT_DIGEST"; do
+    printf '%s\n' "$KIVOU_RECOVERY_DIGEST" | grep -Eq '^[0-9a-f]{64}$'
+  done
+  unset KIVOU_RECOVERY_DIGEST
 fi
+readonly KIVOU_RECOVERY_CANDIDATE_COUNT KIVOU_RECOVERY_FR_ACTIVE_COUNT
+readonly KIVOU_RECOVERY_FR_CURRENT_COUNT
+readonly KIVOU_RECOVERY_CANDIDATE_BINDING_DIGEST
+readonly KIVOU_RECOVERY_FR_ACTIVE_DIGEST KIVOU_RECOVERY_FR_CURRENT_DIGEST
+kivou_rearm_card_writer_watchdog
 ssh kivou-staging 'bash -s' -- \
   "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_BACKFILL_AS_OF" \
   "$KIVOU_QA_APPROVED_FINGERPRINT" "$KIVOU_FR_LIMIT" \
-  "$KIVOU_ROLLOUT_PATH" "$KIVOU_RECOVERY_BASELINE_ARTIFACT_DIGEST" <<'REMOTE'
+  "$KIVOU_ROLLOUT_PATH" "$KIVOU_RECOVERY_CANDIDATE_COUNT" \
+  "$KIVOU_RECOVERY_FR_ACTIVE_COUNT" "$KIVOU_RECOVERY_FR_CURRENT_COUNT" \
+  "$KIVOU_RECOVERY_CANDIDATE_BINDING_DIGEST" \
+  "$KIVOU_RECOVERY_FR_ACTIVE_DIGEST" \
+  "$KIVOU_RECOVERY_FR_CURRENT_DIGEST" <<'REMOTE'
 set -euo pipefail
 KIVOU_RELEASE_DIR=$1
 KIVOU_FINAL_SHA=$2
@@ -1807,7 +2184,12 @@ KIVOU_BACKFILL_AS_OF=$3
 KIVOU_QA_APPROVED_FINGERPRINT=$4
 KIVOU_FR_LIMIT=$5
 KIVOU_ROLLOUT_PATH=$6
-KIVOU_EXPECTED_ARTIFACT_DIGEST=$7
+KIVOU_EXPECTED_CANDIDATE_COUNT=$7
+KIVOU_EXPECTED_ACTIVE_COUNT=$8
+KIVOU_EXPECTED_CURRENT_COUNT=$9
+KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST=${10}
+KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST=${11}
+KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST=${12}
 KIVOU_BACKFILL_LIMIT=$KIVOU_FR_LIMIT
 KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
 KIVOU_QA_ENV=/etc/kivou/card-presentation-qa.env
@@ -1818,8 +2200,17 @@ readonly KIVOU_BACKFILL_AS_OF KIVOU_BACKFILL_LIMIT
 case "$KIVOU_ROLLOUT_PATH" in
   (initial_0027) ;;
   (resume_51202525)
-    printf '%s\n' "$KIVOU_EXPECTED_ARTIFACT_DIGEST" | \
-      grep -Eq '^[0-9a-f]{64}$'
+    printf '%s\n' "$KIVOU_EXPECTED_CANDIDATE_COUNT" | \
+      grep -Eq '^([89]|[1-4][0-9]|50)$'
+    test "$KIVOU_EXPECTED_ACTIVE_COUNT" = 8
+    printf '%s\n' "$KIVOU_EXPECTED_CURRENT_COUNT" | grep -Eq '^[0-8]$'
+    for KIVOU_EXPECTED_DIGEST in \
+      "$KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST" \
+      "$KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST" \
+      "$KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST"; do
+      printf '%s\n' "$KIVOU_EXPECTED_DIGEST" | grep -Eq '^[0-9a-f]{64}$'
+    done
+    unset KIVOU_EXPECTED_DIGEST
     ;;
   (*) exit 69 ;;
 esac
@@ -1859,13 +2250,16 @@ kivou_validate_backfill_summary() {
 kivou_validate_recovery_summary() {
   test "$KIVOU_ROLLOUT_PATH" = resume_51202525 || return 0
   test "$1" = fr
+  KIVOU_EXPECTED_PUBLISHED=$((KIVOU_EXPECTED_CANDIDATE_COUNT - KIVOU_EXPECTED_CURRENT_COUNT))
   test "$2" = \
-    "scanned=44 published=36 unchanged=8 failed=0 next_offset=none scan_truncated=0"
+    "scanned=$KIVOU_EXPECTED_CANDIDATE_COUNT published=$KIVOU_EXPECTED_PUBLISHED unchanged=$KIVOU_EXPECTED_CURRENT_COUNT failed=0 next_offset=none scan_truncated=0"
+  unset KIVOU_EXPECTED_PUBLISHED
 }
 
 kivou_revalidate_qa_binding
 KIVOU_FR_SUMMARY=$(sudo systemd-run --quiet --wait --collect --pipe \
   --unit="kivou-card-backfill-fr-$KIVOU_FINAL_SHORT" --property=Type=oneshot \
+  --property=RuntimeMaxSec=5min \
   --property=User=kivou --property=Group=kivou \
   --property=WorkingDirectory="$KIVOU_RELEASE_DIR" \
   --property=EnvironmentFile=/etc/kivou/staging.env \
@@ -1875,7 +2269,11 @@ KIVOU_FR_SUMMARY=$(sudo systemd-run --quiet --wait --collect --pipe \
   --setenv="KIVOU_BACKFILL_AS_OF=$KIVOU_BACKFILL_AS_OF" \
   --setenv="KIVOU_BACKFILL_LIMIT=$KIVOU_BACKFILL_LIMIT" \
   --setenv="KIVOU_ROLLOUT_PATH=$KIVOU_ROLLOUT_PATH" \
-  --setenv="KIVOU_EXPECTED_ARTIFACT_DIGEST=$KIVOU_EXPECTED_ARTIFACT_DIGEST" \
+  --setenv="KIVOU_EXPECTED_CANDIDATE_COUNT=$KIVOU_EXPECTED_CANDIDATE_COUNT" \
+  --setenv="KIVOU_EXPECTED_ACTIVE_COUNT=$KIVOU_EXPECTED_ACTIVE_COUNT" \
+  --setenv="KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST=$KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST" \
+  --setenv="KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST=$KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST" \
+  --setenv="KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST=$KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST" \
   --setenv="KIVOU_QA_APPROVED_FINGERPRINT=$KIVOU_QA_APPROVED_FINGERPRINT" \
   -- "$KIVOU_RELEASE_DIR/.venv/bin/python" - <<'PY'
 import grp
@@ -1950,10 +2348,16 @@ def main() -> None:
     ]
     if os.environ["KIVOU_ROLLOUT_PATH"] == "resume_51202525":
         arguments.extend([
-            "--expect-candidate-count", "44",
-            "--expect-active-publication-count", "8",
+            "--expect-candidate-count",
+            os.environ["KIVOU_EXPECTED_CANDIDATE_COUNT"],
+            "--expect-active-publication-count",
+            os.environ["KIVOU_EXPECTED_ACTIVE_COUNT"],
             "--expect-current-factual-artifact-digest",
-            os.environ["KIVOU_EXPECTED_ARTIFACT_DIGEST"],
+            os.environ["KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST"],
+            "--expect-candidate-binding-digest",
+            os.environ["KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST"],
+            "--expect-active-artifact-digest",
+            os.environ["KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST"],
         ])
     exit_code = cli_main(arguments)
     if exit_code != 0:
@@ -1975,6 +2379,7 @@ REMOTE
 if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   KIVOU_RECOVERY_POST_FR="$KIVOU_EVIDENCE_DIR/recovery-fr-post.json"
   test ! -e "$KIVOU_RECOVERY_POST_FR"
+  kivou_rearm_card_writer_watchdog
   KIVOU_RECOVERY_POST_FR_PAYLOAD=$(kivou_capture_recovery_fr_snapshot \
     "$KIVOU_RELEASE_DIR" post_fr)
   printf '%s\n' "$KIVOU_RECOVERY_POST_FR_PAYLOAD" > \
@@ -1983,30 +2388,53 @@ if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   chmod 600 "$KIVOU_RECOVERY_POST_FR"
   test ! -L "$KIVOU_RECOVERY_POST_FR"
   test "$(stat -c '%U:%a' "$KIVOU_RECOVERY_POST_FR")" = "$(id -un):600"
-  jq -e --slurpfile baseline "$KIVOU_RECOVERY_BASELINE" '
-    ($baseline[0] | type == "array" and length == 8)
-    and (. as $post
-      | all($baseline[0][]; . as $old | any($post[]; . == $old)))
+  jq -e --slurpfile baseline "$KIVOU_RECOVERY_BASELINE" \
+    --slurpfile prefr "$KIVOU_RECOVERY_PRE_FR" '
+    . as $post
+    | ($prefr[0].candidate_count) as $candidate_count
+    | ($prefr[0].current_counts.fr) as $current_count
+    | .candidate_count == $candidate_count
+    and .candidate_binding_digest == $prefr[0].candidate_binding_digest
+    and .active_counts == {"en":0,"fr":$candidate_count}
+    and .current_counts == {"en":0,"fr":$candidate_count}
+    and .active_digests.fr == .current_digests.fr
+    and .active_outside_candidate_counts == {"en":0,"fr":0}
+    and (.active_artifact_ids.en | length) == 0
+    and (.artifacts | length) == (8 + $candidate_count - $current_count)
+    and all($baseline[0].artifacts[];
+      del(.state) as $old
+      | any($post.artifacts[]; del(.state) == $old))
+    and all($prefr[0].artifacts[] | select(.state == "current");
+      .artifact_id as $artifact_id
+      | ($post.active_artifact_ids.fr | index($artifact_id)) != null)
+    and all($prefr[0].artifacts[]
+      | select(.state == "signal_revision_changed");
+      .artifact_id as $artifact_id
+      | ($post.active_artifact_ids.fr | index($artifact_id)) == null)
   ' "$KIVOU_RECOVERY_POST_FR" >/dev/null
   KIVOU_RECOVERY_POST_FR_SHA256=$(sha256sum \
     "$KIVOU_RECOVERY_POST_FR" | awk '{print $1}')
   printf '%s\n' "$KIVOU_RECOVERY_POST_FR_SHA256" | \
     grep -Eq '^[0-9a-f]{64}$'
-  KIVOU_RECOVERY_POST_FR_ARTIFACT_DIGEST=$(jq -j -c \
-    '[.[] | select(.language == "fr") | .artifact_id] | sort' \
-    "$KIVOU_RECOVERY_POST_FR" | sha256sum | awk '{print $1}')
+  KIVOU_RECOVERY_POST_FR_ARTIFACT_DIGEST=$(jq -r '.active_digests.fr' \
+    "$KIVOU_RECOVERY_POST_FR")
   printf '%s\n' "$KIVOU_RECOVERY_POST_FR_ARTIFACT_DIGEST" | \
     grep -Eq '^[0-9a-f]{64}$'
   printf '%s\n' recovery_fr_baseline_preserved=1
-  printf '%s\n' recovery_offline_feed_post_fr=44
+  printf 'recovery_offline_feed_post_fr=%s\n' \
+    "$KIVOU_RECOVERY_CANDIDATE_COUNT"
 fi
 readonly KIVOU_RECOVERY_POST_FR_ARTIFACT_DIGEST
 
-kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"
+kivou_rearm_card_writer_watchdog
 ssh kivou-staging 'bash -s' -- \
   "$KIVOU_RELEASE_DIR" "$KIVOU_FINAL_SHA" "$KIVOU_BACKFILL_AS_OF" \
   "$KIVOU_QA_APPROVED_FINGERPRINT" "$KIVOU_EN_LIMIT" \
-  "$KIVOU_ROLLOUT_PATH" "$KIVOU_RECOVERY_EMPTY_ARTIFACT_DIGEST" \
+  "$KIVOU_ROLLOUT_PATH" "$KIVOU_RECOVERY_CANDIDATE_COUNT" \
+  "$KIVOU_RECOVERY_CANDIDATE_BINDING_DIGEST" \
+  "$KIVOU_RECOVERY_EMPTY_ARTIFACT_DIGEST" \
+  "$KIVOU_RECOVERY_EMPTY_ARTIFACT_DIGEST" \
+  "$KIVOU_RECOVERY_POST_FR_ARTIFACT_DIGEST" \
   "$KIVOU_RECOVERY_POST_FR_ARTIFACT_DIGEST" <<'REMOTE'
 set -euo pipefail
 KIVOU_RELEASE_DIR=$1
@@ -2015,8 +2443,12 @@ KIVOU_BACKFILL_AS_OF=$3
 KIVOU_QA_APPROVED_FINGERPRINT=$4
 KIVOU_EN_LIMIT=$5
 KIVOU_ROLLOUT_PATH=$6
-KIVOU_EXPECTED_ARTIFACT_DIGEST=$7
-KIVOU_PROTECTED_ARTIFACT_DIGEST=$8
+KIVOU_EXPECTED_CANDIDATE_COUNT=$7
+KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST=$8
+KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST=$9
+KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST=${10}
+KIVOU_PROTECTED_ACTIVE_ARTIFACT_DIGEST=${11}
+KIVOU_PROTECTED_CURRENT_ARTIFACT_DIGEST=${12}
 KIVOU_BACKFILL_LIMIT=$KIVOU_EN_LIMIT
 KIVOU_FINAL_SHORT=$(printf '%s' "$KIVOU_FINAL_SHA" | cut -c1-12)
 KIVOU_QA_ENV=/etc/kivou/card-presentation-qa.env
@@ -2027,10 +2459,18 @@ readonly KIVOU_BACKFILL_AS_OF KIVOU_BACKFILL_LIMIT
 case "$KIVOU_ROLLOUT_PATH" in
   (initial_0027) ;;
   (resume_51202525)
-    printf '%s\n' "$KIVOU_EXPECTED_ARTIFACT_DIGEST" | \
-      grep -Eq '^[0-9a-f]{64}$'
-    printf '%s\n' "$KIVOU_PROTECTED_ARTIFACT_DIGEST" | \
-      grep -Eq '^[0-9a-f]{64}$'
+    printf '%s\n' "$KIVOU_EXPECTED_CANDIDATE_COUNT" | \
+      grep -Eq '^([89]|[1-4][0-9]|50)$'
+    for KIVOU_EXPECTED_DIGEST in \
+      "$KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST" \
+      "$KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST" \
+      "$KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST" \
+      "$KIVOU_PROTECTED_ACTIVE_ARTIFACT_DIGEST" \
+      "$KIVOU_PROTECTED_CURRENT_ARTIFACT_DIGEST"; do
+      printf '%s\n' "$KIVOU_EXPECTED_DIGEST" | \
+        grep -Eq '^[0-9a-f]{64}$'
+    done
+    unset KIVOU_EXPECTED_DIGEST
     ;;
   (*) exit 69 ;;
 esac
@@ -2071,12 +2511,13 @@ kivou_validate_recovery_summary() {
   test "$KIVOU_ROLLOUT_PATH" = resume_51202525 || return 0
   test "$1" = en
   test "$2" = \
-    "scanned=44 published=44 unchanged=0 failed=0 next_offset=none scan_truncated=0"
+    "scanned=$KIVOU_EXPECTED_CANDIDATE_COUNT published=$KIVOU_EXPECTED_CANDIDATE_COUNT unchanged=0 failed=0 next_offset=none scan_truncated=0"
 }
 
 kivou_revalidate_qa_binding
 KIVOU_EN_SUMMARY=$(sudo systemd-run --quiet --wait --collect --pipe \
   --unit="kivou-card-backfill-en-$KIVOU_FINAL_SHORT" --property=Type=oneshot \
+  --property=RuntimeMaxSec=5min \
   --property=User=kivou --property=Group=kivou \
   --property=WorkingDirectory="$KIVOU_RELEASE_DIR" \
   --property=EnvironmentFile=/etc/kivou/staging.env \
@@ -2086,8 +2527,12 @@ KIVOU_EN_SUMMARY=$(sudo systemd-run --quiet --wait --collect --pipe \
   --setenv="KIVOU_BACKFILL_AS_OF=$KIVOU_BACKFILL_AS_OF" \
   --setenv="KIVOU_BACKFILL_LIMIT=$KIVOU_BACKFILL_LIMIT" \
   --setenv="KIVOU_ROLLOUT_PATH=$KIVOU_ROLLOUT_PATH" \
-  --setenv="KIVOU_EXPECTED_ARTIFACT_DIGEST=$KIVOU_EXPECTED_ARTIFACT_DIGEST" \
-  --setenv="KIVOU_PROTECTED_ARTIFACT_DIGEST=$KIVOU_PROTECTED_ARTIFACT_DIGEST" \
+  --setenv="KIVOU_EXPECTED_CANDIDATE_COUNT=$KIVOU_EXPECTED_CANDIDATE_COUNT" \
+  --setenv="KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST=$KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST" \
+  --setenv="KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST=$KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST" \
+  --setenv="KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST=$KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST" \
+  --setenv="KIVOU_PROTECTED_ACTIVE_ARTIFACT_DIGEST=$KIVOU_PROTECTED_ACTIVE_ARTIFACT_DIGEST" \
+  --setenv="KIVOU_PROTECTED_CURRENT_ARTIFACT_DIGEST=$KIVOU_PROTECTED_CURRENT_ARTIFACT_DIGEST" \
   --setenv="KIVOU_QA_APPROVED_FINGERPRINT=$KIVOU_QA_APPROVED_FINGERPRINT" \
   -- "$KIVOU_RELEASE_DIR/.venv/bin/python" - <<'PY'
 import grp
@@ -2162,14 +2607,22 @@ def main() -> None:
     ]
     if os.environ["KIVOU_ROLLOUT_PATH"] == "resume_51202525":
         arguments.extend([
-            "--expect-candidate-count", "44",
+            "--expect-candidate-count",
+            os.environ["KIVOU_EXPECTED_CANDIDATE_COUNT"],
             "--expect-active-publication-count", "0",
             "--expect-current-factual-artifact-digest",
-            os.environ["KIVOU_EXPECTED_ARTIFACT_DIGEST"],
+            os.environ["KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST"],
+            "--expect-candidate-binding-digest",
+            os.environ["KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST"],
+            "--expect-active-artifact-digest",
+            os.environ["KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST"],
             "--expect-protected-language", "fr",
-            "--expect-protected-active-publication-count", "44",
+            "--expect-protected-active-publication-count",
+            os.environ["KIVOU_EXPECTED_CANDIDATE_COUNT"],
             "--expect-protected-current-factual-artifact-digest",
-            os.environ["KIVOU_PROTECTED_ARTIFACT_DIGEST"],
+            os.environ["KIVOU_PROTECTED_CURRENT_ARTIFACT_DIGEST"],
+            "--expect-protected-active-artifact-digest",
+            os.environ["KIVOU_PROTECTED_ACTIVE_ARTIFACT_DIGEST"],
         ])
     exit_code = cli_main(arguments)
     if exit_code != 0:
@@ -2191,6 +2644,7 @@ REMOTE
 if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   KIVOU_RECOVERY_POST_EN="$KIVOU_EVIDENCE_DIR/recovery-post-en.json"
   test ! -e "$KIVOU_RECOVERY_POST_EN"
+  kivou_rearm_card_writer_watchdog
   KIVOU_RECOVERY_POST_EN_PAYLOAD=$(kivou_capture_recovery_fr_snapshot \
     "$KIVOU_RELEASE_DIR" post_en)
   printf '%s\n' "$KIVOU_RECOVERY_POST_EN_PAYLOAD" > \
@@ -2201,24 +2655,32 @@ if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   test "$(stat -c '%U:%a' "$KIVOU_RECOVERY_POST_EN")" = "$(id -un):600"
   jq -e --slurpfile baseline "$KIVOU_RECOVERY_BASELINE" \
     --slurpfile post_fr "$KIVOU_RECOVERY_POST_FR" '
-    ($baseline[0] | type == "array" and length == 8)
-    and ($post_fr[0] | type == "array" and length == 44)
-    and (. as $post
-      | all($baseline[0][]; . as $old | any($post[]; . == $old)))
-    and (. as $post
-      | all($post_fr[0][]; . as $old | any($post[]; . == $old)))
-    and (length == 88)
-    and ([.[] | select(.language == "fr")] | length == 44)
-    and ([.[] | select(.language == "en")] | length == 44)
+    . as $post
+    | ($post_fr[0].candidate_count) as $candidate_count
+    | .candidate_count == $candidate_count
+    and .candidate_binding_digest == $post_fr[0].candidate_binding_digest
+    and .active_counts == {"en":$candidate_count,"fr":$candidate_count}
+    and .current_counts == {"en":$candidate_count,"fr":$candidate_count}
+    and .active_digests.fr == .current_digests.fr
+    and .active_digests.en == .current_digests.en
+    and .active_digests.fr == $post_fr[0].active_digests.fr
+    and .active_outside_candidate_counts == {"en":0,"fr":0}
+    and (.active_artifact_ids.fr | length) == $candidate_count
+    and (.active_artifact_ids.en | length) == $candidate_count
+    and (.artifacts | length) == (($post_fr[0].artifacts | length) + $candidate_count)
+    and all($baseline[0].artifacts[];
+      del(.state) as $old
+      | any($post.artifacts[]; del(.state) == $old))
+    and all($post_fr[0].artifacts[];
+      del(.state) as $old
+      | any($post.artifacts[]; del(.state) == $old))
   ' "$KIVOU_RECOVERY_POST_EN" >/dev/null
   KIVOU_RECOVERY_POST_EN_SHA256=$(sha256sum \
     "$KIVOU_RECOVERY_POST_EN" | awk '{print $1}')
-  KIVOU_RECOVERY_POST_EN_FR_ARTIFACT_DIGEST=$(jq -j -c \
-    '[.[] | select(.language == "fr") | .artifact_id] | sort' \
-    "$KIVOU_RECOVERY_POST_EN" | sha256sum | awk '{print $1}')
-  KIVOU_RECOVERY_POST_EN_EN_ARTIFACT_DIGEST=$(jq -j -c \
-    '[.[] | select(.language == "en") | .artifact_id] | sort' \
-    "$KIVOU_RECOVERY_POST_EN" | sha256sum | awk '{print $1}')
+  KIVOU_RECOVERY_POST_EN_FR_ARTIFACT_DIGEST=$(jq -r \
+    '.active_digests.fr' "$KIVOU_RECOVERY_POST_EN")
+  KIVOU_RECOVERY_POST_EN_EN_ARTIFACT_DIGEST=$(jq -r \
+    '.active_digests.en' "$KIVOU_RECOVERY_POST_EN")
   for KIVOU_RECOVERY_DIGEST in \
     "$KIVOU_RECOVERY_POST_EN_SHA256" \
     "$KIVOU_RECOVERY_POST_EN_FR_ARTIFACT_DIGEST" \
@@ -2231,8 +2693,20 @@ if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   readonly KIVOU_RECOVERY_POST_EN_SHA256 \
     KIVOU_RECOVERY_POST_EN_FR_ARTIFACT_DIGEST \
     KIVOU_RECOVERY_POST_EN_EN_ARTIFACT_DIGEST
-  printf '%s\n' recovery_offline_feed_post_en=44
+  printf 'recovery_offline_feed_post_en=%s\n' \
+    "$KIVOU_RECOVERY_CANDIDATE_COUNT"
 fi
+KIVOU_WRITER_RESUME_FILE="$KIVOU_EVIDENCE_DIR/writer-resume.txt"
+test ! -e "$KIVOU_WRITER_RESUME_FILE"
+KIVOU_WRITER_RESUME=$(kivou_resume_card_writers)
+printf '%s\n' "$KIVOU_WRITER_RESUME" > "$KIVOU_WRITER_RESUME_FILE"
+unset KIVOU_WRITER_RESUME
+chmod 600 "$KIVOU_WRITER_RESUME_FILE"
+test ! -L "$KIVOU_WRITER_RESUME_FILE"
+test "$(stat -c '%U:%a' "$KIVOU_WRITER_RESUME_FILE")" = "$(id -un):600"
+tail -n 1 "$KIVOU_WRITER_RESUME_FILE" | grep -Eq \
+  '^writer_resumed=1 timer_states=[01]{5} watchdog=kivou-card-writers-resume-[0-9a-f]{12}$'
+trap - EXIT
 ~~~
 
 Ce sont deux unités, processus et transactions distincts, FR puis EN. Exiger
@@ -2244,37 +2718,61 @@ l'empreinte DB avant l'appel CLI. Un remplacement du fichier ne peut donc pas
 rediriger la mutation vers un autre compte. Le chemin initial utilise une page
 explicite de 50 par langue. La reprise conserve le `as-of` original
 `2026-08-31` et borne les pages FR et EN à 50, toujours avec `--offset 0` et
-sans suivre `next_offset`. Le preflight a prouvé 44 candidats FR offline non
-tronqués et les 8 publications existantes dans cette même page; aucun candidat
-n'est donc laissé hors de la reprise FR.
+sans suivre `next_offset`. Le preflight capture un nombre `N` dynamique de
+candidats FR offline, exige `8 <= N <= 50`, une page non tronquée et les 8
+publications actives existantes dans cette même page. Il capture aussi `C`, le
+nombre de ces publications encore courantes (`0 <= C <= 8`). Chacun des `8-C`
+artefacts actifs obsolètes doit différer de l'autorité courante uniquement par
+`signal_revision`; un drift ICP, une source/fingerprint incohérente ou une
+absence de binding échoue fermé. Le ledger immuable des huit artefacts ignore
+seulement cette classification dynamique : `C` est donc recalculé après la
+sauvegarde et la release, juste avant FR. Aucun candidat n'est laissé hors de la
+reprise FR; si la page dépasse 50, STOP sans publication.
 
 En reprise seulement, la précondition transactionnelle du CLI est obligatoire
-et indivisible : les trois attentes `candidate-count`, nombre global de
-publications actives compte+langue et digest SHA-256 canonique des `artifact_id`
-`FACTUAL_FALLBACK` courants de la page sont toujours fournies ensemble. FR doit
-retrouver exactement 44 candidats, 8 actifs et le digest privé du baseline;
-EN doit retrouver 44 candidats, 0 actif et le digest canonique de la liste
-vide. EN ajoute obligatoirement le groupe protégé indivisible : langue `fr`,
-44 publications actives et digest canonique des 44 `artifact_id` du snapshot
-post-FR. Sous le même verrou transactionnel des artefacts et avant toute
-publication EN, le CLI revalide la currentness FR sur les mêmes 44 bindings,
-le compteur global FR et ce digest. Le CLI revalide aussi, dans la transaction
-et avant toute publication, une page complète (`has_more=false`, non tronquée)
-et les autorités persistées de la langue publiée. Tout drift, échec de
-construction ou de verrouillage donne une sortie opaque non nulle et zéro
-nouvelle publication. Tous les verrous de table guarded (`SHARE` sur les
-autorités et `SHARE ROW EXCLUSIVE` sur les artefacts) sont acquis avec
-`NOWAIT` : une indisponibilité arrête le backfill sans jamais attendre ni
-sacrifier le writer. Les résumés recovery sont bloquants et exacts : FR
-`scanned=44 published=36 unchanged=8 failed=0 next_offset=none
-scan_truncated=0`, puis EN `scanned=44 published=44 unchanged=0 failed=0
+et indivisible : les cinq attentes `candidate-count`, nombre global de
+publications actives compte+langue, digest des artefacts factuels courants,
+digest des bindings candidats `(signal_key, signal_revision,
+target_icp_revision)` et digest de tous les `artifact_id` actifs sont toujours
+fournies ensemble. FR doit retrouver exactement `N` candidats, 8 actifs et les
+digests privés capturés au preflight; EN doit retrouver `N` candidats, 0 actif
+et les digests canoniques des listes vides. EN ajoute obligatoirement le groupe
+protégé indivisible : langue `fr`, `N` publications actives et les digests
+actif/courant des `N` `artifact_id` du snapshot post-FR. Sous le même verrou
+transactionnel des artefacts et avant toute publication EN, le CLI revalide la
+currentness FR sur les mêmes `N` bindings, le compteur global FR et ces digests.
+Le CLI revalide aussi, dans la transaction et avant toute publication, une page
+complète (`has_more=false`, non tronquée) et les autorités persistées de la
+langue publiée. Tout drift, échec de construction ou de verrouillage donne une
+sortie opaque non nulle et zéro nouvelle publication. Tous les verrous de table
+guarded (`SHARE` sur les autorités et `SHARE ROW EXCLUSIVE` sur les artefacts)
+sont acquis avec `NOWAIT` : une indisponibilité arrête le backfill sans jamais
+attendre ni sacrifier le writer. Les résumés recovery sont bloquants et exacts :
+FR `scanned=N published=N-C unchanged=C failed=0 next_offset=none
+scan_truncated=0`, puis EN `scanned=N published=N unchanged=0 failed=0
 next_offset=none scan_truncated=0`.
 
 Immédiatement après FR puis après EN, le snapshot protégé relit aussi le feed
 offline sous transaction PostgreSQL read-only avec `as_of=2026-08-31`,
 `freshness=all`, `limit=50`, `offset=0` et `scan_cap=1000`. Il exige encore
-exactement 44 items, `has_more=false` et `scan_truncated=false`; tout candidat
-apparu ou disparu entre les transactions arrête donc la reprise.
+exactement les `N` items et bindings du preflight, `has_more=false` et
+`scan_truncated=false`; tout candidat apparu, disparu ou révisé entre les
+transactions arrête donc la reprise.
+
+La fenêtre pré-FR → post-EN est une maintenance staging quiescée : l'API, le
+runtime acquisition et les quatre services d'ingestion sont inactifs, et seuls
+les timers qui étaient actifs sont restaurés. Un watchdog systemd borné à vingt
+minutes restaure automatiquement l'API et ces timers si la session opérateur
+disparaît. Avant chacune des cinq phases pre-FR, FR, post-FR, EN et post-EN, son
+réarmement exige le timer watchdog exactement `active` et son service exactement
+`inactive`, puis revalide que l'API, les cinq services writers et leurs cinq
+timers sont exactement `inactive`. Après restart, ces treize états sont prouvés
+une seconde fois. Chaque snapshot et chaque backfill porte
+`RuntimeMaxSec=5min`, donc reste strictement sous les vingt minutes. Tout échec
+de réarmement, de preuve de quiescence ou timeout échoue fermé avant la phase
+suivante. La restauration explicite annule ce watchdog, prouve readiness 8000
+et précède tout smoke navigateur. Aucun provider, modèle ou worker IA n'est
+activé par cette quiescence.
 
 Vérifier ensuite en lecture seule, toujours au seul compte approuvé : statuts
 `FALLBACK`, variantes `FACTUAL_FALLBACK`, preuve non vide sur chaque claim,
@@ -2451,7 +2949,8 @@ printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | jq -e '
 ' >/dev/null
 if test "$KIVOU_ROLLOUT_PATH" = resume_51202525; then
   printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
-    jq -e '.fr == 44 and .en == 44' >/dev/null
+    jq -e --argjson expected "$KIVOU_RECOVERY_CANDIDATE_COUNT" \
+      '.fr == $expected and .en == $expected' >/dev/null
 fi
 KIVOU_HISTORICAL_STATUS=$(printf '%s' "$KIVOU_QA_FACTUAL_PROOF" | \
   jq -r '.history.status')
@@ -3697,6 +4196,19 @@ réinterpréter :
 ~~~bash
 : "${KIVOU_HISTORICAL_SMOKE_STATUS:?STOP: historical smoke status absent}"
 : "${KIVOU_ROLLOUT_STATUS:?STOP: rollout status absent}"
+for KIVOU_WRITER_PROOF in \
+  "$KIVOU_WRITER_STATE_FILE" "$KIVOU_WRITER_RESUME_FILE"; do
+  test -f "$KIVOU_WRITER_PROOF"
+  test ! -L "$KIVOU_WRITER_PROOF"
+  test "$(stat -c '%U:%a' "$KIVOU_WRITER_PROOF")" = "$(id -un):600"
+done
+unset KIVOU_WRITER_PROOF
+KIVOU_WRITER_STATE_SHA256=$(sha256sum "$KIVOU_WRITER_STATE_FILE" | \
+  awk '{print $1}')
+KIVOU_WRITER_RESUME_SHA256=$(sha256sum "$KIVOU_WRITER_RESUME_FILE" | \
+  awk '{print $1}')
+test "$(printf '%s\n' "$KIVOU_WRITER_STATE_SHA256" \
+  "$KIVOU_WRITER_RESUME_SHA256" | grep -Ec '^[0-9a-f]{64}$')" = 2
 case "$KIVOU_ROLLOUT_PATH" in
   (initial_0027)
     KIVOU_DATABASE_TRANSITION=0027_signal_notes-to-0028_card_presentation
@@ -3717,9 +4229,12 @@ case "$KIVOU_ROLLOUT_PATH" in
     done
     unset KIVOU_RECOVERY_PROOF
     jq -e --slurpfile baseline "$KIVOU_RECOVERY_BASELINE" '
-      ($baseline[0] | type == "array" and length == 8)
-      and (. as $post
-        | all($baseline[0][]; . as $old | any($post[]; . == $old)))
+      . as $post
+      | ($baseline[0] | type == "object" and (.artifacts | length) == 8)
+      and (type == "object")
+      and all($baseline[0].artifacts[];
+        del(.state) as $old
+        | any($post.artifacts[]; del(.state) == $old))
     ' "$KIVOU_RECOVERY_POST_FR" >/dev/null
     test "$(sha256sum "$KIVOU_RECOVERY_BASELINE" | awk '{print $1}')" = \
       "$KIVOU_RECOVERY_BASELINE_SHA256"
@@ -3745,6 +4260,8 @@ case "$KIVOU_HISTORICAL_SMOKE_STATUS:$KIVOU_ROLLOUT_STATUS" in
 esac
 printf 'historical_smoke_status=%s rollout_status=%s\n' \
   "$KIVOU_HISTORICAL_SMOKE_STATUS" "$KIVOU_ROLLOUT_STATUS"
+printf 'writer_quiescence_sha256=%s writer_resume_sha256=%s\n' \
+  "$KIVOU_WRITER_STATE_SHA256" "$KIVOU_WRITER_RESUME_SHA256"
 printf 'rollout_path=%s recovery_source_sha=%s database_transition=%s recovery_status=%s\n' \
   "$KIVOU_ROLLOUT_PATH" "$KIVOU_RECOVERY_SOURCE_SHA" \
   "$KIVOU_DATABASE_TRANSITION" "$KIVOU_RECOVERY_STATUS"
