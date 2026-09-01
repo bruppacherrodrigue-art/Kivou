@@ -76,7 +76,9 @@ def upgrade() -> None:
     # A company row means an earlier authorised GET already projected the
     # exact public identity.  Complete requires every core factual field;
     # otherwise it is honestly partial.  An indexed winner without a company
-    # row remains pending for the explicit worker introduced by Phase 1.
+    # row remains pending for the explicit worker introduced by Phase 1. Every
+    # existing signal is queued, including unresolved identities, so the
+    # migration never creates a silent hole in the enrichment state model.
     op.execute(
         sa.text(
             """
@@ -108,7 +110,6 @@ def upgrade() -> None:
             FROM materialized_signal AS ms
             LEFT JOIN saas_company AS sc
               ON sc.identity_fingerprint = ms.company_identity_fingerprint
-            WHERE ms.company_identity_fingerprint IS NOT NULL
             """
         )
     )

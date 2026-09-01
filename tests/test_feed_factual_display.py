@@ -19,6 +19,7 @@ from feed_helpers import (
 )
 
 from signals.api import ApiConfig, create_app
+from signals.feed.factual_display import _headline
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import materialized_signal
 
@@ -115,7 +116,9 @@ def test_missing_object_amount_and_place_use_the_published_buyer_fallback(
     display = item["factual_display"]
     buyer = item["contract"]["buyer"]["name"]
 
-    assert display["headline"] == f"{item['company']['name']} remporte un marché de {buyer}"
+    assert display["headline"] == (
+        f"{item['company']['name']} remporte un marché attribué par {buyer}"
+    )
     assert display["market_summary"] is None
     assert set(display["missing_fields"]) >= {"market_object", "amount", "location"}
     assert display["completeness"] == "partial"
@@ -186,3 +189,17 @@ def test_fact_copy_uses_the_account_language_without_changing_facts(client, engi
     assert "wins" in english["factual_display"]["headline"]
     assert french["company"] == english["company"]
     assert french["contract"] == english["contract"]
+
+
+def test_headline_is_bounded_after_composing_published_facts() -> None:
+    headline = _headline(
+        company="Entreprise " + "très longue " * 80,
+        market_object="Objet " + "documenté " * 80,
+        amount=None,
+        location=None,
+        buyer=None,
+        lang="fr",
+    )
+
+    assert len(headline) <= 220
+    assert headline.endswith("…")

@@ -90,6 +90,11 @@ def test_backfill_classifies_existing_company_without_network(tmp_path) -> None:
         pending_signal = materialize_simap(
             connection, "29997-02", target_icp_id=icp_id
         )
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == pending_signal.signal_key)
+            .values(company_identity_fingerprint=None)
+        )
         completed = connection.execute(
             sa.select(
                 materialized_signal.c.company_identity_fingerprint,
@@ -128,6 +133,7 @@ def test_backfill_classifies_existing_company_without_network(tmp_path) -> None:
     assert rows[completed_signal.signal_key].attempt_count == 1
     assert rows[completed_signal.signal_key].finished_at is not None
     assert rows[pending_signal.signal_key].status == "pending"
+    assert rows[pending_signal.signal_key].identity_fingerprint is None
     assert rows[pending_signal.signal_key].attempt_count == 0
     assert rows[pending_signal.signal_key].started_at is None
 

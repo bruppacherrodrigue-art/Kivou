@@ -14,6 +14,7 @@ from signals.feed import policy
 from signals.feed.query import FeedSignal
 
 _MAX_OBJECT_LENGTH = 180
+_MAX_HEADLINE_LENGTH = 220
 
 
 def _clean(value: object, *, limit: int | None = None) -> str | None:
@@ -66,26 +67,33 @@ def _headline(
     buyer: str | None,
     lang: str,
 ) -> str:
+    company = _clean(company, limit=120) or ""
+    if not company:
+        return "Award published" if lang == "en" else "Attribution publiée"
     if lang == "en":
         if amount and location:
-            return f"{company} wins a {amount} contract in {location}"
-        if market_object:
-            return f"{company} wins “{market_object}”"
-        if amount:
-            return f"{company} wins a {amount} contract"
-        if buyer:
-            return f"{company} wins a contract from {buyer}"
-        return f"Contract awarded to {company}"
-
-    if amount and location:
-        return f"{company} remporte un marché de {amount} à {location}"
-    if market_object:
-        return f"{company} remporte « {market_object} »"
-    if amount:
-        return f"{company} remporte un marché de {amount}"
-    if buyer:
-        return f"{company} remporte un marché de {buyer}"
-    return f"Marché attribué à {company}"
+            headline = f"{company} wins a {amount} contract in {location}"
+        elif market_object:
+            headline = f"{company} wins “{market_object}”"
+        elif amount:
+            headline = f"{company} wins a {amount} contract"
+        elif buyer:
+            headline = f"{company} wins a contract from {buyer}"
+        else:
+            headline = f"Contract awarded to {company}"
+    elif amount and location:
+        headline = f"{company} remporte un marché de {amount} à {location}"
+    elif market_object:
+        headline = f"{company} remporte « {market_object} »"
+    elif amount:
+        headline = f"{company} remporte un marché de {amount}"
+    elif buyer:
+        headline = f"{company} remporte un marché attribué par {buyer}"
+    else:
+        headline = f"Marché attribué à {company}"
+    return _clean(headline, limit=_MAX_HEADLINE_LENGTH) or (
+        "Award published" if lang == "en" else "Attribution publiée"
+    )
 
 
 def factual_display(item: FeedSignal, *, lang: str) -> dict[str, Any]:
