@@ -1934,3 +1934,55 @@ gh pr create --base main \
 ```
 
 L'installation sur l'hôte suit le runbook 12 et **n'appartient pas à ce plan** : elle demande une décision de release et l'accès aux secrets de production.
+
+---
+
+### Task 11 : rendre le cycle de production réellement exécutable
+
+**Files:**
+- Modify: `src/signals/operations/policy_bootstrap.py`
+- Modify: `src/signals/acquisition_runtime/selection.py`
+- Test: `tests/test_operations_policy_bootstrap.py`, `tests/test_acquisition_runtime_selection.py`
+
+**Pourquoi cette tâche existe.** La revue finale a montré que la phase entière reposait sur une prémisse fausse. `evaluator.py:296` définit `executable = (status is APPROVED and autonomy_mode is not SHADOW)` : en SHADOW, **aucune commande n'est exécutable**, quelle que soit sa classe de risque. Le contrôle d'amorçage de la tâche 8 arrêtait donc le cycle à sa première étape évaluée, et aucune mesure n'était produite. L'utilisateur a tranché le 2026-09-01 : amorcer en `ASSISTED` avec un plafond de volume à zéro.
+
+**Ce qui retient l'envoi après ce changement** — cinq gardes indépendants, à ne pas confondre avec le mode :
+
+1. `runner.py:401-407` met `PROVIDER_HANDOFF` en `WAITING` inconditionnel tant que `allow_qa_provider_mutations` est faux ;
+2. `cli.py` refuse ce drapeau en `PRODUCTION` ;
+3. `daily_volume_cap=0` fait échouer `schedule_campaign` et `execute_provider_operations` en `BUDGET_EXCEEDED` — vérifié : ce sont les deux seules commandes portant `uses_volume=True` ;
+4. sous `ASSISTED`, toute commande `COMMERCIAL_MUTATION` exige un accord humain à usage unique ;
+5. la composition de production ne construit aucun détournement de destinataire.
+
+- [ ] **Étape 1 : écrire les tests qui échouent**
+
+Pour l'amorçage : le contrôle porte `autonomy_mode=ASSISTED`, `read_only=False`, `kill_switch=False`, `daily_volume_cap=0`, et conserve le périmètre exact (un pays, une langue, un wedge), la devise CHF et les commandes du runtime. `shadow_target_mode` doit valoir `None` — le contrat l'interdit hors SHADOW.
+
+Pour la sélection : une opportunité dont le cycle a été mis à jour il y a moins de 20 heures n'est pas resélectionnée, quel que soit son statut ; au-delà de 20 heures, un cycle `FAILED`, `CANCELLED` ou `WAITING` redevient sélectionnable ; un cycle terminal reste exclu pour toujours.
+
+- [ ] **Étape 2 : lancer les tests et vérifier qu'ils échouent**
+
+Commande : `uv run pytest tests/test_operations_policy_bootstrap.py tests/test_acquisition_runtime_selection.py -q`
+
+- [ ] **Étape 3 : implémenter**
+
+Dans `policy_bootstrap.py`, remplacer la posture au repos par la posture exécutable décrite ci-dessus, et réécrire la docstring : elle affirme aujourd'hui que le contrôle est « NON exécutable » et que « tout le cycle est PREPARATORY ». Les deux sont faux — trois des onze commandes sont `COMMERCIAL_MUTATION`. Dire ce que le contrôle fait réellement et ce qui retient l'envoi.
+
+Dans `selection.py`, ajouter la période de refroidissement en plus de l'exclusion terminale, avec un commentaire expliquant qu'un cycle parqué en attente d'approbation monopoliserait sinon le vivier.
+
+- [ ] **Étape 4 : mettre le runbook en accord**
+
+`docs/runbooks/12-acquisition-production-shadow.md` décrit l'amorçage et affirme la non-exécutabilité. Corriger la commande, la sortie attendue et toute phrase qui promet un contrôle non exécutable.
+
+- [ ] **Étape 5 : lancer les tests et vérifier qu'ils passent**
+
+```bash
+uv run pytest tests/test_operations_policy_bootstrap.py tests/test_acquisition_runtime_selection.py tests/test_acquisition_runtime_units.py tests/test_acquisition_runtime_production_invariants.py -q
+uv run ruff check
+```
+
+- [ ] **Étape 6 : commit**
+
+```bash
+git commit -m "fix(operations): amorcer une autorité de production réellement exécutable"
+```
