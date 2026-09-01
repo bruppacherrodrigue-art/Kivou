@@ -79,7 +79,7 @@ def test_migration_roundtrip_matches_core_schema(tmp_path) -> None:
 def test_backfill_classifies_existing_company_without_network(tmp_path) -> None:
     engine = _engine(tmp_path / "backfill.db")
     config = alembic_config(engine)
-    command.upgrade(config, PREVIOUS)
+    command.upgrade(config, HEAD)
     observed_at = dt.datetime(2026, 8, 18, 9, 0, tzinfo=dt.UTC)
     with engine.begin() as connection:
         account_id = make_account(connection, "winner-migration@kivou.eu", "Winner")
@@ -116,6 +116,7 @@ def test_backfill_classifies_existing_company_without_network(tmp_path) -> None:
             )
         )
 
+    command.downgrade(config, PREVIOUS)
     command.upgrade(config, HEAD)
 
     with engine.connect() as connection:
@@ -138,6 +139,11 @@ def test_database_rejects_an_impossible_state(tmp_path) -> None:
         account_id = make_account(connection, "winner-constraint@kivou.eu", "Winner")
         icp_id = make_icp(connection, account_id)
         signal = materialize_simap(connection, "33112-02", target_icp_id=icp_id)
+        connection.execute(
+            sa.delete(winner_enrichment_job).where(
+                winner_enrichment_job.c.signal_key == signal.signal_key
+            )
+        )
         with pytest.raises(IntegrityError), connection.begin_nested():
             connection.execute(
                 sa.insert(winner_enrichment_job).values(

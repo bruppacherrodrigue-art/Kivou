@@ -265,19 +265,19 @@ git commit -m "feat(companies): add winner enrichment state"
 - Modify: `tests/test_saas_company_service.py`
 - Modify: `tests/test_saas_company_api.py`
 
-- [ ] **Step 1: Add failing worker and GET tests**
+- [x] **Step 1: Add failing worker and GET tests**
 
 Test enqueue replay, pending/in-progress/completed/partial/failed, bounded retry,
 two concurrent claims, malformed source, exact-name collisions, tenant
 isolation and safe logging. Patch every provider/client entry point to raise and
 assert feed/detail/company GET still succeed with constant statement counts.
 
-- [ ] **Step 2: Run and retain RED evidence**
+- [x] **Step 2: Run and retain RED evidence**
 
 Run: `uv run pytest -q tests/test_winner_enrichment.py tests/test_winner_enrichment_api.py tests/test_saas_company_service.py tests/test_saas_company_api.py`  
 Expected: FAIL because the state/worker contract is absent.
 
-- [ ] **Step 3: Implement the explicit non-autostart worker API**
+- [x] **Step 3: Implement the explicit non-autostart worker API**
 
 ```python
 def enqueue_winner_enrichment(
@@ -302,24 +302,24 @@ The implementation may call only existing exact identity/index/store functions.
 Use PostgreSQL skip-locked claims and a bounded SQLite compare-and-set path. It
 must not import Company Research, Apollo, HTTP, Hermes or Acquisition.
 
-- [ ] **Step 4: Enqueue at materialization and make GET routes consume only**
+- [x] **Step 4: Enqueue at materialization and make GET routes consume only**
 
 After exact indexing, enqueue in the caller transaction. Replace on-GET
 `ensure_*` calls by one fingerprint/company lookup and one enrichment-state
 lookup per page. Do not expose either lookup for locked items.
 
-- [ ] **Step 5: Expose closed source/state contracts**
+- [x] **Step 5: Expose closed source/state contracts**
 
 Return status, missing fields, last verification, bounded error code and a
 source containing only `public_notice`, connector/system, notice ID, safe HTTPS
 URL and retrieval timestamp. Never return raw validation payloads or paths.
 
-- [ ] **Step 6: Verify worker, company, ingestion and provider boundaries**
+- [x] **Step 6: Verify worker, company, ingestion and provider boundaries**
 
 Run: `uv run pytest -q tests/test_winner_enrichment.py tests/test_winner_enrichment_api.py tests/test_saas_company_service.py tests/test_saas_company_api.py tests/test_ingestion_e2e.py tests/test_saas_company_architecture.py`  
 Expected: PASS with no provider call on GET and no N+1.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/signals/companies src/signals/persistence/materialization.py src/signals/api/routes_signals.py src/signals/api/routes_companies.py tests/test_winner_enrichment.py tests/test_winner_enrichment_api.py tests/test_saas_company_service.py tests/test_saas_company_api.py

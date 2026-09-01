@@ -54,9 +54,10 @@ from signals.card_intelligence.store import (
     published_artifact_for_signal,
     published_for_signals,
 )
+from signals.companies.contracts import WinnerEnrichmentView
+from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.service import (
-    ensure_companies_for_unlocked_signals,
-    ensure_company_for_unlocked_signal,
+    company_keys_for_signals,
 )
 from signals.engagement import analytics, feedback
 from signals.feed import policy, query, view
@@ -272,10 +273,14 @@ def list_signals(
             bindings=presentation_bindings,
             language=lang,
         )
-        company_keys = ensure_companies_for_unlocked_signals(
+        unlocked_keys = tuple(item.signal.signal_key for item in unlocked_items)
+        company_keys = company_keys_for_signals(
             connection,
-            items=unlocked_items,
-            now=now,
+            signal_keys=unlocked_keys,
+        )
+        enrichments = winner_enrichments_for_signals(
+            connection,
+            signal_keys=unlocked_keys,
         )
 
         # §34 — UNE consultation par appel de feed, jamais une par carte : une
@@ -321,6 +326,7 @@ def list_signals(
                 lang=lang,
                 presentation=presentations.get(item.signal.signal_key),
                 company_key=company_keys.get(item.signal.signal_key),
+                enrichment=enrichments.get(item.signal.signal_key),
             )
             for item in page.items
         ],
@@ -381,6 +387,7 @@ def _render(
     lang: str,
     presentation: PublishedCardPresentation | None,
     company_key: str | None,
+    enrichment: WinnerEnrichmentView | None,
 ) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
@@ -388,6 +395,8 @@ def _render(
         card["locked"] = False
         if company_key is not None:
             card["company_key"] = company_key
+        if enrichment is not None:
+            card["winner_enrichment"] = enrichment.model_dump(mode="json")
         return card
     return paywall.locked_teaser(item, lang=lang)
 
@@ -435,6 +444,7 @@ def get_signal(
     # La consultation est ENREGISTRÉE : d'où une transaction plutôt qu'une
     # simple lecture.
     company_key = None
+    enrichment = None
     presentation = None
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
@@ -498,11 +508,13 @@ def get_signal(
                             language=lang,
                             artifact_id=presentation_artifact_id,
                         )
-                company_key = ensure_company_for_unlocked_signal(
+                company_key = company_keys_for_signals(
                     connection,
-                    item=item,
-                    now=now,
-                )
+                    signal_keys=(signal_key,),
+                ).get(signal_key)
+                enrichment = winner_enrichments_for_signals(
+                    connection, signal_keys=(signal_key,)
+                ).get(signal_key)
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
@@ -523,6 +535,8 @@ def get_signal(
     detail["locked"] = False
     if company_key is not None:
         detail["company_key"] = company_key
+    if enrichment is not None:
+        detail["winner_enrichment"] = enrichment.model_dump(mode="json")
     # §8 — l'avis du client vit dans SON bloc. Il n'est ni un fait publié ni une
     # inférence du moteur, et il ne doit contaminer ni `contract`, ni `event`,
     # ni `evidence`, ni `analysis`.
