@@ -1,6 +1,7 @@
 import type {
   BillingAction,
   CardPresentation,
+  EvidenceItem,
   Money,
   Place,
   PlanCode,
@@ -99,6 +100,7 @@ export interface SignalDetailView extends SignalFactView {
   }
   scope: { value: string; label: string }[]
   questions: string[]
+  publicEvidence: { fact: string; label: string; items: EvidenceItem[] }[]
 }
 
 export interface TargetProfileView {

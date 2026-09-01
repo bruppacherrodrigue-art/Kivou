@@ -1077,6 +1077,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       },
       scope: [],
       questions: [],
+      publicEvidence: detail.evidence.public_facts,
     })
     expect(view.facts.sourceUrl).toBe(UNLOCKED_DETAIL.source.url)
     expect(view.brief.whyNow).toBe(UNLOCKED_DETAIL.event.why_now)

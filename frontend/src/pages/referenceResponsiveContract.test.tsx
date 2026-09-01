@@ -65,7 +65,7 @@ describe('contrat responsive connecté à 390 px', () => {
     })
 
     await screen.findByRole('heading', {
-      name: PUBLISHED_UNLOCKED_DETAIL.presentation.content.headline,
+      name: PUBLISHED_UNLOCKED_DETAIL.factual_display.headline,
     })
     expect(screen.queryByRole('heading', { name: UNLOCKED_ITEM.contract.title! })).toBeNull()
     expect(screen.getAllByRole('main')).toHaveLength(1)
@@ -160,6 +160,12 @@ describe('contrat responsive connecté à 390 px', () => {
       signal_id: 'sig_mobile_2',
       company: { ...UNLOCKED_ITEM.company, name: 'Deuxième entreprise mobile' },
       contract: { ...UNLOCKED_ITEM.contract, title: 'Deuxième marché mobile' },
+      factual_display: {
+        ...UNLOCKED_ITEM.factual_display,
+        headline: 'Deuxième entreprise mobile remporte « Deuxième marché mobile »',
+        market_summary: 'Deuxième marché mobile',
+        object_short: 'Deuxième marché mobile',
+      },
       presentation: factualFallbackPresentation({
         artifactId: '6'.repeat(64),
         headline: 'Présentation publiée pour le second signal mobile',
@@ -187,7 +193,7 @@ describe('contrat responsive connecté à 390 px', () => {
     const row = await screen.findByRole('button', { name: /Deuxième entreprise mobile/ })
     await user.click(row)
     const heading = await screen.findByRole('heading', {
-      name: second.presentation.content.headline,
+      name: second.factual_display.headline,
     })
     expect(screen.queryByRole('heading', { name: second.contract.title })).toBeNull()
     await waitFor(() => expect(heading).toHaveFocus())
@@ -206,6 +212,12 @@ describe('contrat responsive connecté à 390 px', () => {
       signal_id: 'sig_mobile_delayed',
       company: { ...UNLOCKED_ITEM.company, name: 'Entreprise mobile différée' },
       contract: { ...UNLOCKED_ITEM.contract, title: 'Marché mobile différé' },
+      factual_display: {
+        ...UNLOCKED_ITEM.factual_display,
+        headline: 'Entreprise mobile différée remporte « Marché mobile différé »',
+        market_summary: 'Marché mobile différé',
+        object_short: 'Marché mobile différé',
+      },
       presentation: factualFallbackPresentation({
         artifactId: '7'.repeat(64),
         headline: 'Présentation publiée pour le signal mobile différé',
@@ -235,7 +247,7 @@ describe('contrat responsive connecté à 390 px', () => {
     await act(async () => resolveDetail({ body: secondDetail }))
 
     const heading = await screen.findByRole('heading', {
-      name: second.presentation.content.headline,
+      name: second.factual_display.headline,
     })
     expect(screen.queryByRole('heading', { name: second.contract.title })).toBeNull()
     await waitFor(() => expect(heading).toHaveFocus())

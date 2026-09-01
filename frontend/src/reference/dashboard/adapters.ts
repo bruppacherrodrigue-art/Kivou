@@ -531,6 +531,7 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
     // montant, dates, acheteurs) et ne doivent pas être requalifiés ici.
     scope: [],
     questions: [],
+    publicEvidence: detail.evidence.public_facts,
   }
 }
 

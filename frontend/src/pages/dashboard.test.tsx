@@ -349,6 +349,12 @@ const OVERVIEW_SECOND_ITEM = {
     title: 'Deuxième marché public',
     dates: { ...UNLOCKED_ITEM.contract.dates, award: '2026-08-03' },
   },
+  factual_display: {
+    ...UNLOCKED_ITEM.factual_display,
+    headline: 'Deuxième SA remporte « Deuxième marché public »',
+    market_summary: 'Deuxième marché public',
+    object_short: 'Deuxième marché public',
+  },
   presentation: factualFallbackPresentation({
     artifactId: '2'.repeat(64),
     headline: 'Attribution publiée pour le second lot communal de voirie',
@@ -589,7 +595,7 @@ describe('vue d’ensemble exacte connectée', () => {
 
     expect(
       await screen.findByRole('heading', {
-        name: OVERVIEW_SECOND_ITEM.presentation.content.headline,
+        name: OVERVIEW_SECOND_ITEM.factual_display.headline,
       }),
     ).toBeVisible()
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
@@ -914,7 +920,7 @@ describe('autorités, navigation et garde-fous Overview', () => {
     expect(
       await screen.findByRole('heading', {
         level: 2,
-        name: PUBLISHED_UNLOCKED_DETAIL.presentation.content.headline,
+        name: PUBLISHED_UNLOCKED_DETAIL.factual_display.headline,
       }),
     ).toBeVisible()
     await user.click(screen.getByRole('button', { name: 'Historique précédent' }))
@@ -923,7 +929,7 @@ describe('autorités, navigation et garde-fous Overview', () => {
     expect(
       await screen.findByRole('heading', {
         level: 2,
-        name: PUBLISHED_UNLOCKED_DETAIL.presentation.content.headline,
+        name: PUBLISHED_UNLOCKED_DETAIL.factual_display.headline,
       }),
     ).toBeVisible()
   })

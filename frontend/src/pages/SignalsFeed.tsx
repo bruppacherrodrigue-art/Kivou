@@ -1,27 +1,41 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { LockKeyhole } from 'lucide-react'
-import { useLocation, useNavigate, useNavigationType, useParams } from 'react-router-dom'
-import { billing, signals } from '../api/endpoints'
+import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { billing, companies, signals } from '../api/endpoints'
+import type { FeedQuery } from '../api/endpoints'
 import { useCurrentUser } from '../auth/SessionProvider'
 import type {
+  BillingStatus,
+  CompanyProfile,
   FeedItem,
   FeedPage,
-  BillingStatus,
   SignalDetail as SignalDetailPayload,
 } from '../api/types'
 import { interpolate, useI18n } from '../i18n'
-import {
-  publishedPresentation,
-  toSignalCard,
-  toSignalDetailView,
-} from '../reference/dashboard/adapters'
+import { toSignalCard, toSignalDetailView } from '../reference/dashboard/adapters'
 import { ReferenceSignalDetail } from '../reference/dashboard/ReferenceSignalDetail'
-import { useSignalNote } from '../reference/dashboard/useSignalNote'
-import { useIsMobile } from '../reference/dashboard/use-mobile'
 import type { SignalCardView } from '../reference/dashboard/models'
+import { useSignalNote } from '../reference/dashboard/useSignalNote'
+import styles from './SignalsFeed.module.css'
 
 const PAGE_SIZE = 20
-const PRESENTATION_ARTIFACT_ID = /^[0-9a-f]{64}$/
+const SINGLE_PANE_QUERY = '(max-width: 1179px)'
+const HISTORY_STATUSES = [
+  'recent_award',
+  'recently_notified_contract',
+  'recently_published_award',
+  'aging_award',
+  'stale_award',
+  'award_date_unknown',
+  'invalid_award_date',
+] as const
 
 export interface ActivationNavigationState {
   activationCompleted?: boolean
@@ -31,8 +45,8 @@ interface SignalSelectionNavigationState {
   signalSelection: {
     kind: 'feed'
     key: string
-    feedGeneration: number
-    query: { freshness: 'new'; targetIcpId: '' }
+    query: string
+    fromList: boolean
   }
 }
 
@@ -42,13 +56,14 @@ interface ResourceState<T> {
   error: unknown | null
 }
 
-interface DeepLookupState {
-  key: string | null
-  item: FeedItem | null
-  loading: boolean
-  exhausted: boolean
-  truncated: boolean
-  error: unknown | null
+interface FeedFilters {
+  view: 'recent' | 'history'
+  dateFrom: string
+  dateTo: string
+  country: string
+  subdivision: string
+  status: string
+  cpv: string
 }
 
 const emptyResource = <T,>(): ResourceState<T> => ({
@@ -57,36 +72,66 @@ const emptyResource = <T,>(): ResourceState<T> => ({
   error: null,
 })
 
+function filtersFrom(search: string): FeedFilters {
+  const params = new URLSearchParams(search)
+  return {
+    view: params.get('view') === 'history' ? 'history' : 'recent',
+    dateFrom: params.get('from') ?? '',
+    dateTo: params.get('to') ?? '',
+    country: (params.get('country') ?? '').toUpperCase(),
+    subdivision: (params.get('subdivision') ?? '').toUpperCase(),
+    status: params.get('status') ?? '',
+    cpv: params.get('cpv') ?? '',
+  }
+}
+
+function feedQuery(filters: FeedFilters): FeedQuery {
+  if (filters.view === 'recent') {
+    return { view: 'recent', freshness: 'new', limit: PAGE_SIZE, offset: 0 }
+  }
+  return {
+    view: 'history',
+    limit: PAGE_SIZE,
+    cursor: null,
+    date_from: filters.dateFrom || null,
+    date_to: filters.dateTo || null,
+    country: filters.country || null,
+    subdivision_code: filters.subdivision || null,
+    status: filters.status || null,
+    cpv_prefix: filters.cpv || null,
+  }
+}
+
+function usesSinglePane(): boolean {
+  if (typeof window.matchMedia === 'function') {
+    return window.matchMedia(SINGLE_PANE_QUERY).matches
+  }
+  return window.innerWidth < 1180
+}
+
 export function SignalsFeed() {
   const { t, date, amount } = useI18n()
   const me = useCurrentUser()
   const location = useLocation()
   const navigate = useNavigate()
-  const navigationType = useNavigationType()
-  const isMobile = useIsMobile()
   const { signalKey } = useParams()
-  const requestedArtifactId = new URLSearchParams(location.search).get(
-    'presentation_artifact_id',
-  )
-  const routePresentationPin = requestedArtifactId === null
-    ? undefined
-    : PRESENTATION_ARTIFACT_ID.test(requestedArtifactId)
-      ? requestedArtifactId
-      : null
+  const filters = useMemo(() => filtersFrom(location.search), [location.search])
+  const querySignature = JSON.stringify(filters)
+
   const mounted = useRef(false)
   const feedGeneration = useRef(0)
-  const appliedFeedGeneration = useRef(0)
   const detailGeneration = useRef(0)
+  const companyGeneration = useRef(0)
   const paginationRequest = useRef(false)
-  const deepLookupGeneration = useRef(0)
-  const deepLookupStarted = useRef<{ key: string; attempt: number } | null>(null)
   const rowRefs = useRef(new Map<string, HTMLButtonElement>())
+  const listPanelRef = useRef<HTMLElement | null>(null)
+  const detailPanelRef = useRef<HTMLElement | null>(null)
   const lastSelection = useRef<string | null>(null)
   const previousLocationKey = useRef(location.key)
   const initialFocusRestored = useRef(false)
-  const pendingDetailFocus = useRef<string | null>(signalKey ?? null)
-  const navigateRef = useRef(navigate)
-  navigateRef.current = navigate
+  const pendingDetailFocus = useRef<string | null>(
+    signalKey && usesSinglePane() ? signalKey : null,
+  )
 
   const [activationMoment] = useState(
     () => (location.state as ActivationNavigationState | null)?.activationCompleted === true,
@@ -97,15 +142,6 @@ export function SignalsFeed() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [paginationError, setPaginationError] = useState<unknown | null>(null)
   const [postActivationBilling, setPostActivationBilling] = useState<BillingStatus | null>(null)
-  const [deepLookup, setDeepLookup] = useState<DeepLookupState>({
-    key: null,
-    item: null,
-    loading: false,
-    exhausted: false,
-    truncated: false,
-    error: null,
-  })
-  const [deepLookupAttempt, setDeepLookupAttempt] = useState(0)
   const [detailAttempt, setDetailAttempt] = useState(0)
   const [detail, setDetail] = useState<{
     key: string | null
@@ -113,11 +149,28 @@ export function SignalsFeed() {
     loading: boolean
     error: unknown | null
   }>({ key: null, data: null, loading: false, error: null })
+  const [companyAttempt, setCompanyAttempt] = useState(0)
+  const [companyProfile, setCompanyProfile] = useState<ResourceState<CompanyProfile>>({
+    data: null,
+    loading: false,
+    error: null,
+  })
+
+  useEffect(() => {
+    mounted.current = true
+    return () => {
+      mounted.current = false
+      feedGeneration.current += 1
+      detailGeneration.current += 1
+      companyGeneration.current += 1
+      paginationRequest.current = false
+    }
+  }, [])
 
   useEffect(() => {
     if (!activationMoment) return
     navigate(location.pathname + location.search, { replace: true, state: null })
-    // Le moment est consommé une fois, indépendamment des navigations suivantes.
+    // The activation marker is consumed only once.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -127,17 +180,13 @@ export function SignalsFeed() {
     setLoadingMore(false)
     setPaginationError(null)
     try {
-      const data = await signals.feed({ freshness: 'new', limit: PAGE_SIZE, offset: 0 })
+      const data = await signals.feed(feedQuery(filters))
       if (!mounted.current || generation !== feedGeneration.current) return
-      appliedFeedGeneration.current = generation
       setFeed({ data, loading: false, error: null })
       setItems(data.items)
 
       if (postFeedBilling.current) {
         postFeedBilling.current = false
-        // Après une activation, cette lecture volontairement postérieure au
-        // feed permet au webhook de devenir l'autorité. L'AppShell possède sa
-        // propre lecture d'affichage ; hors activation, on ne la duplique pas.
         const refreshed = await billing.status().catch(() => null)
         if (mounted.current && generation === feedGeneration.current && refreshed) {
           setPostActivationBilling(refreshed)
@@ -147,45 +196,13 @@ export function SignalsFeed() {
       if (!mounted.current || generation !== feedGeneration.current) return
       setFeed((current) => ({ ...current, loading: false, error }))
     }
-  }, [])
+  // The serialised URL state is the generation boundary.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [querySignature])
 
   useEffect(() => {
-    mounted.current = true
     void loadFeed()
-    return () => {
-      mounted.current = false
-      feedGeneration.current += 1
-      detailGeneration.current += 1
-      deepLookupGeneration.current += 1
-      paginationRequest.current = false
-    }
   }, [loadFeed])
-
-  const firstUnlocked = items.find((item) => !item.locked) ?? null
-  const requestedSelectionKey = signalKey ?? null
-  const selectedKey = requestedSelectionKey ?? firstUnlocked?.signal_id ?? null
-  const listedSelectedItem = selectedKey
-    ? items.find((item) => item.signal_id === selectedKey) ?? null
-    : null
-  const selectedItem = listedSelectedItem ?? (
-    signalKey && deepLookup.key === signalKey ? deepLookup.item : null
-  )
-  const canResolveMore = Boolean(
-    requestedSelectionKey
-      && !selectedItem
-      && feed.data?.page.has_more
-      && !paginationError,
-  )
-  const shouldResolveHistorical = Boolean(
-    signalKey
-      && !selectedItem
-      && !feed.loading
-      && !feed.error
-      && feed.data
-      && !feed.data.page.has_more
-      && !paginationError
-      && (deepLookup.key !== signalKey || deepLookup.loading),
-  )
 
   const loadMore = useCallback(async () => {
     const currentPage = feed.data
@@ -195,11 +212,13 @@ export function SignalsFeed() {
     setLoadingMore(true)
     setPaginationError(null)
     try {
-      const next = await signals.feed({
-        freshness: 'new',
-        limit: PAGE_SIZE,
-        offset: currentPage.page.offset + currentPage.page.limit,
-      })
+      const nextQuery: FeedQuery = filters.view === 'history'
+        ? { ...feedQuery(filters), cursor: currentPage.page.next_cursor ?? null }
+        : {
+            ...feedQuery(filters),
+            offset: currentPage.page.offset + currentPage.page.limit,
+          }
+      const next = await signals.feed(nextQuery)
       if (!mounted.current || generation !== feedGeneration.current) return
       setFeed({ data: next, loading: false, error: null })
       setItems((current) => {
@@ -207,174 +226,53 @@ export function SignalsFeed() {
         return [...current, ...next.items.filter((item) => !seen.has(item.signal_id))]
       })
     } catch (error) {
-      if (mounted.current && generation === feedGeneration.current) {
-        setPaginationError(error)
-      }
+      if (mounted.current && generation === feedGeneration.current) setPaginationError(error)
     } finally {
       paginationRequest.current = false
       if (mounted.current && generation === feedGeneration.current) setLoadingMore(false)
     }
-  }, [feed.data])
+  }, [feed.data, filters])
 
-  useEffect(() => {
-    if (canResolveMore) void loadMore()
-  }, [canResolveMore, loadMore])
-
-  useEffect(() => {
-    if (
-      !signalKey
-      || selectedItem
-      || feed.loading
-      || feed.error
-      || !feed.data
-      || feed.data.page.has_more
-      || paginationError
-    ) return
-    if (
-      deepLookupStarted.current?.key === signalKey
-      && deepLookupStarted.current.attempt === deepLookupAttempt
-    ) return
-
-    const generation = ++deepLookupGeneration.current
-    deepLookupStarted.current = { key: signalKey, attempt: deepLookupAttempt }
-    setDeepLookup({
-      key: signalKey,
-      item: null,
-      loading: true,
-      exhausted: false,
-      truncated: false,
-      error: null,
-    })
-    void (async () => {
-      let offset = 0
-      try {
-        while (true) {
-          const page = await signals.feed({ freshness: 'all', limit: PAGE_SIZE, offset })
-          if (!mounted.current || generation !== deepLookupGeneration.current) return
-          const found = page.items.find((item) => item.signal_id === signalKey)
-          if (found) {
-            setDeepLookup({
-              key: signalKey,
-              item: found,
-              loading: false,
-              exhausted: false,
-              truncated: false,
-              error: null,
-            })
-            return
-          }
-          if (!page.page.has_more) {
-            setDeepLookup({
-              key: signalKey,
-              item: null,
-              loading: false,
-              exhausted: !page.page.scan_truncated,
-              truncated: page.page.scan_truncated,
-              error: null,
-            })
-            return
-          }
-          offset = page.page.offset + page.page.limit
-        }
-      } catch (error) {
-        if (mounted.current && generation === deepLookupGeneration.current) {
-          setDeepLookup({
-            key: signalKey,
-            item: null,
-            loading: false,
-            exhausted: false,
-            truncated: false,
-            error,
-          })
-        }
-      }
-    })()
-    return () => {
-      if (generation === deepLookupGeneration.current) deepLookupGeneration.current += 1
-    }
-  }, [
-    deepLookupAttempt,
-    feed.data,
-    feed.error,
-    feed.loading,
-    paginationError,
-    selectedItem,
-    signalKey,
-  ])
-
-  const selectionResolving = canResolveMore || shouldResolveHistorical
-  const historicalLookupError = deepLookup.key === signalKey
-    ? deepLookup.error ?? (deepLookup.truncated ? deepLookup : null)
+  const firstUnlocked = items.find((item) => !item.locked) ?? null
+  const selectedKey = signalKey ?? firstUnlocked?.signal_id ?? null
+  const selectedItem = selectedKey
+    ? items.find((item) => item.signal_id === selectedKey) ?? null
     : null
-  const selectionLookupError = paginationError ?? historicalLookupError
 
   useEffect(() => {
-    if (feed.loading) {
-      if (selectedKey) {
-        setDetail({ key: selectedKey, data: null, loading: true, error: null })
-      }
-      return
-    }
     if (!selectedKey) {
       detailGeneration.current += 1
       setDetail({ key: null, data: null, loading: false, error: null })
       return
     }
-    if (!selectedItem) {
-      detailGeneration.current += 1
-      setDetail({
-        key: selectedKey,
-        data: null,
-        loading: selectionResolving,
-        error: selectionResolving
-          ? null
-          : selectionLookupError ?? new Error('signal_not_in_feed'),
-      })
-      return
-    }
-    if (selectedItem.locked) {
+    // Resolve the first authorised feed page before a detail request. This
+    // prevents a locked teaser from triggering a detail GET while historical
+    // deep-links still use the dedicated endpoint after that single check.
+    if (feed.loading) return
+    if (selectedItem?.locked) {
       detailGeneration.current += 1
       setDetail({ key: selectedKey, data: null, loading: false, error: null })
-      navigateRef.current('/app/billing', {
+      navigate('/app/billing', {
         replace: true,
-        state: { lockedSignalKey: selectedItem.signal_id },
+        state: { lockedSignalKey: selectedKey },
       })
       return
     }
 
     const generation = ++detailGeneration.current
-    const feedPresentation = publishedPresentation(selectedItem.presentation)
-    const feedArtifactId = feedPresentation?.artifact_id ?? null
-    const presentationArtifactId = routePresentationPin === undefined
-      ? feedArtifactId
-      : routePresentationPin === feedArtifactId
-        ? feedArtifactId
-        : null
     setDetail({ key: selectedKey, data: null, loading: true, error: null })
-    signals.detail(selectedKey, { presentation_artifact_id: presentationArtifactId }).then(
+    signals.detail(selectedKey).then(
       (data) => {
-        if (mounted.current && generation === detailGeneration.current) {
-          if (data.locked) {
-            detailGeneration.current += 1
-            setDetail({ key: selectedKey, data: null, loading: false, error: null })
-            navigateRef.current('/app/billing', {
-              replace: true,
-              state: { lockedSignalKey: selectedKey },
-            })
-            return
-          }
-          const detailPresentation = publishedPresentation(data.presentation)
-          const pinnedPresentation = presentationArtifactId !== null
-            && detailPresentation?.artifact_id === presentationArtifactId
-            ? detailPresentation
-            : null
-          setDetail({
-            key: selectedKey,
-            data: { ...data, presentation: pinnedPresentation },
-            loading: false,
-            error: null,
+        if (!mounted.current || generation !== detailGeneration.current) return
+        if (data.locked) {
+          setDetail({ key: selectedKey, data: null, loading: false, error: null })
+          navigate('/app/billing', {
+            replace: true,
+            state: { lockedSignalKey: selectedKey },
           })
+          return
         }
+        setDetail({ key: selectedKey, data, loading: false, error: null })
       },
       (error) => {
         if (mounted.current && generation === detailGeneration.current) {
@@ -382,83 +280,96 @@ export function SignalsFeed() {
         }
       },
     )
-  }, [
-    detailAttempt,
-    feed.loading,
-    selectedItem,
-    selectedKey,
-    routePresentationPin,
-    selectionLookupError,
-    selectionResolving,
-  ])
+  }, [detailAttempt, feed.loading, navigate, selectedItem, selectedKey, signalKey])
 
-  useEffect(() => {
-    if (previousLocationKey.current === location.key) return
-    previousLocationKey.current = location.key
-    if (navigationType === 'PUSH' && signalKey) {
-      pendingDetailFocus.current = signalKey
-      return
-    }
-    const selection = readSelectionState(location.state)
-    const focusKey = selection?.key ?? (signalKey ? selectedKey : lastSelection.current)
-    if (!focusKey) return
-    lastSelection.current = focusKey
-    const frame = window.requestAnimationFrame(() => {
-      rowRefs.current.get(focusKey)?.focus()
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [location.key, location.state, navigationType, selectedKey, signalKey])
+  useLayoutEffect(() => {
+    const panel = detailPanelRef.current
+    if (panel && typeof panel.scrollTo === 'function') {
+      panel.scrollTo({ top: 0, behavior: 'auto' })
+    } else if (panel) panel.scrollTop = 0
+  }, [selectedKey])
 
-  useEffect(() => {
-    if (initialFocusRestored.current || navigationType !== 'POP') return
-    const selection = readSelectionState(location.state)
-    if (!selection || !rowRefs.current.has(selection.key)) return
-    initialFocusRestored.current = true
-    lastSelection.current = selection.key
-    const frame = window.requestAnimationFrame(() => {
-      rowRefs.current.get(selection.key)?.focus()
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [items, location.state, navigationType])
-
-  const cards = items.map((item) => {
-    if (
-      item.signal_id === selectedKey
-      && !item.locked
-      && routePresentationPin !== undefined
-      && publishedPresentation(item.presentation)?.artifact_id !== routePresentationPin
-    ) {
-      return toSignalCard({ ...item, presentation: null })
-    }
-    return toSignalCard(item)
-  })
-  const visibleDetail = detail.key === selectedKey
-    ? detail
-    : { key: selectedKey, data: null, loading: Boolean(selectedKey), error: null }
   useEffect(() => {
     if (
       !pendingDetailFocus.current
       || pendingDetailFocus.current !== selectedKey
-      || visibleDetail.loading
+      || detail.key !== selectedKey
+      || detail.loading
     ) return
     const frame = window.requestAnimationFrame(() => {
-      const panel = document.getElementById('signal-detail')
-      document.getElementById('detail-title')?.focus()
-      if (window.innerWidth < 1180) {
-        panel?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
-      }
+      const title = detailPanelRef.current?.querySelector<HTMLElement>('#detail-title')
+      if (!title) return
+      title.focus({ preventScroll: true })
       pendingDetailFocus.current = null
     })
     return () => window.cancelAnimationFrame(frame)
-  }, [selectedKey, visibleDetail.loading])
+  }, [detail.data, detail.error, detail.key, detail.loading, selectedKey])
+
+  useEffect(() => {
+    if (previousLocationKey.current === location.key) return
+    previousLocationKey.current = location.key
+    const selection = readSelectionState(location.state)
+    if (signalKey && usesSinglePane()) {
+      pendingDetailFocus.current = signalKey
+      return
+    }
+    const focusKey = selection?.key ?? lastSelection.current
+    if (!focusKey) return
+    lastSelection.current = focusKey
+    const frame = window.requestAnimationFrame(() => {
+      rowRefs.current.get(focusKey)?.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [location.key, location.state, signalKey])
+
+  useEffect(() => {
+    if (initialFocusRestored.current) return
+    const selection = readSelectionState(location.state)
+    const focusKey = selection?.key ?? null
+    if (!focusKey || !rowRefs.current.has(focusKey)) return
+    initialFocusRestored.current = true
+    lastSelection.current = focusKey
+    const frame = window.requestAnimationFrame(() => {
+      rowRefs.current.get(focusKey)?.focus({ preventScroll: true })
+    })
+    return () => window.cancelAnimationFrame(frame)
+  }, [items, location.state])
+
+  const cards = items.map(toSignalCard)
+  const visibleDetail = detail.key === selectedKey
+    ? detail
+    : { key: selectedKey, data: null, loading: Boolean(selectedKey), error: null }
   const detailView = visibleDetail.data && !visibleDetail.data.locked
     ? toSignalDetailView(visibleDetail.data)
     : null
+  const selectedCompanyKey = detailView?.companyKey ?? null
+  useEffect(() => {
+    if (!selectedCompanyKey) {
+      companyGeneration.current += 1
+      setCompanyProfile({ data: null, loading: false, error: null })
+      return
+    }
+    const generation = ++companyGeneration.current
+    setCompanyProfile({ data: null, loading: true, error: null })
+    companies.get(selectedCompanyKey).then(
+      (data) => {
+        if (mounted.current && generation === companyGeneration.current) {
+          setCompanyProfile({ data, loading: false, error: null })
+        }
+      },
+      (error) => {
+        if (mounted.current && generation === companyGeneration.current) {
+          setCompanyProfile({ data: null, loading: false, error })
+        }
+      },
+    )
+  }, [companyAttempt, selectedCompanyKey])
   const note = useSignalNote({
     accountId: me.account_id,
     signalKey: selectedKey,
     enabled: Boolean(detailView),
   })
+
   const planCode = feed.data?.plan_code ?? null
   const planLabel = planCode ? t.reference.plans[planCode] : t.reference.loading
   const discoveryGrantCount = activationMoment
@@ -470,33 +381,72 @@ export function SignalsFeed() {
     ? `${discoveryGrantCount ?? items.length}${discoveryGrantCount === null && feed.data.page.has_more ? '+' : ''} · ${planLabel}`
     : planLabel
 
-  const displayAmount = (card: SignalCardView) =>
-    card.amount
-      ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
-      : t.reference.missingValue
+  const setSearchValue = (name: string, value: string) => {
+    const params = new URLSearchParams(location.search)
+    if (value) params.set(name, value)
+    else params.delete(name)
+    navigate({ pathname: location.pathname, search: params.toString() ? `?${params}` : '' })
+  }
+  const clearHistoryFilters = () => {
+    const params = new URLSearchParams(location.search)
+    for (const name of ['from', 'to', 'country', 'subdivision', 'status', 'cpv']) {
+      params.delete(name)
+    }
+    navigate({ pathname: location.pathname, search: params.toString() ? `?${params}` : '' })
+  }
+
+  const displayAmount = (card: SignalCardView) => card.amount
+    ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
+    : t.reference.missingValue
   const displayDate = (value: string | null) => date(value) ?? t.reference.missingValue
   const displayDateLabel = (card: SignalCardView) => {
     switch (card.eventDateKind) {
-      case 'award':
-        return t.reference.fields.signalDateAward
-      case 'notification':
-        return t.reference.fields.signalDateNotification
-      case 'publication':
-        return t.reference.fields.signalDatePublication
+      case 'award': return t.reference.fields.signalDateAward
+      case 'notification': return t.reference.fields.signalDateNotification
+      case 'publication': return t.reference.fields.signalDatePublication
+      case 'unknown': return t.reference.signalsPage.unknownDate
     }
   }
   const displayLocation = (card: SignalCardView) => {
     if (!card.location) return t.reference.missingValue
-    const region = [card.location.locality, card.location.postal_code, card.location.country]
-      .filter(Boolean)
-      .join(', ')
-    return region || t.reference.missingValue
+    return [
+      card.location.locality,
+      card.location.subdivision_code,
+      card.location.country,
+    ].filter(Boolean).join(', ') || t.reference.missingValue
   }
+  const cardStatus = (card: SignalCardView) => {
+    if (card.locked) return {
+      key: 'locked',
+      label: t.reference.signalsPage.paidAccessRequired,
+    }
+    const enrichmentStatus = card.winnerEnrichment?.status
+    const key = enrichmentStatus === 'pending' || enrichmentStatus === 'in_progress'
+      || enrichmentStatus === 'partial' || enrichmentStatus === 'failed'
+      ? enrichmentStatus
+      : card.factualCompleteness ?? 'to_verify'
+    return { key, label: t.reference.signalsPage.completenessStatus[key] }
+  }
+  const historyAccess = feed.data?.history_access
+  const historyNote = !historyAccess
+    ? null
+    : historyAccess.scope === 'grants_only'
+      ? t.reference.signalsPage.historyGrantsOnly
+      : historyAccess.scope === 'all_available'
+        ? t.reference.signalsPage.historyAll
+        : interpolate(t.reference.signalsPage.historyWindow, {
+            days: historyAccess.history_days ?? 0,
+          })
+  const filterAccess = feed.data?.filter_access
 
   return (
-    <div className="workspace-grid">
+    <div
+      className={`workspace-grid ${styles.workspace}`}
+      data-pane={signalKey ? 'detail' : 'list'}
+    >
       <aside
-        className="feed-panel"
+        ref={listPanelRef}
+        className={`feed-panel ${styles.listPanel}`}
         data-master-detail-pane="list"
         aria-labelledby="signals-list-title"
       >
@@ -508,7 +458,58 @@ export function SignalsFeed() {
           <span className="signal-count">{signalCount}</span>
         </div>
 
-        <div className="signal-list">
+        <div className={styles.viewSwitch} aria-label={t.reference.signalsPage.filtersTitle}>
+          <button type="button" aria-pressed={filters.view === 'recent'} onClick={() => setSearchValue('view', '')}>
+            {t.reference.signalsPage.recentView}
+          </button>
+          <button type="button" aria-pressed={filters.view === 'history'} onClick={() => setSearchValue('view', 'history')}>
+            {t.reference.signalsPage.historyView}
+          </button>
+        </div>
+
+        {filters.view === 'history' ? (
+          <section className={styles.filters} aria-labelledby="history-filters-title">
+            <div className={styles.filterHeading}>
+              <h3 id="history-filters-title">{t.reference.signalsPage.filtersTitle}</h3>
+              <button type="button" onClick={clearHistoryFilters}>{t.reference.signalsPage.clearFilters}</button>
+            </div>
+            {historyNote ? <p className={styles.accessNote}>{historyNote}</p> : null}
+            <div className={styles.filterGrid}>
+              <label>
+                <span>{t.reference.signalsPage.dateFrom}</span>
+                <input type="date" value={filters.dateFrom} disabled={filterAccess?.date_range === false} onChange={(event) => setSearchValue('from', event.target.value)} />
+              </label>
+              <label>
+                <span>{t.reference.signalsPage.dateTo}</span>
+                <input type="date" value={filters.dateTo} disabled={filterAccess?.date_range === false} onChange={(event) => setSearchValue('to', event.target.value)} />
+              </label>
+              <label>
+                <span>{t.reference.signalsPage.countryFilter}</span>
+                <input value={filters.country} maxLength={2} disabled={filterAccess?.country === false} onChange={(event) => setSearchValue('country', event.target.value.toUpperCase())} />
+              </label>
+              <label>
+                <span>{t.reference.signalsPage.subdivisionFilter}</span>
+                <input value={filters.subdivision} maxLength={16} disabled={filterAccess?.subdivision === false} onChange={(event) => setSearchValue('subdivision', event.target.value.toUpperCase())} />
+              </label>
+              <label>
+                <span>{t.reference.signalsPage.statusFilter}</span>
+                <select value={filters.status} disabled={filterAccess?.status === false} onChange={(event) => setSearchValue('status', event.target.value)}>
+                  <option value="">{t.reference.signalsPage.allStatuses}</option>
+                  {HISTORY_STATUSES.map((status) => <option value={status} key={status}>{status}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t.reference.signalsPage.sectorFilter}</span>
+                <input value={filters.cpv} maxLength={8} inputMode="numeric" disabled={filterAccess?.sector === false} onChange={(event) => setSearchValue('cpv', event.target.value.replace(/\D/g, ''))} />
+              </label>
+            </div>
+            {filterAccess && Object.values(filterAccess).some((allowed) => !allowed) ? (
+              <p className={styles.restrictedNote}>{t.reference.signalsPage.restrictedFilter}</p>
+            ) : null}
+          </section>
+        ) : null}
+
+        <div className="signal-list" aria-busy={feed.loading}>
           {feed.loading && !feed.data ? (
             [0, 1, 2].map((index) => (
               <div className="signal-item" aria-hidden="true" key={index}>
@@ -518,167 +519,90 @@ export function SignalsFeed() {
           ) : feed.error && !feed.data ? (
             <div className="signal-item" role="alert">
               <span className="signal-event">{t.reference.messages.loadError}</span>
-              <button type="button" className="source-link" onClick={() => void loadFeed()}>
-                {t.reference.retry}
-              </button>
+              <button type="button" className="source-link" onClick={() => void loadFeed()}>{t.reference.retry}</button>
             </div>
           ) : cards.length === 0 ? (
-            <div className="signal-item">
-              <span className="signal-event">{t.reference.signalsPage.empty}</span>
-            </div>
-          ) : (
-            cards.map((card) => {
-              const selected = card.id === selectedKey
-              const selectedNoteIsKnown = selected
-                && note.state !== 'loading'
-                && note.state !== 'read-error'
-              const hasSelectedNote = selectedNoteIsKnown && note.value.trim().length > 0
-              const presentationMode = card.presentation?.status === 'PASS'
-                ? 'full'
-                : card.presentation?.status === 'FALLBACK'
-                  ? 'factualFallback'
-                  : 'unavailable'
-              const badge = card.locked
-                ? t.reference.signalsPage.paidAccessRequired
-                : t.reference.signalsPage.presentationStatus[presentationMode]
-              const badgeClass = card.locked
-                ? 'access-unavailable'
-                : `presentation-${presentationMode}`
-              const cardTitle = card.locked
-                ? card.eventTitle
-                : card.presentation?.content.headline
-                  ?? t.reference.signalsPage.presentationNotPublished
-              return (
-                <button
-                  type="button"
-                  ref={(node) => {
-                    if (node) rowRefs.current.set(card.id, node)
-                    else rowRefs.current.delete(card.id)
-                  }}
-                  className={`signal-item${selected ? ' is-selected' : ''}${card.locked ? ' is-locked' : ''}`}
-                  aria-label={card.locked
-                    ? interpolate(t.reference.signalsPage.openLockedSignal, {
-                        headline: cardTitle ?? t.reference.missingValue,
-                        status: badge,
-                      })
-                    : interpolate(t.reference.signalsPage.openSignal, {
-                        company: card.companyName ?? t.reference.missingValue,
-                        headline: cardTitle ?? t.reference.missingValue,
-                        status: badge,
-                      })}
-                  aria-pressed={selected}
-                  onClick={() => {
-                    if (card.locked) {
-                      lastSelection.current = card.id
-                      navigate(location.pathname + location.search, {
-                        replace: true,
-                        state: selectionState(card.id, appliedFeedGeneration.current),
-                        flushSync: true,
-                      })
+            <div className="signal-item"><span className="signal-event">{t.reference.signalsPage.empty}</span></div>
+          ) : cards.map((card) => {
+            const selected = card.id === selectedKey
+            const status = cardStatus(card)
+            const selectedNoteIsKnown = selected && note.state !== 'loading' && note.state !== 'read-error'
+            const hasSelectedNote = selectedNoteIsKnown && note.value.trim().length > 0
+            const cardTitle = card.eventTitle ?? t.reference.missingValue
+            return (
+              <button
+                type="button"
+                ref={(node) => {
+                  if (node) rowRefs.current.set(card.id, node)
+                  else rowRefs.current.delete(card.id)
+                }}
+                className={`signal-item${selected ? ' is-selected' : ''}${card.locked ? ' is-locked' : ''}`}
+                aria-label={card.locked
+                  ? interpolate(t.reference.signalsPage.openLockedSignal, { headline: cardTitle, status: status.label })
+                  : interpolate(t.reference.signalsPage.openSignal, {
+                      company: card.companyName ?? t.reference.missingValue,
+                      headline: cardTitle,
+                      status: status.label,
+                    })}
+                aria-pressed={selected}
+                onClick={(event) => {
+                  lastSelection.current = card.id
+                  if (card.locked) {
+                    // Persist the originating row on the history entry so a
+                    // browser Back from Billing can restore its focus.
+                    navigate(`/app/signals${location.search}`, {
+                      replace: true,
+                      state: selectionState(card.id, location.search, true),
+                    })
+                    queueMicrotask(() => {
                       navigate('/app/billing', { state: { lockedSignalKey: card.id } })
-                    } else {
-                      lastSelection.current = card.id
-                      const artifactQuery = card.presentation
-                        ? `?presentation_artifact_id=${encodeURIComponent(card.presentation.artifact_id)}`
-                        : ''
-                      navigate(`/app/signals/${encodeURIComponent(card.id)}${artifactQuery}`, {
-                        state: selectionState(card.id, appliedFeedGeneration.current),
-                      })
-                    }
-                  }}
-                  key={card.id}
-                >
-                  <span className="signal-item-head">
-                    <strong>
-                      {card.locked
-                        ? t.reference.missingValue
-                        : (
-                            <>
-                              <span>{t.reference.fields.signalAwardee}</span> :{' '}
-                              <span>{card.awardedCompanyName ?? t.reference.missingValue}</span>
-                            </>
-                          )}
-                    </strong>
-                    <span className={badgeClass}>{badge}</span>
-                  </span>
-                  <span className="signal-event">
-                    {cardTitle ?? t.reference.missingValue}
-                  </span>
-                  {!card.locked ? (
-                    <span className="signal-card-summary">
-                      {card.presentation?.content.award_summary
-                        ?? t.reference.signalsPage.presentationUnavailableBody}
-                    </span>
-                  ) : null}
-                  {!card.locked ? (
-                    <span className="signal-meta">
-                      {t.reference.fields.signalBuyer} : {card.buyerName ?? t.reference.missingValue}
-                    </span>
-                  ) : null}
-                  <span className="signal-meta">{displayAmount(card)} · {displayLocation(card)}</span>
-                  <span className="signal-fit">
-                    <span>{displayDateLabel(card)}</span> : {displayDate(card.eventDate)}
-                  </span>
-                  {!card.locked && card.presentation?.status === 'PASS' ? (
-                    <span className="signal-match">{card.presentation.content.fit_reason}</span>
-                  ) : null}
-                  {!card.locked && card.presentation?.status === 'PASS' ? (
-                    <span className="signal-reason">{card.presentation.content.timing}</span>
-                  ) : null}
-                  {card.locked ? (
-                    <span className="signal-reason signal-lock-note">
-                      <LockKeyhole aria-hidden="true" />
-                      {t.reference.signalsPage.lockedReason}
-                    </span>
-                  ) : null}
-                  {!card.locked ? (
-                    <span className="signal-card-action">
-                      {card.presentation?.status === 'PASS'
-                        ? t.reference.signalsPage.viewAnalysis
-                        : t.reference.signalsPage.viewPublishedFacts}
-                    </span>
-                  ) : null}
-                  {hasSelectedNote ? (
-                    <span className="signal-note-state">{t.reference.statuses.noteAdded}</span>
-                  ) : null}
-                </button>
-              )
-            })
-          )}
+                    })
+                    return
+                  }
+                  if (usesSinglePane() || event.detail === 0) pendingDetailFocus.current = card.id
+                  navigate(`/app/signals/${encodeURIComponent(card.id)}${location.search}`, {
+                    state: selectionState(card.id, location.search, true),
+                  })
+                }}
+                key={card.id}
+              >
+                <span className="signal-item-head">
+                  <strong>{card.locked ? t.reference.missingValue : card.companyName}</strong>
+                  <span className={`data-status-${status.key}`}>{status.label}</span>
+                </span>
+                <span className="signal-event">{cardTitle}</span>
+                {!card.locked ? <span className="signal-card-summary">{card.objectShort ?? t.reference.missingValue}</span> : null}
+                {!card.locked && card.buyerName ? <span className="signal-meta">{t.reference.fields.signalBuyer} : {card.buyerName}</span> : null}
+                <span className="signal-meta">{displayAmount(card)} · {displayLocation(card)}</span>
+                <span className="signal-fit"><span>{displayDateLabel(card)}</span> : {displayDate(card.eventDate)}</span>
+                {card.locked ? (
+                  <span className="signal-reason signal-lock-note"><LockKeyhole aria-hidden="true" />{t.reference.signalsPage.lockedReason}</span>
+                ) : <span className="signal-card-action">{t.reference.signalsPage.viewPublishedFacts}</span>}
+                {hasSelectedNote ? <span className="signal-note-state">{t.reference.statuses.noteAdded}</span> : null}
+              </button>
+            )
+          })}
         </div>
 
-        {feed.loading && feed.data ? (
-          <p className="signal-limit" role="status">{t.reference.messages.refreshing}</p>
-        ) : feed.error && feed.data ? (
-          <p className="signal-limit" role="alert">{t.reference.messages.refreshFailed}</p>
-        ) : null}
-
-        {feed.data?.page.scan_truncated ? (
-          <p className="signal-limit" role="status">{t.feed.truncatedNote}</p>
-        ) : null}
-
+        {feed.loading && feed.data ? <p className="signal-limit" role="status">{t.reference.messages.refreshing}</p> : null}
+        {feed.error && feed.data ? <p className="signal-limit" role="alert">{t.reference.messages.refreshFailed}</p> : null}
+        {feed.data?.page.scan_truncated ? <p className="signal-limit" role="status">{t.feed.truncatedNote}</p> : null}
         {paginationError ? (
           <div role="alert">
             <p>{t.reference.messages.loadError}</p>
-            <button type="button" className="text-link" onClick={() => void loadMore()}>
-              {t.reference.signalsPage.retryMore}
-            </button>
+            <button type="button" className="text-link" onClick={() => void loadMore()}>{t.reference.signalsPage.retryMore}</button>
           </div>
         ) : null}
         {feed.data?.page.has_more && !paginationError ? (
-          <button
-            type="button"
-            className="text-link"
-            disabled={loadingMore}
-            onClick={() => void loadMore()}
-          >
+          <button type="button" className="text-link" disabled={loadingMore} onClick={() => void loadMore()}>
             {loadingMore ? t.reference.loading : t.reference.signalsPage.loadMore}
           </button>
-        ) : null}
+        ) : feed.data && cards.length > 0 ? <p className="signal-limit">{t.reference.signalsPage.endOfList}</p> : null}
       </aside>
 
       <section
-        className="detail-panel"
+        ref={detailPanelRef}
+        className={`detail-panel ${styles.detailPanel}`}
         data-master-detail-pane="detail"
         id="signal-detail"
         aria-labelledby="detail-title"
@@ -686,20 +610,15 @@ export function SignalsFeed() {
       >
         {selectedKey ? (
           <>
-            {isMobile ? (
+            {usesSinglePane() ? (
               <button
                 type="button"
                 className="source-link signal-mobile-back"
                 onClick={() => {
                   lastSelection.current = selectedKey
                   const origin = readSelectionState(location.state)
-                  if (origin?.key === selectedKey) navigate(-1)
-                  else {
-                    navigate('/app/signals', {
-                      replace: true,
-                      state: selectionState(selectedKey, appliedFeedGeneration.current),
-                    })
-                  }
+                  if (origin?.fromList) navigate(-1)
+                  else navigate(`/app/signals${location.search}`, { replace: true })
                 }}
               >
                 {t.workspace.backToList}
@@ -709,54 +628,24 @@ export function SignalsFeed() {
               detail={detailView}
               loading={visibleDetail.loading}
               error={visibleDetail.error}
-              errorTitle={deepLookup.key === signalKey && deepLookup.truncated
-                ? t.feed.truncatedNote
-                : selectionLookupError
-                  ? t.reference.messages.loadError
-                  : undefined}
-              onRetry={() => {
-                if (!selectedItem && paginationError && feed.data?.page.has_more) void loadMore()
-                else if (!selectedItem && (deepLookup.error || deepLookup.truncated)) {
-                  deepLookupStarted.current = null
-                  setDeepLookup({
-                    key: null,
-                    item: null,
-                    loading: false,
-                    exhausted: false,
-                    truncated: false,
-                    error: null,
-                  })
-                  setDeepLookupAttempt((current) => current + 1)
-                } else if (!selectedItem) {
-                  deepLookupGeneration.current += 1
-                  deepLookupStarted.current = null
-                  setDeepLookup({
-                    key: null,
-                    item: null,
-                    loading: false,
-                    exhausted: false,
-                    truncated: false,
-                    error: null,
-                  })
-                  void loadFeed()
-                }
-                else setDetailAttempt((current) => current + 1)
-              }}
+              onRetry={() => setDetailAttempt((current) => current + 1)}
               note={note.value}
               noteState={note.state}
               noteError={note.error}
               onNoteChange={note.change}
               onNoteBlur={note.flush}
               onRetryNote={note.retry}
-              announceLoading={!(feed.loading && feed.data)}
-              announceError={Boolean(selectedItem) || (!feed.error && !paginationError)}
+              companyProfile={companyProfile.data}
+              companyLoading={companyProfile.loading}
+              companyError={companyProfile.error}
+              onRetryCompany={() => setCompanyAttempt((current) => current + 1)}
             />
           </>
         ) : (
           <div className="detail-hero">
             <div>
               <p className="section-label">{t.reference.headings.selectedSignal}</p>
-            <h2 id="detail-title">{t.reference.signalsPage.chooseSignal}</h2>
+              <h2 id="detail-title">{t.reference.signalsPage.chooseSignal}</h2>
             </div>
           </div>
         )}
@@ -765,15 +654,8 @@ export function SignalsFeed() {
   )
 }
 
-function selectionState(key: string, feedGeneration: number): SignalSelectionNavigationState {
-  return {
-    signalSelection: {
-      kind: 'feed',
-      key,
-      feedGeneration,
-      query: { freshness: 'new', targetIcpId: '' },
-    },
-  }
+function selectionState(key: string, query: string, fromList: boolean): SignalSelectionNavigationState {
+  return { signalSelection: { kind: 'feed', key, query, fromList } }
 }
 
 function readSelectionState(value: unknown): SignalSelectionNavigationState['signalSelection'] | null {
@@ -781,17 +663,12 @@ function readSelectionState(value: unknown): SignalSelectionNavigationState['sig
   const selection = (value as { signalSelection?: unknown }).signalSelection
   if (typeof selection !== 'object' || selection === null) return null
   const candidate = selection as Partial<SignalSelectionNavigationState['signalSelection']>
-  if (candidate.kind !== 'feed' || typeof candidate.key !== 'string' || candidate.key.length === 0) {
-    return null
-  }
-  if (typeof candidate.feedGeneration !== 'number') return null
   if (
-    typeof candidate.query !== 'object'
-    || candidate.query === null
-    || candidate.query.freshness !== 'new'
-    || candidate.query.targetIcpId !== ''
-  ) {
-    return null
-  }
+    candidate.kind !== 'feed'
+    || typeof candidate.key !== 'string'
+    || candidate.key.length === 0
+    || typeof candidate.query !== 'string'
+    || typeof candidate.fromList !== 'boolean'
+  ) return null
   return candidate as SignalSelectionNavigationState['signalSelection']
 }

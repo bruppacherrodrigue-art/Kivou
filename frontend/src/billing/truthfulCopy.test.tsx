@@ -143,7 +143,7 @@ describe('signal verrouillé sur un compte payant', () => {
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('réservés aux offres payantes')
     expect(page).not.toContain('réservées aux offres payantes')
-    expect(screen.getByRole('button', { name: 'Gérer ma facturation' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Gérer ma facturation' })).toBeInTheDocument()
     expect(callsTo('/signals/sig_locked_1', 'GET')).toHaveLength(0)
   })
 
@@ -157,7 +157,7 @@ describe('signal verrouillé sur un compte payant', () => {
 
     await openLockedBilling()
     expect(screen.queryByRole('link', { name: 'Voir les offres' })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Gérer ma facturation' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Gérer ma facturation' })).toBeInTheDocument()
   })
 
   it('le détail n’invite pas à comparer une grille qu’un payant ne verra pas', async () => {
@@ -216,7 +216,7 @@ describe('signal verrouillé sur un compte payant', () => {
     await openLockedBilling()
     const page = document.body.textContent ?? ''
     expect(page).not.toContain('réservés aux offres payantes')
-    expect(screen.getByLabelText('Offre')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Offre')).toBeInTheDocument()
   })
 
   it('reste vrai en anglais', async () => {
