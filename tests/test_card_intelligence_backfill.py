@@ -122,22 +122,79 @@ def _artifact_digest(artifact_ids: list[str]) -> str:
     return hashlib.sha256(canonical.encode("ascii")).hexdigest()
 
 
+def _candidate_digest(engine: sa.Engine, case: BackfillCase) -> str:
+    with engine.connect() as connection:
+        rows = connection.execute(
+            sa.select(
+                materialized_signal.c.signal_key,
+                materialized_signal.c.revision,
+                materialized_signal.c.target_icp_revision,
+            ).where(materialized_signal.c.signal_key.in_(case.signal_keys))
+        ).all()
+    bindings = {
+        row.signal_key: (row.revision, row.target_icp_revision)
+        for row in rows
+    }
+    return backfill_module._candidate_binding_digest(bindings)
+
+
+def _active_digest(
+    engine: sa.Engine,
+    case: BackfillCase,
+    *,
+    language: str = "fr",
+) -> str:
+    with engine.connect() as connection:
+        artifact_ids = list(
+            connection.execute(
+                sa.select(card_presentation_artifact.c.artifact_id).where(
+                    card_presentation_artifact.c.account_id == case.account_id,
+                    card_presentation_artifact.c.language == language,
+                    card_presentation_artifact.c.published_at.is_not(None),
+                    card_presentation_artifact.c.superseded_at.is_(None),
+                )
+            ).scalars()
+        )
+    return _artifact_digest(artifact_ids)
+
+
 def _precondition(
     *,
     candidates: int,
     active: int,
     digest: str,
+    engine: sa.Engine | None = None,
+    case: BackfillCase | None = None,
+    language: str = "fr",
+    candidate_digest: str | None = None,
+    active_digest: str | None = None,
     protected_language: str | None = None,
     protected_active: int | None = None,
     protected_digest: str | None = None,
+    protected_active_digest: str | None = None,
 ):
+    if candidate_digest is None:
+        candidate_digest = (
+            _candidate_digest(engine, case)
+            if engine is not None and case is not None
+            else "0" * 64
+        )
+    if active_digest is None:
+        active_digest = (
+            _active_digest(engine, case, language=language)
+            if engine is not None and case is not None
+            else "0" * 64
+        )
     return backfill_module.BackfillPrecondition(
         expected_candidate_count=candidates,
         expected_active_publication_count=active,
         expected_current_factual_artifact_digest=digest,
+        expected_candidate_binding_digest=candidate_digest,
+        expected_active_artifact_digest=active_digest,
         protected_language=protected_language,
         expected_protected_active_publication_count=protected_active,
         expected_protected_current_factual_artifact_digest=protected_digest,
+        expected_protected_active_artifact_digest=protected_active_digest,
     )
 
 
@@ -640,10 +697,79 @@ def test_guarded_backfill_rejects_candidate_drift_and_incomplete_page_before_pub
                 candidates=2,
                 active=0,
                 digest=_artifact_digest([]),
+                engine=engine,
+                case=case,
             ),
         )
 
     assert _published_rows(engine) == []
+
+
+def test_backend_precondition_requires_binding_and_active_artifact_digests() -> None:
+    with pytest.raises(TypeError):
+        backfill_module.BackfillPrecondition(
+            expected_candidate_count=2,
+            expected_active_publication_count=0,
+            expected_current_factual_artifact_digest=_artifact_digest([]),
+        )
+
+
+def test_guarded_backfill_rejects_same_count_candidate_binding_drift(
+    engine: sa.Engine,
+) -> None:
+    case = _seed_candidates(engine, count=2, prefix="guard-binding-drift")
+    sealed_candidate_digest = _candidate_digest(engine, case)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == case.signal_keys[0])
+            .values(
+                revision=materialized_signal.c.revision + 1,
+                content_fingerprint=_digest("guard-binding-drift:replacement"),
+            )
+        )
+    assert _candidate_digest(engine, case) != sealed_candidate_digest
+
+    with pytest.raises(RuntimeError):
+        _run(
+            engine,
+            case,
+            limit=2,
+            precondition=_precondition(
+                candidates=2,
+                active=0,
+                digest=_artifact_digest([]),
+                candidate_digest=sealed_candidate_digest,
+                active_digest=_artifact_digest([]),
+            ),
+        )
+
+    assert _published_rows(engine) == []
+
+
+def test_guarded_backfill_rejects_same_count_active_artifact_drift(
+    engine: sa.Engine,
+) -> None:
+    case = _seed_candidates(engine, count=2, prefix="guard-active-drift")
+    current_artifact_id = _publish_current(engine, case)
+
+    with pytest.raises(RuntimeError):
+        _run(
+            engine,
+            case,
+            limit=2,
+            precondition=_precondition(
+                candidates=2,
+                active=1,
+                digest=_artifact_digest([current_artifact_id]),
+                candidate_digest=_candidate_digest(engine, case),
+                active_digest="0" * 64,
+            ),
+        )
+
+    rows = _published_rows(engine)
+    assert len(rows) == 1
+    assert rows[0]["artifact_id"] == current_artifact_id
 
 
 def test_guarded_backfill_rejects_moved_baseline_digest_before_publish(
@@ -661,6 +787,8 @@ def test_guarded_backfill_rejects_moved_baseline_digest_before_publish(
                 candidates=2,
                 active=1,
                 digest="0" * 64,
+                engine=engine,
+                case=case,
             ),
         )
 
@@ -683,6 +811,8 @@ def test_guarded_backfill_rejects_extra_active_publication_before_publish(
                 candidates=2,
                 active=0,
                 digest=_artifact_digest([original_artifact_id]),
+                engine=engine,
+                case=case,
             ),
         )
 
@@ -704,6 +834,8 @@ def test_guarded_backfill_accepts_exact_complete_page_and_digest(
             candidates=2,
             active=1,
             digest=_artifact_digest([original_artifact_id]),
+            engine=engine,
+            case=case,
         ),
     )
 
@@ -749,9 +881,13 @@ def test_guarded_protected_language_drift_aborts_before_target_publication(
                 candidates=2,
                 active=0,
                 digest=_artifact_digest([]),
+                engine=engine,
+                case=case,
+                language="en",
                 protected_language="fr",
                 protected_active=2,
                 protected_digest=protected_digest,
+                protected_active_digest=protected_digest,
             ),
         )
 
@@ -764,6 +900,7 @@ def test_guarded_protected_language_drift_aborts_before_target_publication(
         {"protected_language": "fr"},
         {"protected_active": 2},
         {"protected_digest": "0" * 64},
+        {"protected_active_digest": "0" * 64},
         {"protected_language": "de", "protected_active": 2, "protected_digest": "0" * 64},
         {"protected_language": "fr", "protected_active": 51, "protected_digest": "0" * 64},
     ],
@@ -801,6 +938,7 @@ def test_protected_language_must_differ_from_published_language() -> None:
                 protected_language="fr",
                 protected_active=0,
                 protected_digest=_artifact_digest([]),
+                protected_active_digest=_artifact_digest([]),
             ),
         )
 
@@ -838,6 +976,8 @@ def test_guarded_publish_failure_rolls_back_every_publication_on_the_page(
                 candidates=2,
                 active=0,
                 digest=_artifact_digest([]),
+                engine=engine,
+                case=case,
             ),
         )
 
@@ -889,6 +1029,8 @@ def test_guarded_backfill_rereads_exact_page_after_authority_locks(
                 candidates=2,
                 active=0,
                 digest=_artifact_digest([]),
+                engine=engine,
+                case=case,
             ),
         )
 
@@ -1019,6 +1161,8 @@ def test_guarded_build_or_lock_failure_aborts_without_any_publication(
                 candidates=2,
                 active=0,
                 digest=_artifact_digest([]),
+                engine=engine,
+                case=case,
             ),
         )
 
@@ -1032,6 +1176,8 @@ def test_guarded_build_or_lock_failure_aborts_without_any_publication(
         ["--expect-candidate-count", "2"],
         ["--expect-active-publication-count", "0"],
         ["--expect-current-factual-artifact-digest", "0" * 64],
+        ["--expect-candidate-binding-digest", "0" * 64],
+        ["--expect-active-artifact-digest", "0" * 64],
         [
             "--expect-candidate-count",
             "2",
@@ -1111,6 +1257,10 @@ def test_cli_complete_guard_is_parsed_and_runtime_failure_is_opaque(
             "0",
             "--expect-current-factual-artifact-digest",
             _artifact_digest([]),
+            "--expect-candidate-binding-digest",
+            "0" * 64,
+            "--expect-active-artifact-digest",
+            _artifact_digest([]),
         ],
         engine_factory=unavailable_engine,
         clock=lambda: NOW,
@@ -1133,6 +1283,7 @@ def test_cli_complete_guard_is_parsed_and_runtime_failure_is_opaque(
         ["--expect-protected-language", "fr"],
         ["--expect-protected-active-publication-count", "2"],
         ["--expect-protected-current-factual-artifact-digest", "0" * 64],
+        ["--expect-protected-active-artifact-digest", "0" * 64],
         [
             "--expect-protected-language",
             "fr",
@@ -1164,6 +1315,10 @@ def test_cli_protected_expectations_are_all_or_none_and_opaque(
                 "--expect-active-publication-count",
                 "0",
                 "--expect-current-factual-artifact-digest",
+                _artifact_digest([]),
+                "--expect-candidate-binding-digest",
+                "0" * 64,
+                "--expect-active-artifact-digest",
                 _artifact_digest([]),
                 *protected_arguments,
             ],
@@ -1208,11 +1363,17 @@ def test_cli_protected_language_is_valid_and_different_before_engine_creation(
                 "0",
                 "--expect-current-factual-artifact-digest",
                 _artifact_digest([]),
+                "--expect-candidate-binding-digest",
+                "0" * 64,
+                "--expect-active-artifact-digest",
+                _artifact_digest([]),
                 "--expect-protected-language",
                 protected_language,
                 "--expect-protected-active-publication-count",
                 "2",
                 "--expect-protected-current-factual-artifact-digest",
+                "0" * 64,
+                "--expect-protected-active-artifact-digest",
                 "0" * 64,
             ],
             engine_factory=lambda: (_ for _ in ()).throw(
@@ -1259,11 +1420,17 @@ def test_cli_complete_protected_guard_reaches_runtime_opaquely(
             "0",
             "--expect-current-factual-artifact-digest",
             _artifact_digest([]),
+            "--expect-candidate-binding-digest",
+            "0" * 64,
+            "--expect-active-artifact-digest",
+            _artifact_digest([]),
             "--expect-protected-language",
             "fr",
             "--expect-protected-active-publication-count",
             "2",
             "--expect-protected-current-factual-artifact-digest",
+            "0" * 64,
+            "--expect-protected-active-artifact-digest",
             "0" * 64,
         ],
         engine_factory=unavailable_engine,
@@ -2178,6 +2345,121 @@ def test_cli_sanitizes_engine_disposal_failure_and_returns_nonzero(
     assert "DISPOSE-SECRET" not in captured.err
 
 
+def test_postgresql_recovery_reconciles_49_with_8_active_and_2_revision_stale(
+) -> None:
+    with _isolated_postgres_engine() as postgres_engine:
+        case = _seed_candidates(
+            postgres_engine,
+            count=49,
+            prefix="recovery-49-8-6",
+        )
+        original_by_key: dict[str, str] = {}
+        with postgres_engine.begin() as connection:
+            for signal_key in case.signal_keys[:8]:
+                source = build_presentation_input(
+                    connection,
+                    account_id=case.account_id,
+                    signal_key=signal_key,
+                    language="fr",
+                )
+                stored = publish_factual_fallback(
+                    connection,
+                    source=source,
+                    now=NOW,
+                )
+                original_by_key[signal_key] = str(stored["artifact_id"])
+
+        stale_keys = case.signal_keys[:2]
+        with postgres_engine.begin() as connection:
+            connection.execute(
+                sa.update(materialized_signal)
+                .where(materialized_signal.c.signal_key.in_(stale_keys))
+                .values(
+                    revision=materialized_signal.c.revision + 1,
+                    content_fingerprint=_digest("recovery-49-8-6:revised"),
+                )
+            )
+
+        with postgres_engine.connect() as connection:
+            binding_rows = connection.execute(
+                sa.select(
+                    materialized_signal.c.signal_key,
+                    materialized_signal.c.revision,
+                    materialized_signal.c.target_icp_revision,
+                ).where(materialized_signal.c.signal_key.in_(case.signal_keys))
+            ).all()
+            bindings = {
+                row.signal_key: (row.revision, row.target_icp_revision)
+                for row in binding_rows
+            }
+            current_before = published_for_signals(
+                connection,
+                account_id=case.account_id,
+                bindings=bindings,
+                language="fr",
+            )
+        current_before_ids = [
+            presentation.artifact_id for presentation in current_before.values()
+        ]
+        original_ids = list(original_by_key.values())
+        assert len(bindings) == 49
+        assert len(current_before_ids) == 6
+
+        result = _run(
+            postgres_engine,
+            case,
+            limit=49,
+            now=NOW + dt.timedelta(minutes=1),
+            precondition=_precondition(
+                candidates=49,
+                active=8,
+                digest=_artifact_digest(current_before_ids),
+                candidate_digest=backfill_module._candidate_binding_digest(bindings),
+                active_digest=_artifact_digest(original_ids),
+            ),
+        )
+
+        assert result == BackfillResult(
+            scanned=49,
+            published=43,
+            unchanged=6,
+            failed=0,
+            next_offset=None,
+            scan_truncated=False,
+        )
+        rows = [
+            row
+            for row in _published_rows(postgres_engine)
+            if row["account_id"] == case.account_id and row["language"] == "fr"
+        ]
+        active_rows = [row for row in rows if row["superseded_at"] is None]
+        row_by_artifact = {str(row["artifact_id"]): row for row in rows}
+        assert len(rows) == 51
+        assert len(active_rows) == 49
+        assert all(row["qa_status"] == "FALLBACK" for row in rows)
+        assert all(row["payload_variant"] == "FACTUAL_FALLBACK" for row in rows)
+        assert all(
+            row[field] is None
+            for row in rows
+            for field in (
+                "provider",
+                "model_id",
+                "prompt_version",
+                "qa_provider",
+                "qa_model_id",
+            )
+        )
+        assert all(
+            row_by_artifact[original_by_key[signal_key]]["superseded_at"]
+            is not None
+            for signal_key in stale_keys
+        )
+        assert all(
+            row_by_artifact[original_by_key[signal_key]]["superseded_at"] is None
+            for signal_key in case.signal_keys[2:8]
+        )
+
+
 def test_postgresql_concurrent_identical_backfills_publish_one_version(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2272,6 +2554,8 @@ def test_postgresql_guarded_share_locks_allow_same_transaction_publication() -> 
                 candidates=1,
                 active=0,
                 digest=_artifact_digest([]),
+                engine=postgres_engine,
+                case=case,
             ),
         )
 
@@ -2302,6 +2586,10 @@ def test_postgresql_guarded_reread_rejects_candidate_committed_after_first_read(
                 .where(materialized_signal.c.signal_key == hidden_signal_key)
                 .values(invalidated_at=NOW)
             )
+        visible_case = dataclasses.replace(
+            case,
+            signal_keys=(case.signal_keys[0],),
+        )
 
         first_read_done = threading.Event()
         candidate_committed = threading.Event()
@@ -2345,6 +2633,8 @@ def test_postgresql_guarded_reread_rejects_candidate_committed_after_first_read(
                         candidates=1,
                         active=0,
                         digest=_artifact_digest([]),
+                        engine=postgres_engine,
+                        case=visible_case,
                     ),
                 )
             writer.join(timeout=15)
@@ -2499,6 +2789,8 @@ def test_postgresql_guarded_authority_nowait_never_sacrifices_materializer() -> 
                         candidates=1,
                         active=0,
                         digest=_artifact_digest([]),
+                        engine=postgres_engine,
+                        case=case,
                     ),
                 )
             except BaseException as error:  # noqa: BLE001 - asserted below
@@ -2583,6 +2875,8 @@ def test_postgresql_two_guarded_accounts_nowait_without_deadlock(
                             candidates=1,
                             active=0,
                             digest=_artifact_digest([]),
+                            engine=postgres_engine,
+                            case=case,
                         ),
                     )
                 )
@@ -2665,6 +2959,8 @@ def test_postgresql_guarded_backfill_sees_ordinary_publication_before_publish(
                         candidates=1,
                         active=0,
                         digest=_artifact_digest([]),
+                        engine=postgres_engine,
+                        case=case,
                     ),
                 )
             except BaseException as error:  # noqa: BLE001 - asserted below

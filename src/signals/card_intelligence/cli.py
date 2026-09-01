@@ -124,6 +124,14 @@ def _parser() -> _SafeArgumentParser:
         type=_artifact_digest,
     )
     backfill.add_argument(
+        "--expect-candidate-binding-digest",
+        type=_artifact_digest,
+    )
+    backfill.add_argument(
+        "--expect-active-artifact-digest",
+        type=_artifact_digest,
+    )
+    backfill.add_argument(
         "--expect-protected-language",
         choices=("fr", "en"),
     )
@@ -133,6 +141,10 @@ def _parser() -> _SafeArgumentParser:
     )
     backfill.add_argument(
         "--expect-protected-current-factual-artifact-digest",
+        type=_artifact_digest,
+    )
+    backfill.add_argument(
+        "--expect-protected-active-artifact-digest",
         type=_artifact_digest,
     )
     return parser
@@ -165,6 +177,8 @@ def main(
         arguments.expect_candidate_count,
         arguments.expect_active_publication_count,
         arguments.expect_current_factual_artifact_digest,
+        arguments.expect_candidate_binding_digest,
+        arguments.expect_active_artifact_digest,
     )
     if any(value is not None for value in expectation_values) and not all(
         value is not None for value in expectation_values
@@ -179,6 +193,7 @@ def main(
         arguments.expect_protected_language,
         arguments.expect_protected_active_publication_count,
         arguments.expect_protected_current_factual_artifact_digest,
+        arguments.expect_protected_active_artifact_digest,
     )
     if any(value is not None for value in protected_expectation_values) and (
         not all(value is not None for value in protected_expectation_values)
@@ -199,12 +214,21 @@ def main(
             expected_current_factual_artifact_digest=(
                 arguments.expect_current_factual_artifact_digest
             ),
+            expected_candidate_binding_digest=(
+                arguments.expect_candidate_binding_digest
+            ),
+            expected_active_artifact_digest=(
+                arguments.expect_active_artifact_digest
+            ),
             protected_language=arguments.expect_protected_language,
             expected_protected_active_publication_count=(
                 arguments.expect_protected_active_publication_count
             ),
             expected_protected_current_factual_artifact_digest=(
                 arguments.expect_protected_current_factual_artifact_digest
+            ),
+            expected_protected_active_artifact_digest=(
+                arguments.expect_protected_active_artifact_digest
             ),
         )
         if all(value is not None for value in expectation_values)
