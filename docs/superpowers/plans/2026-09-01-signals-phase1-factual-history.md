@@ -336,35 +336,35 @@ git commit -m "feat(companies): process winner facts asynchronously"
 - Modify: `frontend/src/reference/dashboard/adapters.test.ts`
 - Modify: `frontend/src/test/harness.tsx`
 
-- [ ] **Step 1: Add failing adapter tests**
+- [x] **Step 1: Add failing adapter tests**
 
 Assert titles, summaries and states are copied from the server; malformed state
 fails closed; locked cards expose none of it; and Signaux adapters read no
 presentation, plausible need, fit, target role or recommended action.
 
-- [ ] **Step 2: Run and retain RED evidence**
+- [x] **Step 2: Run and retain RED evidence**
 
 Run: `cd frontend && npm test -- --run src/reference/dashboard/adapters.test.ts`  
 Expected: FAIL on missing factual/enrichment contracts.
 
-- [ ] **Step 3: Add exact TypeScript contracts**
+- [x] **Step 3: Add exact TypeScript contracts**
 
 Define `SignalFactualDisplay`, `WinnerEnrichment`, `HistoryAccess`,
 `FilterAccess`, optional cursor page fields and new FeedQuery parameters. Keep
 presentation compatible on unlocked payloads and forbidden on locked payloads.
 
-- [ ] **Step 4: Convert only server-authored facts**
+- [x] **Step 4: Convert only server-authored facts**
 
 Populate `SignalCardView` and `SignalDetailView` from `factual_display` and
 `winner_enrichment`. Leave `publishedPresentation` for other dashboard
 surfaces, but remove it from Signaux conversions.
 
-- [ ] **Step 5: Verify adapters and typecheck**
+- [x] **Step 5: Verify adapters and typecheck**
 
 Run: `cd frontend && npm test -- --run src/reference/dashboard/adapters.test.ts && npm run typecheck`  
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add frontend/src/api frontend/src/reference/dashboard frontend/src/test/harness.tsx

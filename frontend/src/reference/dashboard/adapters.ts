@@ -3,17 +3,17 @@ import type {
   CardPresentation,
   CompanyProfile,
   EventStatus,
-  EvidenceItem,
   FeedItem,
   FeedPage,
+  SignalFactualDisplay,
   SignalEventClock,
   TargetIcp,
   UnlockedDetail,
+  WinnerEnrichment,
 } from '../../api/types'
 import type {
   BillingAccessView,
   CompanySummaryView,
-  EvidenceBoundLabel,
   OverviewAwardCardView,
   SignalCardView,
   SignalDetailView,
@@ -83,6 +83,39 @@ const NEED_CATEGORIES = new Set([
 const ARTIFACT_ID_PATTERN = /^[0-9a-f]{64}$/
 const CLAIM_ID_PATTERN = /^[A-Z][A-Z0-9_]{0,63}$/
 const AWARE_ISO_DATETIME_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$/
+const ISO_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/
+const FACTUAL_DISPLAY_KEYS = new Set([
+  'headline',
+  'market_summary',
+  'object_short',
+  'date',
+  'completeness',
+  'missing_fields',
+])
+const FACTUAL_DATE_KEYS = new Set(['value', 'kind'])
+const FACTUAL_DATE_KINDS = new Set(['award', 'notification', 'publication', 'unknown'])
+const FACTUAL_COMPLETENESS = new Set(['verified', 'partial', 'to_verify'])
+const WINNER_ENRICHMENT_KEYS = new Set([
+  'status',
+  'missing_fields',
+  'last_verified_at',
+  'error_code',
+  'source',
+])
+const WINNER_SOURCE_KEYS = new Set([
+  'kind',
+  'connector',
+  'notice_id',
+  'url',
+  'retrieved_at',
+])
+const WINNER_ENRICHMENT_STATUSES = new Set([
+  'pending',
+  'in_progress',
+  'completed',
+  'partial',
+  'failed',
+])
 
 type UnknownRecord = Record<string, unknown>
 
@@ -133,6 +166,61 @@ function isAwareIsoDateTime(value: unknown): value is string {
     if (offsetHour > 23 || offsetMinute > 59) return false
   }
   return true
+}
+
+function isNullableStrictText(value: unknown, maximum: number): value is string | null {
+  return value === null || isStrictText(value, maximum)
+}
+
+function isBoundedUniqueTextList(value: unknown): value is string[] {
+  return Array.isArray(value)
+    && value.length <= 16
+    && value.every((entry) => isStrictText(entry, 64))
+    && new Set(value).size === value.length
+}
+
+export function publishedFactualDisplay(value: unknown): SignalFactualDisplay | null {
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, FACTUAL_DISPLAY_KEYS)
+    || !isRecord(value.date)
+    || !hasExactKeys(value.date, FACTUAL_DATE_KEYS)
+    || !isStrictText(value.headline, 768)
+    || !isNullableStrictText(value.market_summary, 180)
+    || !isNullableStrictText(value.object_short, 180)
+    || value.market_summary !== value.object_short
+    || !(value.date.value === null
+      || (typeof value.date.value === 'string' && ISO_DATE_PATTERN.test(value.date.value)))
+    || typeof value.date.kind !== 'string'
+    || !FACTUAL_DATE_KINDS.has(value.date.kind)
+    || typeof value.completeness !== 'string'
+    || !FACTUAL_COMPLETENESS.has(value.completeness)
+    || !isBoundedUniqueTextList(value.missing_fields)
+  ) return null
+  return value as unknown as SignalFactualDisplay
+}
+
+export function publishedWinnerEnrichment(value: unknown): WinnerEnrichment | null {
+  if (
+    !isRecord(value)
+    || !hasExactKeys(value, WINNER_ENRICHMENT_KEYS)
+    || !isRecord(value.source)
+    || !hasExactKeys(value.source, WINNER_SOURCE_KEYS)
+    || typeof value.status !== 'string'
+    || !WINNER_ENRICHMENT_STATUSES.has(value.status)
+    || !isBoundedUniqueTextList(value.missing_fields)
+    || !(value.last_verified_at === null || isAwareIsoDateTime(value.last_verified_at))
+    || !(value.error_code === null || isStrictText(value.error_code, 64))
+    || (value.status === 'failed') !== (value.error_code !== null)
+    || value.source.kind !== 'public_notice'
+    || !isStrictText(value.source.connector, 512)
+    || !isStrictText(value.source.notice_id, 512)
+    || !(value.source.url === null
+      || (isStrictText(value.source.url, 2_048)
+        && value.source.url.startsWith('https://')))
+    || !(value.source.retrieved_at === null || isAwareIsoDateTime(value.source.retrieved_at))
+  ) return null
+  return value as unknown as WinnerEnrichment
 }
 
 function hasEvidenceRefs(value: unknown): value is string[] {
@@ -300,14 +388,17 @@ export function toSignalCard(item: FeedItem): SignalCardView {
       primaryNeed: null,
       fitReason: null,
       presentation: null,
+      factualCompleteness: null,
+      missingFacts: [],
+      winnerEnrichment: null,
       sourceSystem: null,
       whyNow: item.event.why_now,
+      objectShort: null,
     }
   }
 
-  const presentation = publishedPresentation(item.presentation)
-  const matchReasons = concreteMatchReasons(item.analysis.fit.reasons)
-  const fitReason = matchReasons[0] ?? null
+  const factual = publishedFactualDisplay(item.factual_display)
+  const enrichment = publishedWinnerEnrichment(item.winner_enrichment)
   return {
     signalId: item.signal_id,
     id: item.signal_id,
@@ -315,19 +406,23 @@ export function toSignalCard(item: FeedItem): SignalCardView {
     companyName: item.company.name,
     awardedCompanyName: item.company.name,
     buyerName: item.contract.buyer?.name ?? null,
-    eventTitle: presentation?.content.headline ?? null,
+    eventTitle: factual?.headline ?? null,
     amount: item.contract.amount,
     location: item.contract.location,
-    eventDate: item.event.date,
-    eventDateKind: eventDateKind(item.event.clock, item.event.status),
+    eventDate: factual?.date.value ?? item.event.date,
+    eventDateKind: factual?.date.kind ?? eventDateKind(item.event.clock, item.event.status),
     awardDate: item.contract.dates.award,
-    matchLabel: fitReason,
-    matchReasons,
+    matchLabel: null,
+    matchReasons: [],
     primaryNeed: null,
-    fitReason,
-    presentation,
+    fitReason: null,
+    presentation: null,
+    factualCompleteness: factual?.completeness ?? null,
+    missingFacts: factual?.missing_fields ?? [],
+    winnerEnrichment: enrichment,
     sourceSystem: item.source.system,
     whyNow: item.event.why_now,
+    objectShort: factual?.object_short ?? null,
   }
 }
 
@@ -389,34 +484,36 @@ export function toOverviewAwardCards(page: FeedPage): OverviewAwardCardView[] {
 }
 
 export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
-  const primaryNeed = firstEvidenceBoundTargetedNeed(detail)
-  const presentation = publishedPresentation(detail.presentation)
-  const fitReason = concreteMatchReasons(detail.analysis.fit.reasons)[0] ?? null
+  const factual = publishedFactualDisplay(detail.factual_display)
+  const enrichment = publishedWinnerEnrichment(detail.winner_enrichment)
 
   return {
     signalId: detail.signal_id,
     id: detail.signal_id,
     locked: false,
-    eventDate: detail.event.date,
-    eventDateKind: eventDateKind(detail.event.clock, detail.event.status),
+    eventDate: factual?.date.value ?? detail.event.date,
+    eventDateKind: factual?.date.kind ?? eventDateKind(detail.event.clock, detail.event.status),
     buyerName: detail.contract.buyer?.name ?? null,
     awardedCompanyName: detail.company.name,
-    primaryNeed,
-    fitReason,
-    presentation,
-    title: presentation?.content.headline ?? null,
+    primaryNeed: null,
+    fitReason: null,
+    presentation: null,
+    factualCompleteness: factual?.completeness ?? null,
+    missingFacts: factual?.missing_fields ?? [],
+    winnerEnrichment: enrichment,
+    title: factual?.headline ?? null,
     companyName: detail.company.name,
     companyKey: detail.company_key ?? null,
     companyCountry: detail.company.country,
     companyIdentifier: detail.company.identifier,
-    targetProfileLabel: detail.analysis.fit.target_icp_label,
+    targetProfileLabel: null,
     sourceSystem: detail.source.system,
-    summary: presentation?.content.award_summary ?? null,
+    summary: factual?.market_summary ?? null,
     brief: {
       whyNow: detail.event.why_now,
-      offerCoverage: primaryNeed?.label ?? null,
+      offerCoverage: null,
       functionToFind: null,
-      unknown: detail.analysis.plausible_needs.note || null,
+      unknown: null,
     },
     facts: {
       amount: detail.contract.amount,
@@ -435,43 +532,6 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
     scope: [],
     questions: [],
   }
-}
-
-function firstEvidenceBoundTargetedNeed(detail: UnlockedDetail): EvidenceBoundLabel | null {
-  for (const need of detail.analysis.plausible_needs.items) {
-    const label = need.label?.trim() ?? ''
-    if (!need.targeted_by_your_profile || !label || !need.category) continue
-
-    const evidenceRefs = detail.evidence.analysis_inputs.groups
-      .filter((group) => group.plausible_need === need.category)
-      .flatMap((group) => group.items)
-      .map(canonicalEvidenceRef)
-      .filter((reference): reference is string => reference !== null)
-    const uniqueRefs = [...new Set(evidenceRefs)]
-    if (uniqueRefs.length > 0) return { label, evidenceRefs: uniqueRefs }
-  }
-  return null
-}
-
-function canonicalEvidenceRef(item: EvidenceItem): string | null {
-  const url = item.url?.trim() ?? ''
-  const path = item.path?.trim() ?? ''
-  if (url) {
-    return `evidence:url:${encodeURIComponent(url)}`
-      + (path ? `:path:${encodeURIComponent(path)}` : '')
-  }
-
-  const sourceSystem = item.source_system?.trim() ?? ''
-  const noticeId = item.notice_id?.trim() ?? ''
-  const procedureId = item.procedure_id?.trim() ?? ''
-  if (!sourceSystem || (!noticeId && !procedureId)) return null
-
-  return [
-    `evidence:source:${encodeURIComponent(sourceSystem)}`,
-    noticeId ? `notice:${encodeURIComponent(noticeId)}` : null,
-    procedureId ? `procedure:${encodeURIComponent(procedureId)}` : null,
-    path ? `path:${encodeURIComponent(path)}` : null,
-  ].filter((part): part is string => part !== null).join(':')
 }
 
 export function toTargetProfileView(profile: TargetIcp): TargetProfileView {

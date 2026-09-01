@@ -38,6 +38,7 @@ export type CustomerEventType =
 
 /** Horloge qualifiée par le backend pour la date publiée dans `event.date`. */
 export type SignalEventClock = 'award' | 'notification' | 'publication'
+export type SignalFactualDateKind = SignalEventClock | 'unknown'
 
 /** Taxonomie fermée du Need Graph exposée par le backend. */
 export type NeedCategory =
@@ -272,6 +273,34 @@ export interface SignalEvent {
   is_new_opportunity: boolean
 }
 
+export interface SignalFactualDisplay {
+  headline: string
+  market_summary: string | null
+  object_short: string | null
+  date: {
+    value: string | null
+    kind: SignalFactualDateKind
+  }
+  completeness: 'verified' | 'partial' | 'to_verify'
+  missing_fields: string[]
+}
+
+export interface WinnerEnrichmentSource {
+  kind: 'public_notice'
+  connector: string
+  notice_id: string
+  url: string | null
+  retrieved_at: string | null
+}
+
+export interface WinnerEnrichment {
+  status: 'pending' | 'in_progress' | 'completed' | 'partial' | 'failed'
+  missing_fields: string[]
+  last_verified_at: string | null
+  error_code: string | null
+  source: WinnerEnrichmentSource
+}
+
 export type CardPresentationClaimKind = 'FACT' | 'INFERENCE' | 'RECOMMENDATION'
 export type CardPresentationConfidence = 'high' | 'medium' | 'low'
 export type CardPresentationTargetRoleKind =
@@ -457,6 +486,8 @@ export interface UnlockedFeedItem {
   company_key?: string | null
   target_icp_id: string | null
   company: Company
+  factual_display: SignalFactualDisplay
+  winner_enrichment: WinnerEnrichment
   event: SignalEvent
   contract: Contract
   analysis: Analysis
@@ -487,6 +518,9 @@ export interface LockedFeedItem {
   headline: string
   /** La surface verrouillée de PR1 interdit cette clé, même à `null`. */
   presentation?: never
+  factual_display?: never
+  winner_enrichment?: never
+  company_key?: never
 }
 
 export type FeedItem = UnlockedFeedItem | LockedFeedItem
@@ -498,12 +532,31 @@ export function isLocked(item: FeedItem | SignalDetail): item is LockedFeedItem 
 export interface FeedPage {
   items: FeedItem[]
   total_returned: number
-  page: { limit: number; offset: number; has_more: boolean; scan_truncated: boolean }
-  excluded: { without_display_name: number; by_freshness: number }
+  page: {
+    limit: number
+    offset: number
+    cursor?: string | null
+    next_cursor?: string | null
+    has_more: boolean
+    scan_truncated: boolean
+  }
+  excluded: { without_display_name: number; by_freshness: number; by_filters: number }
   read_at: string
   freshness: Freshness
   language: string
   plan_code: PlanCode
+  view: 'recent' | 'history'
+  history_access: {
+    scope: 'grants_only' | 'window' | 'all_available'
+    history_days: number | null
+  }
+  filter_access: {
+    date_range: boolean
+    country: boolean
+    subdivision: boolean
+    status: boolean
+    sector: boolean
+  }
   policy: { feed: string; recency: string; paywall: string }
 }
 

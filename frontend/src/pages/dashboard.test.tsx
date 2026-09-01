@@ -603,7 +603,7 @@ describe('vue d’ensemble exacte connectée', () => {
       contract: { title: 'MARCHÉ SECRET', reference: 'REF-SECRET' },
       analysis: { fit: { label: 'SCORE SECRET' } },
       source: { url: 'https://secret.invalid' },
-    }
+    } as unknown as typeof LOCKED_ITEM
     mockApi({
       ...EXACT_OVERVIEW_ROUTES,
       'GET /signals': { body: feedPage([leakingLocked]) },
