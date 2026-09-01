@@ -92,6 +92,7 @@ def _set_session_cookie(response: Response, request: Request, session) -> None:
     response.set_cookie(
         SESSION_COOKIE_NAME,
         session.raw_token,
+        max_age=int(config.session_ttl.total_seconds()),
         httponly=True,
         secure=config.cookie_secure,
         samesite="lax",
