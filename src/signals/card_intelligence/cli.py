@@ -12,10 +12,11 @@ import sqlalchemy as sa
 
 from signals.card_intelligence.backfill import (
     MAX_BACKFILL_ITEMS,
+    OFFLINE_CANDIDATE_SCAN_CAP,
+    BackfillPrecondition,
     BackfillResult,
     backfill_factual_presentations,
 )
-from signals.feed.policy import CANDIDATE_SCAN_CAP
 from signals.persistence.database import create_database_engine
 
 _FAILED_SUMMARY = (
@@ -63,9 +64,35 @@ def _offset(value: str) -> int:
         parsed = int(value)
     except ValueError as error:
         raise argparse.ArgumentTypeError("invalid offset") from error
-    if not 0 <= parsed <= CANDIDATE_SCAN_CAP:
+    if not 0 <= parsed <= OFFLINE_CANDIDATE_SCAN_CAP:
         raise argparse.ArgumentTypeError("invalid offset")
     return parsed
+
+
+def _candidate_count(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("invalid count") from error
+    if not 0 <= parsed <= MAX_BACKFILL_ITEMS:
+        raise argparse.ArgumentTypeError("invalid count")
+    return parsed
+
+
+def _active_publication_count(value: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError as error:
+        raise argparse.ArgumentTypeError("invalid count") from error
+    if not 0 <= parsed <= MAX_BACKFILL_ITEMS:
+        raise argparse.ArgumentTypeError("invalid count")
+    return parsed
+
+
+def _artifact_digest(value: str) -> str:
+    if re.fullmatch(r"[0-9a-f]{64}", value) is None:
+        raise argparse.ArgumentTypeError("invalid digest")
+    return value
 
 
 def _parser() -> _SafeArgumentParser:
@@ -84,6 +111,30 @@ def _parser() -> _SafeArgumentParser:
     backfill.add_argument("--language", required=True, choices=("fr", "en"))
     backfill.add_argument("--limit", required=True, type=_limit)
     backfill.add_argument("--offset", required=True, type=_offset)
+    backfill.add_argument(
+        "--expect-candidate-count",
+        type=_candidate_count,
+    )
+    backfill.add_argument(
+        "--expect-active-publication-count",
+        type=_active_publication_count,
+    )
+    backfill.add_argument(
+        "--expect-current-factual-artifact-digest",
+        type=_artifact_digest,
+    )
+    backfill.add_argument(
+        "--expect-protected-language",
+        choices=("fr", "en"),
+    )
+    backfill.add_argument(
+        "--expect-protected-active-publication-count",
+        type=_active_publication_count,
+    )
+    backfill.add_argument(
+        "--expect-protected-current-factual-artifact-digest",
+        type=_artifact_digest,
+    )
     return parser
 
 
@@ -107,8 +158,58 @@ def main(
     engine_factory: EngineFactory = create_database_engine,
     clock: Clock = _now,
 ) -> int:
-    arguments = _parser().parse_args(argv)
+    parser = _parser()
+    arguments = parser.parse_args(argv)
     assert arguments.command == "backfill-fallbacks"
+    expectation_values = (
+        arguments.expect_candidate_count,
+        arguments.expect_active_publication_count,
+        arguments.expect_current_factual_artifact_digest,
+    )
+    if any(value is not None for value in expectation_values) and not all(
+        value is not None for value in expectation_values
+    ):
+        parser.error("incomplete recovery precondition")
+    if (
+        arguments.expect_candidate_count is not None
+        and arguments.expect_candidate_count > arguments.limit
+    ):
+        parser.error("candidate expectation exceeds limit")
+    protected_expectation_values = (
+        arguments.expect_protected_language,
+        arguments.expect_protected_active_publication_count,
+        arguments.expect_protected_current_factual_artifact_digest,
+    )
+    if any(value is not None for value in protected_expectation_values) and (
+        not all(value is not None for value in protected_expectation_values)
+        or not all(value is not None for value in expectation_values)
+    ):
+        parser.error("incomplete protected recovery precondition")
+    if (
+        arguments.expect_protected_language is not None
+        and arguments.expect_protected_language == arguments.language
+    ):
+        parser.error("protected language must differ")
+    precondition = (
+        BackfillPrecondition(
+            expected_candidate_count=arguments.expect_candidate_count,
+            expected_active_publication_count=(
+                arguments.expect_active_publication_count
+            ),
+            expected_current_factual_artifact_digest=(
+                arguments.expect_current_factual_artifact_digest
+            ),
+            protected_language=arguments.expect_protected_language,
+            expected_protected_active_publication_count=(
+                arguments.expect_protected_active_publication_count
+            ),
+            expected_protected_current_factual_artifact_digest=(
+                arguments.expect_protected_current_factual_artifact_digest
+            ),
+        )
+        if all(value is not None for value in expectation_values)
+        else None
+    )
 
     engine: sa.Engine | None = None
     result: BackfillResult | None = None
@@ -124,6 +225,7 @@ def main(
             limit=arguments.limit,
             offset=arguments.offset,
             now=now,
+            precondition=precondition,
         )
     except ValueError:
         exit_code = 2
