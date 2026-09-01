@@ -3770,7 +3770,55 @@ def test_ops_readme_points_to_the_single_versioned_staging_rollout() -> None:
     assert "Card Intelligence × QA Signals" in body
 
 
-def test_0029_recovery_final_is_exact_child_with_four_file_allowlist(
+def test_final_rollout_seals_concurrent_149_then_148_then_two_file_fix() -> None:
+    step_one = _commands(
+        _between(
+            _body(),
+            "## 1. Geler le SHA final et prouver la CI réellement exécutée",
+            "## 2. Prouver staging et capturer les deux rollback targets",
+        )
+    )
+    logical = re.sub(r"[ \t]*\\\n[ \t]*", " ", step_one)
+
+    for fragment in (
+        (
+            "KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA="
+            "3f3db99afaf925bed746739a79059cffe3b8be8c"
+        ),
+        (
+            "KIVOU_RECOVERY_CONCURRENT_MERGE_SHA="
+            "d6b17ae575bddf84ff3db1581a6c70b26b5a3f7d"
+        ),
+        (
+            "KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA="
+            "a3b8b2dce5c62df1bd21b64223d24a43b02ad2b1"
+        ),
+        "src/signals/acquisition_runtime/execution.py",
+        "tests/feed_helpers.py",
+        "tests/test_acquisition_runtime_execution.py",
+        "tests/test_acquisition_runtime_execution_production.py",
+        "tests/test_feed_ownership.py",
+        "tests/test_ingestion_backfill.py",
+        "src/signals/api/routes_auth.py",
+        "tests/test_accounts_security.py",
+        "docs/runbooks/11-staging-card-presentation-rollout.md",
+        "tests/test_card_presentation_runbook.py",
+    ):
+        assert fragment in logical
+
+    _assert_in_order(
+        logical,
+        'test "$(git rev-parse "$KIVOU_RECOVERY_CONCURRENT_MERGE_SHA^")"',
+        'test "$(git rev-parse "$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA^")"',
+        'git diff --name-only "$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA"',
+        'git diff --name-only "$KIVOU_RECOVERY_CONCURRENT_MERGE_SHA"',
+        'test "$(git rev-parse "$KIVOU_FINAL_SHA^")"',
+        'git diff --name-only "$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA"',
+        "KIVOU_CI_RUN_ID=",
+    )
+
+
+def test_0029_recovery_final_is_exact_child_with_two_file_allowlist(
     tmp_path: Path,
 ) -> None:
     step_one = _commands(
@@ -3784,43 +3832,41 @@ def test_0029_recovery_final_is_exact_child_with_four_file_allowlist(
 
     for fragment in (
         (
-            "KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA="
-            "3f3db99afaf925bed746739a79059cffe3b8be8c"
+            "KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA="
+            "a3b8b2dce5c62df1bd21b64223d24a43b02ad2b1"
         ),
         "KIVOU_EXPECTED_FINAL_REVISION=0029_production_observation",
         (
             'test "$(git rev-parse "$KIVOU_FINAL_SHA^")" = '
-            '"$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA"'
+            '"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA"'
         ),
         (
             'test "$(git rev-list --count '
-            '"$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA..$KIVOU_FINAL_SHA")" = 1'
+            '"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA..$KIVOU_FINAL_SHA")" = 1'
         ),
         (
-            'git diff --name-only "$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA" '
+            'git diff --name-only "$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA" '
             '"$KIVOU_FINAL_SHA"'
         ),
         "docs/runbooks/11-staging-card-presentation-rollout.md",
-        "src/signals/api/routes_auth.py",
-        "tests/test_accounts_security.py",
         "tests/test_card_presentation_runbook.py",
-        "readonly KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA",
+        "readonly KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA",
         "readonly KIVOU_EXPECTED_FINAL_REVISION",
     ):
         assert fragment in logical_step_one
 
     guard = (
-        'test "$KIVOU_FINAL_SHA" != "$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA"'
+        'test "$KIVOU_FINAL_SHA" != "$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA"'
         + step_one.split(
-            'test "$KIVOU_FINAL_SHA" != "$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA"',
+            'test "$KIVOU_FINAL_SHA" != "$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA"',
             1,
         )[1].split("test \"$(git rev-parse 'origin/main^{tree}')\"", 1)[0]
     )
     harness = (
         "set -euo pipefail\n"
         "KIVOU_FINAL_SHA=fedcba9876543210fedcba9876543210fedcba98\n"
-        "KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA="
-        "3f3db99afaf925bed746739a79059cffe3b8be8c\n"
+        "KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA="
+        "a3b8b2dce5c62df1bd21b64223d24a43b02ad2b1\n"
         "git() {\n"
         "  case \"$1:$2\" in\n"
         "    (rev-parse:*) printf '%s\\n' \"$FAKE_PARENT\" ;;\n"
@@ -3847,11 +3893,9 @@ def test_0029_recovery_final_is_exact_child_with_four_file_allowlist(
             check=False,
         ).returncode
 
-    base = "3f3db99afaf925bed746739a79059cffe3b8be8c"
+    base = "a3b8b2dce5c62df1bd21b64223d24a43b02ad2b1"
     exact = (
         "docs/runbooks/11-staging-card-presentation-rollout.md\n"
-        "src/signals/api/routes_auth.py\n"
-        "tests/test_accounts_security.py\n"
         "tests/test_card_presentation_runbook.py"
     )
     assert evaluate(parent=base, count="1", diff=exact) == 0
@@ -3876,13 +3920,13 @@ def test_0029_recovery_final_is_exact_child_with_four_file_allowlist(
         logical_step_one,
         "KIVOU_FINAL_SHA=$(git rev-parse origin/main)",
         'test "$(git rev-parse "$KIVOU_FINAL_SHA^")"',
-        "KIVOU_RECOVERY_COMPATIBILITY_DIFF",
+        "KIVOU_RECOVERY_FINALIZATION_DIFF",
         "KIVOU_CI_RUN_ID=",
-        "readonly KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA",
+        "readonly KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA",
     )
 
 
-def test_resume_executes_exact_card_subdelta_then_compat_delta_without_full_diff() -> None:
+def test_resume_executes_exact_reviewed_subdeltas_without_full_diff() -> None:
     step_one = _commands(
         _between(
             _body(),
@@ -3901,6 +3945,8 @@ def test_resume_executes_exact_card_subdelta_then_compat_delta_without_full_diff
     first_fix = "0075ceb4c817effebc6e84c8c200aca29a59c085"
     card_merge = "635e487d9883cecec42151d6e4ba2515ac540b48"
     compatibility_base = "3f3db99afaf925bed746739a79059cffe3b8be8c"
+    concurrent_merge = "d6b17ae575bddf84ff3db1581a6c70b26b5a3f7d"
+    card_compatibility = "a3b8b2dce5c62df1bd21b64223d24a43b02ad2b1"
     final = "f" * 40
     card_files = (
         "docs/runbooks/11-staging-card-presentation-rollout.md",
@@ -3909,10 +3955,22 @@ def test_resume_executes_exact_card_subdelta_then_compat_delta_without_full_diff
         "tests/test_card_intelligence_backfill.py",
         "tests/test_card_presentation_runbook.py",
     )
+    concurrent_files = (
+        "src/signals/acquisition_runtime/execution.py",
+        "tests/feed_helpers.py",
+        "tests/test_acquisition_runtime_execution.py",
+        "tests/test_acquisition_runtime_execution_production.py",
+        "tests/test_feed_ownership.py",
+        "tests/test_ingestion_backfill.py",
+    )
     compat_files = (
         "docs/runbooks/11-staging-card-presentation-rollout.md",
         "src/signals/api/routes_auth.py",
         "tests/test_accounts_security.py",
+        "tests/test_card_presentation_runbook.py",
+    )
+    finalization_files = (
+        "docs/runbooks/11-staging-card-presentation-rollout.md",
         "tests/test_card_presentation_runbook.py",
     )
     full_files = card_files + tuple(
@@ -3927,6 +3985,10 @@ def test_resume_executes_exact_card_subdelta_then_compat_delta_without_full_diff
         "    (rev-parse)\n"
         "      case \"$2\" in\n"
         "        (\"$KIVOU_FINAL_SHA^\") printf '%s\\n' \"$FAKE_FINAL_PARENT\" ;;\n"
+        "        (\"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA^\") "
+        "printf '%s\\n' \"$FAKE_COMPAT_PARENT\" ;;\n"
+        "        (\"$KIVOU_RECOVERY_CONCURRENT_MERGE_SHA^\") "
+        "printf '%s\\n' \"$FAKE_CONCURRENT_PARENT\" ;;\n"
         "        (\"$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA^\") "
         "printf '%s\\n' \"$FAKE_BASE_PARENT\" ;;\n"
         "        (\"${KIVOU_RECOVERY_CARD_MERGE_SHA:-missing}^\") "
@@ -3938,7 +4000,7 @@ def test_resume_executes_exact_card_subdelta_then_compat_delta_without_full_diff
         "    (rev-list)\n"
         "      test \"$2\" = --count\n"
         "      case \"$3\" in\n"
-        "        (\"$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA..$KIVOU_FINAL_SHA\") "
+        "        (\"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA..$KIVOU_FINAL_SHA\") "
         "printf '%s\\n' 1 ;;\n"
         "        (*) return 64 ;;\n"
         "      esac ;;\n"
@@ -3949,8 +4011,14 @@ def test_resume_executes_exact_card_subdelta_then_compat_delta_without_full_diff
         "test \"$4\" = \"${KIVOU_RECOVERY_CARD_MERGE_SHA:-missing}\"; then\n"
         "        printf '%s\\n' \"$FAKE_CARD_DIFF\"\n"
         "      elif test \"$3\" = \"$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA\" && "
-        "test \"$4\" = \"$KIVOU_FINAL_SHA\"; then\n"
+        "test \"$4\" = \"$KIVOU_RECOVERY_CONCURRENT_MERGE_SHA\"; then\n"
+        "        printf '%s\\n' \"$FAKE_CONCURRENT_DIFF\"\n"
+        "      elif test \"$3\" = \"$KIVOU_RECOVERY_CONCURRENT_MERGE_SHA\" && "
+        "test \"$4\" = \"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA\"; then\n"
         "        printf '%s\\n' \"$FAKE_COMPAT_DIFF\"\n"
+        "      elif test \"$3\" = \"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA\" && "
+        "test \"$4\" = \"$KIVOU_FINAL_SHA\"; then\n"
+        "        printf '%s\\n' \"$FAKE_FINALIZATION_DIFF\"\n"
         "      elif test \"$3\" = \"$KIVOU_RECOVERY_SOURCE_SHA\" && "
         "test \"$4\" = \"$KIVOU_FINAL_SHA\"; then\n"
         "        printf '%s\\n' \"$FAKE_FULL_DIFF\"\n"
@@ -3964,13 +4032,17 @@ def test_resume_executes_exact_card_subdelta_then_compat_delta_without_full_diff
     def evaluate(**mutations: str) -> subprocess.CompletedProcess[str]:
         environment = {
             **os.environ,
-            "FAKE_FINAL_PARENT": compatibility_base,
+            "FAKE_FINAL_PARENT": card_compatibility,
+            "FAKE_COMPAT_PARENT": concurrent_merge,
+            "FAKE_CONCURRENT_PARENT": compatibility_base,
             "FAKE_BASE_PARENT": card_merge,
             "FAKE_CARD_PARENT": first_fix,
             "FAKE_FIRST_PARENT": source,
             "FAKE_ANCESTOR": "1",
             "FAKE_CARD_DIFF": "\n".join(card_files),
+            "FAKE_CONCURRENT_DIFF": "\n".join(concurrent_files),
             "FAKE_COMPAT_DIFF": "\n".join(compat_files),
+            "FAKE_FINALIZATION_DIFF": "\n".join(finalization_files),
             "FAKE_FULL_DIFF": "\n".join(full_files),
         }
         environment.update(mutations)
@@ -3988,10 +4060,42 @@ def test_resume_executes_exact_card_subdelta_then_compat_delta_without_full_diff
         {"FAKE_FIRST_PARENT": "0" * 40},
         {"FAKE_CARD_PARENT": "0" * 40},
         {"FAKE_BASE_PARENT": "0" * 40},
+        {"FAKE_CONCURRENT_PARENT": "0" * 40},
+        {"FAKE_COMPAT_PARENT": "0" * 40},
         {"FAKE_FINAL_PARENT": "0" * 40},
         {"FAKE_ANCESTOR": "0"},
+        {
+            "FAKE_CARD_DIFF": "\n".join(
+                card_files[:-1] + ("unexpected-card.py",)
+            )
+        },
+        {
+            "FAKE_CONCURRENT_DIFF": "\n".join(
+                concurrent_files[:-1] + ("unexpected-concurrent.py",)
+            )
+        },
+        {
+            "FAKE_COMPAT_DIFF": "\n".join(
+                compat_files[:-1] + ("unexpected-compat.py",)
+            )
+        },
+        {
+            "FAKE_FINALIZATION_DIFF": "\n".join(
+                finalization_files[:-1] + ("unexpected-finalization.py",)
+            )
+        },
         {"FAKE_CARD_DIFF": "\n".join(card_files + ("third-card.py",))},
+        {
+            "FAKE_CONCURRENT_DIFF": "\n".join(
+                concurrent_files + ("seventh-concurrent.py",)
+            )
+        },
         {"FAKE_COMPAT_DIFF": "\n".join(compat_files + ("third-compat.py",))},
+        {
+            "FAKE_FINALIZATION_DIFF": "\n".join(
+                finalization_files + ("third-finalization.py",)
+            )
+        },
     ):
         assert evaluate(**mutant).returncode != 0
 
