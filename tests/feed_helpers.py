@@ -165,3 +165,23 @@ def make_icp(
         customer_input=TargetIcpInput.model_validate({**COMPLETE_ICP_INPUT, **overrides}),
         now=RETRIEVED_AT,
     ).target_icp_id
+
+
+def pin_session_cookie(client, response) -> None:
+    """Désamorce la bombe des deux horloges (classe rtl-02).
+
+    Le cookie de session est daté par l'horloge métier figée du test, mais le
+    porte-cookies du client l'évalue à l'heure RÉELLE : dès que le réel dépasse
+    la date figée plus le TTL de session (14 jours), le cookie « expire » et
+    chaque appel suivant répond 401 — détonation constatée le 2026-09-01 à
+    09:00 UTC, quatorze jours après RETRIEVED_AT. On réinscrit donc le cookie
+    sans date d'expiration : les deux horloges ne se croisent plus jamais.
+    """
+
+    for header in response.headers.get_list("set-cookie"):
+        first = header.split(";", 1)[0]
+        name, _, value = first.partition("=")
+        if name and value and "Max-Age=0" not in header:
+            client.cookies.set(name.strip(), value.strip())
+            return
+    raise AssertionError("aucun cookie de session dans la réponse d'inscription")

@@ -102,6 +102,9 @@ def _signed_client(engine):
         },
     )
     assert response.status_code == 201
+    from feed_helpers import pin_session_cookie
+
+    pin_session_cookie(client, response)
     return client
 
 
