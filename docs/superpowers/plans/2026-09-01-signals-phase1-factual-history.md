@@ -207,19 +207,19 @@ git commit -m "feat(signals): publish factual display hierarchy"
 - Create: `tests/test_winner_enrichment_migration.py`
 - Modify: `tests/test_saas_company_architecture.py`
 
-- [ ] **Step 1: Add failing migration and architecture tests**
+- [x] **Step 1: Add failing migration and architecture tests**
 
 Assert one Alembic head, upgrade from `0029_production_observation`, exact
 columns/checks/indexes, set-based backfill, round-trip equality, no destructive
 change to `saas_company`, and no provider/HTTP/Acquisition import in the company
 boundary.
 
-- [ ] **Step 2: Run and retain RED evidence**
+- [x] **Step 2: Run and retain RED evidence**
 
 Run: `uv run pytest -q tests/test_winner_enrichment_migration.py tests/test_saas_company_architecture.py`  
 Expected: FAIL because revision 0030 and its table do not exist.
 
-- [ ] **Step 3: Define the additive work-state table**
+- [x] **Step 3: Define the additive work-state table**
 
 Create `winner_enrichment_job` keyed by `signal_key`, with identity fingerprint,
 status, attempt count, bounded error code and queued/started/finished/updated
@@ -232,19 +232,19 @@ OR (status IN ('completed', 'partial', 'failed') AND attempt_count >= 1
     AND started_at IS NOT NULL AND finished_at IS NOT NULL)
 ```
 
-- [ ] **Step 4: Implement the migration and backfill**
+- [x] **Step 4: Implement the migration and backfill**
 
 Insert one row per current indexed signal. Join existing `saas_company` rows by
 fingerprint: set completed only when core official identity, identifier/domain,
 country, address and website are stored; otherwise partial; leave absent
 company projections pending. Perform no network call.
 
-- [ ] **Step 5: Verify migrations and core schema**
+- [x] **Step 5: Verify migrations and core schema**
 
 Run: `uv run pytest -q tests/test_winner_enrichment_migration.py tests/test_saas_company_migration.py tests/test_persistence_migrations.py tests/test_saas_company_architecture.py`  
 Expected: PASS and head `0030_winner_enrichment`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/signals/companies/schema.py src/signals/persistence/migrations/versions/0030_winner_enrichment.py tests/test_winner_enrichment_migration.py tests/test_saas_company_architecture.py
