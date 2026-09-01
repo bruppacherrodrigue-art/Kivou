@@ -31,7 +31,7 @@
 - Modify: `src/signals/feed/query.py`
 - Test: `tests/test_feed_history.py`
 
-- [ ] **Step 1: Write failing effective-date and cursor tests**
+- [x] **Step 1: Write failing effective-date and cursor tests**
 
 Seed awards whose award, notification and publication dates conflict, then assert:
 
@@ -54,12 +54,12 @@ Also cover malformed Base64/JSON, extra keys, unknown version, null/equal dates,
 concurrent insertion ahead of the cursor, tenant isolation, stale ICP revisions
 and batches containing unrenderable winner names.
 
-- [ ] **Step 2: Run the focused test and retain RED evidence**
+- [x] **Step 2: Run the focused test and retain RED evidence**
 
 Run: `uv run pytest -q tests/test_feed_history.py`  
 Expected: FAIL because `signals.feed.history` and `history_page` do not exist.
 
-- [ ] **Step 3: Implement the closed cursor and factual date**
+- [x] **Step 3: Implement the closed cursor and factual date**
 
 ```python
 @dataclasses.dataclass(frozen=True)
@@ -81,19 +81,19 @@ def effective_date(signal: StoredSignal) -> tuple[dt.date | None, HistoryDateKin
 Encode exact-key JSON as URL-safe Base64. Reject payloads above 512 bytes,
 non-ISO dates and signal keys outside the persisted key bound.
 
-- [ ] **Step 4: Implement bounded keyset traversal**
+- [x] **Step 4: Implement bounded keyset traversal**
 
 Order the owned SQL query by `coalesce(award_date, notification_date,
 published_on) DESC NULLS LAST, signal_key ASC`. Read bounded raw batches,
 resolve display identities once per batch, and return a cursor that advances
 past consumed rows without skipping the look-ahead result.
 
-- [ ] **Step 5: Verify history and existing pagination**
+- [x] **Step 5: Verify history and existing pagination**
 
 Run: `uv run pytest -q tests/test_feed_history.py tests/test_feed_pagination.py tests/test_feed_recency.py`  
 Expected: PASS with no overlap or missing expected signal.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/signals/feed/history.py src/signals/feed/query.py tests/test_feed_history.py
