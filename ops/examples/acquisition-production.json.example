@@ -1,0 +1,17 @@
+{
+  "schema_version": "acquisition-production-v1",
+  "mode": "SHADOW",
+  "qa_scope": {
+    "country": "FR",
+    "language": "fr",
+    "wedge": "construction"
+  },
+  "limits": {
+    "maximum_cycle_cost": "10.00",
+    "maximum_suppliers": 1,
+    "maximum_contacts": 1,
+    "maximum_provider_operations": 4,
+    "maximum_wall_seconds": 900,
+    "lease_seconds": 1200
+  }
+}

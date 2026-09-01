@@ -151,3 +151,96 @@ def test_operations_runbook_documents_the_full_atomic_webhook_bundle() -> None:
     assert "huit versions par keyring, clé courante comprise" in normalized_section
     assert "conserver son secret dans le keyring correspondant" in normalized_section
     assert "KIVOU_SUPPRESSION_IDENTITY_KEY" not in section
+
+
+def test_the_production_unit_never_reads_a_staging_environment_file() -> None:
+    from pathlib import Path
+
+    unit = Path("ops/systemd/kivou-acquisition-production.service").read_text(
+        encoding="utf-8"
+    )
+    assert "EnvironmentFile=/etc/kivou/production.env" in unit
+    assert "EnvironmentFile=/etc/kivou/acquisition-production.env" in unit
+    for forbidden in (
+        "staging.env",
+        "acquisition-shadow.env",
+        "acquisition-runtime.env",
+        "--allow-qa-provider-mutations",
+    ):
+        assert forbidden not in unit
+    for hardening in (
+        "NoNewPrivileges=true",
+        "ProtectSystem=strict",
+        "PrivateTmp=true",
+        "RestrictSUIDSGID=true",
+        "UMask=0077",
+    ):
+        assert hardening in unit
+
+
+def test_the_production_example_declares_production_and_no_fallback_recipient() -> None:
+    from pathlib import Path
+
+    example = Path("ops/examples/acquisition-production.env.example").read_text(
+        encoding="utf-8"
+    )
+    assert "KIVOU_ACQUISITION_ENVIRONMENT=PRODUCTION" in example
+    assert "QA_RECIPIENT" not in example
+
+
+def test_the_production_document_example_carries_no_qa_binding() -> None:
+    import json
+    from pathlib import Path
+
+    document = json.loads(
+        Path("ops/examples/acquisition-production.json.example").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert document["schema_version"] == "acquisition-production-v1"
+    for forbidden in (
+        "qa_only",
+        "qa_recipient_identity_hmac",
+        "qa_recipient_key_version",
+        "qa_provider_mutations_capable",
+        "allowed_opportunity_keys",
+    ):
+        assert forbidden not in document
+
+
+def test_the_production_connectivity_example_is_schema_valid_and_redacted() -> None:
+    from pathlib import Path
+
+    from signals.acquisition_connectivity.contracts import ShadowConnectivityDocument
+
+    path = Path("ops/examples/acquisition-production-connectivity.json.example")
+    document = ShadowConnectivityDocument.model_validate_json(
+        path.read_text(encoding="utf-8")
+    )
+    assert len(document.mailboxes) == 3
+    assert len({item.mailbox_ref for item in document.mailboxes}) == 3
+
+
+def test_the_production_runbook_covers_the_full_bring_up_sequence() -> None:
+    from pathlib import Path
+
+    runbook = Path("docs/runbooks/12-acquisition-production-shadow.md").read_text(
+        encoding="utf-8"
+    )
+    assert "0029_production_observation_boundary" in runbook
+    assert "command.upgrade" in runbook
+    assert "command.downgrade" in runbook
+    assert "signals.operations" in runbook
+    assert "bootstrap-policy-control" in runbook
+    assert "--reason-code ACQUISITION_PRODUCTION_SHADOW" in runbook
+    assert "--daily-cost-cap 30.00" in runbook
+    assert "--country FR --language fr --wedge" in runbook
+    assert "--database-url" not in runbook
+    assert "python -m signals.acquisition_runtime check-dependencies" in runbook
+    assert "python -m signals.acquisition_runtime run-once" in runbook
+    assert "kivou-acquisition-production.service" in runbook
+    assert "kivou-acquisition-production.timer" in runbook
+    assert "EnvironmentFile=/etc/kivou/production.env" in runbook
+    assert "EnvironmentFile=/etc/kivou/acquisition-production.env" in runbook
+    assert "EnvironmentFile=/etc/kivou/staging.env" not in runbook
+    assert "acquisition-runtime.env" not in runbook

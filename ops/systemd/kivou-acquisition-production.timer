@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — déclenchement horaire Acquisition PRODUCTION/SHADOW
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=60
+Unit=kivou-acquisition-production.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,21 @@
+{
+  "schema_version": "acquisition-shadow-connectivity-v1",
+  "instantly_workspace_ref": "00000000-0000-0000-0000-000000000000",
+  "mailboxes": [
+    {
+      "mailbox_ref": "mailbox-production-01",
+      "provider_account_id": "mailbox-one@example.com",
+      "managed_airmail_sending_gap_minutes": 10
+    },
+    {
+      "mailbox_ref": "mailbox-production-02",
+      "provider_account_id": "mailbox-two@example.com",
+      "managed_airmail_sending_gap_minutes": 10
+    },
+    {
+      "mailbox_ref": "mailbox-production-03",
+      "provider_account_id": "mailbox-three@example.com",
+      "managed_airmail_sending_gap_minutes": 10
+    }
+  ]
+}
