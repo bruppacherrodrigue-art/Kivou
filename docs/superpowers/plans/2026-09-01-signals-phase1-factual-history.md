@@ -163,36 +163,36 @@ git commit -m "feat(signals): expose authorised history filters"
 - Test: `tests/test_feed_factual_display.py`
 - Test: `tests/test_feed_facts.py`
 
-- [ ] **Step 1: Add failing truthfulness tests**
+- [x] **Step 1: Add failing truthfulness tests**
 
 Cover full facts, missing amount/place/object/buyer, identifier-like winners,
 buyer/winner inversion, notification versus award date, FR/EN and raw titles
 containing a person or urgency. Assert no output includes plausible needs,
 roles, recommendations, `analysis` values or an identifier as title.
 
-- [ ] **Step 2: Run and retain RED evidence**
+- [x] **Step 2: Run and retain RED evidence**
 
 Run: `uv run pytest -q tests/test_feed_factual_display.py tests/test_feed_facts.py`  
 Expected: FAIL because `factual_display` is absent.
 
-- [ ] **Step 3: Implement bounded fact-only copy**
+- [x] **Step 3: Implement bounded fact-only copy**
 
 Return `headline`, `market_summary`, `object_short`, explicit date value/kind,
 `completeness` and `missing_fields`, using only display identity, structured
 contract fields and the selected event clock. Normalize whitespace and bound
 lengths. Never read `analysis` or `presentation`.
 
-- [ ] **Step 4: Publish it only on unlocked feed/detail**
+- [x] **Step 4: Publish it only on unlocked feed/detail**
 
 Add `factual_display` in `feed_item`; keep the locked teaser key set unchanged
 and keep the optional presentation contract untouched for other surfaces.
 
-- [ ] **Step 5: Verify boundaries**
+- [x] **Step 5: Verify boundaries**
 
 Run: `uv run pytest -q tests/test_feed_factual_display.py tests/test_feed_facts.py tests/test_billing_paywall.py tests/test_card_presentation_api.py`  
 Expected: PASS and locked payloads still lack `presentation`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/signals/feed/factual_display.py src/signals/feed/view.py tests/test_feed_factual_display.py tests/test_feed_facts.py
