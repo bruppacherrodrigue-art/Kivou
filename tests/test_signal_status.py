@@ -139,3 +139,55 @@ def test_legacy_recency_value_in_status_is_still_understood(client, icp, engine)
     assert [i["signal_id"] for i in legacy.json()["items"]] == [
         i["signal_id"] for i in explicit.json()["items"]
     ]
+
+
+# ─── fix round 1 — les compteurs de l'historique ne dépendent pas de `limit` ──
+
+
+def test_history_counts_do_not_depend_on_the_page_size(client, icp, engine):
+    keys = _seed(engine, icp, count=4)
+    client.put(f"/signals/{keys[1]}/feedback", json={"relevance": "not_relevant", "reason": "wrong_need"})
+    expected_counts = {"new": 3, "saved": 0, "ignored": 1, "contacted": 0}
+
+    small = client.get("/signals?view=history&limit=1").json()
+    medium = client.get("/signals?view=history&limit=2").json()
+    large = client.get("/signals?view=history&limit=50").json()
+    for body in (small, medium, large):
+        assert body["counts"] == expected_counts
+        assert body["counts_truncated"] is False
+
+    assert small["page"]["has_more"] is True
+    assert large["page"]["has_more"] is False
+
+    non_ignored = sorted(key for key in keys if key != keys[1])
+    seen: list[str] = []
+    cursor = None
+    while True:
+        params = "view=history&limit=1"
+        if cursor:
+            params += f"&cursor={cursor}"
+        page = client.get(f"/signals?{params}").json()
+        seen.extend(item["signal_id"] for item in page["items"])
+        if not page["page"]["has_more"]:
+            break
+        cursor = page["page"]["next_cursor"]
+    assert sorted(seen) == non_ignored
+    assert len(seen) == len(set(seen)), "aucun signal ne doit revenir deux fois"
+
+
+def test_excluded_by_status_reports_the_default_ignored_exclusion(client, icp, engine):
+    keys = _seed(engine, icp)
+    client.put(f"/signals/{keys[0]}/feedback", json={"relevance": "not_relevant", "reason": "too_late"})
+    recent = client.get("/signals?freshness=all").json()
+    assert recent["excluded"]["by_status"] == 1
+    history = client.get("/signals?view=history").json()
+    assert history["excluded"]["by_status"] == 1
+
+
+def test_history_counts_truncated_when_the_scan_cap_is_hit(client, icp, engine, monkeypatch):
+    from signals.feed import query
+
+    _seed(engine, icp, count=4)
+    monkeypatch.setattr(query, "HISTORY_SCAN_CAP", 2)
+    body = client.get("/signals?view=history&limit=50").json()
+    assert body["counts_truncated"] is True

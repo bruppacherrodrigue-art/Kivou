@@ -385,9 +385,10 @@ def list_signals(
             "by_filters": (
                 page.excluded_by_filters if view_mode == "history" else 0
             ),
+            "by_status": page.excluded_by_status,
         },
         "counts": page.status_counts,
-        "counts_truncated": page.scan_truncated,
+        "counts_truncated": page.counts_truncated,
         "read_at": as_of.isoformat(),
         "freshness": "all" if view_mode == "history" else freshness,
         "view": view_mode,
