@@ -703,6 +703,28 @@ a:focus-visible {
   background: var(--canvas);
 }
 
+.signal-document {
+  display: grid;
+  min-width: 0;
+  gap: 20px;
+  overflow: visible;
+}
+
+.signal-document > * {
+  min-width: 0;
+  margin: 0;
+  overflow: visible;
+}
+
+.signal-document .signal-company-card {
+  position: static;
+  top: auto;
+}
+
+.signal-document .facts-source-row {
+  justify-content: flex-end;
+}
+
 #signal-detail,
 #company-detail {
   scroll-margin-top: 90px;

@@ -444,12 +444,7 @@ export function SignalsFeed() {
       key: 'locked',
       label: t.reference.signalsPage.paidAccessRequired,
     }
-    const enrichmentStatus = card.winnerEnrichment?.status
-    const key = enrichmentStatus === 'pending' || enrichmentStatus === 'in_progress'
-      || enrichmentStatus === 'partial' || enrichmentStatus === 'failed'
-      ? enrichmentStatus
-      : card.factualCompleteness ?? 'to_verify'
-    return { key, label: t.reference.signalsPage.completenessStatus[key] }
+    return { key: 'official-source', label: t.reference.fields.officialSource }
   }
   const historyAccess = feed.data?.history_access
   const historyNote = !historyAccess

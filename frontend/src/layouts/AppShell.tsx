@@ -232,7 +232,7 @@ function ConnectedShell({
         </SidebarFooter>
       </Sidebar>
 
-      <SidebarInset className={`dashboard-workspace${activeView === 'companies'
+      <SidebarInset className={`dashboard-workspace${activeView === 'companies' || activeView === 'signals'
         ? ' dashboard-workspace-contained'
         : ''}`}>
         <header className="topbar">
