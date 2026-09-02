@@ -136,6 +136,22 @@ def _fingerprint(method: IdentityMethod, evidence: dict[str, str]) -> str:
     return hashlib.sha256(f"kivou-saas-company-v1:{canonical}".encode()).hexdigest()
 
 
+def official_siret_fingerprint(siret: str) -> str:
+    """Return the stable French-company key without inventing descriptive facts."""
+
+    cleaned = siret.strip()
+    if re.fullmatch(r"\d{14}", cleaned) is None:
+        raise ValueError("SIRET must contain exactly fourteen digits")
+    return _fingerprint(
+        IdentityMethod.OFFICIAL_IDENTIFIER,
+        {
+            "country": "FR",
+            "identifier_scheme": "siret",
+            "identifier_value": cleaned,
+        },
+    )
+
+
 def official_company_identity(
     *,
     awardee_parties: list[dict[str, Any]],

@@ -70,6 +70,14 @@ def _by_fingerprint(connection: sa.Connection, fingerprint: str) -> StoredCompan
     return None if row is None else _stored(row)
 
 
+def get_company_by_fingerprint(
+    connection: sa.Connection, *, identity_fingerprint: str
+) -> StoredCompany | None:
+    """Read an already resolved exact identity for queue-level deduplication."""
+
+    return _by_fingerprint(connection, identity_fingerprint)
+
+
 def _by_fingerprints(
     connection: sa.Connection,
     fingerprints: tuple[str, ...],

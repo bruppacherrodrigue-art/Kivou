@@ -27,10 +27,11 @@ from signals.companies.france import (
     FrenchOfficialCompanyClient,
     FrenchOfficialCompanyError,
 )
-from signals.companies.identity import official_siret_identity
+from signals.companies.identity import official_siret_fingerprint, official_siret_identity
 from signals.companies.indexing import index_signal_company_identity
 from signals.companies.schema import saas_company, winner_enrichment_job
 from signals.companies.store import (
+    get_company_by_fingerprint,
     get_or_create_company,
     refresh_company_official_identity,
 )
@@ -283,6 +284,33 @@ def run_winner_enrichment_batch(
             fallback = _published_siret_fallback(connection, signal_key=signal_key)
             if fallback is not None:
                 siret, source_award_key = fallback
+                fingerprint = official_siret_fingerprint(siret)
+                existing = get_company_by_fingerprint(
+                    connection, identity_fingerprint=fingerprint
+                )
+                if existing is not None:
+                    connection.execute(
+                        sa.update(materialized_signal)
+                        .where(materialized_signal.c.signal_key == signal_key)
+                        .values(company_identity_fingerprint=fingerprint)
+                    )
+                    status = (
+                        "completed"
+                        if _is_complete(
+                            existing.official_identity,
+                            existing.identity_method.value,
+                        )
+                        else "partial"
+                    )
+                    _finish(
+                        connection,
+                        signal_key=signal_key,
+                        status=status,
+                        now=now,
+                        fingerprint=fingerprint,
+                    )
+                    counts[status] += 1
+                    continue
         if official_company_provider is not None and siret and (
             indexed is None or _needs_official_register(indexed)
         ):
@@ -304,6 +332,11 @@ def run_winner_enrichment_batch(
                 legal_name=observation.legal_name,
                 address=observation.address,
                 observed_at=observation.observed_at,
+            )
+            connection.execute(
+                sa.update(materialized_signal)
+                .where(materialized_signal.c.signal_key == signal_key)
+                .values(company_identity_fingerprint=resolved.identity_fingerprint)
             )
         if resolved is None or source_award_key is None:
             _finish(
