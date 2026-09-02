@@ -286,7 +286,7 @@ export interface SignalFactualDisplay {
 }
 
 export interface WinnerEnrichmentSource {
-  kind: 'public_notice'
+  kind: 'public_notice' | 'official_register'
   connector: string
   notice_id: string
   url: string | null
@@ -295,6 +295,7 @@ export interface WinnerEnrichmentSource {
 
 export interface WinnerEnrichment {
   status: 'pending' | 'in_progress' | 'completed' | 'partial' | 'failed'
+  official_name?: string | null
   missing_fields: string[]
   last_verified_at: string | null
   error_code: string | null

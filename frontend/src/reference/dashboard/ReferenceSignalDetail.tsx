@@ -4,7 +4,6 @@ import type { CompanyProfile } from '../../api/types'
 import { MVP_TERRITORIES, territoryLabel } from '../../api/capabilities'
 import { interpolate, useI18n } from '../../i18n'
 import type { SignalDetailView } from './models'
-import { Button } from './ui/button'
 import { Textarea } from './ui/textarea'
 import type { NoteSaveState } from './useSignalNote'
 
@@ -21,9 +20,6 @@ export function ReferenceSignalDetail({
   onNoteBlur,
   onRetryNote,
   companyProfile,
-  companyLoading = false,
-  companyError = null,
-  onRetryCompany,
   announceLoading = true,
   announceError = true,
 }: {
@@ -51,25 +47,29 @@ export function ReferenceSignalDetail({
 
   if (loading) {
     return (
-      <div className="detail-hero" role={announceLoading ? 'status' : undefined} aria-live={announceLoading ? 'polite' : undefined}>
-        <div>
-          <p className="section-label">{copy.awardSignal}</p>
-          <h2 id="detail-title" tabIndex={-1}>{t.reference.loading}</h2>
+      <article className="signal-document">
+        <div className="detail-hero" role={announceLoading ? 'status' : undefined} aria-live={announceLoading ? 'polite' : undefined}>
+          <div>
+            <p className="section-label">{copy.awardSignal}</p>
+            <h2 id="detail-title" tabIndex={-1}>{t.reference.loading}</h2>
+          </div>
         </div>
-      </div>
+      </article>
     )
   }
 
   if (error || !detail) {
     return (
-      <div className="detail-hero" role={announceError ? 'alert' : undefined}>
-        <div>
-          <p className="section-label">{copy.awardSignal}</p>
-          <h2 id="detail-title" tabIndex={-1}>{errorTitle ?? copy.signalUnavailable}</h2>
-          <p className="detail-summary">{t.reference.messages.loadError}</p>
-          <button type="button" className="source-link" onClick={onRetry}>{t.reference.retry}</button>
+      <article className="signal-document">
+        <div className="detail-hero" role={announceError ? 'alert' : undefined}>
+          <div>
+            <p className="section-label">{copy.awardSignal}</p>
+            <h2 id="detail-title" tabIndex={-1}>{errorTitle ?? copy.signalUnavailable}</h2>
+            <p className="detail-summary">{t.reference.messages.loadError}</p>
+            <button type="button" className="source-link" onClick={onRetry}>{t.reference.retry}</button>
+          </div>
         </div>
-      </div>
+      </article>
     )
   }
 
@@ -99,43 +99,30 @@ export function ReferenceSignalDetail({
     { label: eventDateLabel, value: eventDateValue },
     { label: t.reference.fields.location, value: location },
     { label: t.reference.fields.signalBuyer, value: detail.buyerName ?? missing },
+    { label: 'CPV', value: detail.facts.cpv ?? missing },
   ]
 
   const identity = companyProfile?.official_identity
   const companyName = identity?.name ?? detail.companyName ?? missing
-  const companyCountryCode = identity?.country ?? detail.companyCountry
-  const companyTerritory = MVP_TERRITORIES.find((candidate) => candidate.code === companyCountryCode)
-  const companyCountry = companyTerritory
-    ? territoryLabel(companyTerritory, locale)
-    : companyCountryCode ?? missing
-  const website = safeHttpsUrl(identity?.website_url ?? null)
+  const displayTitle = detail.title ?? companyName
+  const displaySummary = detail.summary?.trim() || null
+  const normalizedTitle = comparableText(displayTitle)
+  const normalizedSummary = comparableText(displaySummary)
+  const normalizedSummaryStem = normalizedSummary.replace(/[.…]+$/u, '').trim()
+  const showSummary = Boolean(
+    displaySummary
+    && normalizedSummary
+    && normalizedSummary !== normalizedTitle
+    && !normalizedSummary.startsWith(normalizedTitle)
+    && !normalizedTitle.startsWith(normalizedSummaryStem),
+  )
   const sourceUrl = safeHttpsUrl(detail.facts.sourceUrl)
-  const enrichment = detail.winnerEnrichment
-  const enrichmentStatus = enrichment?.status === 'pending'
-    || enrichment?.status === 'in_progress'
-    || enrichment?.status === 'partial'
-    || enrichment?.status === 'failed'
-    ? enrichment.status
-    : detail.factualCompleteness ?? 'to_verify'
-  const enrichmentLabel = enrichmentStatus in copy.completenessStatus
-    ? copy.completenessStatus[enrichmentStatus as keyof typeof copy.completenessStatus]
-    : copy.completenessStatus.to_verify
-  const enrichmentMessage = enrichment?.status === 'pending'
-    ? copy.enrichmentPending
-    : enrichment?.status === 'in_progress'
-      ? copy.enrichmentInProgress
-      : enrichment?.status === 'failed'
-        ? copy.enrichmentFailed
-        : null
-  const otherAwards = companyProfile?.related_signals.filter(
-    (candidate) => candidate.signal_id !== detail.id,
-  ) ?? []
-  const sourceReference = [detail.sourceSystem, detail.facts.notice].filter(Boolean).join(' · ') || missing
-  const missingFields = [...new Set([
-    ...detail.missingFacts,
-    ...(enrichment?.missing_fields ?? []),
-    ...(companyProfile?.coverage.unavailable_fields ?? []),
-  ])]
+  const factualStatus = detail.factualCompleteness ?? 'to_verify'
+  const commercialPresentation = detail.presentation?.status === 'PASS'
+    && detail.presentation.content.variant === 'FULL'
+    ? detail.presentation.content
+    : null
+  const missingFields = [...new Set(detail.missingFacts)].slice(0, 3)
   const missingLabel = (field: string) => (
     copy.missingFieldLabels[field as keyof typeof copy.missingFieldLabels] ?? field
   )
@@ -150,18 +137,71 @@ export function ReferenceSignalDetail({
           : t.reference.statuses.noNote
 
   return (
-    <>
+    <article className="signal-document">
       <header className="detail-hero signal-presentation-hero">
         <div>
           <p className="section-label">{copy.winnerCompany}</p>
-          <h2 id="detail-title" tabIndex={-1}>{detail.title ?? companyName}</h2>
-          <p className="detail-summary">{detail.summary ?? missing}</p>
-          <p className="signal-limit" role="note">{copy.analysisUnavailable}</p>
+          <h2 id="detail-title" tabIndex={-1}>{displayTitle}</h2>
+          {showSummary ? <p className="detail-summary">{displaySummary}</p> : null}
+          <div className="signal-context-strip" aria-label={copy.signalContext}>
+            {detail.isNewOpportunity ? <span>{copy.newOpportunity}</span> : null}
+            <span>{detail.brief.whyNow}</span>
+            {detail.eventAgeDays !== null ? (
+              <span>{interpolate(copy.ageDays, { count: detail.eventAgeDays })}</span>
+            ) : null}
+            {detail.targetProfileLabel ? (
+              <span>{interpolate(copy.targetProfile, { profile: detail.targetProfileLabel })}</span>
+            ) : null}
+          </div>
+          {commercialPresentation ? (
+            <p className="signal-limit" role="note">{copy.presentationDataNotice}</p>
+          ) : null}
         </div>
-        <span className={`published-status data-status-${enrichmentStatus}`}>
-          <FileCheck2 aria-hidden="true" /> {enrichmentLabel}
+        <span className={`published-status data-status-${factualStatus}`}>
+          <FileCheck2 aria-hidden="true" />
+          {commercialPresentation ? copy.presentationStatus.full : t.reference.fields.officialSource}
         </span>
       </header>
+
+      {commercialPresentation ? (
+        <section className="commercial-brief-card" aria-labelledby="commercial-brief-title">
+          <div className="card-heading">
+            <div>
+              <p className="card-kicker">{copy.commercialConclusion}</p>
+              <h3 id="commercial-brief-title">{copy.commercialBrief}</h3>
+            </div>
+          </div>
+          <div className="commercial-brief-grid">
+            <div>
+              <span>{copy.commercialImportance}</span>
+              <p>{commercialPresentation.commercial_importance}</p>
+            </div>
+            <div>
+              <span>{copy.fitReason}</span>
+              <p>{commercialPresentation.fit_reason}</p>
+            </div>
+            <div>
+              <span>{copy.timing}</span>
+              <p>{commercialPresentation.timing}</p>
+            </div>
+            <div>
+              <span>{copy.recommendedAction}</span>
+              <p>{commercialPresentation.recommended_action}</p>
+            </div>
+          </div>
+          <div className="presentation-targets" aria-labelledby="commercial-target-roles">
+            <span id="commercial-target-roles">{copy.targetRoles}</span>
+            <ul>
+              {commercialPresentation.target_roles.map((target) => (
+                <li key={target.role}>
+                  <strong>{copy.targetRoleLabels[target.role]}</strong>
+                  <small>{target.rationale}</small>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </section>
+      ) : null}
 
       <section className="facts-card" aria-labelledby="market-facts-title">
         <div className="card-heading">
@@ -174,81 +214,30 @@ export function ReferenceSignalDetail({
           {facts.map((fact) => <div key={fact.label}><dt>{fact.label}</dt><dd>{fact.value}</dd></div>)}
         </dl>
         <p className="market-amount-note">{copy.totalAmountLimit}</p>
+        <div className="facts-source-row">
+          {sourceUrl ? (
+            <a className="source-link" href={sourceUrl} target="_blank" rel="noopener noreferrer">
+              {copy.openNotice} <ExternalLink aria-hidden="true" />
+            </a>
+          ) : null}
+        </div>
       </section>
 
       <section className="company-card signal-company-card" aria-labelledby="winner-company-title">
         <div className="company-heading">
           <div>
-            <p className="card-kicker">{copy.companyFacts}</p>
+            <p className="card-kicker">{copy.contractHolder}</p>
             <h3 id="winner-company-title">{companyName}</h3>
           </div>
         </div>
-        {companyLoading ? <p role="status">{copy.companyLoading}</p> : null}
-        {companyError ? (
-          <p role="alert">
-            {copy.companyUnavailable}{' '}
-            {onRetryCompany ? <button type="button" className="source-link" onClick={onRetryCompany}>{t.reference.retry}</button> : null}
-          </p>
-        ) : null}
-        <dl className="company-facts">
-          <div><dt>{t.reference.fields.company}</dt><dd>{companyName}</dd></div>
-          <div><dt>{t.reference.fields.country}</dt><dd>{companyCountry}</dd></div>
-          <div><dt>{copy.address}</dt><dd>{identity?.address ?? missing}</dd></div>
-          <div>
-            <dt>{copy.website}</dt>
-            <dd>{website ? <a className="source-link" href={website} target="_blank" rel="noopener noreferrer">{website}<ExternalLink aria-hidden="true" /></a> : missing}</dd>
-          </div>
-          <div><dt>{copy.lastVerified}</dt><dd>{date(identity?.observed_at ?? enrichment?.last_verified_at ?? null) ?? missing}</dd></div>
-        </dl>
-        {enrichmentMessage ? <p className="signal-limit" role="status">{enrichmentMessage}</p> : null}
         {detail.companyKey ? (
-          <Button asChild className="primary-action company-profile-action">
-            <Link to={`/app/companies/${encodeURIComponent(detail.companyKey)}?signal=${encodeURIComponent(detail.id)}`}>
-              {copy.viewCompany} <ArrowRight aria-hidden="true" />
-            </Link>
-          </Button>
+          <Link
+            className="company-sheet-link"
+            to={`/app/companies/${encodeURIComponent(detail.companyKey)}?signal=${encodeURIComponent(detail.id)}`}
+          >
+            {copy.viewCompany} <ArrowRight aria-hidden="true" />
+          </Link>
         ) : null}
-      </section>
-
-      <section className="evidence-card" aria-labelledby="award-history-title">
-        <div className="card-heading">
-          <div><p className="card-kicker">{copy.awardsHistory}</p><h3 id="award-history-title">{copy.awardsHistory}</h3></div>
-        </div>
-        {otherAwards.length > 0 ? (
-          <ul className="questions-list">
-            {otherAwards.map((award) => (
-              <li key={award.signal_id}>
-                <Link to={`/app/signals/${encodeURIComponent(award.signal_id)}`}>{award.contract_title ?? missing}</Link>
-                <span>{award.amount ? amount(award.amount.value, award.amount.currency) ?? missing : missing} · {date(award.event.date) ?? missing}</span>
-              </li>
-            ))}
-          </ul>
-        ) : <p>{copy.noOtherAwards}</p>}
-      </section>
-
-      <section className="evidence-card" aria-labelledby="source-evidence-title">
-        <div className="card-heading">
-          <div><p className="card-kicker">{copy.sourceAndEvidence}</p><h3 id="source-evidence-title">{copy.sourceAndEvidence}</h3></div>
-          <span>{sourceReference}</span>
-        </div>
-        {detail.publicEvidence.length > 0 ? (
-          <div className="presentation-claim-groups">
-            {detail.publicEvidence.map((group, groupIndex) => (
-              <section key={`${group.fact}-${groupIndex}`} aria-label={interpolate(copy.evidenceFor, { fact: group.label })}>
-                <h4>{group.label}</h4>
-                <ul>
-                  {group.items.map((item, index) => (
-                    <li key={`${group.fact}-${index}`}>
-                      <p>{item.excerpt ?? ([item.source_system, item.notice_id].filter(Boolean).join(' · ') || missing)}</p>
-                      {safeHttpsUrl(item.url) ? <a className="source-link" href={safeHttpsUrl(item.url)!} target="_blank" rel="noopener noreferrer">{copy.openNotice}<ExternalLink aria-hidden="true" /></a> : null}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-        ) : <p>{copy.companyUnavailable}</p>}
-        {sourceUrl ? <a className="source-link" href={sourceUrl} target="_blank" rel="noopener noreferrer">{copy.openNotice} <ExternalLink aria-hidden="true" /></a> : null}
       </section>
 
       <section className="verification-card" aria-labelledby="missing-data-title">
@@ -283,23 +272,7 @@ export function ReferenceSignalDetail({
           ) : <span id="signal-note-state" role="status">{noteStatus}</span>}
         </div>
       </section>
-
-      <details className="facts-card">
-        <summary>{copy.verificationDetails}</summary>
-        <dl className="company-facts">
-          <div><dt>{t.reference.fields.officialSource}</dt><dd>{sourceReference}</dd></div>
-          <div><dt>CPV</dt><dd>{detail.facts.cpv ?? missing}</dd></div>
-          <div><dt>{t.reference.fields.officialTitle}</dt><dd>{detail.facts.officialTitle ?? missing}</dd></div>
-          {(identity?.identifiers ?? (detail.companyIdentifier ? [detail.companyIdentifier] : [])).map((identifier, index) => (
-            <div key={`${identifier.scheme}-${identifier.value}-${index}`}>
-              <dt>{t.reference.fields.identifier}</dt>
-              <dd>{[identifier.scheme, identifier.value].filter(Boolean).join(' ') || missing}</dd>
-            </div>
-          ))}
-        </dl>
-        {enrichment?.source.retrieved_at ? <p>{interpolate(copy.retrievedOn, { date: date(enrichment.source.retrieved_at) ?? missing })}</p> : null}
-      </details>
-    </>
+    </article>
   )
 }
 
@@ -311,4 +284,8 @@ function safeHttpsUrl(value: string | null): string | null {
   } catch {
     return null
   }
+}
+
+function comparableText(value: string | null): string {
+  return value?.normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase() ?? ''
 }

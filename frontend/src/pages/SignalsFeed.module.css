@@ -101,6 +101,38 @@
 
 .filterGrid :disabled { cursor: not-allowed; opacity: 0.55; }
 
+.awardCount {
+  color: var(--green);
+  font-size: 10px;
+  font-weight: 760;
+}
+
+.awardContexts {
+  display: grid;
+  gap: 8px;
+}
+
+.awardContext {
+  display: grid;
+  gap: 3px;
+  padding-left: 10px;
+  border-left: 2px solid var(--card-border);
+  text-align: left;
+}
+
+.awardContext strong {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.awardContext small {
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
 @media (max-width: 1179px) {
   .workspace { grid-template-columns: minmax(0, 1fr); }
   .workspace[data-pane='list'] > .detailPanel,

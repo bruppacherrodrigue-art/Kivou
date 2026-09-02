@@ -399,6 +399,11 @@ export function toSignalCard(item: FeedItem): SignalCardView {
 
   const factual = publishedFactualDisplay(item.factual_display)
   const enrichment = publishedWinnerEnrichment(item.winner_enrichment)
+  const specificTitle = item.contract.lot_title
+    ?? item.contract.title
+    ?? factual?.object_short
+    ?? factual?.headline
+    ?? null
   return {
     signalId: item.signal_id,
     id: item.signal_id,
@@ -406,7 +411,7 @@ export function toSignalCard(item: FeedItem): SignalCardView {
     companyName: item.company.name,
     awardedCompanyName: item.company.name,
     buyerName: item.contract.buyer?.name ?? null,
-    eventTitle: factual?.headline ?? null,
+    eventTitle: specificTitle,
     amount: item.contract.amount,
     location: item.contract.location,
     eventDate: factual?.date.value ?? item.event.date,
@@ -486,10 +491,18 @@ export function toOverviewAwardCards(page: FeedPage): OverviewAwardCardView[] {
 export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
   const factual = publishedFactualDisplay(detail.factual_display)
   const enrichment = publishedWinnerEnrichment(detail.winner_enrichment)
+  const presentation = publishedPresentation(detail.presentation)
+  const specificTitle = detail.contract.lot_title
+    ?? detail.contract.title
+    ?? factual?.object_short
+    ?? factual?.headline
+    ?? null
 
   return {
     signalId: detail.signal_id,
     id: detail.signal_id,
+    eventAgeDays: detail.event.age_days,
+    isNewOpportunity: detail.event.is_new_opportunity,
     locked: false,
     eventDate: factual?.date.value ?? detail.event.date,
     eventDateKind: factual?.date.kind ?? eventDateKind(detail.event.clock, detail.event.status),
@@ -497,18 +510,18 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
     awardedCompanyName: detail.company.name,
     primaryNeed: null,
     fitReason: null,
-    presentation: null,
+    presentation,
     factualCompleteness: factual?.completeness ?? null,
     missingFacts: factual?.missing_fields ?? [],
     winnerEnrichment: enrichment,
-    title: factual?.headline ?? null,
+    title: specificTitle,
     companyName: detail.company.name,
     companyKey: detail.company_key ?? null,
     companyCountry: detail.company.country,
     companyIdentifier: detail.company.identifier,
-    targetProfileLabel: null,
+    targetProfileLabel: detail.analysis.fit.target_icp_label,
     sourceSystem: detail.source.system,
-    summary: factual?.market_summary ?? null,
+    summary: presentation?.content.award_summary ?? factual?.market_summary ?? null,
     brief: {
       whyNow: detail.event.why_now,
       offerCoverage: null,

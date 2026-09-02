@@ -32,6 +32,12 @@ saas_company = sa.Table(
     sa.Column("official_address", sa.Text),
     sa.Column("official_identifiers", sa.JSON, nullable=False),
     sa.Column("official_website_url", sa.Text),
+    sa.Column(
+        "official_source",
+        sa.String(32),
+        nullable=False,
+        server_default="public_notice",
+    ),
     sa.Column("official_observed_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
     sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),

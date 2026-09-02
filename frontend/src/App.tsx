@@ -27,6 +27,7 @@ import { SecuritySettings } from './pages/SecuritySettings'
 import { Checkout, CheckoutCancel, CheckoutSuccess } from './pages/Checkout'
 import { NotFound } from './pages/NotFound'
 import { SurfaceBoundary } from './reference/surface/SurfaceBoundary'
+import { PhaseABtpDashboardDemo } from './pages/PhaseABtpDemo'
 
 /* Les routes.
  *
@@ -43,6 +44,16 @@ import { SurfaceBoundary } from './reference/surface/SurfaceBoundary'
  * d'environnement — mais le parcours reste intact si elles ne le sont pas.
  */
 export function App() {
+  if (
+    import.meta.env.VITE_PHASE_A_BTP_DEMO === 'true'
+    && window.location.pathname === '/app/dashboard'
+  ) {
+    return (
+      <I18nProvider>
+        <PhaseABtpDashboardDemo />
+      </I18nProvider>
+    )
+  }
   return (
     <I18nProvider>
       <SessionProvider>

@@ -56,6 +56,11 @@ interface ResourceState<T> {
   error: unknown | null
 }
 
+interface PendingDetailFocus {
+  key: string
+  keyboard: boolean
+}
+
 interface FeedFilters {
   view: 'recent' | 'history'
   dateFrom: string
@@ -148,8 +153,8 @@ export function SignalsFeed() {
   const lastSelection = useRef<string | null>(null)
   const previousLocationKey = useRef(location.key)
   const initialFocusRestored = useRef(false)
-  const pendingDetailFocus = useRef<string | null>(
-    signalKey && singlePane ? signalKey : null,
+  const pendingDetailFocus = useRef<PendingDetailFocus | null>(
+    signalKey && singlePane ? { key: signalKey, keyboard: false } : null,
   )
 
   const [activationMoment] = useState(
@@ -311,13 +316,22 @@ export function SignalsFeed() {
   useEffect(() => {
     if (
       !pendingDetailFocus.current
-      || pendingDetailFocus.current !== selectedKey
+      || pendingDetailFocus.current.key !== selectedKey
       || detail.key !== selectedKey
       || detail.loading
     ) return
     const frame = window.requestAnimationFrame(() => {
       const title = detailPanelRef.current?.querySelector<HTMLElement>('#detail-title')
       if (!title) return
+      const pendingFocus = pendingDetailFocus.current
+      if (!pendingFocus || pendingFocus.key !== selectedKey) return
+      if (pendingFocus.keyboard) delete title.dataset.programmaticFocus
+      else {
+        title.dataset.programmaticFocus = 'true'
+        title.addEventListener('blur', () => {
+          delete title.dataset.programmaticFocus
+        }, { once: true })
+      }
       title.focus({ preventScroll: true })
       pendingDetailFocus.current = null
     })
@@ -329,7 +343,9 @@ export function SignalsFeed() {
     previousLocationKey.current = location.key
     const selection = readSelectionState(location.state)
     if (signalKey && singlePane) {
-      pendingDetailFocus.current = signalKey
+      if (pendingDetailFocus.current?.key !== signalKey) {
+        pendingDetailFocus.current = { key: signalKey, keyboard: false }
+      }
       return
     }
     const focusKey = selection?.key ?? lastSelection.current
@@ -354,10 +370,29 @@ export function SignalsFeed() {
     return () => window.cancelAnimationFrame(frame)
   }, [items, location.state])
 
-  const cards = items.map(toSignalCard)
   const visibleDetail = detail.key === selectedKey
     ? detail
     : { key: selectedKey, data: null, loading: Boolean(selectedKey), error: null }
+  const contextItem = visibleDetail.data
+    && !visibleDetail.data.locked
+    && !items.some((item) => item.signal_id === visibleDetail.data?.signal_id)
+    ? visibleDetail.data
+    : null
+  const displayedItems = contextItem ? [contextItem, ...items] : items
+  const cards = displayedItems.map(toSignalCard)
+  const companyRows = (() => {
+    const grouped = new Map<string, { key: string; name: string | null; cards: SignalCardView[] }>()
+    cards.forEach((card, index) => {
+      const item = displayedItems[index]
+      const companyKey = !item.locked && item.company_key
+        ? `company:${item.company_key}`
+        : `signal:${card.id}`
+      const current = grouped.get(companyKey)
+      if (current) current.cards.push(card)
+      else grouped.set(companyKey, { key: companyKey, name: card.companyName, cards: [card] })
+    })
+    return [...grouped.values()]
+  })()
   const detailView = visibleDetail.data && !visibleDetail.data.locked
     ? toSignalDetailView(visibleDetail.data)
     : null
@@ -418,14 +453,6 @@ export function SignalsFeed() {
     ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
     : t.reference.missingValue
   const displayDate = (value: string | null) => date(value) ?? t.reference.missingValue
-  const displayDateLabel = (card: SignalCardView) => {
-    switch (card.eventDateKind) {
-      case 'award': return t.reference.fields.signalDateAward
-      case 'notification': return t.reference.fields.signalDateNotification
-      case 'publication': return t.reference.fields.signalDatePublication
-      case 'unknown': return t.reference.signalsPage.unknownDate
-    }
-  }
   const displayLocation = (card: SignalCardView) => {
     if (!card.location) return t.reference.missingValue
     return [
@@ -439,12 +466,7 @@ export function SignalsFeed() {
       key: 'locked',
       label: t.reference.signalsPage.paidAccessRequired,
     }
-    const enrichmentStatus = card.winnerEnrichment?.status
-    const key = enrichmentStatus === 'pending' || enrichmentStatus === 'in_progress'
-      || enrichmentStatus === 'partial' || enrichmentStatus === 'failed'
-      ? enrichmentStatus
-      : card.factualCompleteness ?? 'to_verify'
-    return { key, label: t.reference.signalsPage.completenessStatus[key] }
+    return { key: 'official-source', label: t.reference.fields.officialSource }
   }
   const historyAccess = feed.data?.history_access
   const historyNote = !historyAccess
@@ -540,10 +562,12 @@ export function SignalsFeed() {
               <span className="signal-event">{t.reference.messages.loadError}</span>
               <button type="button" className="source-link" onClick={() => void loadFeed()}>{t.reference.retry}</button>
             </div>
-          ) : cards.length === 0 ? (
+          ) : companyRows.length === 0 ? (
             <div className="signal-item"><span className="signal-event">{t.reference.signalsPage.empty}</span></div>
-          ) : cards.map((card) => {
-            const selected = card.id === selectedKey
+          ) : companyRows.map((companyRow) => {
+            const selectedCard = companyRow.cards.find((candidate) => candidate.id === selectedKey)
+            const card = selectedCard ?? companyRow.cards[0]
+            const selected = selectedCard !== undefined
             const status = cardStatus(card)
             const selectedNoteIsKnown = selected && note.state !== 'loading' && note.state !== 'read-error'
             const hasSelectedNote = selectedNoteIsKnown && note.value.trim().length > 0
@@ -552,8 +576,10 @@ export function SignalsFeed() {
               <button
                 type="button"
                 ref={(node) => {
-                  if (node) rowRefs.current.set(card.id, node)
-                  else rowRefs.current.delete(card.id)
+                  for (const award of companyRow.cards) {
+                    if (node) rowRefs.current.set(award.id, node)
+                    else rowRefs.current.delete(award.id)
+                  }
                 }}
                 className={`signal-item${selected ? ' is-selected' : ''}${card.locked ? ' is-locked' : ''}`}
                 aria-label={card.locked
@@ -578,22 +604,35 @@ export function SignalsFeed() {
                     })
                     return
                   }
-                  if (singlePane || event.detail === 0) pendingDetailFocus.current = card.id
+                  if (singlePane || event.detail === 0) {
+                    pendingDetailFocus.current = {
+                      key: card.id,
+                      keyboard: event.detail === 0,
+                    }
+                  }
                   navigate(`/app/signals/${encodeURIComponent(card.id)}${location.search}`, {
                     state: selectionState(card.id, location.search, true),
                   })
                 }}
-                key={card.id}
+                key={companyRow.key}
               >
                 <span className="signal-item-head">
-                  <strong>{card.locked ? t.reference.missingValue : card.companyName}</strong>
+                  <strong>{card.locked ? t.reference.missingValue : companyRow.name}</strong>
                   <span className={`data-status-${status.key}`}>{status.label}</span>
                 </span>
-                <span className="signal-event">{cardTitle}</span>
-                {!card.locked ? <span className="signal-card-summary">{card.objectShort ?? t.reference.missingValue}</span> : null}
-                {!card.locked && card.buyerName ? <span className="signal-meta">{t.reference.fields.signalBuyer} : {card.buyerName}</span> : null}
-                <span className="signal-meta">{displayAmount(card)} · {displayLocation(card)}</span>
-                <span className="signal-fit"><span>{displayDateLabel(card)}</span> : {displayDate(card.eventDate)}</span>
+                <span className={styles.awardCount}>
+                  {companyRow.cards.length} attribution{companyRow.cards.length > 1 ? 's' : ''}
+                </span>
+                <span className={styles.awardContexts}>
+                  {companyRow.cards.map((award) => (
+                    <span className={styles.awardContext} key={award.id}>
+                      <strong>{award.eventTitle ?? t.reference.missingValue}</strong>
+                      <small>
+                        {displayAmount(award)} · {displayLocation(award)} · {displayDate(award.eventDate)}
+                      </small>
+                    </span>
+                  ))}
+                </span>
                 {card.locked ? (
                   <span className="signal-reason signal-lock-note"><LockKeyhole aria-hidden="true" />{t.reference.signalsPage.lockedReason}</span>
                 ) : <span className="signal-card-action">{t.reference.signalsPage.viewPublishedFacts}</span>}
@@ -616,7 +655,7 @@ export function SignalsFeed() {
           <button type="button" className="text-link" disabled={loadingMore} onClick={() => void loadMore()}>
             {loadingMore ? t.reference.loading : t.reference.signalsPage.loadMore}
           </button>
-        ) : feed.data && cards.length > 0 ? <p className="signal-limit">{t.reference.signalsPage.endOfList}</p> : null}
+        ) : feed.data && companyRows.length > 0 ? <p className="signal-limit">{t.reference.signalsPage.endOfList}</p> : null}
       </aside>
 
       <section

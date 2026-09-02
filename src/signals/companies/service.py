@@ -207,8 +207,13 @@ def _accessible_matching_items(
     owned = feed_query.owned_target_icps(connection, account_id=account_id)
     selected: list[_AccessibleCompanySignal] = []
     accessible_count = 0
-    latest_identity: CompanyOfficialIdentity | None = None
-    latest_identity_rank: tuple[dt.datetime, str] | None = None
+    registry_identity = stored.official_identity.source == "official_register"
+    latest_identity: CompanyOfficialIdentity | None = (
+        stored.official_identity if registry_identity else None
+    )
+    latest_identity_rank: tuple[dt.datetime, str] | None = (
+        (stored.official_identity.observed_at, "") if registry_identity else None
+    )
     cursor = ""
 
     while True:
@@ -265,7 +270,9 @@ def _accessible_matching_items(
             selected.sort(key=lambda candidate: candidate.item.sort_key)
             del selected[MAX_RELATED_SIGNALS:]
             identity_rank = (resolved.official.observed_at, signal.signal_key)
-            if latest_identity_rank is None or identity_rank > latest_identity_rank:
+            if not registry_identity and (
+                latest_identity_rank is None or identity_rank > latest_identity_rank
+            ):
                 latest_identity = resolved.official
                 latest_identity_rank = identity_rank
 

@@ -136,6 +136,22 @@ def _fingerprint(method: IdentityMethod, evidence: dict[str, str]) -> str:
     return hashlib.sha256(f"kivou-saas-company-v1:{canonical}".encode()).hexdigest()
 
 
+def official_siret_fingerprint(siret: str) -> str:
+    """Return the stable French-company key without inventing descriptive facts."""
+
+    cleaned = siret.strip()
+    if re.fullmatch(r"\d{14}", cleaned) is None:
+        raise ValueError("SIRET must contain exactly fourteen digits")
+    return _fingerprint(
+        IdentityMethod.OFFICIAL_IDENTIFIER,
+        {
+            "country": "FR",
+            "identifier_scheme": "siret",
+            "identifier_value": cleaned,
+        },
+    )
+
+
 def official_company_identity(
     *,
     awardee_parties: list[dict[str, Any]],
@@ -188,5 +204,36 @@ def official_company_identity(
         official=official,
         identity_fingerprint=_fingerprint(method, evidence),
         identity_method=method,
+        validation_evidence=evidence,
+    )
+
+
+def official_siret_identity(
+    *,
+    siret: str,
+    legal_name: str,
+    address: str | None,
+    observed_at: dt.datetime,
+) -> ResolvedOfficialCompany:
+    """Build the same stable SIRET identity from an exact French register hit."""
+
+    if re.fullmatch(r"\d{14}", siret) is None:
+        raise ValueError("SIRET must contain exactly fourteen digits")
+    evidence = {
+        "country": "FR",
+        "identifier_scheme": "siret",
+        "identifier_value": siret,
+    }
+    return ResolvedOfficialCompany(
+        official=CompanyOfficialIdentity(
+            name=legal_name,
+            country="FR",
+            address=address,
+            identifiers=(CompanyOfficialIdentifier(scheme="SIRET", value=siret),),
+            observed_at=observed_at,
+            source="official_register",
+        ),
+        identity_fingerprint=_fingerprint(IdentityMethod.OFFICIAL_IDENTIFIER, evidence),
+        identity_method=IdentityMethod.OFFICIAL_IDENTIFIER,
         validation_evidence=evidence,
     )

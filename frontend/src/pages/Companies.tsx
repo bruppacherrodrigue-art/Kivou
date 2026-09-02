@@ -18,9 +18,10 @@ import {
 import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
 import { companies, signals } from '../api/endpoints'
 import { ApiError } from '../api/client'
-import type {
-  CompanyProfile as CompanyProfilePayload,
-  UnlockedFeedItem,
+import {
+  isLocked,
+  type CompanyProfile as CompanyProfilePayload,
+  type UnlockedFeedItem,
 } from '../api/types'
 import { interpolate, plural, useI18n } from '../i18n'
 import { publishedPresentation } from '../reference/dashboard/adapters'
@@ -31,8 +32,16 @@ import {
   CompanyProfileView,
   companyAwardHref,
   companyInitials,
+  companySignalHref,
 } from './CompanyProfile'
 import styles from './Companies.module.css'
+
+/*
+ * Company access is normally derived from the paginated signal feed. A direct
+ * signal link can legitimately point outside that current page, so its detail
+ * is folded into the same in-memory projection below when needed.
+ */
+type ContextStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 const FEED_LIMIT = 20
 const SINGLE_PANE_QUERY = '(max-width: 1179px)'
@@ -74,7 +83,7 @@ function companiesFrom(orderedItems: UnlockedFeedItem[]): AuthorizedCompany[] {
     const signal: AuthorizedCompanySignal = {
       signalId: item.signal_id,
       presentationArtifactId: presentation?.artifact_id ?? null,
-      summary: presentation?.content.award_summary ?? null,
+      summary: presentation?.content.award_summary ?? item.contract.title ?? null,
       buyerName: item.contract.buyer?.name ?? null,
       location: item.contract.location,
       amountValue: item.contract.amount?.value ?? null,
@@ -82,11 +91,6 @@ function companiesFrom(orderedItems: UnlockedFeedItem[]): AuthorizedCompany[] {
       awardDate: item.contract.dates.award,
       eventDate: item.event.date,
       eventClock: item.event.clock,
-      fitReason: presentation?.content.fit_reason ?? null,
-      recommendedAction: presentation?.content.recommended_action ?? null,
-      sourceSystem: item.source.system,
-      sourceNoticeId: item.source.notice_id,
-      sourceUrl: item.source.url,
     }
     const existing = grouped.get(item.company_key)
     if (existing) {
@@ -147,6 +151,8 @@ export function Companies() {
   const orderedItemsRef = useRef<UnlockedFeedItem[]>([])
   const mounted = useRef(false)
   const accessGeneration = useRef(0)
+  const contextGeneration = useRef(0)
+  const [contextStatus, setContextStatus] = useState<ContextStatus>('idle')
   const [profile, setProfile] = useState<CompanyProfilePayload | null>(null)
   const [profileStatus, setProfileStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [profileError, setProfileError] = useState<unknown>(null)
@@ -239,6 +245,7 @@ export function Companies() {
     return () => {
       mounted.current = false
       accessGeneration.current += 1
+      contextGeneration.current += 1
       profileGeneration.current += 1
     }
   }, [loadAccess])
@@ -313,6 +320,56 @@ export function Companies() {
       : null
   ), [requestedSignalId, selectedCompany])
   const selectedKey = selectedCompany && selectedSignal ? selectedCompany.key : null
+
+  useEffect(() => {
+    if (access.status !== 'ready' || !companyKey || !requestedSignalId) {
+      contextGeneration.current += 1
+      setContextStatus('idle')
+      return
+    }
+    if (selectedCompany && selectedSignal) {
+      setContextStatus('ready')
+      return
+    }
+
+    const generation = ++contextGeneration.current
+    setContextStatus('loading')
+    void signals.detail(requestedSignalId).then((detail) => {
+      if (!mounted.current || contextGeneration.current !== generation) return
+      if (
+        isLocked(detail)
+        || detail.signal_id !== requestedSignalId
+        || detail.company_key !== companyKey
+        || !detail.company.name
+      ) {
+        setContextStatus('error')
+        return
+      }
+      if (!orderedItemsRef.current.some((item) => item.signal_id === detail.signal_id)) {
+        orderedItemsRef.current.unshift(detail)
+      }
+      const current = accessRef.current
+      publishAccess({
+        ...current,
+        companies: companiesFrom(orderedItemsRef.current),
+      })
+      setContextStatus('ready')
+    }).catch(() => {
+      if (!mounted.current || contextGeneration.current !== generation) return
+      setContextStatus('error')
+    })
+
+    return () => {
+      if (contextGeneration.current === generation) contextGeneration.current += 1
+    }
+  }, [
+    access.status,
+    companyKey,
+    publishAccess,
+    requestedSignalId,
+    selectedCompany,
+    selectedSignal,
+  ])
 
   useEffect(() => {
     if (
@@ -450,9 +507,6 @@ export function Companies() {
     || (partial && (!selectedCompany || !requestedSignalId || !selectedSignal))
   ))
   const copy = t.reference.companiesPage
-  const awardCards = access.companies.flatMap((company) => (
-    company.signals.map((signal) => ({ company, signal }))
-  ))
 
   const displayTerritory = (company: AuthorizedCompany, signal: AuthorizedCompanySignal) => {
     if (signal.location) {
@@ -482,7 +536,7 @@ export function Companies() {
             <p className="section-label">{copy.publishedHolders}</p>
             <h2 id="companies-list-title">{copy.listTitle}</h2>
           </div>
-          <span className="signal-count">{access.status === 'loading' ? '…' : awardCards.length}</span>
+          <span className="signal-count">{access.status === 'loading' ? '…' : access.companies.length}</span>
         </div>
         <p className="companies-panel-note">{copy.listBoundary} {t.companiesIndex.partial}</p>
 
@@ -512,73 +566,85 @@ export function Companies() {
           {access.status === 'ready' && access.companies.length === 0 && !partial
             ? <p className="companies-panel-note">{t.companiesIndex.emptyTitle}</p>
             : null}
-          {awardCards.map(({ company, signal }) => {
+          {access.companies.map((company) => {
             const selected = company.key === selectedCompany?.key
-              && signal.signalId === selectedSignal?.signalId
-            const publishedAmount = amount(signal.amountValue, signal.amountCurrency)
-              ?? t.reference.missingValue
-            const eventDate = date(signal.eventDate)
-            const awardDate = eventDate ?? date(signal.awardDate)
-            const publishedDate = signal.eventClock === 'notification'
-              ? eventDate
-                ? interpolate(copy.notifiedOn, { date: eventDate })
-                : copy.notificationDateMissing
-              : signal.eventClock === 'publication'
-                ? eventDate
-                  ? interpolate(copy.publishedOn, { date: eventDate })
-                  : copy.publicationDateMissing
-                : awardDate
-                  ? interpolate(copy.awardedOn, { date: awardDate })
-                  : copy.awardDateMissing
+            const profileSignal = selectedSignal && selected
+              ? selectedSignal
+              : company.signals[0]
+            if (!profileSignal) return null
             const count = company.signals.length
-            const href = companyAwardHref(company.key, signal.signalId)
+            const href = companyAwardHref(company.key, profileSignal.signalId)
             return (
-              <Link
-                ref={(node) => {
-                  if (node) rowRefs.current.set(signal.signalId, node)
-                  else rowRefs.current.delete(signal.signalId)
-                }}
-                to={href}
-                replace={selected}
-                state={selectionState(company.key, signal.signalId, true)}
-                className={`company-list-item ${styles.companyLink}${selected ? ' is-selected' : ''}`}
-                aria-current={selected ? 'true' : undefined}
-                onClick={(event) => {
-                  lastSelection.current = { companyKey: company.key, signalId: signal.signalId }
-                  if (usesSinglePane() || event.detail === 0) requestDetailFocus(signal.signalId)
-                }}
-                key={signal.signalId}
+              <article
+                className={`company-list-item ${styles.companyCard}${selected ? ' is-selected' : ''}`}
+                key={company.key}
               >
                 <span className="company-list-avatar" aria-hidden="true">{companyInitials(company.name)}</span>
                 <span className="company-list-content">
-                  <span className="company-list-heading">
+                  <Link
+                    ref={(node) => {
+                      if (node) rowRefs.current.set(profileSignal.signalId, node)
+                      else rowRefs.current.delete(profileSignal.signalId)
+                    }}
+                    to={href}
+                    replace={selected}
+                    state={selectionState(company.key, profileSignal.signalId, true)}
+                    className={`company-list-heading ${styles.companyLink}`}
+                    aria-current={selected ? 'page' : undefined}
+                    onClick={(event) => {
+                      lastSelection.current = {
+                        companyKey: company.key,
+                        signalId: profileSignal.signalId,
+                      }
+                      if (usesSinglePane() || event.detail === 0) {
+                        requestDetailFocus(profileSignal.signalId)
+                      }
+                    }}
+                  >
                     <strong>{company.name}</strong>
-                  </span>
-                  <span className={styles.companyRole}>{copy.winningCompany}</span>
-                  {selected ? (
-                    <span className={styles.selectedState}>
-                      <CheckCircle2 aria-hidden="true" /> {copy.selected}
+                    {selected ? <CheckCircle2 aria-hidden="true" /> : null}
+                  </Link>
+                  <span className={styles.companyMeta}>
+                    <span className={styles.companyRole}>{copy.winningCompany}</span>
+                    <span className={styles.awardCount}>
+                      {interpolate(plural(count, copy.contractOne, copy.contractOther), { count })}
                     </span>
-                  ) : null}
-                  <span className={styles.awardLabel}>{copy.recentAward}</span>
-                  <span className={`company-list-event ${styles.summary}`}>
-                    {signal.summary ?? copy.objectMissing}
                   </span>
-                  <span className={styles.buyer}>
-                    {signal.buyerName
-                      ? interpolate(copy.buyer, { buyer: signal.buyerName })
-                      : copy.buyerMissing}
-                  </span>
-                  <span className={`company-list-meta ${styles.cardMeta}`}>
-                    <span>{publishedAmount}</span>
-                    <span>{publishedDate}</span>
-                    <span>{displayTerritory(company, signal)}</span>
-                  </span>
-                  <span className={styles.awardCount}>
-                    {interpolate(plural(count, copy.contractOne, copy.contractOther), { count })}
+                  <span className={styles.awardContexts}>
+                    {company.signals.map((signal) => {
+                      const publishedAmount = amount(signal.amountValue, signal.amountCurrency)
+                        ?? t.reference.missingValue
+                      const eventDate = date(signal.eventDate)
+                      const awardDate = eventDate ?? date(signal.awardDate)
+                      const publishedDate = signal.eventClock === 'notification'
+                        ? eventDate
+                          ? interpolate(copy.notifiedOn, { date: eventDate })
+                          : copy.notificationDateMissing
+                        : signal.eventClock === 'publication'
+                          ? eventDate
+                            ? interpolate(copy.publishedOn, { date: eventDate })
+                            : copy.publicationDateMissing
+                          : awardDate
+                            ? interpolate(copy.awardedOn, { date: awardDate })
+                            : copy.awardDateMissing
+                      const summary = signal.summary ?? copy.objectMissing
+                      return (
+                        <Link
+                          className={styles.awardContext}
+                          to={companySignalHref(signal)}
+                          aria-label={interpolate(copy.openAward, { title: summary })}
+                          key={signal.signalId}
+                        >
+                          <span className={styles.summary}>{summary}</span>
+                          <span className={styles.compactMeta}>
+                            {publishedAmount} · {publishedDate} · {displayTerritory(company, signal)}
+                          </span>
+                        </Link>
+                      )
+                    })}
                   </span>
                 </span>
-              </Link>
+              </article>
             )
           })}
         </div>
@@ -590,6 +656,7 @@ export function Companies() {
         requestedSignalId,
         selectedCompany,
         selectedSignal,
+        contextStatus,
         profile,
         profileKey,
         profileStatus,
@@ -601,11 +668,6 @@ export function Companies() {
         retryAccess: () => void loadAccess(),
         retryIncomplete: partial && retryablePartial ? () => void retryIncomplete() : undefined,
         backToList: companyKey ? backToList : undefined,
-        onSelectSignal: (signalId) => {
-          if (selectedCompany) lastSelection.current = { companyKey: selectedCompany.key, signalId }
-          requestDetailFocus(signalId)
-        },
-        selectionFromList: readSelectionState(location.state)?.fromList ?? false,
         panelRef: detailPanelRef,
         copy,
         inaccessibleTitle: t.companyProfile.inaccessibleTitle,
@@ -626,6 +688,7 @@ function renderDetail({
   requestedSignalId,
   selectedCompany,
   selectedSignal,
+  contextStatus,
   profile,
   profileKey,
   profileStatus,
@@ -634,8 +697,6 @@ function renderDetail({
   retryAccess,
   retryIncomplete,
   backToList,
-  onSelectSignal,
-  selectionFromList,
   panelRef,
   copy,
   inaccessibleTitle,
@@ -651,6 +712,7 @@ function renderDetail({
   requestedSignalId: string | null
   selectedCompany: AuthorizedCompany | null
   selectedSignal: AuthorizedCompanySignal | null
+  contextStatus: ContextStatus
   profile: CompanyProfilePayload | null
   profileKey: string | null
   profileStatus: 'idle' | 'loading' | 'ready' | 'error'
@@ -659,8 +721,6 @@ function renderDetail({
   retryAccess: () => void
   retryIncomplete?: () => void
   backToList?: () => void
-  onSelectSignal: (signalId: string) => void
-  selectionFromList: boolean
   panelRef: RefObject<HTMLElement | null>
   copy: ReturnType<typeof useI18n>['t']['reference']['companiesPage']
   inaccessibleTitle: string
@@ -698,6 +758,13 @@ function renderDetail({
     )
   }
 
+  if (
+    companyKey
+    && requestedSignalId
+    && (!selectedCompany || !selectedSignal)
+    && contextStatus !== 'error'
+  ) return message(loading, copy.resolvingAccess, 'status', undefined, true)
+
   const incomplete = access.unresolved.length > 0
     || access.nextOffset !== null
     || access.scanTruncated
@@ -723,7 +790,7 @@ function renderDetail({
     || profileStatus === 'idle'
     || (profile !== null && profile.company_key !== selectedCompany.key)
   ) return message(
-    selectedSignal.summary ?? copy.objectMissing,
+    selectedCompany.name,
     copy.loadingProfile,
     'status',
     undefined,
@@ -741,10 +808,7 @@ function renderDetail({
       panelRef={panelRef}
       profile={profile}
       company={selectedCompany}
-      signal={selectedSignal}
       backToList={backToList}
-      onSelectSignal={onSelectSignal}
-      selectionFromList={selectionFromList}
     />
   )
 }

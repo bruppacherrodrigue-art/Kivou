@@ -56,6 +56,7 @@ def _stored(row: RowMapping) -> StoredCompany:
             identifiers=tuple(row["official_identifiers"]),
             website_url=row["official_website_url"],
             observed_at=observed_at,
+            source=row["official_source"],
         ),
         created_at=_aware(row["created_at"]),
         updated_at=_aware(row["updated_at"]),
@@ -67,6 +68,14 @@ def _by_fingerprint(connection: sa.Connection, fingerprint: str) -> StoredCompan
         sa.select(saas_company).where(saas_company.c.identity_fingerprint == fingerprint)
     ).mappings().one_or_none()
     return None if row is None else _stored(row)
+
+
+def get_company_by_fingerprint(
+    connection: sa.Connection, *, identity_fingerprint: str
+) -> StoredCompany | None:
+    """Read an already resolved exact identity for queue-level deduplication."""
+
+    return _by_fingerprint(connection, identity_fingerprint)
 
 
 def _by_fingerprints(
@@ -110,6 +119,7 @@ def _candidate_values(candidate: CompanyCandidate, *, now: dt.datetime) -> dict[
             identifier.model_dump(mode="json") for identifier in official.identifiers
         ],
         "official_website_url": official.website_url,
+        "official_source": official.source,
         "official_observed_at": official.observed_at,
         "created_at": now,
         "updated_at": now,
@@ -185,3 +195,34 @@ def get_or_create_company(
     if created is None:  # pragma: no cover - insert/select invariant
         raise RuntimeError("created company could not be read")
     return created
+
+
+def refresh_company_official_identity(
+    connection: sa.Connection,
+    *,
+    resolved: ResolvedOfficialCompany,
+    now: dt.datetime,
+) -> StoredCompany | None:
+    """Replace only older descriptive facts for the same exact identity."""
+
+    official = resolved.official
+    connection.execute(
+        sa.update(saas_company)
+        .where(
+            saas_company.c.identity_fingerprint == resolved.identity_fingerprint,
+            saas_company.c.official_observed_at <= official.observed_at,
+        )
+        .values(
+            official_name=official.name,
+            official_country=official.country,
+            official_address=official.address,
+            official_identifiers=[
+                identifier.model_dump(mode="json") for identifier in official.identifiers
+            ],
+            official_website_url=official.website_url,
+            official_source=official.source,
+            official_observed_at=official.observed_at,
+            updated_at=now,
+        )
+    )
+    return _by_fingerprint(connection, resolved.identity_fingerprint)

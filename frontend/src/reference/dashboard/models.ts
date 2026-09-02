@@ -73,6 +73,8 @@ export interface OverviewAwardCardView {
 
 export interface SignalDetailView extends SignalFactView {
   id: string
+  eventAgeDays: number | null
+  isNewOpportunity: boolean
   title: string | null
   companyName: string | null
   companyKey: string | null
