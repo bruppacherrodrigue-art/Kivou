@@ -461,6 +461,16 @@ export const en: Dictionary = {
         identifier_or_domain: 'Official identifier or domain',
         website: 'Official website',
       },
+      restrictedShort: 'Not included in your access',
+      statusLabels: {
+        recent_award: 'Recent award',
+        recently_notified_contract: 'Recent notification',
+        recently_published_award: 'Recent publication',
+        aging_award: 'Aging award',
+        stale_award: 'Old award',
+        award_date_unknown: 'Award date unknown',
+        invalid_award_date: 'Award date invalid',
+      },
     },
     companiesPage: {
       publishedHolders: 'Awarded companies',

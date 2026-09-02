@@ -1,6 +1,7 @@
 import type {
   BillingAction,
   CardPresentation,
+  EventStatus,
   EvidenceItem,
   Money,
   Place,
@@ -73,6 +74,7 @@ export interface OverviewAwardCardView {
 
 export interface SignalDetailView extends SignalFactView {
   id: string
+  eventStatus: EventStatus
   eventAgeDays: number | null
   isNewOpportunity: boolean
   title: string | null

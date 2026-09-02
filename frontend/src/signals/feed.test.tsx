@@ -622,4 +622,22 @@ describe('feed de signaux dans le workspace de référence', () => {
       expect(page).not.toContain(forbidden)
     }
   })
+
+  it('propose des statuts temporels en français, pas des identifiants', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals?view=history' })
+    const select = await screen.findByLabelText('Statut temporel')
+    expect(within(select).getByRole('option', { name: 'Attribution récente' })).toBeVisible()
+    expect(within(select).queryByRole('option', { name: 'recent_award' })).toBeNull()
+  })
+
+  it('explique un filtre verrouillé sur le champ lui-même', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM], {
+      filter_access: { date_range: true, country: true, subdivision: true, status: true, sector: false },
+    }))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals?view=history' })
+    const cpv = await screen.findByLabelText('Secteur (préfixe CPV)')
+    await waitFor(() => expect(cpv).toBeDisabled())
+    expect(cpv).toHaveAccessibleDescription('Ce filtre n’est pas inclus dans votre accès actuel.')
+  })
 })

@@ -467,6 +467,16 @@ export const fr = {
         identifier_or_domain: 'Identifiant officiel ou domaine',
         website: 'Site officiel',
       },
+      restrictedShort: 'Non inclus dans votre accès',
+      statusLabels: {
+        recent_award: 'Attribution récente',
+        recently_notified_contract: 'Notification récente',
+        recently_published_award: 'Publication récente',
+        aging_award: 'Attribution vieillissante',
+        stale_award: 'Attribution ancienne',
+        award_date_unknown: 'Date d’attribution inconnue',
+        invalid_award_date: 'Date d’attribution invalide',
+      },
     },
     companiesPage: {
       publishedHolders: 'Entreprises attributaires',

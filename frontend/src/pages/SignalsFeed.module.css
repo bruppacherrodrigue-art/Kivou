@@ -73,7 +73,7 @@
 
 .filterGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
   margin-top: 12px;
 }
@@ -99,7 +99,27 @@
   font-size: 11px;
 }
 
-.filterGrid :disabled { cursor: not-allowed; opacity: 0.55; }
+.filterGrid :disabled {
+  cursor: not-allowed;
+  border-style: dashed;
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.lockHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.lockHint svg {
+  width: 12px;
+  height: 12px;
+}
 
 .awardCount {
   color: var(--green);
@@ -139,8 +159,4 @@
   .workspace[data-pane='detail'] > .listPanel { display: none; }
   .listPanel,
   .detailPanel { border-right: 0; border-bottom: 0; }
-}
-
-@media (max-width: 620px) {
-  .filterGrid { grid-template-columns: minmax(0, 1fr); }
 }

@@ -510,6 +510,7 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
   return {
     signalId: detail.signal_id,
     id: detail.signal_id,
+    eventStatus: detail.event.status,
     eventAgeDays: detail.event.age_days,
     isNewOpportunity: detail.event.is_new_opportunity,
     locked: false,

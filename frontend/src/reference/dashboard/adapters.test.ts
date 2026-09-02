@@ -1039,6 +1039,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     expect(view).toEqual({
       signalId: detail.signal_id,
       id: detail.signal_id,
+      eventStatus: detail.event.status,
       locked: false,
       eventDate: detail.event.date,
       eventDateKind: 'award',

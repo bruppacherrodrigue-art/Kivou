@@ -541,16 +541,31 @@ export function SignalsFeed() {
                 <span>{t.reference.signalsPage.statusFilter}</span>
                 <select value={filters.status} disabled={filterAccess?.status === false} onChange={(event) => setSearchValue('status', event.target.value)}>
                   <option value="">{t.reference.signalsPage.allStatuses}</option>
-                  {HISTORY_STATUSES.map((status) => <option value={status} key={status}>{status}</option>)}
+                  {HISTORY_STATUSES.map((status) => (
+                    <option value={status} key={status}>{t.reference.signalsPage.statusLabels[status]}</option>
+                  ))}
                 </select>
               </label>
               <label>
                 <span>{t.reference.signalsPage.sectorFilter}</span>
-                <input value={filters.cpv} maxLength={8} inputMode="numeric" disabled={filterAccess?.sector === false} onChange={(event) => setSearchValue('cpv', event.target.value.replace(/\D/g, ''))} />
+                <input
+                  value={filters.cpv}
+                  maxLength={8}
+                  inputMode="numeric"
+                  disabled={filterAccess?.sector === false}
+                  aria-label={t.reference.signalsPage.sectorFilter}
+                  aria-describedby={filterAccess?.sector === false ? 'history-filter-restricted' : undefined}
+                  onChange={(event) => setSearchValue('cpv', event.target.value.replace(/\D/g, ''))}
+                />
+                {filterAccess?.sector === false ? (
+                  <small className={styles.lockHint}>
+                    <LockKeyhole aria-hidden="true" /> {t.reference.signalsPage.restrictedShort}
+                  </small>
+                ) : null}
               </label>
             </div>
             {filterAccess && Object.values(filterAccess).some((allowed) => !allowed) ? (
-              <p className={styles.restrictedNote}>{t.reference.signalsPage.restrictedFilter}</p>
+              <p id="history-filter-restricted" className={styles.restrictedNote}>{t.reference.signalsPage.restrictedFilter}</p>
             ) : null}
           </section>
         ) : null}

@@ -746,6 +746,11 @@ a:focus-visible {
   font-weight: 680;
 }
 
+.signal-why-now {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
 #signal-detail,
 #company-detail {
   scroll-margin-top: 90px;

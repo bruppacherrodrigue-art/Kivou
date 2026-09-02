@@ -155,7 +155,7 @@ export function ReferenceSignalDetail({
           {showSummary ? <p className="detail-summary">{displaySummary}</p> : null}
           <div className="signal-context-strip" aria-label={copy.signalContext}>
             {detail.isNewOpportunity ? <span>{copy.newOpportunity}</span> : null}
-            <span>{detail.brief.whyNow}</span>
+            <span>{copy.statusLabels[detail.eventStatus]}</span>
             {detail.eventAgeDays !== null ? (
               <span>{interpolate(plural(detail.eventAgeDays, copy.ageDaysOne, copy.ageDaysOther), { count: detail.eventAgeDays })}</span>
             ) : null}
@@ -163,6 +163,7 @@ export function ReferenceSignalDetail({
               <span>{interpolate(copy.targetProfile, { profile: detail.targetProfileLabel })}</span>
             ) : null}
           </div>
+          <p className="detail-summary signal-why-now">{detail.brief.whyNow}</p>
           {commercialPresentation ? (
             <p className="signal-limit" role="note">{copy.presentationDataNotice}</p>
           ) : null}

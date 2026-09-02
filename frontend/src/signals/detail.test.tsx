@@ -457,4 +457,20 @@ describe('détail factuel d’un signal', () => {
     await act(async () => resolveDetail({ body: UNLOCKED_DETAIL }))
     await waitFor(() => expect(selected).toHaveAttribute('aria-pressed', 'true'))
   })
+
+  it('résume le statut en chip courte et garde la phrase complète en clair', async () => {
+    renderDetail({
+      detail: detailFixture({
+        event: {
+          ...UNLOCKED_DETAIL.event,
+          status: 'recently_published_award',
+          why_now: 'Publication récente d’une attribution dont la date de décision est inconnue.',
+        },
+      }),
+    })
+    const strip = await screen.findByLabelText('Contexte commercial du signal')
+    expect(within(strip).getByText('Publication récente')).toBeVisible()
+    expect(within(strip).queryByText(/date de décision est inconnue/)).toBeNull()
+    expect(screen.getByText('Publication récente d’une attribution dont la date de décision est inconnue.')).toBeVisible()
+  })
 })
