@@ -44,6 +44,14 @@ const I18nContext = createContext<I18nValue | null>(null)
 
 const LOCALE_TAGS: Record<Locale, string> = { fr: 'fr-FR', en: 'en-GB' }
 
+/** `Intl` sépare les milliers par une espace fine (U+202F) en français. Instrument
+ *  Sans et Lora, auto-hébergées, n'ont pas ce glyphe : Chrome le rend à largeur
+ *  nulle et « 5 338 215 € » devient « 5338215 € ». U+00A0 existe dans les deux
+ *  polices et reste insécable. */
+export function withRenderableSpaces(text: string): string {
+  return text.replace(/[\u202F\u2009]/g, "\u00A0")
+}
+
 export function I18nProvider({
   children,
   initialLocale,
@@ -65,20 +73,20 @@ export function I18nProvider({
       t: DICTIONARIES[locale],
       setLocale,
       money: (minorUnits, currency) =>
-        new Intl.NumberFormat(tag, {
+        withRenderableSpaces(new Intl.NumberFormat(tag, {
           style: 'currency',
           currency: currency.toUpperCase(),
           minimumFractionDigits: minorUnits % 100 === 0 ? 0 : 2,
-        }).format(minorUnits / 100),
+        }).format(minorUnits / 100)),
       amount: (value, currency) => {
         if (value === null || value === undefined || !currency) return null
         const numeric = Number(value)
         if (Number.isNaN(numeric)) return `${value} ${currency}`
-        return new Intl.NumberFormat(tag, {
+        return withRenderableSpaces(new Intl.NumberFormat(tag, {
           style: 'currency',
           currency: currency.toUpperCase(),
           maximumFractionDigits: 0,
-        }).format(numeric)
+        }).format(numeric))
       },
       date: (iso) => {
         if (!iso) return null
@@ -90,7 +98,7 @@ export function I18nProvider({
           day: 'numeric',
         }).format(parsed)
       },
-      number: (n) => new Intl.NumberFormat(tag).format(n),
+      number: (n) => withRenderableSpaces(new Intl.NumberFormat(tag).format(n)),
     }
   }, [locale, setLocale])
 
