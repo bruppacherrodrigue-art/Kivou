@@ -1,0 +1,141 @@
+"""PR1 §2 — le statut unifié new | saved | ignored | contacted, dérivé jamais stocké."""
+
+from __future__ import annotations
+
+import datetime as dt
+import pathlib
+
+import pytest
+from billing_helpers import subscribe
+from fastapi.testclient import TestClient
+from feed_helpers import COMPLETE_ICP_INPUT, ORIGIN, PASSWORD, materialize_simap, pin_session_cookie
+
+from signals.api import ApiConfig, create_app
+from signals.persistence.database import create_database_engine, migrate_to_latest
+
+NOW = dt.datetime(2026, 8, 25, 9, 0, tzinfo=dt.UTC)
+
+
+@pytest.fixture
+def engine(tmp_path: pathlib.Path):
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
+    migrate_to_latest(engine)
+    return engine
+
+
+@pytest.fixture
+def client(engine) -> TestClient:
+    app = create_app(
+        engine,
+        ApiConfig(cookie_secure=False, allowed_origin=ORIGIN, session_ttl=dt.timedelta(days=365)),
+        now_override=lambda: NOW,
+    )
+    client = TestClient(app, headers={"Origin": ORIGIN})
+    response = client.post(
+        "/auth/signup",
+        json={
+            "email": "signal-status@kivou.eu",
+            "password": PASSWORD,
+            "company_name": "Signal Status",
+            "locale": "fr",
+        },
+    )
+    assert response.status_code == 201, response.text
+    pin_session_cookie(client, response)
+    account_id = client.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        subscribe(
+            connection,
+            account_id=account_id,
+            plan="scale",
+            subscription_id="sub_signal_status",
+            now=NOW,
+        )
+    return client
+
+
+@pytest.fixture
+def icp(client: TestClient) -> str:
+    return client.post(
+        "/target-icps",
+        json={"label": "Statut", "customer_input": COMPLETE_ICP_INPUT},
+    ).json()["target_icp_id"]
+
+
+def _seed(engine, icp, count=3):
+    """count signaux SIMAP distincts, récents."""
+    keys = []
+    with engine.begin() as connection:
+        for name in ("29997-02", "33112-02", "33885-03", "34794-02")[:count]:
+            keys.append(materialize_simap(connection, name, target_icp_id=icp).signal_key)
+    return keys
+
+
+def test_status_is_new_without_any_feedback(client, icp, engine):
+    keys = _seed(engine, icp)
+    body = client.get("/signals?freshness=all").json()
+    assert {item["status"] for item in body["items"]} == {"new"}
+    assert body["counts"] == {"new": 3, "saved": 0, "ignored": 0, "contacted": 0}
+    assert body["counts_truncated"] is False
+    assert client.get(f"/signals/{keys[0]}").json()["status"] == "new"
+
+
+def test_status_follows_feedback_then_contact_wins(client, icp, engine):
+    saved, ignored, contacted = _seed(engine, icp)
+    client.put(f"/signals/{saved}/feedback", json={"relevance": "relevant"})
+    client.put(f"/signals/{ignored}/feedback", json={"relevance": "not_relevant", "reason": "too_late"})
+    client.post(f"/signals/{contacted}/contacted")
+    # Contacté puis jugé non pertinent : l'action l'emporte sur l'opinion.
+    client.put(f"/signals/{contacted}/feedback", json={"relevance": "not_relevant", "reason": "other"})
+    by_key = {
+        item["signal_id"]: item["status"]
+        for item in client.get(
+            "/signals?freshness=all&status=new&status=saved&status=ignored&status=contacted"
+        ).json()["items"]
+    }
+    assert by_key == {saved: "saved", ignored: "ignored", contacted: "contacted"}
+    assert client.get(f"/signals/{contacted}").json()["status"] == "contacted"
+
+
+def test_default_listing_hides_ignored_but_counts_it(client, icp, engine):
+    keys = _seed(engine, icp)
+    client.put(f"/signals/{keys[1]}/feedback", json={"relevance": "not_relevant", "reason": "wrong_need"})
+    body = client.get("/signals?freshness=all").json()
+    assert keys[1] not in {item["signal_id"] for item in body["items"]}
+    assert body["counts"] == {"new": 2, "saved": 0, "ignored": 1, "contacted": 0}
+
+
+def test_status_filter_is_multi_valued_and_validated(client, icp, engine):
+    keys = _seed(engine, icp)
+    client.put(f"/signals/{keys[0]}/feedback", json={"relevance": "relevant"})
+    only_saved = client.get("/signals?freshness=all&status=saved").json()
+    assert [item["signal_id"] for item in only_saved["items"]] == [keys[0]]
+    assert only_saved["counts"]["new"] == 2, "les compteurs ignorent le filtre de statut"
+    both = client.get("/signals?freshness=all&status=saved&status=new").json()
+    assert len(both["items"]) == 3
+    assert client.get("/signals?status=bogus").status_code == 422
+    assert client.get("/signals?status=bogus").json()["detail"]["code"] == "invalid_status"
+
+
+def test_history_view_filters_status_before_the_page(client, icp, engine):
+    keys = _seed(engine, icp, count=4)
+    client.put(f"/signals/{keys[3]}/feedback", json={"relevance": "not_relevant", "reason": "other"})
+    page = client.get("/signals?view=history&limit=2").json()
+    assert keys[3] not in {item["signal_id"] for item in page["items"]}
+    assert page["counts"]["ignored"] == 1
+    second = (
+        client.get(f"/signals?view=history&limit=2&cursor={page['page']['next_cursor']}").json()
+        if page["page"]["next_cursor"]
+        else {"items": []}
+    )
+    assert keys[3] not in {item["signal_id"] for item in second["items"]}
+
+
+def test_legacy_recency_value_in_status_is_still_understood(client, icp, engine):
+    _seed(engine, icp)
+    legacy = client.get("/signals?view=history&status=recent_award")
+    assert legacy.status_code == 200
+    explicit = client.get("/signals?view=history&recency_status=recent_award")
+    assert [i["signal_id"] for i in legacy.json()["items"]] == [
+        i["signal_id"] for i in explicit.json()["items"]
+    ]

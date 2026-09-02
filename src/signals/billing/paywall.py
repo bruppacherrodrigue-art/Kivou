@@ -94,10 +94,17 @@ LOCKED_HEADLINE: dict[str, dict[str, str]] = {
 }
 
 
-def locked_teaser(item: FeedSignal, *, lang: str) -> dict[str, Any]:
-    """L'aperçu verrouillé — construit champ par champ, jamais par soustraction."""
+def locked_teaser(item: FeedSignal, *, lang: str, status: str) -> dict[str, Any]:
+    """L'aperçu verrouillé — construit champ par champ, jamais par soustraction.
+
+    `status` est le statut UNIFIÉ (`new | saved | ignored | contacted`) du
+    signal pour ce compte — distinct du statut de récence de l'événement
+    (`item.status`, rendu dans `event.status` ci-dessous). Un signal verrouillé
+    reste jugeable de loin (§30 n'interdit que le jugement, pas l'affichage
+    d'un jugement déjà donné).
+    """
     feed_copy.check_language(lang)
-    status = item.status
+    recency_status = item.status
     award = item.signal.award
     date = item.event_date
     return {
@@ -105,12 +112,13 @@ def locked_teaser(item: FeedSignal, *, lang: str) -> dict[str, Any]:
         "target_icp_id": item.signal.target_icp_id,
         "locked": True,
         "unlock_required": "paid_plan",
+        "status": status,
         "event": {
-            "status": status,
-            "type": policy.customer_event_type(status),
+            "status": recency_status,
+            "type": policy.customer_event_type(recency_status),
             "date": date.isoformat() if date else None,
-            "why_now": feed_copy.WHY_NOW[status][lang],
-            "is_new_opportunity": status in policy.NEW_OPPORTUNITY_STATUSES,
+            "why_now": feed_copy.WHY_NOW[recency_status][lang],
+            "is_new_opportunity": recency_status in policy.NEW_OPPORTUNITY_STATUSES,
         },
         "context": {
             # Le pays de la SOURCE, pas la localité : une commune de mille
@@ -123,11 +131,13 @@ def locked_teaser(item: FeedSignal, *, lang: str) -> dict[str, Any]:
             "plausible_need_count": len(item.signal.plausible_needs or []),
         },
         # La phrase décrit l'ÉVÉNEMENT, jamais l'entreprise.
-        "headline": LOCKED_HEADLINE[status][lang],
+        "headline": LOCKED_HEADLINE[recency_status][lang],
     }
 
 
-def locked_detail(item: FeedSignal, *, lang: str, upgrade_to: Sequence[str]) -> dict[str, Any]:
+def locked_detail(
+    item: FeedSignal, *, lang: str, status: str, upgrade_to: Sequence[str]
+) -> dict[str, Any]:
     """Le détail d'un signal verrouillé : le même aperçu, et rien de plus.
 
     Rendre 404 aurait été plus simple, et faux : le compte POSSÈDE ce signal, il
@@ -143,7 +153,7 @@ def locked_detail(item: FeedSignal, *, lang: str, upgrade_to: Sequence[str]) -> 
     fenêtre d'historique, c'est-à-dire de dupliquer la règle d'accès dans la
     couche d'affichage.
     """
-    teaser = locked_teaser(item, lang=lang)
+    teaser = locked_teaser(item, lang=lang, status=status)
     teaser["access"] = {
         "granted": False,
         "reason": "plan_entitlement_required",

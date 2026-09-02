@@ -54,6 +54,8 @@ ERROR_CODES: tuple[str, ...] = (
     # SPEC-014 — retour client et notifications
     "invalid_feedback",
     "signal_not_accessible",
+    # PR1 — statut unifié new/saved/ignored/contacted
+    "invalid_status",
     "invalid_notification_email",
     # SPEC-026 — provider-specific, authenticated transport ingress.
     "instantly_webhook_unavailable",

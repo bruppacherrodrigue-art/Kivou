@@ -21,12 +21,14 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+from collections.abc import Callable
 from typing import Any
 
 import sqlalchemy as sa
 
 from signals.accounts.schema import target_icp
 from signals.domain.french_departments import location_subdivision
+from signals.engagement.status import UNIFIED_STATUSES
 from signals.feed import policy
 from signals.feed.history import (
     HistoryDateKind,
@@ -237,6 +239,11 @@ class FeedPage:
     excluded_without_display_name: int
     #: Combien ont été retirés par le mode de fraîcheur demandé.
     excluded_by_freshness: int
+    #: Les quatre statuts unifiés, comptés sur l'ensemble sélectionné AVANT le
+    #: filtre de statut. Toujours les quatre clés, même à zéro.
+    status_counts: dict[str, int] = dataclasses.field(
+        default_factory=lambda: {status: 0 for status in UNIFIED_STATUSES}
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -251,6 +258,11 @@ class HistoryFeedPage:
     scan_truncated: bool
     excluded_without_display_name: int
     excluded_by_filters: int
+    #: Les quatre statuts unifiés, comptés sur l'ensemble sélectionné AVANT le
+    #: filtre de statut. Toujours les quatre clés, même à zéro.
+    status_counts: dict[str, int] = dataclasses.field(
+        default_factory=lambda: {status: 0 for status in UNIFIED_STATUSES}
+    )
 
 
 @dataclasses.dataclass(frozen=True)
@@ -367,6 +379,11 @@ def feed_page(
     #: par défaut le capturerait à l'import, et un plafond qu'on ne peut plus
     #: changer est un plafond qu'on ne peut plus tester.
     scan_cap: int | None = None,
+    #: `signal_key -> statut unifié`. `None` = tout compte comme `new` et aucun
+    #: filtre de statut ne s'applique.
+    status_of: Callable[[str], str] | None = None,
+    #: `None` = pas de filtre de statut ; sinon les statuts admis dans la page.
+    statuses: frozenset[str] | None = None,
 ) -> FeedPage:
     """Une page du feed de CE compte, à CETTE date.
 
@@ -476,6 +493,13 @@ def feed_page(
         ]
     dropped = len(displayable) - len(selected)
 
+    resolver = status_of or (lambda _signal_key: "new")
+    status_counts = {status: 0 for status in UNIFIED_STATUSES}
+    for item in selected:
+        status_counts[resolver(item.signal.signal_key)] += 1
+    if statuses is not None:
+        selected = [item for item in selected if resolver(item.signal.signal_key) in statuses]
+
     selected.sort(key=lambda item: item.sort_key)
     page = selected[offset : offset + limit]
     return FeedPage(
@@ -486,6 +510,7 @@ def feed_page(
         scan_truncated=truncated,
         excluded_without_display_name=without_name,
         excluded_by_freshness=dropped,
+        status_counts=status_counts,
     )
 
 
@@ -536,6 +561,11 @@ def history_page(
     limit: int = policy.DEFAULT_PAGE_SIZE,
     cursor: str | None = None,
     scan_cap: int = HISTORY_SCAN_CAP,
+    #: `signal_key -> statut unifié`. `None` = tout compte comme `new` et aucun
+    #: filtre de statut ne s'applique.
+    status_of: Callable[[str], str] | None = None,
+    #: `None` = pas de filtre de statut ; sinon les statuts admis dans la page.
+    statuses: frozenset[str] | None = None,
 ) -> HistoryFeedPage:
     """Walk the complete owned history by factual date and a stable key.
 
@@ -587,6 +617,9 @@ def history_page(
     selected: list[FeedSignal] = []
     excluded_without_name = 0
     excluded_by_filters = 0
+    excluded_by_status = 0
+    status_counts = {status: 0 for status in UNIFIED_STATUSES}
+    resolver = status_of or (lambda _signal_key: "new")
     scanned = 0
     position = decoded
     exhausted = False
@@ -633,6 +666,11 @@ def history_page(
             ):
                 excluded_by_filters += 1
                 continue
+            unified = resolver(signal.signal_key)
+            status_counts[unified] += 1
+            if statuses is not None and unified not in statuses:
+                excluded_by_status += 1
+                continue
             if len(selected) == limit:
                 return HistoryFeedPage(
                     items=tuple(selected),
@@ -643,6 +681,7 @@ def history_page(
                     scan_truncated=False,
                     excluded_without_display_name=excluded_without_name,
                     excluded_by_filters=excluded_by_filters,
+                    status_counts=status_counts,
                 )
             selected.append(item)
             last_returned = current_position
@@ -670,6 +709,7 @@ def history_page(
         scan_truncated=truncated,
         excluded_without_display_name=excluded_without_name,
         excluded_by_filters=excluded_by_filters,
+        status_counts=status_counts,
     )
 
 

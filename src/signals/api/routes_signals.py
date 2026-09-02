@@ -31,7 +31,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, get_args
 
 import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request
@@ -60,6 +60,12 @@ from signals.companies.service import (
     company_keys_for_signals,
 )
 from signals.engagement import analytics, feedback
+from signals.engagement.status import (
+    DEFAULT_LISTING_STATUSES,
+    UNIFIED_STATUSES,
+    status_resolver,
+    unified_status,
+)
 from signals.feed import policy, query, view
 from signals.feed.history import InvalidHistoryCursor
 from signals.persistence.schema import materialized_signal
@@ -136,7 +142,8 @@ def list_signals(
         max_length=16,
         pattern=r"^[A-Z0-9-]+$",
     ),
-    status: HistoryStatus | None = None,
+    status: Annotated[list[str] | None, Query()] = None,
+    recency_status: HistoryStatus | None = None,
     cpv_prefix: str | None = Query(default=None, min_length=1, max_length=8, pattern=r"^\d+$"),
     date_from: dt.date | None = None,
     date_to: dt.date | None = None,
@@ -150,9 +157,35 @@ def list_signals(
     `limit` est plafonné par le serveur : un client ne peut pas demander la
     table entière, et `le=MAXIMUM_PAGE_SIZE` rend le refus explicite plutôt que
     de rogner la demande en silence.
+
+    `status` est répétable et mélange deux vocabulaires par compatibilité :
+    un statut unifié (`new | saved | ignored | contacted`) filtre la liste, et
+    une valeur de récence héritée (`recent_award`, …) est comprise comme
+    `recency_status` — le nom que porte désormais ce filtre.
     """
     now = request_now(request)
     as_of = now.date()
+
+    unified_selected: set[str] = set()
+    legacy_recency_values: list[str] = []
+    for value in status or ():
+        if value in UNIFIED_STATUSES:
+            unified_selected.add(value)
+        elif value in get_args(HistoryStatus):
+            legacy_recency_values.append(value)
+        else:
+            raise api_error(422, "invalid_status", f"statut inconnu : {value!r}")
+    if len(set(legacy_recency_values)) > 1:
+        raise api_error(
+            422, "invalid_status", "un seul statut de récence est admis par requête"
+        )
+    if legacy_recency_values:
+        legacy_recency_status = legacy_recency_values[0]
+        if recency_status is not None and recency_status != legacy_recency_status:
+            raise api_error(422, "invalid_status", "statut de récence ambigu")
+        recency_status = legacy_recency_status
+    statuses = frozenset(unified_selected) or DEFAULT_LISTING_STATUSES
+
     if cursor is not None and view_mode != "history":
         raise api_error(
             422,
@@ -161,7 +194,7 @@ def list_signals(
         )
     if view_mode != "history" and any(
         value is not None
-        for value in (date_from, date_to, subdivision_code, status, cpv_prefix)
+        for value in (date_from, date_to, subdivision_code, recency_status, cpv_prefix)
     ):
         raise api_error(
             422,
@@ -201,7 +234,7 @@ def list_signals(
                     "date_to": date_to,
                     "country": country,
                     "subdivision_code": subdivision_code,
-                    "status": status,
+                    "status": recency_status,
                     "primary_event": primary_event,
                     "cpv_prefix": cpv_prefix,
                     "winner": winner,
@@ -224,6 +257,11 @@ def list_signals(
             )
         )
         access = _grant_discovery(connection, session.account_id, access, allowed, now)
+        # §2 — une lecture groupée par requête ; le statut de chaque signal se
+        # dérive de là, jamais d'un aller-retour en base par carte.
+        resolve_status = status_resolver(
+            feedback.feedback_by_signal(connection, account_id=session.account_id)
+        )
         try:
             if view_mode == "history":
                 page = query.history_page(
@@ -235,13 +273,15 @@ def list_signals(
                     primary_event=primary_event,
                     country=country,
                     subdivision_code=subdivision_code,
-                    status=status,
+                    status=recency_status,
                     cpv_prefix=cpv_prefix,
                     date_from=date_from,
                     date_to=date_to,
                     winner=winner,
                     limit=limit,
                     cursor=cursor,
+                    status_of=resolve_status,
+                    statuses=statuses,
                 )
             else:
                 page = query.feed_page(
@@ -256,6 +296,8 @@ def list_signals(
                     winner=winner,
                     limit=limit,
                     offset=offset,
+                    status_of=resolve_status,
+                    statuses=statuses,
                 )
         except query.ForeignTargetIcp as error:
             # Le profil d'un autre compte se comporte comme un profil inexistant.
@@ -329,6 +371,7 @@ def list_signals(
                 presentation=presentations.get(item.signal.signal_key),
                 company_key=company_keys.get(item.signal.signal_key),
                 enrichment=enrichments.get(item.signal.signal_key),
+                status=resolve_status(item.signal.signal_key),
             )
             for item in page.items
         ],
@@ -343,6 +386,8 @@ def list_signals(
                 page.excluded_by_filters if view_mode == "history" else 0
             ),
         },
+        "counts": page.status_counts,
+        "counts_truncated": page.scan_truncated,
         "read_at": as_of.isoformat(),
         "freshness": "all" if view_mode == "history" else freshness,
         "view": view_mode,
@@ -390,11 +435,13 @@ def _render(
     presentation: PublishedCardPresentation | None,
     company_key: str | None,
     enrichment: WinnerEnrichmentView | None,
+    status: str,
 ) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
         card = view.feed_item(item, lang=lang, presentation=presentation)
         card["locked"] = False
+        card["status"] = status
         if company_key is not None:
             card["company_key"] = company_key
         if enrichment is not None:
@@ -402,7 +449,7 @@ def _render(
             if enrichment.official_name is not None:
                 card["company"]["name"] = enrichment.official_name
         return card
-    return paywall.locked_teaser(item, lang=lang)
+    return paywall.locked_teaser(item, lang=lang, status=status)
 
 
 def _grant_discovery(connection, account_id: str, access: FeedAccess, allowed, now):
@@ -522,12 +569,16 @@ def get_signal(
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
+    status = unified_status(interaction)
     if not access.is_unlocked(item):
         # Le compte POSSÈDE ce signal : répondre 404 confondrait « pas à vous »
         # et « pas encore accessible », et empêcherait de dire ce que le
         # paiement débloquerait.
         locked = paywall.locked_detail(
-            item, lang=lang, upgrade_to=eligible_upgrade_plans(item, access=access)
+            item,
+            lang=lang,
+            status=status,
+            upgrade_to=eligible_upgrade_plans(item, access=access),
         )
         locked["read_at"] = as_of.isoformat()
         locked["language"] = lang
@@ -537,6 +588,7 @@ def get_signal(
     detail["read_at"] = as_of.isoformat()
     detail["language"] = lang
     detail["locked"] = False
+    detail["status"] = status
     if company_key is not None:
         detail["company_key"] = company_key
     if enrichment is not None:

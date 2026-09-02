@@ -135,6 +135,20 @@ def get_feedback(
     return None if row is None else _row(row)
 
 
+def feedback_by_signal(
+    connection: sa.Connection, *, account_id: str
+) -> dict[str, StoredFeedback]:
+    """Toutes les lignes de retour du compte, indexées par signal — une requête.
+
+    Le statut unifié (`engagement.status`) se dérive par signal ; le lire un
+    par un ferait un N+1 sur chaque page du feed.
+    """
+    rows = connection.execute(
+        sa.select(signal_feedback).where(signal_feedback.c.account_id == account_id)
+    ).all()
+    return {row.signal_key: _row(row) for row in rows}
+
+
 @dataclasses.dataclass(frozen=True)
 class SignalContext:
     """Ce que le client avait sous les yeux — figé, jamais recalculé (§32)."""
