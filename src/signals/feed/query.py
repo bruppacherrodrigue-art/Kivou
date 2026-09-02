@@ -26,6 +26,7 @@ from typing import Any
 import sqlalchemy as sa
 
 from signals.accounts.schema import target_icp
+from signals.domain.french_departments import location_subdivision
 from signals.feed import policy
 from signals.feed.history import (
     HistoryDateKind,
@@ -415,13 +416,35 @@ def feed_page(
     displayable: list[FeedSignal] = []
     without_name = 0
     truncated = False
+    # §31 — un curseur de clé plutôt qu'un `OFFSET` : l'ordre de
+    # `_ownership_scoped` est total (`materialized_at DESC, signal_key ASC`),
+    # donc chaque lot repart exactement où le précédent s'est arrêté. Un
+    # `OFFSET` relirait et jetterait toutes les lignes déjà vues à chaque lot,
+    # ce qui fait rejouer l'intégralité de la jointure au dernier appel.
+    last_at: dt.datetime | None = None
+    last_key: str | None = None
     while True:
         batch_limit = min(RECENT_SCAN_BATCH, row_ceiling - rows_read)
+        batch_query = query
+        if last_key is not None:
+            batch_query = batch_query.where(
+                sa.or_(
+                    materialized_signal.c.materialized_at < last_at,
+                    sa.and_(
+                        materialized_signal.c.materialized_at == last_at,
+                        materialized_signal.c.signal_key > last_key,
+                    ),
+                )
+            )
         # Une ligne de plus que le lot : c'est ainsi qu'on SAIT s'il en reste.
-        rows = connection.execute(query.limit(batch_limit + 1).offset(rows_read)).all()
+        rows = connection.execute(batch_query.limit(batch_limit + 1)).all()
         more_rows = len(rows) > batch_limit
         rows = rows[:batch_limit]
         rows_read += len(rows)
+        if rows:
+            last_row = rows[-1]
+            last_at = last_row.materialized_at
+            last_key = last_row.signal_key
         candidates = [_reassess(row, owned, account_id, as_of) for row in rows]
         identities = resolve_display_identity(connection, [item.signal for item in candidates])
         for item in candidates:
@@ -598,7 +621,10 @@ def history_page(
             )
             place = signal.award.place_of_performance or {}
             if (
-                (subdivision_code is not None and place.get("subdivision_code") != subdivision_code)
+                (
+                    subdivision_code is not None
+                    and location_subdivision(place) != subdivision_code
+                )
                 or (status is not None and item.status != status)
                 or (
                     primary_event is not None

@@ -64,23 +64,32 @@ def _amount(value: Decimal | None, currency: str | None) -> dict[str, Any] | Non
 def _buyer(procedure_buyers: list[dict[str, Any]]) -> dict[str, Any] | None:
     """L'acheteur tel que publié — et `name: None` quand la source n'a publié
     qu'un identifiant (DECP 2022). La règle §19 vaut pour lui comme pour le
-    titulaire : un SIRET n'est pas un nom."""
-    if not procedure_buyers:
-        return None
-    first = procedure_buyers[0]
-    identifiers = first.get("identifiers") or []
-    identifier = identifiers[0] if identifiers else None
-    identifier_value = None if identifier is None else identifier.get("value")
-    legal_name = first.get("legal_name")
-    return {
-        "name": legal_name if is_customer_display_name(legal_name, identifier_value) else None,
-        "country": first.get("country"),
-        "identifier": (
-            None
-            if identifier is None
-            else {"scheme": identifier.get("scheme"), "value": identifier_value}
-        ),
-    }
+    titulaire : un SIRET n'est pas un nom.
+
+    Plusieurs acheteurs peuvent être publiés pour une même procédure ; le
+    premier n'est pas forcément celui qui porte un nom (mêmes symptômes que
+    l'attributaire côté `resolve_display_identity`). On rend le premier qui en
+    a un, et seulement à défaut le premier de la liste avec `name: None`."""
+    fallback: dict[str, Any] | None = None
+    for buyer in procedure_buyers:
+        identifiers = buyer.get("identifiers") or []
+        identifier = identifiers[0] if identifiers else None
+        identifier_value = None if identifier is None else identifier.get("value")
+        legal_name = buyer.get("legal_name")
+        record = {
+            "name": legal_name if is_customer_display_name(legal_name, identifier_value) else None,
+            "country": buyer.get("country"),
+            "identifier": (
+                None
+                if identifier is None
+                else {"scheme": identifier.get("scheme"), "value": identifier_value}
+            ),
+        }
+        if record["name"] is not None:
+            return record
+        if fallback is None:
+            fallback = record
+    return fallback
 
 
 def _location(place: dict[str, Any] | None) -> dict[str, Any] | None:
