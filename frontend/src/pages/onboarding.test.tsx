@@ -9,6 +9,7 @@ import { AppRoutes } from '../App'
 import type { TargetIcpInput } from '../api/types'
 import { useSession } from '../auth/SessionProvider'
 import { fr } from '../i18n/fr'
+import { withRenderableSpaces } from '../i18n'
 import {
   UnknownTargetingToken,
   toTargetIcpPayload,
@@ -1421,11 +1422,11 @@ describe('gestion des profils', () => {
     expect(territories).not.toHaveTextContent(/\bCH\b/)
     const threshold = within(card).getByText('Montant minimum').closest('div')!
     expect(threshold.querySelector('dd')?.textContent).toBe(
-      new Intl.NumberFormat('fr-FR', {
+      withRenderableSpaces(new Intl.NumberFormat('fr-FR', {
         style: 'currency',
         currency: 'CHF',
         maximumFractionDigits: 0,
-      }).format(75000),
+      }).format(75000)),
     )
     expect(within(card).getByText('Ce que vous vendez').closest('div')).toHaveTextContent(
       'Composants bois livrés sur chantier.',
@@ -1458,11 +1459,11 @@ describe('gestion des profils', () => {
     )
     const threshold = within(card).getByText('Minimum amount').closest('div')!
     expect(threshold.querySelector('dd')?.textContent).toBe(
-      new Intl.NumberFormat('en-GB', {
+      withRenderableSpaces(new Intl.NumberFormat('en-GB', {
         style: 'currency',
         currency: 'EUR',
         maximumFractionDigits: 0,
-      }).format(50000),
+      }).format(50000)),
     )
     expect(within(card).getByText('What you sell').closest('div')).toHaveTextContent(
       'Timber components delivered to site.',
