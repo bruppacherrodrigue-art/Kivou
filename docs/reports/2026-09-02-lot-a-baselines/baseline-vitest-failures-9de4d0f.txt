@@ -1,0 +1,90 @@
+src/companies/companyProfile.test.tsx > fiche entreprise officielle dans le workspace autorisé > garde les champs absents honnêtes et annonce une couverture partielle une seule fois
+src/companies/companyProfile.test.tsx > fiche entreprise officielle dans le workspace autorisé > ne lit ni n’écrit aucun fait d’entreprise dans le stockage navigateur
+src/companies/companyProfile.test.tsx > fiche entreprise officielle dans le workspace autorisé > n’invente aucun contrôle de site externe pour une URL HTTPS
+src/companies/companyProfile.test.tsx > fiche entreprise officielle dans le workspace autorisé > n’invente aucun contrôle de site externe pour une URL locale interdite
+src/companies/companyProfile.test.tsx > fiche entreprise officielle dans le workspace autorisé > présente un chargement structuré puis une action clavier nommée
+src/companies/companyProfile.test.tsx > fiche entreprise officielle dans le workspace autorisé > rend en français le contexte de l’attribution depuis les champs déjà autorisés
+src/companies/companyProfile.test.tsx > fiche entreprise officielle dans le workspace autorisé > rend le même degré de certitude et les actions réelles en anglais
+src/companies/companyProfile.test.tsx > fiche entreprise officielle dans le workspace autorisé > réessaie localement une panne 503 sans relire le feed ni les détails autorisés
+src/companies/companyProfile.test.tsx > fiche entreprise officielle dans le workspace autorisé > traverse la route profonde seulement après le feed déverrouillé porteur de la clé
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > annonce une résolution tronquée sans présenter la liste comme exhaustive
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > annule les données privées tardives lorsque le compte connecté change
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > autorise une route profonde seulement après avoir découvert sa clé en page suivante
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > canonise une route entreprise autorisée avec le signal explicite
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > conserve la composition, les libellés anglais et un seul main/h1
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > conserve le focus mobile sur le détail terminal, y compris en retapant la sélection active
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > conserve les entreprises déjà autorisées quand une page suivante échoue et annonce le résultat partiel
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > garde les clés autorisées si le feed en omet une et permet une reprise honnête
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > ignore le profil obsolète après une nouvelle sélection et conserve la navigation réelle
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > ne demande une route profonde autorisée qu’après le feed qui fournit sa clé
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > ne lance aucun détail lorsqu’un changement de compte remplace un grand feed
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > ne peint ni erreur ni identité du profil A pendant le chargement du profil B
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > pagine tout le feed, déduplique et conserve l’ordre de découverte serveur
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > présente chaque attribution comme une carte distincte, même pour la même entreprise
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > préserve le scroll de la liste et restaure son focus avec l’historique mobile
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > remonte le détail sans déplacer la liste lors d’un changement d’attribution
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > réessaie uniquement le profil après une panne du GET entreprise autorisé
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > résout les entreprises depuis le feed sans N+1 de détails
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > échoue fermé face à artefact feed invalide sans reconstruire depuis les champs bruts
+src/companies/referenceCompanies.test.tsx > workspace Entreprises exact et borné par les signaux accessibles > échoue fermé face à aucun artefact feed sans reconstruire depuis les champs bruts
+src/pages/dashboard.test.tsx > accueil connecté > rend une seule ligne entreprise depuis le feed sans demander aucun détail
+src/pages/dashboard.test.tsx > autorités, navigation et garde-fous Overview > préserve l’historique Dashboard vers Signaux et retour/avance
+src/pages/dashboard.test.tsx > vue d’ensemble exacte connectée > sélectionne dans le feed le premier signal ouvert reçu sans demander le teaser verrouillé
+src/pages/referenceResourceStates.test.tsx > états indépendants des vues de référence > conserve le détail quand la note privée échoue
+src/pages/referenceResponsiveContract.test.tsx > contrat responsive connecté à 390 px > conserve la demande de focus jusqu’à la réponse terminale du détail
+src/pages/referenceResponsiveContract.test.tsx > contrat responsive connecté à 390 px > conserve un main, un h1, la navigation mobile et un retour vers la liste
+src/pages/referenceResponsiveContract.test.tsx > contrat responsive connecté à 390 px > focalise le titre du détail puis rend le focus à la ligne choisie
+src/pages/referenceResponsiveContract.test.tsx > contrat responsive connecté à 390 px > préserve exactement les breakpoints et la réduction de mouvement approuvés
+src/reference/dashboard/adapters.test.ts > adaptateurs de présentation du dashboard de référence > ignore aussi un ancien fallback de présentation sur la page Signaux
+src/reference/dashboard/adapters.test.ts > adaptateurs de présentation du dashboard de référence > le détail Signaux ne lit ni besoin plausible, ni fit, ni présentation
+src/reference/dashboard/adapters.test.ts > adaptateurs de présentation du dashboard de référence > mappe le détail sans requalifier les faits publiés en périmètre
+src/reference/dashboard/adapters.test.ts > adaptateurs de présentation du dashboard de référence > mappe une carte déverrouillée uniquement depuis le contrat de feed
+src/reference/dashboard/adapters.test.ts > adaptateurs de présentation du dashboard de référence > ne promeut jamais le titre administratif du contrat dans la copie de carte
+src/reference/dashboard/adapters.test.ts > adaptateurs de présentation du dashboard de référence > préfère le contrat factuel serveur et ignore tout contenu commercial sur Signaux
+src/reference/dashboard/adapters.test.ts > adaptateurs de présentation du dashboard de référence > rejette un contrat factuel invalide : clé supplémentaire
+src/reference/dashboard/adapters.test.ts > adaptateurs de présentation du dashboard de référence > rejette un contrat factuel invalide : complétude inconnue
+src/reference/dashboard/adapters.test.ts > adaptateurs de présentation du dashboard de référence > rejette un contrat factuel invalide : résumé et objet divergents
+src/signals/detail.test.tsx > détail factuel d’un signal > affiche les absences de montant et de lieu sans les inventer
+src/signals/detail.test.tsx > détail factuel d’un signal > affiche les preuves publiques et uniquement les liens HTTPS sûrs
+src/signals/detail.test.tsx > détail factuel d’un signal > affiche l’historique Kivou de la gagnante sans besoin commercial
+src/signals/detail.test.tsx > détail factuel d’un signal > charge un deep-link directement, sans scanner les pages ni transmettre d’artefact IA
+src/signals/detail.test.tsx > détail factuel d’un signal > conserve SignalDetail comme alias du workspace partagé
+src/signals/detail.test.tsx > détail factuel d’un signal > distingue une fiche entreprise en chargement du détail déjà disponible
+src/signals/detail.test.tsx > détail factuel d’un signal > garde le feed visible et permet de réessayer un détail en panne
+src/signals/detail.test.tsx > détail factuel d’un signal > met l’entreprise et le marché au premier plan sans identifiant administratif
+src/signals/detail.test.tsx > détail factuel d’un signal > n’affiche aucune analyse, personne, urgence, cible ou recommandation héritée
+src/signals/detail.test.tsx > détail factuel d’un signal > n’invente rien quand le contrat factuel est invalide
+src/signals/detail.test.tsx > détail factuel d’un signal > relègue les identifiants et le titre administratif dans la section repliée
+src/signals/detail.test.tsx > détail factuel d’un signal > rend honnêtement l’état d’enrichissement failed
+src/signals/detail.test.tsx > détail factuel d’un signal > rend honnêtement l’état d’enrichissement in_progress
+src/signals/detail.test.tsx > détail factuel d’un signal > rend honnêtement l’état d’enrichissement pending
+src/signals/detail.test.tsx > détail factuel d’un signal > rend la fiche entreprise enrichie et sa provenance factuelle
+src/signals/detail.test.tsx > détail factuel d’un signal > rend l’échec entreprise récupérable sans masquer les faits du marché
+src/signals/detail.test.tsx > détail factuel d’un signal > rend un enrichissement partiel avec les champs manquants explicites
+src/signals/detail.test.tsx > détail factuel d’un signal > respecte la hiérarchie entreprise, résumé, faits, fiche, historique, preuves et manques
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > choisit le premier élément réellement déverrouillé sans promouvoir le teaser précédent
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > déduplique une page suivante qui recouvre la page précédente
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > formate et traduit selon la locale du compte
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > garde les cartes et réessaie localement une page suivante en échec
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > hiérarchise les valeurs réelles et conserve strictement l’ordre serveur
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > ignore un ancien artefact FALLBACK et consomme seulement le contrat factuel
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > ignore un ancien artefact FULL et toute analyse pendant la phase factuelle
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > libelle une date award sans en changer le sens
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > libelle une date notification sans en changer le sens
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > libelle une date publication sans en changer le sens
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > ne présente jamais une date de publication comme une date d’attribution
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > reste neutre sans présentation et n’invente ni urgence ni priorité
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > traite un couple statut variante invalide reçue du feed API comme une présentation absente
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > traite une claim avec evidence_refs vide reçue du feed API comme une présentation absente
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > traite une claim mal formée reçue du feed API comme une présentation absente
+src/signals/feed.test.tsx > feed de signaux dans le workspace de référence > traite une claim sans evidence_refs reçue du feed API comme une présentation absente
+src/signals/referenceSignalWorkspace.test.tsx > workspace Signaux de référence connecté aux données réelles > ouvre un signal réel par son paramètre de chemin dans le master/detail exact
+src/signals/referenceSignalWorkspace.test.tsx > workspace Signaux de référence connecté aux données réelles > vide le brouillon de l’ancienne sélection et ne lit aucune note verrouillée
+src/signals/signalWorkspace.test.tsx > navigation et historique du workspace Signaux > affiche Retour si le viewport devient single-pane via l’API legacy
+src/signals/signalWorkspace.test.tsx > navigation et historique du workspace Signaux > affiche Retour si le viewport devient single-pane via l’API moderne
+src/signals/signalWorkspace.test.tsx > navigation et historique du workspace Signaux > conserve filtres, sélection et paramètres dans l’URL et la pagination
+src/signals/signalWorkspace.test.tsx > navigation et historique du workspace Signaux > focalise le détail en vue étroite puis rend le focus et le scroll à la liste
+src/signals/signalWorkspace.test.tsx > navigation et historique du workspace Signaux > ne fait jamais défiler la fenêtre globale lors d’une sélection
+src/signals/signalWorkspace.test.tsx > navigation et historique du workspace Signaux > pagine l’historique par curseur opaque, déduplique et conserve l’ordre serveur
+src/signals/signalWorkspace.test.tsx > navigation et historique du workspace Signaux > préserve le scroll de la liste et remonte seulement le panneau détail
+src/signals/signalWorkspace.test.tsx > navigation et historique du workspace Signaux > restaure un signal sélectionné au rechargement par deep-link

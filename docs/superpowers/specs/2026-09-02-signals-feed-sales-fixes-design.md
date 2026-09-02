@@ -113,8 +113,8 @@ que le lot B (ou une tâche dédiée) les reprenne en connaissance de cause.
    test de génération SQL PostgreSQL hors ligne.
 3. **90 tests vitest et 9 goldens Playwright d'autres pages** échouaient
    déjà sur la branche de design avant le lot A — listés dans
-   `.superpowers/sdd/2026-09-02-signals-feed-sales-fixes-lot-a/baseline-vitest-failures-9de4d0f.txt`
-   et `.superpowers/sdd/2026-09-02-signals-feed-sales-fixes-lot-a/playwright-results-8236aa8.txt`
+   `docs/reports/2026-09-02-lot-a-baselines/baseline-vitest-failures-9de4d0f.txt`
+   et `docs/reports/2026-09-02-lot-a-baselines/playwright-results-8236aa8.txt`
    (`dashboard-login`, `dashboard-overview`, `dashboard-companies`,
    `dashboard-account`, `dashboard sidebar open mobile`). Le lot A n'a pas
    ajouté à ces échecs, mais ne les corrige pas non plus ; à traiter avec

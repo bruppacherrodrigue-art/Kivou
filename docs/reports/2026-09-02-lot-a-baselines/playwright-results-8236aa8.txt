@@ -1,0 +1,44 @@
+  ✓   1 tests/visual/reference-port.spec.ts:54:1 › dashboard-signals adversarial fixture contract
+  ✓   2 tests/visual/reference-port.spec.ts:85:1 › dashboard-companies published fixture contract
+  ✓   3 tests/visual/reference-port.spec.ts:430:5 › public-home desktop
+  ✓   4 tests/visual/reference-port.spec.ts:430:5 › public-home mobile
+  ✓   5 tests/visual/reference-port.spec.ts:430:5 › public-product desktop
+  ✓   6 tests/visual/reference-port.spec.ts:430:5 › public-product mobile
+  ✓   7 tests/visual/reference-port.spec.ts:430:5 › public-pricing desktop
+  ✓   8 tests/visual/reference-port.spec.ts:430:5 › public-pricing mobile
+  ✓   9 tests/visual/reference-port.spec.ts:430:5 › public-signal desktop
+  ✓  10 tests/visual/reference-port.spec.ts:430:5 › public-signal mobile
+  ✓  11 tests/visual/reference-port.spec.ts:430:5 › public-contact desktop
+  ✓  12 tests/visual/reference-port.spec.ts:430:5 › public-contact mobile
+  ✓  13 tests/visual/reference-port.spec.ts:430:5 › public-legal desktop
+  ✓  14 tests/visual/reference-port.spec.ts:430:5 › public-legal mobile
+  ✘  15 tests/visual/reference-port.spec.ts:430:5 › dashboard-login desktop
+  ✘  16 tests/visual/reference-port.spec.ts:430:5 › dashboard-login mobile
+  ✓  17 tests/visual/reference-port.spec.ts:430:5 › dashboard-signup desktop
+  ✓  18 tests/visual/reference-port.spec.ts:430:5 › dashboard-signup mobile
+  ✘  19 tests/visual/reference-port.spec.ts:430:5 › dashboard-overview desktop
+  ✘  20 tests/visual/reference-port.spec.ts:430:5 › dashboard-overview mobile
+  ✓  21 tests/visual/reference-port.spec.ts:430:5 › dashboard-signals desktop
+  ✓  22 tests/visual/reference-port.spec.ts:430:5 › dashboard-signals mobile
+  ✘  23 tests/visual/reference-port.spec.ts:430:5 › dashboard-companies desktop
+  ✘  24 tests/visual/reference-port.spec.ts:430:5 › dashboard-companies mobile
+  ✓  25 tests/visual/reference-port.spec.ts:430:5 › dashboard-targeting desktop
+  ✓  26 tests/visual/reference-port.spec.ts:430:5 › dashboard-targeting mobile
+  ✘  27 tests/visual/reference-port.spec.ts:430:5 › dashboard-account desktop
+  ✘  28 tests/visual/reference-port.spec.ts:430:5 › dashboard-account mobile
+  ✓  29 tests/visual/reference-port.spec.ts:457:1 › dashboard-signals factual history state matrix and pane navigation
+  ✓  30 tests/visual/reference-port.spec.ts:546:1 › public menu open mobile
+  ✘  31 tests/visual/reference-port.spec.ts:563:1 › dashboard sidebar open mobile
+  ✓  32 tests/visual/reference-port.spec.ts:580:1 › connected text normalization survives a late shell rerender
+  ✓  33 tests/visual/reference-port.spec.ts:605:1 › connected scroll normalization survives a late history restoration
+    Error: expect(Buffer).toMatchSnapshot(expected) failed
+    Error: expect(Buffer).toMatchSnapshot(expected) failed
+    Error: expect(Buffer).toMatchSnapshot(expected) failed
+    Error: expect(Buffer).toMatchSnapshot(expected) failed
+    Error: expect(locator).toHaveAttribute(expected) failed
+    Error: expect(locator).toHaveAttribute(expected) failed
+    Error: expect(Buffer).toMatchSnapshot(expected) failed
+    Error: expect(Buffer).toMatchSnapshot(expected) failed
+    Error: expect(Buffer).toMatchSnapshot(expected) failed
+  9 failed
+  24 passed (1.0m)
