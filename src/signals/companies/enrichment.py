@@ -22,9 +22,18 @@ from signals.companies.contracts import (
     WinnerEnrichmentView,
     safe_https_url,
 )
+from signals.companies.france import (
+    ANNUAIRE_CONNECTOR,
+    FrenchOfficialCompanyClient,
+    FrenchOfficialCompanyError,
+)
+from signals.companies.identity import official_siret_identity
 from signals.companies.indexing import index_signal_company_identity
 from signals.companies.schema import saas_company, winner_enrichment_job
-from signals.companies.store import get_or_create_company
+from signals.companies.store import (
+    get_or_create_company,
+    refresh_company_official_identity,
+)
 from signals.persistence.schema import contract_award, materialized_signal, source_event
 
 MAX_ENRICHMENT_ATTEMPTS = 3
@@ -166,6 +175,28 @@ def _is_complete(official: Any, identity_method: str) -> bool:
     )
 
 
+def _exact_french_siret(indexed: Any) -> str | None:
+    official = indexed.resolved.official
+    if official.country != "FR":
+        return None
+    return next(
+        (
+            identifier.value
+            for identifier in official.identifiers
+            if identifier.scheme.casefold() == "siret"
+            and re.fullmatch(r"\d{14}", identifier.value)
+        ),
+        None,
+    )
+
+
+def _needs_official_register(indexed: Any) -> bool:
+    name = indexed.resolved.official.name.strip()
+    return not any(character.isalpha() for character in name) or bool(
+        re.fullmatch(r"\D*\d{14}\D*", name)
+    )
+
+
 def _finish(
     connection: sa.Connection,
     *,
@@ -206,6 +237,7 @@ def run_winner_enrichment_batch(
     worker_ref: str,
     limit: int = 100,
     retry_failed: bool = False,
+    official_company_provider: FrenchOfficialCompanyClient | None = None,
 ) -> WinnerEnrichmentBatch:
     """Project a bounded batch from database facts; never start automatically."""
 
@@ -234,13 +266,41 @@ def run_winner_enrichment_batch(
             )
             counts["failed"] += 1
             continue
+        resolved = indexed.resolved
+        siret = _exact_french_siret(indexed)
+        if official_company_provider is not None and siret and _needs_official_register(indexed):
+            try:
+                observation = official_company_provider.fetch_siret(siret)
+            except FrenchOfficialCompanyError as error:
+                _finish(
+                    connection,
+                    signal_key=signal_key,
+                    status="failed",
+                    now=now,
+                    fingerprint=resolved.identity_fingerprint,
+                    error_code=error.code,
+                )
+                counts["failed"] += 1
+                continue
+            resolved = official_siret_identity(
+                siret=observation.siret,
+                legal_name=observation.legal_name,
+                address=observation.address,
+                observed_at=observation.observed_at,
+            )
         stored = get_or_create_company(
             connection,
-            resolved=indexed.resolved,
+            resolved=resolved,
             source_award_key=indexed.source_award_key,
             origin_signal_key=signal_key,
             now=now,
         )
+        if resolved.official.source == "official_register":
+            stored = refresh_company_official_identity(
+                connection,
+                resolved=resolved,
+                now=now,
+            ) or stored
         status = (
             "completed"
             if _is_complete(stored.official_identity, stored.identity_method.value)
@@ -306,9 +366,12 @@ def winner_enrichments_for_signals(
             winner_enrichment_job,
             saas_company.c.company_key,
             saas_company.c.identity_method,
+            saas_company.c.official_name,
             saas_company.c.official_country,
             saas_company.c.official_address,
             saas_company.c.official_website_url,
+            saas_company.c.official_identifiers,
+            saas_company.c.official_source,
             saas_company.c.official_observed_at,
             source_notice.c.source_system,
             source_notice.c.source_notice_id,
@@ -343,20 +406,58 @@ def winner_enrichments_for_signals(
     return {
         row["signal_key"]: WinnerEnrichmentView(
             status=row["status"],
+            official_name=row["official_name"],
             missing_fields=_missing(row),
             last_verified_at=_aware(
                 row["official_observed_at"] or row["finished_at"]
             ),
             error_code=row["error_code"],
             source=WinnerEnrichmentSource(
-                connector=row["source_system"],
-                notice_id=row["source_notice_id"],
-                url=_safe_source_url(row["source_url"]),
-                retrieved_at=_aware(row["discovered_at"]),
+                kind=(
+                    "official_register"
+                    if row["official_source"] == "official_register"
+                    else "public_notice"
+                ),
+                connector=(
+                    ANNUAIRE_CONNECTOR
+                    if row["official_source"] == "official_register"
+                    else row["source_system"]
+                ),
+                notice_id=(
+                    _official_siret(row["official_identifiers"])
+                    if row["official_source"] == "official_register"
+                    else row["source_notice_id"]
+                ),
+                url=(
+                    _annuaire_url(row["official_identifiers"])
+                    if row["official_source"] == "official_register"
+                    else _safe_source_url(row["source_url"])
+                ),
+                retrieved_at=_aware(
+                    row["official_observed_at"]
+                    if row["official_source"] == "official_register"
+                    else row["discovered_at"]
+                ),
             ),
         )
         for row in rows
     }
+
+
+def _official_siret(identifiers: Any) -> str:
+    for identifier in identifiers or []:
+        if not isinstance(identifier, dict):
+            continue
+        value = str(identifier.get("value") or "")
+        if str(identifier.get("scheme") or "").casefold() == "siret" and re.fullmatch(
+            r"\d{14}", value
+        ):
+            return value
+    raise ValueError("official-register company is missing its exact SIRET")
+
+
+def _annuaire_url(identifiers: Any) -> str:
+    return f"https://annuaire-entreprises.data.gouv.fr/entreprise/{_official_siret(identifiers)[:9]}"
 
 
 __all__ = [

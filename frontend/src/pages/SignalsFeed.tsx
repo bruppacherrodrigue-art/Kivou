@@ -355,6 +355,19 @@ export function SignalsFeed() {
   }, [items, location.state])
 
   const cards = items.map(toSignalCard)
+  const companyRows = (() => {
+    const grouped = new Map<string, { key: string; name: string | null; cards: SignalCardView[] }>()
+    cards.forEach((card, index) => {
+      const item = items[index]
+      const companyKey = !item.locked && item.company_key
+        ? `company:${item.company_key}`
+        : `signal:${card.id}`
+      const current = grouped.get(companyKey)
+      if (current) current.cards.push(card)
+      else grouped.set(companyKey, { key: companyKey, name: card.companyName, cards: [card] })
+    })
+    return [...grouped.values()]
+  })()
   const visibleDetail = detail.key === selectedKey
     ? detail
     : { key: selectedKey, data: null, loading: Boolean(selectedKey), error: null }
@@ -418,14 +431,6 @@ export function SignalsFeed() {
     ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
     : t.reference.missingValue
   const displayDate = (value: string | null) => date(value) ?? t.reference.missingValue
-  const displayDateLabel = (card: SignalCardView) => {
-    switch (card.eventDateKind) {
-      case 'award': return t.reference.fields.signalDateAward
-      case 'notification': return t.reference.fields.signalDateNotification
-      case 'publication': return t.reference.fields.signalDatePublication
-      case 'unknown': return t.reference.signalsPage.unknownDate
-    }
-  }
   const displayLocation = (card: SignalCardView) => {
     if (!card.location) return t.reference.missingValue
     return [
@@ -540,10 +545,12 @@ export function SignalsFeed() {
               <span className="signal-event">{t.reference.messages.loadError}</span>
               <button type="button" className="source-link" onClick={() => void loadFeed()}>{t.reference.retry}</button>
             </div>
-          ) : cards.length === 0 ? (
+          ) : companyRows.length === 0 ? (
             <div className="signal-item"><span className="signal-event">{t.reference.signalsPage.empty}</span></div>
-          ) : cards.map((card) => {
-            const selected = card.id === selectedKey
+          ) : companyRows.map((companyRow) => {
+            const selectedCard = companyRow.cards.find((candidate) => candidate.id === selectedKey)
+            const card = selectedCard ?? companyRow.cards[0]
+            const selected = selectedCard !== undefined
             const status = cardStatus(card)
             const selectedNoteIsKnown = selected && note.state !== 'loading' && note.state !== 'read-error'
             const hasSelectedNote = selectedNoteIsKnown && note.value.trim().length > 0
@@ -552,8 +559,10 @@ export function SignalsFeed() {
               <button
                 type="button"
                 ref={(node) => {
-                  if (node) rowRefs.current.set(card.id, node)
-                  else rowRefs.current.delete(card.id)
+                  for (const award of companyRow.cards) {
+                    if (node) rowRefs.current.set(award.id, node)
+                    else rowRefs.current.delete(award.id)
+                  }
                 }}
                 className={`signal-item${selected ? ' is-selected' : ''}${card.locked ? ' is-locked' : ''}`}
                 aria-label={card.locked
@@ -583,17 +592,25 @@ export function SignalsFeed() {
                     state: selectionState(card.id, location.search, true),
                   })
                 }}
-                key={card.id}
+                key={companyRow.key}
               >
                 <span className="signal-item-head">
-                  <strong>{card.locked ? t.reference.missingValue : card.companyName}</strong>
+                  <strong>{card.locked ? t.reference.missingValue : companyRow.name}</strong>
                   <span className={`data-status-${status.key}`}>{status.label}</span>
                 </span>
-                <span className="signal-event">{cardTitle}</span>
-                {!card.locked ? <span className="signal-card-summary">{card.objectShort ?? t.reference.missingValue}</span> : null}
-                {!card.locked && card.buyerName ? <span className="signal-meta">{t.reference.fields.signalBuyer} : {card.buyerName}</span> : null}
-                <span className="signal-meta">{displayAmount(card)} · {displayLocation(card)}</span>
-                <span className="signal-fit"><span>{displayDateLabel(card)}</span> : {displayDate(card.eventDate)}</span>
+                <span className={styles.awardCount}>
+                  {companyRow.cards.length} attribution{companyRow.cards.length > 1 ? 's' : ''}
+                </span>
+                <span className={styles.awardContexts}>
+                  {companyRow.cards.map((award) => (
+                    <span className={styles.awardContext} key={award.id}>
+                      <strong>{award.eventTitle ?? t.reference.missingValue}</strong>
+                      <small>
+                        {displayAmount(award)} · {displayLocation(award)} · {displayDate(award.eventDate)}
+                      </small>
+                    </span>
+                  ))}
+                </span>
                 {card.locked ? (
                   <span className="signal-reason signal-lock-note"><LockKeyhole aria-hidden="true" />{t.reference.signalsPage.lockedReason}</span>
                 ) : <span className="signal-card-action">{t.reference.signalsPage.viewPublishedFacts}</span>}
@@ -616,7 +633,7 @@ export function SignalsFeed() {
           <button type="button" className="text-link" disabled={loadingMore} onClick={() => void loadMore()}>
             {loadingMore ? t.reference.loading : t.reference.signalsPage.loadMore}
           </button>
-        ) : feed.data && cards.length > 0 ? <p className="signal-limit">{t.reference.signalsPage.endOfList}</p> : null}
+        ) : feed.data && companyRows.length > 0 ? <p className="signal-limit">{t.reference.signalsPage.endOfList}</p> : null}
       </aside>
 
       <section

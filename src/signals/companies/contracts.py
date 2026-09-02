@@ -86,14 +86,14 @@ class CompanyOfficialIdentity(CompanyContract):
     )
     website_url: Annotated[str, StringConstraints(max_length=2_048)] | None = None
     observed_at: dt.datetime
-    source: Literal["public_notice"] = "public_notice"
+    source: Literal["public_notice", "official_register"] = "public_notice"
 
     _safe_website = field_validator("website_url")(safe_https_url)
     _aware_observation = field_validator("observed_at")(aware_datetime)
 
 
 class WinnerEnrichmentSource(CompanyContract):
-    kind: Literal["public_notice"] = "public_notice"
+    kind: Literal["public_notice", "official_register"] = "public_notice"
     connector: ShortText
     notice_id: ShortText
     url: Annotated[str, StringConstraints(max_length=2_048)] | None = None
@@ -105,6 +105,7 @@ class WinnerEnrichmentSource(CompanyContract):
 
 class WinnerEnrichmentView(CompanyContract):
     status: Literal["pending", "in_progress", "completed", "partial", "failed"]
+    official_name: ShortText | None = None
     missing_fields: tuple[ShortText, ...] = Field(
         default=(), max_length=MAX_ENRICHMENT_MISSING_FIELDS
     )

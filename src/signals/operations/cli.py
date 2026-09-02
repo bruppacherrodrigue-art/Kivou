@@ -91,6 +91,12 @@ def _parser(*, opaque_errors: bool = False) -> argparse.ArgumentParser:
         help="append SHADOW + kill-switch + READ ONLY Policy authority",
     )
     stop.add_argument("--reason-code", required=True)
+    enrich_winners = commands.add_parser(
+        "enrich-winners",
+        help="resolve queued French winners from the official register by exact SIRET",
+    )
+    enrich_winners.add_argument("--limit", type=int, default=100)
+    enrich_winners.add_argument("--retry-failed", action="store_true")
     return parser
 
 
@@ -112,6 +118,7 @@ _MUTATING_COMMANDS = frozenset(
         "close-runtime-qa-policy-window",
         "bootstrap-policy-control",
         "activate-kill-switch",
+        "enrich-winners",
     }
 )
 
@@ -124,6 +131,8 @@ def _mutation_error_label(command: str) -> str:
         return "runtime_qa_policy_window_invalid"
     if command == "approve-runtime-approval":
         return "runtime_approval_invalid"
+    if command == "enrich-winners":
+        return "winner_enrichment_invalid"
     if command == "bootstrap-policy-control":
         return "acquisition_policy_bootstrap_invalid"
     return "acquisition_kill_switch_invalid"
@@ -159,6 +168,27 @@ def _run_mutation(arguments: argparse.Namespace, *, clock: Callable[[], dt.datet
             raise ValueError("operator database and clock authority are forbidden")
         now = _server_instant(clock)
         engine = create_database_engine()
+        if arguments.command == "enrich-winners":
+            from signals.companies.enrichment import run_winner_enrichment_batch
+            from signals.companies.france import FrenchOfficialCompanyClient
+
+            with engine.begin() as connection:
+                result = run_winner_enrichment_batch(
+                    connection,
+                    now=now,
+                    worker_ref="winner-official-fr",
+                    limit=arguments.limit,
+                    retry_failed=arguments.retry_failed,
+                    official_company_provider=FrenchOfficialCompanyClient(
+                        clock=lambda: now
+                    ),
+                )
+            print(
+                "winner_enrichment status=COMPLETED "
+                f"processed={result.processed} completed={result.completed} "
+                f"partial={result.partial} failed={result.failed}"
+            )
+            return 0
         if arguments.command == "approve-runtime-approval":
             approval = AcquisitionRuntimeApprovalStore(engine).approve(
                 arguments.approval_id,

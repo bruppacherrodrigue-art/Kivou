@@ -399,6 +399,8 @@ def _render(
             card["company_key"] = company_key
         if enrichment is not None:
             card["winner_enrichment"] = enrichment.model_dump(mode="json")
+            if enrichment.official_name is not None:
+                card["company"]["name"] = enrichment.official_name
         return card
     return paywall.locked_teaser(item, lang=lang)
 
@@ -539,6 +541,8 @@ def get_signal(
         detail["company_key"] = company_key
     if enrichment is not None:
         detail["winner_enrichment"] = enrichment.model_dump(mode="json")
+        if enrichment.official_name is not None:
+            detail["company"]["name"] = enrichment.official_name
     # §8 — l'avis du client vit dans SON bloc. Il n'est ni un fait publié ni une
     # inférence du moteur, et il ne doit contaminer ni `contract`, ni `event`,
     # ni `evidence`, ni `analysis`.

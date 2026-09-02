@@ -190,3 +190,34 @@ def official_company_identity(
         identity_method=method,
         validation_evidence=evidence,
     )
+
+
+def official_siret_identity(
+    *,
+    siret: str,
+    legal_name: str,
+    address: str | None,
+    observed_at: dt.datetime,
+) -> ResolvedOfficialCompany:
+    """Build the same stable SIRET identity from an exact French register hit."""
+
+    if re.fullmatch(r"\d{14}", siret) is None:
+        raise ValueError("SIRET must contain exactly fourteen digits")
+    evidence = {
+        "country": "FR",
+        "identifier_scheme": "siret",
+        "identifier_value": siret,
+    }
+    return ResolvedOfficialCompany(
+        official=CompanyOfficialIdentity(
+            name=legal_name,
+            country="FR",
+            address=address,
+            identifiers=(CompanyOfficialIdentifier(scheme="SIRET", value=siret),),
+            observed_at=observed_at,
+            source="official_register",
+        ),
+        identity_fingerprint=_fingerprint(IdentityMethod.OFFICIAL_IDENTIFIER, evidence),
+        identity_method=IdentityMethod.OFFICIAL_IDENTIFIER,
+        validation_evidence=evidence,
+    )
