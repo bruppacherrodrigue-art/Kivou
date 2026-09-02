@@ -320,6 +320,7 @@ export const fr = {
       sourceType: 'Issus de marchés attribués',
       detectedSignals: 'Signaux détectés',
       awardSignal: 'Signal d’attribution',
+      buyerUnnamed: 'Acheteur non nommé par la source',
       documentedAwards: 'Attributions documentées',
       accessibleWith: 'Accessible avec {plan}',
       paidAccessRequired: 'Accès payant requis',

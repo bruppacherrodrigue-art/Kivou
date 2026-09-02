@@ -563,7 +563,7 @@ describe('profil de ciblage exact connecté au contrat ICP', () => {
       signal_id: 'sig_germany',
       contract: {
         ...UNLOCKED_ITEM.contract,
-        location: { country: 'DE', locality: null, postal_code: null, subdivision_code: null },
+        location: { country: 'DE', locality: null, postal_code: null, subdivision_code: null, subdivision_label: null },
       },
       analysis: {
         ...UNLOCKED_ITEM.analysis,

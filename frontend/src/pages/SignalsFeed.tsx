@@ -457,7 +457,8 @@ export function SignalsFeed() {
     if (!card.location) return t.reference.missingValue
     return [
       card.location.locality,
-      card.location.subdivision_code,
+      card.location.postal_code,
+      card.location.subdivision_label ?? card.location.subdivision_code,
       card.location.country,
     ].filter(Boolean).join(', ') || t.reference.missingValue
   }

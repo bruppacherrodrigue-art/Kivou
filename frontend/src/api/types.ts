@@ -256,6 +256,7 @@ export interface Place {
   locality: string | null
   postal_code: string | null
   subdivision_code: string | null
+  subdivision_label: string | null
 }
 
 export interface SignalEvent {

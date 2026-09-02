@@ -175,6 +175,23 @@ describe('détail factuel d’un signal', () => {
     expect(within(facts).getByText('Commune de Villeneuve')).toBeVisible()
   })
 
+  it('nomme l’absence de nom d’acheteur sans jamais afficher le SIRET comme un nom', async () => {
+    renderDetail({
+      detail: detailFixture({
+        contract: {
+          ...UNLOCKED_DETAIL.contract,
+          buyer: { name: null, country: 'FR', identifier: { scheme: 'SIRET', value: '27920022400012' } },
+          location: { country: 'FR', locality: null, postal_code: '92350', subdivision_code: 'FR-92', subdivision_label: 'Hauts-de-Seine' },
+        },
+      }),
+    })
+    const facts = await screen.findByRole('heading', { name: 'Détails du marché' })
+    const grid = facts.closest('section')!
+    expect(within(grid).getByText('Acheteur non nommé par la source · SIRET 279 200 224 00012')).toBeVisible()
+    expect(within(grid).queryByText('27920022400012')).toBeNull()
+    expect(within(grid).getByText('92350, Hauts-de-Seine, France')).toBeVisible()
+  })
+
   it('relègue les identifiants et le titre administratif dans la section repliée', () => {
     renderDetail()
 

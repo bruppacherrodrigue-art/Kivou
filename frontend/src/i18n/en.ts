@@ -314,6 +314,7 @@ export const en: Dictionary = {
       sourceType: 'From awarded public contracts',
       detectedSignals: 'Detected signals',
       awardSignal: 'Award signal',
+      buyerUnnamed: 'Buyer not named by the source',
       documentedAwards: 'Documented awards',
       accessibleWith: 'Available with {plan}',
       paidAccessRequired: 'Paid access required',

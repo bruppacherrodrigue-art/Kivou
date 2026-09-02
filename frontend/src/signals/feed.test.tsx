@@ -174,6 +174,21 @@ describe('feed de signaux dans le workspace de référence', () => {
     expect(rows[1]).toHaveTextContent('Deuxième selon le serveur SA')
   })
 
+  it('affiche le département dérivé à la place du seul pays', async () => {
+    const item = {
+      ...UNLOCKED_ITEM,
+      contract: {
+        ...UNLOCKED_ITEM.contract,
+        location: { country: 'FR', locality: null, postal_code: '92350', subdivision_code: 'FR-92', subdivision_label: 'Hauts-de-Seine' },
+      },
+    }
+    mockApi(feedWith([item]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const rows = await screen.findAllByRole('button', { name: /Ouvrir le signal/ })
+    expect(rows[0].textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('92350, Hauts-de-Seine, FR')
+  })
+
   it('rend le calendrier et la justification du serveur sans recalcul navigateur', async () => {
     const item = {
       ...UNLOCKED_ITEM,

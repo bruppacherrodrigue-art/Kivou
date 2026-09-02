@@ -95,6 +95,7 @@ export interface SignalDetailView extends SignalFactView {
     awardDate: string | null
     execution: string | null
     buyer: string | null
+    buyerIdentifier: { scheme: string | null; value: string | null } | null
     officialTitle: string | null
     notice: string | null
     cpv: string | null

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import type { CompanyProfile } from '../../api/types'
 import { MVP_TERRITORIES, territoryLabel } from '../../api/capabilities'
 import { interpolate, useI18n } from '../../i18n'
+import { formatOfficialIdentifier } from './adapters'
 import type { SignalDetailView } from './models'
 import { Textarea } from './ui/textarea'
 import type { NoteSaveState } from './useSignalNote'
@@ -87,18 +88,27 @@ export function ReferenceSignalDetail({
   const location = detail.facts.location
     ? [
         detail.facts.location.locality,
-        detail.facts.location.subdivision_code,
+        detail.facts.location.postal_code,
+        detail.facts.location.subdivision_label ?? detail.facts.location.subdivision_code,
         locationTerritory ? territoryLabel(locationTerritory, locale) : detail.facts.location.country,
       ].filter(Boolean).join(', ') || missing
     : missing
   const displayAmount = detail.facts.amount
     ? amount(detail.facts.amount.value, detail.facts.amount.currency) ?? missing
     : missing
+  const buyerIdentifier = formatOfficialIdentifier(
+    detail.facts.buyerIdentifier?.scheme ?? null,
+    detail.facts.buyerIdentifier?.value ?? null,
+  )
+  const buyer = detail.buyerName
+    ?? (buyerIdentifier
+      ? `${copy.buyerUnnamed} · ${detail.facts.buyerIdentifier?.scheme ?? ''} ${buyerIdentifier}`.replace(/\s+/g, ' ')
+      : missing)
   const facts = [
     { label: t.reference.fields.amount, value: displayAmount },
     { label: eventDateLabel, value: eventDateValue },
     { label: t.reference.fields.location, value: location },
-    { label: t.reference.fields.signalBuyer, value: detail.buyerName ?? missing },
+    { label: t.reference.fields.signalBuyer, value: buyer },
     { label: 'CPV', value: detail.facts.cpv ?? missing },
   ]
 

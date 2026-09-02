@@ -584,6 +584,7 @@ function toUnlockedItem(record: AwardSignal): UnlockedFeedItem {
         locality: meta.locality,
         postal_code: null,
         subdivision_code: null,
+        subdivision_label: null,
       },
       dates: {
         award: record.contractDateIso,
