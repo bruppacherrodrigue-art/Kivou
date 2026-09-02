@@ -54,13 +54,24 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
     )
 
-    with op.batch_alter_table("account") as batch:
-        batch.add_column(sa.Column("last_seen_at", sa.DateTime(timezone=True), nullable=True))
+    # Table à part, pas une colonne sur `account` : sous SQLite,
+    # `batch_alter_table("account")` recopierait la table, et la recopie
+    # déclenche les `ON DELETE CASCADE` de toutes ses tables filles
+    # (`target_icp`, `auth_user`, …), qui se videraient au passage.
+    op.create_table(
+        "account_visit",
+        sa.Column(
+            "account_id",
+            sa.String(64),
+            sa.ForeignKey("account.account_id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column("last_seen_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+    )
 
 
 def downgrade() -> None:
-    with op.batch_alter_table("account") as batch:
-        batch.drop_column("last_seen_at")
-
+    op.drop_table("account_visit")
     op.drop_table("company_note")
     op.drop_table("company_contact")

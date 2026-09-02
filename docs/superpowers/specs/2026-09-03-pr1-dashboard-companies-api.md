@@ -24,7 +24,7 @@ Réutiliser l'existant : signaux matérialisés (`materialized_signal`, `feed_pa
 
 ## 4. Contact et notes par entreprise
 
-- Migration `0034_company_engagement` (`batch_alter_table` comme `0031`) : tables `company_contact` (`account_id`, `company_key`, `status` avec contrainte `IN ('to_contact','contacted','replied')`, `contacted_at` nullable, `updated_at` ; PK `(account_id, company_key)`) et `company_note` (`account_id`, `company_key`, `body`, `updated_at` ; PK idem) ; colonne `account.last_seen_at` nullable. `downgrade` symétrique. Les 23 tests de tête Alembic passent sur `0034`.
+- Migration `0034_company_engagement` (trois `create_table`, aucun `batch_alter_table`) : tables `company_contact` (`account_id`, `company_key`, `status` avec contrainte `IN ('to_contact','contacted','replied')`, `contacted_at` nullable, `updated_at` ; PK `(account_id, company_key)`), `company_note` (`account_id`, `company_key`, `body`, `updated_at` ; PK idem) et table `account_visit` (`account_id` PK → `account`, `last_seen_at`, `updated_at`) — une colonne sur `account` exigerait `batch_alter_table`, dont la recopie de table déclenche les `ON DELETE CASCADE` sous SQLite. `downgrade` symétrique. Les 23 tests de tête Alembic passent sur `0034`.
 - `POST /companies/{key}/contact` body `{status}` ; `contacted_at` est posé au premier passage en `contacted` ou `replied` et jamais remis à nul par `to_contact`. Réponse : `{company_key, contact_status, contacted_at, updated_at}`.
 - `PUT /companies/{key}/note` body `{body}` ; corps vide supprime la note. Réponse : `{company_key, note, updated_at}`.
 - `GET /companies/{key}` conserve `official_identity`, `related_signals`, `coverage` et ajoute `contact_status`, `contacted_at`, `note`, `signals` (items complets de `GET /signals` avec `status`, au plus `MAX_RELATED_SIGNALS`, tri date effective desc).
@@ -33,7 +33,7 @@ Réutiliser l'existant : signaux matérialisés (`materialized_signal`, `feed_pa
 
 ## 5. `GET /dashboard`
 
-Lecture unique, `as_of` = date du serveur. `previous_seen = account.last_seen_at` lu AVANT la mise à jour ; la route écrit `last_seen_at = now` en fin d'appel.
+Lecture unique, `as_of` = date du serveur. `previous_seen = account_visit.last_seen_at` (ligne absente → `null`) lu AVANT la mise à jour ; la route écrit (insère ou met à jour) `account_visit.last_seen_at = now` en fin d'appel.
 
 - `new_since_last_visit` : signaux accessibles de statut `new` dont `dates.publication` > `previous_seen` (tous si `previous_seen` est nul), sur la portée `view=recent`.
 - `strong_matches` : parmi ceux-là, `icp_match_band == 'strong'`.
