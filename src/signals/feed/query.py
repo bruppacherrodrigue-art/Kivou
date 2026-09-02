@@ -311,6 +311,20 @@ def _ownership_scoped(account_id: str) -> sa.Select:
     )
 
 
+RECENT_SCAN_BATCH = 200
+"""Lignes relues par lot dans la vue Récentes, avant résolution d'identité."""
+
+RECENT_SCAN_ROW_FACTOR = 10
+"""Plafond absolu de lignes lues = `scan_cap × RECENT_SCAN_ROW_FACTOR`.
+
+Le plafond `CANDIDATE_SCAN_CAP` compte les candidats AFFICHABLES : une
+notification DECP sans dénomination sociale ne doit pas consommer la place d'un
+signal nommé matérialisé avant elle (staging, 2026-09-02 : 491 lignes sans nom
+pour 8 rendues). Le coût reste borné par ce second plafond, et son dépassement
+est annoncé comme n'importe quelle troncature.
+"""
+
+
 def _date_window(as_of: dt.date, days: int) -> sa.ColumnElement[bool]:
     """La présélection SQL : au moins une des trois horloges dans la fenêtre."""
     floor = as_of - dt.timedelta(days=days)
@@ -396,20 +410,34 @@ def feed_page(
     if window is not None:
         query = query.where(_date_window(as_of, window))
 
-    # Une ligne de plus que le plafond : c'est ainsi qu'on SAIT qu'on a tronqué.
-    rows = connection.execute(query.limit(scan_cap + 1)).all()
-    truncated = len(rows) > scan_cap
-    rows = rows[:scan_cap]
-
-    candidates = [_reassess(row, owned, account_id, as_of) for row in rows]
-    identities = resolve_display_identity(connection, [item.signal for item in candidates])
-    candidates = [
-        dataclasses.replace(item, display=identities.get(item.signal.signal_key))
-        for item in candidates
-    ]
-
-    displayable = [item for item in candidates if item.display is not None]
-    without_name = len(candidates) - len(displayable)
+    row_ceiling = scan_cap * RECENT_SCAN_ROW_FACTOR
+    rows_read = 0
+    displayable: list[FeedSignal] = []
+    without_name = 0
+    truncated = False
+    while True:
+        batch_limit = min(RECENT_SCAN_BATCH, row_ceiling - rows_read)
+        # Une ligne de plus que le lot : c'est ainsi qu'on SAIT s'il en reste.
+        rows = connection.execute(query.limit(batch_limit + 1).offset(rows_read)).all()
+        more_rows = len(rows) > batch_limit
+        rows = rows[:batch_limit]
+        rows_read += len(rows)
+        candidates = [_reassess(row, owned, account_id, as_of) for row in rows]
+        identities = resolve_display_identity(connection, [item.signal for item in candidates])
+        for item in candidates:
+            display = identities.get(item.signal.signal_key)
+            if display is None:
+                without_name += 1
+                continue
+            if len(displayable) == scan_cap:
+                truncated = True
+                break
+            displayable.append(dataclasses.replace(item, display=display))
+        if truncated or not more_rows:
+            break
+        if rows_read >= row_ceiling:
+            truncated = True
+            break
 
     if admitted is not None:
         selected = [item for item in displayable if item.status in admitted]
