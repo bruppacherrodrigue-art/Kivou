@@ -319,6 +319,8 @@ export const fr = {
     signalsPage: {
       sourceType: 'Issus de marchés attribués',
       detectedSignals: 'Signaux détectés',
+      signalCountOne: '{count} signal',
+      signalCountOther: '{count} signaux',
       awardSignal: 'Signal d’attribution',
       buyerUnnamed: 'Acheteur non nommé par la source',
       documentedAwards: 'Attributions documentées',
@@ -1347,7 +1349,7 @@ export const fr = {
     moreErrorBody: 'Les occasions déjà affichées restent disponibles. Vous pouvez réessayer.',
     retryMore: 'Réessayer la page suivante',
     truncatedNote:
-      'La lecture a été bornée : des signaux plus anciens existent au-delà de cette page.',
+      'La lecture a été bornée : consultez l’Historique pour les signaux plus anciens.',
     seeSignal: 'Examiner le signal',
     winningCompany: 'Entreprise gagnante',
     publishedAmount: 'Montant publié',

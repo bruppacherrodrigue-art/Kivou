@@ -453,7 +453,7 @@ describe('feed de signaux dans le workspace de référence', () => {
     await signalList()
     expect(
       screen.getByText(
-        'La lecture a été bornée : des signaux plus anciens existent au-delà de cette page.',
+        'La lecture a été bornée : consultez l’Historique pour les signaux plus anciens.',
       ),
     ).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Charger plus de signaux' })).toBeNull()
@@ -639,5 +639,29 @@ describe('feed de signaux dans le workspace de référence', () => {
     const cpv = await screen.findByLabelText('Secteur (préfixe CPV)')
     await waitFor(() => expect(cpv).toBeDisabled())
     expect(cpv).toHaveAccessibleDescription('Ce filtre n’est pas inclus dans votre accès actuel.')
+  })
+
+  it('compte les signaux sans coller le nom du plan', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+    expect(await screen.findByText('1 signal')).toBeVisible()
+    expect(screen.queryByText(/· (Essentiel|Pro|Découverte)/)).toBeNull()
+  })
+
+  it('ne dit pas « fin de liste » quand la lecture a été bornée', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM], {
+      page: { limit: 20, offset: 0, has_more: false, scan_truncated: true },
+    }))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+    const statuses = await screen.findAllByRole('status')
+    expect(statuses.some((node) => /bornée/.test(node.textContent ?? ''))).toBe(true)
+    expect(screen.queryByText('Fin des attributions accessibles.')).toBeNull()
+  })
+
+  it('n’écrit « 1 attribution » sur aucune carte', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+    const rows = await screen.findAllByRole('button', { name: /Ouvrir le signal/ })
+    expect(rows[0].textContent).not.toContain('1 attribution')
   })
 })

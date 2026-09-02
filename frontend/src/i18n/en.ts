@@ -313,6 +313,8 @@ export const en: Dictionary = {
     signalsPage: {
       sourceType: 'From awarded public contracts',
       detectedSignals: 'Detected signals',
+      signalCountOne: '{count} signal',
+      signalCountOther: '{count} signals',
       awardSignal: 'Award signal',
       buyerUnnamed: 'Buyer not named by the source',
       documentedAwards: 'Documented awards',
@@ -1337,7 +1339,7 @@ export const en: Dictionary = {
     moreErrorTitle: 'The next signals could not be loaded',
     moreErrorBody: 'The opportunities already shown remain available. You can try again.',
     retryMore: 'Retry the next page',
-    truncatedNote: 'The read was capped: older signals exist beyond this page.',
+    truncatedNote: 'The read was capped: open History for older signals.',
     seeSignal: 'Review signal',
     winningCompany: 'Winning company',
     publishedAmount: 'Published amount',

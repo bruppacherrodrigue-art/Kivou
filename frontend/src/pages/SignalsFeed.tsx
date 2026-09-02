@@ -18,7 +18,7 @@ import type {
   FeedPage,
   SignalDetail as SignalDetailPayload,
 } from '../api/types'
-import { interpolate, useI18n } from '../i18n'
+import { interpolate, plural, useI18n } from '../i18n'
 import { toSignalCard, toSignalDetailView } from '../reference/dashboard/adapters'
 import { ReferenceSignalDetail } from '../reference/dashboard/ReferenceSignalDetail'
 import type { SignalCardView } from '../reference/dashboard/models'
@@ -425,15 +425,17 @@ export function SignalsFeed() {
   })
 
   const planCode = feed.data?.plan_code ?? null
-  const planLabel = planCode ? t.reference.plans[planCode] : t.reference.loading
   const discoveryGrantCount = activationMoment
     && planCode === 'discovery'
     && postActivationBilling?.plan_code === 'discovery'
     ? postActivationBilling.discovery.granted_signal_count
     : null
   const signalCount = feed.data
-    ? `${discoveryGrantCount ?? items.length}${discoveryGrantCount === null && feed.data.page.has_more ? '+' : ''} · ${planLabel}`
-    : planLabel
+    ? interpolate(
+        plural(discoveryGrantCount ?? items.length, t.reference.signalsPage.signalCountOne, t.reference.signalsPage.signalCountOther),
+        { count: `${discoveryGrantCount ?? items.length}${discoveryGrantCount === null && feed.data.page.has_more ? '+' : ''}` },
+      )
+    : t.reference.loading
 
   const setSearchValue = (name: string, value: string) => {
     const params = new URLSearchParams(location.search)
@@ -640,9 +642,11 @@ export function SignalsFeed() {
                   <strong>{card.locked ? t.reference.missingValue : companyRow.name}</strong>
                   <span className={`data-status-${status.key}`}>{status.label}</span>
                 </span>
-                <span className={styles.awardCount}>
-                  {companyRow.cards.length} attribution{companyRow.cards.length > 1 ? 's' : ''}
-                </span>
+                {companyRow.cards.length > 1 ? (
+                  <span className={styles.awardCount}>
+                    {interpolate(t.reference.companiesPage.contractOther, { count: companyRow.cards.length })}
+                  </span>
+                ) : null}
                 <span className={styles.awardContexts}>
                   {companyRow.cards.map((award) => (
                     <span className={styles.awardContext} key={award.id}>
@@ -675,7 +679,7 @@ export function SignalsFeed() {
           <button type="button" className="text-link" disabled={loadingMore} onClick={() => void loadMore()}>
             {loadingMore ? t.reference.loading : t.reference.signalsPage.loadMore}
           </button>
-        ) : feed.data && companyRows.length > 0 ? <p className="signal-limit">{t.reference.signalsPage.endOfList}</p> : null}
+        ) : feed.data && companyRows.length > 0 && !feed.data.page.scan_truncated ? <p className="signal-limit">{t.reference.signalsPage.endOfList}</p> : null}
       </aside>
 
       <section
