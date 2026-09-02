@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import datetime as dt
 import ipaddress
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    field_serializer,
+    field_validator,
+)
 
 MAX_OFFICIAL_IDENTIFIERS = 16
 MAX_RELATED_SIGNALS = 100
@@ -169,3 +176,21 @@ class CompanyProfile(CompanyContract):
         min_length=1, max_length=MAX_RELATED_SIGNALS
     )
     coverage: CompanyCoverage
+    #: PR1 §4 — le suivi commercial de CE compte sur cette entreprise.
+    contact_status: Literal["to_contact", "contacted", "replied"] = "to_contact"
+    contacted_at: dt.datetime | None = None
+    note: str | None = None
+    #: Chaque entrée est une carte complète du feed (`view.feed_item` + statut) ;
+    #: `dict[str, Any]` parce que `CompanyContract` interdit les clés inconnues
+    #: et qu'une carte de feed en porte plus qu'un contrat figé n'en admettrait.
+    signals: tuple[dict[str, Any], ...] = Field(default=(), max_length=MAX_RELATED_SIGNALS)
+
+    _aware_contacted_at = field_validator("contacted_at")(aware_optional_datetime)
+
+    @field_serializer("contacted_at", when_used="json")
+    def _serialize_contacted_at(self, value: dt.datetime | None) -> str | None:
+        # Every other route in this API hand-writes `.isoformat()`
+        # ("+00:00"); pydantic's default JSON mode would instead render a
+        # trailing "Z". Matching the app-wide convention here keeps
+        # `contacted_at` comparable across `GET` and `POST /contact`.
+        return None if value is None else value.isoformat()

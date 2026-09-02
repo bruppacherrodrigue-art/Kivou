@@ -27,6 +27,8 @@ from signals.api.dependencies import current_session, enforce_origin, request_no
 from signals.api.errors import api_error
 from signals.billing import service as billing_service
 from signals.billing.access import feed_access
+from signals.companies.service import company_keys_for_signals
+from signals.engagement import company as company_engagement
 from signals.engagement import feedback
 from signals.engagement.schema import MAXIMUM_NOTE_LENGTH
 from signals.feed import query as feed_query
@@ -189,6 +191,19 @@ def mark_contacted(signal_key: str, request: Request) -> dict[str, Any]:
             now=now,
             user_id=session.user_id,
         )
+        if changed:
+            # PR1 §4 — un signal contacté fait avancer SON entreprise, jamais
+            # l'inverse : le contact d'entreprise ne touche pas ses signaux.
+            company_key = company_keys_for_signals(
+                connection, signal_keys=(signal_key,)
+            ).get(signal_key)
+            if company_key is not None:
+                company_engagement.mark_contacted_if_pending(
+                    connection,
+                    account_id=session.account_id,
+                    company_key=company_key,
+                    now=now,
+                )
     return {
         "signal_id": signal_key,
         "interaction": interaction_block(stored),

@@ -27,6 +27,8 @@ PUBLIC_ASGI_ROUTES = frozenset(
         ("POST", "/billing/plan"),
         ("POST", "/billing/portal"),
         ("GET", "/companies/{company_key}"),
+        ("POST", "/companies/{company_key}/contact"),
+        ("PUT", "/companies/{company_key}/note"),
         ("GET", "/me"),
         ("PATCH", "/me"),
         ("GET", "/notification-preferences"),

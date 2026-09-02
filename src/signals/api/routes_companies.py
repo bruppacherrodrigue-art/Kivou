@@ -3,56 +3,197 @@
 from __future__ import annotations
 
 import re
+from typing import Any, Literal
 
 from fastapi import APIRouter, Request
+from pydantic import BaseModel, ConfigDict, Field
 
 from signals.accounts import service as accounts
-from signals.api.dependencies import current_session, request_now
+from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
 from signals.billing import service as billing
-from signals.billing.access import feed_access
+from signals.billing.access import FeedAccess, feed_access
 from signals.companies.contracts import CompanyProfile
-from signals.companies.service import company_profile_for_account
+from signals.companies.service import company_profile_with_items
+from signals.engagement import company as company_engagement
+from signals.engagement import feedback
+from signals.engagement.schema import MAXIMUM_COMPANY_NOTE_LENGTH
+from signals.engagement.status import status_resolver
+from signals.feed import query as feed_query
+from signals.feed import view
+from signals.feed.history import effective_history_date
 
 router = APIRouter()
 
 _COMPANY_KEY = re.compile(r"^cmp_[A-Za-z0-9_-]{12,60}$")
 
 
+class CompanyContactRequest(BaseModel):
+    """PR1 §4 — `extra="forbid"` : un champ inconnu échoue plutôt que d'être ignoré."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["to_contact", "contacted", "replied"]
+
+
+class CompanyNoteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body: str = Field(max_length=MAXIMUM_COMPANY_NOTE_LENGTH)
+
+
+def _accessible_company(
+    connection,
+    session,
+    company_key: str,
+    now,
+) -> tuple[CompanyProfile, list[feed_query.FeedSignal], FeedAccess, str]:
+    """The profile and its accessible items, or the 404 this account must see.
+
+    Factors the session/access/allowed resolution shared by the three
+    `/companies/{key}` routes, so none of them can drift from `GET`'s notion
+    of "this account still has one unlocked current signal for this company".
+    """
+    as_of = now.date()
+    if _COMPANY_KEY.fullmatch(company_key) is None:
+        raise api_error(404, "company_not_found", "entreprise introuvable")
+    user = accounts.current_user(connection, user_id=session.user_id)
+    lang = user.locale if user.locale in {"fr", "en"} else "fr"
+    access = feed_access(connection, account_id=session.account_id, as_of=as_of)
+    accounts.reconcile_territory_plan_limits(
+        connection,
+        account_id=session.account_id,
+        max_territories=access.entitlements.max_territories_per_icp,
+        now=now,
+    )
+    allowed = frozenset(
+        billing.feedable_target_icps(
+            connection,
+            account_id=session.account_id,
+            limit=access.entitlements.max_active_icps,
+        )
+    )
+    result = company_profile_with_items(
+        connection,
+        company_key=company_key,
+        account_id=session.account_id,
+        as_of=as_of,
+        allowed_target_icp_ids=allowed,
+        access=access,
+        lang=lang,
+    )
+    if result is None:
+        raise api_error(404, "company_not_found", "entreprise introuvable")
+    profile, items = result
+    return profile, items, access, lang
+
+
+def _history_sort_key(item: feed_query.FeedSignal) -> tuple[int, int]:
+    """Effective history date, most recent first, undated signals last."""
+    date, _kind = effective_history_date(item.signal)
+    if date is None:
+        return (1, 0)
+    return (0, -date.toordinal())
+
+
+def _company_signals(
+    connection,
+    *,
+    items: list[feed_query.FeedSignal],
+    company_key: str,
+    account_id: str,
+    lang: str,
+) -> tuple[dict[str, Any], ...]:
+    resolve_status = status_resolver(
+        feedback.feedback_by_signal(connection, account_id=account_id)
+    )
+    ordered = sorted(items, key=_history_sort_key)
+    cards = []
+    for item in ordered:
+        card = view.feed_item(item, lang=lang)
+        card["locked"] = False
+        card["status"] = resolve_status(item.signal.signal_key)
+        card["company_key"] = company_key
+        cards.append(card)
+    return tuple(cards)
+
+
 @router.get("/companies/{company_key}", response_model=CompanyProfile)
 def get_company(company_key: str, request: Request) -> CompanyProfile:
     """Return a company only while this account retains one unlocked current signal."""
     now = request_now(request)
-    as_of = now.date()
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
-        if _COMPANY_KEY.fullmatch(company_key) is None:
-            raise api_error(404, "company_not_found", "entreprise introuvable")
-        user = accounts.current_user(connection, user_id=session.user_id)
-        lang = user.locale if user.locale in {"fr", "en"} else "fr"
-        access = feed_access(connection, account_id=session.account_id, as_of=as_of)
-        accounts.reconcile_territory_plan_limits(
+        profile, items, _access, lang = _accessible_company(connection, session, company_key, now)
+        signals = _company_signals(
             connection,
-            account_id=session.account_id,
-            max_territories=access.entitlements.max_territories_per_icp,
-            now=now,
-        )
-        allowed = frozenset(
-            billing.feedable_target_icps(
-                connection,
-                account_id=session.account_id,
-                limit=access.entitlements.max_active_icps,
-            )
-        )
-        profile = company_profile_for_account(
-            connection,
+            items=items,
             company_key=company_key,
             account_id=session.account_id,
-            as_of=as_of,
-            allowed_target_icp_ids=allowed,
-            access=access,
             lang=lang,
         )
-    if profile is None:
-        raise api_error(404, "company_not_found", "entreprise introuvable")
-    return profile
+        contact = company_engagement.get_contact(
+            connection, account_id=session.account_id, company_key=company_key
+        )
+        note = company_engagement.get_note(
+            connection, account_id=session.account_id, company_key=company_key
+        )
+    return profile.model_copy(
+        update={
+            "contact_status": contact.status if contact is not None else "to_contact",
+            "contacted_at": contact.contacted_at if contact is not None else None,
+            "note": note.body if note is not None else None,
+            "signals": signals,
+        }
+    )
+
+
+@router.post("/companies/{company_key}/contact")
+def set_company_contact(
+    company_key: str, payload: CompanyContactRequest, request: Request
+) -> dict[str, Any]:
+    """PR1 §4 — le suivi commercial d'une entreprise, distinct du jugement d'un signal."""
+    enforce_origin(request, request.app.state.config)
+    now = request_now(request)
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        _accessible_company(connection, session, company_key, now)
+        try:
+            stored = company_engagement.set_contact(
+                connection,
+                account_id=session.account_id,
+                company_key=company_key,
+                status=payload.status,
+                now=now,
+            )
+        except company_engagement.InvalidContactStatus as error:
+            raise api_error(422, "invalid_contact_status", str(error)) from error
+    return {
+        "company_key": stored.company_key,
+        "contact_status": stored.status,
+        "contacted_at": stored.contacted_at.isoformat() if stored.contacted_at else None,
+        "updated_at": stored.updated_at.isoformat(),
+    }
+
+
+@router.put("/companies/{company_key}/note")
+def set_company_note(
+    company_key: str, payload: CompanyNoteRequest, request: Request
+) -> dict[str, Any]:
+    enforce_origin(request, request.app.state.config)
+    now = request_now(request)
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        _accessible_company(connection, session, company_key, now)
+        stored = company_engagement.put_note(
+            connection,
+            account_id=session.account_id,
+            company_key=company_key,
+            body=payload.body,
+            now=now,
+        )
+    return {
+        "company_key": company_key,
+        "note": stored.body if stored is not None else None,
+        "updated_at": (stored.updated_at if stored is not None else now).isoformat(),
+    }

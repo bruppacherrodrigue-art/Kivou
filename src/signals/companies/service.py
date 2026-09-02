@@ -336,7 +336,7 @@ def _coverage(identity: CompanyOfficialIdentity, *, complete: bool) -> CompanyCo
     )
 
 
-def company_profile_for_account(
+def company_profile_with_items(
     connection: sa.Connection,
     *,
     company_key: str,
@@ -345,8 +345,13 @@ def company_profile_for_account(
     allowed_target_icp_ids: frozenset[str],
     access: FeedAccess,
     lang: str,
-) -> CompanyProfile | None:
-    """Return the profile only if this account still has one unlocked current signal."""
+) -> tuple[CompanyProfile, list[feed_query.FeedSignal]] | None:
+    """Return the profile AND its accessible items, for callers that need both.
+
+    A caller building the route-level `signals` card list needs the raw
+    `FeedSignal` items (to derive per-signal status and history ordering)
+    without re-running the same accessible-signal scan a second time.
+    """
     stored = get_company_by_key(connection, company_key=company_key)
     if stored is None:
         return None
@@ -360,9 +365,33 @@ def company_profile_for_account(
     )
     if not accessible or official_identity is None:
         return None
-    return CompanyProfile(
+    profile = CompanyProfile(
         company_key=stored.company_key,
         official_identity=official_identity,
         related_signals=tuple(_related_signal(match.item, lang=lang) for match in accessible),
         coverage=_coverage(official_identity, complete=complete),
     )
+    return profile, [match.item for match in accessible]
+
+
+def company_profile_for_account(
+    connection: sa.Connection,
+    *,
+    company_key: str,
+    account_id: str,
+    as_of: dt.date,
+    allowed_target_icp_ids: frozenset[str],
+    access: FeedAccess,
+    lang: str,
+) -> CompanyProfile | None:
+    """Return the profile only if this account still has one unlocked current signal."""
+    result = company_profile_with_items(
+        connection,
+        company_key=company_key,
+        account_id=account_id,
+        as_of=as_of,
+        allowed_target_icp_ids=allowed_target_icp_ids,
+        access=access,
+        lang=lang,
+    )
+    return None if result is None else result[0]

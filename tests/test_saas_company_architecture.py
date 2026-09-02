@@ -54,7 +54,11 @@ def test_browser_contract_exposes_no_internal_or_person_fields() -> None:
         "score",
         "policy",
         "verdict",
-        "contact",
+        # PR1 §4 — `contact_status`/`contacted_at` are the legitimate,
+        # customer-owned commercial follow-up on a company, not a leak of the
+        # internal acquisition engine's CRM contact (`contact_ref`, the term
+        # this guard actually protects — see the sibling boundary test above).
+        "contact_ref",
         "person",
         "email",
         "phone",
