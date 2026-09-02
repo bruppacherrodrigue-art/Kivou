@@ -638,9 +638,15 @@ a:focus-visible {
   content: "";
 }
 
+.signal-item-head {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
 .signal-item-head strong {
+  flex: 1 1 auto;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   color: var(--ink);
   font-size: 14px;
   font-weight: 720;
