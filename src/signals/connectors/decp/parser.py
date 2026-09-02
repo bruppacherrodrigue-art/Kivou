@@ -56,6 +56,7 @@ from typing import Any
 
 from signals.domain.awards import Awardee, AwardeeParty, ContractAward
 from signals.domain.events import Provenance, PublicEvent
+from signals.domain.french_departments import department_from_postal_code
 from signals.domain.values import (
     CpvCode,
     Duration,
@@ -228,13 +229,24 @@ def _place(record: dict) -> Location | None:
     commune (dont les valeurs observées vont de « 83107 » à « COMM »), le code
     région et le code pays. Ils sont laissés de côté plutôt que rangés sous un
     schéma qui ne les décrit pas.
+
+    Un code postal publié donne aussi son département : c'est une dérivation,
+    pas une devinette sur la forme du code.
     """
     code = _text(record.get("lieuexecution_code"))
     kind = _text(record.get("lieuexecution_typecode"))
     if not code:
         return None
     if kind == "Code postal":
-        return Location(country="FR", postal_code=code)
+        department = department_from_postal_code(code)
+        if department is None:
+            return Location(country="FR", postal_code=code)
+        return Location(
+            country="FR",
+            postal_code=code,
+            subdivision_code=f"FR-{department}",
+            subdivision_scheme="ISO-3166-2",
+        )
     if kind == "Code département" and _DEPARTMENT.fullmatch(code):
         return Location(
             country="FR", subdivision_code=f"FR-{code}", subdivision_scheme="ISO-3166-2"

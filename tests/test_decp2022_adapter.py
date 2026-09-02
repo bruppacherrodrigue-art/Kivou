@@ -207,6 +207,19 @@ def test_a_postal_code_and_a_department_code_are_not_confused():
     assert contract.place_of_performance.postal_code is None
 
 
+def test_a_postal_code_also_yields_its_department():
+    """Le département se lit dans le code postal publié ; le libellé reste au feed."""
+    record = dict(RECORDS[NOMINAL])
+    record["lieuexecution_typecode"] = "Code postal"
+    record["lieuexecution_code"] = "92350"
+    _, contract = parse_contract(record, retrieved_at=RETRIEVED)
+    place = contract.place_of_performance
+    assert place.postal_code == "92350"
+    assert place.subdivision_code == "FR-92"
+    assert place.subdivision_scheme == "ISO-3166-2"
+    assert place.locality is None
+
+
 def test_the_duration_in_months_is_carried():
     _, contract = parsed(NOMINAL)
     assert contract.duration is not None

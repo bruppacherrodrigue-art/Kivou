@@ -25,7 +25,8 @@ from signals.card_intelligence.contracts import PublishedCardPresentation
 from signals.feed import copy as feed_copy
 from signals.feed import policy
 from signals.feed.factual_display import factual_display
-from signals.feed.query import FeedSignal
+from signals.feed.french_departments import department_label, location_subdivision
+from signals.feed.query import FeedSignal, is_customer_display_name
 from signals.recency.claim import claim_for_status
 
 #: §13 — un chemin de preuve désigne un emplacement DANS LA SOURCE. Tout ce qui
@@ -61,18 +62,23 @@ def _amount(value: Decimal | None, currency: str | None) -> dict[str, Any] | Non
 
 
 def _buyer(procedure_buyers: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """L'acheteur tel que publié — et `name: None` quand la source n'a publié
+    qu'un identifiant (DECP 2022). La règle §19 vaut pour lui comme pour le
+    titulaire : un SIRET n'est pas un nom."""
     if not procedure_buyers:
         return None
     first = procedure_buyers[0]
     identifiers = first.get("identifiers") or []
     identifier = identifiers[0] if identifiers else None
+    identifier_value = None if identifier is None else identifier.get("value")
+    legal_name = first.get("legal_name")
     return {
-        "name": first.get("legal_name"),
+        "name": legal_name if is_customer_display_name(legal_name, identifier_value) else None,
         "country": first.get("country"),
         "identifier": (
             None
             if identifier is None
-            else {"scheme": identifier.get("scheme"), "value": identifier.get("value")}
+            else {"scheme": identifier.get("scheme"), "value": identifier_value}
         ),
     }
 
@@ -80,11 +86,13 @@ def _buyer(procedure_buyers: list[dict[str, Any]]) -> dict[str, Any] | None:
 def _location(place: dict[str, Any] | None) -> dict[str, Any] | None:
     if not place:
         return None
+    subdivision = location_subdivision(place)
     return {
         "country": place.get("country"),
         "locality": place.get("locality"),
         "postal_code": place.get("postal_code"),
-        "subdivision_code": place.get("subdivision_code"),
+        "subdivision_code": subdivision,
+        "subdivision_label": department_label(subdivision),
     }
 
 

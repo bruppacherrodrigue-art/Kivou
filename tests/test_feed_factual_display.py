@@ -234,3 +234,76 @@ def test_headline_is_bounded_after_composing_published_facts() -> None:
 
     assert len(headline) <= 220
     assert headline.endswith("…")
+
+
+# ─── Un identifiant n'est pas un nom, un pays n'est pas un lieu ───────────────
+
+
+def _decp_like(event, award):
+    """Le contrat tel que DECP 2022 le publie : SIRET d'acheteur, code postal seul."""
+    from signals.domain.values import Location, OrganizationIdentifier, OrganizationRef
+
+    siret = "27920022400012"
+    buyer = OrganizationRef(
+        legal_name=siret,
+        identifiers=(OrganizationIdentifier(scheme="SIRET", value=siret),),
+        country="FR",
+    )
+    return (
+        event.model_copy(update={"procedure_buyers": (buyer,)}),
+        award.model_copy(
+            update={"place_of_performance": Location(country="FR", postal_code="92350")}
+        ),
+    )
+
+
+@pytest.fixture
+def decp_like_signal(client: TestClient, icp: str, engine):
+    event, awards = simap_award("33112-02")
+    event, award = _decp_like(event, awards[0])
+    with engine.begin() as connection:
+        return materialize(connection, event, award, target_icp_id=icp)
+
+
+def test_a_buyer_known_only_by_its_siret_has_no_name(client, decp_like_signal):
+    body = client.get(f"/signals/{decp_like_signal.signal_key}").json()
+    buyer = body["contract"]["buyer"]
+    assert buyer["name"] is None
+    assert buyer["identifier"] == {"scheme": "SIRET", "value": "27920022400012"}
+
+
+def test_a_postal_code_yields_a_department_and_its_label(client, decp_like_signal):
+    body = client.get(f"/signals/{decp_like_signal.signal_key}").json()
+    location = body["contract"]["location"]
+    assert location["locality"] is None
+    assert location["postal_code"] == "92350"
+    assert location["subdivision_code"] == "FR-92"
+    assert location["subdivision_label"] == "Hauts-de-Seine"
+
+
+def test_completeness_does_not_count_a_siret_as_a_buyer_name(client, decp_like_signal):
+    body = client.get(f"/signals/{decp_like_signal.signal_key}").json()
+    display = body["factual_display"]
+    assert "buyer" in display["missing_fields"]
+    assert "location" not in display["missing_fields"], "un département est un lieu"
+    assert display["completeness"] == "partial"
+
+
+def test_the_headline_names_the_department_rather_than_the_country(client, decp_like_signal):
+    body = client.get(f"/signals/{decp_like_signal.signal_key}").json()
+    headline = body["factual_display"]["headline"]
+    assert "dans le département 92 (Hauts-de-Seine)" in headline
+    assert " à FR" not in headline
+
+
+def test_a_country_alone_is_not_a_location(client, icp, engine):
+    from signals.domain.values import Location
+
+    event, awards = simap_award("33112-02")
+    award = awards[0].model_copy(update={"place_of_performance": Location(country="FR")})
+    with engine.begin() as connection:
+        signal = materialize(connection, event, award, target_icp_id=icp)
+
+    display = client.get(f"/signals/{signal.signal_key}").json()["factual_display"]
+    assert "location" in display["missing_fields"]
+    assert " à FR" not in display["headline"]

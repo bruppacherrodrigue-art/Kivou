@@ -11,7 +11,8 @@ from decimal import Decimal
 from typing import Any
 
 from signals.feed import policy
-from signals.feed.query import FeedSignal
+from signals.feed.french_departments import department_label, location_subdivision
+from signals.feed.query import FeedSignal, is_customer_display_name
 
 _MAX_OBJECT_LENGTH = 180
 _MAX_HEADLINE_LENGTH = 220
@@ -40,20 +41,38 @@ def _amount(value: Decimal | None, currency: str | None, *, lang: str) -> str | 
     return f"{rendered} {currency_label}"
 
 
-def _location(place: dict[str, Any] | None) -> str | None:
+def _location(place: dict[str, Any] | None, *, lang: str) -> str | None:
+    """Le complément de lieu du titre court — jamais le seul pays.
+
+    « à Munich » quand la commune est publiée ; sinon « dans le département 92
+    (Hauts-de-Seine) » quand un département français est publié ou dérivé du
+    code postal ; sinon la subdivision brute ; sinon rien — « à FR » n'est pas
+    un lieu qu'un commercial peut lire.
+    """
     if not place:
         return None
-    return (
-        _clean(place.get("locality"))
-        or _clean(place.get("subdivision_code"))
-        or _clean(place.get("country"))
-    )
+    locality = _clean(place.get("locality"))
+    if locality:
+        return f"in {locality}" if lang == "en" else f"à {locality}"
+    subdivision = location_subdivision(place)
+    if not subdivision:
+        return None
+    label = department_label(subdivision)
+    if label:
+        code = subdivision[3:]
+        return (
+            f"in department {code} ({label})" if lang == "en"
+            else f"dans le département {code} ({label})"
+        )
+    return f"in {subdivision}" if lang == "en" else f"à {subdivision}"
 
 
 def _buyer(item: FeedSignal) -> str | None:
     for organization in item.signal.event.procedure_buyers or []:
         name = _clean(organization.get("legal_name"))
-        if name:
+        identifiers = organization.get("identifiers") or []
+        identifier = (identifiers[0] or {}).get("value") if identifiers else None
+        if name and is_customer_display_name(name, identifier):
             return name
     return None
 
@@ -72,7 +91,7 @@ def _headline(
         return "Award published" if lang == "en" else "Attribution publiée"
     if lang == "en":
         if amount and location:
-            headline = f"{company} wins a {amount} contract in {location}"
+            headline = f"{company} wins a {amount} contract {location}"
         elif market_object:
             headline = f"{company} wins “{market_object}”"
         elif amount:
@@ -82,7 +101,7 @@ def _headline(
         else:
             headline = f"Contract awarded to {company}"
     elif amount and location:
-        headline = f"{company} remporte un marché de {amount} à {location}"
+        headline = f"{company} remporte un marché de {amount} {location}"
     elif market_object:
         headline = f"{company} remporte « {market_object} »"
     elif amount:
@@ -106,7 +125,7 @@ def factual_display(item: FeedSignal, *, lang: str) -> dict[str, Any]:
     company = item.display.name if item.display is not None else ""
     market_object = _clean(item.signal.award.title, limit=_MAX_OBJECT_LENGTH)
     amount = _amount(item.signal.award.amount, item.signal.award.currency, lang=lang)
-    location = _location(item.signal.award.place_of_performance)
+    location = _location(item.signal.award.place_of_performance, lang=lang)
     buyer = _buyer(item)
     clock = policy.STATUS_CLOCK.get(item.status)
     event_date = item.event_date
