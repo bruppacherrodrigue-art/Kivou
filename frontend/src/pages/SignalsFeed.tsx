@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { LockKeyhole } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
 import { billing, companies, signals } from '../api/endpoints'
 import type { FeedQuery } from '../api/endpoints'
 import { useCurrentUser } from '../auth/SessionProvider'
@@ -133,7 +134,7 @@ function useSinglePane(): boolean {
 }
 
 export function SignalsFeed() {
-  const { t, date, amount } = useI18n()
+  const { t, date, amount, locale } = useI18n()
   const me = useCurrentUser()
   const location = useLocation()
   const navigate = useNavigate()
@@ -461,11 +462,12 @@ export function SignalsFeed() {
   }
   const displayLocation = (card: SignalCardView) => {
     if (!card.location) return t.reference.missingValue
+    const countryTerritory = MVP_TERRITORIES.find((candidate) => candidate.code === card.location?.country)
     return [
       card.location.locality,
       card.location.postal_code,
       card.location.subdivision_label ?? card.location.subdivision_code,
-      card.location.country,
+      countryTerritory ? territoryLabel(countryTerritory, locale) : card.location.country,
     ].filter(Boolean).join(', ') || t.reference.missingValue
   }
   const cardStatus = (card: SignalCardView) => {

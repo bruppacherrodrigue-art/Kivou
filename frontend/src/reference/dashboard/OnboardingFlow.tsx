@@ -7,7 +7,7 @@ import { describeError } from '../../api/errorCopy'
 import type { TargetIcp } from '../../api/types'
 import { useSession } from '../../auth/SessionProvider'
 import { planFromSearch, planSearch } from '../../billing/planRoute'
-import { useI18n } from '../../i18n'
+import { useI18n, withRenderableSpaces } from '../../i18n'
 import { AuthShell } from './AuthShell'
 import {
   UnknownTargetingToken,
@@ -429,7 +429,7 @@ export function OnboardingFlow() {
             <div><dt>Entreprises</dt><dd>{draft.companies}</dd></div>
             <div><dt>Territoire</dt><dd>{draft.territory}</dd></div>
             <div><dt>Mots-clés</dt><dd>{terms.join(' · ')}</dd></div>
-            <div><dt>Seuil</dt><dd>{Number(draft.minAmount).toLocaleString('fr-CH')} {draft.currency}</dd></div>
+            <div><dt>Seuil</dt><dd>{withRenderableSpaces(Number(draft.minAmount).toLocaleString('fr-CH'))} {draft.currency}</dd></div>
           </dl>
         </section>
       ) : null}

@@ -6,6 +6,7 @@ import { describeError } from '../../api/errorCopy'
 import type { CataloguePlan, Currency, PlanCatalogue, PurchasablePlan } from '../../api/types'
 import { secureBillingDestination } from '../../billing/destination'
 import { planFromSearch } from '../../billing/planRoute'
+import { withRenderableSpaces } from '../../i18n'
 import { fr } from '../../i18n/fr'
 import { ReferenceLink } from '../router/ReferenceLink'
 import { AuthShell } from './AuthShell'
@@ -21,11 +22,11 @@ const PLAN_NAMES = {
 function priceFor(plan: CataloguePlan, currency: Currency): string | null {
   const price = plan.monthly_price[currency]
   if (!price) return null
-  return new Intl.NumberFormat('fr-CH', {
+  return withRenderableSpaces(new Intl.NumberFormat('fr-CH', {
     style: 'currency',
     currency: price.currency.toUpperCase(),
     minimumFractionDigits: price.amount_minor_units % 100 === 0 ? 0 : 2,
-  }).format(price.amount_minor_units / 100)
+  }).format(price.amount_minor_units / 100))
 }
 
 function cadenceLabel(value: CataloguePlan['entitlements']['alert_cadence']): string {

@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
   Target,
 } from 'lucide-react'
+import { withRenderableSpaces } from '../i18n'
 import { KivouBrand } from '../reference/dashboard/KivouBrand'
 import {
   Sidebar,
@@ -76,7 +77,7 @@ type Report = {
   showcase: Signal[]
 }
 
-const number = new Intl.NumberFormat('fr-FR')
+const number = { format: (value: number) => withRenderableSpaces(new Intl.NumberFormat('fr-FR').format(value)) }
 const date = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 
 function sourceLabel(level: Signal['enrichment_level']) {
