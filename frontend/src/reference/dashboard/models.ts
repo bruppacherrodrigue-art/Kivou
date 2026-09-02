@@ -1,12 +1,14 @@
 import type {
   BillingAction,
   CardPresentation,
+  EvidenceItem,
   Money,
   Place,
   PlanCode,
+  WinnerEnrichment,
 } from '../../api/types'
 
-export type SignalEventDateKind = 'award' | 'notification' | 'publication'
+export type SignalEventDateKind = 'award' | 'notification' | 'publication' | 'unknown'
 
 export interface EvidenceBoundLabel {
   label: string
@@ -23,6 +25,9 @@ export interface SignalFactView {
   primaryNeed: EvidenceBoundLabel | null
   fitReason: string | null
   presentation: CardPresentation | null
+  factualCompleteness: 'verified' | 'partial' | 'to_verify' | null
+  missingFacts: string[]
+  winnerEnrichment: WinnerEnrichment | null
 }
 
 export interface SignalCardView extends SignalFactView {
@@ -36,6 +41,7 @@ export interface SignalCardView extends SignalFactView {
   matchReasons: string[]
   sourceSystem: string | null
   whyNow: string
+  objectShort: string | null
 }
 
 /** Projection dédiée au Dashboard.
@@ -94,6 +100,7 @@ export interface SignalDetailView extends SignalFactView {
   }
   scope: { value: string; label: string }[]
   questions: string[]
+  publicEvidence: { fact: string; label: string; items: EvidenceItem[] }[]
 }
 
 export interface TargetProfileView {

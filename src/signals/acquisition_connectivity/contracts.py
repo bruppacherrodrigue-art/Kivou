@@ -97,7 +97,7 @@ class InstantlyConnectivityEvidence(_DeploymentModel):
 
 
 class ShadowPreflightEvidence(_DeploymentModel):
-    environment: Literal["STAGING"] = "STAGING"
+    environment: Literal["STAGING", "PRODUCTION"] = "STAGING"
     policy: Literal["SHADOW"] = "SHADOW"
     read_only: Literal[True] = True
     kill_switch: Literal[True] = True
@@ -184,7 +184,7 @@ class ConnectivityFailure(RuntimeError):
 
 
 class AcquisitionConnectivityConfig(_DeploymentModel):
-    environment: Literal["STAGING"]
+    environment: Literal["STAGING", "PRODUCTION"]
     shadow_config_path: Path
     apollo_api_key: SecretStr = Field(repr=False)
     instantly_api_key: SecretStr = Field(repr=False)

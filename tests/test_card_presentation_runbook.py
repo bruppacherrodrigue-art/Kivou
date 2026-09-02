@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -140,6 +143,271 @@ def test_every_documented_shell_and_embedded_script_parses() -> None:
             check=False,
         )
         assert parsed.returncode == 0, f"javascript block {index}: {parsed.stderr}"
+
+
+def test_qa_pregate_and_recovery_snapshot_accepts_live_revision_drift() -> None:
+    scripts = _python_heredocs(_body())
+    qa_pregate = next(
+        script for script in scripts if "qa_read_only_scope_ok fingerprint=" in script
+    )
+    snapshot = next(script for script in scripts if "recovery_snapshot_failed" in script)
+    common_modules = """
+import sys
+import types
+
+def package(name):
+    module = types.ModuleType(name)
+    module.__path__ = []
+    sys.modules[name] = module
+    return module
+
+package("signals")
+package("signals.persistence")
+sqlalchemy = types.ModuleType("sqlalchemy")
+sqlalchemy.text = lambda statement: statement
+sys.modules["sqlalchemy"] = sqlalchemy
+"""
+    qa_pregate_prelude = common_modules + """
+database = types.ModuleType("signals.persistence.database")
+
+class Connection:
+    def __enter__(self): return self
+    def __exit__(self, *_args): return False
+    def exec_driver_sql(self, _statement): return None
+    def scalar(self, _statement, _parameters=None): return 1
+
+class Engine:
+    def connect(self): return Connection()
+
+database.create_database_engine = lambda: Engine()
+sys.modules["signals.persistence.database"] = database
+"""
+    qa_result = subprocess.run(
+        [sys.executable, "-c", qa_pregate_prelude + qa_pregate],
+        env={**os.environ, "KIVOU_CARD_QA_ACCOUNT_ID": "qa-account"},
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert qa_result.returncode == 0, qa_result.stderr
+
+    account_id = "qa-account"
+    fingerprint = hashlib.sha256(account_id.encode("utf-8")).hexdigest()[:16]
+    snapshot_prelude = common_modules + """
+package("signals.card_intelligence")
+package("signals.feed")
+contracts = types.ModuleType("signals.card_intelligence.contracts")
+factual = object()
+
+class PresentationVariant:
+    FACTUAL_FALLBACK = factual
+
+class Claim:
+    evidence_refs = ("evidence",)
+
+class Payload:
+    variant = factual
+    claims = (Claim(),)
+
+class CardPresentationPayload:
+    @staticmethod
+    def from_json_value(_value): return Payload()
+
+contracts.CardPresentationPayload = CardPresentationPayload
+contracts.PresentationVariant = PresentationVariant
+sys.modules["signals.card_intelligence.contracts"] = contracts
+
+class Presentation:
+    status = "FALLBACK"
+    content = Payload()
+    def __init__(self, artifact_id): self.artifact_id = artifact_id
+
+store = types.ModuleType("signals.card_intelligence.store")
+store.published_for_signals = lambda _connection, **kwargs: {
+    key: Presentation(f"a{index}")
+    for index, key in enumerate(
+        list(kwargs["bindings"])[:6] if kwargs["language"] == "fr" else []
+    )
+}
+sys.modules["signals.card_intelligence.store"] = store
+
+class Signal:
+    def __init__(self, index):
+        self.signal_key = f"s{index}"
+        self.revision = 1
+
+page = types.SimpleNamespace(
+    limit=50,
+    offset=0,
+    items=tuple(types.SimpleNamespace(signal=Signal(index)) for index in range(49)),
+    has_more=False,
+    scan_truncated=False,
+)
+query = types.ModuleType("signals.feed.query")
+query.feed_page = lambda *_args, **_kwargs: page
+sys.modules["signals.feed.query"] = query
+
+rows = [
+    {
+        "artifact_id": f"a{index}",
+        "signal_key": f"s{index}",
+        "signal_revision": 1 if index < 6 else 0,
+        "target_icp_id": "target-icp",
+        "target_icp_revision": 1,
+        "language": "fr",
+        "version": 1,
+        "payload": {},
+        "payload_variant": "FACTUAL_FALLBACK",
+        "qa_status": "FALLBACK",
+        "prompt_version": None,
+        "model_id": None,
+        "provider": None,
+        "qa_model_id": None,
+        "qa_provider": None,
+        "superseded_at": None,
+    }
+    for index in range(8)
+]
+
+binding_rows = [
+    {
+        "signal_key": f"s{index}",
+        "revision": 1,
+        "target_icp_id": "target-icp",
+        "target_icp_revision": 1,
+    }
+    for index in range(49)
+]
+
+class Result:
+    def __init__(self, result_rows): self.result_rows = result_rows
+    def mappings(self): return self
+    def all(self): return self.result_rows
+
+class Connection:
+    def __init__(self):
+        self.scalar_values = iter((0, 8, 0, 0, 0))
+        self.result_rows = iter((rows, binding_rows))
+    def __enter__(self): return self
+    def __exit__(self, *_args): return False
+    def exec_driver_sql(self, _statement): return None
+    def execute(self, _statement, _parameters=None): return Result(next(self.result_rows))
+    def scalar(self, _statement, _parameters=None): return next(self.scalar_values)
+
+class Engine:
+    def connect(self): return Connection()
+
+database = types.ModuleType("signals.persistence.database")
+database.create_database_engine = lambda: Engine()
+database.current_revision = lambda _engine: "0028_card_presentation"
+sys.modules["signals.persistence.database"] = database
+"""
+    snapshot_result = subprocess.run(
+        [sys.executable, "-c", snapshot_prelude + snapshot],
+        env={
+            **os.environ,
+            "KIVOU_CARD_QA_ACCOUNT_ID": account_id,
+            "KIVOU_QA_APPROVED_FINGERPRINT": fingerprint,
+            "KIVOU_RECOVERY_SNAPSHOT_PHASE": "baseline",
+            "KIVOU_RECOVERY_EXPECTED_REVISION": "0028_card_presentation",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert snapshot_result.returncode == 0, snapshot_result.stderr
+    snapshot_payload = json.loads(snapshot_result.stdout)
+    assert snapshot_payload["candidate_count"] == 49
+    assert snapshot_payload["active_counts"] == {"en": 0, "fr": 8}
+    assert snapshot_payload["current_counts"] == {"en": 0, "fr": 6}
+    assert len(snapshot_payload["artifacts"]) == 8
+    assert [artifact["state"] for artifact in snapshot_payload["artifacts"]] == [
+        "current",
+        "current",
+        "current",
+        "current",
+        "current",
+        "current",
+        "signal_revision_changed",
+        "signal_revision_changed",
+    ]
+    assert all("target_icp_id" not in artifact for artifact in snapshot_payload["artifacts"])
+
+    stale_target_prelude = snapshot_prelude.replace(
+        '"target_icp_id": "target-icp",',
+        '"target_icp_id": "stale-target",',
+        1,
+    )
+    stale_target = subprocess.run(
+        [sys.executable, "-c", stale_target_prelude + snapshot],
+        env={
+            **os.environ,
+            "KIVOU_CARD_QA_ACCOUNT_ID": account_id,
+            "KIVOU_QA_APPROVED_FINGERPRINT": fingerprint,
+            "KIVOU_RECOVERY_SNAPSHOT_PHASE": "baseline",
+            "KIVOU_RECOVERY_EXPECTED_REVISION": "0028_card_presentation",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert stale_target.returncode != 0
+    assert stale_target.stderr == "recovery_snapshot_failed\n"
+
+    stale_target_revision_prelude = snapshot_prelude.replace(
+        '"target_icp_revision": 1,',
+        '"target_icp_revision": 0,',
+        1,
+    )
+    stale_target_revision = subprocess.run(
+        [sys.executable, "-c", stale_target_revision_prelude + snapshot],
+        env={
+            **os.environ,
+            "KIVOU_CARD_QA_ACCOUNT_ID": account_id,
+            "KIVOU_QA_APPROVED_FINGERPRINT": fingerprint,
+            "KIVOU_RECOVERY_SNAPSHOT_PHASE": "baseline",
+            "KIVOU_RECOVERY_EXPECTED_REVISION": "0028_card_presentation",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert stale_target_revision.returncode != 0
+    assert stale_target_revision.stderr == "recovery_snapshot_failed\n"
+
+    post_prelude = snapshot_prelude.replace(
+        'database.current_revision = lambda _engine: "0028_card_presentation"',
+        'database.current_revision = lambda _engine: "0029_production_observation"',
+    )
+    post = subprocess.run(
+        [sys.executable, "-c", post_prelude + snapshot],
+        env={
+            **os.environ,
+            "KIVOU_CARD_QA_ACCOUNT_ID": account_id,
+            "KIVOU_QA_APPROVED_FINGERPRINT": fingerprint,
+            "KIVOU_RECOVERY_SNAPSHOT_PHASE": "post_fr",
+            "KIVOU_RECOVERY_EXPECTED_REVISION": "0029_production_observation",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert post.returncode == 0, post.stderr
+    mismatch = subprocess.run(
+        [sys.executable, "-c", post_prelude + snapshot],
+        env={
+            **os.environ,
+            "KIVOU_CARD_QA_ACCOUNT_ID": account_id,
+            "KIVOU_QA_APPROVED_FINGERPRINT": fingerprint,
+            "KIVOU_RECOVERY_SNAPSHOT_PHASE": "post_fr",
+            "KIVOU_RECOVERY_EXPECTED_REVISION": "0028_card_presentation",
+        },
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert mismatch.returncode != 0
+    assert mismatch.stderr == "recovery_snapshot_failed\n"
 
 
 def test_rollout_proves_exact_main_ci_jobs_and_executed_steps_before_ssh() -> None:
@@ -366,7 +634,7 @@ def test_documented_ci_filter_accepts_executed_green_steps_and_rejects_empty_job
     assert evaluate(unexecuted_step).returncode != 0
 
 
-def test_preflight_captures_both_releases_and_requires_exact_0027() -> None:
+def test_preflight_captures_both_releases_and_requires_selected_start_revision() -> None:
     body = _body()
     commands = _commands(
         _between(
@@ -382,7 +650,8 @@ def test_preflight_captures_both_releases_and_requires_exact_0027() -> None:
         "KIVOU_PREVIOUS_FRONTEND=$(readlink -f /srv/kivou/frontend)",
         "(/srv/kivou/releases/backend-*)",
         "(/srv/kivou/releases/frontend-*)",
-        'assert revision == "0027_signal_notes", revision',
+        "expected_revision=os.environ[\"KIVOU_EXPECTED_START_REVISION\"]",
+        "assert revision == expected_revision, (revision, expected_revision)",
         "kivou-backup.timer",
         "http://127.0.0.1:8000/openapi.json",
     ):
@@ -392,13 +661,192 @@ def test_preflight_captures_both_releases_and_requires_exact_0027() -> None:
     assert "cat /etc/kivou/staging.env" not in commands
 
 
-def test_backup_is_unique_verified_restored_and_dropped_before_migration() -> None:
+def test_recovery_path_is_explicit_readonly_and_diff_limited() -> None:
+    step_one = _between(
+        _body(),
+        "## 1. Geler le SHA final et prouver la CI réellement exécutée",
+        "## 2. Prouver staging et capturer les deux rollback targets",
+    )
+    commands = _commands(step_one)
+
+    for fragment in (
+        "KIVOU_ROLLOUT_PATH=${KIVOU_ROLLOUT_PATH:-initial_0027}",
+        "(initial_0027)",
+        "(resume_51202525)",
+        "KIVOU_EXPECTED_START_REVISION=0027_signal_notes",
+        "KIVOU_EXPECTED_START_REVISION=0028_card_presentation",
+        "KIVOU_RECOVERY_SOURCE_SHA=51202525d3163aeac259acbf9ac23086ed2cc256",
+        "readonly KIVOU_ROLLOUT_PATH KIVOU_EXPECTED_START_REVISION",
+        "src/signals/card_intelligence/backfill.py",
+        "src/signals/card_intelligence/cli.py",
+        "tests/test_card_intelligence_backfill.py",
+        "tests/test_card_presentation_runbook.py",
+        "docs/runbooks/11-staging-card-presentation-rollout.md",
+        "KIVOU_RECOVERY_CARD_DIFF",
+        "git merge-base --is-ancestor",
+        "KIVOU_RECOVERY_STOP_FILE",
+        "status=STOP_BACKFILL_SCAN_TRUNCATED",
+        "KIVOU_ORIGINAL_ROLLOUT_STATUS=STOP_FAIL_CLOSED",
+    ):
+        assert fragment in commands
+    assert "export KIVOU_ROLLOUT_PATH=resume_51202525" in step_one
+
+    _assert_in_order(
+        commands,
+        "KIVOU_FINAL_SHA=$(git rev-parse origin/main)",
+        "KIVOU_ROLLOUT_PATH=${KIVOU_ROLLOUT_PATH:-initial_0027}",
+        "KIVOU_RECOVERY_CARD_DIFF",
+        "KIVOU_CI_RUN_ID=",
+        'readonly KIVOU_ROLLOUT_PATH KIVOU_EXPECTED_START_REVISION',
+    )
+
+
+def test_recovery_stop_file_parser_is_exact_complete_and_fail_closed(
+    tmp_path: Path,
+) -> None:
+    step_one = _commands(
+        _between(
+            _body(),
+            "## 1. Geler le SHA final et prouver la CI réellement exécutée",
+            "## 2. Prouver staging et capturer les deux rollback targets",
+        )
+    )
+    prefix = "kivou_validate_recovery_stop_file() {\n"
+    assert step_one.count(prefix) == 1
+    validator = prefix + step_one.split(prefix, 1)[1].split("\n}\n", 1)[0] + "\n}\n"
+    expected = {
+        "status": "STOP_BACKFILL_SCAN_TRUNCATED",
+        "sha": "51202525d3163aeac259acbf9ac23086ed2cc256",
+        "database_revision": "0028_card_presentation",
+        "backend_release": "backend-20260831T221628Z-51202525d316",
+        "frontend_release": "frontend-20260831T221628Z-51202525d316",
+        "fr_factual_artifacts": "8",
+        "en_factual_artifacts": "0",
+        "other_tenant_artifacts": "0",
+        "ai_bound_artifacts": "0",
+        "current_owned_signals": "790",
+        "get_candidate_scan_cap": "500",
+        "get_page_items": "8",
+        "get_page_excluded_without_display_name": "492",
+        "get_page_scan_truncated": "1",
+        "offline_diagnostic_cap": "1000",
+        "offline_diagnostic_items": "44",
+        "offline_diagnostic_scan_truncated": "0",
+        "production_mutated": "0",
+    }
+    valid = "".join(f"{key}={value}\n" for key, value in expected.items())
+    harness = (
+        "set -euo pipefail\n"
+        "KIVOU_RECOVERY_SOURCE_SHA="
+        "51202525d3163aeac259acbf9ac23086ed2cc256\n"
+        f"KIVOU_OPERATOR_ROOT_REAL={ROOT}\n"
+        "KIVOU_RECOVERY_STOP_FILE=$1\n"
+        + validator
+        + "kivou_validate_recovery_stop_file\n"
+        + 'test "$KIVOU_ORIGINAL_ROLLOUT_STATUS" = STOP_FAIL_CLOSED\n'
+    )
+
+    def evaluate(contents: str, *, mode: int = 0o600) -> subprocess.CompletedProcess[str]:
+        case_dir = tmp_path / f"case-{len(tuple(tmp_path.iterdir()))}"
+        case_dir.mkdir(mode=0o700)
+        stop_file = case_dir / "rollout-stop.txt"
+        stop_file.write_text(contents, encoding="utf-8")
+        stop_file.chmod(mode)
+        return subprocess.run(
+            ["bash", "-c", harness, "bash", str(stop_file)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    assert evaluate(valid).returncode == 0
+    assert evaluate(valid + "status=STOP_BACKFILL_SCAN_TRUNCATED\n").returncode != 0
+    assert evaluate(valid.replace("status=STOP_BACKFILL_SCAN_TRUNCATED\n", "")).returncode != 0
+    assert evaluate(valid + "unknown_key=0\n").returncode != 0
+    assert evaluate(valid.replace("current_owned_signals=790", "current_owned_signals=791")).returncode != 0
+    assert evaluate(valid, mode=0o644).returncode != 0
+
+    target = tmp_path / "target-rollout-stop.txt"
+    target.write_text(valid, encoding="utf-8")
+    target.chmod(0o600)
+    symlink_dir = tmp_path / "symlink-case"
+    symlink_dir.mkdir(mode=0o700)
+    symlink = symlink_dir / "rollout-stop.txt"
+    symlink.symlink_to(target)
+    linked = subprocess.run(
+        ["bash", "-c", harness, "bash", str(symlink)],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert linked.returncode != 0
+
+
+def test_recovery_preflight_proves_exact_partial_factual_state_before_backup() -> None:
+    body = _body()
+    preflight = _between(
+        body,
+        "## 2. Prouver staging et capturer les deux rollback targets",
+        "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
+    )
+    commands = _commands(preflight)
+
+    for fragment in (
+        'test "$KIVOU_PREVIOUS_BACKEND_SHA" = "$KIVOU_RECOVERY_SOURCE_SHA"',
+        'test "$(cat "$KIVOU_PREVIOUS_FRONTEND/KIVOU_RELEASE_SHA")" =',
+        'assert revision == expected_revision, (revision, expected_revision)',
+        'assert len(artifacts) == 8',
+        'assert total_rows == 8',
+        'assert all(row["language"] == "fr" for row in rows)',
+        'assert foreign_rows == 0',
+        'assert duplicates == 0',
+        'assert all(row[field] is None for field in',
+        "CardPresentationPayload.from_json_value",
+        "PresentationVariant.FACTUAL_FALLBACK",
+        "from signals.feed.query import feed_page",
+        "from signals.card_intelligence.store import published_for_signals",
+        "as_of=dt.date(2026, 8, 31)",
+        'freshness="all"',
+        "limit=50",
+        "offset=0",
+        "scan_cap=1000",
+        "assert page.scan_truncated is False",
+        "assert 1 <= len(page.items) <= 50",
+        "page_bindings = {",
+        'for language in ("fr", "en"):',
+        "candidate_binding_digest = hashlib.sha256(json.dumps(sorted(",
+        '"candidate_count": len(page_bindings)',
+        '"active_digests": active_digests',
+        '"current_digests": current_digests',
+        '"active_outside_candidate_counts": active_outside_candidate_counts',
+        "assert payload.claims",
+        "assert all(claim.evidence_refs for claim in payload.claims)",
+        'KIVOU_RECOVERY_BASELINE="$KIVOU_EVIDENCE_DIR/recovery-fr-baseline.json"',
+        'chmod 600 "$KIVOU_RECOVERY_BASELINE"',
+        "KIVOU_RECOVERY_BASELINE_SHA256=",
+        ".candidate_count >= 8 and .candidate_count <= 50",
+        "and (.artifacts | length) == 8",
+        "kivou_capture_recovery_fr_snapshot()",
+    ):
+        assert fragment in commands
+
+    _assert_in_order(
+        body,
+        'test "$(gh api "repos/$KIVOU_REPOSITORY/commits/main" --jq .sha)"',
+        "KIVOU_RECOVERY_CARD_DIFF",
+        'test "$KIVOU_PREVIOUS_BACKEND_SHA" = "$KIVOU_RECOVERY_SOURCE_SHA"',
+        'KIVOU_RECOVERY_BASELINE="$KIVOU_EVIDENCE_DIR/recovery-fr-baseline.json"',
+        "systemctl start kivou-backup.service",
+    )
+
+
+def test_backup_is_unique_verified_restored_and_dropped_after_scratch_migration() -> None:
     body = _body()
     commands = _commands(
         _between(
             body,
             "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
-            "## 4. Préparer la release backend immuable et migrer vers 0028",
+            "## 4. Préparer la release backend immuable et migrer vers 0029",
         )
     )
 
@@ -414,13 +862,13 @@ def test_backup_is_unique_verified_restored_and_dropped_before_migration() -> No
         "^[a-z0-9_]{1,63}$",
         "createdb --template=template0",
         "pg_restore --exit-on-error --no-owner --no-privileges",
+        "KIVOU_EXPECTED_START_REVISION",
         "alembic_version",
         "account",
         "target_icp",
         "materialized_signal",
         "contract_award",
         "pg_database_size",
-        'dropdb "$KIVOU_RESTORE_DB"',
     ):
         assert fragment in commands
     assert (
@@ -436,12 +884,131 @@ def test_backup_is_unique_verified_restored_and_dropped_before_migration() -> No
         'pg_restore --list "$KIVOU_BACKUP_FILE"',
         "createdb --template=template0",
         "pg_restore --exit-on-error --no-owner --no-privileges",
-        'dropdb "$KIVOU_RESTORE_DB"',
         "migrate_to_latest(engine)",
+        'dropdb "$KIVOU_RESTORE_DB"',
     )
 
 
-def test_backend_release_migrates_0027_to_0028_before_versioned_blue_green() -> None:
+def test_recovery_backup_restores_0028_and_migrates_exactly_once_to_0029() -> None:
+    body = _body()
+    backup = _commands(
+        _between(
+            body,
+            "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
+            "## 4. Préparer la release backend immuable et migrer vers 0029",
+        )
+    )
+    migration = _commands(
+        _between(
+            body,
+            "## 4. Préparer la release backend immuable et migrer vers 0029",
+            "## 5. Publier le backend par le blue/green versionné",
+        )
+    )
+
+    assert '"$KIVOU_FINAL_SHORT" "$KIVOU_EXPECTED_START_REVISION"' in backup
+    assert 'KIVOU_EXPECTED_START_REVISION=$2' in backup
+    assert 'test "$KIVOU_RESTORED_REVISION" = "$KIVOU_EXPECTED_START_REVISION"' in backup
+    assert 'restore_revision=%s' in backup
+    assert 'test "$KIVOU_RESTORE_CARD_INVENTORY" = "8|8|0|0|1|0"' in backup
+
+    for fragment in (
+        'KIVOU_ROLLOUT_PATH=$3',
+        'KIVOU_EXPECTED_START_REVISION=$5',
+        "assert before == expected_before, before",
+        "migrate_to_latest(engine)",
+        'assert after == "0029_production_observation", after',
+        'kivou_run_0029_migration scratch "$KIVOU_EXPECTED_START_REVISION"',
+        'kivou_run_0029_migration live "$KIVOU_EXPECTED_START_REVISION"',
+        'print(f"database_transition={before}->{after}")',
+    ):
+        assert fragment in migration
+
+    python = next(
+        script
+        for script in _python_heredocs(
+            _between(
+                body,
+                "## 4. Préparer la release backend immuable et migrer vers 0029",
+                "## 5. Publier le backend par le blue/green versionné",
+            )
+        )
+        if "migrate_to_latest" in script
+    )
+    assert python.count("migrate_to_latest(engine)") == 1
+
+
+def test_restore_catalog_checks_use_fail_closed_psql_stdin() -> None:
+    commands = _commands(
+        _between(
+            _body(),
+            "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
+            "## 4. Préparer la release backend immuable et migrer vers 0029",
+        )
+    )
+
+    assert commands.count("kivou_restore_db_count() {") == 1
+    assert commands.count("kivou_restore_table_count() {") == 1
+    assert commands.count("psql -X -qAt") >= 9
+    assert commands.count("--set=ON_ERROR_STOP=1") >= 9
+    assert '--set=db="$KIVOU_RESTORE_DB" <<\'SQL\'' in commands
+    assert '--set=table="$KIVOU_TABLE" <<\'SQL\'' in commands
+    assert "SELECT count(*) FROM pg_database WHERE datname = :'db';" in commands
+    assert (
+        "SELECT count(*) FROM pg_catalog.pg_class "
+        "WHERE oid = to_regclass(:'table');"
+    ) in commands
+    assert commands.count(
+        "KIVOU_RESTORE_DB_COUNT=$(kivou_restore_db_count)"
+    ) == 1
+    assert commands.count('test "$KIVOU_RESTORE_DB_COUNT" = 0') == 1
+    assert commands.count(
+        "KIVOU_RESTORE_TABLE_COUNT=$(kivou_restore_table_count)"
+    ) == 1
+    assert commands.count('test "$KIVOU_RESTORE_TABLE_COUNT" = 1') == 1
+    assert 'test "$(kivou_restore_db_count)"' not in commands
+    assert 'test "$(kivou_restore_table_count)"' not in commands
+    assert '-c "SELECT count(*) FROM pg_database WHERE datname = :\'db\'"' not in commands
+    assert "-c \"SELECT count(*) FROM pg_catalog.pg_class" not in commands
+
+
+def test_remote_rollout_shells_use_shared_cwd_and_private_backup_identity() -> None:
+    commands = _commands(
+        _between(
+            _body(),
+            "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
+            "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        )
+    )
+
+    shared_prefix = "set -euo pipefail\ncd /srv/kivou\n"
+    assert commands.count(shared_prefix) == 6
+    assert commands.count(shared_prefix + "KIVOU_FINAL_SHORT=$1") == 1
+    assert commands.count(shared_prefix + "KIVOU_FINAL_SHA=$1") == 1
+    assert commands.count(shared_prefix + "KIVOU_RELEASE_DIR=$1") == 4
+    backup_identity_check = (
+        'test "$(sudo -u kivou stat -c \'%U:%G:%a\' '
+        '"$KIVOU_BACKUP_FILE")" = "kivou:kivou:600"'
+    )
+    unsafe_backup_identity_check = (
+        'test "$(stat -c \'%U:%G:%a\' '
+        '"$KIVOU_BACKUP_FILE")" = "kivou:kivou:600"'
+    )
+    backup_bytes_capture = (
+        'KIVOU_BACKUP_BYTES=$(sudo -u kivou stat -c \'%s\' '
+        '"$KIVOU_BACKUP_FILE")'
+    )
+    unsafe_backup_bytes_capture = (
+        'KIVOU_BACKUP_BYTES=$(stat -c \'%s\' '
+        '"$KIVOU_BACKUP_FILE")'
+    )
+    assert commands.count(backup_identity_check) == 1
+    assert commands.count(backup_bytes_capture) == 1
+    assert unsafe_backup_identity_check not in commands
+    assert unsafe_backup_bytes_capture not in commands
+
+
+def test_backend_release_migrates_0027_or_0028_to_0029_before_blue_green() -> None:
     body = _body()
 
     for fragment in (
@@ -453,11 +1020,12 @@ def test_backend_release_migrates_0027_to_0028_before_versioned_blue_green() -> 
         'checkout --detach "$KIVOU_FINAL_SHA"',
         'sudo test ! -L "$KIVOU_RELEASE_DIR"',
         "uv sync --frozen --extra server --extra postgres",
-        'assert script.get_current_head() == "0028_card_presentation"',
-        'assert migration.down_revision == "0027_signal_notes"',
-        'assert before == "0027_signal_notes", before',
+        'assert script.get_current_head() == "0029_production_observation"',
+        'assert migration.down_revision == "0028_card_presentation"',
+        'assert script.get_revision("0028_card_presentation").down_revision',
+        "assert before == expected_before, before",
         "migrate_to_latest(engine)",
-        'assert after == "0028_card_presentation", after',
+        'assert after == "0029_production_observation", after',
         "card_presentation_artifact",
         "ix_card_presentation_tenant_read",
         "uq_card_presentation_active_publication",
@@ -473,7 +1041,7 @@ def test_backend_release_migrates_0027_to_0028_before_versioned_blue_green() -> 
 
     _assert_in_order(
         body,
-        'assert after == "0028_card_presentation", after',
+        'assert after == "0029_production_observation", after',
         "card_presentation_artifact",
         'print(f"migration={before}->{after}")',
         'git show "$KIVOU_FINAL_SHA:ops/README.md"',
@@ -877,6 +1445,185 @@ kivou_frontend_build_owner /bin/sh -eu -c '
     assert executed.returncode == 0, executed.stderr
 
 
+def test_read_only_qa_gate_precedes_rollout_mutations_and_each_backfill() -> None:
+    body = _body()
+    commands = _commands(body)
+    qa_gate = _between(
+        body,
+        "kivou_validate_qa_read_only() {",
+        "# Fin du garde-fou QA partagé en lecture seule.",
+    )
+    section = _between(
+        body,
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    section_commands = _commands(section)
+
+    for fragment in (
+        'connection.exec_driver_sql("SET TRANSACTION READ ONLY")',
+        "!requests.some(({ method }) => !['GET', 'HEAD'].includes(method))",
+        "context.request.get(`${origin}/me`)",
+        'console.log("qa_read_only_gate_ok")',
+        'console.error("qa_read_only_gate_failed")',
+    ):
+        assert fragment in qa_gate
+    assert "/signals?" not in qa_gate
+    assert "/app/signals" not in qa_gate
+    for forbidden in ("INSERT ", "UPDATE ", "DELETE ", "cli_main", "backfill-fallbacks"):
+        assert forbidden not in qa_gate
+
+    first_gate = 'kivou_validate_qa_read_only "$KIVOU_PREVIOUS_BACKEND"'
+    assert commands.count(first_gate) == 1
+    for first_mutation in (
+        "sudo systemctl start kivou-backup.service",
+        "sudo -u postgres createdb",
+        "sudo -u postgres pg_restore",
+        "sudo install -o kivou -g kivou -m 755 -d \"$KIVOU_RELEASE_DIR\"",
+        "migrate_to_latest(engine)",
+        "sudo mv -Tf",
+    ):
+        assert commands.index(first_gate) < commands.index(first_mutation)
+
+    replay = 'kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"'
+    assert section_commands.count(replay) == 1
+    _assert_in_order(
+        section_commands,
+        replay,
+        "KIVOU_WRITER_QUIESCENCE=",
+        'kivou-card-backfill-fr-$KIVOU_FINAL_SHORT',
+        'kivou-card-backfill-en-$KIVOU_FINAL_SHORT',
+    )
+    assert section_commands.count("kivou_revalidate_qa_binding") == 4
+
+
+def test_qa_approved_fingerprint_is_frozen_once_and_compared_before_backfills() -> None:
+    body = _body()
+    commands = _commands(body)
+    qa_gate = _between(
+        body,
+        "kivou_validate_qa_read_only() {",
+        "# Fin du garde-fou QA partagé en lecture seule.",
+    )
+    section = _between(
+        body,
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    section_commands = _commands(section)
+
+    assignments = re.findall(
+        r"^\s*KIVOU_QA_APPROVED_FINGERPRINT="
+        r"\$KIVOU_QA_READ_ONLY_FINGERPRINT$",
+        commands,
+        flags=re.MULTILINE,
+    )
+    assert len(assignments) == 1
+    _assert_in_order(
+        qa_gate,
+        'if test -z "${KIVOU_QA_APPROVED_FINGERPRINT+x}"',
+        "KIVOU_QA_APPROVED_FINGERPRINT=$KIVOU_QA_READ_ONLY_FINGERPRINT",
+        'test "$KIVOU_QA_READ_ONLY_FINGERPRINT" =',
+        '"$KIVOU_QA_APPROVED_FINGERPRINT"',
+        "fi",
+        "export KIVOU_QA_APPROVED_FINGERPRINT",
+        "readonly KIVOU_QA_APPROVED_FINGERPRINT",
+    )
+    assert "KIVOU_QA_APPROVED_FINGERPRINT=$KIVOU_QA_READ_ONLY_FINGERPRINT" not in (
+        qa_gate.split("else", 1)[1]
+    )
+    assert "KIVOU_QA_DB_FINGERPRINT=$KIVOU_QA_READ_ONLY_FINGERPRINT" not in body
+    assert "KIVOU_QA_APPROVED_FINGERPRINT=$(" not in section_commands
+    overwriting_mutant = section_commands.replace(
+        "KIVOU_QA_SCOPE_FINGERPRINT=$(",
+        "KIVOU_QA_APPROVED_FINGERPRINT=$(",
+        1,
+    )
+    assert "KIVOU_QA_APPROVED_FINGERPRINT=$(" in overwriting_mutant
+
+    replay = 'kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"'
+    comparison = (
+        'test "$KIVOU_QA_SCOPE_FINGERPRINT" = '
+        '"$KIVOU_QA_APPROVED_FINGERPRINT"'
+    )
+    _assert_in_order(
+        section_commands,
+        comparison,
+        replay,
+        "KIVOU_WRITER_QUIESCENCE=",
+        'kivou-card-backfill-fr-$KIVOU_FINAL_SHORT',
+        'kivou-card-backfill-en-$KIVOU_FINAL_SHORT',
+    )
+    assert section_commands.count(comparison) >= 1
+    backfill_commands = section_commands.split("KIVOU_QA_FACTUAL_PROOF=", 1)[0]
+    assert backfill_commands.count(
+        '--setenv="KIVOU_QA_APPROVED_FINGERPRINT='
+        '$KIVOU_QA_APPROVED_FINGERPRINT"'
+    ) == 2
+    assert section_commands.count(
+        'hmac.compare_digest(actual, expected)'
+    ) >= 2
+
+
+def test_preinitialized_approved_fingerprint_is_exported_and_readonly() -> None:
+    qa_gate = _between(
+        _body(),
+        "kivou_validate_qa_read_only() {",
+        "# Fin du garde-fou QA partagé en lecture seule.",
+    )
+    freeze = qa_gate.split(
+        '  if test -z "${KIVOU_QA_APPROVED_FINGERPRINT+x}"; then\n', 1
+    )[1].split("\n\n  (\n    cd frontend", 1)[0]
+    freeze = (
+        'if test -z "${KIVOU_QA_APPROVED_FINGERPRINT+x}"; then\n' + freeze
+    )
+    fingerprint = "0123456789abcdef"
+    harness = f"""
+set -eu
+KIVOU_QA_APPROVED_FINGERPRINT={fingerprint}
+KIVOU_QA_READ_ONLY_FINGERPRINT={fingerprint}
+{freeze}
+test "$KIVOU_QA_APPROVED_FINGERPRINT" = {fingerprint}
+export -p | grep -Eq 'KIVOU_QA_APPROVED_FINGERPRINT="{fingerprint}"'
+readonly -p | grep -Eq 'KIVOU_QA_APPROVED_FINGERPRINT="{fingerprint}"'
+if (KIVOU_QA_APPROVED_FINGERPRINT=fedcba9876543210) 2>/dev/null; then
+  exit 42
+fi
+"""
+    executed = subprocess.run(
+        ["bash", "-c", harness],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert executed.returncode == 0, executed.stderr
+
+
+def test_read_only_qa_gate_binds_to_the_exact_backend_currently_served() -> None:
+    qa_gate = _between(
+        _body(),
+        "kivou_validate_qa_read_only() {",
+        "# Fin du garde-fou QA partagé en lecture seule.",
+    )
+    for fragment in (
+        "test -L /srv/kivou/app",
+        "KIVOU_QA_SERVED_APP=$(readlink -f /srv/kivou/app)",
+        'case "$KIVOU_QA_SERVED_APP" in',
+        "(/srv/kivou/releases/backend-*)",
+        'test "$KIVOU_QA_SERVED_APP" = "$KIVOU_QA_APP_DIR"',
+        'test -d "$KIVOU_QA_SERVED_APP"',
+    ):
+        assert fragment in qa_gate
+    _assert_in_order(
+        qa_gate,
+        "test -L /srv/kivou/app",
+        "KIVOU_QA_SERVED_APP=$(readlink -f /srv/kivou/app)",
+        'case "$KIVOU_QA_SERVED_APP" in',
+        'test "$KIVOU_QA_SERVED_APP" = "$KIVOU_QA_APP_DIR"',
+        "sudo systemd-run",
+    )
+
+
 def test_qa_gate_precedes_separate_bounded_fr_en_factual_backfills() -> None:
     body = _body()
     qa_section = _between(
@@ -919,6 +1666,1085 @@ def test_qa_gate_precedes_separate_bounded_fr_en_factual_backfills() -> None:
     assert len(backfill_scripts) == 2
 
 
+def test_recovery_keeps_original_date_and_cumulative_fr_bound_before_en(
+    tmp_path: Path,
+) -> None:
+    section = _between(
+        _body(),
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    commands = _commands(section)
+
+    for fragment in (
+        'KIVOU_BACKFILL_AS_OF=2026-08-31',
+        'KIVOU_FR_LIMIT=50',
+        'KIVOU_EN_LIMIT=50',
+        'readonly KIVOU_BACKFILL_AS_OF KIVOU_FR_LIMIT KIVOU_EN_LIMIT',
+        'kivou_validate_backfill_summary "$KIVOU_FR_SUMMARY" "$KIVOU_FR_LIMIT"',
+        'kivou_validate_backfill_summary "$KIVOU_EN_SUMMARY" "$KIVOU_EN_LIMIT"',
+        '"--limit", os.environ["KIVOU_BACKFILL_LIMIT"]',
+        'KIVOU_RECOVERY_POST_FR="$KIVOU_EVIDENCE_DIR/recovery-fr-post.json"',
+        '"$KIVOU_RELEASE_DIR" post_fr "$KIVOU_EXPECTED_FINAL_REVISION"',
+        '--slurpfile baseline "$KIVOU_RECOVERY_BASELINE"',
+        'all($baseline[0].artifacts[];',
+        'del(.state) as $old',
+        '| any($post.artifacts[]; del(.state) == $old))',
+        '.candidate_count == $candidate_count',
+        '.candidate_binding_digest == $prefr[0].candidate_binding_digest',
+        'chmod 600 "$KIVOU_RECOVERY_POST_FR"',
+        'recovery_fr_baseline_preserved=1',
+        "KIVOU_RECOVERY_POST_FR_SHA256=",
+    ):
+        assert fragment in commands
+
+    _assert_in_order(
+        commands,
+        'kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"',
+        'kivou-card-backfill-fr-$KIVOU_FINAL_SHORT',
+        'KIVOU_RECOVERY_POST_FR="$KIVOU_EVIDENCE_DIR/recovery-fr-post.json"',
+        'recovery_fr_baseline_preserved=1',
+        'kivou-card-backfill-en-$KIVOU_FINAL_SHORT',
+    )
+
+    backfills = tuple(
+        script for script in _python_heredocs(section) if "cli_main" in script
+    )
+    assert len(backfills) == 2
+    assert all('"--offset", "0"' in script for script in backfills)
+    assert all('"--offset", "8"' not in script for script in backfills)
+    assert all('"--offset", "500"' not in script for script in backfills)
+
+    baseline_artifact = {
+        "artifact_id": "a" * 64,
+        "version": 1,
+        "state": "current",
+    }
+    baseline = {"artifacts": [baseline_artifact]}
+    baseline_path = tmp_path / "baseline.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    subset_filter = (
+        '($baseline[0] | type == "object" and (.artifacts | length) == 1) and '
+        '(. as $post | all($baseline[0].artifacts[]; del(.state) as $old | '
+        'any($post.artifacts[]; del(.state) == $old)))'
+    )
+    preserved = subprocess.run(
+        ["jq", "-e", "--slurpfile", "baseline", str(baseline_path), subset_filter],
+        input=json.dumps(
+            {
+                "artifacts": [
+                    {**baseline_artifact, "state": "signal_revision_changed"},
+                    {"artifact_id": "b" * 64, "version": 1},
+                ]
+            }
+        ),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    removed = subprocess.run(
+        ["jq", "-e", "--slurpfile", "baseline", str(baseline_path), subset_filter],
+        input=json.dumps({"artifacts": []}),
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert preserved.returncode == 0, preserved.stderr
+    assert removed.returncode != 0
+
+    report = _between(
+        _body(),
+        "## 10. Rapport de preuve",
+        "Le rapport doit aussi porter la ligne :",
+    )
+    assert "original_rollout_status=%s" in report
+    assert "recovery_baseline_sha256=%s" in report
+    assert "recovery_post_fr_sha256=%s" in report
+
+
+def test_recovery_jq_ledgers_accept_state_drift_and_reject_mutations(
+    tmp_path: Path,
+) -> None:
+    section = _between(
+        _body(),
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    commands = _commands(section)
+
+    def jq_filter_after(anchor: str, output_variable: str) -> str:
+        tail = commands.split(anchor, 1)[1]
+        jq_tail = tail.split("jq -e ", 1)[1]
+        quoted_filter = jq_tail.split(" '\n", 1)[1]
+        return quoted_filter.split(
+            f'\n  \' "${output_variable}" >/dev/null',
+            1,
+        )[0]
+
+    pre_fr_filter = jq_filter_after(
+        'KIVOU_RECOVERY_PRE_FR="$KIVOU_EVIDENCE_DIR/recovery-fr-preflight.json"',
+        "KIVOU_RECOVERY_PRE_FR",
+    )
+    post_fr_filter = jq_filter_after(
+        'KIVOU_RECOVERY_POST_FR="$KIVOU_EVIDENCE_DIR/recovery-fr-post.json"',
+        "KIVOU_RECOVERY_POST_FR",
+    )
+    post_en_filter = jq_filter_after(
+        'KIVOU_RECOVERY_POST_EN="$KIVOU_EVIDENCE_DIR/recovery-post-en.json"',
+        "KIVOU_RECOVERY_POST_EN",
+    )
+    assert "del(.state)" in pre_fr_filter
+    assert "del(.state)" in post_fr_filter
+    assert "del(.state)" in post_en_filter
+
+    def artifact(index: int, *, state: str, language: str = "fr") -> dict[str, object]:
+        return {
+            "artifact_id": f"{index:064x}",
+            "language": language,
+            "version": 1,
+            "signal_revision": 1,
+            "target_icp_revision": 1,
+            "state": state,
+            "payload_sha256": f"{index + 100:064x}",
+        }
+
+    baseline_artifacts = [artifact(index, state="current") for index in range(8)]
+    active_ids = {
+        "en": [],
+        "fr": [item["artifact_id"] for item in baseline_artifacts],
+    }
+    baseline = {
+        "candidate_count": 10,
+        "candidate_binding_digest": "a" * 64,
+        "active_counts": {"en": 0, "fr": 8},
+        "active_digests": {"en": "b" * 64, "fr": "c" * 64},
+        "current_counts": {"en": 0, "fr": 8},
+        "current_digests": {"en": "b" * 64, "fr": "c" * 64},
+        "active_outside_candidate_counts": {"en": 0, "fr": 0},
+        "active_artifact_ids": active_ids,
+        "artifacts": baseline_artifacts,
+    }
+    pre_fr = {
+        **baseline,
+        "current_counts": {"en": 0, "fr": 6},
+        "current_digests": {"en": "b" * 64, "fr": "d" * 64},
+        "artifacts": [
+            {**item, "state": "current" if index < 6 else "signal_revision_changed"}
+            for index, item in enumerate(baseline_artifacts)
+        ],
+    }
+
+    baseline_path = tmp_path / "baseline-object.json"
+    pre_fr_path = tmp_path / "pre-fr-object.json"
+    baseline_path.write_text(json.dumps(baseline), encoding="utf-8")
+    pre_fr_path.write_text(json.dumps(pre_fr), encoding="utf-8")
+
+    def evaluate(
+        jq_filter: str,
+        payload: dict[str, object],
+        *slurpfiles: tuple[str, Path],
+    ) -> subprocess.CompletedProcess[str]:
+        arguments = ["jq", "-e"]
+        for name, path in slurpfiles:
+            arguments.extend(("--slurpfile", name, str(path)))
+        arguments.append(jq_filter)
+        return subprocess.run(
+            arguments,
+            input=json.dumps(payload),
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    nominal_pre_fr = evaluate(
+        pre_fr_filter,
+        pre_fr,
+        ("baseline", baseline_path),
+    )
+    assert nominal_pre_fr.returncode == 0, nominal_pre_fr.stderr
+
+    mutated_ledger = json.loads(json.dumps(pre_fr))
+    mutated_ledger["artifacts"][0]["payload_sha256"] = "f" * 64
+    assert (
+        evaluate(
+            pre_fr_filter,
+            mutated_ledger,
+            ("baseline", baseline_path),
+        ).returncode
+        != 0
+    )
+    invalid_state_count = json.loads(json.dumps(pre_fr))
+    invalid_state_count["artifacts"][7]["state"] = "current"
+    assert (
+        evaluate(
+            pre_fr_filter,
+            invalid_state_count,
+            ("baseline", baseline_path),
+        ).returncode
+        != 0
+    )
+
+    post_fr_new = [artifact(index + 8, state="current") for index in range(4)]
+    post_fr = {
+        **pre_fr,
+        "active_counts": {"en": 0, "fr": 10},
+        "active_digests": {"en": "b" * 64, "fr": "e" * 64},
+        "current_counts": {"en": 0, "fr": 10},
+        "current_digests": {"en": "b" * 64, "fr": "e" * 64},
+        "active_artifact_ids": {
+            "en": [],
+            "fr": [
+                *(item["artifact_id"] for item in baseline_artifacts[:6]),
+                *(item["artifact_id"] for item in post_fr_new),
+            ],
+        },
+        "artifacts": [
+            {
+                **item,
+                "state": "current" if index < 6 else "superseded",
+            }
+            for index, item in enumerate(baseline_artifacts)
+        ]
+        + post_fr_new,
+    }
+    nominal_post_fr = evaluate(
+        post_fr_filter,
+        post_fr,
+        ("baseline", baseline_path),
+        ("prefr", pre_fr_path),
+    )
+    assert nominal_post_fr.returncode == 0, nominal_post_fr.stderr
+
+    stale_artifact_left_active = json.loads(json.dumps(post_fr))
+    stale_artifact_left_active["active_artifact_ids"]["fr"][6] = (
+        baseline_artifacts[6]["artifact_id"]
+    )
+    assert (
+        evaluate(
+            post_fr_filter,
+            stale_artifact_left_active,
+            ("baseline", baseline_path),
+            ("prefr", pre_fr_path),
+        ).returncode
+        != 0
+    )
+
+    post_fr_path = tmp_path / "post-fr-object.json"
+    post_fr_path.write_text(json.dumps(post_fr), encoding="utf-8")
+    post_en_new = [
+        artifact(index + 12, state="current", language="en") for index in range(10)
+    ]
+    post_en = {
+        **post_fr,
+        "active_counts": {"en": 10, "fr": 10},
+        "active_digests": {"en": "f" * 64, "fr": "e" * 64},
+        "current_counts": {"en": 10, "fr": 10},
+        "current_digests": {"en": "f" * 64, "fr": "e" * 64},
+        "active_artifact_ids": {
+            "en": [item["artifact_id"] for item in post_en_new],
+            "fr": post_fr["active_artifact_ids"]["fr"],
+        },
+        "artifacts": post_fr["artifacts"] + post_en_new,
+    }
+    nominal_post_en = evaluate(
+        post_en_filter,
+        post_en,
+        ("baseline", baseline_path),
+        ("post_fr", post_fr_path),
+    )
+    assert nominal_post_en.returncode == 0, nominal_post_en.stderr
+
+    mutated_post_fr_ledger = json.loads(json.dumps(post_en))
+    mutated_post_fr_ledger["artifacts"][0]["version"] = 2
+    assert (
+        evaluate(
+            post_en_filter,
+            mutated_post_fr_ledger,
+            ("baseline", baseline_path),
+            ("post_fr", post_fr_path),
+        ).returncode
+        != 0
+    )
+
+
+def test_writer_quiescence_is_fail_safe_and_ends_before_browser_smoke() -> None:
+    body = _body()
+    section = _between(
+        body,
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    commands = _commands(section)
+
+    for fragment in (
+        "KIVOU_WRITER_STATE_FILE=",
+        "kivou-acquisition.timer",
+        "kivou-ingest-simap.timer",
+        "kivou-ingest-boamp.timer",
+        "kivou-ingest-decp.timer",
+        "kivou-ingest-ted.timer",
+        '--on-active=20m',
+        'sudo systemctl stop kivou-api.service "${KIVOU_WRITER_SERVICES[@]}"',
+        'KIVOU_WRITER_STATE=$(systemctl is-active "$KIVOU_WRITER_UNIT" ||',
+        'test "$KIVOU_WRITER_STATE" = inactive',
+        "kivou_resume_card_writers_on_exit() {",
+        "KIVOU_ROLLOUT_EXIT_STATUS=$?",
+        "if ! kivou_resume_card_writers; then",
+        "KIVOU_ROLLOUT_EXIT_STATUS=1",
+        'exit "$KIVOU_ROLLOUT_EXIT_STATUS"',
+        "trap kivou_resume_card_writers_on_exit EXIT",
+        'sudo systemctl stop "$KIVOU_WRITER_WATCHDOG.timer"',
+        'sudo systemctl start kivou-api.service "${KIVOU_RESTART_TIMERS[@]}"',
+        '"$KIVOU_RELEASE_DIR/ops/bin/kivou-api-readiness.sh"',
+        "writer_resumed=1",
+    ):
+        assert fragment in commands
+
+    _assert_in_order(
+        section,
+        'kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"',
+        "KIVOU_WRITER_QUIESCENCE=",
+        '--on-active=20m',
+        'test "$KIVOU_WRITER_STATE" = inactive',
+        "trap kivou_resume_card_writers_on_exit EXIT",
+        "KIVOU_RECOVERY_PRE_FR=",
+        "kivou-card-backfill-fr-$KIVOU_FINAL_SHORT",
+        "kivou-card-backfill-en-$KIVOU_FINAL_SHORT",
+            "KIVOU_RECOVERY_POST_EN=",
+            "KIVOU_WRITER_RESUME=$(kivou_resume_card_writers)",
+            "^writer_resumed=1 timer_states=[01]{4}",
+        "trap - EXIT",
+    )
+    resume_proof = "KIVOU_WRITER_RESUME=$(kivou_resume_card_writers)"
+    assert body.index(resume_proof) < body.index("## 8. Smoke navigateur desktop et mobile")
+
+    function_prefix = "kivou_resume_card_writers_on_exit() {\n"
+    trap_function = (
+        function_prefix
+        + commands.split(function_prefix, 1)[1].split("\n}\n", 1)[0]
+        + "\n}\n"
+    )
+
+    def run_trap(*, rollout_status: int, resume_status: int) -> int:
+        harness = (
+            "set -u\n"
+            f"kivou_resume_card_writers() {{ return {resume_status}; }}\n"
+            + trap_function
+            + "(\n"
+            + "  trap kivou_resume_card_writers_on_exit EXIT\n"
+            + f"  exit {rollout_status}\n"
+            + ")\n"
+        )
+        return subprocess.run(
+            ["bash", "-c", harness],
+            text=True,
+            capture_output=True,
+            check=False,
+        ).returncode
+
+    assert run_trap(rollout_status=23, resume_status=0) == 23
+    assert run_trap(rollout_status=0, resume_status=1) == 1
+    assert run_trap(rollout_status=23, resume_status=1) == 1
+
+
+def test_watchdog_is_rearmed_before_every_bounded_recovery_phase() -> None:
+    body = _body()
+    section = _between(
+        body,
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    commands = _commands(section)
+    all_commands = _commands(body)
+
+    helper_prefix = "kivou_rearm_card_writer_watchdog() {\n"
+    assert commands.count(helper_prefix) == 1
+    helper = (
+        helper_prefix
+        + commands.split(helper_prefix, 1)[1].split("\n}\n", 1)[0]
+        + "\n}\n"
+    )
+    for fragment in (
+        "KIVOU_WRITER_WATCHDOG",
+        "^kivou-card-writers-resume-[0-9a-f]{12}$",
+        "kivou-api.service",
+        "kivou-acquisition.timer",
+        "kivou-ingest-simap.timer",
+        "kivou-ingest-boamp.timer",
+        "kivou-ingest-decp.timer",
+        "kivou-ingest-ted.timer",
+        "kivou-acquisition.service",
+        "kivou-ingest-simap.service",
+        "kivou-ingest-boamp.service",
+        "kivou-ingest-decp.service",
+        "kivou-ingest-ted.service",
+        "KIVOU_WATCHDOG_TIMER_STATE=$(systemctl is-active",
+        '"$KIVOU_WRITER_WATCHDOG.timer" ||',
+        'test "$KIVOU_WATCHDOG_TIMER_STATE" = active',
+        "KIVOU_WATCHDOG_SERVICE_STATE=$(systemctl is-active",
+        '"$KIVOU_WRITER_WATCHDOG.service" ||',
+        'test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive',
+        'KIVOU_WRITER_STATE=$(systemctl is-active "$KIVOU_WRITER_UNIT" ||',
+        'test "$KIVOU_WRITER_STATE" = inactive',
+        'sudo systemctl restart "$KIVOU_WRITER_WATCHDOG.timer"',
+    ):
+        assert fragment in helper
+    assert "! systemctl is-active" not in helper
+    assert helper.count("KIVOU_WATCHDOG_TIMER_STATE=$(systemctl is-active") == 2
+    assert helper.count('test "$KIVOU_WATCHDOG_TIMER_STATE" = active') == 2
+    assert helper.count("KIVOU_WATCHDOG_SERVICE_STATE=$(systemctl is-active") == 2
+    assert helper.count('test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive') == 2
+    assert helper.count("KIVOU_WRITER_STATE=$(systemctl is-active") == 2
+    assert helper.count('test "$KIVOU_WRITER_STATE" = inactive') == 2
+    _assert_in_order(
+        helper,
+        'test "$KIVOU_WATCHDOG_TIMER_STATE" = active',
+        'test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive',
+        'test "$KIVOU_WRITER_STATE" = inactive',
+        'sudo systemctl restart "$KIVOU_WRITER_WATCHDOG.timer"',
+        'test "$KIVOU_WATCHDOG_TIMER_STATE" = active',
+        'test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive',
+        'test "$KIVOU_WRITER_STATE" = inactive',
+    )
+
+    remote_body = re.findall(
+        r"<<'REMOTE'\n(.*?)^REMOTE$",
+        helper,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert len(remote_body) == 1
+
+    def run_rearm_with_states(
+        *,
+        writer_state: str = "inactive",
+        timer_before: str = "active",
+        service_before: str = "inactive",
+        timer_after: str = "active",
+        service_after: str = "inactive",
+        acquisition_enabled: str = "disabled",
+        acquisition_timer: str = "inactive",
+        acquisition_service: str = "inactive",
+        acquisition_main_pid: str = "0",
+        shadow_smoke: str = "inactive",
+    ) -> subprocess.CompletedProcess[str]:
+        harness = (
+            "set -u\n"
+            "KIVOU_FAKE_RESTARTED=0\n"
+            "sudo() { \"$@\"; }\n"
+            "systemctl() {\n"
+            "  if test \"$1\" = show; then\n"
+            "    if test \"$2\" = kivou-acquisition.service; then\n"
+            "      printf '%s\\n' \"$KIVOU_FAKE_ACQUISITION_MAIN_PID\"\n"
+            "    else printf '%s\\n' loaded; fi\n"
+            "    return 0\n"
+            "  fi\n"
+            "  if test \"$1\" = is-enabled; then\n"
+            "    printf '%s\\n' \"$KIVOU_FAKE_ACQUISITION_ENABLED\"\n"
+            "    if test \"$KIVOU_FAKE_ACQUISITION_ENABLED\" = enabled; then\n"
+            "      return 0\n"
+            "    fi\n"
+            "    return 1\n"
+            "  fi\n"
+            "  if test \"$1\" = restart; then\n"
+            "    KIVOU_FAKE_RESTARTED=1\n"
+            "    printf '%s\\n' restart_called\n"
+            "    return 0\n"
+            "  fi\n"
+            "  if test \"$1\" = is-active; then\n"
+            "    shift\n"
+            "    if test \"${1:-}\" = --quiet; then shift; fi\n"
+            "    case \"$1\" in\n"
+            "      (kivou-acquisition.timer)\n"
+            "        KIVOU_FAKE_STATE=$KIVOU_FAKE_ACQUISITION_TIMER ;;\n"
+            "      (kivou-acquisition.service)\n"
+            "        KIVOU_FAKE_STATE=$KIVOU_FAKE_ACQUISITION_SERVICE ;;\n"
+            "      (kivou-acquisition-shadow-smoke.service)\n"
+            "        KIVOU_FAKE_STATE=$KIVOU_FAKE_SHADOW_SMOKE ;;\n"
+            "      (*.timer) case \"$1\" in\n"
+            "        (kivou-card-writers-resume-*.timer)\n"
+            "          if test \"$KIVOU_FAKE_RESTARTED\" = 0; then\n"
+            "            KIVOU_FAKE_STATE=$KIVOU_FAKE_TIMER_BEFORE\n"
+            "          else KIVOU_FAKE_STATE=$KIVOU_FAKE_TIMER_AFTER; fi ;;\n"
+            "        (*) KIVOU_FAKE_STATE=$KIVOU_FAKE_WRITER_STATE ;;\n"
+            "      esac ;;\n"
+            "      (kivou-card-writers-resume-*.service)\n"
+            "        if test \"$KIVOU_FAKE_RESTARTED\" = 0; then\n"
+            "          KIVOU_FAKE_STATE=$KIVOU_FAKE_SERVICE_BEFORE\n"
+            "        else KIVOU_FAKE_STATE=$KIVOU_FAKE_SERVICE_AFTER; fi ;;\n"
+            "      (*) KIVOU_FAKE_STATE=$KIVOU_FAKE_WRITER_STATE ;;\n"
+            "    esac\n"
+            "    printf '%s\\n' \"$KIVOU_FAKE_STATE\"\n"
+            "    case \"$KIVOU_FAKE_STATE\" in (inactive|failed) return 3 ;; "
+            "(*) return 0 ;; esac\n"
+            "  fi\n"
+            "  return 1\n"
+            "}\n"
+            + remote_body[0]
+        )
+        return subprocess.run(
+            ["bash", "-c", harness, "bash", "kivou-card-writers-resume-abcdef123456"],
+            env={
+                **os.environ,
+                "KIVOU_FAKE_WRITER_STATE": writer_state,
+                "KIVOU_FAKE_TIMER_BEFORE": timer_before,
+                "KIVOU_FAKE_SERVICE_BEFORE": service_before,
+                "KIVOU_FAKE_TIMER_AFTER": timer_after,
+                "KIVOU_FAKE_SERVICE_AFTER": service_after,
+                "KIVOU_FAKE_ACQUISITION_ENABLED": acquisition_enabled,
+                "KIVOU_FAKE_ACQUISITION_TIMER": acquisition_timer,
+                "KIVOU_FAKE_ACQUISITION_SERVICE": acquisition_service,
+                "KIVOU_FAKE_ACQUISITION_MAIN_PID": acquisition_main_pid,
+                "KIVOU_FAKE_SHADOW_SMOKE": shadow_smoke,
+            },
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    nominal = run_rearm_with_states()
+    assert nominal.returncode == 0, nominal.stderr
+    for pre_restart_mutant in (
+        run_rearm_with_states(service_before="active"),
+        run_rearm_with_states(timer_before="inactive"),
+        run_rearm_with_states(acquisition_enabled="enabled"),
+        run_rearm_with_states(acquisition_timer="active"),
+        run_rearm_with_states(acquisition_service="active"),
+        run_rearm_with_states(acquisition_main_pid="7"),
+        run_rearm_with_states(shadow_smoke="active"),
+    ):
+        assert pre_restart_mutant.returncode != 0
+        assert "restart_called" not in pre_restart_mutant.stdout
+    assert run_rearm_with_states(timer_after="inactive").returncode != 0
+    assert run_rearm_with_states(service_after="active").returncode != 0
+    for state in ("activating", "deactivating", "failed"):
+        assert run_rearm_with_states(writer_state=state).returncode != 0
+
+    rearm = "kivou_rearm_card_writer_watchdog"
+    assert commands.count(rearm) == 6
+    phase_patterns = (
+        rf"{rearm}\n  KIVOU_RECOVERY_PRE_FR_PAYLOAD=",
+        (
+            rf"{rearm}\nssh kivou-staging 'bash -s' -- .*?"
+            r"kivou-card-backfill-fr-\$KIVOU_FINAL_SHORT"
+        ),
+        rf"{rearm}\n  KIVOU_RECOVERY_POST_FR_PAYLOAD=",
+        (
+            rf"{rearm}\nssh kivou-staging 'bash -s' -- .*?"
+            r"kivou-card-backfill-en-\$KIVOU_FINAL_SHORT"
+        ),
+        rf"{rearm}\n  KIVOU_RECOVERY_POST_EN_PAYLOAD=",
+    )
+    for pattern in phase_patterns:
+        assert re.search(pattern, commands, flags=re.DOTALL)
+
+    _assert_in_order(
+        commands,
+        "trap kivou_resume_card_writers_on_exit EXIT",
+        rearm,
+        "KIVOU_RECOVERY_PRE_FR_PAYLOAD=",
+        rearm,
+        "kivou-card-backfill-fr-$KIVOU_FINAL_SHORT",
+        rearm,
+        "KIVOU_RECOVERY_POST_FR_PAYLOAD=",
+        rearm,
+        "kivou-card-backfill-en-$KIVOU_FINAL_SHORT",
+        rearm,
+        "KIVOU_RECOVERY_POST_EN_PAYLOAD=",
+    )
+
+    assert all_commands.count("--property=RuntimeMaxSec=5min") == 4
+    for unit in (
+        'unit="kivou-card-recovery-snapshot-$$"',
+        'unit="kivou-card-backfill-fr-$KIVOU_FINAL_SHORT"',
+        'unit="kivou-card-backfill-en-$KIVOU_FINAL_SHORT"',
+    ):
+        invocation = all_commands.split(unit, 1)[1].split("<<'PY'", 1)[0]
+        assert "--property=RuntimeMaxSec=5min" in invocation
+
+    assert re.search(
+        r"[ÉE]chec\s+(?:du\s+|de\s+)?"
+        r"(?:réarmement|preuve de quiescence|timeout).*?"
+        r"échoue\s+fermé.*?avant\s+la\s+phase\s+suivante",
+        section,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+
+
+def test_writer_resume_rejects_nonterminal_disabled_timer_states() -> None:
+    section = _between(
+        _body(),
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    commands = _commands(section)
+    function_prefix = "kivou_resume_card_writers() {\n"
+    resume_function = (
+        function_prefix
+        + commands.split(function_prefix, 1)[1].split("\n}\n", 1)[0]
+        + "\n}\n"
+    )
+    remote_bodies = re.findall(
+        r"<<'REMOTE'\n(.*?)^REMOTE$",
+        resume_function,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert len(remote_bodies) == 1
+    disabled_branch = remote_bodies[0].split("  else\n", 1)[1].split("\n  fi", 1)[0]
+    assert "! systemctl is-active" not in disabled_branch
+    assert (
+        'KIVOU_WRITER_TIMER_STATE=$(systemctl is-active "$KIVOU_WRITER_TIMER" ||'
+        in disabled_branch
+    )
+    assert 'test "$KIVOU_WRITER_TIMER_STATE" = inactive' in disabled_branch
+
+    def run_disabled_branch(state: str) -> subprocess.CompletedProcess[str]:
+        harness = (
+            "set -euo pipefail\n"
+            "KIVOU_WRITER_TIMER=kivou-acquisition.timer\n"
+            "systemctl() {\n"
+            "  printf '%s\\n' \"$KIVOU_FAKE_TIMER_STATE\"\n"
+            "  case \"$KIVOU_FAKE_TIMER_STATE\" in\n"
+            "    (inactive|failed) return 3 ;;\n"
+            "    (*) return 0 ;;\n"
+            "  esac\n"
+            "}\n"
+            + disabled_branch
+            + "\n"
+        )
+        return subprocess.run(
+            ["bash", "-c", harness],
+            env={**os.environ, "KIVOU_FAKE_TIMER_STATE": state},
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    nominal = run_disabled_branch("inactive")
+    assert nominal.returncode == 0, nominal.stderr
+    for state in ("activating", "deactivating", "failed"):
+        assert run_disabled_branch(state).returncode != 0
+
+
+def test_recovery_transaction_guard_and_exact_summaries_are_fail_closed() -> None:
+    section = _between(
+        _body(),
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    commands = _commands(section)
+    all_commands = _commands(_body())
+    for fragment in (
+        "KIVOU_RECOVERY_BASELINE_ARTIFACT_DIGEST",
+        "KIVOU_RECOVERY_EMPTY_ARTIFACT_DIGEST",
+        "KIVOU_RECOVERY_CANDIDATE_COUNT",
+        "KIVOU_RECOVERY_CANDIDATE_BINDING_DIGEST",
+        "KIVOU_RECOVERY_FR_ACTIVE_DIGEST",
+        "KIVOU_RECOVERY_FR_CURRENT_DIGEST",
+        '"--expect-candidate-count",',
+        'os.environ["KIVOU_EXPECTED_CANDIDATE_COUNT"]',
+        '"--expect-active-publication-count",',
+        '"--expect-current-factual-artifact-digest",',
+        'os.environ["KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST"]',
+        '"--expect-candidate-binding-digest",',
+        'os.environ["KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST"]',
+        '"--expect-active-artifact-digest",',
+        'os.environ["KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST"]',
+        ".candidate_count == $candidate_count",
+        '.active_counts == {"en":$candidate_count,"fr":$candidate_count}',
+    ):
+        assert fragment in all_commands
+    assert "`NOWAIT`" in section
+    assert re.search(r"sans jamais\s+attendre ni sacrifier le writer", section)
+
+    _assert_in_order(
+        commands,
+        'kivou_validate_qa_read_only "$KIVOU_RELEASE_DIR"',
+        "KIVOU_RECOVERY_PRE_FR=",
+        '"$KIVOU_RELEASE_DIR" pre_fr "$KIVOU_EXPECTED_FINAL_REVISION"',
+        "kivou-card-backfill-fr-$KIVOU_FINAL_SHORT",
+        "KIVOU_RECOVERY_POST_FR=",
+        "kivou-card-backfill-en-$KIVOU_FINAL_SHORT",
+    )
+
+    prefix = "kivou_validate_recovery_summary() {\n"
+    assert commands.count(prefix) == 2
+    validator_parts = commands.split(prefix)
+    assert len(validator_parts) == 3
+    fr_validator = prefix + validator_parts[1].split("\n}\n", 1)[0] + "\n}\n"
+    en_validator = prefix + validator_parts[2].split("\n}\n", 1)[0] + "\n}\n"
+
+    backfills = tuple(
+        script for script in _python_heredocs(section) if "cli_main" in script
+    )
+    assert len(backfills) == 2
+    primary_flags = (
+        "--expect-candidate-count",
+        "--expect-active-publication-count",
+        "--expect-current-factual-artifact-digest",
+        "--expect-candidate-binding-digest",
+        "--expect-active-artifact-digest",
+    )
+    protected_flags = (
+        "--expect-protected-language",
+        "--expect-protected-active-publication-count",
+        "--expect-protected-current-factual-artifact-digest",
+        "--expect-protected-active-artifact-digest",
+    )
+    assert all(sum(flag in script for flag in primary_flags) == 5 for script in backfills)
+    assert sum(flag in backfills[0] for flag in protected_flags) == 0
+    assert sum(flag in backfills[1] for flag in protected_flags) == 4
+
+    def validate(
+        validator: str,
+        language: str,
+        summary: str,
+    ) -> subprocess.CompletedProcess[str]:
+        harness = (
+            "set -euo pipefail\n"
+            "KIVOU_ROLLOUT_PATH=resume_51202525\n"
+            "KIVOU_EXPECTED_CANDIDATE_COUNT=17\n"
+            "KIVOU_EXPECTED_CURRENT_COUNT=5\n"
+            + validator
+            + f"kivou_validate_recovery_summary {language} '{summary}'\n"
+        )
+        return subprocess.run(
+            ["bash", "-c", harness],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    fr = (
+        "scanned=17 published=12 unchanged=5 failed=0 "
+        "next_offset=none scan_truncated=0"
+    )
+    en = (
+        "scanned=17 published=17 unchanged=0 failed=0 "
+        "next_offset=none scan_truncated=0"
+    )
+    assert validate(fr_validator, "fr", fr).returncode == 0
+    assert validate(en_validator, "en", en).returncode == 0
+    assert (
+        validate(
+            fr_validator,
+            "fr",
+            fr.replace("next_offset=none", "next_offset=50"),
+        ).returncode
+        != 0
+    )
+    assert (
+        validate(
+            en_validator,
+            "en",
+            en.replace("next_offset=none", "next_offset=58"),
+        ).returncode
+        != 0
+    )
+    assert (
+        validate(
+            fr_validator,
+            "fr",
+            fr.replace("unchanged=5", "unchanged=4"),
+        ).returncode
+        != 0
+    )
+    assert (
+        validate(
+            en_validator,
+            "en",
+            en.replace("published=17", "published=16"),
+        ).returncode
+        != 0
+    )
+
+
+def test_recovery_revalidates_complete_offline_feed_after_fr_and_en() -> None:
+    section = _between(
+        _body(),
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    commands = _logical_shell(section)
+    helper = _commands(
+        _between(
+            _body(),
+            "## 2. Prouver staging et capturer les deux rollback targets",
+            "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
+        )
+    )
+
+    for fragment in (
+        "(baseline|pre_fr|post_fr|post_en)",
+        "assert 1 <= len(page.items) <= 50",
+        "assert page.has_more is False",
+        "assert page.scan_truncated is False",
+        "limit=50",
+        "scan_cap=1000",
+        "page_bindings = {",
+        'for language in ("fr", "en"):',
+        "current = published_for_signals(",
+        "candidate_binding_digest = hashlib.sha256(json.dumps(sorted(",
+        '"candidate_count": len(page_bindings)',
+        '"active_digests": active_digests',
+        '"current_digests": current_digests',
+    ):
+        assert fragment in helper
+    _assert_in_order(
+        commands,
+        "kivou-card-backfill-fr-$KIVOU_FINAL_SHORT",
+        'kivou_capture_recovery_fr_snapshot "$KIVOU_RELEASE_DIR" post_fr '
+        '"$KIVOU_EXPECTED_FINAL_REVISION"',
+        "kivou-card-backfill-en-$KIVOU_FINAL_SHORT",
+        'kivou_capture_recovery_fr_snapshot "$KIVOU_RELEASE_DIR" post_en '
+        '"$KIVOU_EXPECTED_FINAL_REVISION"',
+    )
+    assert 'KIVOU_RECOVERY_POST_EN="$KIVOU_EVIDENCE_DIR/recovery-post-en.json"' in commands
+    assert 'chmod 600 "$KIVOU_RECOVERY_POST_EN"' in commands
+    post_en = commands.split("KIVOU_RECOVERY_POST_EN=", 1)[1]
+    assert '--slurpfile baseline "$KIVOU_RECOVERY_BASELINE"' in post_en
+    assert "all($baseline[0].artifacts[];" in post_en
+    assert "del(.state) as $old" in post_en
+    assert "| any($post.artifacts[]; del(.state) == $old))" in post_en
+    assert '--slurpfile post_fr "$KIVOU_RECOVERY_POST_FR"' in post_en
+    assert "all($post_fr[0].artifacts[];" in post_en
+    assert "KIVOU_RECOVERY_POST_EN_SHA256=$(sha256sum" in post_en
+    assert "KIVOU_RECOVERY_POST_FR_ARTIFACT_DIGEST=$(jq -r" in commands
+    assert "'.active_digests.fr'" in commands
+    assert "KIVOU_PROTECTED_ACTIVE_ARTIFACT_DIGEST=${11}" in commands
+    assert "KIVOU_PROTECTED_CURRENT_ARTIFACT_DIGEST=${12}" in commands
+    for fragment in (
+        '"--expect-protected-language", "fr"',
+        '"--expect-protected-active-publication-count",',
+        'os.environ["KIVOU_EXPECTED_CANDIDATE_COUNT"]',
+        '"--expect-protected-current-factual-artifact-digest"',
+        'os.environ["KIVOU_PROTECTED_CURRENT_ARTIFACT_DIGEST"]',
+        '"--expect-protected-active-artifact-digest"',
+        'os.environ["KIVOU_PROTECTED_ACTIVE_ARTIFACT_DIGEST"]',
+    ):
+        assert fragment in commands
+
+
+def test_recovery_report_reseals_post_en_and_recaptures_exact_live_state() -> None:
+    report = _logical_shell(
+        _between(
+            _body(),
+            "## 10. Rapport de preuve",
+            "Production : aucun déploiement, aucune mutation.",
+        )
+    )
+
+    assert 'KIVOU_RECOVERY_POST_EN_SHA256=NOT_APPLICABLE' in report
+    assert '"$KIVOU_RECOVERY_POST_EN"' in report
+    assert (
+        'test "$(sha256sum "$KIVOU_RECOVERY_POST_EN" | awk \'{print $1}\')" = '
+        '"$KIVOU_RECOVERY_POST_EN_SHA256"'
+    ) in report
+    assert (
+        'KIVOU_RECOVERY_FINAL_LIVE_PAYLOAD=$(kivou_capture_recovery_fr_snapshot '
+        '"$KIVOU_RELEASE_DIR" post_en "$KIVOU_EXPECTED_FINAL_REVISION")'
+    ) in report
+    assert 'KIVOU_RECOVERY_FINAL_LIVE_SHA256=$(printf \'%s\\n\'' in report
+    assert (
+        'test "$KIVOU_RECOVERY_FINAL_LIVE_SHA256" = '
+        '"$KIVOU_RECOVERY_POST_EN_SHA256"'
+    ) in report
+    assert "recovery_post_en_sha256=%s" in report
+
+
+def test_post_en_digests_are_readonly_before_the_final_report() -> None:
+    body = _body()
+    logical = _logical_shell(body)
+    readonly_line = (
+        "readonly KIVOU_RECOVERY_POST_EN_SHA256 "
+        "KIVOU_RECOVERY_POST_EN_FR_ARTIFACT_DIGEST "
+        "KIVOU_RECOVERY_POST_EN_EN_ARTIFACT_DIGEST"
+    )
+    assert logical.count(readonly_line) == 1
+    assert body.index("readonly KIVOU_RECOVERY_POST_EN_SHA256") < body.index(
+        "## 10. Rapport de preuve"
+    )
+
+    harness = subprocess.run(
+        [
+            "bash",
+            "-c",
+            "set -euo pipefail\n"
+            "KIVOU_RECOVERY_POST_EN_SHA256=$(printf a%.0s {1..64})\n"
+            "KIVOU_RECOVERY_POST_EN_FR_ARTIFACT_DIGEST=$(printf b%.0s {1..64})\n"
+            "KIVOU_RECOVERY_POST_EN_EN_ARTIFACT_DIGEST=$(printf c%.0s {1..64})\n"
+            + readonly_line
+            + "\n"
+            "readonly -p | grep -q KIVOU_RECOVERY_POST_EN_SHA256\n"
+            "KIVOU_RECOVERY_POST_EN_SHA256=mutable\n",
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert harness.returncode != 0
+    assert "KIVOU_RECOVERY_POST_EN_SHA256: readonly variable" in harness.stderr
+
+
+def test_backfill_mode_and_remote_shells_are_executable_in_initial_and_recovery() -> None:
+    section = _between(
+        _body(),
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    commands = _commands(section)
+
+    mode_prefix = 'case "$KIVOU_ROLLOUT_PATH" in\n'
+    mode_suffix = "KIVOU_QA_SCOPE_SUMMARY="
+    mode_block = mode_prefix + commands.split(mode_prefix, 1)[1].split(
+        mode_suffix,
+        1,
+    )[0]
+    initial = subprocess.run(
+        [
+            "bash",
+            "-c",
+            "set -euo pipefail\n"
+            "KIVOU_ROLLOUT_PATH=initial_0027\n"
+            + mode_block
+            + 'test "$KIVOU_RECOVERY_BASELINE_ARTIFACT_DIGEST" = NOT_APPLICABLE\n'
+            + 'test "$KIVOU_RECOVERY_EMPTY_ARTIFACT_DIGEST" = NOT_APPLICABLE\n'
+            + 'test "$KIVOU_RECOVERY_POST_FR_ARTIFACT_DIGEST" = NOT_APPLICABLE\n'
+            + 'test "$KIVOU_RECOVERY_CANDIDATE_COUNT" = NOT_APPLICABLE\n'
+            + 'test "$KIVOU_RECOVERY_FR_ACTIVE_COUNT" = NOT_APPLICABLE\n'
+            + 'test "$KIVOU_RECOVERY_FR_CURRENT_COUNT" = NOT_APPLICABLE\n'
+            + 'test "$KIVOU_RECOVERY_CANDIDATE_BINDING_DIGEST" = NOT_APPLICABLE\n'
+            + 'test "$KIVOU_RECOVERY_FR_ACTIVE_DIGEST" = NOT_APPLICABLE\n'
+            + 'test "$KIVOU_RECOVERY_FR_CURRENT_DIGEST" = NOT_APPLICABLE\n',
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert initial.returncode == 0, initial.stderr
+
+    baseline_digest = "a" * 64
+    recovery = subprocess.run(
+        [
+            "bash",
+            "-c",
+            "set -euo pipefail\n"
+            "KIVOU_ROLLOUT_PATH=resume_51202525\n"
+            f"KIVOU_RECOVERY_BASELINE_ARTIFACT_DIGEST={baseline_digest}\n"
+            + mode_block
+            + f'test "$KIVOU_RECOVERY_BASELINE_ARTIFACT_DIGEST" = {baseline_digest}\n'
+            + "printf '%s\\n' \"$KIVOU_RECOVERY_EMPTY_ARTIFACT_DIGEST\" | "
+            + "grep -Eq '^[0-9a-f]{64}$'\n"
+            + 'test -z "$KIVOU_RECOVERY_POST_FR_ARTIFACT_DIGEST"\n',
+        ],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert recovery.returncode == 0, recovery.stderr
+
+    assert commands.count("KIVOU_ROLLOUT_PATH=$6") == 2
+    assert commands.count("KIVOU_EXPECTED_CANDIDATE_COUNT=$7") == 2
+    assert commands.count("KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST=${10}") == 1
+    assert commands.count("KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST=$8") == 1
+    assert commands.count("KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST=${11}") == 1
+    assert commands.count("KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST=$9") == 1
+    assert commands.count("KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST=${12}") == 1
+    assert commands.count("KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST=${10}") == 1
+    assert commands.count("kivou_validate_recovery_summary() {") == 2
+    assert commands.count(
+        '--setenv="KIVOU_ROLLOUT_PATH=$KIVOU_ROLLOUT_PATH"'
+    ) == 2
+    assert commands.count(
+        '--setenv="KIVOU_EXPECTED_CANDIDATE_COUNT=$KIVOU_EXPECTED_CANDIDATE_COUNT"'
+    ) == 2
+    assert commands.count(
+        '--setenv="KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST=$KIVOU_EXPECTED_CANDIDATE_BINDING_DIGEST"'
+    ) == 2
+    assert commands.count(
+        '--setenv="KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST=$KIVOU_EXPECTED_ACTIVE_ARTIFACT_DIGEST"'
+    ) == 2
+    assert commands.count(
+        '--setenv="KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST=$KIVOU_EXPECTED_CURRENT_ARTIFACT_DIGEST"'
+    ) == 2
+    assert commands.count("KIVOU_PROTECTED_ACTIVE_ARTIFACT_DIGEST=${11}") == 1
+    assert commands.count("KIVOU_PROTECTED_CURRENT_ARTIFACT_DIGEST=${12}") == 1
+    assert commands.count(
+        '--setenv="KIVOU_PROTECTED_ACTIVE_ARTIFACT_DIGEST=$KIVOU_PROTECTED_ACTIVE_ARTIFACT_DIGEST"'
+    ) == 1
+    assert commands.count(
+        '--setenv="KIVOU_PROTECTED_CURRENT_ARTIFACT_DIGEST=$KIVOU_PROTECTED_CURRENT_ARTIFACT_DIGEST"'
+    ) == 1
+
+    remote_scripts = re.findall(
+        r"<<'REMOTE'\n(.*?)^REMOTE$",
+        section,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    backfill_remotes = {
+        language: next(
+            script
+            for script in remote_scripts
+            if f"kivou-card-backfill-{language}-" in script
+        )
+        for language in ("fr", "en")
+    }
+    summaries = {
+        "fr": (
+            "scanned=17 published=12 unchanged=5 failed=0 "
+            "next_offset=none scan_truncated=0"
+        ),
+        "en": (
+            "scanned=17 published=17 unchanged=0 failed=0 "
+            "next_offset=none scan_truncated=0"
+        ),
+    }
+    for language, remote_script in backfill_remotes.items():
+        preamble = remote_script.split("\nkivou_revalidate_qa_binding\n", 1)[0]
+        for rollout_path in ("initial_0027", "resume_51202525"):
+            if rollout_path == "initial_0027":
+                recovery_arguments = ["NOT_APPLICABLE"] * 6
+            elif language == "fr":
+                recovery_arguments = ["17", "8", "5", "b" * 64, "c" * 64, "d" * 64]
+            else:
+                recovery_arguments = [
+                    "17",
+                    "b" * 64,
+                    "e" * 64,
+                    "e" * 64,
+                    "c" * 64,
+                    "c" * 64,
+                ]
+            harness = (
+                preamble
+                + "\n"
+                + f"kivou_validate_recovery_summary {language} "
+                + f"'{summaries[language]}'\n"
+            )
+            executed = subprocess.run(
+                [
+                    "bash",
+                    "-c",
+                    harness,
+                    "runbook-harness",
+                    "/srv/kivou/releases/backend-final",
+                    "c" * 40,
+                    "2026-08-31",
+                    "d" * 16,
+                    "50",
+                    rollout_path,
+                    *recovery_arguments,
+                ],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            assert executed.returncode == 0, (
+                language,
+                rollout_path,
+                executed.stderr,
+            )
+
+
 def test_every_qa_python_boundary_fails_with_only_an_opaque_error() -> None:
     qa_section = _between(
         _body(),
@@ -951,10 +2777,11 @@ def test_each_backfill_rebinds_approved_account_fingerprint_inside_unit() -> Non
     for unit in ("kivou-card-backfill-fr-", "kivou-card-backfill-en-"):
         invocation = commands.split(unit, 1)[1].split("PY\n)", 1)[0]
         assert (
-            '--setenv="KIVOU_QA_DB_FINGERPRINT=$KIVOU_QA_DB_FINGERPRINT"'
+            '--setenv="KIVOU_QA_APPROVED_FINGERPRINT='
+            '$KIVOU_QA_APPROVED_FINGERPRINT"'
             in invocation
         )
-    assert '"$KIVOU_QA_DB_FINGERPRINT" <<\'REMOTE\'' in commands
+    assert '"$KIVOU_QA_APPROVED_FINGERPRINT" <<\'REMOTE\'' in commands
     assert commands.count("kivou_revalidate_qa_binding") >= 3
     for language, script in zip(("fr", "en"), backfills, strict=True):
         for fragment in (
@@ -964,12 +2791,12 @@ def test_each_backfill_rebinds_approved_account_fingerprint_inside_unit() -> Non
             'environment_account_id = os.environ["KIVOU_CARD_QA_ACCOUNT_ID"]',
             "file_account_id",
             "hmac.compare_digest(file_account_id, environment_account_id)",
-            'expected = os.environ["KIVOU_QA_DB_FINGERPRINT"]',
+            'expected = os.environ["KIVOU_QA_APPROVED_FINGERPRINT"]',
             'hashlib.sha256(file_account_id.encode("utf-8")).hexdigest()[:16]',
             "hmac.compare_digest(actual, expected)",
-            "cli_main([",
+            "exit_code = cli_main(arguments)",
             '"--account-id", file_account_id',
-            '"--limit", "50"',
+            '"--limit", os.environ["KIVOU_BACKFILL_LIMIT"]',
             '"--offset", "0"',
         ):
             assert fragment in script
@@ -979,7 +2806,7 @@ def test_each_backfill_rebinds_approved_account_fingerprint_inside_unit() -> Non
             "qa_stat = os.fstat(file_descriptor)",
             "hmac.compare_digest(file_account_id, environment_account_id)",
             "hmac.compare_digest(actual, expected)",
-            "cli_main([",
+            "exit_code = cli_main(arguments)",
         )
         assert f'"--language", "{language}"' in script
         assert "print(account_id" not in script
@@ -1010,7 +2837,12 @@ def test_pre_backfill_browser_gate_matches_protected_session_to_db_scope() -> No
         "await fetch('/me'",
         "crypto.subtle.digest('SHA-256'",
         "fingerprint !== expectedFingerprint",
-        "`/signals?as_of=${encodeURIComponent(asOf)}&limit=50&offset=0`",
+        "`/signals?freshness=new&limit=20&offset=0`",
+        "const readDate = process.env.KIVOU_QA_BROWSER_READ_DATE",
+        "feed.read_at !== readDate",
+        "feed.freshness !== 'new'",
+        "feed.page?.limit !== 20",
+        "feed.page.offset !== 0",
         "item.locked === false",
         'console.log("qa_browser_gate_ok")',
         'console.error("qa_browser_gate_failed")',
@@ -1021,7 +2853,8 @@ def test_pre_backfill_browser_gate_matches_protected_session_to_db_scope() -> No
     _assert_in_order(
         section,
         "qa_scope_ok fingerprint=",
-        "KIVOU_QA_DB_FINGERPRINT=",
+        "KIVOU_QA_SCOPE_FINGERPRINT=",
+        'test "$KIVOU_QA_SCOPE_FINGERPRINT" = "$KIVOU_QA_APPROVED_FINGERPRINT"',
         "qa_browser_gate_ok",
         '"--language", "fr"',
         '"--language", "en"',
@@ -1118,7 +2951,7 @@ def test_current_proofs_complete_before_optional_history_gate_or_stop() -> None:
     current_script, historical_script = scripts
 
     for fragment in (
-        '"status": "absent"',
+        '"status": "NOT_APPLICABLE_NO_LEGITIMATE_HISTORY"',
         '"status": "available"',
         "KIVOU_HISTORICAL_STATUS=",
         "SET TRANSACTION READ ONLY",
@@ -1140,11 +2973,10 @@ def test_current_proofs_complete_before_optional_history_gate_or_stop() -> None:
         'console.log("card_current_smoke_ok")',
         'printf "%s\\n" "card_get_journal_ok"',
         "inspection visuelle humaine",
-        'test "$KIVOU_FINAL_REVISION" = "0028_card_presentation"',
+        'test "$KIVOU_FINAL_REVISION" = "$KIVOU_EXPECTED_FINAL_REVISION"',
         'case "$KIVOU_HISTORICAL_STATUS" in',
-        "(absent)",
-        "STOP / NON-EXÉCUTABLE",
-        "validation propriétaire",
+        "(NOT_APPLICABLE_NO_LEGITIMATE_HISTORY)",
+        "KIVOU_ROLLOUT_STATUS=PASS",
         'console.log("card_historical_browser_ok")',
         'printf \'%s\\n\' "card_historical_smoke_ok"',
     )
@@ -1152,7 +2984,7 @@ def test_current_proofs_complete_before_optional_history_gate_or_stop() -> None:
     assert 'process.exitCode = 1' in historical_script
 
 
-def test_absent_history_records_nonfatal_stop_and_reaches_rollback_report() -> None:
+def test_no_legitimate_history_is_not_applicable_and_allows_global_pass() -> None:
     body = _body()
     smoke_section = _between(
         body,
@@ -1162,7 +2994,9 @@ def test_absent_history_records_nonfatal_stop_and_reaches_rollback_report() -> N
     history_commands = _commands(smoke_section).split(
         'case "$KIVOU_HISTORICAL_STATUS" in', 1
     )[1]
-    absent_branch = history_commands.split("(absent)", 1)[1].split(
+    not_applicable_branch = history_commands.split(
+        "(NOT_APPLICABLE_NO_LEGITIMATE_HISTORY)", 1
+    )[1].split(
         "(available)", 1
     )[0]
     available_branch = history_commands.split("(available)", 1)[1].split(
@@ -1170,14 +3004,13 @@ def test_absent_history_records_nonfatal_stop_and_reaches_rollback_report() -> N
     )[0]
 
     for fragment in (
-        "KIVOU_HISTORICAL_SMOKE_STATUS=STOP_NON_EXECUTABLE",
-        "KIVOU_ROLLOUT_STATUS=STOP_INCOMPLETE",
-        "STOP / NON-EXÉCUTABLE",
-        "validation propriétaire",
+        "KIVOU_HISTORICAL_SMOKE_STATUS=NOT_APPLICABLE_NO_LEGITIMATE_HISTORY",
+        "KIVOU_ROLLOUT_STATUS=PASS",
+        "historical_smoke=NOT_APPLICABLE_NO_LEGITIMATE_HISTORY",
     ):
-        assert fragment in absent_branch
-    assert not re.search(r"\b(?:exit|return|kill|unset)\b", absent_branch)
-    assert "node <<'JS'" not in absent_branch
+        assert fragment in not_applicable_branch
+    assert not re.search(r"\b(?:exit|return|kill|unset)\b", not_applicable_branch)
+    assert "node <<'JS'" not in not_applicable_branch
 
     _assert_in_order(
         available_branch,
@@ -1196,18 +3029,251 @@ def test_absent_history_records_nonfatal_stop_and_reaches_rollback_report() -> N
     for fragment in (
         'case "$KIVOU_HISTORICAL_SMOKE_STATUS:$KIVOU_ROLLOUT_STATUS" in',
         "PASS:PASS",
-        "STOP_NON_EXECUTABLE:STOP_INCOMPLETE",
+        "NOT_APPLICABLE_NO_LEGITIMATE_HISTORY:PASS",
         "historical_smoke_status=%s rollout_status=%s",
-        "interdite",
-        "KIVOU_HISTORICAL_SMOKE_STATUS != PASS",
+        "aucun artefact supersédé légitime",
+        "ne jamais fabriquer",
     ):
         assert fragment in report
     _assert_in_order(
         body,
-        "KIVOU_HISTORICAL_SMOKE_STATUS=STOP_NON_EXECUTABLE",
+        "KIVOU_HISTORICAL_SMOKE_STATUS=NOT_APPLICABLE_NO_LEGITIMATE_HISTORY",
         "## 9. Rollback applicatif",
         "## 10. Rapport de preuve",
         "historical_smoke_status=%s rollout_status=%s",
+    )
+
+
+def test_c003_never_selects_outside_exact_ui_first_page() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    current_script = _javascript_heredocs(section)[0]
+    api_guard = current_script.split("async function verifyPublishedApi", 1)[1].split(
+        "\nfunction installFailureCollectors", 1
+    )[0]
+    api_function = "async function verifyPublishedApi" + api_guard
+    harness = r"""
+const readDate = '2026-08-31'
+const firstPagePath = '/signals?freshness=new&limit=20&offset=0'
+const requests = []
+global.fetch = async (path, options) => {
+  requests.push(path)
+  if (options?.credentials !== 'same-origin' || path !== firstPagePath) {
+    return { status: 404 }
+  }
+  return {
+    status: 200,
+    json: async () => ({
+      read_at: readDate,
+      freshness: 'new',
+      page: { limit: 20, offset: 0, has_more: true, scan_truncated: false },
+      items: Array.from({ length: 20 }, (_, index) => ({
+        signal_id: index.toString(16).padStart(64, '0'),
+        locked: true,
+        headline: `Locked ${index}`,
+      })),
+    }),
+  }
+}
+const page = { evaluate: async (fn, argument) => fn(argument) }
+verifyPublishedApi(page, readDate).then(
+  () => process.exit(42),
+  () => process.exit(
+    requests.length === 1 && requests[0] === firstPagePath ? 0 : 43,
+  ),
+)
+"""
+    executed = subprocess.run(
+        ["node"],
+        input=api_function + harness,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert executed.returncode == 0, executed.stderr
+    assert "`/signals?freshness=new&limit=20&offset=0`" in api_guard
+    assert "feed.read_at !== readDate" in api_guard
+    assert "feed.freshness !== 'new'" in api_guard
+    assert "feed.page?.limit !== 20" in api_guard
+    assert "feed.page.offset !== 0" in api_guard
+    assert "limit=50" not in api_guard
+    assert "offset=20" not in api_guard
+    assert "process.env.KIVOU_QA_BROWSER_READ_DATE" in current_script
+    assert "process.env.KIVOU_BACKFILL_AS_OF" not in current_script
+
+
+def test_c003_selects_ordered_row_when_headlines_are_duplicated() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    current_script = _javascript_heredocs(section)[0]
+    api_guard = current_script.split("async function verifyPublishedApi", 1)[1].split(
+        "\nfunction installFailureCollectors", 1
+    )[0]
+    api_function = "async function verifyPublishedApi" + api_guard
+    harness = r"""
+const readDate = '2026-08-31'
+const feedPath = '/signals?freshness=new&limit=20&offset=0'
+const lockedId = 'a'.repeat(64)
+const firstId = 'b'.repeat(64)
+const secondId = 'c'.repeat(64)
+const firstArtifactId = 'd'.repeat(64)
+const secondArtifactId = 'e'.repeat(64)
+const headline = 'Same factual headline'
+const presentation = (artifactId) => ({
+  artifact_id: artifactId,
+  version: 1,
+  status: 'FALLBACK',
+  content: {
+    headline,
+    variant: 'FACTUAL_FALLBACK',
+    claims: [{ evidence_refs: ['source:1'] }],
+  },
+})
+const firstPresentation = presentation(firstArtifactId)
+const requests = []
+global.fetch = async (path, options) => {
+  requests.push(path)
+  if (options?.credentials !== 'same-origin') return { status: 401 }
+  if (path === feedPath) return {
+    status: 200,
+    json: async () => ({
+      read_at: readDate,
+      freshness: 'new',
+      page: { limit: 20, offset: 0, has_more: false, scan_truncated: false },
+      items: [
+        { signal_id: lockedId, locked: true, headline: 'Locked' },
+        { signal_id: firstId, locked: false, presentation: firstPresentation },
+        { signal_id: secondId, locked: false, presentation: presentation(secondArtifactId) },
+      ],
+    }),
+  }
+  if (path === `/signals/${firstId}?presentation_artifact_id=${firstArtifactId}`) {
+    return {
+      status: 200,
+      json: async () => ({ signal_id: firstId, presentation: firstPresentation }),
+    }
+  }
+  return { status: 404 }
+}
+const page = { evaluate: async (fn, argument) => fn(argument) }
+verifyPublishedApi(page, readDate).then(
+  (result) => process.exit(
+    result.pinnedIndex === 1 && result.pinnedSignalId === firstId &&
+    result.pinnedHeadline === headline && requests.length === 2 ? 0 : 43,
+  ),
+  () => process.exit(44),
+)
+"""
+    executed = subprocess.run(
+        ["node"],
+        input=api_function + harness,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert executed.returncode == 0, executed.stderr
+    for fragment in (
+        "const pinnedIndex = feed.items.findIndex",
+        "pinnedIndex,",
+        "page.locator('.signal-list .signal-item').nth(api.pinnedIndex)",
+        "selection.getByText(api.pinnedHeadline, { exact: true })",
+        "await selectedHeadline.count() === 1",
+    ):
+        assert fragment in current_script
+    assert ".filter({ hasText: api.pinnedHeadline })" not in current_script
+
+
+def test_c003_rejects_detail_headline_drift_and_checks_visible_detail_pane() -> None:
+    section = _between(
+        _body(),
+        "## 8. Smoke navigateur desktop et mobile",
+        "## 9. Rollback applicatif",
+    )
+    current_script = _javascript_heredocs(section)[0]
+    api_guard = current_script.split("async function verifyPublishedApi", 1)[1].split(
+        "\nfunction installFailureCollectors", 1
+    )[0]
+    api_function = "async function verifyPublishedApi" + api_guard
+    harness = r"""
+const readDate = '2026-08-31'
+const feedPath = '/signals?freshness=new&limit=20&offset=0'
+const signalId = 'a'.repeat(64)
+const lockedId = 'b'.repeat(64)
+const artifactId = 'c'.repeat(64)
+const feedHeadline = 'Same factual headline'
+const feedPresentation = {
+  artifact_id: artifactId,
+  version: 1,
+  status: 'FALLBACK',
+  content: {
+    headline: feedHeadline,
+    variant: 'FACTUAL_FALLBACK',
+    claims: [{ evidence_refs: ['source:1'] }],
+  },
+}
+global.fetch = async (path, options) => {
+  if (options?.credentials !== 'same-origin') return { status: 401 }
+  if (path === feedPath) return {
+    status: 200,
+    json: async () => ({
+      read_at: readDate,
+      freshness: 'new',
+      page: { limit: 20, offset: 0, has_more: false, scan_truncated: false },
+      items: [
+        { signal_id: signalId, locked: false, presentation: feedPresentation },
+        { signal_id: lockedId, locked: true, headline: 'Locked signal' },
+      ],
+    }),
+  }
+  if (path === `/signals/${signalId}?presentation_artifact_id=${artifactId}`) {
+    return {
+      status: 200,
+      json: async () => ({
+        signal_id: signalId,
+        presentation: {
+          ...feedPresentation,
+          content: { ...feedPresentation.content, headline: 'DIFFERENT DETAIL HEADLINE' },
+        },
+      }),
+    }
+  }
+  return { status: 404 }
+}
+const page = { evaluate: async (fn, argument) => fn(argument) }
+verifyPublishedApi(page, readDate).then(
+  () => process.exit(42),
+  () => process.exit(0),
+)
+"""
+    executed = subprocess.run(
+        ["node"],
+        input=api_function + harness,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert executed.returncode == 0, executed.stderr
+    assert (
+        "detail.presentation.content?.headline !== artifact.content.headline"
+        in api_guard
+    )
+    for fragment in (
+        "const visibleDetailPane = page.locator(",
+        '`[data-master-detail-pane="detail"]:visible`',
+        "const detailHeadline = visibleDetailPane.getByRole('heading', {",
+        "name: api.pinnedHeadline, exact: true,",
+        "await detailHeadline.count() === 1",
+        "await detailHeadline.waitFor()",
+    ):
+        assert fragment in current_script
+    assert "page.getByText(api.pinnedHeadline, { exact: true }).first()" not in (
+        current_script
     )
 
 
@@ -1226,8 +3292,10 @@ def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> 
         "KIVOU_HISTORICAL_ARTIFACT_ID",
         "KIVOU_HISTORICAL_ARTIFACT_VERSION",
         "pinnedSignalId: item.signal_id",
+        "pinnedIndex,",
         "pinnedHeadline:",
-        ".signal-item:not(.is-locked)",
+        "page.locator('.signal-list .signal-item').nth(api.pinnedIndex)",
+        "selection.getByText(api.pinnedHeadline, { exact: true })",
         "url.pathname === `/app/signals/${encodeURIComponent(api.pinnedSignalId)}`",
         "selected.searchParams.get('presentation_artifact_id') === api.pinnedArtifactId",
         "const expectedDetailPath =",
@@ -1238,7 +3306,8 @@ def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> 
         "status === 200 && path === expectedNotePath",
         "method !== 'GET' && /\\/signals\\/[^/]+\\/note",
         "!requests.some(({ method }) => !['GET', 'HEAD'].includes(method))",
-        "page.getByText(api.pinnedHeadline, { exact: true })",
+        "visibleDetailPane.getByRole('heading', {",
+        "name: api.pinnedHeadline, exact: true,",
     ):
         assert fragment in commands or fragment in current_script
 
@@ -1246,7 +3315,7 @@ def test_current_and_optional_historical_signal_smokes_pin_exact_artifacts() -> 
     _assert_in_order(
         current_script,
         "pinnedSignalId: item.signal_id",
-        ".signal-item:not(.is-locked)",
+        "page.locator('.signal-list .signal-item').nth(api.pinnedIndex)",
         "path === expectedDetailPath",
         "method === 'GET' && path === expectedNotePath",
     )
@@ -1353,7 +3422,7 @@ def test_locked_teaser_is_unique_presentation_free_and_forbids_any_detail_get() 
     duplicate_payload_harness = """
 const duplicateId = 'a'.repeat(64)
 const artifactId = 'b'.repeat(64)
-const asOf = '2026-08-31T00:00:00Z'
+const asOf = '2026-08-31'
 const artifact = {
   artifact_id: artifactId,
   version: 1,
@@ -1364,7 +3433,7 @@ const artifact = {
     claims: [{ evidence_refs: ['source:1'] }],
   },
 }
-const feedPath = `/signals?as_of=${encodeURIComponent(asOf)}&limit=50&offset=0`
+const feedPath = '/signals?freshness=new&limit=20&offset=0'
 const detailPath =
   `/signals/${duplicateId}?presentation_artifact_id=${artifactId}`
 const requests = []
@@ -1374,9 +3443,11 @@ global.fetch = async (path, options) => {
   if (path === feedPath) {
     return {
       status: 200,
-      json: async () => ({
-        read_at: asOf,
-        items: [
+          json: async () => ({
+            read_at: asOf,
+            freshness: 'new',
+            page: { limit: 20, offset: 0, has_more: false, scan_truncated: false },
+            items: [
           { signal_id: duplicateId, locked: false, presentation: artifact },
           { signal_id: duplicateId, locked: true, headline: 'Locked signal' },
         ],
@@ -1629,7 +3700,7 @@ def test_smoke_and_rollback_contract_retain_additive_migration() -> None:
         "company_key",
         "application-only rollback",
         "ne pas exécuter de downgrade",
-        "0028_card_presentation",
+        "0029_production_observation",
     ):
         assert fragment in body
 
@@ -1642,7 +3713,7 @@ def test_smoke_and_rollback_contract_retain_additive_migration() -> None:
         "## 9. Rollback applicatif", 1
     )[0]
     for fragment in (
-        'assert revision == "0028_card_presentation", revision',
+        'test "$KIVOU_FINAL_REVISION" = "$KIVOU_EXPECTED_FINAL_REVISION"',
         "KIVOU_FINAL_ASSET_PATH",
         "http://127.0.0.1:8000/me",
         '"$KIVOU_FINAL_ASSET_PATH"',
@@ -1664,8 +3735,10 @@ def test_cleanup_and_mutation_commands_are_narrow_and_staging_only() -> None:
     direct_ssh_targets = re.findall(r"(?m)^\s*ssh\s+([^\s]+)", commands)
     assert direct_ssh_targets
     assert set(direct_ssh_targets) == {"kivou-staging"}
-    for forbidden in ("Hermes", "openai", "anthropic", "ollama"):
+    for forbidden in ("openai", "anthropic", "ollama"):
         assert forbidden.casefold() not in commands.casefold()
+    assert "/var/lib/kivou/hermes-shadow" in commands
+    assert re.search(r"/var/lib/kivou/hermes(?:/|\s|$)", commands) is None
     assert not re.search(r"systemctl\s+(?:start|enable).*kivou-card", commands)
     assert not re.search(
         r"python[^\n]*(?:generate|provider|worker)", commands, re.IGNORECASE
@@ -1695,3 +3768,1145 @@ def test_ops_readme_points_to_the_single_versioned_staging_rollout() -> None:
 
     assert body.count("../docs/runbooks/11-staging-card-presentation-rollout.md") == 1
     assert "Card Intelligence × QA Signals" in body
+
+
+def test_final_rollout_seals_concurrent_149_then_148_then_two_file_fix() -> None:
+    step_one = _commands(
+        _between(
+            _body(),
+            "## 1. Geler le SHA final et prouver la CI réellement exécutée",
+            "## 2. Prouver staging et capturer les deux rollback targets",
+        )
+    )
+    logical = re.sub(r"[ \t]*\\\n[ \t]*", " ", step_one)
+
+    for fragment in (
+        (
+            "KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA="
+            "3f3db99afaf925bed746739a79059cffe3b8be8c"
+        ),
+        (
+            "KIVOU_RECOVERY_CONCURRENT_MERGE_SHA="
+            "d6b17ae575bddf84ff3db1581a6c70b26b5a3f7d"
+        ),
+        (
+            "KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA="
+            "a3b8b2dce5c62df1bd21b64223d24a43b02ad2b1"
+        ),
+        "src/signals/acquisition_runtime/execution.py",
+        "tests/feed_helpers.py",
+        "tests/test_acquisition_runtime_execution.py",
+        "tests/test_acquisition_runtime_execution_production.py",
+        "tests/test_feed_ownership.py",
+        "tests/test_ingestion_backfill.py",
+        "src/signals/api/routes_auth.py",
+        "tests/test_accounts_security.py",
+        "docs/runbooks/11-staging-card-presentation-rollout.md",
+        "tests/test_card_presentation_runbook.py",
+    ):
+        assert fragment in logical
+
+    _assert_in_order(
+        logical,
+        'test "$(git rev-parse "$KIVOU_RECOVERY_CONCURRENT_MERGE_SHA^")"',
+        'test "$(git rev-parse "$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA^")"',
+        'git diff --name-only "$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA"',
+        'git diff --name-only "$KIVOU_RECOVERY_CONCURRENT_MERGE_SHA"',
+        'test "$(git rev-parse "$KIVOU_FINAL_SHA^")"',
+        'git diff --name-only "$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA"',
+        "KIVOU_CI_RUN_ID=",
+    )
+
+
+def test_0029_recovery_final_is_exact_child_with_two_file_allowlist(
+    tmp_path: Path,
+) -> None:
+    step_one = _commands(
+        _between(
+            _body(),
+            "## 1. Geler le SHA final et prouver la CI réellement exécutée",
+            "## 2. Prouver staging et capturer les deux rollback targets",
+        )
+    )
+    logical_step_one = re.sub(r"[ \t]*\\\n[ \t]*", " ", step_one)
+
+    for fragment in (
+        (
+            "KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA="
+            "a3b8b2dce5c62df1bd21b64223d24a43b02ad2b1"
+        ),
+        "KIVOU_EXPECTED_FINAL_REVISION=0029_production_observation",
+        (
+            'test "$(git rev-parse "$KIVOU_FINAL_SHA^")" = '
+            '"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA"'
+        ),
+        (
+            'test "$(git rev-list --count '
+            '"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA..$KIVOU_FINAL_SHA")" = 1'
+        ),
+        (
+            'git diff --name-only "$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA" '
+            '"$KIVOU_FINAL_SHA"'
+        ),
+        "docs/runbooks/11-staging-card-presentation-rollout.md",
+        "tests/test_card_presentation_runbook.py",
+        "readonly KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA",
+        "readonly KIVOU_EXPECTED_FINAL_REVISION",
+    ):
+        assert fragment in logical_step_one
+
+    guard = (
+        'test "$KIVOU_FINAL_SHA" != "$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA"'
+        + step_one.split(
+            'test "$KIVOU_FINAL_SHA" != "$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA"',
+            1,
+        )[1].split("test \"$(git rev-parse 'origin/main^{tree}')\"", 1)[0]
+    )
+    harness = (
+        "set -euo pipefail\n"
+        "KIVOU_FINAL_SHA=fedcba9876543210fedcba9876543210fedcba98\n"
+        "KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA="
+        "a3b8b2dce5c62df1bd21b64223d24a43b02ad2b1\n"
+        "git() {\n"
+        "  case \"$1:$2\" in\n"
+        "    (rev-parse:*) printf '%s\\n' \"$FAKE_PARENT\" ;;\n"
+        "    (rev-list:*) printf '%s\\n' \"$FAKE_COUNT\" ;;\n"
+        "    (diff:*) printf '%s\\n' \"$FAKE_DIFF\" ;;\n"
+        "    (*) return 64 ;;\n"
+        "  esac\n"
+        "}\n"
+        + guard
+    )
+
+    def evaluate(*, parent: str, count: str, diff: str) -> int:
+        return subprocess.run(
+            ["bash", "-c", harness],
+            env={
+                **os.environ,
+                "FAKE_PARENT": parent,
+                "FAKE_COUNT": count,
+                "FAKE_DIFF": diff,
+            },
+            cwd=tmp_path,
+            text=True,
+            capture_output=True,
+            check=False,
+        ).returncode
+
+    base = "a3b8b2dce5c62df1bd21b64223d24a43b02ad2b1"
+    exact = (
+        "docs/runbooks/11-staging-card-presentation-rollout.md\n"
+        "tests/test_card_presentation_runbook.py"
+    )
+    assert evaluate(parent=base, count="1", diff=exact) == 0
+    assert evaluate(parent="0" * 40, count="1", diff=exact) != 0
+    assert evaluate(parent=base, count="2", diff=exact) != 0
+    assert evaluate(parent=base, count="1", diff=exact + "\nthird.py") != 0
+    base_mutant = harness.replace(base, "a" * 40, 1)
+    assert subprocess.run(
+        ["bash", "-c", base_mutant],
+        env={
+            **os.environ,
+            "FAKE_PARENT": base,
+            "FAKE_COUNT": "1",
+            "FAKE_DIFF": exact,
+        },
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    ).returncode != 0
+    _assert_in_order(
+        logical_step_one,
+        "KIVOU_FINAL_SHA=$(git rev-parse origin/main)",
+        'test "$(git rev-parse "$KIVOU_FINAL_SHA^")"',
+        "KIVOU_RECOVERY_FINALIZATION_DIFF",
+        "KIVOU_CI_RUN_ID=",
+        "readonly KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA",
+    )
+
+
+def test_resume_executes_exact_reviewed_subdeltas_without_full_diff() -> None:
+    step_one = _commands(
+        _between(
+            _body(),
+            "## 1. Geler le SHA final et prouver la CI réellement exécutée",
+            "## 2. Prouver staging et capturer les deux rollback targets",
+        )
+    )
+    guard = (
+        "KIVOU_RECOVERY_SOURCE_SHA="
+        + step_one.split("KIVOU_RECOVERY_SOURCE_SHA=", 1)[1].split(
+            "test \"$(git rev-parse 'origin/main^{tree}')\"", 1
+        )[0]
+    )
+
+    source = "51202525d3163aeac259acbf9ac23086ed2cc256"
+    first_fix = "0075ceb4c817effebc6e84c8c200aca29a59c085"
+    card_merge = "635e487d9883cecec42151d6e4ba2515ac540b48"
+    compatibility_base = "3f3db99afaf925bed746739a79059cffe3b8be8c"
+    concurrent_merge = "d6b17ae575bddf84ff3db1581a6c70b26b5a3f7d"
+    card_compatibility = "a3b8b2dce5c62df1bd21b64223d24a43b02ad2b1"
+    final = "f" * 40
+    card_files = (
+        "docs/runbooks/11-staging-card-presentation-rollout.md",
+        "src/signals/card_intelligence/backfill.py",
+        "src/signals/card_intelligence/cli.py",
+        "tests/test_card_intelligence_backfill.py",
+        "tests/test_card_presentation_runbook.py",
+    )
+    concurrent_files = (
+        "src/signals/acquisition_runtime/execution.py",
+        "tests/feed_helpers.py",
+        "tests/test_acquisition_runtime_execution.py",
+        "tests/test_acquisition_runtime_execution_production.py",
+        "tests/test_feed_ownership.py",
+        "tests/test_ingestion_backfill.py",
+    )
+    compat_files = (
+        "docs/runbooks/11-staging-card-presentation-rollout.md",
+        "src/signals/api/routes_auth.py",
+        "tests/test_accounts_security.py",
+        "tests/test_card_presentation_runbook.py",
+    )
+    finalization_files = (
+        "docs/runbooks/11-staging-card-presentation-rollout.md",
+        "tests/test_card_presentation_runbook.py",
+    )
+    full_files = card_files + tuple(
+        f"src/acquisition/production_delta_{index:02d}.py" for index in range(66)
+    )
+    harness = (
+        "set -euo pipefail\n"
+        f"KIVOU_FINAL_SHA={final}\n"
+        "KIVOU_ROLLOUT_PATH=resume_51202525\n"
+        "git() {\n"
+        "  case \"$1\" in\n"
+        "    (rev-parse)\n"
+        "      case \"$2\" in\n"
+        "        (\"$KIVOU_FINAL_SHA^\") printf '%s\\n' \"$FAKE_FINAL_PARENT\" ;;\n"
+        "        (\"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA^\") "
+        "printf '%s\\n' \"$FAKE_COMPAT_PARENT\" ;;\n"
+        "        (\"$KIVOU_RECOVERY_CONCURRENT_MERGE_SHA^\") "
+        "printf '%s\\n' \"$FAKE_CONCURRENT_PARENT\" ;;\n"
+        "        (\"$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA^\") "
+        "printf '%s\\n' \"$FAKE_BASE_PARENT\" ;;\n"
+        "        (\"${KIVOU_RECOVERY_CARD_MERGE_SHA:-missing}^\") "
+        "printf '%s\\n' \"$FAKE_CARD_PARENT\" ;;\n"
+        "        (\"${KIVOU_RECOVERY_CARD_FIRST_FIX_SHA:-missing}^\") "
+        "printf '%s\\n' \"$FAKE_FIRST_PARENT\" ;;\n"
+        "        (*) return 64 ;;\n"
+        "      esac ;;\n"
+        "    (rev-list)\n"
+        "      test \"$2\" = --count\n"
+        "      case \"$3\" in\n"
+        "        (\"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA..$KIVOU_FINAL_SHA\") "
+        "printf '%s\\n' 1 ;;\n"
+        "        (*) return 64 ;;\n"
+        "      esac ;;\n"
+        "    (merge-base) test \"$FAKE_ANCESTOR\" = 1 ;;\n"
+        "    (diff)\n"
+        "      test \"$2\" = --name-only\n"
+        "      if test \"$3\" = \"$KIVOU_RECOVERY_SOURCE_SHA\" && "
+        "test \"$4\" = \"${KIVOU_RECOVERY_CARD_MERGE_SHA:-missing}\"; then\n"
+        "        printf '%s\\n' \"$FAKE_CARD_DIFF\"\n"
+        "      elif test \"$3\" = \"$KIVOU_RECOVERY_COMPATIBILITY_BASE_SHA\" && "
+        "test \"$4\" = \"$KIVOU_RECOVERY_CONCURRENT_MERGE_SHA\"; then\n"
+        "        printf '%s\\n' \"$FAKE_CONCURRENT_DIFF\"\n"
+        "      elif test \"$3\" = \"$KIVOU_RECOVERY_CONCURRENT_MERGE_SHA\" && "
+        "test \"$4\" = \"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA\"; then\n"
+        "        printf '%s\\n' \"$FAKE_COMPAT_DIFF\"\n"
+        "      elif test \"$3\" = \"$KIVOU_RECOVERY_CARD_COMPATIBILITY_SHA\" && "
+        "test \"$4\" = \"$KIVOU_FINAL_SHA\"; then\n"
+        "        printf '%s\\n' \"$FAKE_FINALIZATION_DIFF\"\n"
+        "      elif test \"$3\" = \"$KIVOU_RECOVERY_SOURCE_SHA\" && "
+        "test \"$4\" = \"$KIVOU_FINAL_SHA\"; then\n"
+        "        printf '%s\\n' \"$FAKE_FULL_DIFF\"\n"
+        "      else return 64; fi ;;\n"
+        "    (*) return 64 ;;\n"
+        "  esac\n"
+        "}\n"
+        + guard
+    )
+
+    def evaluate(**mutations: str) -> subprocess.CompletedProcess[str]:
+        environment = {
+            **os.environ,
+            "FAKE_FINAL_PARENT": card_compatibility,
+            "FAKE_COMPAT_PARENT": concurrent_merge,
+            "FAKE_CONCURRENT_PARENT": compatibility_base,
+            "FAKE_BASE_PARENT": card_merge,
+            "FAKE_CARD_PARENT": first_fix,
+            "FAKE_FIRST_PARENT": source,
+            "FAKE_ANCESTOR": "1",
+            "FAKE_CARD_DIFF": "\n".join(card_files),
+            "FAKE_CONCURRENT_DIFF": "\n".join(concurrent_files),
+            "FAKE_COMPAT_DIFF": "\n".join(compat_files),
+            "FAKE_FINALIZATION_DIFF": "\n".join(finalization_files),
+            "FAKE_FULL_DIFF": "\n".join(full_files),
+        }
+        environment.update(mutations)
+        return subprocess.run(
+            ["bash", "-c", harness],
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    nominal = evaluate()
+    assert nominal.returncode == 0, nominal.stderr
+    for mutant in (
+        {"FAKE_FIRST_PARENT": "0" * 40},
+        {"FAKE_CARD_PARENT": "0" * 40},
+        {"FAKE_BASE_PARENT": "0" * 40},
+        {"FAKE_CONCURRENT_PARENT": "0" * 40},
+        {"FAKE_COMPAT_PARENT": "0" * 40},
+        {"FAKE_FINAL_PARENT": "0" * 40},
+        {"FAKE_ANCESTOR": "0"},
+        {
+            "FAKE_CARD_DIFF": "\n".join(
+                card_files[:-1] + ("unexpected-card.py",)
+            )
+        },
+        {
+            "FAKE_CONCURRENT_DIFF": "\n".join(
+                concurrent_files[:-1] + ("unexpected-concurrent.py",)
+            )
+        },
+        {
+            "FAKE_COMPAT_DIFF": "\n".join(
+                compat_files[:-1] + ("unexpected-compat.py",)
+            )
+        },
+        {
+            "FAKE_FINALIZATION_DIFF": "\n".join(
+                finalization_files[:-1] + ("unexpected-finalization.py",)
+            )
+        },
+        {"FAKE_CARD_DIFF": "\n".join(card_files + ("third-card.py",))},
+        {
+            "FAKE_CONCURRENT_DIFF": "\n".join(
+                concurrent_files + ("seventh-concurrent.py",)
+            )
+        },
+        {"FAKE_COMPAT_DIFF": "\n".join(compat_files + ("third-compat.py",))},
+        {
+            "FAKE_FINALIZATION_DIFF": "\n".join(
+                finalization_files + ("third-finalization.py",)
+            )
+        },
+    ):
+        assert evaluate(**mutant).returncode != 0
+
+    logical = re.sub(r"[ \t]*\\\n[ \t]*", " ", guard)
+    assert (
+        'git diff --name-only "$KIVOU_RECOVERY_SOURCE_SHA" '
+        '"$KIVOU_FINAL_SHA"'
+    ) not in logical
+
+
+def test_pre_migration_watchdog_stays_armed_until_exact_writer_restore_proofs() -> None:
+    section = _between(
+        _body(),
+        "## 4. Préparer la release backend immuable et migrer vers 0029",
+        "## 5. Publier le backend par le blue/green versionné",
+    )
+    restore = next(
+        block
+        for block in re.findall(
+            r"<<'REMOTE'\n(.*?)^REMOTE$",
+            _commands(section),
+            flags=re.MULTILINE | re.DOTALL,
+        )
+        if "KIVOU_TIMER_STATES=$1" in block and "KIVOU_WATCHDOG=$2" in block
+    )
+    _assert_in_order(
+        restore,
+        'sudo systemctl start "${KIVOU_TIMERS[$KIVOU_INDEX]}"',
+        'KIVOU_TIMER_STATE=$(systemctl is-active "${KIVOU_TIMERS[$KIVOU_INDEX]}"',
+        'test "$KIVOU_TIMER_STATE" = "$KIVOU_EXPECTED_TIMER_STATE"',
+        'test "$KIVOU_SERVICE_STATE" = inactive',
+        'test "$KIVOU_WATCHDOG_TIMER_STATE" = active',
+        'test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive',
+        'sudo systemctl stop "$KIVOU_WATCHDOG.timer"',
+        'test "$KIVOU_WATCHDOG_TIMER_STATE" = inactive',
+        'test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive',
+    )
+
+    harness = (
+        "set -euo pipefail\n"
+        "KIVOU_FAKE_DISARMED=0\n"
+        "sudo() { \"$@\"; }\n"
+        "systemctl() {\n"
+        "  KIVOU_FAKE_COMMAND=$1; shift\n"
+        "  case \"$KIVOU_FAKE_COMMAND\" in\n"
+            "    (start) printf '%s\\n' timer_start; return 0 ;;\n"
+            "    (show)\n"
+            "      test \"$1\" = kivou-acquisition.service\n"
+            "      printf '%s\\n' 0\n"
+            "      return 0 ;;\n"
+            "    (is-enabled)\n"
+            "      test \"$1\" = kivou-acquisition.timer\n"
+            "      printf '%s\\n' disabled\n"
+            "      return 1 ;;\n"
+        "    (stop)\n"
+        "      test \"$1\" = kivou-card-migration-resume-abcdef123456.timer\n"
+        "      KIVOU_FAKE_DISARMED=1\n"
+        "      printf '%s\\n' watchdog_stop\n"
+        "      return 0 ;;\n"
+        "    (is-active)\n"
+        "      KIVOU_FAKE_UNIT=$1\n"
+        "      case \"$KIVOU_FAKE_UNIT\" in\n"
+        "        (kivou-card-migration-resume-*.timer)\n"
+        "          if test \"$KIVOU_FAKE_DISARMED\" = 1; then\n"
+        "            KIVOU_FAKE_STATE=$KIVOU_FAKE_WATCHDOG_TIMER_AFTER\n"
+        "          else KIVOU_FAKE_STATE=active; fi ;;\n"
+        "        (kivou-card-migration-resume-*.service)\n"
+        "          KIVOU_FAKE_STATE=$KIVOU_FAKE_WATCHDOG_SERVICE ;;\n"
+        "        (*.service) KIVOU_FAKE_STATE=$KIVOU_FAKE_SERVICE_STATE ;;\n"
+        "        (*)\n"
+        "          if test \"$KIVOU_FAKE_UNIT\" = \"$KIVOU_FAKE_FAIL_TIMER\"; then\n"
+        "            KIVOU_FAKE_STATE=failed\n"
+        "          else\n"
+        "            case \"$KIVOU_FAKE_UNIT\" in\n"
+            "              (kivou-ingest-simap.timer|kivou-ingest-decp.timer) "
+        "KIVOU_FAKE_STATE=active ;;\n"
+        "              (*) KIVOU_FAKE_STATE=inactive ;;\n"
+        "            esac\n"
+        "          fi ;;\n"
+        "      esac\n"
+        "      printf '%s\\n' \"$KIVOU_FAKE_STATE\"\n"
+        "      case \"$KIVOU_FAKE_STATE\" in (inactive|failed) return 3 ;; (*) return 0 ;; esac ;;\n"
+        "    (*) return 64 ;;\n"
+        "  esac\n"
+        "}\n"
+        + restore
+    )
+
+    def evaluate(
+        timer_states: str = "1010", **mutations: str
+    ) -> subprocess.CompletedProcess[str]:
+        environment = {
+            **os.environ,
+            "KIVOU_FAKE_FAIL_TIMER": "none",
+            "KIVOU_FAKE_SERVICE_STATE": "inactive",
+            "KIVOU_FAKE_WATCHDOG_SERVICE": "inactive",
+            "KIVOU_FAKE_WATCHDOG_TIMER_AFTER": "inactive",
+        }
+        environment.update(mutations)
+        return subprocess.run(
+            [
+                "bash",
+                "-c",
+                harness,
+                "bash",
+                timer_states,
+                "kivou-card-migration-resume-abcdef123456",
+            ],
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    nominal = evaluate()
+    assert nominal.returncode == 0, nominal.stderr
+    legacy_bitmap = evaluate("10101")
+    assert legacy_bitmap.returncode != 0
+    assert "timer_start" not in legacy_bitmap.stdout
+    assert "watchdog_stop" not in legacy_bitmap.stdout
+    for mutant in (
+        {"KIVOU_FAKE_FAIL_TIMER": "kivou-ingest-boamp.timer"},
+        {"KIVOU_FAKE_SERVICE_STATE": "active"},
+        {"KIVOU_FAKE_WATCHDOG_SERVICE": "active"},
+    ):
+        result = evaluate(**mutant)
+        assert result.returncode != 0
+        assert "watchdog_stop" not in result.stdout
+    assert evaluate(KIVOU_FAKE_WATCHDOG_TIMER_AFTER="active").returncode != 0
+
+
+def test_empty_observation_table_is_valid_and_only_scoped_digests_are_stable() -> None:
+    body = _body()
+    backup = _commands(
+        _between(
+            body,
+            "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
+            "## 4. Préparer la release backend immuable et migrer vers 0029",
+        )
+    )
+    migration = _commands(
+        _between(
+            body,
+            "## 4. Préparer la release backend immuable et migrer vers 0029",
+            "## 5. Publier le backend par le blue/green versionné",
+        )
+    )
+
+    assert "KIVOU_RESTORE_STAGING_ROWS" not in backup
+    assert "BUSINESS_DIGEST" not in body
+    for fragment in (
+        "KIVOU_RESTORE_CARD_DIGEST_BEFORE",
+        "KIVOU_RESTORE_OBSERVATION_DIGEST_BEFORE",
+        "KIVOU_RESTORE_NONCONFORMING_ROWS",
+        'test "$KIVOU_RESTORE_NONCONFORMING_ROWS" = 0',
+        'test "$KIVOU_RESTORE_PRODUCTION_ROWS" = 0',
+    ):
+        assert fragment in backup
+    for fragment in (
+        "card_ledger_digest_before",
+        "card_ledger_digest_after",
+        "observation_digest_before",
+        "observation_digest_after",
+        "assert card_ledger_digest_after == card_ledger_digest_before",
+        "assert observation_digest_after == observation_digest_before",
+        'assert connection.scalar(sa.text(\n        "SELECT count(*) FROM acquisition_runtime_observation "',
+    ):
+        assert fragment in migration
+    assert "count(*) == 1" not in migration
+
+
+def test_backup_proof_parser_rejects_each_malformed_or_reordered_line() -> None:
+    backup = _commands(
+        _between(
+            _body(),
+            "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
+            "## 4. Préparer la release backend immuable et migrer vers 0029",
+        )
+    )
+    prefix = "kivou_validate_backup_proof() {\n"
+    assert backup.count(prefix) == 1
+    validator = prefix + backup.split(prefix, 1)[1].split("\n}\n", 1)[0] + "\n}\n"
+    extraction = "KIVOU_BACKUP_FILE_NAME=${KIVOU_BACKUP_PROOF[0]#backup_file=}"
+    _assert_in_order(backup, prefix, "kivou_validate_backup_proof", extraction)
+
+    valid = (
+        "backup_file=kivou-20260901T120000Z.dump",
+        "backup_bytes=4096",
+        "backup_sha256=" + "a" * 64,
+        "toc_lines=42",
+        "restore_revision=0028_card_presentation",
+        "restore_size_positive=1",
+        "restore_db=kivou_card_restore_abcdef123456_20260901120000_1234",
+        "restore_card_digest=" + "b" * 64,
+        "restore_observation_digest=" + "c" * 64,
+    )
+    harness = (
+        "set -euo pipefail\n"
+        "KIVOU_EXPECTED_START_REVISION=0028_card_presentation\n"
+        "mapfile -t KIVOU_BACKUP_PROOF\n"
+        + validator
+        + "kivou_validate_backup_proof\n"
+    )
+
+    def evaluate(lines: tuple[str, ...]) -> int:
+        return subprocess.run(
+            ["bash", "-c", harness],
+            input="\n".join(lines) + "\n",
+            text=True,
+            capture_output=True,
+            check=False,
+        ).returncode
+
+    assert evaluate(valid) == 0
+    for index in range(len(valid)):
+        malformed = list(valid)
+        malformed[index] = f"wrong_key_{index}=bad"
+        assert evaluate(tuple(malformed)) != 0
+    reordered = list(valid)
+    reordered[0], reordered[1] = reordered[1], reordered[0]
+    assert evaluate(tuple(reordered)) != 0
+
+
+def test_0029_snapshot_revision_is_parameterized_by_phase_and_final_proofs() -> None:
+    body = _body()
+    commands = _commands(body)
+    helper = commands.split("kivou_capture_recovery_fr_snapshot() {", 1)[1].split(
+        "\n}\n", 1
+    )[0]
+
+    for fragment in (
+        "KIVOU_RECOVERY_EXPECTED_REVISION=$3",
+        '"$KIVOU_RECOVERY_EXPECTED_REVISION"',
+        (
+            '--setenv="KIVOU_RECOVERY_EXPECTED_REVISION='
+            '$KIVOU_RECOVERY_EXPECTED_REVISION"'
+        ),
+        'expected_revision = os.environ["KIVOU_RECOVERY_EXPECTED_REVISION"]',
+        "assert current_revision(engine) == expected_revision",
+    ):
+        assert fragment in helper
+
+    for pattern in (
+        r'"\$KIVOU_PREVIOUS_BACKEND" baseline\s+"\$KIVOU_EXPECTED_START_REVISION"',
+        r'"\$KIVOU_RELEASE_DIR" pre_fr\s+"\$KIVOU_EXPECTED_FINAL_REVISION"',
+        r'"\$KIVOU_RELEASE_DIR" post_fr\s+"\$KIVOU_EXPECTED_FINAL_REVISION"',
+        r'"\$KIVOU_RELEASE_DIR" post_en\s+"\$KIVOU_EXPECTED_FINAL_REVISION"',
+    ):
+        assert re.search(pattern, commands)
+    for fragment in (
+        'test "$KIVOU_DEPLOYED_REVISION" = "$KIVOU_EXPECTED_FINAL_REVISION"',
+        'test "$KIVOU_FINAL_REVISION" = "$KIVOU_EXPECTED_FINAL_REVISION"',
+        "0027_signal_notes-to-0029_production_observation",
+        "0028_card_presentation-to-0029_production_observation",
+        "La base doit rester à `0029_production_observation`",
+        "0029 remplace une contrainte mais reste compatible avec lignes staging 0028",
+    ):
+        assert fragment in body
+
+
+def test_0029_scratch_migration_proves_chain_constraint_and_ledger_stability() -> None:
+    body = _body()
+    backup = _commands(
+        _between(
+            body,
+            "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
+            "## 4. Préparer la release backend immuable et migrer vers 0029",
+        )
+    )
+    migration = _commands(
+        _between(
+            body,
+            "## 4. Préparer la release backend immuable et migrer vers 0029",
+            "## 5. Publier le backend par le blue/green versionné",
+        )
+    )
+
+    for fragment in (
+        "acquisition_runtime_observation",
+        "ck_acquisition_runtime_observation_boundary",
+        "environment = 'STAGING'",
+        "qa_only IS TRUE",
+        "native_tools = 0",
+        "count(*) FILTER (WHERE environment = 'PRODUCTION')",
+        "ORIGINAL_EXPRESSION",
+        'test "$KIVOU_RESTORE_CARD_INVENTORY" = "8|8|0|0|1|0"',
+        'test "$KIVOU_RESTORE_PRODUCTION_ROWS" = 0',
+        "KIVOU_RESTORE_CARD_DIGEST_BEFORE",
+        "KIVOU_RESTORE_OBSERVATION_DIGEST_BEFORE",
+    ):
+        assert fragment in backup
+    assert backup.count("to_jsonb(row_value)") >= 2
+
+    for fragment in (
+        "0029_production_observation.py",
+        'assert migration.revision == "0029_production_observation"',
+        'assert migration.down_revision == "0028_card_presentation"',
+        (
+            'assert script.get_revision("0028_card_presentation").down_revision '
+            '== "0027_signal_notes"'
+        ),
+        '--setenv="KIVOU_SCRATCH_DATABASE=$KIVOU_RESTORE_DB"',
+        "assert before == expected_before, before",
+        "migrate_to_latest(engine)",
+        'assert after == "0029_production_observation", after',
+        "assert card_ledger_digest_after == card_ledger_digest_before",
+        "assert observation_digest_after == observation_digest_before",
+        'test "$KIVOU_RESTORE_PRODUCTION_ROWS_AFTER" = 0',
+        "BEGIN TRANSACTION READ ONLY",
+        "SET LOCAL statement_timeout = '5min'",
+        "--property=RuntimeMaxSec=5min",
+    ):
+        assert fragment in migration
+    _assert_in_order(
+        _commands(body),
+        "KIVOU_RESTORE_CARD_DIGEST_BEFORE",
+        '--setenv="KIVOU_SCRATCH_DATABASE=$KIVOU_RESTORE_DB"',
+        "migrate_to_latest(engine)",
+        "assert card_ledger_digest_after == card_ledger_digest_before",
+        'dropdb "$KIVOU_RESTORE_DB"',
+        'kivou_run_0029_migration live "$KIVOU_EXPECTED_START_REVISION"',
+    )
+
+
+def test_0029_migration_preconditions_quiesce_acquisition_and_forbid_production() -> None:
+    body = _body()
+    commands = _commands(body)
+    before_migration = commands.split("kivou_run_0029_migration()", 1)[0]
+
+    for fragment in (
+        "KIVOU_WRITER_TIMERS=(kivou-ingest-simap.timer",
+        "KIVOU_WRITER_SERVICES=(kivou-ingest-simap.service",
+        'sudo systemctl stop "${KIVOU_WRITER_TIMERS[@]}"',
+        'sudo systemctl stop "${KIVOU_WRITER_SERVICES[@]}"',
+        'test "$KIVOU_WRITER_STATE" = inactive',
+        'test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled',
+        'test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive',
+        'test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive',
+        'test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0',
+        'test "$KIVOU_SHADOW_SMOKE_STATE" = inactive',
+        "kivou-acquisition-production.service",
+        "kivou-acquisition-production.timer",
+        "LoadState --value",
+        "not-found",
+        "is-enabled",
+        '/etc/systemd/system/$KIVOU_PRODUCTION_UNIT',
+    ):
+        assert fragment in before_migration
+
+    for path, expected in (
+        ("/etc/kivou/staging.env", "root:kivou:600"),
+        ("/etc/kivou/acquisition-shadow.env", "root:kivou:600"),
+        ("/etc/kivou/acquisition-runtime.env", "root:kivou:600"),
+        ("/etc/kivou/acquisition-shadow.json", "root:kivou:640"),
+        ("/etc/kivou/acquisition-runtime.json", "root:kivou:640"),
+    ):
+        assert path in before_migration
+        assert expected in before_migration
+    for fragment in (
+        "EnvironmentFile=/etc/kivou/staging.env",
+        'grep -Fx "EnvironmentFile=$KIVOU_ENV_BINDING"',
+        "KIVOU_ACQUISITION_ENVIRONMENT",
+        'test "$KIVOU_ACQUISITION_ENVIRONMENT" = STAGING',
+        "/var/lib/kivou/hermes-shadow",
+    ):
+        assert fragment in before_migration
+
+    logical = _logical_shell(body)
+    for pattern in (
+        (
+            r"systemctl\s+(?:start|enable|restart)\s+"
+            r"kivou-acquisition-production(?:\.service|\.timer)"
+        ),
+        (
+            r"systemctl\s+(?:try-restart|reenable|preset|link)\s+"
+            r"kivou-acquisition-production(?:\.service|\.timer)"
+        ),
+        (
+            r"\b(?:install|cp|mv|ln)\b[^\n]*"
+            r"kivou-acquisition-production(?:\.service|\.timer)"
+        ),
+        r"EnvironmentFile=/etc/kivou/(?:production|acquisition-production)\.env",
+        r"\bcheck-dependencies\b",
+        r"\brun-once\b",
+        r"\bbootstrap-policy-control\b",
+        r"docs/runbooks/12-acquisition-production-shadow\.md",
+        r"/var/lib/kivou/hermes(?:/|\s|$)",
+        r"--(?:provider|qa-provider|mutate|mutation|apply|execute-live)\b",
+    ):
+        assert re.search(pattern, logical, flags=re.IGNORECASE) is None
+    _assert_in_order(
+        before_migration,
+        "KIVOU_PRE_MIGRATION_TIMER_STATES=",
+        "KIVOU_PRE_MIGRATION_WATCHDOG=",
+        'test "$KIVOU_PRE_MIGRATION_WATCHDOG_TIMER_STATE" = active',
+        'test "$KIVOU_PRE_MIGRATION_WATCHDOG_SERVICE_STATE" = inactive',
+        'sudo systemctl stop "${KIVOU_WRITER_TIMERS[@]}"',
+        'sudo systemctl stop "${KIVOU_WRITER_SERVICES[@]}"',
+        'test "$KIVOU_WRITER_STATE" = inactive',
+    )
+    assert commands.count('--property=LoadState --value)" = not-found') >= 2
+    assert commands.count(
+        "for KIVOU_PRODUCTION_UNIT in kivou-acquisition-production.service"
+    ) >= 4
+    assert (
+        'printf \'%s\\n\' "$KIVOU_ACQUISITION_ENVIRONMENT"'
+        not in before_migration
+    )
+
+
+def test_0029_live_migration_rechecks_old_constraint_and_card_digests_before_write() -> None:
+    section = _between(
+        _body(),
+        "## 4. Préparer la release backend immuable et migrer vers 0029",
+        "## 5. Publier le backend par le blue/green versionné",
+    )
+    commands = _commands(section)
+    migration_script = next(
+        script for script in _python_heredocs(section) if "migrate_to_latest" in script
+    )
+    assert migration_script.count("to_jsonb(row_value)") >= 2
+
+    for fragment in (
+        "assert before == expected_before, before",
+        "ck_acquisition_runtime_observation_boundary",
+        "pg_get_constraintdef",
+        "convalidated",
+        "environment = 'PRODUCTION'",
+        "card_ledger_digest_before",
+        "observation_digest_before",
+        "migrate_to_latest(engine)",
+        "card_ledger_digest_after",
+        "observation_digest_after",
+        "assert card_ledger_digest_after == card_ledger_digest_before",
+        "assert observation_digest_after == observation_digest_before",
+        "ORIGINAL_EXPRESSION",
+        "NEW_EXPRESSION",
+        'assert after == "0029_production_observation", after',
+    ):
+        assert fragment in migration_script
+    _assert_in_order(
+        migration_script,
+        "assert before == expected_before, before",
+        "convalidated, constraint = constraint_proof(connection)",
+        "card_ledger_digest_before",
+        "observation_digest_before",
+        "migrate_to_latest(engine)",
+        'assert after == "0029_production_observation", after',
+        "card_ledger_digest_after",
+        "observation_digest_after",
+    )
+    assert migration_script.count("migrate_to_latest(engine)") == 1
+    assert "KIVOU_EXPECTED_START_REVISION=0027_signal_notes" in _body()
+    assert "KIVOU_EXPECTED_START_REVISION=0028_card_presentation" in _body()
+    assert commands.index('sudo systemctl stop "${KIVOU_WRITER_TIMERS[@]}"') < (
+        commands.index("KIVOU_MIGRATION_UNIT=")
+    )
+
+
+def test_acquisition_quarantine_accepts_only_initial_or_idempotent_retry_tuple() -> None:
+    body = _body()
+    commands = _commands(body)
+    quarantine_prefix = (
+        'case "$KIVOU_ACQUISITION_TIMER_ENABLED:'
+        '$KIVOU_ACQUISITION_TIMER_STATE" in\n'
+    )
+    assert commands.count(quarantine_prefix) == 1
+    quarantine_case = (
+        quarantine_prefix
+        + commands.split(quarantine_prefix, 1)[1].split("\nesac", 1)[0]
+        + "\nesac\n"
+    )
+
+    def evaluate_tuple(enabled: str, active: str) -> int:
+        harness = (
+            "set -euo pipefail\n"
+            f"KIVOU_ACQUISITION_TIMER_ENABLED={enabled}\n"
+            f"KIVOU_ACQUISITION_TIMER_STATE={active}\n"
+            + quarantine_case
+        )
+        return subprocess.run(
+            ["bash", "-c", harness],
+            text=True,
+            capture_output=True,
+            check=False,
+        ).returncode
+
+    assert evaluate_tuple("enabled", "active") == 0
+    assert evaluate_tuple("disabled", "inactive") == 0
+    for enabled, active in (
+        ("enabled", "inactive"),
+        ("disabled", "active"),
+        ("enabled", "activating"),
+        ("enabled", "deactivating"),
+        ("enabled", "failed"),
+        ("disabled", "failed"),
+    ):
+        assert evaluate_tuple(enabled, active) != 0
+
+    quarantine = _between(
+        body,
+        "## 2. Prouver staging et capturer les deux rollback targets",
+        "## 3. Sauvegarder, lister et restaurer dans une base scratch unique",
+    )
+    quarantine_commands = _commands(quarantine)
+    quarantine_remote = next(
+        remote
+        for remote in re.findall(
+            r"<<'REMOTE'\n(.*?)^REMOTE$",
+            quarantine_commands,
+            flags=re.MULTILINE | re.DOTALL,
+        )
+        if quarantine_prefix in remote
+    )
+    first_state_probe = "KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled"
+    quarantine_logic = (
+        "set -euo pipefail\n"
+        + first_state_probe
+        + quarantine_remote.split(first_state_probe, 1)[1]
+    ).split("for KIVOU_PRODUCTION_UNIT", 1)[0]
+
+    def run_quarantine(
+        *,
+        initial_enabled: str = "enabled",
+        initial_timer: str = "active",
+        disable_effective: str = "1",
+        stop_status: str = "0",
+        main_pid_after: str = "0",
+    ) -> subprocess.CompletedProcess[str]:
+        harness = (
+            "set -euo pipefail\n"
+            "KIVOU_FAKE_ENABLED=$KIVOU_INITIAL_ENABLED\n"
+            "KIVOU_FAKE_TIMER=$KIVOU_INITIAL_TIMER\n"
+            "KIVOU_FAKE_SERVICE=active\n"
+            "KIVOU_FAKE_MAIN_PID=123\n"
+            "sudo() { \"$@\"; }\n"
+            "systemctl() {\n"
+            "  KIVOU_FAKE_COMMAND=$1; shift\n"
+            "  case \"$KIVOU_FAKE_COMMAND\" in\n"
+            "    (is-enabled)\n"
+            "      printf '%s\\n' \"$KIVOU_FAKE_ENABLED\"\n"
+            "      test \"$KIVOU_FAKE_ENABLED\" = enabled ;;\n"
+            "    (is-active)\n"
+            "      case \"$1\" in\n"
+            "        (kivou-acquisition.timer) KIVOU_FAKE_VALUE=$KIVOU_FAKE_TIMER ;;\n"
+            "        (kivou-acquisition.service) KIVOU_FAKE_VALUE=$KIVOU_FAKE_SERVICE ;;\n"
+            "        (*) KIVOU_FAKE_VALUE=inactive ;;\n"
+            "      esac\n"
+            "      printf '%s\\n' \"$KIVOU_FAKE_VALUE\"\n"
+            "      if test \"$KIVOU_FAKE_VALUE\" = inactive; then\n"
+            "        return 3\n"
+            "      fi ;;\n"
+            "    (disable)\n"
+            "      printf '%s\\n' mutation_disable\n"
+            "      if test \"$KIVOU_DISABLE_EFFECTIVE\" = 1; then\n"
+            "        KIVOU_FAKE_ENABLED=disabled\n"
+            "        KIVOU_FAKE_TIMER=inactive\n"
+            "      fi ;;\n"
+            "    (stop)\n"
+            "      printf '%s\\n' mutation_stop\n"
+            "      test \"$KIVOU_STOP_STATUS\" = 0 || return 1\n"
+            "      KIVOU_FAKE_SERVICE=inactive\n"
+            "      KIVOU_FAKE_MAIN_PID=$KIVOU_MAIN_PID_AFTER ;;\n"
+            "    (show) printf '%s\\n' \"$KIVOU_FAKE_MAIN_PID\" ;;\n"
+            "    (*) return 64 ;;\n"
+            "  esac\n"
+            "}\n"
+            + quarantine_logic
+        )
+        return subprocess.run(
+            ["bash", "-c", harness],
+            env={
+                **os.environ,
+                "KIVOU_INITIAL_ENABLED": initial_enabled,
+                "KIVOU_INITIAL_TIMER": initial_timer,
+                "KIVOU_DISABLE_EFFECTIVE": disable_effective,
+                "KIVOU_STOP_STATUS": stop_status,
+                "KIVOU_MAIN_PID_AFTER": main_pid_after,
+            },
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    for nominal in (
+        run_quarantine(),
+        run_quarantine(initial_enabled="disabled", initial_timer="inactive"),
+    ):
+        assert nominal.returncode == 0, nominal.stderr
+        assert nominal.stdout.splitlines()[-2:] == [
+            "mutation_disable",
+            "mutation_stop",
+        ]
+    for mutant in (
+        run_quarantine(initial_enabled="enabled", initial_timer="inactive"),
+        run_quarantine(initial_enabled="enabled", initial_timer="activating"),
+    ):
+        assert mutant.returncode != 0
+        assert "mutation_disable" not in mutant.stdout
+    assert run_quarantine(stop_status="1").returncode != 0
+    assert run_quarantine(disable_effective="0").returncode != 0
+    assert run_quarantine(main_pid_after="7").returncode != 0
+
+    for fragment in (
+        "KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled",
+        "KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active",
+        "sudo systemctl disable --now kivou-acquisition.timer",
+        "sudo systemctl stop kivou-acquisition.service",
+        'test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled',
+        'test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive',
+        'test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive',
+        "--property=MainPID --value",
+        'test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0',
+        'test "$KIVOU_SHADOW_SMOKE_STATE" = inactive',
+        "kivou-acquisition-production.service",
+        "kivou-acquisition-production.timer",
+        "not-found",
+    ):
+        assert fragment in quarantine_commands
+    _assert_in_order(
+        commands,
+        'kivou_validate_qa_read_only "$KIVOU_PREVIOUS_BACKEND"',
+        "KIVOU_RECOVERY_BASELINE_PAYLOAD=",
+        quarantine_prefix,
+        "sudo systemctl disable --now kivou-acquisition.timer",
+        "sudo systemctl stop kivou-acquisition.service",
+        'test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0',
+        "sudo systemctl start kivou-backup.service",
+    )
+
+
+def test_acquisition_is_absent_from_every_restart_surface_and_legacy_bitmap_stops() -> None:
+    body = _body()
+    commands = _commands(body)
+    expected_ingest_timers = {
+        "kivou-ingest-simap.timer",
+        "kivou-ingest-boamp.timer",
+        "kivou-ingest-decp.timer",
+        "kivou-ingest-ted.timer",
+    }
+    restartable_timer_arrays = re.findall(
+        r"^KIVOU_(?:WRITER_)?TIMERS=\((.*?)(?:\n\)|\))",
+        commands,
+        flags=re.MULTILINE | re.DOTALL,
+    )
+    assert restartable_timer_arrays
+    for definition in restartable_timer_arrays:
+        assert set(re.findall(r"kivou-[a-z-]+\.timer", definition)) == (
+            expected_ingest_timers
+        )
+
+    logical = _logical_shell(body)
+    assert re.search(
+        r"(?:^|[;&|]\s*|sudo\s+)(?:/usr/bin/)?systemctl\s+"
+        r"(?:start|enable|restart|try-restart|reenable|preset|link)\b"
+        r"[^\n;&|]*kivou-acquisition\.(?:timer|service)",
+        logical,
+    ) is None
+
+    section = _between(
+        body,
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    section_commands = _commands(section)
+    function_prefix = "kivou_resume_card_writers() {\n"
+    resume_function = (
+        function_prefix
+        + section_commands.split(function_prefix, 1)[1].split("\n}\n", 1)[0]
+        + "\n}\n"
+    )
+    local_guard = resume_function.split("ssh kivou-staging", 1)[0]
+    assert "^[01]{4}$" in local_guard
+    assert "^[01]{5}$" not in resume_function
+
+    def run_resume(timer_states: str) -> subprocess.CompletedProcess[str]:
+        harness = (
+            "set -u\n"
+            "ssh() { printf '%s\\n' remote_invoked; return 0; }\n"
+            "KIVOU_RELEASE_DIR=/srv/kivou/releases/backend-abcdef123456\n"
+            f"KIVOU_WRITER_TIMER_STATES={timer_states}\n"
+            "KIVOU_WRITER_WATCHDOG=kivou-card-writers-resume-abcdef123456\n"
+            + resume_function
+            + "kivou_resume_card_writers\n"
+        )
+        return subprocess.run(
+            ["bash", "-c", harness],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+    nominal = run_resume("1111")
+    assert nominal.returncode == 0, nominal.stderr
+    assert "remote_invoked" in nominal.stdout
+    legacy = run_resume("11111")
+    assert legacy.returncode != 0
+    assert "remote_invoked" not in legacy.stdout
+
+
+def test_watchdogs_prove_safe_state_and_recheck_acquisition_quarantine() -> None:
+    body = _body()
+    migration = _between(
+        body,
+        "## 4. Préparer la release backend immuable et migrer vers 0029",
+        "## 5. Publier le backend par le blue/green versionné",
+    )
+    migration_commands = _commands(migration)
+    _assert_in_order(
+        migration_commands,
+        'sudo systemd-run --quiet --unit="$KIVOU_PRE_MIGRATION_WATCHDOG"',
+        "KIVOU_PRE_MIGRATION_WATCHDOG_TIMER_STATE=$(systemctl is-active",
+        'test "$KIVOU_PRE_MIGRATION_WATCHDOG_TIMER_STATE" = active',
+        "KIVOU_PRE_MIGRATION_WATCHDOG_SERVICE_STATE=$(systemctl is-active",
+        'test "$KIVOU_PRE_MIGRATION_WATCHDOG_SERVICE_STATE" = inactive',
+        'sudo systemctl stop "${KIVOU_WRITER_TIMERS[@]}"',
+        'sudo systemctl stop "${KIVOU_WRITER_SERVICES[@]}"',
+    )
+
+    recovery = _between(
+        body,
+        "## 7. Exiger le compte QA puis backfiller FR et EN séparément",
+        "## 8. Smoke navigateur desktop et mobile",
+    )
+    recovery_commands = _commands(recovery)
+    _assert_in_order(
+        recovery_commands,
+        'sudo systemd-run --quiet --unit="$KIVOU_WRITER_WATCHDOG"',
+        "KIVOU_WATCHDOG_TIMER_STATE=$(systemctl is-active",
+        'test "$KIVOU_WATCHDOG_TIMER_STATE" = active',
+        "KIVOU_WATCHDOG_SERVICE_STATE=$(systemctl is-active",
+        'test "$KIVOU_WATCHDOG_SERVICE_STATE" = inactive',
+        'sudo systemctl stop "${KIVOU_ACTIVE_TIMERS[@]}"',
+        'sudo systemctl stop kivou-api.service "${KIVOU_WRITER_SERVICES[@]}"',
+    )
+    helper_prefix = "kivou_rearm_card_writer_watchdog() {\n"
+    helper = (
+        helper_prefix
+        + recovery_commands.split(helper_prefix, 1)[1].split("\n}\n", 1)[0]
+        + "\n}\n"
+    )
+    for fragment in (
+        "KIVOU_ACQUISITION_TIMER_ENABLED=$(systemctl is-enabled",
+        'test "$KIVOU_ACQUISITION_TIMER_ENABLED" = disabled',
+        "KIVOU_ACQUISITION_TIMER_STATE=$(systemctl is-active",
+        'test "$KIVOU_ACQUISITION_TIMER_STATE" = inactive',
+        "KIVOU_ACQUISITION_SERVICE_STATE=$(systemctl is-active",
+        'test "$KIVOU_ACQUISITION_SERVICE_STATE" = inactive',
+        "KIVOU_ACQUISITION_SERVICE_MAIN_PID=$(systemctl show",
+        'test "$KIVOU_ACQUISITION_SERVICE_MAIN_PID" = 0',
+        "kivou-acquisition-shadow-smoke.service",
+    ):
+        assert fragment in helper
+    assert helper.count("kivou-acquisition.timer") >= 1
+    assert recovery_commands.count("kivou_rearm_card_writer_watchdog\n") == 5
+    assert "^[01]{4}$" in recovery_commands
+    assert "^[01]{5}$" not in recovery_commands
+
+
+def test_final_report_and_rollback_keep_acquisition_quarantined() -> None:
+    body = _body()
+    final_smoke = _between(body, "## 8. Smoke navigateur desktop et mobile", "## 9. Rollback applicatif")
+    rollback = _between(body, "## 9. Rollback applicatif", "## 10. Rapport de preuve")
+    report = body.split("## 10. Rapport de preuve", 1)[1]
+
+    for section in (final_smoke, rollback):
+        commands = _commands(section)
+        for fragment in (
+            "kivou-acquisition.timer",
+            "is-enabled",
+            "disabled",
+            "inactive",
+            "kivou-acquisition.service",
+            "MainPID",
+            "kivou-acquisition-shadow-smoke.service",
+            "kivou-acquisition-production.service",
+            "kivou-acquisition-production.timer",
+            "not-found",
+        ):
+            assert fragment in commands
+    assert "acquisition_timer=disabled_inactive" in report
+    assert "acquisition_service=inactive" in report
+    assert re.search(
+        r"réactivation.*procédure.*approuvée.*provider.*Hermes",
+        body,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+
+def test_0029_migration_sets_lock_and_statement_timeouts_on_every_connection() -> None:
+    section = _between(
+        _body(),
+        "## 4. Préparer la release backend immuable et migrer vers 0029",
+        "## 5. Publier le backend par le blue/green versionné",
+    )
+    migration_script = next(
+        script for script in _python_heredocs(section) if "migrate_to_latest" in script
+    )
+    for fragment in (
+        "from sqlalchemy import event",
+        '@event.listens_for(engine, "connect")',
+        "SET lock_timeout = '30s'",
+        "SET statement_timeout = '5min'",
+    ):
+        assert fragment in migration_script
+    _assert_in_order(
+        migration_script,
+        "engine = create_database_engine()",
+        '@event.listens_for(engine, "connect")',
+        "SET lock_timeout = '30s'",
+        "SET statement_timeout = '5min'",
+        "before = current_revision(engine)",
+        "migrate_to_latest(engine)",
+    )

@@ -5,6 +5,7 @@ import { AppRoutes } from '../App'
 import { notifyTargetIcpChanged } from '../targeting/targetIcpEvents'
 import {
   AUTHENTICATED,
+  COMPANY_PROFILE,
   ICP,
   LOCKED_ITEM,
   PRO_STATUS,
@@ -109,6 +110,7 @@ describe('états indépendants des vues de référence', () => {
         status: 503,
         body: { detail: { code: 'note_unavailable' } },
       },
+      [`GET /companies/${UNLOCKED_ITEM.company_key}`]: { body: COMPANY_PROFILE },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: PRO_STATUS },
     })
@@ -140,11 +142,11 @@ describe('états indépendants des vues de référence', () => {
     )
     expect(
       await screen.findByRole('heading', {
-        name: PUBLISHED_UNLOCKED_DETAIL.presentation.content.headline,
+        name: PUBLISHED_UNLOCKED_DETAIL.factual_display.headline,
       }),
     ).toBeVisible()
     expect(document.querySelector('.detail-summary')).toHaveTextContent(
-      PUBLISHED_UNLOCKED_DETAIL.presentation.content.award_summary,
+      PUBLISHED_UNLOCKED_DETAIL.factual_display.market_summary!,
     )
     expect(screen.queryByRole('heading', { name: UNLOCKED_DETAIL.contract.title! })).toBeNull()
     expect(await screen.findByRole('alert')).toHaveTextContent(/note.*chargée/i)
@@ -184,18 +186,16 @@ describe('états indépendants des vues de référence', () => {
     expect(screen.getByRole('button', { name: /réessayer/i })).toBeVisible()
   })
 
-  it('marque explicitement la liste conservée pendant une nouvelle lecture', async () => {
+  it('conserve la liste pendant une nouvelle lecture locale du détail', async () => {
     const user = userEvent.setup()
-    let freshReads = 0
-    let rejectRefresh!: (reason: unknown) => void
+    let detailReads = 0
+    let rejectRetry!: (reason: unknown) => void
     mockApi({
-      'GET /signals': (request) => {
-        if (request.search.get('freshness') === 'all') {
-          return { body: feedPage([]) }
-        }
-        freshReads += 1
-        if (freshReads === 1) return { body: feedPage([UNLOCKED_ITEM]) }
-        return new Promise((_resolve, reject) => { rejectRefresh = reject })
+      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
+      'GET /signals/sig_absent': () => {
+        detailReads += 1
+        if (detailReads === 1) return { status: 503, body: { detail: { code: 'signal_unavailable' } } }
+        return new Promise((_resolve, reject) => { rejectRetry = reject })
       },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: PRO_STATUS },
@@ -209,15 +209,15 @@ describe('états indépendants des vues de référence', () => {
     await screen.findByRole('heading', { name: 'Signal non disponible dans cette lecture' })
     await user.click(screen.getByRole('button', { name: 'Réessayer' }))
 
-    expect(await screen.findByText('Actualisation des données…')).toHaveAttribute('role', 'status')
+    const detailPanel = document.querySelector('.detail-panel') as HTMLElement
+    expect(await within(detailPanel).findByRole('status')).toHaveTextContent('Chargement…')
     expect(screen.getByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
     expect(within(document.querySelector('.workspace-grid') as HTMLElement).getAllByRole('status')).toHaveLength(1)
-    await act(async () => rejectRefresh(new Error('refresh failed')))
-    const feedPanel = screen.getByRole('heading', { name: 'Signaux détectés' })
-      .closest('.feed-panel') as HTMLElement
-    expect(await within(feedPanel).findByRole('alert')).toHaveTextContent(
-      'L’actualisation a échoué. Les données affichées peuvent être anciennes.',
+    await act(async () => rejectRetry(new Error('detail retry failed')))
+    expect(await within(detailPanel).findByRole('alert')).toHaveTextContent(
+      'Les informations n’ont pas pu être chargées.',
     )
+    const feedPanel = screen.getByRole('heading', { name: 'Signaux détectés' }).closest('.feed-panel') as HTMLElement
     expect(within(feedPanel).getByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
     expect(within(document.querySelector('.workspace-grid') as HTMLElement).getAllByRole('alert')).toHaveLength(1)
   })

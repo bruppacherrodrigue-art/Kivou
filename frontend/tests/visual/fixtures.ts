@@ -10,9 +10,11 @@ import type {
   Me,
   NotificationPreference,
   PlanCatalogue,
+  SignalFactualDisplay,
   TargetIcp,
   UnlockedDetail,
   UnlockedFeedItem,
+  WinnerEnrichment,
 } from '../../src/api/types'
 
 export type SignalFact = {
@@ -551,6 +553,8 @@ function toUnlockedItem(record: AwardSignal): UnlockedFeedItem {
       country: meta.companyCountry,
       identifier: { scheme: 'REFERENCE', value: record.company.id },
     },
+    factual_display: factualDisplay(record),
+    winner_enrichment: winnerEnrichment(record),
     event: {
       status: 'recent_award',
       type: 'recent_award',
@@ -617,6 +621,42 @@ function toUnlockedItem(record: AwardSignal): UnlockedFeedItem {
   } satisfies UnlockedFeedItem
 }
 
+function factualDisplay(
+  record: AwardSignal,
+  overrides: Partial<SignalFactualDisplay> = {},
+): SignalFactualDisplay {
+  const meta = metadata(record)
+  return {
+    headline: `${record.company.name} remporte un marché de ${record.amountShort} à ${meta.locality}`,
+    market_summary: record.shortTitle,
+    object_short: record.shortTitle,
+    date: { value: record.contractDateIso, kind: 'award' },
+    completeness: 'verified',
+    missing_fields: [],
+    ...overrides,
+  }
+}
+
+function winnerEnrichment(
+  record: AwardSignal,
+  overrides: Partial<WinnerEnrichment> = {},
+): WinnerEnrichment {
+  return {
+    status: 'completed',
+    missing_fields: [],
+    last_verified_at: '2026-08-29T09:00:00+00:00',
+    error_code: null,
+    source: {
+      kind: 'public_notice',
+      connector: 'TED',
+      notice_id: record.notice,
+      url: record.sourceUrl,
+      retrieved_at: '2026-08-29T09:00:00+00:00',
+    },
+    ...overrides,
+  }
+}
+
 function factualFallbackPresentation(
   record: AwardSignal,
   artifactId: string,
@@ -668,10 +708,83 @@ function visualArtifactId(record: AwardSignal): string {
   return String.fromCharCode('a'.charCodeAt(0) + index).repeat(64)
 }
 
-export const VISUAL_UNLOCKED_ITEMS = awardSignals.map((record) => ({
-  ...toUnlockedItem(record),
-  presentation: factualFallbackPresentation(record, visualArtifactId(record)),
-})) satisfies UnlockedFeedItem[]
+function visualUnlockedItem(record: AwardSignal): UnlockedFeedItem {
+  const item = toUnlockedItem(record)
+  const base = {
+    ...item,
+    presentation: factualFallbackPresentation(record, visualArtifactId(record)),
+  }
+  switch (record.id) {
+    case 'karl-schmitt-rummelsberg':
+      return {
+        ...base,
+        factual_display: factualDisplay(record, {
+          completeness: 'partial',
+          missing_fields: ['website', 'workforce_range'],
+        }),
+        winner_enrichment: winnerEnrichment(record, {
+          status: 'partial',
+          missing_fields: ['website', 'workforce_range'],
+        }),
+      }
+    case 'tm-ausbau-campus-ost':
+      return {
+        ...base,
+        factual_display: factualDisplay(record, {
+          date: { value: metadata(record).publication, kind: 'publication' },
+          completeness: 'partial',
+          missing_fields: ['buyer'],
+        }),
+        winner_enrichment: winnerEnrichment(record, {
+          status: 'partial',
+          missing_fields: ['website'],
+        }),
+      }
+    case 'gsh-gunzenhausen':
+      return {
+        ...base,
+        winner_enrichment: winnerEnrichment(record, {
+          status: 'in_progress',
+          last_verified_at: null,
+        }),
+      }
+    case 'sedlmeyr-zielstattstrasse':
+      return {
+        ...base,
+        contract: { ...item.contract, amount: null },
+        factual_display: factualDisplay(record, {
+          headline: `${record.company.name} remporte le marché « ${record.shortTitle} »`,
+          completeness: 'partial',
+          missing_fields: ['amount'],
+        }),
+        winner_enrichment: winnerEnrichment(record, {
+          status: 'pending',
+          missing_fields: ['website', 'workforce_range'],
+          last_verified_at: null,
+        }),
+      }
+    case 'garzon-deisenhofen':
+      return {
+        ...base,
+        contract: { ...item.contract, location: null },
+        factual_display: factualDisplay(record, {
+          headline: `${record.company.name} remporte un marché de ${record.amountShort}`,
+          completeness: 'partial',
+          missing_fields: ['location'],
+        }),
+        winner_enrichment: winnerEnrichment(record, {
+          status: 'failed',
+          missing_fields: ['website', 'workforce_range'],
+          last_verified_at: null,
+          error_code: 'source_unavailable',
+        }),
+      }
+    default:
+      return base
+  }
+}
+
+export const VISUAL_UNLOCKED_ITEMS = awardSignals.map(visualUnlockedItem)
 
 function offlineFallbackArtifact(record: AwardSignal, artifactId: string) {
   return {
@@ -741,6 +854,16 @@ export const VISUAL_SIGNAL_UNLOCKED_ITEMS = [{
 }, {
   ...visualPublicationItem,
   presentation: visualPublicationArtifact.presentation,
+  factual_display: {
+    ...visualPublicationItem.factual_display,
+    market_summary: visualPublicationItem.factual_display.object_short,
+    date: {
+      value: visualPublicationItem.contract.dates.publication,
+      kind: 'publication',
+    },
+    completeness: 'partial',
+    missing_fields: ['buyer'],
+  },
   event: {
     ...visualPublicationItem.event,
     status: 'recently_published_award',
@@ -772,7 +895,8 @@ export const VISUAL_SIGNAL_ITEMS = [
 ] satisfies FeedItem[]
 
 function toDetail(record: AwardSignal): UnlockedDetail {
-  const item = toUnlockedItem(record)
+  const item = VISUAL_UNLOCKED_ITEMS.find((candidate) => candidate.signal_id === record.id)
+  if (!item) throw new Error(`Missing factual visual signal for ${record.id}`)
   return {
     ...item,
     presentation: factualFallbackPresentation(record, visualArtifactId(record)),
@@ -836,7 +960,8 @@ export const VISUAL_SIGNAL_DETAILS = VISUAL_SIGNAL_UNLOCKED_ITEMS.map((item) => 
 }) satisfies UnlockedDetail[]
 
 function toCompanyProfile(record: AwardSignal): CompanyProfile {
-  const item = toUnlockedItem(record)
+  const item = VISUAL_UNLOCKED_ITEMS.find((candidate) => candidate.signal_id === record.id)
+  if (!item) throw new Error(`Missing factual visual company for ${record.id}`)
   return {
     company_key: visualCompanyKey(record),
     official_identity: {
@@ -844,7 +969,7 @@ function toCompanyProfile(record: AwardSignal): CompanyProfile {
       country: metadata(record).companyCountry,
       address: companyAddress(record.company),
       identifiers: [{ scheme: 'REFERENCE', value: record.company.id }],
-      website_url: null,
+      website_url: record.id === 'h-huether-munich' ? 'https://huether-gmbh.de' : null,
       observed_at: '2026-08-29T09:00:00+00:00',
       source: 'public_notice',
     },
@@ -872,7 +997,7 @@ function toCompanyProfile(record: AwardSignal): CompanyProfile {
     }],
     coverage: {
       related_signals_complete: true,
-      unavailable_fields: [],
+      unavailable_fields: item.winner_enrichment.missing_fields,
     },
   } satisfies CompanyProfile
 }
@@ -1001,19 +1126,47 @@ export const LOCAL_REFERENCE_ROUTES = [
   { golden: 'dashboard-account', source: '/settings', local: '/app/settings', scenario: 'connected-pro' },
 ] as const
 
-function feedPage(scenario: ConnectedVisualScenario): FeedPage {
+function feedPage(
+  scenario: ConnectedVisualScenario,
+  query: URLSearchParams,
+): FeedPage {
+  const history = scenario === 'connected-pro' && query.get('view') === 'history'
+  const cursor = query.get('cursor')
   const items = scenario === 'connected-discovery'
     ? VISUAL_SIGNAL_ITEMS
-    : VISUAL_UNLOCKED_ITEMS
+    : history
+      ? cursor === 'visual-history-page-2'
+        ? VISUAL_UNLOCKED_ITEMS.slice(3)
+        : VISUAL_UNLOCKED_ITEMS.slice(0, 3)
+      : VISUAL_UNLOCKED_ITEMS
+  const hasMore = history && cursor !== 'visual-history-page-2'
   return {
     items,
     total_returned: items.length,
-    page: { limit: 20, offset: 0, has_more: false, scan_truncated: false },
-    excluded: { without_display_name: 0, by_freshness: 0 },
+    page: {
+      limit: 20,
+      offset: 0,
+      cursor: history ? cursor : null,
+      next_cursor: hasMore ? 'visual-history-page-2' : null,
+      has_more: hasMore,
+      scan_truncated: false,
+    },
+    excluded: { without_display_name: 0, by_freshness: 0, by_filters: 0 },
     read_at: '2026-08-29T09:00:00+00:00',
     freshness: 'all',
     language: 'fr',
     plan_code: scenario === 'connected-discovery' ? 'discovery' : 'pro',
+    view: history ? 'history' : 'recent',
+    history_access: scenario === 'connected-discovery'
+      ? { scope: 'grants_only', history_days: 0 }
+      : { scope: 'window', history_days: 365 },
+    filter_access: {
+      date_range: scenario === 'connected-pro',
+      country: true,
+      subdivision: true,
+      status: true,
+      sector: scenario === 'connected-pro',
+    },
     policy: { feed: 'customer-feed-v0.1', recency: 'v1', paywall: 'kivou-paywall-v0.1' },
   } satisfies FeedPage
 }
@@ -1023,6 +1176,7 @@ type VisualResponse = { status?: number; body: unknown }
 function responseForConnected(
   scenario: ConnectedVisualScenario,
   key: string,
+  query: URLSearchParams,
 ): VisualResponse | null {
   if (key === 'GET /me') return { body: VISUAL_ME }
   if (key === 'GET /target-icps') return { body: [VISUAL_ICP] }
@@ -1031,7 +1185,7 @@ function responseForConnected(
   }
   if (key === 'GET /billing/plans') return { body: VISUAL_CATALOGUE }
   if (key === 'GET /notification-preferences') return { body: VISUAL_NOTIFICATION_PREFERENCE }
-  if (key === 'GET /signals') return { body: feedPage(scenario) }
+  if (key === 'GET /signals') return { body: feedPage(scenario, query) }
 
   const noteMatch = /^GET \/signals\/([^/]+)\/note$/.exec(key)
   if (noteMatch) {
@@ -1055,15 +1209,24 @@ function responseForConnected(
   }
 
   const companyMatch = /^GET \/companies\/([^/]+)$/.exec(key)
-  if (companyMatch && scenario === 'connected-pro') {
+  if (companyMatch) {
     const company = VISUAL_COMPANIES.find((candidate) => candidate.company_key === companyMatch[1])
-    return company ? { body: company } : null
+    const discoveryAllowed = VISUAL_SIGNAL_UNLOCKED_ITEMS.some(
+      (candidate) => candidate.company_key === companyMatch[1],
+    )
+    return company && (scenario === 'connected-pro' || discoveryAllowed)
+      ? { body: company }
+      : null
   }
 
   return null
 }
 
-function visualResponse(scenario: VisualScenario, key: string): VisualResponse | null {
+function visualResponse(
+  scenario: VisualScenario,
+  key: string,
+  query: URLSearchParams,
+): VisualResponse | null {
   switch (scenario) {
     case 'public-pricing':
     case 'auth':
@@ -1074,7 +1237,7 @@ function visualResponse(scenario: VisualScenario, key: string): VisualResponse |
       return null
     case 'connected-pro':
     case 'connected-discovery':
-      return responseForConnected(scenario, key)
+      return responseForConnected(scenario, key, query)
     default:
       return assertNever(scenario)
   }
@@ -1109,7 +1272,7 @@ export async function installReferenceApi(page: Page, scenario: VisualScenario) 
     }
     const key = request.method() + ' ' + url.pathname
     calls.push({ method: request.method(), path: url.pathname })
-    const response = visualResponse(scenario, key)
+    const response = visualResponse(scenario, key, url.searchParams)
     if (!response) {
       calls.push({ method: request.method(), path: '/__unhandled__' })
       await route.fulfill({

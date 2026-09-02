@@ -33,6 +33,18 @@ from signals.policy.store import PolicyStore
 
 RUNTIME_OBSERVATION_MAX_AGE = dt.timedelta(minutes=90)
 _EXPECTED_HEALTHY_SUPPRESSION_REASONS = frozenset({"VERIFIED_CONTACT_NOT_FOUND"})
+# The two commands capable of a real provider mutation — mirrors the exclusion
+# in `policy_bootstrap.BOOTSTRAP_ALLOWED_COMMANDS`. Production's authority must
+# never carry either, regardless of what staging's complete command set allows.
+_SENDING_COMMANDS = frozenset(
+    {
+        AcquisitionRuntimeStage.CAMPAIGN.command,
+        AcquisitionRuntimeStage.PROVIDER_HANDOFF.command,
+    }
+)
+_NON_SENDING_COMMANDS = frozenset(
+    stage.command for stage in AcquisitionRuntimeStage
+) - _SENDING_COMMANDS
 
 
 @dataclass(frozen=True)
@@ -68,9 +80,10 @@ class OperationsReadService:
         self._store = OperationsStore(engine)
         self._runtime_store = AcquisitionRuntimeStore(engine)
         self._policy = PolicyStore(engine)
+        self._environment_identity = environment_identity
         # Compatibility-only constructor parameters cannot authorize readiness.
         # The single authority is the observation written by the leased runtime.
-        del observed_runtime, supervisor_heartbeat_at, environment_identity
+        del observed_runtime, supervisor_heartbeat_at
 
     def health(self, *, observed_at: dt.datetime) -> AcquisitionOperationalHealth:
         health, _, _ = self._health_evidence(observed_at=observed_at)
@@ -306,13 +319,28 @@ class OperationsReadService:
         reasons: list[str] = []
         if control.kill_switch:
             reasons.append("KILL_SWITCH_ACTIVE")
-        if control.autonomy_mode.value != "SHADOW":
-            reasons.append("POLICY_MODE_NOT_SHADOW")
-        if not control.read_only:
-            reasons.append("POLICY_WRITE_MODE_ENABLED")
-        required_commands = {stage.command for stage in AcquisitionRuntimeStage}
-        if not required_commands.issubset(set(control.allowed_commands)):
-            reasons.append("POLICY_COMMANDS_INCOMPLETE")
+        if self._environment_identity == "PRODUCTION":
+            # Production's authority is deliberately ASSISTED and writable —
+            # SHADOW/read-only would be the staging posture, not this one —
+            # and it deliberately excludes the two sending commands, so a
+            # staging-shaped control here is exactly wrong, not merely unready.
+            if control.autonomy_mode.value != "ASSISTED":
+                reasons.append("POLICY_MODE_NOT_ASSISTED")
+            if control.read_only:
+                reasons.append("POLICY_WRITE_MODE_DISABLED")
+            required_commands = _NON_SENDING_COMMANDS
+            if not required_commands.issubset(set(control.allowed_commands)):
+                reasons.append("POLICY_COMMANDS_INCOMPLETE")
+            if _SENDING_COMMANDS.intersection(control.allowed_commands):
+                reasons.append("POLICY_ALLOWS_SENDING_COMMANDS")
+        else:
+            if control.autonomy_mode.value != "SHADOW":
+                reasons.append("POLICY_MODE_NOT_SHADOW")
+            if not control.read_only:
+                reasons.append("POLICY_WRITE_MODE_ENABLED")
+            required_commands = {stage.command for stage in AcquisitionRuntimeStage}
+            if not required_commands.issubset(set(control.allowed_commands)):
+                reasons.append("POLICY_COMMANDS_INCOMPLETE")
         return _PolicyEvidenceState(
             status=(HealthStatus.NOT_READY if reasons else HealthStatus.READY),
             reason_codes=tuple(sorted(set(reasons))),

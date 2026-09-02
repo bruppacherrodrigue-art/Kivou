@@ -15,6 +15,7 @@ from feed_helpers import (
 )
 
 from signals.api import ApiConfig, create_app
+from signals.companies.enrichment import run_winner_enrichment_batch
 from signals.persistence.database import create_database_engine, migrate_to_latest
 
 NOW = dt.datetime(2026, 8, 25, 9, tzinfo=dt.UTC)
@@ -80,9 +81,13 @@ def _seed_unlocked(engine, client: TestClient) -> str:
     icp_id = _icp(client)
     _pay(engine, client)
     with engine.begin() as connection:
-        return materialize_simap(
+        signal_key = materialize_simap(
             connection, SIMAP_RICH, target_icp_id=icp_id
         ).signal_key
+        run_winner_enrichment_batch(
+            connection, now=NOW, worker_ref="company-api-test", limit=10
+        )
+        return signal_key
 
 
 def test_company_endpoint_requires_authentication(app) -> None:

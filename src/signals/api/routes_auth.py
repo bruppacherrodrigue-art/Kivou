@@ -92,6 +92,13 @@ def _set_session_cookie(response: Response, request: Request, session) -> None:
     response.set_cookie(
         SESSION_COOKIE_NAME,
         session.raw_token,
+        # Max-Age RELATIF en plus d'Expires ABSOLU, et il prime (RFC 6265).
+        # Expires est daté par l'horloge métier ; un client qui l'évalue à
+        # l'heure réelle jetterait le cookie dès que le réel dépasse la date
+        # métier + TTL — c'est la bombe des deux horloges qui a fait détoner
+        # 18 fichiers de tests le 2026-09-01. La validité réelle de la session
+        # reste tenue côté serveur, en base.
+        max_age=int(config.session_ttl.total_seconds()),
         httponly=True,
         secure=config.cookie_secure,
         samesite="lax",

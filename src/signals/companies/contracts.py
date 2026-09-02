@@ -14,6 +14,7 @@ MAX_RELATED_SIGNALS = 100
 MAX_NEEDS_PER_SIGNAL = 16
 MAX_FIT_REASONS = 16
 MAX_UNAVAILABLE_FIELDS = 16
+MAX_ENRICHMENT_MISSING_FIELDS = 16
 
 CompanyKey = Annotated[
     str,
@@ -67,6 +68,10 @@ def aware_datetime(value: dt.datetime) -> dt.datetime:
     return value
 
 
+def aware_optional_datetime(value: dt.datetime | None) -> dt.datetime | None:
+    return None if value is None else aware_datetime(value)
+
+
 class CompanyOfficialIdentifier(CompanyContract):
     scheme: ShortText
     value: ShortText
@@ -85,6 +90,32 @@ class CompanyOfficialIdentity(CompanyContract):
 
     _safe_website = field_validator("website_url")(safe_https_url)
     _aware_observation = field_validator("observed_at")(aware_datetime)
+
+
+class WinnerEnrichmentSource(CompanyContract):
+    kind: Literal["public_notice"] = "public_notice"
+    connector: ShortText
+    notice_id: ShortText
+    url: Annotated[str, StringConstraints(max_length=2_048)] | None = None
+    retrieved_at: dt.datetime | None = None
+
+    _safe_url = field_validator("url")(safe_https_url)
+    _aware_retrieval = field_validator("retrieved_at")(aware_optional_datetime)
+
+
+class WinnerEnrichmentView(CompanyContract):
+    status: Literal["pending", "in_progress", "completed", "partial", "failed"]
+    missing_fields: tuple[ShortText, ...] = Field(
+        default=(), max_length=MAX_ENRICHMENT_MISSING_FIELDS
+    )
+    last_verified_at: dt.datetime | None = None
+    error_code: Annotated[
+        str,
+        StringConstraints(strip_whitespace=True, min_length=1, max_length=64),
+    ] | None = None
+    source: WinnerEnrichmentSource
+
+    _aware_verification = field_validator("last_verified_at")(aware_optional_datetime)
 
 
 class CompanySignalAmount(CompanyContract):

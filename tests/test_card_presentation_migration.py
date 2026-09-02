@@ -22,7 +22,10 @@ from signals.persistence.schema import (
 )
 
 PREVIOUS = "0027_signal_notes"
+#: La migration que CE fichier décrit. Elle n'est plus la tête depuis 0029,
+#: mais reste un pas ADDITIF unique depuis son parent — ce que ce test prouve.
 HEAD = "0028_card_presentation"
+CURRENT_HEAD = "0030_winner_enrichment"
 TABLE_NAME = "card_presentation_artifact"
 ACTIVE_INDEX = "uq_card_presentation_active_publication"
 TENANT_READ_INDEX = "ix_card_presentation_tenant_read"
@@ -192,7 +195,7 @@ def test_card_presentation_migration_is_one_additive_table(tmp_path) -> None:
     scripts = ScriptDirectory.from_config(config)
     assert set(sa.inspect(engine).get_table_names()) - before == {TABLE_NAME}
     assert current_revision(engine) == HEAD
-    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_heads() == [CURRENT_HEAD]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
 
 

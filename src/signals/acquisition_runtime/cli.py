@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import sys
 from collections.abc import Callable
@@ -39,7 +40,7 @@ def _parser() -> _SafeArgumentParser:
     run_once.add_argument(
         "--allow-qa-provider-mutations",
         action="store_true",
-        help="manual staging-only gate; durable Policy and approval still apply",
+        help="manual staging-only gate; rejected in production",
     )
     commands.add_parser(
         "check-dependencies",
@@ -111,6 +112,12 @@ def main(
         return 0
 
     assert arguments.command == "run-once"
+    if bool(arguments.allow_qa_provider_mutations) and (
+        (os.environ.get("KIVOU_ACQUISITION_ENVIRONMENT") or "").strip().upper()
+        == "PRODUCTION"
+    ):
+        print("status=INVALID_ARGUMENTS", file=sys.stderr)
+        return 2
     run = execute or _default_execute
 
     def interrupt_runtime(_signum: int, _frame: object) -> None:

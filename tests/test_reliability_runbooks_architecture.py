@@ -15,6 +15,7 @@ RUNBOOKS = (
     "09-staging-secret-rotation.md",
     "10-acquisition-runtime.md",
     "11-staging-card-presentation-rollout.md",
+    "12-acquisition-production-shadow.md",
 )
 SECRET_ROTATION_RUNBOOK = Path("docs/runbooks/09-staging-secret-rotation.md")
 OPERATIONS_README = Path("ops/README.md")
@@ -47,6 +48,10 @@ def test_exact_safe_runbook_set_has_no_secret_or_destructive_examples() -> None:
         if name == "10-acquisition-runtime.md":
             assert enable_lines == (
                 "sudo systemctl enable --now kivou-acquisition.timer",
+            )
+        elif name == "12-acquisition-production-shadow.md":
+            assert enable_lines == (
+                "sudo systemctl enable --now kivou-acquisition-production.timer",
             )
         else:
             assert enable_lines == ()

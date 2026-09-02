@@ -786,8 +786,8 @@ class AcquisitionDomainActions:
         authorization_factory: RuntimePolicyAuthorizationFactory,
         approval_provider: RuntimeApprovalProvider,
         maximum_provider_operations: int,
-        qa_transport_recipient_identity: str,
-        qa_transport_recipient_key_version: str,
+        qa_transport_recipient_identity: str | None,
+        qa_transport_recipient_key_version: str | None,
         qa_scope: RuntimeQaScope,
         targeting: SupplierTargetingConfig | None = None,
     ) -> None:
@@ -816,13 +816,18 @@ class AcquisitionDomainActions:
         self._authorizations = authorization_factory
         self._approvals = approval_provider
         self._provider_cap = maximum_provider_operations
-        if re.fullmatch(r"[0-9a-f]{64}", qa_transport_recipient_identity) is None:
-            raise ValueError("QA transport recipient identity must be a SHA-256 HMAC")
-        if (
-            not qa_transport_recipient_key_version
-            or len(qa_transport_recipient_key_version) > 64
+        if (qa_transport_recipient_identity is None) != (
+            qa_transport_recipient_key_version is None
         ):
-            raise ValueError("QA transport recipient key version is invalid")
+            raise ValueError("QA transport binding is all or nothing")
+        if qa_transport_recipient_identity is not None:
+            if re.fullmatch(r"[0-9a-f]{64}", qa_transport_recipient_identity) is None:
+                raise ValueError("QA transport recipient identity must be a SHA-256 HMAC")
+            if (
+                not qa_transport_recipient_key_version
+                or len(qa_transport_recipient_key_version) > 64
+            ):
+                raise ValueError("QA transport recipient key version is invalid")
         self._qa_transport_binding = (
             qa_transport_recipient_identity,
             qa_transport_recipient_key_version,
@@ -1427,7 +1432,7 @@ def _provider_approval_fingerprint(
     campaign: CampaignTruth,
     operations: tuple[ProviderOperationTruth, ...],
     *,
-    qa_transport_binding: tuple[str, str],
+    qa_transport_binding: tuple[str, str] | tuple[None, None],
 ) -> str:
     canonical = json.dumps(
         {

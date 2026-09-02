@@ -115,9 +115,8 @@ def test_capability_is_exactly_staging_qa_shadow_with_eleven_dependencies() -> N
 @pytest.mark.parametrize(
     "updates",
     (
-        {"environment": "PRODUCTION"},
+        {"environment": "UNCONFIGURED"},
         {"mode": "ASSISTED"},
-        {"qa_only": False},
         {"native_tools": 1},
         {"commands": tuple(stage.command for stage in AcquisitionRuntimeStage)[:-1]},
         {
@@ -135,6 +134,23 @@ def test_capability_rejects_environment_registry_and_dependency_drift(
 ) -> None:
     with pytest.raises(ValidationError):
         capability(**updates)
+
+
+def test_production_capability_evidence_is_now_representable() -> None:
+    observed = capability(environment="PRODUCTION", qa_only=False)
+
+    assert observed.environment == "PRODUCTION"
+    assert observed.qa_only is False
+    assert observed.mode == "SHADOW"
+    assert observed.native_tools == 0
+    assert observed.commands == tuple(
+        stage.command for stage in AcquisitionRuntimeStage
+    )
+    assert tuple(item.stage for item in observed.dependencies) == tuple(
+        AcquisitionRuntimeStage
+    )
+    assert all(item.status is RuntimeDependencyState.READY for item in observed.dependencies)
+    assert len(observed.fingerprint) == 64
 
 
 def test_dependency_status_is_closed_and_requires_a_bounded_failure_reason() -> None:

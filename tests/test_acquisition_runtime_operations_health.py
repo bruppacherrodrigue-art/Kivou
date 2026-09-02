@@ -14,6 +14,7 @@ from signals.acquisition_runtime.contracts import (
 )
 from signals.acquisition_runtime.store import AcquisitionRuntimeStore
 from signals.operations.contracts import HealthStatus, HermesRuntimeIdentity
+from signals.operations.policy_bootstrap import BOOTSTRAP_ALLOWED_COMMANDS
 from signals.operations.service import OperationsReadService
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.policy.contracts import (
@@ -57,6 +58,38 @@ def _control(*, kill_switch: bool = False) -> PolicyControlSnapshot:
         created_by_actor_type="HUMAN",
         created_by_actor_ref="operator-opaque-1",
         reason_codes=("QA_SHADOW_RUNTIME",),
+    )
+
+
+def _production_control(
+    *,
+    autonomy_mode: AutonomyMode = AutonomyMode.ASSISTED,
+    read_only: bool = False,
+    allowed_commands: tuple[str, ...] = BOOTSTRAP_ALLOWED_COMMANDS,
+    shadow_target_mode: AutonomyMode | None = None,
+) -> PolicyControlSnapshot:
+    return PolicyControlSnapshot(
+        policy_snapshot_id="runtime-health-policy-production",
+        control_revision=1,
+        policy_version=POLICY_VERSION,
+        autonomy_mode=autonomy_mode,
+        shadow_target_mode=shadow_target_mode,
+        read_only=read_only,
+        kill_switch=False,
+        allowed_commands=allowed_commands,
+        allowed_countries=("FR",),
+        allowed_languages=("fr",),
+        allowed_wedges=("wedge",),
+        currency="CHF",
+        daily_cost_cap=Decimal("30"),
+        daily_volume_cap=0,
+        effective_at=NOW - dt.timedelta(hours=1),
+        expires_at=None,
+        snapshot_fingerprint="2" * 64,
+        created_at=NOW - dt.timedelta(hours=1),
+        created_by_actor_type="HUMAN",
+        created_by_actor_ref="operator-opaque-2",
+        reason_codes=("ACQUISITION_PRODUCTION_SHADOW",),
     )
 
 
@@ -435,3 +468,78 @@ def test_runtime_health_outputs_contain_no_payload_recipient_or_secret(tmp_path)
 
     for marker in ("recipient", "email", "payload", "content", "secret", "token"):
         assert marker not in serialized.casefold()
+
+
+def test_staging_policy_still_rejects_a_production_shaped_control(tmp_path) -> None:
+    """STAGING keeps its exact old posture, even against a valid PRODUCTION shape."""
+    engine = _engine(tmp_path, "staging-rejects-production-shape.db")
+    PolicyStore(engine).append_control(_production_control())
+    _seed_runtime(engine)
+
+    service = OperationsReadService(engine, environment_identity="STAGING")
+    health = service.health(observed_at=NOW)
+    readiness = service.readiness(evaluated_at=NOW)
+
+    assert health.policy_control is HealthStatus.NOT_READY
+    assert health.status is HealthStatus.NOT_READY
+    assert "POLICY_MODE_NOT_SHADOW" in health.reason_codes
+    assert "POLICY_WRITE_MODE_ENABLED" in health.reason_codes
+    assert "POLICY_COMMANDS_INCOMPLETE" in health.reason_codes
+    assert readiness.h_c_policy.status == "NOT_READY"
+
+
+def test_production_policy_ready_with_assisted_writable_nine_commands(tmp_path) -> None:
+    engine = _engine(tmp_path, "production-policy-ready.db")
+    PolicyStore(engine).append_control(_production_control())
+    _seed_runtime(engine)
+
+    service = OperationsReadService(engine, environment_identity="PRODUCTION")
+    health = service.health(observed_at=NOW)
+    readiness = service.readiness(evaluated_at=NOW)
+
+    assert health.policy_control is HealthStatus.READY
+    assert health.reason_codes == ()
+    assert health.status is HealthStatus.READY
+    assert readiness.h_c_policy.status == "READY"
+
+
+def test_production_policy_rejects_a_staging_shaped_control(tmp_path) -> None:
+    """A SHADOW, read-only, sending-capable control is exactly wrong for PRODUCTION."""
+    engine = _engine(tmp_path, "production-rejects-staging-shape.db")
+    PolicyStore(engine).append_control(_control())
+    _seed_runtime(engine)
+
+    service = OperationsReadService(engine, environment_identity="PRODUCTION")
+    health = service.health(observed_at=NOW)
+
+    assert health.policy_control is HealthStatus.NOT_READY
+    assert health.status is HealthStatus.NOT_READY
+    assert "POLICY_MODE_NOT_ASSISTED" in health.reason_codes
+    assert "POLICY_WRITE_MODE_DISABLED" in health.reason_codes
+    assert "POLICY_ALLOWS_SENDING_COMMANDS" in health.reason_codes
+    assert "POLICY_COMMANDS_INCOMPLETE" not in health.reason_codes
+
+
+def test_production_policy_reports_incomplete_commands_without_the_sending_pair(
+    tmp_path,
+) -> None:
+    engine = _engine(tmp_path, "production-policy-incomplete.db")
+    PolicyStore(engine).append_control(
+        _production_control(
+            allowed_commands=tuple(
+                command
+                for command in BOOTSTRAP_ALLOWED_COMMANDS
+                if command != "resolve_signal_seed"
+            )
+        )
+    )
+    _seed_runtime(engine)
+
+    service = OperationsReadService(engine, environment_identity="PRODUCTION")
+    health = service.health(observed_at=NOW)
+
+    assert health.policy_control is HealthStatus.NOT_READY
+    assert "POLICY_COMMANDS_INCOMPLETE" in health.reason_codes
+    assert "POLICY_ALLOWS_SENDING_COMMANDS" not in health.reason_codes
+    assert "POLICY_MODE_NOT_ASSISTED" not in health.reason_codes
+    assert "POLICY_WRITE_MODE_DISABLED" not in health.reason_codes

@@ -176,6 +176,12 @@ a:focus-visible {
   outline-offset: 3px;
 }
 
+#detail-title:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+
 .dashboard-provider {
   min-height: 100svh;
   background: var(--canvas);
@@ -6264,10 +6270,12 @@ button.public-cta {
   }
 
   .signal-mobile-back {
-    position: absolute;
-    z-index: 1;
-    top: 24px;
-    right: 18px;
+    position: static;
+    display: flex;
+    width: fit-content;
+    margin: 0 0 16px auto;
+    background: var(--surface);
+    color: var(--blue);
   }
 
   .companies-panel,

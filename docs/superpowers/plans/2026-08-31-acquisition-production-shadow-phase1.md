@@ -13,14 +13,15 @@
 ## Contraintes globales
 
 - Socle : `origin/main` à `c8ea78c`. Rebaser avant de commencer.
-- **Aucune migration.** La phase 1 n'ajoute ni ne modifie aucune table. La tête reste `0028_card_presentation`.
-- **Le staging ne change pas de comportement.** Toute modification d'un chemin `STAGING` doit être une extension, jamais une substitution. `tests/test_acquisition_runtime_*.py` existants passent sans modification, sauf ajout.
+- **Une seule migration, `0029`**, et elle ne fait qu'élargir une contrainte CHECK — aucune table n'est ajoutée ni modifiée. La tête devient `0029`. Toute autre tâche que la 7B qui produirait une migration est une erreur.
+- **Le staging ne change pas de comportement.** Toute modification d'un chemin `STAGING` doit être une extension, jamais une substitution. La garantie mécanique porte sur trois artefacts : `src/signals/acquisition_runtime/transport.py`, `src/signals/operations/qa_policy_window.py` et `tests/test_acquisition_runtime_execution.py`, qui gardent un diff nul.
+- **Un test qui affirme « la production est impossible » n'est pas un test de comportement staging** : c'est un test de périmètre, périmé par conception. Deux existent et changent — `test_capability_rejects_environment_registry_and_dependency_drift` (santé) et `test_runtime_is_staging_only` (config). Les amender ne viole pas la contrainte ci-dessus.
 - `maximum_suppliers` et `maximum_contacts` restent `Literal[1]`. Aucune tâche ne les touche.
 - `mode` reste `Literal[RuntimeExecutionMode.SHADOW]`. Aucune tâche ne l'élargit.
 - `transport.py` n'est **pas modifié**. Son garde est déjà correct ; on ajoute la preuve.
 - Aucun secret, aucune adresse, aucun objet fournisseur brut, aucun prompt ni réponse de modèle dans un journal, un message d'exception ou une sortie de CLI.
 - Les commandes lisent `KIVOU_DATABASE_URL` depuis l'environnement ; jamais d'URL ni d'horloge en argument.
-- Tests : `uv run pytest`. Lint : `uv run ruff check`. Types : `uv run mypy src`.
+- Tests : `uv run pytest`. Lint : `uv run ruff check`. **Pas de contrôle de types** : `mypy` n'est pas une dépendance de ce projet.
 
 ### Réconciliation de nommage, à lire avant la tâche 1
 
@@ -385,7 +386,10 @@ def _load_production(
         "KIVOU_ACQUISITION_QA_RECIPIENT",
         "KIVOU_ACQUISITION_QA_RECIPIENT_KEY",
     ):
-        if (source.get(name) or "").strip():
+        # PRÉSENCE, pas véracité : `KIVOU_ACQUISITION_QA_RECIPIENT=` déclaré vide
+        # par une substitution de gabarit ratée doit refuser le démarrage, pas
+        # passer pour une absence. La spec dit « seulement présents ».
+        if name in source:
             raise RuntimeConfigurationError("PRODUCTION_FORBIDS_FALLBACK_RECIPIENT")
     if not deployment.is_production:
         raise RuntimeConfigurationError("WRONG_DEPLOYMENT_SCHEMA")
@@ -450,6 +454,109 @@ Attendu : tout passe, sans avoir touché le fichier de test du staging.
 ```bash
 git add src/signals/acquisition_runtime/config.py tests/test_acquisition_runtime_config_production.py
 git commit -m "feat(acquisition): charger une configuration de production sans destinataire de repli"
+```
+
+---
+
+### Task 2B : ouvrir `PRODUCTION` dans le module de connectivité
+
+**Files:**
+- Modify: `src/signals/acquisition_connectivity/contracts.py:100` et `:187`
+- Modify: `src/signals/acquisition_connectivity/config.py:80-85`
+- Modify: `src/signals/acquisition_connectivity/service.py:275`
+- Test: `tests/test_acquisition_connectivity_production.py` *(créé)*
+
+**Pourquoi cette tâche existe.** Elle ne figurait pas au plan initial. `build_runtime_execution_composition` exige un `AcquisitionConnectivityConfig`, et `python -m signals.acquisition_runtime check-dependencies` — la commande que le runbook de production fait tourner — passe par ce module. Or `load_connectivity_config` lève `WRONG_ENVIRONMENT` hors `STAGING`, le préflight de `service.py` refuse de même, et les deux contrats portent `Literal["STAGING"]`. Sans cette tâche, les tâches 6 et 9 sont impossibles.
+
+**Interfaces:**
+- Consomme : rien des tâches précédentes.
+- Produit : `load_connectivity_config()` acceptant `PRODUCTION` ; `AcquisitionConnectivityConfig.environment: Literal["STAGING", "PRODUCTION"]`.
+
+**Ce qui ne change pas.** Le préflight garde toutes ses autres exigences : Policy en `SHADOW`, `read_only`, coupe-circuit armé. Ce sont précisément les propriétés du contrôle d'amorçage de la tâche 8, donc l'ouverture est cohérente et n'affaiblit rien. Le document de déploiement de connectivité — référence de workspace Instantly et trois mailboxes — garde exactement la même forme dans les deux environnements : il n'y a pas ici de champ propre à la QA.
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+```python
+# tests/test_acquisition_connectivity_production.py
+from __future__ import annotations
+
+import pytest
+
+from signals.acquisition_connectivity.config import load_connectivity_config
+from signals.acquisition_connectivity.contracts import ConnectivityFailure
+
+
+def test_production_connectivity_configuration_loads(production_connectivity_environment) -> None:
+    config = load_connectivity_config(production_connectivity_environment)
+    assert config.environment == "PRODUCTION"
+
+
+def test_staging_connectivity_configuration_still_loads(staging_connectivity_environment) -> None:
+    config = load_connectivity_config(staging_connectivity_environment)
+    assert config.environment == "STAGING"
+
+
+@pytest.mark.parametrize("value", ["production", "LOCAL", "", "UNCONFIGURED"])
+def test_unknown_environments_are_still_refused(
+    staging_connectivity_environment, value: str
+) -> None:
+    values = dict(staging_connectivity_environment)
+    values["KIVOU_ACQUISITION_ENVIRONMENT"] = value
+    with pytest.raises(ConnectivityFailure):
+        load_connectivity_config(values)
+```
+
+> Construire les deux fixtures d'environnement localement, en reprenant le montage de `tests/test_acquisition_connectivity_config.py` — mêmes variables, même document de déploiement, seul `KIVOU_ACQUISITION_ENVIRONMENT` change. Relever au passage le nom exact de l'exception et du code d'erreur : la CLI et le service peuvent ne pas lever le même type.
+
+- [ ] **Étape 2 : lancer le test et vérifier qu'il échoue**
+
+Commande : `uv run pytest tests/test_acquisition_connectivity_production.py -v`
+Attendu : ÉCHEC sur le premier test, `WRONG_ENVIRONMENT`.
+
+- [ ] **Étape 3 : implémenter**
+
+Dans `contracts.py`, élargir les deux littéraux :
+
+```python
+    environment: Literal["STAGING", "PRODUCTION"] = "STAGING"
+```
+
+```python
+    environment: Literal["STAGING", "PRODUCTION"]
+```
+
+Dans `config.py`, accepter les deux environnements et transmettre celui qui a été lu — ne pas réécrire une valeur en dur :
+
+```python
+    environment = _required(source, "KIVOU_ACQUISITION_ENVIRONMENT")
+    if environment not in {"STAGING", "PRODUCTION"}:
+        raise ConnectivityFailure(ConnectivityErrorCode.WRONG_ENVIRONMENT)
+    shadow_path = _absolute_path(source, "KIVOU_ACQUISITION_SHADOW_CONFIG")
+    return AcquisitionConnectivityConfig(
+        environment=environment,
+        ...
+    )
+```
+
+Dans `service.py`, remplacer le refus du préflight :
+
+```python
+        if self._config.environment not in {"STAGING", "PRODUCTION"}:
+            raise ConnectivityFailure(ConnectivityErrorCode.WRONG_ENVIRONMENT)
+```
+
+Ne toucher à aucune autre exigence du préflight.
+
+- [ ] **Étape 4 : lancer les tests et vérifier qu'ils passent**
+
+Commande : `uv run pytest tests/test_acquisition_connectivity_production.py tests/test_acquisition_connectivity_config.py tests/test_acquisition_connectivity_service.py tests/test_acquisition_connectivity_architecture.py -q`
+Attendu : tout passe, y compris les tests de connectivité préexistants, non modifiés.
+
+- [ ] **Étape 5 : commit**
+
+```bash
+git add src/signals/acquisition_connectivity tests/test_acquisition_connectivity_production.py
+git commit -m "feat(acquisition): ouvrir la connectivité fournisseur à l'environnement de production"
 ```
 
 ---
@@ -826,7 +933,15 @@ def select_production_opportunity_key(
     if observed_at.tzinfo is None or observed_at.utcoffset() is None:
         raise ValueError("selection timestamp must be timezone-aware")
     horizon = observed_at.astimezone(dt.UTC).date()
-    already_played = sa.select(acquisition_runtime_cycle.c.opportunity_key)
+    # Seuls les cycles TERMINAUX retirent une opportunité du vivier. Un cycle
+    # FAILED, CANCELLED ou encore en vol est REPRIS par
+    # `AcquisitionRuntimeStore.resume_or_create_cycle` — l'exclure à jamais
+    # empêcherait la reprise au lieu de la protéger. Le filtre NOT NULL est
+    # défensif : un NULL dans la sous-requête ferait taire le NOT IN entier.
+    already_played = sa.select(acquisition_runtime_cycle.c.opportunity_key).where(
+        acquisition_runtime_cycle.c.opportunity_key.isnot(None),
+        acquisition_runtime_cycle.c.status.in_(("SUCCEEDED", "SUPPRESSED")),
+    )
     latest = sa.func.max(source_event.c.published_on).label("latest")
     statement = (
         sa.select(opportunity_representation.c.opportunity_key, latest)
@@ -983,6 +1098,21 @@ et son appel, aujourd'hui ligne 673 :
     )
 ```
 
+**Le constructeur de domaine doit aussi cesser d'exiger le staging.** `composition.py:155` construit inconditionnellement `StagingQaRecipientOverride`, qui lève pour toute configuration de production — le runtime ne peut donc pas se composer en production sans ce correctif :
+
+```python
+    recipient_override = (
+        StagingQaRecipientOverride(
+            runtime_config,
+            transport_keyring=suppression_keyring,
+        )
+        if runtime_config.environment == "STAGING"
+        else None
+    )
+```
+
+`CampaignWorker` accepte déjà `recipient_override: CampaignRecipientOverride | None = None` et garde chaque usage derrière un test de nullité. Passer `None` n'est pas un contournement : c'est l'exigence D3 rendue vraie au niveau de la composition — en production, un message part au vrai contact ou ne part pas, jamais vers une boîte de repli.
+
 Ajouter l'import en tête de `execution.py` :
 
 ```python
@@ -999,6 +1129,95 @@ Attendu : tout passe, y compris les tests d'exécution du staging, non modifiés
 ```bash
 git add src/signals/acquisition_runtime/execution.py tests/test_acquisition_runtime_execution_production.py
 git commit -m "feat(acquisition): composer un cycle de production sur l'opportunité sélectionnée"
+```
+
+---
+
+### Task 6B : rendre la liaison de transport QA facultative
+
+**Files:**
+- Modify: `src/signals/acquisition_runtime/domain.py:789-828` et la construction d'empreinte vers `:1430-1452`
+- Modify: `src/signals/acquisition_runtime/composition.py:189-194`
+- Test: `tests/test_acquisition_runtime_domain.py` *(étendu)*, `tests/test_acquisition_runtime_composition.py` *(étendu)*, `tests/test_acquisition_runtime_execution_production.py` *(le stub disparaît)*
+
+**Pourquoi cette tâche existe.** Elle ne figurait pas au plan initial. C'est le quatrième couplage staging-only découvert par l'exécution, et le dernier : `AcquisitionDomainActions.__init__` exige `qa_transport_recipient_identity` et `qa_transport_recipient_key_version` comme chaînes SHA-256 non optionnelles, lues sur le détournement de destinataire. Or la tâche 6 a rendu ce détournement nul en production. La composition de production échoue donc sur un `AttributeError`, et le runtime ne peut toujours pas démarrer.
+
+**Interfaces:**
+- Consomme : la composition de la tâche 6, qui construit `recipient_override=None` hors staging.
+- Produit : une composition de domaine qui réussit en production, sans liaison de transport QA.
+
+**Ce qui ne doit pas s'affaiblir.** La liaison est repliée dans l'empreinte de passage de relais (`domain.py:1430-1452`), comparée pour détecter `QA_TRANSPORT_BINDING_MISMATCH` (`:1297`, `:1314`). Cette détection reste **entière en staging**. En production, l'empreinte porte des valeurs nulles explicites : elle atteste alors qu'aucune redirection n'a eu lieu, ce qui est le fait exact à prouver dans cet environnement. Les deux paramètres restent liés — les deux présents ou les deux absents, jamais un seul.
+
+- [ ] **Étape 1 : écrire les tests qui échouent**
+
+Trois exigences, chacune son test, nommées pour ce qu'elles protègent :
+
+- `test_production_domain_actions_accept_no_qa_transport_binding` — une production sans liaison construit son domaine sans lever.
+- `test_a_single_qa_transport_binding_component_is_refused` — l'identité et la version de clé vont par paire, jamais l'une sans l'autre.
+- `test_staging_still_requires_a_well_formed_qa_transport_binding` — une identité qui n'est pas un SHA-256 reste refusée en staging.
+
+Reprendre le montage de `tests/test_acquisition_runtime_domain.py` pour construire `AcquisitionDomainActions` ; ne pas en inventer un.
+
+- [ ] **Étape 2 : lancer les tests et vérifier qu'ils échouent**
+
+Commande : `uv run pytest tests/test_acquisition_runtime_domain.py -q`
+Attendu : le premier échoue sur la validation SHA-256 du constructeur.
+
+- [ ] **Étape 3 : implémenter**
+
+Rendre les deux paramètres facultatifs, valider seulement s'ils sont présents, et exiger qu'ils aillent par paire :
+
+```python
+        qa_transport_recipient_identity: str | None,
+        qa_transport_recipient_key_version: str | None,
+```
+
+```python
+        if (qa_transport_recipient_identity is None) != (
+            qa_transport_recipient_key_version is None
+        ):
+            raise ValueError("QA transport binding is all or nothing")
+        if qa_transport_recipient_identity is not None:
+            if re.fullmatch(r"[0-9a-f]{64}", qa_transport_recipient_identity) is None:
+                raise ValueError("QA transport recipient identity must be a SHA-256 HMAC")
+            if (
+                not qa_transport_recipient_key_version
+                or len(qa_transport_recipient_key_version) > 64
+            ):
+                raise ValueError("QA transport recipient key version is invalid")
+```
+
+Adapter la construction d'empreinte pour accepter une liaison absente, en inscrivant des valeurs nulles explicites plutôt qu'en omettant les clés — une clé omise changerait l'empreinte du staging et casserait la détection de désaccord.
+
+Dans `composition.py`, transmettre l'absence au lieu de déréférencer :
+
+```python
+        qa_transport_recipient_identity=(
+            recipient_override.transport_recipient_identity
+            if recipient_override is not None
+            else None
+        ),
+        qa_transport_recipient_key_version=(
+            recipient_override.transport_key_version
+            if recipient_override is not None
+            else None
+        ),
+```
+
+- [ ] **Étape 4 : retirer l'échafaudage de la tâche 6**
+
+Le test `test_production_domain_composition_still_blocked_by_qa_transport_binding` est un `xfail(strict=True)` : il **échouera** dès que ce correctif fonctionne, et c'est le signal attendu, non une régression. Le supprimer. Puis retirer le `domain_builder` factice de la fixture `production_arguments` dans `tests/test_acquisition_runtime_execution_production.py`, pour que le VRAI constructeur soit exercé. Si un cinquième verrou apparaît alors, le signaler — ne pas réinstaller le stub.
+
+- [ ] **Étape 5 : lancer les tests et vérifier qu'ils passent**
+
+Commande : `uv run pytest tests/test_acquisition_runtime_domain.py tests/test_acquisition_runtime_composition.py tests/test_acquisition_runtime_execution_production.py tests/test_acquisition_runtime_execution.py tests/test_acquisition_runtime_execution_policy.py -q`
+Attendu : tout passe, sans aucun xfail restant, et les tests d'exécution du staging inchangés.
+
+- [ ] **Étape 6 : commit**
+
+```bash
+git add src/signals/acquisition_runtime/domain.py src/signals/acquisition_runtime/composition.py tests/
+git commit -m "feat(acquisition): rendre la liaison de transport QA facultative hors staging"
 ```
 
 ---
@@ -1069,6 +1288,86 @@ Attendu : les deux PASS sans modification du code de production. Un échec est u
 ```bash
 git add tests/test_acquisition_runtime_production_invariants.py
 git commit -m "test(acquisition): verrouiller l'absence de mutation et de fuite en production"
+```
+
+---
+
+### Task 7B : lever le verrou staging au niveau de la base
+
+**Files:**
+- Create: `src/signals/persistence/migrations/versions/0029_production_observation.py`
+- Modify: `src/signals/persistence/schema.py:2368-2372`
+- Test: `tests/test_acquisition_runtime_migration.py` *(étendu)*
+
+**Pourquoi cette tâche existe.** Elle ne figurait pas au plan initial, et son ajout a demandé une autorisation explicite de l'utilisateur le 2026-09-01, parce que la spec promettait qu'aucune migration ne serait introduite.
+
+`ck_acquisition_runtime_observation_boundary` impose `environment = 'STAGING' AND qa_only IS TRUE` **au niveau de la base**. La tâche 6 ayant fait porter `environment="PRODUCTION"` et `qa_only=False` à l'évidence de capacité, toute observation de production est rejetée par PostgreSQL. Un cycle de production échoue donc à sa **première écriture**, avant le moindre stage — et le timer de la tâche 9 échouerait à chaque tir, indéfiniment.
+
+C'est le cinquième et dernier couplage staging-only. Les quatre autres vivaient dans le code Python ; celui-ci vit dans une chaîne SQL, ce qu'aucune recherche d'identifiant ne pouvait révéler.
+
+**Interfaces:**
+- Consomme : l'évidence de capacité de la tâche 6, qui porte désormais un environnement réel.
+- Produit : une base qui accepte une observation de production, et refuse toujours tout le reste.
+
+**Ce qui ne doit pas s'affaiblir.** La contrainte nouvelle est plus stricte, pas plus permissive, dans les deux environnements : `mode = 'SHADOW'` et `native_tools = 0` restent exigés sans condition ; le staging continue d'exiger `qa_only IS TRUE` ; et la production exige `qa_only IS FALSE`. La base refuse donc d'elle-même une observation de production qui se prétendrait QA — une garantie qui n'existait pas avant, puisque la production n'existait pas.
+
+- [ ] **Étape 1 : écrire le test qui échoue**
+
+Dans `tests/test_acquisition_runtime_migration.py`, quatre exigences :
+
+- une observation `STAGING` avec `qa_only` vrai est acceptée — inchangé ;
+- une observation `STAGING` avec `qa_only` faux est refusée — inchangé ;
+- une observation `PRODUCTION` avec `qa_only` faux est **acceptée** — nouveau ;
+- une observation `PRODUCTION` avec `qa_only` vrai est **refusée** — nouveau.
+
+Reprendre le montage de base jetable déjà utilisé par ce fichier ; ne pas en inventer un.
+
+- [ ] **Étape 2 : lancer le test et vérifier qu'il échoue**
+
+Commande : `uv run pytest tests/test_acquisition_runtime_migration.py -q`
+Attendu : le troisième échoue sur une violation de contrainte.
+
+- [ ] **Étape 3 : modifier le schéma**
+
+Dans `src/signals/persistence/schema.py`, remplacer l'expression de la contrainte :
+
+```python
+    sa.CheckConstraint(
+        "mode = 'SHADOW' AND native_tools = 0 AND ("
+        "(environment = 'STAGING' AND qa_only IS TRUE) OR "
+        "(environment = 'PRODUCTION' AND qa_only IS FALSE))",
+        name="ck_acquisition_runtime_observation_boundary",
+    ),
+```
+
+- [ ] **Étape 4 : écrire la migration**
+
+Créer `0029_production_observation.py`, de révision précédente `0028_card_presentation`. Le `upgrade()` supprime la contrainte nommée puis la recrée avec l'expression ci-dessus. Le `downgrade()` rétablit l'expression d'origine.
+
+Écrire dans le docstring du module ce que le downgrade suppose : il **échoue** si une observation de production existe déjà, puisque la contrainte restaurée la rejetterait. La procédure de retour arrière doit supprimer cette ligne avant de redescendre, ou renoncer au downgrade. Ne pas masquer cette condition par un `DELETE` silencieux dans la migration — une migration qui efface des données sans le dire est un piège.
+
+Suivre exactement la forme des migrations voisines pour l'en-tête de révision, l'import et la nomenclature.
+
+- [ ] **Étape 5 : lancer les tests et vérifier qu'ils passent**
+
+```bash
+uv run pytest tests/test_acquisition_runtime_migration.py tests/test_acquisition_runtime_health.py tests/test_acquisition_runtime_store.py -q
+uv run ruff check
+```
+
+Vérifier aussi que la tête Alembic est bien `0029` et qu'il n'existe qu'une seule tête :
+
+```bash
+uv run alembic -c <config> heads
+```
+
+Si la commande n'est pas disponible telle quelle, relever son invocation réelle dans le dépôt plutôt que d'inventer un chemin de configuration.
+
+- [ ] **Étape 6 : commit**
+
+```bash
+git add src/signals/persistence/schema.py src/signals/persistence/migrations/versions/0029_production_observation.py tests/test_acquisition_runtime_migration.py
+git commit -m "feat(persistence): autoriser une observation de production sans relâcher le staging"
 ```
 
 ---
@@ -1603,22 +1902,20 @@ Attendu : la suite entière passe. Relever le nombre de tests et le comparer au 
 
 ```bash
 uv run ruff check
-uv run mypy src
 ```
 
-Attendu : aucun diagnostic.
+Attendu : aucun diagnostic. `mypy` n'est pas installé dans ce projet et n'est pas exécuté.
 
 - [ ] **Étape 3 : prouver que le chemin staging n'a pas bougé**
 
 ```bash
 git diff --stat origin/main -- \
-  tests/test_acquisition_runtime_config.py \
   tests/test_acquisition_runtime_execution.py \
   src/signals/acquisition_runtime/transport.py \
   src/signals/operations/qa_policy_window.py
 ```
 
-Attendu : **aucune ligne modifiée** dans ces quatre fichiers. Une différence signifie que le chemin staging a été touché, contrairement aux contraintes globales — arrêter et corriger.
+Attendu : **aucune ligne modifiée** dans ces trois fichiers. `tests/test_acquisition_runtime_config.py` a été retiré de cette liste : il porte `test_runtime_is_staging_only`, un test de périmètre que la phase 1 rend caduc par conception. Une différence signifie que le chemin staging a été touché, contrairement aux contraintes globales — arrêter et corriger.
 
 - [ ] **Étape 4 : vérifier l'absence de migration**
 
@@ -1626,7 +1923,7 @@ Attendu : **aucune ligne modifiée** dans ces quatre fichiers. Une différence s
 git diff --stat origin/main -- src/signals/persistence/migrations/
 ```
 
-Attendu : aucun fichier. La tête reste `0028_card_presentation`.
+Attendu : **exactement un fichier**, `0029_production_observation.py`, livré par la tâche 7B. Tout autre fichier de migration est une erreur à corriger avant fusion.
 
 - [ ] **Étape 5 : ouvrir la pull request**
 
@@ -1637,3 +1934,55 @@ gh pr create --base main \
 ```
 
 L'installation sur l'hôte suit le runbook 12 et **n'appartient pas à ce plan** : elle demande une décision de release et l'accès aux secrets de production.
+
+---
+
+### Task 11 : rendre le cycle de production réellement exécutable
+
+**Files:**
+- Modify: `src/signals/operations/policy_bootstrap.py`
+- Modify: `src/signals/acquisition_runtime/selection.py`
+- Test: `tests/test_operations_policy_bootstrap.py`, `tests/test_acquisition_runtime_selection.py`
+
+**Pourquoi cette tâche existe.** La revue finale a montré que la phase entière reposait sur une prémisse fausse. `evaluator.py:296` définit `executable = (status is APPROVED and autonomy_mode is not SHADOW)` : en SHADOW, **aucune commande n'est exécutable**, quelle que soit sa classe de risque. Le contrôle d'amorçage de la tâche 8 arrêtait donc le cycle à sa première étape évaluée, et aucune mesure n'était produite. L'utilisateur a tranché le 2026-09-01 : amorcer en `ASSISTED` avec un plafond de volume à zéro.
+
+**Ce qui retient l'envoi après ce changement** — cinq gardes indépendants, à ne pas confondre avec le mode :
+
+1. `runner.py:401-407` met `PROVIDER_HANDOFF` en `WAITING` inconditionnel tant que `allow_qa_provider_mutations` est faux ;
+2. `cli.py` refuse ce drapeau en `PRODUCTION` ;
+3. `daily_volume_cap=0` fait échouer `schedule_campaign` et `execute_provider_operations` en `BUDGET_EXCEEDED` — vérifié : ce sont les deux seules commandes portant `uses_volume=True` ;
+4. sous `ASSISTED`, toute commande `COMMERCIAL_MUTATION` exige un accord humain à usage unique ;
+5. la composition de production ne construit aucun détournement de destinataire.
+
+- [ ] **Étape 1 : écrire les tests qui échouent**
+
+Pour l'amorçage : le contrôle porte `autonomy_mode=ASSISTED`, `read_only=False`, `kill_switch=False`, `daily_volume_cap=0`, et conserve le périmètre exact (un pays, une langue, un wedge), la devise CHF et les commandes du runtime. `shadow_target_mode` doit valoir `None` — le contrat l'interdit hors SHADOW.
+
+Pour la sélection : une opportunité dont le cycle a été mis à jour il y a moins de 20 heures n'est pas resélectionnée, quel que soit son statut ; au-delà de 20 heures, un cycle `FAILED`, `CANCELLED` ou `WAITING` redevient sélectionnable ; un cycle terminal reste exclu pour toujours.
+
+- [ ] **Étape 2 : lancer les tests et vérifier qu'ils échouent**
+
+Commande : `uv run pytest tests/test_operations_policy_bootstrap.py tests/test_acquisition_runtime_selection.py -q`
+
+- [ ] **Étape 3 : implémenter**
+
+Dans `policy_bootstrap.py`, remplacer la posture au repos par la posture exécutable décrite ci-dessus, et réécrire la docstring : elle affirme aujourd'hui que le contrôle est « NON exécutable » et que « tout le cycle est PREPARATORY ». Les deux sont faux — trois des onze commandes sont `COMMERCIAL_MUTATION`. Dire ce que le contrôle fait réellement et ce qui retient l'envoi.
+
+Dans `selection.py`, ajouter la période de refroidissement en plus de l'exclusion terminale, avec un commentaire expliquant qu'un cycle parqué en attente d'approbation monopoliserait sinon le vivier.
+
+- [ ] **Étape 4 : mettre le runbook en accord**
+
+`docs/runbooks/12-acquisition-production-shadow.md` décrit l'amorçage et affirme la non-exécutabilité. Corriger la commande, la sortie attendue et toute phrase qui promet un contrôle non exécutable.
+
+- [ ] **Étape 5 : lancer les tests et vérifier qu'ils passent**
+
+```bash
+uv run pytest tests/test_operations_policy_bootstrap.py tests/test_acquisition_runtime_selection.py tests/test_acquisition_runtime_units.py tests/test_acquisition_runtime_production_invariants.py -q
+uv run ruff check
+```
+
+- [ ] **Étape 6 : commit**
+
+```bash
+git commit -m "fix(operations): amorcer une autorité de production réellement exécutable"
+```

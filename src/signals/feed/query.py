@@ -27,6 +27,13 @@ import sqlalchemy as sa
 
 from signals.accounts.schema import target_icp
 from signals.feed import policy
+from signals.feed.history import (
+    HistoryDateKind,
+    cursor_for_signal,
+    decode_history_cursor,
+    effective_history_date,
+    encode_history_cursor,
+)
 from signals.persistence.repository import (
     SIGNAL_SELECT,
     StoredSignal,
@@ -203,6 +210,16 @@ class FeedSignal:
             self.signal.signal_key,
         )
 
+    @property
+    def history_date(self) -> dt.date | None:
+        """Date factuelle utilisée par le parcours historique."""
+        return effective_history_date(self.signal)[0]
+
+    @property
+    def history_date_kind(self) -> HistoryDateKind:
+        """Horloge factuelle de l'historique, explicitement annoncée."""
+        return effective_history_date(self.signal)[1]
+
 
 @dataclasses.dataclass(frozen=True)
 class FeedPage:
@@ -219,6 +236,20 @@ class FeedPage:
     excluded_without_display_name: int
     #: Combien ont été retirés par le mode de fraîcheur demandé.
     excluded_by_freshness: int
+
+
+@dataclasses.dataclass(frozen=True)
+class HistoryFeedPage:
+    """One stable keyset page through all persisted awards owned by an account."""
+
+    items: tuple[FeedSignal, ...]
+    limit: int
+    cursor: str | None
+    next_cursor: str | None
+    has_more: bool
+    scan_truncated: bool
+    excluded_without_display_name: int
+    excluded_by_filters: int
 
 
 @dataclasses.dataclass(frozen=True)
@@ -404,6 +435,187 @@ def feed_page(
         scan_truncated=truncated,
         excluded_without_display_name=without_name,
         excluded_by_freshness=dropped,
+    )
+
+
+HISTORY_SCAN_BATCH = 100
+HISTORY_SCAN_CAP = 500
+
+
+def _history_date_expression() -> sa.ColumnElement[dt.date]:
+    return sa.func.coalesce(
+        contract_award.c.award_date,
+        contract_award.c.contract_notification_date,
+        source_event.c.published_on,
+    )
+
+
+def _history_after(cursor) -> sa.ColumnElement[bool]:
+    effective = _history_date_expression()
+    if cursor.date is None:
+        return sa.and_(
+            effective.is_(None),
+            materialized_signal.c.signal_key > cursor.signal_key,
+        )
+    return sa.or_(
+        effective < cursor.date,
+        sa.and_(
+            effective == cursor.date,
+            materialized_signal.c.signal_key > cursor.signal_key,
+        ),
+        effective.is_(None),
+    )
+
+
+def history_page(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    as_of: dt.date,
+    target_icp_id: str | None = None,
+    allowed_target_icp_ids: frozenset[str] | None = None,
+    primary_event: str | None = None,
+    country: str | None = None,
+    subdivision_code: str | None = None,
+    status: str | None = None,
+    cpv_prefix: str | None = None,
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+    winner: str | None = None,
+    limit: int = policy.DEFAULT_PAGE_SIZE,
+    cursor: str | None = None,
+    scan_cap: int = HISTORY_SCAN_CAP,
+) -> HistoryFeedPage:
+    """Walk the complete owned history by factual date and a stable key.
+
+    Unlike the recent feed, the history order is directly expressible from raw
+    source dates.  Keyset pagination can therefore advance through bounded SQL
+    batches without freezing the current recency classification.
+    """
+    if scan_cap < 1:
+        raise ValueError("history scan cap must be positive")
+    limit = max(1, min(limit, policy.MAXIMUM_PAGE_SIZE))
+    decoded = None if cursor is None else decode_history_cursor(cursor)
+    owned = owned_target_icps(connection, account_id=account_id)
+    if target_icp_id is not None and target_icp_id not in owned:
+        raise ForeignTargetIcp(target_icp_id)
+    if not any(profile.status == FEEDING_ICP_STATUS for profile in owned.values()):
+        return HistoryFeedPage((), limit, cursor, None, False, False, 0, 0)
+    if allowed_target_icp_ids is not None and not allowed_target_icp_ids:
+        return HistoryFeedPage((), limit, cursor, None, False, False, 0, 0)
+
+    effective = _history_date_expression()
+    null_rank = sa.case((effective.is_(None), 1), else_=0)
+    base = (
+        _ownership_scoped(account_id)
+        .order_by(None)
+        .order_by(null_rank, effective.desc(), materialized_signal.c.signal_key)
+    )
+    if target_icp_id is not None:
+        base = base.where(materialized_signal.c.target_icp_id == target_icp_id)
+    if allowed_target_icp_ids is not None:
+        base = base.where(
+            materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids))
+        )
+    if country is not None:
+        base = base.where(source_event.c.source_country == country)
+    if winner is not None:
+        base = base.where(
+            sa.or_(
+                materialized_signal.c.winner_identifier_value == winner,
+                materialized_signal.c.winner_name == winner,
+            )
+        )
+    if cpv_prefix is not None:
+        base = base.where(contract_award.c.cpv_main.like(f"{cpv_prefix}%"))
+    if date_from is not None:
+        base = base.where(effective >= date_from)
+    if date_to is not None:
+        base = base.where(effective <= date_to)
+
+    selected: list[FeedSignal] = []
+    excluded_without_name = 0
+    excluded_by_filters = 0
+    scanned = 0
+    position = decoded
+    exhausted = False
+    last_returned = None
+
+    while scanned < scan_cap and len(selected) <= limit:
+        query = base
+        if position is not None:
+            query = query.where(_history_after(position))
+        batch_limit = min(HISTORY_SCAN_BATCH, scan_cap - scanned)
+        rows = connection.execute(query.limit(batch_limit)).all()
+        if not rows:
+            exhausted = True
+            break
+        signals = [signal_from_row(row) for row in rows]
+        identities = resolve_display_identity(connection, signals)
+        for signal in signals:
+            current_position = cursor_for_signal(signal)
+            position = current_position
+            scanned += 1
+            display = identities.get(signal.signal_key)
+            if display is None:
+                excluded_without_name += 1
+                continue
+            profile = owned[signal.target_icp_id]
+            item = FeedSignal(
+                signal=signal,
+                recency=signal.current_recency(as_of=as_of),
+                account_id=account_id,
+                target_icp_label=profile.label,
+                display=display,
+            )
+            place = signal.award.place_of_performance or {}
+            if (
+                (subdivision_code is not None and place.get("subdivision_code") != subdivision_code)
+                or (status is not None and item.status != status)
+                or (
+                    primary_event is not None
+                    and policy.customer_event_type(item.status) != primary_event
+                )
+            ):
+                excluded_by_filters += 1
+                continue
+            if len(selected) == limit:
+                return HistoryFeedPage(
+                    items=tuple(selected),
+                    limit=limit,
+                    cursor=cursor,
+                    next_cursor=encode_history_cursor(last_returned),
+                    has_more=True,
+                    scan_truncated=False,
+                    excluded_without_display_name=excluded_without_name,
+                    excluded_by_filters=excluded_by_filters,
+                )
+            selected.append(item)
+            last_returned = current_position
+        if len(rows) < batch_limit:
+            exhausted = True
+            break
+
+    if exhausted:
+        next_cursor = None
+        has_more = False
+        truncated = False
+    else:
+        next_position = position if position is not None else last_returned
+        next_cursor = (
+            None if next_position is None else encode_history_cursor(next_position)
+        )
+        has_more = next_cursor is not None
+        truncated = has_more
+    return HistoryFeedPage(
+        items=tuple(selected),
+        limit=limit,
+        cursor=cursor,
+        next_cursor=next_cursor,
+        has_more=has_more,
+        scan_truncated=truncated,
+        excluded_without_display_name=excluded_without_name,
+        excluded_by_filters=excluded_by_filters,
     )
 
 

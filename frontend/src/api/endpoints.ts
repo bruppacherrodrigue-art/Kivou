@@ -82,12 +82,19 @@ export const icps = {
 // ─── Signaux ─────────────────────────────────────────────────────────────────
 
 export interface FeedQuery extends QueryParams {
+  view?: 'recent' | 'history'
   freshness?: Freshness
   target_icp_id?: string | null
   country?: string | null
+  subdivision_code?: string | null
+  status?: string | null
+  cpv_prefix?: string | null
+  date_from?: string | null
+  date_to?: string | null
   winner?: string | null
   limit?: number
   offset?: number
+  cursor?: string | null
 }
 
 export interface SignalDetailQuery extends QueryParams {

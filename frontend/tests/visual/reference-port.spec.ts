@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 import { expect, test, type Page } from '@playwright/test'
@@ -47,42 +47,23 @@ test('dashboard-signals adversarial fixture contract', () => {
     (item) => item.event.clock === 'publication',
   )
   expect(publicationItem?.contract.buyer).toBeNull()
+  expect(publicationItem?.factual_display.date.kind).toBe('publication')
+  expect(publicationItem?.factual_display.missing_fields).toContain('buyer')
   expect(publicationItem?.analysis.fit.reasons).toEqual([])
 
   for (const item of VISUAL_SIGNAL_UNLOCKED_ITEMS) {
-    expect(item.presentation?.status).toBe('FALLBACK')
-    expect(item.presentation?.content.variant).toBe('FACTUAL_FALLBACK')
+    expect(item.factual_display.headline).not.toMatch(/pour\s+\d{8,}/)
+    expect(item.factual_display.market_summary).not.toBeNull()
+    expect(item.winner_enrichment.source.kind).toBe('public_notice')
     expect(Object.hasOwn(item, 'provider_metadata')).toBe(false)
-    expect(publishedPresentation(item.presentation)).toBe(item.presentation)
   }
 
-  expect(VISUAL_SIGNAL_OFFLINE_ARTIFACTS).toHaveLength(VISUAL_SIGNAL_UNLOCKED_ITEMS.length)
-  expect(new Set(
-    VISUAL_SIGNAL_OFFLINE_ARTIFACTS.map((artifact) => artifact.presentation.artifact_id),
-  ).size).toBe(VISUAL_SIGNAL_OFFLINE_ARTIFACTS.length)
-  for (const item of VISUAL_SIGNAL_UNLOCKED_ITEMS) {
-    const artifact = VISUAL_SIGNAL_OFFLINE_ARTIFACTS.find(
-      (candidate) => candidate.signal_id === item.signal_id,
-    )
-    expect(artifact).toBeDefined()
-    expect(item.presentation).toBe(artifact?.presentation)
-    expect(Object.keys(artifact?.provider_metadata ?? {}).sort()).toEqual([
-      'model_id',
-      'prompt_version',
-      'provider',
-      'qa_model_id',
-      'qa_provider',
-    ])
-    expect(Object.values(artifact?.provider_metadata ?? {})).toEqual([
-      null,
-      null,
-      null,
-      null,
-      null,
-    ])
-    expect(Object.hasOwn(artifact?.presentation ?? {}, 'provider_metadata')).toBe(false)
-    expect(publishedPresentation(artifact?.presentation)).toBe(artifact?.presentation)
-  }
+  expect(new Set(VISUAL_UNLOCKED_ITEMS.map((item) => item.winner_enrichment.status))).toEqual(
+    new Set(['completed', 'partial', 'in_progress', 'pending', 'failed']),
+  )
+  expect(VISUAL_UNLOCKED_ITEMS.some((item) => item.contract.amount === null)).toBe(true)
+  expect(VISUAL_UNLOCKED_ITEMS.some((item) => item.contract.location === null)).toBe(true)
+  expect(VISUAL_SIGNAL_OFFLINE_ARTIFACTS).toHaveLength(2)
 })
 
 test('dashboard-companies published fixture contract', () => {
@@ -243,18 +224,16 @@ async function waitForScenario(
     const selected = page.locator('.signal-list .signal-item.is-selected')
     await expect(selected).toHaveCount(1)
     await expect(selected).toHaveAttribute('aria-pressed', 'true')
-    await expect(selected).toContainText('Acheteur : Non publié')
+    await expect(selected).toContainText(publicationDetail.factual_display.headline)
+    await expect(selected).not.toContainText('Acheteur :')
     await expect(selected.locator('.signal-match')).toHaveCount(0)
     await expect(page.locator('#detail-title')).toHaveText(
-      publicationDetail.presentation!.content.headline,
+      publicationDetail.factual_display.headline,
     )
-    await expect(page.locator('.published-status')).toContainText('Faits publiés uniquement')
+    await expect(page.locator('.published-status')).toContainText('Données partielles')
     const buyerFact = page.locator('.fact-grid div').filter({ has: page.getByText('Acheteur', { exact: true }) })
     await expect(buyerFact).toContainText('Non publié')
-    const awardeeFact = page.locator('.fact-grid div').filter({
-      has: page.getByText('Entreprise attributaire', { exact: true }),
-    })
-    await expect(awardeeFact).toContainText('TM Ausbau GmbH')
+    await expect(page.locator('.signal-company-card')).toContainText('TM Ausbau GmbH')
     const publicationFact = page.locator('.fact-grid > div').filter({
       has: page.getByText('Date de publication', { exact: true }),
     })
@@ -263,28 +242,75 @@ async function waitForScenario(
     await expect(
       page.locator('.fact-grid dt').filter({ hasText: 'Date d’attribution' }),
     ).toHaveCount(0)
-    await expect(page.getByText('Rôle cible non disponible', { exact: true })).toBeVisible()
+    await expect(page.getByText(
+      'Analyse commerciale non disponible pour ce signal. Les informations affichées ci-dessous proviennent des sources vérifiées.',
+      { exact: true },
+    )).toBeVisible()
+    await expect(page.getByText('Rôle cible non disponible', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('Faits publiés uniquement', { exact: true })).toHaveCount(0)
+    await expect(page.getByText(
+      publicationDetail.presentation!.content.headline,
+      { exact: true },
+    )).toHaveCount(0)
+    const factualOrder = await page.locator('.detail-panel').evaluate((panel) => {
+      const selectors = [
+        '#detail-title',
+        '#market-facts-title',
+        '#winner-company-title',
+        '#award-history-title',
+        '#source-evidence-title',
+        '#missing-data-title',
+        '#signal-note-title',
+        'details',
+      ]
+      return selectors.map((selector) => {
+        const node = panel.querySelector(selector)
+        if (!node) return -1
+        return [...panel.querySelectorAll('*')].indexOf(node)
+      })
+    })
+    expect(factualOrder.every((position) => position >= 0)).toBe(true)
+    expect(factualOrder).toEqual([...factualOrder].sort((left, right) => left - right))
+    await expect(page.locator('.detail-panel details')).not.toHaveAttribute('open', '')
+
+    const singlePane = (page.viewportSize()?.width ?? 0) <= 1179
+    if (singlePane) {
+      await page.getByRole('button', { name: 'Retour à la liste' }).click()
+      await expect(page).toHaveURL(/\/app\/signals$/)
+      await expect(awardCard).toBeVisible()
+    }
 
     await awardCard.focus()
     await expect(awardCard).toBeFocused()
     await page.keyboard.press('Enter')
-    await expect(page).toHaveURL(new RegExp(
-      `/app/signals/h-huether-munich\\?presentation_artifact_id=${awardDetail.presentation!.artifact_id}$`,
-    ))
+    await expect(page).toHaveURL(/\/app\/signals\/h-huether-munich$/)
     await expect(page.locator('#detail-title')).toHaveText(
-      awardDetail.presentation!.content.headline,
+      awardDetail.factual_display.headline,
     )
     await expect(page.locator('#detail-title')).toBeFocused()
 
     await page.goBack()
-    await expect(page).toHaveURL(/\/app\/signals\/tm-ausbau-campus-ost$/)
-    await expect(publicationCard).toHaveAttribute('aria-pressed', 'true')
-    await expect(page.locator('#detail-title')).toHaveText(
-      publicationDetail.presentation!.content.headline,
-    )
-    await expect(publicationCard).toBeFocused()
-    await publicationCard.evaluate((element) => element.blur())
-    await expect(publicationCard).not.toBeFocused()
+    if (singlePane) {
+      await expect(page).toHaveURL(/\/app\/signals$/)
+      await expect(awardCard).toBeFocused()
+      await publicationCard.focus()
+      await page.keyboard.press('Enter')
+      await expect(page).toHaveURL(/\/app\/signals\/tm-ausbau-campus-ost$/)
+      await expect(page.locator('#detail-title')).toHaveText(
+        publicationDetail.factual_display.headline,
+      )
+      await expect(page.locator('#detail-title')).toBeFocused()
+      await page.locator('#detail-title').evaluate((element) => element.blur())
+    } else {
+      await expect(page).toHaveURL(/\/app\/signals\/tm-ausbau-campus-ost$/)
+      await expect(publicationCard).toHaveAttribute('aria-pressed', 'true')
+      await expect(page.locator('#detail-title')).toHaveText(
+        publicationDetail.factual_display.headline,
+      )
+      await expect(awardCard).toBeFocused()
+      await awardCard.evaluate((element) => element.blur())
+      await expect(awardCard).not.toBeFocused()
+    }
     await resetDocumentScroll(page)
 
     await expect(page.locator('.signal-note-card textarea')).toBeEnabled()
@@ -297,29 +323,17 @@ async function waitForScenario(
       .filter((element) => element.scrollWidth - element.clientWidth > 1)
       .map((element) => element.className))
     expect(horizontallyClipped).toEqual([])
-    const verticallyClipped = await page.locator(
-      '.signal-item, .detail-panel, .facts-card, .verification-card, .company-card, .signal-note-card',
-    ).evaluateAll((elements) => {
-      const documentHeight = Math.max(
-        document.documentElement.scrollHeight,
-        document.body.scrollHeight,
-      )
-      return elements.flatMap((element) => {
-        const rect = element.getBoundingClientRect()
-        const top = rect.top + window.scrollY
-        const bottom = rect.bottom + window.scrollY
-        const verticalOverflow = element.scrollHeight - element.clientHeight
-        if (verticalOverflow <= 1 && top >= -1 && bottom <= documentHeight + 1) return []
-        return [{
-          className: element.className,
-          verticalOverflow,
-          top,
-          bottom,
-          documentHeight,
-        }]
-      })
-    })
-    expect(verticallyClipped).toEqual([])
+    const paneOverflow = await page.locator('.workspace-grid').evaluate(() => ({
+      list: getComputedStyle(document.querySelector<HTMLElement>('.feed-panel')!).overflowY,
+      detail: getComputedStyle(document.querySelector<HTMLElement>('.detail-panel')!).overflowY,
+    }))
+    expect(paneOverflow).toEqual({ list: 'auto', detail: 'auto' })
+    const internallyClipped = await page.locator(
+      '.signal-item, .facts-card, .verification-card, .company-card, .signal-note-card',
+    ).evaluateAll((elements) => elements
+      .filter((element) => element.scrollHeight - element.clientHeight > 1)
+      .map((element) => element.className))
+    expect(internallyClipped).toEqual([])
   }
   if (golden === 'dashboard-companies') {
     const cards = page.locator('.companies-list .company-list-item')
@@ -419,6 +433,89 @@ for (const route of LOCAL_REFERENCE_ROUTES) {
     })
   }
 }
+
+test('dashboard-signals factual history state matrix and pane navigation', async ({ page }) => {
+  const failures = observeBrowserFailures(page, 'connected-pro')
+  const calls = await installReferenceApi(page, 'connected-pro')
+  const captureDirectory = resolve('../output/playwright/signals-phase1')
+  mkdirSync(captureDirectory, { recursive: true })
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/app/signals/h-huether-munich?view=history')
+  await installDeterministicFonts(page)
+  await page.getByRole('heading', { level: 1, name: 'Signaux' }).waitFor()
+  await page.waitForLoadState('networkidle')
+  await expect(page.locator('.signal-list .signal-item')).toHaveCount(3)
+  await expect(page.locator('#detail-title')).toHaveText(
+    VISUAL_UNLOCKED_ITEMS[0].factual_display.headline,
+  )
+  await page.screenshot({
+    path: resolve(captureDirectory, 'desktop-rich.png'),
+    animations: 'disabled',
+  })
+
+  await page.getByRole('button', { name: 'Charger plus de signaux' }).click()
+  await expect(page.locator('.signal-list .signal-item')).toHaveCount(6)
+  await expect(page.locator('.signal-list')).toContainText('Faits vérifiés')
+  await expect(page.locator('.signal-list')).toContainText('Données partielles')
+  await expect(page.locator('.signal-list')).toContainText('Enrichissement en cours')
+  await expect(page.locator('.signal-list')).toContainText('Enrichissement en attente')
+  await expect(page.locator('.signal-list')).toContainText('À vérifier')
+
+  const listPanel = page.locator('[data-master-detail-pane="list"]')
+  const detailPanel = page.locator('[data-master-detail-pane="detail"]')
+  await listPanel.evaluate((element) => { element.scrollTop = element.scrollHeight })
+  const listScroll = await listPanel.evaluate((element) => element.scrollTop)
+  expect(listScroll).toBeGreaterThan(0)
+  await detailPanel.evaluate((element) => { element.scrollTop = 320 })
+
+  const failedCard = page.locator('.signal-item').filter({ hasText: 'Garzon Butor zrt.' })
+  await failedCard.click()
+  await expect(page).toHaveURL(/\/app\/signals\/garzon-deisenhofen\?view=history$/)
+  await expect(page.locator('#detail-title')).toHaveText(
+    VISUAL_UNLOCKED_ITEMS[5].factual_display.headline,
+  )
+  await expect.poll(() => listPanel.evaluate((element) => element.scrollTop)).toBe(listScroll)
+  await expect.poll(() => detailPanel.evaluate((element) => element.scrollTop)).toBe(0)
+  await expect(page.locator('.published-status')).toContainText('À vérifier')
+  const locationFact = page.locator('.signal-fact-grid > div').filter({
+    has: page.getByText('Lieu', { exact: true }),
+  })
+  await expect(locationFact).toContainText('Non publié')
+  await page.screenshot({
+    path: resolve(captureDirectory, 'desktop-old-failed-no-location.png'),
+    animations: 'disabled',
+  })
+
+  const pendingCard = page.locator('.signal-item').filter({ hasText: 'Sedlmeyr Spezialtüren GmbH' })
+  await pendingCard.click()
+  await expect(page.locator('.published-status')).toContainText('Enrichissement en attente')
+  const amountFact = page.locator('.signal-fact-grid > div').filter({
+    has: page.getByText('Montant total du marché', { exact: true }),
+  })
+  await expect(amountFact).toContainText('Non publié')
+  await page.screenshot({
+    path: resolve(captureDirectory, 'desktop-pending-no-amount.png'),
+    animations: 'disabled',
+  })
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto('/app/signals/tm-ausbau-campus-ost?view=history')
+  await expect(page.locator('#detail-title')).toHaveText(
+    VISUAL_UNLOCKED_ITEMS[2].factual_display.headline,
+  )
+  await expect(page.locator('#detail-title')).toBeFocused()
+  await expect(page.locator('[data-master-detail-pane="list"]')).not.toBeVisible()
+  await page.screenshot({
+    path: resolve(captureDirectory, 'mobile-partial.png'),
+    animations: 'disabled',
+  })
+
+  await expect(page.getByText('Rôle cible non disponible', { exact: true })).toHaveCount(0)
+  expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
+  expect(calls.some((call) => /provider|hermes|acquisition/i.test(call.path))).toBe(false)
+  expect(failures).toEqual([])
+})
 
 test('public menu open mobile', async ({ page }) => {
   const failures = observeBrowserFailures(page, 'public-pricing')
