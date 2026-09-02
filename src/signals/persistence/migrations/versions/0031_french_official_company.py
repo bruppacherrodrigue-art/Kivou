@@ -16,26 +16,22 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "saas_company",
-        sa.Column(
-            "official_source",
-            sa.String(32),
-            nullable=False,
-            server_default="public_notice",
-        ),
-    )
-    op.create_check_constraint(
-        "ck_saas_company_official_source",
-        "saas_company",
-        "official_source IN ('public_notice', 'official_register')",
-    )
+    with op.batch_alter_table("saas_company") as batch:
+        batch.add_column(
+            sa.Column(
+                "official_source",
+                sa.String(32),
+                nullable=False,
+                server_default="public_notice",
+            )
+        )
+        batch.create_check_constraint(
+            "ck_saas_company_official_source",
+            "official_source IN ('public_notice', 'official_register')",
+        )
 
 
 def downgrade() -> None:
-    op.drop_constraint(
-        "ck_saas_company_official_source",
-        "saas_company",
-        type_="check",
-    )
-    op.drop_column("saas_company", "official_source")
+    with op.batch_alter_table("saas_company") as batch:
+        batch.drop_constraint("ck_saas_company_official_source", type_="check")
+        batch.drop_column("official_source")
