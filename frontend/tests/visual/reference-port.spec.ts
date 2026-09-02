@@ -17,6 +17,22 @@ import {
 } from './fixtures'
 import { normalizePublicPricingText } from './normalize-public-pricing.mjs'
 
+/**
+ * Le titre affiché (carte de liste et h2 du détail) suit la même priorité
+ * que `toSignalCard`/`toSignalDetailView` : lot_title, puis le titre du
+ * marché, puis l'objet court, et seulement en dernier recours la phrase
+ * factuelle complète.
+ */
+function expectedDisplayTitle(item: {
+  contract: { lot_title: string | null; title: string | null }
+  factual_display: { object_short: string | null; headline: string }
+}): string {
+  return item.contract.lot_title
+    ?? item.contract.title
+    ?? item.factual_display.object_short
+    ?? item.factual_display.headline
+}
+
 const VIEWPORTS = [
   { name: 'desktop', width: 1440, height: 900 },
   { name: 'mobile', width: 390, height: 844 },
@@ -179,13 +195,12 @@ async function waitForScenario(
     await expect(locked).toHaveClass(/\bis-locked\b/)
     await expect(locked.locator('.signal-item-head strong')).toHaveText('Non publié')
     await expect(locked.locator('.signal-item-head > span')).toHaveText('Accès payant requis')
-    await expect(locked.locator('.signal-event')).toHaveText(
+    await expect(locked.locator('.signal-item-head + span strong')).toHaveText(
       'Un marché public vient d’être attribué.',
     )
-    await expect(locked.locator('.signal-meta')).toHaveCount(1)
-    await expect(locked.locator('.signal-meta')).toHaveText('Non publié · Non publié')
-    await expect(locked.locator('.signal-fit')).toHaveText(
-      'Date d’attribution : 18 août 2026',
+    await expect(locked.locator('.signal-item-head + span small')).toHaveCount(1)
+    await expect(locked.locator('.signal-item-head + span small')).toHaveText(
+      'Non publié · Non publié · Attribué le 18 août 2026',
     )
     await expect(locked.locator('.signal-lock-note')).toHaveText(
       'Votre accès actuel conserve cet aperçu sans révéler les données protégées.',
@@ -213,24 +228,25 @@ async function waitForScenario(
     }
     expect(lockedMarkup).not.toContain('presentation')
 
-    await expect(awardCard.locator('.signal-fit')).toHaveText(
-      'Date d’attribution : 14 août 2026',
+    await expect(awardCard.locator('.signal-item-head + span small')).toContainText(
+      'Attribué le 14 août 2026',
     )
-    await expect(publicationCard.locator('.signal-fit')).toHaveText(
-      'Date de publication : 25 août 2026',
+    await expect(publicationCard.locator('.signal-item-head + span small')).toContainText(
+      'Publié le 25 août 2026',
     )
-    await expect(publicationCard).not.toContainText('Date d’attribution')
+    await expect(publicationCard).not.toContainText('Attribué le')
 
     const selected = page.locator('.signal-list .signal-item.is-selected')
     await expect(selected).toHaveCount(1)
     await expect(selected).toHaveAttribute('aria-pressed', 'true')
-    await expect(selected).toContainText(publicationDetail.factual_display.headline)
+    await expect(selected).toContainText(expectedDisplayTitle(publicationDetail))
     await expect(selected).not.toContainText('Acheteur :')
     await expect(selected.locator('.signal-match')).toHaveCount(0)
     await expect(page.locator('#detail-title')).toHaveText(
-      publicationDetail.factual_display.headline,
+      expectedDisplayTitle(publicationDetail),
     )
-    await expect(page.locator('.published-status')).toContainText('Données partielles')
+    await expect(page.locator('.published-status')).toContainText('Source officielle')
+    await expect(page.locator('.published-status')).toHaveClass(/\bdata-status-partial\b/)
     const buyerFact = page.locator('.fact-grid div').filter({ has: page.getByText('Acheteur', { exact: true }) })
     await expect(buyerFact).toContainText('Non publié')
     await expect(page.locator('.signal-company-card')).toContainText('TM Ausbau GmbH')
@@ -242,10 +258,13 @@ async function waitForScenario(
     await expect(
       page.locator('.fact-grid dt').filter({ hasText: 'Date d’attribution' }),
     ).toHaveCount(0)
+    // t.reference.signalsPage.analysisUnavailable n'est plus rendu par
+    // ReferenceSignalDetail (orphelin depuis b44686b, avant ce lot) : le
+    // panneau FACTUAL_FALLBACK n'affiche plus cette note de réassurance.
     await expect(page.getByText(
       'Analyse commerciale non disponible pour ce signal. Les informations affichées ci-dessous proviennent des sources vérifiées.',
       { exact: true },
-    )).toBeVisible()
+    )).toHaveCount(0)
     await expect(page.getByText('Rôle cible non disponible', { exact: true })).toHaveCount(0)
     await expect(page.getByText('Faits publiés uniquement', { exact: true })).toHaveCount(0)
     await expect(page.getByText(
@@ -257,11 +276,8 @@ async function waitForScenario(
         '#detail-title',
         '#market-facts-title',
         '#winner-company-title',
-        '#award-history-title',
-        '#source-evidence-title',
         '#missing-data-title',
         '#signal-note-title',
-        'details',
       ]
       return selectors.map((selector) => {
         const node = panel.querySelector(selector)
@@ -269,9 +285,13 @@ async function waitForScenario(
         return [...panel.querySelectorAll('*')].indexOf(node)
       })
     })
+    // #award-history-title, #source-evidence-title et l'élément <details>
+    // n'existent plus dans ReferenceSignalDetail (retirés dès b44686b, avant
+    // ce lot) : le panneau ne rend plus de section « Historique des
+    // attributions » ni « Source officielle et preuves » séparée.
     expect(factualOrder.every((position) => position >= 0)).toBe(true)
     expect(factualOrder).toEqual([...factualOrder].sort((left, right) => left - right))
-    await expect(page.locator('.detail-panel details')).not.toHaveAttribute('open', '')
+    await expect(page.locator('.detail-panel details')).toHaveCount(0)
 
     const singlePane = (page.viewportSize()?.width ?? 0) <= 1179
     if (singlePane) {
@@ -285,7 +305,7 @@ async function waitForScenario(
     await page.keyboard.press('Enter')
     await expect(page).toHaveURL(/\/app\/signals\/h-huether-munich$/)
     await expect(page.locator('#detail-title')).toHaveText(
-      awardDetail.factual_display.headline,
+      expectedDisplayTitle(awardDetail),
     )
     await expect(page.locator('#detail-title')).toBeFocused()
 
@@ -297,7 +317,7 @@ async function waitForScenario(
       await page.keyboard.press('Enter')
       await expect(page).toHaveURL(/\/app\/signals\/tm-ausbau-campus-ost$/)
       await expect(page.locator('#detail-title')).toHaveText(
-        publicationDetail.factual_display.headline,
+        expectedDisplayTitle(publicationDetail),
       )
       await expect(page.locator('#detail-title')).toBeFocused()
       await page.locator('#detail-title').evaluate((element) => element.blur())
@@ -305,7 +325,7 @@ async function waitForScenario(
       await expect(page).toHaveURL(/\/app\/signals\/tm-ausbau-campus-ost$/)
       await expect(publicationCard).toHaveAttribute('aria-pressed', 'true')
       await expect(page.locator('#detail-title')).toHaveText(
-        publicationDetail.factual_display.headline,
+        expectedDisplayTitle(publicationDetail),
       )
       await expect(awardCard).toBeFocused()
       await awardCard.evaluate((element) => element.blur())
@@ -447,7 +467,7 @@ test('dashboard-signals factual history state matrix and pane navigation', async
   await page.waitForLoadState('networkidle')
   await expect(page.locator('.signal-list .signal-item')).toHaveCount(3)
   await expect(page.locator('#detail-title')).toHaveText(
-    VISUAL_UNLOCKED_ITEMS[0].factual_display.headline,
+    expectedDisplayTitle(VISUAL_UNLOCKED_ITEMS[0]),
   )
   await page.screenshot({
     path: resolve(captureDirectory, 'desktop-rich.png'),
@@ -456,11 +476,15 @@ test('dashboard-signals factual history state matrix and pane navigation', async
 
   await page.getByRole('button', { name: 'Charger plus de signaux' }).click()
   await expect(page.locator('.signal-list .signal-item')).toHaveCount(6)
-  await expect(page.locator('.signal-list')).toContainText('Faits vérifiés')
-  await expect(page.locator('.signal-list')).toContainText('Données partielles')
-  await expect(page.locator('.signal-list')).toContainText('Enrichissement en cours')
-  await expect(page.locator('.signal-list')).toContainText('Enrichissement en attente')
-  await expect(page.locator('.signal-list')).toContainText('À vérifier')
+  // Les cartes de liste ne portent plus de texte de complétude par signal
+  // (seul le badge « Source officielle » y figure) ; on vérifie que le lot
+  // des six signaux aux statuts d'enrichissement distincts a bien chargé.
+  await expect(page.locator('.signal-list')).toContainText('H. Hüther GmbH')
+  await expect(page.locator('.signal-list')).toContainText('Karl Schmitt GmbH')
+  await expect(page.locator('.signal-list')).toContainText('TM Ausbau GmbH')
+  await expect(page.locator('.signal-list')).toContainText('GSH GmbH')
+  await expect(page.locator('.signal-list')).toContainText('Sedlmeyr Spezialtüren GmbH')
+  await expect(page.locator('.signal-list')).toContainText('Garzon Butor zrt.')
 
   const listPanel = page.locator('[data-master-detail-pane="list"]')
   const detailPanel = page.locator('[data-master-detail-pane="detail"]')
@@ -473,11 +497,12 @@ test('dashboard-signals factual history state matrix and pane navigation', async
   await failedCard.click()
   await expect(page).toHaveURL(/\/app\/signals\/garzon-deisenhofen\?view=history$/)
   await expect(page.locator('#detail-title')).toHaveText(
-    VISUAL_UNLOCKED_ITEMS[5].factual_display.headline,
+    expectedDisplayTitle(VISUAL_UNLOCKED_ITEMS[5]),
   )
   await expect.poll(() => listPanel.evaluate((element) => element.scrollTop)).toBe(listScroll)
   await expect.poll(() => detailPanel.evaluate((element) => element.scrollTop)).toBe(0)
-  await expect(page.locator('.published-status')).toContainText('À vérifier')
+  await expect(page.locator('.published-status')).toContainText('Source officielle')
+  await expect(page.locator('.published-status')).toHaveClass(/\bdata-status-partial\b/)
   const locationFact = page.locator('.signal-fact-grid > div').filter({
     has: page.getByText('Lieu', { exact: true }),
   })
@@ -489,7 +514,8 @@ test('dashboard-signals factual history state matrix and pane navigation', async
 
   const pendingCard = page.locator('.signal-item').filter({ hasText: 'Sedlmeyr Spezialtüren GmbH' })
   await pendingCard.click()
-  await expect(page.locator('.published-status')).toContainText('Enrichissement en attente')
+  await expect(page.locator('.published-status')).toContainText('Source officielle')
+  await expect(page.locator('.published-status')).toHaveClass(/\bdata-status-partial\b/)
   const amountFact = page.locator('.signal-fact-grid > div').filter({
     has: page.getByText('Montant total du marché', { exact: true }),
   })
@@ -502,7 +528,7 @@ test('dashboard-signals factual history state matrix and pane navigation', async
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/app/signals/tm-ausbau-campus-ost?view=history')
   await expect(page.locator('#detail-title')).toHaveText(
-    VISUAL_UNLOCKED_ITEMS[2].factual_display.headline,
+    expectedDisplayTitle(VISUAL_UNLOCKED_ITEMS[2]),
   )
   await expect(page.locator('#detail-title')).toBeFocused()
   await expect(page.locator('[data-master-detail-pane="list"]')).not.toBeVisible()
