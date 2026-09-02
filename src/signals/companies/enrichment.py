@@ -197,6 +197,27 @@ def _needs_official_register(indexed: Any) -> bool:
     )
 
 
+def _published_siret_fallback(
+    connection: sa.Connection, *, signal_key: str
+) -> tuple[str, str] | None:
+    row = connection.execute(
+        sa.select(
+            materialized_signal.c.winner_country,
+            materialized_signal.c.winner_identifier_scheme,
+            materialized_signal.c.winner_identifier_value,
+            materialized_signal.c.materialization_award_key,
+        ).where(materialized_signal.c.signal_key == signal_key)
+    ).mappings().first()
+    if row is None:
+        return None
+    scheme = str(row["winner_identifier_scheme"] or "").strip().casefold()
+    siret = str(row["winner_identifier_value"] or "").strip()
+    country = str(row["winner_country"] or "FR").strip().upper()
+    if scheme != "siret" or country != "FR" or re.fullmatch(r"\d{14}", siret) is None:
+        return None
+    return siret, row["materialization_award_key"]
+
+
 def _finish(
     connection: sa.Connection,
     *,
@@ -255,20 +276,16 @@ def run_winner_enrichment_batch(
     counts = {"completed": 0, "partial": 0, "failed": 0}
     for signal_key in claimed:
         indexed = index_signal_company_identity(connection, signal_key=signal_key)
-        if indexed is None:
-            _finish(
-                connection,
-                signal_key=signal_key,
-                status="failed",
-                now=now,
-                fingerprint=None,
-                error_code=_UNRESOLVED,
-            )
-            counts["failed"] += 1
-            continue
-        resolved = indexed.resolved
-        siret = _exact_french_siret(indexed)
-        if official_company_provider is not None and siret and _needs_official_register(indexed):
+        resolved = None if indexed is None else indexed.resolved
+        source_award_key = None if indexed is None else indexed.source_award_key
+        siret = None if indexed is None else _exact_french_siret(indexed)
+        if indexed is None and official_company_provider is not None:
+            fallback = _published_siret_fallback(connection, signal_key=signal_key)
+            if fallback is not None:
+                siret, source_award_key = fallback
+        if official_company_provider is not None and siret and (
+            indexed is None or _needs_official_register(indexed)
+        ):
             try:
                 observation = official_company_provider.fetch_siret(siret)
             except FrenchOfficialCompanyError as error:
@@ -277,7 +294,7 @@ def run_winner_enrichment_batch(
                     signal_key=signal_key,
                     status="failed",
                     now=now,
-                    fingerprint=resolved.identity_fingerprint,
+                    fingerprint=None if resolved is None else resolved.identity_fingerprint,
                     error_code=error.code,
                 )
                 counts["failed"] += 1
@@ -288,10 +305,21 @@ def run_winner_enrichment_batch(
                 address=observation.address,
                 observed_at=observation.observed_at,
             )
+        if resolved is None or source_award_key is None:
+            _finish(
+                connection,
+                signal_key=signal_key,
+                status="failed",
+                now=now,
+                fingerprint=None,
+                error_code=_UNRESOLVED,
+            )
+            counts["failed"] += 1
+            continue
         stored = get_or_create_company(
             connection,
             resolved=resolved,
-            source_award_key=indexed.source_award_key,
+            source_award_key=source_award_key,
             origin_signal_key=signal_key,
             now=now,
         )
