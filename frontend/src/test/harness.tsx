@@ -323,6 +323,7 @@ export const UNLOCKED_ITEM: UnlockedFeedItem = {
       locality: 'Villeneuve',
       postal_code: '31270',
       subdivision_code: 'FR-31',
+      subdivision_label: null,
     },
     dates: {
       award: '2026-08-04',

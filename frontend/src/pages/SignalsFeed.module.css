@@ -32,7 +32,7 @@
   background: transparent;
   color: var(--text-muted);
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 680;
   cursor: pointer;
 }
@@ -67,13 +67,13 @@
 .restrictedNote {
   margin: 8px 0 0;
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
 .filterGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
   margin-top: 12px;
 }
@@ -82,7 +82,7 @@
   display: grid;
   gap: 5px;
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 12px;
   font-weight: 680;
 }
 
@@ -96,14 +96,34 @@
   background: var(--surface);
   color: var(--ink);
   font: inherit;
-  font-size: 11px;
+  font-size: 13px;
 }
 
-.filterGrid :disabled { cursor: not-allowed; opacity: 0.55; }
+.filterGrid :disabled {
+  cursor: not-allowed;
+  border-style: dashed;
+  background: var(--surface-soft);
+  color: var(--text-muted);
+  opacity: 1;
+}
+
+.lockHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.lockHint svg {
+  width: 12px;
+  height: 12px;
+}
 
 .awardCount {
   color: var(--green);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 760;
 }
 
@@ -121,15 +141,19 @@
 }
 
 .awardContext strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   color: var(--ink);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 650;
   line-height: 1.35;
 }
 
 .awardContext small {
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 12px;
   line-height: 1.4;
 }
 
@@ -139,8 +163,4 @@
   .workspace[data-pane='detail'] > .listPanel { display: none; }
   .listPanel,
   .detailPanel { border-right: 0; border-bottom: 0; }
-}
-
-@media (max-width: 620px) {
-  .filterGrid { grid-template-columns: minmax(0, 1fr); }
 }

@@ -174,6 +174,36 @@ describe('feed de signaux dans le workspace de référence', () => {
     expect(rows[1]).toHaveTextContent('Deuxième selon le serveur SA')
   })
 
+  it('dit de quelle date il s’agit sur la carte', async () => {
+    const item = {
+      ...UNLOCKED_ITEM,
+      factual_display: {
+        ...UNLOCKED_ITEM.factual_display,
+        date: { value: '2026-08-19', kind: 'notification' as const },
+      },
+    }
+    mockApi(feedWith([item]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const rows = await screen.findAllByRole('button', { name: /Ouvrir le signal/ })
+    expect(rows[0].textContent).toContain('Notifié le 19 août 2026')
+  })
+
+  it('affiche le département dérivé à la place du seul pays', async () => {
+    const item = {
+      ...UNLOCKED_ITEM,
+      contract: {
+        ...UNLOCKED_ITEM.contract,
+        location: { country: 'FR', locality: null, postal_code: '92350', subdivision_code: 'FR-92', subdivision_label: 'Hauts-de-Seine' },
+      },
+    }
+    mockApi(feedWith([item]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const rows = await screen.findAllByRole('button', { name: /Ouvrir le signal/ })
+    expect(rows[0].textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('92350, Hauts-de-Seine, France')
+  })
+
   it('rend le calendrier et la justification du serveur sans recalcul navigateur', async () => {
     const item = {
       ...UNLOCKED_ITEM,
@@ -423,7 +453,7 @@ describe('feed de signaux dans le workspace de référence', () => {
     await signalList()
     expect(
       screen.getByText(
-        'La lecture a été bornée : des signaux plus anciens existent au-delà de cette page.',
+        'La lecture a été bornée : consultez l’Historique pour les signaux plus anciens.',
       ),
     ).toBeVisible()
     expect(screen.queryByRole('button', { name: 'Charger plus de signaux' })).toBeNull()
@@ -591,5 +621,47 @@ describe('feed de signaux dans le workspace de référence', () => {
     ]) {
       expect(page).not.toContain(forbidden)
     }
+  })
+
+  it('propose des statuts temporels en français, pas des identifiants', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals?view=history' })
+    const select = await screen.findByLabelText('Statut temporel')
+    expect(within(select).getByRole('option', { name: 'Attribution récente' })).toBeVisible()
+    expect(within(select).queryByRole('option', { name: 'recent_award' })).toBeNull()
+  })
+
+  it('explique un filtre verrouillé sur le champ lui-même', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM], {
+      filter_access: { date_range: true, country: true, subdivision: true, status: true, sector: false },
+    }))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals?view=history' })
+    const cpv = await screen.findByLabelText('Secteur (préfixe CPV)')
+    await waitFor(() => expect(cpv).toBeDisabled())
+    expect(cpv).toHaveAccessibleDescription('Ce filtre n’est pas inclus dans votre accès actuel.')
+  })
+
+  it('compte les signaux sans coller le nom du plan', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+    expect(await screen.findByText('1 signal')).toBeVisible()
+    expect(screen.queryByText(/· (Essentiel|Pro|Découverte)/)).toBeNull()
+  })
+
+  it('ne dit pas « fin de liste » quand la lecture a été bornée', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM], {
+      page: { limit: 20, offset: 0, has_more: false, scan_truncated: true },
+    }))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+    const statuses = await screen.findAllByRole('status')
+    expect(statuses.some((node) => /bornée/.test(node.textContent ?? ''))).toBe(true)
+    expect(screen.queryByText('Fin des attributions accessibles.')).toBeNull()
+  })
+
+  it('n’écrit « 1 attribution » sur aucune carte', async () => {
+    mockApi(feedWith([UNLOCKED_ITEM]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+    const rows = await screen.findAllByRole('button', { name: /Ouvrir le signal/ })
+    expect(rows[0].textContent).not.toContain('1 attribution')
   })
 })

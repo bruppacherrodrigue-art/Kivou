@@ -1512,9 +1512,13 @@ def test_cli_guard_counts_are_bounded_before_engine_creation(
     assert private_failure not in captured.err
 
 
-def test_offline_backfill_can_reach_the_first_displayable_candidate_after_get_cap(
+def test_offline_backfill_and_feed_both_reach_the_first_displayable_candidate_behind_nameless_rows(
     engine: sa.Engine,
 ) -> None:
+    """Depuis le lot A, le plafond de `feed_page` compte les candidats AFFICHABLES,
+    pas les lignes brutes : 500 signaux sans nom devant un signal nommé ne
+    starve plus `GET /signals`, exactement comme le backfill hors ligne qui
+    partageait déjà cette lecture."""
     case = _seed_candidates(engine, count=501, prefix="display-after-get-cap")
     identifier_only = "99999999999999"
     identifier_only_parties = [
@@ -1581,9 +1585,12 @@ def test_offline_backfill_can_reach_the_first_displayable_candidate_after_get_ca
         )
 
     assert feed_policy.CANDIDATE_SCAN_CAP == 500
-    assert get_page.items == ()
+    # Le plafond compte les candidats AFFICHABLES (§285) : les 500 lignes
+    # sans nom sont lues et écartées, mais ne consomment plus la place du
+    # seul candidat affichable — qui est donc atteint, comme le backfill.
+    assert [item.signal.signal_key for item in get_page.items] == [ordered[500].signal_key]
     assert get_page.excluded_without_display_name == 500
-    assert get_page.scan_truncated is True
+    assert get_page.scan_truncated is False
 
     result = _run(engine, case, limit=MAX_BACKFILL_ITEMS, offset=0)
 

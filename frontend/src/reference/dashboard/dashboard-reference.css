@@ -590,9 +590,9 @@ a:focus-visible {
   border: 1px solid var(--line);
   border-radius: 999px;
   background: #ffffff;
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 630;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 720;
 }
 
 .signal-list {
@@ -638,19 +638,30 @@ a:focus-visible {
   content: "";
 }
 
+.signal-item-head {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+
 .signal-item-head strong {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: break-word;
   color: var(--ink);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 720;
 }
 
 .signal-item-head span {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  white-space: nowrap;
   padding: 3px 6px;
   border: 1px solid var(--card-border);
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.62);
   color: var(--green);
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: 0.07em;
   text-transform: uppercase;
@@ -744,6 +755,11 @@ a:focus-visible {
   color: var(--forest);
   font-size: 10px;
   font-weight: 680;
+}
+
+.signal-why-now {
+  margin: 10px 0 0;
+  font-size: 13px;
 }
 
 #signal-detail,
@@ -1849,7 +1865,7 @@ a:focus-visible {
   gap: 6px;
   margin-top: 16px;
   color: var(--blue);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 690;
   text-decoration: none;
 }
@@ -3677,6 +3693,7 @@ a:focus-visible {
 
 .market-amount-note {
   margin-top: 13px;
+  font-size: 12px;
 }
 
 .company-workflow-card {
@@ -3849,7 +3866,7 @@ a:focus-visible {
 
 .signal-note-state {
   color: var(--text-muted);
-  font-size: 9px;
+  font-size: 12px;
 }
 
 .signal-item-head span.presentation-factualFallback,
@@ -4016,7 +4033,7 @@ a:focus-visible {
 }
 
 .signal-fact-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 
 .signal-support-grid {
@@ -6153,6 +6170,14 @@ button.public-cta {
   .companies-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .signal-fact-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .signal-fact-grid > div:last-child:nth-child(3n + 1) {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (max-width: 820px) {
@@ -6629,9 +6654,16 @@ button.public-cta {
   }
 
   .presentation-targets ul,
-  .presentation-claim-groups ul,
-  .signal-fact-grid {
+  .presentation-claim-groups ul {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  .signal-fact-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .signal-fact-grid > div:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 
   .companies-list,

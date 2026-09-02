@@ -23,7 +23,12 @@ SIGNAL_NOTES = "0027_signal_notes"
 #: direct de SIGNAL_NOTES, et écraser ce lien ferait passer un test faux.
 CARD_PRESENTATION = "0028_card_presentation"
 PRODUCTION_OBSERVATION = "0029_production_observation"
-LATEST = "0030_winner_enrichment"
+#: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
+#: direct de PRODUCTION_OBSERVATION, et écraser ce lien ferait passer un test faux.
+WINNER_ENRICHMENT = "0030_winner_enrichment"
+FRENCH_OFFICIAL_COMPANY = "0031_french_official_company"
+REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
+LATEST = "0033_requeue_unresolved_siret"
 COLUMN = "recipient_context_fingerprint"
 INDEX = "ix_signal_alert_delivery_recipient_context_refusal"
 NOW = dt.datetime(2026, 8, 25, 10, 0, tzinfo=dt.UTC)
@@ -118,7 +123,13 @@ def test_0025_is_additive_and_precedes_the_runtime_head(tmp_path) -> None:
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
-    assert scripts.get_revision(LATEST).down_revision == PRODUCTION_OBSERVATION
+    assert scripts.get_revision(LATEST).down_revision == REQUEUE_SIRET_PLACEHOLDERS
+    assert (
+        scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision
+        == FRENCH_OFFICIAL_COMPANY
+    )
+    assert scripts.get_revision(FRENCH_OFFICIAL_COMPANY).down_revision == WINNER_ENRICHMENT
+    assert scripts.get_revision(WINNER_ENRICHMENT).down_revision == PRODUCTION_OBSERVATION
     assert scripts.get_revision(PRODUCTION_OBSERVATION).down_revision == CARD_PRESENTATION
     assert scripts.get_revision(CARD_PRESENTATION).down_revision == SIGNAL_NOTES
     assert scripts.get_revision(SIGNAL_NOTES).down_revision == RUNTIME

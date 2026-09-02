@@ -8,6 +8,7 @@ import {
 } from 'react'
 import { LockKeyhole } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
 import { billing, companies, signals } from '../api/endpoints'
 import type { FeedQuery } from '../api/endpoints'
 import { useCurrentUser } from '../auth/SessionProvider'
@@ -18,7 +19,7 @@ import type {
   FeedPage,
   SignalDetail as SignalDetailPayload,
 } from '../api/types'
-import { interpolate, useI18n } from '../i18n'
+import { interpolate, plural, useI18n } from '../i18n'
 import { toSignalCard, toSignalDetailView } from '../reference/dashboard/adapters'
 import { ReferenceSignalDetail } from '../reference/dashboard/ReferenceSignalDetail'
 import type { SignalCardView } from '../reference/dashboard/models'
@@ -133,7 +134,7 @@ function useSinglePane(): boolean {
 }
 
 export function SignalsFeed() {
-  const { t, date, amount } = useI18n()
+  const { t, date, amount, locale } = useI18n()
   const me = useCurrentUser()
   const location = useLocation()
   const navigate = useNavigate()
@@ -425,15 +426,17 @@ export function SignalsFeed() {
   })
 
   const planCode = feed.data?.plan_code ?? null
-  const planLabel = planCode ? t.reference.plans[planCode] : t.reference.loading
   const discoveryGrantCount = activationMoment
     && planCode === 'discovery'
     && postActivationBilling?.plan_code === 'discovery'
     ? postActivationBilling.discovery.granted_signal_count
     : null
   const signalCount = feed.data
-    ? `${discoveryGrantCount ?? items.length}${discoveryGrantCount === null && feed.data.page.has_more ? '+' : ''} · ${planLabel}`
-    : planLabel
+    ? interpolate(
+        plural(discoveryGrantCount ?? items.length, t.reference.signalsPage.signalCountOne, t.reference.signalsPage.signalCountOther),
+        { count: `${discoveryGrantCount ?? items.length}${discoveryGrantCount === null && feed.data.page.has_more ? '+' : ''}` },
+      )
+    : t.reference.loading
 
   const setSearchValue = (name: string, value: string) => {
     const params = new URLSearchParams(location.search)
@@ -452,13 +455,19 @@ export function SignalsFeed() {
   const displayAmount = (card: SignalCardView) => card.amount
     ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
     : t.reference.missingValue
-  const displayDate = (value: string | null) => date(value) ?? t.reference.missingValue
+  const displayDatedOn = (card: SignalCardView) => {
+    const formatted = date(card.eventDate)
+    if (!formatted || card.eventDateKind === 'unknown') return t.reference.signalsPage.unknownDate
+    return interpolate(t.reference.signalsPage.datedOn[card.eventDateKind], { date: formatted })
+  }
   const displayLocation = (card: SignalCardView) => {
     if (!card.location) return t.reference.missingValue
+    const countryTerritory = MVP_TERRITORIES.find((candidate) => candidate.code === card.location?.country)
     return [
       card.location.locality,
-      card.location.subdivision_code,
-      card.location.country,
+      card.location.postal_code,
+      card.location.subdivision_label ?? card.location.subdivision_code,
+      countryTerritory ? territoryLabel(countryTerritory, locale) : card.location.country,
     ].filter(Boolean).join(', ') || t.reference.missingValue
   }
   const cardStatus = (card: SignalCardView) => {
@@ -536,16 +545,31 @@ export function SignalsFeed() {
                 <span>{t.reference.signalsPage.statusFilter}</span>
                 <select value={filters.status} disabled={filterAccess?.status === false} onChange={(event) => setSearchValue('status', event.target.value)}>
                   <option value="">{t.reference.signalsPage.allStatuses}</option>
-                  {HISTORY_STATUSES.map((status) => <option value={status} key={status}>{status}</option>)}
+                  {HISTORY_STATUSES.map((status) => (
+                    <option value={status} key={status}>{t.reference.signalsPage.statusLabels[status]}</option>
+                  ))}
                 </select>
               </label>
               <label>
                 <span>{t.reference.signalsPage.sectorFilter}</span>
-                <input value={filters.cpv} maxLength={8} inputMode="numeric" disabled={filterAccess?.sector === false} onChange={(event) => setSearchValue('cpv', event.target.value.replace(/\D/g, ''))} />
+                <input
+                  value={filters.cpv}
+                  maxLength={8}
+                  inputMode="numeric"
+                  disabled={filterAccess?.sector === false}
+                  aria-label={t.reference.signalsPage.sectorFilter}
+                  aria-describedby={filterAccess?.sector === false ? 'history-filter-restricted' : undefined}
+                  onChange={(event) => setSearchValue('cpv', event.target.value.replace(/\D/g, ''))}
+                />
+                {filterAccess?.sector === false ? (
+                  <small className={styles.lockHint}>
+                    <LockKeyhole aria-hidden="true" /> {t.reference.signalsPage.restrictedShort}
+                  </small>
+                ) : null}
               </label>
             </div>
             {filterAccess && Object.values(filterAccess).some((allowed) => !allowed) ? (
-              <p className={styles.restrictedNote}>{t.reference.signalsPage.restrictedFilter}</p>
+              <p id="history-filter-restricted" className={styles.restrictedNote}>{t.reference.signalsPage.restrictedFilter}</p>
             ) : null}
           </section>
         ) : null}
@@ -620,15 +644,17 @@ export function SignalsFeed() {
                   <strong>{card.locked ? t.reference.missingValue : companyRow.name}</strong>
                   <span className={`data-status-${status.key}`}>{status.label}</span>
                 </span>
-                <span className={styles.awardCount}>
-                  {companyRow.cards.length} attribution{companyRow.cards.length > 1 ? 's' : ''}
-                </span>
+                {companyRow.cards.length > 1 ? (
+                  <span className={styles.awardCount}>
+                    {interpolate(t.reference.companiesPage.contractOther, { count: companyRow.cards.length })}
+                  </span>
+                ) : null}
                 <span className={styles.awardContexts}>
                   {companyRow.cards.map((award) => (
                     <span className={styles.awardContext} key={award.id}>
                       <strong>{award.eventTitle ?? t.reference.missingValue}</strong>
                       <small>
-                        {displayAmount(award)} · {displayLocation(award)} · {displayDate(award.eventDate)}
+                        {displayAmount(award)} · {displayLocation(award)} · {displayDatedOn(award)}
                       </small>
                     </span>
                   ))}
@@ -655,7 +681,7 @@ export function SignalsFeed() {
           <button type="button" className="text-link" disabled={loadingMore} onClick={() => void loadMore()}>
             {loadingMore ? t.reference.loading : t.reference.signalsPage.loadMore}
           </button>
-        ) : feed.data && companyRows.length > 0 ? <p className="signal-limit">{t.reference.signalsPage.endOfList}</p> : null}
+        ) : feed.data && companyRows.length > 0 && !feed.data.page.scan_truncated ? <p className="signal-limit">{t.reference.signalsPage.endOfList}</p> : null}
       </aside>
 
       <section

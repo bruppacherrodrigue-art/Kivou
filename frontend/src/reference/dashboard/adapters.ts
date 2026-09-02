@@ -352,6 +352,15 @@ export function publishedPresentation(value: unknown): CardPresentation | null {
   return value as unknown as CardPresentation
 }
 
+/** « 27920022400012 » → « 279 200 224 00012 ». Les autres schémas restent tels quels. */
+export function formatOfficialIdentifier(scheme: string | null, value: string | null): string | null {
+  if (!value) return null
+  if (scheme === 'SIRET' && /^\d{14}$/.test(value)) {
+    return `${value.slice(0, 3)} ${value.slice(3, 6)} ${value.slice(6, 9)} ${value.slice(9)}`
+  }
+  return value
+}
+
 /** Le type de date est celui choisi par le backend, jamais déduit du titre. */
 export function eventDateKind(
   clock: SignalEventClock,
@@ -501,6 +510,7 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
   return {
     signalId: detail.signal_id,
     id: detail.signal_id,
+    eventStatus: detail.event.status,
     eventAgeDays: detail.event.age_days,
     isNewOpportunity: detail.event.is_new_opportunity,
     locked: false,
@@ -534,6 +544,7 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
       awardDate: detail.contract.dates.award,
       execution: null,
       buyer: detail.contract.buyer?.name ?? null,
+      buyerIdentifier: detail.contract.buyer?.identifier ?? null,
       officialTitle: detail.contract.title,
       notice: detail.source.notice_id,
       cpv: detail.contract.cpv,

@@ -39,7 +39,12 @@ SIGNAL_NOTES_REVISION = "0027_signal_notes"
 #: direct de SIGNAL_NOTES_REVISION, et écraser ce lien ferait passer un test faux.
 CARD_PRESENTATION_REVISION = "0028_card_presentation"
 PRODUCTION_OBSERVATION_REVISION = "0029_production_observation"
-CURRENT_HEAD = "0030_winner_enrichment"
+#: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
+#: direct de PRODUCTION_OBSERVATION_REVISION, et écraser ce lien ferait passer un test faux.
+WINNER_ENRICHMENT_REVISION = "0030_winner_enrichment"
+FRENCH_OFFICIAL_COMPANY_REVISION = "0031_french_official_company"
+REQUEUE_SIRET_PLACEHOLDERS_REVISION = "0032_requeue_siret_placeholders"
+CURRENT_HEAD = "0033_requeue_unresolved_siret"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -126,6 +131,18 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
     assert script.get_revision(LEARNING_REVISION).down_revision == CONVERSION_REVISION
     assert (
         script.get_revision(CURRENT_HEAD).down_revision
+        == REQUEUE_SIRET_PLACEHOLDERS_REVISION
+    )
+    assert (
+        script.get_revision(REQUEUE_SIRET_PLACEHOLDERS_REVISION).down_revision
+        == FRENCH_OFFICIAL_COMPANY_REVISION
+    )
+    assert (
+        script.get_revision(FRENCH_OFFICIAL_COMPANY_REVISION).down_revision
+        == WINNER_ENRICHMENT_REVISION
+    )
+    assert (
+        script.get_revision(WINNER_ENRICHMENT_REVISION).down_revision
         == PRODUCTION_OBSERVATION_REVISION
     )
     assert (

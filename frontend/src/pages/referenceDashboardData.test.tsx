@@ -103,7 +103,7 @@ describe('vue d’ensemble de référence connectée aux données réelles', () 
     await act(async () => resolveFeed({ body: feedPage([UNLOCKED_ITEM]) as FeedPage }))
     await waitFor(() => expect(callsTo('/billing/status', 'GET')).toHaveLength(2))
 
-    expect(document.querySelector('.signal-count')).toHaveTextContent('3 · Découverte')
+    expect(document.querySelector('.signal-count')).toHaveTextContent('3 signaux')
     const paths = recordedCalls.map((call) => `${call.method} ${call.url}`)
     expect(paths.lastIndexOf('GET /billing/status')).toBeGreaterThan(paths.indexOf('GET /signals'))
   })

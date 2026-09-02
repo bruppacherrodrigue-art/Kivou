@@ -7,6 +7,7 @@ import type {
   PlanCatalogue,
   PlanCode,
 } from '../../api/types'
+import { withRenderableSpaces } from '../../i18n'
 import { ReferenceLink } from '../router/ReferenceLink'
 
 export type PricingState =
@@ -73,10 +74,10 @@ export function publicPrice(
   if (!price) return null
   return {
     currency: price.currency.toUpperCase(),
-    amount: new Intl.NumberFormat('fr-CH', {
+    amount: withRenderableSpaces(new Intl.NumberFormat('fr-CH', {
       minimumFractionDigits: price.amount_minor_units % 100 === 0 ? 0 : 2,
       maximumFractionDigits: 2,
-    }).format(price.amount_minor_units / 100),
+    }).format(price.amount_minor_units / 100)),
   }
 }
 
@@ -200,5 +201,5 @@ export function frenchCardinal(value: number): string {
     'dix', 'onze', 'douze', 'treize', 'quatorze', 'quinze', 'seize', 'dix-sept',
     'dix-huit', 'dix-neuf', 'vingt',
   ]
-  return words[value] ?? new Intl.NumberFormat('fr-CH').format(value)
+  return words[value] ?? withRenderableSpaces(new Intl.NumberFormat('fr-CH').format(value))
 }
