@@ -68,7 +68,8 @@ contract-notification date, publication date.
 - 91–180 days: `OUTBOUND_READY`;
 - 181–365 days: `OUTBOUND_READY` only if a published duration or end date
   indicates execution is still in progress on the evaluation date;
-- more than one year: dashboard-visible only for this Phase A demonstration.
+- more than one year: `OUTBOUND_READY` only if a published duration or end date
+  still indicates active execution; otherwise dashboard-visible only.
 
 An old award is never promoted merely to reach a target volume. The report
 publishes counts for 0–90, 91–180, 181–365 and more than one year, plus the
