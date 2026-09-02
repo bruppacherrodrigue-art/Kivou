@@ -1188,3 +1188,61 @@ git commit -m "test(visual): régénérer les goldens de la page Signaux après 
 - **Couverture de la spec :** A1 → T1 ; A2 → T2 + T3 ; A3 → T2 (complétude) ; A4 → T5 ; A5 → T4 ; A6 → T7 ; A7 → T6 ; A8 → T6 (chips) + T7 (grille) ; A9 → T7 ; A10 → T8. Rien du lot B n'est touché : `h2` du détail, `analysis`, tri, retour, casse.
 - **Cohérence des types :** `Place.subdivision_label` (T3) ↔ `contract.location.subdivision_label` (T2) ; `SignalDetailView.facts.buyerIdentifier` et `eventStatus` définis (T3, T6) avant usage ; `signalsPage.datedOn`, `ageDaysOne/Other` (T5), `statusLabels`, `restrictedShort` (T6), `signalCountOne/Other` (T7) déclarés en `fr` ET `en`.
 - **Risque connu :** l'import de `is_customer_display_name` dans `view.py` peut créer un cycle `query ↔ view` ; la tâche 2 dit quoi faire (module `identity_policy`).
+
+---
+
+### Task 9 : réaligner les tests de tête Alembic sur la chaîne 0031 → 0033
+
+**Files:**
+- Modify: les 23 fichiers de tests qui nomment `0030_winner_enrichment` comme tête (`grep -rln "0030_winner_enrichment" tests`), dont `tests/test_winner_enrichment_migration.py`, `tests/test_learning_migration.py`, `tests/test_saas_company_migration.py`, `tests/test_policy_persistence.py`, `tests/test_acquisition_migration.py`, `tests/test_billing_entitlements.py`, …
+- Ne PAS modifier : `tests/test_saas_company_architecture.py` (son échec est une décision d'architecture du fondateur, à remonter, pas à masquer), aucune migration, aucun code source.
+
+**Interfaces:**
+- Consumes : la chaîne réelle des migrations, à lire dans `src/signals/persistence/migrations/versions/` : `0030_winner_enrichment` → `0031_french_official_company` → `0032_requeue_siret_placeholders` → `0033_requeue_unresolved_siret` (vérifier chaque `down_revision` dans les fichiers avant d'écrire une seule assertion).
+- Produces : tous les tests « single additive head » verts avec `LATEST`/`HEAD` = `0033_requeue_unresolved_siret`, et la chaîne nommée maillon par maillon, comme le fait déjà `tests/test_learning_migration.py` (voir le commit `62afddb` : quand la tête avance, on AJOUTE les maillons intermédiaires nommés et on garde les assertions `down_revision` existantes).
+
+- [ ] **Step 1: Lister l'état de départ**
+
+Run: `uv run pytest -q tests/test_*_migration.py tests/test_policy_persistence.py tests/test_billing_entitlements.py tests/test_accounts_migration_and_ownership.py 2>&1 | tail -40`
+Expected: ~30 FAIL, tous sur `get_heads() == [...]`, `down_revision`, ou un `CURRENT_HEAD` codé en dur ; noter la liste exacte dans le rapport.
+
+- [ ] **Step 2: Lire la chaîne réelle**
+
+Run: `grep -n "^revision\|^down_revision" src/signals/persistence/migrations/versions/003[0-3]_*.py`
+Expected : `0031.down_revision == "0030_winner_enrichment"`, `0032.down_revision == "0031_french_official_company"`, `0033.down_revision == "0032_requeue_siret_placeholders"`. Si ce n'est pas le cas, STOP et rapporter.
+
+- [ ] **Step 3: Mettre à jour chaque fichier, dans le style du dépôt**
+
+Pour chaque fichier : la constante de tête (`HEAD`, `LATEST`, `CURRENT_HEAD`, …) passe à `"0033_requeue_unresolved_siret"` ; les maillons intermédiaires deviennent des constantes nommées (`WINNER_ENRICHMENT = "0030_winner_enrichment"`, `FRENCH_OFFICIAL_COMPANY = "0031_french_official_company"`, `REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"`) et la chaîne d'assertions `down_revision` est prolongée d'autant, sans supprimer un maillon existant. Un test qui vérifie que « sa » migration est un fichier présent (`.is_file()`) garde cette assertion. Un test qui compte les tables ajoutées par sa migration continue de faire `upgrade` jusqu'à SA révision, pas jusqu'à la tête, s'il était écrit ainsi. Ne pas factoriser les 23 fichiers dans un helper commun : le dépôt assume la répétition (mémoire « Tête Alembic codée en dur »).
+
+Exemple pour `tests/test_winner_enrichment_migration.py` :
+```python
+HEAD = "0033_requeue_unresolved_siret"
+REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
+FRENCH_OFFICIAL_COMPANY = "0031_french_official_company"
+WINNER_ENRICHMENT = "0030_winner_enrichment"
+# PREVIOUS reste la révision d'avant 0030, telle que le fichier la nomme déjà.
+...
+    assert scripts.get_heads() == [HEAD]
+    assert scripts.get_revision(HEAD).down_revision == REQUEUE_SIRET_PLACEHOLDERS
+    assert scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision == FRENCH_OFFICIAL_COMPANY
+    assert scripts.get_revision(FRENCH_OFFICIAL_COMPANY).down_revision == WINNER_ENRICHMENT
+    assert scripts.get_revision(WINNER_ENRICHMENT).down_revision == PREVIOUS
+    assert (pathlib.Path(scripts.versions) / "0030_winner_enrichment.py").is_file()
+```
+(adapter au vocabulaire de chaque fichier ; là où un test faisait `command.upgrade(config, HEAD)` pour compter « exactement N tables ajoutées par ma migration », vérifier s'il compare un schéma avant/après SA révision — si oui, garder SA révision comme borne, pas la tête).
+
+- [ ] **Step 4: Vérifier**
+
+Run: `uv run pytest -q tests/test_*_migration.py tests/test_policy_persistence.py tests/test_billing_entitlements.py tests/test_accounts_migration_and_ownership.py tests/test_acquisition_migration.py`
+Expected: tout PASS sauf `tests/test_acquisition_migration.py::test_projection_has_only_operationally_justified_indexes` (SQLite/alembic, préexistant, hors périmètre) — si ce test passe désormais, tant mieux, le dire.
+Puis : `uv run pytest -q tests/test_saas_company_architecture.py` — attendu : 1 FAIL (`httpx` dans `src/signals/companies/france.py`) ; ne pas le corriger, le documenter dans le rapport.
+Puis : `uv run ruff check tests`.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add tests/
+git commit -m "test(migrations): réaligner les têtes Alembic sur 0033_requeue_unresolved_siret"
+```
+(avec les deux lignes d'attribution).
