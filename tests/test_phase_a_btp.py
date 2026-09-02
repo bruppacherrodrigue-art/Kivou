@@ -49,6 +49,7 @@ def award(**changes: object) -> AwardSnapshot:
         "duration_value": 16,
         "duration_unit": "month",
         "source_system": "ted",
+        "source_country": "FR",
         "source_notice_id": "notice-1",
         "source_url": "https://ted.europa.eu/example",
         "dce_document_ids": (),

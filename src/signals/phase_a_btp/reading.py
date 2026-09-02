@@ -11,6 +11,7 @@ from signals.phase_a_btp.contracts import (
     ShowcaseSignal,
 )
 from signals.phase_a_btp.eligibility import evaluate
+from signals.understanding.text import plain_text
 
 _ROLES: dict[str, tuple[str, ...]] = {
     "roadworks_civil": (
@@ -97,6 +98,7 @@ def _needs(elements: tuple[str, ...]) -> tuple[PotentialNeed, ...]:
             value.startswith("Lieu d’exécution"),
             value.startswith("Durée"),
             value.startswith("Calendrier"),
+            value.startswith("Prestation détaillée"),
             value,
         ),
     )
@@ -141,15 +143,25 @@ def build_showcase_signal(award: AwardSnapshot, *, as_of: dt.date) -> ShowcaseSi
     if not eligibility.visible_dashboard:
         raise ValueError("showcase signals must be visible")
     assert award.awardee_name and award.event_date and award.source_url and award.cpv_main
-    object_text = award.title or award.lot_title or award.description
+    object_text = plain_text(award.title or award.lot_title or award.description)
     assert object_text
     specialty = _specialty(award)
     needs = _needs(eligibility.operational_elements)
     evidence_subject = _subject(needs[0].based_on)[1]
-    offer = award.target_offer_summary.strip() or "l’offre déclarée du fournisseur"
-    fit_reason = (
-        f"Ce signal peut correspondre à « {offer} » car la source publie {evidence_subject}."
+    offer_labels = {
+        "materials_and_components": "une offre de fournitures pour chantiers",
+        "equipment_rental": "une offre de location de matériel de chantier",
+        "specialist_subcontracting": "une offre de sous-traitance spécialisée",
+        "staffing_and_labour": "une offre de renfort de personnel de chantier",
+        "transport_and_logistics": "une offre de logistique de chantier",
+        "safety_equipment": "une offre d’équipements de sécurité",
+        "waste_and_environmental_services": "une offre de services environnementaux de chantier",
+    }
+    offer = next(
+        (offer_labels[value] for value in award.target_offers if value in offer_labels),
+        award.target_offer_summary.strip() or "l’offre déclarée du fournisseur",
     )
+    fit_reason = f"Ce signal peut correspondre à {offer} car la source publie {evidence_subject}."
     to_qualify: list[str] = []
     if not award.dce_document_ids:
         to_qualify.append("Quantités, références et exigences techniques exactes")
@@ -177,6 +189,7 @@ def build_showcase_signal(award: AwardSnapshot, *, as_of: dt.date) -> ShowcaseSi
             location=_location(award),
             cpv=award.cpv_main,
             source_system=award.source_system,
+            source_country=award.source_country,
             source_notice_id=award.source_notice_id,
             source_url=award.source_url,
         ),
@@ -184,7 +197,7 @@ def build_showcase_signal(award: AwardSnapshot, *, as_of: dt.date) -> ShowcaseSi
         potential_needs=needs,
         fit_reason=fit_reason,
         recommended_action=(
-            f"Qualifier auprès de {roles[0].lower()} la nature, le calendrier et le volume "
+            f"Qualifier auprès du {roles[0].lower()} la nature, le calendrier et le volume "
             f"du besoin lié à {evidence_subject}."
         ),
         contact_roles=roles,

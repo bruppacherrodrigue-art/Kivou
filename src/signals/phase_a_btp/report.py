@@ -40,7 +40,11 @@ def _choice_rank(award: AwardSnapshot, *, as_of: dt.date) -> tuple[object, ...]:
 def build_report(rows: Iterable[AwardSnapshot], *, as_of: dt.date) -> PhaseABtpReport:
     snapshots = tuple(rows)
     btp_rows = tuple(
-        row for row in snapshots if row.cpv_main is not None and row.cpv_main.startswith("45")
+        row
+        for row in snapshots
+        if row.source_country == "FR"
+        and row.cpv_main is not None
+        and row.cpv_main.startswith("45")
     )
     grouped: dict[str, list[AwardSnapshot]] = defaultdict(list)
     for row in btp_rows:

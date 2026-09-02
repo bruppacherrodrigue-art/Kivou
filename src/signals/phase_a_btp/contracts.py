@@ -68,6 +68,7 @@ class AwardSnapshot(Contract):
     duration_value: int | None = Field(default=None, ge=1)
     duration_unit: NonEmpty | None = None
     source_system: NonEmpty
+    source_country: Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]
     source_notice_id: NonEmpty
     source_url: NonEmpty | None = None
     dce_document_ids: tuple[NonEmpty, ...] = ()
@@ -102,6 +103,7 @@ class OfficialFacts(Contract):
     location: NonEmpty
     cpv: NonEmpty
     source_system: NonEmpty
+    source_country: NonEmpty
     source_notice_id: NonEmpty
     source_url: NonEmpty
 

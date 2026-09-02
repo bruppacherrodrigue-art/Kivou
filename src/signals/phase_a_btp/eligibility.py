@@ -15,6 +15,7 @@ from signals.phase_a_btp.contracts import (
     EnrichmentLevel,
     FreshnessBucket,
 )
+from signals.understanding.text import plain_text
 
 DASHBOARD_MAX_AGE_DAYS = 730
 
@@ -72,7 +73,19 @@ _OPERATIONAL_TERMS: tuple[tuple[str, str], ...] = (
     ("bassin", "Ouvrage publié : bassin"),
     ("reservoir", "Ouvrage publié : réservoir"),
     ("pomp", "Équipement publié : groupe de pompage"),
+    ("voie ferree", "Spécialité technique publiée : voie ferrée"),
+    ("catenaire", "Équipement publié : caténaire"),
 )
+_CPV_OPERATIONAL_CODES: dict[str, str] = {
+    "45112700": "Spécialité CPV publiée : aménagement paysager",
+    "45233140": "Spécialité CPV publiée : travaux routiers",
+    "45233142": "Spécialité CPV publiée : réparation de routes",
+    "45234000": "Spécialité CPV publiée : infrastructure ferroviaire",
+    "45243100": "Spécialité CPV publiée : protection de falaises",
+    "45262311": "Spécialité CPV publiée : gros œuvre en béton",
+    "45311200": "Spécialité CPV publiée : installation électrique",
+    "45443000": "Spécialité CPV publiée : travaux de façade",
+}
 
 
 def _normalized(value: str | None) -> str:
@@ -85,7 +98,7 @@ def _normalized(value: str | None) -> str:
 
 
 def _object_text(award: AwardSnapshot) -> str:
-    return award.lot_title or award.description or award.title or ""
+    return plain_text(award.lot_title or award.description or award.title) or ""
 
 
 def _specific_object(award: AwardSnapshot) -> bool:
@@ -112,7 +125,7 @@ def _precise_lot(award: AwardSnapshot) -> str | None:
     if candidate and _specific_object(award):
         return f"Lot précis publié : {candidate}"
     title = award.title or ""
-    match = re.search(r"\blot\s*(?:n[°o]?\s*)?\d+\s*[:\-]\s*([^;,.]{4,})", title, re.IGNORECASE)
+    match = re.search(r"\blot\s*(?:n[°o]?\s*)?\d+\s*[:\-]\s*([^;]{4,})", title, re.IGNORECASE)
     if match:
         return f"Lot précis publié : {match.group(1).strip()}"
     return None
@@ -123,13 +136,18 @@ def _operational_elements(award: AwardSnapshot) -> tuple[str, ...]:
     lot = _precise_lot(award)
     if lot:
         elements.append(lot)
-    if award.description and len(award.description.strip()) >= 40:
-        excerpt = " ".join(award.description.split())
+    description = plain_text(award.description)
+    boilerplate = "le detail est decrit dans le cahier des charges"
+    if description and len(description) >= 40 and boilerplate not in _normalized(description):
+        excerpt = " ".join(description.split())
         elements.append(f"Prestation détaillée publiée : {excerpt[:220]}")
     haystack = _normalized(" ".join(filter(None, (award.title, award.lot_title, award.description))))
     for marker, label in _OPERATIONAL_TERMS:
         if marker in haystack and label not in elements:
             elements.append(label)
+    cpv_element = _CPV_OPERATIONAL_CODES.get(award.cpv_main or "")
+    if cpv_element:
+        elements.append(cpv_element)
     if award.duration_value and award.duration_unit:
         elements.append(f"Durée publiée : {award.duration_value} {award.duration_unit}")
     if award.contract_start_date or award.contract_end_date:
@@ -150,8 +168,11 @@ def _concrete_information(award: AwardSnapshot) -> tuple[str, ...]:
         facts.append("amount")
     if _precise_lot(award):
         facts.append("precise_lot")
-    if award.description and len(award.description.strip()) >= 40:
-        facts.append("detailed_service")
+    description = plain_text(award.description)
+    if description and len(description) >= 40:
+        # Presence is a concrete source field for the two-information gate.
+        # Boilerplate is still excluded from operational elements and needs.
+        facts.append("published_description")
     if award.cpv_additional:
         facts.append("additional_cpv")
     if award.duration_value and award.duration_unit:
@@ -208,7 +229,9 @@ def evaluate(award: AwardSnapshot, *, as_of: dt.date) -> EligibilityResult:
     concrete = _concrete_information(award)
     reasons: list[str] = []
 
-    if not (award.cpv_main and award.cpv_main.startswith("45")):
+    if award.source_country != "FR" or not (
+        award.cpv_main and award.cpv_main.startswith("45")
+    ):
         reasons.append("outside_france_btp_cpv")
     if not _clear_awardee(award.awardee_name):
         reasons.append("awardee_name_missing")
