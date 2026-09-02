@@ -182,6 +182,10 @@ a:focus-visible {
   outline-offset: 3px;
 }
 
+#detail-title[data-programmatic-focus="true"]:focus-visible {
+  outline: none;
+}
+
 .dashboard-provider {
   min-height: 100svh;
   background: var(--canvas);
@@ -723,6 +727,23 @@ a:focus-visible {
 
 .signal-document .facts-source-row {
   justify-content: flex-end;
+}
+
+.signal-context-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 14px;
+}
+
+.signal-context-strip span {
+  padding: 5px 8px;
+  border: 1px solid var(--brand-border);
+  border-radius: 999px;
+  background: var(--green-state);
+  color: var(--forest);
+  font-size: 10px;
+  font-weight: 680;
 }
 
 #signal-detail,
@@ -1908,7 +1929,7 @@ a:focus-visible {
   color: inherit;
   font: inherit;
   text-align: left;
-  cursor: pointer;
+  cursor: default;
   transition: border-color 150ms ease, box-shadow 150ms ease, background-color 150ms ease;
 }
 
@@ -3856,11 +3877,7 @@ a:focus-visible {
 }
 
 #signal-detail .detail-hero h2 {
-  display: -webkit-box;
-  overflow: hidden;
   overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
 }
 
 .signal-presentation-hero > div:first-child {

@@ -501,6 +501,8 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
   return {
     signalId: detail.signal_id,
     id: detail.signal_id,
+    eventAgeDays: detail.event.age_days,
+    isNewOpportunity: detail.event.is_new_opportunity,
     locked: false,
     eventDate: factual?.date.value ?? detail.event.date,
     eventDateKind: factual?.date.kind ?? eventDateKind(detail.event.clock, detail.event.status),
@@ -517,7 +519,7 @@ export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
     companyKey: detail.company_key ?? null,
     companyCountry: detail.company.country,
     companyIdentifier: detail.company.identifier,
-    targetProfileLabel: null,
+    targetProfileLabel: detail.analysis.fit.target_icp_label,
     sourceSystem: detail.source.system,
     summary: presentation?.content.award_summary ?? factual?.market_summary ?? null,
     brief: {

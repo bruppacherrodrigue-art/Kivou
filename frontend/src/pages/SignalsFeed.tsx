@@ -56,6 +56,11 @@ interface ResourceState<T> {
   error: unknown | null
 }
 
+interface PendingDetailFocus {
+  key: string
+  keyboard: boolean
+}
+
 interface FeedFilters {
   view: 'recent' | 'history'
   dateFrom: string
@@ -148,8 +153,8 @@ export function SignalsFeed() {
   const lastSelection = useRef<string | null>(null)
   const previousLocationKey = useRef(location.key)
   const initialFocusRestored = useRef(false)
-  const pendingDetailFocus = useRef<string | null>(
-    signalKey && singlePane ? signalKey : null,
+  const pendingDetailFocus = useRef<PendingDetailFocus | null>(
+    signalKey && singlePane ? { key: signalKey, keyboard: false } : null,
   )
 
   const [activationMoment] = useState(
@@ -311,13 +316,22 @@ export function SignalsFeed() {
   useEffect(() => {
     if (
       !pendingDetailFocus.current
-      || pendingDetailFocus.current !== selectedKey
+      || pendingDetailFocus.current.key !== selectedKey
       || detail.key !== selectedKey
       || detail.loading
     ) return
     const frame = window.requestAnimationFrame(() => {
       const title = detailPanelRef.current?.querySelector<HTMLElement>('#detail-title')
       if (!title) return
+      const pendingFocus = pendingDetailFocus.current
+      if (!pendingFocus || pendingFocus.key !== selectedKey) return
+      if (pendingFocus.keyboard) delete title.dataset.programmaticFocus
+      else {
+        title.dataset.programmaticFocus = 'true'
+        title.addEventListener('blur', () => {
+          delete title.dataset.programmaticFocus
+        }, { once: true })
+      }
       title.focus({ preventScroll: true })
       pendingDetailFocus.current = null
     })
@@ -329,7 +343,9 @@ export function SignalsFeed() {
     previousLocationKey.current = location.key
     const selection = readSelectionState(location.state)
     if (signalKey && singlePane) {
-      pendingDetailFocus.current = signalKey
+      if (pendingDetailFocus.current?.key !== signalKey) {
+        pendingDetailFocus.current = { key: signalKey, keyboard: false }
+      }
       return
     }
     const focusKey = selection?.key ?? lastSelection.current
@@ -354,11 +370,20 @@ export function SignalsFeed() {
     return () => window.cancelAnimationFrame(frame)
   }, [items, location.state])
 
-  const cards = items.map(toSignalCard)
+  const visibleDetail = detail.key === selectedKey
+    ? detail
+    : { key: selectedKey, data: null, loading: Boolean(selectedKey), error: null }
+  const contextItem = visibleDetail.data
+    && !visibleDetail.data.locked
+    && !items.some((item) => item.signal_id === visibleDetail.data?.signal_id)
+    ? visibleDetail.data
+    : null
+  const displayedItems = contextItem ? [contextItem, ...items] : items
+  const cards = displayedItems.map(toSignalCard)
   const companyRows = (() => {
     const grouped = new Map<string, { key: string; name: string | null; cards: SignalCardView[] }>()
     cards.forEach((card, index) => {
-      const item = items[index]
+      const item = displayedItems[index]
       const companyKey = !item.locked && item.company_key
         ? `company:${item.company_key}`
         : `signal:${card.id}`
@@ -368,9 +393,6 @@ export function SignalsFeed() {
     })
     return [...grouped.values()]
   })()
-  const visibleDetail = detail.key === selectedKey
-    ? detail
-    : { key: selectedKey, data: null, loading: Boolean(selectedKey), error: null }
   const detailView = visibleDetail.data && !visibleDetail.data.locked
     ? toSignalDetailView(visibleDetail.data)
     : null
@@ -582,7 +604,12 @@ export function SignalsFeed() {
                     })
                     return
                   }
-                  if (singlePane || event.detail === 0) pendingDetailFocus.current = card.id
+                  if (singlePane || event.detail === 0) {
+                    pendingDetailFocus.current = {
+                      key: card.id,
+                      keyboard: event.detail === 0,
+                    }
+                  }
                   navigate(`/app/signals/${encodeURIComponent(card.id)}${location.search}`, {
                     state: selectionState(card.id, location.search, true),
                   })

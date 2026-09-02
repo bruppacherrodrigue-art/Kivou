@@ -20,6 +20,7 @@
   justify-content: space-between;
   gap: 10px;
   color: inherit;
+  cursor: pointer;
   text-decoration: none;
 }
 
@@ -66,6 +67,7 @@
   border-radius: 8px;
   background: var(--surface-subtle);
   color: inherit;
+  cursor: pointer;
   text-decoration: none;
   transition: background-color 150ms ease, box-shadow 150ms ease;
 }
@@ -181,5 +183,12 @@
   .companyMeta {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .compactMeta {
+    overflow: visible;
+    overflow-wrap: anywhere;
+    text-overflow: clip;
+    white-space: normal;
   }
 }

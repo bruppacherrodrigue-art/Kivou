@@ -2,7 +2,7 @@ import { ArrowRight, ExternalLink, FileCheck2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { CompanyProfile } from '../../api/types'
 import { MVP_TERRITORIES, territoryLabel } from '../../api/capabilities'
-import { useI18n } from '../../i18n'
+import { interpolate, useI18n } from '../../i18n'
 import type { SignalDetailView } from './models'
 import { Textarea } from './ui/textarea'
 import type { NoteSaveState } from './useSignalNote'
@@ -99,10 +99,23 @@ export function ReferenceSignalDetail({
     { label: eventDateLabel, value: eventDateValue },
     { label: t.reference.fields.location, value: location },
     { label: t.reference.fields.signalBuyer, value: detail.buyerName ?? missing },
+    { label: 'CPV', value: detail.facts.cpv ?? missing },
   ]
 
   const identity = companyProfile?.official_identity
   const companyName = identity?.name ?? detail.companyName ?? missing
+  const displayTitle = detail.title ?? companyName
+  const displaySummary = detail.summary?.trim() || null
+  const normalizedTitle = comparableText(displayTitle)
+  const normalizedSummary = comparableText(displaySummary)
+  const normalizedSummaryStem = normalizedSummary.replace(/[.…]+$/u, '').trim()
+  const showSummary = Boolean(
+    displaySummary
+    && normalizedSummary
+    && normalizedSummary !== normalizedTitle
+    && !normalizedSummary.startsWith(normalizedTitle)
+    && !normalizedTitle.startsWith(normalizedSummaryStem),
+  )
   const sourceUrl = safeHttpsUrl(detail.facts.sourceUrl)
   const factualStatus = detail.factualCompleteness ?? 'to_verify'
   const commercialPresentation = detail.presentation?.status === 'PASS'
@@ -128,8 +141,18 @@ export function ReferenceSignalDetail({
       <header className="detail-hero signal-presentation-hero">
         <div>
           <p className="section-label">{copy.winnerCompany}</p>
-          <h2 id="detail-title" tabIndex={-1}>{detail.title ?? companyName}</h2>
-          <p className="detail-summary">{detail.summary ?? missing}</p>
+          <h2 id="detail-title" tabIndex={-1}>{displayTitle}</h2>
+          {showSummary ? <p className="detail-summary">{displaySummary}</p> : null}
+          <div className="signal-context-strip" aria-label={copy.signalContext}>
+            {detail.isNewOpportunity ? <span>{copy.newOpportunity}</span> : null}
+            <span>{detail.brief.whyNow}</span>
+            {detail.eventAgeDays !== null ? (
+              <span>{interpolate(copy.ageDays, { count: detail.eventAgeDays })}</span>
+            ) : null}
+            {detail.targetProfileLabel ? (
+              <span>{interpolate(copy.targetProfile, { profile: detail.targetProfileLabel })}</span>
+            ) : null}
+          </div>
           {commercialPresentation ? (
             <p className="signal-limit" role="note">{copy.presentationDataNotice}</p>
           ) : null}
@@ -261,4 +284,8 @@ function safeHttpsUrl(value: string | null): string | null {
   } catch {
     return null
   }
+}
+
+function comparableText(value: string | null): string {
+  return value?.normalize('NFKC').replace(/\s+/g, ' ').trim().toLocaleLowerCase() ?? ''
 }
