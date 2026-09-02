@@ -201,7 +201,7 @@ describe('feed de signaux dans le workspace de référence', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     const rows = await screen.findAllByRole('button', { name: /Ouvrir le signal/ })
-    expect(rows[0].textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('92350, Hauts-de-Seine, FR')
+    expect(rows[0].textContent?.replace(/\u202f|\u00a0/g, ' ')).toContain('92350, Hauts-de-Seine, France')
   })
 
   it('rend le calendrier et la justification du serveur sans recalcul navigateur', async () => {

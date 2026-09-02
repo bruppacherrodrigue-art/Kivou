@@ -261,6 +261,7 @@ async function waitForScenario(
     // t.reference.signalsPage.analysisUnavailable n'est plus rendu par
     // ReferenceSignalDetail (orphelin depuis b44686b, avant ce lot) : le
     // panneau FACTUAL_FALLBACK n'affiche plus cette note de réassurance.
+    // — voir docs/superpowers/specs/2026-09-02-signals-feed-sales-fixes-design.md §6 (écart 1)
     await expect(page.getByText(
       'Analyse commerciale non disponible pour ce signal. Les informations affichées ci-dessous proviennent des sources vérifiées.',
       { exact: true },
@@ -289,6 +290,7 @@ async function waitForScenario(
     // n'existent plus dans ReferenceSignalDetail (retirés dès b44686b, avant
     // ce lot) : le panneau ne rend plus de section « Historique des
     // attributions » ni « Source officielle et preuves » séparée.
+    // — voir docs/superpowers/specs/2026-09-02-signals-feed-sales-fixes-design.md §6 (écart 1)
     expect(factualOrder.every((position) => position >= 0)).toBe(true)
     expect(factualOrder).toEqual([...factualOrder].sort((left, right) => left - right))
     await expect(page.locator('.detail-panel details')).toHaveCount(0)

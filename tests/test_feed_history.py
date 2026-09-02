@@ -7,9 +7,22 @@ import pathlib
 
 import pytest
 import sqlalchemy as sa
-from feed_helpers import make_account, make_icp, materialize, simap_award
+from billing_helpers import subscribe
+from fastapi.testclient import TestClient
+from feed_helpers import (
+    COMPLETE_ICP_INPUT,
+    ORIGIN,
+    PASSWORD,
+    make_account,
+    make_icp,
+    materialize,
+    pin_session_cookie,
+    simap_award,
+)
 
 from signals.accounts.schema import target_icp
+from signals.api import ApiConfig, create_app
+from signals.domain.values import Location
 from signals.feed.history import (
     HistoryCursor,
     InvalidHistoryCursor,
@@ -330,3 +343,58 @@ def test_history_skips_non_renderable_batches_and_stale_icp_revisions(engine, ac
     assert [item.signal.signal_key for item in page.items] == [visible_key]
     assert page.excluded_without_display_name == 1
     assert stale.items == ()
+
+
+def test_the_subdivision_filter_compares_the_derived_department(engine) -> None:
+    """§26 — le filtre porte sur la subdivision DÉRIVÉE, pas seulement publiée.
+
+    Un signal antérieur à ce lot ne porte aucun `subdivision_code` STOCKÉ : le
+    connecteur n'écrivait alors que le code postal. La carte et le détail
+    dérivent déjà `FR-92` à la lecture (`location_subdivision`) ; comparer la
+    valeur brute exclurait ce même signal du filtre qui le montre pourtant.
+    """
+    now = dt.datetime.combine(READ_ON, dt.time(9, 0), tzinfo=dt.UTC)
+    app = create_app(
+        engine,
+        ApiConfig(cookie_secure=False, allowed_origin=ORIGIN, session_ttl=dt.timedelta(days=365)),
+        now_override=lambda: now,
+    )
+    client = TestClient(app, headers={"Origin": ORIGIN})
+    signup = client.post(
+        "/auth/signup",
+        json={
+            "email": "subdivision-filter@kivou.eu",
+            "password": PASSWORD,
+            "company_name": "Subdivision Filter",
+            "locale": "fr",
+        },
+    )
+    assert signup.status_code == 201, signup.text
+    pin_session_cookie(client, signup)
+    account_id = client.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        subscribe(connection, account_id=account_id, plan="scale", subscription_id="sub_hist_subdiv", now=now)
+
+    icp_id = client.post(
+        "/target-icps", json={"label": "Subdivision", "customer_input": COMPLETE_ICP_INPUT}
+    ).json()["target_icp_id"]
+
+    with engine.begin() as connection:
+        event, awards = simap_award(NAMES[0])
+        award = awards[0].model_copy(
+            update={
+                "award_date": dt.date(2026, 8, 13),
+                # Aucun `subdivision_code` publié : seul le code postal l'est,
+                # exactement le cas DECP 2022 antérieur à ce lot.
+                "place_of_performance": Location(country="FR", postal_code="92350"),
+            }
+        )
+        materialize(connection, event, award, target_icp_id=icp_id)
+
+    matched = client.get("/signals?view=history&subdivision_code=FR-92")
+    assert matched.status_code == 200, matched.text
+    assert len(matched.json()["items"]) == 1
+
+    unmatched = client.get("/signals?view=history&subdivision_code=FR-75")
+    assert unmatched.status_code == 200, unmatched.text
+    assert unmatched.json()["items"] == []

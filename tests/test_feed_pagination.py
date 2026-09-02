@@ -337,14 +337,33 @@ def test_nameless_rows_do_not_consume_the_scan_cap(client, icp, engine, monkeypa
 
 def test_the_row_ceiling_still_announces_truncation(client, icp, engine, monkeypatch):
     """Le plafond absolu de lignes lues borne le coût ; quand il tombe avant la
-    fin, la troncature est dite, jamais tue."""
-    from signals.feed import query
+    fin, la troncature est dite, jamais tue — même quand aucun candidat lu
+    n'était affichable (rien à opposer au plafond des candidats affichables,
+    §285)."""
+    import sqlalchemy as sa
 
-    seed(engine, icp, count=5)
-    monkeypatch.setattr(policy, "CANDIDATE_SCAN_CAP", 1)
+    from signals.feed import query
+    from signals.persistence.schema import materialized_signal
+
+    seed(engine, icp, count=1)
+    nameless: list[str] = []
+    with engine.begin() as connection:
+        for name in SIMAP_NAMES[1:4]:
+            event, awards = simap_award(name)
+            award = _strip_legal_names(awards[0].model_copy(update={"award_date": AWARDED_FROM}))
+            nameless.append(materialize(connection, event, award, target_icp_id=icp).signal_key)
+        # Les lignes sans nom sont les plus récemment matérialisées : elles
+        # sont donc lues en premier, et consomment seules le plafond absolu.
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key.in_(nameless))
+            .values(materialized_at=dt.datetime(2026, 8, 18, 10, 0, tzinfo=dt.UTC))
+        )
+    monkeypatch.setattr(policy, "CANDIDATE_SCAN_CAP", 2)
     monkeypatch.setattr(query, "RECENT_SCAN_BATCH", 1)
-    monkeypatch.setattr(query, "RECENT_SCAN_ROW_FACTOR", 2)
+    monkeypatch.setattr(query, "RECENT_SCAN_ROW_FACTOR", 1)
 
     body = page(client, limit=50)
+    assert body["items"] == []
+    assert body["excluded"]["without_display_name"] == 2
     assert body["page"]["scan_truncated"] is True
-    assert len(body["items"]) == 1

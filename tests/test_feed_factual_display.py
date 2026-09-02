@@ -272,6 +272,35 @@ def test_a_buyer_known_only_by_its_siret_has_no_name(client, decp_like_signal):
     assert buyer["identifier"] == {"scheme": "SIRET", "value": "27920022400012"}
 
 
+def test_a_named_buyer_further_down_the_list_is_not_hidden_by_a_siret_only_first(
+    client, icp, engine
+):
+    """§19 — un second acheteur nommé compte, même quand le premier n'a qu'un
+    SIREN. Le premier acheteur n'a pas de statut privilégié sur le nom."""
+    from signals.domain.values import OrganizationIdentifier, OrganizationRef
+
+    unnamed_siren = "552032534"
+    unnamed = OrganizationRef(
+        legal_name=unnamed_siren,
+        identifiers=(OrganizationIdentifier(scheme="SIREN", value=unnamed_siren),),
+        country="FR",
+    )
+    named = OrganizationRef(
+        legal_name="Métropole de Lyon",
+        identifiers=(OrganizationIdentifier(scheme="SIREN", value="200046977"),),
+        country="FR",
+    )
+    event, awards = simap_award("33112-02")
+    event = event.model_copy(update={"procedure_buyers": (unnamed, named)})
+    with engine.begin() as connection:
+        signal = materialize(connection, event, awards[0], target_icp_id=icp)
+
+    body = client.get(f"/signals/{signal.signal_key}").json()
+    buyer = body["contract"]["buyer"]
+    assert buyer["name"] == "Métropole de Lyon"
+    assert buyer["identifier"] == {"scheme": "SIREN", "value": "200046977"}
+
+
 def test_a_postal_code_yields_a_department_and_its_label(client, decp_like_signal):
     body = client.get(f"/signals/{decp_like_signal.signal_key}").json()
     location = body["contract"]["location"]

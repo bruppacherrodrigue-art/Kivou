@@ -87,3 +87,40 @@ enrichissement des titulaires DECP à la matérialisation.
 - `main` ne se modifie pas directement ; PR obligatoire ; CI verte.
 - Tests hors ligne uniquement.
 - Les textes existent en `fr` ET `en`.
+
+## 6. Écarts connus à la date du lot A (hors périmètre)
+
+Constatés pendant la revue de branche complète qui a produit la vague de
+correctifs finale du lot A. Aucun n'est traité ici : ils sont consignés pour
+que le lot B (ou une tâche dédiée) les reprenne en connaissance de cause.
+
+1. **Trois sections perdues par le commit `b44686b`** de la branche de
+   design, avant même le début du lot A : le texte du statut de complétude
+   dans `.published-status`, le paragraphe `analysisUnavailable`, et les
+   sections « historique des attributions » et « source et preuves » avec
+   leur `<details>`. `ReferenceSignalDetail` ne les rend plus. Les
+   assertions Playwright qui les vérifiaient ont été inversées ou
+   collapsées vers « n'existe plus » dans `reference-port.spec.ts` pour
+   rester honnêtes sur ce que la page rend réellement — voir les
+   commentaires qui y citent `b44686b`.
+2. **Les migrations `0032` et `0033` ne sont plus rejouables hors ligne
+   au-delà de `0031`.** Elles exécutent des `SELECT`/`UPDATE` en direct
+   contre la connexion pour décider quelles lignes requeue, ce qui
+   n'existe pas en mode `alembic upgrade --sql` (génération de SQL sans
+   connexion réelle). `tests/test_compliance_migration.py` a donc dû être
+   borné à `0014_compliance` (`COMPLIANCE`), pas à la tête de chaîne
+   courante (`CURRENT_HEAD = 0033_requeue_unresolved_siret`), pour son
+   test de génération SQL PostgreSQL hors ligne.
+3. **90 tests vitest et 9 goldens Playwright d'autres pages** échouaient
+   déjà sur la branche de design avant le lot A — listés dans
+   `.superpowers/sdd/2026-09-02-signals-feed-sales-fixes-lot-a/baseline-vitest-failures-9de4d0f.txt`
+   et `.superpowers/sdd/2026-09-02-signals-feed-sales-fixes-lot-a/playwright-results-8236aa8.txt`
+   (`dashboard-login`, `dashboard-overview`, `dashboard-companies`,
+   `dashboard-account`, `dashboard sidebar open mobile`). Le lot A n'a pas
+   ajouté à ces échecs, mais ne les corrige pas non plus ; à traiter avec
+   le lot B.
+4. **`test_saas_company_architecture.py` échoue** parce que
+   `companies/france.py` utilise `httpx` pour appeler l'Annuaire des
+   entreprises — décision d'architecture du fondateur, distincte du refus
+   générique d'appels réseau à la lecture que ce test vérifie par
+   ailleurs.
