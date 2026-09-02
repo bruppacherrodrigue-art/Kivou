@@ -452,7 +452,11 @@ export function SignalsFeed() {
   const displayAmount = (card: SignalCardView) => card.amount
     ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
     : t.reference.missingValue
-  const displayDate = (value: string | null) => date(value) ?? t.reference.missingValue
+  const displayDatedOn = (card: SignalCardView) => {
+    const formatted = date(card.eventDate)
+    if (!formatted || card.eventDateKind === 'unknown') return t.reference.signalsPage.unknownDate
+    return interpolate(t.reference.signalsPage.datedOn[card.eventDateKind], { date: formatted })
+  }
   const displayLocation = (card: SignalCardView) => {
     if (!card.location) return t.reference.missingValue
     return [
@@ -629,7 +633,7 @@ export function SignalsFeed() {
                     <span className={styles.awardContext} key={award.id}>
                       <strong>{award.eventTitle ?? t.reference.missingValue}</strong>
                       <small>
-                        {displayAmount(award)} · {displayLocation(award)} · {displayDate(award.eventDate)}
+                        {displayAmount(award)} · {displayLocation(award)} · {displayDatedOn(award)}
                       </small>
                     </span>
                   ))}

@@ -174,6 +174,21 @@ describe('feed de signaux dans le workspace de référence', () => {
     expect(rows[1]).toHaveTextContent('Deuxième selon le serveur SA')
   })
 
+  it('dit de quelle date il s’agit sur la carte', async () => {
+    const item = {
+      ...UNLOCKED_ITEM,
+      factual_display: {
+        ...UNLOCKED_ITEM.factual_display,
+        date: { value: '2026-08-19', kind: 'notification' as const },
+      },
+    }
+    mockApi(feedWith([item]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const rows = await screen.findAllByRole('button', { name: /Ouvrir le signal/ })
+    expect(rows[0].textContent).toContain('Notifié le 19 août 2026')
+  })
+
   it('affiche le département dérivé à la place du seul pays', async () => {
     const item = {
       ...UNLOCKED_ITEM,

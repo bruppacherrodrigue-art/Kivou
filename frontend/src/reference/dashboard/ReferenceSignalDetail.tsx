@@ -2,7 +2,7 @@ import { ArrowRight, ExternalLink, FileCheck2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import type { CompanyProfile } from '../../api/types'
 import { MVP_TERRITORIES, territoryLabel } from '../../api/capabilities'
-import { interpolate, useI18n } from '../../i18n'
+import { interpolate, plural, useI18n } from '../../i18n'
 import { formatOfficialIdentifier } from './adapters'
 import type { SignalDetailView } from './models'
 import { Textarea } from './ui/textarea'
@@ -157,7 +157,7 @@ export function ReferenceSignalDetail({
             {detail.isNewOpportunity ? <span>{copy.newOpportunity}</span> : null}
             <span>{detail.brief.whyNow}</span>
             {detail.eventAgeDays !== null ? (
-              <span>{interpolate(copy.ageDays, { count: detail.eventAgeDays })}</span>
+              <span>{interpolate(plural(detail.eventAgeDays, copy.ageDaysOne, copy.ageDaysOther), { count: detail.eventAgeDays })}</span>
             ) : null}
             {detail.targetProfileLabel ? (
               <span>{interpolate(copy.targetProfile, { profile: detail.targetProfileLabel })}</span>

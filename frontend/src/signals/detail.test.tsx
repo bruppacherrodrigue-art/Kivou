@@ -166,6 +166,11 @@ describe('détail factuel d’un signal', () => {
     if (kind === 'publication') expect(within(facts).queryByText("Date d’attribution")).toBeNull()
   })
 
+  it('accorde l’âge du signal', async () => {
+    renderDetail({ detail: detailFixture({ event: { ...UNLOCKED_DETAIL.event, age_days: 1 } }) })
+    expect(await screen.findByText('Il y a 1 jour')).toBeVisible()
+  })
+
   it('distingue sans ambiguïté entreprise gagnante et acheteur', () => {
     renderDetail()
 
