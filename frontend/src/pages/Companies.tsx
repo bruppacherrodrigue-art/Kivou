@@ -18,9 +18,10 @@ import {
 import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
 import { companies, signals } from '../api/endpoints'
 import { ApiError } from '../api/client'
-import type {
-  CompanyProfile as CompanyProfilePayload,
-  UnlockedFeedItem,
+import {
+  isLocked,
+  type CompanyProfile as CompanyProfilePayload,
+  type UnlockedFeedItem,
 } from '../api/types'
 import { interpolate, plural, useI18n } from '../i18n'
 import { publishedPresentation } from '../reference/dashboard/adapters'
@@ -34,6 +35,13 @@ import {
   companySignalHref,
 } from './CompanyProfile'
 import styles from './Companies.module.css'
+
+/*
+ * Company access is normally derived from the paginated signal feed. A direct
+ * signal link can legitimately point outside that current page, so its detail
+ * is folded into the same in-memory projection below when needed.
+ */
+type ContextStatus = 'idle' | 'loading' | 'ready' | 'error'
 
 const FEED_LIMIT = 20
 const SINGLE_PANE_QUERY = '(max-width: 1179px)'
@@ -143,6 +151,8 @@ export function Companies() {
   const orderedItemsRef = useRef<UnlockedFeedItem[]>([])
   const mounted = useRef(false)
   const accessGeneration = useRef(0)
+  const contextGeneration = useRef(0)
+  const [contextStatus, setContextStatus] = useState<ContextStatus>('idle')
   const [profile, setProfile] = useState<CompanyProfilePayload | null>(null)
   const [profileStatus, setProfileStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle')
   const [profileError, setProfileError] = useState<unknown>(null)
@@ -235,6 +245,7 @@ export function Companies() {
     return () => {
       mounted.current = false
       accessGeneration.current += 1
+      contextGeneration.current += 1
       profileGeneration.current += 1
     }
   }, [loadAccess])
@@ -309,6 +320,56 @@ export function Companies() {
       : null
   ), [requestedSignalId, selectedCompany])
   const selectedKey = selectedCompany && selectedSignal ? selectedCompany.key : null
+
+  useEffect(() => {
+    if (access.status !== 'ready' || !companyKey || !requestedSignalId) {
+      contextGeneration.current += 1
+      setContextStatus('idle')
+      return
+    }
+    if (selectedCompany && selectedSignal) {
+      setContextStatus('ready')
+      return
+    }
+
+    const generation = ++contextGeneration.current
+    setContextStatus('loading')
+    void signals.detail(requestedSignalId).then((detail) => {
+      if (!mounted.current || contextGeneration.current !== generation) return
+      if (
+        isLocked(detail)
+        || detail.signal_id !== requestedSignalId
+        || detail.company_key !== companyKey
+        || !detail.company.name
+      ) {
+        setContextStatus('error')
+        return
+      }
+      if (!orderedItemsRef.current.some((item) => item.signal_id === detail.signal_id)) {
+        orderedItemsRef.current.unshift(detail)
+      }
+      const current = accessRef.current
+      publishAccess({
+        ...current,
+        companies: companiesFrom(orderedItemsRef.current),
+      })
+      setContextStatus('ready')
+    }).catch(() => {
+      if (!mounted.current || contextGeneration.current !== generation) return
+      setContextStatus('error')
+    })
+
+    return () => {
+      if (contextGeneration.current === generation) contextGeneration.current += 1
+    }
+  }, [
+    access.status,
+    companyKey,
+    publishAccess,
+    requestedSignalId,
+    selectedCompany,
+    selectedSignal,
+  ])
 
   useEffect(() => {
     if (
@@ -595,6 +656,7 @@ export function Companies() {
         requestedSignalId,
         selectedCompany,
         selectedSignal,
+        contextStatus,
         profile,
         profileKey,
         profileStatus,
@@ -626,6 +688,7 @@ function renderDetail({
   requestedSignalId,
   selectedCompany,
   selectedSignal,
+  contextStatus,
   profile,
   profileKey,
   profileStatus,
@@ -649,6 +712,7 @@ function renderDetail({
   requestedSignalId: string | null
   selectedCompany: AuthorizedCompany | null
   selectedSignal: AuthorizedCompanySignal | null
+  contextStatus: ContextStatus
   profile: CompanyProfilePayload | null
   profileKey: string | null
   profileStatus: 'idle' | 'loading' | 'ready' | 'error'
@@ -693,6 +757,13 @@ function renderDetail({
       companyKey ? retryAccess : undefined,
     )
   }
+
+  if (
+    companyKey
+    && requestedSignalId
+    && (!selectedCompany || !selectedSignal)
+    && contextStatus !== 'error'
+  ) return message(loading, copy.resolvingAccess, 'status', undefined, true)
 
   const incomplete = access.unresolved.length > 0
     || access.nextOffset !== null
