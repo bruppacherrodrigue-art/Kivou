@@ -48,6 +48,7 @@ account = sa.Table(
     sa.Column("display_name", sa.String(256), nullable=False),
     sa.Column("locale", sa.String(8), nullable=False),
     sa.Column("onboarding_status", sa.String(32), nullable=False),
+    sa.Column("last_seen_at", sa.DateTime(timezone=True)),
     *_timestamps(),
 )
 
