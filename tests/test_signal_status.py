@@ -191,3 +191,52 @@ def test_history_counts_truncated_when_the_scan_cap_is_hit(client, icp, engine, 
     monkeypatch.setattr(query, "HISTORY_SCAN_CAP", 2)
     body = client.get("/signals?view=history&limit=50").json()
     assert body["counts_truncated"] is True
+
+
+def _walk_history(client, params: str, first_page: dict) -> list[str]:
+    """Épuise `view=history` en suivant `next_cursor`, borné pour ne jamais boucler."""
+    seen = [item["signal_id"] for item in first_page["items"]]
+    cursor = first_page["page"]["next_cursor"]
+    has_more = first_page["page"]["has_more"]
+    for _ in range(10):
+        if not has_more:
+            return seen
+        page = client.get(f"/signals?{params}&cursor={cursor}").json()
+        seen.extend(item["signal_id"] for item in page["items"])
+        has_more = page["page"]["has_more"]
+        cursor = page["page"]["next_cursor"]
+    pytest.fail("l'historique ne s'est jamais terminé (has_more toujours vrai)")
+
+
+def test_history_stays_walkable_when_the_scan_cap_hits_before_the_page_is_full(
+    client, icp, engine, monkeypatch
+):
+    from signals.feed import query
+
+    keys = _seed(engine, icp, count=4)
+    monkeypatch.setattr(query, "HISTORY_SCAN_CAP", 2)
+
+    first = client.get("/signals?view=history&limit=50").json()
+    assert len(first["items"]) == 2
+    assert first["page"]["has_more"] is True
+    assert first["page"]["next_cursor"] is not None
+    assert first["counts_truncated"] is True
+
+    seen = _walk_history(client, "view=history&limit=50", first)
+    assert sorted(seen) == sorted(keys)
+    assert len(seen) == len(set(seen))
+
+
+def test_history_full_page_then_cap_hit_still_reports_more(client, icp, engine, monkeypatch):
+    from signals.feed import query
+
+    keys = _seed(engine, icp, count=4)
+    monkeypatch.setattr(query, "HISTORY_SCAN_CAP", 3)
+
+    first = client.get("/signals?view=history&limit=2").json()
+    assert len(first["items"]) == 2
+    assert first["page"]["has_more"] is True
+
+    seen = _walk_history(client, "view=history&limit=2", first)
+    assert sorted(seen) == sorted(keys)
+    assert len(seen) == len(set(seen))

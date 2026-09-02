@@ -729,23 +729,46 @@ def history_page(
             exhausted = True
             break
 
-    #: Le balayage qui alimente `status_counts` s'est arrêté sur `scan_cap`
-    #: avant d'épuiser les candidats — distinct de `has_more`, qui ne parle
-    #: que de la LISTE rendue.
-    counts_truncated = not exhausted and scanned >= scan_cap
-    has_more = found_more
-    next_cursor = encode_history_cursor(last_returned) if found_more else None
+    if exhausted:
+        # Tout l'historique possédé (sous les filtres donnés) a été vu : la
+        # seule preuve qu'il resterait quelque chose est un item ADMIS
+        # rencontré après que la page a atteint `limit` — `found_more`. Sans
+        # cela, une page exactement pleine reste `has_more = False` : rien de
+        # plus n'existe, inutile de le faire deviner au client.
+        has_more = found_more
+        next_cursor = encode_history_cursor(last_returned) if found_more else None
+    else:
+        # §2 (fix round 2) — le plafond `scan_cap` a été atteint AVANT
+        # d'épuiser les candidats : on IGNORE s'il en reste au-delà, donc on
+        # reste conservateur (`has_more = True`, comme avant le round 1) pour
+        # ne jamais couper l'accès au reste de l'historique. Le curseur avance
+        # au dernier item RENDU si la page est pleine (pour que l'item qui a
+        # débordé soit revu), sinon à la dernière position SCANNÉE — c'est le
+        # comportement d'origine, restauré après que le round 1 l'a cassé en
+        # aliasant `has_more` sur `found_more` dans les deux branches.
+        has_more = True
+        if len(selected) == limit:
+            next_cursor = encode_history_cursor(last_returned)
+        elif position is not None:
+            next_cursor = encode_history_cursor(position)
+        else:  # pragma: no cover - un balayage qui progresse a toujours une position
+            next_cursor = encode_history_cursor(last_returned) if last_returned else None
+    #: Le sens ORIGINAL de `scan_truncated` : le balayage (page ET
+    #: dénombrement) s'est arrêté sur `scan_cap` avant d'épuiser les
+    #: candidats. `counts_truncated` lui est égal — les deux vues partagent la
+    #: même contrainte : « bornés par le même balayage que la liste ».
+    scan_truncated = not exhausted
     return HistoryFeedPage(
         items=tuple(selected),
         limit=limit,
         cursor=cursor,
         next_cursor=next_cursor,
         has_more=has_more,
-        scan_truncated=has_more,
+        scan_truncated=scan_truncated,
         excluded_without_display_name=excluded_without_name,
         excluded_by_filters=excluded_by_filters,
         status_counts=status_counts,
-        counts_truncated=counts_truncated,
+        counts_truncated=scan_truncated,
         excluded_by_status=excluded_by_status,
     )
 
