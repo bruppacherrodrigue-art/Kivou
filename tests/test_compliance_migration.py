@@ -13,7 +13,7 @@ from signals.persistence.schema import (
 PREVIOUS = "0013_personalization"
 #: La migration que CE fichier décrit, distincte de la tête de chaîne courante.
 COMPLIANCE = "0014_compliance"
-CURRENT_HEAD = "0030_winner_enrichment"
+CURRENT_HEAD = "0033_requeue_unresolved_siret"
 
 
 def test_compliance_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:
@@ -122,7 +122,10 @@ def test_compliance_upgrade_downgrade_and_schema_parity(tmp_path) -> None:
 def test_compliance_postgresql_offline_sql_has_exactly_two_tables_and_index(capsys) -> None:
     config = alembic_config(create_database_engine("sqlite+pysqlite:///:memory:"))
     config.set_main_option("sqlalchemy.url", "postgresql://kivou:placeholder@localhost/kivou")
-    command.upgrade(config, f"{PREVIOUS}:{CURRENT_HEAD}", sql=True)
+    # Bounded at COMPLIANCE (this file's own migration), not CURRENT_HEAD:
+    # 0032/0033 issue live SELECTs to decide which rows to requeue, which
+    # only works against a real connection, not offline SQL generation.
+    command.upgrade(config, f"{PREVIOUS}:{COMPLIANCE}", sql=True)
     sql = capsys.readouterr().out
 
     assert sql.count("CREATE TABLE acquisition_contact_suppression") == 1

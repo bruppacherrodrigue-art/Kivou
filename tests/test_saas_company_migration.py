@@ -13,7 +13,7 @@ from signals.persistence.schema import METADATA, materialized_signal
 
 PREVIOUS = "0021_reliability_operations"
 HEAD = "0022_saas_company_profile"
-CURRENT_HEAD = "0030_winner_enrichment"
+CURRENT_HEAD = "0033_requeue_unresolved_siret"
 
 
 def test_company_migration_is_the_single_additive_head(tmp_path) -> None:
@@ -35,7 +35,10 @@ def test_company_migration_roundtrip_matches_core_schema(tmp_path) -> None:
     migrated = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'migrated.db'}")
     core = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'core.db'}")
     config = alembic_config(migrated)
-    command.upgrade(config, HEAD)
+    # 0031_french_official_company adds a column to saas_company after HEAD
+    # (0022): the parity check is against the currently declared core schema,
+    # so it must upgrade all the way to CURRENT_HEAD, not stop at HEAD.
+    command.upgrade(config, CURRENT_HEAD)
     METADATA.create_all(core)
 
     assert {column["name"] for column in sa.inspect(migrated).get_columns(saas_company.name)} == {

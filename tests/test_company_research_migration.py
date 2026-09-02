@@ -9,7 +9,7 @@ from signals.persistence.schema import acquisition_company_profile, company_rese
 
 PREVIOUS = "0010_contact_discovery"
 HEAD = "0011_company_research"
-CURRENT_HEAD = "0030_winner_enrichment"
+CURRENT_HEAD = "0033_requeue_unresolved_siret"
 
 
 def test_company_research_migration_is_linear_and_adds_exactly_two_tables(tmp_path) -> None:

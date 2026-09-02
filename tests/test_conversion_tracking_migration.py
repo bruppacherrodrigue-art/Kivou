@@ -19,7 +19,7 @@ from signals.persistence.schema import (
 )
 
 HEAD = "0019_conversion_tracking"
-CURRENT_HEAD = "0030_winner_enrichment"
+CURRENT_HEAD = "0033_requeue_unresolved_siret"
 SPEC028_TABLES = {
     "acquisition_conversion_journey",
     "acquisition_conversion_event",
