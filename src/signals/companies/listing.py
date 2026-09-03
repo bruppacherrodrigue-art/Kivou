@@ -36,10 +36,10 @@ from signals.billing.access import FeedAccess
 from signals.companies.schema import saas_company
 from signals.companies.service import company_keys_for_signals
 from signals.engagement.company import contacts_by_company
+from signals.feed import query as feed_query
 from signals.feed.history import effective_history_date
 from signals.feed.query import (
     FEEDING_ICP_STATUS,
-    HISTORY_SCAN_CAP,
     FeedSignal,
     _ownership_scoped,
     owned_target_icps,
@@ -135,6 +135,11 @@ class CompanyRow:
     contact_status: str
     contacted_at: dt.datetime | None
     top_fit: str
+    #: Fix round 2 (F4) — la clé du signal qui a fourni `last_award_at`.
+    #: L'agrégation la connaît déjà ; sans elle, un appelant qui veut « le
+    #: dernier signal de cette entreprise » doit rebalayer l'entreprise entière,
+    #: une fois par entreprise. `None` seulement si aucun signal n'a été absorbé.
+    last_signal_key: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -173,9 +178,14 @@ class _Accumulator:
     last_award_at: dt.date | None = None
     #: Rang de comparaison du signal le plus récent retenu jusqu'ici — une date
     #: connue l'emporte toujours sur son absence, quel que soit l'ordre de
-    #: balayage.
-    last_award_rank: tuple[int, int] = (0, 0)
+    #: balayage. `None` tant qu'AUCUN signal n'a été absorbé : fix round 2 (F5d)
+    #: — le distinguer du rang `(0, 0)` d'un signal SANS date effective est ce
+    #: qui rend `city` déterministe. Tester `last_award_at is None` retenait le
+    #: DERNIER signal sans date rencontré, donc une commune qui changeait avec
+    #: l'ordre de balayage ; le premier rencontré gagne désormais.
+    last_award_rank: tuple[int, int] | None = None
     city: str | None = None
+    last_signal_key: str | None = None
     top_fit_rank: int = 0
 
     def absorb(self, signal: StoredSignal) -> None:
@@ -186,9 +196,10 @@ class _Accumulator:
             )
         date, _kind = effective_history_date(signal)
         rank = (1, date.toordinal()) if date is not None else (0, 0)
-        if self.last_award_at is None or rank > self.last_award_rank:
+        if self.last_award_rank is None or rank > self.last_award_rank:
             self.last_award_rank = rank
             self.last_award_at = date
+            self.last_signal_key = signal.signal_key
             place = signal.award.place_of_performance or {}
             self.city = place.get("locality")
         fit_rank = _FIT_RANK[_fit_label(signal.icp_match_band)]
@@ -205,9 +216,21 @@ def _scan_accessible_signals(
 ) -> tuple[list[StoredSignal], bool]:
     """Les signaux DÉBLOQUÉS du compte, dans la même portée que `view=history`.
 
-    Le plafond `HISTORY_SCAN_CAP` borne les lignes LUES en base, pas les
-    signaux retenus après déverrouillage : une page de titulaires verrouillés
-    ne doit pas consommer la place d'un titulaire ouvert qui la suit.
+    Le plafond borne les lignes LUES en base, pas les signaux retenus après
+    déverrouillage : un signal verrouillé consomme donc bel et bien du budget
+    de balayage — c'est le prix d'un plafond qui borne le COÛT de la lecture,
+    et non son rendement (fix round 2, F5d : le commentaire d'origine
+    prétendait l'inverse).
+
+    Fix round 2 (F5) — le balayage garde l'ordre de `_ownership_scoped`
+    (`materialized_at DESC, signal_key ASC`) et son curseur à deux colonnes.
+    Trier par `signal_key` seul faisait tomber, à la troncature, des lignes
+    tirées au hasard d'un identifiant opaque ; l'ordre de matérialisation fait
+    tomber les PLUS ANCIENNES, comme partout ailleurs dans le feed.
+
+    Fix round 2 (F6) — le plafond est relu à chaque appel
+    (`feed_query.HISTORY_SCAN_CAP`) : le lier à l'import le figeait, et un
+    plafond qu'on ne peut plus changer est un plafond qu'on ne peut plus tester.
     """
     owned = owned_target_icps(connection, account_id=account_id)
     if not any(profile.status == FEEDING_ICP_STATUS for profile in owned.values()):
@@ -215,27 +238,36 @@ def _scan_accessible_signals(
     if allowed_target_icp_ids is not None and not allowed_target_icp_ids:
         return [], False
 
-    query = _ownership_scoped(account_id).order_by(None).order_by(
-        materialized_signal.c.signal_key
-    )
+    query = _ownership_scoped(account_id)
     if allowed_target_icp_ids is not None:
         query = query.where(
             materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids))
         )
 
+    scan_cap = feed_query.HISTORY_SCAN_CAP
     scanned = 0
     accessible: list[StoredSignal] = []
+    last_at: dt.datetime | None = None
     last_key: str | None = None
     exhausted = False
-    while scanned < HISTORY_SCAN_CAP:
+    while scanned < scan_cap:
         batch_query = query
         if last_key is not None:
-            batch_query = batch_query.where(materialized_signal.c.signal_key > last_key)
-        batch_limit = min(_SCAN_BATCH, HISTORY_SCAN_CAP - scanned)
+            batch_query = batch_query.where(
+                sa.or_(
+                    materialized_signal.c.materialized_at < last_at,
+                    sa.and_(
+                        materialized_signal.c.materialized_at == last_at,
+                        materialized_signal.c.signal_key > last_key,
+                    ),
+                )
+            )
+        batch_limit = min(_SCAN_BATCH, scan_cap - scanned)
         rows = connection.execute(batch_query.limit(batch_limit)).all()
         if not rows:
             exhausted = True
             break
+        last_at = rows[-1].materialized_at
         last_key = rows[-1].signal_key
         scanned += len(rows)
         for row in rows:
@@ -326,6 +358,7 @@ def list_companies(
                 contact_status=contact.status if contact is not None else "to_contact",
                 contacted_at=contact.contacted_at if contact is not None else None,
                 top_fit=_RANK_TO_FIT[acc.top_fit_rank],
+                last_signal_key=acc.last_signal_key,
             )
         )
 
