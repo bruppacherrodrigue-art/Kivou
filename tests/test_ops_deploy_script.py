@@ -65,7 +65,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
         "KIVOU_BACKEND_LINK": str(live_backend),
         "KIVOU_FRONTEND_LINK": str(live_frontend),
         "KIVOU_DATABASE_URL": "postgresql://kivou@localhost/kivou",
-        "KIVOU_MIGRATION_ADMIN_URL": "postgresql://deploy@localhost/postgres",
+        "KIVOU_MIGRATION_ADMIN_URL": "postgresql://deploy:admin-secret@localhost/postgres",
         "KIVOU_BACKUP_SCRIPT": str(backup),
         "KIVOU_READINESS_SCRIPT": str(readiness),
         "KIVOU_BACKUP_DIR": str(tmp_path / "backups"),
@@ -82,8 +82,11 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
     assert result.returncode != 0
     commands = log.read_text(encoding="utf-8")
     assert "kivou_rehearsal_" in commands
-    assert "database_url postgresql://deploy@localhost/kivou_rehearsal_" in commands
+    assert "database_url postgresql://deploy:admin-secret@localhost/kivou_rehearsal_" in commands
     assert "database_url postgresql://kivou@localhost/kivou_rehearsal_" not in commands
+    assert "admin-secret" not in "\n".join(
+        line for line in commands.splitlines() if not line.startswith("database_url ")
+    )
     assert "runuser --user kivou --" in commands
     assert "systemctl restart" not in commands
     assert "migrate_to_latest" in commands

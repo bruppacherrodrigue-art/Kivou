@@ -15,6 +15,13 @@ case "$KIVOU_ENVIRONMENT" in staging|production) ;; *) fail "environnement inval
 : "${KIVOU_DATABASE_URL:?KIVOU_DATABASE_URL doit être défini}"
 : "${KIVOU_MIGRATION_ADMIN_URL:?KIVOU_MIGRATION_ADMIN_URL doit être défini}"
 
+KIVOU_ADMIN_SAFE_URL=$KIVOU_MIGRATION_ADMIN_URL
+if [[ "$KIVOU_MIGRATION_ADMIN_URL" =~ ^postgresql://([^:/@]*):([^@]*)@(.*)$ ]]; then
+  PGPASSWORD=${BASH_REMATCH[2]}
+  export PGPASSWORD
+  KIVOU_ADMIN_SAFE_URL="postgresql://${BASH_REMATCH[1]}@${BASH_REMATCH[3]}"
+fi
+
 KIVOU_SOURCE_DIR=${KIVOU_SOURCE_DIR:-/srv/kivou/source}
 KIVOU_RELEASES_DIR=${KIVOU_RELEASES_DIR:-/srv/kivou/releases}
 KIVOU_BACKEND_LINK=${KIVOU_BACKEND_LINK:-/srv/kivou/app}
@@ -59,7 +66,7 @@ rehearsal_created=0
 cleanup() {
   rm -f "$marker"
   if [[ "$rehearsal_created" -eq 1 ]]; then
-    dropdb --if-exists --maintenance-db="$KIVOU_MIGRATION_ADMIN_URL" "$rehearsal_name" >/dev/null 2>&1 || true
+    dropdb --if-exists --maintenance-db="$KIVOU_ADMIN_SAFE_URL" "$rehearsal_name" >/dev/null 2>&1 || true
   fi
 }
 trap cleanup EXIT
@@ -70,19 +77,23 @@ backup_file=$(find "$KIVOU_BACKUP_DIR" -maxdepth 1 -type f -name 'kivou-*.dump' 
 [[ -n "$backup_file" ]] || backup_file=$(find "$KIVOU_BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' -newer "$marker" -print -quit)
 [[ -n "$backup_file" ]] || fail "la sauvegarde n'a produit aucune archive"
 
-createdb --maintenance-db="$KIVOU_MIGRATION_ADMIN_URL" "$rehearsal_name"
+createdb --maintenance-db="$KIVOU_ADMIN_SAFE_URL" "$rehearsal_name"
 rehearsal_created=1
 admin_base=${KIVOU_MIGRATION_ADMIN_URL%%\?*}
 admin_query=''
 [[ "$KIVOU_MIGRATION_ADMIN_URL" == *\?* ]] && admin_query="?${KIVOU_MIGRATION_ADMIN_URL#*\?}"
 rehearsal_restore_url="${admin_base%/*}/$rehearsal_name$admin_query"
-pg_restore --exit-on-error --no-owner --no-privileges --dbname="$rehearsal_restore_url" "$backup_file"
+rehearsal_restore_safe_url="${KIVOU_ADMIN_SAFE_URL%%\?*}"
+rehearsal_restore_safe_query=''
+[[ "$KIVOU_ADMIN_SAFE_URL" == *\?* ]] && rehearsal_restore_safe_query="?${KIVOU_ADMIN_SAFE_URL#*\?}"
+rehearsal_restore_safe_url="${rehearsal_restore_safe_url%/*}/$rehearsal_name$rehearsal_restore_safe_query"
+pg_restore --exit-on-error --no-owner --no-privileges --dbname="$rehearsal_restore_safe_url" "$backup_file"
 rehearsal_url="${admin_base%/*}/$rehearsal_name$admin_query"
 MIGRATE_CODE='from signals.persistence import create_database_engine, migrate_to_latest; migrate_to_latest(create_database_engine())'
 if ! KIVOU_DATABASE_URL="$rehearsal_url" uv run --project "$KIVOU_RELEASE_DIR" python -c "$MIGRATE_CODE"; then
   fail "répétition Alembic échouée ; la base et la release vives sont intactes"
 fi
-dropdb --if-exists --maintenance-db="$KIVOU_MIGRATION_ADMIN_URL" "$rehearsal_name"
+dropdb --if-exists --maintenance-db="$KIVOU_ADMIN_SAFE_URL" "$rehearsal_name"
 rehearsal_created=0
 
 KIVOU_DATABASE_URL="$KIVOU_DATABASE_URL" uv run --project "$KIVOU_RELEASE_DIR" python -c "$MIGRATE_CODE"
