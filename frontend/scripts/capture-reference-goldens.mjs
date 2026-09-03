@@ -31,7 +31,8 @@ const pages = [
   ['dashboard', '/login', 'dashboard-login', 'Retrouver vos signaux'],
   ['dashboard', '/signup', 'dashboard-signup', 'Commencer avec un ciblage clair'],
   ['dashboard', '/', 'dashboard-overview', 'Vue d’ensemble'],
-  ['dashboard', '/signals?signal=tm-ausbau-campus-ost', 'dashboard-signals', 'Signaux'],
+  // Pas de `dashboard-signals` ici : les goldens Signaux sont capturés depuis
+  // l'application (PR2), la maquette de référence décrit l'ancien écran.
   ['dashboard', '/companies', 'dashboard-companies', 'Entreprises'],
   ['dashboard', '/targeting', 'dashboard-targeting', 'Profil de ciblage'],
   ['dashboard', '/settings', 'dashboard-account', 'Compte'],

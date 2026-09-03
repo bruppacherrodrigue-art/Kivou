@@ -1123,6 +1123,8 @@ export const LOCAL_REFERENCE_ROUTES = [
   { golden: 'dashboard-login', source: '/login', local: '/login', scenario: 'auth' },
   { golden: 'dashboard-signup', source: '/signup', local: '/signup', scenario: 'auth' },
   { golden: 'dashboard-overview', source: '/', local: '/app/dashboard', scenario: 'connected-pro' },
+  // `source` est ici périmé : les goldens Signaux sont capturés depuis
+  // l'application (PR2), la maquette de référence décrit l'ancien écran.
   { golden: 'dashboard-signals', source: '/signals?signal=tm-ausbau-campus-ost', local: '/app/signals/tm-ausbau-campus-ost', scenario: 'connected-discovery' },
   { golden: 'dashboard-companies', source: '/companies', local: '/app/companies/cmp_h-huether_reference?signal=h-huether-munich', scenario: 'connected-pro' },
   { golden: 'dashboard-targeting', source: '/targeting', local: '/app/icps', scenario: 'connected-pro' },
