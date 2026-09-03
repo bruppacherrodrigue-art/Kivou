@@ -22,6 +22,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 from collections.abc import Callable
+from decimal import Decimal
 from typing import Any
 
 import sqlalchemy as sa
@@ -37,6 +38,7 @@ from signals.feed.history import (
     effective_history_date,
     encode_history_cursor,
 )
+from signals.feed.text import normalize_text
 from signals.persistence.repository import (
     SIGNAL_SELECT,
     StoredSignal,
@@ -263,6 +265,11 @@ class FeedPage:
     #: qu'une page rend : lire `items` pour compter plafonnait silencieusement
     #: chaque nombre à `MAXIMUM_PAGE_SIZE`.
     matched: tuple[FeedSignal, ...] = ()
+    #: PR2b tâche 3 — combien de candidats par ailleurs affichables ont été
+    #: écartés par `subdivision_code` ou `q`, AVANT d'occuper une place du
+    #: plafond de candidats : exactement le rôle que joue déjà ce compteur en
+    #: historique.
+    excluded_by_filters: int = 0
 
 
 @dataclasses.dataclass(frozen=True)
@@ -382,6 +389,46 @@ def _date_window(as_of: dt.date, days: int) -> sa.ColumnElement[bool]:
     )
 
 
+#: Mirrors `feed.factual_display._MAX_OBJECT_LENGTH` — kept in sync manually
+#: rather than imported : `factual_display` imports `FeedSignal` from this
+#: module, so the reverse import would be a cycle.
+_TEXT_OBJECT_LIMIT = 180
+
+
+def _object_short(title: str | None) -> str | None:
+    """Le même objet court que `factual_display.object_short` — nettoyé, tronqué."""
+    if not title:
+        return None
+    cleaned = " ".join(title.split())
+    if not cleaned:
+        return None
+    if len(cleaned) > _TEXT_OBJECT_LIMIT:
+        return f"{cleaned[: _TEXT_OBJECT_LIMIT - 1].rstrip()}…"
+    return cleaned
+
+
+def _text_haystack(signal: StoredSignal, display: DisplayIdentity | None) -> list[str]:
+    """§28.3bis — le nom affiché, le titre publié et l'objet court qui en dérive.
+
+    Jamais l'identifiant, jamais l'acheteur : `q` cherche l'affaire telle
+    qu'un commercial la lirait, pas un numéro interne.
+    """
+    parts: list[str] = []
+    if display is not None and display.name:
+        parts.append(display.name)
+    title = signal.award.title
+    if title:
+        parts.append(title)
+        short = _object_short(title)
+        if short is not None:
+            parts.append(short)
+    return parts
+
+
+def _matches_text_query(signal: StoredSignal, display: DisplayIdentity | None, needle: str) -> bool:
+    return any(needle in normalize_text(part) for part in _text_haystack(signal, display))
+
+
 def _reassess(row: sa.Row, owned: dict[str, OwnedTargetIcp], account_id: str, as_of: dt.date):
     signal = signal_from_row(row)
     profile = owned[signal.target_icp_id]
@@ -406,6 +453,27 @@ def feed_page(
     allowed_target_icp_ids: frozenset[str] | None = None,
     primary_event: str | None = None,
     country: str | None = None,
+    #: PR2b tâche 3 — même sémantique que dans `history_page` : comparé à la
+    #: subdivision DÉRIVÉE (`location_subdivision`), jamais à une valeur brute
+    #: éventuellement absente. Filtre Python, appliqué candidat par candidat.
+    subdivision_code: str | None = None,
+    #: PR2b tâche 3 — `contract_award.cpv_main LIKE 'préfixe%'`, en SQL comme en
+    #: historique.
+    cpv_prefix: str | None = None,
+    #: PR2b tâche 3 — bornes sur la même expression que `history_page`
+    #: (`_history_date_expression` : décision, sinon notification, sinon
+    #: parution), en SQL.
+    date_from: dt.date | None = None,
+    date_to: dt.date | None = None,
+    #: PR2b tâche 3 — `contract_award.amount >= min_amount`, en SQL. Un montant
+    #: absent (`NULL`) n'y répond jamais : `NULL >= x` n'est vrai pour aucun
+    #: `x` en SQL, la ligne est donc exclue sans code supplémentaire.
+    min_amount: Decimal | None = None,
+    #: PR2b tâche 3 — recherche plein texte, insensible casse et accents, sur
+    #: le nom d'attributaire affiché, `award.title` et l'objet court qui en
+    #: dérive (`factual_display.object_short`). Filtre Python : il a besoin de
+    #: l'identité affichable, résolue après lecture.
+    text_query: str | None = None,
     winner: str | None = None,
     limit: int = policy.DEFAULT_PAGE_SIZE,
     offset: int = 0,
@@ -469,6 +537,16 @@ def feed_page(
                 materialized_signal.c.winner_name == winner,
             )
         )
+    if cpv_prefix is not None:
+        query = query.where(contract_award.c.cpv_main.like(f"{cpv_prefix}%"))
+    if date_from is not None or date_to is not None:
+        effective = _history_date_expression()
+        if date_from is not None:
+            query = query.where(effective >= date_from)
+        if date_to is not None:
+            query = query.where(effective <= date_to)
+    if min_amount is not None:
+        query = query.where(contract_award.c.amount >= min_amount)
     window = policy.candidate_window_days(freshness)
     if window is not None:
         query = query.where(_date_window(as_of, window))
@@ -481,10 +559,14 @@ def feed_page(
         # est la définition, celle-ci n'en est que l'accélérateur.
         query = query.where(source_event.c.published_on >= published_since)
 
+    #: PR2b tâche 3 — normalisé une seule fois, pas à chaque candidat.
+    needle = normalize_text(text_query) if text_query is not None else None
+
     row_ceiling = scan_cap * RECENT_SCAN_ROW_FACTOR
     rows_read = 0
     displayable: list[FeedSignal] = []
     without_name = 0
+    excluded_by_filters = 0
     truncated = False
     # §31 — un curseur de clé plutôt qu'un `OFFSET` : l'ordre de
     # `_ownership_scoped` est total (`materialized_at DESC, signal_key ASC`),
@@ -521,6 +603,19 @@ def feed_page(
             display = identities.get(item.signal.signal_key)
             if display is None:
                 without_name += 1
+                continue
+            # PR2b tâche 3 — `subdivision_code` et `q` sont des filtres Python
+            # (le premier dérive d'un JSON, le second a besoin de l'identité
+            # affichable). Comme `subdivision_code` en historique, ils
+            # s'appliquent AVANT que le candidat n'occupe une place du plafond
+            # de candidats affichables : sinon, un candidat qu'ils écartent
+            # consommerait quand même la place d'un candidat qui, lui, passe.
+            place = item.signal.award.place_of_performance or {}
+            if (
+                subdivision_code is not None
+                and location_subdivision(place) != subdivision_code
+            ) or (needle is not None and not _matches_text_query(item.signal, display, needle)):
+                excluded_by_filters += 1
                 continue
             if len(displayable) == scan_cap:
                 truncated = True
@@ -588,6 +683,7 @@ def feed_page(
         counts_truncated=truncated,
         excluded_by_status=excluded_by_status,
         matched=tuple(selected),
+        excluded_by_filters=excluded_by_filters,
     )
 
 
@@ -634,6 +730,12 @@ def history_page(
     cpv_prefix: str | None = None,
     date_from: dt.date | None = None,
     date_to: dt.date | None = None,
+    #: PR2b tâche 3 — `contract_award.amount >= min_amount`, en SQL. Un montant
+    #: absent exclut la ligne, comme dans `feed_page`.
+    min_amount: Decimal | None = None,
+    #: PR2b tâche 3 — même filtre plein texte que `feed_page`, même portée
+    #: (nom affiché, `award.title`, objet court).
+    text_query: str | None = None,
     winner: str | None = None,
     limit: int = policy.DEFAULT_PAGE_SIZE,
     cursor: str | None = None,
@@ -704,6 +806,11 @@ def history_page(
         base = base.where(effective >= date_from)
     if date_to is not None:
         base = base.where(effective <= date_to)
+    if min_amount is not None:
+        base = base.where(contract_award.c.amount >= min_amount)
+
+    #: PR2b tâche 3 — normalisé une seule fois, pas à chaque candidat.
+    needle = normalize_text(text_query) if text_query is not None else None
 
     selected: list[FeedSignal] = []
     excluded_without_name = 0
@@ -767,6 +874,7 @@ def history_page(
                     primary_event is not None
                     and policy.customer_event_type(item.status) != primary_event
                 )
+                or (needle is not None and not _matches_text_query(signal, display, needle))
             ):
                 excluded_by_filters += 1
                 continue
