@@ -4,19 +4,16 @@ import type {
   CardPresentation,
   CompanyProfile,
   Evidence,
-  EvidenceItem,
   FeedPage,
   LockedFeedItem,
   TargetIcp,
   UnlockedFeedItem,
-  UnlockedDetail,
 } from '../../api/types'
 import {
   COMPANY_PROFILE,
   DISCOVERY_STATUS,
   ICP,
   LOCKED_ITEM,
-  UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
   feedPage,
 } from '../../test/harness'
@@ -31,7 +28,6 @@ import {
   toOverviewAwardCards,
   toSignalCard,
   toSignalCards,
-  toSignalDetailView,
   toTargetProfileView,
 } from './adapters'
 
@@ -636,169 +632,6 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     expect(() => eventDateKind('publication', 'recent_award')).toThrow(/incohérent/i)
   })
 
-  it('ignore les besoins plausibles même lorsqu’ils possèdent des preuves', () => {
-    const detail: UnlockedDetail = {
-      ...UNLOCKED_DETAIL,
-      analysis: {
-        ...UNLOCKED_DETAIL.analysis,
-        plausible_needs: {
-          ...UNLOCKED_DETAIL.analysis.plausible_needs,
-          items: [
-            {
-              ...UNLOCKED_DETAIL.analysis.plausible_needs.items[0],
-              category: 'workforce_capacity',
-              label: '  ',
-              statement: 'Besoin vide à ne pas retenir',
-              targeted_by_your_profile: true,
-            },
-            {
-              ...UNLOCKED_DETAIL.analysis.plausible_needs.items[0],
-              category: 'specialist_subcontracting',
-              label: 'Personnel',
-              statement: 'Besoin générique à ne pas retenir',
-              targeted_by_your_profile: false,
-            },
-            {
-              ...UNLOCKED_DETAIL.analysis.plausible_needs.items[0],
-              category: 'equipment_or_rental',
-              label: 'Équipement sans preuve',
-              statement: 'Besoin ciblé mais non prouvé',
-              targeted_by_your_profile: true,
-            },
-            {
-              ...UNLOCKED_DETAIL.analysis.plausible_needs.items[0],
-              category: 'materials_or_components',
-              label: '  Matériaux  ',
-              statement: 'Besoin ciblé et prouvé',
-              targeted_by_your_profile: true,
-            },
-          ],
-        },
-      },
-      evidence: {
-        ...UNLOCKED_DETAIL.evidence,
-        analysis_inputs: {
-          ...UNLOCKED_DETAIL.evidence.analysis_inputs,
-          groups: [
-            {
-              plausible_need: 'workforce_capacity',
-              label: 'Personnel',
-              items: UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items,
-            },
-            {
-              plausible_need: 'materials_or_components',
-              label: 'Matériaux',
-              items: [{
-                ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
-                url: 'https://source.test/materials',
-                path: null,
-                notice_id: null,
-                procedure_id: null,
-              }],
-            },
-          ],
-        },
-      },
-    }
-
-    expect(toSignalDetailView(detail).primaryNeed).toBeNull()
-  })
-
-  it('produit une seule référence canonique pour une URL et son chemin', () => {
-    const detail = detailWithEvidenceItems([{
-      ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
-      url: 'https://source.test/notice/42',
-      path: '/awards/0',
-      notice_id: 'notice-ignored-because-url-resolves',
-      procedure_id: 'procedure-ignored-because-url-resolves',
-    }])
-
-    expect(toSignalDetailView(detail).primaryNeed).toBeNull()
-  })
-
-  it('évite les collisions entre deux avis qui partagent le même chemin', () => {
-    const detail = detailWithEvidenceItems([
-      {
-        ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
-        source_system: 'TED',
-        url: null,
-        notice_id: 'notice-1',
-        procedure_id: null,
-        path: '/awards/0',
-      },
-      {
-        ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
-        source_system: 'TED',
-        url: null,
-        notice_id: 'notice-2',
-        procedure_id: null,
-        path: '/awards/0',
-      },
-    ])
-
-    expect(toSignalDetailView(detail).primaryNeed).toBeNull()
-  })
-
-  it('évite les collisions entre deux systèmes qui réutilisent le même identifiant', () => {
-    const detail = detailWithEvidenceItems([
-      {
-        ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
-        source_system: 'TED',
-        url: null,
-        notice_id: 'shared-42',
-        procedure_id: null,
-        path: null,
-      },
-      {
-        ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
-        source_system: 'BOAMP',
-        url: null,
-        notice_id: 'shared-42',
-        procedure_id: null,
-        path: null,
-      },
-    ])
-
-    expect(toSignalDetailView(detail).primaryNeed).toBeNull()
-  })
-
-  it('rejette un chemin isolé sans source résoluble', () => {
-    const detail = detailWithEvidenceItems([{
-      ...UNLOCKED_DETAIL.evidence.analysis_inputs.groups[0].items[0],
-      source_system: null,
-      url: null,
-      notice_id: null,
-      procedure_id: null,
-      path: '/awards/0',
-    }])
-
-    expect(toSignalDetailView(detail).primaryNeed).toBeNull()
-  })
-
-  it('ne sélectionne aucun besoin ciblé sans référence de preuve exploitable', () => {
-    const detail: UnlockedDetail = {
-      ...UNLOCKED_DETAIL,
-      evidence: {
-        ...UNLOCKED_DETAIL.evidence,
-        analysis_inputs: {
-          ...UNLOCKED_DETAIL.evidence.analysis_inputs,
-          groups: UNLOCKED_DETAIL.evidence.analysis_inputs.groups.map((group) => ({
-            ...group,
-            items: group.items.map((item) => ({
-              ...item,
-              url: '  ',
-              path: null,
-              notice_id: null,
-              procedure_id: null,
-            })),
-          })),
-        },
-      },
-    }
-
-    expect(toSignalDetailView(detail).primaryNeed).toBeNull()
-  })
-
   it('ne synthétise pas une raison d’adéquation depuis un score ou une catégorie', () => {
     const item = {
       ...UNLOCKED_ITEM,
@@ -927,43 +760,6 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     expect(view.matchLabel).toBeNull()
   })
 
-  it('le détail Signaux ne lit ni besoin plausible, ni fit, ni présentation', () => {
-    const detail = {
-      ...UNLOCKED_DETAIL,
-      factual_display: {
-        headline: 'Titre factuel publié par le serveur',
-        market_summary: 'Résumé factuel publié par le serveur',
-        object_short: 'Résumé factuel publié par le serveur',
-        date: { value: '2026-08-04', kind: 'award' },
-        completeness: 'partial',
-        missing_fields: ['location'],
-      },
-      winner_enrichment: {
-        status: 'in_progress',
-        missing_fields: ['address'],
-        last_verified_at: null,
-        error_code: null,
-        source: {
-          kind: 'public_notice',
-          connector: 'boamp',
-          notice_id: '26-12345',
-          url: null,
-          retrieved_at: '2026-08-18T09:00:00Z',
-        },
-      },
-      presentation: VALID_FULL,
-    } as unknown as UnlockedDetail
-
-    const view = toSignalDetailView(detail)
-
-    expect(view.title).toBe(detail.factual_display.headline)
-    expect(view.summary).toBe(detail.factual_display.market_summary)
-    expect(view.presentation).toBeNull()
-    expect(view.primaryNeed).toBeNull()
-    expect(view.fitReason).toBeNull()
-    expect(view.brief.offerCoverage).toBeNull()
-  })
-
   it('mappe une carte déverrouillée uniquement depuis le contrat de feed', () => {
     expect(toSignalCard(UNLOCKED_ITEM)).toEqual({
       signalId: UNLOCKED_ITEM.signal_id,
@@ -1032,78 +828,6 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     expectNoReferenceOnlyCopy(toSignalCards(feed))
   })
 
-  it('mappe le détail sans requalifier les faits publiés en périmètre', () => {
-    const detail: UnlockedDetail = UNLOCKED_DETAIL
-    const view = toSignalDetailView(detail)
-
-    expect(view).toEqual({
-      signalId: detail.signal_id,
-      id: detail.signal_id,
-      eventStatus: detail.event.status,
-      locked: false,
-      eventDate: detail.event.date,
-      eventDateKind: 'award',
-      buyerName: detail.contract.buyer?.name,
-      awardedCompanyName: detail.company.name,
-      primaryNeed: null,
-      fitReason: null,
-      presentation: null,
-      factualCompleteness: detail.factual_display.completeness,
-      missingFacts: detail.factual_display.missing_fields,
-      winnerEnrichment: detail.winner_enrichment,
-      title: detail.factual_display.headline,
-      companyName: detail.company.name,
-      companyKey: detail.company_key ?? null,
-      companyCountry: detail.company.country,
-      companyIdentifier: detail.company.identifier,
-      targetProfileLabel: null,
-      sourceSystem: detail.source.system,
-      summary: detail.factual_display.market_summary,
-      brief: {
-        whyNow: detail.event.why_now,
-        offerCoverage: null,
-        functionToFind: null,
-        unknown: null,
-      },
-      facts: {
-        amount: detail.contract.amount,
-        location: detail.contract.location,
-        awardDate: detail.contract.dates.award,
-        execution: null,
-        buyer: detail.contract.buyer?.name ?? null,
-        officialTitle: detail.contract.title,
-        notice: detail.source.notice_id,
-        cpv: detail.contract.cpv,
-        sourceUrl: detail.source.url,
-      },
-      scope: [],
-      questions: [],
-      publicEvidence: detail.evidence.public_facts,
-    })
-    expect(view.facts.sourceUrl).toBe(UNLOCKED_DETAIL.source.url)
-    expect(view.brief.whyNow).toBe(UNLOCKED_DETAIL.event.why_now)
-    expectNoReferenceOnlyCopy(view)
-  })
-
-  it.each(['award_winner', 'amount', 'award_date', 'procedure_buyers'])(
-    'ne transforme jamais le fait public %s en périmètre publié',
-    (fact) => {
-      const detail: UnlockedDetail = {
-        ...UNLOCKED_DETAIL,
-        evidence: {
-          ...UNLOCKED_DETAIL.evidence,
-          public_facts: [{
-            fact,
-            label: `Libellé ${fact}`,
-            items: UNLOCKED_DETAIL.evidence.public_facts[0].items,
-          }],
-        },
-      }
-
-      expect(toSignalDetailView(detail).scope).toEqual([])
-    },
-  )
-
   it('présente le ciblage, la facturation et l’entreprise sans valeurs de maquette', () => {
     const target: TargetIcp = ICP
     const access: BillingStatus = DISCOVERY_STATUS
@@ -1143,19 +867,3 @@ function expectNoReferenceOnlyCopy(value: unknown) {
   }
 }
 
-function detailWithEvidenceItems(items: EvidenceItem[]): UnlockedDetail {
-  return {
-    ...UNLOCKED_DETAIL,
-    evidence: {
-      ...UNLOCKED_DETAIL.evidence,
-      analysis_inputs: {
-        ...UNLOCKED_DETAIL.evidence.analysis_inputs,
-        groups: [{
-          plausible_need: 'materials_or_components',
-          label: 'Matériaux ou composants',
-          items,
-        }],
-      },
-    },
-  }
-}

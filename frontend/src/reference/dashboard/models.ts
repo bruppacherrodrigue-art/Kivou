@@ -1,8 +1,6 @@
 import type {
   BillingAction,
   CardPresentation,
-  EventStatus,
-  EvidenceItem,
   Money,
   Place,
   PlanCode,
@@ -70,42 +68,6 @@ export interface OverviewAwardCardView {
   eventDate: string | null
   eventDateKind: SignalEventDateKind
   sourceSystem: string | null
-}
-
-export interface SignalDetailView extends SignalFactView {
-  id: string
-  eventStatus: EventStatus
-  eventAgeDays: number | null
-  isNewOpportunity: boolean
-  title: string | null
-  companyName: string | null
-  companyKey: string | null
-  companyCountry: string | null
-  companyIdentifier: { scheme: string | null; value: string | null } | null
-  targetProfileLabel: string | null
-  sourceSystem: string | null
-  summary: string | null
-  brief: {
-    whyNow: string
-    offerCoverage: string | null
-    functionToFind: string | null
-    unknown: string | null
-  }
-  facts: {
-    amount: Money | null
-    location: Place | null
-    awardDate: string | null
-    execution: string | null
-    buyer: string | null
-    buyerIdentifier: { scheme: string | null; value: string | null } | null
-    officialTitle: string | null
-    notice: string | null
-    cpv: string | null
-    sourceUrl: string | null
-  }
-  scope: { value: string; label: string }[]
-  questions: string[]
-  publicEvidence: { fact: string; label: string; items: EvidenceItem[] }[]
 }
 
 export interface TargetProfileView {
