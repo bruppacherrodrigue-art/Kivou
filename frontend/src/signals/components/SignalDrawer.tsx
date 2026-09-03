@@ -49,6 +49,7 @@ export function SignalDrawer({
   onSave,
   onIgnore,
   busy,
+  compact = false,
 }: {
   item: UnlockedFeedItem | null
   loading: boolean
@@ -59,6 +60,10 @@ export function SignalDrawer({
   onSave: () => void
   onIgnore: () => void
   busy: boolean
+  /** Sous 900 px, le tiroir s'ouvre dans une feuille Radix qui porte déjà son
+   *  propre bouton de fermeture : afficher aussi le nôtre donnerait DEUX
+   *  contrôles « Fermer » pour un seul geste. */
+  compact?: boolean
 }) {
   const { t, locale, amount, date } = useI18n()
   const copy = t.signalsTable.drawer
@@ -155,9 +160,11 @@ export function SignalDrawer({
       <div className={styles.drawerHead}>
         <StatusPill status={item.status} />
         <MatchDots item={item} />
-        <button type="button" className={styles.drawerClose} onClick={onClose}>
-          {copy.close}
-        </button>
+        {compact ? null : (
+          <button type="button" className={styles.drawerClose} onClick={onClose}>
+            {copy.close}
+          </button>
+        )}
       </div>
 
       <h2 className={styles.drawerTitle} id={titleId}>

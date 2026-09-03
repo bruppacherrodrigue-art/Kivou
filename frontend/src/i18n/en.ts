@@ -313,8 +313,6 @@ export const en: Dictionary = {
     signalsPage: {
       lockedReason:
         'Your current access keeps this preview without revealing protected data.',
-      filtersTitle: 'History filters',
-      statusFilter: 'Timeline status',
       restrictedFilter: 'This filter is not included in your current access.',
       website: 'Official website',
       lastVerified: 'Last verified',
@@ -1525,8 +1523,11 @@ export const en: Dictionary = {
       all: 'All',
     },
     filters: {
+      toolbar: 'Filters',
+      statusGroup: 'Status',
       zone: 'Area',
       sector: 'Sector',
+      sectorPlaceholder: 'Sector (CPV)',
       minAmount: 'Minimum amount',
       period: 'Period',
       search: 'Search a winner, an object…',
@@ -1548,6 +1549,7 @@ export const en: Dictionary = {
     },
     consortium: 'consortium',
     count: { one: '{count} signal', other: '{count} signals' },
+    countFiltered: '{count} of {total} loaded',
     loadMore: 'Load more',
     empty: 'No signal matches these filters.',
     drawer: {

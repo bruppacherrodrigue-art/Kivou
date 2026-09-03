@@ -405,8 +405,12 @@ export function SignalsFeed() {
     [location.search, navigate],
   )
 
+  /* `replace` : fermer le tiroir ne doit pas laisser une entrée d'historique
+   * derrière soi. Sans quoi « Précédent » rouvrirait le tiroir qu'on vient de
+   * fermer plutôt que de quitter la page. L'ouverture, elle, reste un `push` :
+   * chaque signal ouvert mérite sa propre étape dans l'historique. */
   const closeDrawer = useCallback(() => {
-    navigate(`/app/signals${location.search}`)
+    navigate(`/app/signals${location.search}`, { replace: true })
   }, [location.search, navigate])
 
   useEffect(() => {
@@ -452,13 +456,24 @@ export function SignalsFeed() {
     )
   }, [])
 
-  const shiftCounts = useCallback((from: UnifiedStatus, to: UnifiedStatus) => {
-    setCounts((current) =>
-      current
-        ? { ...current, [from]: Math.max(0, current[from] - 1), [to]: current[to] + 1 }
-        : current,
-    )
-  }, [])
+  /** Déplace un signal d'un compteur à l'autre. `clampedOut`, si fourni, reçoit
+   *  si le décrément a été plafonné à 0 (le compteur d'origine était déjà nul :
+   *  un signal peut apparaître dans un segment sans que son compteur le porte,
+   *  par exemple juste après une pagination). Le rollback en a besoin : il ne
+   *  doit réinjecter le point que si un point a réellement été retiré, sans
+   *  quoi une action annulée gonflerait le compteur au-delà de sa vraie
+   *  valeur. */
+  const shiftCounts = useCallback(
+    (from: UnifiedStatus, to: UnifiedStatus, clampedOut?: { current: boolean }) => {
+      setCounts((current) => {
+        if (!current) return current
+        const clamped = current[from] <= 0
+        if (clampedOut) clampedOut.current = clamped
+        return { ...current, [from]: Math.max(0, current[from] - 1), [to]: current[to] + 1 }
+      })
+    },
+    [],
+  )
 
   const runAction = useCallback(
     async (next: UnifiedStatus, call: (key: string) => Promise<unknown>) => {
@@ -468,16 +483,26 @@ export function SignalsFeed() {
       if (previous === next) return
       const key = target.signal_id
 
+      const clamped = { current: false }
       setActionError(false)
       setBusy(true)
       applyStatus(key, next)
-      shiftCounts(previous, next)
+      shiftCounts(previous, next, clamped)
       try {
         await call(key)
       } catch {
-        // Se dédire entièrement : la ligne, le tiroir ET les compteurs.
+        // Se dédire entièrement : la ligne, le tiroir ET les compteurs — mais
+        // sans réinjecter un point qui n'en a jamais été retiré.
         applyStatus(key, previous)
-        shiftCounts(next, previous)
+        setCounts((current) =>
+          current
+            ? {
+                ...current,
+                [next]: Math.max(0, current[next] - 1),
+                [previous]: clamped.current ? current[previous] : current[previous] + 1,
+              }
+            : current,
+        )
         if (mounted.current) setActionError(true)
       } finally {
         if (mounted.current) setBusy(false)
@@ -494,11 +519,23 @@ export function SignalsFeed() {
     && postActivationBilling?.plan_code === 'discovery'
     ? postActivationBilling.discovery.granted_signal_count
     : null
-  const shown = discoveryGrantCount ?? rows.length
-  const suffix = discoveryGrantCount === null && feed.data?.page.has_more ? '+' : ''
-  const signalCount = feed.data
-    ? interpolate(plural(shown, copy.count.one, copy.count.other), { count: `${shown}${suffix}` })
-    : t.common.loading
+  /* Le compteur décrit UNE seule population à la fois :
+   *  - sans filtre navigateur, le nombre de signaux CHARGÉS (`items`) ;
+   *  - avec un filtre navigateur (montant, recherche), le nombre RETENU sur
+   *    ce total chargé — jamais les deux mélangés dans un seul chiffre.
+   * `has_more` et `counts_truncated` disent tous deux que ce total peut être
+   * un plancher, pas une somme définitive : c'est le signal du « + ». */
+  const hasClientFilter = hasMin || Boolean(needle)
+  const loadedCount = discoveryGrantCount ?? items.length
+  const moreBeyondLoaded = Boolean(feed.data?.page.has_more) || Boolean(feed.data?.counts_truncated)
+  const suffix = discoveryGrantCount === null && moreBeyondLoaded ? '+' : ''
+  const signalCount = !feed.data
+    ? t.common.loading
+    : hasClientFilter
+      ? interpolate(copy.countFiltered, { count: `${rows.length}`, total: `${loadedCount}${suffix}` })
+      : interpolate(plural(loadedCount, copy.count.one, copy.count.other), {
+        count: `${loadedCount}${suffix}`,
+      })
 
   const sectorLocked = feed.data?.filter_access.sector === false
 
@@ -508,6 +545,7 @@ export function SignalsFeed() {
       loading={drawerLoading}
       error={drawerError}
       busy={busy}
+      compact={compact}
       onClose={closeDrawer}
       onRetry={() => setDetailRetryToken((token) => token + 1)}
       onContacted={() => void runAction('contacted', (key) => feedback.markContacted(key))}
@@ -528,12 +566,12 @@ export function SignalsFeed() {
       <div
         className={styles.filters}
         role="toolbar"
-        aria-label={t.reference.signalsPage.filtersTitle}
+        aria-label={copy.filters.toolbar}
       >
         <div
           className={styles.segments}
           role="group"
-          aria-label={t.reference.signalsPage.statusFilter}
+          aria-label={copy.filters.statusGroup}
         >
           {SEGMENTS.map((segment) => {
             const count = segment !== 'all' && COUNTED_SEGMENTS.includes(segment)
@@ -554,21 +592,23 @@ export function SignalsFeed() {
           })}
         </div>
 
-        <label className={styles.filter}>
-          <span>{copy.filters.zone}</span>
+        <div className={styles.filter}>
           <input
             list="signals-zones"
+            placeholder={copy.filters.zone}
+            aria-label={copy.filters.zone}
             value={filters.zone}
             onChange={(event) => setParam('zone', event.target.value.toUpperCase())}
           />
           <datalist id="signals-zones">
             {zones.map((zone) => <option value={zone} key={zone} />)}
           </datalist>
-        </label>
+        </div>
 
-        <label className={styles.filter}>
-          <span>{copy.filters.sector}</span>
+        <div className={styles.filter}>
           <input
+            placeholder={copy.filters.sectorPlaceholder}
+            aria-label={copy.filters.sector}
             value={filters.cpv}
             maxLength={8}
             inputMode="numeric"
@@ -576,23 +616,24 @@ export function SignalsFeed() {
             aria-describedby={sectorLocked ? 'signals-sector-restricted' : undefined}
             onChange={(event) => setParam('cpv', event.target.value.replace(/\D/g, ''))}
           />
-        </label>
+        </div>
 
-        <label className={styles.filter}>
-          <span>{copy.filters.minAmount}</span>
+        <div className={styles.filter}>
           <input
             type="number"
             min={0}
             step={1000}
+            placeholder={copy.filters.minAmount}
+            aria-label={copy.filters.minAmount}
             value={filters.min}
             aria-describedby="signals-loaded-only"
             onChange={(event) => setParam('min', event.target.value)}
           />
-        </label>
+        </div>
 
-        <label className={styles.filter}>
-          <span>{copy.filters.period}</span>
+        <div className={styles.filter}>
           <select
+            aria-label={copy.filters.period}
             value={filters.period}
             onChange={(event) => setParam('period', event.target.value)}
           >
@@ -600,23 +641,23 @@ export function SignalsFeed() {
               <option value={period} key={period}>{copy.filters.periodOptions[period]}</option>
             ))}
           </select>
-        </label>
+        </div>
 
-        <label className={`${styles.filter} ${styles.searchFilter}`}>
-          <span className={styles.visuallyHidden}>{copy.filters.search}</span>
+        <div className={`${styles.filter} ${styles.searchFilter}`}>
           <input
             type="search"
             value={filters.q}
             placeholder={copy.filters.search}
+            aria-label={copy.filters.search}
             aria-describedby="signals-loaded-only"
             onChange={(event) => setParam('q', event.target.value)}
           />
-        </label>
-
-        <small id="signals-loaded-only" className={styles.loadedOnly}>
-          {copy.filters.loadedOnly}
-        </small>
+        </div>
       </div>
+
+      <small id="signals-loaded-only" className={styles.loadedOnly}>
+        {copy.filters.loadedOnly}
+      </small>
 
       {sectorLocked ? (
         <p id="signals-sector-restricted" className={styles.restrictedNote}>
