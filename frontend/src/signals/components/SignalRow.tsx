@@ -82,7 +82,7 @@ export function SignalRow({
         <td className={styles.cellPlace}>{placeLabel(item.contract.location, locale)}</td>
       )}
       <td className={styles.cellMatch}>
-        <MatchDots fit={item.analysis.fit} />
+        <MatchDots item={item} />
       </td>
     </tr>
   )

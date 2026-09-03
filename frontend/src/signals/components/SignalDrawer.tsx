@@ -1,22 +1,42 @@
+import { useId } from 'react'
 import type { ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import type { UnifiedStatus, UnlockedFeedItem } from '../../api/types'
+import type { PlausibleNeed, UnifiedStatus, UnlockedFeedItem } from '../../api/types'
 import { interpolate, useI18n } from '../../i18n'
 import { MatchDots } from './MatchDots'
 import { StatusPill } from './StatusPill'
 import { MISSING, placeLabel, signalObject } from './SignalRow'
 import styles from './signals.module.css'
 
-/** Le nombre de raisons que le tiroir montre. Au-delà, on ne lit plus. */
-const MAX_REASONS = 3
+/** Le nombre de raisons, et de besoins, que le tiroir montre. Au-delà, on ne
+ *  lit plus. */
+const MAX_ITEMS = 3
 
-function Fact({ label, children }: { label: string; children: ReactNode }) {
+function Fact({
+  label,
+  className,
+  children,
+}: {
+  label: string
+  className?: string
+  children: ReactNode
+}) {
   return (
     <>
       <dt>{label}</dt>
-      <dd>{children}</dd>
+      <dd className={className}>{children}</dd>
     </>
   )
+}
+
+/* Les besoins que le marché IMPLIQUE, dans l'ordre où ils servent le lecteur :
+ * ceux que son profil vise d'abord, l'ordre du backend ensuite. Un besoin sans
+ * libellé n'est pas affichable ; il sort. */
+function orderedNeeds(needs: PlausibleNeed[]): PlausibleNeed[] {
+  const named = needs.filter((need) => need.label !== null)
+  const targeted = named.filter((need) => need.targeted_by_your_profile)
+  const rest = named.filter((need) => !need.targeted_by_your_profile)
+  return [...targeted, ...rest].slice(0, MAX_ITEMS)
 }
 
 export function SignalDrawer({
@@ -40,11 +60,12 @@ export function SignalDrawer({
 }) {
   const { t, locale, amount, date } = useI18n()
   const copy = t.signalsTable.drawer
+  const titleId = useId()
 
   if (loading) {
     return (
-      <aside className={styles.drawer}>
-        <div className={styles.skeleton} role="status" aria-label={t.common.loading}>
+      <aside className={styles.drawer} aria-label={copy.loading}>
+        <div className={styles.skeleton} role="status" aria-label={copy.loading}>
           <span className={styles.skeletonLine} />
           <span className={styles.skeletonLine} />
           <span className={styles.skeletonLine} />
@@ -55,9 +76,9 @@ export function SignalDrawer({
 
   if (error) {
     return (
-      <aside className={styles.drawer}>
+      <aside className={styles.drawer} aria-label={copy.error}>
         <div className={styles.drawerNotice} role="alert">
-          <p>{t.reference.messages.loadError}</p>
+          <p>{copy.error}</p>
           <p>{t.common.retry}</p>
         </div>
       </aside>
@@ -66,7 +87,7 @@ export function SignalDrawer({
 
   if (!item) {
     return (
-      <aside className={styles.drawer}>
+      <aside className={styles.drawer} aria-label={copy.select}>
         <p className={styles.drawerEmpty}>{copy.select}</p>
       </aside>
     )
@@ -75,7 +96,8 @@ export function SignalDrawer({
   const title = signalObject(item)
   const objectLine = item.factual_display.object_short ?? item.contract.title ?? null
   const money = amount(item.contract.amount?.value, item.contract.amount?.currency)
-  const reasons = item.analysis.fit.reasons.slice(0, MAX_REASONS)
+  const reasons = item.analysis.fit.reasons.slice(0, MAX_ITEMS)
+  const needs = orderedNeeds(item.analysis.plausible_needs.items)
 
   /* Trois horloges, une seule vérité affichée : l'attribution prime, la
    * notification la remplace, la publication ferme la marche. L'intitulé
@@ -121,16 +143,22 @@ export function SignalDrawer({
   }).trimEnd()
 
   return (
-    <aside className={styles.drawer} data-signal-key={item.signal_id}>
+    <aside
+      className={styles.drawer}
+      aria-labelledby={titleId}
+      data-signal-key={item.signal_id}
+    >
       <div className={styles.drawerHead}>
         <StatusPill status={item.status} />
-        <MatchDots fit={item.analysis.fit} />
+        <MatchDots item={item} />
         <button type="button" className={styles.drawerClose} onClick={onClose}>
           {copy.close}
         </button>
       </div>
 
-      <h2 className={styles.drawerTitle}>{title ?? MISSING}</h2>
+      <h2 className={styles.drawerTitle} id={titleId}>
+        {title ?? MISSING}
+      </h2>
       {objectLine && objectLine !== title ? (
         <p className={styles.drawerObject}>{objectLine}</p>
       ) : null}
@@ -148,11 +176,26 @@ export function SignalDrawer({
           )}
         </Fact>
         <Fact label={copy.buyer}>{item.contract.buyer?.name ?? MISSING}</Fact>
-        <Fact label={copy.amount}>{money ?? MISSING}</Fact>
+        <Fact label={copy.amount} className={styles.factAmount}>
+          {money ?? MISSING}
+        </Fact>
         <Fact label={copy.place}>{placeLabel(item.contract.location, locale)}</Fact>
         <Fact label={clock.label}>{date(clock.value) ?? MISSING}</Fact>
         <Fact label={copy.cpv}>{item.contract.cpv ?? MISSING}</Fact>
       </dl>
+
+      {needs.length > 0 ? (
+        <section className={styles.needs}>
+          <h3 className="section-label">{copy.needs}</h3>
+          <ul>
+            {needs.map((need) => (
+              <li key={`${need.category ?? 'need'}-${need.label}`}>
+                {need.timing_label ? `${need.label} · ${need.timing_label}` : need.label}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {reasons.length > 0 ? (
         <section className={styles.why}>
