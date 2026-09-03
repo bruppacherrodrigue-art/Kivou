@@ -9,18 +9,20 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from signals.accounts import service as accounts
+from signals.api.cards import presentation_bindings_for_items, render_unlocked_card
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
 from signals.billing import service as billing
 from signals.billing.access import FeedAccess, feed_access
+from signals.card_intelligence.store import published_for_signals
 from signals.companies.contracts import CompanyProfile
+from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.service import company_profile_with_items
 from signals.engagement import company as company_engagement
 from signals.engagement import feedback
 from signals.engagement.schema import MAXIMUM_COMPANY_NOTE_LENGTH
 from signals.engagement.status import status_resolver
 from signals.feed import query as feed_query
-from signals.feed import view
 from signals.feed.history import effective_history_date
 
 router = APIRouter()
@@ -104,18 +106,33 @@ def _company_signals(
     account_id: str,
     lang: str,
 ) -> tuple[dict[str, Any], ...]:
+    """The same card `GET /signals` would render for each item — same
+    presentation, same winner enrichment — so this list can never drift from
+    the feed's idea of what an unlocked card looks like (§4 F2)."""
     resolve_status = status_resolver(
         feedback.feedback_by_signal(connection, account_id=account_id)
     )
     ordered = sorted(items, key=_history_sort_key)
-    cards = []
-    for item in ordered:
-        card = view.feed_item(item, lang=lang)
-        card["locked"] = False
-        card["status"] = resolve_status(item.signal.signal_key)
-        card["company_key"] = company_key
-        cards.append(card)
-    return tuple(cards)
+    signal_keys = tuple(item.signal.signal_key for item in ordered)
+    presentation_bindings = presentation_bindings_for_items(connection, ordered)
+    presentations = published_for_signals(
+        connection,
+        account_id=account_id,
+        bindings=presentation_bindings,
+        language=lang,
+    )
+    enrichments = winner_enrichments_for_signals(connection, signal_keys=signal_keys)
+    return tuple(
+        render_unlocked_card(
+            item,
+            lang=lang,
+            presentation=presentations.get(item.signal.signal_key),
+            company_key=company_key,
+            enrichment=enrichments.get(item.signal.signal_key),
+            status=resolve_status(item.signal.signal_key),
+        )
+        for item in ordered
+    )
 
 
 @router.get("/companies/{company_key}", response_model=CompanyProfile)
@@ -158,16 +175,16 @@ def set_company_contact(
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
         _accessible_company(connection, session, company_key, now)
-        try:
-            stored = company_engagement.set_contact(
-                connection,
-                account_id=session.account_id,
-                company_key=company_key,
-                status=payload.status,
-                now=now,
-            )
-        except company_engagement.InvalidContactStatus as error:
-            raise api_error(422, "invalid_contact_status", str(error)) from error
+        # `payload.status` is already restricted by the pydantic `Literal` —
+        # `InvalidContactStatus` in `engagement/company.py` exists for direct
+        # (non-HTTP) callers, and can never fire from here.
+        stored = company_engagement.set_contact(
+            connection,
+            account_id=session.account_id,
+            company_key=company_key,
+            status=payload.status,
+            now=now,
+        )
     return {
         "company_key": stored.company_key,
         "contact_status": stored.status,

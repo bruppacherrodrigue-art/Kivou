@@ -24,6 +24,36 @@ from signals.persistence.database import create_database_engine, migrate_to_late
 NOW = dt.datetime(2026, 8, 25, 9, 0, tzinfo=dt.UTC)
 
 
+def _iso(value: str) -> dt.datetime:
+    """Parse an ISO datetime regardless of a trailing `Z` or `+00:00`.
+
+    `GET /companies/{key}` serializes `contacted_at` through pydantic (the
+    model's own convention, shared with every other `dt.datetime` field on
+    `CompanyProfile`), while `POST /companies/{key}/contact` hand-writes
+    `.isoformat()` like the rest of this API. Comparing the parsed values
+    rather than the raw strings keeps the test honest about what actually
+    matters — the instant, not which of the two equivalent spellings a given
+    route happens to use.
+    """
+    return dt.datetime.fromisoformat(value)
+
+
+class Clock:
+    def __init__(self, start: dt.datetime = NOW) -> None:
+        self.now = start
+
+    def __call__(self) -> dt.datetime:
+        return self.now
+
+    def advance(self, delta: dt.timedelta) -> None:
+        self.now += delta
+
+
+@pytest.fixture
+def clock() -> Clock:
+    return Clock()
+
+
 @pytest.fixture
 def engine(tmp_path: pathlib.Path):
     engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
@@ -32,11 +62,11 @@ def engine(tmp_path: pathlib.Path):
 
 
 @pytest.fixture
-def client(engine) -> TestClient:
+def client(engine, clock: Clock) -> TestClient:
     app = create_app(
         engine,
         ApiConfig(cookie_secure=False, allowed_origin=ORIGIN, session_ttl=dt.timedelta(days=365)),
-        now_override=lambda: NOW,
+        now_override=clock,
     )
     client = TestClient(app, headers={"Origin": ORIGIN})
     response = client.post(
@@ -94,12 +124,34 @@ def test_contact_status_defaults_to_to_contact_and_moves_forward(client, icp, en
     assert profile["contact_status"] == "to_contact" and profile["contacted_at"] is None and profile["note"] is None
     assert [s["status"] for s in profile["signals"]] == ["new"]
     moved = client.post(f"/companies/{key}/contact", json={"status": "contacted"}).json()
-    assert moved["contact_status"] == "contacted" and moved["contacted_at"] == NOW.isoformat()
+    assert moved["contact_status"] == "contacted" and _iso(moved["contacted_at"]) == NOW
     replied = client.post(f"/companies/{key}/contact", json={"status": "replied"}).json()
-    assert replied["contacted_at"] == NOW.isoformat(), "la première date de contact est conservée"
+    assert _iso(replied["contacted_at"]) == NOW, "la première date de contact est conservée"
     back = client.post(f"/companies/{key}/contact", json={"status": "to_contact"}).json()
-    assert back["contact_status"] == "to_contact" and back["contacted_at"] == NOW.isoformat()
+    assert back["contact_status"] == "to_contact" and _iso(back["contacted_at"]) == NOW
     assert client.post(f"/companies/{key}/contact", json={"status": "won"}).status_code == 422
+
+
+def test_contacted_at_refreshes_on_a_new_cycle_after_a_walk_back(client, icp, engine, clock):
+    """PR1 §4 F3 — `contacted_at` se pose à CHAQUE `to_contact` → `contacted`.
+
+    Un aller-retour n'est pas la poursuite du cycle précédent : reculer à
+    `to_contact` puis relancer refraîchit la date, elle ne reste pas figée
+    sur le tout premier contact.
+    """
+    _seed(engine, icp, count=1)
+    key = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
+
+    first_cycle = client.post(f"/companies/{key}/contact", json={"status": "contacted"}).json()
+    assert _iso(first_cycle["contacted_at"]) == NOW
+
+    clock.advance(dt.timedelta(days=3))
+    client.post(f"/companies/{key}/contact", json={"status": "to_contact"})
+
+    clock.advance(dt.timedelta(days=1))
+    second_cycle = client.post(f"/companies/{key}/contact", json={"status": "contacted"}).json()
+    assert _iso(second_cycle["contacted_at"]) == clock.now
+    assert second_cycle["contacted_at"] != first_cycle["contacted_at"]
 
 
 def test_company_note_is_written_read_and_cleared(client, icp, engine):
@@ -114,11 +166,17 @@ def test_company_note_is_written_read_and_cleared(client, icp, engine):
 
 def test_marking_a_signal_contacted_moves_a_pending_company_to_contacted(client, icp, engine):
     signal = _seed(engine, icp, count=1)[0]
-    key = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
+    feed_card = client.get("/signals?freshness=all").json()["items"][0]
+    key = feed_card["company_key"]
     client.post(f"/signals/{signal}/contacted")
     profile = client.get(f"/companies/{key}").json()
-    assert profile["contact_status"] == "contacted" and profile["contacted_at"] == NOW.isoformat()
+    assert profile["contact_status"] == "contacted" and _iso(profile["contacted_at"]) == NOW
     assert profile["signals"][0]["status"] == "contacted"
+    # PR1 §4 F2 — la carte de la fiche entreprise est la MÊME carte que le
+    # feed rendrait pour ce signal débloqué : mêmes clés, donc même
+    # présentation publiée et même enrichissement du vainqueur.
+    feed_card_after = client.get("/signals?freshness=all").json()["items"][0]
+    assert set(profile["signals"][0]) == set(feed_card_after)
 
 
 def test_a_replied_company_is_not_demoted_by_a_signal_contact(client, icp, engine):
@@ -146,7 +204,6 @@ def test_two_signals_one_contacted_are_listed_under_the_company(client, icp, eng
     donc le MÊME avis SIMAP pour une deuxième ICP du même compte : l'entreprise
     se regroupe par empreinte d'identité, pas par ICP.
     """
-    account_id = client.get("/me").json()["account_id"]
     second_icp = client.post(
         "/target-icps",
         json={"label": "Suivi bis", "customer_input": COMPLETE_ICP_INPUT},
@@ -170,7 +227,6 @@ def test_two_signals_one_contacted_are_listed_under_the_company(client, icp, eng
     profile = client.get(f"/companies/{company_key}").json()
     assert {s["status"] for s in profile["signals"]} == {"new", "contacted"}
     assert len(profile["signals"]) == 2
-    assert account_id  # le compte a bien porté les deux ICP
 
 
 def test_unknown_or_foreign_company_is_404(client, icp, engine):

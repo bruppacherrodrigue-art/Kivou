@@ -33,10 +33,10 @@ import dataclasses
 import datetime as dt
 from typing import Annotated, Any, Literal, get_args
 
-import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request
 
 from signals.accounts import service
+from signals.api.cards import presentation_bindings_for_items, render_unlocked_card
 from signals.api.dependencies import current_session, request_now
 from signals.api.errors import api_error
 from signals.billing import discovery, paywall
@@ -68,7 +68,6 @@ from signals.engagement.status import (
 )
 from signals.feed import policy, query, view
 from signals.feed.history import InvalidHistoryCursor
-from signals.persistence.schema import materialized_signal
 from signals.recency import RECENCY_POLICY_VERSION
 
 router = APIRouter()
@@ -100,32 +99,6 @@ def _language(connection, *, user_id: str) -> str:
 
     locale = service.current_user(connection, user_id=user_id).locale
     return locale if locale in LANGUAGES else "fr"
-
-
-def _presentation_bindings(connection, items) -> dict[str, tuple[int, int]]:
-    """Reload only revision numbers absent from the legacy feed dataclass.
-
-    The query is batched and receives only items whose access has already been
-    granted.  Presentation lookup therefore never sees a locked signal key.
-    """
-
-    by_key = {item.signal.signal_key: item for item in items}
-    if not by_key:
-        return {}
-    revisions = {
-        row.signal_key: row.target_icp_revision
-        for row in connection.execute(
-            sa.select(
-                materialized_signal.c.signal_key,
-                materialized_signal.c.target_icp_revision,
-            ).where(materialized_signal.c.signal_key.in_(tuple(by_key)))
-        )
-    }
-    return {
-        signal_key: (item.signal.revision, revisions[signal_key])
-        for signal_key, item in by_key.items()
-        if signal_key in revisions
-    }
 
 
 @router.get("/signals")
@@ -310,7 +283,7 @@ def list_signals(
             ) from error
 
         unlocked_items = tuple(item for item in page.items if access.is_unlocked(item))
-        presentation_bindings = _presentation_bindings(connection, unlocked_items)
+        presentation_bindings = presentation_bindings_for_items(connection, unlocked_items)
         presentations = published_for_signals(
             connection,
             account_id=session.account_id,
@@ -440,16 +413,14 @@ def _render(
 ) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
-        card = view.feed_item(item, lang=lang, presentation=presentation)
-        card["locked"] = False
-        card["status"] = status
-        if company_key is not None:
-            card["company_key"] = company_key
-        if enrichment is not None:
-            card["winner_enrichment"] = enrichment.model_dump(mode="json")
-            if enrichment.official_name is not None:
-                card["company"]["name"] = enrichment.official_name
-        return card
+        return render_unlocked_card(
+            item,
+            lang=lang,
+            presentation=presentation,
+            company_key=company_key,
+            enrichment=enrichment,
+            status=status,
+        )
     return paywall.locked_teaser(item, lang=lang, status=status)
 
 
@@ -542,7 +513,7 @@ def get_signal(
                 connection, account_id=session.account_id, signal_key=signal_key
             )
             if unlocked:
-                binding = _presentation_bindings(connection, (item,)).get(signal_key)
+                binding = presentation_bindings_for_items(connection, (item,)).get(signal_key)
                 if binding is not None:
                     if presentation_artifact_id is None:
                         presentation = published_for_signals(

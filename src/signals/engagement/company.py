@@ -2,10 +2,14 @@
 
 PR1 §4 — un signal se juge un par un (`engagement/feedback.py`), mais une
 démarche commerciale vise une ENTREPRISE : plusieurs signaux d'un même
-attributaire ne racontent pas plusieurs démarches. `contacted_at` se pose au
-premier passage vers `contacted`/`replied` et n'est plus jamais remis à nul —
-reculer le statut à `to_contact` dit « je dois relancer », pas « je n'ai
-jamais appelé ».
+attributaire ne racontent pas plusieurs démarches.
+
+`contacted_at` est posé à CHAQUE passage en `contacted` depuis `to_contact`
+(un nouveau cycle de prospection), conservé par `replied` (qui ne fait que
+confirmer le cycle en cours), et jamais remis à nul par `to_contact` — reculer
+le statut dit « je dois relancer », pas « je n'ai jamais appelé ». Un aller-
+retour `contacted → to_contact → contacted` REFRAÎCHIT donc la date : c'est un
+nouveau cycle, pas la poursuite du précédent.
 """
 
 from __future__ import annotations
@@ -65,7 +69,7 @@ def contacts_by_company(
     return {row.company_key: _contact_row(row) for row in rows}
 
 
-def set_contact(
+def _upsert_contact(
     connection: sa.Connection,
     *,
     account_id: str,
@@ -73,20 +77,38 @@ def set_contact(
     status: str,
     now: dt.datetime,
 ) -> StoredCompanyContact:
-    """Upsert du statut. `contacted_at` se pose une fois, ne se remet jamais à nul."""
-    if status not in COMPANY_CONTACT_STATUSES:
-        raise InvalidContactStatus(
-            f"statut de contact inconnu : {status!r} (attendu {COMPANY_CONTACT_STATUSES})"
+    """The one write, with `contacted_at` computed IN SQL — no read-then-write race.
+
+    An app-level `existing = get_contact(...)` read, held in Python while a
+    concurrent request writes the same row, would let two callers compute
+    `contacted_at` from the same stale snapshot. Instead, the `to_contact`→
+    `contacted` case is expressed as a `CASE` against the row's OWN current
+    `status` column, evaluated by the database at write time — there is
+    nothing to race, because there is no intermediate read to go stale.
+
+    - entering `contacted` FROM `to_contact` (or absent) is a NEW cycle:
+      `contacted_at` becomes `now`, even if a stale cycle had already set it.
+    - entering `contacted` from anywhere else (already `contacted`, or
+      `replied`) is not a new cycle: the existing value is kept, defaulting
+      to `now` only if none exists yet.
+    - `to_contact` and `replied` never move `contacted_at` forward; `replied`
+      only fills it in if it was somehow still empty.
+    """
+    if status == "contacted":
+        contacted_at_on_conflict = sa.case(
+            (company_contact.c.status == "to_contact", now),
+            else_=sa.func.coalesce(company_contact.c.contacted_at, now),
         )
-    existing = get_contact(connection, account_id=account_id, company_key=company_key)
-    contacted_at = existing.contacted_at if existing is not None else None
-    if contacted_at is None and status in {"contacted", "replied"}:
-        contacted_at = now
+    else:
+        contacted_at_on_conflict = sa.func.coalesce(
+            company_contact.c.contacted_at, now if status == "replied" else None
+        )
     values = {
         "account_id": account_id,
         "company_key": company_key,
         "status": status,
-        "contacted_at": contacted_at,
+        # First row for this company: nothing to race against yet.
+        "contacted_at": now if status in {"contacted", "replied"} else None,
         "created_at": now,
         "updated_at": now,
     }
@@ -95,7 +117,11 @@ def set_contact(
         company_contact,
         values,
         index_elements=[company_contact.c.account_id, company_contact.c.company_key],
-        update_values={"status": status, "contacted_at": contacted_at, "updated_at": now},
+        update_values={
+            "status": status,
+            "contacted_at": contacted_at_on_conflict,
+            "updated_at": now,
+        },
         returning=(
             company_contact.c.account_id,
             company_contact.c.company_key,
@@ -107,6 +133,24 @@ def set_contact(
     return _contact_row(row)
 
 
+def set_contact(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    company_key: str,
+    status: str,
+    now: dt.datetime,
+) -> StoredCompanyContact:
+    """Upsert du statut choisi par le client. Voir `_upsert_contact` pour `contacted_at`."""
+    if status not in COMPANY_CONTACT_STATUSES:
+        raise InvalidContactStatus(
+            f"statut de contact inconnu : {status!r} (attendu {COMPANY_CONTACT_STATUSES})"
+        )
+    return _upsert_contact(
+        connection, account_id=account_id, company_key=company_key, status=status, now=now
+    )
+
+
 def mark_contacted_if_pending(
     connection: sa.Connection, *, account_id: str, company_key: str, now: dt.datetime
 ) -> bool:
@@ -114,16 +158,14 @@ def mark_contacted_if_pending(
 
     Une entreprise déjà `contacted` ou `replied` n'est pas rétrogradée par un
     signal marqué contacté après coup : l'action la plus avancée l'emporte.
+    Une seule lecture ici pour décider — `_upsert_contact` n'en refait pas une
+    seconde, `contacted_at` s'y calcule en SQL (voir sa docstring).
     """
     existing = get_contact(connection, account_id=account_id, company_key=company_key)
     if existing is not None and existing.status != "to_contact":
         return False
-    set_contact(
-        connection,
-        account_id=account_id,
-        company_key=company_key,
-        status="contacted",
-        now=now,
+    _upsert_contact(
+        connection, account_id=account_id, company_key=company_key, status="contacted", now=now
     )
     return True
 

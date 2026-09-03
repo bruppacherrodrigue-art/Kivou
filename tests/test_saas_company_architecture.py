@@ -48,17 +48,30 @@ def test_company_boundary_has_no_provider_or_acquisition_dependency() -> None:
 
 def test_browser_contract_exposes_no_internal_or_person_fields() -> None:
     schema = repr(CompanyProfile.model_json_schema()).lower()
+    # PR1 §4 — le suivi commercial du compte est le SEUL « contact* » légitime
+    # de ce contrat. Le nom du champ, son titre humanisé par pydantic et le
+    # vocabulaire fermé du statut (`to_contact`/`contacted`/`replied`)
+    # contiennent tous la sous-chaîne « contact » ; on les retire un par un
+    # avant le test plutôt que d'affaiblir le terme interdit lui-même.
+    # `signals` se déclare comme un tableau d'objets non typés
+    # (`dict[str, Any]`) : ce garde-fou ne voit donc PAS l'intérieur des
+    # cartes qu'il contient — elles restent gouvernées par `view.feed_item`.
+    for allowed in (
+        "contact_status",
+        "contacted_at",
+        "contact status",
+        "contacted at",
+        "to_contact",
+        "contacted",
+    ):
+        schema = schema.replace(allowed, "")
 
     for forbidden in (
         "provider_id",
         "score",
         "policy",
         "verdict",
-        # PR1 §4 — `contact_status`/`contacted_at` are the legitimate,
-        # customer-owned commercial follow-up on a company, not a leak of the
-        # internal acquisition engine's CRM contact (`contact_ref`, the term
-        # this guard actually protects — see the sibling boundary test above).
-        "contact_ref",
+        "contact",
         "person",
         "email",
         "phone",
