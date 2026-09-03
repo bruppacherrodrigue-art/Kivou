@@ -59,9 +59,6 @@ fi
 uv sync --project "$KIVOU_RELEASE_DIR" --frozen --extra server --extra postgres
 npm --prefix "$KIVOU_RELEASE_DIR/frontend" ci
 npm --prefix "$KIVOU_RELEASE_DIR/frontend" run build
-# Le backend (kivou) et le frontend statique (www-data) doivent tous deux
-# pouvoir traverser la release créée par le service de déploiement root.
-chmod -R a+rX "$KIVOU_RELEASE_DIR"
 
 marker=$(mktemp)
 rehearsal_name="kivou_rehearsal_${KIVOU_SHA:0:12}_$$"
@@ -103,6 +100,11 @@ dropdb --if-exists --maintenance-db="$KIVOU_ADMIN_SAFE_URL" "$rehearsal_name"
 rehearsal_created=0
 
 KIVOU_DATABASE_URL="$KIVOU_DATABASE_URL" uv run --project "$KIVOU_RELEASE_DIR" python -c "$MIGRATE_CODE"
+
+# `uv run` peut recréer les métadonnées du paquet éditable. Appliquer les
+# permissions après le dernier appel à uv garantit que kivou et www-data lisent
+# tous les fichiers de la release au moment de la bascule.
+chmod -R a+rX "$KIVOU_RELEASE_DIR"
 
 preserve_previous() {
   local link=$1
