@@ -111,6 +111,9 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
     )
 
     assert success.returncode == 0, success.stderr
-    assert f"chmod -R a+rX {releases / f'staging-{'b' * 40}'}" in log.read_text(encoding="utf-8")
+    success_commands = log.read_text(encoding="utf-8")
+    permission_command = f"chmod -R a+rX {releases / f'staging-{'b' * 40}'}"
+    assert permission_command in success_commands
+    assert success_commands.rfind(permission_command) > success_commands.rfind("uv run")
     assert live_backend.resolve() == releases / f"staging-{'b' * 40}"
     assert live_frontend.resolve() == releases / f"staging-{'b' * 40}" / "frontend/dist"
