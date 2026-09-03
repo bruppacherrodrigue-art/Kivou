@@ -251,6 +251,12 @@
   overflow-wrap: break-word;
 }
 
+/* Un montant se compare colonne par colonne, dans le tiroir comme dans le
+ * tableau. */
+.factAmount {
+  font-variant-numeric: tabular-nums;
+}
+
 .factLink {
   color: var(--green);
   font-weight: 680;
@@ -261,6 +267,7 @@
   text-decoration: underline;
 }
 
+.needs,
 .why {
   padding: 10px 12px;
   border: 1px solid var(--brand-border);
@@ -268,10 +275,12 @@
   background: var(--green-state);
 }
 
+.needs h3,
 .why h3 {
   margin: 0 0 6px;
 }
 
+.needs ul,
 .why ul {
   margin: 0;
   padding-left: 16px;
@@ -309,7 +318,7 @@
 .actionPrimary {
   border-color: var(--forest);
   background: var(--forest);
-  color: #ffffff;
+  color: var(--primary-foreground);
 }
 
 .actionState {
@@ -334,6 +343,14 @@
 
 a.source {
   color: var(--blue);
+}
+
+/* Les besoins ne sont que PLAUSIBLES : ils se déduisent des exigences du
+ * marché, pas d'un achat annoncé. Leur bloc reste neutre, là où les raisons
+ * d'adéquation portent la couleur de marque. */
+.needs {
+  border-color: var(--card-border);
+  background: var(--surface-subtle);
 }
 
 /* ── Squelette de chargement ────────────────────────────────────────────── */

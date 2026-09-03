@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import type { UnlockedFeedItem } from '../../api/types'
+import type { PlausibleNeed, UnlockedFeedItem } from '../../api/types'
 import { AUTHENTICATED, UNLOCKED_ITEM, renderApp } from '../../test/harness'
 import { SignalDrawer } from './SignalDrawer'
 
@@ -16,8 +16,29 @@ const FORBIDDEN = [
   'contact non confirmé',
 ]
 
+/* Le vocabulaire proscrit sur toute la surface client. « Attribué le » reste :
+ * c'est la forme verbale, pas le substantif. */
+const FORBIDDEN_VOCABULARY = ['occasion', 'ciblage', 'attribution', 'déblocage', 'lecture']
+
 function item(overrides: Partial<UnlockedFeedItem> = {}): UnlockedFeedItem {
   return { ...UNLOCKED_ITEM, ...overrides }
+}
+
+function need(overrides: Partial<PlausibleNeed> = {}): PlausibleNeed {
+  return { ...UNLOCKED_ITEM.analysis.plausible_needs.items[0], ...overrides }
+}
+
+function withNeeds(needs: PlausibleNeed[]): UnlockedFeedItem {
+  return item({
+    analysis: {
+      ...UNLOCKED_ITEM.analysis,
+      plausible_needs: { ...UNLOCKED_ITEM.analysis.plausible_needs, items: needs },
+    },
+  })
+}
+
+function flat(text: string | null): string {
+  return (text ?? '').replace(/\s+/g, ' ').trim()
 }
 
 function renderDrawer({
@@ -59,7 +80,13 @@ function fact(label: string): string {
   const term = screen.getByText(label)
   const value = term.nextElementSibling
   if (!value) throw new Error(`Aucune valeur pour « ${label} »`)
-  return (value.textContent ?? '').replace(/\s+/g, ' ').trim()
+  return flat(value.textContent)
+}
+
+function listOf(heading: string): string[] {
+  const block = screen.getByText(heading).closest('section')
+  if (!block) throw new Error(`Aucun bloc « ${heading} »`)
+  return within(block).getAllByRole('listitem').map((entry) => flat(entry.textContent))
 }
 
 describe('SignalDrawer', () => {
@@ -258,6 +285,65 @@ describe('SignalDrawer', () => {
 
     for (const word of FORBIDDEN) {
       expect(container.textContent?.toLowerCase()).not.toContain(word.toLowerCase())
+    }
+  })
+  it('associe le tiroir chargé à son titre', () => {
+    const { container } = renderDrawer()
+
+    const labelledBy = container.querySelector('aside')?.getAttribute('aria-labelledby')
+    expect(labelledBy).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2 })).toHaveAttribute('id', labelledBy)
+  })
+
+  it.each([
+    [{ signal: null, loading: true }, 'Chargement du signal'],
+    [{ signal: null, error: new Error('boom') }, 'Le signal n’a pas pu être chargé.'],
+    [{ signal: null }, 'Sélectionnez un signal'],
+  ])('nomme le tiroir quand aucun titre ne peut le faire (%#)', (props, label) => {
+    const { container } = renderDrawer(props)
+
+    expect(container.querySelector('aside')).toHaveAttribute('aria-label', label)
+  })
+
+  it('rend les besoins impliqués, ceux que le profil vise en premier', () => {
+    renderDrawer({
+      signal: withNeeds([
+        need({ label: 'Transport', targeted_by_your_profile: false, timing_label: 'Moyen terme' }),
+        need({ label: 'Matériaux', targeted_by_your_profile: true, timing_label: 'Court terme' }),
+        need({ label: 'Protections', targeted_by_your_profile: false, timing_label: null }),
+        need({ label: 'Déchets', targeted_by_your_profile: false, timing_label: 'Long terme' }),
+      ]),
+    })
+
+    expect(listOf('Ce que le titulaire va devoir faire')).toEqual([
+      'Matériaux · Court terme',
+      'Transport · Moyen terme',
+      'Protections',
+    ])
+  })
+
+  it('écarte un besoin sans libellé', () => {
+    renderDrawer({
+      signal: withNeeds([
+        need({ label: null, targeted_by_your_profile: true }),
+        need({ label: 'Matériaux', targeted_by_your_profile: false, timing_label: null }),
+      ]),
+    })
+
+    expect(listOf('Ce que le titulaire va devoir faire')).toEqual(['Matériaux'])
+  })
+
+  it('retire le bloc des besoins quand aucun n’est publié', () => {
+    renderDrawer({ signal: withNeeds([]) })
+
+    expect(screen.queryByText('Ce que le titulaire va devoir faire')).not.toBeInTheDocument()
+  })
+
+  it('n’emploie aucun mot du vocabulaire proscrit', () => {
+    const { container } = renderDrawer()
+
+    for (const word of FORBIDDEN_VOCABULARY) {
+      expect(container.textContent ?? '').not.toMatch(new RegExp(`\\b${word}\\b`, 'i'))
     }
   })
 })

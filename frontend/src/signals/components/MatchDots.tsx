@@ -1,4 +1,4 @@
-import type { Fit } from '../../api/types'
+import type { Fit, UnlockedFeedItem } from '../../api/types'
 import { interpolate, useI18n } from '../../i18n'
 import styles from './signals.module.css'
 
@@ -13,27 +13,29 @@ const BAND_LEVELS: Record<NonNullable<Fit['band']>, Filled> = {
   unknown: 1,
 }
 
-/* Les niveaux dérivés du seul libellé de fit, faute de bande.
+/** Le nombre de points pleins, et s'il a été DÉDUIT plutôt que mesuré.
  *
- * `GET /signals` n'expose pas encore `icp_match_band` (écart API 1). Tant
- * qu'il ne l'expose pas, quatre points pleins sont IMPOSSIBLES : une dérivée
- * ne peut pas prétendre à la certitude d'une mesure. C'est pourquoi le maximum
- * dérivé est 3, et pourquoi la dérivation se voit dans `data-derived`. */
-const LABEL_LEVELS: Record<string, Filled> = {
-  matched_needs: 3,
-  territory_only: 2,
-  targeted_profile: 1,
+ * `GET /signals` n'expose pas encore `icp_match_band` (écart API 1). Le repli
+ * ne lit PAS `analysis.fit.label` : le backend y met une phrase traduite
+ * (« Très bon pour votre profil »), pas un code, et toute dérivation par
+ * libellé retomberait invariablement sur un point sur quatre. Il lit donc les
+ * seuls faits structurés disponibles : un besoin explicitement visé par le
+ * profil vaut trois points, un lieu connu deux, le reste un. Une déduction ne
+ * peut jamais atteindre quatre points, et elle se signale dans
+ * `data-derived`. */
+export function matchLevel(item: UnlockedFeedItem): { filled: Filled; derived: boolean } {
+  const band = item.analysis.fit.band
+  if (band) return { filled: BAND_LEVELS[band], derived: false }
+  if (item.analysis.plausible_needs.items.some((need) => need.targeted_by_your_profile)) {
+    return { filled: 3, derived: true }
+  }
+  if (item.contract.location) return { filled: 2, derived: true }
+  return { filled: 1, derived: true }
 }
 
-/** Le nombre de points pleins, et s'il a été DÉDUIT plutôt que mesuré. */
-export function matchLevel(fit: Fit): { filled: Filled; derived: boolean } {
-  if (fit.band) return { filled: BAND_LEVELS[fit.band], derived: false }
-  return { filled: LABEL_LEVELS[fit.label] ?? 1, derived: true }
-}
-
-export function MatchDots({ fit }: { fit: Fit }) {
+export function MatchDots({ item }: { item: UnlockedFeedItem }) {
   const { t } = useI18n()
-  const { filled, derived } = matchLevel(fit)
+  const { filled, derived } = matchLevel(item)
 
   return (
     <span
