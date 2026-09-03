@@ -75,10 +75,7 @@ admin_query=''
 [[ "$KIVOU_MIGRATION_ADMIN_URL" == *\?* ]] && admin_query="?${KIVOU_MIGRATION_ADMIN_URL#*\?}"
 rehearsal_restore_url="${admin_base%/*}/$rehearsal_name$admin_query"
 pg_restore --exit-on-error --no-owner --no-privileges --dbname="$rehearsal_restore_url" "$backup_file"
-live_base=${KIVOU_DATABASE_URL%%\?*}
-live_query=''
-[[ "$KIVOU_DATABASE_URL" == *\?* ]] && live_query="?${KIVOU_DATABASE_URL#*\?}"
-rehearsal_url="${live_base%/*}/$rehearsal_name$live_query"
+rehearsal_url="${admin_base%/*}/$rehearsal_name$admin_query"
 MIGRATE_CODE='from signals.persistence import create_database_engine, migrate_to_latest; migrate_to_latest(create_database_engine())'
 if ! KIVOU_DATABASE_URL="$rehearsal_url" uv run --project "$KIVOU_RELEASE_DIR" python -c "$MIGRATE_CODE"; then
   fail "répétition Alembic échouée ; la base et la release vives sont intactes"
