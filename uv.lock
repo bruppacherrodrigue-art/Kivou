@@ -660,7 +660,7 @@ requires-dist = [
     { name = "defusedxml", specifier = ">=0.7" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
-    { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.2" },
+    { name = "psycopg", extras = ["binary"], marker = "extra == 'postgres'", specifier = ">=3.3.4" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.9" },
     { name = "pypdf", specifier = ">=6.16.1" },
     { name = "sqlalchemy", specifier = ">=2.0" },
@@ -672,7 +672,7 @@ provides-extras = ["server", "postgres"]
 [package.metadata.requires-dev]
 dev = [
     { name = "aiosmtpd", specifier = ">=1.4.6" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
+    { name = "psycopg", extras = ["binary"], specifier = ">=3.3.4" },
     { name = "pytest", specifier = ">=8" },
     { name = "ruff", specifier = ">=0.16.5" },
     { name = "trustme", specifier = ">=1.2" },
