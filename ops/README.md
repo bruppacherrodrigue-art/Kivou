@@ -13,8 +13,13 @@ build, sauvegarde, migration, bascule et readiness sont remplacées par cet
 appel unique :
 
 ```bash
-sudo --preserve-env=KIVOU_DATABASE_URL,KIVOU_MIGRATION_ADMIN_URL \
-  ops/bin/kivou-deploy.sh staging <SHA-main-sur-40-caractères>
+sudo systemd-run --wait --collect --pipe \
+  --unit=kivou-deploy-<SHA-court> \
+  --property=Type=oneshot \
+  --property=EnvironmentFile=/etc/kivou/staging.env \
+  --property=WorkingDirectory=/srv/kivou/source \
+  /srv/kivou/source/ops/bin/kivou-deploy.sh staging \
+  <SHA-main-sur-40-caractères>
 ```
 
 Utiliser `production` comme premier argument pour la production. Le SHA est
