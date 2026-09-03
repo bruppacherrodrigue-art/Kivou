@@ -37,17 +37,25 @@ from signals.billing.access import FeedAccess
 from signals.card_intelligence.store import published_for_signals
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.listing import list_companies
-from signals.companies.service import accessible_company_items, company_keys_for_signals
+from signals.companies.service import company_keys_for_signals
 from signals.engagement.feedback import feedback_by_signal
 from signals.engagement.schema import company_contact, signal_feedback
 from signals.engagement.status import status_resolver
 from signals.feed import policy
 from signals.feed import query as feed_query
-from signals.feed.history import effective_history_date, history_sort_key
+from signals.feed.history import effective_history_date
 from signals.feed.query import FeedSignal
 
 #: Meilleur `icp_match_band` d'abord. `None`/inconnu ne prétend à rien (§5).
 _BAND_RANK: dict[str, int] = {"strong": 3, "promising": 2, "weak": 1}
+
+#: Fix round 2 (F4) — le nombre de relances rendues, et donc le nombre de
+#: lectures par signal que ce bloc peut coûter. Sans plafond, une entreprise
+#: contactée de plus valait un balayage complet de plus : le tableau de bord
+#: devenait plus lent à mesure que le compte travaillait. Dix relances les plus
+#: anciennes suffisent à un écran « à faire aujourd'hui » ; au-delà,
+#: `to_follow_up_truncated` le dit plutôt que de le taire.
+_FOLLOW_UP_LIMIT = 10
 
 
 def _band_rank(band: str | None) -> int:
@@ -154,7 +162,7 @@ def _to_follow_up(
     now: dt.datetime,
     lang: str,
     resolve_status: Callable[[str], str],
-) -> tuple[list[dict[str, Any]], bool]:
+) -> tuple[list[dict[str, Any]], bool, bool]:
     """Entreprises `contacted` depuis au moins 7 jours, la plus ancienne relance d'abord.
 
     Fix round 1 (I3) — le filtre `contacted_before` est appliqué DANS
@@ -165,7 +173,13 @@ def _to_follow_up(
     `HISTORY_SCAN_CAP` (pas de plafond à 50 ici — c'est la route `GET
     /companies`, pas cette fonction, qui impose `le=50`).
 
-    Rend aussi `scan_truncated`, à fondre dans celui du tableau de bord.
+    Fix round 2 (F4) — le tri par `contacted_at` précède la découpe, et la
+    découpe précède toute lecture par entreprise : le coût du bloc est borné à
+    `_FOLLOW_UP_LIMIT` signaux lus, quel que soit le nombre d'entreprises dues.
+    Le dernier signal de chaque relance se relit par sa CLÉ (`last_signal_key`,
+    déjà connue de l'agrégation), et non en rebalayant l'entreprise entière.
+
+    Rend `(relances, scan_truncated de la liste, to_follow_up_truncated)`.
     """
     page = list_companies(
         connection,
@@ -179,23 +193,27 @@ def _to_follow_up(
         limit=feed_query.HISTORY_SCAN_CAP,
         cursor=None,
     )
-    due_rows = sorted(page.rows, key=lambda row: row.contacted_at)
+    ordered = sorted(page.rows, key=lambda row: row.contacted_at)
+    follow_up_truncated = len(ordered) > _FOLLOW_UP_LIMIT or page.scan_truncated
+    due_rows = ordered[:_FOLLOW_UP_LIMIT]
 
     last_item_by_company: dict[str, FeedSignal] = {}
     for row in due_rows:
-        items = accessible_company_items(
+        if row.last_signal_key is None:
+            continue
+        item = feed_query.owned_signal(
             connection,
-            company_key=row.company_key,
             account_id=account_id,
+            signal_key=row.last_signal_key,
             as_of=as_of,
             allowed_target_icp_ids=allowed_target_icp_ids,
-            access=access,
         )
-        if not items:
+        # La propriété ne suffit pas : le droit du PLAN décide, exactement
+        # comme pour `top3` (`admit=access.is_unlocked` dans `feed_page`). Un
+        # signal sans nom affichable n'a rien à montrer non plus.
+        if item is None or item.display is None or not access.is_unlocked(item):
             continue
-        last_item_by_company[row.company_key] = min(
-            items, key=lambda item: history_sort_key(item.signal)
-        )
+        last_item_by_company[row.company_key] = item
 
     signal_company_key = {
         item.signal.signal_key: company_key for company_key, item in last_item_by_company.items()
@@ -222,7 +240,7 @@ def _to_follow_up(
                 "days_since_contact": (now - row.contacted_at).days,
             }
         )
-    return results, page.scan_truncated
+    return results, page.scan_truncated, follow_up_truncated
 
 
 def build_dashboard(
@@ -256,13 +274,18 @@ def build_dashboard(
     # `strong_matches` ET `top3` : possédé + autorisé par le plan de territoire
     # + nommé + DÉBLOQUÉ (`admit=access.is_unlocked`). Un signal qu'un compte
     # Discovery ou impayé n'a pas débloqué n'apparaît dans AUCUN des trois.
+    # Fix round 2 (F1) — `limit=1` : la PAGE ne sert à rien ici, seul
+    # `scope.matched` compte. Demander `MAXIMUM_PAGE_SIZE` puis lire
+    # `scope.items` plafonnait les trois agrégats à cinquante — un compte avec
+    # soixante nouveautés en annonçait cinquante, et un signal `strong` classé
+    # cinquante-et-unième par date ne pouvait plus jamais atteindre `top3`.
     scope = feed_query.feed_page(
         connection,
         account_id=account_id,
         as_of=as_of,
         freshness=policy.DEFAULT_FRESHNESS,
         allowed_target_icp_ids=allowed_target_icp_ids,
-        limit=policy.MAXIMUM_PAGE_SIZE,
+        limit=1,
         offset=0,
         status_of=resolve_status,
         statuses=frozenset({"new"}),
@@ -270,12 +293,12 @@ def build_dashboard(
     )
 
     if previous_seen is None:
-        since_visit = list(scope.items)
+        since_visit = list(scope.matched)
     else:
         cutoff_date = previous_seen.date()
         since_visit = [
             item
-            for item in scope.items
+            for item in scope.matched
             if item.signal.event.published_on is not None
             and item.signal.event.published_on >= cutoff_date
         ]
@@ -283,7 +306,7 @@ def build_dashboard(
     new_since_last_visit = len(since_visit)
     strong_matches = sum(1 for item in since_visit if item.signal.icp_match_band == "strong")
 
-    top3_items = sorted(scope.items, key=_top3_sort_key, reverse=True)[:3]
+    top3_items = sorted(scope.matched, key=_top3_sort_key, reverse=True)[:3]
     top3_company_keys = company_keys_for_signals(
         connection, signal_keys=tuple(item.signal.signal_key for item in top3_items)
     )
@@ -297,7 +320,7 @@ def build_dashboard(
     )
     top3 = [top3_cards[item.signal.signal_key] for item in top3_items]
 
-    to_follow_up, follow_up_truncated = _to_follow_up(
+    to_follow_up, follow_up_scan_truncated, to_follow_up_truncated = _to_follow_up(
         connection,
         account_id=account_id,
         as_of=as_of,
@@ -339,9 +362,13 @@ def build_dashboard(
         "strong_matches": strong_matches,
         "top3": top3,
         "to_follow_up": to_follow_up,
+        #: PR1 §5 (fix round 2, F4) — vrai quand plus de `_FOLLOW_UP_LIMIT`
+        #: relances étaient dues, ou quand le balayage de la liste a été
+        #: tronqué : la liste rendue est alors un extrait, jamais « tout ».
+        "to_follow_up_truncated": to_follow_up_truncated,
         "week": week,
         "scan_truncated": (
-            scope.scan_truncated or week_page.counts_truncated or follow_up_truncated
+            scope.scan_truncated or week_page.counts_truncated or follow_up_scan_truncated
         ),
     }
 
