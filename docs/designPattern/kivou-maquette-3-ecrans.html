@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kivou — maquette Dashboard / Signaux / Entreprises</title>
+<style>
+  :root{
+    --bg:#fff; --ink:#1c2420; --muted:#6b756f; --line:#e3e8e5; --soft:#f4f7f5;
+    --green:#1f5a3c; --green-soft:#e6f1eb; --amber:#b8861b; --amber-soft:#fbf3df; --red:#b3433f;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--soft);color:var(--ink);font:14px/1.45 "Inter",system-ui,-apple-system,"Segoe UI",sans-serif}
+  a{color:inherit;text-decoration:none}
+  .app{max-width:1180px;margin:24px auto;background:var(--bg);border:1px solid var(--line);border-radius:10px;overflow:hidden;min-height:760px;display:grid;grid-template-columns:200px 1fr}
+  nav{border-right:1px solid var(--line);padding:18px 14px;background:#fbfcfb}
+  .brand{font-weight:700;color:var(--green);font-size:17px;letter-spacing:-.01em;margin:4px 8px 22px}
+  nav button{display:block;width:100%;text-align:left;padding:9px 10px;border:0;background:none;border-radius:6px;font:inherit;color:var(--ink);cursor:pointer}
+  nav button.on{background:var(--green-soft);color:var(--green);font-weight:600}
+  nav .plan{margin-top:26px;padding:10px;font-size:12px;color:var(--muted);border-top:1px solid var(--line)}
+  nav .plan b{color:var(--ink)}
+  main{padding:26px 30px}
+  .screen{display:none}.screen.on{display:block}
+  h1{font-size:22px;margin:0 0 4px;letter-spacing:-.01em}
+  h2{font-size:15px;margin:0 0 10px}
+  .sub{color:var(--muted);margin:0 0 22px}
+  .row{display:flex;gap:12px;align-items:center}
+  .grow{flex:1}
+  .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600}
+  .pill.g{background:var(--green-soft);color:var(--green)}
+  .pill.a{background:var(--amber-soft);color:var(--amber)}
+  .pill.n{background:var(--soft);color:var(--muted)}
+  .btn{padding:7px 12px;border-radius:6px;border:1px solid var(--line);background:#fff;font:inherit;cursor:pointer}
+  .btn.p{background:var(--green);border-color:var(--green);color:#fff;font-weight:600}
+  .btn.s{padding:5px 10px;font-size:13px}
+  .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:26px}
+  .card{border:1px solid var(--line);border-radius:8px;padding:14px}
+  .card .who{font-weight:700;font-size:15px}
+  .card .obj{margin:4px 0 8px;color:var(--ink)}
+  .card .meta{color:var(--muted);font-size:13px;display:flex;justify-content:space-between}
+  .card .why{margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:13px}
+  .card .why b{color:var(--green)}
+  .card .act{margin-top:12px;display:flex;gap:8px}
+  .two{display:grid;grid-template-columns:1.2fr 1fr;gap:14px}
+  .list{border:1px solid var(--line);border-radius:8px}
+  .list h2{padding:12px 14px;margin:0;border-bottom:1px solid var(--line);font-size:14px}
+  .list .it{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);align-items:center}
+  .list .it:last-child{border-bottom:0}
+  .list .it .d{color:var(--muted);font-size:13px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+  .filters select,.filters input{font:inherit;padding:6px 9px;border:1px solid var(--line);border-radius:6px;background:#fff}
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+  .seg span{padding:6px 10px;font-size:13px;color:var(--muted);cursor:pointer}
+  .seg span.on{background:var(--green-soft);color:var(--green);font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:13.5px}
+  th{text-align:left;color:var(--muted);font-weight:500;font-size:12px;padding:8px 10px;border-bottom:1px solid var(--line)}
+  td{padding:10px;border-bottom:1px solid var(--line);vertical-align:top}
+  tr.sel td{background:var(--green-soft)}
+  tr:hover td{background:#f8faf9;cursor:pointer}
+  td.num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+  .dots{letter-spacing:1px;color:var(--green)}
+  .dots i{color:var(--line);font-style:normal}
+  .layout{display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start}
+  .drawer{border:1px solid var(--line);border-radius:8px;padding:16px;position:sticky;top:20px;background:#fff}
+  .drawer h2{font-size:16px;margin-bottom:2px}
+  .kv{display:grid;grid-template-columns:110px 1fr;gap:5px 10px;font-size:13px;margin:12px 0}
+  .kv div:nth-child(odd){color:var(--muted)}
+  .box{background:var(--soft);border-radius:6px;padding:10px 12px;font-size:13px;margin:12px 0}
+  .box ul{margin:6px 0 0 16px;padding:0}
+  .src{font-size:12px;color:var(--muted);margin-top:14px;padding-top:10px;border-top:1px solid var(--line)}
+  .status{font-size:12px;font-weight:600}
+  .status.c{color:var(--amber)} .status.r{color:var(--green)} .status.t{color:var(--muted)}
+  .fiche h1{margin-bottom:0}
+  .fiche .id{color:var(--muted);margin:2px 0 16px}
+  .notes textarea{width:100%;min-height:70px;font:inherit;border:1px solid var(--line);border-radius:6px;padding:8px}
+  .hist{font-size:13px;color:var(--muted)}
+  .hist div{padding:5px 0;border-bottom:1px solid var(--line)}
+  .hint{position:fixed;left:50%;bottom:14px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:6px 12px;border-radius:999px;font-size:12px;opacity:.85}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav>
+    <div class="brand">Kivou</div>
+    <button class="on" data-s="dash">Aujourd'hui</button>
+    <button data-s="sig">Signaux</button>
+    <button data-s="ent">Entreprises</button>
+    <button>Profil cible</button>
+    <button>Alertes</button>
+    <div class="plan">Plan Pro<br><b>47 / 100</b> signaux ouverts ce mois<br>BTP · Auvergne-Rhône-Alpes, PACA</div>
+  </nav>
+
+  <main>
+    <!-- ================= DASHBOARD ================= -->
+    <section class="screen on" id="dash">
+      <h1>12 nouveaux marchés depuis lundi</h1>
+      <p class="sub">3 correspondent fortement à votre profil BTP second œuvre · Auvergne-Rhône-Alpes, PACA</p>
+
+      <div class="cards">
+        <div class="card">
+          <div class="row"><span class="who grow">ERGC</span><span class="dots">●●●●</span></div>
+          <div class="obj">Collège de Levens, lot 2 : fondations, gros œuvre, charpente bois, façades</div>
+          <div class="meta"><span>13,4 M€</span><span>Nice · 1 sept.</span></div>
+          <div class="why"><b>Pour vous :</b> gros œuvre + charpente bois, PACA, chantier neuf de 18 mois</div>
+          <div class="act"><button class="btn p s">Ouvrir</button><button class="btn s">Ignorer</button></div>
+        </div>
+        <div class="card">
+          <div class="row"><span class="who grow">Bect Gérard Constructions métalliques</span><span class="dots">●●●●</span></div>
+          <div class="obj">Pôle logistique CEA Grenoble, lot 7 : couverture, bardage</div>
+          <div class="meta"><span>834 k€</span><span>Grenoble · 27 août</span></div>
+          <div class="why"><b>Pour vous :</b> bardage métallique, Isère, sous-traitance étanchéité probable</div>
+          <div class="act"><button class="btn p s">Ouvrir</button><button class="btn s">Ignorer</button></div>
+        </div>
+        <div class="card">
+          <div class="row"><span class="who grow">Jean Lefebvre Rhône-Alpes</span><span class="dots">●●●<i>●</i></span></div>
+          <div class="obj">Entretien voirie et petits investissements, Lyon secteur 1</div>
+          <div class="meta"><span>2,0 M€</span><span>Lyon · 28 août</span></div>
+          <div class="why"><b>Pour vous :</b> accord-cadre 4 ans, Lyon, fournitures et location d'engins</div>
+          <div class="act"><button class="btn p s">Ouvrir</button><button class="btn s">Ignorer</button></div>
+        </div>
+      </div>
+
+      <div class="two">
+        <div class="list">
+          <h2>À relancer</h2>
+          <div class="it"><span class="grow"><b>Amiaud SARL</b> <span class="d">· CVC plomberie, Les Sables-d'Olonne</span></span><span class="d">contactée il y a 9 j</span><button class="btn s">Ouvrir</button></div>
+          <div class="it"><span class="grow"><b>Spie Industries</b> <span class="d">· poste de livraison, Le Croisic</span></span><span class="d">contactée il y a 12 j</span><button class="btn s">Ouvrir</button></div>
+          <div class="it"><span class="grow"><b>ID Verde</b> <span class="d">· 2 marchés récents</span></span><span class="d">a répondu hier</span><button class="btn s">Ouvrir</button></div>
+        </div>
+        <div class="list">
+          <h2>Cette semaine</h2>
+          <div class="it"><span class="grow">Nouveaux marchés dans votre zone</span><b>12</b></div>
+          <div class="it"><span class="grow">Sauvés</span><b>5</b></div>
+          <div class="it"><span class="grow">Entreprises contactées</span><b>3</b></div>
+          <div class="it"><span class="grow">Réponses</span><b>1</b></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SIGNAUX ================= -->
+    <section class="screen" id="sig">
+      <h1>Signaux</h1>
+      <p class="sub">Marchés publics attribués dans votre zone et votre secteur</p>
+
+      <div class="filters">
+        <div class="seg"><span class="on">Nouveaux 12</span><span>Sauvés 5</span><span>Contactés 3</span><span>Ignorés</span><span>Tous</span></div>
+        <select><option>Zone : AURA, PACA</option></select>
+        <select><option>Secteur : BTP second œuvre</option></select>
+        <select><option>Montant : ≥ 200 k€</option></select>
+        <select><option>30 derniers jours</option></select>
+        <input placeholder="Rechercher un titulaire, un objet…" style="min-width:220px">
+      </div>
+
+      <div class="layout">
+        <table>
+          <thead><tr><th>Date</th><th>Titulaire</th><th>Objet</th><th style="text-align:right">Montant</th><th>Lieu</th><th>Match</th></tr></thead>
+          <tbody>
+            <tr class="sel"><td>1 sept.</td><td><b>ERGC</b></td><td>Collège de Levens, lot 2 : gros œuvre, charpente bois, façades</td><td class="num">13,4 M€</td><td>Nice</td><td class="dots">●●●●</td></tr>
+            <tr><td>28 août</td><td><b>Amiaud SARL</b></td><td>Lot 17 CVC, plomberie, sanitaire, désenfumage</td><td class="num">1,78 M€</td><td>Les Sables-d'Olonne</td><td class="dots">●●<i>●●</i></td></tr>
+            <tr><td>28 août</td><td><b>Eurovia Midi-Pyrénées</b></td><td>Travaux neufs, entretien et réparation de voirie communale</td><td class="num">30,0 M€</td><td>Occitanie</td><td class="dots">●●<i>●●</i></td></tr>
+            <tr><td>28 août</td><td><b>Jean Lefebvre Rhône-Alpes</b></td><td>Entretien voirie et petits investissements, Lyon secteur 1</td><td class="num">2,0 M€</td><td>Lyon</td><td class="dots">●●●<i>●</i></td></tr>
+            <tr><td>27 août</td><td><b>Bect Gérard</b></td><td>Pôle logistique CEA Grenoble, lot 7 : couverture, bardage</td><td class="num">834 k€</td><td>Grenoble</td><td class="dots">●●●●</td></tr>
+            <tr><td>27 août</td><td><b>ID Verde</b></td><td>Pôle Formation Santé CH Maubeuge, lot 14 : espaces verts</td><td class="num">165 k€</td><td>Maubeuge</td><td class="dots">●<i>●●●</i></td></tr>
+            <tr><td>26 août</td><td><b>Lunemapa / Fernandes</b> <span class="pill n">groupement</span></td><td>Façades et structure dans les lycées et îles de loisirs d'Île-de-France</td><td class="num">43,2 M€</td><td>Île-de-France</td><td class="dots">●●<i>●●</i></td></tr>
+            <tr><td>26 août</td><td><b>Spie Industries</b></td><td>Rénovation et extension du poste de livraison électrique</td><td class="num">1,27 M€</td><td>Le Croisic</td><td class="dots">●●<i>●●</i></td></tr>
+            <tr><td>26 août</td><td><b>Ecoflandres</b></td><td>Aménagements des mesures compensatoires, Grand Port de Dunkerque</td><td class="num">3,0 M€</td><td>Dunkerque</td><td class="dots">●<i>●●●</i></td></tr>
+          </tbody>
+        </table>
+
+        <aside class="drawer">
+          <div class="row"><span class="pill g">Nouveau</span><span class="grow"></span><span class="dots">●●●●</span></div>
+          <h2 style="margin-top:10px">Collège de Levens, lot 2</h2>
+          <div style="color:var(--muted);font-size:13px">Fondations, gros œuvre, charpente bois, façades, génie civil</div>
+          <div class="kv">
+            <div>Titulaire</div><div><a href="#" onclick="show('ent');return false" style="color:var(--green);font-weight:600">ERGC ›</a></div>
+            <div>Acheteur</div><div>Département des Alpes-Maritimes</div>
+            <div>Montant</div><div>13 435 352 €</div>
+            <div>Lieu</div><div>Levens (06)</div>
+            <div>Attribué le</div><div>1 sept. 2026</div>
+            <div>CPV</div><div>45262311 · gros œuvre béton</div>
+          </div>
+          <div class="box"><b>Pourquoi ça vous concerne</b>
+            <ul><li>Charpente bois et façades : sous-traitance habituelle sur ce type de lot</li><li>Chantier neuf, PACA, dans votre zone</li><li>Démarrage probable sous 3 mois</li></ul>
+          </div>
+          <div class="row" style="gap:8px"><button class="btn p">Marquer contacté</button><button class="btn">Sauver</button><button class="btn">Ignorer</button></div>
+          <div class="src">Source : BOAMP 26-84423 ↗</div>
+        </aside>
+      </div>
+    </section>
+
+    <!-- ================= ENTREPRISES ================= -->
+    <section class="screen" id="ent">
+      <div class="layout" style="grid-template-columns:1fr 1fr">
+        <div>
+          <h1>Entreprises</h1>
+          <p class="sub">Les titulaires de vos signaux, avec où vous en êtes</p>
+          <div class="filters">
+            <div class="seg"><span class="on">Toutes 31</span><span>À contacter 22</span><span>Contactées 6</span><span>Ont répondu 3</span></div>
+            <input placeholder="Rechercher…">
+          </div>
+          <table>
+            <thead><tr><th>Entreprise</th><th>Ville</th><th style="text-align:right">Marchés</th><th style="text-align:right">Total</th><th>Dernier</th><th>Statut</th></tr></thead>
+            <tbody>
+              <tr class="sel"><td><b>ERGC</b></td><td>Nice</td><td class="num">3</td><td class="num">21,8 M€</td><td>1 sept.</td><td><span class="status t">À contacter</span></td></tr>
+              <tr><td><b>ID Verde</b></td><td>Lille</td><td class="num">2</td><td class="num">330 k€</td><td>27 août</td><td><span class="status r">A répondu</span></td></tr>
+              <tr><td><b>Amiaud SARL</b></td><td>Les Sables-d'Olonne</td><td class="num">1</td><td class="num">1,78 M€</td><td>28 août</td><td><span class="status c">Contactée · 9 j</span></td></tr>
+              <tr><td><b>Bect Gérard</b></td><td>Grenoble</td><td class="num">1</td><td class="num">834 k€</td><td>27 août</td><td><span class="status t">À contacter</span></td></tr>
+              <tr><td><b>Spie Industries</b></td><td>Nantes</td><td class="num">4</td><td class="num">6,1 M€</td><td>26 août</td><td><span class="status c">Contactée · 12 j</span></td></tr>
+              <tr><td><b>Eurovia Midi-Pyrénées</b></td><td>Toulouse</td><td class="num">2</td><td class="num">38,0 M€</td><td>28 août</td><td><span class="status t">À contacter</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <aside class="drawer fiche">
+          <h1>ERGC</h1>
+          <div class="id">SIRET 412 345 678 00021 · Nice (06) · ergc-btp.fr ↗</div>
+          <div class="row" style="gap:8px;margin-bottom:14px"><button class="btn p">Marquer contactée</button><button class="btn">Ajouter une note</button></div>
+
+          <h2>Ses marchés</h2>
+          <div class="list" style="margin-bottom:14px">
+            <div class="it"><span class="grow"><b>Collège de Levens, lot 2</b><br><span class="d">13,4 M€ · Levens · 1 sept.</span></span><span class="dots">●●●●</span></div>
+            <div class="it"><span class="grow"><b>Gymnase de Carros, gros œuvre</b><br><span class="d">5,2 M€ · Carros · 12 juin</span></span><span class="dots">●●●<i>●</i></span></div>
+            <div class="it"><span class="grow"><b>Réhabilitation EHPAD Cagnes</b><br><span class="d">3,2 M€ · Cagnes-sur-Mer · 3 mars</span></span><span class="dots">●●<i>●●</i></span></div>
+          </div>
+
+          <h2>Notes</h2>
+          <div class="notes"><textarea placeholder="Contact chef de projet, relance après démarrage du chantier…"></textarea></div>
+
+          <h2 style="margin-top:14px">Historique</h2>
+          <div class="hist">
+            <div>1 sept. · Nouveau signal : Collège de Levens</div>
+            <div>12 juin · Signal sauvé : Gymnase de Carros</div>
+          </div>
+        </aside>
+      </div>
+    </section>
+  </main>
+</div>
+<div class="hint">Cliquez Aujourd'hui / Signaux / Entreprises dans le menu</div>
+<script>
+  function show(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.toggle('on',s.id===id));
+    document.querySelectorAll('nav button[data-s]').forEach(b=>b.classList.toggle('on',b.dataset.s===id));
+  }
+  document.querySelectorAll('nav button[data-s]').forEach(b=>b.addEventListener('click',()=>show(b.dataset.s)));
+</script>
+</body>
+</html>
