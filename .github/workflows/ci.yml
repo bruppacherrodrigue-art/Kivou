@@ -1,9 +1,3 @@
-# CI Kivou — valider le code, rien d'autre.
-#
-# Ce workflow ne déploie pas, ne publie pas, ne touche pas à Stripe et ne
-# détient aucun secret. Les tests backend et frontend sont conçus pour tourner
-# hors ligne : si l'un d'eux réclamait un jour une clé réelle, ce serait un
-# défaut d'isolation du test, pas une raison d'ajouter un secret ici.
 name: CI
 
 on:
@@ -11,20 +5,58 @@ on:
   push:
     branches: [main]
 
-# Moindre privilège : lire le dépôt suffit à le tester.
 permissions:
   contents: read
 
-# Une poussée qui en suit une autre annule la précédente : inutile de payer deux
-# fois pour un état déjà dépassé.
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  backend:
-    name: Backend (Python 3.12 · uv)
+  changes:
+    name: Déterminer les suites utiles
     runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.scope.outputs.backend }}
+      frontend: ${{ steps.scope.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: scope
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == push ]]; then
+            printf 'backend=true\nfrontend=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          backend=false
+          frontend=false
+          while IFS= read -r path; do
+            case "$path" in
+              frontend/*) frontend=true ;;
+              docs/*) ;;
+              .github/*) backend=true; frontend=true ;;
+              *) backend=true ;;
+            esac
+          done < <(git diff --name-only "$BASE_SHA...$HEAD_SHA")
+          printf 'backend=%s\nfrontend=%s\n' "$backend" "$frontend" >> "$GITHUB_OUTPUT"
+
+  backend:
+    name: Backend · shard ${{ matrix.shard }}/4
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
     services:
       postgres:
         image: postgres:16
@@ -40,41 +72,26 @@ jobs:
           --health-timeout 5s
           --health-retries 12
     env:
-      KIVOU_TEST_POSTGRES_DSN: >-
-        postgresql+psycopg://kivou_test:kivou_test_password@127.0.0.1:5432/kivou_test
-    # À arbre backend identique, les runners partagés ont varié de 19 min 11 s à
-    # 30 min 09 s, et les runs lentes censurées projetaient 66 min 04 s à
-    # 71 min 59 s. Une marge de 20 % sur le pire cas donne 86 min 23 s ; 90 est
-    # l'arrondi supérieur à cinq minutes. Réduire la suite reste suivi séparément.
-    timeout-minutes: 90
+      KIVOU_TEST_POSTGRES_DSN: postgresql+psycopg://kivou_test:kivou_test_password@127.0.0.1:5432/kivou_test
     steps:
       - uses: actions/checkout@v7
-
-      # Version EXACTE : `astral-sh/setup-uv` ne publie pas de tag majeur
-      # flottant au-delà de `v7`. Un `@v10` ne se résout donc pas, et le job
-      # échoue à la préparation, avant même de voir le code.
       - name: Installer uv
         uses: astral-sh/setup-uv@v10.0.1
         with:
-          # `uv.lock` est la clé du cache : il change quand les dépendances
-          # changent, et seulement à ce moment-là.
           enable-cache: true
           cache-dependency-glob: uv.lock
-
-      # `--locked` échoue si `uv.lock` ne correspond plus à `pyproject.toml`.
-      # C'est ce qui garantit que la CI teste EXACTEMENT les versions verrouillées
-      # dans le dépôt, et non ce que PyPI publiait ce matin.
       - name: Synchroniser les dépendances verrouillées
         run: uv sync --locked --extra postgres
-
-      - name: Tests
-        run: uv run pytest -q
-
+      - name: Tests du shard
+        run: ops/bin/kivou-pytest-shard.sh "${{ matrix.shard }}" 4
       - name: Lint
+        if: matrix.shard == 0
         run: uv run ruff check .
 
   frontend:
-    name: Frontend (Node 24 · npm)
+    name: Frontend
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -82,28 +99,20 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v7
-
       - name: Installer Node
         uses: actions/setup-node@v7
         with:
           node-version: '24'
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-
-      # `npm ci` et jamais `npm install` : il installe l'arbre exact du
-      # verrou et échoue si le verrou et le manifeste divergent.
       - name: Installer les dépendances verrouillées
         run: npm ci
-
       - name: Tests
         run: npm test -- --run
-
       - name: Installer Chromium verrouillé
         run: npx playwright install --with-deps chromium
-
       - name: Régression visuelle des références
         run: npm run test:visual
-
       - name: Conserver les écarts visuels
         if: failure()
         uses: actions/upload-artifact@v7
@@ -114,15 +123,28 @@ jobs:
             frontend/playwright-report
           if-no-files-found: ignore
           retention-days: 7
-
       - name: Build
         run: npm run build
-
       - name: Build Founder Console
         run: npm run build:founder
-
       - name: Typecheck
         run: npx tsc -b
-
       - name: Lint
         run: npm run lint
+
+  decision:
+    name: CI décisionnelle
+    if: always()
+    needs: [changes, backend, frontend]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Vérifier les suites demandées
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          BACKEND: ${{ needs.backend.result }}
+          FRONTEND: ${{ needs.frontend.result }}
+        run: |
+          set -euo pipefail
+          [[ "$CHANGES" == success ]]
+          [[ "$BACKEND" == success || "$BACKEND" == skipped ]]
+          [[ "$FRONTEND" == success || "$FRONTEND" == skipped ]]

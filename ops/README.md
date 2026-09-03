@@ -5,6 +5,42 @@ Aujourd'hui : la sauvegarde PostgreSQL (RTL-03 / #39), le runtime des alertes
 transactionnelles (RTL-05), les ingestions DECP (#77) et TED (#82) bornées et l'outillage de
 rotation expurgée des secrets de staging (#81).
 
+## Déployer une release applicative
+
+Depuis la PR3, staging et production passent exclusivement par
+`bin/kivou-deploy.sh`. Les anciennes suites de commandes manuelles de checkout,
+build, sauvegarde, migration, bascule et readiness sont remplacées par cet
+appel unique :
+
+```bash
+sudo --preserve-env=KIVOU_DATABASE_URL,KIVOU_MIGRATION_ADMIN_URL \
+  ops/bin/kivou-deploy.sh staging <SHA-main-sur-40-caractères>
+```
+
+Utiliser `production` comme premier argument pour la production. Le SHA est
+obligatoire et la release porte ce SHA, ce qui rend une nouvelle invocation
+idempotente. Les variables suivantes peuvent adapter la topologie sans modifier
+le script : `KIVOU_SOURCE_DIR`, `KIVOU_RELEASES_DIR`, `KIVOU_BACKEND_LINK`,
+`KIVOU_FRONTEND_LINK`, `KIVOU_BACKUP_DIR`, `KIVOU_SYSTEMD_UNIT` et
+`KIVOU_READINESS_PORT`.
+
+L'ordre est fixe : checkout détaché du SHA, `uv sync --frozen --extra server
+--extra postgres`, `npm ci`, build, sauvegarde par `kivou-backup.sh`, restauration
+dans une base jetable, `alembic upgrade head` sur cette copie, puis seulement
+migration vive, bascule atomique, restart et `kivou-api-readiness.sh`. Tout échec
+de la répétition termine le script avant la migration et les liens vifs. Les
+liens `<lien>.previous` conservent la release précédente pour le rollback.
+
+`KIVOU_MIGRATION_ADMIN_URL` doit être une URL libpq vers une base de maintenance
+et permettre `CREATE DATABASE`/`DROP DATABASE`. Les secrets restent dans le
+fichier d'environnement protégé de l'hôte ; ils ne sont jamais écrits dans le
+dépôt.
+
+```bash
+bash -n ops/bin/kivou-deploy.sh
+uv run pytest -q tests/test_ops_deploy_script.py
+```
+
 Le rollout staging Card Intelligence × QA Signals suit exclusivement le
 runbook versionné
 [`11-staging-card-presentation-rollout.md`](../docs/runbooks/11-staging-card-presentation-rollout.md).

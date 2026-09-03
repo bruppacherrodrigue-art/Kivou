@@ -476,6 +476,10 @@ export const LOCKED_DETAIL: LockedDetail = {
 
 export const COMPANY_PROFILE: CompanyProfile = {
   company_key: 'cmp_0123456789abcdefghijklmnop',
+  contact_status: 'to_contact',
+  contacted_at: null,
+  note: null,
+  signals: [],
   official_identity: {
     name: 'Constructions Bertrand SA',
     country: 'FR',
