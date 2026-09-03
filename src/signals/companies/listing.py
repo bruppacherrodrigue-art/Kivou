@@ -26,7 +26,6 @@ import dataclasses
 import datetime as dt
 import json
 import re
-import unicodedata
 from decimal import Decimal
 from typing import Literal
 
@@ -45,6 +44,7 @@ from signals.feed.query import (
     _ownership_scoped,
     owned_target_icps,
 )
+from signals.feed.text import normalize_text
 from signals.persistence.repository import StoredSignal, signal_from_row
 from signals.persistence.schema import materialized_signal
 
@@ -163,12 +163,6 @@ def _cursor_key(cursor: CompanyCursor) -> tuple[int, int, str]:
     if cursor.date is None:
         return (1, 0, cursor.company_key)
     return (0, -cursor.date.toordinal(), cursor.company_key)
-
-
-def _normalize_text(value: str) -> str:
-    """Casefold, puis strip des diacritiques — insensible casse ET accents."""
-    decomposed = unicodedata.normalize("NFKD", value.casefold())
-    return "".join(char for char in decomposed if not unicodedata.combining(char))
 
 
 @dataclasses.dataclass
@@ -363,8 +357,8 @@ def list_companies(
         )
 
     if query:
-        needle = _normalize_text(query)
-        rows = [row for row in rows if needle in _normalize_text(row.name)]
+        needle = normalize_text(query)
+        rows = [row for row in rows if needle in normalize_text(row.name)]
     if contact_statuses is not None:
         rows = [row for row in rows if row.contact_status in contact_statuses]
     if contacted_before is not None:

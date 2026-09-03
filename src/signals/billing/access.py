@@ -42,6 +42,11 @@ FILTER_REQUIREMENTS: dict[str, str] = {
     "primary_event": "basic",
     "cpv_prefix": "advanced",
     "winner": "advanced",
+    #: PR2b tâche 3 — même niveau que `country`/`subdivision_code` : un montant
+    #: plancher ou une recherche libre ne révèlent rien de plus qu'eux sur un
+    #: signal donné, ils affinent seulement la LISTE.
+    "min_amount": "basic",
+    "q": "basic",
 }
 
 

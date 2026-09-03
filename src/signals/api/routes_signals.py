@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+from decimal import Decimal
 from typing import Annotated, Any, Literal, get_args
 
 from fastapi import APIRouter, Query, Request
@@ -120,6 +121,12 @@ def list_signals(
     cpv_prefix: str | None = Query(default=None, min_length=1, max_length=8, pattern=r"^\d+$"),
     date_from: dt.date | None = None,
     date_to: dt.date | None = None,
+    # `noqa: B008` — bugbear n'exempte `Query(...)` de son garde-fou « appel en
+    # défaut » que pour les annotations qu'il reconnaît (str, int, float…) ;
+    # `Decimal` n'y figure pas, alors que `ge=0` est le SEUL endroit qui peut
+    # porter cette borne sans dupliquer la validation dans le corps de route.
+    min_amount: Decimal | None = Query(default=None, ge=0),  # noqa: B008
+    q: str | None = Query(default=None, min_length=2, max_length=120),
     winner: str | None = None,
     limit: int = Query(default=policy.DEFAULT_PAGE_SIZE, ge=1, le=policy.MAXIMUM_PAGE_SIZE),
     offset: int = Query(default=0, ge=0),
@@ -165,14 +172,15 @@ def list_signals(
             "cursor_requires_history_view",
             "un curseur historique exige view=history",
         )
-    if view_mode != "history" and any(
-        value is not None
-        for value in (date_from, date_to, subdivision_code, recency_status, cpv_prefix)
-    ):
+    if view_mode != "history" and recency_status is not None:
+        # PR2b tâche 3 — `date_from`/`date_to`/`subdivision_code`/`cpv_prefix`
+        # sont désormais disponibles en vue Récentes aussi (`feed_page` les
+        # applique lui-même) ; seule `recency_status` reste un concept propre
+        # à l'historique, une horloge FIGÉE que la vue Récentes ne connaît pas.
         raise api_error(
             422,
             "history_filters_require_history_view",
-            "ces filtres exigent view=history",
+            "ce filtre exige view=history",
         )
     if view_mode == "history" and offset != 0:
         raise api_error(
@@ -211,6 +219,8 @@ def list_signals(
                     "primary_event": primary_event,
                     "cpv_prefix": cpv_prefix,
                     "winner": winner,
+                    "min_amount": min_amount,
+                    "q": q,
                 },
             )
         except FilterNotEntitled as error:
@@ -250,6 +260,8 @@ def list_signals(
                     cpv_prefix=cpv_prefix,
                     date_from=date_from,
                     date_to=date_to,
+                    min_amount=min_amount,
+                    text_query=q,
                     winner=winner,
                     limit=limit,
                     cursor=cursor,
@@ -266,6 +278,12 @@ def list_signals(
                     allowed_target_icp_ids=allowed,
                     primary_event=primary_event,
                     country=country,
+                    subdivision_code=subdivision_code,
+                    cpv_prefix=cpv_prefix,
+                    date_from=date_from,
+                    date_to=date_to,
+                    min_amount=min_amount,
+                    text_query=q,
                     winner=winner,
                     limit=limit,
                     offset=offset,
@@ -355,9 +373,9 @@ def list_signals(
             "by_freshness": (
                 0 if view_mode == "history" else page.excluded_by_freshness
             ),
-            "by_filters": (
-                page.excluded_by_filters if view_mode == "history" else 0
-            ),
+            # PR2b tâche 3 — `feed_page` compte désormais lui aussi ce que
+            # `subdivision_code`/`q` écartent, exactement comme l'historique.
+            "by_filters": page.excluded_by_filters,
             "by_status": page.excluded_by_status,
         },
         "counts": page.status_counts,
@@ -403,6 +421,8 @@ def _filter_access(access: FeedAccess) -> dict[str, bool]:
         "subdivision": filter_is_available(entitlements, "subdivision_code"),
         "status": filter_is_available(entitlements, "status"),
         "sector": filter_is_available(entitlements, "cpv_prefix"),
+        "min_amount": filter_is_available(entitlements, "min_amount"),
+        "search": filter_is_available(entitlements, "q"),
     }
 
 
