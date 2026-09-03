@@ -37,6 +37,9 @@ interface I18nValue {
   amount: (value: string | null | undefined, currency: string | null | undefined) => string | null
   /** `Intl.DateTimeFormat` sur une date ISO. Rend `null` si la date est absente. */
   date: (iso: string | null | undefined) => string | null
+  /** La même date, sans l'année : « 1 sept. ». Une colonne de tableau dense
+   *  n'a pas la place d'une date longue, et l'année se lit dans le tiroir. */
+  shortDate: (iso: string | null | undefined) => string | null
   number: (value: number) => string
 }
 
@@ -97,6 +100,14 @@ export function I18nProvider({
           month: 'long',
           day: 'numeric',
         }).format(parsed)
+      },
+      shortDate: (iso) => {
+        if (!iso) return null
+        const parsed = new Date(iso)
+        if (Number.isNaN(parsed.getTime())) return null
+        return withRenderableSpaces(
+          new Intl.DateTimeFormat(tag, { day: 'numeric', month: 'short' }).format(parsed),
+        )
       },
       number: (n) => withRenderableSpaces(new Intl.NumberFormat(tag).format(n)),
     }

@@ -1688,6 +1688,71 @@ export const fr = {
     invalidEmail: 'Cette adresse n’est pas valide.',
   },
 
+  /* L'écran « Signaux » : tableau dense et tiroir de droite.
+   *
+   * Le copy de cet écran ne dit jamais d'un champ absent qu'il n'est « pas
+   * publié » : il rend un tiret. Ce que l'API ne donne pas, l'interface ne le
+   * commente pas. */
+  signalsTable: {
+    title: 'Signaux',
+    subtitle: 'Marchés publics attribués dans votre zone et votre secteur',
+    segments: {
+      new: 'Nouveaux',
+      saved: 'Sauvés',
+      contacted: 'Contactés',
+      ignored: 'Ignorés',
+      all: 'Tous',
+    },
+    filters: {
+      zone: 'Zone',
+      sector: 'Secteur',
+      minAmount: 'Montant minimum',
+      period: 'Période',
+      search: 'Rechercher un titulaire, un objet…',
+      loadedOnly: 'sur les signaux chargés',
+      periodOptions: {
+        '7': '7 derniers jours',
+        '30': '30 derniers jours',
+        '90': '90 derniers jours',
+        all: 'Tout l’historique',
+      },
+    },
+    columns: {
+      date: 'Date',
+      winner: 'Titulaire',
+      object: 'Objet',
+      amount: 'Montant',
+      place: 'Lieu',
+      match: 'Match',
+    },
+    consortium: 'groupement',
+    count: { one: '{count} signal', other: '{count} signaux' },
+    loadMore: 'Charger plus',
+    empty: 'Aucun signal ne correspond à ces filtres.',
+    drawer: {
+      winner: 'Titulaire',
+      buyer: 'Acheteur',
+      amount: 'Montant',
+      place: 'Lieu',
+      awardedOn: 'Attribué le',
+      notifiedOn: 'Notifié le',
+      publishedOn: 'Publié le',
+      cpv: 'CPV',
+      why: 'Pourquoi ça vous concerne',
+      contact: 'Marquer contacté',
+      contacted: 'Contacté',
+      save: 'Sauver',
+      saved: 'Sauvé',
+      ignore: 'Ignorer',
+      ignored: 'Ignoré',
+      source: 'Source : {system} {notice}',
+      close: 'Fermer',
+      select: 'Sélectionnez un signal',
+    },
+    match: 'Correspondance {count}/4',
+    status: { new: 'Nouveau', saved: 'Sauvé', contacted: 'Contacté', ignored: 'Ignoré' },
+  },
+
   errors: {
     genericTitle: 'Une erreur est survenue',
     genericBody: 'L’action n’a pas pu aboutir. Vous pouvez réessayer.',
