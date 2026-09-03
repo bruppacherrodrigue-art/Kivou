@@ -545,6 +545,7 @@ function toUnlockedItem(record: AwardSignal): UnlockedFeedItem {
   return {
     locked: false,
     signal_id: record.id,
+    status: 'new',
     target_icp_id: VISUAL_ICP.target_icp_id,
     company_key: visualCompanyKey(record),
     presentation: null,
@@ -810,6 +811,7 @@ function toLockedItem(item: UnlockedFeedItem): LockedFeedItem {
   return {
     locked: true,
     signal_id: item.signal_id,
+    status: item.status,
     target_icp_id: item.target_icp_id,
     unlock_required: 'paid_plan',
     event: {
@@ -1152,7 +1154,10 @@ function feedPage(
       has_more: hasMore,
       scan_truncated: false,
     },
-    excluded: { without_display_name: 0, by_freshness: 0, by_filters: 0 },
+    excluded: { without_display_name: 0, by_freshness: 0, by_filters: 0, by_status: 0 },
+    counts: { new: items.length, saved: 0, ignored: 0, contacted: 0 },
+    counts_truncated: false,
+    counts_available: true,
     read_at: '2026-08-29T09:00:00+00:00',
     freshness: 'all',
     language: 'fr',

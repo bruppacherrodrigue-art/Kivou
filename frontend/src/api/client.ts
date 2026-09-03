@@ -94,7 +94,10 @@ export function onUnauthenticated(listener: Listener): () => void {
 }
 
 export type QueryValue = string | number | boolean | null | undefined
-export type QueryParams = Record<string, QueryValue>
+/** Une valeur tableau devient des paramètres répétés (`status=a&status=b`) —
+ *  c'est ainsi que `GET /signals` accepte `status`, jamais en liste séparée
+ *  par des virgules. */
+export type QueryParams = Record<string, QueryValue | readonly QueryValue[]>
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -109,6 +112,13 @@ function buildUrl(path: string, query?: RequestOptions['query']): string {
   if (!query) return path
   const params = new URLSearchParams()
   for (const [key, value] of Object.entries(query)) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        if (item === null || item === undefined || item === '') continue
+        params.append(key, String(item))
+      }
+      continue
+    }
     if (value === null || value === undefined || value === '') continue
     params.set(key, String(value))
   }

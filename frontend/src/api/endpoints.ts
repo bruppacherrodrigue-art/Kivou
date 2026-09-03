@@ -23,6 +23,7 @@ import type {
   SignalNote,
   TargetIcp,
   TargetIcpInput,
+  UnifiedStatus,
   WeeklyCommercialCockpit,
   Interaction,
   NegativeReason,
@@ -87,7 +88,12 @@ export interface FeedQuery extends QueryParams {
   target_icp_id?: string | null
   country?: string | null
   subdivision_code?: string | null
-  status?: string | null
+  /** Répétable côté backend (`status=a&status=b`) — jamais une liste séparée
+   *  par des virgules. */
+  status?: UnifiedStatus[] | null
+  /** Le nom que porte désormais le filtre de récence — `status` continue
+   *  d'accepter l'ancien vocabulaire par compatibilité. */
+  recency_status?: string | null
   cpv_prefix?: string | null
   date_from?: string | null
   date_to?: string | null

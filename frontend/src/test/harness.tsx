@@ -269,6 +269,7 @@ export function fullPresentation({
 export const UNLOCKED_ITEM: UnlockedFeedItem = {
   locked: false,
   signal_id: 'sig_unlocked_1',
+  status: 'new',
   target_icp_id: 'icp_1',
   company_key: 'cmp_0123456789abcdefghijklmnop',
   presentation: null,
@@ -366,6 +367,7 @@ export const UNLOCKED_ITEM: UnlockedFeedItem = {
 export const LOCKED_ITEM: LockedFeedItem = {
   locked: true,
   signal_id: 'sig_locked_1',
+  status: 'new',
   target_icp_id: 'icp_1',
   unlock_required: 'paid_plan',
   event: {
@@ -701,7 +703,10 @@ export function feedPage(items: (UnlockedFeedItem | LockedFeedItem)[], overrides
     items,
     total_returned: items.length,
     page: { limit: 20, offset: 0, has_more: false, scan_truncated: false },
-    excluded: { without_display_name: 0, by_freshness: 0, by_filters: 0 },
+    excluded: { without_display_name: 0, by_freshness: 0, by_filters: 0, by_status: 0 },
+    counts: { new: items.length, saved: 0, ignored: 0, contacted: 0 },
+    counts_truncated: false,
+    counts_available: true,
     read_at: '2026-08-18',
     freshness: 'new',
     language: 'fr',
