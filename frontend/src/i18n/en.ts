@@ -1735,6 +1735,7 @@ export const en: Dictionary = {
     },
     match: 'Match {count}/4',
     status: { new: 'New', saved: 'Saved', contacted: 'Contacted', ignored: 'Ignored' },
+    actionError: 'The action could not be saved. The signal keeps its previous state.',
   },
 
   errors: {

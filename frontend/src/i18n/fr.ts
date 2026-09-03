@@ -1751,6 +1751,7 @@ export const fr = {
     },
     match: 'Correspondance {count}/4',
     status: { new: 'Nouveau', saved: 'Sauvé', contacted: 'Contacté', ignored: 'Ignoré' },
+    actionError: 'L’action n’a pas pu être enregistrée. Le signal garde son état précédent.',
   },
 
   errors: {
