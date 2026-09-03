@@ -188,7 +188,14 @@ def test_fact_copy_uses_the_account_language_without_changing_facts(client, engi
     assert "remporte" in french["factual_display"]["headline"]
     assert "wins" in english["factual_display"]["headline"]
     assert french["company"] == english["company"]
-    assert french["contract"] == english["contract"]
+    # `cpv_label` est le libellé officiel CPV 2008 traduit dans la langue du
+    # compte, pas une lecture Kivou : on compare le reste du contrat à
+    # l'identique, puis on vérifie que le code (`cpv`) est inchangé et que
+    # les deux libellés traduits sont ceux attendus.
+    assert {k: v for k, v in french["contract"].items() if k != "cpv_label"} == {
+        k: v for k, v in english["contract"].items() if k != "cpv_label"
+    }
+    assert french["contract"]["cpv"] == english["contract"]["cpv"]
 
 
 def test_history_api_applies_winner_and_current_event_filters(client, engine, icp) -> None:
