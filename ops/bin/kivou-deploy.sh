@@ -108,7 +108,9 @@ preserve_previous() {
   [[ -z "$current" ]] || ln -sfn "$current" "$link.previous"
 }
 activate() {
-  local target=$1 link=$2 temporary="${link}.next"
+  local target=$1
+  local link=$2
+  local temporary="${link}.next"
   mkdir -p "$(dirname "$link")"
   ln -sfn "$target" "$temporary"
   mv -Tf "$temporary" "$link"
