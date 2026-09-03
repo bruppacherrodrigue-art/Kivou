@@ -34,7 +34,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
         helper.chmod(0o755)
 
     recorder = 'printf "%s %s\\n" "$(basename "$0")" "$*" >> "$KIVOU_TEST_LOG"\n'
-    for command in ("npm", "createdb", "dropdb", "pg_restore", "systemctl"):
+    for command in ("chmod", "npm", "createdb", "dropdb", "pg_restore", "systemctl"):
         _fake_bin(fake_bin, command, recorder)
     _fake_bin(
         fake_bin,
@@ -111,5 +111,6 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
     )
 
     assert success.returncode == 0, success.stderr
+    assert f"chmod -R a+rX {releases / f'staging-{'b' * 40}'}" in log.read_text(encoding="utf-8")
     assert live_backend.resolve() == releases / f"staging-{'b' * 40}"
     assert live_frontend.resolve() == releases / f"staging-{'b' * 40}" / "frontend/dist"
