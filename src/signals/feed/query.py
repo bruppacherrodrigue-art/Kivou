@@ -21,12 +21,14 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+from collections.abc import Callable
 from typing import Any
 
 import sqlalchemy as sa
 
 from signals.accounts.schema import target_icp
 from signals.domain.french_departments import location_subdivision
+from signals.engagement.status import UNIFIED_STATUSES
 from signals.feed import policy
 from signals.feed.history import (
     HistoryDateKind,
@@ -237,6 +239,30 @@ class FeedPage:
     excluded_without_display_name: int
     #: Combien ont été retirés par le mode de fraîcheur demandé.
     excluded_by_freshness: int
+    #: Les quatre statuts unifiés, comptés sur l'ensemble sélectionné AVANT le
+    #: filtre de statut. Toujours les quatre clés, même à zéro.
+    status_counts: dict[str, int] = dataclasses.field(
+        default_factory=lambda: {status: 0 for status in UNIFIED_STATUSES}
+    )
+    #: Vrai quand le balayage QUI ALIMENTE `status_counts` s'est arrêté sur le
+    #: plafond avant d'épuiser les candidats — distinct de `scan_truncated`,
+    #: qui parle de la LISTE rendue, pas du dénombrement.
+    counts_truncated: bool = False
+    #: Combien d'items par ailleurs admissibles ont été écartés par le filtre
+    #: de statut unifié (`?status=`) — comptés APRÈS `status_counts`.
+    excluded_by_status: int = 0
+    #: Toujours vrai ici : la vue Récentes relit l'ensemble sélectionné à chaque
+    #: appel, donc elle compte toujours. Le champ existe pour que la réponse
+    #: publique ait la MÊME forme que celle de l'historique, qui ne compte, lui,
+    #: que sur la première page.
+    counts_available: bool = True
+    #: Fix round 2 (F1) — l'ensemble sélectionné ENTIER, après `admit`,
+    #: `published_since`, le filtre de statut et le tri, mais AVANT la découpe
+    #: en page. Un agrégat (le tableau de bord) doit compter et classer sur
+    #: TOUT ce que le compte possède, pas sur les cinquante premiers items
+    #: qu'une page rend : lire `items` pour compter plafonnait silencieusement
+    #: chaque nombre à `MAXIMUM_PAGE_SIZE`.
+    matched: tuple[FeedSignal, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -251,6 +277,26 @@ class HistoryFeedPage:
     scan_truncated: bool
     excluded_without_display_name: int
     excluded_by_filters: int
+    #: Les quatre statuts unifiés, comptés sur l'ensemble sélectionné AVANT le
+    #: filtre de statut. Toujours les quatre clés, même à zéro. Le balayage qui
+    #: les alimente continue au-delà de la page pleine, jusqu'à `scan_cap` ou
+    #: épuisement — les compteurs ne dépendent donc jamais de `limit`.
+    status_counts: dict[str, int] = dataclasses.field(
+        default_factory=lambda: {status: 0 for status in UNIFIED_STATUSES}
+    )
+    #: Vrai quand ce balayage prolongé s'est arrêté sur `scan_cap` avant
+    #: d'épuiser les candidats — distinct de `scan_truncated`, qui parle de la
+    #: LISTE rendue (pagination), pas du dénombrement.
+    counts_truncated: bool = False
+    #: Combien d'items par ailleurs admissibles ont été écartés par le filtre
+    #: de statut unifié (`?status=`) — comptés APRÈS `status_counts`.
+    excluded_by_status: int = 0
+    #: Fix round 2 (F7/F8) — `status_counts` n'est calculé que sur la PREMIÈRE
+    #: page (`cursor is None`). Ailleurs, les compteurs restent à zéro et ce
+    #: drapeau le dit : un dénombrement qui repart du curseur ne compterait que
+    #: la queue de l'historique, donc un nombre DIFFÉRENT à chaque page — pire
+    #: qu'une absence, puisque le client ne pourrait pas le savoir.
+    counts_available: bool = True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -367,6 +413,22 @@ def feed_page(
     #: par défaut le capturerait à l'import, et un plafond qu'on ne peut plus
     #: changer est un plafond qu'on ne peut plus tester.
     scan_cap: int | None = None,
+    #: `signal_key -> statut unifié`. `None` = tout compte comme `new` et aucun
+    #: filtre de statut ne s'applique.
+    status_of: Callable[[str], str] | None = None,
+    #: `None` = pas de filtre de statut ; sinon les statuts admis dans la page.
+    statuses: frozenset[str] | None = None,
+    #: Fix round 1 (C1/I1) — le droit du PLAN, appliqué APRÈS la propriété et la
+    #: fraîcheur, AVANT `status_counts` et le filtre de statut : un compte non
+    #: payant sans déblocage Discovery ne doit voir ni item, ni compte, ni carte
+    #: pour un signal que `access.is_unlocked` refuse. `None` = aucune
+    #: restriction (usage interne uniquement — aucune route publique ne doit
+    #: omettre ce paramètre).
+    admit: Callable[[FeedSignal], bool] | None = None,
+    #: Fix round 1 (I2) — présélection par date de PARUTION, dans la MÊME portée
+    #: que le feed (propriété, identité affichable, droit du plan). `None` =
+    #: aucune borne. Un signal sans `published_on` n'y répond jamais.
+    published_since: dt.date | None = None,
 ) -> FeedPage:
     """Une page du feed de CE compte, à CETTE date.
 
@@ -410,6 +472,14 @@ def feed_page(
     window = policy.candidate_window_days(freshness)
     if window is not None:
         query = query.where(_date_window(as_of, window))
+    if published_since is not None:
+        # Fix round 2 (F3) — la borne de parution est aussi une PRÉSÉLECTION.
+        # Filtrée en Python seulement, elle laissait les signaux hors fenêtre
+        # consommer le plafond de candidats : mille parutions anciennes
+        # matérialisées ce matin suffisaient à faire rendre zéro à une fenêtre
+        # de sept jours pourtant peuplée. Le garde Python reste en place — il
+        # est la définition, celle-ci n'en est que l'accélérateur.
+        query = query.where(source_event.c.published_on >= published_since)
 
     row_ceiling = scan_cap * RECENT_SCAN_ROW_FACTOR
     rows_read = 0
@@ -476,6 +546,34 @@ def feed_page(
         ]
     dropped = len(displayable) - len(selected)
 
+    # Fix round 1 (C1/I1/I2) — droit du plan puis fenêtre de parution, APRÈS la
+    # fraîcheur et AVANT `status_counts` : ni les compteurs, ni la page, ni le
+    # filtre de statut (`?status=`) ne doivent jamais voir un item que le plan
+    # refuse ou qu'une fenêtre de lecture exclut.
+    if admit is not None:
+        selected = [item for item in selected if admit(item)]
+    if published_since is not None:
+        selected = [
+            item
+            for item in selected
+            if item.signal.event.published_on is not None
+            and item.signal.event.published_on >= published_since
+        ]
+
+    resolver = status_of or (lambda _signal_key: "new")
+    status_counts = {status: 0 for status in UNIFIED_STATUSES}
+    for item in selected:
+        status_counts[resolver(item.signal.signal_key)] += 1
+    excluded_by_status = 0
+    if statuses is not None:
+        admitted_by_status = []
+        for item in selected:
+            if resolver(item.signal.signal_key) in statuses:
+                admitted_by_status.append(item)
+            else:
+                excluded_by_status += 1
+        selected = admitted_by_status
+
     selected.sort(key=lambda item: item.sort_key)
     page = selected[offset : offset + limit]
     return FeedPage(
@@ -486,6 +584,10 @@ def feed_page(
         scan_truncated=truncated,
         excluded_without_display_name=without_name,
         excluded_by_freshness=dropped,
+        status_counts=status_counts,
+        counts_truncated=truncated,
+        excluded_by_status=excluded_by_status,
+        matched=tuple(selected),
     )
 
 
@@ -535,14 +637,33 @@ def history_page(
     winner: str | None = None,
     limit: int = policy.DEFAULT_PAGE_SIZE,
     cursor: str | None = None,
-    scan_cap: int = HISTORY_SCAN_CAP,
+    #: `None` = le plafond du module, relu à CHAQUE appel — comme `feed_page`.
+    #: Le figer comme valeur par défaut le capturerait à l'import, et un
+    #: plafond qu'on ne peut plus changer est un plafond qu'on ne peut plus
+    #: tester.
+    scan_cap: int | None = None,
+    #: `signal_key -> statut unifié`. `None` = tout compte comme `new` et aucun
+    #: filtre de statut ne s'applique.
+    status_of: Callable[[str], str] | None = None,
+    #: `None` = pas de filtre de statut ; sinon les statuts admis dans la page.
+    statuses: frozenset[str] | None = None,
 ) -> HistoryFeedPage:
     """Walk the complete owned history by factual date and a stable key.
 
     Unlike the recent feed, the history order is directly expressible from raw
     source dates.  Keyset pagination can therefore advance through bounded SQL
     batches without freezing the current recency classification.
+
+    Fix round 2 (F7/F8) — `status_counts` n'est calculé QUE sur la première
+    page (`cursor is None`), et `counts_available` le dit. Le balayage prolongé
+    qui les alimente ne tourne donc qu'une fois par parcours, au lieu de relire
+    tout l'historique à chaque page. Repartir du curseur ne compterait que la
+    queue restante : le même parcours rendrait des compteurs décroissants,
+    c'est-à-dire faux. Une fois la page pleine ET un item admis vu derrière
+    elle (la preuve exacte que `has_more` exige), le balayage s'arrête : ni
+    `has_more`, ni `next_cursor`, ni `scan_truncated` n'en changent.
     """
+    scan_cap = HISTORY_SCAN_CAP if scan_cap is None else scan_cap
     if scan_cap < 1:
         raise ValueError("history scan cap must be positive")
     limit = max(1, min(limit, policy.MAXIMUM_PAGE_SIZE))
@@ -587,12 +708,28 @@ def history_page(
     selected: list[FeedSignal] = []
     excluded_without_name = 0
     excluded_by_filters = 0
+    excluded_by_status = 0
+    status_counts = {status: 0 for status in UNIFIED_STATUSES}
+    resolver = status_of or (lambda _signal_key: "new")
     scanned = 0
     position = decoded
     exhausted = False
     last_returned = None
+    #: Fix round 2 (F7/F8) — seule la première page compte. Les pages suivantes
+    #: rendent les quatre clés à zéro, et l'annoncent.
+    counts_available = cursor is None
+    #: Vrai quand le balayage s'est arrêté de lui-même, page pleine et
+    #: `found_more` acquis, sans avoir touché `scan_cap` : ce n'est PAS une
+    #: troncature, c'est un travail terminé plus tôt.
+    stopped_early = False
+    #: §2 (fix round 1) — vrai dès qu'un item ADMIS (tous les filtres, statut
+    #: compris) est rencontré APRÈS que la page a atteint `limit`. C'est la
+    #: seule preuve directe qu'une page suivante rendrait quelque chose : une
+    #: page exactement pleine, sans rien d'admissible derrière, reste
+    #: `has_more = False`.
+    found_more = False
 
-    while scanned < scan_cap and len(selected) <= limit:
+    while scanned < scan_cap:
         query = base
         if position is not None:
             query = query.where(_history_after(position))
@@ -633,43 +770,78 @@ def history_page(
             ):
                 excluded_by_filters += 1
                 continue
-            if len(selected) == limit:
-                return HistoryFeedPage(
-                    items=tuple(selected),
-                    limit=limit,
-                    cursor=cursor,
-                    next_cursor=encode_history_cursor(last_returned),
-                    has_more=True,
-                    scan_truncated=False,
-                    excluded_without_display_name=excluded_without_name,
-                    excluded_by_filters=excluded_by_filters,
-                )
-            selected.append(item)
-            last_returned = current_position
+            # §2 (fix round 1) — sur la PREMIÈRE page, le dénombrement continue
+            # même une fois la page pleine : arrêter ici ferait dépendre
+            # `counts` de `limit`, ce que la spec interdit explicitement.
+            unified = resolver(signal.signal_key)
+            if counts_available:
+                status_counts[unified] += 1
+            if statuses is not None and unified not in statuses:
+                excluded_by_status += 1
+                continue
+            if len(selected) < limit:
+                selected.append(item)
+                last_returned = current_position
+            else:
+                # Cet item aurait été retenu ; il ne l'est pas faute de place,
+                # mais sa seule existence prouve qu'une page suivante rendrait
+                # quelque chose. Ni lui ni ses successeurs ne déplacent
+                # `last_returned` : la page suivante doit le revoir.
+                found_more = True
+                if not counts_available:
+                    # Rien ne reste à apprendre : la page est pleine et
+                    # `has_more` est acquis. Continuer relirait l'historique
+                    # pour des compteurs que cette page ne rendra pas.
+                    stopped_early = True
+                    break
+        if stopped_early:
+            break
         if len(rows) < batch_limit:
             exhausted = True
             break
 
     if exhausted:
-        next_cursor = None
-        has_more = False
-        truncated = False
+        # Tout l'historique possédé (sous les filtres donnés) a été vu : la
+        # seule preuve qu'il resterait quelque chose est un item ADMIS
+        # rencontré après que la page a atteint `limit` — `found_more`. Sans
+        # cela, une page exactement pleine reste `has_more = False` : rien de
+        # plus n'existe, inutile de le faire deviner au client.
+        has_more = found_more
+        next_cursor = encode_history_cursor(last_returned) if found_more else None
     else:
-        next_position = position if position is not None else last_returned
-        next_cursor = (
-            None if next_position is None else encode_history_cursor(next_position)
-        )
-        has_more = next_cursor is not None
-        truncated = has_more
+        # §2 (fix round 2) — le plafond `scan_cap` a été atteint AVANT
+        # d'épuiser les candidats : on IGNORE s'il en reste au-delà, donc on
+        # reste conservateur (`has_more = True`, comme avant le round 1) pour
+        # ne jamais couper l'accès au reste de l'historique. Le curseur avance
+        # au dernier item RENDU si la page est pleine (pour que l'item qui a
+        # débordé soit revu), sinon à la dernière position SCANNÉE — c'est le
+        # comportement d'origine, restauré après que le round 1 l'a cassé en
+        # aliasant `has_more` sur `found_more` dans les deux branches.
+        has_more = True
+        if len(selected) == limit:
+            next_cursor = encode_history_cursor(last_returned)
+        elif position is not None:
+            next_cursor = encode_history_cursor(position)
+        else:  # pragma: no cover - un balayage qui progresse a toujours une position
+            next_cursor = encode_history_cursor(last_returned) if last_returned else None
+    #: Le sens ORIGINAL de `scan_truncated` : le balayage (page ET
+    #: dénombrement) s'est arrêté sur `scan_cap` avant d'épuiser les
+    #: candidats. Un arrêt VOLONTAIRE (`stopped_early`) n'en est pas un : la
+    #: page est complète et son curseur mène au reste.
+    scan_truncated = not exhausted and not stopped_early
     return HistoryFeedPage(
         items=tuple(selected),
         limit=limit,
         cursor=cursor,
         next_cursor=next_cursor,
         has_more=has_more,
-        scan_truncated=truncated,
+        scan_truncated=scan_truncated,
         excluded_without_display_name=excluded_without_name,
         excluded_by_filters=excluded_by_filters,
+        status_counts=status_counts,
+        counts_truncated=scan_truncated and counts_available,
+        excluded_by_status=excluded_by_status,
+        counts_available=counts_available,
     )
 
 

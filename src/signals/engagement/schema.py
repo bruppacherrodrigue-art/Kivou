@@ -142,6 +142,45 @@ signal_note = sa.Table(
 )
 
 
+#: PR1 §4 — vocabulaire fermé du suivi commercial par entreprise.
+COMPANY_CONTACT_STATUSES = ("to_contact", "contacted", "replied")
+
+MAXIMUM_COMPANY_NOTE_LENGTH = 2000
+
+
+company_contact = sa.Table(
+    "company_contact",
+    METADATA,
+    sa.Column(
+        "account_id",
+        sa.String(64),
+        sa.ForeignKey("account.account_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    # Pas de clé étrangère vers `saas_company` : l'état d'un compte survit à une
+    # reconstruction de l'identité, comme `signal_feedback` survit au signal.
+    sa.Column("company_key", sa.String(64), primary_key=True),
+    sa.Column("status", sa.String(16), nullable=False, index=True),
+    sa.Column("contacted_at", sa.DateTime(timezone=True)),
+    *_timestamps(),
+    sa.CheckConstraint("status IN ('to_contact', 'contacted', 'replied')", name="ck_company_contact_status"),
+)
+
+company_note = sa.Table(
+    "company_note",
+    METADATA,
+    sa.Column(
+        "account_id",
+        sa.String(64),
+        sa.ForeignKey("account.account_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("company_key", sa.String(64), primary_key=True),
+    sa.Column("body", sa.String(MAXIMUM_COMPANY_NOTE_LENGTH), nullable=False),
+    *_timestamps(),
+)
+
+
 product_event = sa.Table(
     "product_event",
     METADATA,
@@ -255,4 +294,6 @@ ENGAGEMENT_TABLES: tuple[sa.Table, ...] = (
     account_notification_preference,
     signal_alert_delivery,
     signal_alert_job_lease,
+    company_contact,
+    company_note,
 )

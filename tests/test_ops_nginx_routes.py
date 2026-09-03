@@ -26,7 +26,11 @@ PUBLIC_ASGI_ROUTES = frozenset(
         ("POST", "/billing/checkout"),
         ("POST", "/billing/plan"),
         ("POST", "/billing/portal"),
+        ("GET", "/companies"),
         ("GET", "/companies/{company_key}"),
+        ("POST", "/companies/{company_key}/contact"),
+        ("PUT", "/companies/{company_key}/note"),
+        ("GET", "/dashboard"),
         ("GET", "/me"),
         ("PATCH", "/me"),
         ("GET", "/notification-preferences"),
@@ -60,7 +64,7 @@ PRIVATE_ASGI_ROUTES = frozenset(
 
 EXPECTED_PROXY_SELECTORS = frozenset(
     {
-        "~ ^/(auth|me|target-icps|signals|companies|billing|notification-preferences)(/|$)",
+        "~ ^/(auth|me|target-icps|signals|companies|billing|notification-preferences|dashboard)(/|$)",
         "= /auth/login",
         "= /auth/signup",
         "= /auth/password-reset/request",
@@ -70,6 +74,27 @@ EXPECTED_PROXY_SELECTORS = frozenset(
         "^~ /a/",
     }
 )
+
+
+#: Le préfixe d'attribution `/a/` n'est pas une surface d'API client : c'est un
+#: lien public de suivi, servi sur le site par sa propre `location ^~ /a/`. Il
+#: est le SEUL préfixe public que le pare-feu de la console fondateur n'a pas à
+#: nommer ; tout autre préfixe, présent ou futur, doit y figurer.
+FOUNDER_FAIL_CLOSED_EXEMPT_PREFIXES = frozenset({"a"})
+
+
+def _public_api_prefixes() -> frozenset[str]:
+    """Le premier segment de chaque route publique — la seule source de vérité.
+
+    Dérivé de `PUBLIC_ASGI_ROUTES`, lui-même asservi à l'inventaire réel de
+    FastAPI par `test_fastapi_routes_are_all_explicitly_public_or_private` :
+    une nouvelle famille de routes ne peut donc pas apparaître sans que le
+    pare-feu de la console fondateur doive la nommer.
+    """
+    return (
+        frozenset(path.split("/")[1] for _, path in PUBLIC_ASGI_ROUTES)
+        - FOUNDER_FAIL_CLOSED_EXEMPT_PREFIXES
+    )
 
 
 @dataclass(frozen=True)
@@ -179,6 +204,27 @@ def _matches(selector: str, path: str) -> bool:
 
 def _site_text() -> str:
     return (NGINX_DIR / "kivou-staging.conf").read_text()
+
+
+def _founder_fail_closed_selectors() -> tuple[str, ...]:
+    """Les `location` de la console fondateur dont le corps est un 404 sec."""
+    servers = _server_blocks((NGINX_DIR / "kivou-founder-control.conf").read_text())
+    assert len(servers) == 1, f"expected one founder server, got {len(servers)}"
+    body = servers[0].body
+    # `_location_blocks` ne voit que la forme multi-ligne ; la console
+    # fondateur écrit aussi ses refus sur une seule ligne.
+    inline = tuple(
+        match.group(1).strip()
+        for match in re.finditer(
+            r"^[ \t]*location[ \t]+(.+?)[ \t]*\{[ \t]*return 404;[ \t]*\}[ \t]*$", body, re.MULTILINE
+        )
+    )
+    multiline = tuple(
+        block.selector
+        for block in _location_blocks(body)
+        if _directives(block.body) == ("return 404;",)
+    )
+    return inline + multiline
 
 
 def _only_server(listen_directive: str) -> ServerBlock:
@@ -593,6 +639,33 @@ def test_nginx_allowlist_includes_companies_but_not_internal_or_stale_health() -
     assert "internal" not in grouped
     assert "health" not in grouped
     assert all("/internal" not in selector for selector in proxy_selectors)
+
+
+def test_founder_console_fails_closed_on_every_public_customer_prefix() -> None:
+    """PR1 (fix round 2, F2) — `dashboard` manquait, et rien ne l'aurait dit.
+
+    La console fondateur n'est pas une entrée de secours vers le SaaS client :
+    toute route publique doit y répondre 404 plutôt que de servir la coquille
+    de l'application. L'assertion porte sur l'ÉGALITÉ des ensembles, pas sur
+    une appartenance : le jour où une famille de routes s'ajoute à l'API, ce
+    test tombe tant que le pare-feu ne la nomme pas — c'est exactement ce qui
+    n'est pas arrivé quand `/dashboard` est né.
+    """
+    selectors = _founder_fail_closed_selectors()
+    regex_selectors = [selector for selector in selectors if selector.startswith("~ ")]
+    assert len(regex_selectors) == 1, regex_selectors
+
+    grouped = re.fullmatch(r"~ \^/\((?P<alternatives>[^)]+)\)\(/\|\$\)", regex_selectors[0])
+    assert grouped is not None, regex_selectors[0]
+    named = frozenset(grouped.group("alternatives").split("|"))
+    assert named == _public_api_prefixes() | {"webhooks"}
+
+    for _, route_path in PUBLIC_ASGI_ROUTES:
+        if route_path.split("/")[1] in FOUNDER_FAIL_CLOSED_EXEMPT_PREFIXES:
+            continue
+        sample = _sample_path(route_path)
+        assert any(_matches(selector, sample) for selector in selectors), route_path
+    assert {"^~ /api/", "^~ /internal/", "^~ /app/"} <= frozenset(selectors)
 
 
 def test_safe_access_log_uses_only_allowlisted_transport_variables() -> None:

@@ -1,0 +1,319 @@
+"""PR1 §4 — contact et note par entreprise, propagation depuis le signal contacté."""
+
+from __future__ import annotations
+
+import datetime as dt
+import pathlib
+
+import pytest
+from billing_helpers import subscribe
+from fastapi.testclient import TestClient
+from feed_helpers import (
+    COMPLETE_ICP_INPUT,
+    ORIGIN,
+    PASSWORD,
+    SIMAP_RICH,
+    materialize_simap,
+    pin_session_cookie,
+)
+
+from signals.api import ApiConfig, create_app
+from signals.companies.enrichment import run_winner_enrichment_batch
+from signals.persistence.database import create_database_engine, migrate_to_latest
+
+NOW = dt.datetime(2026, 8, 25, 9, 0, tzinfo=dt.UTC)
+
+
+def _iso(value: str) -> dt.datetime:
+    """Parse an ISO datetime regardless of a trailing `Z` or `+00:00`.
+
+    `GET /companies/{key}` serializes `contacted_at` through pydantic (the
+    model's own convention, shared with every other `dt.datetime` field on
+    `CompanyProfile`), while `POST /companies/{key}/contact` hand-writes
+    `.isoformat()` like the rest of this API. Comparing the parsed values
+    rather than the raw strings keeps the test honest about what actually
+    matters — the instant, not which of the two equivalent spellings a given
+    route happens to use.
+    """
+    return dt.datetime.fromisoformat(value)
+
+
+class Clock:
+    def __init__(self, start: dt.datetime = NOW) -> None:
+        self.now = start
+
+    def __call__(self) -> dt.datetime:
+        return self.now
+
+    def advance(self, delta: dt.timedelta) -> None:
+        self.now += delta
+
+
+@pytest.fixture
+def clock() -> Clock:
+    return Clock()
+
+
+@pytest.fixture
+def engine(tmp_path: pathlib.Path):
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'kivou.db'}")
+    migrate_to_latest(engine)
+    return engine
+
+
+@pytest.fixture
+def client(engine, clock: Clock) -> TestClient:
+    app = create_app(
+        engine,
+        ApiConfig(cookie_secure=False, allowed_origin=ORIGIN, session_ttl=dt.timedelta(days=365)),
+        now_override=clock,
+    )
+    client = TestClient(app, headers={"Origin": ORIGIN})
+    response = client.post(
+        "/auth/signup",
+        json={
+            "email": "company-engagement@kivou.eu",
+            "password": PASSWORD,
+            "company_name": "Company Engagement",
+            "locale": "fr",
+        },
+    )
+    assert response.status_code == 201, response.text
+    pin_session_cookie(client, response)
+    account_id = client.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        subscribe(
+            connection,
+            account_id=account_id,
+            plan="scale",
+            subscription_id="sub_company_engagement",
+            now=NOW,
+        )
+    return client
+
+
+@pytest.fixture
+def icp(client: TestClient) -> str:
+    return client.post(
+        "/target-icps",
+        json={"label": "Suivi", "customer_input": COMPLETE_ICP_INPUT},
+    ).json()["target_icp_id"]
+
+
+def _seed(engine, icp, count=1):
+    """count signaux SIMAP distincts, récents, projetés vers leur entreprise.
+
+    `company_key` n'apparaît sur une carte qu'après que l'identité de
+    l'attributaire a été projetée (`run_winner_enrichment_batch`) — le même
+    lot qui alimente `test_saas_company_api.py::_seed_unlocked`.
+    """
+    keys = []
+    with engine.begin() as connection:
+        for name in ("29997-02", "33112-02", "33885-03", "34794-02")[:count]:
+            keys.append(materialize_simap(connection, name, target_icp_id=icp).signal_key)
+        run_winner_enrichment_batch(
+            connection, now=NOW, worker_ref="company-engagement-test", limit=10
+        )
+    return keys
+
+
+def test_contact_status_defaults_to_to_contact_and_moves_forward(client, icp, engine):
+    _seed(engine, icp, count=1)
+    key = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
+    profile = client.get(f"/companies/{key}").json()
+    assert profile["contact_status"] == "to_contact" and profile["contacted_at"] is None and profile["note"] is None
+    assert [s["status"] for s in profile["signals"]] == ["new"]
+    moved = client.post(f"/companies/{key}/contact", json={"status": "contacted"}).json()
+    assert moved["contact_status"] == "contacted" and _iso(moved["contacted_at"]) == NOW
+    replied = client.post(f"/companies/{key}/contact", json={"status": "replied"}).json()
+    assert _iso(replied["contacted_at"]) == NOW, "la première date de contact est conservée"
+    back = client.post(f"/companies/{key}/contact", json={"status": "to_contact"}).json()
+    assert back["contact_status"] == "to_contact" and _iso(back["contacted_at"]) == NOW
+    assert client.post(f"/companies/{key}/contact", json={"status": "won"}).status_code == 422
+
+
+def test_contacted_at_refreshes_on_a_new_cycle_after_a_walk_back(client, icp, engine, clock):
+    """PR1 §4 F3 — `contacted_at` se pose à CHAQUE `to_contact` → `contacted`.
+
+    Un aller-retour n'est pas la poursuite du cycle précédent : reculer à
+    `to_contact` puis relancer refraîchit la date, elle ne reste pas figée
+    sur le tout premier contact.
+    """
+    _seed(engine, icp, count=1)
+    key = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
+
+    first_cycle = client.post(f"/companies/{key}/contact", json={"status": "contacted"}).json()
+    assert _iso(first_cycle["contacted_at"]) == NOW
+
+    clock.advance(dt.timedelta(days=3))
+    client.post(f"/companies/{key}/contact", json={"status": "to_contact"})
+
+    clock.advance(dt.timedelta(days=1))
+    second_cycle = client.post(f"/companies/{key}/contact", json={"status": "contacted"}).json()
+    assert _iso(second_cycle["contacted_at"]) == clock.now
+    assert second_cycle["contacted_at"] != first_cycle["contacted_at"]
+
+
+def test_company_note_is_written_read_and_cleared(client, icp, engine):
+    _seed(engine, icp, count=1)
+    key = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
+    assert client.put(f"/companies/{key}/note", json={"body": "Rappeler jeudi"}).json()["note"] == "Rappeler jeudi"
+    assert client.get(f"/companies/{key}").json()["note"] == "Rappeler jeudi"
+    assert client.put(f"/companies/{key}/note", json={"body": "  "}).json()["note"] is None
+    assert client.get(f"/companies/{key}").json()["note"] is None
+    assert client.put(f"/companies/{key}/note", json={"body": "x" * 2001}).status_code == 422
+
+
+def test_marking_a_signal_contacted_moves_a_pending_company_to_contacted(client, icp, engine):
+    signal = _seed(engine, icp, count=1)[0]
+    feed_card = client.get("/signals?freshness=all").json()["items"][0]
+    key = feed_card["company_key"]
+    client.post(f"/signals/{signal}/contacted")
+    profile = client.get(f"/companies/{key}").json()
+    assert profile["contact_status"] == "contacted" and _iso(profile["contacted_at"]) == NOW
+    assert profile["signals"][0]["status"] == "contacted"
+    # PR1 §4 F2 — la carte de la fiche entreprise est la MÊME carte que le
+    # feed rendrait pour ce signal débloqué : mêmes clés, donc même
+    # présentation publiée et même enrichissement du vainqueur.
+    feed_card_after = client.get("/signals?freshness=all").json()["items"][0]
+    assert set(profile["signals"][0]) == set(feed_card_after)
+
+
+def test_a_replied_company_is_not_demoted_by_a_signal_contact(client, icp, engine):
+    signal = _seed(engine, icp, count=1)[0]
+    key = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
+    client.post(f"/companies/{key}/contact", json={"status": "replied"})
+    client.post(f"/signals/{signal}/contacted")
+    assert client.get(f"/companies/{key}").json()["contact_status"] == "replied"
+
+
+def test_company_contact_does_not_mark_its_signals_contacted(client, icp, engine):
+    signal = _seed(engine, icp, count=1)[0]
+    key = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
+    client.post(f"/companies/{key}/contact", json={"status": "contacted"})
+    assert client.get(f"/signals/{signal}").json()["status"] == "new"
+
+
+def test_two_signals_one_contacted_are_listed_under_the_company(client, icp, engine):
+    """Deux attributions du MÊME titulaire.
+
+    Aucun avis SIMAP du jeu de fixtures ne partage un vainqueur entre deux
+    lots (vérifié : `29997-02`, `33112-02`, `33885-03`, `34794-02` n'ont
+    chacun qu'un unique attributaire par lot, et les lots multiples de
+    `33885-03`/`34794-02` ont des attributaires distincts). On matérialise
+    donc le MÊME avis SIMAP pour une deuxième ICP du même compte : l'entreprise
+    se regroupe par empreinte d'identité, pas par ICP.
+    """
+    second_icp = client.post(
+        "/target-icps",
+        json={"label": "Suivi bis", "customer_input": COMPLETE_ICP_INPUT},
+    ).json()["target_icp_id"]
+    with engine.begin() as connection:
+        first_signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp).signal_key
+        second_signal = materialize_simap(
+            connection, SIMAP_RICH, target_icp_id=second_icp
+        ).signal_key
+        run_winner_enrichment_batch(
+            connection, now=NOW, worker_ref="company-engagement-two-test", limit=10
+        )
+
+    items = client.get("/signals?freshness=all").json()["items"]
+    company_keys = {item["signal_id"]: item["company_key"] for item in items}
+    assert company_keys[first_signal] == company_keys[second_signal]
+    company_key = company_keys[first_signal]
+
+    client.post(f"/signals/{second_signal}/contacted")
+
+    profile = client.get(f"/companies/{company_key}").json()
+    assert {s["status"] for s in profile["signals"]} == {"new", "contacted"}
+    assert len(profile["signals"]) == 2
+
+
+def test_unknown_or_foreign_company_is_404(client, icp, engine):
+    assert client.post("/companies/cmp_000000000000000000/contact", json={"status": "contacted"}).status_code == 404
+    assert client.put("/companies/cmp_000000000000000000/note", json={"body": "x"}).status_code == 404
+
+
+# ─── fix round 2 — la frontière du compte, et celle de l'origine ─────────────
+
+
+def _second_account_company(client: TestClient, engine) -> str:
+    """Un `company_key` RÉEL, mais projeté depuis les signaux d'un AUTRE compte."""
+    other = TestClient(client.app, headers={"Origin": ORIGIN})
+    response = other.post(
+        "/auth/signup",
+        json={
+            "email": "other-company-engagement@kivou.eu",
+            "password": PASSWORD,
+            "company_name": "Other Engagement",
+            "locale": "fr",
+        },
+    )
+    assert response.status_code == 201, response.text
+    pin_session_cookie(other, response)
+    account_id = other.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        subscribe(
+            connection,
+            account_id=account_id,
+            plan="scale",
+            subscription_id="sub_other_engagement",
+            now=NOW,
+        )
+    other_icp = other.post(
+        "/target-icps",
+        json={"label": "Ailleurs", "customer_input": COMPLETE_ICP_INPUT},
+    ).json()["target_icp_id"]
+    with engine.begin() as connection:
+        materialize_simap(connection, "38918-02", target_icp_id=other_icp)
+        run_winner_enrichment_batch(
+            connection, now=NOW, worker_ref="other-engagement-test", limit=10
+        )
+    items = other.get("/signals?freshness=all").json()["items"]
+    assert items, "le second compte doit voir son propre signal"
+    return items[0]["company_key"]
+
+
+def test_a_company_of_another_account_is_404_on_read_and_on_both_writes(client, icp, engine):
+    """PR1 §4 — jamais 403 : un 403 dirait que cette entreprise existe ailleurs.
+
+    Une clé d'un autre compte, une clé inexistante et une clé qu'un plan ferme
+    doivent rendre exactement la même chose. Sinon la route devient un annuaire
+    qu'on parcourt clé par clé.
+    """
+    _seed(engine, icp, count=1)
+    foreign = _second_account_company(client, engine)
+    mine = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
+    assert foreign != mine
+
+    assert client.get(f"/companies/{foreign}").status_code == 404
+    contact = client.post(f"/companies/{foreign}/contact", json={"status": "contacted"})
+    assert contact.status_code == 404
+    assert contact.json()["detail"]["code"] == "company_not_found"
+    note = client.put(f"/companies/{foreign}/note", json={"body": "Rappeler"})
+    assert note.status_code == 404
+    assert note.json()["detail"]["code"] == "company_not_found"
+
+
+def test_both_mutating_company_routes_refuse_a_request_without_origin(client, icp, engine):
+    """`enforce_origin` garde les deux écritures : sans `Origin`, 403 avant tout."""
+    _seed(engine, icp, count=1)
+    key = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
+
+    # Un client SANS `Origin` par défaut, mais porteur de la même session : ce
+    # que ferait exactement un formulaire hébergé sur un autre site.
+    bare = TestClient(client.app)
+    bare.cookies = client.cookies
+
+    contact = bare.post(f"/companies/{key}/contact", json={"status": "contacted"})
+    assert contact.status_code == 403
+    assert contact.json()["detail"]["code"] == "csrf_origin_rejected"
+
+    note = bare.put(f"/companies/{key}/note", json={"body": "Rappeler"})
+    assert note.status_code == 403
+    assert note.json()["detail"]["code"] == "csrf_origin_rejected"
+
+    # Et rien n'a été écrit.
+    profile = client.get(f"/companies/{key}").json()
+    assert profile["contact_status"] == "to_contact"
+    assert profile["note"] is None

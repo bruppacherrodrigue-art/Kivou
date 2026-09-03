@@ -33,12 +33,14 @@ from signals.accounts.passwords import hash_password, needs_rehash, verify_passw
 from signals.accounts.schema import (
     SUPPORTED_LOCALES,
     account,
+    account_visit,
     auth_session,
     auth_user,
     password_reset,
     target_icp,
 )
 from signals.accounts.tokens import new_token, token_hash
+from signals.persistence.conflicts import upsert_returning
 
 
 class AccountError(RuntimeError):
@@ -310,6 +312,38 @@ def _aware(value: Any) -> dt.datetime:
     """SQLite rend des instants nus ; tout ce qui est écrit ici est en UTC."""
     parsed = value if isinstance(value, dt.datetime) else dt.datetime.fromisoformat(str(value))
     return parsed if parsed.tzinfo else parsed.replace(tzinfo=dt.UTC)
+
+
+# ─── dernière visite du tableau de bord (PR1 §5) ───────────────────────────────
+
+
+def read_last_seen_at(connection: sa.Connection, *, account_id: str) -> dt.datetime | None:
+    """`account_visit.last_seen_at` de ce compte — `None` si jamais vu.
+
+    Lu AVANT toute mise à jour par l'appelant : c'est ce qui distingue « ce que
+    le client voyait à sa dernière visite » de « ce qu'il voit maintenant ».
+    """
+    row = connection.execute(
+        sa.select(account_visit.c.last_seen_at).where(account_visit.c.account_id == account_id)
+    ).first()
+    return None if row is None else _aware(row.last_seen_at)
+
+
+def touch_last_seen_at(connection: sa.Connection, *, account_id: str, now: dt.datetime) -> None:
+    """Enregistre CE passage comme la dernière visite connue — upsert, jamais deux lignes."""
+    values = {
+        "account_id": account_id,
+        "last_seen_at": now,
+        "updated_at": now,
+    }
+    upsert_returning(
+        connection,
+        account_visit,
+        values,
+        index_elements=[account_visit.c.account_id],
+        update_values={"last_seen_at": now, "updated_at": now},
+        returning=(account_visit.c.account_id,),
+    )
 
 
 # ─── réinitialisation de mot de passe ─────────────────────────────────────────

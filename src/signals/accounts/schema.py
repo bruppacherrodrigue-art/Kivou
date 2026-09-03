@@ -52,6 +52,25 @@ account = sa.Table(
 )
 
 
+#: PR1 §4/§5 — la dernière visite du tableau de bord, dans une table à part.
+#: Une colonne sur `account` exigerait `batch_alter_table` sous SQLite, dont la
+#: recopie de table déclenche les `ON DELETE CASCADE` de toutes les tables
+#: filles (`target_icp`, `auth_user`, …) et les vide. Absence de ligne = compte
+#: jamais vu (§5 : `previous_seen` est alors `null`).
+account_visit = sa.Table(
+    "account_visit",
+    METADATA,
+    sa.Column(
+        "account_id",
+        sa.String(64),
+        sa.ForeignKey("account.account_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("last_seen_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+)
+
+
 auth_user = sa.Table(
     "auth_user",
     METADATA,

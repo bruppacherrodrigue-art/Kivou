@@ -31,12 +31,12 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, get_args
 
-import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request
 
 from signals.accounts import service
+from signals.api.cards import presentation_bindings_for_items, render_unlocked_card
 from signals.api.dependencies import current_session, request_now
 from signals.api.errors import api_error
 from signals.billing import discovery, paywall
@@ -60,9 +60,14 @@ from signals.companies.service import (
     company_keys_for_signals,
 )
 from signals.engagement import analytics, feedback
+from signals.engagement.status import (
+    DEFAULT_LISTING_STATUSES,
+    UNIFIED_STATUSES,
+    status_resolver,
+    unified_status,
+)
 from signals.feed import policy, query, view
 from signals.feed.history import InvalidHistoryCursor
-from signals.persistence.schema import materialized_signal
 from signals.recency import RECENCY_POLICY_VERSION
 
 router = APIRouter()
@@ -96,32 +101,6 @@ def _language(connection, *, user_id: str) -> str:
     return locale if locale in LANGUAGES else "fr"
 
 
-def _presentation_bindings(connection, items) -> dict[str, tuple[int, int]]:
-    """Reload only revision numbers absent from the legacy feed dataclass.
-
-    The query is batched and receives only items whose access has already been
-    granted.  Presentation lookup therefore never sees a locked signal key.
-    """
-
-    by_key = {item.signal.signal_key: item for item in items}
-    if not by_key:
-        return {}
-    revisions = {
-        row.signal_key: row.target_icp_revision
-        for row in connection.execute(
-            sa.select(
-                materialized_signal.c.signal_key,
-                materialized_signal.c.target_icp_revision,
-            ).where(materialized_signal.c.signal_key.in_(tuple(by_key)))
-        )
-    }
-    return {
-        signal_key: (item.signal.revision, revisions[signal_key])
-        for signal_key, item in by_key.items()
-        if signal_key in revisions
-    }
-
-
 @router.get("/signals")
 def list_signals(
     request: Request,
@@ -136,7 +115,8 @@ def list_signals(
         max_length=16,
         pattern=r"^[A-Z0-9-]+$",
     ),
-    status: HistoryStatus | None = None,
+    status: Annotated[list[str] | None, Query()] = None,
+    recency_status: HistoryStatus | None = None,
     cpv_prefix: str | None = Query(default=None, min_length=1, max_length=8, pattern=r"^\d+$"),
     date_from: dt.date | None = None,
     date_to: dt.date | None = None,
@@ -150,9 +130,35 @@ def list_signals(
     `limit` est plafonné par le serveur : un client ne peut pas demander la
     table entière, et `le=MAXIMUM_PAGE_SIZE` rend le refus explicite plutôt que
     de rogner la demande en silence.
+
+    `status` est répétable et mélange deux vocabulaires par compatibilité :
+    un statut unifié (`new | saved | ignored | contacted`) filtre la liste, et
+    une valeur de récence héritée (`recent_award`, …) est comprise comme
+    `recency_status` — le nom que porte désormais ce filtre.
     """
     now = request_now(request)
     as_of = now.date()
+
+    unified_selected: set[str] = set()
+    legacy_recency_values: list[str] = []
+    for value in status or ():
+        if value in UNIFIED_STATUSES:
+            unified_selected.add(value)
+        elif value in get_args(HistoryStatus):
+            legacy_recency_values.append(value)
+        else:
+            raise api_error(422, "invalid_status", f"statut inconnu : {value!r}")
+    if len(set(legacy_recency_values)) > 1:
+        raise api_error(
+            422, "invalid_status", "un seul statut de récence est admis par requête"
+        )
+    if legacy_recency_values:
+        legacy_recency_status = legacy_recency_values[0]
+        if recency_status is not None and recency_status != legacy_recency_status:
+            raise api_error(422, "invalid_status", "statut de récence ambigu")
+        recency_status = legacy_recency_status
+    statuses = frozenset(unified_selected) or DEFAULT_LISTING_STATUSES
+
     if cursor is not None and view_mode != "history":
         raise api_error(
             422,
@@ -161,7 +167,7 @@ def list_signals(
         )
     if view_mode != "history" and any(
         value is not None
-        for value in (date_from, date_to, subdivision_code, status, cpv_prefix)
+        for value in (date_from, date_to, subdivision_code, recency_status, cpv_prefix)
     ):
         raise api_error(
             422,
@@ -201,7 +207,7 @@ def list_signals(
                     "date_to": date_to,
                     "country": country,
                     "subdivision_code": subdivision_code,
-                    "status": status,
+                    "status": recency_status,
                     "primary_event": primary_event,
                     "cpv_prefix": cpv_prefix,
                     "winner": winner,
@@ -224,6 +230,11 @@ def list_signals(
             )
         )
         access = _grant_discovery(connection, session.account_id, access, allowed, now)
+        # §2 — une lecture groupée par requête ; le statut de chaque signal se
+        # dérive de là, jamais d'un aller-retour en base par carte.
+        resolve_status = status_resolver(
+            feedback.feedback_by_signal(connection, account_id=session.account_id)
+        )
         try:
             if view_mode == "history":
                 page = query.history_page(
@@ -235,13 +246,15 @@ def list_signals(
                     primary_event=primary_event,
                     country=country,
                     subdivision_code=subdivision_code,
-                    status=status,
+                    status=recency_status,
                     cpv_prefix=cpv_prefix,
                     date_from=date_from,
                     date_to=date_to,
                     winner=winner,
                     limit=limit,
                     cursor=cursor,
+                    status_of=resolve_status,
+                    statuses=statuses,
                 )
             else:
                 page = query.feed_page(
@@ -256,6 +269,8 @@ def list_signals(
                     winner=winner,
                     limit=limit,
                     offset=offset,
+                    status_of=resolve_status,
+                    statuses=statuses,
                 )
         except query.ForeignTargetIcp as error:
             # Le profil d'un autre compte se comporte comme un profil inexistant.
@@ -268,7 +283,7 @@ def list_signals(
             ) from error
 
         unlocked_items = tuple(item for item in page.items if access.is_unlocked(item))
-        presentation_bindings = _presentation_bindings(connection, unlocked_items)
+        presentation_bindings = presentation_bindings_for_items(connection, unlocked_items)
         presentations = published_for_signals(
             connection,
             account_id=session.account_id,
@@ -329,6 +344,7 @@ def list_signals(
                 presentation=presentations.get(item.signal.signal_key),
                 company_key=company_keys.get(item.signal.signal_key),
                 enrichment=enrichments.get(item.signal.signal_key),
+                status=resolve_status(item.signal.signal_key),
             )
             for item in page.items
         ],
@@ -342,7 +358,15 @@ def list_signals(
             "by_filters": (
                 page.excluded_by_filters if view_mode == "history" else 0
             ),
+            "by_status": page.excluded_by_status,
         },
+        "counts": page.status_counts,
+        "counts_truncated": page.counts_truncated,
+        # PR1 §2 (fix round 2) — l'historique ne compte que sur sa première
+        # page. Les suivantes rendent quand même les quatre clés, à zéro, et
+        # `counts_available: false` dit pourquoi : un client qui affiche les
+        # compteurs doit les garder de la première page, pas les remplacer.
+        "counts_available": page.counts_available,
         "read_at": as_of.isoformat(),
         "freshness": "all" if view_mode == "history" else freshness,
         "view": view_mode,
@@ -390,19 +414,19 @@ def _render(
     presentation: PublishedCardPresentation | None,
     company_key: str | None,
     enrichment: WinnerEnrichmentView | None,
+    status: str,
 ) -> dict[str, Any]:
     """La carte complète si le plan l'ouvre, l'aperçu verrouillé sinon."""
     if access.is_unlocked(item):
-        card = view.feed_item(item, lang=lang, presentation=presentation)
-        card["locked"] = False
-        if company_key is not None:
-            card["company_key"] = company_key
-        if enrichment is not None:
-            card["winner_enrichment"] = enrichment.model_dump(mode="json")
-            if enrichment.official_name is not None:
-                card["company"]["name"] = enrichment.official_name
-        return card
-    return paywall.locked_teaser(item, lang=lang)
+        return render_unlocked_card(
+            item,
+            lang=lang,
+            presentation=presentation,
+            company_key=company_key,
+            enrichment=enrichment,
+            status=status,
+        )
+    return paywall.locked_teaser(item, lang=lang, status=status)
 
 
 def _grant_discovery(connection, account_id: str, access: FeedAccess, allowed, now):
@@ -494,7 +518,7 @@ def get_signal(
                 connection, account_id=session.account_id, signal_key=signal_key
             )
             if unlocked:
-                binding = _presentation_bindings(connection, (item,)).get(signal_key)
+                binding = presentation_bindings_for_items(connection, (item,)).get(signal_key)
                 if binding is not None:
                     if presentation_artifact_id is None:
                         presentation = published_for_signals(
@@ -522,12 +546,16 @@ def get_signal(
     if item is None:
         raise api_error(404, "signal_not_found", "signal introuvable")
 
+    status = unified_status(interaction)
     if not access.is_unlocked(item):
         # Le compte POSSÈDE ce signal : répondre 404 confondrait « pas à vous »
         # et « pas encore accessible », et empêcherait de dire ce que le
         # paiement débloquerait.
         locked = paywall.locked_detail(
-            item, lang=lang, upgrade_to=eligible_upgrade_plans(item, access=access)
+            item,
+            lang=lang,
+            status=status,
+            upgrade_to=eligible_upgrade_plans(item, access=access),
         )
         locked["read_at"] = as_of.isoformat()
         locked["language"] = lang
@@ -537,6 +565,7 @@ def get_signal(
     detail["read_at"] = as_of.isoformat()
     detail["language"] = lang
     detail["locked"] = False
+    detail["status"] = status
     if company_key is not None:
         detail["company_key"] = company_key
     if enrichment is not None:

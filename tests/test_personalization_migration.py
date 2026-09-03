@@ -9,7 +9,7 @@ from signals.persistence.schema import acquisition_personalization_artifact
 
 PREVIOUS = "0012_decision_engine"
 HEAD = "0013_personalization"
-CURRENT_HEAD = "0033_requeue_unresolved_siret"
+CURRENT_HEAD = "0034_company_engagement"
 
 
 def test_personalization_migration_is_linear_and_adds_one_artifact_table(tmp_path) -> None:

@@ -32,6 +32,7 @@ from signals.api.routes_attribution import router as attribution_router
 from signals.api.routes_auth import router as auth_router
 from signals.api.routes_billing import router as billing_router
 from signals.api.routes_companies import router as companies_router
+from signals.api.routes_dashboard import router as dashboard_router
 from signals.api.routes_feedback import router as feedback_router
 from signals.api.routes_icp import router as icp_router
 from signals.api.routes_notes import router as notes_router
@@ -124,6 +125,7 @@ def create_app(
     app.include_router(icp_router)
     app.include_router(signals_router)
     app.include_router(companies_router)
+    app.include_router(dashboard_router)
     app.include_router(billing_router)
     app.include_router(webhooks_router)
     app.include_router(feedback_router)

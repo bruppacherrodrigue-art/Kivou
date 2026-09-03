@@ -26,7 +26,7 @@ from signals.persistence.schema import (
 
 PREVIOUS = "0025_alert_recipient_context"
 HEAD = "0026_acquisition_runtime"
-CURRENT_HEAD = "0033_requeue_unresolved_siret"
+CURRENT_HEAD = "0034_company_engagement"
 RUNTIME_TABLES = {
     acquisition_runtime_approval.name,
     acquisition_runtime_lease.name,

@@ -20,7 +20,10 @@ PREVIOUS = "0029_production_observation"
 HEAD = "0030_winner_enrichment"
 FRENCH_OFFICIAL_COMPANY = "0031_french_official_company"
 REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
-LATEST = "0033_requeue_unresolved_siret"
+#: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
+#: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
+REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
+LATEST = "0034_company_engagement"
 
 
 def _engine(path: pathlib.Path):
@@ -40,7 +43,8 @@ def test_migration_is_the_single_additive_head(tmp_path) -> None:
     }
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == REQUEUE_SIRET_PLACEHOLDERS
+    assert scripts.get_revision(LATEST).down_revision == REQUEUE_UNRESOLVED_SIRET
+    assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     assert (
         scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision
         == FRENCH_OFFICIAL_COMPANY

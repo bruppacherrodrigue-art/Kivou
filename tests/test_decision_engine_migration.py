@@ -9,7 +9,7 @@ from signals.persistence.schema import acquisition_decision_evaluation
 
 PREVIOUS = "0011_company_research"
 HEAD = "0012_decision_engine"
-CURRENT_HEAD = "0033_requeue_unresolved_siret"
+CURRENT_HEAD = "0034_company_engagement"
 
 
 def test_decision_engine_migration_is_linear_and_adds_exactly_one_table(tmp_path) -> None:

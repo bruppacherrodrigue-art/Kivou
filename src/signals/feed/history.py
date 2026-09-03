@@ -92,6 +92,19 @@ def cursor_for_signal(signal: StoredSignal) -> HistoryCursor:
     return HistoryCursor(date=date, signal_key=signal.signal_key)
 
 
+def history_sort_key(signal: StoredSignal) -> tuple[int, int]:
+    """The most recent effective date first; undated signals last.
+
+    Fix round 1 — moved here from `api/routes_companies.py`'s private copy so
+    the dashboard's "most recent signal of a company" can share it instead of
+    drifting from what the company page already means by "most recent".
+    """
+    date, _kind = effective_history_date(signal)
+    if date is None:
+        return (1, 0)
+    return (0, -date.toordinal())
+
+
 __all__ = [
     "HistoryCursor",
     "HistoryDateKind",
@@ -100,4 +113,5 @@ __all__ = [
     "decode_history_cursor",
     "effective_history_date",
     "encode_history_cursor",
+    "history_sort_key",
 ]
