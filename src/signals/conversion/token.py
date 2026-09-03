@@ -60,12 +60,38 @@ def _unb64(value: str) -> bytes:
 
 
 def _canonical(payload: AttributionTokenPayload) -> bytes:
+    """La forme signée. Un champ facultatif ABSENT n'y figure pas.
+
+    C'est la seule chose qui rend un nouveau champ compatible avec les jetons
+    déjà partis en cold mail : la charge n'est pas dans le lien, elle est
+    reconstruite en base à la vérification. Si un champ ajouté aujourd'hui
+    apparaissait avec `null` dans la forme canonique, chaque jeton signé hier
+    deviendrait invalide du jour au lendemain.
+    """
+    body = payload.model_dump(mode="json")
+    if body.get("opportunity_key") is None:
+        body.pop("opportunity_key", None)
     return json.dumps(
-        payload.model_dump(mode="json"),
+        body,
         ensure_ascii=True,
         separators=(",", ":"),
         sort_keys=True,
     ).encode("utf-8")
+
+
+def _signable_forms(payload: AttributionTokenPayload) -> tuple[bytes, ...]:
+    """Les formes canoniques acceptables, de la plus récente à la plus ancienne.
+
+    La seconde est la forme d'AVANT `opportunity_key` : un jeton émis avant
+    PR2b reste vérifiable même si le résolveur, lui, connaît désormais
+    l'opportunité. L'empreinte du jeton est alors calculée sur la forme qui a
+    RÉELLEMENT signé — sans quoi un clic d'hier et une inscription de demain ne
+    se rejoindraient plus.
+    """
+    current = _canonical(payload)
+    if payload.opportunity_key is None:
+        return (current,)
+    return (current, _canonical(payload.model_copy(update={"opportunity_key": None})))
 
 
 @dataclass(frozen=True)
@@ -144,10 +170,14 @@ class AttributionTokenKeyring:
         if lookup.key_version not in self.keys:
             raise AttributionTokenInvalid("attribution token key is unavailable")
         payload = payload.model_copy(update={"key_version": lookup.key_version})
-        canonical = _canonical(payload)
         secret = self.keys[lookup.key_version]
-        expected = hmac.new(secret, _SIGNING_DOMAIN + canonical, hashlib.sha256).digest()
-        if not hmac.compare_digest(lookup.signature, expected):
+        canonical: bytes | None = None
+        for candidate in _signable_forms(payload):
+            expected = hmac.new(secret, _SIGNING_DOMAIN + candidate, hashlib.sha256).digest()
+            if hmac.compare_digest(lookup.signature, expected):
+                canonical = candidate
+                break
+        if canonical is None:
             raise AttributionTokenInvalid("attribution token signature is invalid")
         observed = at.astimezone(dt.UTC)
         if observed < payload.issued_at:

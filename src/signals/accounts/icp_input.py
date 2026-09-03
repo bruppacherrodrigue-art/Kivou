@@ -109,6 +109,21 @@ PREFERRED_TIMINGS: tuple[str, ...] = ("near_term", "medium_term")
 SOURCE_MODES_ALLOWED: tuple[str, ...] = ("metadata_fallback",)
 
 
+#: L'inverse de `_OFFER_TO_NEED`, pour les rares lecteurs qui partent du besoin
+#: — le jeton d'acquisition, qui porte la catégorie de besoin de la campagne et
+#: pas le vocabulaire client. La correspondance est injective, donc réversible.
+_NEED_TO_OFFER: dict[str, str] = {need: offer for offer, need in _OFFER_TO_NEED.items()}
+
+
+def offer_for_need(need_ref: str) -> str | None:
+    """L'offre client correspondant à une catégorie de besoin moteur, ou rien.
+
+    Rien plutôt qu'un repli : une campagne dont la catégorie ne se traduit pas
+    ne doit pas faire cocher une case que le client n'a jamais choisie.
+    """
+    return _NEED_TO_OFFER.get(need_ref)
+
+
 class MonetaryThreshold(BaseModel):
     """Le montant à partir duquel un marché vaut la peine d'être regardé."""
 
