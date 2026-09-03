@@ -59,6 +59,9 @@ fi
 uv sync --project "$KIVOU_RELEASE_DIR" --frozen --extra server --extra postgres
 npm --prefix "$KIVOU_RELEASE_DIR/frontend" ci
 npm --prefix "$KIVOU_RELEASE_DIR/frontend" run build
+# Le backend (kivou) et le frontend statique (www-data) doivent tous deux
+# pouvoir traverser la release créée par le service de déploiement root.
+chmod -R a+rX "$KIVOU_RELEASE_DIR"
 
 marker=$(mktemp)
 rehearsal_name="kivou_rehearsal_${KIVOU_SHA:0:12}_$$"
