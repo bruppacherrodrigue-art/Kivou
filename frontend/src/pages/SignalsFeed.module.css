@@ -23,7 +23,7 @@
   gap: 4px;
 }
 
-.header h1 {
+.header .title {
   margin: 0;
   color: var(--ink);
   font-size: 20px;

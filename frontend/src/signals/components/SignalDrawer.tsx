@@ -44,6 +44,7 @@ export function SignalDrawer({
   loading,
   error,
   onClose,
+  onRetry,
   onContacted,
   onSave,
   onIgnore,
@@ -53,6 +54,7 @@ export function SignalDrawer({
   loading: boolean
   error: unknown | null
   onClose: () => void
+  onRetry: () => void
   onContacted: () => void
   onSave: () => void
   onIgnore: () => void
@@ -79,7 +81,9 @@ export function SignalDrawer({
       <aside className={styles.drawer} aria-label={copy.error}>
         <div className={styles.drawerNotice} role="alert">
           <p>{copy.error}</p>
-          <p>{t.common.retry}</p>
+          <button type="button" className="text-link" onClick={onRetry}>
+            {t.common.retry}
+          </button>
         </div>
       </aside>
     )

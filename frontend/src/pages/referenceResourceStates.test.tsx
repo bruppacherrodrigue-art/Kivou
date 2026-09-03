@@ -5,10 +5,10 @@ import { AppRoutes } from '../App'
 import { notifyTargetIcpChanged } from '../targeting/targetIcpEvents'
 import {
   AUTHENTICATED,
-  COMPANY_PROFILE,
   ICP,
   LOCKED_ITEM,
   PRO_STATUS,
+  STALE_ITEM,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
   factualFallbackPresentation,
@@ -31,11 +31,6 @@ const PUBLISHED_UNLOCKED_ITEM = {
     headlineEvidenceRefs: ['source:notice:26-104412:headline'],
     awardSummaryEvidenceRefs: ['source:notice:26-104412:award-summary'],
   }),
-}
-
-const PUBLISHED_UNLOCKED_DETAIL = {
-  ...UNLOCKED_DETAIL,
-  presentation: PUBLISHED_UNLOCKED_ITEM.presentation,
 }
 
 describe('états indépendants des vues de référence', () => {
@@ -80,9 +75,13 @@ describe('états indépendants des vues de référence', () => {
     expect(within(priority).getByRole('button', { name: /réessayer/i })).toBeVisible()
   })
 
+  /* Sur la page Signaux, un signal déjà présent dans le feed chargé n'est
+   * JAMAIS relu au clic (le tiroir se sert directement de la ligne) : seul un
+   * signal ABSENT du feed déclenche `GET /signals/{key}`, et peut donc échouer
+   * indépendamment de la liste. */
   it('conserve la liste utilisable quand le détail sélectionné échoue', async () => {
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
+      'GET /signals': { body: feedPage([STALE_ITEM]) },
       [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: {
         status: 503,
         body: { detail: { code: 'signal_unavailable' } },
@@ -96,61 +95,12 @@ describe('états indépendants des vues de référence', () => {
       session: AUTHENTICATED,
     })
 
-    const list = await screen.findByRole('heading', { name: 'Signaux détectés' })
-    expect(within(list.closest('.feed-panel') as HTMLElement).getByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
-    expect(await screen.findByRole('alert')).toHaveTextContent(/signal/i)
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText(STALE_ITEM.company.name!)).toBeVisible()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Le signal n’a pas pu être chargé.')
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
     expect(screen.getByRole('button', { name: /réessayer/i })).toBeVisible()
-  })
-
-  it('conserve le détail quand la note privée échoue', async () => {
-    mockApi({
-      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
-        status: 503,
-        body: { detail: { code: 'note_unavailable' } },
-      },
-      [`GET /companies/${UNLOCKED_ITEM.company_key}`]: { body: COMPANY_PROFILE },
-      'GET /target-icps': { body: [ICP] },
-      'GET /billing/status': { body: PRO_STATUS },
-    })
-
-    renderApp(<AppRoutes />, {
-      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
-      session: AUTHENTICATED,
-    })
-
-    expect(UNLOCKED_ITEM.presentation).toBeNull()
-    expect(
-      PUBLISHED_UNLOCKED_DETAIL.presentation.content.claims.map(
-        ({ claim_id, text, evidence_refs }) => ({ claim_id, text, evidence_refs }),
-      ),
-    ).toEqual([
-      {
-        claim_id: 'HEADLINE',
-        text: PUBLISHED_HEADLINE,
-        evidence_refs: ['source:notice:26-104412:headline'],
-      },
-      {
-        claim_id: 'AWARD_SUMMARY',
-        text: PUBLISHED_AWARD_SUMMARY,
-        evidence_refs: ['source:notice:26-104412:award-summary'],
-      },
-    ])
-    expect(PUBLISHED_UNLOCKED_DETAIL.presentation.content.headline).not.toBe(
-      UNLOCKED_DETAIL.contract.title,
-    )
-    expect(
-      await screen.findByRole('heading', {
-        name: PUBLISHED_UNLOCKED_DETAIL.factual_display.headline,
-      }),
-    ).toBeVisible()
-    expect(document.querySelector('.detail-summary')).toHaveTextContent(
-      PUBLISHED_UNLOCKED_DETAIL.factual_display.market_summary!,
-    )
-    expect(screen.queryByRole('heading', { name: UNLOCKED_DETAIL.contract.title! })).toBeNull()
-    expect(await screen.findByRole('alert')).toHaveTextContent(/note.*chargée/i)
-    expect(screen.getByRole('textbox', { name: 'Note sur ce signal' })).toBeDisabled()
   })
 
   it('conserve le contexte de facturation quand le feed échoue', async () => {
@@ -191,42 +141,11 @@ describe('états indépendants des vues de référence', () => {
     let detailReads = 0
     let rejectRetry!: (reason: unknown) => void
     mockApi({
-      'GET /signals': { body: feedPage([UNLOCKED_ITEM]) },
-      'GET /signals/sig_absent': () => {
+      'GET /signals': { body: feedPage([STALE_ITEM]) },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: () => {
         detailReads += 1
         if (detailReads === 1) return { status: 503, body: { detail: { code: 'signal_unavailable' } } }
         return new Promise((_resolve, reject) => { rejectRetry = reject })
-      },
-      'GET /target-icps': { body: [ICP] },
-      'GET /billing/status': { body: PRO_STATUS },
-    })
-
-    renderApp(<AppRoutes />, {
-      route: '/app/signals/sig_absent',
-      session: AUTHENTICATED,
-    })
-
-    await screen.findByRole('heading', { name: 'Signal non disponible dans cette lecture' })
-    await user.click(screen.getByRole('button', { name: 'Réessayer' }))
-
-    const detailPanel = document.querySelector('.detail-panel') as HTMLElement
-    expect(await within(detailPanel).findByRole('status')).toHaveTextContent('Chargement…')
-    expect(screen.getByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
-    expect(within(document.querySelector('.workspace-grid') as HTMLElement).getAllByRole('status')).toHaveLength(1)
-    await act(async () => rejectRetry(new Error('detail retry failed')))
-    expect(await within(detailPanel).findByRole('alert')).toHaveTextContent(
-      'Les informations n’ont pas pu être chargées.',
-    )
-    const feedPanel = screen.getByRole('heading', { name: 'Signaux détectés' }).closest('.feed-panel') as HTMLElement
-    expect(within(feedPanel).getByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
-    expect(within(document.querySelector('.workspace-grid') as HTMLElement).getAllByRole('alert')).toHaveLength(1)
-  })
-
-  it('n’annonce qu’une fois une panne initiale du feed sur une route profonde', async () => {
-    mockApi({
-      'GET /signals': {
-        status: 503,
-        body: { detail: { code: 'signal_unavailable' } },
       },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: PRO_STATUS },
@@ -237,33 +156,42 @@ describe('états indépendants des vues de référence', () => {
       session: AUTHENTICATED,
     })
 
-    const workspace = document.querySelector('.workspace-grid') as HTMLElement
-    await within(workspace).findByText('Les informations n’ont pas pu être chargées.')
-    expect(within(workspace).getAllByRole('alert')).toHaveLength(1)
+    expect(await screen.findByRole('alert')).toHaveTextContent('Le signal n’a pas pu être chargé.')
+    await user.click(screen.getByRole('button', { name: 'Réessayer' }))
+
+    expect(await screen.findByRole('status', { name: 'Chargement du signal' })).toBeVisible()
+    expect(screen.getByText(STALE_ITEM.company.name!)).toBeVisible()
+    await act(async () => rejectRetry(new Error('detail retry failed')))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Le signal n’a pas pu être chargé.')
+    expect(screen.getByText(STALE_ITEM.company.name!)).toBeVisible()
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
-  it('n’annonce qu’une fois une panne de pagination qui bloque une route profonde', async () => {
+  /* Sur la page Signaux, le feed (le tableau) et le détail (le tiroir) sont
+   * deux ressources indépendantes : une panne du feed ne bloque ni n'annonce
+   * deux fois la même chose. Ici le feed échoue mais le signal demandé par la
+   * route profonde reste lisible directement — une seule alerte, dans le
+   * tableau, et le tiroir affiche normalement son contenu. */
+  it('n’annonce qu’une fois une panne initiale du feed sur une route profonde', async () => {
     mockApi({
-      'GET /signals': (request) => request.search.get('offset') === '20'
-        ? { status: 503, body: { detail: { code: 'feed_unavailable' } } }
-        : {
-            body: feedPage([UNLOCKED_ITEM], {
-              page: { limit: 20, offset: 0, has_more: true, scan_truncated: false },
-            }),
-          },
+      'GET /signals': {
+        status: 503,
+        body: { detail: { code: 'signal_unavailable' } },
+      },
+      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: UNLOCKED_DETAIL },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: PRO_STATUS },
     })
 
     renderApp(<AppRoutes />, {
-      route: '/app/signals/sig_absent_page_two',
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
       session: AUTHENTICATED,
     })
 
-    const workspace = document.querySelector('.workspace-grid') as HTMLElement
-    await within(workspace).findByText('Les informations n’ont pas pu être chargées.')
-    expect(within(workspace).getAllByRole('alert')).toHaveLength(1)
-    expect(within(workspace).getByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 2 })).toBeVisible()
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Les informations n’ont pas pu être chargées.')
+    expect(screen.getAllByRole('alert')).toHaveLength(1)
   })
 
   it('ne présente jamais un profil retenu comme actuel pendant ou après un refresh échoué', async () => {

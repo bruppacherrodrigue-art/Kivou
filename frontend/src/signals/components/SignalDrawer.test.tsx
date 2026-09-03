@@ -47,6 +47,7 @@ function renderDrawer({
   error = null as unknown,
   busy = false,
   onClose = noop,
+  onRetry = noop,
   onContacted = noop,
   onSave = noop,
   onIgnore = noop,
@@ -56,6 +57,7 @@ function renderDrawer({
   error?: unknown
   busy?: boolean
   onClose?: () => void
+  onRetry?: () => void
   onContacted?: () => void
   onSave?: () => void
   onIgnore?: () => void
@@ -67,6 +69,7 @@ function renderDrawer({
       error={error}
       busy={busy}
       onClose={onClose}
+      onRetry={onRetry}
       onContacted={onContacted}
       onSave={onSave}
       onIgnore={onIgnore}

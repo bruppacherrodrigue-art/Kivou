@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { act, screen, waitFor, within } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { AppRoutes } from '../App'
 import {
@@ -54,7 +54,13 @@ const PUBLISHED_UNLOCKED_DETAIL = {
 }
 
 describe('contrat responsive connecté à 390 px', () => {
-  it('conserve un main, un h1, la navigation mobile et un retour vers la liste', async () => {
+  /* Sous 900 px, le détail s'ouvre en feuille modale (Radix `Sheet`) : le h2
+   * du tiroir porte le titre du marché (`lot_title ?? title ?? object_short`,
+   * jamais le résumé commercial), et le chrome applicatif derrière la feuille
+   * devient inerte tant qu'elle reste ouverte — un seul `<main>`, un seul
+   * `h1` existent structurellement, et la navigation mobile n'est plus
+   * atteignable par le clavier ou le lecteur d'écran pendant ce temps. */
+  it('conserve un main, un h1, ouvre le détail en feuille modale et rend le chrome inerte', async () => {
     vi.stubGlobal('matchMedia', mobileMatchMedia)
     vi.stubGlobal('innerWidth', 390)
     mockSignalRoute()
@@ -64,14 +70,11 @@ describe('contrat responsive connecté à 390 px', () => {
       session: AUTHENTICATED,
     })
 
-    await screen.findByRole('heading', {
-      name: PUBLISHED_UNLOCKED_DETAIL.factual_display.headline,
-    })
-    expect(screen.queryByRole('heading', { name: UNLOCKED_ITEM.contract.title! })).toBeNull()
-    expect(screen.getAllByRole('main')).toHaveLength(1)
-    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'Ouvrir la navigation' })).toBeVisible()
-    expect(screen.getByRole('button', { name: 'Retour à la liste' })).toBeVisible()
+    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    expect(document.querySelectorAll('main')).toHaveLength(1)
+    expect(document.querySelectorAll('h1')).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: 'Ouvrir la navigation' })).not.toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Fermer' }).length).toBeGreaterThan(0)
   })
 
   it('confine le focus dans le drawer puis le rend au déclencheur avec Échap et le scrim', async () => {
@@ -149,108 +152,6 @@ describe('contrat responsive connecté à 390 px', () => {
     await user.click(within(drawer).getByRole('link', { name: 'Signals' }))
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     expect(trigger).toHaveFocus()
-  })
-
-  it('focalise le titre du détail puis rend le focus à la ligne choisie', async () => {
-    vi.stubGlobal('matchMedia', mobileMatchMedia)
-    vi.stubGlobal('innerWidth', 390)
-    const user = userEvent.setup()
-    const second = {
-      ...PUBLISHED_UNLOCKED_ITEM,
-      signal_id: 'sig_mobile_2',
-      company: { ...UNLOCKED_ITEM.company, name: 'Deuxième entreprise mobile' },
-      contract: { ...UNLOCKED_ITEM.contract, title: 'Deuxième marché mobile' },
-      factual_display: {
-        ...UNLOCKED_ITEM.factual_display,
-        headline: 'Deuxième entreprise mobile remporte « Deuxième marché mobile »',
-        market_summary: 'Deuxième marché mobile',
-        object_short: 'Deuxième marché mobile',
-      },
-      presentation: factualFallbackPresentation({
-        artifactId: '6'.repeat(64),
-        headline: 'Présentation publiée pour le second signal mobile',
-        awardSummary: 'La source mobile documente la seconde attribution publiée.',
-        headlineEvidenceRefs: ['source:mobile:second:headline'],
-        awardSummaryEvidenceRefs: ['source:mobile:second:award-summary'],
-      }),
-    }
-    const secondDetail = { ...PUBLISHED_UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_2' }
-    mockApi({
-      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM, second]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
-      [`GET /signals/${second.signal_id}`]: { body: secondDetail },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
-        body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
-      },
-      [`GET /signals/${second.signal_id}/note`]: {
-        body: { signal_id: second.signal_id, note: null, updated_at: null },
-      },
-      'GET /target-icps': { body: [ICP] },
-      'GET /billing/status': { body: PRO_STATUS },
-    })
-    renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
-
-    const row = await screen.findByRole('button', { name: /Deuxième entreprise mobile/ })
-    await user.click(row)
-    const heading = await screen.findByRole('heading', {
-      name: second.factual_display.headline,
-    })
-    expect(screen.queryByRole('heading', { name: second.contract.title })).toBeNull()
-    await waitFor(() => expect(heading).toHaveFocus())
-
-    await user.click(screen.getByRole('button', { name: 'Retour à la liste' }))
-    await waitFor(() => expect(row).toHaveFocus())
-  })
-
-  it('conserve la demande de focus jusqu’à la réponse terminale du détail', async () => {
-    vi.stubGlobal('matchMedia', mobileMatchMedia)
-    vi.stubGlobal('innerWidth', 390)
-    const user = userEvent.setup()
-    let resolveDetail!: (value: { body: typeof UNLOCKED_DETAIL }) => void
-    const second = {
-      ...PUBLISHED_UNLOCKED_ITEM,
-      signal_id: 'sig_mobile_delayed',
-      company: { ...UNLOCKED_ITEM.company, name: 'Entreprise mobile différée' },
-      contract: { ...UNLOCKED_ITEM.contract, title: 'Marché mobile différé' },
-      factual_display: {
-        ...UNLOCKED_ITEM.factual_display,
-        headline: 'Entreprise mobile différée remporte « Marché mobile différé »',
-        market_summary: 'Marché mobile différé',
-        object_short: 'Marché mobile différé',
-      },
-      presentation: factualFallbackPresentation({
-        artifactId: '7'.repeat(64),
-        headline: 'Présentation publiée pour le signal mobile différé',
-        awardSummary: 'La source mobile documente l’attribution publiée après chargement.',
-        headlineEvidenceRefs: ['source:mobile:delayed:headline'],
-        awardSummaryEvidenceRefs: ['source:mobile:delayed:award-summary'],
-      }),
-    }
-    const secondDetail = { ...PUBLISHED_UNLOCKED_DETAIL, ...second, company_key: 'cmp_mobile_delayed' }
-    mockApi({
-      'GET /signals': { body: feedPage([PUBLISHED_UNLOCKED_ITEM, second]) },
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}`]: { body: PUBLISHED_UNLOCKED_DETAIL },
-      [`GET /signals/${second.signal_id}`]: () => new Promise((resolve) => { resolveDetail = resolve }),
-      [`GET /signals/${UNLOCKED_ITEM.signal_id}/note`]: {
-        body: { signal_id: UNLOCKED_ITEM.signal_id, note: null, updated_at: null },
-      },
-      [`GET /signals/${second.signal_id}/note`]: {
-        body: { signal_id: second.signal_id, note: null, updated_at: null },
-      },
-      'GET /target-icps': { body: [ICP] },
-      'GET /billing/status': { body: PRO_STATUS },
-    })
-    renderApp(<AppRoutes />, { route: '/app/signals', session: AUTHENTICATED })
-
-    await user.click(await screen.findByRole('button', { name: /Entreprise mobile différée/ }))
-    await screen.findByRole('heading', { name: 'Chargement…' })
-    await act(async () => resolveDetail({ body: secondDetail }))
-
-    const heading = await screen.findByRole('heading', {
-      name: second.factual_display.headline,
-    })
-    expect(screen.queryByRole('heading', { name: second.contract.title })).toBeNull()
-    await waitFor(() => expect(heading).toHaveFocus())
   })
 
   it('préserve exactement les breakpoints et la réduction de mouvement approuvés', () => {
