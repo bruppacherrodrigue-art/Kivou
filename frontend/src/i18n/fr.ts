@@ -319,8 +319,6 @@ export const fr = {
     signalsPage: {
       lockedReason:
         'Votre accès actuel conserve cet aperçu sans révéler les données protégées.',
-      filtersTitle: 'Filtres de l’historique',
-      statusFilter: 'Statut temporel',
       restrictedFilter: 'Ce filtre n’est pas inclus dans votre accès actuel.',
       website: 'Site officiel',
       lastVerified: 'Dernière vérification',
@@ -1541,8 +1539,11 @@ export const fr = {
       all: 'Tous',
     },
     filters: {
+      toolbar: 'Filtres',
+      statusGroup: 'Statut',
       zone: 'Zone',
       sector: 'Secteur',
+      sectorPlaceholder: 'Secteur (CPV)',
       minAmount: 'Montant minimum',
       period: 'Période',
       search: 'Rechercher un titulaire, un objet…',
@@ -1564,6 +1565,10 @@ export const fr = {
     },
     consortium: 'groupement',
     count: { one: '{count} signal', other: '{count} signaux' },
+    /* Un filtre navigateur (montant, recherche) réduit ce qui est CHARGÉ : le
+     * compteur doit dire les deux nombres, jamais fusionner population
+     * chargée et population retenue en un seul chiffre. */
+    countFiltered: '{count} sur {total} chargés',
     loadMore: 'Charger plus',
     empty: 'Aucun signal ne correspond à ces filtres.',
     drawer: {

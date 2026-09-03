@@ -42,9 +42,9 @@
 .filters {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: center;
   gap: 10px;
-  padding: 10px 12px;
+  padding: 8px 12px;
   border: 1px solid var(--card-border);
   border-radius: 12px;
   background: var(--surface);
@@ -86,6 +86,10 @@
   opacity: 0.75;
 }
 
+/* Le préfixe qui décrivait chaque filtre est passé DANS le contrôle
+ * (`placeholder`, options de période déjà explicites) : l'étage de libellés
+ * empilés au-dessus forçait la recherche sur une deuxième ligne à 1440 px. Le
+ * nom accessible survit par `aria-label` — voir SignalsFeed.tsx. */
 .filter {
   display: flex;
   flex-direction: column;
@@ -93,18 +97,15 @@
   min-width: 0;
 }
 
-.filter > span {
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
 .filter input,
 .filter select {
   min-height: 32px;
-  max-width: 170px;
+  /* La coque du dashboard réserve une colonne de navigation (~240 px) avant
+   * même la marge de page : sur les 1440 px du golden, la barre d'outils
+   * dispose d'environ 1080 px utiles. 120 px par filtre laisse une marge
+   * confortable pour que la recherche reste sur la même ligne que les
+   * segments. */
+  max-width: 120px;
   padding: 5px 8px;
   border: 1px solid var(--card-border);
   border-radius: 8px;
@@ -121,7 +122,8 @@
 }
 
 .searchFilter {
-  flex: 1 1 200px;
+  flex: 1 1 120px;
+  min-width: 90px;
 }
 
 .searchFilter input {
@@ -129,8 +131,11 @@
   width: 100%;
 }
 
+/* Hors du flux de la barre d'outils (`role="toolbar"`) : une ligne sous elle,
+ * toujours la cible de `aria-describedby` des filtres navigateur. */
 .loadedOnly {
-  align-self: center;
+  display: block;
+  margin: 0;
   color: var(--text-muted);
   font-size: 11px;
 }
@@ -287,5 +292,25 @@
   .filter input,
   .filter select {
     max-width: none;
+  }
+
+  /* Les boutons de segment ne rétrécissent pas et ne défilent pas : ils
+   * passent à la ligne, tous visibles, plutôt que de pousser la page hors
+   * du viewport. */
+  .segments {
+    flex-wrap: wrap;
+  }
+
+  /* Le tableau ne rétrécit pas indéfiniment pour tenir dans 390 px : passé sa
+   * largeur minimale, c'est LUI qui défile dans sa propre boîte — jamais la
+   * page. `overflow-x` sur ce conteneur, et non sur `.page`, garantit que
+   * `document.documentElement.scrollWidth` reste borné au viewport. */
+  .tableColumn {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table {
+    min-width: 480px;
   }
 }
