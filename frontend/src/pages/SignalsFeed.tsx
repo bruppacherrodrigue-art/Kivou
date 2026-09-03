@@ -1,54 +1,63 @@
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LockKeyhole } from 'lucide-react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
-import { MVP_TERRITORIES, territoryLabel } from '../api/capabilities'
-import { billing, companies, signals } from '../api/endpoints'
+import { billing, feedback, signals } from '../api/endpoints'
 import type { FeedQuery } from '../api/endpoints'
-import { useCurrentUser } from '../auth/SessionProvider'
 import type {
   BillingStatus,
-  CompanyProfile,
   FeedItem,
   FeedPage,
-  SignalDetail as SignalDetailPayload,
+  UnifiedStatus,
+  UnlockedFeedItem,
 } from '../api/types'
 import { interpolate, plural, useI18n } from '../i18n'
-import { toSignalCard, toSignalDetailView } from '../reference/dashboard/adapters'
-import { ReferenceSignalDetail } from '../reference/dashboard/ReferenceSignalDetail'
-import type { SignalCardView } from '../reference/dashboard/models'
-import { useSignalNote } from '../reference/dashboard/useSignalNote'
+import { Sheet, SheetContent, SheetTitle } from '../reference/dashboard/ui/sheet'
+import { SignalDrawer } from '../signals/components/SignalDrawer'
+import { MISSING, SignalRow, signalObject } from '../signals/components/SignalRow'
 import styles from './SignalsFeed.module.css'
 
+/* L'écran « Signaux ».
+ *
+ * Un tableau dense, une ligne de filtres, un tiroir. Trois règles tiennent
+ * tout le fichier :
+ *
+ *   1. L'état des filtres vit dans l'URL, jamais dans un `useState` parallèle.
+ *      Une adresse partagée doit rendre le même écran.
+ *   2. Le serveur filtre ce qu'il sait filtrer (statut, zone, secteur,
+ *      période) ; le navigateur ne filtre QUE ce que l'API n'expose pas
+ *      (montant minimum, recherche texte), et il le dit — « sur les signaux
+ *      chargés ».
+ *   3. Une action est optimiste, mais elle se dédit : en cas d'échec, la ligne
+ *      ET les compteurs reviennent à leur valeur d'avant, et l'échec s'annonce.
+ */
+
 const PAGE_SIZE = 20
-const SINGLE_PANE_QUERY = '(max-width: 1179px)'
-const HISTORY_STATUSES = [
-  'recent_award',
-  'recently_notified_contract',
-  'recently_published_award',
-  'aging_award',
-  'stale_award',
-  'award_date_unknown',
-  'invalid_award_date',
-] as const
+const COMPACT_QUERY = '(max-width: 899px)'
+const DAY_MS = 86_400_000
+
+const SEGMENTS = ['new', 'saved', 'contacted', 'ignored', 'all'] as const
+type Segment = (typeof SEGMENTS)[number]
+
+/** Les segments qui portent un chiffre. « Ignorés » et « Tous » n'en portent
+ *  pas : compter ce qu'on écarte n'aide personne à vendre. */
+const COUNTED_SEGMENTS: UnifiedStatus[] = ['new', 'saved', 'contacted']
+
+const ALL_STATUSES: UnifiedStatus[] = ['new', 'saved', 'contacted', 'ignored']
+
+const PERIODS = ['7', '30', '90', 'all'] as const
+type Period = (typeof PERIODS)[number]
 
 export interface ActivationNavigationState {
   activationCompleted?: boolean
 }
 
-interface SignalSelectionNavigationState {
-  signalSelection: {
-    kind: 'feed'
-    key: string
-    query: string
-    fromList: boolean
-  }
+interface PageFilters {
+  segment: Segment
+  zone: string
+  cpv: string
+  min: string
+  period: Period
+  q: string
 }
 
 interface ResourceState<T> {
@@ -57,71 +66,62 @@ interface ResourceState<T> {
   error: unknown | null
 }
 
-interface PendingDetailFocus {
-  key: string
-  keyboard: boolean
-}
-
-interface FeedFilters {
-  view: 'recent' | 'history'
-  dateFrom: string
-  dateTo: string
-  country: string
-  subdivision: string
-  status: string
-  cpv: string
-}
-
-const emptyResource = <T,>(): ResourceState<T> => ({
-  data: null,
-  loading: true,
-  error: null,
-})
-
-function filtersFrom(search: string): FeedFilters {
+function filtersFrom(search: string): PageFilters {
   const params = new URLSearchParams(search)
+  const segment = SEGMENTS.find((candidate) => candidate === params.get('status')) ?? 'new'
+  const period = PERIODS.find((candidate) => candidate === params.get('period')) ?? '30'
   return {
-    view: params.get('view') === 'history' ? 'history' : 'recent',
-    dateFrom: params.get('from') ?? '',
-    dateTo: params.get('to') ?? '',
-    country: (params.get('country') ?? '').toUpperCase(),
-    subdivision: (params.get('subdivision') ?? '').toUpperCase(),
-    status: params.get('status') ?? '',
+    segment,
+    zone: params.get('zone') ?? '',
     cpv: params.get('cpv') ?? '',
+    min: params.get('min') ?? '',
+    period,
+    q: params.get('q') ?? '',
   }
 }
 
-function feedQuery(filters: FeedFilters): FeedQuery {
-  if (filters.view === 'recent') {
-    return { view: 'recent', freshness: 'new', limit: PAGE_SIZE, offset: 0 }
-  }
+function statusesFor(segment: Segment): UnifiedStatus[] {
+  return segment === 'all' ? ALL_STATUSES : [segment]
+}
+
+/** La borne basse de la période, en date civile. « Tout l'historique » n'en a
+ *  pas : l'absence de borne est une réponse, pas une valeur par défaut. */
+function dateFrom(period: Period): string | null {
+  if (period === 'all') return null
+  return new Date(Date.now() - Number(period) * DAY_MS).toISOString().slice(0, 10)
+}
+
+function feedQuery(filters: PageFilters, cursor: string | null): FeedQuery {
   return {
+    // Zone, secteur et période n'existent que sur l'historique : la page ne
+    // change jamais de vue, sans quoi la moitié des filtres disparaîtrait.
     view: 'history',
     limit: PAGE_SIZE,
-    cursor: null,
-    date_from: filters.dateFrom || null,
-    date_to: filters.dateTo || null,
-    country: filters.country || null,
-    subdivision_code: filters.subdivision || null,
-    recency_status: filters.status || null,
+    cursor,
+    status: statusesFor(filters.segment),
+    subdivision_code: filters.zone || null,
     cpv_prefix: filters.cpv || null,
+    date_from: dateFrom(filters.period),
   }
 }
 
-function singlePaneSnapshot(): boolean {
-  if (typeof window.matchMedia === 'function') {
-    return window.matchMedia(SINGLE_PANE_QUERY).matches
-  }
-  return window.innerWidth < 1180
+/** Sans accent ni casse : « eolienne » doit trouver « Éolienne ». */
+function foldCase(text: string): string {
+  return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
 }
 
-function useSinglePane(): boolean {
-  const [singlePane, setSinglePane] = useState(singlePaneSnapshot)
+function compactSnapshot(): boolean {
+  if (typeof window.matchMedia === 'function') return window.matchMedia(COMPACT_QUERY).matches
+  return window.innerWidth < 900
+}
+
+function useCompact(): boolean {
+  const [compact, setCompact] = useState(compactSnapshot)
 
   useEffect(() => {
     if (typeof window.matchMedia !== 'function') return
-    const mediaQuery = window.matchMedia(SINGLE_PANE_QUERY)
-    const onChange = (event: MediaQueryListEvent) => setSinglePane(event.matches)
+    const mediaQuery = window.matchMedia(COMPACT_QUERY)
+    const onChange = (event: MediaQueryListEvent) => setCompact(event.matches)
     if (typeof mediaQuery.addEventListener === 'function') {
       mediaQuery.addEventListener('change', onChange)
       return () => mediaQuery.removeEventListener('change', onChange)
@@ -130,56 +130,85 @@ function useSinglePane(): boolean {
     return () => mediaQuery.removeListener(onChange)
   }, [])
 
-  return singlePane
+  return compact
+}
+
+/** Un signal que l'offre ne débloque pas. La ligne existe — masquer son
+ *  existence serait mentir sur le volume — mais elle ne montre rien. */
+function LockedRow({
+  compact,
+  note,
+  onOpen,
+}: {
+  compact: boolean
+  note: string
+  onOpen: () => void
+}) {
+  return (
+    <tr className={styles.lockedRow} onClick={onOpen}>
+      <td>{MISSING}</td>
+      <td>
+        <button type="button" className={styles.lockedButton} onClick={(event) => {
+          event.stopPropagation()
+          onOpen()
+        }}>
+          <LockKeyhole aria-hidden="true" /> {MISSING}
+        </button>
+      </td>
+      <td className={styles.lockedNote}>{note}</td>
+      <td className={styles.cellNumeric}>{MISSING}</td>
+      {compact ? null : <td>{MISSING}</td>}
+      <td>{MISSING}</td>
+    </tr>
+  )
 }
 
 export function SignalsFeed() {
-  const { t, date, amount, locale } = useI18n()
-  const me = useCurrentUser()
+  const { t } = useI18n()
+  const copy = t.signalsTable
   const location = useLocation()
   const navigate = useNavigate()
   const { signalKey } = useParams()
+  const compact = useCompact()
+
   const filters = useMemo(() => filtersFrom(location.search), [location.search])
-  const querySignature = JSON.stringify(filters)
-  const singlePane = useSinglePane()
+  /* Seuls les filtres SERVEUR déclenchent un rechargement. Le montant minimum
+   * et la recherche ne quittent jamais le navigateur. */
+  const serverSignature = JSON.stringify([
+    filters.segment,
+    filters.zone,
+    filters.cpv,
+    filters.period,
+  ])
 
   const mounted = useRef(false)
   const feedGeneration = useRef(0)
   const detailGeneration = useRef(0)
-  const companyGeneration = useRef(0)
   const paginationRequest = useRef(false)
-  const rowRefs = useRef(new Map<string, HTMLButtonElement>())
-  const listPanelRef = useRef<HTMLElement | null>(null)
-  const detailPanelRef = useRef<HTMLElement | null>(null)
-  const lastSelection = useRef<string | null>(null)
-  const previousLocationKey = useRef(location.key)
-  const initialFocusRestored = useRef(false)
-  const pendingDetailFocus = useRef<PendingDetailFocus | null>(
-    signalKey && singlePane ? { key: signalKey, keyboard: false } : null,
-  )
 
   const [activationMoment] = useState(
     () => (location.state as ActivationNavigationState | null)?.activationCompleted === true,
   )
   const postFeedBilling = useRef(activationMoment)
-  const [feed, setFeed] = useState<ResourceState<FeedPage>>(emptyResource)
+  const [postActivationBilling, setPostActivationBilling] = useState<BillingStatus | null>(null)
+
+  const [feed, setFeed] = useState<ResourceState<FeedPage>>({
+    data: null,
+    loading: true,
+    error: null,
+  })
   const [items, setItems] = useState<FeedItem[]>([])
+  const [counts, setCounts] = useState<Record<UnifiedStatus, number> | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
   const [paginationError, setPaginationError] = useState<unknown | null>(null)
-  const [postActivationBilling, setPostActivationBilling] = useState<BillingStatus | null>(null)
-  const [detailAttempt, setDetailAttempt] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [actionError, setActionError] = useState(false)
   const [detail, setDetail] = useState<{
     key: string | null
-    data: SignalDetailPayload | null
+    data: UnlockedFeedItem | null
     loading: boolean
     error: unknown | null
   }>({ key: null, data: null, loading: false, error: null })
-  const [companyAttempt, setCompanyAttempt] = useState(0)
-  const [companyProfile, setCompanyProfile] = useState<ResourceState<CompanyProfile>>({
-    data: null,
-    loading: false,
-    error: null,
-  })
 
   useEffect(() => {
     mounted.current = true
@@ -187,7 +216,6 @@ export function SignalsFeed() {
       mounted.current = false
       feedGeneration.current += 1
       detailGeneration.current += 1
-      companyGeneration.current += 1
       paginationRequest.current = false
     }
   }, [])
@@ -195,7 +223,7 @@ export function SignalsFeed() {
   useEffect(() => {
     if (!activationMoment) return
     navigate(location.pathname + location.search, { replace: true, state: null })
-    // The activation marker is consumed only once.
+    // Le marqueur d'activation ne se consomme qu'une fois.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -205,10 +233,13 @@ export function SignalsFeed() {
     setLoadingMore(false)
     setPaginationError(null)
     try {
-      const data = await signals.feed(feedQuery(filters))
+      const data = await signals.feed(feedQuery(filters, null))
       if (!mounted.current || generation !== feedGeneration.current) return
       setFeed({ data, loading: false, error: null })
       setItems(data.items)
+      // `counts_available: false` ne remet pas les compteurs à zéro : un
+      // chiffre absent n'est pas un chiffre nul.
+      if (data.counts_available !== false) setCounts(data.counts)
 
       if (postFeedBilling.current) {
         postFeedBilling.current = false
@@ -221,9 +252,9 @@ export function SignalsFeed() {
       if (!mounted.current || generation !== feedGeneration.current) return
       setFeed((current) => ({ ...current, loading: false, error }))
     }
-  // The serialised URL state is the generation boundary.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [querySignature])
+    // La signature sérialisée des filtres serveur est la frontière de génération.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverSignature])
 
   useEffect(() => {
     void loadFeed()
@@ -237,18 +268,13 @@ export function SignalsFeed() {
     setLoadingMore(true)
     setPaginationError(null)
     try {
-      const nextQuery: FeedQuery = filters.view === 'history'
-        ? { ...feedQuery(filters), cursor: currentPage.page.next_cursor ?? null }
-        : {
-            ...feedQuery(filters),
-            offset: currentPage.page.offset + currentPage.page.limit,
-          }
-      const next = await signals.feed(nextQuery)
+      const next = await signals.feed(feedQuery(filters, currentPage.page.next_cursor ?? null))
       if (!mounted.current || generation !== feedGeneration.current) return
       setFeed({ data: next, loading: false, error: null })
+      if (next.counts_available !== false) setCounts(next.counts)
       setItems((current) => {
-        const seen = new Set(current.map((item) => item.signal_id))
-        return [...current, ...next.items.filter((item) => !seen.has(item.signal_id))]
+        const seen = new Set(current.map((entry) => entry.signal_id))
+        return [...current, ...next.items.filter((entry) => !seen.has(entry.signal_id))]
       })
     } catch (error) {
       if (mounted.current && generation === feedGeneration.current) setPaginationError(error)
@@ -258,29 +284,29 @@ export function SignalsFeed() {
     }
   }, [feed.data, filters])
 
-  const firstUnlocked = items.find((item) => !item.locked) ?? null
-  const selectedKey = signalKey ?? firstUnlocked?.signal_id ?? null
-  const selectedItem = selectedKey
-    ? items.find((item) => item.signal_id === selectedKey) ?? null
+  const selectedKey = signalKey ?? null
+  const rowItem = selectedKey
+    ? items.find((entry) => entry.signal_id === selectedKey) ?? null
     : null
 
+  /* Un lien profond vers un signal absent de la page chargée demande le détail.
+   * Un signal verrouillé ne passe jamais par là : il part à la facturation. */
   useEffect(() => {
     if (!selectedKey) {
       detailGeneration.current += 1
       setDetail({ key: null, data: null, loading: false, error: null })
       return
     }
-    // Resolve the first authorised feed page before a detail request. This
-    // prevents a locked teaser from triggering a detail GET while historical
-    // deep-links still use the dedicated endpoint after that single check.
     if (feed.loading) return
-    if (selectedItem?.locked) {
+    if (rowItem?.locked) {
       detailGeneration.current += 1
       setDetail({ key: selectedKey, data: null, loading: false, error: null })
-      navigate('/app/billing', {
-        replace: true,
-        state: { lockedSignalKey: selectedKey },
-      })
+      navigate('/app/billing', { replace: true, state: { lockedSignalKey: selectedKey } })
+      return
+    }
+    if (rowItem) {
+      detailGeneration.current += 1
+      setDetail({ key: selectedKey, data: null, loading: false, error: null })
       return
     }
 
@@ -291,10 +317,7 @@ export function SignalsFeed() {
         if (!mounted.current || generation !== detailGeneration.current) return
         if (data.locked) {
           setDetail({ key: selectedKey, data: null, loading: false, error: null })
-          navigate('/app/billing', {
-            replace: true,
-            state: { lockedSignalKey: selectedKey },
-          })
+          navigate('/app/billing', { replace: true, state: { lockedSignalKey: selectedKey } })
           return
         }
         setDetail({ key: selectedKey, data, loading: false, error: null })
@@ -305,125 +328,144 @@ export function SignalsFeed() {
         }
       },
     )
-  }, [detailAttempt, feed.loading, navigate, selectedItem, selectedKey, signalKey])
+  }, [feed.loading, navigate, rowItem, selectedKey])
 
-  useLayoutEffect(() => {
-    const panel = detailPanelRef.current
-    if (panel && typeof panel.scrollTo === 'function') {
-      panel.scrollTo({ top: 0, behavior: 'auto' })
-    } else if (panel) panel.scrollTop = 0
-  }, [selectedKey])
+  const selectedItem: UnlockedFeedItem | null = rowItem && !rowItem.locked
+    ? rowItem
+    : detail.key === selectedKey
+      ? detail.data
+      : null
+  const drawerLoading = Boolean(selectedKey) && !selectedItem && (feed.loading || detail.loading)
+  const drawerError = detail.key === selectedKey ? detail.error : null
 
-  useEffect(() => {
-    if (
-      !pendingDetailFocus.current
-      || pendingDetailFocus.current.key !== selectedKey
-      || detail.key !== selectedKey
-      || detail.loading
-    ) return
-    const frame = window.requestAnimationFrame(() => {
-      const title = detailPanelRef.current?.querySelector<HTMLElement>('#detail-title')
-      if (!title) return
-      const pendingFocus = pendingDetailFocus.current
-      if (!pendingFocus || pendingFocus.key !== selectedKey) return
-      if (pendingFocus.keyboard) delete title.dataset.programmaticFocus
-      else {
-        title.dataset.programmaticFocus = 'true'
-        title.addEventListener('blur', () => {
-          delete title.dataset.programmaticFocus
-        }, { once: true })
+  // ── Filtres navigateur ────────────────────────────────────────────────────
+
+  const minAmount = Number.parseFloat(filters.min)
+  const hasMin = Number.isFinite(minAmount) && minAmount > 0
+  const needle = foldCase(filters.q.trim())
+
+  const rows = useMemo(() => {
+    if (!hasMin && !needle) return items
+    return items.filter((entry) => {
+      // Un signal verrouillé ne publie ni montant ni titulaire : aucun filtre
+      // navigateur ne peut affirmer qu'il correspond.
+      if (entry.locked) return false
+      if (hasMin) {
+        const value = Number.parseFloat(entry.contract.amount?.value ?? '')
+        if (!Number.isFinite(value) || value < minAmount) return false
       }
-      title.focus({ preventScroll: true })
-      pendingDetailFocus.current = null
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [detail.data, detail.error, detail.key, detail.loading, selectedKey])
-
-  useEffect(() => {
-    if (previousLocationKey.current === location.key) return
-    previousLocationKey.current = location.key
-    const selection = readSelectionState(location.state)
-    if (signalKey && singlePane) {
-      if (pendingDetailFocus.current?.key !== signalKey) {
-        pendingDetailFocus.current = { key: signalKey, keyboard: false }
+      if (needle) {
+        const haystack = foldCase(`${entry.company.name ?? ''} ${signalObject(entry) ?? ''}`)
+        if (!haystack.includes(needle)) return false
       }
-      return
-    }
-    const focusKey = selection?.key ?? lastSelection.current
-    if (!focusKey) return
-    lastSelection.current = focusKey
-    const frame = window.requestAnimationFrame(() => {
-      rowRefs.current.get(focusKey)?.focus({ preventScroll: true })
+      return true
     })
-    return () => window.cancelAnimationFrame(frame)
-  }, [location.key, location.state, signalKey, singlePane])
+  }, [hasMin, items, minAmount, needle])
 
-  useEffect(() => {
-    if (initialFocusRestored.current) return
-    const selection = readSelectionState(location.state)
-    const focusKey = selection?.key ?? null
-    if (!focusKey || !rowRefs.current.has(focusKey)) return
-    initialFocusRestored.current = true
-    lastSelection.current = focusKey
-    const frame = window.requestAnimationFrame(() => {
-      rowRefs.current.get(focusKey)?.focus({ preventScroll: true })
-    })
-    return () => window.cancelAnimationFrame(frame)
-  }, [items, location.state])
-
-  const visibleDetail = detail.key === selectedKey
-    ? detail
-    : { key: selectedKey, data: null, loading: Boolean(selectedKey), error: null }
-  const contextItem = visibleDetail.data
-    && !visibleDetail.data.locked
-    && !items.some((item) => item.signal_id === visibleDetail.data?.signal_id)
-    ? visibleDetail.data
-    : null
-  const displayedItems = contextItem ? [contextItem, ...items] : items
-  const cards = displayedItems.map(toSignalCard)
-  const companyRows = (() => {
-    const grouped = new Map<string, { key: string; name: string | null; cards: SignalCardView[] }>()
-    cards.forEach((card, index) => {
-      const item = displayedItems[index]
-      const companyKey = !item.locked && item.company_key
-        ? `company:${item.company_key}`
-        : `signal:${card.id}`
-      const current = grouped.get(companyKey)
-      if (current) current.cards.push(card)
-      else grouped.set(companyKey, { key: companyKey, name: card.companyName, cards: [card] })
-    })
-    return [...grouped.values()]
-  })()
-  const detailView = visibleDetail.data && !visibleDetail.data.locked
-    ? toSignalDetailView(visibleDetail.data)
-    : null
-  const selectedCompanyKey = detailView?.companyKey ?? null
-  useEffect(() => {
-    if (!selectedCompanyKey) {
-      companyGeneration.current += 1
-      setCompanyProfile({ data: null, loading: false, error: null })
-      return
+  const zones = useMemo(() => {
+    const seen = new Set<string>()
+    for (const entry of items) {
+      if (entry.locked) continue
+      const code = entry.contract.location?.subdivision_code
+      if (code) seen.add(code)
     }
-    const generation = ++companyGeneration.current
-    setCompanyProfile({ data: null, loading: true, error: null })
-    companies.get(selectedCompanyKey).then(
-      (data) => {
-        if (mounted.current && generation === companyGeneration.current) {
-          setCompanyProfile({ data, loading: false, error: null })
-        }
-      },
-      (error) => {
-        if (mounted.current && generation === companyGeneration.current) {
-          setCompanyProfile({ data: null, loading: false, error })
-        }
-      },
+    return [...seen]
+  }, [items])
+
+  // ── Écriture de l'URL ─────────────────────────────────────────────────────
+
+  const setParam = useCallback(
+    (name: string, value: string) => {
+      const params = new URLSearchParams(location.search)
+      if (value) params.set(name, value)
+      else params.delete(name)
+      navigate(
+        { pathname: location.pathname, search: params.toString() ? `?${params}` : '' },
+        { replace: true },
+      )
+    },
+    [location.pathname, location.search, navigate],
+  )
+
+  const openSignal = useCallback(
+    (key: string) => {
+      navigate(`/app/signals/${encodeURIComponent(key)}${location.search}`)
+    },
+    [location.search, navigate],
+  )
+
+  const closeDrawer = useCallback(() => {
+    navigate(`/app/signals${location.search}`)
+  }, [location.search, navigate])
+
+  const openBilling = useCallback(
+    (key: string) => {
+      navigate('/app/billing', { state: { lockedSignalKey: key } })
+    },
+    [navigate],
+  )
+
+  /* Échap referme le tiroir de bureau. Sous 900 px, la feuille Radix possède
+   * déjà cette touche : deux gestionnaires fermeraient deux fois. */
+  useEffect(() => {
+    if (!selectedKey || compact) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeDrawer()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [closeDrawer, compact, selectedKey])
+
+  // ── Actions optimistes ────────────────────────────────────────────────────
+
+  const applyStatus = useCallback((key: string, status: UnifiedStatus) => {
+    setItems((current) =>
+      current.map((entry) =>
+        entry.signal_id === key && !entry.locked ? { ...entry, status } : entry,
+      ),
     )
-  }, [companyAttempt, selectedCompanyKey])
-  const note = useSignalNote({
-    accountId: me.account_id,
-    signalKey: selectedKey,
-    enabled: Boolean(detailView),
-  })
+    setDetail((current) =>
+      current.data && current.data.signal_id === key
+        ? { ...current, data: { ...current.data, status } }
+        : current,
+    )
+  }, [])
+
+  const shiftCounts = useCallback((from: UnifiedStatus, to: UnifiedStatus) => {
+    setCounts((current) =>
+      current
+        ? { ...current, [from]: Math.max(0, current[from] - 1), [to]: current[to] + 1 }
+        : current,
+    )
+  }, [])
+
+  const runAction = useCallback(
+    async (next: UnifiedStatus, call: (key: string) => Promise<unknown>) => {
+      const target = selectedItem
+      if (!target || busy) return
+      const previous = target.status
+      if (previous === next) return
+      const key = target.signal_id
+
+      setActionError(false)
+      setBusy(true)
+      applyStatus(key, next)
+      shiftCounts(previous, next)
+      try {
+        await call(key)
+      } catch {
+        // Se dédire entièrement : la ligne, le tiroir ET les compteurs.
+        applyStatus(key, previous)
+        shiftCounts(next, previous)
+        if (mounted.current) setActionError(true)
+      } finally {
+        if (mounted.current) setBusy(false)
+      }
+    },
+    [applyStatus, busy, selectedItem, shiftCounts],
+  )
+
+  // ── Rendu ─────────────────────────────────────────────────────────────────
 
   const planCode = feed.data?.plan_code ?? null
   const discoveryGrantCount = activationMoment
@@ -431,328 +473,228 @@ export function SignalsFeed() {
     && postActivationBilling?.plan_code === 'discovery'
     ? postActivationBilling.discovery.granted_signal_count
     : null
+  const shown = discoveryGrantCount ?? rows.length
+  const suffix = discoveryGrantCount === null && feed.data?.page.has_more ? '+' : ''
   const signalCount = feed.data
-    ? interpolate(
-        plural(discoveryGrantCount ?? items.length, t.reference.signalsPage.signalCountOne, t.reference.signalsPage.signalCountOther),
-        { count: `${discoveryGrantCount ?? items.length}${discoveryGrantCount === null && feed.data.page.has_more ? '+' : ''}` },
-      )
-    : t.reference.loading
+    ? interpolate(plural(shown, copy.count.one, copy.count.other), { count: `${shown}${suffix}` })
+    : t.common.loading
 
-  const setSearchValue = (name: string, value: string) => {
-    const params = new URLSearchParams(location.search)
-    if (value) params.set(name, value)
-    else params.delete(name)
-    navigate({ pathname: location.pathname, search: params.toString() ? `?${params}` : '' })
-  }
-  const clearHistoryFilters = () => {
-    const params = new URLSearchParams(location.search)
-    for (const name of ['from', 'to', 'country', 'subdivision', 'status', 'cpv']) {
-      params.delete(name)
-    }
-    navigate({ pathname: location.pathname, search: params.toString() ? `?${params}` : '' })
-  }
+  const sectorLocked = feed.data?.filter_access.sector === false
 
-  const displayAmount = (card: SignalCardView) => card.amount
-    ? amount(card.amount.value, card.amount.currency) ?? t.reference.missingValue
-    : t.reference.missingValue
-  const displayDatedOn = (card: SignalCardView) => {
-    const formatted = date(card.eventDate)
-    if (!formatted || card.eventDateKind === 'unknown') return t.reference.signalsPage.unknownDate
-    return interpolate(t.reference.signalsPage.datedOn[card.eventDateKind], { date: formatted })
-  }
-  const displayLocation = (card: SignalCardView) => {
-    if (!card.location) return t.reference.missingValue
-    const countryTerritory = MVP_TERRITORIES.find((candidate) => candidate.code === card.location?.country)
-    return [
-      card.location.locality,
-      card.location.postal_code,
-      card.location.subdivision_label ?? card.location.subdivision_code,
-      countryTerritory ? territoryLabel(countryTerritory, locale) : card.location.country,
-    ].filter(Boolean).join(', ') || t.reference.missingValue
-  }
-  const cardStatus = (card: SignalCardView) => {
-    if (card.locked) return {
-      key: 'locked',
-      label: t.reference.signalsPage.paidAccessRequired,
-    }
-    return { key: 'official-source', label: t.reference.fields.officialSource }
-  }
-  const historyAccess = feed.data?.history_access
-  const historyNote = !historyAccess
-    ? null
-    : historyAccess.scope === 'grants_only'
-      ? t.reference.signalsPage.historyGrantsOnly
-      : historyAccess.scope === 'all_available'
-        ? t.reference.signalsPage.historyAll
-        : interpolate(t.reference.signalsPage.historyWindow, {
-            days: historyAccess.history_days ?? 0,
-          })
-  const filterAccess = feed.data?.filter_access
+  const drawer = (
+    <SignalDrawer
+      item={selectedItem}
+      loading={drawerLoading}
+      error={drawerError}
+      busy={busy}
+      onClose={closeDrawer}
+      onContacted={() => void runAction('contacted', (key) => feedback.markContacted(key))}
+      onSave={() => void runAction('saved', (key) => feedback.write(key, { relevance: 'relevant' }))}
+      onIgnore={() =>
+        void runAction('ignored', (key) =>
+          feedback.write(key, { relevance: 'not_relevant', reason: 'other' }))}
+    />
+  )
 
   return (
-    <div
-      className={`workspace-grid ${styles.workspace}`}
-      data-pane={signalKey ? 'detail' : 'list'}
-    >
-      <aside
-        ref={listPanelRef}
-        className={`feed-panel ${styles.listPanel}`}
-        data-master-detail-pane="list"
-        aria-labelledby="signals-list-title"
+    <div className={styles.page} data-page="signals">
+      <header className={styles.header}>
+        <h1>{copy.title}</h1>
+        <p>{copy.subtitle}</p>
+      </header>
+
+      <div
+        className={styles.filters}
+        role="toolbar"
+        aria-label={t.reference.signalsPage.filtersTitle}
       >
-        <div className="panel-heading">
-          <div>
-            <p className="section-label">{t.reference.signalsPage.sourceType}</p>
-            <h2 id="signals-list-title">{t.reference.signalsPage.detectedSignals}</h2>
-          </div>
-          <span className="signal-count">{signalCount}</span>
-        </div>
-
-        <div className={styles.viewSwitch} aria-label={t.reference.signalsPage.filtersTitle}>
-          <button type="button" aria-pressed={filters.view === 'recent'} onClick={() => setSearchValue('view', '')}>
-            {t.reference.signalsPage.recentView}
-          </button>
-          <button type="button" aria-pressed={filters.view === 'history'} onClick={() => setSearchValue('view', 'history')}>
-            {t.reference.signalsPage.historyView}
-          </button>
-        </div>
-
-        {filters.view === 'history' ? (
-          <section className={styles.filters} aria-labelledby="history-filters-title">
-            <div className={styles.filterHeading}>
-              <h3 id="history-filters-title">{t.reference.signalsPage.filtersTitle}</h3>
-              <button type="button" onClick={clearHistoryFilters}>{t.reference.signalsPage.clearFilters}</button>
-            </div>
-            {historyNote ? <p className={styles.accessNote}>{historyNote}</p> : null}
-            <div className={styles.filterGrid}>
-              <label>
-                <span>{t.reference.signalsPage.dateFrom}</span>
-                <input type="date" value={filters.dateFrom} disabled={filterAccess?.date_range === false} onChange={(event) => setSearchValue('from', event.target.value)} />
-              </label>
-              <label>
-                <span>{t.reference.signalsPage.dateTo}</span>
-                <input type="date" value={filters.dateTo} disabled={filterAccess?.date_range === false} onChange={(event) => setSearchValue('to', event.target.value)} />
-              </label>
-              <label>
-                <span>{t.reference.signalsPage.countryFilter}</span>
-                <input value={filters.country} maxLength={2} disabled={filterAccess?.country === false} onChange={(event) => setSearchValue('country', event.target.value.toUpperCase())} />
-              </label>
-              <label>
-                <span>{t.reference.signalsPage.subdivisionFilter}</span>
-                <input value={filters.subdivision} maxLength={16} disabled={filterAccess?.subdivision === false} onChange={(event) => setSearchValue('subdivision', event.target.value.toUpperCase())} />
-              </label>
-              <label>
-                <span>{t.reference.signalsPage.statusFilter}</span>
-                <select value={filters.status} disabled={filterAccess?.status === false} onChange={(event) => setSearchValue('status', event.target.value)}>
-                  <option value="">{t.reference.signalsPage.allStatuses}</option>
-                  {HISTORY_STATUSES.map((status) => (
-                    <option value={status} key={status}>{t.reference.signalsPage.statusLabels[status]}</option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>{t.reference.signalsPage.sectorFilter}</span>
-                <input
-                  value={filters.cpv}
-                  maxLength={8}
-                  inputMode="numeric"
-                  disabled={filterAccess?.sector === false}
-                  aria-label={t.reference.signalsPage.sectorFilter}
-                  aria-describedby={filterAccess?.sector === false ? 'history-filter-restricted' : undefined}
-                  onChange={(event) => setSearchValue('cpv', event.target.value.replace(/\D/g, ''))}
-                />
-                {filterAccess?.sector === false ? (
-                  <small className={styles.lockHint}>
-                    <LockKeyhole aria-hidden="true" /> {t.reference.signalsPage.restrictedShort}
-                  </small>
-                ) : null}
-              </label>
-            </div>
-            {filterAccess && Object.values(filterAccess).some((allowed) => !allowed) ? (
-              <p id="history-filter-restricted" className={styles.restrictedNote}>{t.reference.signalsPage.restrictedFilter}</p>
-            ) : null}
-          </section>
-        ) : null}
-
-        <div className="signal-list" aria-busy={feed.loading}>
-          {feed.loading && !feed.data ? (
-            [0, 1, 2].map((index) => (
-              <div className="signal-item" aria-hidden="true" key={index}>
-                <span className="signal-event">{t.reference.loading}</span>
-              </div>
-            ))
-          ) : feed.error && !feed.data ? (
-            <div className="signal-item" role="alert">
-              <span className="signal-event">{t.reference.messages.loadError}</span>
-              <button type="button" className="source-link" onClick={() => void loadFeed()}>{t.reference.retry}</button>
-            </div>
-          ) : companyRows.length === 0 ? (
-            <div className="signal-item"><span className="signal-event">{t.reference.signalsPage.empty}</span></div>
-          ) : companyRows.map((companyRow) => {
-            const selectedCard = companyRow.cards.find((candidate) => candidate.id === selectedKey)
-            const card = selectedCard ?? companyRow.cards[0]
-            const selected = selectedCard !== undefined
-            const status = cardStatus(card)
-            const selectedNoteIsKnown = selected && note.state !== 'loading' && note.state !== 'read-error'
-            const hasSelectedNote = selectedNoteIsKnown && note.value.trim().length > 0
-            const cardTitle = card.eventTitle ?? t.reference.missingValue
+        <div
+          className={styles.segments}
+          role="group"
+          aria-label={t.reference.signalsPage.statusFilter}
+        >
+          {SEGMENTS.map((segment) => {
+            const count = segment !== 'all' && COUNTED_SEGMENTS.includes(segment)
+              ? counts?.[segment] ?? null
+              : null
             return (
               <button
                 type="button"
-                ref={(node) => {
-                  for (const award of companyRow.cards) {
-                    if (node) rowRefs.current.set(award.id, node)
-                    else rowRefs.current.delete(award.id)
-                  }
-                }}
-                className={`signal-item${selected ? ' is-selected' : ''}${card.locked ? ' is-locked' : ''}`}
-                aria-label={card.locked
-                  ? interpolate(t.reference.signalsPage.openLockedSignal, { headline: cardTitle, status: status.label })
-                  : interpolate(t.reference.signalsPage.openSignal, {
-                      company: card.companyName ?? t.reference.missingValue,
-                      headline: cardTitle,
-                      status: status.label,
-                    })}
-                aria-pressed={selected}
-                onClick={(event) => {
-                  lastSelection.current = card.id
-                  if (card.locked) {
-                    // Persist the originating row on the history entry so a
-                    // browser Back from Billing can restore its focus.
-                    navigate(`/app/signals${location.search}`, {
-                      replace: true,
-                      state: selectionState(card.id, location.search, true),
-                    })
-                    queueMicrotask(() => {
-                      navigate('/app/billing', { state: { lockedSignalKey: card.id } })
-                    })
-                    return
-                  }
-                  if (singlePane || event.detail === 0) {
-                    pendingDetailFocus.current = {
-                      key: card.id,
-                      keyboard: event.detail === 0,
-                    }
-                  }
-                  navigate(`/app/signals/${encodeURIComponent(card.id)}${location.search}`, {
-                    state: selectionState(card.id, location.search, true),
-                  })
-                }}
-                key={companyRow.key}
+                key={segment}
+                data-segment={segment}
+                aria-pressed={filters.segment === segment}
+                onClick={() => setParam('status', segment)}
               >
-                <span className="signal-item-head">
-                  <strong>{card.locked ? t.reference.missingValue : companyRow.name}</strong>
-                  <span className={`data-status-${status.key}`}>{status.label}</span>
-                </span>
-                {companyRow.cards.length > 1 ? (
-                  <span className={styles.awardCount}>
-                    {interpolate(t.reference.companiesPage.contractOther, { count: companyRow.cards.length })}
-                  </span>
-                ) : null}
-                <span className={styles.awardContexts}>
-                  {companyRow.cards.map((award) => (
-                    <span className={styles.awardContext} key={award.id}>
-                      <strong>{award.eventTitle ?? t.reference.missingValue}</strong>
-                      <small>
-                        {displayAmount(award)} · {displayLocation(award)} · {displayDatedOn(award)}
-                      </small>
-                    </span>
-                  ))}
-                </span>
-                {card.locked ? (
-                  <span className="signal-reason signal-lock-note"><LockKeyhole aria-hidden="true" />{t.reference.signalsPage.lockedReason}</span>
-                ) : <span className="signal-card-action">{t.reference.signalsPage.viewPublishedFacts}</span>}
-                {hasSelectedNote ? <span className="signal-note-state">{t.reference.statuses.noteAdded}</span> : null}
+                {copy.segments[segment]}
+                {count === null ? null : <span className={styles.segmentCount}>{count}</span>}
               </button>
             )
           })}
         </div>
 
-        {feed.loading && feed.data ? <p className="signal-limit" role="status">{t.reference.messages.refreshing}</p> : null}
-        {feed.error && feed.data ? <p className="signal-limit" role="alert">{t.reference.messages.refreshFailed}</p> : null}
-        {feed.data?.page.scan_truncated ? <p className="signal-limit" role="status">{t.feed.truncatedNote}</p> : null}
-        {paginationError ? (
-          <div role="alert">
-            <p>{t.reference.messages.loadError}</p>
-            <button type="button" className="text-link" onClick={() => void loadMore()}>{t.reference.signalsPage.retryMore}</button>
-          </div>
-        ) : null}
-        {feed.data?.page.has_more && !paginationError ? (
-          <button type="button" className="text-link" disabled={loadingMore} onClick={() => void loadMore()}>
-            {loadingMore ? t.reference.loading : t.reference.signalsPage.loadMore}
-          </button>
-        ) : feed.data && companyRows.length > 0 && !feed.data.page.scan_truncated ? <p className="signal-limit">{t.reference.signalsPage.endOfList}</p> : null}
-      </aside>
+        <label className={styles.filter}>
+          <span>{copy.filters.zone}</span>
+          <input
+            list="signals-zones"
+            value={filters.zone}
+            onChange={(event) => setParam('zone', event.target.value.toUpperCase())}
+          />
+          <datalist id="signals-zones">
+            {zones.map((zone) => <option value={zone} key={zone} />)}
+          </datalist>
+        </label>
 
-      <section
-        ref={detailPanelRef}
-        className={`detail-panel ${styles.detailPanel}`}
-        data-master-detail-pane="detail"
-        id="signal-detail"
-        aria-labelledby="detail-title"
-        tabIndex={-1}
-      >
-        {selectedKey ? (
-          <>
-            {singlePane ? (
+        <label className={styles.filter}>
+          <span>{copy.filters.sector}</span>
+          <input
+            value={filters.cpv}
+            maxLength={8}
+            inputMode="numeric"
+            disabled={sectorLocked}
+            aria-describedby={sectorLocked ? 'signals-sector-restricted' : undefined}
+            onChange={(event) => setParam('cpv', event.target.value.replace(/\D/g, ''))}
+          />
+        </label>
+
+        <label className={styles.filter}>
+          <span>{copy.filters.minAmount}</span>
+          <input
+            type="number"
+            min={0}
+            step={1000}
+            value={filters.min}
+            aria-describedby="signals-loaded-only"
+            onChange={(event) => setParam('min', event.target.value)}
+          />
+        </label>
+
+        <label className={styles.filter}>
+          <span>{copy.filters.period}</span>
+          <select
+            value={filters.period}
+            onChange={(event) => setParam('period', event.target.value)}
+          >
+            {PERIODS.map((period) => (
+              <option value={period} key={period}>{copy.filters.periodOptions[period]}</option>
+            ))}
+          </select>
+        </label>
+
+        <label className={`${styles.filter} ${styles.searchFilter}`}>
+          <span className={styles.visuallyHidden}>{copy.filters.search}</span>
+          <input
+            type="search"
+            value={filters.q}
+            placeholder={copy.filters.search}
+            aria-describedby="signals-loaded-only"
+            onChange={(event) => setParam('q', event.target.value)}
+          />
+        </label>
+
+        <small id="signals-loaded-only" className={styles.loadedOnly}>
+          {copy.filters.loadedOnly}
+        </small>
+      </div>
+
+      {sectorLocked ? (
+        <p id="signals-sector-restricted" className={styles.restrictedNote}>
+          {t.reference.signalsPage.restrictedFilter}
+        </p>
+      ) : null}
+
+      {actionError ? (
+        <p className={styles.alert} role="alert">{copy.actionError}</p>
+      ) : null}
+
+      <div className={styles.layout}>
+        <section className={styles.tableColumn} aria-busy={feed.loading}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th scope="col">{copy.columns.date}</th>
+                <th scope="col">{copy.columns.winner}</th>
+                <th scope="col">{copy.columns.object}</th>
+                <th scope="col" className={styles.cellNumeric}>{copy.columns.amount}</th>
+                {compact ? null : <th scope="col">{copy.columns.place}</th>}
+                <th scope="col">{copy.columns.match}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((entry) => (entry.locked ? (
+                <LockedRow
+                  key={entry.signal_id}
+                  compact={compact}
+                  note={t.reference.signalsPage.lockedReason}
+                  onOpen={() => openBilling(entry.signal_id)}
+                />
+              ) : (
+                <SignalRow
+                  key={entry.signal_id}
+                  item={entry}
+                  selected={entry.signal_id === selectedKey}
+                  compact={compact}
+                  onOpen={openSignal}
+                />
+              )))}
+            </tbody>
+          </table>
+
+          {feed.loading && !feed.data ? (
+            <p className={styles.note} role="status">{t.common.loading}</p>
+          ) : feed.error && !feed.data ? (
+            <div className={styles.note} role="alert">
+              <p>{t.reference.messages.loadError}</p>
+              <button type="button" className="text-link" onClick={() => void loadFeed()}>
+                {t.common.retry}
+              </button>
+            </div>
+          ) : rows.length === 0 ? (
+            <p className={styles.note}>{copy.empty}</p>
+          ) : null}
+
+          <div className={styles.footer}>
+            <span className={styles.count}>{signalCount}</span>
+            {paginationError ? (
+              <span role="alert">
+                {t.reference.messages.loadError}{' '}
+                <button type="button" className="text-link" onClick={() => void loadMore()}>
+                  {t.common.retry}
+                </button>
+              </span>
+            ) : feed.data?.page.has_more ? (
               <button
                 type="button"
-                className="source-link signal-mobile-back"
-                onClick={() => {
-                  lastSelection.current = selectedKey
-                  const origin = readSelectionState(location.state)
-                  if (origin?.fromList) navigate(-1)
-                  else navigate(`/app/signals${location.search}`, { replace: true })
-                }}
+                className="text-link"
+                disabled={loadingMore}
+                onClick={() => void loadMore()}
               >
-                {t.workspace.backToList}
+                {loadingMore ? t.common.loading : copy.loadMore}
               </button>
             ) : null}
-            <ReferenceSignalDetail
-              detail={detailView}
-              loading={visibleDetail.loading}
-              error={visibleDetail.error}
-              onRetry={() => setDetailAttempt((current) => current + 1)}
-              note={note.value}
-              noteState={note.state}
-              noteError={note.error}
-              onNoteChange={note.change}
-              onNoteBlur={note.flush}
-              onRetryNote={note.retry}
-              companyProfile={companyProfile.data}
-              companyLoading={companyProfile.loading}
-              companyError={companyProfile.error}
-              onRetryCompany={() => setCompanyAttempt((current) => current + 1)}
-            />
-          </>
-        ) : (
-          <div className="detail-hero">
-            <div>
-              <p className="section-label">{t.reference.headings.selectedSignal}</p>
-              <h2 id="detail-title">{t.reference.signalsPage.chooseSignal}</h2>
-            </div>
           </div>
-        )}
-      </section>
+        </section>
+
+        {compact ? null : <div className={styles.drawerColumn}>{drawer}</div>}
+      </div>
+
+      {compact ? (
+        <Sheet
+          open={Boolean(selectedKey)}
+          onOpenChange={(open) => {
+            if (!open) closeDrawer()
+          }}
+        >
+          <SheetContent
+            side="right"
+            className={styles.sheet}
+            closeLabel={copy.drawer.close}
+            aria-describedby={undefined}
+          >
+            <SheetTitle className={styles.visuallyHidden}>{copy.title}</SheetTitle>
+            {drawer}
+          </SheetContent>
+        </Sheet>
+      ) : null}
     </div>
   )
-}
-
-function selectionState(key: string, query: string, fromList: boolean): SignalSelectionNavigationState {
-  return { signalSelection: { kind: 'feed', key, query, fromList } }
-}
-
-function readSelectionState(value: unknown): SignalSelectionNavigationState['signalSelection'] | null {
-  if (typeof value !== 'object' || value === null || !('signalSelection' in value)) return null
-  const selection = (value as { signalSelection?: unknown }).signalSelection
-  if (typeof selection !== 'object' || selection === null) return null
-  const candidate = selection as Partial<SignalSelectionNavigationState['signalSelection']>
-  if (
-    candidate.kind !== 'feed'
-    || typeof candidate.key !== 'string'
-    || candidate.key.length === 0
-    || typeof candidate.query !== 'string'
-    || typeof candidate.fromList !== 'boolean'
-  ) return null
-  return candidate as SignalSelectionNavigationState['signalSelection']
 }
