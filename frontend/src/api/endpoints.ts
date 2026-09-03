@@ -11,6 +11,10 @@ import type {
   BillingStatus,
   CheckoutSession,
   CompanyProfile,
+  CompanyListPage,
+  CompanyContactResult,
+  CompanyContactStatus,
+  CompanyNoteResult,
   Currency,
   FeedPage,
   Freshness,
@@ -128,8 +132,27 @@ export const signalNotes = {
 // ─── Entreprises ─────────────────────────────────────────────────────────────
 
 export const companies = {
+  list: (query: {
+    contact_status?: CompanyContactStatus[] | null
+    q?: string | null
+    limit?: number
+    cursor?: string | null
+  } = {}) => request<CompanyListPage>('/companies', { query }),
+
   get: (companyKey: string) =>
     request<CompanyProfile>(`/companies/${encodeURIComponent(companyKey)}`),
+
+  contact: (companyKey: string, status: CompanyContactStatus) =>
+    request<CompanyContactResult>(`/companies/${encodeURIComponent(companyKey)}/contact`, {
+      method: 'POST',
+      body: { status },
+    }),
+
+  note: (companyKey: string, body: string) =>
+    request<CompanyNoteResult>(`/companies/${encodeURIComponent(companyKey)}/note`, {
+      method: 'PUT',
+      body: { body },
+    }),
 }
 
 // ─── Retour client ───────────────────────────────────────────────────────────

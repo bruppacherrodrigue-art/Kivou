@@ -3,6 +3,7 @@ import type { Page } from '@playwright/test'
 import type {
   BillingStatus,
   CardPresentation,
+  CompanyListPage,
   CompanyProfile,
   FeedItem,
   FeedPage,
@@ -1002,6 +1003,10 @@ function toCompanyProfile(record: AwardSignal): CompanyProfile {
       related_signals_complete: true,
       unavailable_fields: item.winner_enrichment.missing_fields,
     },
+    contact_status: record.id === 'h-huether-munich' ? 'contacted' : 'to_contact',
+    contacted_at: record.id === 'h-huether-munich' ? '2026-08-30T09:00:00+00:00' : null,
+    note: record.id === 'h-huether-munich' ? 'Rappeler cette semaine.' : null,
+    signals: [item],
   } satisfies CompanyProfile
 }
 
@@ -1194,6 +1199,34 @@ function responseForConnected(
   if (key === 'GET /billing/plans') return { body: VISUAL_CATALOGUE }
   if (key === 'GET /notification-preferences') return { body: VISUAL_NOTIFICATION_PREFERENCE }
   if (key === 'GET /signals') return { body: feedPage(scenario, query) }
+  if (key === 'GET /companies') {
+    const requested = query.getAll('contact_status')
+    const profiles = VISUAL_COMPANIES.filter((company) => (
+      requested.length === 0 || requested.includes(company.contact_status)
+    ))
+    return {
+      body: {
+        items: profiles.map((company) => {
+          const signal = company.signals[0]
+          return {
+            company_key: company.company_key,
+            name: company.official_identity.name,
+            city: signal?.contract.location?.locality ?? null,
+            country: company.official_identity.country,
+            awards_count: company.signals.length,
+            total_amount: signal?.contract.amount ? [signal.contract.amount] : [],
+            last_award_at: signal?.contract.dates.award ?? null,
+            contact_status: company.contact_status,
+            contacted_at: company.contacted_at,
+            top_fit: signal?.icp_match_band ?? 'weak',
+          }
+        }),
+        page: { limit: 50, cursor: null, next_cursor: null, has_more: false, scan_truncated: false },
+        read_at: '2026-08-29',
+        plan_code: scenario === 'connected-discovery' ? 'discovery' : 'pro',
+      } satisfies CompanyListPage,
+    }
+  }
 
   const noteMatch = /^GET \/signals\/([^/]+)\/note$/.exec(key)
   if (noteMatch) {

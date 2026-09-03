@@ -660,6 +660,51 @@ export interface CompanyProfile {
     related_signals_complete: boolean
     unavailable_fields: string[]
   }
+  contact_status: CompanyContactStatus
+  contacted_at: string | null
+  note: string | null
+  signals: UnlockedFeedItem[]
+}
+
+export type CompanyContactStatus = 'to_contact' | 'contacted' | 'replied'
+
+export interface CompanyListItem {
+  company_key: string
+  name: string
+  city: string | null
+  country: string | null
+  awards_count: number
+  total_amount: { currency: string; value: string }[]
+  last_award_at: string | null
+  contact_status: CompanyContactStatus
+  contacted_at: string | null
+  top_fit: string | null
+}
+
+export interface CompanyListPage {
+  items: CompanyListItem[]
+  page: {
+    limit: number
+    cursor: string | null
+    next_cursor: string | null
+    has_more: boolean
+    scan_truncated: boolean
+  }
+  read_at: string
+  plan_code: string
+}
+
+export interface CompanyContactResult {
+  company_key: string
+  contact_status: CompanyContactStatus
+  contacted_at: string | null
+  updated_at: string
+}
+
+export interface CompanyNoteResult {
+  company_key: string
+  note: string | null
+  updated_at: string
 }
 
 // ─── Facturation ─────────────────────────────────────────────────────────────

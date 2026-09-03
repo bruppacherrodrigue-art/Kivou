@@ -92,7 +92,7 @@ const HEADINGS: Record<(typeof LOCAL_REFERENCE_ROUTES)[number]['golden'], string
   'dashboard-signup': 'Commencer avec un ciblage clair',
   'dashboard-overview': 'Vue d’ensemble',
   'dashboard-signals': 'Signaux',
-  'dashboard-companies': 'Entreprises attributaires',
+  'dashboard-companies': 'Entreprises',
   'dashboard-targeting': 'Profil de ciblage',
   'dashboard-account': 'Compte',
 }
@@ -188,7 +188,7 @@ async function waitForScenario(
   if (golden === 'dashboard-signals') {
     await page.locator('h1', { hasText: HEADINGS[golden] }).waitFor()
   } else {
-    await page.getByRole('heading', { level: 1, name: HEADINGS[golden] }).waitFor()
+    await page.getByRole('heading', { level: 1, name: HEADINGS[golden], exact: true }).waitFor()
   }
   await page.waitForLoadState('networkidle')
 
@@ -280,49 +280,20 @@ async function waitForScenario(
     ))).toBeLessThanOrEqual(1)
   }
   if (golden === 'dashboard-companies') {
-    const cards = page.locator('.companies-list .company-list-item')
-    const listPanel = page.locator('.companies-panel')
-    const detailPanel = page.locator('.company-detail')
+    const rows = page.locator('main table').first().locator('tbody > tr')
+    const detailPanel = page.getByRole('complementary')
     const selectedItem = VISUAL_UNLOCKED_ITEMS.find(
       (item) => item.signal_id === 'h-huether-munich',
     )!
-    const selectedPresentation = publishedPresentation(selectedItem.presentation)!
-    await expect(cards).toHaveCount(6)
-    await expect(page.locator('.company-detail .company-timeline-item')).toHaveCount(1)
-    await expect(cards.filter({ hasText: selectedItem.company.name })).toHaveAttribute(
+    await expect(rows).toHaveCount(6)
+    await expect(rows.filter({ hasText: selectedItem.company.name })).toHaveAttribute(
       'aria-current',
       'true',
     )
-    await expect(page.locator('#company-name')).toHaveText(
-      selectedPresentation.content.award_summary,
-    )
-    const workspaceText = await page.locator('.companies-workspace').innerText()
-    for (const forbidden of [
-      selectedItem.contract.title,
-      selectedItem.event.headline,
-      selectedItem.event.why_now,
-      ...selectedItem.analysis.fit.reasons,
-    ].filter((value): value is string => Boolean(value))) {
-      expect(workspaceText).not.toContain(forbidden)
-    }
-    const mobile = (page.viewportSize()?.width ?? 0) < 1180
-    if (mobile) {
-      await expect(listPanel).toBeHidden()
-      await expect(detailPanel).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Retour aux attributions' })).toBeVisible()
-    } else {
-      await expect(listPanel).toBeVisible()
-      await expect(detailPanel).toBeVisible()
-      const overflow = await page.locator('.companies-workspace').evaluate(() => {
-        const list = document.querySelector<HTMLElement>('.companies-panel')
-        const detail = document.querySelector<HTMLElement>('.company-detail')
-        return {
-          list: list ? getComputedStyle(list).overflowY : null,
-          detail: detail ? getComputedStyle(detail).overflowY : null,
-        }
-      })
-      expect(overflow).toEqual({ list: 'auto', detail: 'auto' })
-    }
+    await expect(detailPanel).toBeVisible()
+    await expect(detailPanel.getByRole('heading', { level: 2 })).toHaveText(selectedItem.company.name!)
+    await expect(detailPanel.getByRole('heading', { name: 'Ses marchés' })).toBeVisible()
+    await expect(detailPanel.getByRole('textbox', { name: 'Notes' })).toBeVisible()
     expect(await page.evaluate(() => (
       document.documentElement.scrollWidth - document.documentElement.clientWidth
     ))).toBeLessThanOrEqual(1)
@@ -351,7 +322,6 @@ async function preparePage(
 
 for (const route of LOCAL_REFERENCE_ROUTES) {
   for (const viewport of VIEWPORTS) {
-    const inheritedCompaniesBaseline = route.golden === 'dashboard-companies'
     const inheritedShellBaseline = [
       'dashboard-login',
       'dashboard-overview',
@@ -359,7 +329,7 @@ for (const route of LOCAL_REFERENCE_ROUTES) {
     ].includes(route.golden)
     // TODO PR3: régénérer les deux goldens Entreprises avec la nouvelle liste CRM.
     // TODO PR4: régénérer les goldens hérités du shell et du dashboard.
-    const visualTest = inheritedCompaniesBaseline || inheritedShellBaseline ? test.skip : test
+    const visualTest = inheritedShellBaseline ? test.skip : test
     visualTest(route.golden + ' ' + viewport.name, async ({ page }) => {
       const failures = observeBrowserFailures(page, route.scenario)
       const calls = await installReferenceApi(page, route.scenario)

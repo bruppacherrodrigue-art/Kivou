@@ -1,0 +1,34 @@
+.page { padding: 28px 32px; color: var(--ink); }
+.page header h1 { margin: 0; font-size: 28px; }
+.page header p { margin: 6px 0 22px; color: var(--text-muted); }
+.filters { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.segments { display: flex; gap: 4px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; }
+.segments button { padding: 7px 10px; border: 0; border-radius: 6px; background: transparent; cursor: pointer; }
+.segments button[aria-pressed='true'] { background: var(--green); color: white; }
+.filters input { width: min(280px, 100%); padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; }
+.tableWrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.table th { padding: 10px 14px; color: var(--text-muted); text-align: left; font-size: 11px; text-transform: uppercase; }
+.table td { padding: 13px 14px; border-top: 1px solid var(--line); }
+.table tbody tr { cursor: pointer; }
+.table tbody tr:hover, .table tbody tr[aria-current='true'] { background: var(--surface-subtle); }
+.table td button { border: 0; background: transparent; color: var(--green); font: inherit; font-weight: 700; cursor: pointer; }
+.numeric { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.status { display: inline-flex; padding: 4px 8px; border-radius: 999px; background: var(--surface-subtle); white-space: nowrap; }
+.more { display: block; margin: 14px auto; padding: 8px 14px; }
+.overlay { position: fixed; inset: 0; z-index: 40; background: rgb(15 35 28 / 25%); }
+.drawer { position: fixed; inset: 0 0 0 auto; z-index: 41; width: 50%; min-width: 520px; padding: 28px; overflow-y: auto; background: white; box-shadow: -16px 0 40px rgb(15 35 28 / 18%); }
+.drawerHeader { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--line); padding-bottom: 18px; }
+.drawerHeader h2 { margin: 0 0 6px; font-size: 24px; }
+.drawerHeader p { margin: 0; color: var(--text-muted); }
+.drawerHeader > button { border: 0; background: transparent; font-size: 24px; cursor: pointer; }
+.drawerActions { display: flex; gap: 8px; margin: 18px 0 24px; }
+.drawerActions button { padding: 9px 12px; border: 1px solid var(--green); border-radius: 8px; background: white; color: var(--green); cursor: pointer; }
+.drawer section { margin-top: 24px; }
+.drawer h3 { margin: 0 0 10px; font-size: 14px; }
+.drawer textarea { width: 100%; min-height: 110px; padding: 10px; border: 1px solid var(--line); border-radius: 8px; resize: vertical; }
+.saved { min-height: 20px; color: var(--green); font-size: 12px; }
+.compactTable { width: 100%; border-collapse: collapse; }
+.signalLayer { position: fixed; inset: 0 0 0 auto; z-index: 50; width: 50%; min-width: 520px; overflow-y: auto; background: white; box-shadow: -20px 0 48px rgb(15 35 28 / 25%); }
+@media (max-width: 1100px) { .drawer, .signalLayer { width: 100%; min-width: 0; } }
+@media (max-width: 760px) { .page { padding: 20px 16px; } .filters { align-items: stretch; flex-direction: column; } .segments { overflow-x: auto; } .table th:nth-child(4), .table td:nth-child(4), .table th:nth-child(5), .table td:nth-child(5) { display: none; } }
