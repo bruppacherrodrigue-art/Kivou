@@ -46,6 +46,7 @@ function renderDrawer({
   loading = false,
   error = null as unknown,
   busy = false,
+  compact = false,
   onClose = noop,
   onRetry = noop,
   onContacted = noop,
@@ -56,6 +57,7 @@ function renderDrawer({
   loading?: boolean
   error?: unknown
   busy?: boolean
+  compact?: boolean
   onClose?: () => void
   onRetry?: () => void
   onContacted?: () => void
@@ -68,6 +70,7 @@ function renderDrawer({
       loading={loading}
       error={error}
       busy={busy}
+      compact={compact}
       onClose={onClose}
       onRetry={onRetry}
       onContacted={onContacted}
@@ -260,6 +263,12 @@ describe('SignalDrawer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Fermer' }))
 
     expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('masque son propre bouton « Fermer » en mode compact : la feuille porte déjà le sien', () => {
+    renderDrawer({ compact: true })
+
+    expect(screen.queryByRole('button', { name: 'Fermer' })).not.toBeInTheDocument()
   })
 
   it('rend un squelette pendant le chargement', () => {
