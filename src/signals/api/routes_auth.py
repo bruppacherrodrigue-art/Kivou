@@ -87,7 +87,12 @@ def _me_response(user, request: Request) -> MeResponse:
     )
 
 
-def _set_session_cookie(response: Response, request: Request, session) -> None:
+def set_session_cookie(response: Response, request: Request, session) -> None:
+    """Le SEUL endroit qui pose un cookie de session — `routes_attribution` compris.
+
+    Deux implémentations divergeraient sur `secure`, `samesite` ou `max_age`, et
+    la divergence ne se verrait que le jour d'une fuite.
+    """
     config = request.app.state.config
     response.set_cookie(
         SESSION_COOKIE_NAME,
@@ -143,7 +148,7 @@ def signup(payload: SignupRequest, request: Request, response: Response) -> MeRe
     except WeakPassword as error:
         raise api_error(422, "invalid_input", str(error)) from error
 
-    _set_session_cookie(response, request, session)
+    set_session_cookie(response, request, session)
     if request.cookies.get(ATTRIBUTION_COOKIE_NAME):
         response.delete_cookie(ATTRIBUTION_COOKIE_NAME, path="/auth/signup")
     return _me_response(user, request)
@@ -167,7 +172,7 @@ def login(payload: LoginRequest, request: Request, response: Response) -> MeResp
     except service.InvalidCredentials as error:
         raise api_error(401, error.code, "identifiants invalides") from error
 
-    _set_session_cookie(response, request, session)
+    set_session_cookie(response, request, session)
     return _me_response(user, request)
 
 

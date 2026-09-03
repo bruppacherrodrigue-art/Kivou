@@ -22,6 +22,21 @@ class AttributionSourceUnavailable(ValueError):
     code = "invalid_attribution_binding"
 
 
+#: Le préfixe que porte toute référence de signal d'acquisition. Ce qui le suit
+#: EST la clé d'opportunité côté client (`materialized_signal.opportunity_key`),
+#: cf. `supplier_discovery.seed`. Aucune jointure nouvelle n'est donc nécessaire
+#: pour promettre une opportunité dans le jeton — et, surtout, la promesse est
+#: reconstruite à l'identique à la vérification, sans quoi la signature casserait.
+SIGNAL_REF_PREFIX = "procurement-opportunity:"
+
+
+def opportunity_key_of(signal_ref: str) -> str | None:
+    """La clé d'opportunité portée par une référence de signal, ou rien."""
+    if not signal_ref.startswith(SIGNAL_REF_PREFIX):
+        return None
+    return signal_ref.removeprefix(SIGNAL_REF_PREFIX) or None
+
+
 @dataclass(frozen=True)
 class AttributionSourceFacts:
     campaign_ref: str
@@ -67,6 +82,7 @@ class AttributionSourceResolver:
             wedge_version=facts.wedge_version,
             country=facts.country,
             sector_ref=self.sector_ref_for_signal(facts.signal_ref),
+            opportunity_key=opportunity_key_of(facts.signal_ref),
             need_ref=facts.need_ref,
             need_version=facts.need_version,
             issued_at=issued_at,
@@ -129,11 +145,11 @@ class AttributionSourceResolver:
 
     def sector_ref_for_signal(self, signal_ref: str) -> str:
         """Return the shared deterministic sector identity used by attribution readers."""
-        prefix = "procurement-opportunity:"
-        if not signal_ref.startswith(prefix):
+        opportunity_key = opportunity_key_of(signal_ref)
+        if opportunity_key is None:
             return "sector-unknown-v1"
         try:
-            seed = resolve_acquisition_seed(self._engine, signal_ref.removeprefix(prefix))
+            seed = resolve_acquisition_seed(self._engine, opportunity_key)
         except AcquisitionSeedNotFound:
             return "sector-unknown-v1"
         return semantic_fingerprint(
@@ -146,7 +162,9 @@ class AttributionSourceResolver:
 
 
 __all__ = [
+    "SIGNAL_REF_PREFIX",
     "AttributionSourceFacts",
     "AttributionSourceResolver",
     "AttributionSourceUnavailable",
+    "opportunity_key_of",
 ]

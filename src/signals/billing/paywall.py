@@ -30,6 +30,7 @@ from typing import Any
 from signals.feed import copy as feed_copy
 from signals.feed import policy
 from signals.feed.query import FeedSignal
+from signals.feed.view import is_consortium_award
 
 PAYWALL_VERSION = "kivou-paywall-v0.1"
 
@@ -113,6 +114,10 @@ def locked_teaser(item: FeedSignal, *, lang: str, status: str) -> dict[str, Any]
         "locked": True,
         "unlock_required": "paid_plan",
         "status": status,
+        # PR2b §46 — fait PUBLIC (un groupement se lit dans l'avis lui-même),
+        # jamais `band` ni `cpv_label` : ceux-ci restent des données protégées
+        # tant que le signal n'est pas débloqué.
+        "is_consortium": is_consortium_award(award.awardee_parties),
         "event": {
             "status": recency_status,
             "type": policy.customer_event_type(recency_status),

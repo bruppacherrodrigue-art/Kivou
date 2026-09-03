@@ -19,6 +19,7 @@ import datetime as dt
 
 import sqlalchemy as sa
 
+from signals.accounts import service as accounts
 from signals.billing import catalogue, discovery, service
 from signals.billing.catalogue import PlanEntitlements
 from signals.billing.paywall import within_history_window
@@ -42,6 +43,11 @@ FILTER_REQUIREMENTS: dict[str, str] = {
     "primary_event": "basic",
     "cpv_prefix": "advanced",
     "winner": "advanced",
+    #: PR2b tâche 3 — même niveau que `country`/`subdivision_code` : un montant
+    #: plancher ou une recherche libre ne révèlent rien de plus qu'eux sur un
+    #: signal donné, ils affinent seulement la LISTE.
+    "min_amount": "basic",
+    "q": "basic",
 }
 
 
@@ -84,7 +90,12 @@ class FeedAccess:
 
     plan_code: str
     entitlements: PlanEntitlements
-    #: Les signaux offerts à un compte Discovery, débloqués nominativement.
+    #: Les signaux ouverts nominativement pour ce compte : les trois offerts
+    #: Discovery, et le signal d'ATTERRISSAGE promis par le cold mail qui a créé
+    #: le compte. Ce dernier ne consomme aucune place offerte (PR2b tâche 5) :
+    #: il a été promis avant même que le compte existe, et le facturer d'une
+    #: place reviendrait à reprendre d'une main ce que le mail donnait de
+    #: l'autre.
     granted: frozenset[str]
     as_of: dt.date
 
@@ -146,6 +157,9 @@ def feed_access(connection: sa.Connection, *, account_id: str, as_of: dt.date) -
     return FeedAccess(
         plan_code=state.plan_code,
         entitlements=state.entitlements,
-        granted=discovery.granted_signal_keys(connection, account_id=account_id),
+        granted=(
+            discovery.granted_signal_keys(connection, account_id=account_id)
+            | accounts.landing_signal_keys(connection, account_id=account_id)
+        ),
         as_of=as_of,
     )

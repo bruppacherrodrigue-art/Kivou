@@ -26,7 +26,6 @@ import dataclasses
 import datetime as dt
 import json
 import re
-import unicodedata
 from decimal import Decimal
 from typing import Literal
 
@@ -38,12 +37,14 @@ from signals.companies.service import company_keys_for_signals
 from signals.engagement.company import contacts_by_company
 from signals.feed import query as feed_query
 from signals.feed.history import effective_history_date
+from signals.feed.policy import fit_band
 from signals.feed.query import (
     FEEDING_ICP_STATUS,
     FeedSignal,
     _ownership_scoped,
     owned_target_icps,
 )
+from signals.feed.text import normalize_text
 from signals.persistence.repository import StoredSignal, signal_from_row
 from signals.persistence.schema import materialized_signal
 
@@ -57,12 +58,11 @@ _COMPANY_KEY = re.compile(r"^cmp_[A-Za-z0-9_-]{6,80}$")
 
 #: Meilleur `icp_match_band` d'abord. `excluded` et l'absence de bande (aucune
 #: correspondance encore évaluée) se valent : `unknown` ne prétend à rien.
+#:
+#: PR2b — le vocabulaire de la bande (`strong|promising|weak|unknown`) vient de
+#: `feed.policy.fit_band` : seul le RANG de tri reste propre à ce module.
 _FIT_RANK: dict[str, int] = {"strong": 3, "promising": 2, "weak": 1, "unknown": 0}
 _RANK_TO_FIT = {rank: label for label, rank in _FIT_RANK.items()}
-
-
-def _fit_label(band: str | None) -> str:
-    return band if band in _FIT_RANK else "unknown"
 
 
 class InvalidCompanyCursor(ValueError):
@@ -165,12 +165,6 @@ def _cursor_key(cursor: CompanyCursor) -> tuple[int, int, str]:
     return (0, -cursor.date.toordinal(), cursor.company_key)
 
 
-def _normalize_text(value: str) -> str:
-    """Casefold, puis strip des diacritiques — insensible casse ET accents."""
-    decomposed = unicodedata.normalize("NFKD", value.casefold())
-    return "".join(char for char in decomposed if not unicodedata.combining(char))
-
-
 @dataclasses.dataclass
 class _Accumulator:
     awards_count: int = 0
@@ -202,7 +196,7 @@ class _Accumulator:
             self.last_signal_key = signal.signal_key
             place = signal.award.place_of_performance or {}
             self.city = place.get("locality")
-        fit_rank = _FIT_RANK[_fit_label(signal.icp_match_band)]
+        fit_rank = _FIT_RANK[fit_band(signal.icp_match_band)]
         self.top_fit_rank = max(self.top_fit_rank, fit_rank)
 
 
@@ -363,8 +357,8 @@ def list_companies(
         )
 
     if query:
-        needle = _normalize_text(query)
-        rows = [row for row in rows if needle in _normalize_text(row.name)]
+        needle = normalize_text(query)
+        rows = [row for row in rows if needle in normalize_text(row.name)]
     if contact_statuses is not None:
         rows = [row for row in rows if row.contact_status in contact_statuses]
     if contacted_before is not None:

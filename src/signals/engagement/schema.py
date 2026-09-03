@@ -59,6 +59,10 @@ PRODUCT_EVENT_TYPES: tuple[str, ...] = (
     "alert_sent",
     "alert_failed",
     "alert_suppressed",
+    #: PR2b tâche 5 — le prospect a suivi le lien de son cold mail et a été
+    #: déposé dans le produit. Ni une inscription choisie ni une activation :
+    #: c'est l'arrivée, et elle se compte à part.
+    "attribution_landed",
     "checkout_started",
     "subscription_activated",
     "subscription_lost",

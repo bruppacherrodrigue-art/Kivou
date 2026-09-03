@@ -8,6 +8,7 @@ import datetime as dt
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
+from signals.accounts.schema import account_landing_signal
 from signals.conversion.contracts import (
     ATTRIBUTION_POLICY_VERSION,
     ATTRIBUTION_WINDOW,
@@ -245,6 +246,42 @@ class ConversionAttributionService:
             member_ref=payload.member_ref,
             acquisition_opportunity_id=payload.acquisition_opportunity_id,
         )
+
+    def verify_in_transaction(
+        self, connection: sa.Connection, *, raw_token: str, at: dt.datetime
+    ) -> IssuedAttributionToken:
+        """La charge signée, reconstruite depuis des faits que Kivou possède.
+
+        Publique parce que l'atterrissage a besoin de SAVOIR ce que le mail
+        promettait — l'opportunité, le pays, le besoin — avant même qu'un compte
+        existe. Elle ne lit aucune horloge et n'ouvre aucune transaction.
+        """
+        return self._verify_in_transaction(connection, raw_token=raw_token, at=at)
+
+    def landed_account_in_transaction(
+        self, connection: sa.Connection, *, token_fingerprint: str
+    ) -> str | None:
+        """Le compte déjà CRÉÉ par un atterrissage de ce même jeton, s'il existe.
+
+        La restriction aux comptes porteurs d'une ligne d'atterrissage n'est pas
+        cosmétique : sans elle, un lien transféré rouvrirait une session sur le
+        compte de quelqu'un qui s'est inscrit lui-même, avec son adresse et son
+        mot de passe. Un lien magique ne doit jamais donner plus que ce qu'il a
+        lui-même créé.
+        """
+        return connection.execute(
+            sa.select(acquisition_conversion_journey.c.account_id)
+            .select_from(
+                acquisition_conversion_journey.join(
+                    account_landing_signal,
+                    account_landing_signal.c.account_id
+                    == acquisition_conversion_journey.c.account_id,
+                )
+            )
+            .where(acquisition_conversion_journey.c.token_fingerprint == token_fingerprint)
+            .order_by(acquisition_conversion_journey.c.created_at)
+            .limit(1)
+        ).scalar_one_or_none()
 
     def _verify_in_transaction(
         self, connection: sa.Connection, *, raw_token: str, at: dt.datetime

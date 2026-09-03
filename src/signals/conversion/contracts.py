@@ -56,6 +56,12 @@ class AttributionTokenPayload(ConversionContract):
     sector_ref: StableRef
     need_ref: StableRef
     need_version: ShortCode
+    #: PR2b tâche 5 — l'opportunité PROMISE par le cold mail, dans le vocabulaire
+    #: client. Pas `signal_key` : une clé de signal dépend de l'ICP qui l'a fait
+    #: naître, et le prospect n'en a aucun au moment du clic. Facultatif, parce
+    #: que les jetons émis avant ce champ doivent rester valides : leur signature
+    #: porte sur une forme canonique qui ne le contient pas (cf. `token._canonical`).
+    opportunity_key: StableRef | None = None
     issued_at: dt.datetime
     expires_at: dt.datetime
 

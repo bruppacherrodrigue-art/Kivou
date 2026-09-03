@@ -33,6 +33,7 @@ from signals.accounts.passwords import hash_password, needs_rehash, verify_passw
 from signals.accounts.schema import (
     SUPPORTED_LOCALES,
     account,
+    account_landing_signal,
     account_visit,
     auth_session,
     auth_user,
@@ -41,6 +42,7 @@ from signals.accounts.schema import (
 )
 from signals.accounts.tokens import new_token, token_hash
 from signals.persistence.conflicts import upsert_returning
+from signals.persistence.schema import materialized_signal
 
 
 class AccountError(RuntimeError):
@@ -775,3 +777,143 @@ def _row_to_stored(row: sa.Row) -> StoredTargetIcp:
         _aware(row.created_at),
         _aware(row.updated_at),
     )
+
+
+# ─── PR2b tâche 5 — le signal promis par le cold mail ─────────────────────────
+
+
+@dataclasses.dataclass(frozen=True)
+class LandingSignal:
+    """Ce que le mail promettait à ce compte, et ce qu'on a pu en retrouver."""
+
+    account_id: str
+    #: Peut être absente : un jeton dont le résolveur d'attribution n'a rien pu
+    #: attacher doit quand même produire cette ligne, seule pièce qui permet à
+    #: `landed_account_in_transaction` de reconnaître un rejeu du même jeton.
+    opportunity_key: str | None
+    signal_key: str | None
+    created_at: dt.datetime
+
+
+def resolve_landing_signal_key(
+    connection: sa.Connection, *, account_id: str, opportunity_key: str
+) -> str | None:
+    """Le signal de CE compte qui porte cette opportunité, s'il existe déjà.
+
+    La propriété est dans la clause `WHERE` : un signal matérialisé pour l'ICP
+    d'un autre client n'est pas un candidat, et ne peut donc pas être ouvert par
+    un lien d'acquisition. Le cas normal, au premier clic, est l'absence : un
+    compte neuf n'a pas encore de profil actif, donc aucune matérialisation.
+    """
+    return connection.execute(
+        sa.select(materialized_signal.c.signal_key)
+        .select_from(
+            materialized_signal.join(
+                target_icp,
+                target_icp.c.target_icp_id == materialized_signal.c.target_icp_id,
+            )
+        )
+        .where(
+            materialized_signal.c.opportunity_key == opportunity_key,
+            materialized_signal.c.invalidated_at.is_(None),
+            target_icp.c.account_id == account_id,
+        )
+        .order_by(materialized_signal.c.signal_key)
+        .limit(1)
+    ).scalar_one_or_none()
+
+
+def record_landing_signal(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    opportunity_key: str | None,
+    signal_key: str | None,
+    now: dt.datetime,
+) -> LandingSignal:
+    """Enregistre — ou complète — la promesse faite au prospect.
+
+    Écrit INCONDITIONNELLEMENT, même quand `opportunity_key` est inconnue : ce
+    n'est pas ce champ qui rend un rejeu reconnaissable, c'est l'EXISTENCE de
+    cette ligne pour ce compte (`landed_account_in_transaction` la rejoint sur
+    `account_id`, pas sur `opportunity_key`). Ne pas l'écrire quand
+    l'opportunité n'a pas pu être résolue ferait manquer la reconnaissance du
+    rejeu, alors que le jeton, lui, reste parfaitement valide.
+
+    Un second clic ne recrée rien : il peut en revanche RENSEIGNER la clé de
+    signal, parce qu'entre-temps le profil du client a pu devenir actif et
+    l'opportunité, matérialisée. La date de création, elle, ne bouge jamais.
+    """
+    row = connection.execute(
+        sa.select(account_landing_signal).where(
+            account_landing_signal.c.account_id == account_id
+        )
+    ).one_or_none()
+    if row is None:
+        connection.execute(
+            sa.insert(account_landing_signal).values(
+                account_id=account_id,
+                opportunity_key=opportunity_key,
+                signal_key=signal_key,
+                created_at=now,
+            )
+        )
+        return LandingSignal(account_id, opportunity_key, signal_key, now)
+    if signal_key is not None and row.signal_key != signal_key:
+        connection.execute(
+            sa.update(account_landing_signal)
+            .where(account_landing_signal.c.account_id == account_id)
+            .values(signal_key=signal_key)
+        )
+        return LandingSignal(account_id, row.opportunity_key, signal_key, _aware(row.created_at))
+    return LandingSignal(
+        account_id, row.opportunity_key, row.signal_key, _aware(row.created_at)
+    )
+
+
+def landing_signal(connection: sa.Connection, *, account_id: str) -> LandingSignal | None:
+    row = connection.execute(
+        sa.select(account_landing_signal).where(
+            account_landing_signal.c.account_id == account_id
+        )
+    ).one_or_none()
+    if row is None:
+        return None
+    return LandingSignal(
+        row.account_id, row.opportunity_key, row.signal_key, _aware(row.created_at)
+    )
+
+
+def landing_signal_keys(connection: sa.Connection, *, account_id: str) -> frozenset[str]:
+    """La clé du signal d'atterrissage du compte — au plus une, souvent aucune."""
+    key = connection.execute(
+        sa.select(account_landing_signal.c.signal_key).where(
+            account_landing_signal.c.account_id == account_id
+        )
+    ).scalar_one_or_none()
+    return frozenset() if key is None else frozenset({key})
+
+
+def account_ids_with_landing_signal(connection: sa.Connection) -> frozenset[str]:
+    """Les comptes CRÉÉS par un atterrissage. Voir `routes_attribution`."""
+    rows = connection.execute(sa.select(account_landing_signal.c.account_id)).all()
+    return frozenset(row.account_id for row in rows)
+
+
+def user_id_for_email(connection: sa.Connection, *, email: str) -> str | None:
+    """L'utilisateur portant cette adresse, quelle que soit son activité."""
+    return connection.execute(
+        sa.select(auth_user.c.user_id).where(
+            auth_user.c.email_normalized == normalize_email(email)
+        )
+    ).scalar_one_or_none()
+
+
+def active_user_id(connection: sa.Connection, *, account_id: str) -> str | None:
+    """Le plus ancien utilisateur actif du compte, celui qui le représente."""
+    return connection.execute(
+        sa.select(auth_user.c.user_id)
+        .where(auth_user.c.account_id == account_id, auth_user.c.is_active.is_(True))
+        .order_by(auth_user.c.created_at, auth_user.c.user_id)
+        .limit(1)
+    ).scalar_one_or_none()

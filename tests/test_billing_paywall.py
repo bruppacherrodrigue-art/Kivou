@@ -278,6 +278,7 @@ def test_a_locked_teaser_never_names_the_company(alice, engine):
         "locked",
         "unlock_required",
         "status",
+        "is_consortium",
         "event",
         "context",
         "headline",
@@ -365,6 +366,7 @@ def test_the_detail_of_a_locked_signal_never_returns_the_full_card(alice, engine
         "locked",
         "unlock_required",
         "status",
+        "is_consortium",
         "event",
         "context",
         "headline",
@@ -559,11 +561,21 @@ def test_history_cursor_and_date_range_fail_closed(alice, engine):
     assert recent_cursor.status_code == 422
     assert recent_cursor.json()["detail"]["code"] == "cursor_requires_history_view"
 
+    # PR2b tâche 3 — `date_from` est désormais aussi disponible en vue
+    # Récentes (`feed_page` l'applique lui-même) ; seul `recency_status` reste
+    # un concept propre à l'historique.
     recent_period = alice.get(
         "/signals", params={"view": "recent", "date_from": "2026-08-01"}
     )
-    assert recent_period.status_code == 422
-    assert recent_period.json()["detail"]["code"] == "history_filters_require_history_view"
+    assert recent_period.status_code == 200
+
+    recent_recency_status = alice.get(
+        "/signals", params={"view": "recent", "recency_status": "recent_award"}
+    )
+    assert recent_recency_status.status_code == 422
+    assert (
+        recent_recency_status.json()["detail"]["code"] == "history_filters_require_history_view"
+    )
 
 
 def test_a_history_window_never_authorises_recent_wording_on_an_old_signal(alice, engine):
@@ -616,11 +628,15 @@ def test_filter_access_is_derived_from_the_existing_plan_level(alice, engine):
         "subdivision": False,
         "status": False,
         "sector": False,
+        "min_amount": False,
+        "search": False,
     }
     assert alice.get("/signals?view=history&date_from=2026-08-01").status_code == 200
     assert alice.get("/signals?view=history&subdivision_code=CH-ZH").status_code == 403
     assert alice.get("/signals?view=history&status=recent_award").status_code == 403
     assert alice.get("/signals?view=history&cpv_prefix=45").status_code == 403
+    assert alice.get("/signals?view=history&min_amount=1000").status_code == 403
+    assert alice.get("/signals?view=history&q=egli").status_code == 403
 
     pay(engine, alice, plan="essential")
     essential = feed(alice, view="history")
@@ -628,9 +644,13 @@ def test_filter_access_is_derived_from_the_existing_plan_level(alice, engine):
     assert essential["filter_access"]["subdivision"] is True
     assert essential["filter_access"]["status"] is True
     assert essential["filter_access"]["sector"] is False
+    assert essential["filter_access"]["min_amount"] is True
+    assert essential["filter_access"]["search"] is True
     assert alice.get("/signals?view=history&country=CH").status_code == 200
     assert alice.get("/signals?view=history&status=recent_award").status_code == 200
     assert alice.get("/signals?view=history&cpv_prefix=45").status_code == 403
+    assert alice.get("/signals?view=history&min_amount=1000").status_code == 200
+    assert alice.get("/signals?view=history&q=egli").status_code == 200
 
 
 def test_history_filters_period_country_status_and_cpv_on_the_server(alice, engine):
