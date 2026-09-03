@@ -92,3 +92,24 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
     assert "migrate_to_latest" in commands
     assert not live_backend.exists()
     assert not live_frontend.exists()
+
+    _fake_bin(fake_bin, "uv", recorder)
+    _fake_bin(
+        fake_bin,
+        "git",
+        recorder
+        + 'if [[ "$*" == *"worktree add"* ]]; then mkdir -p "$6/frontend/dist"; fi\n'
+        + 'if [[ "$*" == *"rev-parse HEAD"* ]]; then printf "%s\\n" "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"; fi\n',
+    )
+    success = subprocess.run(
+        [str(SCRIPT), "staging", "b" * 40],
+        cwd=ROOT,
+        env=env,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert success.returncode == 0, success.stderr
+    assert live_backend.resolve() == releases / f"staging-{'b' * 40}"
+    assert live_frontend.resolve() == releases / f"staging-{'b' * 40}" / "frontend/dist"
