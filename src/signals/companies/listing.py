@@ -38,6 +38,7 @@ from signals.companies.service import company_keys_for_signals
 from signals.engagement.company import contacts_by_company
 from signals.feed import query as feed_query
 from signals.feed.history import effective_history_date
+from signals.feed.policy import fit_band
 from signals.feed.query import (
     FEEDING_ICP_STATUS,
     FeedSignal,
@@ -57,12 +58,11 @@ _COMPANY_KEY = re.compile(r"^cmp_[A-Za-z0-9_-]{6,80}$")
 
 #: Meilleur `icp_match_band` d'abord. `excluded` et l'absence de bande (aucune
 #: correspondance encore évaluée) se valent : `unknown` ne prétend à rien.
+#:
+#: PR2b — le vocabulaire de la bande (`strong|promising|weak|unknown`) vient de
+#: `feed.policy.fit_band` : seul le RANG de tri reste propre à ce module.
 _FIT_RANK: dict[str, int] = {"strong": 3, "promising": 2, "weak": 1, "unknown": 0}
 _RANK_TO_FIT = {rank: label for label, rank in _FIT_RANK.items()}
-
-
-def _fit_label(band: str | None) -> str:
-    return band if band in _FIT_RANK else "unknown"
 
 
 class InvalidCompanyCursor(ValueError):
@@ -202,7 +202,7 @@ class _Accumulator:
             self.last_signal_key = signal.signal_key
             place = signal.award.place_of_performance or {}
             self.city = place.get("locality")
-        fit_rank = _FIT_RANK[_fit_label(signal.icp_match_band)]
+        fit_rank = _FIT_RANK[fit_band(signal.icp_match_band)]
         self.top_fit_rank = max(self.top_fit_rank, fit_rank)
 
 

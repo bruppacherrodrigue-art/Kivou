@@ -346,7 +346,16 @@ def test_the_language_never_changes_a_single_published_fact(engine):
         second = materialize_simap(connection, SIMAP_RICH, target_icp_id=english_icp)
 
     fr, en = detail(french, first.signal_key), detail(english, second.signal_key)
-    assert fr["contract"] == en["contract"]
+    # `cpv_label` est le seul champ du contrat qui n'est PAS un fait brut : c'est
+    # le libellé OFFICIEL du code CPV publié, traduit dans la langue du client
+    # (comme les libellés de besoin ci-dessous). Le code lui-même (`cpv`), lui,
+    # ne bouge jamais.
+    assert {k: v for k, v in fr["contract"].items() if k != "cpv_label"} == {
+        k: v for k, v in en["contract"].items() if k != "cpv_label"
+    }
+    assert fr["contract"]["cpv"] == en["contract"]["cpv"]
+    assert fr["contract"]["cpv_label"] == "Travaux de construction de bâtiments scolaires"
+    assert en["contract"]["cpv_label"] == "Construction work for school buildings"
     assert fr["company"] == en["company"]
     assert fr["source"] == en["source"]
     assert fr["event"]["status"] == en["event"]["status"]

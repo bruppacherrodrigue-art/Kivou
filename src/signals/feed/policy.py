@@ -151,3 +151,20 @@ def customer_event_type(status: str) -> str | None:
 def rank_of(status: str) -> int:
     """Le rang de mise en avant. Un statut inconnu passe en dernier, sans lever."""
     return STATUS_RANK.get(status, len(STATUS_RANK))
+
+
+#: PR2b — la bande de correspondance CLIENT, jamais le score qui l'a produite
+#: (§12). `excluded` (rejet explicite du moteur) et l'absence de bande (aucune
+#: évaluation encore faite) se valent : `unknown` n'affirme rien de plus fort
+#: que « pas de correspondance connue ».
+#:
+#: Vocabulaire UNIQUE, partagé par `feed/view.py` (`analysis.fit.band`) et
+#: `companies/listing.py` (`top_fit`) : deux tables auraient fini par diverger,
+#: comme le proscrit PR2b.
+FIT_BANDS: tuple[str, ...] = ("strong", "promising", "weak", "unknown")
+_KNOWN_FIT_BANDS: frozenset[str] = frozenset({"strong", "promising", "weak"})
+
+
+def fit_band(band: str | None) -> str:
+    """La bande de correspondance rendue au client, ou `unknown` par défaut."""
+    return band if band in _KNOWN_FIT_BANDS else "unknown"
