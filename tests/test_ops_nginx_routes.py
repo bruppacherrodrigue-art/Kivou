@@ -30,6 +30,7 @@ PUBLIC_ASGI_ROUTES = frozenset(
         ("GET", "/companies/{company_key}"),
         ("POST", "/companies/{company_key}/contact"),
         ("PUT", "/companies/{company_key}/note"),
+        ("GET", "/dashboard"),
         ("GET", "/me"),
         ("PATCH", "/me"),
         ("GET", "/notification-preferences"),
@@ -63,7 +64,7 @@ PRIVATE_ASGI_ROUTES = frozenset(
 
 EXPECTED_PROXY_SELECTORS = frozenset(
     {
-        "~ ^/(auth|me|target-icps|signals|companies|billing|notification-preferences)(/|$)",
+        "~ ^/(auth|me|target-icps|signals|companies|billing|notification-preferences|dashboard)(/|$)",
         "= /auth/login",
         "= /auth/signup",
         "= /auth/password-reset/request",
