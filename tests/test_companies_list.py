@@ -257,3 +257,44 @@ def test_fresh_account_without_subscription_or_unlocked_signal_sees_an_empty_lis
     payload = _companies(anonymous_client)
 
     assert payload["items"] == []
+
+
+# ─── fix round 2 (F5) — la troncature laisse tomber les PLUS ANCIENNES ───────
+
+
+def test_the_scan_cap_keeps_the_most_recently_materialized_companies(
+    client, icp, engine, monkeypatch
+):
+    """Un plafond atteint doit couper par l'âge, pas par un identifiant opaque.
+
+    Le balayage triait par `signal_key` seul : à la troncature, les entreprises
+    survivantes étaient celles dont la clé de signal était la plus petite —
+    c'est-à-dire un tirage au sort. Il suit désormais l'ordre du feed
+    (`materialized_at DESC, signal_key ASC`), donc ce sont les signaux les plus
+    anciennement matérialisés qui tombent.
+
+    Le plafond est relu à l'appel (`feed_query.HISTORY_SCAN_CAP`) : le lier à
+    l'import rendait ce `monkeypatch` sans effet.
+    """
+    from signals.feed import query as feed_query
+
+    signal_keys = _seed_three_winners(engine, icp)
+    kept = signal_keys[:2]
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key.in_(kept))
+            .values(materialized_at=dt.datetime(2026, 8, 24, 10, 0, tzinfo=dt.UTC))
+        )
+    monkeypatch.setattr(feed_query, "HISTORY_SCAN_CAP", 2)
+
+    payload = _companies(client)
+
+    assert payload["page"]["scan_truncated"] is True
+    company_key_by_signal = {
+        item["signal_id"]: item["company_key"]
+        for item in client.get("/signals?freshness=all").json()["items"]
+    }
+    assert {item["company_key"] for item in payload["items"]} == {
+        company_key_by_signal[signal_key] for signal_key in kept
+    }

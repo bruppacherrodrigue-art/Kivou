@@ -232,3 +232,88 @@ def test_two_signals_one_contacted_are_listed_under_the_company(client, icp, eng
 def test_unknown_or_foreign_company_is_404(client, icp, engine):
     assert client.post("/companies/cmp_000000000000000000/contact", json={"status": "contacted"}).status_code == 404
     assert client.put("/companies/cmp_000000000000000000/note", json={"body": "x"}).status_code == 404
+
+
+# ─── fix round 2 — la frontière du compte, et celle de l'origine ─────────────
+
+
+def _second_account_company(client: TestClient, engine) -> str:
+    """Un `company_key` RÉEL, mais projeté depuis les signaux d'un AUTRE compte."""
+    other = TestClient(client.app, headers={"Origin": ORIGIN})
+    response = other.post(
+        "/auth/signup",
+        json={
+            "email": "other-company-engagement@kivou.eu",
+            "password": PASSWORD,
+            "company_name": "Other Engagement",
+            "locale": "fr",
+        },
+    )
+    assert response.status_code == 201, response.text
+    pin_session_cookie(other, response)
+    account_id = other.get("/me").json()["account_id"]
+    with engine.begin() as connection:
+        subscribe(
+            connection,
+            account_id=account_id,
+            plan="scale",
+            subscription_id="sub_other_engagement",
+            now=NOW,
+        )
+    other_icp = other.post(
+        "/target-icps",
+        json={"label": "Ailleurs", "customer_input": COMPLETE_ICP_INPUT},
+    ).json()["target_icp_id"]
+    with engine.begin() as connection:
+        materialize_simap(connection, "38918-02", target_icp_id=other_icp)
+        run_winner_enrichment_batch(
+            connection, now=NOW, worker_ref="other-engagement-test", limit=10
+        )
+    items = other.get("/signals?freshness=all").json()["items"]
+    assert items, "le second compte doit voir son propre signal"
+    return items[0]["company_key"]
+
+
+def test_a_company_of_another_account_is_404_on_read_and_on_both_writes(client, icp, engine):
+    """PR1 §4 — jamais 403 : un 403 dirait que cette entreprise existe ailleurs.
+
+    Une clé d'un autre compte, une clé inexistante et une clé qu'un plan ferme
+    doivent rendre exactement la même chose. Sinon la route devient un annuaire
+    qu'on parcourt clé par clé.
+    """
+    _seed(engine, icp, count=1)
+    foreign = _second_account_company(client, engine)
+    mine = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
+    assert foreign != mine
+
+    assert client.get(f"/companies/{foreign}").status_code == 404
+    contact = client.post(f"/companies/{foreign}/contact", json={"status": "contacted"})
+    assert contact.status_code == 404
+    assert contact.json()["detail"]["code"] == "company_not_found"
+    note = client.put(f"/companies/{foreign}/note", json={"body": "Rappeler"})
+    assert note.status_code == 404
+    assert note.json()["detail"]["code"] == "company_not_found"
+
+
+def test_both_mutating_company_routes_refuse_a_request_without_origin(client, icp, engine):
+    """`enforce_origin` garde les deux écritures : sans `Origin`, 403 avant tout."""
+    _seed(engine, icp, count=1)
+    key = client.get("/signals?freshness=all").json()["items"][0]["company_key"]
+
+    # Un client SANS `Origin` par défaut, mais porteur de la même session : ce
+    # que ferait exactement un formulaire hébergé sur un autre site.
+    bare = TestClient(client.app)
+    bare.cookies = client.cookies
+
+    contact = bare.post(f"/companies/{key}/contact", json={"status": "contacted"})
+    assert contact.status_code == 403
+    assert contact.json()["detail"]["code"] == "csrf_origin_rejected"
+
+    note = bare.put(f"/companies/{key}/note", json={"body": "Rappeler"})
+    assert note.status_code == 403
+    assert note.json()["detail"]["code"] == "csrf_origin_rejected"
+
+    # Et rien n'a été écrit.
+    profile = client.get(f"/companies/{key}").json()
+    assert profile["contact_status"] == "to_contact"
+    assert profile["note"] is None

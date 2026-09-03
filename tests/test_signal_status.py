@@ -145,6 +145,14 @@ def test_legacy_recency_value_in_status_is_still_understood(client, icp, engine)
 
 
 def test_history_counts_do_not_depend_on_the_page_size(client, icp, engine):
+    """Fix round 2 (F7/F8) — sur la PREMIÈRE page, et seulement là.
+
+    `counts` reste identique quelle que soit la taille de page demandée, ce
+    qui était l'exigence de la spec. Mais il n'est calculé que sans curseur :
+    une page atteinte par curseur ne compterait que la queue de l'historique,
+    donc un nombre qui décroît de page en page — pire qu'une absence, puisque
+    rien ne le dirait. `counts_available` le dit.
+    """
     keys = _seed(engine, icp, count=4)
     client.put(f"/signals/{keys[1]}/feedback", json={"relevance": "not_relevant", "reason": "wrong_need"})
     expected_counts = {"new": 3, "saved": 0, "ignored": 1, "contacted": 0}
@@ -155,9 +163,25 @@ def test_history_counts_do_not_depend_on_the_page_size(client, icp, engine):
     for body in (small, medium, large):
         assert body["counts"] == expected_counts
         assert body["counts_truncated"] is False
+        assert body["counts_available"] is True
 
     assert small["page"]["has_more"] is True
     assert large["page"]["has_more"] is False
+
+    second = client.get(
+        f"/signals?view=history&limit=1&cursor={small['page']['next_cursor']}"
+    ).json()
+    assert second["counts_available"] is False
+    assert second["counts"] == {"new": 0, "saved": 0, "ignored": 0, "contacted": 0}
+    assert second["counts_truncated"] is False
+    # La pagination, elle, ne change pas d'un iota : la page suivante rend son
+    # item et sait qu'il en reste.
+    assert len(second["items"]) == 1
+    assert second["page"]["has_more"] is True
+    assert second["page"]["next_cursor"] is not None
+    assert second["items"][0]["signal_id"] not in {
+        item["signal_id"] for item in small["items"]
+    }
 
     non_ignored = sorted(key for key in keys if key != keys[1])
     seen: list[str] = []
@@ -191,6 +215,7 @@ def test_history_counts_truncated_when_the_scan_cap_is_hit(client, icp, engine, 
     monkeypatch.setattr(query, "HISTORY_SCAN_CAP", 2)
     body = client.get("/signals?view=history&limit=50").json()
     assert body["counts_truncated"] is True
+    assert body["counts_available"] is True
 
 
 def _walk_history(client, params: str, first_page: dict) -> list[str]:

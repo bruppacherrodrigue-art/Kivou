@@ -13,6 +13,7 @@ Réutiliser l'existant : signaux matérialisés (`materialized_signal`, `feed_pa
 - Lecture groupée : nouvelle fonction `engagement.feedback.feedback_by_signal(connection, *, account_id) -> dict[signal_key, StoredFeedback]` (une requête par compte). `engagement.status.unified_status(feedback: StoredFeedback | None) -> str` porte la dérivation.
 - Filtre `?status=` sur `GET /signals`, répétable (`?status=new&status=saved`), valeurs hors liste → 422 `invalid_status`. Sans filtre : tout sauf `ignored`. Le filtre s'applique AVANT la pagination, dans `feed_page` et `history_page`, via un paramètre `status_of: Callable[[str], str]` et `statuses: frozenset[str]`. Le filtre existant `status` de l'historique (statut de récence) est renommé en paramètre de requête `recency_status` ; l'ancien nom reste accepté un cycle avec le même sens (compatibilité du frontend actuel).
 - `counts: {new, saved, ignored, contacted}` dans la réponse de liste, calculés sur l'ensemble filtré par zone, secteur, période et fraîcheur, avant le filtre de statut et avant la page. Bornés par le même balayage que la liste ; `counts_truncated: bool` reprend `scan_truncated`.
+- Fix round 2 (F7/F8) — en `view=history`, `counts` n'est calculé que sur la **première page** (sans curseur), et `counts_available: bool` le dit. Une page atteinte par curseur rend les quatre clés à zéro avec `counts_available: false` : le client garde les compteurs de la première page. Repartir du curseur ne compterait que la queue de l'historique, donc un nombre différent — et faux — à chaque page ; recompter tout l'historique à chaque page relirait `HISTORY_SCAN_CAP` lignes pour rien. Le balayage s'arrête alors dès que la page est pleine et qu'un item admis a été vu derrière elle — `has_more`, `next_cursor` et `scan_truncated` gardent exactement leur sens. La vue `recent` compte toujours (`counts_available: true`).
 - Le bloc `interaction` existant est inchangé.
 
 ## 3. `GET /companies`
@@ -29,7 +30,8 @@ Réutiliser l'existant : signaux matérialisés (`materialized_signal`, `feed_pa
 - `PUT /companies/{key}/note` body `{body}` ; corps vide supprime la note. Réponse : `{company_key, note, updated_at}`.
 - `GET /companies/{key}` conserve `official_identity`, `related_signals`, `coverage` et ajoute `contact_status`, `contacted_at`, `note`, `signals` (items complets de `GET /signals` avec `status`, au plus `MAX_RELATED_SIGNALS`, tri date effective desc).
 - `POST /signals/{key}/contacted` : après l'enregistrement, si le signal a une entreprise résolue et que son `company_contact` est absent ou `to_contact`, la passer à `contacted` avec `contacted_at = now`. Aucun effet inverse.
-- Accès : 404 si l'entreprise n'a aucun signal accessible au compte (même règle que `GET /companies/{key}`), 403 si le plan ne donne pas `feed_access`.
+- Accès : 404 si l'entreprise n'a aucun signal accessible au compte (même règle que `GET /companies/{key}`) — et **404 aussi** quand le plan ne donne pas `feed_access` : jamais 403. Un 403 dirait « cette entreprise existe, mais pas pour vous », c'est-à-dire révélerait ce qui n'est pas visible ; les trois routes `/companies/{key}` répondent donc la même chose à une clé inconnue, à une clé d'un autre compte et à une clé qu'un plan ferme.
+- La propagation depuis `POST /signals/{key}/contacted` n'a lieu qu'au **premier** enregistrement du contact (idempotence) : un second appel sur le même signal ne repose ni `contact_status`, ni `contacted_at`. C'est ce qui empêche une relance manuelle passée en `to_contact` d'être annulée par un clic répété sur le signal.
 
 ## 5. `GET /dashboard`
 
@@ -38,9 +40,10 @@ Lecture unique, `as_of` = date du serveur. `previous_seen = account_visit.last_s
 - `new_since_last_visit` : signaux accessibles de statut `new` dont `dates.publication` > `previous_seen` (tous si `previous_seen` est nul), sur la portée `view=recent`.
 - `strong_matches` : parmi ceux-là, `icp_match_band == 'strong'`.
 - `top3` : les 3 signaux de statut `new` (même portée) classés par bande (`strong` > `promising` > `weak` > autre), puis `icp_match_normalized_score` desc, puis date effective desc ; items complets.
-- `to_follow_up` : entreprises `contact_status = contacted` avec `contacted_at` ≤ `now − 7 j`, tri `contacted_at` asc : `{company_key, name, last_signal (item complet), days_since_contact}`.
+- `to_follow_up` : entreprises `contact_status = contacted` avec `contacted_at` ≤ `now − 7 j`, tri `contacted_at` asc : `{company_key, name, last_signal (item complet), days_since_contact}`. Fix round 2 (F4) — la liste est **limitée aux 10 relances les plus anciennes**, le tri précédant la découpe, et la découpe précédant toute lecture par entreprise : le coût du bloc ne croît plus avec le nombre d'entreprises contactées. `to_follow_up_truncated: bool` vaut vrai dès que plus de dix relances étaient dues, ou que le balayage de la liste a été tronqué.
 - `week` sur `[now − 7 j, now]` : `new` = signaux accessibles publiés dans la fenêtre, quel que soit leur statut ; `saved` = lignes `signal_feedback` `relevant` mises à jour dans la fenêtre ; `contacted` = `contacted_at` de signaux dans la fenêtre ; `replied` = `company_contact` `replied` mises à jour dans la fenêtre.
-- Réponse : `{as_of, last_seen_at (previous_seen), new_since_last_visit, strong_matches, top3, to_follow_up, week, scan_truncated}`.
+- Réponse : `{as_of, last_seen_at (previous_seen), new_since_last_visit, strong_matches, top3, to_follow_up, to_follow_up_truncated, week, scan_truncated}`.
+- Fix round 2 (F1) — `new_since_last_visit`, `strong_matches` et `top3` se calculent sur l'ensemble sélectionné ENTIER (`FeedPage.matched`), jamais sur une page rendue : les lire sur `items` plafonnait chaque nombre à `MAXIMUM_PAGE_SIZE` et interdisait à un signal `strong` classé cinquante-et-unième par date d'atteindre `top3`.
 
 ## 6. Tests hors ligne (SQLite, `TestClient` avec `Origin`)
 

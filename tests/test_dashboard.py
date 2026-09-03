@@ -27,7 +27,7 @@ import pytest
 import sqlalchemy as sa
 from billing_helpers import subscribe
 from engagement_helpers import NOW as HELPERS_NOW
-from engagement_helpers import icp_of, make_app, make_engine, seed, signed_up
+from engagement_helpers import icp_of, make_app, make_engine, pay, seed, signed_up
 from fastapi.testclient import TestClient
 from feed_helpers import (
     COMPLETE_ICP_INPUT,
@@ -40,6 +40,7 @@ from feed_helpers import (
 from signals.accounts import service as accounts_service
 from signals.api import ApiConfig, create_app
 from signals.companies.enrichment import run_winner_enrichment_batch
+from signals.dashboard.service import _FOLLOW_UP_LIMIT
 from signals.persistence.database import create_database_engine, migrate_to_latest
 from signals.persistence.schema import materialized_signal
 
@@ -226,6 +227,7 @@ def test_to_follow_up_lists_companies_contacted_a_week_or_more_ago(client, icp, 
     assert follow_up[company_a]["last_signal"]["company_key"] == company_a
     assert follow_up[company_a]["last_signal"]["signal_id"] == key_a
     assert company_b not in follow_up
+    assert payload["to_follow_up_truncated"] is False
 
 
 def test_week_counts_relevant_contacted_and_replied_within_the_window(client, icp, engine):
@@ -335,3 +337,165 @@ def test_unpaid_account_without_discovery_grants_sees_no_signal_on_the_dashboard
     assert payload["new_since_last_visit"] == 0
     assert payload["strong_matches"] == 0
     assert payload["week"]["new"] == 0
+
+
+# ─── fix round 2 (F1) — les nombres portent sur TOUT, pas sur une page ────────
+
+
+def test_dashboard_counts_and_ranks_beyond_a_single_page(tmp_path):
+    """Soixante nouveautés se comptent soixante, et la soixantième peut gagner.
+
+    `build_dashboard` lisait `feed_page(..., limit=MAXIMUM_PAGE_SIZE).items` :
+    les trois agrégats (`new_since_last_visit`, `strong_matches`, `top3`)
+    étaient donc plafonnés à cinquante, et un signal `strong` classé au-delà de
+    la cinquantième place par date ne pouvait plus JAMAIS atteindre `top3` —
+    exactement le signal que l'écran est censé remonter.
+
+    Douze avis distincts (`engagement_helpers.SIGNAL_SOURCES`) sous cinq ICP
+    donnent soixante signaux `recent_award` distincts. Leur date d'attribution
+    décroît avec l'indice de la source, donc les cinq signaux de la source 11
+    occupent les places 56 à 60 : hors de la première page, par construction.
+    """
+    engine = make_engine(tmp_path)
+    app = make_app(engine, lambda: HELPERS_NOW)
+    client = signed_up(app, email="beyond-one-page@kivou.eu")
+    pay(engine, client, plan="scale", now=HELPERS_NOW)
+
+    keys: list[str] = []
+    for index in range(5):
+        keys.extend(seed(engine, icp_of(client, label=f"Suivi {index}"), count=12))
+    assert len(keys) == 60
+
+    #: La source 11 est la plus ancienne : ce signal est le 56e au tri du feed.
+    last_ranked = keys[11]
+    _set_band_and_score(engine, last_ranked, band="strong", score=90)
+
+    payload = _dashboard(client)
+
+    assert payload["new_since_last_visit"] == 60
+    assert payload["strong_matches"] == 1
+    assert payload["top3"][0]["signal_id"] == last_ranked
+    assert payload["scan_truncated"] is False
+
+
+# ─── fix round 2 (F3) — `published_since` présélectionne AUSSI en SQL ─────────
+
+
+def _age_signal(engine, signal_key: str, *, published_on: dt.date, award_date: dt.date) -> None:
+    """Vieillit la parution ET l'attribution d'un signal, à sa source."""
+    from signals.persistence.schema import contract_award, source_event
+
+    with engine.begin() as connection:
+        award_key = connection.execute(
+            sa.select(materialized_signal.c.materialization_award_key).where(
+                materialized_signal.c.signal_key == signal_key
+            )
+        ).scalar_one()
+        event_key = connection.execute(
+            sa.select(contract_award.c.event_key).where(contract_award.c.award_key == award_key)
+        ).scalar_one()
+        connection.execute(
+            sa.update(contract_award)
+            .where(contract_award.c.award_key == award_key)
+            .values(award_date=award_date)
+        )
+        connection.execute(
+            sa.update(source_event)
+            .where(source_event.c.event_key == event_key)
+            .values(published_on=published_on)
+        )
+
+
+def test_week_new_survives_a_tight_scan_cap_full_of_old_publications(
+    client, icp, engine, monkeypatch
+):
+    """Les parutions hors fenêtre ne consomment plus le plafond de candidats.
+
+    `published_since` n'était qu'un filtre Python : les deux avis anciens,
+    matérialisés en dernier donc lus en premier, remplissaient le plafond et
+    `week.new` rendait zéro alors que deux parutions de la semaine attendaient
+    derrière. La borne est désormais aussi une clause SQL — les lignes hors
+    fenêtre ne sont plus lues du tout.
+    """
+    from signals.feed import policy
+
+    with engine.begin() as connection:
+        recent = [
+            materialize_simap(connection, name, target_icp_id=icp).signal_key
+            for name in ("33885-03", "34794-02")
+        ]
+        old = [
+            materialize_simap(connection, name, target_icp_id=icp).signal_key
+            for name in ("29997-02", "33112-02")
+        ]
+
+    for signal_key in old:
+        _age_signal(
+            engine,
+            signal_key,
+            published_on=dt.date(2026, 6, 1),
+            award_date=dt.date(2026, 5, 20),
+        )
+    # Les avis anciens sont les plus récemment matérialisés : ils sont donc lus
+    # les premiers, et seraient seuls à consommer le plafond.
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key.in_(old))
+            .values(materialized_at=dt.datetime(2026, 8, 19, 10, 0, tzinfo=dt.UTC))
+        )
+    monkeypatch.setattr(policy, "CANDIDATE_SCAN_CAP", 2)
+
+    payload = _dashboard(client)
+
+    assert payload["week"]["new"] == len(recent)
+
+
+# ─── fix round 2 (F4) — dix relances au plus, et le dire ─────────────────────
+
+
+def test_to_follow_up_keeps_the_ten_oldest_and_announces_the_rest(tmp_path):
+    """Le bloc coûtait un balayage complet PAR entreprise contactée.
+
+    Il est désormais borné : tri par `contacted_at` d'abord, découpe à dix
+    ensuite, et une seule lecture par relance retenue — par la clé du dernier
+    signal, déjà connue de l'agrégation. Ce qui dépasse n'est pas caché :
+    `to_follow_up_truncated` le dit.
+    """
+    engine = make_engine(tmp_path)
+    clock = Clock(HELPERS_NOW)
+    app = make_app(engine, clock)
+    client = signed_up(app, email="follow-up-cap@kivou.eu")
+    pay(engine, client, plan="scale", now=HELPERS_NOW)
+    seed(engine, icp_of(client), count=12)
+    with engine.begin() as connection:
+        run_winner_enrichment_batch(
+            connection, now=HELPERS_NOW, worker_ref="dashboard-follow-up-cap", limit=50
+        )
+
+    company_keys = sorted(
+        {
+            item["company_key"]
+            for item in client.get("/signals?freshness=all&limit=50").json()["items"]
+            if item.get("company_key")
+        }
+    )
+    assert len(company_keys) > _FOLLOW_UP_LIMIT, "il faut plus de dix relances pour déborder"
+
+    for company_key in company_keys:
+        # Une minute d'écart : `contacted_at` croît dans l'ordre de la boucle,
+        # donc « les dix plus anciennes » est une affirmation vérifiable.
+        clock.advance(dt.timedelta(minutes=1))
+        response = client.post(f"/companies/{company_key}/contact", json={"status": "contacted"})
+        assert response.status_code == 200, response.text
+
+    clock.advance(dt.timedelta(days=8))
+    payload = _dashboard(client)
+
+    assert payload["to_follow_up_truncated"] is True
+    assert [item["company_key"] for item in payload["to_follow_up"]] == (
+        company_keys[:_FOLLOW_UP_LIMIT]
+    )
+    for item in payload["to_follow_up"]:
+        assert item["days_since_contact"] == 8
+        assert item["last_signal"]["locked"] is False
