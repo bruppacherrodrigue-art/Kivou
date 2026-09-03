@@ -8,7 +8,6 @@ import type {
   SignalFactualDisplay,
   SignalEventClock,
   TargetIcp,
-  UnlockedDetail,
   WinnerEnrichment,
 } from '../../api/types'
 import type {
@@ -16,7 +15,6 @@ import type {
   CompanySummaryView,
   OverviewAwardCardView,
   SignalCardView,
-  SignalDetailView,
   SignalEventDateKind,
   TargetProfileView,
 } from './models'
@@ -494,68 +492,6 @@ export function toOverviewAwardCard(item: FeedItem): OverviewAwardCardView {
 
 export function toOverviewAwardCards(page: FeedPage): OverviewAwardCardView[] {
   return page.items.map(toOverviewAwardCard)
-}
-
-export function toSignalDetailView(detail: UnlockedDetail): SignalDetailView {
-  const factual = publishedFactualDisplay(detail.factual_display)
-  const enrichment = publishedWinnerEnrichment(detail.winner_enrichment)
-  const presentation = publishedPresentation(detail.presentation)
-  const specificTitle = detail.contract.lot_title
-    ?? detail.contract.title
-    ?? factual?.object_short
-    ?? factual?.headline
-    ?? null
-
-  return {
-    signalId: detail.signal_id,
-    id: detail.signal_id,
-    eventStatus: detail.event.status,
-    eventAgeDays: detail.event.age_days,
-    isNewOpportunity: detail.event.is_new_opportunity,
-    locked: false,
-    eventDate: factual?.date.value ?? detail.event.date,
-    eventDateKind: factual?.date.kind ?? eventDateKind(detail.event.clock, detail.event.status),
-    buyerName: detail.contract.buyer?.name ?? null,
-    awardedCompanyName: detail.company.name,
-    primaryNeed: null,
-    fitReason: null,
-    presentation,
-    factualCompleteness: factual?.completeness ?? null,
-    missingFacts: factual?.missing_fields ?? [],
-    winnerEnrichment: enrichment,
-    title: specificTitle,
-    companyName: detail.company.name,
-    companyKey: detail.company_key ?? null,
-    companyCountry: detail.company.country,
-    companyIdentifier: detail.company.identifier,
-    targetProfileLabel: detail.analysis.fit.target_icp_label,
-    sourceSystem: detail.source.system,
-    summary: presentation?.content.award_summary ?? factual?.market_summary ?? null,
-    brief: {
-      whyNow: detail.event.why_now,
-      offerCoverage: null,
-      functionToFind: null,
-      unknown: null,
-    },
-    facts: {
-      amount: detail.contract.amount,
-      location: detail.contract.location,
-      awardDate: detail.contract.dates.award,
-      execution: null,
-      buyer: detail.contract.buyer?.name ?? null,
-      buyerIdentifier: detail.contract.buyer?.identifier ?? null,
-      officialTitle: detail.contract.title,
-      notice: detail.source.notice_id,
-      cpv: detail.contract.cpv,
-      sourceUrl: detail.source.url,
-    },
-    // L'API ne publie pas de champ structuré « périmètre ». Les groupes
-    // `public_facts` décrivent plusieurs natures de faits (attributaire,
-    // montant, dates, acheteurs) et ne doivent pas être requalifiés ici.
-    scope: [],
-    questions: [],
-    publicEvidence: detail.evidence.public_facts,
-  }
 }
 
 export function toTargetProfileView(profile: TargetIcp): TargetProfileView {
