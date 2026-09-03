@@ -7,7 +7,7 @@ readme = "README.md"
 dependencies = [
     # `[email]` apporte `email-validator` : la validation d'adresse est pleine de
     # cas particuliers, et une expression régulière maison en raterait.
-    "pydantic[email]>=2.9",
+    "pydantic[email]>=2.13.5",
     # client HTTP du connecteur TED
     "httpx>=0.27",
     # XML venant d'un tiers : parseur durci contre les bombes d'entités
