@@ -76,7 +76,15 @@ account_visit = sa.Table(
 #: `batch_alter_table("account")` recopie la table et la recopie déclenche les
 #: `ON DELETE CASCADE` de ses filles.
 #:
-#: `opportunity_key` est toujours connue — c'est ce que le mail promettait.
+#: `opportunity_key` est connue dès que le jeton en porte une — ce que le mail
+#: promettait. Elle reste NULLABLE : un jeton dont le résolveur d'attribution
+#: n'a rien pu attacher (opportunité introuvable au moment de l'émission, par
+#: exemple) doit quand même écrire cette ligne, car c'est ELLE — pas
+#: `opportunity_key` — que `landed_account_in_transaction` utilise pour
+#: reconnaître un rejeu du même jeton. La rendre obligatoire aurait fait
+#: échouer silencieusement la reconnaissance de rejeu chaque fois que la
+#: résolution de l'opportunité échoue, un cas qui n'a rien d'un jeton
+#: falsifié ou périmé.
 #: `signal_key` ne l'est qu'une fois l'opportunité MATÉRIALISÉE pour un ICP de
 #: ce compte, ce qui n'arrive pas au premier clic : un compte neuf n'a encore
 #: aucun profil actif. La colonne reste donc nulle jusque-là, et l'atterrissage
@@ -90,7 +98,7 @@ account_landing_signal = sa.Table(
         sa.ForeignKey("account.account_id", ondelete="CASCADE"),
         primary_key=True,
     ),
-    sa.Column("opportunity_key", sa.String(64), nullable=False),
+    sa.Column("opportunity_key", sa.String(64), nullable=True),
     sa.Column("signal_key", sa.String(64)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
 )
