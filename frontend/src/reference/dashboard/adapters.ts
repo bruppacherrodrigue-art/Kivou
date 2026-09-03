@@ -14,7 +14,6 @@ import type {
   BillingAccessView,
   CompanySummaryView,
   OverviewAwardCardView,
-  SignalCardView,
   SignalEventDateKind,
   TargetProfileView,
 } from './models'
@@ -372,73 +371,6 @@ export function eventDateKind(
 
 export function concreteMatchReasons(reasons: readonly string[]): string[] {
   return reasons.map((reason) => reason.trim()).filter(Boolean)
-}
-
-export function toSignalCard(item: FeedItem): SignalCardView {
-  if (item.locked) {
-    const clock = EVENT_CLOCK_BY_STATUS[item.event.status]
-    return {
-      signalId: item.signal_id,
-      id: item.signal_id,
-      locked: true,
-      companyName: null,
-      awardedCompanyName: null,
-      buyerName: null,
-      eventTitle: item.headline,
-      amount: null,
-      location: null,
-      eventDate: item.event.date,
-      eventDateKind: eventDateKind(clock, item.event.status),
-      awardDate: null,
-      matchLabel: null,
-      matchReasons: [],
-      primaryNeed: null,
-      fitReason: null,
-      presentation: null,
-      factualCompleteness: null,
-      missingFacts: [],
-      winnerEnrichment: null,
-      sourceSystem: null,
-      whyNow: item.event.why_now,
-      objectShort: null,
-    }
-  }
-
-  const factual = publishedFactualDisplay(item.factual_display)
-  const enrichment = publishedWinnerEnrichment(item.winner_enrichment)
-  // La copie de carte Signaux ne promeut jamais le titre administratif du
-  // contrat (`lot_title`/`title`) : seul le titre factuel publié par le
-  // serveur peut apparaître ici. Sans lui, il n'y a pas de titre.
-  const specificTitle = factual?.headline ?? null
-  return {
-    signalId: item.signal_id,
-    id: item.signal_id,
-    locked: false,
-    companyName: item.company.name,
-    awardedCompanyName: item.company.name,
-    buyerName: item.contract.buyer?.name ?? null,
-    eventTitle: specificTitle,
-    amount: item.contract.amount,
-    location: item.contract.location,
-    eventDate: factual?.date.value ?? item.event.date,
-    eventDateKind: factual?.date.kind ?? eventDateKind(item.event.clock, item.event.status),
-    awardDate: item.contract.dates.award,
-    matchLabel: null,
-    matchReasons: [],
-    primaryNeed: null,
-    fitReason: null,
-    presentation: null,
-    factualCompleteness: factual?.completeness ?? null,
-    missingFacts: factual?.missing_fields ?? [],
-    winnerEnrichment: enrichment,
-    sourceSystem: item.source.system,
-    whyNow: item.event.why_now,
-    objectShort: factual?.object_short ?? null,
-  }
-}
-
-export function toSignalCards(page: FeedPage): SignalCardView[] {
-  return page.items.map(toSignalCard)
 }
 
 export function toOverviewAwardCard(item: FeedItem): OverviewAwardCardView {

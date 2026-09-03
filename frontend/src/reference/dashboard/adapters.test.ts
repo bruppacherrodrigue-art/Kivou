@@ -26,8 +26,6 @@ import {
   toCompanySummary,
   toOverviewAwardCard,
   toOverviewAwardCards,
-  toSignalCard,
-  toSignalCards,
   toTargetProfileView,
 } from './adapters'
 
@@ -559,9 +557,6 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     }],
   ])('rejette un contrat factuel invalide : %s', (_case, display) => {
     expect(publishedFactualDisplay(display)).toBeNull()
-    const item = { ...UNLOCKED_ITEM, factual_display: display } as unknown as UnlockedFeedItem
-    expect(toSignalCard(item).eventTitle).toBeNull()
-    expect(toSignalCard(item).factualCompleteness).toBeNull()
   })
 
   it('rejette un état d’enrichissement incohérent', () => {
@@ -572,8 +567,6 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     }
 
     expect(publishedWinnerEnrichment(enrichment)).toBeNull()
-    const item = { ...UNLOCKED_ITEM, winner_enrichment: enrichment } as unknown as UnlockedFeedItem
-    expect(toSignalCard(item).winnerEnrichment).toBeNull()
   })
 
   it('ferme statiquement FALLBACK aux claims factuelles uniquement', () => {
@@ -630,202 +623,6 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
 
   it('échoue fermé si le statut et l’horloge qualifiée se contredisent', () => {
     expect(() => eventDateKind('publication', 'recent_award')).toThrow(/incohérent/i)
-  })
-
-  it('ne synthétise pas une raison d’adéquation depuis un score ou une catégorie', () => {
-    const item = {
-      ...UNLOCKED_ITEM,
-      presentation: null,
-      analysis: {
-        ...UNLOCKED_ITEM.analysis,
-        fit: {
-          ...UNLOCKED_ITEM.analysis.fit,
-          reasons: [],
-          score: 0.91,
-          category: 'materials_or_components',
-        },
-      },
-    } as UnlockedFeedItem & {
-      analysis: UnlockedFeedItem['analysis'] & {
-        fit: UnlockedFeedItem['analysis']['fit'] & { score: number; category: string }
-      }
-    }
-
-    expect(toSignalCard(item).fitReason).toBeNull()
-    expect(toSignalCard(item).matchLabel).toBeNull()
-  })
-
-  it('ignore les raisons de fit existantes pendant la phase factuelle', () => {
-    const item: UnlockedFeedItem = {
-      ...UNLOCKED_ITEM,
-      analysis: {
-        ...UNLOCKED_ITEM.analysis,
-        fit: {
-          ...UNLOCKED_ITEM.analysis.fit,
-          reasons: ['  ', '  Besoin visé : Matériaux  ', 'Territoire couvert : FR'],
-        },
-      },
-    }
-
-    expect(toSignalCard(item).fitReason).toBeNull()
-  })
-
-  it('ne promeut jamais le titre administratif du contrat dans la copie de carte', () => {
-    const administrativeTitle = 'ACCORD-CADRE LOT 7 PERSONNEL ET MATÉRIAUX'
-    const item = {
-      ...UNLOCKED_ITEM,
-      contract: { ...UNLOCKED_ITEM.contract, title: administrativeTitle },
-      presentation: null,
-    } as UnlockedFeedItem
-
-    const view = toSignalCard(item)
-    expect(view.eventTitle).toBe(UNLOCKED_ITEM.factual_display.headline)
-    expect(JSON.stringify(view)).not.toContain(administrativeTitle)
-    expect(view.presentation).toBeNull()
-  })
-
-  it('ignore aussi un ancien fallback de présentation sur la page Signaux', () => {
-    const presentation: CardPresentation = {
-      artifact_id: 'a'.repeat(64),
-      version: 1,
-      status: 'FALLBACK',
-      schema_version: 'card-presentation-v1',
-      published_at: '2026-08-30T12:00:00Z',
-      content: {
-        schema_version: 'card-presentation-v1',
-        variant: 'FACTUAL_FALLBACK',
-        headline: 'Attribution publique documentée',
-        award_summary: 'Le marché public a été attribué à une entreprise identifiée.',
-        commercial_importance: null,
-        fit_reason: null,
-        timing: null,
-        recommended_action: null,
-        target_roles: [],
-        fit_need_categories: [],
-        unknowns: [],
-        claims: [{
-          claim_id: 'HEADLINE',
-          kind: 'FACT',
-          text: 'Attribution publique documentée',
-          evidence_refs: ['source:award'],
-          confidence: null,
-        }, {
-          claim_id: 'AWARD_SUMMARY',
-          kind: 'FACT',
-          text: 'Le marché public a été attribué à une entreprise identifiée.',
-          evidence_refs: ['source:award_summary'],
-          confidence: null,
-        }],
-      },
-    }
-    const item: UnlockedFeedItem = { ...UNLOCKED_ITEM, presentation }
-
-    const view = toSignalCard(item)
-    expect(view.presentation).toBeNull()
-    expect(view.eventTitle).toBe(UNLOCKED_ITEM.factual_display.headline)
-  })
-
-  it('préfère le contrat factuel serveur et ignore tout contenu commercial sur Signaux', () => {
-    const item = {
-      ...UNLOCKED_ITEM,
-      factual_display: {
-        headline: 'Constructions Bertrand remporte un marché de 1 240 000 € à Villeneuve',
-        market_summary: 'Réfection factuelle de la voirie',
-        object_short: 'Réfection factuelle de la voirie',
-        date: { value: '2026-08-04', kind: 'award' },
-        completeness: 'verified',
-        missing_fields: [],
-      },
-      winner_enrichment: {
-        status: 'partial',
-        missing_fields: ['website'],
-        last_verified_at: '2026-08-18T09:00:00Z',
-        error_code: null,
-        source: {
-          kind: 'public_notice',
-          connector: 'boamp',
-          notice_id: '26-12345',
-          url: 'https://www.boamp.fr/avis/26-12345',
-          retrieved_at: '2026-08-18T09:00:00Z',
-        },
-      },
-      presentation: VALID_FULL,
-    } as unknown as UnlockedFeedItem
-
-    const view = toSignalCard(item)
-
-    expect(view.eventTitle).toBe(item.factual_display.headline)
-    expect(view.presentation).toBeNull()
-    expect(view.fitReason).toBeNull()
-    expect(view.matchLabel).toBeNull()
-  })
-
-  it('mappe une carte déverrouillée uniquement depuis le contrat de feed', () => {
-    expect(toSignalCard(UNLOCKED_ITEM)).toEqual({
-      signalId: UNLOCKED_ITEM.signal_id,
-      id: UNLOCKED_ITEM.signal_id,
-      locked: false,
-      companyName: UNLOCKED_ITEM.company.name,
-      awardedCompanyName: UNLOCKED_ITEM.company.name,
-      buyerName: UNLOCKED_ITEM.contract.buyer?.name,
-      eventTitle: UNLOCKED_ITEM.factual_display.headline,
-      amount: UNLOCKED_ITEM.contract.amount,
-      location: UNLOCKED_ITEM.contract.location,
-      eventDate: UNLOCKED_ITEM.event.date,
-      eventDateKind: 'award',
-      awardDate: UNLOCKED_ITEM.contract.dates.award,
-      matchLabel: null,
-      matchReasons: [],
-      primaryNeed: null,
-      fitReason: null,
-      presentation: null,
-      factualCompleteness: UNLOCKED_ITEM.factual_display.completeness,
-      missingFacts: UNLOCKED_ITEM.factual_display.missing_fields,
-      winnerEnrichment: UNLOCKED_ITEM.winner_enrichment,
-      sourceSystem: UNLOCKED_ITEM.source.system,
-      whyNow: UNLOCKED_ITEM.event.why_now,
-      objectShort: UNLOCKED_ITEM.factual_display.object_short,
-    })
-  })
-
-  it('ne révèle aucun champ protégé dans une carte verrouillée', () => {
-    const locked: LockedFeedItem = LOCKED_ITEM
-
-    expect(toSignalCard(locked)).toEqual({
-      signalId: locked.signal_id,
-      id: locked.signal_id,
-      locked: true,
-      companyName: null,
-      awardedCompanyName: null,
-      buyerName: null,
-      eventTitle: locked.headline,
-      amount: null,
-      location: null,
-      eventDate: locked.event.date,
-      eventDateKind: 'award',
-      awardDate: null,
-      matchLabel: null,
-      matchReasons: [],
-      primaryNeed: null,
-      fitReason: null,
-      presentation: null,
-      factualCompleteness: null,
-      missingFacts: [],
-      winnerEnrichment: null,
-      sourceSystem: null,
-      whyNow: locked.event.why_now,
-      objectShort: null,
-    })
-  })
-
-  it('conserve l’ordre et les valeurs du FeedPage sans données de repli', () => {
-    const feed = feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) as FeedPage
-
-    expect(toSignalCards(feed).map((card) => card.id)).toEqual([
-      UNLOCKED_ITEM.signal_id,
-      LOCKED_ITEM.signal_id,
-    ])
-    expectNoReferenceOnlyCopy(toSignalCards(feed))
   })
 
   it('présente le ciblage, la facturation et l’entreprise sans valeurs de maquette', () => {

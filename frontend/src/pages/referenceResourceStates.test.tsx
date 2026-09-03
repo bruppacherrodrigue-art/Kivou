@@ -188,7 +188,7 @@ describe('états indépendants des vues de référence', () => {
       session: AUTHENTICATED,
     })
 
-    expect(await screen.findByRole('heading', { level: 2 })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 2, name: 'Voirie' })).toBeVisible()
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Les informations n’ont pas pu être chargées.')
     expect(screen.getAllByRole('alert')).toHaveLength(1)
