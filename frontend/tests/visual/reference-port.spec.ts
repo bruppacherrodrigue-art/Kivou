@@ -180,11 +180,11 @@ async function waitForScenario(
   scenario: VisualScenario,
   golden: (typeof LOCAL_REFERENCE_ROUTES)[number]['golden'],
 ) {
-  // `dashboard-signals` peut ouvrir le tiroir en feuille modale dès le
-  // chargement (lien profond sous 900 px) : Radix masque alors le reste du
-  // document à l'arbre d'accessibilité, et `getByRole` ne trouverait plus le
-  // `h1` bien qu'il reste dans le DOM (et visible au sens CSS). Un sélecteur
-  // de balise, non tributaire de l'accessibilité, reste correct ici.
+  // Le golden `dashboard-signals` desktop ouvre un lien profond dont le tiroir
+  // sticky peut retarder la mise en accessibilité du reste de l'arbre le
+  // temps du premier rendu. Un sélecteur de balise, non tributaire de cet
+  // arbre, reste correct dans tous les cas ici (desktop comme mobile, feuille
+  // fermée ou tiroir ouvert).
   if (golden === 'dashboard-signals') {
     await page.locator('h1', { hasText: HEADINGS[golden] }).waitFor()
   } else {
@@ -201,17 +201,15 @@ async function waitForScenario(
   }
   if (golden === 'dashboard-signals') {
     // Nouvelle page : un tableau dense + une ligne de filtres + un tiroir
-    // droit sticky (feuille plein écran sous 900 px). Le lien profond de ce
-    // golden ouvre le tiroir sur le signal de publication récente
-    // (`tm-ausbau-campus-ost`), sans raisons de correspondance (fixture) —
-    // le bloc « Pourquoi ça vous concerne » doit donc être absent, et le
-    // bloc « Ce que le titulaire va devoir faire » présent.
+    // droit sticky. Le golden desktop ouvre ce tiroir sur le signal de
+    // publication récente (`tm-ausbau-campus-ost`), sans raisons de
+    // correspondance (fixture) — le bloc « Pourquoi ça vous concerne » doit
+    // donc être absent, et le bloc « Ce que le titulaire va devoir faire »
+    // présent. Le golden mobile, lui, garde la feuille FERMÉE (route sans
+    // clé de signal) : c'est le tableau dense qu'il doit montrer, pas le
+    // tiroir qui le masquerait entièrement en plein écran.
     const mobile = (page.viewportSize()?.width ?? 0) < 900
 
-    // Un lien profond sous 900 px ouvre la feuille modale dès le chargement :
-    // Radix masque alors la barre de filtres à l'arbre d'accessibilité (elle
-    // reste visible au sens CSS). Des sélecteurs d'attribut, non tributaires
-    // de cet arbre, restent corrects sur les deux gabarits.
     const toolbar = page.locator('[role="toolbar"]')
     await expect(toolbar).toBeVisible()
     await expect(toolbar.locator('[data-segment="new"]')).toContainText('Nouveaux')
@@ -219,6 +217,18 @@ async function waitForScenario(
     await expect(toolbar.locator('[data-segment="contacted"]')).toContainText('Contactés')
     await expect(toolbar.locator('[data-segment="ignored"]')).toHaveText('Ignorés')
     await expect(toolbar.locator('[data-segment="all"]')).toHaveText('Tous')
+
+    if (!mobile) {
+      // À 1440 px, les filtres tiennent sur UNE ligne : la hauteur de la
+      // barre d'outils ne doit pas dépasser 1,5 fois celle du groupe de
+      // segments (sans quoi la recherche serait retombée sur une deuxième
+      // ligne).
+      const toolbarBox = await toolbar.boundingBox()
+      const segmentsBox = await toolbar.locator('[role="group"]').boundingBox()
+      expect(toolbarBox).not.toBeNull()
+      expect(segmentsBox).not.toBeNull()
+      expect(toolbarBox!.height).toBeLessThanOrEqual(segmentsBox!.height * 1.5)
+    }
 
     const table = page.locator('table')
     const headers = await table.locator('thead th').allTextContents()
@@ -245,17 +255,29 @@ async function waitForScenario(
       'Ce filtre n’est pas inclus dans votre accès actuel.',
     )
 
-    const drawer = page.locator('aside[aria-labelledby]')
-    await expect(drawer).toBeVisible()
-    await expect(drawer.getByRole('heading', { level: 2 })).toHaveText(
-      'Portes intérieures bois du Campus Ost',
-    )
-    await expect(drawer).toContainText('Acheteur')
-    await expect(drawer).toContainText('Ce que le titulaire va devoir faire')
-    await expect(drawer.getByText('Pourquoi ça vous concerne', { exact: true })).toHaveCount(0)
-    await expect(drawer.getByRole('link', { name: /Source : TED 584863-2026/ })).toBeVisible()
+    if (!mobile) {
+      const drawer = page.locator('aside[aria-labelledby]')
+      await expect(drawer).toBeVisible()
+      await expect(drawer.getByRole('heading', { level: 2 })).toHaveText(
+        'Portes intérieures bois du Campus Ost',
+      )
+      await expect(drawer).toContainText('Acheteur')
+      await expect(drawer).toContainText('Ce que le titulaire va devoir faire')
+      await expect(drawer.getByText('Pourquoi ça vous concerne', { exact: true })).toHaveCount(0)
+      await expect(drawer.getByRole('link', { name: /Source : TED 584863-2026/ })).toBeVisible()
+    } else {
+      // La feuille reste fermée : aucun tiroir dans le DOM, le tableau seul
+      // occupe l'écran.
+      await expect(page.locator('[role="dialog"]')).toHaveCount(0)
+    }
 
     await assertNoForbiddenSignalsCopy(page)
+
+    // Aucune des deux largeurs ne doit pousser la page hors du viewport :
+    // le tableau et la barre de segments défilent dans leur propre boîte.
+    expect(await page.evaluate(() => (
+      document.documentElement.scrollWidth - document.documentElement.clientWidth
+    ))).toBeLessThanOrEqual(1)
   }
   if (golden === 'dashboard-companies') {
     const cards = page.locator('.companies-list .company-list-item')
@@ -333,7 +355,14 @@ for (const route of LOCAL_REFERENCE_ROUTES) {
       const failures = observeBrowserFailures(page, route.scenario)
       const calls = await installReferenceApi(page, route.scenario)
       await page.setViewportSize(viewport)
-      await page.goto(route.local)
+      // Le golden `dashboard-signals` mobile garde la feuille FERMÉE (route
+      // sans clé de signal) : ouverte, elle masquerait le tableau dense en
+      // plein écran, qui est précisément ce que ce gabarit doit montrer. Le
+      // golden desktop, lui, conserve le lien profond et son tiroir ouvert.
+      const local = route.golden === 'dashboard-signals' && viewport.name === 'mobile'
+        ? '/app/signals'
+        : route.local
+      await page.goto(local)
       await preparePage(page, route.scenario, route.golden)
       if (route.golden.startsWith('dashboard-')) {
         await normalizeConnectedText(page)

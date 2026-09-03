@@ -1,8 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { MemoryRouter, useNavigationType } from 'react-router-dom'
 import { AppRoutes } from '../App'
 import type { UnlockedFeedItem } from '../api/types'
+import { SessionProvider } from '../auth/SessionProvider'
+import { I18nProvider } from '../i18n'
 import {
   AUTHENTICATED,
   CATALOGUE,
@@ -287,6 +290,39 @@ describe('écran Signaux — pagination et compteur', () => {
     expect(await screen.findByText('3+ signaux')).toBeInTheDocument()
   })
 
+  it('porte le « + » quand seuls les COMPTEURS sont tronqués, même sans page suivante', async () => {
+    // `counts_truncated` dit que le chiffre est un plancher — indépendamment
+    // de `has_more`, qui ne parle que de la pagination des lignes.
+    mockApi(feedWith([item('sig_a'), item('sig_b')], {
+      page: { limit: 20, offset: 0, has_more: false, scan_truncated: false, next_cursor: null },
+      counts_truncated: true,
+    }))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    await table()
+    expect(await screen.findByText('2+ signaux')).toBeInTheDocument()
+  })
+
+  it('sépare le nombre chargé du nombre retenu quand un filtre navigateur est actif', async () => {
+    // Le montant minimum ne touche jamais le serveur : le compteur doit dire
+    // « retenu sur chargé », jamais fusionner les deux populations.
+    mockApi(feedWith([
+      item('sig_a', { name: 'Grand chantier SA', amount: '1240000' }),
+      item('sig_b', { name: 'Petit lot SARL', amount: '90000' }),
+      item('sig_c', { name: 'Moyen lot SARL', amount: '500000' }),
+    ]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const grid = await table()
+    expect(within(grid).getAllByRole('row')).toHaveLength(4)
+    expect(screen.getByText('3 signaux')).toBeInTheDocument()
+
+    await userEvent.type(screen.getByLabelText('Montant minimum'), '100000')
+    await waitFor(() => expect(within(grid).getAllByRole('row')).toHaveLength(3))
+    expect(screen.getByText('2 sur 3 chargés')).toBeInTheDocument()
+    expect(screen.queryByText('2 signaux')).not.toBeInTheDocument()
+  })
+
   it('« Charger plus » enchaîne le curseur et fusionne sans doublon', async () => {
     mockApi({
       ...BASE,
@@ -379,6 +415,38 @@ describe('écran Signaux — tiroir', () => {
 
     await waitFor(() => expect(screen.getByText('Sélectionnez un signal')).toBeInTheDocument())
     expect(screen.getByLabelText('Zone')).toHaveValue('FR-31')
+  })
+
+  it('ouvrir empile une entrée d’historique, fermer la remplace : « Précédent » ne rouvre pas le tiroir', async () => {
+    // `useNavigationType` révèle l'action de la DERNIÈRE navigation du
+    // routeur : PUSH pour l'ouverture (chaque signal mérite sa propre étape
+    // d'historique), REPLACE pour la fermeture (sans quoi « Précédent »
+    // rouvrirait le tiroir qu'on vient de fermer plutôt que de quitter la
+    // page).
+    function NavigationTypeProbe() {
+      return <span data-testid="nav-type">{useNavigationType()}</span>
+    }
+
+    mockApi(feedWith([item(UNLOCKED_ITEM.signal_id)]))
+    render(
+      <MemoryRouter initialEntries={['/app/signals']}>
+        <I18nProvider initialLocale="fr">
+          <SessionProvider initialState={AUTHENTICATED}>
+            <NavigationTypeProbe />
+            <AppRoutes />
+          </SessionProvider>
+        </I18nProvider>
+      </MemoryRouter>,
+    )
+
+    const grid = await table()
+    await userEvent.click(within(grid).getByRole('button', { name: 'Constructions Bertrand SA' }))
+    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    expect(screen.getByTestId('nav-type')).toHaveTextContent('PUSH')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Fermer' }))
+    await waitFor(() => expect(screen.getByText('Sélectionnez un signal')).toBeInTheDocument())
+    expect(screen.getByTestId('nav-type')).toHaveTextContent('REPLACE')
   })
 
   it('Entrée sur le bouton titulaire d’une ligne ouvre son tiroir', async () => {
@@ -495,6 +563,30 @@ describe('écran Signaux — actions', () => {
     expect(screen.queryByRole('button', { name: 'Contacté ✓' })).toBeNull()
     expect(screen.getByRole('button', { name: /Nouveaux\s+4/ })).toBeInTheDocument()
   })
+
+  it('n’inflate pas un compteur déjà à zéro quand l’action échoue', async () => {
+    // Le signal affiché est « Nouveau », mais son compteur est déjà à 0 (un
+    // décalage possible entre une ligne chargée et un instantané de
+    // compteurs). Le décrément optimiste est plafonné à 0 ; le retour en
+    // arrière ne doit PAS réinjecter un point qui n'a jamais été retiré.
+    mockApi({
+      ...feedWith([item(UNLOCKED_ITEM.signal_id)], {
+        counts: { new: 0, saved: 0, contacted: 0, ignored: 0 },
+      }),
+      [`POST /signals/${UNLOCKED_ITEM.signal_id}/contacted`]: { status: 500, body: { detail: 'boom' } },
+    })
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}`,
+    })
+
+    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await userEvent.click(screen.getByRole('button', { name: 'Marquer contacté' }))
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /Nouveaux\s+0/ })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Contactés\s+0/ })).toBeInTheDocument()
+  })
 })
 
 describe('écran Signaux — mobile et copy', () => {
@@ -527,6 +619,11 @@ describe('écran Signaux — mobile et copy', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
     expect(within(screen.getByRole('dialog')).getByRole('heading', { level: 2, name: 'Voirie' }))
       .toBeInTheDocument()
+    // La feuille porte déjà son propre bouton de fermeture : le tiroir ne
+    // doit pas doubler ce contrôle, sous peine de deux « Fermer » pour un
+    // seul geste.
+    expect(within(screen.getByRole('dialog')).getAllByRole('button', { name: 'Fermer' }))
+      .toHaveLength(1)
   })
 
   it('n’emploie aucun mot du copy interdit', async () => {
