@@ -28,8 +28,11 @@ def upgrade() -> None:
             sa.ForeignKey("account.account_id", ondelete="CASCADE"),
             primary_key=True,
         ),
-        # Ce que le mail promettait. Toujours connue au clic.
-        sa.Column("opportunity_key", sa.String(64), nullable=False),
+        # Ce que le mail promettait, quand le résolveur d'attribution a pu
+        # l'attacher au jeton. NULLABLE : cette ligne doit s'écrire même quand
+        # ce n'est pas le cas, car c'est elle — et non `opportunity_key` — qui
+        # sert à reconnaître un rejeu du même jeton (fix revue PR2b tâche 5).
+        sa.Column("opportunity_key", sa.String(64), nullable=True),
         # Connue seulement une fois l'opportunité matérialisée pour un ICP de ce
         # compte. Aucune clé étrangère : un signal peut être rematérialisé ou
         # invalidé, et la promesse faite au prospect lui survit.

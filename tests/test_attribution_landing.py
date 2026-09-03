@@ -24,6 +24,7 @@ from signals.api.routes_auth import SESSION_COOKIE_NAME
 from signals.billing.access import feed_access
 from signals.billing.catalogue import DISCOVERY_GRANT_LIMIT
 from signals.billing.discovery import remaining_slots
+from signals.conversion import source
 from signals.conversion.token import AttributionTokenKeyring
 from signals.engagement.schema import product_event
 from signals.persistence.schema import (
@@ -314,6 +315,78 @@ def test_a_link_issued_before_the_promise_still_lands(tmp_path) -> None:
     assert response.headers["location"] == "/app/signals"
     pin_session_cookie(client, response)
     assert client.get("/me").status_code == 200
+
+
+def _unresolved_token(engine, token, *, monkeypatch):
+    """Un jeton dont `AttributionSourceResolver` n'a PU attacher aucune
+    opportunité — pas un jeton légataire, un jeton émis aujourd'hui pour lequel
+    la résolution a simplement échoué (référence de signal non reconnue,
+    opportunité invalidée entretemps, …). Forcé comme la revue l'a fait :
+    `opportunity_key_of` renvoyé à `None`.
+    """
+    monkeypatch.setattr(source, "opportunity_key_of", lambda signal_ref: None)
+    with engine.connect() as connection:
+        payload = source.AttributionSourceResolver(engine).for_member(
+            connection, token.payload.member_ref
+        )
+    assert payload.opportunity_key is None
+    keyring = AttributionTokenKeyring(
+        current_key_version="attribution-test-v1",
+        keys={
+            "attribution-test-old": b"old-synthetic-attribution-secret",
+            "attribution-test-v1": b"synthetic-attribution-secret",
+        },
+    )
+    return keyring.issue(payload)
+
+
+def test_a_promise_the_resolver_could_not_attach_still_lands_and_replays_the_same_account(
+    tmp_path, monkeypatch
+) -> None:
+    """Finding de revue PR2b tâche 5 : `record_landing_signal` n'écrivait la
+    ligne d'atterrissage QUE si `opportunity_key` était résolue. Un jeton dont
+    la résolution échoue reste pourtant parfaitement valide (ni falsifié, ni
+    périmé) — son REJEU doit donc retrouver le même compte, pas tomber sur le
+    garde-fou d'identité déjà utilisée faute de ligne à rejoindre.
+    """
+    engine, service, token, _ = prepared(tmp_path)
+    unresolved = _unresolved_token(engine, token, monkeypatch=monkeypatch)
+
+    first = client_for(engine, service, now=CLICKED_AT)
+    first_response = land(first, unresolved.raw_token)
+    assert first_response.status_code == 303
+    assert first_response.headers["location"] == "/app/signals"
+    pin_session_cookie(first, first_response)
+    first_account_id = first.get("/me").json()["account_id"]
+
+    with engine.connect() as connection:
+        promise = connection.execute(
+            sa.select(account_landing_signal).where(
+                account_landing_signal.c.account_id == first_account_id
+            )
+        ).mappings().one()
+    assert promise["opportunity_key"] is None
+    assert promise["signal_key"] is None
+
+    second = client_for(engine, service, now=CLICKED_AT + dt.timedelta(days=2))
+    replayed = land(second, unresolved.raw_token)
+
+    assert replayed.status_code == 303
+    assert replayed.headers["location"] == "/app/signals"
+    pin_session_cookie(second, replayed)
+    me = second.get("/me")
+    assert me.status_code == 200
+    assert me.json()["account_id"] == first_account_id
+
+    with engine.connect() as connection:
+        accounts_created = connection.execute(
+            sa.select(sa.func.count()).select_from(account)
+        ).scalar_one()
+        landings = connection.execute(
+            sa.select(sa.func.count()).select_from(account_landing_signal)
+        ).scalar_one()
+    assert accounts_created == 1
+    assert landings == 1
 
 
 def test_the_landing_still_carries_the_attribution_cookie_for_a_real_signup(tmp_path) -> None:

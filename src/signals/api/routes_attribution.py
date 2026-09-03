@@ -181,18 +181,24 @@ def _land(
             now=now,
         )
 
+    # Écrite pour CHAQUE atterrissage, opportunité résolue ou non : c'est cette
+    # ligne — pas `opportunity_key` — que `landed_account_in_transaction`
+    # utilise pour reconnaître un rejeu du même jeton. Ne l'écrire que dans le
+    # cas résolu ferait manquer cette reconnaissance sur un jeton par ailleurs
+    # parfaitement valide, et le rejeu retomberait sur le garde-fou d'identité
+    # déjà utilisée (revue PR2b tâche 5).
     signal_key: str | None = None
     if payload.opportunity_key is not None:
         signal_key = accounts.resolve_landing_signal_key(
             connection, account_id=account_id, opportunity_key=payload.opportunity_key
         )
-        accounts.record_landing_signal(
-            connection,
-            account_id=account_id,
-            opportunity_key=payload.opportunity_key,
-            signal_key=signal_key,
-            now=now,
-        )
+    accounts.record_landing_signal(
+        connection,
+        account_id=account_id,
+        opportunity_key=payload.opportunity_key,
+        signal_key=signal_key,
+        now=now,
+    )
 
     analytics.record(
         connection,

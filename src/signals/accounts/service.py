@@ -787,7 +787,10 @@ class LandingSignal:
     """Ce que le mail promettait à ce compte, et ce qu'on a pu en retrouver."""
 
     account_id: str
-    opportunity_key: str
+    #: Peut être absente : un jeton dont le résolveur d'attribution n'a rien pu
+    #: attacher doit quand même produire cette ligne, seule pièce qui permet à
+    #: `landed_account_in_transaction` de reconnaître un rejeu du même jeton.
+    opportunity_key: str | None
     signal_key: str | None
     created_at: dt.datetime
 
@@ -824,11 +827,18 @@ def record_landing_signal(
     connection: sa.Connection,
     *,
     account_id: str,
-    opportunity_key: str,
+    opportunity_key: str | None,
     signal_key: str | None,
     now: dt.datetime,
 ) -> LandingSignal:
     """Enregistre — ou complète — la promesse faite au prospect.
+
+    Écrit INCONDITIONNELLEMENT, même quand `opportunity_key` est inconnue : ce
+    n'est pas ce champ qui rend un rejeu reconnaissable, c'est l'EXISTENCE de
+    cette ligne pour ce compte (`landed_account_in_transaction` la rejoint sur
+    `account_id`, pas sur `opportunity_key`). Ne pas l'écrire quand
+    l'opportunité n'a pas pu être résolue ferait manquer la reconnaissance du
+    rejeu, alors que le jeton, lui, reste parfaitement valide.
 
     Un second clic ne recrée rien : il peut en revanche RENSEIGNER la clé de
     signal, parce qu'entre-temps le profil du client a pu devenir actif et
