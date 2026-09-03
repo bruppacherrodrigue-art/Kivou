@@ -1,0 +1,359 @@
+/* Les styles des quatre composants de l'écran « Signaux ».
+ *
+ * Rien ici n'invente une couleur ni une graisse : tout vient des tokens de
+ * `dashboard-reference.css`. La largeur du tiroir et sa position collante
+ * appartiennent à la PAGE, pas au composant : un tiroir qui décide de sa place
+ * ne peut plus devenir une feuille plein écran sur mobile.
+ */
+
+/* ── Pastille de statut ─────────────────────────────────────────────────── */
+
+.statusPill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  white-space: nowrap;
+  padding: 3px 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+
+.statusPill[data-status='new'] {
+  border-color: var(--brand-border);
+  background: var(--card-green);
+  color: var(--green);
+}
+
+.statusPill[data-status='saved'] {
+  border-color: var(--blue-border);
+  background: var(--blue-soft);
+  color: var(--blue);
+}
+
+.statusPill[data-status='contacted'] {
+  border-color: var(--green);
+  background: var(--forest);
+  color: var(--mint);
+}
+
+.statusPill[data-status='ignored'] {
+  background: var(--surface-subtle);
+}
+
+/* ── Points de correspondance ───────────────────────────────────────────── */
+
+.matchDots {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  line-height: 1;
+}
+
+.matchDots i {
+  display: block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--line);
+}
+
+.matchDots i[data-dot='filled'] {
+  background: var(--green);
+}
+
+/* Une correspondance DÉDUITE du seul libellé de fit ne se donne pas les
+ * couleurs d'une correspondance mesurée. */
+.matchDots[data-derived='true'] i[data-dot='filled'] {
+  background: var(--mint);
+}
+
+/* ── Ligne du tableau ───────────────────────────────────────────────────── */
+
+.row {
+  cursor: pointer;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 13px;
+  transition: background-color 120ms ease;
+}
+
+.row:hover {
+  background: var(--surface-subtle);
+}
+
+.row[aria-current='true'] {
+  background: var(--card-green);
+}
+
+.row td {
+  padding: 9px 10px;
+  vertical-align: middle;
+}
+
+.cellDate {
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.cellWinner {
+  display: table-cell;
+  max-width: 200px;
+}
+
+.winnerButton {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.winnerButton:hover,
+.winnerButton:focus-visible {
+  color: var(--green);
+  text-decoration: underline;
+}
+
+.consortium {
+  margin-left: 6px;
+  padding: 2px 6px;
+  border: 1px solid var(--card-border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--green);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.cellObject {
+  max-width: 420px;
+  color: var(--ink);
+}
+
+.cellAmount {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.cellPlace {
+  white-space: nowrap;
+  color: var(--text-muted);
+}
+
+.cellMatch {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* ── Tiroir ─────────────────────────────────────────────────────────────── */
+
+.drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-card);
+}
+
+.drawerHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.drawerHead .matchDots {
+  margin-left: auto;
+}
+
+.drawerClose {
+  padding: 4px 8px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.drawerClose:hover {
+  border-color: var(--brand-border);
+  color: var(--green);
+}
+
+.drawerTitle {
+  margin: 0;
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 730;
+  line-height: 1.3;
+}
+
+.drawerObject {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.drawerEmpty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.drawerNotice {
+  display: grid;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.drawerNotice p {
+  margin: 0;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: minmax(72px, auto) 1fr;
+  gap: 6px 12px;
+  margin: 2px 0 0;
+  font-size: 13px;
+}
+
+.facts dt {
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 680;
+}
+
+.facts dd {
+  margin: 0;
+  color: var(--ink);
+  overflow-wrap: break-word;
+}
+
+.factLink {
+  color: var(--green);
+  font-weight: 680;
+  text-decoration: none;
+}
+
+.factLink:hover {
+  text-decoration: underline;
+}
+
+.why {
+  padding: 10px 12px;
+  border: 1px solid var(--brand-border);
+  border-radius: 10px;
+  background: var(--green-state);
+}
+
+.why h3 {
+  margin: 0 0 6px;
+}
+
+.why ul {
+  margin: 0;
+  padding-left: 16px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.action,
+.actionPrimary,
+.actionState {
+  min-height: 32px;
+  padding: 7px 12px;
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 680;
+  cursor: pointer;
+}
+
+.action:hover:not(:disabled),
+.actionPrimary:hover:not(:disabled) {
+  border-color: var(--brand-border);
+}
+
+.actionPrimary {
+  border-color: var(--forest);
+  background: var(--forest);
+  color: #ffffff;
+}
+
+.actionState {
+  background: var(--card-green);
+  border-color: var(--brand-border);
+  color: var(--green);
+}
+
+.action:disabled,
+.actionPrimary:disabled,
+.actionState:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.source {
+  margin: 0;
+  align-self: flex-start;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+a.source {
+  color: var(--blue);
+}
+
+/* ── Squelette de chargement ────────────────────────────────────────────── */
+
+.skeleton {
+  display: grid;
+  gap: 8px;
+}
+
+.skeletonLine {
+  display: block;
+  height: 12px;
+  border-radius: 6px;
+  background: var(--surface-subtle);
+}
+
+.skeletonLine:nth-child(2) {
+  width: 80%;
+}
+
+.skeletonLine:nth-child(3) {
+  width: 60%;
+}
