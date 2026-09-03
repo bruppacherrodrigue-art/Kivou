@@ -1,5 +1,6 @@
 import { spawn, execFileSync } from 'node:child_process'
 import {
+  copyFileSync,
   mkdirSync,
   existsSync,
   readFileSync,
@@ -43,6 +44,16 @@ const expectedGoldens = [
   'public-menu-open-mobile.png',
   'dashboard-sidebar-open-mobile.png',
 ].sort()
+
+/* Goldens présents dans `tests/visual/reference-goldens` mais que CE script
+ * ne produit plus (F3) : ils viennent de `reference-port.spec.ts`, capturés
+ * depuis l'application elle-même plutôt que depuis la maquette de référence.
+ * Le remplacement final (`renameSync(output, finalOutput)`) ne doit pas les
+ * effacer sous prétexte que cette capture ne les régénère pas : on les
+ * recopie de l'ancien dossier final vers le nouveau avant de basculer, et la
+ * vérification de cohérence les tolère comme « présents mais non capturés »
+ * par ce run. */
+const APP_SOURCED_GOLDENS = ['dashboard-signals-desktop.png', 'dashboard-signals-mobile.png']
 
 function addWorktree(source, name) {
   if (!temporaryRoot) throw new Error('temporary root is not initialized')
@@ -338,6 +349,32 @@ async function main() {
           + '\nactual: ' + actualGoldens.join(', '),
       )
     }
+
+    // Reporte les goldens applicatifs (F3) du dossier final ACTUEL vers le
+    // nouveau, avant toute bascule : sans ça, `renameSync(output, finalOutput)`
+    // remplacerait le dossier final entier et effacerait silencieusement
+    // `dashboard-signals-{desktop,mobile}.png`, que ce script ne capture
+    // plus (ils viennent de `reference-port.spec.ts`, depuis l'application).
+    for (const name of APP_SOURCED_GOLDENS) {
+      const source = join(finalOutput, name)
+      if (existsSync(source)) copyFileSync(source, join(output, name))
+    }
+
+    // Vérifie le dossier qui va DEVENIR le dossier final, AVANT de toucher au
+    // dossier final actuel : les goldens applicatifs sont acceptés comme
+    // « présents mais non capturés » par ce run, mais leur absence ici
+    // (report manqué, tout premier bootstrap sans eux) doit arrêter la
+    // bascule plutôt que produire un dossier final incomplet en silence —
+    // et le fait à un moment où `finalOutput` n'a pas encore bougé.
+    const finalGoldens = readdirSync(output).sort()
+    const expectedFinalGoldens = [...expectedGoldens, ...APP_SOURCED_GOLDENS].sort()
+    if (JSON.stringify(finalGoldens) !== JSON.stringify(expectedFinalGoldens)) {
+      throw new Error(
+        'reference golden set mismatch after preserving app-sourced goldens\nexpected: '
+          + expectedFinalGoldens.join(', ') + '\nactual: ' + finalGoldens.join(', '),
+      )
+    }
+
     const previousOutput = resolve('tests/visual/.reference-goldens-previous-' + process.pid)
     rmSync(previousOutput, { recursive: true, force: true })
     if (existsSync(finalOutput)) renameSync(finalOutput, previousOutput)
