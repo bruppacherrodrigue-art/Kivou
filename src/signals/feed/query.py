@@ -400,6 +400,17 @@ def feed_page(
     status_of: Callable[[str], str] | None = None,
     #: `None` = pas de filtre de statut ; sinon les statuts admis dans la page.
     statuses: frozenset[str] | None = None,
+    #: Fix round 1 (C1/I1) — le droit du PLAN, appliqué APRÈS la propriété et la
+    #: fraîcheur, AVANT `status_counts` et le filtre de statut : un compte non
+    #: payant sans déblocage Discovery ne doit voir ni item, ni compte, ni carte
+    #: pour un signal que `access.is_unlocked` refuse. `None` = aucune
+    #: restriction (usage interne uniquement — aucune route publique ne doit
+    #: omettre ce paramètre).
+    admit: Callable[[FeedSignal], bool] | None = None,
+    #: Fix round 1 (I2) — présélection par date de PARUTION, dans la MÊME portée
+    #: que le feed (propriété, identité affichable, droit du plan). `None` =
+    #: aucune borne. Un signal sans `published_on` n'y répond jamais.
+    published_since: dt.date | None = None,
 ) -> FeedPage:
     """Une page du feed de CE compte, à CETTE date.
 
@@ -508,6 +519,20 @@ def feed_page(
             item for item in selected if policy.customer_event_type(item.status) == primary_event
         ]
     dropped = len(displayable) - len(selected)
+
+    # Fix round 1 (C1/I1/I2) — droit du plan puis fenêtre de parution, APRÈS la
+    # fraîcheur et AVANT `status_counts` : ni les compteurs, ni la page, ni le
+    # filtre de statut (`?status=`) ne doivent jamais voir un item que le plan
+    # refuse ou qu'une fenêtre de lecture exclut.
+    if admit is not None:
+        selected = [item for item in selected if admit(item)]
+    if published_since is not None:
+        selected = [
+            item
+            for item in selected
+            if item.signal.event.published_on is not None
+            and item.signal.event.published_on >= published_since
+        ]
 
     resolver = status_of or (lambda _signal_key: "new")
     status_counts = {status: 0 for status in UNIFIED_STATUSES}

@@ -323,12 +323,10 @@ def read_last_seen_at(connection: sa.Connection, *, account_id: str) -> dt.datet
     Lu AVANT toute mise à jour par l'appelant : c'est ce qui distingue « ce que
     le client voyait à sa dernière visite » de « ce qu'il voit maintenant ».
     """
-    from signals.billing.service import aware_datetime
-
     row = connection.execute(
         sa.select(account_visit.c.last_seen_at).where(account_visit.c.account_id == account_id)
     ).first()
-    return None if row is None else aware_datetime(row.last_seen_at)
+    return None if row is None else _aware(row.last_seen_at)
 
 
 def touch_last_seen_at(connection: sa.Connection, *, account_id: str, now: dt.datetime) -> None:

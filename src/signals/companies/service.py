@@ -374,6 +374,39 @@ def company_profile_with_items(
     return profile, [match.item for match in accessible]
 
 
+def accessible_company_items(
+    connection: sa.Connection,
+    *,
+    company_key: str,
+    account_id: str,
+    as_of: dt.date,
+    allowed_target_icp_ids: frozenset[str],
+    access: FeedAccess,
+) -> list[feed_query.FeedSignal] | None:
+    """The company's accessible items, without building its `CompanyProfile`.
+
+    Fix round 1 (dashboard follow-ups) — a caller that only needs the
+    company's most recent signal has no use for the official identity, the
+    rendered `related_signals`, or the coverage flags that
+    `company_profile_with_items` builds from the SAME scan: computing them for
+    nothing would waste a lookup per company on the follow-up list.
+    """
+    stored = get_company_by_key(connection, company_key=company_key)
+    if stored is None:
+        return None
+    accessible, official_identity, _complete = _accessible_matching_items(
+        connection,
+        stored=stored,
+        account_id=account_id,
+        as_of=as_of,
+        allowed_target_icp_ids=allowed_target_icp_ids,
+        access=access,
+    )
+    if not accessible or official_identity is None:
+        return None
+    return [match.item for match in accessible]
+
+
 def company_profile_for_account(
     connection: sa.Connection,
     *,

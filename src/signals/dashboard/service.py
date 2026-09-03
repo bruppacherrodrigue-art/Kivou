@@ -11,6 +11,17 @@ semaine — ce module ne fait que les assembler à une seule date de lecture.
     `build_dashboard`, et ne le met à jour qu'APRÈS. Le mélanger aux deux
     rendrait un compte incapable de savoir ce qu'il vient de voir : la
     fonction ne modifie jamais la visite, elle la reçoit toute faite.
+
+    Fix round 1 (C1/I1) — le droit du plan n'est jamais optionnel
+    ───────────────────────────────────────────────────────────────
+    `feed_page` sait désormais filtrer par `admit` (le prédicat du plan,
+    typiquement `access.is_unlocked`) et par `published_since`. CE module
+    l'utilise pour LES QUATRE agrégats qui lisent le feed
+    (`new_since_last_visit`, `strong_matches`, `top3`, `week.new`) : un compte
+    non payant sans déblocage Discovery ne doit jamais recevoir une carte
+    complète — nom du vainqueur, montant, analyse, présentation — pour un
+    signal qu'il n'a pas le droit de voir. Le premier tour de revue avait
+    laissé passer exactement ce contournement.
 """
 
 from __future__ import annotations
@@ -26,24 +37,17 @@ from signals.billing.access import FeedAccess
 from signals.card_intelligence.store import published_for_signals
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.listing import list_companies
-from signals.companies.service import company_keys_for_signals, company_profile_with_items
+from signals.companies.service import accessible_company_items, company_keys_for_signals
 from signals.engagement.feedback import feedback_by_signal
 from signals.engagement.schema import company_contact, signal_feedback
 from signals.engagement.status import status_resolver
 from signals.feed import policy
 from signals.feed import query as feed_query
-from signals.feed.history import effective_history_date
-from signals.feed.query import FEEDING_ICP_STATUS, FeedSignal, _ownership_scoped, owned_target_icps
-from signals.persistence.repository import signal_from_row
-from signals.persistence.schema import materialized_signal, source_event
-
-_WEEK_SCAN_BATCH = 250
-_WEEK_SCAN_CAP = feed_query.HISTORY_SCAN_CAP
+from signals.feed.history import effective_history_date, history_sort_key
+from signals.feed.query import FeedSignal
 
 #: Meilleur `icp_match_band` d'abord. `None`/inconnu ne prétend à rien (§5).
 _BAND_RANK: dict[str, int] = {"strong": 3, "promising": 2, "weak": 1}
-
-_FOLLOW_UP_LIMIT = 50
 
 
 def _band_rank(band: str | None) -> int:
@@ -56,17 +60,9 @@ def _top3_sort_key(item: FeedSignal) -> tuple[int, int, int]:
     score = item.signal.icp_match_normalized_score
     return (
         _band_rank(item.signal.icp_match_band),
-        score or -1,
+        -1 if score is None else score,
         date.toordinal() if date is not None else -1,
     )
-
-
-def _history_sort_key(item: FeedSignal) -> tuple[int, int]:
-    """Le signal le plus récent d'une entreprise, date effective décroissante."""
-    date, _kind = effective_history_date(item.signal)
-    if date is None:
-        return (1, 0)
-    return (0, -date.toordinal())
 
 
 def _render_items(
@@ -82,6 +78,9 @@ def _render_items(
 
     Partagé par `top3` et `to_follow_up` : deux surfaces qui montrent la MÊME
     carte qu'un signal débloqué ne doivent jamais en dériver (`api/cards.py`).
+    Chaque `item` fourni ici DOIT déjà avoir passé `access.is_unlocked` — cette
+    fonction ne le vérifie pas une seconde fois, elle fait confiance à
+    l'appelant (§C1 : la garde est dans `feed_page`, pas ici).
     """
     if not items:
         return {}
@@ -105,74 +104,6 @@ def _render_items(
         )
         for item in items
     }
-
-
-def _week_new_count(
-    connection: sa.Connection,
-    *,
-    account_id: str,
-    as_of: dt.date,
-    allowed_target_icp_ids: frozenset[str] | None,
-    access: FeedAccess,
-) -> int:
-    """Signaux accessibles publiés dans `[as_of - 7j, as_of]`, quel que soit leur statut.
-
-    Écrit en SQL direct plutôt que via `feed_page` : le mode de fraîcheur par
-    défaut n'admet que les statuts « nouveauté », et `week.new` doit compter
-    toute publication récente, y compris un signal déjà vieilli par ailleurs.
-    """
-    owned = owned_target_icps(connection, account_id=account_id)
-    if not any(profile.status == FEEDING_ICP_STATUS for profile in owned.values()):
-        return 0
-    if allowed_target_icp_ids is not None and not allowed_target_icp_ids:
-        return 0
-
-    floor = as_of - dt.timedelta(days=7)
-    query = _ownership_scoped(account_id).where(
-        source_event.c.published_on >= floor,
-        source_event.c.published_on <= as_of,
-    )
-    if allowed_target_icp_ids is not None:
-        query = query.where(materialized_signal.c.target_icp_id.in_(sorted(allowed_target_icp_ids)))
-
-    count = 0
-    scanned = 0
-    last_at: dt.datetime | None = None
-    last_key: str | None = None
-    while scanned < _WEEK_SCAN_CAP:
-        batch_query = query
-        if last_key is not None:
-            batch_query = batch_query.where(
-                sa.or_(
-                    materialized_signal.c.materialized_at < last_at,
-                    sa.and_(
-                        materialized_signal.c.materialized_at == last_at,
-                        materialized_signal.c.signal_key > last_key,
-                    ),
-                )
-            )
-        batch_limit = min(_WEEK_SCAN_BATCH, _WEEK_SCAN_CAP - scanned)
-        rows = connection.execute(batch_query.limit(batch_limit)).all()
-        if not rows:
-            break
-        last_row = rows[-1]
-        last_at = last_row.materialized_at
-        last_key = last_row.signal_key
-        scanned += len(rows)
-        for row in rows:
-            signal = signal_from_row(row)
-            profile = owned[signal.target_icp_id]
-            item = FeedSignal(
-                signal=signal,
-                recency=signal.current_recency(as_of=as_of),
-                account_id=account_id,
-                target_icp_label=profile.label,
-            )
-            if access.is_unlocked(item):
-                count += 1
-        if len(rows) < batch_limit:
-            break
-    return count
 
 
 def _week_activity_counts(
@@ -218,13 +149,24 @@ def _to_follow_up(
     *,
     account_id: str,
     as_of: dt.date,
-    allowed_target_icp_ids: frozenset[str] | None,
+    allowed_target_icp_ids: frozenset[str],
     access: FeedAccess,
     now: dt.datetime,
     lang: str,
     resolve_status: Callable[[str], str],
-) -> list[dict[str, Any]]:
-    """Entreprises `contacted` depuis au moins 7 jours, la plus ancienne relance d'abord."""
+) -> tuple[list[dict[str, Any]], bool]:
+    """Entreprises `contacted` depuis au moins 7 jours, la plus ancienne relance d'abord.
+
+    Fix round 1 (I3) — le filtre `contacted_before` est appliqué DANS
+    `list_companies`, avant le tri et la pagination : la liste ne pioche plus
+    dans les 50 entreprises les plus récemment récompensées pour les filtrer
+    ensuite, ce qui aurait pu faire disparaître une relance légitime derrière
+    une entreprise plus « fraîche » mais pas encore due. `limit` est porté à
+    `HISTORY_SCAN_CAP` (pas de plafond à 50 ici — c'est la route `GET
+    /companies`, pas cette fonction, qui impose `le=50`).
+
+    Rend aussi `scan_truncated`, à fondre dans celui du tableau de bord.
+    """
     page = list_companies(
         connection,
         account_id=account_id,
@@ -232,33 +174,28 @@ def _to_follow_up(
         allowed_target_icp_ids=allowed_target_icp_ids,
         access=access,
         contact_statuses=frozenset({"contacted"}),
+        contacted_before=now - dt.timedelta(days=7),
         query=None,
-        limit=_FOLLOW_UP_LIMIT,
+        limit=feed_query.HISTORY_SCAN_CAP,
         cursor=None,
     )
-    cutoff = now - dt.timedelta(days=7)
-    due_rows = sorted(
-        (row for row in page.rows if row.contacted_at is not None and row.contacted_at <= cutoff),
-        key=lambda row: row.contacted_at,
-    )
+    due_rows = sorted(page.rows, key=lambda row: row.contacted_at)
 
     last_item_by_company: dict[str, FeedSignal] = {}
     for row in due_rows:
-        result = company_profile_with_items(
+        items = accessible_company_items(
             connection,
             company_key=row.company_key,
             account_id=account_id,
             as_of=as_of,
             allowed_target_icp_ids=allowed_target_icp_ids,
             access=access,
-            lang=lang,
         )
-        if result is None:
-            continue
-        _profile, items = result
         if not items:
             continue
-        last_item_by_company[row.company_key] = min(items, key=_history_sort_key)
+        last_item_by_company[row.company_key] = min(
+            items, key=lambda item: history_sort_key(item.signal)
+        )
 
     signal_company_key = {
         item.signal.signal_key: company_key for company_key, item in last_item_by_company.items()
@@ -285,7 +222,7 @@ def _to_follow_up(
                 "days_since_contact": (now - row.contacted_at).days,
             }
         )
-    return results
+    return results, page.scan_truncated
 
 
 def build_dashboard(
@@ -294,7 +231,7 @@ def build_dashboard(
     account_id: str,
     now: dt.datetime,
     as_of: dt.date,
-    allowed_target_icp_ids: frozenset[str] | None,
+    allowed_target_icp_ids: frozenset[str],
     access: FeedAccess,
     lang: str,
     previous_seen: dt.datetime | None,
@@ -304,9 +241,21 @@ def build_dashboard(
     N'écrit rien : ni `account_visit`, ni aucune autre table. C'est le seul
     moyen de rendre la fonction testable sans exiger une transaction, et
     d'empêcher que la lecture même du tableau de bord modifie ce qu'elle lit.
+
+    `new_since_last_visit` compte les signaux dont `published_on >=
+    previous_seen.date()` (borne INCLUSIVE — fix round 1, I4) : une parution du
+    même jour qu'une visite passée n'est jamais perdue, quitte à être comptée
+    deux fois si le client revient plusieurs fois le même jour, ce qui est
+    accepté plutôt que de risquer l'inverse. Un signal sans `published_on`
+    n'est compté que quand `previous_seen is None` (compte jamais vu — tout y
+    compte, faute d'une date de visite à comparer).
     """
     resolve_status = status_resolver(feedback_by_signal(connection, account_id=account_id))
 
+    # Fix round 1 (C1/I1) — UNE portée, pour `new_since_last_visit`,
+    # `strong_matches` ET `top3` : possédé + autorisé par le plan de territoire
+    # + nommé + DÉBLOQUÉ (`admit=access.is_unlocked`). Un signal qu'un compte
+    # Discovery ou impayé n'a pas débloqué n'apparaît dans AUCUN des trois.
     scope = feed_query.feed_page(
         connection,
         account_id=account_id,
@@ -317,6 +266,7 @@ def build_dashboard(
         offset=0,
         status_of=resolve_status,
         statuses=frozenset({"new"}),
+        admit=access.is_unlocked,
     )
 
     if previous_seen is None:
@@ -327,7 +277,7 @@ def build_dashboard(
             item
             for item in scope.items
             if item.signal.event.published_on is not None
-            and item.signal.event.published_on > cutoff_date
+            and item.signal.event.published_on >= cutoff_date
         ]
 
     new_since_last_visit = len(since_visit)
@@ -347,7 +297,7 @@ def build_dashboard(
     )
     top3 = [top3_cards[item.signal.signal_key] for item in top3_items]
 
-    to_follow_up = _to_follow_up(
+    to_follow_up, follow_up_truncated = _to_follow_up(
         connection,
         account_id=account_id,
         as_of=as_of,
@@ -358,14 +308,27 @@ def build_dashboard(
         resolve_status=resolve_status,
     )
 
+    # Fix round 1 (I2) — `week.new` réutilise `feed_page`, PAS un décompte SQL
+    # séparé : la même portée (propriété, identité affichable, droit du plan)
+    # doit gouverner ce nombre. `freshness="all"` lève le filtre de fraîcheur
+    # (un `aging_award`/`stale_award` publié dans la fenêtre compte quand même,
+    # « quel que soit son statut ») ; `published_since` pose la fenêtre des 7
+    # jours ; `limit=1` suffit — les compteurs portent sur `selected`, jamais
+    # sur la page rendue.
+    week_page = feed_query.feed_page(
+        connection,
+        account_id=account_id,
+        as_of=as_of,
+        freshness="all",
+        allowed_target_icp_ids=allowed_target_icp_ids,
+        limit=1,
+        offset=0,
+        status_of=resolve_status,
+        admit=access.is_unlocked,
+        published_since=as_of - dt.timedelta(days=7),
+    )
     week = {
-        "new": _week_new_count(
-            connection,
-            account_id=account_id,
-            as_of=as_of,
-            allowed_target_icp_ids=allowed_target_icp_ids,
-            access=access,
-        ),
+        "new": sum(week_page.status_counts.values()),
         **_week_activity_counts(connection, account_id=account_id, now=now),
     }
 
@@ -377,7 +340,9 @@ def build_dashboard(
         "top3": top3,
         "to_follow_up": to_follow_up,
         "week": week,
-        "scan_truncated": scope.scan_truncated,
+        "scan_truncated": (
+            scope.scan_truncated or week_page.counts_truncated or follow_up_truncated
+        ),
     }
 
 

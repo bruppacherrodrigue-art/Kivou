@@ -263,6 +263,11 @@ def list_companies(
     allowed_target_icp_ids: frozenset[str] | None,
     access: FeedAccess,
     contact_statuses: frozenset[str] | None,
+    #: Fix round 1 (I3) — filtre AVANT le tri/la pagination, comme
+    #: `contact_statuses` : une entreprise sans `contacted_at`, ou contactée
+    #: APRÈS cette date, n'est jamais candidate — ce n'est pas une page qui
+    #: manquerait de place pour elle.
+    contacted_before: dt.datetime | None,
     query: str | None,
     limit: int,
     cursor: str | None,
@@ -329,6 +334,10 @@ def list_companies(
         rows = [row for row in rows if needle in _normalize_text(row.name)]
     if contact_statuses is not None:
         rows = [row for row in rows if row.contact_status in contact_statuses]
+    if contacted_before is not None:
+        rows = [
+            row for row in rows if row.contacted_at is not None and row.contacted_at <= contacted_before
+        ]
 
     rows.sort(key=_sort_key)
 

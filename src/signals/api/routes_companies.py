@@ -24,7 +24,7 @@ from signals.engagement import feedback
 from signals.engagement.schema import COMPANY_CONTACT_STATUSES, MAXIMUM_COMPANY_NOTE_LENGTH
 from signals.engagement.status import status_resolver
 from signals.feed import query as feed_query
-from signals.feed.history import effective_history_date
+from signals.feed.history import history_sort_key
 
 router = APIRouter()
 
@@ -91,14 +91,6 @@ def _accessible_company(
     return profile, items, access, lang
 
 
-def _history_sort_key(item: feed_query.FeedSignal) -> tuple[int, int]:
-    """Effective history date, most recent first, undated signals last."""
-    date, _kind = effective_history_date(item.signal)
-    if date is None:
-        return (1, 0)
-    return (0, -date.toordinal())
-
-
 def _company_signals(
     connection,
     *,
@@ -113,7 +105,7 @@ def _company_signals(
     resolve_status = status_resolver(
         feedback.feedback_by_signal(connection, account_id=account_id)
     )
-    ordered = sorted(items, key=_history_sort_key)
+    ordered = sorted(items, key=lambda item: history_sort_key(item.signal))
     signal_keys = tuple(item.signal.signal_key for item in ordered)
     presentation_bindings = presentation_bindings_for_items(connection, ordered)
     presentations = published_for_signals(
@@ -183,6 +175,7 @@ def list_companies_route(
                 allowed_target_icp_ids=allowed,
                 access=access,
                 contact_statuses=statuses,
+                contacted_before=None,
                 query=q,
                 limit=limit,
                 cursor=cursor,

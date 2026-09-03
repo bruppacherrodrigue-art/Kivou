@@ -720,7 +720,7 @@ def test_nginx_serves_exact_billing_alias_without_shadowing_billing_api(
     assert (
         "location ~ "
         "^/(auth|me|target-icps|signals|companies|billing|"
-        "notification-preferences)(/|$) {"
+        "notification-preferences|dashboard)(/|$) {"
     ) in body
 
 

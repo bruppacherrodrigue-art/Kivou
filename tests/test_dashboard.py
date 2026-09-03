@@ -26,6 +26,8 @@ import pathlib
 import pytest
 import sqlalchemy as sa
 from billing_helpers import subscribe
+from engagement_helpers import NOW as HELPERS_NOW
+from engagement_helpers import icp_of, make_app, make_engine, seed, signed_up
 from fastapi.testclient import TestClient
 from feed_helpers import (
     COMPLETE_ICP_INPUT,
@@ -35,6 +37,7 @@ from feed_helpers import (
     pin_session_cookie,
 )
 
+from signals.accounts import service as accounts_service
 from signals.api import ApiConfig, create_app
 from signals.companies.enrichment import run_winner_enrichment_batch
 from signals.persistence.database import create_database_engine, migrate_to_latest
@@ -282,3 +285,53 @@ def test_fresh_account_without_any_signal_sees_an_empty_dashboard(app):
     assert payload["to_follow_up"] == []
     assert payload["week"] == {"new": 0, "saved": 0, "contacted": 0, "replied": 0}
     assert payload["scan_truncated"] is False
+
+
+def test_new_since_last_visit_includes_a_signal_published_the_same_day_as_the_visit(
+    client, engine
+):
+    """Fix round 1 (I4) — la borne est INCLUSIVE : `published_on >= previous_seen.date()`.
+
+    Une visite le jour J et une parution le MÊME jour J ne doivent pas se
+    perdre l'une l'autre : la parution compte à la visite SUIVANTE, quitte à
+    être comptée deux fois si le client revient plusieurs fois le même jour —
+    ce qui est accepté (voir le docstring de `build_dashboard`).
+    """
+    keys = _seed_new_signals(client, engine)  # publiés le 2026-08-14
+    account_id = client.get("/me").json()["account_id"]
+    visit_on_publication_day = dt.datetime(2026, 8, 14, 18, 0, tzinfo=dt.UTC)
+    with engine.begin() as connection:
+        accounts_service.touch_last_seen_at(
+            connection, account_id=account_id, now=visit_on_publication_day
+        )
+
+    payload = _dashboard(client)
+
+    assert dt.datetime.fromisoformat(payload["last_seen_at"]) == visit_on_publication_day
+    assert payload["new_since_last_visit"] == len(keys)
+
+
+def test_unpaid_account_without_discovery_grants_sees_no_signal_on_the_dashboard(tmp_path):
+    """Fix round 1 (C1, contournement du mur payant) — `admit=access.is_unlocked`.
+
+    Un compte fraîchement inscrit, sans abonnement et sans avoir jamais appelé
+    `GET /signals` (donc sans le moindre déblocage Discovery consommé), ne
+    doit recevoir NI carte complète NI décompte pour un signal qu'il n'a pas
+    le droit de voir — avant le correctif, `top3`/`new_since_last_visit`/
+    `strong_matches`/`week.new` lisaient `feed_page` sans jamais consulter
+    `access.is_unlocked`.
+    """
+    engine = make_engine(tmp_path)
+    app = make_app(engine, lambda: HELPERS_NOW)
+    client = signed_up(app)
+    icp = icp_of(client)
+    seed(engine, icp, count=3)
+
+    response = client.get("/dashboard")
+    assert response.status_code == 200, response.text
+    payload = response.json()
+
+    assert payload["top3"] == []
+    assert payload["new_since_last_visit"] == 0
+    assert payload["strong_matches"] == 0
+    assert payload["week"]["new"] == 0
