@@ -36,6 +36,7 @@ PUBLIC_ASGI_ROUTES = frozenset(
         ("GET", "/notification-preferences"),
         ("PATCH", "/notification-preferences"),
         ("GET", "/signals"),
+        ("GET", "/signals/filters"),
         ("GET", "/signals/{signal_key}"),
         ("GET", "/signals/{signal_key}/feedback"),
         ("GET", "/signals/{signal_key}/note"),

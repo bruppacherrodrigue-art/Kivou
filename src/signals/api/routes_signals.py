@@ -68,6 +68,7 @@ from signals.engagement.status import (
     unified_status,
 )
 from signals.feed import policy, query, view
+from signals.feed.filters import available_filters
 from signals.feed.history import InvalidHistoryCursor
 from signals.recency import RECENCY_POLICY_VERSION
 
@@ -473,6 +474,54 @@ def _grant_discovery(connection, account_id: str, access: FeedAccess, allowed, n
     if not granted:
         return access
     return dataclasses.replace(access, granted=access.granted | frozenset(granted))
+
+
+@router.get("/signals/filters")
+def list_signal_filters(request: Request) -> dict[str, Any]:
+    """Les subdivisions et secteurs présents dans les signaux accessibles.
+
+    Déclarée AVANT `/signals/{signal_key}` : sinon `filters` serait capturé
+    comme une clé de signal, jamais atteint par cette route.
+    """
+    now = request_now(request)
+    as_of = now.date()
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        lang = _language(connection, user_id=session.user_id)
+        access = feed_access(connection, account_id=session.account_id, as_of=as_of)
+        service.reconcile_territory_plan_limits(
+            connection,
+            account_id=session.account_id,
+            max_territories=access.entitlements.max_territories_per_icp,
+            now=now,
+        )
+        allowed = frozenset(
+            billing.feedable_target_icps(
+                connection,
+                account_id=session.account_id,
+                limit=access.entitlements.max_active_icps,
+            )
+        )
+        result = available_filters(
+            connection,
+            account_id=session.account_id,
+            as_of=as_of,
+            allowed_target_icp_ids=allowed,
+            access=access,
+            lang=lang,
+        )
+    return {
+        "subdivisions": [
+            {"code": entry.code, "label": entry.label, "country": entry.country}
+            for entry in result.subdivisions
+        ],
+        "sectors": [
+            {"prefix": entry.prefix, "label": entry.label} for entry in result.sectors
+        ],
+        "scan_truncated": result.scan_truncated,
+        "filter_access": _filter_access(access),
+        "plan_code": access.plan_code,
+    }
 
 
 @router.get("/signals/{signal_key}")
