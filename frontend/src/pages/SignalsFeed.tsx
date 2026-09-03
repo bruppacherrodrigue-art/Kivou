@@ -7,6 +7,7 @@ import type {
   BillingStatus,
   FeedItem,
   FeedPage,
+  LockedFeedItem,
   UnifiedStatus,
   UnlockedFeedItem,
 } from '../api/types'
@@ -134,12 +135,16 @@ function useCompact(): boolean {
 }
 
 /** Un signal que l'offre ne débloque pas. La ligne existe — masquer son
- *  existence serait mentir sur le volume — mais elle ne montre rien. */
+ *  existence serait mentir sur le volume — mais elle ne montre aucune donnée
+ *  protégée : seul `item.headline`, le teaser générique et non identifiant
+ *  publié par le serveur pour CE signal, porte le nom accessible du bouton. */
 function LockedRow({
+  item,
   compact,
   note,
   onOpen,
 }: {
+  item: LockedFeedItem
   compact: boolean
   note: string
   onOpen: () => void
@@ -152,7 +157,7 @@ function LockedRow({
           event.stopPropagation()
           onOpen()
         }}>
-          <LockKeyhole aria-hidden="true" /> {MISSING}
+          <LockKeyhole aria-hidden="true" /> {item.headline}
         </button>
       </td>
       <td className={styles.lockedNote}>{note}</td>
@@ -185,6 +190,7 @@ export function SignalsFeed() {
   const feedGeneration = useRef(0)
   const detailGeneration = useRef(0)
   const paginationRequest = useRef(false)
+  const [detailRetryToken, setDetailRetryToken] = useState(0)
 
   const [activationMoment] = useState(
     () => (location.state as ActivationNavigationState | null)?.activationCompleted === true,
@@ -328,7 +334,7 @@ export function SignalsFeed() {
         }
       },
     )
-  }, [feed.loading, navigate, rowItem, selectedKey])
+  }, [detailRetryToken, feed.loading, navigate, rowItem, selectedKey])
 
   const selectedItem: UnlockedFeedItem | null = rowItem && !rowItem.locked
     ? rowItem
@@ -488,6 +494,7 @@ export function SignalsFeed() {
       error={drawerError}
       busy={busy}
       onClose={closeDrawer}
+      onRetry={() => setDetailRetryToken((token) => token + 1)}
       onContacted={() => void runAction('contacted', (key) => feedback.markContacted(key))}
       onSave={() => void runAction('saved', (key) => feedback.write(key, { relevance: 'relevant' }))}
       onIgnore={() =>
@@ -498,8 +505,12 @@ export function SignalsFeed() {
 
   return (
     <div className={styles.page} data-page="signals">
+      {/* Le bandeau applicatif (`AppShell`) porte déjà le seul `h1` de la page,
+       * avec le même intitulé : en répéter un second casserait la règle « un
+       * h1 par page » et rendrait `getByRole('heading', { name: 'Signaux' })`
+       * ambigu. Le titre ici reste du texte, la légende garde son rôle. */}
       <header className={styles.header}>
-        <h1>{copy.title}</h1>
+        <p className={styles.title}>{copy.title}</p>
         <p>{copy.subtitle}</p>
       </header>
 
@@ -623,6 +634,7 @@ export function SignalsFeed() {
               {rows.map((entry) => (entry.locked ? (
                 <LockedRow
                   key={entry.signal_id}
+                  item={entry}
                   compact={compact}
                   note={t.reference.signalsPage.lockedReason}
                   onOpen={() => openBilling(entry.signal_id)}

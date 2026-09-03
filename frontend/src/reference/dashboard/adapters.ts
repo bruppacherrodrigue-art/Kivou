@@ -408,11 +408,10 @@ export function toSignalCard(item: FeedItem): SignalCardView {
 
   const factual = publishedFactualDisplay(item.factual_display)
   const enrichment = publishedWinnerEnrichment(item.winner_enrichment)
-  const specificTitle = item.contract.lot_title
-    ?? item.contract.title
-    ?? factual?.object_short
-    ?? factual?.headline
-    ?? null
+  // La copie de carte Signaux ne promeut jamais le titre administratif du
+  // contrat (`lot_title`/`title`) : seul le titre factuel publié par le
+  // serveur peut apparaître ici. Sans lui, il n'y a pas de titre.
+  const specificTitle = factual?.headline ?? null
   return {
     signalId: item.signal_id,
     id: item.signal_id,

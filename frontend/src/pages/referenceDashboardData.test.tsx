@@ -103,7 +103,9 @@ describe('vue d’ensemble de référence connectée aux données réelles', () 
     await act(async () => resolveFeed({ body: feedPage([UNLOCKED_ITEM]) as FeedPage }))
     await waitFor(() => expect(callsTo('/billing/status', 'GET')).toHaveLength(2))
 
-    expect(document.querySelector('.signal-count')).toHaveTextContent('3 signaux')
+    // La page Signaux n'expose plus la classe `.signal-count` de l'ancien
+    // dashboard : le compteur se lit désormais dans le pied du tableau.
+    expect(await screen.findByText('3 signaux')).toBeInTheDocument()
     const paths = recordedCalls.map((call) => `${call.method} ${call.url}`)
     expect(paths.lastIndexOf('GET /billing/status')).toBeGreaterThan(paths.indexOf('GET /signals'))
   })

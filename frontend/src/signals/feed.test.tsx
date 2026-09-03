@@ -366,6 +366,32 @@ describe('écran Signaux — tiroir', () => {
     await waitFor(() => expect(screen.getByText('Sélectionnez un signal')).toBeInTheDocument())
     expect(screen.getByLabelText('Zone')).toHaveValue('FR-31')
   })
+
+  it('« Fermer » referme le tiroir en conservant les filtres', async () => {
+    mockApi(feedWith([item(UNLOCKED_ITEM.signal_id)]))
+    renderApp(<AppRoutes />, {
+      session: AUTHENTICATED,
+      route: `/app/signals/${UNLOCKED_ITEM.signal_id}?zone=FR-31`,
+    })
+
+    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    await userEvent.click(screen.getByRole('button', { name: 'Fermer' }))
+
+    await waitFor(() => expect(screen.getByText('Sélectionnez un signal')).toBeInTheDocument())
+    expect(screen.getByLabelText('Zone')).toHaveValue('FR-31')
+  })
+
+  it('Entrée sur le bouton titulaire d’une ligne ouvre son tiroir', async () => {
+    mockApi(feedWith([item(UNLOCKED_ITEM.signal_id)]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const grid = await table()
+    const winnerButton = within(grid).getByRole('button', { name: 'Constructions Bertrand SA' })
+    winnerButton.focus()
+    await userEvent.keyboard('{Enter}')
+
+    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+  })
 })
 
 describe('écran Signaux — actions', () => {
