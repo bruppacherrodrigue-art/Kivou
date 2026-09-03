@@ -89,6 +89,9 @@ rehearsal_restore_safe_query=''
 rehearsal_restore_safe_url="${rehearsal_restore_safe_url%/*}/$rehearsal_name$rehearsal_restore_safe_query"
 pg_restore --exit-on-error --no-owner --no-privileges --dbname="$rehearsal_restore_safe_url" "$backup_file"
 rehearsal_url="${admin_base%/*}/$rehearsal_name$admin_query"
+case "$rehearsal_url" in
+  postgresql://*) rehearsal_url="postgresql+psycopg://${rehearsal_url#postgresql://}" ;;
+esac
 MIGRATE_CODE='from signals.persistence import create_database_engine, migrate_to_latest; migrate_to_latest(create_database_engine())'
 if ! KIVOU_DATABASE_URL="$rehearsal_url" uv run --project "$KIVOU_RELEASE_DIR" python -c "$MIGRATE_CODE"; then
   fail "répétition Alembic échouée ; la base et la release vives sont intactes"

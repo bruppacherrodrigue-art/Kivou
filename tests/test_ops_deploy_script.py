@@ -82,7 +82,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
     assert result.returncode != 0
     commands = log.read_text(encoding="utf-8")
     assert "kivou_rehearsal_" in commands
-    assert "database_url postgresql://deploy:admin-secret@localhost/kivou_rehearsal_" in commands
+    assert "database_url postgresql+psycopg://deploy:admin-secret@localhost/kivou_rehearsal_" in commands
     assert "database_url postgresql://kivou@localhost/kivou_rehearsal_" not in commands
     assert "admin-secret" not in "\n".join(
         line for line in commands.splitlines() if not line.startswith("database_url ")
