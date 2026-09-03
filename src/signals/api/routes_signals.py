@@ -362,6 +362,11 @@ def list_signals(
         },
         "counts": page.status_counts,
         "counts_truncated": page.counts_truncated,
+        # PR1 §2 (fix round 2) — l'historique ne compte que sur sa première
+        # page. Les suivantes rendent quand même les quatre clés, à zéro, et
+        # `counts_available: false` dit pourquoi : un client qui affiche les
+        # compteurs doit les garder de la première page, pas les remplacer.
+        "counts_available": page.counts_available,
         "read_at": as_of.isoformat(),
         "freshness": "all" if view_mode == "history" else freshness,
         "view": view_mode,

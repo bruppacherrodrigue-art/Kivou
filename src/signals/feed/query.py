@@ -251,6 +251,18 @@ class FeedPage:
     #: Combien d'items par ailleurs admissibles ont été écartés par le filtre
     #: de statut unifié (`?status=`) — comptés APRÈS `status_counts`.
     excluded_by_status: int = 0
+    #: Toujours vrai ici : la vue Récentes relit l'ensemble sélectionné à chaque
+    #: appel, donc elle compte toujours. Le champ existe pour que la réponse
+    #: publique ait la MÊME forme que celle de l'historique, qui ne compte, lui,
+    #: que sur la première page.
+    counts_available: bool = True
+    #: Fix round 2 (F1) — l'ensemble sélectionné ENTIER, après `admit`,
+    #: `published_since`, le filtre de statut et le tri, mais AVANT la découpe
+    #: en page. Un agrégat (le tableau de bord) doit compter et classer sur
+    #: TOUT ce que le compte possède, pas sur les cinquante premiers items
+    #: qu'une page rend : lire `items` pour compter plafonnait silencieusement
+    #: chaque nombre à `MAXIMUM_PAGE_SIZE`.
+    matched: tuple[FeedSignal, ...] = ()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -279,6 +291,12 @@ class HistoryFeedPage:
     #: Combien d'items par ailleurs admissibles ont été écartés par le filtre
     #: de statut unifié (`?status=`) — comptés APRÈS `status_counts`.
     excluded_by_status: int = 0
+    #: Fix round 2 (F7/F8) — `status_counts` n'est calculé que sur la PREMIÈRE
+    #: page (`cursor is None`). Ailleurs, les compteurs restent à zéro et ce
+    #: drapeau le dit : un dénombrement qui repart du curseur ne compterait que
+    #: la queue de l'historique, donc un nombre DIFFÉRENT à chaque page — pire
+    #: qu'une absence, puisque le client ne pourrait pas le savoir.
+    counts_available: bool = True
 
 
 @dataclasses.dataclass(frozen=True)
@@ -454,6 +472,14 @@ def feed_page(
     window = policy.candidate_window_days(freshness)
     if window is not None:
         query = query.where(_date_window(as_of, window))
+    if published_since is not None:
+        # Fix round 2 (F3) — la borne de parution est aussi une PRÉSÉLECTION.
+        # Filtrée en Python seulement, elle laissait les signaux hors fenêtre
+        # consommer le plafond de candidats : mille parutions anciennes
+        # matérialisées ce matin suffisaient à faire rendre zéro à une fenêtre
+        # de sept jours pourtant peuplée. Le garde Python reste en place — il
+        # est la définition, celle-ci n'en est que l'accélérateur.
+        query = query.where(source_event.c.published_on >= published_since)
 
     row_ceiling = scan_cap * RECENT_SCAN_ROW_FACTOR
     rows_read = 0
@@ -561,6 +587,7 @@ def feed_page(
         status_counts=status_counts,
         counts_truncated=truncated,
         excluded_by_status=excluded_by_status,
+        matched=tuple(selected),
     )
 
 
@@ -627,11 +654,14 @@ def history_page(
     source dates.  Keyset pagination can therefore advance through bounded SQL
     batches without freezing the current recency classification.
 
-    The scan that feeds `status_counts` walks the SAME bounded window as the
-    page (up to `scan_cap`, or exhaustion) rather than stopping the instant
-    the page is full : a count that stopped at `limit` would depend on the
-    page size, which the spec forbids (« bornés par le même balayage que la
-    liste »).
+    Fix round 2 (F7/F8) — `status_counts` n'est calculé QUE sur la première
+    page (`cursor is None`), et `counts_available` le dit. Le balayage prolongé
+    qui les alimente ne tourne donc qu'une fois par parcours, au lieu de relire
+    tout l'historique à chaque page. Repartir du curseur ne compterait que la
+    queue restante : le même parcours rendrait des compteurs décroissants,
+    c'est-à-dire faux. Une fois la page pleine ET un item admis vu derrière
+    elle (la preuve exacte que `has_more` exige), le balayage s'arrête : ni
+    `has_more`, ni `next_cursor`, ni `scan_truncated` n'en changent.
     """
     scan_cap = HISTORY_SCAN_CAP if scan_cap is None else scan_cap
     if scan_cap < 1:
@@ -685,6 +715,13 @@ def history_page(
     position = decoded
     exhausted = False
     last_returned = None
+    #: Fix round 2 (F7/F8) — seule la première page compte. Les pages suivantes
+    #: rendent les quatre clés à zéro, et l'annoncent.
+    counts_available = cursor is None
+    #: Vrai quand le balayage s'est arrêté de lui-même, page pleine et
+    #: `found_more` acquis, sans avoir touché `scan_cap` : ce n'est PAS une
+    #: troncature, c'est un travail terminé plus tôt.
+    stopped_early = False
     #: §2 (fix round 1) — vrai dès qu'un item ADMIS (tous les filtres, statut
     #: compris) est rencontré APRÈS que la page a atteint `limit`. C'est la
     #: seule preuve directe qu'une page suivante rendrait quelque chose : une
@@ -733,11 +770,12 @@ def history_page(
             ):
                 excluded_by_filters += 1
                 continue
-            # §2 (fix round 1) — le dénombrement continue même une fois la page
-            # pleine : arrêter ici ferait dépendre `counts` de `limit`, ce que
-            # la spec interdit explicitement.
+            # §2 (fix round 1) — sur la PREMIÈRE page, le dénombrement continue
+            # même une fois la page pleine : arrêter ici ferait dépendre
+            # `counts` de `limit`, ce que la spec interdit explicitement.
             unified = resolver(signal.signal_key)
-            status_counts[unified] += 1
+            if counts_available:
+                status_counts[unified] += 1
             if statuses is not None and unified not in statuses:
                 excluded_by_status += 1
                 continue
@@ -750,6 +788,14 @@ def history_page(
                 # quelque chose. Ni lui ni ses successeurs ne déplacent
                 # `last_returned` : la page suivante doit le revoir.
                 found_more = True
+                if not counts_available:
+                    # Rien ne reste à apprendre : la page est pleine et
+                    # `has_more` est acquis. Continuer relirait l'historique
+                    # pour des compteurs que cette page ne rendra pas.
+                    stopped_early = True
+                    break
+        if stopped_early:
+            break
         if len(rows) < batch_limit:
             exhausted = True
             break
@@ -780,9 +826,9 @@ def history_page(
             next_cursor = encode_history_cursor(last_returned) if last_returned else None
     #: Le sens ORIGINAL de `scan_truncated` : le balayage (page ET
     #: dénombrement) s'est arrêté sur `scan_cap` avant d'épuiser les
-    #: candidats. `counts_truncated` lui est égal — les deux vues partagent la
-    #: même contrainte : « bornés par le même balayage que la liste ».
-    scan_truncated = not exhausted
+    #: candidats. Un arrêt VOLONTAIRE (`stopped_early`) n'en est pas un : la
+    #: page est complète et son curseur mène au reste.
+    scan_truncated = not exhausted and not stopped_early
     return HistoryFeedPage(
         items=tuple(selected),
         limit=limit,
@@ -793,8 +839,9 @@ def history_page(
         excluded_without_display_name=excluded_without_name,
         excluded_by_filters=excluded_by_filters,
         status_counts=status_counts,
-        counts_truncated=scan_truncated,
+        counts_truncated=scan_truncated and counts_available,
         excluded_by_status=excluded_by_status,
+        counts_available=counts_available,
     )
 
 
