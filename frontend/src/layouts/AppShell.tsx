@@ -244,7 +244,10 @@ function ConnectedShell({
             />
             <div>
               <p>{t.reference.monitoring}</p>
-              <h1>{title}</h1>
+              {/* La page Signaux porte son propre `h1` (« En-tête : titre
+               * « Signaux », sous-titre » — maquette dédiée) : le bandeau ne
+               * doit pas en ajouter un second avec le même intitulé. */}
+              {activeView === 'signals' ? null : <h1>{title}</h1>}
             </div>
           </div>
           <span className="demo-mode-badge">

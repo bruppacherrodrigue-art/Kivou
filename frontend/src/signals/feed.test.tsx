@@ -392,6 +392,21 @@ describe('écran Signaux — tiroir', () => {
 
     await screen.findByRole('heading', { level: 2, name: 'Voirie' })
   })
+
+  it('la fermeture du tiroir rend le focus à la ligne qui l’a ouvert', async () => {
+    mockApi(feedWith([item(UNLOCKED_ITEM.signal_id)]))
+    renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
+
+    const grid = await table()
+    const winnerButton = within(grid).getByRole('button', { name: 'Constructions Bertrand SA' })
+    await userEvent.click(winnerButton)
+    await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Fermer' }))
+
+    await waitFor(() => expect(screen.getByText('Sélectionnez un signal')).toBeInTheDocument())
+    expect(winnerButton).toHaveFocus()
+  })
 })
 
 describe('écran Signaux — actions', () => {

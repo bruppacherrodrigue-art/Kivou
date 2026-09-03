@@ -71,10 +71,15 @@ describe('contrat responsive connecté à 390 px', () => {
     })
 
     await screen.findByRole('heading', { level: 2, name: 'Voirie' })
+    // Radix marque le fond `aria-hidden` tant que la feuille modale reste
+    // ouverte : `getAllByRole('main'|'heading')` ne les y trouverait plus,
+    // d'où une requête DOM directe pour vérifier leur unicité structurelle.
     expect(document.querySelectorAll('main')).toHaveLength(1)
     expect(document.querySelectorAll('h1')).toHaveLength(1)
     expect(screen.queryByRole('button', { name: 'Ouvrir la navigation' })).not.toBeInTheDocument()
-    expect(screen.getAllByRole('button', { name: 'Fermer' }).length).toBeGreaterThan(0)
+
+    const sheet = screen.getByRole('dialog')
+    expect(within(sheet).getAllByRole('button', { name: 'Fermer' }).length).toBeGreaterThan(0)
   })
 
   it('confine le focus dans le drawer puis le rend au déclencheur avec Échap et le scrim', async () => {

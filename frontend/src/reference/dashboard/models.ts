@@ -1,47 +1,11 @@
 import type {
   BillingAction,
-  CardPresentation,
   Money,
   Place,
   PlanCode,
-  WinnerEnrichment,
 } from '../../api/types'
 
 export type SignalEventDateKind = 'award' | 'notification' | 'publication' | 'unknown'
-
-export interface EvidenceBoundLabel {
-  label: string
-  evidenceRefs: string[]
-}
-
-export interface SignalFactView {
-  signalId: string
-  locked: boolean
-  eventDate: string | null
-  eventDateKind: SignalEventDateKind
-  buyerName: string | null
-  awardedCompanyName: string | null
-  primaryNeed: EvidenceBoundLabel | null
-  fitReason: string | null
-  presentation: CardPresentation | null
-  factualCompleteness: 'verified' | 'partial' | 'to_verify' | null
-  missingFacts: string[]
-  winnerEnrichment: WinnerEnrichment | null
-}
-
-export interface SignalCardView extends SignalFactView {
-  id: string
-  companyName: string | null
-  eventTitle: string | null
-  amount: Money | null
-  location: Place | null
-  awardDate: string | null
-  matchLabel: string | null
-  matchReasons: string[]
-  sourceSystem: string | null
-  whyNow: string
-  objectShort: string | null
-}
 
 /** Projection dédiée au Dashboard.
  *

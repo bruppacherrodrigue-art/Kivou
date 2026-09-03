@@ -393,8 +393,13 @@ export function SignalsFeed() {
     [location.pathname, location.search, navigate],
   )
 
+  /* La ligne qui a ouvert le tiroir : sa clé, pour lui rendre le focus à la
+   * fermeture plutôt que de le laisser tomber sur le document. */
+  const openerKey = useRef<string | null>(null)
+
   const openSignal = useCallback(
     (key: string) => {
+      openerKey.current = key
       navigate(`/app/signals/${encodeURIComponent(key)}${location.search}`)
     },
     [location.search, navigate],
@@ -403,6 +408,16 @@ export function SignalsFeed() {
   const closeDrawer = useCallback(() => {
     navigate(`/app/signals${location.search}`)
   }, [location.search, navigate])
+
+  useEffect(() => {
+    if (selectedKey) return
+    const key = openerKey.current
+    if (!key) return
+    openerKey.current = null
+    document
+      .querySelector<HTMLElement>(`[data-signal-key="${CSS.escape(key)}"] button`)
+      ?.focus()
+  }, [selectedKey])
 
   const openBilling = useCallback(
     (key: string) => {
@@ -505,12 +520,8 @@ export function SignalsFeed() {
 
   return (
     <div className={styles.page} data-page="signals">
-      {/* Le bandeau applicatif (`AppShell`) porte déjà le seul `h1` de la page,
-       * avec le même intitulé : en répéter un second casserait la règle « un
-       * h1 par page » et rendrait `getByRole('heading', { name: 'Signaux' })`
-       * ambigu. Le titre ici reste du texte, la légende garde son rôle. */}
       <header className={styles.header}>
-        <p className={styles.title}>{copy.title}</p>
+        <h1>{copy.title}</h1>
         <p>{copy.subtitle}</p>
       </header>
 

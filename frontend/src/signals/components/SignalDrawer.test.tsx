@@ -277,6 +277,15 @@ describe('SignalDrawer', () => {
     expect(alert).toHaveTextContent(/Réessayer/)
   })
 
+  it('« Réessayer » appelle onRetry', async () => {
+    const onRetry = vi.fn()
+    renderDrawer({ signal: null, error: new Error('boom'), onRetry })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Réessayer' }))
+
+    expect(onRetry).toHaveBeenCalledTimes(1)
+  })
+
   it('invite à sélectionner un signal quand rien n’est ouvert', () => {
     renderDrawer({ signal: null })
 

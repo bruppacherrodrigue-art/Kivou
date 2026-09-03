@@ -18,10 +18,9 @@ import {
 import { normalizePublicPricingText } from './normalize-public-pricing.mjs'
 
 /**
- * Le titre affiché (carte de liste et h2 du détail) suit la même priorité
- * que `toSignalCard`/`toSignalDetailView` : lot_title, puis le titre du
- * marché, puis l'objet court, et seulement en dernier recours la phrase
- * factuelle complète.
+ * Le titre affiché (ligne du tableau et h2 du tiroir) suit cette priorité :
+ * lot_title, puis le titre du marché, puis l'objet court, et seulement en
+ * dernier recours la phrase factuelle complète.
  */
 function expectedDisplayTitle(item: {
   contract: { lot_title: string | null; title: string | null }
