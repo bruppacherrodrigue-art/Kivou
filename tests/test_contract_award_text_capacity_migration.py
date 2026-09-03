@@ -47,7 +47,10 @@ REQUEUE_SIRET_PLACEHOLDERS_REVISION = "0032_requeue_siret_placeholders"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de REQUEUE_SIRET_PLACEHOLDERS_REVISION, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET_REVISION = "0033_requeue_unresolved_siret"
-CURRENT_HEAD = "0034_company_engagement"
+#: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
+#: direct de REQUEUE_UNRESOLVED_SIRET_REVISION, et écraser ce lien ferait passer un test faux.
+COMPANY_ENGAGEMENT_REVISION = "0034_company_engagement"
+CURRENT_HEAD = "0035_landing_signal"
 NOW = dt.datetime(2026, 8, 19, 12, tzinfo=dt.UTC)
 
 
@@ -133,8 +136,12 @@ def test_fresh_database_reaches_the_single_linear_current_head(tmp_path):
     assert script.get_revision(CONVERSION_REVISION).down_revision == RESPONSE_REVISION
     assert script.get_revision(LEARNING_REVISION).down_revision == CONVERSION_REVISION
     assert (
-        script.get_revision(CURRENT_HEAD).down_revision
+        script.get_revision(COMPANY_ENGAGEMENT_REVISION).down_revision
         == REQUEUE_UNRESOLVED_SIRET_REVISION
+    )
+    assert (
+        script.get_revision(CURRENT_HEAD).down_revision
+        == COMPANY_ENGAGEMENT_REVISION
     )
     assert (
         script.get_revision(REQUEUE_UNRESOLVED_SIRET_REVISION).down_revision

@@ -71,6 +71,31 @@ account_visit = sa.Table(
 )
 
 
+#: PR2b tâche 5 — le signal PROMIS par le cold mail qui a créé ce compte.
+#: Table à part pour la même raison qu'`account_visit` : sous SQLite,
+#: `batch_alter_table("account")` recopie la table et la recopie déclenche les
+#: `ON DELETE CASCADE` de ses filles.
+#:
+#: `opportunity_key` est toujours connue — c'est ce que le mail promettait.
+#: `signal_key` ne l'est qu'une fois l'opportunité MATÉRIALISÉE pour un ICP de
+#: ce compte, ce qui n'arrive pas au premier clic : un compte neuf n'a encore
+#: aucun profil actif. La colonne reste donc nulle jusque-là, et l'atterrissage
+#: retombe sur le feed plutôt que d'inventer une page.
+account_landing_signal = sa.Table(
+    "account_landing_signal",
+    METADATA,
+    sa.Column(
+        "account_id",
+        sa.String(64),
+        sa.ForeignKey("account.account_id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    sa.Column("opportunity_key", sa.String(64), nullable=False),
+    sa.Column("signal_key", sa.String(64)),
+    sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+)
+
+
 auth_user = sa.Table(
     "auth_user",
     METADATA,

@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 from test_conversion_attribution import NOW, prepared
 
 from signals.api.app import create_app
-from signals.api.config import ApiConfig
+from signals.api.config import ATTRIBUTION_COOKIE_NAME, ApiConfig
 from signals.conversion.token import AttributionTokenKeyring
 from signals.persistence.schema import (
     acquisition_conversion_event,
@@ -27,7 +27,26 @@ def client_for(engine, service, *, now: dt.datetime) -> TestClient:
     )
 
 
-def test_click_sets_bounded_http_only_context_and_redirects_cleanly(tmp_path) -> None:
+def seed_click(client, service, token, *, at: dt.datetime) -> None:
+    """Le clic d'attribution, SANS l'atterrissage — le parcours d'inscription.
+
+    PR2b tâche 5 a fait de `/a/{jeton}` un atterrissage : il crée lui-même un
+    compte Découverte. Les tests ci-dessous portent sur l'AUTRE parcours, resté
+    intact : le prospect qui s'inscrit ensuite avec sa vraie adresse et son
+    propre mot de passe, et dont l'inscription doit rester attribuée.
+    """
+    service.record_click(token.raw_token, at=at)
+    # Pas de `domain="testserver"` : httpx (`http.cookiejar` dessous) refuse de
+    # réémettre un cookie dont le domaine posé n'a pas de point — un domaine à
+    # un seul label est traité comme un TLD public et jamais renvoyé, même vers
+    # le même hôte. Sans `domain`, httpx l'associe à l'hôte de la requête ayant
+    # servi à le poser, ce qui matche `base_url="https://testserver"`.
+    client.cookies.set(ATTRIBUTION_COOKIE_NAME, token.raw_token, path="/")
+
+
+def test_click_lands_on_the_product_and_never_on_a_caller_supplied_redirect(
+    tmp_path,
+) -> None:
     engine, service, token, _ = prepared(tmp_path)
     client = client_for(engine, service, now=NOW + dt.timedelta(hours=1))
 
@@ -37,11 +56,14 @@ def test_click_sets_bounded_http_only_context_and_redirects_cleanly(tmp_path) ->
     )
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/signup"
+    assert response.headers["location"] == "/app/signals"
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["referrer-policy"] == "no-referrer"
-    cookie = response.headers["set-cookie"]
-    assert "kivou_attribution=" in cookie
+    cookie = next(
+        item
+        for item in response.headers.get_list("set-cookie")
+        if item.startswith("kivou_attribution=")
+    )
     assert "HttpOnly" in cookie
     assert "Secure" in cookie
     assert "SameSite=lax" in cookie
@@ -49,19 +71,15 @@ def test_click_sets_bounded_http_only_context_and_redirects_cleanly(tmp_path) ->
     assert "evil.example" not in response.text
 
 
-def test_bad_token_sets_no_cookie_and_token_grants_no_session(tmp_path) -> None:
+def test_bad_token_sets_no_cookie_and_grants_no_session(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
     client = client_for(engine, service, now=NOW + dt.timedelta(hours=1))
 
     invalid = client.get(f"/a/{token.raw_token}x", follow_redirects=False)
-    assert invalid.status_code == 404
-    assert invalid.headers["content-type"].startswith("application/json")
-    assert invalid.json()["detail"]["code"] == "attribution_not_found"
+    assert invalid.status_code == 303
+    assert invalid.headers["location"] == "/signup?attribution=expired"
     assert "set-cookie" not in invalid.headers
     assert "<!doctype html>" not in invalid.text.lower()
-
-    accepted = client.get(f"/a/{token.raw_token}", follow_redirects=False)
-    assert accepted.status_code == 303
     assert client.get("/me").status_code == 401
 
 
@@ -69,7 +87,7 @@ def test_successful_signup_consumes_attribution_in_same_account_transaction(tmp_
     engine, service, token, _ = prepared(tmp_path)
     clicked_at = NOW + dt.timedelta(hours=1)
     client = client_for(engine, service, now=clicked_at)
-    assert client.get(f"/a/{token.raw_token}", follow_redirects=False).status_code == 303
+    seed_click(client, service, token, at=clicked_at)
 
     response = client.post(
         "/auth/signup",
@@ -93,8 +111,8 @@ def test_one_forwarded_click_can_source_two_distinct_account_signups(tmp_path) -
     engine, service, token, _ = prepared(tmp_path)
     first = client_for(engine, service, now=NOW + dt.timedelta(days=1))
     second = client_for(engine, service, now=NOW + dt.timedelta(days=2))
-    for client in (first, second):
-        assert client.get(f"/a/{token.raw_token}", follow_redirects=False).status_code == 303
+    seed_click(first, service, token, at=NOW + dt.timedelta(days=1))
+    seed_click(second, service, token, at=NOW + dt.timedelta(days=2))
 
     first_signup = first.post(
         "/auth/signup",
@@ -147,8 +165,8 @@ def test_last_pre_signup_click_cookie_freezes_the_selected_source(tmp_path) -> N
     ).issue(first_token.payload.model_copy(update={"key_version": None}))
     client = client_for(engine, service, now=NOW + dt.timedelta(hours=1))
 
-    assert client.get(f"/a/{first_token.raw_token}", follow_redirects=False).status_code == 303
-    assert client.get(f"/a/{second_token.raw_token}", follow_redirects=False).status_code == 303
+    seed_click(client, service, first_token, at=NOW + dt.timedelta(hours=1))
+    seed_click(client, service, second_token, at=NOW + dt.timedelta(hours=1))
     response = client.post(
         "/auth/signup",
         json={
@@ -169,7 +187,7 @@ def test_last_pre_signup_click_cookie_freezes_the_selected_source(tmp_path) -> N
 def test_real_target_icp_activation_route_records_one_activation(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
     client = client_for(engine, service, now=NOW + dt.timedelta(days=2))
-    assert client.get(f"/a/{token.raw_token}", follow_redirects=False).status_code == 303
+    seed_click(client, service, token, at=NOW + dt.timedelta(days=2))
     signup = client.post(
         "/auth/signup",
         json={

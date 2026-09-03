@@ -27,6 +27,7 @@ import datetime as dt
 
 import sqlalchemy as sa
 
+from signals.accounts.service import landing_signal_keys
 from signals.billing.catalogue import DISCOVERY_GRANT_LIMIT
 from signals.billing.schema import discovery_signal_grant
 
@@ -86,7 +87,12 @@ def grant_up_to_limit(
     if slots <= 0:
         return ()
 
-    already = granted_signal_keys(connection, account_id=account_id)
+    # Le signal d'atterrissage est déjà ouvert par `feed_access` : le compter
+    # ici lui ferait consommer une des trois places offertes, alors qu'il a été
+    # promis au prospect avant même la création du compte.
+    already = granted_signal_keys(connection, account_id=account_id) | landing_signal_keys(
+        connection, account_id=account_id
+    )
     newly: list[str] = []
     for item in candidates:
         if slots <= 0:
