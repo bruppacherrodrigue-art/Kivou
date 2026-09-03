@@ -19,6 +19,11 @@ export type FilterLevel = 'minimum' | 'basic' | 'advanced'
 export type ExportLevel = 'none' | 'manual' | 'scheduled'
 export type TerritoryMode = 'single' | 'multiple' | 'expanded'
 
+/** Le statut unifié d'un signal pour CE compte, produit par
+ *  `signals.engagement.status.unified_status`. Le frontend ne le calcule
+ *  jamais : il le reçoit et le rend. */
+export type UnifiedStatus = 'new' | 'saved' | 'ignored' | 'contacted'
+
 /** Les statuts d'événement produits par `recency`. Le frontend ne les calcule
  *  jamais : il les reçoit et les rend. */
 export type EventStatus =
@@ -238,6 +243,8 @@ export interface Company {
   name: string | null
   country: string | null
   identifier: Identifier | null
+  /** Présent seulement quand l'attributaire est un groupement identifié. */
+  consortium?: boolean
 }
 
 export interface Buyer {
@@ -440,6 +447,7 @@ export interface Fit {
   target_icp_id: string | null
   target_icp_label: string | null
   reasons: string[]
+  band?: 'strong' | 'promising' | 'weak' | 'unknown'
 }
 
 export interface Analysis {
@@ -485,6 +493,9 @@ export interface Interaction {
 export interface UnlockedFeedItem {
   locked: false
   signal_id: string
+  /** Le statut unifié de CE signal pour CE compte. Jamais recalculé côté
+   *  frontend. */
+  status: UnifiedStatus
   company_key?: string | null
   target_icp_id: string | null
   company: Company
@@ -500,6 +511,7 @@ export interface UnlockedFeedItem {
 export interface LockedFeedItem {
   locked: true
   signal_id: string
+  status: UnifiedStatus
   target_icp_id: string | null
   unlock_required: 'paid_plan'
   event: {
@@ -542,7 +554,21 @@ export interface FeedPage {
     has_more: boolean
     scan_truncated: boolean
   }
-  excluded: { without_display_name: number; by_freshness: number; by_filters: number }
+  excluded: {
+    without_display_name: number
+    by_freshness: number
+    by_filters: number
+    by_status: number
+  }
+  /** Comptage par statut unifié, calculé sur l'ensemble filtré — pas
+   *  seulement la page courante. */
+  counts: Record<UnifiedStatus, number>
+  /** `true` si le comptage s'est arrêté avant d'avoir tout scanné : les
+   *  chiffres sont un plancher, pas un total. */
+  counts_truncated: boolean
+  /** `false` dit pourquoi les compteurs sont absents : un client qui affiche
+   *  le badge doit vérifier ce champ avant de faire confiance à `counts`. */
+  counts_available: boolean
   read_at: string
   freshness: Freshness
   language: string

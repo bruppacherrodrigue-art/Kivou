@@ -103,7 +103,7 @@ function feedQuery(filters: FeedFilters): FeedQuery {
     date_to: filters.dateTo || null,
     country: filters.country || null,
     subdivision_code: filters.subdivision || null,
-    status: filters.status || null,
+    recency_status: filters.status || null,
     cpv_prefix: filters.cpv || null,
   }
 }
