@@ -56,6 +56,9 @@ ERROR_CODES: tuple[str, ...] = (
     "signal_not_accessible",
     # PR1 — statut unifié new/saved/ignored/contacted
     "invalid_status",
+    # PR1 Task 4 — GET /companies
+    "invalid_contact_status",
+    "invalid_company_cursor",
     "invalid_notification_email",
     # SPEC-026 — provider-specific, authenticated transport ingress.
     "instantly_webhook_unavailable",

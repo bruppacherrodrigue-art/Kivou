@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from signals.accounts import service as accounts
@@ -17,10 +17,11 @@ from signals.billing.access import FeedAccess, feed_access
 from signals.card_intelligence.store import published_for_signals
 from signals.companies.contracts import CompanyProfile
 from signals.companies.enrichment import winner_enrichments_for_signals
+from signals.companies.listing import InvalidCompanyCursor, list_companies
 from signals.companies.service import company_profile_with_items
 from signals.engagement import company as company_engagement
 from signals.engagement import feedback
-from signals.engagement.schema import MAXIMUM_COMPANY_NOTE_LENGTH
+from signals.engagement.schema import COMPANY_CONTACT_STATUSES, MAXIMUM_COMPANY_NOTE_LENGTH
 from signals.engagement.status import status_resolver
 from signals.feed import query as feed_query
 from signals.feed.history import effective_history_date
@@ -133,6 +134,90 @@ def _company_signals(
         )
         for item in ordered
     )
+
+
+@router.get("/companies")
+def list_companies_route(
+    request: Request,
+    contact_status: Annotated[list[str] | None, Query()] = None,
+    q: str | None = Query(default=None, max_length=120),
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = Query(default=None, max_length=512),
+) -> dict[str, Any]:
+    """PR1 §3 — l'agrégat par titulaire résolu, sur les signaux accessibles du compte.
+
+    Même portée que `view=history` sans filtre de date : ce que ce compte ne
+    peut pas voir n'existe pas ici non plus (§26 — jamais 403, une liste vide).
+    """
+    now = request_now(request)
+    as_of = now.date()
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        access = feed_access(connection, account_id=session.account_id, as_of=as_of)
+        accounts.reconcile_territory_plan_limits(
+            connection,
+            account_id=session.account_id,
+            max_territories=access.entitlements.max_territories_per_icp,
+            now=now,
+        )
+        allowed = frozenset(
+            billing.feedable_target_icps(
+                connection,
+                account_id=session.account_id,
+                limit=access.entitlements.max_active_icps,
+            )
+        )
+        statuses: frozenset[str] | None = None
+        if contact_status is not None:
+            for value in contact_status:
+                if value not in COMPANY_CONTACT_STATUSES:
+                    raise api_error(
+                        422, "invalid_contact_status", f"statut de contact inconnu : {value!r}"
+                    )
+            statuses = frozenset(contact_status)
+        try:
+            page = list_companies(
+                connection,
+                account_id=session.account_id,
+                as_of=as_of,
+                allowed_target_icp_ids=allowed,
+                access=access,
+                contact_statuses=statuses,
+                query=q,
+                limit=limit,
+                cursor=cursor,
+            )
+        except InvalidCompanyCursor as error:
+            raise api_error(422, "invalid_company_cursor", "curseur invalide") from error
+    return {
+        "items": [
+            {
+                "company_key": row.company_key,
+                "name": row.name,
+                "city": row.city,
+                "country": row.country,
+                "awards_count": row.awards_count,
+                "total_amount": [
+                    {"currency": currency, "value": str(value)}
+                    for currency, value in row.total_amount
+                ],
+                "last_award_at": row.last_award_at.isoformat() if row.last_award_at else None,
+                "contact_status": row.contact_status,
+                "contacted_at": row.contacted_at.isoformat() if row.contacted_at else None,
+                "top_fit": row.top_fit,
+            }
+            for row in page.rows
+        ],
+        "page": {
+            "limit": page.limit,
+            "cursor": page.cursor,
+            "next_cursor": page.next_cursor,
+            "has_more": page.has_more,
+            "scan_truncated": page.scan_truncated,
+        },
+        "read_at": as_of.isoformat(),
+        "plan_code": access.plan_code,
+    }
 
 
 @router.get("/companies/{company_key}", response_model=CompanyProfile)
