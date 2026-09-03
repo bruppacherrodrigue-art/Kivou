@@ -24,9 +24,10 @@ KIVOU_BACKUP_SCRIPT=${KIVOU_BACKUP_SCRIPT:-$KIVOU_SOURCE_DIR/ops/bin/kivou-backu
 KIVOU_READINESS_SCRIPT=${KIVOU_READINESS_SCRIPT:-$KIVOU_SOURCE_DIR/ops/bin/kivou-api-readiness.sh}
 KIVOU_SYSTEMD_UNIT=${KIVOU_SYSTEMD_UNIT:-kivou-api.service}
 KIVOU_READINESS_PORT=${KIVOU_READINESS_PORT:-8000}
+KIVOU_SERVICE_USER=${KIVOU_SERVICE_USER:-kivou}
 KIVOU_RELEASE_DIR="$KIVOU_RELEASES_DIR/$KIVOU_ENVIRONMENT-$KIVOU_SHA"
 
-for dependency in git uv npm createdb dropdb pg_restore systemctl; do
+for dependency in git uv npm createdb dropdb pg_restore runuser systemctl; do
   command -v "$dependency" >/dev/null 2>&1 || fail "$dependency introuvable"
 done
 [[ -x "$KIVOU_BACKUP_SCRIPT" ]] || fail "helper de sauvegarde introuvable"
@@ -63,7 +64,8 @@ cleanup() {
 }
 trap cleanup EXIT
 
-KIVOU_BACKUP_DIR="$KIVOU_BACKUP_DIR" KIVOU_DATABASE_URL="$KIVOU_DATABASE_URL" "$KIVOU_BACKUP_SCRIPT"
+export KIVOU_BACKUP_DIR KIVOU_DATABASE_URL
+runuser --user "$KIVOU_SERVICE_USER" -- "$KIVOU_BACKUP_SCRIPT"
 backup_file=$(find "$KIVOU_BACKUP_DIR" -maxdepth 1 -type f -name 'kivou-*.dump' -newer "$marker" -print -quit)
 [[ -n "$backup_file" ]] || backup_file=$(find "$KIVOU_BACKUP_DIR" -maxdepth 1 -type f -name '*.dump' -newer "$marker" -print -quit)
 [[ -n "$backup_file" ]] || fail "la sauvegarde n'a produit aucune archive"

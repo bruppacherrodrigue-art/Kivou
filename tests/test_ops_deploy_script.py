@@ -38,6 +38,11 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
         _fake_bin(fake_bin, command, recorder)
     _fake_bin(
         fake_bin,
+        "runuser",
+        recorder + 'shift 3\nexec "$@"\n',
+    )
+    _fake_bin(
+        fake_bin,
         "git",
         recorder
         + 'if [[ "$*" == *"worktree add"* ]]; then mkdir -p "$6/frontend"; fi\n'
@@ -79,6 +84,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
     assert "kivou_rehearsal_" in commands
     assert "database_url postgresql://deploy@localhost/kivou_rehearsal_" in commands
     assert "database_url postgresql://kivou@localhost/kivou_rehearsal_" not in commands
+    assert "runuser --user kivou --" in commands
     assert "systemctl restart" not in commands
     assert "migrate_to_latest" in commands
     assert not live_backend.exists()
