@@ -114,6 +114,7 @@ class TargetICP(CanonicalModel):
     excluded_contract_types: tuple[ContractType, ...] = ()
     included_sectors: tuple[Sector, ...] = ()
     excluded_sectors: tuple[Sector, ...] = ()
+    included_cpv_prefixes: tuple[str, ...] = ()
 
     value_thresholds: tuple[ValueThreshold, ...] = ()
     unknown_value_policy: UnknownValuePolicy = "allow_neutral"

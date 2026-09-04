@@ -113,7 +113,11 @@ class TestFreeze:
         # existaient alors, et on vérifie séparément que les nouveaux sont VIDES
         # sur les sept ICPs gelés — c'est ce qui prouve qu'aucun ne change de
         # comportement. Toute autre retouche d'un ICP casse toujours ici.
-        added_since_freeze = ("primary_trade_domains", "secondary_trade_domains")
+        added_since_freeze = (
+            "primary_trade_domains",
+            "secondary_trade_domains",
+            "included_cpv_prefixes",
+        )
         current = [icp.model_dump(mode="json") for icp in REFERENCE_ICPS]
         for icp in current:
             for field in added_since_freeze:

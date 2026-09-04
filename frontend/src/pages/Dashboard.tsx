@@ -1,10 +1,10 @@
-import { useCallback, useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
-import { dashboard, feedback, icps } from '../api/endpoints'
+import { useState } from 'react'
+import { Link, Navigate, useOutletContext } from 'react-router-dom'
+import { feedback } from '../api/endpoints'
 import type { UnlockedFeedItem } from '../api/types'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { useI18n } from '../i18n'
-import { useResource } from '../presentation/dashboard/resources'
+import type { DashboardOutletContext } from '../layouts/AppShell'
 import { MatchDots } from '../signals/components/MatchDots'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
 import { MISSING, placeLabel, signalObject } from '../signals/components/SignalRow'
@@ -18,16 +18,10 @@ export function Dashboard() {
 
 function TodayDashboard() {
   const { locale, amount, shortDate } = useI18n()
-  const loadDashboard = useCallback(() => dashboard.get(), [])
-  const loadProfiles = useCallback(() => icps.list(), [])
-  const resource = useResource(loadDashboard)
-  const profiles = useResource(loadProfiles)
+  const resource = useOutletContext<DashboardOutletContext>()
   const [selected, setSelected] = useState<UnlockedFeedItem | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [actionError, setActionError] = useState(false)
-
-  const activeProfile = profiles.data?.find((profile) => profile.status === 'active') ?? profiles.data?.[0]
-  const zones = activeProfile?.customer_input.territories.join(', ') || MISSING
 
   const ignore = async (item: UnlockedFeedItem) => {
     setBusy(item.signal_id)
@@ -71,7 +65,7 @@ function TodayDashboard() {
     <main className={styles.page} data-page="today">
       <header className={styles.header}>
         <h1>{title}</h1>
-        <p>{data.strong_matches} correspondent fortement à votre profil {activeProfile?.label ?? MISSING} · {zones}</p>
+        <p>{data.strong_matches} correspondent fortement à votre profil {data.profile?.sector_label ?? MISSING} · {data.profile?.zone_labels?.join(', ') || MISSING}</p>
       </header>
 
       {actionError ? <p className={styles.error} role="alert">Le signal n’a pas pu être ignoré. Réessayez.</p> : null}

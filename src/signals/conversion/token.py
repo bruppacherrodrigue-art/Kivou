@@ -172,10 +172,13 @@ class AttributionTokenKeyring:
         payload = payload.model_copy(update={"key_version": lookup.key_version})
         secret = self.keys[lookup.key_version]
         canonical: bytes | None = None
+        matched_payload = payload
         for candidate in _signable_forms(payload):
             expected = hmac.new(secret, _SIGNING_DOMAIN + candidate, hashlib.sha256).digest()
             if hmac.compare_digest(lookup.signature, expected):
                 canonical = candidate
+                if candidate != _canonical(payload):
+                    matched_payload = payload.model_copy(update={"opportunity_key": None})
                 break
         if canonical is None:
             raise AttributionTokenInvalid("attribution token signature is invalid")
@@ -191,7 +194,7 @@ class AttributionTokenKeyring:
             ).hexdigest(),
             token_version=payload.token_version,
             key_version=payload.key_version,
-            payload=payload,
+            payload=matched_payload,
         )
 
 

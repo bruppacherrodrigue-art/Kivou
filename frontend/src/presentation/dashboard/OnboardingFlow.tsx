@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeft, ArrowRight, Check, Info, Target } from 'lucide-react'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { MVP_THRESHOLD_CURRENCIES } from '../../api/capabilities'
@@ -19,6 +19,7 @@ import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Progress } from './ui/progress'
 import { Textarea } from './ui/textarea'
+import { useResource } from './resources'
 
 const initialDraft: ReferenceTargetingDraft = {
   name: '',
@@ -121,6 +122,80 @@ function fieldStep(field: LocalField): number {
 }
 
 export function OnboardingFlow() {
+  const { state: session } = useSession()
+  const loadProfiles = useCallback(() => icps.list(), [])
+  const profiles = useResource(loadProfiles)
+  const provisional = session.status === 'authenticated'
+    && session.me.onboarding_status !== 'ready_for_signals'
+    ? profiles.data?.find((profile) => profile.provisional)
+    : undefined
+
+  if (profiles.loading && !profiles.data) {
+    return <AuthShell eyebrow="Première configuration" title="Votre profil cible" description="Chargement…" showBrand={false}><p role="status">Chargement…</p></AuthShell>
+  }
+  if (provisional) return <ProvisionalOnboarding profile={provisional} />
+  return <LegacyOnboardingFlow />
+}
+
+function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
+  const navigate = useNavigate()
+  const { refresh } = useSession()
+  const loadOptions = useCallback(() => icps.options(), [])
+  const options = useResource(loadOptions)
+  const [zones, setZones] = useState<string[]>(
+    ((profile.customer_input.territory_subdivisions?.length ?? 0) > 0
+      ? profile.customer_input.territory_subdivisions ?? []
+      : profile.customer_input.territories),
+  )
+  const [sectorPrefix, setSectorPrefix] = useState(profile.customer_input.sector_cpv_prefixes?.[0] ?? '')
+  const [offer, setOffer] = useState(profile.customer_input.offer_summary)
+  const [submitting, setSubmitting] = useState(false)
+  const [error, setError] = useState(false)
+
+  const confirm = async () => {
+    const zoneCodes = zones
+    const territories = [...new Set(zoneCodes.map((zone) => zone.split('-', 1)[0]))]
+    const territorySubdivisions = zoneCodes.filter((zone) => zone.includes('-'))
+    if (!zoneCodes.length || !sectorPrefix || !offer.trim()) return setError(true)
+    setSubmitting(true)
+    setError(false)
+    try {
+      await icps.update(profile.target_icp_id, {
+        label: options.data?.sectors.find((item) => item.prefix === sectorPrefix)?.label || profile.label,
+        customer_input: {
+          ...profile.customer_input,
+          offer_summary: offer.trim(),
+          territories,
+          territory_subdivisions: territorySubdivisions,
+          sector_cpv_prefixes: sectorPrefix ? [sectorPrefix] : [],
+        },
+      })
+      await refresh()
+      navigate('/app', { replace: true, state: { firstSignals: true } })
+    } catch {
+      setError(true)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <AuthShell eyebrow="Profil provisoire" title="Confirmez votre profil cible" description="Trois réponses suffisent pour recevoir vos signaux." wide showBrand={false} navigationDisabled={submitting}>
+      <section className="onboarding-step">
+        <div className="onboarding-form-grid">
+          <div className="form-field form-field-wide"><label htmlFor="onboarding-zone">Zone</label><select id="onboarding-zone" multiple value={zones} onChange={(event) => setZones(Array.from(event.currentTarget.selectedOptions, (option) => option.value))}>{options.data?.zones.map((zone) => <option key={zone.code} value={zone.code}>{zone.label} ({zone.code})</option>)}</select><p className="field-hint">Sélectionnez un ou plusieurs départements ou cantons.</p></div>
+          <div className="form-field form-field-wide"><label htmlFor="onboarding-sector">Secteur</label><select id="onboarding-sector" value={sectorPrefix} onChange={(event) => setSectorPrefix(event.target.value)}><option value="">Sélectionner un secteur</option>{options.data?.sectors.map((sector) => <option key={sector.prefix} value={sector.prefix}>{sector.label}</option>)}</select></div>
+          <div className="form-field form-field-wide"><label htmlFor="onboarding-offer">Ce que vous vendez</label><Textarea id="onboarding-offer" value={offer} onChange={(event) => setOffer(event.target.value)} /></div>
+        </div>
+      </section>
+      {options.loading && !options.data ? <p role="status">Chargement des zones et secteurs…</p> : null}
+      {error || options.error ? <p className="form-error" role="alert">Vérifiez les trois champs puis réessayez.</p> : null}
+      <div className="onboarding-actions"><span /><Button type="button" className="primary-action" disabled={submitting} onClick={() => void confirm()}>Recevoir mes signaux</Button></div>
+    </AuthShell>
+  )
+}
+
+function LegacyOnboardingFlow() {
   const { t } = useI18n()
   const location = useLocation()
   const navigate = useNavigate()

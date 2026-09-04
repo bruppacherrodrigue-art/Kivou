@@ -37,6 +37,24 @@
   font-size: 13px;
 }
 
+.provisionalBanner {
+  align-items: center;
+  background: #eef5ef;
+  border: 1px solid #cadbce;
+  border-radius: 8px;
+  color: #183b2a;
+  display: flex;
+  font-size: 0.875rem;
+  justify-content: space-between;
+  padding: 0.65rem 0.8rem;
+}
+
+.provisionalBanner a {
+  color: inherit;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 /* ── Filtres, sur une seule ligne ───────────────────────────────────────── */
 
 .filters {

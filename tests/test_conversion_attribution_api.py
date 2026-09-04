@@ -56,7 +56,7 @@ def test_click_lands_on_the_product_and_never_on_a_caller_supplied_redirect(
     )
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/app/signals"
+    assert response.headers["location"].startswith("/app/signals/")
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["referrer-policy"] == "no-referrer"
     cookie = next(

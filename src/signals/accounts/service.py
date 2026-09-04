@@ -829,6 +829,7 @@ def record_landing_signal(
     account_id: str,
     opportunity_key: str | None,
     signal_key: str | None,
+    token_fingerprint: str | None = None,
     now: dt.datetime,
 ) -> LandingSignal:
     """Enregistre — ou complète — la promesse faite au prospect.
@@ -855,6 +856,7 @@ def record_landing_signal(
                 account_id=account_id,
                 opportunity_key=opportunity_key,
                 signal_key=signal_key,
+                token_fingerprint=token_fingerprint,
                 created_at=now,
             )
         )
@@ -868,6 +870,32 @@ def record_landing_signal(
         return LandingSignal(account_id, row.opportunity_key, signal_key, _aware(row.created_at))
     return LandingSignal(
         account_id, row.opportunity_key, row.signal_key, _aware(row.created_at)
+    )
+
+
+def mark_landing_step(
+    connection: sa.Connection,
+    *,
+    account_id: str,
+    step: str,
+    now: dt.datetime,
+) -> None:
+    columns = {
+        "signal_opened": "signal_opened_at",
+        "confirmation_started": "confirmation_started_at",
+        "profile_confirmed": "profile_confirmed_at",
+        "dashboard_ready": "dashboard_ready_at",
+    }
+    column = columns.get(step)
+    if column is None:
+        raise ValueError("unknown landing step")
+    connection.execute(
+        sa.update(account_landing_signal)
+        .where(
+            account_landing_signal.c.account_id == account_id,
+            getattr(account_landing_signal.c, column).is_(None),
+        )
+        .values({column: now})
     )
 
 
@@ -885,13 +913,35 @@ def landing_signal(connection: sa.Connection, *, account_id: str) -> LandingSign
 
 
 def landing_signal_keys(connection: sa.Connection, *, account_id: str) -> frozenset[str]:
-    """La clé du signal d'atterrissage du compte — au plus une, souvent aucune."""
+    """Le signal promis et au plus cinq voisins du même profil provisoire."""
     key = connection.execute(
         sa.select(account_landing_signal.c.signal_key).where(
             account_landing_signal.c.account_id == account_id
         )
     ).scalar_one_or_none()
-    return frozenset() if key is None else frozenset({key})
+    if key is None:
+        return frozenset()
+    target_id = connection.scalar(
+        sa.select(materialized_signal.c.target_icp_id).where(
+            materialized_signal.c.signal_key == key
+        )
+    )
+    if target_id is None:
+        return frozenset({key})
+    related = connection.execute(
+        sa.select(materialized_signal.c.signal_key)
+        .where(
+            materialized_signal.c.target_icp_id == target_id,
+            materialized_signal.c.invalidated_at.is_(None),
+        )
+        .order_by(
+            sa.case((materialized_signal.c.signal_key == key, 0), else_=1),
+            materialized_signal.c.materialized_at.desc(),
+            materialized_signal.c.signal_key,
+        )
+        .limit(6)
+    ).scalars()
+    return frozenset(related)
 
 
 def account_ids_with_landing_signal(connection: sa.Connection) -> frozenset[str]:
@@ -917,3 +967,14 @@ def active_user_id(connection: sa.Connection, *, account_id: str) -> str | None:
         .order_by(auth_user.c.created_at, auth_user.c.user_id)
         .limit(1)
     ).scalar_one_or_none()
+
+
+def mark_provisional_onboarding(
+    connection: sa.Connection, *, account_id: str, now: dt.datetime
+) -> None:
+    """Keep a technically materializable landing profile visibly unconfirmed."""
+    connection.execute(
+        sa.update(account)
+        .where(account.c.account_id == account_id)
+        .values(onboarding_status="icp_incomplete", updated_at=now)
+    )

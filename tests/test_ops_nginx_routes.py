@@ -44,6 +44,7 @@ PUBLIC_ASGI_ROUTES = frozenset(
         ("PUT", "/signals/{signal_key}/feedback"),
         ("PUT", "/signals/{signal_key}/note"),
         ("GET", "/target-icps"),
+        ("GET", "/target-icps/options"),
         ("GET", "/target-icps/{target_icp_id}"),
         ("PATCH", "/target-icps/{target_icp_id}"),
         ("POST", "/target-icps"),

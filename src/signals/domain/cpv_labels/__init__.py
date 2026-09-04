@@ -83,4 +83,14 @@ def cpv_label(code: str | None, *, lang: str) -> str | None:
     return None
 
 
-__all__ = ["CPV_LABELS", "cpv_label"]
+def cpv_divisions(*, lang: str) -> tuple[tuple[str, str], ...]:
+    """Retourne les divisions CPV officielles sous forme ``(préfixe, libellé)``."""
+    effective_lang = lang if lang in _SUPPORTED_LANGS else "fr"
+    return tuple(
+        (code[:2], entry[effective_lang])
+        for code, entry in sorted(_load().items())
+        if len(code) == 8 and code.endswith("000000") and entry.get(effective_lang)
+    )
+
+
+__all__ = ["CPV_LABELS", "cpv_divisions", "cpv_label"]

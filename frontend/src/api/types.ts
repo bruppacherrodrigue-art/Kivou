@@ -213,6 +213,8 @@ export interface TargetIcpInput {
   buyer_trades: BuyerTrade[]
   secondary_buyer_trades: BuyerTrade[]
   territories: string[]
+  territory_subdivisions?: string[]
+  sector_cpv_prefixes?: string[]
   minimum_contract_value: MonetaryThreshold | null
 }
 
@@ -226,10 +228,16 @@ export interface TargetIcp {
     limit: number
     territory_count: number
   } | null
+  provisional?: boolean
   customer_input: TargetIcpInput
   missing_fields: string[]
   created_at: string
   updated_at: string
+}
+
+export interface TargetIcpOptions {
+  zones: { code: string; label: string; country: string }[]
+  sectors: { prefix: string; label: string }[]
 }
 
 // ─── Signal ──────────────────────────────────────────────────────────────────
@@ -573,6 +581,7 @@ export interface FeedPage {
   freshness: Freshness
   language: string
   plan_code: PlanCode
+  provisional_profile?: boolean
   view: 'recent' | 'history'
   history_access: {
     scope: 'grants_only' | 'window' | 'all_available'
@@ -725,6 +734,8 @@ export interface DashboardResponse {
   to_follow_up_truncated: boolean
   week: { new: number; saved: number; contacted: number; replied: number }
   scan_truncated: boolean
+  profile: { name: string; sector_label: string; zone_labels: string[] }
+  plan: { name: string; opened: number; quota: number | null; period_end: string | null }
 }
 
 // ─── Facturation ─────────────────────────────────────────────────────────────

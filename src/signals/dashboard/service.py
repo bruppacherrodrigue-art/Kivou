@@ -32,6 +32,7 @@ from typing import Any
 
 import sqlalchemy as sa
 
+from signals.accounts import service as accounts
 from signals.api.cards import presentation_bindings_for_items, render_unlocked_card
 from signals.billing.access import FeedAccess
 from signals.card_intelligence.store import published_for_signals
@@ -306,7 +307,21 @@ def build_dashboard(
     new_since_last_visit = len(since_visit)
     strong_matches = sum(1 for item in since_visit if item.signal.icp_match_band == "strong")
 
-    top3_items = sorted(scope.matched, key=_top3_sort_key, reverse=True)[:3]
+    top3_candidates = list(scope.matched)
+    seen_top3 = {item.signal.signal_key for item in top3_candidates}
+    for landing_key in accounts.landing_signal_keys(connection, account_id=account_id):
+        if landing_key in seen_top3:
+            continue
+        landing_item = feed_query.owned_signal(
+            connection,
+            account_id=account_id,
+            signal_key=landing_key,
+            as_of=as_of,
+            allowed_target_icp_ids=allowed_target_icp_ids,
+        )
+        if landing_item is not None and landing_item.display is not None and access.is_unlocked(landing_item):
+            top3_candidates.append(landing_item)
+    top3_items = sorted(top3_candidates, key=_top3_sort_key, reverse=True)[:3]
     top3_company_keys = company_keys_for_signals(
         connection, signal_keys=tuple(item.signal.signal_key for item in top3_items)
     )

@@ -16,6 +16,7 @@ from signals.persistence.schema import (
     acquisition_campaign,
     acquisition_conversion_event,
     acquisition_conversion_journey,
+    acquisition_opportunity,
 )
 
 NOW = dt.datetime(2026, 8, 24, 9, tzinfo=dt.UTC)
@@ -72,6 +73,18 @@ def test_valid_click_and_duplicate_converge(tmp_path) -> None:
     assert rows[0]["milestone"] == "CLICK"
     assert rows[0]["occurred_at"].replace(tzinfo=dt.UTC) == NOW + dt.timedelta(hours=1)
     assert token.raw_token not in repr(rows[0])
+
+
+def test_modern_attribution_source_refuses_a_mail_without_an_opportunity_key(tmp_path) -> None:
+    engine, _, token, opportunity_id = prepared(tmp_path)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(acquisition_opportunity)
+            .where(acquisition_opportunity.c.acquisition_opportunity_id == opportunity_id)
+            .values(signal_ref="legacy-signal-without-opportunity-key")
+        )
+    with engine.connect() as connection, pytest.raises(ValueError, match="opportunity key"):
+        AttributionSourceResolver(engine).for_member(connection, token.payload.member_ref)
 
 
 def test_signup_freezes_source_without_matching_signup_email(tmp_path) -> None:

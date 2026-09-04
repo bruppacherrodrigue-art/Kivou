@@ -199,6 +199,11 @@ def list_signals(
     # ses trois déblocages écrits ici, une fois pour toutes (§20).
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
+        provisional_profile = (
+            service.landing_signal(connection, account_id=session.account_id) is not None
+            and service.onboarding_status(connection, account_id=session.account_id)
+            != "ready_for_signals"
+        )
         lang = _language(connection, user_id=session.user_id)
         access = feed_access(connection, account_id=session.account_id, as_of=as_of)
         service.reconcile_territory_plan_limits(
@@ -391,6 +396,7 @@ def list_signals(
         "view": view_mode,
         "language": lang,
         "plan_code": access.plan_code,
+        "provisional_profile": provisional_profile,
         "history_access": _history_access(access),
         "filter_access": _filter_access(access),
         "policy": {
@@ -587,6 +593,15 @@ def get_signal(
                 connection, account_id=session.account_id, signal_key=signal_key
             )
             if unlocked:
+                if signal_key in service.landing_signal_keys(
+                    connection, account_id=session.account_id
+                ):
+                    service.mark_landing_step(
+                        connection,
+                        account_id=session.account_id,
+                        step="signal_opened",
+                        now=now,
+                    )
                 binding = presentation_bindings_for_items(connection, (item,)).get(signal_key)
                 if binding is not None:
                     if presentation_artifact_id is None:

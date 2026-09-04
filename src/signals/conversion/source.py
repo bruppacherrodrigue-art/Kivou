@@ -60,6 +60,11 @@ class AttributionSourceResolver:
         self._engine = engine
 
     def from_facts(self, facts: AttributionSourceFacts) -> AttributionTokenPayload:
+        opportunity_key = opportunity_key_of(facts.signal_ref)
+        if opportunity_key is None:
+            raise AttributionSourceUnavailable(
+                "modern attribution mail requires an opportunity key"
+            )
         try:
             issued_at = dt.datetime.combine(
                 facts.step_1_execution_date,
@@ -82,7 +87,7 @@ class AttributionSourceResolver:
             wedge_version=facts.wedge_version,
             country=facts.country,
             sector_ref=self.sector_ref_for_signal(facts.signal_ref),
-            opportunity_key=opportunity_key_of(facts.signal_ref),
+            opportunity_key=opportunity_key,
             need_ref=facts.need_ref,
             need_version=facts.need_version,
             issued_at=issued_at,

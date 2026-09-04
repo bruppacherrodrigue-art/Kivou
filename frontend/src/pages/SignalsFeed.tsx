@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LockKeyhole } from 'lucide-react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { billing, feedback, signals } from '../api/endpoints'
 import type { FeedQuery } from '../api/endpoints'
 import type {
@@ -562,6 +562,13 @@ export function SignalsFeed() {
         <h1>{copy.title}</h1>
         <p>{copy.subtitle}</p>
       </header>
+
+      {feed.data?.provisional_profile ? (
+        <aside className={styles.provisionalBanner} role="note">
+          <span>Ces signaux viennent d’un profil provisoire. Confirmez-le en 30 secondes pour recevoir les vôtres.</span>
+          <Link to="/onboarding">Confirmer mon profil</Link>
+        </aside>
+      ) : null}
 
       <div
         className={styles.filters}

@@ -21,7 +21,11 @@ from signals.accounts.icp_input import TargetIcpInput
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
 from signals.billing import service as billing_service
-from signals.ingestion.backfill import rematerialize_target_in_transaction
+from signals.domain.cpv_labels import cpv_divisions
+from signals.domain.subdivisions import FRENCH_DEPARTMENTS, SWISS_CANTONS
+from signals.ingestion.backfill import (
+    rematerialize_target_in_transaction,
+)
 
 router = APIRouter()
 
@@ -58,6 +62,7 @@ class TargetIcpResponse(BaseModel):
     status: str
     matching_revision: int
     plan_limit: TargetIcpPlanLimitResponse | None
+    provisional: bool = False
     customer_input: TargetIcpInput
     missing_fields: tuple[str, ...]
     created_at: dt.datetime
@@ -69,6 +74,7 @@ class TargetIcpResponse(BaseModel):
         stored: service.StoredTargetIcp,
         *,
         max_territories: int | None,
+        provisional: bool = False,
     ) -> TargetIcpResponse:
         plan_limit = None
         if stored.plan_limit_code is not None and max_territories is not None:
@@ -83,6 +89,7 @@ class TargetIcpResponse(BaseModel):
             status=stored.status,
             matching_revision=stored.matching_revision,
             plan_limit=plan_limit,
+            provisional=provisional,
             customer_input=stored.customer_input,
             missing_fields=stored.missing_fields,
             created_at=stored.created_at,
@@ -103,10 +110,50 @@ def list_target_icps(request: Request) -> list[TargetIcpResponse]:
             now=now,
         )
         stored = service.list_target_icps(connection, account_id=session.account_id)
+        landing = service.landing_signal(connection, account_id=session.account_id)
+        provisional = landing is not None and service.onboarding_status(
+            connection, account_id=session.account_id
+        ) != "ready_for_signals"
+        if landing is not None:
+            service.mark_landing_step(
+                connection,
+                account_id=session.account_id,
+                step="confirmation_started",
+                now=now,
+            )
     return [
-        TargetIcpResponse.of(item, max_territories=entitlements.max_territories_per_icp)
+        TargetIcpResponse.of(
+            item,
+            max_territories=entitlements.max_territories_per_icp,
+            provisional=provisional,
+        )
         for item in stored
     ]
+
+
+@router.get("/target-icps/options")
+def target_icp_options(request: Request) -> dict[str, object]:
+    """Référentiels contrôlés de la page de confirmation du profil."""
+    now = request_now(request)
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        locale = service.current_user(connection, user_id=session.user_id).locale
+    lang = "en" if locale == "en" else "fr"
+    return {
+        "zones": [
+            *(
+                {"code": f"FR-{code}", "label": label, "country": "FR"}
+                for code, label in FRENCH_DEPARTMENTS.items()
+            ),
+            *(
+                {"code": f"CH-{code}", "label": label, "country": "CH"}
+                for code, label in SWISS_CANTONS.items()
+            ),
+        ],
+        "sectors": [
+            {"prefix": prefix, "label": label} for prefix, label in cpv_divisions(lang=lang)
+        ],
+    }
 
 
 @router.post("/target-icps", status_code=201)
@@ -197,6 +244,12 @@ def update_target_icp(
                 target_icp_id=target_icp_id,
                 label=payload.label,
                 customer_input=payload.customer_input,
+                now=now,
+            )
+            service.mark_landing_step(
+                connection,
+                account_id=session.account_id,
+                step="profile_confirmed",
                 now=now,
             )
         except service.TargetIcpNotFound as error:
