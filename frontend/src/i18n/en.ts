@@ -974,7 +974,7 @@ export const en: Dictionary = {
     offersStep: 'What do you sell?',
     offersHelp:
       'Pick at least one category. It decides which needs are surfaced to you.',
-    secondaryOffersLabel: 'What you also sell, more occasionally',
+    secondaryOffersLabel: 'What you also sell, less frequently',
     tradesStep: 'Which trades do you sell to?',
     tradesHelp: 'Optional. Left empty, Kivou does not restrict the type of winning company.',
     secondaryTradesLabel: 'Trades you accept as a fallback',
