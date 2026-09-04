@@ -1418,6 +1418,35 @@ borné pour BOAMP, TED et SIMAP. Il est inactif par défaut dans la commande :
 global est défini par `KIVOU_TENDER_DOCUMENT_STORAGE_QUOTA_BYTES`; une procédure
 qui ferait dépasser ce quota n'est pas écrite et le passage s'arrête proprement.
 
+Les pages de consultation sont résolues par empreinte HTML. Les instances ATEXO
+(dont PLACE, Maximilien, Mégalis Bretagne et DEMAT AMPA) et XMarchés utilisent
+uniquement leur parcours de retrait anonyme. ATEXO passe par Chromium headless,
+car son choix anonyme et son téléchargement complet dépendent de JavaScript ;
+XMarchés reste en HTTP. Le script de déploiement installe Chromium et ses
+dépendances dans `/srv/kivou/playwright`, partagé en lecture avec le service.
+Quand le formulaire propose des
+coordonnées, le job envoie toujours l'identité Kivou définie dans le fichier
+d'environnement protégé :
+
+```text
+KIVOU_PORTAL_COMPANY_NAME=Kivou
+KIVOU_PORTAL_CONTACT_EMAIL=<adresse de contact opérationnelle>
+```
+
+Ne jamais versionner l'adresse si elle constitue un secret. Le job espace deux
+dossiers d'un même hébergeur d'au moins 20 secondes, applique un backoff à tout
+HTTP 4xx/5xx et suspend cet hébergeur 24 heures après trois erreurs consécutives.
+L'état est dans `portal_capture_runtime`, donc un redémarrage ne contourne pas la
+suspension.
+
+Les décisions issues de la revue du 4 septembre 2026 sont sûres par défaut :
+achatpublic est `portal_blocked:robots_disallowed`, marches-publics.info est
+`portal_blocked:captcha`, et Marchés Sécurisés est `cgu_restricted:cgu_automation`.
+Copier `ops/examples/portal-policy.json` vers `/etc/kivou/portal-policy.json`,
+propriétaire `root:kivou`, mode `0640`. Après réception d'une autorisation,
+passer uniquement l'hôte concerné à `{"enabled": true}` : le fichier est relu
+avant chaque dossier et aucun redéploiement ni redémarrage n'est nécessaire.
+
 Avant d'activer le timer, installer les deux unités adaptées à l'environnement,
 recharger systemd et réussir un passage manuel :
 
@@ -1437,7 +1466,11 @@ KIVOU_TENDER_NOTICES_ENABLED=1 /srv/kivou/app/.venv/bin/python \
 ```
 
 Les métriques sont relues depuis `source_event` et `procedure_documents` avec
-`capture_report`; aucun compteur du processus n'est une source de reporting.
+`capture_report`; aucun compteur du processus n'est une source de reporting. Le
+tableau fournit par hébergeur l'URL, les téléchargements et leur taux, les refus
+et leurs motifs, la taille moyenne d'un dossier et la moyenne d'exigences
+classifiées par dossier. Cette dernière reste à zéro jusqu'à ce qu'une
+attribution fortement jointe déclenche la classification différée.
 Les archives et blocs non joints expirent douze mois après la date limite de
 dépôt. Une procédure jointe, ou sans date limite publiée, n'est jamais purgée
 automatiquement. Pour couper immédiatement le job :

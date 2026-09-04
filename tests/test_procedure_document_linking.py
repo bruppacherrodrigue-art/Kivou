@@ -98,6 +98,10 @@ def test_procedure_identifier_is_a_strong_join() -> None:
     assert resolution.match_mode == "procedure_id"
     assert resolution.blocks
     assert len(resolution.analysis.requirements) == 1
+    with engine.connect() as opened:
+        assert opened.execute(
+            sa.select(procedure_documents.c.classified_requirements_count)
+        ).scalar_one() == 1
 
 
 def test_fingerprint_match_is_quarantined_and_never_calls_classifier() -> None:

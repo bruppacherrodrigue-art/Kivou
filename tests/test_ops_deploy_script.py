@@ -69,6 +69,7 @@ def test_rehearsal_failure_never_touches_the_live_release(tmp_path: pathlib.Path
         "KIVOU_BACKUP_SCRIPT": str(backup),
         "KIVOU_READINESS_SCRIPT": str(readiness),
         "KIVOU_BACKUP_DIR": str(tmp_path / "backups"),
+        "KIVOU_PLAYWRIGHT_BROWSERS_DIR": str(tmp_path / "playwright"),
     }
     result = subprocess.run(
         [str(SCRIPT), "staging", "a" * 40],

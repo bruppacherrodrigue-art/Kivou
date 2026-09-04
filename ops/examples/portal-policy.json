@@ -1,0 +1,7 @@
+{
+  "hosts": {
+    "achatpublic.com": {"enabled": false},
+    "marches-publics.info": {"enabled": false},
+    "marches-securises.fr": {"enabled": false}
+  }
+}

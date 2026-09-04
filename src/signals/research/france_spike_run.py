@@ -7,8 +7,9 @@ téléchargement borné → extraction. Chaque étape est comptée séparément,
 qu'un taux faible dise **où** la chaîne casse.
 
 Accès : lecture seule, cadence lente, User-Agent identifiant, limites de taille
-reprises de SPEC-006. Aucun contournement d'authentification, aucun CAPTCHA,
-aucun crawl de portail acheteur.
+reprises de SPEC-006. Les documents publics peuvent être récupérés par les moyens
+ordinaires offerts à un utilisateur, sans contournement d'authentification ni de
+CAPTCHA et dans le respect des CGU et de robots.txt.
 """
 
 from __future__ import annotations

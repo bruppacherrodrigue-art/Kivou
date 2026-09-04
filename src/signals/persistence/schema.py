@@ -112,6 +112,13 @@ procedure_documents = sa.Table(
     sa.Column("source_url", sa.Text, nullable=False),
     sa.Column("host", sa.String(255), nullable=False, index=True),
     sa.Column("access_status", sa.String(32), nullable=False, index=True),
+    sa.Column("access_detail", sa.String(128)),
+    sa.Column(
+        "classified_requirements_count",
+        sa.Integer,
+        nullable=False,
+        server_default="0",
+    ),
     sa.Column("content_hash", sa.String(64)),
     sa.Column("media_type", sa.String(255)),
     sa.Column("byte_size", sa.BigInteger, nullable=False),
@@ -126,6 +133,18 @@ procedure_documents = sa.Table(
         "source_system", "source_notice_id", "source_url", "content_hash",
         name="uq_procedure_documents_source_version",
     ),
+)
+
+
+portal_capture_runtime = sa.Table(
+    "portal_capture_runtime",
+    METADATA,
+    sa.Column("host", sa.String(255), primary_key=True),
+    sa.Column("consecutive_errors", sa.Integer, nullable=False),
+    sa.Column("last_request_at", sa.DateTime(timezone=True)),
+    sa.Column("blocked_until", sa.DateTime(timezone=True), index=True),
+    _created_at(),
+    sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
 )
 
 

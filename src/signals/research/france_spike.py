@@ -21,8 +21,10 @@ Sources vérifiées au moment du run, aucune supposée :
   licence LOv2.
 - **PLACE** — `place.marches-publics.gouv.fr`, mesuré comme n'importe quel hôte.
 
-Accès : lecture seule, cadence lente, User-Agent identifiant. Aucun
-contournement d'authentification, aucun CAPTCHA, aucun crawl de portail.
+Accès : lecture seule, cadence lente, User-Agent identifiant. Les documents
+publics peuvent être récupérés par les moyens ordinaires offerts à un utilisateur,
+sans contournement d'authentification ni de CAPTCHA et dans le respect des CGU et
+de robots.txt.
 """
 
 from __future__ import annotations

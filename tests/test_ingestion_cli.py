@@ -139,6 +139,21 @@ def test_tender_notices_command_uses_the_same_explicit_window_for_replay(monkeyp
     assert captured["arguments"].max_records == 50
 
 
+def test_portal_runtime_configuration_is_read_from_environment(monkeypatch, tmp_path):
+    from signals.ingestion.cli import _portal_settings
+
+    policy = tmp_path / "policy.json"
+    monkeypatch.setenv("KIVOU_PORTAL_POLICY_FILE", str(policy))
+    monkeypatch.setenv("KIVOU_PORTAL_COMPANY_NAME", "Kivou SA")
+    monkeypatch.setenv("KIVOU_PORTAL_CONTACT_EMAIL", "dce@kivou.ch")
+
+    settings = _portal_settings()
+
+    assert settings.policy_path == policy
+    assert settings.company_name == "Kivou SA"
+    assert settings.contact_email == "dce@kivou.ch"
+
+
 def test_decp_runtime_limits_come_from_positive_environment_values(monkeypatch):
     captured = {}
 
