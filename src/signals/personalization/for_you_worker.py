@@ -46,6 +46,9 @@ class ForYouWorkerReport:
     def rejection_rate(self) -> float:
         return self.rejected / self.attempted if self.attempted else 0.0
 
+    def as_dict(self) -> dict[str, int | float]:
+        return {**self.__dict__, "rejection_rate": self.rejection_rate}
+
 
 @dataclass(frozen=True)
 class _Outcome:
@@ -82,6 +85,12 @@ class ForYouWorker:
     ) -> list[dict]:
         worker = uuid.uuid4().hex
         with self.engine.begin() as connection:
+            if connection.dialect.name == "postgresql":
+                # Sérialise le comptage et la réclamation entre plusieurs
+                # hôtes : deux workers ne peuvent pas dépasser ensemble le cap.
+                connection.execute(
+                    sa.text("LOCK TABLE for_you_sentence IN SHARE ROW EXCLUSIVE MODE")
+                )
             used = (
                 connection.scalar(
                     sa.select(sa.func.count())
@@ -227,7 +236,7 @@ def main() -> int:
         ).run(now=dt.datetime.now(dt.UTC))
     finally:
         provider.close()
-    print(json.dumps(report.__dict__, sort_keys=True))
+    print(json.dumps(report.as_dict(), sort_keys=True))
     return 0
 
 

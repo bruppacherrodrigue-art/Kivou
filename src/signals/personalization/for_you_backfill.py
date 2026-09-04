@@ -116,7 +116,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         )
     finally:
         provider.close()
-    print(json.dumps(report.__dict__, sort_keys=True))
+    print(json.dumps(report.as_dict(), sort_keys=True))
     return 0
 
 

@@ -64,6 +64,7 @@ def test_worker_rejects_an_invented_number_and_keeps_fallback(tmp_path) -> None:
     with engine.connect() as connection:
         row = connection.execute(sa.select(for_you_sentence)).mappings().one()
     assert report.rejected == 1
+    assert report.as_dict()["rejection_rate"] == 1.0
     assert row["sentence"] == row["fallback_sentence"]
     assert row["validation_reason"] == "invented_number"
     assert row["state"] == "completed"
