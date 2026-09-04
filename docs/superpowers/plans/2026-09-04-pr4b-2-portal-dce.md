@@ -54,5 +54,5 @@
 
 - [x] Tester RED le tableau par hébergeur lu en base : URL, téléchargés, taux, bloqués/motifs, taille moyenne et exigences classifiées par dossier.
 - [x] Implémenter les agrégats SQL sans compteur mémoire et vérifier GREEN.
-- [ ] Exécuter une seule validation finale backend pertinente, lint, migrations et test d’interdiction réseau ; inspecter le diff, committer, pousser et ouvrir la PR.
-- [ ] Après CI verte, déployer le SHA via `ops/bin/kivou-deploy.sh`, lancer la fenêtre BOAMP de sept jours avec la commande quotidienne, relire le tableau en base et compléter le rapport avant le compte rendu.
+- [x] Exécuter une seule validation finale backend pertinente, lint, migrations et test d’interdiction réseau ; inspecter le diff, committer, pousser et ouvrir la PR.
+- [x] Après CI verte, déployer le SHA via `ops/bin/kivou-deploy.sh`, lancer la fenêtre BOAMP de sept jours avec la commande quotidienne, relire le tableau en base et compléter le rapport avant le compte rendu.
