@@ -42,7 +42,7 @@ def canonical_event(row: sa.Row) -> PublicEvent:
                 _value(row, source_event.c.published_precision),
             ),
             "procedure_buyers": _value(row, source_event.c.procedure_buyers),
-            "related_notice_ids": _value(row, source_event.c.related_notice_ids),
+            "source_notice_links": _value(row, source_event.c.source_notice_links),
         }
     )
 

@@ -119,7 +119,7 @@ def test_strong_early_document_join_classifies_only_when_award_arrives(tmp_path)
             connection,
             ProcedureDocumentRecord(
                 source_system="boamp",
-                source_notice_id=event.related_notice_ids[0],
+                source_notice_id=event.source_notice_links[0],
                 source_procedure_id="other-procedure",
                 buyer_fingerprint=None,
                 object_normalized="unrelated",

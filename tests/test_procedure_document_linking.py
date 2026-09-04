@@ -6,6 +6,7 @@ import sqlalchemy as sa
 
 from signals.documents.early_capture import (
     ProcedureDocumentRecord,
+    confirm_document_join,
     resolve_award_documents,
     store_procedure_document,
 )
@@ -29,7 +30,7 @@ def event(
             source_procedure_id=procedure,
         ),
         event_type="award_notice",
-        related_notice_ids=related,
+        source_notice_links=related,
         procedure_buyers=(OrganizationRef(legal_name=buyer_name, country="FR"),),
     )
 
@@ -122,3 +123,9 @@ def test_fingerprint_match_is_quarantined_and_never_calls_classifier() -> None:
     assert resolution.blocks == ()
     assert resolution.analysis is None
     assert calls == []
+
+    with engine.begin() as opened:
+        assert confirm_document_join(opened, linked_award_key=resolution.linked_award_key) == 1
+        assert opened.execute(
+            sa.select(procedure_documents.c.join_status)
+        ).scalar_one() == "linked"

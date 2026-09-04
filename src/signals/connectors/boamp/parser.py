@@ -198,7 +198,7 @@ def parse_tender_notice(
         event_type="tender_notice",
         published_at=_date(record.get("dateparution")),
         procedure_buyers=_buyers(notice, organizations),
-        related_notice_ids=tuple(
+        source_notice_links=tuple(
             value
             for value in (_text(item) for item in _listed(record.get("annonce_lie")))
             if value
@@ -390,7 +390,7 @@ def parse_award_notice(
         event_type="award_notice",
         published_at=_date(record.get("dateparution")),
         procedure_buyers=_buyers(notice, organizations),
-        related_notice_ids=tuple(
+        source_notice_links=tuple(
             value
             for value in (_text(item) for item in _listed(record.get("annonce_lie")))
             if value

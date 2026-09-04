@@ -153,7 +153,7 @@ class PublicEvent(CanonicalModel):
     procedure_buyers: tuple[OrganizationRef, ...] = ()
     # Identifiants d'autres avis explicitement référencés par la source
     # (`annonce_lie`, `referencingPubId`). Aucun rapprochement n'est déduit ici.
-    related_notice_ids: tuple[NonEmptyStr, ...] = ()
+    source_notice_links: tuple[NonEmptyStr, ...] = ()
 
     def ref(self) -> EventRef:
         return self.provenance.ref()

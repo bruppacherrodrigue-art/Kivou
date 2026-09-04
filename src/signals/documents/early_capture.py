@@ -68,6 +68,7 @@ class AwardDocumentResolution:
     match_mode: Literal["explicit_notice", "procedure_id", "fingerprint"] | None = None
     blocks: tuple[TextBlock, ...] = ()
     analysis: Any | None = None
+    linked_award_key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -311,11 +312,11 @@ def resolve_award_documents(
     common = procedure_documents.c.source_system == event.provenance.source_system
     rows: list[sa.Row] = []
     mode: Literal["explicit_notice", "procedure_id", "fingerprint"] | None = None
-    if event.related_notice_ids:
+    if event.source_notice_links:
         rows = connection.execute(
             sa.select(procedure_documents).where(
                 common,
-                procedure_documents.c.source_notice_id.in_(event.related_notice_ids),
+                procedure_documents.c.source_notice_id.in_(event.source_notice_links),
             )
         ).all()
         if rows:
@@ -355,7 +356,9 @@ def resolve_award_documents(
             .where(procedure_documents.c.procedure_document_key.in_(keys))
             .values(join_status="review_required", linked_award_key=reference)
         )
-        return AwardDocumentResolution("review_required", match_mode=mode)
+        return AwardDocumentResolution(
+            "review_required", match_mode=mode, linked_award_key=reference
+        )
     connection.execute(
         sa.update(procedure_documents)
         .where(procedure_documents.c.procedure_document_key.in_(keys))
@@ -367,7 +370,24 @@ def resolve_award_documents(
         match_mode=mode,
         blocks=blocks,
         analysis=(classify(blocks) if classify is not None else _analyze_rows(rows, event=event, award=award)),
+        linked_award_key=reference,
     )
+
+
+def confirm_document_join(
+    connection: sa.Connection, *, linked_award_key: str | None
+) -> int:
+    if not linked_award_key:
+        return 0
+    result = connection.execute(
+        sa.update(procedure_documents)
+        .where(
+            procedure_documents.c.linked_award_key == linked_award_key,
+            procedure_documents.c.join_status == "review_required",
+        )
+        .values(join_status="linked")
+    )
+    return int(result.rowcount or 0)
 
 
 def capture_report(

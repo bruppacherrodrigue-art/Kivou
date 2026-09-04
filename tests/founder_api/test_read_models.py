@@ -33,7 +33,7 @@ from signals.operations.contracts import (
     WorkType,
 )
 from signals.operations.store import OperationsStore
-from signals.persistence.schema import METADATA
+from signals.persistence.schema import METADATA, procedure_documents
 
 ALLOWED_EMAIL = "rodrigue.bruppacher@gmail.com"
 ORIGIN_SECRET = "s" * 40
@@ -221,6 +221,39 @@ def test_overview_fails_closed_when_read_models_are_absent() -> None:
         response = client.get("/api/founder/overview", headers=_headers())
 
     assert response.status_code == 503
+
+
+def test_review_required_document_blocks_are_only_exposed_by_authenticated_founder_api() -> None:
+    engine = _engine()
+    with engine.begin() as connection:
+        connection.execute(
+            sa.insert(procedure_documents).values(
+                procedure_document_key="review-1",
+                source_system="boamp",
+                source_notice_id="tender-1",
+                source_url="https://example.test/dce.txt",
+                host="example.test",
+                access_status="available",
+                byte_size=12,
+                blocks=[{"locator": "page 1", "text": "Exigence", "method": "pdf_text"}],
+                join_status="review_required",
+                linked_award_key="award-1",
+                captured_at=NOW,
+                created_at=NOW,
+            )
+        )
+    app = create_founder_app(
+        FounderApiConfig(allowed_email=ALLOWED_EMAIL, origin_secret=ORIGIN_SECRET),
+        read_service=FounderReadService(engine),
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/api/founder/procedure-document-reviews", headers=_headers())
+        unauthenticated = client.get("/api/founder/procedure-document-reviews")
+
+    assert response.status_code == 200
+    assert response.json()[0]["blocks"][0]["text"] == "Exigence"
+    assert unauthenticated.status_code == 403
 
 
 def test_founder_database_never_guesses_or_accepts_sqlite(

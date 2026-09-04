@@ -94,7 +94,7 @@ source_event = sa.Table(
     # Quand Kivou l'a appris. Distincte des trois horloges du contrat (§6).
     sa.Column("discovered_at", sa.DateTime(timezone=True)),
     sa.Column("procedure_buyers", sa.JSON, nullable=False),
-    sa.Column("related_notice_ids", sa.JSON, nullable=False, default=list),
+    sa.Column("source_notice_links", sa.JSON, nullable=False, default=list),
     _created_at(),
 )
 

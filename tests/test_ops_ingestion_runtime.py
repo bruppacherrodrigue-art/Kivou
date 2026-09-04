@@ -14,6 +14,10 @@ TED_SERVICE = REPOSITORY / "ops/systemd/kivou-ingest-ted.service"
 TED_TIMER = REPOSITORY / "ops/systemd/kivou-ingest-ted.timer"
 TENDER_SERVICE = REPOSITORY / "ops/systemd/kivou-tender-notices.service"
 TENDER_TIMER = REPOSITORY / "ops/systemd/kivou-tender-notices.timer"
+PRODUCTION_TENDER_SERVICE = (
+    REPOSITORY / "ops/systemd/production/kivou-tender-notices.service"
+)
+PRODUCTION_TENDER_TIMER = REPOSITORY / "ops/systemd/production/kivou-tender-notices.timer"
 OPERATIONS = REPOSITORY / "ops/README.md"
 ENVIRONMENT = REPOSITORY / ".env.example"
 
@@ -187,6 +191,10 @@ def test_tender_notice_runtime_is_daily_bounded_and_kill_switched() -> None:
     assert "Persistent=true" in timer
     assert "RandomizedDelaySec=" in timer
     assert "WantedBy=timers.target" in timer
+    assert "EnvironmentFile=/etc/kivou/production.env" in PRODUCTION_TENDER_SERVICE.read_text(
+        encoding="utf-8"
+    )
+    assert "OnCalendar=daily" in PRODUCTION_TENDER_TIMER.read_text(encoding="utf-8")
 
 
 def test_ted_application_limits_are_bounded_below_the_host_timeout() -> None:

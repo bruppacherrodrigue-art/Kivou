@@ -1410,3 +1410,38 @@ sudo systemctl stop "$KIVOU_ROLLBACK_GREEN_UNIT"
 Aucun fichier du snapshot ne revient en position active. Le security floor reste
 le bundle nginx expurgé, le gate validé et l'unité API sans journal d'accès,
 même lorsque l'application précédente est restaurée.
+# Capture précoce des dossiers
+
+Le service `kivou-tender-notices.service` exécute chaque jour le même chemin
+borné pour BOAMP, TED et SIMAP. Il est inactif par défaut dans la commande :
+`KIVOU_TENDER_NOTICES_ENABLED=1` constitue son kill switch explicite. Le quota
+global est défini par `KIVOU_TENDER_DOCUMENT_STORAGE_QUOTA_BYTES`; une procédure
+qui ferait dépasser ce quota n'est pas écrite et le passage s'arrête proprement.
+
+Avant d'activer le timer, installer les deux unités adaptées à l'environnement,
+recharger systemd et réussir un passage manuel :
+
+```bash
+sudo cp ops/systemd/kivou-tender-notices.{service,timer} /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl start kivou-tender-notices.service
+sudo systemctl enable --now kivou-tender-notices.timer
+```
+
+La mesure sur une fenêtre historique utilise exactement la commande du job :
+
+```bash
+KIVOU_TENDER_NOTICES_ENABLED=1 /srv/kivou/app/.venv/bin/python \
+  -m signals.ingestion tender-notices --source boamp \
+  --since 2026-08-28 --until 2026-09-03
+```
+
+Les métriques sont relues depuis `source_event` et `procedure_documents` avec
+`capture_report`; aucun compteur du processus n'est une source de reporting.
+Les archives et blocs non joints expirent douze mois après la date limite de
+dépôt. Une procédure jointe, ou sans date limite publiée, n'est jamais purgée
+automatiquement. Pour couper immédiatement le job :
+
+```bash
+sudo systemctl disable --now kivou-tender-notices.timer
+```
