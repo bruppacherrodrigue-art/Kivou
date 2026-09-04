@@ -31,6 +31,7 @@ from signals.documents.classification import (
     build_classification_prompt,
     parse_classification,
 )
+from signals.personalization.for_you import ForYouInput
 
 
 class CredentialMissing(RuntimeError):
@@ -132,6 +133,16 @@ class AnthropicClassifier:
         return retried
 
     def _ask(self, prompt: str) -> tuple[SemanticClassification | None, str | None]:
+        text, failure = self._request_text(prompt)
+        if text is None:
+            return None, failure
+        classification = parse_classification(text)
+        if classification is None:
+            self.usage.fail("schema_failure")
+            return None, "schema_failure"
+        return classification, None
+
+    def _request_text(self, prompt: str) -> tuple[str | None, str | None]:
         payload: dict[str, object] = {
             "model": self.model,
             "max_tokens": self.max_tokens,
@@ -171,9 +182,22 @@ class AnthropicClassifier:
 
         blocks = body.get("content") or []
         text = "".join(block.get("text", "") for block in blocks if block.get("type") == "text")
-        # Aucun repli en texte libre : une sortie hors schéma est une panne.
-        classification = parse_classification(text)
-        if classification is None:
-            self.usage.fail("schema_failure")
-            return None, "schema_failure"
-        return classification, None
+        return text.strip(), None
+
+
+@dataclass
+class AnthropicTextGenerator(AnthropicClassifier):
+    """Même transport et même modèle, avec un contrat de phrase unique."""
+
+    max_tokens: int = 100
+
+    def generate_sentence(self, value: ForYouInput) -> str | None:
+        prompt = (
+            "Rédige une seule phrase en français, 25 mots maximum, sans point "
+            "d'exclamation ni superlatif. N'ajoute aucun fait.\n\n"
+            "BEGIN UNTRUSTED VERIFIED INPUT\n"
+            f"{value.model_dump_json()}\n"
+            "END UNTRUSTED VERIFIED INPUT"
+        )
+        text, _ = self._request_text(prompt)
+        return text

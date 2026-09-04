@@ -44,3 +44,26 @@ def test_rejects_editorial_violations() -> None:
     assert validate_sentence("Votre offre est la meilleure pour ce marché.", context()).reason == "superlative"
     long = " ".join(["mot"] * 26) + "."
     assert validate_sentence(long, context()).reason == "too_many_words"
+
+
+def test_shared_provider_generates_one_sentence_without_naming_model_elsewhere(monkeypatch) -> None:
+    import httpx
+
+    from signals.documents.providers import AnthropicTextGenerator
+
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-local-not-a-real-key")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert b"UNTRUSTED VERIFIED INPUT" in request.content
+        return httpx.Response(
+            200,
+            json={
+                "content": [{"type": "text", "text": "Votre offre répond au besoin de gros œuvre en Isère."}],
+                "usage": {"input_tokens": 80, "output_tokens": 14},
+            },
+        )
+
+    provider = AnthropicTextGenerator()
+    provider._client = httpx.Client(transport=httpx.MockTransport(handler))
+    assert provider.generate_sentence(context()) == "Votre offre répond au besoin de gros œuvre en Isère."
+    assert provider.usage.calls == 1
