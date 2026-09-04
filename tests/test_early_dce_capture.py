@@ -8,6 +8,8 @@ from pathlib import Path
 import sqlalchemy as sa
 
 from signals.connectors.boamp import parse_tender_notice
+from signals.connectors.simap import extract_tender as extract_simap_tender
+from signals.connectors.ted import parse_tender_notice as parse_ted_tender_notice
 from signals.documents.early_capture import capture_tender_notice
 from signals.documents.fetch import FetchResult
 from signals.persistence.schema import procedure_documents
@@ -91,3 +93,49 @@ def test_capture_fetches_archives_and_stores_located_blocks_without_classifying(
             "page": None,
         }
     ]
+
+
+def test_real_ted_competition_notice_exposes_bt15_without_an_award() -> None:
+    xml = (FIXTURES / "ted" / "612553-2026.tender.xml").read_bytes()
+
+    notice = parse_ted_tender_notice(
+        xml,
+        publication_number="612553-2026",
+        retrieved_at=RETRIEVED,
+    )
+
+    assert notice.event.event_type == "tender_notice"
+    assert notice.event.provenance.source_notice_id == "612553-2026"
+    assert notice.event.provenance.source_procedure_id == (
+        "e938be39-0ade-4a92-b03a-82f844ffc565"
+    )
+    assert notice.event.procedure_buyers[0].legal_name == (
+        "CENTRE NATIONAL D'ETUDES SPATIALES"
+    )
+    assert notice.title == "Assistance à maîtrise d’ouvrage sur le logiciel SAP"
+    assert notice.cpv_main == "72261000"
+    assert notice.document_urls == (
+        "https://marches.cnes.fr/entreprise/consultation/510067?orgAcronyme=t5y",
+    )
+
+
+def test_real_simap_tender_records_auth_required_without_fetching() -> None:
+    payload = json.loads(
+        (FIXTURES / "simap" / "22917-01.tender.json").read_text(encoding="utf-8")
+    )
+
+    notice = extract_simap_tender(payload, retrieved_at=RETRIEVED)
+
+    assert notice.event.event_type == "tender_notice"
+    assert notice.event.provenance.source_notice_id == (
+        "dcd4957b-e97b-471a-9a82-b95c02aa50d9"
+    )
+    assert notice.event.provenance.source_procedure_id == (
+        "44c48094-2868-41c1-b154-6d15769dd355"
+    )
+    assert notice.title.startswith("Beschaffung einer Verwaltungssoftware")
+    assert notice.cpv_main == "72268000"
+    assert notice.submission_deadline == dt.datetime(
+        2026, 3, 25, 17, tzinfo=dt.timezone(dt.timedelta(hours=1))
+    )
+    assert notice.document_access_status == "auth_required"

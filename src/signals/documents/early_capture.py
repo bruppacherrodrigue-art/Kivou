@@ -191,16 +191,21 @@ def capture_tender_notice(
     """Télécharge et extrait un AAPC, sans appeler aucun moteur de classification."""
     created = 0
     for url in notice.document_urls:
-        fetched = fetcher.fetch(url)
-        content = fetched.content
+        fetched = None if notice.document_access_status else fetcher.fetch(url)
+        access_status = notice.document_access_status or fetched.access_status  # type: ignore[union-attr]
+        content = fetched.content if fetched is not None else None
         name = urlparse(url).path.rsplit("/", 1)[-1] or "document"
         blocks = (
-            _blocks(content, name=name, media_type=fetched.media_type)
+            _blocks(
+                content,
+                name=name,
+                media_type=fetched.media_type if fetched is not None else None,
+            )
             if content is not None
             else ()
         )
         captured_at = (
-            fetched.retrieved_at
+            (fetched.retrieved_at if fetched is not None else None)
             or notice.event.provenance.retrieved_at
             or dt.datetime.now(dt.UTC)
         )
@@ -215,10 +220,10 @@ def capture_tender_notice(
                 cpv_main=notice.cpv_main,
                 submission_deadline=notice.submission_deadline,
                 source_url=url,
-                access_status=fetched.access_status,
+                access_status=access_status,
                 content=content,
-                content_hash=fetched.content_hash,
-                media_type=fetched.media_type,
+                content_hash=fetched.content_hash if fetched is not None else None,
+                media_type=fetched.media_type if fetched is not None else None,
                 blocks=blocks,
                 captured_at=captured_at,
             ),

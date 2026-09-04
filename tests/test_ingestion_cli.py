@@ -111,6 +111,34 @@ def test_cli_dispatches_selected_sources_and_returns_runner_exit_code(monkeypatc
     assert "source=ted" in capsys.readouterr().out
 
 
+def test_tender_notices_command_uses_the_same_explicit_window_for_replay(monkeypatch):
+    captured = {}
+
+    def run_tender(arguments):
+        captured["arguments"] = arguments
+        return 0
+
+    monkeypatch.setattr("signals.ingestion.cli._run_tender_notices", run_tender)
+
+    assert main(
+        [
+            "tender-notices",
+            "--source",
+            "boamp",
+            "--since",
+            "2026-08-28",
+            "--until",
+            "2026-09-03",
+            "--max-records",
+            "50",
+        ]
+    ) == 0
+    assert captured["arguments"].source == "boamp"
+    assert captured["arguments"].since == dt.date(2026, 8, 28)
+    assert captured["arguments"].until == dt.date(2026, 9, 3)
+    assert captured["arguments"].max_records == 50
+
+
 def test_decp_runtime_limits_come_from_positive_environment_values(monkeypatch):
     captured = {}
 

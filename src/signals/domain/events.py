@@ -191,3 +191,4 @@ class TenderNotice(CanonicalModel):
     cpv_main: Annotated[str, Field(pattern=r"^\d{8}$")] | None = None
     submission_deadline: dt.datetime | None = None
     document_urls: tuple[NonEmptyStr, ...] = ()
+    document_access_status: Literal["auth_required"] | None = None

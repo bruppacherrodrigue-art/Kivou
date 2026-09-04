@@ -15,6 +15,7 @@ from signals.connectors.ted.errors import (
 )
 from signals.connectors.ted.mapping import MappingWarning, NoticeExtraction, map_notice
 from signals.connectors.ted.parser import TedNotice, parse_notice
+from signals.connectors.ted.tender import parse_tender_notice
 
 __all__ = [
     "MappingWarning",
@@ -28,6 +29,7 @@ __all__ = [
     "TedParseError",
     "map_notice",
     "parse_notice",
+    "parse_tender_notice",
 ]
 
 

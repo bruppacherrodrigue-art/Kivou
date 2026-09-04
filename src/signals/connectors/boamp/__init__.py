@@ -6,6 +6,7 @@ from signals.connectors.boamp.client import (
     AwardCursor,
     BoampClient,
     award_query,
+    tender_query,
 )
 from signals.connectors.boamp.errors import BoampError, BoampHttpError, BoampMalformedPayload
 from signals.connectors.boamp.parser import (
@@ -35,6 +36,7 @@ __all__ = [
     "BoampMalformedPayload",
     "BoampUnsupportedPayload",
     "award_query",
+    "tender_query",
     "parse_award_notice",
     "parse_tender_notice",
     "payload_kind",
