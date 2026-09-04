@@ -141,6 +141,16 @@ def store_procedure_document(
         )
     ).scalar()
     if exists:
+        connection.execute(
+            sa.update(procedure_documents)
+            .where(procedure_documents.c.procedure_document_key == key)
+            .values(
+                access_status=record.access_status,
+                access_detail=record.access_detail,
+                captured_at=record.captured_at,
+                expires_at=_plus_twelve_months(record.submission_deadline),
+            )
+        )
         return StoreResult(key, False)
     size = len(record.content or b"")
     if stored_bytes(connection) + size > quota_bytes:
@@ -434,12 +444,19 @@ def capture_report(
             )
         ).scalar_one()
     )
-    persisted = connection.execute(
+    persisted_rows = connection.execute(
         sa.select(procedure_documents).where(
             procedure_documents.c.source_system == source,
             notice_in_window,
         )
     ).mappings().all()
+    latest_by_url: dict[tuple[str, str], sa.RowMapping] = {}
+    for row in persisted_rows:
+        key = (row["source_notice_id"], row["source_url"])
+        previous = latest_by_url.get(key)
+        if previous is None or row["captured_at"] > previous["captured_at"]:
+            latest_by_url[key] = row
+    persisted = tuple(latest_by_url.values())
 
     def display_host(host: str) -> str:
         aliases = (
@@ -452,7 +469,7 @@ def capture_report(
             ("demat-ampa", "DEMAT AMPA"),
             ("xmarches", "XMarchés"),
         )
-        return next((label for marker, label in aliases if marker in host), host)
+        return next((label for marker, label in aliases if marker in host), "Autres")
 
     grouped: dict[str, list[sa.RowMapping]] = {}
     for row in persisted:
@@ -469,6 +486,7 @@ def capture_report(
                 "Mégalis Bretagne",
                 "DEMAT AMPA",
                 "XMarchés",
+                "Autres",
             )
         )
     }
@@ -485,7 +503,17 @@ def capture_report(
             )
         host = rows[0]["host"]
         reasons = tuple(
-            sorted({row["access_detail"] for row in rows if row["access_detail"]})
+            sorted(
+                {
+                    row["access_detail"]
+                    for row in rows
+                    if row["access_detail"]
+                    and row["access_status"] in {"portal_blocked", "cgu_restricted"}
+                }
+            )
+        )
+        non_empty_folder_sizes = tuple(
+            values["bytes"] for values in folders.values() if values["bytes"] > 0
         )
         metrics.append(
             HostCaptureMetric(
@@ -498,8 +526,10 @@ def capture_report(
                     for row in rows
                 ),
                 block_reasons=reasons,
-                average_folder_bytes=round(
-                    sum(item["bytes"] for item in folders.values()) / len(folders)
+                average_folder_bytes=(
+                    round(sum(non_empty_folder_sizes) / len(non_empty_folder_sizes))
+                    if non_empty_folder_sizes
+                    else 0
                 ),
                 classified_requirements_per_folder=(
                     sum(item["requirements"] for item in folders.values()) / len(folders)
@@ -509,38 +539,20 @@ def capture_report(
     hosts = tuple(
         sorted(metrics, key=lambda row: (preferred.get(row.host_group, 99), row.host_group))
     )
-    folder_key = sa.func.coalesce(
-        procedure_documents.c.source_procedure_id,
-        procedure_documents.c.source_notice_id,
-    ).label("folder_key")
-    folder_sizes = (
-        sa.select(
-            folder_key,
-            sa.func.sum(procedure_documents.c.byte_size).label("folder_bytes"),
-        )
-        .where(
-            procedure_documents.c.source_system == source,
-            procedure_documents.c.byte_size > 0,
-            notice_in_window,
-        )
-        .group_by(folder_key)
-        .subquery()
-    )
-    average = connection.execute(sa.select(sa.func.avg(folder_sizes.c.folder_bytes))).scalar()
-    available_notices = int(
-        connection.execute(
-            sa.select(sa.func.count(sa.distinct(procedure_documents.c.source_notice_id))).where(
-                procedure_documents.c.source_system == source,
-                procedure_documents.c.access_status == "available",
-                notice_in_window,
-            )
-        ).scalar_one()
-    )
+    folder_sizes: dict[str, int] = {}
+    available_notices: set[str] = set()
+    for row in persisted:
+        folder = row["source_procedure_id"] or row["source_notice_id"]
+        folder_sizes[folder] = folder_sizes.get(folder, 0) + int(row["byte_size"] or 0)
+        if row["access_status"] == "available":
+            available_notices.add(row["source_notice_id"])
+    non_empty_sizes = tuple(size for size in folder_sizes.values() if size > 0)
+    average = sum(non_empty_sizes) / len(non_empty_sizes) if non_empty_sizes else 0
     return EarlyCaptureReport(
         notices_ingested=notices,
         hosts=hosts,
         average_folder_bytes=round(float(average or 0)),
         estimated_award_coverage_at_three_months=(
-            available_notices / notices if notices else 0.0
+            len(available_notices) / notices if notices else 0.0
         ),
     )
