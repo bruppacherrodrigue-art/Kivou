@@ -12,7 +12,12 @@ from dataclasses import dataclass
 import sqlalchemy as sa
 
 from signals.persistence.schema import for_you_sentence
-from signals.personalization.for_you import ForYouInput, ForYouProvider, validate_sentence
+from signals.personalization.for_you import (
+    ForYouInput,
+    ForYouProvider,
+    compose_generated_sentence,
+    validate_sentence,
+)
 
 DEFAULT_CONCURRENCY = 4
 DEFAULT_DAILY_LIMIT = 500
@@ -139,13 +144,14 @@ class ForYouWorker:
     def _generate(self, row: dict) -> _Outcome:
         value = ForYouInput.model_validate(row["input_snapshot"])
         try:
-            sentence = self.provider.generate_sentence(value)
+            output = self.provider.generate_sentence(value)
         # Le fournisseur est une frontière externe : toute panne conserve le
         # repli déjà visible, sans faire échouer le lot ni la matérialisation.
         except Exception:  # noqa: BLE001
             return _Outcome(row["for_you_id"], None, "provider_unavailable", None)
-        if sentence is None:
+        if output is None:
             return _Outcome(row["for_you_id"], None, "provider_unavailable", None)
+        sentence = compose_generated_sentence(output, value)
         validation = validate_sentence(sentence, value)
         if not validation.accepted:
             return _Outcome(row["for_you_id"], None, validation.reason, validation.detail)

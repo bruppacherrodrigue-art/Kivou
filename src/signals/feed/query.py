@@ -52,6 +52,7 @@ from signals.persistence.schema import (
     opportunity_representation,
     source_event,
 )
+from signals.personalization.for_you import POLICY_VERSION
 from signals.recency import AwardRecency
 
 #: §19 — un identifiant stable ne remplace pas un nom. Un attributaire réduit à
@@ -358,6 +359,7 @@ def _ownership_scoped(account_id: str) -> sa.Select:
             for_you_sentence.c.target_icp_id == target_icp.c.target_icp_id,
             for_you_sentence.c.signal_fingerprint
             == materialized_signal.c.content_fingerprint,
+            for_you_sentence.c.policy_version == POLICY_VERSION,
         )
         .order_by(for_you_sentence.c.created_at.desc())
         .limit(1)

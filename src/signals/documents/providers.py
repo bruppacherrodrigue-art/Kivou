@@ -31,7 +31,7 @@ from signals.documents.classification import (
     build_classification_prompt,
     parse_classification,
 )
-from signals.personalization.for_you import ForYouInput, ForYouProvider
+from signals.personalization.for_you import ForYouInput, ForYouProvider, build_for_you_prompt
 
 
 class CredentialMissing(RuntimeError):
@@ -192,14 +192,7 @@ class AnthropicTextGenerator(AnthropicClassifier):
     max_tokens: int = 100
 
     def generate_sentence(self, value: ForYouInput) -> str | None:
-        prompt = (
-            "Rédige une seule phrase en français, 25 mots maximum, sans point "
-            "d'exclamation ni superlatif. N'ajoute aucun fait.\n\n"
-            "BEGIN UNTRUSTED VERIFIED INPUT\n"
-            f"{value.model_dump_json()}\n"
-            "END UNTRUSTED VERIFIED INPUT"
-        )
-        text, _ = self._request_text(prompt)
+        text, _ = self._request_text(build_for_you_prompt(value))
         return text
 
 

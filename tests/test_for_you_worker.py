@@ -3,22 +3,28 @@ from __future__ import annotations
 import datetime as dt
 import threading
 import time
+from collections.abc import Callable
 
 import sqlalchemy as sa
 from test_attribution_landing import CLICKED_AT, client_for, land, prepared
 
 from signals.persistence.schema import for_you_sentence
+from signals.personalization.for_you import ForYouInput, compose_generated_sentence
 from signals.personalization.for_you_worker import ForYouWorker, limits_from_environment
 
 
 class FakeProvider:
-    def __init__(self, sentence: str | None) -> None:
+    def __init__(self, sentence: str | None | Callable) -> None:
         self.sentence = sentence
         self.calls = 0
 
-    def generate_sentence(self, _value) -> str | None:
+    def generate_sentence(self, value) -> str | None:
         self.calls += 1
-        return self.sentence
+        return self.sentence(value) if callable(self.sentence) else self.sentence
+
+
+def valid_sentence(value) -> str:
+    return "travaux de bâtiment | vos matériaux répondent aux travaux"
 
 
 def _seed(tmp_path, *, count: int = 1):
@@ -42,7 +48,7 @@ def _seed(tmp_path, *, count: int = 1):
 
 def test_worker_accepts_and_persists_generated_sentence(tmp_path) -> None:
     engine = _seed(tmp_path)
-    provider = FakeProvider("Votre offre répond aux besoins de travaux du titulaire.")
+    provider = FakeProvider(valid_sentence)
 
     report = ForYouWorker(engine, provider, concurrency=4, daily_limit=20).run(now=CLICKED_AT)
 
@@ -50,14 +56,17 @@ def test_worker_accepts_and_persists_generated_sentence(tmp_path) -> None:
         row = connection.execute(sa.select(for_you_sentence)).mappings().one()
     assert report.accepted == 1
     assert report.generated_today == 1
-    assert row["sentence"] == provider.sentence
+    value = ForYouInput.model_validate(row["input_snapshot"])
+    assert row["sentence"] == compose_generated_sentence(valid_sentence(value), value)
     assert row["provenance"] == "generated"
     assert row["state"] == "completed"
 
 
 def test_worker_rejects_an_invented_number_and_keeps_fallback(tmp_path) -> None:
     engine = _seed(tmp_path)
-    provider = FakeProvider("Ce marché représente 987654 euros pour votre offre.")
+    provider = FakeProvider(
+        "travaux de bâtiment | vos matériaux couvrent 987654 travaux"
+    )
 
     report = ForYouWorker(engine, provider, concurrency=1, daily_limit=20).run(now=CLICKED_AT)
 
@@ -72,7 +81,7 @@ def test_worker_rejects_an_invented_number_and_keeps_fallback(tmp_path) -> None:
 
 def test_worker_daily_cap_leaves_excess_pairs_pending(tmp_path) -> None:
     engine = _seed(tmp_path, count=5)
-    provider = FakeProvider("Votre offre répond aux besoins de travaux du titulaire.")
+    provider = FakeProvider(valid_sentence)
 
     report = ForYouWorker(engine, provider, concurrency=4, daily_limit=2).run(now=CLICKED_AT)
 
@@ -88,7 +97,7 @@ def test_worker_daily_cap_leaves_excess_pairs_pending(tmp_path) -> None:
 
 class ConcurrencyProbe(FakeProvider):
     def __init__(self) -> None:
-        super().__init__("Votre offre répond aux besoins de travaux du titulaire.")
+        super().__init__(valid_sentence)
         self.active = 0
         self.maximum = 0
         self.lock = threading.Lock()
@@ -146,14 +155,14 @@ def test_worker_reclaims_only_an_expired_lease(tmp_path) -> None:
             .values(state="running", lease_expires_at=CLICKED_AT + dt.timedelta(minutes=1))
         )
 
-    report = ForYouWorker(engine, FakeProvider("Votre offre répond aux besoins du titulaire."), concurrency=1, daily_limit=20).run(now=CLICKED_AT)
+    report = ForYouWorker(engine, FakeProvider(valid_sentence), concurrency=1, daily_limit=20).run(now=CLICKED_AT)
 
     assert report.attempted == 1
 
 
 def test_daily_cap_resumes_on_the_next_utc_day(tmp_path) -> None:
     engine = _seed(tmp_path, count=2)
-    provider = FakeProvider("Votre offre répond aux besoins du titulaire.")
+    provider = FakeProvider(valid_sentence)
     worker = ForYouWorker(engine, provider, concurrency=1, daily_limit=1)
 
     assert worker.run(now=CLICKED_AT).attempted == 1

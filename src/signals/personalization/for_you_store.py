@@ -55,6 +55,18 @@ def _stored_location(place: dict[str, Any] | None) -> str | None:
     return " · ".join(dict.fromkeys(part for part in parts if part)) or None
 
 
+def _duration(value: Any, unit: str | None) -> str | None:
+    if value is None or unit is None:
+        return None
+    labels = {
+        "day": "jour" if value == 1 else "jours",
+        "week": "semaine" if value == 1 else "semaines",
+        "month": "mois",
+        "year": "an" if value == 1 else "ans",
+    }
+    return f"{value} {labels[unit]}"
+
+
 def _profile_context(
     profile: dict[str, Any],
 ) -> tuple[TargetIcpInput, str | None, tuple[str, ...], str]:
@@ -150,6 +162,11 @@ def enqueue_for_you_sentence(
         amount=(
             f"{award.value.amount} {award.value.currency}" if award.value is not None else None
         ),
+        duration=(
+            _duration(award.duration.value, award.duration.unit)
+            if award.duration is not None
+            else None
+        ),
         location=_location(award.place_of_performance),
         awarded_on=award.award_date.isoformat() if award.award_date is not None else None,
         cpv=award.cpv_main.code if award.cpv_main is not None else None,
@@ -215,6 +232,7 @@ def enqueue_stored_for_you_sentence(
             if row["amount"] is not None and row["currency"]
             else None
         ),
+        duration=_duration(row["duration_value"], row["duration_unit"]),
         location=_stored_location(row["place_of_performance"]),
         awarded_on=row["award_date"].isoformat() if row["award_date"] is not None else None,
         cpv=row["cpv_main"],
@@ -249,6 +267,7 @@ def sentence_for_opportunity(connection: sa.Connection, *, opportunity_key: str)
         .where(
             materialized_signal.c.opportunity_key == opportunity_key,
             for_you_sentence.c.signal_fingerprint == materialized_signal.c.content_fingerprint,
+            for_you_sentence.c.policy_version == POLICY_VERSION,
         )
         .order_by(
             sa.case((for_you_sentence.c.provenance == "generated", 0), else_=1),

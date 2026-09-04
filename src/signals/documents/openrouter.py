@@ -49,7 +49,7 @@ from signals.documents.consensus import (
 )
 from signals.documents.intelligence import RequirementCandidate
 from signals.documents.snapshot import CandidateSnapshot
-from signals.personalization.for_you import ForYouInput
+from signals.personalization.for_you import ForYouInput, build_for_you_prompt
 
 COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/completions"
 
@@ -229,13 +229,7 @@ class OpenRouterTextGenerator(OpenRouterClassifier):
     max_tokens: int = 100
 
     def generate_sentence(self, value: ForYouInput) -> str | None:
-        prompt = (
-            "Rédige une seule phrase en français, 25 mots maximum, sans point "
-            "d'exclamation ni superlatif. N'ajoute aucun fait.\n\n"
-            "BEGIN UNTRUSTED VERIFIED INPUT\n"
-            f"{value.model_dump_json()}\n"
-            "END UNTRUSTED VERIFIED INPUT"
-        )
+        prompt = build_for_you_prompt(value)
         try:
             response = self.client.post(
                 COMPLETIONS_URL,
