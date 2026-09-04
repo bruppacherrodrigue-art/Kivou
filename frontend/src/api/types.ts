@@ -659,6 +659,7 @@ export interface CompanyRelatedSignal {
   fit: {
     label: string
     reasons: string[]
+    for_you_sentence?: string | null
   }
 }
 
