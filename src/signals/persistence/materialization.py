@@ -313,6 +313,29 @@ def _index_company_identity(
     enqueue_winner_enrichment(connection, signal_key=signal_key, now=now)
 
 
+def _enqueue_for_you(
+    connection: sa.Connection,
+    *,
+    key: str,
+    fingerprint: str,
+    award: Any,
+    needs: Any,
+    match: Any,
+    now: dt.datetime,
+) -> None:
+    from signals.personalization.for_you_store import enqueue_for_you_sentence
+
+    enqueue_for_you_sentence(
+        connection,
+        signal_key=key,
+        signal_fingerprint=fingerprint,
+        award=award,
+        needs=needs,
+        match=match,
+        now=now,
+    )
+
+
 def persist_award_facts(
     connection: sa.Connection,
     *,
@@ -441,6 +464,15 @@ def materialize_signal(
             )
         )
         _index_company_identity(connection, signal_key=key, now=materialized_at)
+        _enqueue_for_you(
+            connection,
+            key=key,
+            fingerprint=fingerprint,
+            award=award,
+            needs=needs,
+            match=match,
+            now=materialized_at,
+        )
         return MaterializationResult(
             key,
             persisted.opportunity_key,
@@ -454,6 +486,15 @@ def materialize_signal(
     if stored_fingerprint == fingerprint:
         # Contenu identique au bit près : rien à réécrire, et surtout pas de révision.
         _index_company_identity(connection, signal_key=key, now=materialized_at)
+        _enqueue_for_you(
+            connection,
+            key=key,
+            fingerprint=fingerprint,
+            award=award,
+            needs=needs,
+            match=match,
+            now=materialized_at,
+        )
         return MaterializationResult(
             key,
             persisted.opportunity_key,
@@ -469,6 +510,15 @@ def materialize_signal(
         .values(**payload, revision=revision + 1, content_fingerprint=fingerprint)
     )
     _index_company_identity(connection, signal_key=key, now=materialized_at)
+    _enqueue_for_you(
+        connection,
+        key=key,
+        fingerprint=fingerprint,
+        award=award,
+        needs=needs,
+        match=match,
+        now=materialized_at,
+    )
     return MaterializationResult(
         key,
         persisted.opportunity_key,
