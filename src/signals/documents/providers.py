@@ -31,7 +31,7 @@ from signals.documents.classification import (
     build_classification_prompt,
     parse_classification,
 )
-from signals.personalization.for_you import ForYouInput
+from signals.personalization.for_you import ForYouInput, ForYouProvider
 
 
 class CredentialMissing(RuntimeError):
@@ -203,6 +203,11 @@ class AnthropicTextGenerator(AnthropicClassifier):
         return text
 
 
-def text_generator_from_environment() -> AnthropicTextGenerator:
+def text_generator_from_environment() -> ForYouProvider:
     """Construit l'adaptateur configuré sans exposer sa marque aux appelants."""
+    if os.environ.get("OPENROUTER_API_KEY", "").strip():
+        from signals.documents.openrouter import OpenRouterTextGenerator
+
+        model = os.environ.get("KIVOU_FOR_YOU_MODEL", "anthropic/claude-sonnet-4.6")
+        return OpenRouterTextGenerator(model=model)
     return AnthropicTextGenerator()
