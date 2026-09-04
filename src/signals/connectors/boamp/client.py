@@ -42,6 +42,7 @@ PAGE_SIZE = 100
 USER_AGENT_DEFAULT = "Kivou/0.1 (award signals; reutilisation de donnees publiques)"
 
 AWARD_NATURE = "ATTRIBUTION"
+TENDER_NATURE = "APPEL_OFFRE"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -81,6 +82,15 @@ def award_query(cursor: AwardCursor) -> dict[str, Any]:
     }
 
 
+def tender_query(cursor: AwardCursor) -> dict[str, Any]:
+    """Même fenêtre déterministe, limitée aux avis d'appel à la concurrence."""
+    query = award_query(cursor)
+    query["where"] = query["where"].replace(
+        f'nature="{AWARD_NATURE}"', f'nature="{TENDER_NATURE}"'
+    )
+    return query
+
+
 class BoampClient:
     """Lecture du catalogue BOAMP. Aucune écriture, aucune authentification."""
 
@@ -104,9 +114,12 @@ class BoampClient:
         if self._owned:
             self._client.close()
 
-    def fetch_page(self, cursor: AwardCursor) -> list[dict]:
+    def fetch_page(self, cursor: AwardCursor, *, tender_notices: bool = False) -> list[dict]:
         try:
-            response = self._client.get(RECORDS_URL, params=award_query(cursor))
+            response = self._client.get(
+                RECORDS_URL,
+                params=tender_query(cursor) if tender_notices else award_query(cursor),
+            )
         except httpx.TimeoutException as error:
             raise BoampHttpError("BOAMP request timed out", category="timeout") from error
         except httpx.HTTPError as error:
@@ -148,6 +161,24 @@ class BoampClient:
         seen = 0
         while True:
             page = self.fetch_page(cursor)
+            if not page:
+                return
+            for record in page:
+                yield record
+                seen += 1
+                if max_records is not None and seen >= max_records:
+                    return
+            if len(page) < PAGE_SIZE:
+                return
+            cursor = cursor.next_page()
+
+    def fetch_tenders_since(
+        self, since: dt.date, *, until: dt.date | None = None, max_records: int | None = None
+    ) -> Iterator[dict]:
+        cursor = AwardCursor(since=since, until=until)
+        seen = 0
+        while True:
+            page = self.fetch_page(cursor, tender_notices=True)
             if not page:
                 return
             for record in page:

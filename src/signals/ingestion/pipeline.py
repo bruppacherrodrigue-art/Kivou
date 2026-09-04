@@ -9,6 +9,7 @@ import sqlalchemy as sa
 
 from signals.accounts.icp_input import TargetIcpInput, to_target_icp
 from signals.accounts.schema import target_icp
+from signals.documents.early_capture import resolve_award_documents
 from signals.ingestion.sources import AcquiredPublication
 from signals.matching import MatchingEngine
 from signals.needs import NeedGraphEngine
@@ -119,7 +120,26 @@ class IngestionPipeline:
             active_targets = _active_targets(connection)
         materialized = 0
         for award, resolution in persisted_awards:
-            understanding = self.understanding.understand(award, publication.event)
+            with self.engine.begin() as connection:
+                document_resolution = resolve_award_documents(
+                    connection,
+                    event=publication.event,
+                    award=award,
+                )
+            requirements = (
+                tuple(document_resolution.analysis.requirements)
+                if document_resolution.analysis is not None
+                else ()
+            )
+            understanding = (
+                self.understanding.understand(
+                    award,
+                    publication.event,
+                    document_requirements=requirements,
+                )
+                if requirements
+                else self.understanding.understand(award, publication.event)
+            )
             needs = self.needs.derive(understanding)
             recency = assess_recency(
                 award_date=award.award_date,

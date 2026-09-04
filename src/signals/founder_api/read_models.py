@@ -5,7 +5,7 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Mapping
 from decimal import Decimal
-from typing import Literal, Protocol
+from typing import Any, Literal, Protocol
 
 import sqlalchemy as sa
 from pydantic import Field, field_validator
@@ -21,6 +21,7 @@ from signals.operations.contracts import (
     HealthStatus,
 )
 from signals.operations.service import OperationsReadService
+from signals.persistence.schema import procedure_documents
 from signals.policy.contracts import AutonomyMode
 
 FOUNDER_OVERVIEW_VERSION = "founder-console-overview-v1"
@@ -119,6 +120,21 @@ class FounderSystemSummary(FounderContract):
     database_access: Literal["READ_ONLY"] = "READ_ONLY"
 
 
+class FounderProcedureDocumentReview(FounderContract):
+    procedure_document_key: str
+    source_system: str
+    source_notice_id: str
+    source_procedure_id: str | None = None
+    source_url: str
+    host: str
+    access_status: str
+    linked_award_key: str
+    blocks: tuple[dict[str, Any], ...]
+    captured_at: dt.datetime
+
+    _captured_at = field_validator("captured_at")(lambda value: _aware(value))
+
+
 class FounderConsoleOverview(FounderContract):
     version: Literal["founder-console-overview-v1"] = FOUNDER_OVERVIEW_VERSION
     environment: Literal["PRODUCTION"] = "PRODUCTION"
@@ -198,6 +214,37 @@ class FounderReadService:
             quality=quality,
             system=system,
         )
+
+    def procedure_document_reviews(
+        self, *, limit: int = 50
+    ) -> tuple[FounderProcedureDocumentReview, ...]:
+        if not 1 <= limit <= 100:
+            raise ValueError("limit must be between 1 and 100")
+        with self._engine.connect() as connection:
+            rows = connection.execute(
+                sa.select(procedure_documents)
+                .where(procedure_documents.c.join_status == "review_required")
+                .order_by(
+                    procedure_documents.c.captured_at,
+                    procedure_documents.c.procedure_document_key,
+                )
+                .limit(limit)
+            ).mappings()
+            return tuple(
+                FounderProcedureDocumentReview(
+                    procedure_document_key=row["procedure_document_key"],
+                    source_system=row["source_system"],
+                    source_notice_id=row["source_notice_id"],
+                    source_procedure_id=row["source_procedure_id"],
+                    source_url=row["source_url"],
+                    host=row["host"],
+                    access_status=row["access_status"],
+                    linked_award_key=row["linked_award_key"],
+                    blocks=tuple(row["blocks"] or ()),
+                    captured_at=row["captured_at"],
+                )
+                for row in rows
+            )
 
     def _attention(self, *, limit: int) -> tuple[FounderAttentionItem, ...]:
         fetch_limit = min(100, max(limit * 4, limit))

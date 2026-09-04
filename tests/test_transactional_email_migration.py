@@ -21,7 +21,7 @@ PREVIOUS = "0022_saas_company_profile"
 #: La migration que CE fichier décrit. Elle n'est plus la tête depuis 0024,
 #: mais reste un pas ADDITIF unique depuis son parent — ce que ce test prouve.
 HEAD = "0023_transactional_email_runtime"
-CURRENT_HEAD = "0035_landing_signal"
+CURRENT_HEAD = "0036_procedure_documents"
 LEASE_TABLE = "signal_alert_job_lease"
 NOW = dt.datetime(2026, 8, 23, 10, 0, tzinfo=dt.UTC)
 

@@ -12,7 +12,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from signals.founder_api.access import FounderIdentityDependency
 from signals.founder_api.config import FounderApiConfig
 from signals.founder_api.contracts import FounderSession
-from signals.founder_api.read_models import FounderConsoleOverview, FounderReadService
+from signals.founder_api.read_models import (
+    FounderConsoleOverview,
+    FounderProcedureDocumentReview,
+    FounderReadService,
+)
 
 
 def create_founder_app(
@@ -66,6 +70,26 @@ def create_founder_app(
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="les read models Founder sont indisponibles",
+            ) from error
+
+    @app.get("/api/founder/procedure-document-reviews")
+    def founder_procedure_document_reviews(
+        identity: FounderIdentityDependency,
+        limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    ) -> tuple[FounderProcedureDocumentReview, ...]:
+        del identity
+        service: FounderReadService | None = app.state.read_service
+        if service is None:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="les read models Founder ne sont pas configurés",
+            )
+        try:
+            return service.procedure_document_reviews(limit=limit)
+        except SQLAlchemyError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="les dossiers à revoir sont indisponibles",
             ) from error
 
     return app

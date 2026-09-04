@@ -50,6 +50,7 @@ FACT_TABLES: tuple[str, ...] = (
     "contract_award",
     "evidence",
     "opportunity_representation",
+    "procedure_documents",
 )
 
 #: Celles qui contiennent ce que Kivou en déduit.
@@ -94,6 +95,37 @@ source_event = sa.Table(
     sa.Column("discovered_at", sa.DateTime(timezone=True)),
     sa.Column("procedure_buyers", sa.JSON, nullable=False),
     _created_at(),
+)
+
+
+procedure_documents = sa.Table(
+    "procedure_documents",
+    METADATA,
+    sa.Column("procedure_document_key", sa.String(64), primary_key=True),
+    sa.Column("source_system", sa.String(32), nullable=False, index=True),
+    sa.Column("source_notice_id", sa.String(256), nullable=False, index=True),
+    sa.Column("source_procedure_id", sa.String(256), index=True),
+    sa.Column("buyer_fingerprint", sa.String(64), index=True),
+    sa.Column("object_normalized", sa.Text),
+    sa.Column("cpv_main", sa.String(8), index=True),
+    sa.Column("submission_deadline", sa.DateTime(timezone=True), index=True),
+    sa.Column("source_url", sa.Text, nullable=False),
+    sa.Column("host", sa.String(255), nullable=False, index=True),
+    sa.Column("access_status", sa.String(32), nullable=False, index=True),
+    sa.Column("content_hash", sa.String(64)),
+    sa.Column("media_type", sa.String(255)),
+    sa.Column("byte_size", sa.BigInteger, nullable=False),
+    sa.Column("archive_content", sa.LargeBinary),
+    sa.Column("blocks", sa.JSON, nullable=False),
+    sa.Column("join_status", sa.String(32), nullable=False, index=True),
+    sa.Column("linked_award_key", sa.String(64), index=True),
+    sa.Column("captured_at", sa.DateTime(timezone=True), nullable=False),
+    sa.Column("expires_at", sa.DateTime(timezone=True), index=True),
+    _created_at(),
+    sa.UniqueConstraint(
+        "source_system", "source_notice_id", "source_url", "content_hash",
+        name="uq_procedure_documents_source_version",
+    ),
 )
 
 

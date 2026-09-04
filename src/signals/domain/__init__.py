@@ -22,6 +22,7 @@ from signals.domain.events import (
     PublicationInstant,
     PublicEvent,
     SourceSystem,
+    TenderNotice,
 )
 from signals.domain.evidence import DERIVED, Evidence, SourceKind
 from signals.domain.values import (
@@ -63,6 +64,7 @@ __all__ = [
     "SourceKind",
     "SourceSystem",
     "SubdivisionScheme",
+    "TenderNotice",
     "VatCategory",
     "WinnerStatus",
 ]

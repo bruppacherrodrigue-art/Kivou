@@ -30,6 +30,7 @@ from signals.persistence.schema import (
     evidence,
     materialized_signal,
     opportunity_representation,
+    procedure_documents,
     source_event,
 )
 
@@ -38,6 +39,7 @@ ALL_TABLES = (
     contract_award,
     evidence,
     opportunity_representation,
+    procedure_documents,
     materialized_signal,
 )
 
@@ -105,6 +107,7 @@ def test_facts_live_in_the_fact_tables():
         "contract_award",
         "evidence",
         "opportunity_representation",
+        "procedure_documents",
     }
 
 

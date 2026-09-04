@@ -1,17 +1,28 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
 import math
 import os
 import signal
 import threading
 
+from signals.connectors.boamp import BoampClient
 from signals.connectors.decp import PAGE_SIZE as DECP_PAGE_SIZE
+from signals.connectors.simap import SimapClient
+from signals.connectors.ted import TedClient
+from signals.documents.fetch import DocumentFetcher
 from signals.ingestion.france import FranceLinker
 from signals.ingestion.pipeline import IngestionPipeline
 from signals.ingestion.runner import IngestionRunner, RunOptions, SourceOutcome
 from signals.ingestion.sources import production_sources
+from signals.ingestion.tender_notices import (
+    BoampTenderNotices,
+    SimapTenderNotices,
+    TedTenderNotices,
+    TenderNoticeJob,
+)
 from signals.persistence.database import create_database_engine
 
 DECP_MAX_WINDOWS_ENV = "KIVOU_DECP_MAX_WINDOWS_PER_RUN"
@@ -35,6 +46,7 @@ DEFAULT_TED_MAX_ATTEMPTS = 4
 DEFAULT_TED_MAX_RETRY_SECONDS = 120.0
 DEFAULT_TED_MAX_RECORDS_PER_RUN = 500
 DEFAULT_TED_TIME_BUDGET_SECONDS = 1200
+DEFAULT_TENDER_STORAGE_QUOTA_BYTES = 10 * 1024 * 1024 * 1024
 
 
 def summarize(outcome: SourceOutcome) -> str:
@@ -138,11 +150,71 @@ def _parser() -> argparse.ArgumentParser:
     run.add_argument("--ted-max-records-per-run", type=_positive_integer)
     run.add_argument("--ted-time-budget-seconds", type=_positive_integer)
     run.add_argument("--ingestion-stale-run-seconds", type=_positive_integer)
+    tender = commands.add_parser(
+        "tender-notices", help="capture documents when calls for tenders are published"
+    )
+    tender.add_argument(
+        "--source", choices=("boamp", "ted", "simap", "all"), required=True
+    )
+    tender.add_argument("--since", type=dt.date.fromisoformat)
+    tender.add_argument("--until", type=dt.date.fromisoformat)
+    tender.add_argument("--max-records", type=_positive_integer)
+    tender.add_argument("--request-interval-seconds", type=_positive_number)
+    tender.add_argument("--storage-quota-bytes", type=_positive_integer)
     return parser
+
+
+def _run_tender_notices(arguments: argparse.Namespace) -> int:
+    until = arguments.until or dt.datetime.now(dt.UTC).date()
+    since = arguments.since or (until - dt.timedelta(days=1))
+    quota = arguments.storage_quota_bytes or _environment_positive_integer(
+        "KIVOU_TENDER_DOCUMENT_STORAGE_QUOTA_BYTES",
+        DEFAULT_TENDER_STORAGE_QUOTA_BYTES,
+    )
+    interval = arguments.request_interval_seconds or _environment_positive_number(
+        "KIVOU_TENDER_REQUEST_INTERVAL_SECONDS", 2.0
+    )
+    enabled = lambda: os.environ.get("KIVOU_TENDER_NOTICES_ENABLED", "0") == "1"
+    with contextlib.ExitStack() as stack:
+        boamp = stack.enter_context(BoampClient())
+        ted = stack.enter_context(TedClient(request_interval_seconds=interval))
+        simap = stack.enter_context(SimapClient())
+        fetcher = stack.enter_context(DocumentFetcher())
+        sources = {
+            "boamp": BoampTenderNotices(boamp),
+            "ted": TedTenderNotices(ted),
+            "simap": SimapTenderNotices(simap),
+        }
+        job = TenderNoticeJob(
+            create_database_engine(),
+            sources=sources,
+            fetcher=fetcher,
+            quota_bytes=quota,
+            request_interval_seconds=interval,
+            enabled=enabled,
+        )
+        selected = tuple(sources) if arguments.source == "all" else (arguments.source,)
+        for source in selected:
+            outcome = job.run(
+                source=source,
+                since=since,
+                until=until,
+                max_records=arguments.max_records,
+            )
+            print(
+                f"source={source} notices={outcome.notices_ingested} "
+                f"documents={outcome.documents_created} "
+                f"stopped={outcome.stopped_reason or 'complete'}"
+            )
+            if outcome.stopped_reason:
+                break
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
+    if arguments.command == "tender-notices":
+        return _run_tender_notices(arguments)
     if arguments.max_records is not None and arguments.max_records < 1:
         raise SystemExit("--max-records must be positive")
     decp_max_windows = arguments.decp_max_windows_per_run or _environment_positive_integer(

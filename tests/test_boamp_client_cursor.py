@@ -19,6 +19,7 @@ from signals.connectors.boamp.client import (
     PAGE_SIZE,
     AwardCursor,
     award_query,
+    tender_query,
 )
 
 
@@ -32,6 +33,16 @@ def test_a_cursor_is_expressed_as_a_publication_date_not_an_offset():
 def test_the_query_selects_award_notices_only():
     query = award_query(AwardCursor(since=dt.date(2026, 8, 1)))
     assert 'nature="ATTRIBUTION"' in query["where"]
+
+
+def test_tender_query_selects_calls_for_tenders_with_the_same_bounded_cursor():
+    query = tender_query(
+        AwardCursor(since=dt.date(2026, 8, 28), until=dt.date(2026, 9, 3))
+    )
+    assert 'nature="APPEL_OFFRE"' in query["where"]
+    assert "dateparution>=date'2026-08-28'" in query["where"]
+    assert "dateparution<=date'2026-09-03'" in query["where"]
+    assert query["order_by"] == "dateparution asc, idweb asc"
 
 
 def test_the_ordering_is_deterministic_so_pages_never_overlap_or_skip():

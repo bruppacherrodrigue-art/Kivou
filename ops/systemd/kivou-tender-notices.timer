@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — capture quotidienne des dossiers d'appels d'offres
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=900
+Unit=kivou-tender-notices.service
+
+[Install]
+WantedBy=timers.target
+

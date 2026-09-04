@@ -20,6 +20,7 @@ from signals.connectors.simap.mapping import (
     map_publication,
 )
 from signals.connectors.simap.parser import SimapPublication, parse_publication
+from signals.connectors.simap.tender import extract_tender
 
 __all__ = [
     "MappingWarning",
@@ -32,6 +33,7 @@ __all__ = [
     "SimapMappingError",
     "SimapParseError",
     "SimapPublication",
+    "extract_tender",
     "map_publication",
     "parse_publication",
 ]

@@ -19,7 +19,7 @@ autorisée.
 from __future__ import annotations
 
 import datetime as dt
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field, model_validator
 
@@ -148,6 +148,9 @@ class ContractUnderstanding(CanonicalModel):
     trade_domain: Claim | None = None
     object_summary: Claim
     characteristics: tuple[Claim, ...] = ()
+    # Résultats documentaires différés, traçables mais non matérialisés dans le
+    # signal tant que la politique MVP garde l'auto-acceptation désactivée.
+    document_requirements: tuple[Any, ...] = ()
 
     # Les faits critiques restitués depuis l'avis, chacun avec sa preuve : gagnant,
     # montant, CPV, acheteur, dates, lot. Ce ne sont pas des conclusions, mais ils

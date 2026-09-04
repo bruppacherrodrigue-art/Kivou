@@ -67,10 +67,10 @@ doit être traçable comme n'importe quelle autre origine, pas déguisée en sou
 officielle.
 """
 
-EventType = Literal["award_notice", "award_correction", "award_cancellation", "other"]
-"""Périmètre MVP : l'adjudication. Les avis d'appel d'offres relèvent du Go/No-Go,
-hors scope — d'où l'absence volontaire de `call_for_tenders`.
-"""
+EventType = Literal[
+    "tender_notice", "award_notice", "award_correction", "award_cancellation", "other"
+]
+"""Nature de la publication officielle, distincte des contrats qu'elle peut porter."""
 
 
 class EventRef(CanonicalModel):
@@ -151,6 +151,9 @@ class PublicEvent(CanonicalModel):
     # procédure sans signer le contrat. Les confondre effacerait qui achète
     # réellement.
     procedure_buyers: tuple[OrganizationRef, ...] = ()
+    # Identifiants d'autres avis explicitement référencés par la source
+    # (`annonce_lie`, `referencingPubId`). Aucun rapprochement n'est déduit ici.
+    source_notice_links: tuple[NonEmptyStr, ...] = ()
 
     def ref(self) -> EventRef:
         return self.provenance.ref()
@@ -181,3 +184,14 @@ class PublicEvent(CanonicalModel):
         if self.corrects == self.ref():
             raise ValueError("un événement ne peut se corriger lui-même")
         return self
+
+
+class TenderNotice(CanonicalModel):
+    """Faits minimaux nécessaires pour capturer un dossier avant l'attribution."""
+
+    event: PublicEvent
+    title: NonEmptyStr | None = None
+    cpv_main: Annotated[str, Field(pattern=r"^\d{8}$")] | None = None
+    submission_deadline: dt.datetime | None = None
+    document_urls: tuple[NonEmptyStr, ...] = ()
+    document_access_status: Literal["auth_required"] | None = None
