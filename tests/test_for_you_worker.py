@@ -8,7 +8,7 @@ import sqlalchemy as sa
 from test_attribution_landing import CLICKED_AT, client_for, land, prepared
 
 from signals.persistence.schema import for_you_sentence
-from signals.personalization.for_you_worker import ForYouWorker
+from signals.personalization.for_you_worker import ForYouWorker, limits_from_environment
 
 
 class FakeProvider:
@@ -126,3 +126,42 @@ def test_worker_failure_completes_with_visible_fallback(tmp_path) -> None:
     assert row["provenance"] == "fallback"
     assert row["validation_reason"] == "provider_unavailable"
     assert row["state"] == "completed"
+
+
+def test_worker_reclaims_only_an_expired_lease(tmp_path) -> None:
+    engine = _seed(tmp_path, count=2)
+    with engine.begin() as connection:
+        ids = connection.scalars(
+            sa.select(for_you_sentence.c.for_you_id).order_by(for_you_sentence.c.for_you_id)
+        ).all()
+        connection.execute(
+            sa.update(for_you_sentence)
+            .where(for_you_sentence.c.for_you_id == ids[0])
+            .values(state="running", lease_expires_at=CLICKED_AT - dt.timedelta(seconds=1))
+        )
+        connection.execute(
+            sa.update(for_you_sentence)
+            .where(for_you_sentence.c.for_you_id == ids[1])
+            .values(state="running", lease_expires_at=CLICKED_AT + dt.timedelta(minutes=1))
+        )
+
+    report = ForYouWorker(engine, FakeProvider("Votre offre répond aux besoins du titulaire."), concurrency=1, daily_limit=20).run(now=CLICKED_AT)
+
+    assert report.attempted == 1
+
+
+def test_daily_cap_resumes_on_the_next_utc_day(tmp_path) -> None:
+    engine = _seed(tmp_path, count=2)
+    provider = FakeProvider("Votre offre répond aux besoins du titulaire.")
+    worker = ForYouWorker(engine, provider, concurrency=1, daily_limit=1)
+
+    assert worker.run(now=CLICKED_AT).attempted == 1
+    assert worker.run(now=CLICKED_AT + dt.timedelta(hours=1)).attempted == 0
+    assert worker.run(now=CLICKED_AT + dt.timedelta(days=1)).attempted == 1
+
+
+def test_worker_limits_are_configurable_from_environment(monkeypatch) -> None:
+    monkeypatch.setenv("KIVOU_FOR_YOU_CONCURRENCY", "3")
+    monkeypatch.setenv("KIVOU_FOR_YOU_DAILY_LIMIT", "42")
+
+    assert limits_from_environment() == (3, 42)

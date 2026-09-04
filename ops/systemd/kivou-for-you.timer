@@ -1,0 +1,12 @@
+[Unit]
+Description=Kivou — génération horaire des phrases Pour vous
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=60
+Unit=kivou-for-you.service
+
+[Install]
+WantedBy=timers.target

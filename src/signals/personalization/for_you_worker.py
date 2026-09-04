@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import concurrent.futures
 import datetime as dt
+import json
+import os
 import uuid
 from dataclasses import dataclass
 
@@ -15,6 +17,19 @@ from signals.personalization.for_you import ForYouInput, ForYouProvider, validat
 DEFAULT_CONCURRENCY = 4
 DEFAULT_DAILY_LIMIT = 500
 LEASE_TTL = dt.timedelta(minutes=15)
+CONCURRENCY_ENV = "KIVOU_FOR_YOU_CONCURRENCY"
+DAILY_LIMIT_ENV = "KIVOU_FOR_YOU_DAILY_LIMIT"
+DATABASE_URL_ENV = "KIVOU_DATABASE_URL"
+
+
+def limits_from_environment() -> tuple[int, int]:
+    concurrency = int(os.environ.get(CONCURRENCY_ENV, str(DEFAULT_CONCURRENCY)))
+    daily_limit = int(os.environ.get(DAILY_LIMIT_ENV, str(DEFAULT_DAILY_LIMIT)))
+    if concurrency < 1:
+        raise ValueError(f"{CONCURRENCY_ENV} must be positive")
+    if daily_limit < 0:
+        raise ValueError(f"{DAILY_LIMIT_ENV} must not be negative")
+    return concurrency, daily_limit
 
 
 @dataclass(frozen=True)
@@ -194,4 +209,30 @@ class ForYouWorker:
         )
 
 
-__all__ = ["ForYouWorker", "ForYouWorkerReport"]
+def main() -> int:
+    from signals.documents.providers import AnthropicTextGenerator
+    from signals.persistence.database import create_database_engine
+
+    database_url = os.environ.get(DATABASE_URL_ENV)
+    if not database_url:
+        raise SystemExit(f"{DATABASE_URL_ENV} is required")
+    concurrency, daily_limit = limits_from_environment()
+    provider = AnthropicTextGenerator()
+    try:
+        report = ForYouWorker(
+            create_database_engine(database_url),
+            provider,
+            concurrency=concurrency,
+            daily_limit=daily_limit,
+        ).run(now=dt.datetime.now(dt.UTC))
+    finally:
+        provider.close()
+    print(json.dumps(report.__dict__, sort_keys=True))
+    return 0
+
+
+__all__ = ["ForYouWorker", "ForYouWorkerReport", "limits_from_environment"]
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())

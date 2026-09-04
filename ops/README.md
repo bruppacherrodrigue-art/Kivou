@@ -1486,6 +1486,10 @@ appelé ensuite par un worker borné. `KIVOU_FOR_YOU_CONCURRENCY` vaut 4 par
 défaut et `KIVOU_FOR_YOU_DAILY_LIMIT` vaut 500. Le rapport JSON expose le
 plafond, le consommé du jour et la file restante.
 
+Installer puis activer `kivou-for-you.service` et `kivou-for-you.timer` comme
+les unités d'alertes. Le timer lance le worker chaque heure ; le verrou local,
+les leases en base et le plafond UTC rendent les reprises idempotentes.
+
 Le seul rejeu autorisé est explicite et borné :
 
 ```bash
