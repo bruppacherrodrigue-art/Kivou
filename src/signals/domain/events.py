@@ -151,6 +151,9 @@ class PublicEvent(CanonicalModel):
     # procédure sans signer le contrat. Les confondre effacerait qui achète
     # réellement.
     procedure_buyers: tuple[OrganizationRef, ...] = ()
+    # Identifiants d'autres avis explicitement référencés par la source
+    # (`annonce_lie`, `referencingPubId`). Aucun rapprochement n'est déduit ici.
+    related_notice_ids: tuple[NonEmptyStr, ...] = ()
 
     def ref(self) -> EventRef:
         return self.provenance.ref()

@@ -213,7 +213,13 @@ class ContractUnderstandingEngine:
         self._model = model
         self.version = ENGINE_VERSION
 
-    def understand(self, award: ContractAward, event: PublicEvent) -> ContractUnderstanding:
+    def understand(
+        self,
+        award: ContractAward,
+        event: PublicEvent,
+        *,
+        document_requirements: tuple[object, ...] = (),
+    ) -> ContractUnderstanding:
         source = _SourceFacts(award, event)
         contract_type = self._contract_type(award, source)
         sector = self._sector(award, source)
@@ -239,6 +245,7 @@ class ContractUnderstandingEngine:
             trade_domain=trade_domain,
             object_summary=summary,
             characteristics=characteristics,
+            document_requirements=document_requirements,
             facts=facts,
             parties=ContractParties(
                 procedure_buyers=event.procedure_buyers,

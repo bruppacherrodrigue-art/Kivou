@@ -141,6 +141,7 @@ def _persist_event(connection: sa.Connection, notice: TenderNotice, *, now: dt.d
             published_precision=event.published_precision(),
             discovered_at=event.provenance.retrieved_at,
             procedure_buyers=[buyer.model_dump(mode="json") for buyer in event.procedure_buyers],
+            related_notice_ids=list(event.related_notice_ids),
             created_at=now,
         )
     )

@@ -22,6 +22,8 @@ from signals.accounts.service import create_target_icp
 from signals.connectors.boamp import parse_award_notice
 from signals.connectors.decp import parse_contract
 from signals.connectors.ted import extract as extract_ted
+from signals.documents.early_capture import ProcedureDocumentRecord, store_procedure_document
+from signals.documents.extract import TextBlock
 from signals.feed.query import feed_page
 from signals.ingestion.france import FranceLinker
 from signals.ingestion.pipeline import IngestionPipeline
@@ -33,6 +35,7 @@ from signals.persistence.schema import (
     opportunity_representation,
     source_event,
 )
+from signals.understanding import ContractUnderstandingEngine
 
 
 def test_pipeline_persists_facts_and_materializes_only_for_active_matching_icps(tmp_path):
@@ -104,6 +107,62 @@ def test_facts_remain_durable_when_no_customer_match_exists(tmp_path):
     assert event_count == 1
     assert award_count == len(awards)
     assert signal_count == 0
+
+
+def test_strong_early_document_join_classifies_only_when_award_arrives(tmp_path):
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'deferred.db'}")
+    migrate_to_latest(engine)
+    event, awards = parse_award_notice(LINKED_BOAMP, retrieved_at=RETRIEVED_AT)
+    content = b"Le titulaire doit assurer une permanence quotidienne."
+    with engine.begin() as connection:
+        store_procedure_document(
+            connection,
+            ProcedureDocumentRecord(
+                source_system="boamp",
+                source_notice_id=event.related_notice_ids[0],
+                source_procedure_id="other-procedure",
+                buyer_fingerprint=None,
+                object_normalized="unrelated",
+                cpv_main="60112000",
+                submission_deadline=None,
+                source_url="https://example.test/dce.txt",
+                access_status="available",
+                content=content,
+                content_hash="deferred",
+                media_type="text/plain",
+                blocks=(
+                    TextBlock(
+                        locator="ligne 1",
+                        text=content.decode(),
+                        method="plain_text",
+                    ),
+                ),
+                captured_at=RETRIEVED_AT,
+            ),
+            quota_bytes=10_000,
+        )
+
+    recorded = []
+    delegate = ContractUnderstandingEngine()
+
+    class RecordingUnderstanding:
+        def understand(self, award, event, *, document_requirements=()):
+            recorded.extend(document_requirements)
+            return delegate.understand(
+                award, event, document_requirements=document_requirements
+            )
+
+    pipeline = IngestionPipeline(engine)
+    pipeline.understanding = RecordingUnderstanding()
+    pipeline.process(
+        AcquiredPublication(event, (awards[0],)),
+        as_of=MATERIALIZED_ON,
+        persisted_at=MATERIALIZED_AT,
+    )
+
+    assert [requirement.statement for requirement in recorded] == [
+        "Le titulaire doit assurer une permanence quotidienne."
+    ]
 
 
 def test_fact_persistence_is_not_rolled_back_by_customer_matching_failure(tmp_path):

@@ -8,8 +8,9 @@ import hashlib
 import json
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 import sqlalchemy as sa
@@ -18,8 +19,9 @@ from signals.documents.archive import expand
 from signals.documents.extract import TextBlock, extract_text, sniff_media_type
 from signals.documents.fetch import DocumentFetcher
 from signals.documents.model import DocumentAccessStatus
-from signals.domain import SourceSystem, TenderNotice
-from signals.persistence.schema import procedure_documents
+from signals.domain import ContractAward, PublicEvent, SourceSystem, TenderNotice
+from signals.persistence.identity import award_key
+from signals.persistence.schema import procedure_documents, source_event
 
 JoinStatus = Literal["unlinked", "linked", "review_required"]
 
@@ -58,6 +60,33 @@ class StoreResult:
 class CaptureResult:
     documents_created: int = 0
     documents_seen: int = 0
+
+
+@dataclass(frozen=True)
+class AwardDocumentResolution:
+    status: Literal["linked", "review_required", "unresolved"]
+    match_mode: Literal["explicit_notice", "procedure_id", "fingerprint"] | None = None
+    blocks: tuple[TextBlock, ...] = ()
+    analysis: Any | None = None
+
+
+@dataclass(frozen=True)
+class HostCaptureMetric:
+    host_group: str
+    downloaded: int
+    total: int
+
+    @property
+    def download_rate(self) -> float:
+        return self.downloaded / self.total if self.total else 0.0
+
+
+@dataclass(frozen=True)
+class EarlyCaptureReport:
+    notices_ingested: int
+    hosts: tuple[HostCaptureMetric, ...]
+    average_folder_bytes: int
+    estimated_award_coverage_at_three_months: float
 
 
 def _plus_twelve_months(value: dt.datetime | None) -> dt.datetime | None:
@@ -156,12 +185,16 @@ def normalize_object(value: str | None) -> str | None:
     return " ".join(re.findall(r"[a-z0-9]+", ascii_text)) or None
 
 
-def buyer_fingerprint(notice: TenderNotice) -> str | None:
-    if not notice.event.procedure_buyers:
+def event_buyer_fingerprint(event: PublicEvent) -> str | None:
+    if not event.procedure_buyers:
         return None
-    payload = [buyer.model_dump(mode="json") for buyer in notice.event.procedure_buyers]
+    payload = [buyer.model_dump(mode="json") for buyer in event.procedure_buyers]
     encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(encoded.encode()).hexdigest()[:40]
+
+
+def buyer_fingerprint(notice: TenderNotice) -> str | None:
+    return event_buyer_fingerprint(notice.event)
 
 
 def _blocks(content: bytes, *, name: str, media_type: str | None) -> tuple[TextBlock, ...]:
@@ -231,3 +264,196 @@ def capture_tender_notice(
         )
         created += stored.created
     return CaptureResult(documents_created=created, documents_seen=len(notice.document_urls))
+
+
+def _stored_blocks(rows: list[sa.Row]) -> tuple[TextBlock, ...]:
+    return tuple(TextBlock(**block) for row in rows for block in (row.blocks or []))
+
+
+def _analyze_rows(
+    rows: list[sa.Row], *, event: PublicEvent, award: ContractAward
+) -> Any:
+    from signals.documents.intelligence import analyze_dossier
+    from signals.documents.model import TenderDocument
+
+    items = []
+    for row in rows:
+        document = TenderDocument(
+            source_system=row.source_system,
+            source_procedure_id=row.source_procedure_id,
+            source_notice_id=row.source_notice_id,
+            name=urlparse(row.source_url).path.rsplit("/", 1)[-1] or "document",
+            source_url=row.source_url,
+            media_type=row.media_type,
+            access_status=row.access_status,
+            content_hash=row.content_hash,
+            byte_size=row.byte_size,
+            retrieved_at=row.captured_at,
+        )
+        items.append((document, row.archive_content))
+    return analyze_dossier(
+        award_ref=award.event_ref,
+        source_system=event.provenance.source_system,
+        tender_procedure_id=event.provenance.source_procedure_id,
+        items=items,
+    )
+
+
+def resolve_award_documents(
+    connection: sa.Connection,
+    *,
+    event: PublicEvent,
+    award: ContractAward,
+    buyer_identity: str | None = None,
+    classify: Callable[[tuple[TextBlock, ...]], Any] | None = None,
+) -> AwardDocumentResolution:
+    """Joint dans l'ordre publié ; une empreinte faible reste entièrement quarantinée."""
+    common = procedure_documents.c.source_system == event.provenance.source_system
+    rows: list[sa.Row] = []
+    mode: Literal["explicit_notice", "procedure_id", "fingerprint"] | None = None
+    if event.related_notice_ids:
+        rows = connection.execute(
+            sa.select(procedure_documents).where(
+                common,
+                procedure_documents.c.source_notice_id.in_(event.related_notice_ids),
+            )
+        ).all()
+        if rows:
+            mode = "explicit_notice"
+    if not rows and event.provenance.source_procedure_id:
+        rows = connection.execute(
+            sa.select(procedure_documents).where(
+                common,
+                procedure_documents.c.source_procedure_id
+                == event.provenance.source_procedure_id,
+            )
+        ).all()
+        if rows:
+            mode = "procedure_id"
+    if not rows:
+        identity = buyer_identity or event_buyer_fingerprint(event)
+        cpv = award.cpv_main.code if award.cpv_main else None
+        normalized = normalize_object(award.title or award.description)
+        if identity and normalized and cpv:
+            rows = connection.execute(
+                sa.select(procedure_documents).where(
+                    common,
+                    procedure_documents.c.buyer_fingerprint == identity,
+                    procedure_documents.c.object_normalized == normalized,
+                    procedure_documents.c.cpv_main == cpv,
+                )
+            ).all()
+            if rows:
+                mode = "fingerprint"
+    if not rows or mode is None:
+        return AwardDocumentResolution("unresolved")
+    keys = [row.procedure_document_key for row in rows]
+    reference = award_key(award)
+    if mode == "fingerprint":
+        connection.execute(
+            sa.update(procedure_documents)
+            .where(procedure_documents.c.procedure_document_key.in_(keys))
+            .values(join_status="review_required", linked_award_key=reference)
+        )
+        return AwardDocumentResolution("review_required", match_mode=mode)
+    connection.execute(
+        sa.update(procedure_documents)
+        .where(procedure_documents.c.procedure_document_key.in_(keys))
+        .values(join_status="linked", linked_award_key=reference)
+    )
+    blocks = _stored_blocks(rows)
+    return AwardDocumentResolution(
+        "linked",
+        match_mode=mode,
+        blocks=blocks,
+        analysis=(classify(blocks) if classify is not None else _analyze_rows(rows, event=event, award=award)),
+    )
+
+
+def capture_report(
+    connection: sa.Connection,
+    *,
+    source: SourceSystem,
+    since: dt.date,
+    until: dt.date,
+) -> EarlyCaptureReport:
+    """Mesures reproductibles calculées depuis les lignes persistées."""
+    notices = int(
+        connection.execute(
+            sa.select(sa.func.count()).select_from(source_event).where(
+                source_event.c.source_system == source,
+                source_event.c.event_type == "tender_notice",
+                source_event.c.published_on >= since,
+                source_event.c.published_on <= until,
+            )
+        ).scalar_one()
+    )
+    host_group = sa.case(
+        (procedure_documents.c.host.contains("marches-publics.gouv.fr"), "PLACE"),
+        (procedure_documents.c.host.contains("achatpublic"), "achatpublic"),
+        (procedure_documents.c.host.contains("maximilien"), "Maximilien"),
+        else_="autres",
+    ).label("host_group")
+    host_rows = connection.execute(
+        sa.select(
+            host_group,
+            sa.func.sum(
+                sa.case((procedure_documents.c.access_status == "available", 1), else_=0)
+            ).label("downloaded"),
+            sa.func.count().label("total"),
+        )
+        .where(
+            procedure_documents.c.source_system == source,
+            sa.func.date(procedure_documents.c.captured_at) >= since,
+            sa.func.date(procedure_documents.c.captured_at) <= until,
+        )
+        .group_by(host_group)
+        .order_by(host_group)
+    ).all()
+    order = {"PLACE": 0, "achatpublic": 1, "Maximilien": 2, "autres": 3}
+    hosts = tuple(
+        sorted(
+            (
+                HostCaptureMetric(row.host_group, int(row.downloaded), int(row.total))
+                for row in host_rows
+            ),
+            key=lambda row: order[row.host_group],
+        )
+    )
+    folder_key = sa.func.coalesce(
+        procedure_documents.c.source_procedure_id,
+        procedure_documents.c.source_notice_id,
+    ).label("folder_key")
+    folder_sizes = (
+        sa.select(
+            folder_key,
+            sa.func.sum(procedure_documents.c.byte_size).label("folder_bytes"),
+        )
+        .where(
+            procedure_documents.c.source_system == source,
+            procedure_documents.c.byte_size > 0,
+            sa.func.date(procedure_documents.c.captured_at) >= since,
+            sa.func.date(procedure_documents.c.captured_at) <= until,
+        )
+        .group_by(folder_key)
+        .subquery()
+    )
+    average = connection.execute(sa.select(sa.func.avg(folder_sizes.c.folder_bytes))).scalar()
+    available_notices = int(
+        connection.execute(
+            sa.select(sa.func.count(sa.distinct(procedure_documents.c.source_notice_id))).where(
+                procedure_documents.c.source_system == source,
+                procedure_documents.c.access_status == "available",
+                sa.func.date(procedure_documents.c.captured_at) >= since,
+                sa.func.date(procedure_documents.c.captured_at) <= until,
+            )
+        ).scalar_one()
+    )
+    return EarlyCaptureReport(
+        notices_ingested=notices,
+        hosts=hosts,
+        average_folder_bytes=round(float(average or 0)),
+        estimated_award_coverage_at_three_months=(
+            available_notices / notices if notices else 0.0
+        ),
+    )

@@ -173,6 +173,9 @@ def _event(
         # resterait une invention.
         corrects=None,
         procedure_buyers=_procedure_buyers(publication, warnings),
+        related_notice_ids=(publication.referencing_pub_id,)
+        if publication.referencing_pub_id
+        else (),
     )
 
 
