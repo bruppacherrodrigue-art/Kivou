@@ -141,7 +141,6 @@ def _persist_event(connection: sa.Connection, notice: TenderNotice, *, now: dt.d
             published_precision=event.published_precision(),
             discovered_at=event.provenance.retrieved_at,
             procedure_buyers=[buyer.model_dump(mode="json") for buyer in event.procedure_buyers],
-            source_notice_links=list(event.source_notice_links),
             created_at=now,
         )
     )
@@ -179,6 +178,8 @@ class TenderNoticeJob:
     ) -> TenderNoticeRunResult:
         if until < since:
             raise ValueError("tender notice window ends before it starts")
+        if not self.enabled():
+            return TenderNoticeRunResult(0, 0, "kill_switch")
         adapter = self.sources[source]
         started = self.clock()
         ingested = created = 0

@@ -36,10 +36,10 @@ __all__ = [
     "BoampMalformedPayload",
     "BoampUnsupportedPayload",
     "award_query",
-    "tender_query",
     "parse_award_notice",
     "parse_tender_notice",
     "payload_kind",
     "supported_payload",
     "supported_tender_payload",
+    "tender_query",
 ]

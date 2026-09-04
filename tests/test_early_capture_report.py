@@ -24,7 +24,6 @@ def test_report_groups_hosts_from_persisted_rows_and_estimates_coverage() -> Non
                     event_type="tender_notice",
                     published_on=dt.date(2026, 9, 3),
                     procedure_buyers=[],
-                    source_notice_links=[],
                     created_at=created,
                 )
             )

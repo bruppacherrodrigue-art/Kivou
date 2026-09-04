@@ -63,8 +63,8 @@ __all__ = [
     "SourceIdentity",
     "SourceKind",
     "SourceSystem",
-    "TenderNotice",
     "SubdivisionScheme",
+    "TenderNotice",
     "VatCategory",
     "WinnerStatus",
 ]

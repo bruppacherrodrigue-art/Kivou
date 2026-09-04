@@ -128,7 +128,6 @@ def _upsert_source_event(connection: sa.Connection, event: Any, *, now: dt.datet
         "published_precision": event.published_precision(),
         "discovered_at": event.provenance.retrieved_at,
         "procedure_buyers": _json(event.procedure_buyers),
-        "source_notice_links": _json(event.source_notice_links),
         "created_at": now,
     }
     _insert_if_absent(connection, source_event, source_event.c.event_key == key, values)

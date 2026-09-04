@@ -69,9 +69,10 @@ def test_job_stops_cleanly_before_next_notice_when_kill_switch_is_off() -> None:
     engine = sa.create_engine("sqlite+pysqlite:///:memory:")
     source_event.create(engine)
     procedure_documents.create(engine)
+    client = BoampClientStub()
     job = TenderNoticeJob(
         engine,
-        sources={"boamp": BoampTenderNotices(BoampClientStub())},
+        sources={"boamp": BoampTenderNotices(client)},
         fetcher=ExternalFetcher(),
         quota_bytes=10_000,
         enabled=lambda: False,
@@ -86,6 +87,7 @@ def test_job_stops_cleanly_before_next_notice_when_kill_switch_is_off() -> None:
 
     assert result.stopped_reason == "kill_switch"
     assert result.notices_ingested == 0
+    assert client.calls == []
 
 
 def test_ted_source_searches_competitions_and_parses_bt15() -> None:
