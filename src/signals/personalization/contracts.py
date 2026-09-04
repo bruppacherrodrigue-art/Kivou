@@ -52,6 +52,7 @@ class PersonalizationInput(PersonalizationContract):
     selected_need_fingerprint: Fingerprint
     selected_need_category: StableRef
     selected_need_confidence: StableRef
+    for_you_sentence: Annotated[str, StringConstraints(min_length=1, max_length=256)]
     language: Literal["fr", "en"]
     salutation_mode: Literal["FIRST_NAME", "NEUTRAL"]
     contact_personalization_fingerprint: Fingerprint

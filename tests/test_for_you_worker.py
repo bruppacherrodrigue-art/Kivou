@@ -24,8 +24,11 @@ class FakeProvider:
 def _seed(tmp_path, *, count: int = 1):
     engine, attribution, token, _ = prepared(tmp_path)
     assert land(client_for(engine, attribution, now=CLICKED_AT), token.raw_token).status_code == 303
-    if count > 1:
-        with engine.begin() as connection:
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(for_you_sentence).values(state="pending", completed_at=None, attempt_day=None)
+        )
+        if count > 1:
             original = connection.execute(sa.select(for_you_sentence)).mappings().one()
             for index in range(1, count):
                 values = dict(original)
@@ -41,9 +44,7 @@ def test_worker_accepts_and_persists_generated_sentence(tmp_path) -> None:
     engine = _seed(tmp_path)
     provider = FakeProvider("Votre offre répond aux besoins de travaux du titulaire.")
 
-    report = ForYouWorker(engine, provider, concurrency=4, daily_limit=20).run(
-        now=CLICKED_AT
-    )
+    report = ForYouWorker(engine, provider, concurrency=4, daily_limit=20).run(now=CLICKED_AT)
 
     with engine.connect() as connection:
         row = connection.execute(sa.select(for_you_sentence)).mappings().one()
@@ -58,9 +59,7 @@ def test_worker_rejects_an_invented_number_and_keeps_fallback(tmp_path) -> None:
     engine = _seed(tmp_path)
     provider = FakeProvider("Ce marché représente 987654 euros pour votre offre.")
 
-    report = ForYouWorker(engine, provider, concurrency=1, daily_limit=20).run(
-        now=CLICKED_AT
-    )
+    report = ForYouWorker(engine, provider, concurrency=1, daily_limit=20).run(now=CLICKED_AT)
 
     with engine.connect() as connection:
         row = connection.execute(sa.select(for_you_sentence)).mappings().one()
@@ -74,14 +73,11 @@ def test_worker_daily_cap_leaves_excess_pairs_pending(tmp_path) -> None:
     engine = _seed(tmp_path, count=5)
     provider = FakeProvider("Votre offre répond aux besoins de travaux du titulaire.")
 
-    report = ForYouWorker(engine, provider, concurrency=4, daily_limit=2).run(
-        now=CLICKED_AT
-    )
+    report = ForYouWorker(engine, provider, concurrency=4, daily_limit=2).run(now=CLICKED_AT)
 
     with engine.connect() as connection:
         states = connection.execute(
-            sa.select(for_you_sentence.c.state, sa.func.count())
-            .group_by(for_you_sentence.c.state)
+            sa.select(for_you_sentence.c.state, sa.func.count()).group_by(for_you_sentence.c.state)
         ).all()
     assert report.attempted == 2
     assert report.daily_limit == 2

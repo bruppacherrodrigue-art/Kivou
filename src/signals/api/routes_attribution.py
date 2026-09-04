@@ -1,26 +1,26 @@
 """Le lien du cold mail — il attribue, et il dépose le prospect sur sa promesse.
 
-    Ce que ce lien EST, et ce qu'il n'est pas
-    ─────────────────────────────────────────
-    C'est un lien magique : le suivre ouvre une session sur un compte
-    Découverte, sans mot de passe. Il ne le peut que parce qu'il est signé
-    (HMAC), daté (expiration portée par la charge) et qu'il n'ouvre JAMAIS
-    autre chose que le compte qu'il a lui-même créé — jamais un compte où
-    quelqu'un s'est inscrit avec son adresse et son mot de passe.
+Ce que ce lien EST, et ce qu'il n'est pas
+─────────────────────────────────────────
+C'est un lien magique : le suivre ouvre une session sur un compte
+Découverte, sans mot de passe. Il ne le peut que parce qu'il est signé
+(HMAC), daté (expiration portée par la charge) et qu'il n'ouvre JAMAIS
+autre chose que le compte qu'il a lui-même créé — jamais un compte où
+quelqu'un s'est inscrit avec son adresse et son mot de passe.
 
-    Pourquoi créer un compte plutôt que montrer une page publique
-    ────────────────────────────────────────────────────────────
-    Le mail promet UN signal. Une page publique le montrerait sans rien
-    retenir : ni retour, ni note, ni alerte, ni le reste du feed. Le compte
-    Découverte est ce qui transforme une promesse tenue en produit.
+Pourquoi créer un compte plutôt que montrer une page publique
+────────────────────────────────────────────────────────────
+Le mail promet UN signal. Une page publique le montrerait sans rien
+retenir : ni retour, ni note, ni alerte, ni le reste du feed. Le compte
+Découverte est ce qui transforme une promesse tenue en produit.
 
-    L'identité du prospect n'est PAS connue
-    ───────────────────────────────────────
-    La chaîne d'acquisition est sans PII par construction : le jeton ne porte
-    qu'une empreinte opaque de destinataire. Le compte est donc créé avec une
-    identité de remplacement non délivrable (`…@landing.kivou.invalid`) et un
-    mot de passe aléatoire que personne ne connaît. La vraie adresse se
-    collecte à la confirmation du profil, pas ici.
+L'identité du prospect n'est PAS connue
+───────────────────────────────────────
+La chaîne d'acquisition est sans PII par construction : le jeton ne porte
+qu'une empreinte opaque de destinataire. Le compte est donc créé avec une
+identité de remplacement non délivrable (`…@landing.kivou.invalid`) et un
+mot de passe aléatoire que personne ne connaît. La vraie adresse se
+collecte à la confirmation du profil, pas ici.
 """
 
 from __future__ import annotations
@@ -46,7 +46,13 @@ from signals.ingestion.backfill import (
     materialize_landing_opportunity_in_transaction,
     rematerialize_target_in_transaction,
 )
-from signals.persistence.schema import contract_award, opportunity_representation
+from signals.persistence.schema import (
+    acquisition_campaign_member,
+    acquisition_personalization_artifact,
+    contract_award,
+    for_you_sentence,
+    opportunity_representation,
+)
 
 router = APIRouter()
 
@@ -138,6 +144,21 @@ def _redirect(url: str) -> RedirectResponse:
     return response
 
 
+def _mail_for_you_sentence(connection, *, member_ref: str) -> str | None:
+    snapshot = connection.scalar(
+        sa.select(acquisition_personalization_artifact.c.input_snapshot)
+        .select_from(
+            acquisition_campaign_member.join(
+                acquisition_personalization_artifact,
+                acquisition_campaign_member.c.personalization_artifact_id
+                == acquisition_personalization_artifact.c.personalization_artifact_id,
+            )
+        )
+        .where(acquisition_campaign_member.c.member_ref == member_ref)
+    )
+    return snapshot.get("for_you_sentence") if isinstance(snapshot, dict) else None
+
+
 @router.get("/a/{token}", include_in_schema=False)
 def attribution_click(token: str, request: Request) -> RedirectResponse:
     service = getattr(request.app.state, "conversion_attribution_service", None)
@@ -225,9 +246,7 @@ def _land(
         )
 
     if not accounts.list_target_icps(connection, account_id=account_id):
-        sector_label, cpv_prefix, subdivision = _profile_seed(
-            connection, payload.opportunity_key
-        )
+        sector_label, cpv_prefix, subdivision = _profile_seed(connection, payload.opportunity_key)
         provisional = accounts.create_target_icp(
             connection,
             account_id=account_id,
@@ -255,9 +274,7 @@ def _land(
                 as_of=now.date(),
                 materialized_at=now,
             )
-        accounts.mark_provisional_onboarding(
-            connection, account_id=account_id, now=now
-        )
+        accounts.mark_provisional_onboarding(connection, account_id=account_id, now=now)
 
     # Écrite pour CHAQUE atterrissage, opportunité résolue ou non : c'est cette
     # ligne — pas `opportunity_key` — que `landed_account_in_transaction`
@@ -269,6 +286,24 @@ def _land(
     if payload.opportunity_key is not None:
         signal_key = accounts.resolve_landing_signal_key(
             connection, account_id=account_id, opportunity_key=payload.opportunity_key
+        )
+    mail_sentence = _mail_for_you_sentence(connection, member_ref=payload.member_ref)
+    if signal_key is not None and mail_sentence:
+        # Le mail est déjà parti : sa phrase devient la valeur figée de cette
+        # paire afin que le drawer ne raconte jamais autre chose ensuite.
+        connection.execute(
+            sa.update(for_you_sentence)
+            .where(for_you_sentence.c.signal_key == signal_key)
+            .values(
+                sentence=mail_sentence,
+                fallback_sentence=mail_sentence,
+                provenance="fallback",
+                state="completed",
+                validation_reason=None,
+                validation_detail=None,
+                updated_at=now,
+                completed_at=now,
+            )
         )
     accounts.record_landing_signal(
         connection,

@@ -58,6 +58,7 @@ def render_catalog_message(
     public_event_sentence: str,
     need_category: str,
     first_name: str | None,
+    for_you_sentence: str | None = None,
 ) -> CatalogMessage:
     """Render only the approved catalog; public-event wording comes from recency.claim."""
     if language not in SUPPORTED_LANGUAGES:
@@ -70,10 +71,14 @@ def render_catalog_message(
         body="\n\n".join(
             (
                 public_event_sentence,
-                _INFERENCES[language].format(
-                    need_label=_need_label(need_category, language)
-                ),
+                for_you_sentence or for_you_fallback(language, need_category),
             )
         ),
         cta=_CTAS[language],
     )
+
+
+def for_you_fallback(language: str, need_category: str) -> str:
+    if language not in SUPPORTED_LANGUAGES:
+        raise PersonalizationLanguageUnsupported(language)
+    return _INFERENCES[language].format(need_label=_need_label(need_category, language))

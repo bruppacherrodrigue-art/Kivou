@@ -236,4 +236,30 @@ def enqueue_stored_for_you_sentence(
     )
 
 
-__all__ = ["enqueue_for_you_sentence", "enqueue_stored_for_you_sentence"]
+def sentence_for_opportunity(connection: sa.Connection, *, opportunity_key: str) -> str | None:
+    """Phrase déjà figée pour une représentation matérialisée de l'opportunité."""
+    return connection.scalar(
+        sa.select(for_you_sentence.c.sentence)
+        .select_from(
+            for_you_sentence.join(
+                materialized_signal,
+                for_you_sentence.c.signal_key == materialized_signal.c.signal_key,
+            )
+        )
+        .where(
+            materialized_signal.c.opportunity_key == opportunity_key,
+            for_you_sentence.c.signal_fingerprint == materialized_signal.c.content_fingerprint,
+        )
+        .order_by(
+            sa.case((for_you_sentence.c.provenance == "generated", 0), else_=1),
+            for_you_sentence.c.created_at.desc(),
+        )
+        .limit(1)
+    )
+
+
+__all__ = [
+    "enqueue_for_you_sentence",
+    "enqueue_stored_for_you_sentence",
+    "sentence_for_opportunity",
+]

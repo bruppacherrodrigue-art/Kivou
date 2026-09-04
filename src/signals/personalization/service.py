@@ -38,6 +38,7 @@ from signals.personalization.catalog import (
     TEMPLATE_VERSION,
     CatalogMessage,
     PersonalizationLanguageUnsupported,
+    for_you_fallback,
     render_catalog_message,
 )
 from signals.personalization.contracts import (
@@ -188,21 +189,21 @@ class PersonalizationService:
         # écrit pour un usage concurrent, où la file d'attente du pool se
         # manifesterait en `QueuePool limit ... timed out` plutôt qu'en conflit.
         if already_evaluated:
-                # Les deux gardes sont DEUX lectures, à deux instants. Un gagnant
-                # concurrent a pu valider entre elles : on voit alors son
-                # évaluation sans avoir vu son artefact. Comme les deux sont
-                # écrits dans la MÊME transaction, une relecture postérieure —
-                # qui voit au moins autant — trouve nécessairement l'artefact.
-                # Constaté sur PostgreSQL sous contention ; SQLite sérialise
-                # assez pour que la fenêtre ne s'ouvre jamais. La relecture part
-                # d'une connexion NEUVE — donc d'un instantané postérieur au
-                # commit du gagnant ; la faire depuis `connection` ci-dessus,
-                # ouverte avant, ne trouverait rien.
-                concurrent = self._artifacts.get_by_policy(authorization.evaluation_id)
-                if concurrent is not None:
-                    self._require_existing(concurrent, opportunity_id, language, authorization)
-                    return concurrent
-                raise PersonalizationEvaluationRequiresFreshAttempt(authorization.evaluation_id)
+            # Les deux gardes sont DEUX lectures, à deux instants. Un gagnant
+            # concurrent a pu valider entre elles : on voit alors son
+            # évaluation sans avoir vu son artefact. Comme les deux sont
+            # écrits dans la MÊME transaction, une relecture postérieure —
+            # qui voit au moins autant — trouve nécessairement l'artefact.
+            # Constaté sur PostgreSQL sous contention ; SQLite sérialise
+            # assez pour que la fenêtre ne s'ouvre jamais. La relecture part
+            # d'une connexion NEUVE — donc d'un instantané postérieur au
+            # commit du gagnant ; la faire depuis `connection` ci-dessus,
+            # ouverte avant, ne trouverait rien.
+            concurrent = self._artifacts.get_by_policy(authorization.evaluation_id)
+            if concurrent is not None:
+                self._require_existing(concurrent, opportunity_id, language, authorization)
+                return concurrent
+            raise PersonalizationEvaluationRequiresFreshAttempt(authorization.evaluation_id)
 
         captured_at = self._now()
         as_of_date = captured_at.date()
@@ -429,8 +430,7 @@ class PersonalizationService:
             connection.execute(
                 sa.select(acquisition_decision_evaluation)
                 .where(
-                    acquisition_decision_evaluation.c.acquisition_opportunity_id
-                    == opportunity_id,
+                    acquisition_decision_evaluation.c.acquisition_opportunity_id == opportunity_id,
                     acquisition_decision_evaluation.c.disposition == "RECORDED",
                     acquisition_decision_evaluation.c.proposed_decision == "SEND",
                 )
@@ -443,9 +443,7 @@ class PersonalizationService:
             raise PersonalizationNotActionable(opportunity_id)
         try:
             profile = self._companies.get_profile_in_transaction(connection, opportunity_id)
-            supplier = self._suppliers.get_supplier_in_transaction(
-                connection, current.supplier_ref
-            )
+            supplier = self._suppliers.get_supplier_in_transaction(connection, current.supplier_ref)
             contact = self._contacts.get_contact_in_transaction(connection, current.contact_ref)
         except sa.exc.NoResultFound as error:
             raise PersonalizationBindingConflict(opportunity_id) from error
@@ -471,7 +469,10 @@ class PersonalizationService:
 
     @staticmethod
     def _require_bindings(opportunity, supplier, contact, profile) -> None:
-        if profile.prebuild_version != PREBUILD_VERSION or profile.size_band_version != SIZE_BAND_VERSION:
+        if (
+            profile.prebuild_version != PREBUILD_VERSION
+            or profile.size_band_version != SIZE_BAND_VERSION
+        ):
             raise PersonalizationBindingConflict(opportunity.acquisition_opportunity_id)
         if not (
             profile.acquisition_opportunity_id == opportunity.acquisition_opportunity_id
@@ -552,12 +553,21 @@ class PersonalizationService:
         )
         first_name = safe_first_name(contact.first_name)
         public_event_sentence = claim_for(recency, company=awardee, lang=language)
+        opportunity_key = opportunity.signal_ref.removeprefix("opportunity:")
+        with self._engine.connect() as connection:
+            from signals.personalization.for_you_store import sentence_for_opportunity
+
+            persisted_for_you = sentence_for_opportunity(
+                connection, opportunity_key=opportunity_key
+            )
+        for_you_sentence = persisted_for_you or for_you_fallback(language, need.category)
         message = render_catalog_message(
             language=language,
             awardee=awardee,
             public_event_sentence=public_event_sentence,
             need_category=need.category,
             first_name=first_name,
+            for_you_sentence=for_you_sentence,
         )
         validate_catalog_message(
             message,
@@ -565,6 +575,7 @@ class PersonalizationService:
             public_event_sentence=public_event_sentence,
             need_category=need.category,
             first_name=first_name,
+            for_you_sentence=for_you_sentence,
         )
         selected_need_fingerprint = semantic_fingerprint(
             {
@@ -604,6 +615,7 @@ class PersonalizationService:
             "selected_need_fingerprint": selected_need_fingerprint,
             "selected_need_category": need.category,
             "selected_need_confidence": need.confidence,
+            "for_you_sentence": for_you_sentence,
             "language": language,
             "salutation_mode": "FIRST_NAME" if first_name else "NEUTRAL",
             "contact_personalization_fingerprint": contact_personalization_fingerprint,
@@ -710,9 +722,7 @@ class PersonalizationService:
             proposed_volume=0,
             reason_codes=("PERSONALIZATION_PREPARED",),
             evidence_refs=tuple(
-                dict.fromkeys(
-                    ref for item in values["claim_map"] for ref in item.evidence_refs
-                )
+                dict.fromkeys(ref for item in values["claim_map"] for ref in item.evidence_refs)
             ),
             evidence=self._internal_evidence(authorization),
             compliance=authorization.compliance,
@@ -767,7 +777,10 @@ class PersonalizationService:
         )
 
     def _require_existing(self, existing, opportunity_id, language, authorization) -> None:
-        if existing["acquisition_opportunity_id"] != opportunity_id or existing["language"] != language:
+        if (
+            existing["acquisition_opportunity_id"] != opportunity_id
+            or existing["language"] != language
+        ):
             raise PersonalizationArtifactIdempotencyConflict(authorization.evaluation_id)
         with self._engine.connect() as connection:
             row = self._policy_store.evaluation_row(connection, authorization.evaluation_id)

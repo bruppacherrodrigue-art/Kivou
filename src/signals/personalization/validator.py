@@ -54,6 +54,7 @@ def validate_catalog_message(
     public_event_sentence: str | None = None,
     need_category: str | None = None,
     first_name: str | None = None,
+    for_you_sentence: str | None = None,
 ) -> None:
     if message.language not in SUPPORTED_LANGUAGES:
         raise PersonalizationValidationError("unsupported language")
@@ -81,6 +82,7 @@ def validate_catalog_message(
             public_event_sentence=public_event_sentence,
             need_category=need_category,
             first_name=first_name,
+            for_you_sentence=for_you_sentence,
         )
     if expected is not None and message != expected:
         raise PersonalizationValidationError("rendered copy differs from frozen catalog")
