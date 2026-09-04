@@ -97,6 +97,17 @@ def create_icp(client: TestClient, label: str = "Intrants de chantier", **overri
     return response.json()
 
 
+def test_onboarding_options_expose_controlled_zone_and_cpv_references(alice) -> None:
+    response = alice.get("/target-icps/options")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert {"code": "CH-VD", "label": "Vaud", "country": "CH"} in payload["zones"]
+    assert {"code": "FR-75", "label": "Paris", "country": "FR"} in payload["zones"]
+    construction = next(item for item in payload["sectors"] if item["prefix"] == "45")
+    assert construction["label"] == "Travaux de construction"
+
+
 def test_zone_and_cpv_choices_survive_translation_to_the_matching_profile() -> None:
     customer = TargetIcpInput.model_validate({
         **COMPLETE_INPUT,

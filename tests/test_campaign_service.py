@@ -11,6 +11,7 @@ from test_campaign_store import _prepared
 from test_compliance_service import sender
 from test_policy_persistence import control
 
+from signals.accounts import service as account_service
 from signals.campaigns.contracts import (
     CampaignAuthorizationInput,
     CampaignDeploymentBlocked,
@@ -44,6 +45,8 @@ from signals.persistence.schema import (
     acquisition_compliance_assessment,
     acquisition_opportunity,
     acquisition_provider_operation,
+    contract_award,
+    materialized_signal,
     policy_evaluation,
 )
 from signals.policy.contracts import (
@@ -345,6 +348,19 @@ def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(t
     from test_attribution_landing import client_for, land, pin_session_cookie
 
     engine, opportunity_id, _, _ = _prepared(tmp_path)
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(contract_award).values(
+                place_country="FR",
+                place_of_performance={
+                    "country": "FR",
+                    "subdivision_code": "FR-75",
+                    "subdivision_scheme": "ISO-3166-2",
+                    "locality": "Paris",
+                    "postal_code": "75001",
+                },
+            )
+        )
     keyring = AttributionTokenKeyring(
         current_key_version="attribution-test-v1",
         keys={"attribution-test-v1": b"synthetic-attribution-secret"},
@@ -380,14 +396,56 @@ def test_runtime_mail_to_confirmed_profile_keeps_only_matching_dashboard_cards(t
     promised_key = landing.headers["location"].rsplit("/", 1)[1]
     assert client.get(f"/signals/{promised_key}").status_code == 200
     profile = client.get("/target-icps").json()[0]
+    # La fixture runtime ne porte qu'un marché. Cinq projections du même marché
+    # rendent ici explicite le contrat d'accès « appât + cinq voisins » sans
+    # fabriquer de nouveaux faits publics ni court-circuiter l'API d'atterrissage.
+    with engine.begin() as connection:
+        promised = connection.execute(
+            sa.select(materialized_signal).where(
+                materialized_signal.c.signal_key == promised_key
+            )
+        ).mappings().one()
+        for index in range(5):
+            copy = dict(promised)
+            copy.update(
+                signal_key=f"{index + 1:064x}",
+                opportunity_key=f"{index + 101:064x}",
+                materialized_at=payload.issued_at - dt.timedelta(minutes=index + 1),
+                created_at=payload.issued_at - dt.timedelta(minutes=index + 1),
+            )
+            connection.execute(sa.insert(materialized_signal).values(**copy))
+        award = connection.execute(
+            sa.select(contract_award).where(
+                contract_award.c.award_key == promised["materialization_award_key"]
+            )
+        ).mappings().one()
+    # Retrouver le compte via la session évite de dépendre d'un identifiant de fixture.
+    account_id = client.get("/me").json()["account_id"]
+    with engine.connect() as connection:
+        landing_keys = account_service.landing_signal_keys(connection, account_id=account_id)
+    assert len(landing_keys) == 6
+    assert promised_key in landing_keys
     assert client.patch(
         f'/target-icps/{profile["target_icp_id"]}',
         headers={"Origin": "https://testserver"},
         json={"label": profile["label"], "customer_input": profile["customer_input"]},
     ).status_code == 200
     cards = client.get("/dashboard").json()["top3"]
-    assert cards
-    assert promised_key in {card["signal_id"] for card in cards}
+    assert len(cards) == 3
+    assert award["cpv_main"].startswith(profile["customer_input"]["sector_cpv_prefixes"][0])
+    expected_subdivisions = set(profile["customer_input"]["territory_subdivisions"])
+    place = award["place_of_performance"] or {}
+    assert place.get("subdivision_code") in expected_subdivisions
+    with engine.connect() as connection:
+        card_rows = connection.execute(
+            sa.select(materialized_signal).where(
+                materialized_signal.c.signal_key.in_([card["signal_id"] for card in cards])
+            )
+        ).mappings().all()
+    assert all(row["target_icp_id"] == profile["target_icp_id"] for row in card_rows)
+    assert all(
+        row["materialization_award_key"] == award["award_key"] for row in card_rows
+    )
     with engine.connect() as connection:
         rows = connection.execute(
             sa.select(

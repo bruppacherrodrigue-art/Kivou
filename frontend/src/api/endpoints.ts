@@ -27,6 +27,7 @@ import type {
   SignalDetail,
   SignalNote,
   TargetIcp,
+  TargetIcpOptions,
   TargetIcpInput,
   UnifiedStatus,
   WeeklyCommercialCockpit,
@@ -72,6 +73,8 @@ export const auth = {
 
 export const icps = {
   list: () => request<TargetIcp[]>('/target-icps'),
+
+  options: () => request<TargetIcpOptions>('/target-icps/options'),
 
   get: (id: string) => request<TargetIcp>(`/target-icps/${encodeURIComponent(id)}`),
 

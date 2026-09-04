@@ -384,6 +384,16 @@ describe('onboarding', () => {
     }
     mockApi({
       'GET /target-icps': { body: [provisional] },
+      'GET /target-icps/options': { body: {
+        zones: [
+          { code: 'CH-LU', label: 'Lucerne', country: 'CH' },
+          { code: 'CH-VD', label: 'Vaud', country: 'CH' },
+        ],
+        sectors: [
+          { prefix: '45', label: 'Travaux de construction' },
+          { prefix: '71', label: 'Services d’architecture' },
+        ],
+      } },
       [`PATCH /target-icps/${ICP.target_icp_id}`]: { body: { ...provisional, status: 'active' } },
       'GET /me': { body: { ...landingMe, onboarding_status: 'ready_for_signals' } },
       'GET /dashboard': { body: { as_of: '2026-09-04', last_seen_at: null, new_since_last_visit: 1, strong_matches: 1, top3: [UNLOCKED_ITEM], to_follow_up: [], to_follow_up_truncated: false, week: { new: 1, saved: 0, contacted: 0, replied: 0 }, scan_truncated: false, profile: { name: 'Paysage', sector_label: 'Travaux paysagers', zone_labels: ['CH-LU'] }, plan: { name: 'Découverte', opened: 0, quota: 3, period_end: null } } },
@@ -393,8 +403,8 @@ describe('onboarding', () => {
       route: '/onboarding',
     })
 
-    expect(await screen.findByLabelText('Zone')).toHaveValue('CH-LU')
-    expect(screen.getByLabelText('Secteur')).toHaveValue('Travaux de construction de bâtiments scolaires')
+    expect((await screen.findByRole('option', { name: 'Lucerne (CH-LU)' }) as HTMLOptionElement).selected).toBe(true)
+    expect(screen.getByLabelText('Secteur')).toHaveValue('45')
     expect(screen.getByLabelText('Ce que vous vendez')).toHaveValue('Travaux de construction de bâtiments scolaires')
     await userEvent.setup().click(screen.getByRole('button', { name: 'Recevoir mes signaux' }))
     await waitFor(() => expect(callsTo(`/target-icps/${ICP.target_icp_id}`, 'PATCH')).toHaveLength(1))
@@ -404,6 +414,50 @@ describe('onboarding', () => {
         territory_subdivisions: ['CH-LU'],
         sector_cpv_prefixes: ['45'],
       },
+    })
+  })
+
+  it('enregistre les choix contrôlés de zone et de secteur du profil provisoire', async () => {
+    const provisional = {
+      ...ICP,
+      provisional: true,
+      customer_input: {
+        ...ICP.customer_input,
+        offer_summary: 'Conseil en architecture',
+        territories: ['CH'],
+        territory_subdivisions: ['CH-LU'],
+        sector_cpv_prefixes: ['45'],
+      },
+    }
+    const landingMe = { ...INCOMPLETE_ME, onboarding_status: 'icp_incomplete' as const }
+    mockApi({
+      'GET /target-icps': { body: [provisional] },
+      'GET /target-icps/options': { body: {
+        zones: [
+          { code: 'CH-LU', label: 'Lucerne', country: 'CH' },
+          { code: 'CH-VD', label: 'Vaud', country: 'CH' },
+        ],
+        sectors: [
+          { prefix: '45', label: 'Travaux de construction' },
+          { prefix: '71', label: 'Services d’architecture' },
+        ],
+      } },
+      [`PATCH /target-icps/${ICP.target_icp_id}`]: { body: { ...provisional, status: 'active' } },
+      'GET /me': { body: { ...landingMe, onboarding_status: 'ready_for_signals' } },
+      'GET /dashboard': { body: { as_of: '2026-09-04', last_seen_at: null, new_since_last_visit: 1, strong_matches: 1, top3: [UNLOCKED_ITEM], to_follow_up: [], to_follow_up_truncated: false, week: { new: 1, saved: 0, contacted: 0, replied: 0 }, scan_truncated: false, profile: { name: 'Architecture', sector_label: 'Services d’architecture', zone_labels: ['Vaud'] }, plan: { name: 'Découverte', opened: 0, quota: 3, period_end: null } } },
+    })
+    renderApp(<AppRoutes />, { session: { status: 'authenticated', me: landingMe }, route: '/onboarding' })
+
+    await screen.findByRole('option', { name: 'Vaud (CH-VD)' })
+    const user = userEvent.setup()
+    await user.deselectOptions(screen.getByLabelText('Zone'), ['CH-LU'])
+    await user.selectOptions(screen.getByLabelText('Zone'), ['CH-VD'])
+    await user.selectOptions(screen.getByLabelText('Secteur'), '71')
+    await user.click(screen.getByRole('button', { name: 'Recevoir mes signaux' }))
+    await waitFor(() => expect(callsTo(`/target-icps/${ICP.target_icp_id}`, 'PATCH')).toHaveLength(1))
+    expect(callsTo(`/target-icps/${ICP.target_icp_id}`, 'PATCH')[0].body).toMatchObject({
+      label: 'Services d’architecture',
+      customer_input: { territories: ['CH'], territory_subdivisions: ['CH-VD'], sector_cpv_prefixes: ['71'] },
     })
   })
 

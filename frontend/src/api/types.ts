@@ -235,6 +235,11 @@ export interface TargetIcp {
   updated_at: string
 }
 
+export interface TargetIcpOptions {
+  zones: { code: string; label: string; country: string }[]
+  sectors: { prefix: string; label: string }[]
+}
+
 // ─── Signal ──────────────────────────────────────────────────────────────────
 
 export interface Identifier {

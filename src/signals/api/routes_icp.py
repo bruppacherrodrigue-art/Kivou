@@ -21,6 +21,8 @@ from signals.accounts.icp_input import TargetIcpInput
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
 from signals.billing import service as billing_service
+from signals.domain.cpv_labels import cpv_divisions
+from signals.domain.subdivisions import FRENCH_DEPARTMENTS, SWISS_CANTONS
 from signals.ingestion.backfill import (
     rematerialize_target_in_transaction,
 )
@@ -127,6 +129,31 @@ def list_target_icps(request: Request) -> list[TargetIcpResponse]:
         )
         for item in stored
     ]
+
+
+@router.get("/target-icps/options")
+def target_icp_options(request: Request) -> dict[str, object]:
+    """Référentiels contrôlés de la page de confirmation du profil."""
+    now = request_now(request)
+    with request.app.state.engine.begin() as connection:
+        session = current_session(request, connection, now)
+        locale = service.current_user(connection, user_id=session.user_id).locale
+    lang = "en" if locale == "en" else "fr"
+    return {
+        "zones": [
+            *(
+                {"code": f"FR-{code}", "label": label, "country": "FR"}
+                for code, label in FRENCH_DEPARTMENTS.items()
+            ),
+            *(
+                {"code": f"CH-{code}", "label": label, "country": "CH"}
+                for code, label in SWISS_CANTONS.items()
+            ),
+        ],
+        "sectors": [
+            {"prefix": prefix, "label": label} for prefix, label in cpv_divisions(lang=lang)
+        ],
+    }
 
 
 @router.post("/target-icps", status_code=201)
