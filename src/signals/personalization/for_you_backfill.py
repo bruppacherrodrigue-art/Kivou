@@ -14,7 +14,7 @@ from collections.abc import Sequence
 import sqlalchemy as sa
 
 from signals.accounts.schema import target_icp
-from signals.documents.providers import AnthropicTextGenerator
+from signals.documents.providers import text_generator_from_environment
 from signals.persistence.database import create_database_engine
 from signals.persistence.schema import for_you_sentence, materialized_signal
 from signals.personalization.for_you import POLICY_VERSION, ForYouProvider
@@ -103,7 +103,7 @@ def main(arguments: Sequence[str] | None = None) -> int:
         raise SystemExit(f"{DATABASE_URL_ENV} is required")
     concurrency = _positive(os.environ.get(CONCURRENCY_ENV, str(DEFAULT_CONCURRENCY)))
     daily_limit = _positive(os.environ.get(DAILY_LIMIT_ENV, str(DEFAULT_DAILY_LIMIT)))
-    provider = AnthropicTextGenerator()
+    provider = text_generator_from_environment()
     try:
         report = backfill(
             create_database_engine(database_url),

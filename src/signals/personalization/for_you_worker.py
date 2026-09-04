@@ -219,14 +219,14 @@ class ForYouWorker:
 
 
 def main() -> int:
-    from signals.documents.providers import AnthropicTextGenerator
+    from signals.documents.providers import text_generator_from_environment
     from signals.persistence.database import create_database_engine
 
     database_url = os.environ.get(DATABASE_URL_ENV)
     if not database_url:
         raise SystemExit(f"{DATABASE_URL_ENV} is required")
     concurrency, daily_limit = limits_from_environment()
-    provider = AnthropicTextGenerator()
+    provider = text_generator_from_environment()
     try:
         report = ForYouWorker(
             create_database_engine(database_url),

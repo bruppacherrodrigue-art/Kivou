@@ -323,6 +323,13 @@ def _enqueue_for_you(
     match: Any,
     now: dt.datetime,
 ) -> None:
+    # Les tests de migrations historiques exercent la matérialisation sur une
+    # base volontairement arrêtée avant 0039. La compatibilité ne coûte rien à
+    # PostgreSQL en production, où le déploiement migre avant la bascule.
+    if connection.dialect.name == "sqlite" and not sa.inspect(connection).has_table(
+        "for_you_sentence"
+    ):
+        return
     from signals.personalization.for_you_store import enqueue_for_you_sentence
 
     enqueue_for_you_sentence(

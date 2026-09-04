@@ -201,3 +201,8 @@ class AnthropicTextGenerator(AnthropicClassifier):
         )
         text, _ = self._request_text(prompt)
         return text
+
+
+def text_generator_from_environment() -> AnthropicTextGenerator:
+    """Construit l'adaptateur configuré sans exposer sa marque aux appelants."""
+    return AnthropicTextGenerator()
