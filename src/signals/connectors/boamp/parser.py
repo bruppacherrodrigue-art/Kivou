@@ -36,13 +36,14 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import html
 import json
 import re
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from signals.domain.awards import Awardee, AwardeeParty, ContractAward, LotRef
-from signals.domain.events import Provenance, PublicEvent
+from signals.domain.events import Provenance, PublicEvent, TenderNotice
 from signals.domain.values import CpvCode, Location, Money, OrganizationIdentifier, OrganizationRef
 
 BOAMP_SOURCE_SYSTEM = "boamp"
@@ -131,9 +132,83 @@ def _payload(record: dict) -> dict | None:
     return notice if isinstance(notice, dict) else None
 
 
+def _tender_payload(record: dict) -> dict | None:
+    raw = record.get("donnees")
+    if not raw:
+        return None
+    try:
+        document = json.loads(raw) if isinstance(raw, str) else raw
+    except json.JSONDecodeError:
+        return None
+    notice = _dig(document, "EFORMS", "ContractNotice")
+    return notice if isinstance(notice, dict) else None
+
+
 def supported_payload(record: dict) -> bool:
     """L'avis porte-t-il un document eForms exploitable ?"""
     return _payload(record) is not None
+
+
+def supported_tender_payload(record: dict) -> bool:
+    return record.get("nature") != "ATTRIBUTION" and _tender_payload(record) is not None
+
+
+def _document_urls(node: Any) -> tuple[str, ...]:
+    found: list[str] = []
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "cbc:URI":
+                candidate = _text(value)
+                if candidate:
+                    candidate = html.unescape(candidate)
+                    if candidate.startswith(("http://", "https://")) and candidate not in found:
+                        found.append(candidate)
+            else:
+                found.extend(url for url in _document_urls(value) if url not in found)
+    elif isinstance(node, list):
+        for value in node:
+            found.extend(url for url in _document_urls(value) if url not in found)
+    return tuple(found)
+
+
+def parse_tender_notice(
+    record: dict, *, retrieved_at: dt.datetime | None = None
+) -> TenderNotice:
+    """Adapte un AAPC eForms BOAMP sans fabriquer de contrat ni de fait absent."""
+    notice = _tender_payload(record)
+    if notice is None or record.get("nature") == "ATTRIBUTION":
+        raise BoampUnsupportedPayload("avis BOAMP non AAPC eForms")
+    idweb = _text(record.get("idweb"))
+    if not idweb:
+        raise BoampUnsupportedPayload("avis BOAMP sans `idweb`")
+    extension: Any = notice
+    for key in _EXTENSION_PATH:
+        extension = _dig(extension, key)
+    organizations = _Organizations.from_extension(extension if isinstance(extension, dict) else {})
+    event = PublicEvent(
+        provenance=Provenance(
+            source_system=BOAMP_SOURCE_SYSTEM,
+            source_country=BOAMP_SOURCE_COUNTRY,
+            source_notice_id=idweb,
+            source_procedure_id=_text(record.get("contractfolderid"))
+            or _text(notice.get("cbc:ContractFolderID")),
+            source_url=_text(record.get("url_avis")),
+            retrieved_at=retrieved_at,
+        ),
+        event_type="tender_notice",
+        published_at=_date(record.get("dateparution")),
+        procedure_buyers=_buyers(notice, organizations),
+    )
+    deadline = _text(record.get("datelimitereponse"))
+    parsed_deadline = dt.datetime.fromisoformat(deadline) if deadline else None
+    cpv = _cpv(notice)
+    return TenderNotice(
+        event=event,
+        title=_text(record.get("objet")),
+        cpv_main=cpv.code if cpv else None,
+        submission_deadline=parsed_deadline,
+        document_urls=_document_urls(notice),
+    )
 
 
 def payload_kind(record: dict) -> str:
