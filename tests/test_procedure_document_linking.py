@@ -74,7 +74,7 @@ def connection():
     return engine
 
 
-def test_repeated_empty_attempt_updates_access_status_without_new_row() -> None:
+def assert_repeated_empty_attempt_updates_access_status_without_new_row() -> None:
     engine = connection()
     first = ProcedureDocumentRecord(
         source_system="boamp",
@@ -117,6 +117,7 @@ def test_repeated_empty_attempt_updates_access_status_without_new_row() -> None:
 
 
 def test_explicit_notice_reference_wins_over_other_modes() -> None:
+    assert_repeated_empty_attempt_updates_access_status_without_new_row()
     engine = connection()
     with engine.begin() as opened:
         insert_document(opened, notice="explicit", procedure="other")

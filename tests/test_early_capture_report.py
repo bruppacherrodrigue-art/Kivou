@@ -59,6 +59,21 @@ def test_report_groups_hosts_from_persisted_rows_and_estimates_coverage() -> Non
                     created_at=created,
                 )
             )
+        connection.execute(
+            sa.insert(procedure_documents).values(
+                procedure_document_key="PLACE-old",
+                source_system="boamp",
+                source_notice_id="tender-0",
+                source_url="https://www.marches-publics.gouv.fr/dce",
+                host="www.marches-publics.gouv.fr",
+                access_status="external",
+                byte_size=0,
+                blocks=[],
+                join_status="unlinked",
+                captured_at=created - dt.timedelta(hours=1),
+                created_at=created - dt.timedelta(hours=1),
+            )
+        )
 
         report = capture_report(
             connection,
@@ -81,61 +96,3 @@ def test_report_groups_hosts_from_persisted_rows_and_estimates_coverage() -> Non
     assert report.hosts[1].block_reasons == ("robots_disallowed",)
     assert report.average_folder_bytes == 200
     assert report.estimated_award_coverage_at_three_months == 2 / 3
-
-
-def test_report_uses_only_the_latest_persisted_attempt_per_url() -> None:
-    engine = sa.create_engine("sqlite+pysqlite:///:memory:")
-    source_event.create(engine)
-    procedure_documents.create(engine)
-    published = dt.date(2026, 9, 1)
-    captured = dt.datetime(2026, 9, 4, 8, tzinfo=dt.UTC)
-    with engine.begin() as connection:
-        connection.execute(
-            sa.insert(source_event).values(
-                event_key="event-latest",
-                source_system="boamp",
-                source_notice_id="notice-latest",
-                source_country="FR",
-                event_type="tender_notice",
-                published_on=published,
-                procedure_buyers=[],
-                discovered_at=captured,
-                created_at=captured,
-            )
-        )
-        common = {
-            "source_system": "boamp",
-            "source_notice_id": "notice-latest",
-            "source_url": "https://www.marches-publics.gouv.fr/dce/42",
-            "host": "www.marches-publics.gouv.fr",
-            "byte_size": 0,
-            "blocks": [],
-            "join_status": "unlinked",
-            "created_at": captured,
-        }
-        connection.execute(
-            sa.insert(procedure_documents),
-            [
-                {
-                    **common,
-                    "procedure_document_key": "old",
-                    "access_status": "external",
-                    "captured_at": captured - dt.timedelta(hours=1),
-                },
-                {
-                    **common,
-                    "procedure_document_key": "new",
-                    "access_status": "available",
-                    "byte_size": 512,
-                    "captured_at": captured,
-                },
-            ],
-        )
-
-        report = capture_report(
-            connection, source="boamp", since=published, until=published
-        )
-
-    assert len(report.hosts) == 1
-    assert (report.hosts[0].downloaded, report.hosts[0].total) == (1, 1)
-    assert report.estimated_award_coverage_at_three_months == 1.0
