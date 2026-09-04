@@ -10,6 +10,19 @@ from signals.persistence.schema import procedure_documents, source_event
 
 def test_report_groups_hosts_from_persisted_rows_and_estimates_coverage() -> None:
     engine = sa.create_engine("sqlite+pysqlite:///:memory:")
+    statements: list[str] = []
+
+    @sa.event.listens_for(engine, "before_cursor_execute")
+    def record_statement(
+        _connection: object,
+        _cursor: object,
+        statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: bool,
+    ) -> None:
+        statements.append(statement)
+
     source_event.create(engine)
     procedure_documents.create(engine)
     # A replay captures today notices published inside an older window.
@@ -96,3 +109,10 @@ def test_report_groups_hosts_from_persisted_rows_and_estimates_coverage() -> Non
     assert report.hosts[1].block_reasons == ("robots_disallowed",)
     assert report.average_folder_bytes == 200
     assert report.estimated_award_coverage_at_three_months == 2 / 3
+    report_select = next(
+        statement
+        for statement in statements
+        if "FROM procedure_documents" in statement and "SELECT" in statement
+    )
+    assert "archive_content" not in report_select
+    assert "blocks" not in report_select

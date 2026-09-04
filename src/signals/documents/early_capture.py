@@ -444,8 +444,19 @@ def capture_report(
             )
         ).scalar_one()
     )
+    report_columns = (
+        procedure_documents.c.source_notice_id,
+        procedure_documents.c.source_procedure_id,
+        procedure_documents.c.source_url,
+        procedure_documents.c.host,
+        procedure_documents.c.access_status,
+        procedure_documents.c.access_detail,
+        procedure_documents.c.classified_requirements_count,
+        procedure_documents.c.byte_size,
+        procedure_documents.c.captured_at,
+    )
     persisted_rows = connection.execute(
-        sa.select(procedure_documents).where(
+        sa.select(*report_columns).where(
             procedure_documents.c.source_system == source,
             notice_in_window,
         )
