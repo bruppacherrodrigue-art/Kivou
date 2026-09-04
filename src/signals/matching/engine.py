@@ -367,7 +367,7 @@ class MatchingEngine:
             )
 
         wanted_subdivisions = {
-            territory.subdivision_code
+            (territory.country, territory.subdivision_code, territory.subdivision_scheme)
             for territory in icp.territories
             if territory.subdivision_code is not None
         }
@@ -383,7 +383,11 @@ class MatchingEngine:
                     ),
                     "unknown",
                 )
-            matched = subdivision in wanted_subdivisions
+            matched = (
+                place.country,
+                subdivision,
+                place.subdivision_scheme,
+            ) in wanted_subdivisions
         else:
             wanted = {territory.country for territory in icp.territories}
             matched = any(country in wanted for country in candidates)

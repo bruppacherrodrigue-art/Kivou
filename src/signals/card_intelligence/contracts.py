@@ -177,6 +177,14 @@ class TargetIcpSnapshot(Contract):
         Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")],
         ...,
     ] = Field(default=(), max_length=249)
+    territory_subdivisions: tuple[
+        Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}-[A-Z0-9]{1,6}$")],
+        ...,
+    ] = Field(default=(), max_length=249)
+    sector_cpv_prefixes: tuple[
+        Annotated[str, StringConstraints(pattern=r"^\d{2,8}$")],
+        ...,
+    ] = Field(default=(), max_length=99)
     minimum_contract_value: TargetIcpThresholdSnapshot | None = None
 
     @model_validator(mode="after")
@@ -187,6 +195,8 @@ class TargetIcpSnapshot(Contract):
             "buyer_trades": self.buyer_trades,
             "secondary_buyer_trades": self.secondary_buyer_trades,
             "territories": self.territories,
+            "territory_subdivisions": self.territory_subdivisions,
+            "sector_cpv_prefixes": self.sector_cpv_prefixes,
         }
         for field, values in sequences.items():
             if len(set(values)) != len(values):
