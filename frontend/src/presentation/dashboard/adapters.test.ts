@@ -49,7 +49,7 @@ const VALID_FALLBACK: CardPresentation = {
   content: {
     schema_version: 'card-presentation-v1',
     variant: 'FACTUAL_FALLBACK',
-    headline: 'Attribution publique documentée',
+    headline: 'Attribution publique étayée',
     award_summary: 'Une entreprise identifiée est attributaire du marché.',
     commercial_importance: null,
     fit_reason: null,
@@ -58,13 +58,13 @@ const VALID_FALLBACK: CardPresentation = {
     target_roles: [],
     fit_need_categories: [],
     unknowns: [{
-      text: 'Date de début non publiée',
+      text: 'Date de début absente',
       evidence_refs: ['source:unknown'],
     }],
     claims: [{
       claim_id: 'HEADLINE',
       kind: 'FACT',
-      text: 'Attribution publique documentée',
+      text: 'Attribution publique étayée',
       evidence_refs: ['source:award'],
       confidence: null,
     }, {
@@ -86,26 +86,26 @@ const VALID_FULL: CardPresentation = {
   content: {
     schema_version: 'card-presentation-v1',
     variant: 'FULL',
-    headline: 'Attribution publique documentée',
+    headline: 'Attribution publique étayée',
     award_summary: 'Une entreprise identifiée est attributaire du marché.',
     commercial_importance: 'Le montant publié rend le marché commercialement significatif.',
-    fit_reason: 'Le besoin documenté correspond au ciblage déclaré.',
+    fit_reason: 'Le besoin étayé correspond au profil cible déclaré.',
     timing: 'Le calendrier opérationnel reste à confirmer.',
     recommended_action: 'Vérifier le besoin auprès du responsable achats.',
     target_roles: [{
       role: 'PROCUREMENT_MANAGER',
-      rationale: 'Fonction pertinente pour vérifier le besoin documenté.',
+      rationale: 'Fonction pertinente pour vérifier le besoin étayé.',
       evidence_refs: ['source:role'],
     }],
     fit_need_categories: ['materials_or_components'],
     unknowns: [{
-      text: 'Date de début non publiée',
+      text: 'Date de début absente',
       evidence_refs: ['source:unknown'],
     }],
     claims: [{
       claim_id: 'HEADLINE',
       kind: 'FACT',
-      text: 'Attribution publique documentée',
+      text: 'Attribution publique étayée',
       evidence_refs: ['source:award'],
       confidence: null,
     }, {
@@ -123,7 +123,7 @@ const VALID_FULL: CardPresentation = {
     }, {
       claim_id: 'FIT_REASON',
       kind: 'INFERENCE',
-      text: 'Le besoin documenté correspond au ciblage déclaré.',
+      text: 'Le besoin étayé correspond au profil cible déclaré.',
       evidence_refs: ['source:fit'],
       confidence: 'medium',
     }, {
@@ -223,7 +223,7 @@ const STRICT_PRESENTATION_MUTANTS = [
     value.content.schema_version = 'card-presentation-v2'
   }],
   ['untrimmed headline', VALID_FALLBACK, (value) => {
-    setClaimedText(value, 'headline', 0, ' Attribution publique documentée')
+    setClaimedText(value, 'headline', 0, ' Attribution publique étayée')
   }],
   ['headline longer than 160 code points', VALID_FALLBACK, (value) => {
     setClaimedText(value, 'headline', 0, 'é'.repeat(161))
@@ -314,7 +314,7 @@ const STRICT_PRESENTATION_MUTANTS = [
     delete value.content.unknowns[0].evidence_refs
   }],
   ['untrimmed unknown text', VALID_FALLBACK, (value) => {
-    value.content.unknowns[0].text = ' Date de début non publiée'
+    value.content.unknowns[0].text = ' Date de début absente'
   }],
   ['unknown longer than 240 code points', VALID_FALLBACK, (value) => {
     value.content.unknowns[0].text = 'é'.repeat(241)
@@ -511,11 +511,11 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
 
   it('ne normalise jamais un texte invalide avant de le refuser', () => {
     const presentation = mutatePresentation(VALID_FALLBACK, (value) => {
-      setClaimedText(value, 'headline', 0, ' Attribution publique documentée ')
+      setClaimedText(value, 'headline', 0, ' Attribution publique étayée ')
     })
 
     expect(publishedPresentation(presentation)).toBeNull()
-    expect(presentation.content.headline).toBe(' Attribution publique documentée ')
+    expect(presentation.content.headline).toBe(' Attribution publique étayée ')
   })
 
   it('ferme statiquement la présence de présentation selon le verrouillage', () => {
@@ -579,8 +579,8 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
       content: {
         schema_version: 'card-presentation-v1',
         variant: 'FACTUAL_FALLBACK',
-        headline: 'Attribution documentée',
-        award_summary: 'Attribution documentée depuis la source.',
+        headline: 'Attribution étayée',
+        award_summary: 'Attribution étayée depuis la source.',
         commercial_importance: null,
         fit_reason: null,
         timing: null,
@@ -625,7 +625,7 @@ describe('adaptateurs de présentation du dashboard de référence', () => {
     expect(() => eventDateKind('publication', 'recent_award')).toThrow(/incohérent/i)
   })
 
-  it('présente le ciblage, la facturation et l’entreprise sans valeurs de maquette', () => {
+  it('présente le profil cible, la facturation et l’entreprise sans valeurs de maquette', () => {
     const target: TargetIcp = ICP
     const access: BillingStatus = DISCOVERY_STATUS
     const company: CompanyProfile = COMPANY_PROFILE

@@ -5,6 +5,7 @@ import type {
   CardPresentation,
   CompanyListPage,
   CompanyProfile,
+  DashboardResponse,
   FeedItem,
   FeedPage,
   LockedFeedItem,
@@ -1197,6 +1198,26 @@ function responseForConnected(
     return { body: scenario === 'connected-discovery' ? VISUAL_DISCOVERY_STATUS : VISUAL_PRO_STATUS }
   }
   if (key === 'GET /billing/plans') return { body: VISUAL_CATALOGUE }
+  if (key === 'GET /dashboard') {
+    return {
+      body: {
+        as_of: '2026-09-04',
+        last_seen_at: '2026-09-01T09:00:00+00:00',
+        new_since_last_visit: 8,
+        strong_matches: 3,
+        top3: VISUAL_UNLOCKED_ITEMS.slice(0, 3),
+        to_follow_up: [{
+          company_key: VISUAL_COMPANIES[0].company_key,
+          name: VISUAL_COMPANIES[0].official_identity.name,
+          last_signal: VISUAL_COMPANIES[0].signals[0],
+          days_since_contact: 9,
+        }],
+        to_follow_up_truncated: false,
+        week: { new: 8, saved: 3, contacted: 2, replied: 1 },
+        scan_truncated: false,
+      } satisfies DashboardResponse,
+    }
+  }
   if (key === 'GET /notification-preferences') return { body: VISUAL_NOTIFICATION_PREFERENCE }
   if (key === 'GET /signals') return { body: feedPage(scenario, query) }
   if (key === 'GET /companies') {
@@ -1294,6 +1315,7 @@ const API_PREFIXES = [
   '/target-icps',
   '/signals',
   '/companies',
+  '/dashboard',
   '/billing',
   '/notification-preferences',
 ] as const

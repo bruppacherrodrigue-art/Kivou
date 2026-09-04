@@ -7,7 +7,7 @@ import { AppRoutes } from '../App'
 import { useSession } from './SessionProvider'
 import { planFromSearch } from '../billing/planRoute'
 import { useI18n } from '../i18n'
-import { AuthFlow } from '../reference/dashboard/AuthFlow'
+import { AuthFlow } from '../presentation/dashboard/AuthFlow'
 import {
   AUTHENTICATED,
   CATALOGUE,
@@ -88,6 +88,11 @@ describe('parcours d’entrée de la référence connectée', () => {
       'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM]) },
       'GET /target-icps': { body: [ICP] },
       'GET /billing/status': { body: DISCOVERY_STATUS },
+      'GET /dashboard': { body: {
+        as_of: '2026-09-04', last_seen_at: null, new_since_last_visit: 0,
+        strong_matches: 0, top3: [], to_follow_up: [], to_follow_up_truncated: false,
+        week: { new: 0, saved: 0, contacted: 0, replied: 0 }, scan_truncated: false,
+      } },
       'GET /notification-preferences': {
         body: {
           email_enabled: false,
@@ -107,7 +112,7 @@ describe('parcours d’entrée de la référence connectée', () => {
     await user.click(screen.getByRole('button', { name: /se connecter/i }))
 
     expect(
-      await screen.findByRole('heading', { level: 1, name: 'Vue d’ensemble' }),
+      await screen.findByRole('heading', { level: 1, name: 'Vos premiers signaux' }),
     ).toBeVisible()
   })
 
@@ -218,7 +223,7 @@ describe('parcours d’entrée de la référence connectée', () => {
     expect(screen.queryByLabelText(/langue/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'English' })).not.toBeInTheDocument()
     expect(document.querySelector('.auth-readonly-locale')).toHaveTextContent('Français')
-    expect(screen.getByRole('heading', { name: 'Commencer avec un ciblage clair' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Commencer avec un profil cible clair' })).toBeVisible()
 
     await user.type(screen.getByLabelText('Entreprise'), 'Entreprise Test')
     await user.type(
@@ -231,7 +236,7 @@ describe('parcours d’entrée de la référence connectée', () => {
       'correct-password',
     )
     await user.click(screen.getByRole('checkbox'))
-    await user.click(screen.getByRole('button', { name: /continuer vers le ciblage/i }))
+    await user.click(screen.getByRole('button', { name: /continuer vers le profil cible/i }))
 
     expect(await screen.findByText('Première configuration')).toBeVisible()
     expect(screen.getByTestId('location')).toHaveTextContent('/onboarding?plan=discovery')
@@ -266,7 +271,7 @@ describe('parcours d’entrée de la référence connectée', () => {
       'correct-password',
     )
     await user.click(screen.getByRole('checkbox'))
-    await user.click(screen.getByRole('button', { name: /continuer vers le ciblage/i }))
+    await user.click(screen.getByRole('button', { name: /continuer vers le profil cible/i }))
 
     await waitFor(() =>
       expect(screen.getByTestId('location')).toHaveTextContent('/onboarding?plan=pro'),

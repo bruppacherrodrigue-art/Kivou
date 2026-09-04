@@ -20,12 +20,12 @@ import {
   type TargetingField,
   UnknownTargetingToken,
   toTargetIcpPayload,
-} from '../reference/dashboard/targetingInput'
-import { useResource } from '../reference/dashboard/resources'
-import { ReferenceLink } from '../reference/router/ReferenceLink'
-import { Button } from '../reference/dashboard/ui/button'
-import { Input } from '../reference/dashboard/ui/input'
-import { Textarea } from '../reference/dashboard/ui/textarea'
+} from '../presentation/dashboard/targetingInput'
+import { useResource } from '../presentation/dashboard/resources'
+import { ReferenceLink } from '../presentation/router/ReferenceLink'
+import { Button } from '../presentation/dashboard/ui/button'
+import { Input } from '../presentation/dashboard/ui/input'
+import { Textarea } from '../presentation/dashboard/ui/textarea'
 import { notifyTargetIcpChanged } from '../targeting/targetIcpEvents'
 
 interface ProfilesState {

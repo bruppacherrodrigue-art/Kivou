@@ -10,7 +10,7 @@ describe('hero exact de la référence publique', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Repérez les entreprises qui viennent de gagner un marché public.' })).toBeInTheDocument()
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1)
-    expect(screen.getByText('Veille commerciale post-attribution')).toBeInTheDocument()
+    expect(screen.getByText('Veille des marchés attribués')).toBeInTheDocument()
     expect(await screen.findByRole('link', { name: 'Voir mes 3 premiers signaux' })).toHaveAttribute('href', '/signup?plan=discovery')
     expect(screen.getByRole('link', { name: 'Examiner un signal complet' })).toHaveAttribute('href', '/exemple-de-signal')
     expect(screen.getByText(/3 signaux gratuits · Sans carte bancaire/)).toBeInTheDocument()

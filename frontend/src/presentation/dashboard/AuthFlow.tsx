@@ -21,11 +21,11 @@ const copy: Record<AuthMode, { eyebrow: string; title: string; description: stri
   login: {
     eyebrow: 'Connexion',
     title: 'Retrouver vos signaux',
-    description: 'Accédez à votre ciblage, aux attributions documentées et à vos notes.',
+    description: 'Accédez à votre profil cible, aux marchés attribués et à vos notes.',
   },
   signup: {
     eyebrow: 'Création du compte',
-    title: 'Commencer avec un ciblage clair',
+    title: 'Commencer avec un profil cible clair',
     description: 'Créez votre accès, puis décrivez simplement ce que vous vendez et à qui.',
   },
   forgot: {
@@ -42,7 +42,7 @@ const copy: Record<AuthMode, { eyebrow: string; title: string; description: stri
 
 const noticeCopy: Record<AuthMode, string> = {
   login: 'La connexion utilise votre compte et votre session Kivou réels.',
-  signup: 'Le compte sera créé par Kivou avant la configuration de votre ciblage.',
+  signup: 'Le compte sera créé par Kivou avant la configuration de votre profil cible.',
   forgot: 'Pour protéger les comptes, le même message sera affiché quelle que soit l’adresse.',
   reset: 'Le nouveau mot de passe sera transmis à Kivou et fermera les autres sessions.',
 }
@@ -381,7 +381,7 @@ export function AuthFlow({ mode }: { mode: AuthMode }) {
           {mode === 'login'
             ? 'Se connecter'
             : mode === 'signup'
-              ? 'Continuer vers le ciblage'
+              ? 'Continuer vers le profil cible'
               : mode === 'forgot'
                 ? 'Demander un lien'
                 : 'Valider le nouveau mot de passe'}

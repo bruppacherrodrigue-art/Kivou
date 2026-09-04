@@ -4,7 +4,7 @@ import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AppRoutes } from '../App'
-import { CheckoutHandoff } from '../reference/dashboard/CheckoutHandoff'
+import { CheckoutHandoff } from '../presentation/dashboard/CheckoutHandoff'
 import {
   AUTHENTICATED,
   CATALOGUE,
@@ -549,7 +549,7 @@ describe('confirmation du retour de paiement', () => {
     expect(calls).toBe(beforeRefresh + 1)
   })
 
-  it('D — une lecture ratée n’annonce aucun échec et la confirmation arrive', async () => {
+  it('D — une analyse ratée n’annonce aucun échec et la confirmation arrive', async () => {
     statusSequence(['network', 'network', paid])
     openSuccess()
     await screen.findByText('Vérification de votre accès')

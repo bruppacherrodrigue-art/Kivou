@@ -3,7 +3,7 @@
  * Les quatre composants partagés (`signals.module.css`) décident de leur propre
  * apparence. Ce fichier ne décide que de la PLACE : deux colonnes, un tiroir
  * collant de 340 px, et une seule colonne sous 900 px. Aucune couleur nouvelle :
- * tout vient des tokens de `dashboard-reference.css`.
+ * tout vient des tokens de `app-shell.css`.
  */
 
 .page {

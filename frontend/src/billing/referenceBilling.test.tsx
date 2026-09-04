@@ -186,7 +186,7 @@ describe('facturation exacte sous autorité backend', () => {
     expect(within(panel).getByText(tManageLeadFr())).toBeVisible()
   })
 
-  it('ne transforme pas zéro déblocage Discovery en absence de flux pour une offre payée', async () => {
+  it('ne transforme pas zéro signal ouvert Discovery en absence de flux pour une offre payée', async () => {
     mockApi(routes(PRO_STATUS))
     renderApp(<AppRoutes />, { route: '/app/billing', session: AUTHENTICATED })
 
@@ -257,7 +257,7 @@ describe('facturation exacte sous autorité backend', () => {
     await user.selectOptions(selector, 'essential')
     const panel = exactBillingPanel()
     const liveSelector = panel.querySelector('.billing-plan-selector') as HTMLElement
-    expect(within(liveSelector).getByText('Non publié')).toBeVisible()
+    expect(within(liveSelector).getByText('—')).toBeVisible()
     expect(within(liveSelector).queryByText('Gratuit')).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: /choisir essentiel/i })).toBeDisabled()
     expect(callsTo('/billing/checkout')).toHaveLength(0)

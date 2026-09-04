@@ -113,6 +113,8 @@ def test_unlocked_signal_detail_links_to_the_official_company_profile(app, engin
     assert response.status_code == 200
     body = response.json()
     assert body["company_key"] == company_key
+    assert "city" in body
+    assert body["city"] is None  # ce signal officiel ne publie aucune commune
     assert body["official_identity"]["name"] == "Egli Gartenbau AG Sursee"
     assert body["official_identity"]["source"] == "public_notice"
     assert body["related_signals"][0]["signal_id"] == signal_key

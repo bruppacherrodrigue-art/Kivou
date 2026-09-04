@@ -476,6 +476,7 @@ export const LOCKED_DETAIL: LockedDetail = {
 
 export const COMPANY_PROFILE: CompanyProfile = {
   company_key: 'cmp_0123456789abcdefghijklmnop',
+  city: 'Villeneuve',
   contact_status: 'to_contact',
   contacted_at: null,
   note: null,

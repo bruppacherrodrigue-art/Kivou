@@ -172,9 +172,9 @@ describe('localisation FR / EN', () => {
   it('porte systématiquement les libellés exacts du dashboard de référence', () => {
     expect(fr.reference.headings).toEqual({
       monitoringSummary: 'Résumé de la veille',
-      documentedAwards: 'Attributions documentées',
+      documentedAwards: 'Marchés attribués',
       savedProfile: 'Profil enregistré',
-      otherDocumentedAwards: 'Autres attributions documentées',
+      otherDocumentedAwards: 'Autres marchés attribués',
       awardedContracts: 'Marchés attribués',
       selectedSignal: 'Signal sélectionné',
       commercialBrief: 'Le signal en quatre points',
@@ -187,7 +187,7 @@ describe('localisation FR / EN', () => {
       publishedIdentity: 'Identité publiée',
       sourceAssertions: 'Ce que la source permet d’affirmer',
       usefulRoles: 'Fonctions utiles avant contact',
-      targetProfile: 'Profil de ciblage',
+      targetProfile: 'Profil cible',
       matchingLogic: 'Logique de correspondance',
       matchingExamples: 'Exemples de correspondance',
       tedTraceability: 'Chaque avis TED reste consultable',
@@ -277,7 +277,7 @@ describe('localisation FR / EN', () => {
       state: 'État',
       recipient: 'Adresse de réception',
       frequency: 'Fréquence',
-      targetProfiles: 'Profils de ciblage',
+      targetProfiles: 'Profils cibles',
       territories: 'Territoires',
       alerts: 'Alertes',
       history: 'Historique',
@@ -295,7 +295,7 @@ describe('localisation FR / EN', () => {
       accessibleWithEssential: 'Accessible avec Essential',
       noteAdded: 'Note ajoutée',
       reviewFirst: 'À examiner d’abord',
-      documentedSignal: 'Signal documenté',
+      documentedSignal: 'Signal',
     })
     expect(Object.keys(en.reference.statuses)).toEqual(Object.keys(fr.reference.statuses))
 
@@ -306,7 +306,7 @@ describe('localisation FR / EN', () => {
       saving: fr.reference.saving,
       saved: fr.reference.saved,
     }).toEqual({
-      missingValue: 'Non publié',
+      missingValue: '—',
       retry: 'Réessayer',
       save: 'Enregistrer',
       saving: 'Enregistrement…',
@@ -314,11 +314,11 @@ describe('localisation FR / EN', () => {
     })
     expect(fr.reference.messages).toEqual({
       loadError: 'Les informations n’ont pas pu être chargées.',
-      profileLoadError: 'Le profil de ciblage n’a pas pu être chargé.',
+      profileLoadError: 'Le profil cible n’a pas pu être chargé.',
       billingLoadError: 'L’offre n’a pas pu être chargée.',
       refreshing: 'Actualisation des données…',
       refreshFailed: 'L’actualisation a échoué. Les données affichées peuvent être anciennes.',
-      retryProfile: 'Réessayer le chargement du profil de ciblage',
+      retryProfile: 'Réessayer le chargement du profil cible',
       retryBilling: 'Réessayer le chargement de l’offre',
       saveError: 'Les modifications n’ont pas pu être enregistrées.',
       noteLoadError: 'La note n’a pas pu être chargée.',

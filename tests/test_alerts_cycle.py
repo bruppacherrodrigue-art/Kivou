@@ -644,7 +644,7 @@ def test_the_digest_is_written_in_the_account_language(app, engine, mailer):
     cycle(engine, mailer)
     message = mailer.last
     assert message.language == "en"
-    assert "new opportunit" in message.subject
+    assert "new signal" in message.subject
     assert "Hello," in message.text_body
     assert "Plausible needs" in message.text_body
 

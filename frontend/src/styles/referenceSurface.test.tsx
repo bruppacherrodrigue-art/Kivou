@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { StrictMode } from 'react'
 import { describe, expect, it } from 'vitest'
-import { ReferenceLink } from '../reference/router/ReferenceLink'
-import { SurfaceBoundary } from '../reference/surface/SurfaceBoundary'
+import { ReferenceLink } from '../presentation/router/ReferenceLink'
+import { SurfaceBoundary } from '../presentation/surface/SurfaceBoundary'
 import { renderApp, UNAUTHENTICATED } from '../test/harness'
 
 describe('reference presentation surface', () => {
@@ -45,10 +45,10 @@ describe('reference presentation surface', () => {
       const { rerender, unmount } = render(
         <SurfaceBoundary surface="public"><span /></SurfaceBoundary>,
       )
-      expect(icon).toHaveAttribute('href', '/reference/public-favicon.svg')
+      expect(icon).toHaveAttribute('href', '/presentation/public-favicon.svg')
       expect(document.body).not.toHaveClass('antialiased')
       rerender(<SurfaceBoundary surface="dashboard"><span /></SurfaceBoundary>)
-      expect(icon).toHaveAttribute('href', '/reference/dashboard-favicon.svg')
+      expect(icon).toHaveAttribute('href', '/presentation/dashboard-favicon.svg')
       expect(document.body).toHaveClass('antialiased')
       unmount()
       expect(icon.getAttribute('href')).toBe(original)
@@ -69,7 +69,7 @@ describe('reference presentation surface', () => {
       const { unmount } = render(
         <SurfaceBoundary surface="dashboard"><span /></SurfaceBoundary>,
       )
-      expect(icon).toHaveAttribute('href', '/reference/dashboard-favicon.svg')
+      expect(icon).toHaveAttribute('href', '/presentation/dashboard-favicon.svg')
       unmount()
       expect(icon).not.toHaveAttribute('href')
     } finally {
@@ -89,7 +89,7 @@ describe('reference presentation surface', () => {
       const { unmount } = render(
         <SurfaceBoundary surface="dashboard"><span /></SurfaceBoundary>,
       )
-      expect(icon).toHaveAttribute('href', '/reference/dashboard-favicon.svg')
+      expect(icon).toHaveAttribute('href', '/presentation/dashboard-favicon.svg')
       unmount()
       expect(icon).toHaveAttribute('href', '')
     } finally {
@@ -138,17 +138,17 @@ describe('reference presentation surface', () => {
         {
           surface: 'public',
           antialiased: false,
-          favicon: '/reference/public-favicon.svg',
+          favicon: '/presentation/public-favicon.svg',
         },
         {
           surface: 'dashboard',
           antialiased: true,
-          favicon: '/reference/dashboard-favicon.svg',
+          favicon: '/presentation/dashboard-favicon.svg',
         },
         {
           surface: 'dashboard',
           antialiased: true,
-          favicon: '/reference/dashboard-favicon.svg',
+          favicon: '/presentation/dashboard-favicon.svg',
         },
         {
           surface: 'historical',
@@ -221,7 +221,7 @@ describe('reference presentation surface', () => {
       /html\[data-kivou-surface="public"\] \.legal-toc a,[\s\S]*text-decoration:\s*underline;/,
     )
     expect(main.indexOf("'./styles/reference-surface-isolation.css'")).toBeGreaterThan(
-      main.indexOf("'./reference/dashboard/dashboard-reference.css'"),
+      main.indexOf("'./presentation/dashboard/app-shell.css'"),
     )
   })
 })

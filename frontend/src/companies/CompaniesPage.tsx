@@ -84,7 +84,7 @@ export function CompaniesPage() {
 
   return (
     <main className={styles.page}>
-      <header><p>Les titulaires de vos signaux, avec où vous en êtes</p></header>
+      <header><h1>Entreprises</h1><p>Les titulaires de vos signaux, avec où vous en êtes</p></header>
       <div className={styles.filters}>
         <div className={styles.segments} aria-label="Statut de contact">
           {SEGMENTS.map((segment) => (

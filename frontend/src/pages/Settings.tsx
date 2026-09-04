@@ -10,10 +10,10 @@ import {
 import { useCallback } from 'react'
 import { billing } from '../api/endpoints'
 import { useI18n } from '../i18n'
-import { SettingsNav } from '../reference/dashboard/SettingsNav'
-import { useResource } from '../reference/dashboard/resources'
-import { Button } from '../reference/dashboard/ui/button'
-import { ReferenceLink } from '../reference/router/ReferenceLink'
+import { SettingsNav } from '../presentation/dashboard/SettingsNav'
+import { useResource } from '../presentation/dashboard/resources'
+import { Button } from '../presentation/dashboard/ui/button'
+import { ReferenceLink } from '../presentation/router/ReferenceLink'
 
 export function Settings() {
   const { locale, t } = useI18n()

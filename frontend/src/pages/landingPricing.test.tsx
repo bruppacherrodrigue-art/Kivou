@@ -42,7 +42,7 @@ const AGGREGATE_DOWNGRADES: Array<[
 describe('tarifs publics exacts et autoritaires', () => {
   it('réapplique l’empilement mobile après la règle desktop du bandeau dashboard', () => {
     const css = readFileSync(
-      resolve(process.cwd(), 'src/reference/public/public-reference.css'),
+      resolve(process.cwd(), 'src/presentation/public/marketing.css'),
       'utf8',
     )
     const desktopRule = css.lastIndexOf('.dashboard-intro { display: flex;')
@@ -73,7 +73,7 @@ describe('tarifs publics exacts et autoritaires', () => {
 
   it('n’écrit aucun prix de production dans les composants publics', () => {
     const sources = [
-      '../reference/public/PricingResource.tsx',
+      '../presentation/public/PricingResource.tsx',
       './Landing.tsx',
       './PublicPricing.tsx',
     ].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8'))
@@ -275,11 +275,11 @@ describe('tarifs publics exacts et autoritaires', () => {
     expect(scale).toHaveTextContent('Offre absente du catalogue')
     expect(scale.querySelector('.plan-intro')).toHaveTextContent('Informations')
     expect(Array.from(scale.querySelectorAll('ul > li'), (item) => item.textContent)).toEqual([
-      'Contenu non publié',
-      'Couverture non publiée',
-      'Accès non publiés',
-      'Alertes non publiées',
-      'Historique non publié',
+      'Contenu absent',
+      'Couverture absente',
+      'Accès absents',
+      'Alertes absentes',
+      'Historique absent',
     ])
     expect(within(scale).queryByRole('link')).not.toBeInTheDocument()
   })

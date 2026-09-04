@@ -654,6 +654,7 @@ export interface CompanyRelatedSignal {
 
 export interface CompanyProfile {
   company_key: string
+  city: string | null
   official_identity: CompanyOfficialIdentity
   related_signals: CompanyRelatedSignal[]
   coverage: {
@@ -705,6 +706,25 @@ export interface CompanyNoteResult {
   company_key: string
   note: string | null
   updated_at: string
+}
+
+export interface DashboardFollowUp {
+  company_key: string
+  name: string
+  last_signal: UnlockedFeedItem
+  days_since_contact: number
+}
+
+export interface DashboardResponse {
+  as_of: string
+  last_seen_at: string | null
+  new_since_last_visit: number
+  strong_matches: number
+  top3: UnlockedFeedItem[]
+  to_follow_up: DashboardFollowUp[]
+  to_follow_up_truncated: boolean
+  week: { new: number; saved: number; contacted: number; replied: number }
+  scan_truncated: boolean
 }
 
 // ─── Facturation ─────────────────────────────────────────────────────────────

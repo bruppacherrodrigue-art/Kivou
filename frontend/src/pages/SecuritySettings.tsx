@@ -2,10 +2,10 @@ import { KeyRound, LogOut, ShieldCheck } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { useSession } from '../auth/SessionProvider'
 import { useI18n } from '../i18n'
-import { PrototypeNotice } from '../reference/dashboard/PrototypeNotice'
-import { SettingsNav } from '../reference/dashboard/SettingsNav'
-import { Button } from '../reference/dashboard/ui/button'
-import { ReferenceLink } from '../reference/router/ReferenceLink'
+import { PrototypeNotice } from '../presentation/dashboard/PrototypeNotice'
+import { SettingsNav } from '../presentation/dashboard/SettingsNav'
+import { Button } from '../presentation/dashboard/ui/button'
+import { ReferenceLink } from '../presentation/router/ReferenceLink'
 
 export function SecuritySettings() {
   const { signOut } = useSession()

@@ -88,7 +88,7 @@ describe('inscription', () => {
     mockApi({ 'POST /auth/signup': { body: ME } })
     renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/signup' })
 
-    const form = screen.getByRole('button', { name: 'Continuer vers le ciblage' }).closest('form')!
+    const form = screen.getByRole('button', { name: 'Continuer vers le profil cible' }).closest('form')!
     expect(form).not.toHaveAttribute('novalidate')
     expect(screen.getByLabelText('Entreprise')).toBeRequired()
     expect(screen.getByLabelText(/Adresse e-mail/)).toHaveAttribute('type', 'email')
@@ -131,7 +131,7 @@ describe('inscription', () => {
 
     await user.click(
       screen.getByRole('button', {
-        name: mode === 'signup' ? 'Continuer vers le ciblage' : 'Se connecter',
+        name: mode === 'signup' ? 'Continuer vers le profil cible' : 'Se connecter',
       }),
     )
 
@@ -154,7 +154,7 @@ describe('inscription', () => {
     await user.type(screen.getByLabelText(/Adresse e-mail/), 'claire@acme.test')
     await user.type(screen.getByLabelText(/^Mot de passe$/), 'court')
     await user.type(screen.getByLabelText('Confirmer le mot de passe'), 'court')
-    await user.click(screen.getByRole('button', { name: 'Continuer vers le ciblage' }))
+    await user.click(screen.getByRole('button', { name: 'Continuer vers le profil cible' }))
 
     // L'aide RESTE affichée à côté de l'erreur : un message qui remplacerait
     // l'instruction la ferait disparaître au moment où elle sert.
@@ -169,7 +169,7 @@ describe('inscription', () => {
     renderApp(<AppRoutes />, { session: UNAUTHENTICATED, route: '/signup' })
 
     expect(
-      screen.getByRole('heading', { name: 'Commencer avec un ciblage clair' }),
+      screen.getByRole('heading', { name: 'Commencer avec un profil cible clair' }),
     ).toBeInTheDocument()
     expect(
       screen.getByText(
@@ -183,7 +183,7 @@ describe('inscription', () => {
   /* REVUE #1 — la promesse chiffrée ne doit pas revenir.
    *
    * `signupLead` annonçait « Trois signaux réels vous attendent ». Aucun
-   * déblocage n'existe pourtant à ce stade : le compte n'a pas de ciblage, et
+   * signal ouvert n'existe pourtant à ce stade : le compte n'a pas de profil cible, et
    * c'est `GET /signals` qui attribue. Le nombre était donc une promesse que
    * le serveur n'avait pas produite — et qu'il ne tiendrait pas si moins de
    * trois signaux éligibles existaient.
@@ -198,7 +198,7 @@ describe('inscription', () => {
     expect(page).not.toContain('Trois signaux réels vous attendent')
     expect(page).not.toMatch(/\b3 signaux\b/)
     expect(page).not.toMatch(/\btrois signaux\b/i)
-    expect(screen.getByRole('heading', { name: 'Commencer avec un ciblage clair' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Commencer avec un profil cible clair' })).toBeVisible()
   })
 
   it('reste en français sans sélecteur même si la langue initiale est l’anglais', () => {
@@ -209,7 +209,7 @@ describe('inscription', () => {
     expect(page).not.toContain('Three real signals are waiting')
     expect(page).not.toMatch(/\b3 signals\b/)
     expect(page).not.toMatch(/\bthree signals\b/i)
-    expect(screen.getByRole('heading', { name: 'Commencer avec un ciblage clair' })).toBeVisible()
+    expect(screen.getByRole('heading', { name: 'Commencer avec un profil cible clair' })).toBeVisible()
     expect(screen.queryByLabelText(/langue/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /English/i })).not.toBeInTheDocument()
     expect(document.documentElement).toHaveAttribute('lang', 'fr')
@@ -227,7 +227,7 @@ describe('inscription', () => {
     await user.type(screen.getByLabelText(/^Mot de passe$/), 'motdepassesolide')
     await user.type(screen.getByLabelText('Confirmer le mot de passe'), 'motdepassesolide')
     await user.click(screen.getByRole('checkbox'))
-    await user.click(screen.getByRole('button', { name: 'Continuer vers le ciblage' }))
+    await user.click(screen.getByRole('button', { name: 'Continuer vers le profil cible' }))
 
     await waitFor(() => expect(callsTo('/auth/signup')).toHaveLength(1))
     const sent = callsTo('/auth/signup')[0].body as Record<string, unknown>
@@ -309,7 +309,7 @@ describe('déconnexion', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })
 
     await screen.findByRole('heading', { name: 'Signaux' })
-    await user.click(screen.getByRole('link', { name: 'Compte' }))
+    await user.click(screen.getByRole('link', { name: 'Réglages' }))
     await screen.findByRole('heading', { level: 1, name: 'Compte' })
     const security = screen.getAllByRole('link', { name: 'Sécurité' }).find(
       (link) => link.getAttribute('href') === '/app/settings/security',
@@ -336,7 +336,7 @@ describe('déconnexion', () => {
     })
     const view = renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/settings' })
 
-    await screen.findByText(`${ICP.label} · ${ICP.customer_input.territories[0]}`)
+    await screen.findByText(ICP.label)
     const user = userEvent.setup()
     const security = screen.getAllByRole('link', { name: 'Sécurité' }).find(
       (link) => link.getAttribute('href') === '/app/settings/security',

@@ -28,7 +28,7 @@ export function SystemState({
   return (
     <main className="system-state-page" id="kivou-main">
       <ReferenceLink className="system-state-brand" href="/">
-        <KivouBrand subtitle="Marchés attribués · signaux documentés" />
+        <KivouBrand subtitle="Marchés attribués · signaux étayés" />
       </ReferenceLink>
       <section className="system-state-card">
         <span className="system-state-icon"><Icon aria-hidden="true" /></span>

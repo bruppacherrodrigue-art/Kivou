@@ -9,8 +9,8 @@ const noop = () => undefined
 
 /* Le copy interdit sur cet écran. Aucun de ces mots ne doit atteindre le DOM. */
 const FORBIDDEN = [
-  'documenté',
-  'non publié',
+  'étayé',
+  'absent',
   'résolution incomplète',
   'faits publiés',
   'contact non confirmé',
@@ -18,7 +18,7 @@ const FORBIDDEN = [
 
 /* Le vocabulaire proscrit sur toute la surface client. « Attribué le » reste :
  * c'est la forme verbale, pas le substantif. */
-const FORBIDDEN_VOCABULARY = ['occasion', 'ciblage', 'attribution', 'déblocage', 'lecture']
+const FORBIDDEN_VOCABULARY = ['signal', 'profil cible', 'attribution', 'signal ouvert', 'analyse']
 
 function item(overrides: Partial<UnlockedFeedItem> = {}): UnlockedFeedItem {
   return { ...UNLOCKED_ITEM, ...overrides }

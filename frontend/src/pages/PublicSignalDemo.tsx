@@ -6,8 +6,8 @@ import {
   frenchCardinal,
   publicPlan,
   usePricingResource,
-} from '../reference/public/PricingResource'
-import { ReferenceLink } from '../reference/router/ReferenceLink'
+} from '../presentation/public/PricingResource'
+import { ReferenceLink } from '../presentation/router/ReferenceLink'
 
 const ted = 'https://ted.europa.eu/en/notice/568562-2026/xml'
 

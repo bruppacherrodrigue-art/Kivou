@@ -6,8 +6,8 @@ import {
   frenchCardinal,
   publicPlan,
   usePricingResource,
-} from '../reference/public/PricingResource'
-import { ReferenceLink } from '../reference/router/ReferenceLink'
+} from '../presentation/public/PricingResource'
+import { ReferenceLink } from '../presentation/router/ReferenceLink'
 
 export function Product() {
   const pricing = usePricingResource()
@@ -17,7 +17,7 @@ export function Product() {
     <>
       <PublicPageMeta
         title="Comment ça marche | Kivou"
-        description="La méthode Kivou, du ciblage à l’analyse d’un marché public attribué."
+        description="La méthode Kivou, du profil cible à l’analyse d’un marché public attribué."
         canonicalPath="/produit"
       />
       <main id="main" tabIndex={-1}>
@@ -25,7 +25,7 @@ export function Product() {
           <div className="container hero-grid">
             <div className="hero-copy">
               <p className="eyebrow">Comment ça marche</p>
-              <h1>Kivou suit ce qui se passe après l’attribution.</h1>
+              <h1>Kivou suit ce qui se passe une fois le marché attribué.</h1>
               <p className="lead">Vous décrivez ce que vous vendez. Kivou relève les marchés attribués qui correspondent, identifie le gagnant et rassemble les faits utiles pour décider si ce compte mérite une approche.</p>
               <div className="button-row"><PublicPlanLink state={pricing} planCode="discovery" className="btn primary">Configurer mon profil</PublicPlanLink><ReferenceLink className="btn secondary" href="/exemple-de-signal">Voir le résultat</ReferenceLink></div>
             </div>
@@ -33,9 +33,9 @@ export function Product() {
               <p className="pipeline-label">Le parcours d’un signal</p>
               <ol className="pipeline">
                 <li className="pipeline-item"><span className="pipeline-number">01</span><div><b>Votre profil</b><span>Offre, entreprises cibles et territoires.</span></div></li>
-                <li className="pipeline-item"><span className="pipeline-number">02</span><div><b>Une attribution</b><span>Un gagnant et un marché correspondant à votre couverture.</span></div></li>
+                <li className="pipeline-item"><span className="pipeline-number">02</span><div><b>Un marché attribué</b><span>Un titulaire et un marché correspondant à votre couverture.</span></div></li>
                 <li className="pipeline-item"><span className="pipeline-number">03</span><div><b>L’analyse</b><span>Faits publiés, besoin possible et calendrier.</span></div></li>
-                <li className="pipeline-item"><span className="pipeline-number">04</span><div><b>Votre lecture</b><span>Approfondir, écarter ou consigner une note.</span></div></li>
+                <li className="pipeline-item"><span className="pipeline-number">04</span><div><b>Votre analyse</b><span>Approfondir, écarter ou consigner une note.</span></div></li>
               </ol>
             </div>
           </div>
@@ -44,7 +44,7 @@ export function Product() {
         <section className="dark-section">
           <div className="container dark-grid">
             <div>
-              <p className="eyebrow">Pourquoi après l’attribution</p>
+              <p className="eyebrow">Une fois le marché attribué</p>
               <h2>Le gagnant doit maintenant exécuter le marché.</h2>
               <p className="lead">Le contrat peut l’amener à mobiliser des personnes, des équipements, des matériaux, des partenaires ou des expertises. Kivou cherche les faits qui permettent d’examiner ces besoins sans les présenter comme des achats certains.</p>
             </div>
@@ -60,12 +60,12 @@ export function Product() {
           <div className="container method-layout">
             <header className="section-head">
               <p className="eyebrow">La méthode Kivou</p>
-              <h2>Cinq étapes, du ciblage au signal.</h2>
-              <p className="lead">Le ciblage vient de vous. Les faits viennent des sources publiques. L’analyse relie les deux et indique ce qui reste à confirmer.</p>
+              <h2>Cinq étapes, du profil cible au signal.</h2>
+              <p className="lead">Le profil cible vient de vous. Les faits viennent des sources publiques. L’analyse relie les deux et indique ce qui reste à confirmer.</p>
             </header>
             <ol className="method-list">
-              <li><span>01</span><div><h3>Définissez votre ciblage</h3><p>Votre offre, les entreprises que vous pouvez aider et les territoires à couvrir.</p></div></li>
-              <li><span>02</span><div><h3>Les attributions sont surveillées</h3><p>Kivou suit les avis officiels correspondant à la couverture choisie.</p></div></li>
+              <li><span>01</span><div><h3>Définissez votre profil cible</h3><p>Votre offre, les entreprises que vous pouvez aider et les territoires à couvrir.</p></div></li>
+              <li><span>02</span><div><h3>Les marchés attribués sont surveillés</h3><p>Kivou suit les avis officiels correspondant à la couverture choisie.</p></div></li>
               <li><span>03</span><div><h3>Les faits sont structurés</h3><p>Gagnant, objet, montant, lieu, lots, volumes et dates lorsqu’ils sont publiés.</p></div></li>
               <li><span>04</span><div><h3>La correspondance est expliquée</h3><p>Le besoin possible est rapproché de votre activité, avec les limites de l’analyse.</p></div></li>
               <li><span>05</span><div><h3>Le signal arrive dans votre veille</h3><p>Vous disposez du contexte et de la source pour choisir la suite.</p></div></li>
@@ -78,7 +78,7 @@ export function Product() {
             <header className="section-head">
               <p className="eyebrow">Un cas concret</p>
               <h2>Des faits publiés à l’angle commercial à vérifier.</h2>
-              <p className="lead">Voici comment Kivou lit l’attribution remportée par H. Hüther GmbH à Munich.</p>
+              <p className="lead">Voici comment Kivou analyse le marché remporté par H. Hüther GmbH à Munich.</p>
             </header>
             <div className="glass fact-module">
               <div className="fact-side published"><p className="panel-label">Faits publiés</p><h3>Un marché de 5,22 M€</h3><ul className="clean-list"><li>Plus de 700 portes et huisseries</li><li>5,5 km de plinthes</li><li>Travaux à Munich</li><li>Début prévu le 28 octobre 2026</li></ul></div>

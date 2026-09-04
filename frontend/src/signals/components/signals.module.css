@@ -1,7 +1,7 @@
 /* Les styles des quatre composants de l'écran « Signaux ».
  *
  * Rien ici n'invente une couleur ni une graisse : tout vient des tokens de
- * `dashboard-reference.css`. La largeur du tiroir et sa position collante
+ * `app-shell.css`. La largeur du tiroir et sa position collante
  * appartiennent à la PAGE, pas au composant : un tiroir qui décide de sa place
  * ne peut plus devenir une feuille plein écran sur mobile.
  */

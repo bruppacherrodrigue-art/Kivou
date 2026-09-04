@@ -104,7 +104,7 @@ describe('vérité du packaging', () => {
     await user.selectOptions(selector, 'pro')
     const page = document.body.textContent ?? ''
     // Profils : appliqué par `feedable_target_icps` et `over_limit_icps`.
-    expect(page).toMatch(/profils? de ciblage/)
+    expect(page).toMatch(/profils? cibles/)
     expect(page).toContain('Plusieurs territoires par profil')
     // L'accès payant au flux et aux détails vient du contrat serveur ; le
     // compteur Discovery ne doit pas être transposé à Pro.

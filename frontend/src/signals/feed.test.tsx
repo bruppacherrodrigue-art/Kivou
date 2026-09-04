@@ -659,7 +659,7 @@ describe('écran Signaux — mobile et copy', () => {
     const page = document.querySelector('[data-page="signals"]')
     expect(page).not.toBeNull()
     const text = normalise(page!.textContent ?? '')
-    for (const forbidden of ['occasion', 'ciblage', 'attribution', 'deblocage', 'lecture']) {
+    for (const forbidden of ['signal', 'profil cible', 'attribution', 'deblocage', 'analyse']) {
       expect(text).not.toContain(forbidden)
     }
   })

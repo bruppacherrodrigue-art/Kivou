@@ -35,7 +35,7 @@ function routes(status = PRO_STATUS, preference = PREFERENCE, overrides = {}) {
 describe('préférences de notification', () => {
   it('compose les préférences avec les surfaces connectées et un repli à 900 px', () => {
     const css = readFileSync(
-      join(process.cwd(), 'src/reference/dashboard/dashboard-reference.css'),
+      join(process.cwd(), 'src/presentation/dashboard/app-shell.css'),
       'utf8',
     )
 
@@ -79,7 +79,7 @@ describe('préférences de notification', () => {
     expect(screen.getByRole('switch')).not.toBeChecked()
   })
 
-  it('rend la cadence depuis le droit du plan, en lecture seule', async () => {
+  it('rend la cadence depuis le droit du plan, en analyse seule', async () => {
     mockApi(routes(PRO_STATUS))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/notifications' })
 
@@ -87,7 +87,7 @@ describe('préférences de notification', () => {
     expect(screen.getByText(/La fréquence dépend de votre offre/)).toBeInTheDocument()
 
     // La cadence conserve le contrôle de la maquette, mais reste strictement
-    // en lecture seule sous l'autorité du droit serveur.
+    // en analyse seule sous l'autorité du droit serveur.
     expect(screen.getByRole('combobox', { name: /fréquence/i })).toBeDisabled()
     expect(screen.queryByRole('radio', { name: 'Hebdomadaire' })).not.toBeInTheDocument()
   })

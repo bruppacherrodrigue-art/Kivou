@@ -34,7 +34,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const PUBLISHED_HEADLINE = 'Attribution documentée pour le lot communal de voirie'
+const PUBLISHED_HEADLINE = 'Attribution étayée pour le lot communal de voirie'
 const PUBLISHED_AWARD_SUMMARY = 'La source officielle documente l’attribution de ce lot communal.'
 
 const PUBLISHED_UNLOCKED_ITEM = {
@@ -129,10 +129,10 @@ describe('contrat responsive connecté à 390 px', () => {
     await screen.findByRole('heading', { level: 1, name: 'Signaux' })
     await user.click(screen.getByRole('button', { name: 'Ouvrir la navigation' }))
     const drawer = screen.getByRole('dialog', { name: 'Navigation' })
-    await user.click(within(drawer).getByRole('link', { name: 'Vue d’ensemble' }))
+    await user.click(within(drawer).getByRole('link', { name: 'Aujourd’hui' }))
 
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
-    expect(await screen.findByRole('heading', { level: 1, name: 'Vue d’ensemble' })).toBeVisible()
+    expect(await screen.findByRole('heading', { level: 1, name: 'Vos premiers signaux' })).toBeVisible()
   })
 
   it('localise le drawer et le ferme avec retour focus sur sa destination déjà active', async () => {
@@ -159,14 +159,14 @@ describe('contrat responsive connecté à 390 px', () => {
     expect(trigger).toHaveFocus()
   })
 
-  // TODO PR4
-  it.skip('préserve exactement les breakpoints et la réduction de mouvement approuvés', () => {
+  it('préserve exactement les breakpoints et la réduction de mouvement approuvés', () => {
     const css = readFileSync(
-      join(process.cwd(), 'src/reference/dashboard/dashboard-reference.css'),
+      join(process.cwd(), 'src/presentation/dashboard/app-shell.css'),
       'utf8',
     )
     const media = [...css.matchAll(/@media\s*\(([^)]+)\)/g)].map((match) => match[1])
     expect(media).toEqual([
+      'min-width: 768px',
       'max-width: 1279px',
       'min-width: 768px',
       'max-width: 1599px',
@@ -188,5 +188,10 @@ function mockSignalRoute() {
     },
     'GET /target-icps': { body: [ICP] },
     'GET /billing/status': { body: PRO_STATUS },
+    'GET /dashboard': { body: {
+      as_of: '2026-09-04', last_seen_at: null, new_since_last_visit: 0,
+      strong_matches: 0, top3: [], to_follow_up: [], to_follow_up_truncated: false,
+      week: { new: 0, saved: 0, contacted: 0, replied: 0 }, scan_truncated: false,
+    } },
   })
 }

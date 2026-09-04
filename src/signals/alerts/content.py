@@ -25,23 +25,23 @@ ALERT_COPY_VERSION = "kivou-alert-copy-v0.1"
 
 SUBJECT: dict[str, dict[str, str]] = {
     "singular": {
-        "fr": "1 nouvelle opportunité sur vos marchés",
-        "en": "1 new opportunity on your markets",
+        "fr": "1 nouveau signal sur vos marchés",
+        "en": "1 new signal on your markets",
     },
     "plural": {
-        "fr": "{count} nouvelles opportunités sur vos marchés",
-        "en": "{count} new opportunities on your markets",
+        "fr": "{count} nouveaux signaux sur vos marchés",
+        "en": "{count} new signals on your markets",
     },
 }
 
 GREETING: dict[str, str] = {
-    "fr": "Bonjour,\n\nDe nouvelles attributions correspondent à vos profils de ciblage.",
-    "en": "Hello,\n\nNew awards match your targeting profiles.",
+    "fr": "Bonjour,\n\nDe nouveaux signaux correspondent à vos profils cibles.",
+    "en": "Hello,\n\nNew signals match your target profiles.",
 }
 
 FOOTER: dict[str, str] = {
     "fr": (
-        "Les faits publiés et leurs sources sont vérifiables sur chaque signal.\n"
+        "La source officielle est disponible sur chaque signal.\n"
         "Pour ne plus recevoir ces alertes, modifiez vos préférences de notification :\n"
         "{preferences}"
     ),

@@ -13,8 +13,8 @@ import { withRenderableSpaces } from '../i18n'
 import {
   UnknownTargetingToken,
   toTargetIcpPayload,
-} from '../reference/dashboard/targetingInput'
-import { OnboardingFlow } from '../reference/dashboard/OnboardingFlow'
+} from '../presentation/dashboard/targetingInput'
+import { OnboardingFlow } from '../presentation/dashboard/OnboardingFlow'
 import {
   AUTHENTICATED,
   CATALOGUE,
@@ -31,7 +31,7 @@ import {
 
 /* SPEC-015 §49 — onboarding et gestion des profils.
  * P0-02 — la mise en route en trois temps, et son moment le plus coûteux :
- * un ciblage enregistré que le client ne sait pas enregistré. */
+ * un profil cible enregistré que le client ne sait pas enregistré. */
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -69,7 +69,7 @@ const REFERENCE_DRAFT = {
   currency: 'EUR',
 }
 
-describe('adaptation stricte du ciblage de référence', () => {
+describe('adaptation stricte du profil cible de référence', () => {
   it('mappe uniquement les libellés localisés et préserve les deux textes de l’offre', () => {
     expect(toTargetIcpPayload(REFERENCE_DRAFT, fr)).toEqual({
       label: 'Matériaux — Occitanie',
@@ -260,7 +260,7 @@ const ACTIVATED_ROUTES = {
   'GET /target-icps': { body: [ICP] },
 }
 
-/** Remplit les quatre étapes exactes de la référence et s'arrête sur la relecture. */
+/** Remplit les quatre étapes exactes de la référence et s'arrête sur la reanalyse. */
 async function fillTargeting(
   user: User,
   {
@@ -287,7 +287,7 @@ async function fillTargeting(
   await user.type(screen.getByLabelText('Nom du profil'), label)
   await user.click(screen.getByRole('button', { name: 'Continuer' }))
 
-  await screen.findByRole('heading', { name: 'Relire le ciblage' })
+  await screen.findByRole('heading', { name: 'Vérifier le profil cible' })
 }
 
 function LocationProbe() {
@@ -376,7 +376,7 @@ describe('onboarding', () => {
     ).toBeInTheDocument()
     const note = screen.getByRole('note')
     expect(note).toHaveClass('prototype-notice')
-    expect(note).toHaveTextContent('Le ciblage sera enregistré dans votre compte Kivou')
+    expect(note).toHaveTextContent('Le profil cible sera enregistré dans votre compte Kivou')
   })
 
   it('pose les questions dans les quatre étapes exactes, sous un seul h1', async () => {
@@ -513,7 +513,7 @@ describe('onboarding', () => {
     expect(screen.getByLabelText('Montant minimum du marché')).toHaveValue(75000)
   })
 
-  it('relit le ciblage dans les mots du client avant de l’enregistrer', async () => {
+  it('relit le profil cible dans les mots du client avant de l’enregistrer', async () => {
     const user = userEvent.setup()
     mockApi(ACTIVATED_ROUTES)
     renderApp(<AppRoutes />, {
@@ -611,7 +611,7 @@ describe('onboarding', () => {
     }
   })
 
-  it('refuse un libellé de ciblage inconnu localement sans appeler l’API', async () => {
+  it('refuse un libellé de profil cible inconnu localement sans appeler l’API', async () => {
     const user = userEvent.setup()
     mockApi(ACTIVATED_ROUTES)
     renderApp(<AppRoutes />, {
@@ -730,13 +730,13 @@ describe('onboarding', () => {
       route: '/onboarding',
     })
 
-    await fillTargeting(user, { label: 'Ciblage du compte A' })
+    await fillTargeting(user, { label: 'Profil cible du compte A' })
     await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
     await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(1))
 
     await user.click(screen.getByRole('button', { name: 'Relire le compte' }))
     await waitFor(() => expect(screen.getByTestId('account-id')).toHaveTextContent('acc_cross_b'))
-    await fillTargeting(user, { label: 'Ciblage du compte B' })
+    await fillTargeting(user, { label: 'Profil cible du compte B' })
     const submitB = screen.getByRole('button', { name: 'Enregistrer et voir les signaux' })
     await waitFor(() => expect(submitB).toBeEnabled())
     await user.click(submitB)
@@ -750,7 +750,7 @@ describe('onboarding', () => {
     await waitFor(() => expect(callsTo('/me', 'GET')).toHaveLength(2))
 
     expect(submitB).toBeDisabled()
-    expect(screen.queryByText(/^Votre ciblage a bien été enregistré/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Votre profil cible a bien été enregistré/)).not.toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent('/onboarding')
 
     await act(async () => {
@@ -762,7 +762,7 @@ describe('onboarding', () => {
     expect(callsTo('/target-icps')).toHaveLength(2)
   })
 
-  it('écarte le ciblage du compte A quand son refresh autoritaire retourne le compte B', async () => {
+  it('écarte le profil cible du compte A quand son refresh autoritaire retourne le compte B', async () => {
     const user = userEvent.setup()
     let releaseRefreshA!: (value: { body: typeof CROSS_ACCOUNT_B }) => void
     const refreshA = new Promise<{ body: typeof CROSS_ACCOUNT_B }>((resolve) => {
@@ -791,7 +791,7 @@ describe('onboarding', () => {
       route: '/onboarding',
     })
 
-    await fillTargeting(user, { label: 'Ciblage avant refresh' })
+    await fillTargeting(user, { label: 'Profil cible avant refresh' })
     await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
     await waitFor(() => expect(callsTo('/target-icps')).toHaveLength(1))
     await waitFor(() => expect(callsTo('/me', 'GET')).toHaveLength(1))
@@ -802,9 +802,9 @@ describe('onboarding', () => {
     })
     await waitFor(() => expect(screen.getByTestId('account-id')).toHaveTextContent('acc_refresh_b'))
     expect(screen.getByTestId('location')).toHaveTextContent('/onboarding')
-    expect(screen.queryByText(/^Votre ciblage a bien été enregistré/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Votre profil cible a bien été enregistré/)).not.toBeInTheDocument()
 
-    await fillTargeting(user, { label: 'Ciblage du compte B après refresh' })
+    await fillTargeting(user, { label: 'Profil cible du compte B après refresh' })
     const submitB = screen.getByRole('button', { name: 'Enregistrer et voir les signaux' })
     await waitFor(() => expect(submitB).toBeEnabled())
 
@@ -886,7 +886,7 @@ describe('onboarding', () => {
 
     expect(screen.getByText('Étape 1 sur 4')).toBeVisible()
     expect(screen.getByLabelText('Produits et services proposés')).toHaveValue('')
-    expect(screen.queryByText(/^Votre ciblage a bien été enregistré/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^Votre profil cible a bien été enregistré/)).not.toBeInTheDocument()
     expect(screen.getByTestId('location')).toHaveTextContent('/onboarding?plan=discovery')
 
     await user.click(screen.getByRole('button', { name: 'Continuer' }))
@@ -918,7 +918,7 @@ describe('onboarding', () => {
     // pas de phase de peinture, ce garde-fou structurel garantit que le reset
     // du brouillon et de l'étape reste synchrone avant le prochain affichage.
     const source = readFileSync(
-      join(process.cwd(), 'src/reference/dashboard/OnboardingFlow.tsx'),
+      join(process.cwd(), 'src/presentation/dashboard/OnboardingFlow.tsx'),
       'utf8',
     )
 
@@ -956,7 +956,7 @@ describe('onboarding', () => {
     expect(screen.getByText('Onboarding quitté')).toBeVisible()
   })
 
-  it('reste sur la relecture et explique une erreur réseau avant toute création réussie', async () => {
+  it('reste sur la reanalyse et explique une erreur réseau avant toute création réussie', async () => {
     const user = userEvent.setup()
     mockApi({
       ...ACTIVATED_ROUTES,
@@ -973,12 +973,12 @@ describe('onboarding', () => {
     )
 
     expect(await screen.findByText(/^Une erreur est survenue/)).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Relire le ciblage' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Vérifier le profil cible' })).toBeInTheDocument()
     expect(callsTo('/target-icps')).toHaveLength(1)
     expect(callsTo('/me')).toHaveLength(0)
   })
 
-  it('reste sur la relecture et affiche la limite territoriale fournie par le serveur', async () => {
+  it('reste sur la reanalyse et affiche la limite territoriale fournie par le serveur', async () => {
     const user = userEvent.setup()
     mockApi({
       ...ACTIVATED_ROUTES,
@@ -1004,15 +1004,15 @@ describe('onboarding', () => {
 
     expect(await screen.findByText(/^Limite territoriale atteinte/)).toBeInTheDocument()
     expect(document.body).toHaveTextContent(
-      'Votre offre autorise 1 territoire par profil. Réduisez votre sélection pour enregistrer ce ciblage.',
+      'Votre offre autorise 1 territoire par profil. Réduisez votre sélection pour enregistrer ce profil cible.',
     )
-    expect(screen.getByRole('heading', { name: 'Relire le ciblage' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Vérifier le profil cible' })).toBeInTheDocument()
     expect(callsTo('/target-icps')).toHaveLength(1)
     expect(callsTo('/me')).toHaveLength(0)
   })
 })
 
-describe('succès partiel — ciblage enregistré, session non relue', () => {
+describe('succès partiel — profil cible enregistré, session non relue', () => {
   it('réutilise la création après démontage et échec de réconciliation', async () => {
     const user = userEvent.setup()
     let meCalls = 0
@@ -1032,7 +1032,7 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
 
     await fillTargeting(user)
     await user.click(screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }))
-    expect(await screen.findByText(/^Votre ciblage a bien été enregistré/)).toBeVisible()
+    expect(await screen.findByText(/^Votre profil cible a bien été enregistré/)).toBeVisible()
     expect(callsTo('/target-icps')).toHaveLength(1)
 
     await user.click(screen.getByRole('button', { name: 'Quitter l’onboarding' }))
@@ -1052,7 +1052,7 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
       ...ACTIVATED_ROUTES,
       'GET /me': () => {
         meCalls += 1
-        // La première relecture tombe sur une indisponibilité du serveur.
+        // La première reanalyse tombe sur une indisponibilité du serveur.
         return meCalls === 1
           ? { status: 503, body: { detail: { code: 'billing_error' } } }
           : { body: ME }
@@ -1068,11 +1068,11 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
       screen.getByRole('button', { name: 'Enregistrer et voir les signaux' }),
     )
 
-    // Le ciblage a bien été enregistré : le dire autrement serait faux, et
+    // Le profil cible a bien été enregistré : le dire autrement serait faux, et
     // pousserait le client à recommencer une saisie qui existe déjà.
-    const notice = await screen.findByText(/^Votre ciblage a bien été enregistré/)
+    const notice = await screen.findByText(/^Votre profil cible a bien été enregistré/)
     expect(notice).toHaveTextContent(/n’a pas pu finaliser/)
-    expect(document.body.textContent).not.toMatch(/création du ciblage a échoué/i)
+    expect(document.body.textContent).not.toMatch(/création du profil cible a échoué/i)
     // La session tient : une panne serveur n'est pas une déconnexion.
     expect(screen.queryByRole('heading', { name: 'Se connecter' })).not.toBeInTheDocument()
     expect(callsTo('/target-icps')).toHaveLength(1)
@@ -1158,7 +1158,7 @@ describe('succès partiel — ciblage enregistré, session non relue', () => {
 describe('gestion des profils', () => {
   it('garde les aides de dépassement au-dessus du contraste WCAG AA', () => {
     const css = readFileSync(
-      join(process.cwd(), 'src/reference/dashboard/dashboard-reference.css'),
+      join(process.cwd(), 'src/presentation/dashboard/app-shell.css'),
       'utf8',
     )
 
@@ -1175,7 +1175,7 @@ describe('gestion des profils', () => {
 
   it('empile le workspace de référence au breakpoint existant tout en gardant sa grille sur grand écran', () => {
     const css = readFileSync(
-      join(process.cwd(), 'src/reference/dashboard/dashboard-reference.css'),
+      join(process.cwd(), 'src/presentation/dashboard/app-shell.css'),
       'utf8',
     )
 
@@ -1325,8 +1325,8 @@ describe('gestion des profils', () => {
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/icps' })
 
     const page = document.querySelector('.target-profile-main') as HTMLElement
-    expect(await within(page).findByRole('alert')).toHaveTextContent('Le profil de ciblage n’a pas pu être chargé')
-    expect(screen.getByRole('heading', { level: 1, name: 'Profil de ciblage' })).toBeInTheDocument()
+    expect(await within(page).findByRole('alert')).toHaveTextContent('Le profil cible n’a pas pu être chargé')
+    expect(screen.getByRole('heading', { level: 1, name: 'Profil cible' })).toBeInTheDocument()
     await userEvent.setup().click(within(page).getByRole('button', { name: 'Réessayer' }))
     expect(await screen.findByRole('heading', { level: 3, name: ICP.label })).toBeVisible()
     expect(callsTo('/billing/status', 'GET')).toHaveLength(2)

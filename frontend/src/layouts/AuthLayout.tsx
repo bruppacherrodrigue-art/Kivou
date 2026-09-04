@@ -1,1 +1,1 @@
-export { AuthShell as AuthLayout } from '../reference/dashboard/AuthShell'
+export { AuthShell as AuthLayout } from '../presentation/dashboard/AuthShell'

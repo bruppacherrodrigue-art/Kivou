@@ -76,8 +76,8 @@ function applyActiveOwner() {
   baseline?.icon?.setAttribute(
     'href',
     active.surface === 'public'
-      ? '/reference/public-favicon.svg'
-      : '/reference/dashboard-favicon.svg',
+      ? '/presentation/public-favicon.svg'
+      : '/presentation/dashboard-favicon.svg',
   )
 }
 
