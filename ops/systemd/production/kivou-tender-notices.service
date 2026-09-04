@@ -7,6 +7,8 @@ Wants=network-online.target
 Type=oneshot
 User=kivou
 Group=kivou
+RuntimeDirectory=kivou
+RuntimeDirectoryMode=0750
 WorkingDirectory=/srv/kivou/app
 EnvironmentFile=/etc/kivou/production.env
 Environment=KIVOU_TENDER_NOTICES_ENABLED=1
