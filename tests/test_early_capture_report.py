@@ -12,7 +12,8 @@ def test_report_groups_hosts_from_persisted_rows_and_estimates_coverage() -> Non
     engine = sa.create_engine("sqlite+pysqlite:///:memory:")
     source_event.create(engine)
     procedure_documents.create(engine)
-    created = dt.datetime(2026, 9, 3, tzinfo=dt.UTC)
+    # A replay captures today notices published inside an older window.
+    created = dt.datetime(2026, 9, 10, tzinfo=dt.UTC)
     with engine.begin() as connection:
         for index in range(3):
             connection.execute(
@@ -28,9 +29,9 @@ def test_report_groups_hosts_from_persisted_rows_and_estimates_coverage() -> Non
                 )
             )
         rows = [
-            ("PLACE", "PLACE", "www.marches-publics.gouv.fr", "available", 100),
-            ("achat", "achatpublic", "www.achatpublic.com", "external", 0),
-            ("max", "Maximilien", "marches.maximilien.fr", "available", 300),
+            ("PLACE", "tender-0", "www.marches-publics.gouv.fr", "available", 100),
+            ("achat", "tender-1", "www.achatpublic.com", "external", 0),
+            ("max", "tender-2", "marches.maximilien.fr", "available", 300),
         ]
         for key, notice, host, status, size in rows:
             connection.execute(

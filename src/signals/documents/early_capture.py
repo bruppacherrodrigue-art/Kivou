@@ -398,6 +398,15 @@ def capture_report(
     until: dt.date,
 ) -> EarlyCaptureReport:
     """Mesures reproductibles calculées depuis les lignes persistées."""
+    notice_in_window = sa.exists(
+        sa.select(1).where(
+            source_event.c.source_system == procedure_documents.c.source_system,
+            source_event.c.source_notice_id == procedure_documents.c.source_notice_id,
+            source_event.c.event_type == "tender_notice",
+            source_event.c.published_on >= since,
+            source_event.c.published_on <= until,
+        )
+    )
     notices = int(
         connection.execute(
             sa.select(sa.func.count()).select_from(source_event).where(
@@ -424,8 +433,7 @@ def capture_report(
         )
         .where(
             procedure_documents.c.source_system == source,
-            sa.func.date(procedure_documents.c.captured_at) >= since,
-            sa.func.date(procedure_documents.c.captured_at) <= until,
+            notice_in_window,
         )
         .group_by(host_group)
         .order_by(host_group)
@@ -452,8 +460,7 @@ def capture_report(
         .where(
             procedure_documents.c.source_system == source,
             procedure_documents.c.byte_size > 0,
-            sa.func.date(procedure_documents.c.captured_at) >= since,
-            sa.func.date(procedure_documents.c.captured_at) <= until,
+            notice_in_window,
         )
         .group_by(folder_key)
         .subquery()
@@ -464,8 +471,7 @@ def capture_report(
             sa.select(sa.func.count(sa.distinct(procedure_documents.c.source_notice_id))).where(
                 procedure_documents.c.source_system == source,
                 procedure_documents.c.access_status == "available",
-                sa.func.date(procedure_documents.c.captured_at) >= since,
-                sa.func.date(procedure_documents.c.captured_at) <= until,
+                notice_in_window,
             )
         ).scalar_one()
     )
