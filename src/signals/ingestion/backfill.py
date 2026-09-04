@@ -267,3 +267,59 @@ def rematerialize_target_in_transaction(
         signals_invalidated=invalidated,
         truncated=truncated,
     )
+
+
+def materialize_landing_opportunity_in_transaction(
+    connection: sa.Connection,
+    *,
+    target_icp_id: str,
+    opportunity_key: str,
+    as_of: dt.date,
+    materialized_at: dt.datetime,
+) -> str | None:
+    """Materialize the decision-engine bait for one account-owned profile.
+
+    The acquisition decision already selected this opportunity for the target.
+    We still run the ordinary understanding, needs, matching, recency and
+    persistence chain; unlike feed backfill, this nominated promise is not
+    discarded when the provisional profile lacks enough detail to reach
+    ``show`` on its own.
+    """
+    state = _target_state(connection, target_icp_id)
+    if state is None or state[0] is None:
+        return None
+    profile, matching_revision = state
+    representatives = _representatives(connection, (opportunity_key,))
+    if not representatives:
+        return None
+    event, award = representatives[0]
+    understanding = ContractUnderstandingEngine().understand(award, event)
+    needs = NeedGraphEngine().derive(understanding)
+    match = MatchingEngine().match(understanding, needs, profile, as_of=as_of)
+    # The acquisition decision nominated this exact bait before the account
+    # existed. Preserve that decision while retaining the ordinary score,
+    # reasons and limitations produced for the provisional profile.
+    if match.decision != "show":
+        match = match.model_copy(update={"decision": "show", "band": "promising"})
+    recency = assess_recency(
+        award_date=award.award_date,
+        contract_notification_date=award.contract_notification_date,
+        publication_date=_publication_date(event),
+        discovered_at=event.provenance.retrieved_at.date()
+        if event.provenance.retrieved_at
+        else None,
+        as_of=as_of,
+    )
+    result = materialize_signal(
+        connection,
+        event=event,
+        award=award,
+        understanding=understanding,
+        needs=needs,
+        match=match,
+        recency=recency,
+        as_of=as_of,
+        materialized_at=materialized_at,
+        target_icp_revision=matching_revision,
+    )
+    return result.signal_key

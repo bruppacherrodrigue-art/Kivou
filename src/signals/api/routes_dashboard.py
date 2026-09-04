@@ -14,11 +14,19 @@ from fastapi import APIRouter, Request
 
 from signals.accounts import service as accounts
 from signals.api.dependencies import current_session, request_now
+from signals.billing import catalogue, discovery
 from signals.billing import service as billing
 from signals.billing.access import feed_access
 from signals.dashboard.service import build_dashboard
 
 router = APIRouter()
+
+_PLAN_NAMES = {
+    "discovery": "Découverte",
+    "essential": "Essential",
+    "pro": "Pro",
+    "scale": "Scale",
+}
 
 
 @router.get("/dashboard")
@@ -54,5 +62,35 @@ def get_dashboard(request: Request) -> dict[str, Any]:
             lang=lang,
             previous_seen=previous_seen,
         )
+        profiles = accounts.list_target_icps(connection, account_id=session.account_id)
+        active_profile = next((profile for profile in profiles if profile.status == "active"), None)
+        billing_state = billing.billing_state(connection, account_id=session.account_id)
+        grants = discovery.grants(connection, account_id=session.account_id)
+        result["profile"] = (
+            {
+                "name": active_profile.label,
+                "sector_label": active_profile.customer_input.offer_summary or "—",
+                "zone_labels": list(active_profile.customer_input.territories),
+            }
+            if active_profile is not None
+            else {"name": "—", "sector_label": "—", "zone_labels": []}
+        )
+        result["plan"] = {
+            "name": _PLAN_NAMES.get(billing_state.plan_code, "—"),
+            "opened": len(grants),
+            "quota": catalogue.DISCOVERY_GRANT_LIMIT,
+            "period_end": (
+                billing_state.current_period_end.isoformat()
+                if billing_state.current_period_end is not None
+                else None
+            ),
+        }
+        if result["top3"]:
+            accounts.mark_landing_step(
+                connection,
+                account_id=session.account_id,
+                step="dashboard_ready",
+                now=now,
+            )
         accounts.touch_last_seen_at(connection, account_id=session.account_id, now=now)
     return result

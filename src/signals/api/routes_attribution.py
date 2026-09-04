@@ -29,16 +29,23 @@ import datetime as dt
 import secrets
 from urllib.parse import quote
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Request
 from fastapi.responses import RedirectResponse
 
 from signals.accounts import service as accounts
-from signals.accounts.icp_input import TargetIcpInput, offer_for_need
+from signals.accounts.icp_input import MonetaryThreshold, TargetIcpInput, offer_for_need
 from signals.api.config import ATTRIBUTION_COOKIE_NAME
 from signals.api.dependencies import request_now
 from signals.api.errors import api_error
 from signals.api.routes_auth import set_session_cookie
+from signals.domain.cpv_labels import cpv_label
 from signals.engagement import analytics
+from signals.ingestion.backfill import (
+    materialize_landing_opportunity_in_transaction,
+    rematerialize_target_in_transaction,
+)
+from signals.persistence.schema import contract_award, opportunity_representation
 
 router = APIRouter()
 
@@ -58,12 +65,22 @@ LANDING_COMPANY_NAME = "Compte à confirmer"
 #: L'étiquette du profil brouillon déduit du jeton.
 LANDING_ICP_LABEL = "Profil à confirmer"
 
+PROVISIONAL_OFFERS = (
+    "materials_and_components",
+    "equipment_rental",
+    "staffing_and_labour",
+    "transport_and_logistics",
+    "specialist_subcontracting",
+    "safety_equipment",
+    "waste_and_environmental_services",
+)
+
 
 def _landing_email(token_fingerprint: str) -> str:
     return f"landing+{token_fingerprint[:12]}@{LANDING_EMAIL_DOMAIN}"
 
 
-def _draft_icp_input(*, country: str, need_ref: str) -> TargetIcpInput:
+def _draft_icp_input(*, country: str, need_ref: str, sector_label: str | None) -> TargetIcpInput:
     """Le peu que le jeton sait, et RIEN de plus.
 
     Le montant plancher n'est pas deviné : c'est précisément ce qui laisse le
@@ -72,9 +89,35 @@ def _draft_icp_input(*, country: str, need_ref: str) -> TargetIcpInput:
     """
     offer = offer_for_need(need_ref)
     return TargetIcpInput(
-        offers=(offer,) if offer is not None else (),
+        offer_summary=sector_label or need_ref.replace("_", " ").lower(),
+        # Une ancienne taxonomie de campagne peut ne pas avoir de traduction
+        # directe. Le profil reste signalé comme provisoire : élargir ici sert
+        # uniquement à matérialiser la promesse, jamais à confirmer un choix.
+        offers=(offer,) if offer is not None else PROVISIONAL_OFFERS,
         territories=(country,),
+        minimum_contract_value=MonetaryThreshold(
+            currency="CHF" if country == "CH" else "EUR",
+            minimum_amount=0,
+        ),
     )
+
+
+def _sector_label(connection, opportunity_key: str | None) -> str | None:
+    if opportunity_key is None:
+        return None
+    code = connection.scalar(
+        sa.select(contract_award.c.cpv_main)
+        .select_from(
+            opportunity_representation.join(
+                contract_award,
+                opportunity_representation.c.award_key == contract_award.c.award_key,
+            )
+        )
+        .where(opportunity_representation.c.opportunity_key == opportunity_key)
+        .order_by(contract_award.c.award_key)
+        .limit(1)
+    )
+    return cpv_label(code, lang="fr")
 
 
 def _redirect(url: str) -> RedirectResponse:
@@ -171,14 +214,33 @@ def _land(
         )
 
     if not accounts.list_target_icps(connection, account_id=account_id):
-        accounts.create_target_icp(
+        provisional = accounts.create_target_icp(
             connection,
             account_id=account_id,
             label=LANDING_ICP_LABEL,
             customer_input=_draft_icp_input(
-                country=payload.country, need_ref=payload.need_ref
+                country=payload.country,
+                need_ref=payload.need_ref,
+                sector_label=_sector_label(connection, payload.opportunity_key),
             ),
             now=now,
+        )
+        rematerialize_target_in_transaction(
+            connection,
+            target_icp_id=provisional.target_icp_id,
+            as_of=now.date(),
+            materialized_at=now,
+        )
+        if payload.opportunity_key is not None:
+            materialize_landing_opportunity_in_transaction(
+                connection,
+                target_icp_id=provisional.target_icp_id,
+                opportunity_key=payload.opportunity_key,
+                as_of=now.date(),
+                materialized_at=now,
+            )
+        accounts.mark_provisional_onboarding(
+            connection, account_id=account_id, now=now
         )
 
     # Écrite pour CHAQUE atterrissage, opportunité résolue ou non : c'est cette
@@ -197,6 +259,7 @@ def _land(
         account_id=account_id,
         opportunity_key=payload.opportunity_key,
         signal_key=signal_key,
+        token_fingerprint=click.token_fingerprint,
         now=now,
     )
 

@@ -725,6 +725,8 @@ export interface DashboardResponse {
   to_follow_up_truncated: boolean
   week: { new: number; saved: number; contacted: number; replied: number }
   scan_truncated: boolean
+  profile: { name: string; sector_label: string; zone_labels: string[] }
+  plan: { name: string; opened: number; quota: number; period_end: string | null }
 }
 
 // ─── Facturation ─────────────────────────────────────────────────────────────

@@ -364,6 +364,39 @@ function OnboardingAccountSwitcher() {
 }
 
 describe('onboarding', () => {
+  it('confirme le profil provisoire en une page avec les trois champs préremplis', async () => {
+    const provisional = {
+      ...ICP,
+      label: 'Profil à confirmer',
+      customer_input: {
+        ...ICP.customer_input,
+        offer_summary: 'Travaux de construction de bâtiments scolaires',
+        territories: ['CH-LU'],
+      },
+    }
+    const landingMe = {
+      ...INCOMPLETE_ME,
+      account_display_name: 'Compte à confirmer',
+      onboarding_status: 'icp_incomplete' as const,
+    }
+    mockApi({
+      'GET /target-icps': { body: [provisional] },
+      [`PATCH /target-icps/${ICP.target_icp_id}`]: { body: { ...provisional, status: 'active' } },
+      'GET /me': { body: { ...landingMe, onboarding_status: 'ready_for_signals' } },
+      'GET /dashboard': { body: { as_of: '2026-09-04', last_seen_at: null, new_since_last_visit: 1, strong_matches: 1, top3: [UNLOCKED_ITEM], to_follow_up: [], to_follow_up_truncated: false, week: { new: 1, saved: 0, contacted: 0, replied: 0 }, scan_truncated: false, profile: { name: 'Paysage', sector_label: 'Travaux paysagers', zone_labels: ['CH-LU'] }, plan: { name: 'Découverte', opened: 0, quota: 3, period_end: null } } },
+    })
+    renderApp(<AppRoutes />, {
+      session: { status: 'authenticated', me: landingMe },
+      route: '/onboarding',
+    })
+
+    expect(await screen.findByLabelText('Zone')).toHaveValue('CH-LU')
+    expect(screen.getByLabelText('Secteur')).toHaveValue('Travaux de construction de bâtiments scolaires')
+    expect(screen.getByLabelText('Ce que vous vendez')).toHaveValue('Travaux de construction de bâtiments scolaires')
+    await userEvent.setup().click(screen.getByRole('button', { name: 'Recevoir mes signaux' }))
+    await waitFor(() => expect(callsTo(`/target-icps/${ICP.target_icp_id}`, 'PATCH')).toHaveLength(1))
+  })
+
   it('dirige un compte incomplet vers l’onboarding depuis une route applicative', async () => {
     mockApi({ 'GET /target-icps': { body: [] } })
     renderApp(<AppRoutes />, {
@@ -1316,7 +1349,7 @@ describe('gestion des profils', () => {
     mockApi({
       'GET /target-icps': () => {
         profileCalls += 1
-        return profileCalls <= 2
+        return profileCalls <= 1
           ? { status: 503, body: { detail: { code: 'billing_error' } } }
           : { body: [ICP] }
       },
@@ -1329,7 +1362,7 @@ describe('gestion des profils', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Profil cible' })).toBeInTheDocument()
     await userEvent.setup().click(within(page).getByRole('button', { name: 'Réessayer' }))
     expect(await screen.findByRole('heading', { level: 3, name: ICP.label })).toBeVisible()
-    expect(callsTo('/billing/status', 'GET')).toHaveLength(2)
+    expect(callsTo('/billing/status', 'GET')).toHaveLength(1)
   })
 
   it('conserve l’éditeur après une erreur de modification et localise l’erreur en anglais', async () => {

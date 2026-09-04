@@ -5,6 +5,7 @@ import { AppRoutes } from '../App'
 import { useSession } from '../auth/SessionProvider'
 import {
   AUTHENTICATED,
+  DASHBOARD,
   ICP,
   ME,
   PRO_STATUS,
@@ -20,6 +21,7 @@ const preference = {
 }
 
 const shell = {
+  'GET /dashboard': { body: DASHBOARD },
   'GET /target-icps': { body: [ICP] },
   'GET /billing/status': { body: PRO_STATUS },
 }
@@ -117,7 +119,7 @@ describe('notifications exactes connectées', () => {
       'GET /notification-preferences': { body: preference },
       'GET /billing/status': () => {
         billingAttempts += 1
-        return billingAttempts <= 2
+        return billingAttempts <= 1
           ? { status: 503, body: { detail: { code: 'billing_unavailable' } } }
           : { body: PRO_STATUS }
       },
@@ -132,7 +134,7 @@ describe('notifications exactes connectées', () => {
 
     await waitFor(() => expect(within(form).getByLabelText('Fréquence')).toHaveValue('daily'))
     expect(callsTo('/notification-preferences', 'GET')).toHaveLength(1)
-    expect(callsTo('/billing/status', 'GET')).toHaveLength(3)
+    expect(callsTo('/billing/status', 'GET')).toHaveLength(2)
   })
 
   it('fige le brouillon pendant la sauvegarde et verrouille les doubles soumissions', async () => {

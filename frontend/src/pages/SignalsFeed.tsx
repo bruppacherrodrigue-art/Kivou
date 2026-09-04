@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LockKeyhole } from 'lucide-react'
-import { useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { billing, feedback, signals } from '../api/endpoints'
 import type { FeedQuery } from '../api/endpoints'
 import type {
@@ -12,6 +12,7 @@ import type {
   UnlockedFeedItem,
 } from '../api/types'
 import { interpolate, plural, useI18n } from '../i18n'
+import { useCurrentUser } from '../auth/SessionProvider'
 import { Sheet, SheetContent, SheetTitle } from '../presentation/dashboard/ui/sheet'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
 import { MISSING, SignalRow, signalObject } from '../signals/components/SignalRow'
@@ -169,6 +170,7 @@ function LockedRow({
 }
 
 export function SignalsFeed() {
+  const me = useCurrentUser()
   const { t } = useI18n()
   const copy = t.signalsTable
   const location = useLocation()
@@ -562,6 +564,13 @@ export function SignalsFeed() {
         <h1>{copy.title}</h1>
         <p>{copy.subtitle}</p>
       </header>
+
+      {me.account_display_name === 'Compte à confirmer' && me.onboarding_status !== 'ready_for_signals' ? (
+        <aside className={styles.provisionalBanner} role="note">
+          <span>Ces signaux viennent d’un profil provisoire. Confirmez-le en 30 secondes pour recevoir les vôtres.</span>
+          <Link to="/onboarding">Confirmer mon profil</Link>
+        </aside>
+      ) : null}
 
       <div
         className={styles.filters}

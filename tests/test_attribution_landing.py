@@ -69,14 +69,14 @@ def only_account_id(engine) -> str:
         return connection.execute(sa.select(account.c.account_id)).scalar_one()
 
 
-def test_landing_opens_a_session_a_draft_profile_and_records_the_promise(tmp_path) -> None:
+def test_landing_opens_the_promised_signal_with_a_provisional_profile(tmp_path) -> None:
     engine, service, token, _ = prepared(tmp_path)
     client = client_for(engine, service, now=CLICKED_AT)
 
     response = land(client, token.raw_token)
 
     assert response.status_code == 303
-    assert response.headers["location"] == "/app/signals"
+    assert response.headers["location"].startswith("/app/signals/")
     assert response.headers["cache-control"] == "no-store"
     assert response.headers["referrer-policy"] == "no-referrer"
     cookies = response.headers.get_list("set-cookie")
@@ -100,20 +100,19 @@ def test_landing_opens_a_session_a_draft_profile_and_records_the_promise(tmp_pat
     # adresse, et en inventer une devinable serait pire que de ne rien mettre.
     assert stored["display_name"] == "Compte à confirmer"
     assert stored["onboarding_status"] == "icp_incomplete"
-    # Le profil est un BROUILLON : `FEEDING_ICP_STATUS = "active"` garantit donc
-    # qu'aucun signal n'est matérialisé avant confirmation du client.
-    assert [icp.status for icp in icps] == ["draft"]
+    # Le profil est techniquement exploitable pour tenir la promesse, mais reste
+    # explicitement provisoire jusqu'à la confirmation client.
+    assert [icp.status for icp in icps] == ["active"]
     assert icps[0].customer_input.territories == ("FR",)
-    assert icps[0].customer_input.minimum_contract_value is None
-    # La promesse est enregistrée même sans signal : l'opportunité est connue,
-    # le signal ne l'est pas encore (aucun profil actif, donc aucun signal).
+    assert icps[0].customer_input.minimum_contract_value.minimum_amount == 0
     assert promise["opportunity_key"] == token.payload.opportunity_key
-    assert promise["signal_key"] is None
+    assert promise["signal_key"] is not None
+    assert response.headers["location"] == f'/app/signals/{promise["signal_key"]}'
     assert len(journeys) == 1
     assert journeys[0]["account_id"] == account_id
     assert [event["event_type"] for event in events] == ["attribution_landed"]
     assert events[0]["properties"] == {
-        "has_signal": False,
+        "has_signal": True,
         "replayed": False,
         "campaign_ref": token.payload.campaign_ref,
     }
@@ -143,7 +142,7 @@ def test_a_replayed_link_returns_to_the_same_account_without_duplicating_it(tmp_
     replayed = land(second, token.raw_token)
 
     assert replayed.status_code == 303
-    assert replayed.headers["location"] == "/app/signals"
+    assert replayed.headers["location"].startswith("/app/signals/")
     with engine.connect() as connection:
         accounts_created = connection.execute(
             sa.select(sa.func.count()).select_from(account)
@@ -215,11 +214,14 @@ def test_a_materialized_promise_lands_on_the_signal_and_costs_no_discovery_slot(
         target_icp_id = accounts.list_target_icps(
             connection, account_id=account_id
         )[0].target_icp_id
-    signal_key = _materialize_promise(
-        engine,
-        opportunity_key=token.payload.opportunity_key,
-        target_icp_id=target_icp_id,
-    )
+    with engine.connect() as connection:
+        signal_key = connection.scalar(
+            sa.select(materialized_signal.c.signal_key).where(
+                materialized_signal.c.target_icp_id == target_icp_id,
+                materialized_signal.c.opportunity_key == token.payload.opportunity_key,
+            )
+        )
+    assert signal_key is not None
 
     second = client_for(engine, service, now=CLICKED_AT + dt.timedelta(days=1))
     response = land(second, token.raw_token)
@@ -302,7 +304,7 @@ def test_a_link_issued_before_the_promise_still_verifies(tmp_path) -> None:
     # une inscription de demain doivent continuer de se rejoindre.
     assert verified.token_fingerprint == legacy.token_fingerprint
     assert verified.token_fingerprint != token.token_fingerprint
-    assert verified.payload.opportunity_key == token.payload.opportunity_key
+    assert verified.payload.opportunity_key is None
 
 
 def test_a_link_issued_before_the_promise_still_lands(tmp_path) -> None:
@@ -403,3 +405,34 @@ def test_the_landing_still_carries_the_attribution_cookie_for_a_real_signup(tmp_
     assert "Path=/auth/signup" in attribution
     assert "HttpOnly" in attribution
     assert "Secure" in attribution
+
+
+def test_landing_confirmation_produces_a_non_empty_dashboard_and_complete_journal(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    client = client_for(engine, service, now=CLICKED_AT)
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    signal_key = response.headers["location"].rsplit("/", 1)[1]
+
+    detail = client.get(f"/signals/{signal_key}")
+    assert detail.status_code == 200
+    profile = client.get("/target-icps").json()[0]
+    customer_input = {**profile["customer_input"], "offer_summary": "Travaux paysagers"}
+    confirmed = client.patch(
+        f'/target-icps/{profile["target_icp_id"]}',
+        headers={"Origin": "https://testserver"},
+        json={"label": "Paysage", "customer_input": customer_input},
+    )
+    assert confirmed.status_code == 200, confirmed.text
+    assert client.get("/me").json()["onboarding_status"] == "ready_for_signals"
+    dashboard = client.get("/dashboard")
+    assert dashboard.status_code == 200
+    assert dashboard.json()["top3"]
+
+    with engine.connect() as connection:
+        journal = connection.execute(sa.select(account_landing_signal)).mappings().one()
+    assert journal["token_fingerprint"] == token.token_fingerprint
+    assert journal["signal_opened_at"] is not None
+    assert journal["confirmation_started_at"] is not None
+    assert journal["profile_confirmed_at"] is not None
+    assert journal["dashboard_ready_at"] is not None

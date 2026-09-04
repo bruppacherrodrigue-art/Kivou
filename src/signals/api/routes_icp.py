@@ -21,7 +21,10 @@ from signals.accounts.icp_input import TargetIcpInput
 from signals.api.dependencies import current_session, enforce_origin, request_now
 from signals.api.errors import api_error
 from signals.billing import service as billing_service
-from signals.ingestion.backfill import rematerialize_target_in_transaction
+from signals.ingestion.backfill import (
+    materialize_landing_opportunity_in_transaction,
+    rematerialize_target_in_transaction,
+)
 
 router = APIRouter()
 
@@ -103,6 +106,13 @@ def list_target_icps(request: Request) -> list[TargetIcpResponse]:
             now=now,
         )
         stored = service.list_target_icps(connection, account_id=session.account_id)
+        if service.landing_signal(connection, account_id=session.account_id) is not None:
+            service.mark_landing_step(
+                connection,
+                account_id=session.account_id,
+                step="confirmation_started",
+                now=now,
+            )
     return [
         TargetIcpResponse.of(item, max_territories=entitlements.max_territories_per_icp)
         for item in stored
@@ -143,6 +153,15 @@ def create_target_icp(payload: TargetIcpCreate, request: Request) -> TargetIcpRe
             as_of=now.date(),
             materialized_at=now,
         )
+        landing = service.landing_signal(connection, account_id=session.account_id)
+        if landing is not None and landing.opportunity_key is not None:
+            materialize_landing_opportunity_in_transaction(
+                connection,
+                target_icp_id=stored.target_icp_id,
+                opportunity_key=landing.opportunity_key,
+                as_of=now.date(),
+                materialized_at=now,
+            )
         request.app.state.conversion_milestone_service.observe_activation_in_transaction(
             connection, account_id=session.account_id, observed_at=now
         )
@@ -199,6 +218,12 @@ def update_target_icp(
                 customer_input=payload.customer_input,
                 now=now,
             )
+            service.mark_landing_step(
+                connection,
+                account_id=session.account_id,
+                step="profile_confirmed",
+                now=now,
+            )
         except service.TargetIcpNotFound as error:
             raise api_error(404, error.code, "profil de ciblage introuvable") from error
         except service.TerritoryLimitExceeded as error:
@@ -223,6 +248,15 @@ def update_target_icp(
             rematerialize_target_in_transaction(
                 connection,
                 target_icp_id=stored.target_icp_id,
+                as_of=now.date(),
+                materialized_at=now,
+            )
+        landing = service.landing_signal(connection, account_id=session.account_id)
+        if landing is not None and landing.opportunity_key is not None:
+            materialize_landing_opportunity_in_transaction(
+                connection,
+                target_icp_id=stored.target_icp_id,
+                opportunity_key=landing.opportunity_key,
                 as_of=now.date(),
                 materialized_at=now,
             )

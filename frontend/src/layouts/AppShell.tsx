@@ -8,10 +8,10 @@ import {
   Target,
 } from 'lucide-react'
 import { Outlet, useLocation } from 'react-router-dom'
-import { billing, icps } from '../api/endpoints'
+import { dashboard } from '../api/endpoints'
+import type { DashboardResponse } from '../api/types'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { useI18n } from '../i18n'
-import { toTargetProfileView } from '../presentation/dashboard/adapters'
 import { KivouBrand } from '../presentation/dashboard/KivouBrand'
 import { useResource } from '../presentation/dashboard/resources'
 import {
@@ -32,9 +32,15 @@ import {
 } from '../presentation/dashboard/ui/sidebar'
 import { ReferenceLink } from '../presentation/router/ReferenceLink'
 import { SurfaceBoundary } from '../presentation/surface/SurfaceBoundary'
-import { subscribeToTargetIcpChanges } from '../targeting/targetIcpEvents'
 
 type ActiveView = 'overview' | 'signals' | 'companies' | 'target' | 'alerts' | 'settings'
+
+export interface DashboardOutletContext {
+  data: DashboardResponse | null
+  loading: boolean
+  error: unknown | null
+  retry: () => Promise<void>
+}
 
 const navigation = [
   { id: 'overview', icon: LayoutDashboard, href: '/' },
@@ -58,27 +64,15 @@ export function AppShell() {
 function ReadyAppShell() {
   const { t, locale } = useI18n()
   const location = useLocation()
-  const loadProfiles = useCallback(() => icps.list(), [])
-  const loadBilling = useCallback(() => billing.status(), [])
-  const profiles = useResource(loadProfiles)
-  const access = useResource(loadBilling)
-  const retryProfiles = profiles.retry
-  useEffect(() => subscribeToTargetIcpChanges(() => {
-    void retryProfiles()
-  }), [retryProfiles])
+  const loadDashboard = useCallback(() => dashboard.get(), [])
+  const summary = useResource(loadDashboard)
   const current = connectedLocation(location.pathname, locale)
-  const activeProfileSource = profiles.data?.find((profile) => profile.status === 'active')
-  const activeProfile = activeProfileSource ? toTargetProfileView(activeProfileSource) : undefined
-  const profileLabel = activeProfile?.label ?? t.reference.missingValue
-  const firstTrade = activeProfileSource?.customer_input.buyer_trades[0]
-  const sectorLabel = activeProfileSource?.customer_input.offer_summary
-    || (firstTrade ? t.trades[firstTrade] : t.reference.missingValue)
-  const zoneLabel = activeProfileSource?.customer_input.territories.join(', ') || t.reference.missingValue
-  const planLabel = access.loading || access.error
+  const profileLabel = summary.data?.profile?.name ?? t.reference.missingValue
+  const sectorLabel = summary.data?.profile?.sector_label ?? t.reference.missingValue
+  const zoneLabel = summary.data?.profile?.zone_labels?.join(', ') || t.reference.missingValue
+  const planLabel = summary.loading || summary.error
     ? t.reference.loading
-    : access.data
-      ? t.reference.plans[access.data.plan_code]
-      : t.reference.missingValue
+    : summary.data?.plan?.name ?? t.reference.missingValue
 
   return (
     <SurfaceBoundary surface="dashboard">
@@ -87,18 +81,19 @@ function ReadyAppShell() {
         className="dashboard-provider"
       >
         <ConnectedShell
+          dashboardResource={summary}
           activeView={current.active}
           title={current.title}
           planLabel={planLabel}
           profileLabel={profileLabel}
           sectorLabel={sectorLabel}
           zoneLabel={zoneLabel}
-          openedSignals={access.data ? access.data.discovery.granted_signal_count - access.data.discovery.remaining_slots : null}
-          signalQuota={access.data?.discovery.limit ?? null}
-          profileError={Boolean(profiles.error)}
-          planError={Boolean(access.error)}
-          retryProfile={() => void retryProfiles()}
-          retryPlan={() => void access.retry()}
+          openedSignals={summary.data?.plan?.opened ?? null}
+          signalQuota={summary.data?.plan?.quota ?? null}
+          profileError={Boolean(summary.error)}
+          planError={Boolean(summary.error)}
+          retryProfile={() => void summary.retry()}
+          retryPlan={() => void summary.retry()}
         />
       </SidebarProvider>
     </SurfaceBoundary>
@@ -106,6 +101,7 @@ function ReadyAppShell() {
 }
 
 function ConnectedShell({
+  dashboardResource,
   activeView,
   title,
   planLabel,
@@ -119,6 +115,7 @@ function ConnectedShell({
   retryProfile,
   retryPlan,
 }: {
+  dashboardResource: DashboardOutletContext
   activeView: ActiveView
   title: string | null
   planLabel: string
@@ -237,7 +234,7 @@ function ConnectedShell({
           ) : <span className="shell-profile-name">{profileLabel}</span>}
         </header>
 
-        <Outlet />
+        <Outlet context={dashboardResource} />
       </SidebarInset>
     </>
   )

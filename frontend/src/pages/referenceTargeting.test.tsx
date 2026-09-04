@@ -7,6 +7,7 @@ import type { TargetIcp } from '../api/types'
 import {
   AUTHENTICATED,
   DISCOVERY_STATUS,
+  DASHBOARD,
   ICP,
   LOCKED_ITEM,
   ME,
@@ -38,6 +39,7 @@ const PRESERVED_PROFILE: TargetIcp = {
 }
 
 const shell = {
+  'GET /dashboard': { body: DASHBOARD },
   'GET /target-icps': { body: [ICP] },
   'GET /billing/status': { body: DISCOVERY_STATUS },
   'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM], { freshness: 'all' }) },
@@ -208,7 +210,7 @@ describe('profil cible exact connecté au contrat ICP', () => {
       },
     })
     expect(await screen.findByText(/^Profil enregistré\.$/)).toBeVisible()
-    await waitFor(() => expect(billingCalls).toBeGreaterThan(2))
+    await waitFor(() => expect(billingCalls).toBeGreaterThan(1))
   })
 
   it('garde le nominal mono-profil exact et expose une création honnête seulement depuis l’édition', async () => {
@@ -589,7 +591,7 @@ describe('profil cible exact connecté au contrat ICP', () => {
       ...shell,
       'GET /billing/status': () => {
         billingCalls += 1
-        if (billingCalls <= 2) {
+        if (billingCalls <= 1) {
           return new Promise((resolve) => { resolveAccess.push(resolve) })
         }
         return {
@@ -713,7 +715,7 @@ describe('profil cible exact connecté au contrat ICP', () => {
       ...shell,
       'GET /target-icps': () => {
         listCalls += 1
-        return { body: listCalls <= 2 ? [ICP] : [accountBProfile] }
+        return { body: listCalls <= 1 ? [ICP] : [accountBProfile] }
       },
       [`PATCH /target-icps/${ICP.target_icp_id}`]: () => new Promise((resolve) => {
         resolvePatch = resolve

@@ -11,6 +11,7 @@ import type {
   BillingStatus,
   CardPresentation,
   CompanyProfile,
+  DashboardResponse,
   LockedDetail,
   LockedFeedItem,
   Me,
@@ -126,6 +127,20 @@ export const ME: Me = {
 }
 
 export const AUTHENTICATED: SessionState = { status: 'authenticated', me: ME }
+
+export const DASHBOARD: DashboardResponse = {
+  as_of: '2026-09-04',
+  last_seen_at: null,
+  new_since_last_visit: 0,
+  strong_matches: 0,
+  top3: [],
+  to_follow_up: [],
+  to_follow_up_truncated: false,
+  week: { new: 0, saved: 0, contacted: 0, replied: 0 },
+  scan_truncated: false,
+  profile: { name: 'Matériaux — Occitanie', sector_label: 'Matériaux', zone_labels: ['Occitanie'] },
+  plan: { name: 'Découverte', opened: 0, quota: 5, period_end: '2026-09-30T23:59:59Z' },
+}
 export const UNAUTHENTICATED: SessionState = {
   status: 'unauthenticated',
   me: null,

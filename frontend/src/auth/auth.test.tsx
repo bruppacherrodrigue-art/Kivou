@@ -10,6 +10,7 @@ import {
   UNAUTHENTICATED,
   CATALOGUE,
   DISCOVERY_STATUS,
+  DASHBOARD,
   ICP,
   callsTo,
   feedPage,
@@ -34,6 +35,7 @@ function ResetSearchChanger() {
 }
 
 const APP_ROUTES = {
+  'GET /dashboard': { body: DASHBOARD },
   'GET /signals': { body: feedPage([]) },
   'GET /billing/status': { body: DISCOVERY_STATUS },
   'GET /billing/plans': { body: CATALOGUE },

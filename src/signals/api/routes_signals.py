@@ -587,6 +587,15 @@ def get_signal(
                 connection, account_id=session.account_id, signal_key=signal_key
             )
             if unlocked:
+                if signal_key in service.landing_signal_keys(
+                    connection, account_id=session.account_id
+                ):
+                    service.mark_landing_step(
+                        connection,
+                        account_id=session.account_id,
+                        step="signal_opened",
+                        now=now,
+                    )
                 binding = presentation_bindings_for_items(connection, (item,)).get(signal_key)
                 if binding is not None:
                     if presentation_artifact_id is None:

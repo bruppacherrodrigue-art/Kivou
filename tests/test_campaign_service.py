@@ -334,6 +334,7 @@ def test_campaign_attribution_freezes_versioned_public_sector_dimension(tmp_path
             "inference_version": seed.understanding.engine_version,
         }
     )
+    assert payload.opportunity_key == opportunity_key
 
 
 def _approved(service, engine, opportunity_id, *, evaluation_id="campaign-eval-1"):

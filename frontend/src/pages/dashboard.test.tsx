@@ -28,6 +28,8 @@ function dashboard(top3 = signals.slice(0, 3), firstVisit = false) {
     to_follow_up_truncated: false,
     week: { new: 12, saved: 5, contacted: 3, replied: 1 },
     scan_truncated: false,
+    profile: { name: ICP.label, sector_label: 'Routes et génie civil', zone_labels: ICP.customer_input.territories },
+    plan: { name: 'Pro', opened: 2, quota: 3, period_end: null },
   }
 }
 
@@ -47,7 +49,7 @@ describe('Aujourd’hui', () => {
     mockApi(routes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
     expect(await screen.findByRole('heading', { name: '12 nouveaux marchés depuis mardi' })).toBeVisible()
-    expect(screen.getByText(/3 correspondent fortement à votre profil/)).toHaveTextContent(ICP.label)
+    expect(screen.getByText(/3 correspondent fortement à votre profil/)).toHaveTextContent('Routes et génie civil')
     expect(screen.getAllByRole('article')).toHaveLength(3)
     for (const index of [1, 2, 3]) {
       expect(screen.getByText(`Titulaire ${index}`)).toBeVisible()

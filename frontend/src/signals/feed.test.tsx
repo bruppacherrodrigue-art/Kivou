@@ -12,6 +12,7 @@ import {
   DISCOVERY_STATUS,
   ICP,
   LOCKED_ITEM,
+  ME,
   UNLOCKED_DETAIL,
   UNLOCKED_ITEM,
   callsTo,
@@ -110,6 +111,20 @@ function normalise(text: string): string {
 }
 
 describe('écran Signaux — tableau dense', () => {
+  it('invite un compte au profil provisoire à le confirmer', async () => {
+    mockApi(feedWith([item('sig_a')]))
+    renderApp(<AppRoutes />, {
+      session: {
+        status: 'authenticated',
+        me: { ...ME, account_display_name: 'Compte à confirmer', onboarding_status: 'icp_incomplete' },
+      },
+      route: '/app/signals',
+    })
+
+    expect(await screen.findByText('Ces signaux viennent d’un profil provisoire. Confirmez-le en 30 secondes pour recevoir les vôtres.')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Confirmer mon profil' })).toHaveAttribute('href', '/onboarding')
+  })
+
   it('rend un tableau et ses six colonnes, une ligne par signal', async () => {
     mockApi(feedWith([item('sig_a'), item('sig_b', { name: 'Amiaud SARL' }), item('sig_c', { name: 'ID Verde' })]))
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/signals' })

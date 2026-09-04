@@ -7,6 +7,8 @@ const EMPTY_DASHBOARD = {
   as_of: '2026-09-04', last_seen_at: null, new_since_last_visit: 0,
   strong_matches: 0, top3: [], to_follow_up: [], to_follow_up_truncated: false,
   week: { new: 0, saved: 0, contacted: 0, replied: 0 }, scan_truncated: false,
+  profile: { name: ICP.label, sector_label: 'Routes et génie civil', zone_labels: ICP.customer_input.territories },
+  plan: { name: 'Découverte', opened: 0, quota: 3, period_end: null },
 }
 
 afterEach(() => vi.unstubAllGlobals())

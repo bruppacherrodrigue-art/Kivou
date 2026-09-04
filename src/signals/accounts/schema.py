@@ -100,6 +100,11 @@ account_landing_signal = sa.Table(
     ),
     sa.Column("opportunity_key", sa.String(64), nullable=True),
     sa.Column("signal_key", sa.String(64)),
+    sa.Column("token_fingerprint", sa.String(64)),
+    sa.Column("signal_opened_at", sa.DateTime(timezone=True)),
+    sa.Column("confirmation_started_at", sa.DateTime(timezone=True)),
+    sa.Column("profile_confirmed_at", sa.DateTime(timezone=True)),
+    sa.Column("dashboard_ready_at", sa.DateTime(timezone=True)),
     sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
 )
 
