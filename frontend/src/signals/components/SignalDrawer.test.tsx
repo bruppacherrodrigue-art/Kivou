@@ -193,12 +193,23 @@ describe('SignalDrawer', () => {
     expect(screen.queryByText('Raison 4')).not.toBeInTheDocument()
   })
 
+  it('rend la même phrase Pour vous à la place du premier libellé de règle', () => {
+    renderDrawer()
+
+    const block = screen.getByText('Pourquoi ça vous concerne').closest('section')
+    expect(block).not.toBeNull()
+    expect(within(block as HTMLElement).getAllByRole('listitem')[0]).toHaveTextContent(
+      'Votre offre répond aux besoins de matériaux de ce titulaire.',
+    )
+    expect(screen.queryByText('Besoin visé : Matériaux ou composants')).not.toBeInTheDocument()
+  })
+
   it('retire le bloc « Pourquoi ça vous concerne » quand aucune raison n’est publiée', () => {
     renderDrawer({
       signal: item({
         analysis: {
           ...UNLOCKED_ITEM.analysis,
-          fit: { ...UNLOCKED_ITEM.analysis.fit, reasons: [] },
+          fit: { ...UNLOCKED_ITEM.analysis.fit, reasons: [], for_you_sentence: null },
         },
       }),
     })

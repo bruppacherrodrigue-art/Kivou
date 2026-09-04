@@ -44,6 +44,7 @@ from signals.alerts import job as alert_job
 from signals.alerts import policy, run_alert_cycle
 from signals.alerts.gateway import UncertainDelivery, message_id
 from signals.engagement.schema import signal_alert_delivery
+from signals.persistence.schema import for_you_sentence
 from signals.recency.claim import JUST_WON_MARKERS
 
 
@@ -657,6 +658,21 @@ def test_the_french_digest_uses_the_established_safe_wording(app, engine, mailer
     assert "Bonjour," in body
     assert "vient de remporter un marché public." in body
     assert "Décision d'attribution récente." in body
+
+
+def test_the_digest_reads_the_exact_persisted_for_you_sentence(app, engine, mailer):
+    subscriber(app, engine, plan="scale", count=1)
+    sentence = "Votre offre accompagne les besoins vérifiés de ce titulaire."
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(for_you_sentence).values(
+                sentence=sentence, provenance="generated", state="completed"
+            )
+        )
+
+    cycle(engine, mailer)
+
+    assert sentence in mailer.last.text_body
 
 
 def test_an_old_signal_never_gets_new_opportunity_wording_in_an_email(app, engine, mailer):

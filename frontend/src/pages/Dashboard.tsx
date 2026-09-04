@@ -79,7 +79,7 @@ function TodayDashboard() {
                 <strong>{amount(item.contract.amount?.value, item.contract.amount?.currency) ?? MISSING}</strong>
                 <span>{placeLabel(item.contract.location, locale)} · {shortDate(item.factual_display.date.value) ?? MISSING}</span>
               </div>
-              <p className={styles.reason}><b>Pour vous :</b> {item.analysis.fit.reasons[0] ?? MISSING}</p>
+              <p className={styles.reason}><b>Pour vous :</b> {item.analysis.fit.for_you_sentence ?? item.analysis.fit.reasons[0] ?? MISSING}</p>
               <div className={styles.actions}>
                 <button type="button" className={styles.primary} onClick={() => setSelected(item)}>Ouvrir</button>
                 <button type="button" disabled={busy === item.signal_id} onClick={() => void ignore(item)}>Ignorer</button>

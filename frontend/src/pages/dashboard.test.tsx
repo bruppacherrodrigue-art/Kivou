@@ -12,7 +12,7 @@ const signal = (index: number): UnlockedFeedItem => ({
   company: { ...UNLOCKED_ITEM.company, name: `Titulaire ${index}` },
   factual_display: { ...UNLOCKED_ITEM.factual_display, object_short: `Marché prioritaire ${index}`, market_summary: `Marché prioritaire ${index}` },
   contract: { ...UNLOCKED_ITEM.contract, lot_title: null, title: `Marché prioritaire ${index}`, amount: { value: `${index}00000`, currency: 'EUR' } },
-  analysis: { ...UNLOCKED_ITEM.analysis, fit: { ...UNLOCKED_ITEM.analysis.fit, reasons: [`Raison commerciale ${index}`] } },
+  analysis: { ...UNLOCKED_ITEM.analysis, fit: { ...UNLOCKED_ITEM.analysis.fit, reasons: [`Libellé de règle ${index}`], for_you_sentence: `Phrase rédigée ${index}.` } },
 })
 
 const signals = [signal(1), signal(2), signal(3), signal(4)]
@@ -45,7 +45,7 @@ function routes(payload = dashboard()) {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks() })
 
 describe('Aujourd’hui', () => {
-  it('affiche le bandeau, trois cartes et leur première raison de fit', async () => {
+  it('affiche le bandeau, trois cartes et leur phrase rédigée partagée', async () => {
     mockApi(routes())
     renderApp(<AppRoutes />, { session: AUTHENTICATED, route: '/app/dashboard' })
     expect(await screen.findByRole('heading', { name: '12 nouveaux marchés depuis mardi' })).toBeVisible()
@@ -53,7 +53,8 @@ describe('Aujourd’hui', () => {
     expect(screen.getAllByRole('article')).toHaveLength(3)
     for (const index of [1, 2, 3]) {
       expect(screen.getByText(`Titulaire ${index}`)).toBeVisible()
-      expect(screen.getByText(`Raison commerciale ${index}`)).toBeVisible()
+      expect(screen.getByText(`Phrase rédigée ${index}.`)).toBeVisible()
+      expect(screen.queryByText(`Libellé de règle ${index}`)).not.toBeInTheDocument()
     }
   })
 

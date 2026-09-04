@@ -16,6 +16,7 @@ import datetime as dt
 import pathlib
 
 import pytest
+import sqlalchemy as sa
 from billing_helpers import subscribe
 from fastapi.testclient import TestClient
 from feed_helpers import (
@@ -30,6 +31,7 @@ from feed_helpers import (
 
 from signals.api import ApiConfig, create_app
 from signals.persistence.database import create_database_engine, migrate_to_latest
+from signals.persistence.schema import for_you_sentence
 
 #: §8 — aucun de ces mots n'a le droit d'apparaître dans une réponse client.
 FORBIDDEN_CERTAINTY = (
@@ -258,6 +260,20 @@ def test_the_fit_explains_rather_than_scores(client, rich):
     assert any("Matériaux ou composants" in reason for reason in fit["reasons"])
     assert fit["target_icp_label"] == "Intrants"
     assert "score" not in str(fit).lower()
+
+
+def test_feed_and_detail_read_the_same_persisted_for_you_sentence(client, engine, rich):
+    sentence = "Votre offre accompagne les besoins vérifiés de ce titulaire."
+    with engine.begin() as connection:
+        connection.execute(sa.update(for_you_sentence).values(sentence=sentence, provenance="generated", state="completed"))
+
+    detail_fit = detail(client, rich.signal_key)["analysis"]["fit"]
+    feed = client.get("/signals?freshness=all").json()
+    feed_item = next(item for item in feed["items"] if item["signal_id"] == rich.signal_key)
+
+    assert detail_fit["for_you_sentence"] == sentence
+    assert feed_item["analysis"]["fit"]["for_you_sentence"] == sentence
+    assert detail_fit["reasons"]
 
 
 # ─── §13, §14 — la preuve, groupée par le fait qu'elle étaye ──────────────────
