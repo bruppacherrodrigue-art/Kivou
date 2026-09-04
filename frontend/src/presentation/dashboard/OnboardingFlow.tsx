@@ -126,9 +126,8 @@ export function OnboardingFlow() {
   const loadProfiles = useCallback(() => icps.list(), [])
   const profiles = useResource(loadProfiles)
   const provisional = session.status === 'authenticated'
-    && session.me.account_display_name === 'Compte à confirmer'
     && session.me.onboarding_status !== 'ready_for_signals'
-    ? profiles.data?.find((profile) => profile.status === 'active')
+    ? profiles.data?.find((profile) => profile.provisional)
     : undefined
 
   if (profiles.loading && !profiles.data) {
@@ -141,15 +140,21 @@ export function OnboardingFlow() {
 function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
   const navigate = useNavigate()
   const { refresh } = useSession()
-  const [zones, setZones] = useState(profile.customer_input.territories.join(', '))
-  const [sector] = useState(profile.customer_input.offer_summary || profile.customer_input.offers.join(', '))
+  const [zones, setZones] = useState(
+    ((profile.customer_input.territory_subdivisions?.length ?? 0) > 0
+      ? profile.customer_input.territory_subdivisions ?? []
+      : profile.customer_input.territories).join(', '),
+  )
+  const [sector] = useState(profile.label)
   const [offer, setOffer] = useState(profile.customer_input.offer_summary)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState(false)
 
   const confirm = async () => {
-    const territories = zones.split(',').map((zone) => zone.trim().toUpperCase()).filter(Boolean)
-    if (!territories.length || !offer.trim()) return setError(true)
+    const zoneCodes = zones.split(',').map((zone) => zone.trim().toUpperCase()).filter(Boolean)
+    const territories = [...new Set(zoneCodes.map((zone) => zone.split('-', 1)[0]))]
+    const territorySubdivisions = zoneCodes.filter((zone) => zone.includes('-'))
+    if (!zoneCodes.length || !offer.trim()) return setError(true)
     setSubmitting(true)
     setError(false)
     try {
@@ -159,6 +164,7 @@ function ProvisionalOnboarding({ profile }: { profile: TargetIcp }) {
           ...profile.customer_input,
           offer_summary: offer.trim(),
           territories,
+          territory_subdivisions: territorySubdivisions,
         },
       })
       await refresh()

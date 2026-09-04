@@ -50,6 +50,7 @@ def _cu(
     cpv: str = "45210000",
     amount: str | None = "2400000.00 CHF",
     country: str | None = "CH",
+    subdivision_code: str | None = None,
     published: dt.date = dt.date(2026, 8, 1),
     characteristics: tuple[str, ...] = (),
     duration: tuple[int, str] | None = None,
@@ -60,7 +61,11 @@ def _cu(
         facts["amount"] = _claim(amount)
     if "several_lots" in characteristics:
         facts["lot"] = _claim("Lot 2")
-    place = Location(country=country) if country else None
+    place = Location(
+        country=country,
+        subdivision_code=subdivision_code,
+        subdivision_scheme="ISO-3166-2" if subdivision_code else None,
+    ) if country else None
     return ContractUnderstanding(
         award_ref=EventRef(source_system="simap", source_notice_id="28066-04"),
         source_system="simap",
@@ -133,6 +138,17 @@ class TestHardFilters:
 
     def test_a_required_geography_mismatch_excludes(self) -> None:
         result = _match(_cu(country="FR"), _icp())
+        assert result.decision == "exclude"
+
+    def test_a_required_subdivision_mismatch_excludes(self) -> None:
+        result = _match(
+            _cu(subdivision_code="CH-VD"),
+            _icp(territories=(Territory(country="CH", subdivision_code="CH-LU", subdivision_scheme="ISO-3166-2"),)),
+        )
+        assert result.decision == "exclude"
+
+    def test_an_included_cpv_prefix_excludes_another_sector(self) -> None:
+        result = _match(_cu(cpv="45210000"), _icp(included_cpv_prefixes=("44",)))
         assert result.decision == "exclude"
 
     def test_a_required_geography_missing_is_insufficient_data(self) -> None:

@@ -22,7 +22,6 @@ from signals.api.dependencies import current_session, enforce_origin, request_no
 from signals.api.errors import api_error
 from signals.billing import service as billing_service
 from signals.ingestion.backfill import (
-    materialize_landing_opportunity_in_transaction,
     rematerialize_target_in_transaction,
 )
 
@@ -61,6 +60,7 @@ class TargetIcpResponse(BaseModel):
     status: str
     matching_revision: int
     plan_limit: TargetIcpPlanLimitResponse | None
+    provisional: bool = False
     customer_input: TargetIcpInput
     missing_fields: tuple[str, ...]
     created_at: dt.datetime
@@ -72,6 +72,7 @@ class TargetIcpResponse(BaseModel):
         stored: service.StoredTargetIcp,
         *,
         max_territories: int | None,
+        provisional: bool = False,
     ) -> TargetIcpResponse:
         plan_limit = None
         if stored.plan_limit_code is not None and max_territories is not None:
@@ -86,6 +87,7 @@ class TargetIcpResponse(BaseModel):
             status=stored.status,
             matching_revision=stored.matching_revision,
             plan_limit=plan_limit,
+            provisional=provisional,
             customer_input=stored.customer_input,
             missing_fields=stored.missing_fields,
             created_at=stored.created_at,
@@ -106,7 +108,11 @@ def list_target_icps(request: Request) -> list[TargetIcpResponse]:
             now=now,
         )
         stored = service.list_target_icps(connection, account_id=session.account_id)
-        if service.landing_signal(connection, account_id=session.account_id) is not None:
+        landing = service.landing_signal(connection, account_id=session.account_id)
+        provisional = landing is not None and service.onboarding_status(
+            connection, account_id=session.account_id
+        ) != "ready_for_signals"
+        if landing is not None:
             service.mark_landing_step(
                 connection,
                 account_id=session.account_id,
@@ -114,7 +120,11 @@ def list_target_icps(request: Request) -> list[TargetIcpResponse]:
                 now=now,
             )
     return [
-        TargetIcpResponse.of(item, max_territories=entitlements.max_territories_per_icp)
+        TargetIcpResponse.of(
+            item,
+            max_territories=entitlements.max_territories_per_icp,
+            provisional=provisional,
+        )
         for item in stored
     ]
 
@@ -153,15 +163,6 @@ def create_target_icp(payload: TargetIcpCreate, request: Request) -> TargetIcpRe
             as_of=now.date(),
             materialized_at=now,
         )
-        landing = service.landing_signal(connection, account_id=session.account_id)
-        if landing is not None and landing.opportunity_key is not None:
-            materialize_landing_opportunity_in_transaction(
-                connection,
-                target_icp_id=stored.target_icp_id,
-                opportunity_key=landing.opportunity_key,
-                as_of=now.date(),
-                materialized_at=now,
-            )
         request.app.state.conversion_milestone_service.observe_activation_in_transaction(
             connection, account_id=session.account_id, observed_at=now
         )
@@ -248,15 +249,6 @@ def update_target_icp(
             rematerialize_target_in_transaction(
                 connection,
                 target_icp_id=stored.target_icp_id,
-                as_of=now.date(),
-                materialized_at=now,
-            )
-        landing = service.landing_signal(connection, account_id=session.account_id)
-        if landing is not None and landing.opportunity_key is not None:
-            materialize_landing_opportunity_in_transaction(
-                connection,
-                target_icp_id=stored.target_icp_id,
-                opportunity_key=landing.opportunity_key,
                 as_of=now.date(),
                 materialized_at=now,
             )

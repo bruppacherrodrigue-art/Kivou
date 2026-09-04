@@ -367,11 +367,14 @@ describe('onboarding', () => {
   it('confirme le profil provisoire en une page avec les trois champs préremplis', async () => {
     const provisional = {
       ...ICP,
-      label: 'Profil à confirmer',
+      provisional: true,
+      label: 'Travaux de construction de bâtiments scolaires',
       customer_input: {
         ...ICP.customer_input,
         offer_summary: 'Travaux de construction de bâtiments scolaires',
-        territories: ['CH-LU'],
+        territories: ['CH'],
+        territory_subdivisions: ['CH-LU'],
+        sector_cpv_prefixes: ['45'],
       },
     }
     const landingMe = {
@@ -395,6 +398,13 @@ describe('onboarding', () => {
     expect(screen.getByLabelText('Ce que vous vendez')).toHaveValue('Travaux de construction de bâtiments scolaires')
     await userEvent.setup().click(screen.getByRole('button', { name: 'Recevoir mes signaux' }))
     await waitFor(() => expect(callsTo(`/target-icps/${ICP.target_icp_id}`, 'PATCH')).toHaveLength(1))
+    expect(callsTo(`/target-icps/${ICP.target_icp_id}`, 'PATCH')[0].body).toMatchObject({
+      customer_input: {
+        territories: ['CH'],
+        territory_subdivisions: ['CH-LU'],
+        sector_cpv_prefixes: ['45'],
+      },
+    })
   })
 
   it('dirige un compte incomplet vers l’onboarding depuis une route applicative', async () => {

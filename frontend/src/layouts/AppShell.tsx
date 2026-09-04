@@ -215,7 +215,7 @@ function ConnectedShell({
 
         <SidebarFooter className="sidebar-footer">
           <div className="sidebar-plan-summary">
-            <strong>Plan {planLabel} · {openedSignals ?? '—'}/{signalQuota ?? '—'} signaux ce mois</strong>
+            <strong>Plan {planLabel} · {openedSignals ?? '—'}/{signalQuota ?? '∞'} signaux ce mois</strong>
             <small>{sectorLabel} · {zoneLabel}</small>
           </div>
         </SidebarFooter>

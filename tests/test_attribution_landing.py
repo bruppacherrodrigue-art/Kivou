@@ -24,7 +24,6 @@ from signals.api.routes_auth import SESSION_COOKIE_NAME
 from signals.billing.access import feed_access
 from signals.billing.catalogue import DISCOVERY_GRANT_LIMIT
 from signals.billing.discovery import remaining_slots
-from signals.conversion import source
 from signals.conversion.token import AttributionTokenKeyring
 from signals.engagement.schema import product_event
 from signals.persistence.schema import (
@@ -104,6 +103,7 @@ def test_landing_opens_the_promised_signal_with_a_provisional_profile(tmp_path) 
     # explicitement provisoire jusqu'à la confirmation client.
     assert [icp.status for icp in icps] == ["active"]
     assert icps[0].customer_input.territories == ("FR",)
+    assert icps[0].customer_input.sector_cpv_prefixes
     assert icps[0].customer_input.minimum_contract_value.minimum_amount == 0
     assert promise["opportunity_key"] == token.payload.opportunity_key
     assert promise["signal_key"] is not None
@@ -319,40 +319,10 @@ def test_a_link_issued_before_the_promise_still_lands(tmp_path) -> None:
     assert client.get("/me").status_code == 200
 
 
-def _unresolved_token(engine, token, *, monkeypatch):
-    """Un jeton dont `AttributionSourceResolver` n'a PU attacher aucune
-    opportunité — pas un jeton légataire, un jeton émis aujourd'hui pour lequel
-    la résolution a simplement échoué (référence de signal non reconnue,
-    opportunité invalidée entretemps, …). Forcé comme la revue l'a fait :
-    `opportunity_key_of` renvoyé à `None`.
-    """
-    monkeypatch.setattr(source, "opportunity_key_of", lambda signal_ref: None)
-    with engine.connect() as connection:
-        payload = source.AttributionSourceResolver(engine).for_member(
-            connection, token.payload.member_ref
-        )
-    assert payload.opportunity_key is None
-    keyring = AttributionTokenKeyring(
-        current_key_version="attribution-test-v1",
-        keys={
-            "attribution-test-old": b"old-synthetic-attribution-secret",
-            "attribution-test-v1": b"synthetic-attribution-secret",
-        },
-    )
-    return keyring.issue(payload)
-
-
-def test_a_promise_the_resolver_could_not_attach_still_lands_and_replays_the_same_account(
-    tmp_path, monkeypatch
-) -> None:
-    """Finding de revue PR2b tâche 5 : `record_landing_signal` n'écrivait la
-    ligne d'atterrissage QUE si `opportunity_key` était résolue. Un jeton dont
-    la résolution échoue reste pourtant parfaitement valide (ni falsifié, ni
-    périmé) — son REJEU doit donc retrouver le même compte, pas tomber sur le
-    garde-fou d'identité déjà utilisée faute de ligne à rejoindre.
-    """
+def test_a_legacy_keyless_token_still_lands_and_replays_the_same_account(tmp_path) -> None:
+    """Les jetons déjà émis sans clé restent en mode feed et sont rejouables."""
     engine, service, token, _ = prepared(tmp_path)
-    unresolved = _unresolved_token(engine, token, monkeypatch=monkeypatch)
+    unresolved = _legacy_token(token)
 
     first = client_for(engine, service, now=CLICKED_AT)
     first_response = land(first, unresolved.raw_token)
@@ -436,3 +406,22 @@ def test_landing_confirmation_produces_a_non_empty_dashboard_and_complete_journa
     assert journal["confirmation_started_at"] is not None
     assert journal["profile_confirmed_at"] is not None
     assert journal["dashboard_ready_at"] is not None
+
+
+def test_confirmation_drops_a_promised_signal_that_no_longer_matches(tmp_path) -> None:
+    engine, service, token, _ = prepared(tmp_path)
+    client = client_for(engine, service, now=CLICKED_AT)
+    response = land(client, token.raw_token)
+    pin_session_cookie(client, response)
+    signal_key = response.headers["location"].rsplit("/", 1)[1]
+    profile = client.get("/target-icps").json()[0]
+    incompatible = {**profile["customer_input"], "territories": ["CH"]}
+
+    confirmed = client.patch(
+        f'/target-icps/{profile["target_icp_id"]}',
+        headers={"Origin": "https://testserver"},
+        json={"label": "Suisse", "customer_input": incompatible},
+    )
+
+    assert confirmed.status_code == 200
+    assert all(item["signal_id"] != signal_key for item in client.get("/dashboard").json()["top3"])

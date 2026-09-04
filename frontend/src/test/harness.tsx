@@ -711,6 +711,8 @@ export const ICP: TargetIcp = {
     buyer_trades: ['roads_and_civil_works'],
     secondary_buyer_trades: [],
     territories: ['FR'],
+    territory_subdivisions: [],
+    sector_cpv_prefixes: [],
     minimum_contract_value: { currency: 'EUR', minimum_amount: 50000, maximum_amount: null },
   },
   missing_fields: [],
@@ -731,6 +733,7 @@ export function feedPage(items: (UnlockedFeedItem | LockedFeedItem)[], overrides
     freshness: 'new',
     language: 'fr',
     plan_code: 'discovery',
+    provisional_profile: false,
     view: 'recent',
     history_access: { scope: 'grants_only', history_days: 0 },
     filter_access: {

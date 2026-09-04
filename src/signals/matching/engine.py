@@ -286,6 +286,23 @@ class MatchingEngine:
     @staticmethod
     def _sector_filter(cu: ContractUnderstanding, icp: TargetICP) -> HardFilterResult:
         sector = cu.sector.value
+        cpv_claim = cu.facts.get("cpv")
+        cpv = cpv_claim.value if cpv_claim is not None else None
+        if icp.included_cpv_prefixes:
+            if not cpv:
+                return HardFilterResult(
+                    name="cpv_sector",
+                    passed=False,
+                    evaluable=False,
+                    detail="CPV absent : secteur ciblé inévaluable",
+                )
+            cpv_matches = any(cpv.startswith(prefix) for prefix in icp.included_cpv_prefixes)
+            if not cpv_matches:
+                return HardFilterResult(
+                    name="cpv_sector",
+                    passed=False,
+                    detail=f"CPV {cpv} hors du secteur ciblé",
+                )
         # Un secteur `unknown` ne bloque pas, et n'est jamais un point positif (§13).
         excluded = sector != "unknown" and sector in icp.excluded_sectors
         return HardFilterResult(
@@ -349,8 +366,27 @@ class MatchingEngine:
                 "unknown",
             )
 
-        wanted = {territory.country for territory in icp.territories}
-        matched = any(country in wanted for country in candidates)
+        wanted_subdivisions = {
+            territory.subdivision_code
+            for territory in icp.territories
+            if territory.subdivision_code is not None
+        }
+        if wanted_subdivisions:
+            subdivision = place.subdivision_code if place is not None else None
+            if subdivision is None:
+                return (
+                    HardFilterResult(
+                        name="geography_subdivision_missing",
+                        passed=False,
+                        evaluable=False,
+                        detail="subdivision du lieu d'exécution absente",
+                    ),
+                    "unknown",
+                )
+            matched = subdivision in wanted_subdivisions
+        else:
+            wanted = {territory.country for territory in icp.territories}
+            matched = any(country in wanted for country in candidates)
         return (
             HardFilterResult(
                 name="geography",

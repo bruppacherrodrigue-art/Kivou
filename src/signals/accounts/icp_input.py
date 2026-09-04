@@ -34,7 +34,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from signals.matching.icp import TargetICP, Territory, ValueThreshold
 
@@ -151,7 +151,25 @@ class TargetIcpInput(BaseModel):
     secondary_buyer_trades: tuple[BuyerTrade, ...] = ()
     #: Codes pays ISO 3166-1 alpha-2, en majuscules.
     territories: tuple[str, ...] = ()
+    #: Codes ISO 3166-2 choisis dans la liste départements/cantons.
+    territory_subdivisions: tuple[str, ...] = ()
+    #: Préfixes CPV structurés choisis dans la nomenclature lisible.
+    sector_cpv_prefixes: tuple[str, ...] = ()
     minimum_contract_value: MonetaryThreshold | None = None
+
+    @field_validator("territory_subdivisions")
+    @classmethod
+    def valid_subdivisions(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        if any("-" not in value or len(value.split("-", 1)[0]) != 2 for value in values):
+            raise ValueError("subdivision codes must use an ISO 3166-2 country prefix")
+        return values
+
+    @field_validator("sector_cpv_prefixes")
+    @classmethod
+    def valid_cpv_prefixes(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        if any(not value.isdigit() or not 2 <= len(value) <= 8 for value in values):
+            raise ValueError("CPV prefixes must contain 2 to 8 digits")
+        return values
 
     def missing_fields(self) -> tuple[str, ...]:
         """Ce qui empêche encore de produire un profil de ciblage exploitable."""
@@ -212,7 +230,18 @@ def to_target_icp(customer_input: TargetIcpInput, *, target_icp_id: str, label: 
         secondary_trade_domains=secondary_trades,
         geography_basis=GEOGRAPHY_BASIS,
         geography_policy=GEOGRAPHY_POLICY,
-        territories=tuple(Territory(country=country) for country in customer_input.territories),
+        territories=(
+            tuple(
+                Territory(
+                    country=code.split("-", 1)[0],
+                    subdivision_code=code,
+                    subdivision_scheme="ISO-3166-2",
+                )
+                for code in customer_input.territory_subdivisions
+            )
+            or tuple(Territory(country=country) for country in customer_input.territories)
+        ),
+        included_cpv_prefixes=customer_input.sector_cpv_prefixes,
         value_thresholds=(
             ValueThreshold(
                 currency=threshold.currency,

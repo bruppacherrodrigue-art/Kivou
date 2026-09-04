@@ -97,6 +97,24 @@ def create_icp(client: TestClient, label: str = "Intrants de chantier", **overri
     return response.json()
 
 
+def test_zone_and_cpv_choices_survive_translation_to_the_matching_profile() -> None:
+    customer = TargetIcpInput.model_validate({
+        **COMPLETE_INPUT,
+        "territories": ["FR"],
+        "territory_subdivisions": ["FR-31", "FR-34"],
+        "sector_cpv_prefixes": ["45", "441"],
+        "minimum_contract_value": {"currency": "EUR", "minimum_amount": 0},
+    })
+
+    translated = to_target_icp(customer, target_icp_id="icp-zones", label="BTP Occitanie")
+
+    assert [(zone.country, zone.subdivision_code) for zone in translated.territories] == [
+        ("FR", "FR-31"),
+        ("FR", "FR-34"),
+    ]
+    assert translated.included_cpv_prefixes == ("45", "441")
+
+
 # ─── §17 — appartenance ────────────────────────────────────────────────────────
 
 

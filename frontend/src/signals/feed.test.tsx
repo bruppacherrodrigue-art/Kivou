@@ -112,7 +112,7 @@ function normalise(text: string): string {
 
 describe('écran Signaux — tableau dense', () => {
   it('invite un compte au profil provisoire à le confirmer', async () => {
-    mockApi(feedWith([item('sig_a')]))
+    mockApi(feedWith([item('sig_a')], { provisional_profile: true }))
     renderApp(<AppRoutes />, {
       session: {
         status: 'authenticated',

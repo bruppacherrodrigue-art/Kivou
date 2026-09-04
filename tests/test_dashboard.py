@@ -172,7 +172,7 @@ def test_fresh_account_counts_new_signals_then_resets_after_the_first_visit(clie
     assert first["profile"]["zone_labels"] == COMPLETE_ICP_INPUT["territories"]
     assert first["plan"]["name"] == "Scale"
     assert first["plan"]["opened"] == 0
-    assert first["plan"]["quota"] == 3
+    assert first["plan"]["quota"] is None
     assert first["plan"]["period_end"] is None
 
     second = _dashboard(client)

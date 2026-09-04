@@ -12,7 +12,6 @@ import type {
   UnlockedFeedItem,
 } from '../api/types'
 import { interpolate, plural, useI18n } from '../i18n'
-import { useCurrentUser } from '../auth/SessionProvider'
 import { Sheet, SheetContent, SheetTitle } from '../presentation/dashboard/ui/sheet'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
 import { MISSING, SignalRow, signalObject } from '../signals/components/SignalRow'
@@ -170,7 +169,6 @@ function LockedRow({
 }
 
 export function SignalsFeed() {
-  const me = useCurrentUser()
   const { t } = useI18n()
   const copy = t.signalsTable
   const location = useLocation()
@@ -565,7 +563,7 @@ export function SignalsFeed() {
         <p>{copy.subtitle}</p>
       </header>
 
-      {me.account_display_name === 'Compte à confirmer' && me.onboarding_status !== 'ready_for_signals' ? (
+      {feed.data?.provisional_profile ? (
         <aside className={styles.provisionalBanner} role="note">
           <span>Ces signaux viennent d’un profil provisoire. Confirmez-le en 30 secondes pour recevoir les vôtres.</span>
           <Link to="/onboarding">Confirmer mon profil</Link>

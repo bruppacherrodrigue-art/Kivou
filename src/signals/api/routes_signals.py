@@ -199,6 +199,11 @@ def list_signals(
     # ses trois déblocages écrits ici, une fois pour toutes (§20).
     with request.app.state.engine.begin() as connection:
         session = current_session(request, connection, now)
+        provisional_profile = (
+            service.landing_signal(connection, account_id=session.account_id) is not None
+            and service.onboarding_status(connection, account_id=session.account_id)
+            != "ready_for_signals"
+        )
         lang = _language(connection, user_id=session.user_id)
         access = feed_access(connection, account_id=session.account_id, as_of=as_of)
         service.reconcile_territory_plan_limits(
@@ -391,6 +396,7 @@ def list_signals(
         "view": view_mode,
         "language": lang,
         "plan_code": access.plan_code,
+        "provisional_profile": provisional_profile,
         "history_access": _history_access(access),
         "filter_access": _filter_access(access),
         "policy": {

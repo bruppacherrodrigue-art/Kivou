@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Request
 
 from signals.accounts import service as accounts
@@ -18,6 +19,9 @@ from signals.billing import catalogue, discovery
 from signals.billing import service as billing
 from signals.billing.access import feed_access
 from signals.dashboard.service import build_dashboard
+from signals.domain.cpv_labels import cpv_label
+from signals.domain.subdivisions import subdivision_label
+from signals.engagement.schema import product_event
 
 router = APIRouter()
 
@@ -66,19 +70,35 @@ def get_dashboard(request: Request) -> dict[str, Any]:
         active_profile = next((profile for profile in profiles if profile.status == "active"), None)
         billing_state = billing.billing_state(connection, account_id=session.account_id)
         grants = discovery.grants(connection, account_id=session.account_id)
+        entitlements = catalogue.entitlements_for(billing_state.plan_code)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        paid_opened = connection.scalar(
+            sa.select(sa.func.count(sa.distinct(product_event.c.signal_key))).where(
+                product_event.c.account_id == session.account_id,
+                product_event.c.event_type == "signal_detail_viewed",
+                product_event.c.occurred_at >= month_start,
+            )
+        ) or 0
         result["profile"] = (
             {
                 "name": active_profile.label,
-                "sector_label": active_profile.customer_input.offer_summary or "—",
-                "zone_labels": list(active_profile.customer_input.territories),
+                "sector_label": (
+                    cpv_label(active_profile.customer_input.sector_cpv_prefixes[0].ljust(8, "0"), lang=lang)
+                    if active_profile.customer_input.sector_cpv_prefixes
+                    else active_profile.customer_input.offer_summary or "—"
+                ),
+                "zone_labels": [
+                    subdivision_label(code) or code
+                    for code in active_profile.customer_input.territory_subdivisions
+                ] or list(active_profile.customer_input.territories),
             }
             if active_profile is not None
             else {"name": "—", "sector_label": "—", "zone_labels": []}
         )
         result["plan"] = {
             "name": _PLAN_NAMES.get(billing_state.plan_code, "—"),
-            "opened": len(grants),
-            "quota": catalogue.DISCOVERY_GRANT_LIMIT,
+            "opened": len(grants) if billing_state.plan_code == "discovery" else paid_opened,
+            "quota": entitlements.granted_signals or None,
             "period_end": (
                 billing_state.current_period_end.isoformat()
                 if billing_state.current_period_end is not None

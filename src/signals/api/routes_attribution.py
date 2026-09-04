@@ -40,6 +40,7 @@ from signals.api.dependencies import request_now
 from signals.api.errors import api_error
 from signals.api.routes_auth import set_session_cookie
 from signals.domain.cpv_labels import cpv_label
+from signals.domain.french_departments import location_subdivision
 from signals.engagement import analytics
 from signals.ingestion.backfill import (
     materialize_landing_opportunity_in_transaction,
@@ -80,13 +81,15 @@ def _landing_email(token_fingerprint: str) -> str:
     return f"landing+{token_fingerprint[:12]}@{LANDING_EMAIL_DOMAIN}"
 
 
-def _draft_icp_input(*, country: str, need_ref: str, sector_label: str | None) -> TargetIcpInput:
-    """Le peu que le jeton sait, et RIEN de plus.
-
-    Le montant plancher n'est pas deviné : c'est précisément ce qui laisse le
-    profil `draft`, donc muet pour le moteur (`FEEDING_ICP_STATUS = "active"`).
-    Aucun signal n'est matérialisé avant que le client ait confirmé.
-    """
+def _draft_icp_input(
+    *,
+    country: str,
+    need_ref: str,
+    sector_label: str | None,
+    cpv_prefix: str | None,
+    subdivision: str | None,
+) -> TargetIcpInput:
+    """Profil provisoire fondé seulement sur le signal effectivement promis."""
     offer = offer_for_need(need_ref)
     return TargetIcpInput(
         offer_summary=sector_label or need_ref.replace("_", " ").lower(),
@@ -95,6 +98,8 @@ def _draft_icp_input(*, country: str, need_ref: str, sector_label: str | None) -
         # uniquement à matérialiser la promesse, jamais à confirmer un choix.
         offers=(offer,) if offer is not None else PROVISIONAL_OFFERS,
         territories=(country,),
+        territory_subdivisions=(subdivision,) if subdivision else (),
+        sector_cpv_prefixes=(cpv_prefix,) if cpv_prefix else (),
         minimum_contract_value=MonetaryThreshold(
             currency="CHF" if country == "CH" else "EUR",
             minimum_amount=0,
@@ -102,11 +107,13 @@ def _draft_icp_input(*, country: str, need_ref: str, sector_label: str | None) -
     )
 
 
-def _sector_label(connection, opportunity_key: str | None) -> str | None:
+def _profile_seed(
+    connection, opportunity_key: str | None
+) -> tuple[str | None, str | None, str | None]:
     if opportunity_key is None:
-        return None
-    code = connection.scalar(
-        sa.select(contract_award.c.cpv_main)
+        return None, None, None
+    row = connection.execute(
+        sa.select(contract_award.c.cpv_main, contract_award.c.place_of_performance)
         .select_from(
             opportunity_representation.join(
                 contract_award,
@@ -116,8 +123,12 @@ def _sector_label(connection, opportunity_key: str | None) -> str | None:
         .where(opportunity_representation.c.opportunity_key == opportunity_key)
         .order_by(contract_award.c.award_key)
         .limit(1)
-    )
-    return cpv_label(code, lang="fr")
+    ).first()
+    if row is None:
+        return None, None, None
+    code, place = row
+    prefix = code[:2] if code and len(code) >= 2 else None
+    return cpv_label(code, lang="fr"), prefix, location_subdivision(place)
 
 
 def _redirect(url: str) -> RedirectResponse:
@@ -214,14 +225,19 @@ def _land(
         )
 
     if not accounts.list_target_icps(connection, account_id=account_id):
+        sector_label, cpv_prefix, subdivision = _profile_seed(
+            connection, payload.opportunity_key
+        )
         provisional = accounts.create_target_icp(
             connection,
             account_id=account_id,
-            label=LANDING_ICP_LABEL,
+            label=sector_label or LANDING_ICP_LABEL,
             customer_input=_draft_icp_input(
                 country=payload.country,
                 need_ref=payload.need_ref,
-                sector_label=_sector_label(connection, payload.opportunity_key),
+                sector_label=sector_label,
+                cpv_prefix=cpv_prefix,
+                subdivision=subdivision,
             ),
             now=now,
         )
