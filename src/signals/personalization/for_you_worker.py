@@ -58,14 +58,23 @@ class ForYouWorker:
         self.concurrency = concurrency
         self.daily_limit = daily_limit
 
-    def _claim(self, *, now: dt.datetime, limit: int | None) -> list[dict]:
+    def _claim(
+        self,
+        *,
+        now: dt.datetime,
+        limit: int | None,
+        for_you_ids: tuple[str, ...] | None,
+    ) -> list[dict]:
         worker = uuid.uuid4().hex
         with self.engine.begin() as connection:
-            used = connection.scalar(
-                sa.select(sa.func.count()).select_from(for_you_sentence).where(
-                    for_you_sentence.c.attempt_day == now.date()
+            used = (
+                connection.scalar(
+                    sa.select(sa.func.count())
+                    .select_from(for_you_sentence)
+                    .where(for_you_sentence.c.attempt_day == now.date())
                 )
-            ) or 0
+                or 0
+            )
             remaining = max(0, self.daily_limit - used)
             if limit is not None:
                 remaining = min(remaining, limit)
@@ -84,17 +93,15 @@ class ForYouWorker:
                 .order_by(for_you_sentence.c.created_at, for_you_sentence.c.for_you_id)
                 .limit(remaining)
             )
+            if for_you_ids is not None:
+                query = query.where(for_you_sentence.c.for_you_id.in_(for_you_ids))
             if connection.dialect.name == "postgresql":
                 query = query.with_for_update(skip_locked=True)
             rows = [dict(row) for row in connection.execute(query).mappings()]
             if rows:
                 connection.execute(
                     sa.update(for_you_sentence)
-                    .where(
-                        for_you_sentence.c.for_you_id.in_(
-                            [row["for_you_id"] for row in rows]
-                        )
-                    )
+                    .where(for_you_sentence.c.for_you_id.in_([row["for_you_id"] for row in rows]))
                     .values(
                         state="running",
                         attempt_day=now.date(),
@@ -117,15 +124,19 @@ class ForYouWorker:
             return _Outcome(row["for_you_id"], None, "provider_unavailable", None)
         validation = validate_sentence(sentence, value)
         if not validation.accepted:
-            return _Outcome(
-                row["for_you_id"], None, validation.reason, validation.detail
-            )
+            return _Outcome(row["for_you_id"], None, validation.reason, validation.detail)
         return _Outcome(row["for_you_id"], " ".join(sentence.split()), None, None)
 
-    def run(self, *, now: dt.datetime, limit: int | None = None) -> ForYouWorkerReport:
+    def run(
+        self,
+        *,
+        now: dt.datetime,
+        limit: int | None = None,
+        for_you_ids: tuple[str, ...] | None = None,
+    ) -> ForYouWorkerReport:
         if limit is not None and limit < 1:
             raise ValueError("limit must be positive")
-        rows = self._claim(now=now, limit=limit)
+        rows = self._claim(now=now, limit=limit, for_you_ids=for_you_ids)
         with concurrent.futures.ThreadPoolExecutor(
             max_workers=self.concurrency,
             thread_name_prefix="for-you",
@@ -156,16 +167,22 @@ class ForYouWorker:
                     .where(for_you_sentence.c.for_you_id == outcome.for_you_id)
                     .values(**values)
                 )
-            generated_today = connection.scalar(
-                sa.select(sa.func.count()).select_from(for_you_sentence).where(
-                    for_you_sentence.c.attempt_day == now.date()
+            generated_today = (
+                connection.scalar(
+                    sa.select(sa.func.count())
+                    .select_from(for_you_sentence)
+                    .where(for_you_sentence.c.attempt_day == now.date())
                 )
-            ) or 0
-            pending = connection.scalar(
-                sa.select(sa.func.count()).select_from(for_you_sentence).where(
-                    for_you_sentence.c.state == "pending"
+                or 0
+            )
+            pending = (
+                connection.scalar(
+                    sa.select(sa.func.count())
+                    .select_from(for_you_sentence)
+                    .where(for_you_sentence.c.state == "pending")
                 )
-            ) or 0
+                or 0
+            )
         return ForYouWorkerReport(
             attempted=len(outcomes),
             accepted=accepted,

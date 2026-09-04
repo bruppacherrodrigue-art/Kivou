@@ -1478,3 +1478,22 @@ automatiquement. Pour couper immédiatement le job :
 ```bash
 sudo systemctl disable --now kivou-tender-notices.timer
 ```
+
+## Phrases « Pour vous »
+
+La matérialisation dépose un repli immédiatement visible ; le fournisseur est
+appelé ensuite par un worker borné. `KIVOU_FOR_YOU_CONCURRENCY` vaut 4 par
+défaut et `KIVOU_FOR_YOU_DAILY_LIMIT` vaut 500. Le rapport JSON expose le
+plafond, le consommé du jour et la file restante.
+
+Le seul rejeu autorisé est explicite et borné :
+
+```bash
+KIVOU_FOR_YOU_CONCURRENCY=4 KIVOU_FOR_YOU_DAILY_LIMIT=50 \
+  /srv/kivou/app/.venv/bin/python \
+  -m signals.personalization.for_you_backfill --limit 50 --since 2026-08-01
+```
+
+Sur staging, le benchmark PR5b exécute cette commande une seule fois avec 50.
+En production, choisir une fenêtre couvrant seulement les comptes actifs et un
+plafond explicite ; ne jamais rejouer sans borne les quelque 39 000 signaux.
