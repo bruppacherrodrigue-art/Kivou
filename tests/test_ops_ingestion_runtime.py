@@ -189,7 +189,7 @@ def test_tender_notice_runtime_is_daily_bounded_and_kill_switched() -> None:
     assert "RuntimeDirectoryMode=0700" in service
     assert "RuntimeDirectoryPreserve=yes" in service
     assert "-m signals.ingestion tender-notices --source all" in service
-    assert "KIVOU_TENDER_DOCUMENT_STORAGE_QUOTA_BYTES" in service
+    assert "KIVOU_TENDER_DOCUMENT_STORAGE_QUOTA_BYTES=32212254720" in service
     assert "OnCalendar=daily" in timer
     assert "Persistent=true" in timer
     assert "RandomizedDelaySec=" in timer
@@ -199,6 +199,10 @@ def test_tender_notice_runtime_is_daily_bounded_and_kill_switched() -> None:
     assert "RuntimeDirectory=kivou" in production_service
     assert "RuntimeDirectoryMode=0700" in production_service
     assert "RuntimeDirectoryPreserve=yes" in production_service
+    assert (
+        "KIVOU_TENDER_DOCUMENT_STORAGE_QUOTA_BYTES=536870912000"
+        in production_service
+    )
     assert "OnCalendar=daily" in PRODUCTION_TENDER_TIMER.read_text(encoding="utf-8")
 
 

@@ -13,7 +13,7 @@ RuntimeDirectoryPreserve=yes
 WorkingDirectory=/srv/kivou/app
 EnvironmentFile=/etc/kivou/production.env
 Environment=KIVOU_TENDER_NOTICES_ENABLED=1
-Environment=KIVOU_TENDER_DOCUMENT_STORAGE_QUOTA_BYTES=10737418240
+Environment=KIVOU_TENDER_DOCUMENT_STORAGE_QUOTA_BYTES=536870912000
 Environment=KIVOU_PORTAL_POLICY_FILE=/etc/kivou/portal-policy.json
 Environment=PLAYWRIGHT_BROWSERS_PATH=/srv/kivou/playwright
 ExecStart=/usr/bin/flock --verbose --exclusive --timeout 300 --conflict-exit-code 0 /run/kivou/ingestion.lock /srv/kivou/app/.venv/bin/python -m signals.ingestion tender-notices --source all
