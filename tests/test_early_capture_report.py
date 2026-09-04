@@ -10,6 +10,19 @@ from signals.persistence.schema import procedure_documents, source_event
 
 def test_report_groups_hosts_from_persisted_rows_and_estimates_coverage() -> None:
     engine = sa.create_engine("sqlite+pysqlite:///:memory:")
+    statements: list[str] = []
+
+    @sa.event.listens_for(engine, "before_cursor_execute")
+    def record_statement(
+        _connection: object,
+        _cursor: object,
+        statement: str,
+        _parameters: object,
+        _context: object,
+        _executemany: bool,
+    ) -> None:
+        statements.append(statement)
+
     source_event.create(engine)
     procedure_documents.create(engine)
     # A replay captures today notices published inside an older window.
@@ -29,11 +42,19 @@ def test_report_groups_hosts_from_persisted_rows_and_estimates_coverage() -> Non
                 )
             )
         rows = [
-            ("PLACE", "tender-0", "www.marches-publics.gouv.fr", "available", 100),
-            ("achat", "tender-1", "www.achatpublic.com", "external", 0),
-            ("max", "tender-2", "marches.maximilien.fr", "available", 300),
+            ("PLACE", "tender-0", "www.marches-publics.gouv.fr", "available", None, 100, 2),
+            (
+                "achat",
+                "tender-1",
+                "www.achatpublic.com",
+                "portal_blocked",
+                "robots_disallowed",
+                0,
+                0,
+            ),
+            ("max", "tender-2", "marches.maximilien.fr", "available", None, 300, 4),
         ]
-        for key, notice, host, status, size in rows:
+        for key, notice, host, status, detail, size, requirements in rows:
             connection.execute(
                 sa.insert(procedure_documents).values(
                     procedure_document_key=key,
@@ -42,13 +63,30 @@ def test_report_groups_hosts_from_persisted_rows_and_estimates_coverage() -> Non
                     source_url=f"https://{host}/dce",
                     host=host,
                     access_status=status,
+                    access_detail=detail,
                     byte_size=size,
+                    classified_requirements_count=requirements,
                     blocks=[],
                     join_status="unlinked",
                     captured_at=created,
                     created_at=created,
                 )
             )
+        connection.execute(
+            sa.insert(procedure_documents).values(
+                procedure_document_key="PLACE-old",
+                source_system="boamp",
+                source_notice_id="tender-0",
+                source_url="https://www.marches-publics.gouv.fr/dce",
+                host="www.marches-publics.gouv.fr",
+                access_status="external",
+                byte_size=0,
+                blocks=[],
+                join_status="unlinked",
+                captured_at=created - dt.timedelta(hours=1),
+                created_at=created - dt.timedelta(hours=1),
+            )
+        )
 
         report = capture_report(
             connection,
@@ -63,5 +101,18 @@ def test_report_groups_hosts_from_persisted_rows_and_estimates_coverage() -> Non
         ("achatpublic", 0, 1),
         ("Maximilien", 1, 1),
     ]
+    assert report.hosts[0].portal_url == "https://www.marches-publics.gouv.fr"
+    assert report.hosts[0].average_folder_bytes == 100
+    assert report.hosts[0].classified_requirements_per_folder == 2.0
+    assert report.hosts[0].block_reasons == ()
+    assert report.hosts[1].blocked == 1
+    assert report.hosts[1].block_reasons == ("robots_disallowed",)
     assert report.average_folder_bytes == 200
     assert report.estimated_award_coverage_at_three_months == 2 / 3
+    report_select = next(
+        statement
+        for statement in statements
+        if "FROM procedure_documents" in statement and "SELECT" in statement
+    )
+    assert "archive_content" not in report_select
+    assert "blocks" not in report_select

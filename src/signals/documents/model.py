@@ -30,6 +30,8 @@ DocumentAccessStatus = Literal[
     "download_failed",
     "too_large",
     "encrypted",
+    "portal_blocked",
+    "cgu_restricted",
 ]
 """État TECHNIQUE de l'accès. Aucun n'équivaut à « pas de document ».
 
@@ -42,6 +44,8 @@ DocumentAccessStatus = Literal[
 - `download_failed` : panne réseau ou refus serveur ;
 - `too_large`       : au-delà de la limite configurée, arrêté avant lecture ;
 - `encrypted`       : fichier protégé, jamais forcé.
+- `portal_blocked`  : retrait automatisé suspendu (CAPTCHA, robots ou incident) ;
+- `cgu_restricted`  : retrait automatisé interdit sans autorisation contractuelle.
 """
 
 RETRIEVED_STATUSES = ("available", "unsupported", "encrypted")
@@ -71,6 +75,8 @@ _ACCESS_FAMILIES: dict[str, AccessFamily] = {
     "not_found": "not_found",
     "download_failed": "download_failed",
     "too_large": "download_failed",
+    "portal_blocked": "external_portal",
+    "cgu_restricted": "external_portal",
 }
 
 

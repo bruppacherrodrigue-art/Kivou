@@ -2,17 +2,20 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import dataclasses
 import datetime as dt
 import math
 import os
 import signal
 import threading
+from pathlib import Path
 
 from signals.connectors.boamp import BoampClient
 from signals.connectors.decp import PAGE_SIZE as DECP_PAGE_SIZE
 from signals.connectors.simap import SimapClient
 from signals.connectors.ted import TedClient
 from signals.documents.fetch import DocumentFetcher
+from signals.documents.portals.discipline import PortalDiscipline
 from signals.ingestion.france import FranceLinker
 from signals.ingestion.pipeline import IngestionPipeline
 from signals.ingestion.runner import IngestionRunner, RunOptions, SourceOutcome
@@ -47,6 +50,22 @@ DEFAULT_TED_MAX_RETRY_SECONDS = 120.0
 DEFAULT_TED_MAX_RECORDS_PER_RUN = 500
 DEFAULT_TED_TIME_BUDGET_SECONDS = 1200
 DEFAULT_TENDER_STORAGE_QUOTA_BYTES = 10 * 1024 * 1024 * 1024
+
+
+@dataclasses.dataclass(frozen=True)
+class PortalSettings:
+    policy_path: Path | None
+    company_name: str
+    contact_email: str
+
+
+def _portal_settings() -> PortalSettings:
+    configured_path = os.environ.get("KIVOU_PORTAL_POLICY_FILE")
+    return PortalSettings(
+        policy_path=Path(configured_path) if configured_path else None,
+        company_name=os.environ.get("KIVOU_PORTAL_COMPANY_NAME", ""),
+        contact_email=os.environ.get("KIVOU_PORTAL_CONTACT_EMAIL", ""),
+    )
 
 
 def summarize(outcome: SourceOutcome) -> str:
@@ -175,18 +194,27 @@ def _run_tender_notices(arguments: argparse.Namespace) -> int:
         "KIVOU_TENDER_REQUEST_INTERVAL_SECONDS", 2.0
     )
     enabled = lambda: os.environ.get("KIVOU_TENDER_NOTICES_ENABLED", "0") == "1"
+    engine = create_database_engine()
+    portal = _portal_settings()
     with contextlib.ExitStack() as stack:
         boamp = stack.enter_context(BoampClient())
         ted = stack.enter_context(TedClient(request_interval_seconds=interval))
         simap = stack.enter_context(SimapClient())
-        fetcher = stack.enter_context(DocumentFetcher())
+        fetcher = stack.enter_context(
+            DocumentFetcher(
+                portal_policy_path=portal.policy_path,
+                portal_company_name=portal.company_name,
+                portal_contact_email=portal.contact_email,
+                portal_discipline=PortalDiscipline(engine),
+            )
+        )
         sources = {
             "boamp": BoampTenderNotices(boamp),
             "ted": TedTenderNotices(ted),
             "simap": SimapTenderNotices(simap),
         }
         job = TenderNoticeJob(
-            create_database_engine(),
+            engine,
             sources=sources,
             fetcher=fetcher,
             quota_bytes=quota,

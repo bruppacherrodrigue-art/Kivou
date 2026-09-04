@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 
 import sqlalchemy as sa
@@ -73,7 +74,50 @@ def connection():
     return engine
 
 
+def assert_repeated_empty_attempt_updates_access_status_without_new_row() -> None:
+    engine = connection()
+    first = ProcedureDocumentRecord(
+        source_system="boamp",
+        source_notice_id="tender-status",
+        source_procedure_id="procedure-status",
+        buyer_fingerprint=None,
+        object_normalized="transport scolaire",
+        cpv_main="60112000",
+        submission_deadline=None,
+        source_url="https://portal.example/dce",
+        access_status="external",
+        content=None,
+        content_hash=None,
+        media_type="text/html",
+        blocks=(),
+        captured_at=NOW,
+    )
+    second = dataclasses.replace(
+        first,
+        access_status="portal_blocked",
+        access_detail="captcha",
+        captured_at=NOW + dt.timedelta(hours=1),
+    )
+
+    with engine.begin() as opened:
+        assert store_procedure_document(opened, first, quota_bytes=10_000).created
+        assert not store_procedure_document(opened, second, quota_bytes=10_000).created
+        rows = opened.execute(
+            sa.select(
+                procedure_documents.c.access_status,
+                procedure_documents.c.access_detail,
+                procedure_documents.c.captured_at,
+            )
+        ).all()
+
+    assert [(row.access_status, row.access_detail) for row in rows] == [
+        ("portal_blocked", "captcha")
+    ]
+    assert rows[0].captured_at == second.captured_at.replace(tzinfo=None)
+
+
 def test_explicit_notice_reference_wins_over_other_modes() -> None:
+    assert_repeated_empty_attempt_updates_access_status_without_new_row()
     engine = connection()
     with engine.begin() as opened:
         insert_document(opened, notice="explicit", procedure="other")
@@ -98,6 +142,10 @@ def test_procedure_identifier_is_a_strong_join() -> None:
     assert resolution.match_mode == "procedure_id"
     assert resolution.blocks
     assert len(resolution.analysis.requirements) == 1
+    with engine.connect() as opened:
+        assert opened.execute(
+            sa.select(procedure_documents.c.classified_requirements_count)
+        ).scalar_one() == 1
 
 
 def test_fingerprint_match_is_quarantined_and_never_calls_classifier() -> None:

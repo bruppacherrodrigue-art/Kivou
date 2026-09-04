@@ -32,6 +32,7 @@ KIVOU_READINESS_SCRIPT=${KIVOU_READINESS_SCRIPT:-$KIVOU_SOURCE_DIR/ops/bin/kivou
 KIVOU_SYSTEMD_UNIT=${KIVOU_SYSTEMD_UNIT:-kivou-api.service}
 KIVOU_READINESS_PORT=${KIVOU_READINESS_PORT:-8000}
 KIVOU_SERVICE_USER=${KIVOU_SERVICE_USER:-kivou}
+KIVOU_PLAYWRIGHT_BROWSERS_DIR=${KIVOU_PLAYWRIGHT_BROWSERS_DIR:-/srv/kivou/playwright}
 KIVOU_RELEASE_DIR="$KIVOU_RELEASES_DIR/$KIVOU_ENVIRONMENT-$KIVOU_SHA"
 
 for dependency in git uv npm createdb dropdb pg_restore runuser systemctl; do
@@ -57,6 +58,10 @@ fi
 [[ "$(git -C "$KIVOU_RELEASE_DIR" rev-parse HEAD)" == "$KIVOU_SHA" ]] || fail "checkout différent du SHA demandé"
 
 uv sync --project "$KIVOU_RELEASE_DIR" --frozen --extra server --extra postgres
+mkdir -p "$KIVOU_PLAYWRIGHT_BROWSERS_DIR"
+PLAYWRIGHT_BROWSERS_PATH="$KIVOU_PLAYWRIGHT_BROWSERS_DIR" \
+  env -u KIVOU_DATABASE_URL uv run --project "$KIVOU_RELEASE_DIR" playwright install --with-deps chromium
+chmod -R a+rX "$KIVOU_PLAYWRIGHT_BROWSERS_DIR"
 npm --prefix "$KIVOU_RELEASE_DIR/frontend" ci
 npm --prefix "$KIVOU_RELEASE_DIR/frontend" run build
 

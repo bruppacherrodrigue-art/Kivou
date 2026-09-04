@@ -46,6 +46,7 @@ class ProcedureDocumentRecord:
     media_type: str | None
     blocks: tuple[TextBlock, ...]
     captured_at: dt.datetime
+    access_detail: str | None = None
     join_status: JoinStatus = "unlinked"
     linked_award_key: str | None = None
 
@@ -74,8 +75,13 @@ class AwardDocumentResolution:
 @dataclass(frozen=True)
 class HostCaptureMetric:
     host_group: str
+    portal_url: str
     downloaded: int
     total: int
+    blocked: int
+    block_reasons: tuple[str, ...]
+    average_folder_bytes: int
+    classified_requirements_per_folder: float
 
     @property
     def download_rate(self) -> float:
@@ -135,6 +141,16 @@ def store_procedure_document(
         )
     ).scalar()
     if exists:
+        connection.execute(
+            sa.update(procedure_documents)
+            .where(procedure_documents.c.procedure_document_key == key)
+            .values(
+                access_status=record.access_status,
+                access_detail=record.access_detail,
+                captured_at=record.captured_at,
+                expires_at=_plus_twelve_months(record.submission_deadline),
+            )
+        )
         return StoreResult(key, False)
     size = len(record.content or b"")
     if stored_bytes(connection) + size > quota_bytes:
@@ -152,6 +168,8 @@ def store_procedure_document(
             source_url=record.source_url,
             host=(urlparse(record.source_url).hostname or "").casefold(),
             access_status=record.access_status,
+            access_detail=record.access_detail,
+            classified_requirements_count=0,
             content_hash=record.content_hash,
             media_type=record.media_type,
             byte_size=size,
@@ -255,6 +273,7 @@ def capture_tender_notice(
                 submission_deadline=notice.submission_deadline,
                 source_url=url,
                 access_status=access_status,
+                access_detail=(fetched.detail if fetched is not None else None),
                 content=content,
                 content_hash=fetched.content_hash if fetched is not None else None,
                 media_type=fetched.media_type if fetched is not None else None,
@@ -359,17 +378,25 @@ def resolve_award_documents(
         return AwardDocumentResolution(
             "review_required", match_mode=mode, linked_award_key=reference
         )
+    blocks = _stored_blocks(rows)
+    analysis = classify(blocks) if classify is not None else _analyze_rows(
+        rows, event=event, award=award
+    )
+    requirements_count = len(getattr(analysis, "requirements", ()))
     connection.execute(
         sa.update(procedure_documents)
         .where(procedure_documents.c.procedure_document_key.in_(keys))
-        .values(join_status="linked", linked_award_key=reference)
+        .values(
+            join_status="linked",
+            linked_award_key=reference,
+            classified_requirements_count=requirements_count,
+        )
     )
-    blocks = _stored_blocks(rows)
     return AwardDocumentResolution(
         "linked",
         match_mode=mode,
         blocks=blocks,
-        analysis=(classify(blocks) if classify is not None else _analyze_rows(rows, event=event, award=award)),
+        analysis=analysis,
         linked_award_key=reference,
     )
 
@@ -417,69 +444,126 @@ def capture_report(
             )
         ).scalar_one()
     )
-    host_group = sa.case(
-        (procedure_documents.c.host.contains("marches-publics.gouv.fr"), "PLACE"),
-        (procedure_documents.c.host.contains("achatpublic"), "achatpublic"),
-        (procedure_documents.c.host.contains("maximilien"), "Maximilien"),
-        else_="autres",
-    ).label("host_group")
-    host_rows = connection.execute(
-        sa.select(
-            host_group,
-            sa.func.sum(
-                sa.case((procedure_documents.c.access_status == "available", 1), else_=0)
-            ).label("downloaded"),
-            sa.func.count().label("total"),
-        )
-        .where(
-            procedure_documents.c.source_system == source,
-            notice_in_window,
-        )
-        .group_by(host_group)
-        .order_by(host_group)
-    ).all()
-    order = {"PLACE": 0, "achatpublic": 1, "Maximilien": 2, "autres": 3}
-    hosts = tuple(
-        sorted(
-            (
-                HostCaptureMetric(row.host_group, int(row.downloaded), int(row.total))
-                for row in host_rows
-            ),
-            key=lambda row: order[row.host_group],
-        )
-    )
-    folder_key = sa.func.coalesce(
-        procedure_documents.c.source_procedure_id,
+    report_columns = (
         procedure_documents.c.source_notice_id,
-    ).label("folder_key")
-    folder_sizes = (
-        sa.select(
-            folder_key,
-            sa.func.sum(procedure_documents.c.byte_size).label("folder_bytes"),
-        )
-        .where(
+        procedure_documents.c.source_procedure_id,
+        procedure_documents.c.source_url,
+        procedure_documents.c.host,
+        procedure_documents.c.access_status,
+        procedure_documents.c.access_detail,
+        procedure_documents.c.classified_requirements_count,
+        procedure_documents.c.byte_size,
+        procedure_documents.c.captured_at,
+    )
+    persisted_rows = connection.execute(
+        sa.select(*report_columns).where(
             procedure_documents.c.source_system == source,
-            procedure_documents.c.byte_size > 0,
             notice_in_window,
         )
-        .group_by(folder_key)
-        .subquery()
-    )
-    average = connection.execute(sa.select(sa.func.avg(folder_sizes.c.folder_bytes))).scalar()
-    available_notices = int(
-        connection.execute(
-            sa.select(sa.func.count(sa.distinct(procedure_documents.c.source_notice_id))).where(
-                procedure_documents.c.source_system == source,
-                procedure_documents.c.access_status == "available",
-                notice_in_window,
+    ).mappings().all()
+    latest_by_url: dict[tuple[str, str], sa.RowMapping] = {}
+    for row in persisted_rows:
+        key = (row["source_notice_id"], row["source_url"])
+        previous = latest_by_url.get(key)
+        if previous is None or row["captured_at"] > previous["captured_at"]:
+            latest_by_url[key] = row
+    persisted = tuple(latest_by_url.values())
+
+    def display_host(host: str) -> str:
+        aliases = (
+            ("marches-publics.gouv.fr", "PLACE"),
+            ("achatpublic", "achatpublic"),
+            ("maximilien", "Maximilien"),
+            ("marches-publics.info", "marches-publics.info"),
+            ("marches-securises", "Marchés Sécurisés"),
+            ("megalis.bretagne", "Mégalis Bretagne"),
+            ("demat-ampa", "DEMAT AMPA"),
+            ("xmarches", "XMarchés"),
+        )
+        return next((label for marker, label in aliases if marker in host), "Autres")
+
+    grouped: dict[str, list[sa.RowMapping]] = {}
+    for row in persisted:
+        grouped.setdefault(display_host(row["host"]), []).append(row)
+    preferred = {
+        name: index
+        for index, name in enumerate(
+            (
+                "PLACE",
+                "achatpublic",
+                "Maximilien",
+                "marches-publics.info",
+                "Marchés Sécurisés",
+                "Mégalis Bretagne",
+                "DEMAT AMPA",
+                "XMarchés",
+                "Autres",
             )
-        ).scalar_one()
+        )
+    }
+    metrics: list[HostCaptureMetric] = []
+    for name, rows in grouped.items():
+        folders: dict[str, dict[str, int]] = {}
+        for row in rows:
+            folder = row["source_procedure_id"] or row["source_notice_id"]
+            values = folders.setdefault(folder, {"bytes": 0, "requirements": 0})
+            values["bytes"] += int(row["byte_size"] or 0)
+            values["requirements"] = max(
+                values["requirements"],
+                int(row["classified_requirements_count"] or 0),
+            )
+        host = rows[0]["host"]
+        reasons = tuple(
+            sorted(
+                {
+                    row["access_detail"]
+                    for row in rows
+                    if row["access_detail"]
+                    and row["access_status"] in {"portal_blocked", "cgu_restricted"}
+                }
+            )
+        )
+        non_empty_folder_sizes = tuple(
+            values["bytes"] for values in folders.values() if values["bytes"] > 0
+        )
+        metrics.append(
+            HostCaptureMetric(
+                host_group=name,
+                portal_url=f"https://{host}",
+                downloaded=sum(row["access_status"] == "available" for row in rows),
+                total=len(rows),
+                blocked=sum(
+                    row["access_status"] in {"portal_blocked", "cgu_restricted"}
+                    for row in rows
+                ),
+                block_reasons=reasons,
+                average_folder_bytes=(
+                    round(sum(non_empty_folder_sizes) / len(non_empty_folder_sizes))
+                    if non_empty_folder_sizes
+                    else 0
+                ),
+                classified_requirements_per_folder=(
+                    sum(item["requirements"] for item in folders.values()) / len(folders)
+                ),
+            )
+        )
+    hosts = tuple(
+        sorted(metrics, key=lambda row: (preferred.get(row.host_group, 99), row.host_group))
     )
+    folder_sizes: dict[str, int] = {}
+    available_notices: set[str] = set()
+    for row in persisted:
+        folder = row["source_procedure_id"] or row["source_notice_id"]
+        folder_sizes[folder] = folder_sizes.get(folder, 0) + int(row["byte_size"] or 0)
+        if row["access_status"] == "available":
+            available_notices.add(row["source_notice_id"])
+    non_empty_sizes = tuple(size for size in folder_sizes.values() if size > 0)
+    average = sum(non_empty_sizes) / len(non_empty_sizes) if non_empty_sizes else 0
     return EarlyCaptureReport(
         notices_ingested=notices,
         hosts=hosts,
         average_folder_bytes=round(float(average or 0)),
         estimated_award_coverage_at_three_months=(
-            available_notices / notices if notices else 0.0
+            len(available_notices) / notices if notices else 0.0
         ),
     )

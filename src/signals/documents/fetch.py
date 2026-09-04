@@ -13,11 +13,16 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Self
 
 import httpx
 
 from signals.documents.model import DocumentAccessStatus
+from signals.documents.portals.base import AtexoBrowser, PortalDownloadResult, PortalIdentity
+from signals.documents.portals.discipline import PortalDiscipline
+from signals.documents.portals.policy import PortalPolicy
+from signals.documents.portals.registry import PortalRegistry
 
 # Seuls schémas suivis. `file://` ferait du téléchargeur un lecteur de disque,
 # et un avis publie parfois une adresse sans schéma du tout (« /www.example.fr »,
@@ -75,6 +80,11 @@ class DocumentFetcher:
         limits: FetchLimits | None = None,
         user_agent: str = USER_AGENT_DEFAULT,
         client: httpx.Client | None = None,
+        portal_policy_path: Path | None = None,
+        portal_company_name: str = "",
+        portal_contact_email: str = "",
+        portal_discipline: PortalDiscipline | None = None,
+        portal_atexo_browser: AtexoBrowser | None = None,
     ) -> None:
         self.limits = limits or FetchLimits()
         self._headers = {"User-Agent": user_agent, "Accept": "*/*"}
@@ -83,6 +93,13 @@ class DocumentFetcher:
             timeout=self.limits.timeout, headers=self._headers, follow_redirects=True
         )
         self._cache: dict[str, FetchResult] = {}
+        self._portals = PortalRegistry(
+            client=self._client,
+            identity=PortalIdentity(portal_company_name, portal_contact_email),
+            policy=PortalPolicy(portal_policy_path),
+            atexo_browser=portal_atexo_browser,
+        )
+        self._portal_discipline = portal_discipline
         self.requests_sent = 0
         self.cache_hits = 0
 
@@ -93,6 +110,7 @@ class DocumentFetcher:
         self.close()
 
     def close(self) -> None:
+        self._portals.close()
         if self._owns_client:
             self._client.close()
 
@@ -108,48 +126,115 @@ class DocumentFetcher:
     def _fetch(self, url: str) -> FetchResult:
         if not url.lower().startswith(_FOLLOWED_SCHEMES):
             return FetchResult(url, "download_failed", detail="adresse non exploitable")
+        if blocked := self._portals.preflight(url):
+            return FetchResult(url, blocked.access_status, detail=blocked.detail)
+        if self._portal_discipline is not None:
+            blocked = self._portal_discipline.acquire(url)
+            if blocked is not None:
+                return FetchResult(url, blocked.access_status, detail=blocked.detail)
+
+        def finish(result: FetchResult) -> FetchResult:
+            if self._portal_discipline is not None:
+                self._portal_discipline.record(
+                    url,
+                    PortalDownloadResult(
+                        result.access_status,
+                        content=result.content,
+                        media_type=result.media_type,
+                        byte_size=result.byte_size,
+                        detail=result.detail,
+                    ),
+                )
+            return result
+
         try:
             self.requests_sent += 1
             response = self._client.get(url, headers=self._headers)
         except httpx.HTTPError as exc:
-            return FetchResult(url, "download_failed", detail=str(exc))
+            return finish(FetchResult(url, "download_failed", detail=str(exc)))
 
         if response.status_code in (401, 403):
-            return FetchResult(url, "auth_required", detail=f"HTTP {response.status_code}")
+            return finish(
+                FetchResult(url, "auth_required", detail=f"HTTP {response.status_code}")
+            )
         if response.status_code == 404:
-            return FetchResult(url, "not_found", detail="HTTP 404")
+            return finish(FetchResult(url, "not_found", detail="HTTP 404"))
         if response.status_code >= 400:
-            return FetchResult(url, "download_failed", detail=f"HTTP {response.status_code}")
+            return finish(
+                FetchResult(url, "download_failed", detail=f"HTTP {response.status_code}")
+            )
 
         data = response.content
         media = (response.headers.get("content-type") or "").split(";")[0].strip().lower()
         if len(data) > self.limits.max_bytes:
-            return FetchResult(
-                url,
-                "too_large",
-                media_type=media,
-                byte_size=len(data),
-                detail=f"{len(data)} octets au-delà de {self.limits.max_bytes}",
+            return finish(
+                FetchResult(
+                    url,
+                    "too_large",
+                    media_type=media,
+                    byte_size=len(data),
+                    detail=f"{len(data)} octets au-delà de {self.limits.max_bytes}",
+                )
             )
 
-        # Une page de portail n'est pas un document du dossier : c'est un
-        # pointeur. Le distinguer évite de traiter un menu de navigation comme
-        # un cahier des charges.
         if media in _PAGE_TYPES and data[:4] not in (b"%PDF", b"PK\x03\x04"):
-            return FetchResult(
-                url,
-                "external",
-                media_type=media,
-                byte_size=len(data),
-                detail="page de portail, pas un fichier",
+            html = response.text
+            if self._portals.supports(html):
+                downloaded = self._portals.download(url, html)
+                if downloaded.content is not None:
+                    if len(downloaded.content) > self.limits.max_bytes:
+                        return finish(
+                            FetchResult(
+                                url,
+                                "too_large",
+                                media_type=downloaded.media_type,
+                                byte_size=len(downloaded.content),
+                                detail=(
+                                    f"{len(downloaded.content)} octets au-delà de "
+                                    f"{self.limits.max_bytes}"
+                                ),
+                            ),
+                        )
+                    return finish(
+                        FetchResult(
+                            url,
+                            downloaded.access_status,
+                            content=downloaded.content,
+                            media_type=downloaded.media_type,
+                            byte_size=len(downloaded.content),
+                            content_hash=content_hash(downloaded.content),
+                            retrieved_at=dt.datetime.now(dt.UTC),
+                            detail=downloaded.detail,
+                        )
+                    )
+                return finish(
+                    FetchResult(
+                        url,
+                        downloaded.access_status,
+                        media_type=downloaded.media_type,
+                        detail=downloaded.detail,
+                    )
+                )
+            # Une page de portail sans adaptateur reste un pointeur, jamais un
+            # cahier des charges.
+            return finish(
+                FetchResult(
+                    url,
+                    "external",
+                    media_type=media,
+                    byte_size=len(data),
+                    detail="page de portail, pas un fichier",
+                )
             )
 
-        return FetchResult(
-            url,
-            "available",
-            content=data,
-            media_type=media or None,
-            byte_size=len(data),
-            content_hash=content_hash(data),
-            retrieved_at=dt.datetime.now(dt.UTC),
+        return finish(
+            FetchResult(
+                url,
+                "available",
+                content=data,
+                media_type=media or None,
+                byte_size=len(data),
+                content_hash=content_hash(data),
+                retrieved_at=dt.datetime.now(dt.UTC),
+            )
         )

@@ -185,15 +185,20 @@ def test_tender_notice_runtime_is_daily_bounded_and_kill_switched() -> None:
     timer = TENDER_TIMER.read_text(encoding="utf-8")
 
     assert "KIVOU_TENDER_NOTICES_ENABLED=1" in service
+    assert "RuntimeDirectory=kivou" in service
+    assert "RuntimeDirectoryMode=0700" in service
+    assert "RuntimeDirectoryPreserve=yes" in service
     assert "-m signals.ingestion tender-notices --source all" in service
     assert "KIVOU_TENDER_DOCUMENT_STORAGE_QUOTA_BYTES" in service
     assert "OnCalendar=daily" in timer
     assert "Persistent=true" in timer
     assert "RandomizedDelaySec=" in timer
     assert "WantedBy=timers.target" in timer
-    assert "EnvironmentFile=/etc/kivou/production.env" in PRODUCTION_TENDER_SERVICE.read_text(
-        encoding="utf-8"
-    )
+    production_service = PRODUCTION_TENDER_SERVICE.read_text(encoding="utf-8")
+    assert "EnvironmentFile=/etc/kivou/production.env" in production_service
+    assert "RuntimeDirectory=kivou" in production_service
+    assert "RuntimeDirectoryMode=0700" in production_service
+    assert "RuntimeDirectoryPreserve=yes" in production_service
     assert "OnCalendar=daily" in PRODUCTION_TENDER_TIMER.read_text(encoding="utf-8")
 
 
