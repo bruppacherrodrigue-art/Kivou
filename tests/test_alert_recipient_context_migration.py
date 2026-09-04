@@ -31,7 +31,7 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
-LATEST = "0038_landing_journey"
+LATEST = "0039_for_you_sentence"
 COLUMN = "recipient_context_fingerprint"
 INDEX = "ix_signal_alert_delivery_recipient_context_refusal"
 NOW = dt.datetime(2026, 8, 25, 10, 0, tzinfo=dt.UTC)
@@ -126,7 +126,7 @@ def test_0025_is_additive_and_precedes_the_runtime_head(tmp_path) -> None:
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
     assert scripts.get_revision(HEAD).down_revision == PREVIOUS
-    assert scripts.get_revision(LATEST).down_revision == "0037_portal_capture_runtime"
+    assert scripts.get_revision(LATEST).down_revision == "0038_landing_journey"
     assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     assert (
         scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision

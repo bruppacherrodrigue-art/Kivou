@@ -19,7 +19,7 @@ from signals.persistence.schema import (
 )
 
 HEAD = "0019_conversion_tracking"
-CURRENT_HEAD = "0038_landing_journey"
+CURRENT_HEAD = "0039_for_you_sentence"
 SPEC028_TABLES = {
     "acquisition_conversion_journey",
     "acquisition_conversion_event",

@@ -35,7 +35,7 @@ REQUEUE_SIRET_PLACEHOLDERS = "0032_requeue_siret_placeholders"
 #: Le maillon intermédiaire reste nommé : la tête n'est plus l'enfant
 #: direct de REQUEUE_SIRET_PLACEHOLDERS, et écraser ce lien ferait passer un test faux.
 REQUEUE_UNRESOLVED_SIRET = "0033_requeue_unresolved_siret"
-LATEST = "0038_landing_journey"
+LATEST = "0039_for_you_sentence"
 TABLES = {"acquisition_learning_snapshot", "acquisition_allocation_proposal"}
 
 
@@ -46,7 +46,7 @@ def test_learning_migration_is_one_linear_head_with_exactly_two_tables(tmp_path)
 
     scripts = ScriptDirectory.from_config(config)
     assert scripts.get_heads() == [LATEST]
-    assert scripts.get_revision(LATEST).down_revision == "0037_portal_capture_runtime"
+    assert scripts.get_revision(LATEST).down_revision == "0038_landing_journey"
     assert scripts.get_revision(REQUEUE_UNRESOLVED_SIRET).down_revision == REQUEUE_SIRET_PLACEHOLDERS
     assert (
         scripts.get_revision(REQUEUE_SIRET_PLACEHOLDERS).down_revision
