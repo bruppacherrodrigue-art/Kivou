@@ -5,11 +5,11 @@ import { useSession } from './SessionProvider'
 import { AUTHENTICATED, ME, callsTo, mockApi, renderApp } from '../test/harness'
 import type { RouteHandler } from '../test/harness'
 
-/* P0-02 §5.A — ce qu'une relecture de session ratée a le droit de conclure.
+/* P0-02 §5.A — ce qu'une reanalyse de session ratée a le droit de conclure.
  *
  * Le cas qui a motivé ces vérifications n'est pas théorique : un
- * `POST /target-icps` réussit, la relecture de `/me` échoue sur une coupure
- * réseau, et le client se retrouvait déconnecté avec un ciblage qu'il ne
+ * `POST /target-icps` réussit, la reanalyse de `/me` échoue sur une coupure
+ * réseau, et le client se retrouvait déconnecté avec un profil cible qu'il ne
  * savait pas enregistré. Un 401 et une panne réseau ne disent PAS la même
  * chose ; les confondre coûte une session valable.
  */
@@ -84,7 +84,7 @@ function stubNetworkFailure() {
   )
 }
 
-describe('relecture de session', () => {
+describe('reanalyse de session', () => {
   it('adopts the authoritative PATCH /me response when locale changes', async () => {
     const user = userEvent.setup()
     mockApi({
@@ -198,7 +198,7 @@ describe('relecture de session', () => {
     expect(screen.getByTestId('status')).toHaveTextContent('authenticated')
   })
 
-  it('rend une session valable après une relecture réussie', async () => {
+  it('rend une session valable après une reanalyse réussie', async () => {
     const user = userEvent.setup()
     mockApi({ 'GET /me': { body: ME } })
     renderApp(<SessionProbe />, { session: AUTHENTICATED })

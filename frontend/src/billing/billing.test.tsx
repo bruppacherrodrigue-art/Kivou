@@ -46,7 +46,7 @@ async function selectPlan(plan: 'discovery' | 'essential' | 'pro' | 'scale') {
 describe('grille tarifaire', () => {
   it('compose la facturation avec les surfaces connectées et un repli à 900 px', () => {
     const css = readFileSync(
-      join(process.cwd(), 'src/reference/dashboard/dashboard-reference.css'),
+      join(process.cwd(), 'src/presentation/dashboard/app-shell.css'),
       'utf8',
     )
 

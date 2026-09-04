@@ -21,8 +21,8 @@ import {
   signalCountLabel,
   territoryLabel,
   usePricingResource,
-} from '../reference/public/PricingResource'
-import { ReferenceLink } from '../reference/router/ReferenceLink'
+} from '../presentation/public/PricingResource'
+import { ReferenceLink } from '../presentation/router/ReferenceLink'
 
 export function PublicPricing() {
   const pricing = usePricingResource()
@@ -207,11 +207,11 @@ function unavailableCardCopy(state: PricingState): {
     price: 'Indisponible',
     billing: 'Offre absente du catalogue',
     features: [
-      'Contenu non publié',
-      'Couverture non publiée',
-      'Accès non publiés',
-      'Alertes non publiées',
-      'Historique non publié',
+      'Contenu absent',
+      'Couverture absente',
+      'Accès absents',
+      'Alertes absentes',
+      'Historique absent',
     ],
     featuresLabel: 'Offre absente du catalogue',
   }

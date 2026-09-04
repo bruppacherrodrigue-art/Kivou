@@ -164,6 +164,7 @@ class CompanyCoverage(CompanyContract):
 
 class CompanyProfile(CompanyContract):
     company_key: CompanyKey
+    city: ShortText | None = None
     official_identity: CompanyOfficialIdentity
     related_signals: tuple[CompanyRelatedSignal, ...] = Field(
         min_length=1, max_length=MAX_RELATED_SIGNALS

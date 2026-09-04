@@ -29,7 +29,7 @@ describe('compte exact connecté', () => {
 
     await screen.findByRole('heading', { level: 2, name: 'Informations du compte' })
     const price = document.querySelector('.settings-price')
-    expect(price).toHaveTextContent('Tarif facturé non publié')
+    expect(price).toHaveTextContent('Tarif facturé absent')
     expect(price).not.toHaveTextContent(/CHF|EUR|\b\d+[,.]?\d*\b/)
   })
 
@@ -41,7 +41,7 @@ describe('compte exact connecté', () => {
     })
 
     const timezone = await screen.findByText('Fuseau horaire')
-    expect(timezone.closest('div')).toHaveTextContent('Non publié')
+    expect(timezone.closest('div')).toHaveTextContent('—')
     expect(timezone.closest('div')).not.toHaveTextContent('Europe/Zurich')
   })
 
@@ -147,7 +147,7 @@ describe('compte exact connecté', () => {
     expect(within(form).getByLabelText('Entreprise')).toHaveAttribute('readonly')
     expect(within(form).getByLabelText('Adresse professionnelle')).toHaveValue(ME.email)
     expect(within(form).getByLabelText('Adresse professionnelle')).toHaveAttribute('readonly')
-    expect(within(form).getByLabelText('Fuseau horaire')).toHaveValue('Non publié')
+    expect(within(form).getByLabelText('Fuseau horaire')).toHaveValue('—')
     expect(within(form).getByLabelText('Fuseau horaire')).toBeDisabled()
     expect(form).not.toHaveTextContent('Europe/Zurich')
     expect(container.querySelectorAll('main')).toHaveLength(1)
@@ -178,7 +178,7 @@ describe('compte exact connecté', () => {
     )
     expect(screen.queryByLabelText(/mot de passe actuel/i)).not.toBeInTheDocument()
     const css = readFileSync(
-      join(process.cwd(), 'src/reference/dashboard/dashboard-reference.css'),
+      join(process.cwd(), 'src/presentation/dashboard/app-shell.css'),
       'utf8',
     )
     expect(css).toMatch(

@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useRef, type CSSProperties } from 'react'
 import {
   Building2,
-  ChevronRight,
+  Bell,
   FileCheck2,
   LayoutDashboard,
-  SlidersHorizontal,
+  Settings,
   Target,
 } from 'lucide-react'
 import { Outlet, useLocation } from 'react-router-dom'
 import { billing, icps } from '../api/endpoints'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { useI18n } from '../i18n'
-import { toTargetProfileView } from '../reference/dashboard/adapters'
-import { KivouBrand } from '../reference/dashboard/KivouBrand'
-import { useResource } from '../reference/dashboard/resources'
+import { toTargetProfileView } from '../presentation/dashboard/adapters'
+import { KivouBrand } from '../presentation/dashboard/KivouBrand'
+import { useResource } from '../presentation/dashboard/resources'
 import {
   Sidebar,
   SidebarContent,
@@ -29,19 +29,20 @@ import {
   SidebarProvider,
   SidebarTrigger,
   useSidebar,
-} from '../reference/dashboard/ui/sidebar'
-import { ReferenceLink } from '../reference/router/ReferenceLink'
-import { SurfaceBoundary } from '../reference/surface/SurfaceBoundary'
+} from '../presentation/dashboard/ui/sidebar'
+import { ReferenceLink } from '../presentation/router/ReferenceLink'
+import { SurfaceBoundary } from '../presentation/surface/SurfaceBoundary'
 import { subscribeToTargetIcpChanges } from '../targeting/targetIcpEvents'
 
-type ActiveView = 'overview' | 'signals' | 'companies' | 'target' | 'settings'
+type ActiveView = 'overview' | 'signals' | 'companies' | 'target' | 'alerts' | 'settings'
 
 const navigation = [
   { id: 'overview', icon: LayoutDashboard, href: '/' },
   { id: 'signals', icon: FileCheck2, href: '/signals' },
   { id: 'companies', icon: Building2, href: '/companies' },
   { id: 'target', icon: Target, href: '/targeting' },
-  { id: 'settings', icon: SlidersHorizontal, href: '/settings' },
+  { id: 'alerts', icon: Bell, href: '/settings/notifications' },
+  { id: 'settings', icon: Settings, href: '/settings' },
 ] as const
 
 export function AppShell() {
@@ -55,9 +56,8 @@ export function AppShell() {
 }
 
 function ReadyAppShell() {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const location = useLocation()
-  const me = useCurrentUser()
   const loadProfiles = useCallback(() => icps.list(), [])
   const loadBilling = useCallback(() => billing.status(), [])
   const profiles = useResource(loadProfiles)
@@ -66,17 +66,14 @@ function ReadyAppShell() {
   useEffect(() => subscribeToTargetIcpChanges(() => {
     void retryProfiles()
   }), [retryProfiles])
-  const current = connectedLocation(location.pathname, t)
-  const activeProfile = profiles.data
-    ?.map(toTargetProfileView)
-    .find((profile) => profile.active)
-  const profileLabel = profiles.loading || profiles.error
-    ? t.reference.loading
-    : activeProfile
-      ? activeProfile.firstTerritory
-        ? `${activeProfile.label} · ${activeProfile.firstTerritory}`
-        : activeProfile.label
-      : t.reference.missingValue
+  const current = connectedLocation(location.pathname, locale)
+  const activeProfileSource = profiles.data?.find((profile) => profile.status === 'active')
+  const activeProfile = activeProfileSource ? toTargetProfileView(activeProfileSource) : undefined
+  const profileLabel = activeProfile?.label ?? t.reference.missingValue
+  const firstTrade = activeProfileSource?.customer_input.buyer_trades[0]
+  const sectorLabel = activeProfileSource?.customer_input.offer_summary
+    || (firstTrade ? t.trades[firstTrade] : t.reference.missingValue)
+  const zoneLabel = activeProfileSource?.customer_input.territories.join(', ') || t.reference.missingValue
   const planLabel = access.loading || access.error
     ? t.reference.loading
     : access.data
@@ -92,11 +89,12 @@ function ReadyAppShell() {
         <ConnectedShell
           activeView={current.active}
           title={current.title}
-          accountName={me.account_display_name}
-          accountEmail={me.email}
-          accountInitials={initials(me.account_display_name)}
           planLabel={planLabel}
           profileLabel={profileLabel}
+          sectorLabel={sectorLabel}
+          zoneLabel={zoneLabel}
+          openedSignals={access.data ? access.data.discovery.granted_signal_count - access.data.discovery.remaining_slots : null}
+          signalQuota={access.data?.discovery.limit ?? null}
           profileError={Boolean(profiles.error)}
           planError={Boolean(access.error)}
           retryProfile={() => void retryProfiles()}
@@ -110,29 +108,31 @@ function ReadyAppShell() {
 function ConnectedShell({
   activeView,
   title,
-  accountName,
-  accountEmail,
-  accountInitials,
   planLabel,
   profileLabel,
+  sectorLabel,
+  zoneLabel,
+  openedSignals,
+  signalQuota,
   profileError,
   planError,
   retryProfile,
   retryPlan,
 }: {
   activeView: ActiveView
-  title: string
-  accountName: string
-  accountEmail: string
-  accountInitials: string
+  title: string | null
   planLabel: string
   profileLabel: string
+  sectorLabel: string
+  zoneLabel: string
+  openedSignals: number | null
+  signalQuota: number | null
   profileError: boolean
   planError: boolean
   retryProfile: () => void
   retryPlan: () => void
 }) {
-  const { t } = useI18n()
+  const { t, locale } = useI18n()
   const { pathname } = useLocation()
   const { openMobile, setOpenMobile } = useSidebar()
   const mobileTrigger = useRef<HTMLButtonElement>(null)
@@ -141,11 +141,12 @@ function ConnectedShell({
     setOpenMobile(false)
   }, [setOpenMobile])
   const labels = {
-    overview: t.reference.overview,
+    overview: locale === 'fr' ? 'Aujourd’hui' : 'Today',
     signals: t.reference.signals,
     companies: t.reference.companies,
-    target: t.reference.targeting,
-    settings: t.reference.account,
+    target: locale === 'fr' ? 'Profil cible' : 'Target profile',
+    alerts: locale === 'fr' ? 'Alertes' : 'Alerts',
+    settings: locale === 'fr' ? 'Réglages' : 'Settings',
   } satisfies Record<ActiveView, string>
 
   useEffect(() => {
@@ -216,19 +217,10 @@ function ConnectedShell({
         </SidebarContent>
 
         <SidebarFooter className="sidebar-footer">
-          <ReferenceLink
-            dashboard
-            className="demo-account"
-            href="/settings"
-            aria-label={t.reference.openAccountSettings}
-            onClick={closeMobileNavigation}
-          >
-            <span className="account-avatar">{accountInitials}</span>
-            <div>
-              <strong>{accountName}</strong>
-              <small>{accountEmail}</small>
-            </div>
-          </ReferenceLink>
+          <div className="sidebar-plan-summary">
+            <strong>Plan {planLabel} · {openedSignals ?? '—'}/{signalQuota ?? '—'} signaux ce mois</strong>
+            <small>{sectorLabel} · {zoneLabel}</small>
+          </div>
         </SidebarFooter>
       </Sidebar>
 
@@ -236,59 +228,13 @@ function ConnectedShell({
         ? ' dashboard-workspace-contained'
         : ''}`}>
         <header className="topbar">
-          <div className="topbar-title">
-            <SidebarTrigger
-              ref={mobileTrigger}
-              className="sidebar-trigger"
-              aria-label={t.reference.openNavigation}
-            />
-            <div>
-              <p>{t.reference.monitoring}</p>
-              {/* La page Signaux porte son propre `h1` (« En-tête : titre
-               * « Signaux », sous-titre » — maquette dédiée) : le bandeau ne
-               * doit pas en ajouter un second avec le même intitulé. */}
-              {activeView === 'signals' ? null : <h1>{title}</h1>}
-            </div>
-          </div>
-          <span className="demo-mode-badge">
-            {planError ? (
-              <button
-                type="button"
-                className="shell-resource-retry"
-                aria-label={t.reference.messages.retryBilling}
-                onClick={retryPlan}
-              >
-                {t.reference.messages.billingLoadError}
-              </button>
-            ) : planLabel}
-          </span>
-          {activeView !== 'target' ? (
-            <div className="topbar-tools">
-              {profileError ? (
-                <button
-                  type="button"
-                  className="shell-resource-retry shell-profile-resource-retry"
-                  aria-label={t.reference.messages.retryProfile}
-                  onClick={retryProfile}
-                >
-                  <span>{t.reference.targetingShort}</span>
-                  <strong>{t.reference.messages.profileLoadError}</strong>
-                  <ChevronRight aria-hidden="true" />
-                </button>
-              ) : (
-                <ReferenceLink
-                  dashboard
-                  href="/targeting"
-                  aria-label={t.reference.openTargetProfile}
-                  onClick={closeMobileNavigation}
-                >
-                  <span>{t.reference.targetingShort}</span>
-                  <strong>{profileLabel}</strong>
-                  <ChevronRight aria-hidden="true" />
-                </ReferenceLink>
-              )}
-            </div>
-          ) : null}
+          <SidebarTrigger ref={mobileTrigger} className="sidebar-trigger" aria-label={t.reference.openNavigation} />
+          {title ? <h1 className="shell-page-title">{title}</h1> : null}
+          {profileError || planError ? (
+            <button type="button" className="shell-resource-retry" onClick={profileError ? retryProfile : retryPlan}>
+              {profileError ? t.reference.messages.profileLoadError : t.reference.messages.billingLoadError}
+            </button>
+          ) : <span className="shell-profile-name">{profileLabel}</span>}
         </header>
 
         <Outlet />
@@ -297,37 +243,27 @@ function ConnectedShell({
   )
 }
 
-function connectedLocation(
-  pathname: string,
-  t: ReturnType<typeof useI18n>['t'],
-): { active: ActiveView; title: string } {
-  if (pathname === '/app/dashboard') {
-    return { active: 'overview', title: t.reference.overview }
+function connectedLocation(pathname: string, locale: 'fr' | 'en'): { active: ActiveView; title: string | null } {
+  if (pathname === '/app' || pathname === '/app/dashboard') {
+    return { active: 'overview', title: null }
   }
   if (pathname.startsWith('/app/signals')) {
-    return { active: 'signals', title: t.reference.signals }
+    return { active: 'signals', title: null }
   }
   if (pathname.startsWith('/app/companies')) {
-    return { active: 'companies', title: t.companiesIndex.title }
+    return { active: 'companies', title: null }
   }
   if (pathname.startsWith('/app/icps')) {
-    return { active: 'target', title: t.reference.targeting }
+    return { active: 'target', title: locale === 'fr' ? 'Profil cible' : 'Target profile' }
   }
   if (pathname.startsWith('/app/settings/security')) {
-    return { active: 'settings', title: t.reference.accountSettings.securityTitle }
+    return { active: 'settings', title: locale === 'fr' ? 'Sécurité' : 'Security' }
   }
   if (pathname.startsWith('/app/notifications')) {
-    return { active: 'settings', title: t.notifications.title }
+    return { active: 'alerts', title: locale === 'fr' ? 'Alertes' : 'Alerts' }
   }
   if (pathname.startsWith('/app/billing')) {
-    return { active: 'settings', title: t.reference.accountSettings.subscription }
+    return { active: 'settings', title: locale === 'fr' ? 'Abonnement' : 'Subscription' }
   }
-  return { active: 'settings', title: t.reference.account }
-}
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean)
-  if (parts.length === 0) return '—'
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase()
-  return `${parts[0][0]}${parts.at(-1)?.[0] ?? ''}`.toUpperCase()
+  return { active: 'settings', title: locale === 'fr' ? 'Compte' : 'Account' }
 }

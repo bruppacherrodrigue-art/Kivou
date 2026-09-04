@@ -20,11 +20,11 @@ import {
 import { secureBillingDestination } from '../billing/destination'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { interpolate, plural, useI18n } from '../i18n'
-import { PrototypeNotice } from '../reference/dashboard/PrototypeNotice'
-import { SettingsNav } from '../reference/dashboard/SettingsNav'
-import { useResource } from '../reference/dashboard/resources'
-import { Button } from '../reference/dashboard/ui/button'
-import { ReferenceLink } from '../reference/router/ReferenceLink'
+import { PrototypeNotice } from '../presentation/dashboard/PrototypeNotice'
+import { SettingsNav } from '../presentation/dashboard/SettingsNav'
+import { useResource } from '../presentation/dashboard/resources'
+import { Button } from '../presentation/dashboard/ui/button'
+import { ReferenceLink } from '../presentation/router/ReferenceLink'
 
 const PURCHASABLE_PLANS: readonly PurchasablePlan[] = ['essential', 'pro', 'scale']
 const DISPLAYABLE_PLANS: readonly PlanCode[] = ['discovery', 'essential', 'pro', 'scale']

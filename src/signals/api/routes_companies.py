@@ -233,8 +233,11 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
         note = company_engagement.get_note(
             connection, account_id=session.account_id, company_key=company_key
         )
+        most_recent = min(items, key=lambda item: history_sort_key(item.signal))
+        place = most_recent.signal.award.place_of_performance or {}
     return profile.model_copy(
         update={
+            "city": place.get("locality"),
             "contact_status": contact.status if contact is not None else "to_contact",
             "contacted_at": contact.contacted_at if contact is not None else None,
             "note": note.body if note is not None else None,

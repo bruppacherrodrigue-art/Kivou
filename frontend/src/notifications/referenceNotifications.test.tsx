@@ -71,7 +71,7 @@ describe('notifications exactes connectées', () => {
     expect(input).toHaveValue('new@example.test')
   })
 
-  it('affiche la cadence serveur dans le contrôle source mais en lecture seule', async () => {
+  it('affiche la cadence serveur dans le contrôle source mais en analyse seule', async () => {
     mockApi({
       ...shell,
       'GET /notification-preferences': { body: preference },

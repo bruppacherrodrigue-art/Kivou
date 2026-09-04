@@ -26,8 +26,7 @@ import { ProfileSettings } from './pages/ProfileSettings'
 import { SecuritySettings } from './pages/SecuritySettings'
 import { Checkout, CheckoutCancel, CheckoutSuccess } from './pages/Checkout'
 import { NotFound } from './pages/NotFound'
-import { SurfaceBoundary } from './reference/surface/SurfaceBoundary'
-import { PhaseABtpDashboardDemo } from './pages/PhaseABtpDemo'
+import { SurfaceBoundary } from './presentation/surface/SurfaceBoundary'
 
 /* Les routes.
  *
@@ -44,16 +43,6 @@ import { PhaseABtpDashboardDemo } from './pages/PhaseABtpDemo'
  * d'environnement — mais le parcours reste intact si elles ne le sont pas.
  */
 export function App() {
-  if (
-    import.meta.env.VITE_PHASE_A_BTP_DEMO === 'true'
-    && window.location.pathname === '/app/dashboard'
-  ) {
-    return (
-      <I18nProvider>
-        <PhaseABtpDashboardDemo />
-      </I18nProvider>
-    )
-  }
   return (
     <I18nProvider>
       <SessionProvider>
@@ -110,7 +99,7 @@ export function AppRoutes() {
             <Route path="checkout" element={<Checkout />} />
 
             <Route path="app" element={<AppShell />}>
-              <Route index element={<Navigate to="/app/dashboard" replace />} />
+              <Route index element={<Dashboard />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="signals" element={<SignalsFeed />} />
               <Route path="signals/:signalKey" element={<SignalsFeed />} />

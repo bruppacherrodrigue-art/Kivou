@@ -1,4 +1,4 @@
-import { OnboardingFlow } from '../reference/dashboard/OnboardingFlow'
+import { OnboardingFlow } from '../presentation/dashboard/OnboardingFlow'
 
 export function Onboarding() {
   return <OnboardingFlow />

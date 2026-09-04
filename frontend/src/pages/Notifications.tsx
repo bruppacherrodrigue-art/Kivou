@@ -6,12 +6,12 @@ import { describeError } from '../api/errorCopy'
 import type { AlertCadence, NotificationPreference } from '../api/types'
 import { useCurrentUser } from '../auth/SessionProvider'
 import { useI18n } from '../i18n'
-import { PrototypeNotice } from '../reference/dashboard/PrototypeNotice'
-import { SettingsNav } from '../reference/dashboard/SettingsNav'
-import { useResource } from '../reference/dashboard/resources'
-import { Button } from '../reference/dashboard/ui/button'
-import { Input } from '../reference/dashboard/ui/input'
-import { Switch } from '../reference/dashboard/ui/switch'
+import { PrototypeNotice } from '../presentation/dashboard/PrototypeNotice'
+import { SettingsNav } from '../presentation/dashboard/SettingsNav'
+import { useResource } from '../presentation/dashboard/resources'
+import { Button } from '../presentation/dashboard/ui/button'
+import { Input } from '../presentation/dashboard/ui/input'
+import { Switch } from '../presentation/dashboard/ui/switch'
 
 interface NotificationDraft {
   enabled: boolean

@@ -12,7 +12,7 @@ import type {
   UnlockedFeedItem,
 } from '../api/types'
 import { interpolate, plural, useI18n } from '../i18n'
-import { Sheet, SheetContent, SheetTitle } from '../reference/dashboard/ui/sheet'
+import { Sheet, SheetContent, SheetTitle } from '../presentation/dashboard/ui/sheet'
 import { SignalDrawer } from '../signals/components/SignalDrawer'
 import { MISSING, SignalRow, signalObject } from '../signals/components/SignalRow'
 import styles from './SignalsFeed.module.css'

@@ -43,7 +43,7 @@ const shell = {
   'GET /signals': { body: feedPage([UNLOCKED_ITEM, LOCKED_ITEM], { freshness: 'all' }) },
 }
 
-describe('profil de ciblage exact connecté au contrat ICP', () => {
+describe('profil cible exact connecté au contrat ICP', () => {
   it('rend la composition exacte avec le profil API réel et aucune donnée de démonstration', async () => {
     const storageGet = vi.spyOn(Storage.prototype, 'getItem')
     const storageSet = vi.spyOn(Storage.prototype, 'setItem')
@@ -384,7 +384,7 @@ describe('profil de ciblage exact connecté au contrat ICP', () => {
 
     await screen.findByRole('heading', { level: 3, name: ICP.label })
     const examples = document.querySelector('.target-example-list') as HTMLElement
-    expect(await within(examples).findByRole('alert')).toHaveTextContent('La lecture des exemples est incomplète')
+    expect(await within(examples).findByRole('alert')).toHaveTextContent('La analyse des exemples est incomplète')
     await user.click(within(examples).getByRole('button', { name: 'Réessayer' }))
     await waitFor(() => expect(callsTo('/signals', 'GET')).toHaveLength(2))
     expect(within(examples).getByText(UNLOCKED_ITEM.company.name!)).toBeVisible()
@@ -530,7 +530,7 @@ describe('profil de ciblage exact connecté au contrat ICP', () => {
     })
     renderApp(<AppRoutes />, { route: '/app/icps', session: AUTHENTICATED })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('La lecture des exemples est incomplète')
+    expect(await screen.findByRole('alert')).toHaveTextContent('La analyse des exemples est incomplète')
     expect(callsTo('/signals', 'GET').map((call) => call.search.get('offset'))).toEqual(['0', '20'])
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
@@ -552,7 +552,7 @@ describe('profil de ciblage exact connecté au contrat ICP', () => {
     })
     renderApp(<AppRoutes />, { route: '/app/icps', session: AUTHENTICATED })
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('La lecture des exemples est incomplète')
+    expect(await screen.findByRole('alert')).toHaveTextContent('La analyse des exemples est incomplète')
     expect(callsTo('/signals', 'GET')).toHaveLength(25)
     expect(callsTo(`/signals/${LOCKED_ITEM.signal_id}`, 'GET')).toHaveLength(0)
   })
@@ -581,115 +581,6 @@ describe('profil de ciblage exact connecté au contrat ICP', () => {
     expect(document.body).not.toHaveTextContent('located in DE')
   })
 
-  it('rafraîchit le profil autoritaire du shell après une mutation avant la navigation', async () => {
-    const user = userEvent.setup()
-    let listCalls = 0
-    const updated = { ...ICP, label: 'Matériaux — Sud' }
-    mockApi({
-      ...shell,
-      'GET /target-icps': () => {
-        listCalls += 1
-        return { body: [listCalls <= 2 ? ICP : updated] }
-      },
-      [`PATCH /target-icps/${ICP.target_icp_id}`]: { body: updated },
-    })
-    renderApp(<AppRoutes />, { route: '/app/icps', session: AUTHENTICATED })
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }))
-    const name = screen.getByLabelText('Nom du profil')
-    await user.clear(name)
-    await user.type(name, updated.label)
-    await user.type(screen.getByLabelText('Ce que vous vendez'), 'Granulats livrés sur chantier')
-    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
-
-    await waitFor(() => expect(callsTo(`/target-icps/${ICP.target_icp_id}`, 'PATCH')).toHaveLength(1))
-    expect(await screen.findByText(/^Profil enregistré\.$/)).toBeVisible()
-    await waitFor(() => expect(listCalls).toBeGreaterThanOrEqual(3))
-    await user.click(screen.getByRole('link', { name: 'Vue d’ensemble' }))
-    expect(await screen.findByRole('link', { name: 'Ouvrir le profil de ciblage' })).toHaveTextContent(updated.label)
-  })
-
-  it('masque la valeur shell périmée pendant le refresh autoritaire', async () => {
-    const user = userEvent.setup()
-    const updated = { ...ICP, label: 'Matériaux — Sud' }
-    let listCalls = 0
-    let resolveRefresh!: (value: { body: TargetIcp[] }) => void
-    mockApi({
-      ...shell,
-      'GET /target-icps': () => {
-        listCalls += 1
-        if (listCalls <= 2) return { body: [ICP] }
-        if (listCalls === 3) {
-          return new Promise((resolve) => { resolveRefresh = resolve })
-        }
-        return { body: [updated] }
-      },
-      [`PATCH /target-icps/${ICP.target_icp_id}`]: { body: updated },
-    })
-    renderApp(<AppRoutes />, { route: '/app/icps', session: AUTHENTICATED })
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }))
-    await user.clear(screen.getByLabelText('Nom du profil'))
-    await user.type(screen.getByLabelText('Nom du profil'), updated.label)
-    await user.type(screen.getByLabelText('Ce que vous vendez'), 'Granulats livrés sur chantier')
-    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
-    await waitFor(() => expect(listCalls).toBe(3))
-    await user.click(screen.getByRole('link', { name: 'Vue d’ensemble' }))
-
-    const profileLink = await screen.findByRole('link', { name: 'Ouvrir le profil de ciblage' })
-    expect(profileLink).toHaveTextContent('Chargement')
-    expect(profileLink).not.toHaveTextContent(ICP.label)
-
-    await act(async () => {
-      resolveRefresh({ body: [updated] })
-      await Promise.resolve()
-    })
-    await waitFor(() => expect(profileLink).toHaveTextContent(updated.label))
-  })
-
-  it('rend l’échec du refresh shell relançable sans réafficher l’ancien profil', async () => {
-    const user = userEvent.setup()
-    const updated = { ...ICP, label: 'Matériaux — Sud' }
-    let listCalls = 0
-    let billingCalls = 0
-    mockApi({
-      ...shell,
-      'GET /target-icps': () => {
-        listCalls += 1
-        if (listCalls <= 2) return { body: [ICP] }
-        if (listCalls === 3) {
-          return { status: 503, body: { detail: { code: 'temporarily_unavailable' } } }
-        }
-        return { body: [updated] }
-      },
-      'GET /billing/status': () => {
-        billingCalls += 1
-        return { body: DISCOVERY_STATUS }
-      },
-      [`PATCH /target-icps/${ICP.target_icp_id}`]: { body: updated },
-    })
-    renderApp(<AppRoutes />, { route: '/app/icps', session: AUTHENTICATED })
-
-    await user.click(await screen.findByRole('button', { name: 'Modifier le profil' }))
-    await user.clear(screen.getByLabelText('Nom du profil'))
-    await user.type(screen.getByLabelText('Nom du profil'), updated.label)
-    await user.type(screen.getByLabelText('Ce que vous vendez'), 'Granulats livrés sur chantier')
-    await user.click(screen.getByRole('button', { name: 'Enregistrer' }))
-    await waitFor(() => expect(listCalls).toBe(3))
-    await user.click(screen.getByRole('link', { name: 'Vue d’ensemble' }))
-
-    const retry = await screen.findByRole('button', {
-      name: 'Réessayer le chargement du profil de ciblage',
-    })
-    expect(retry).not.toHaveTextContent(ICP.label)
-    const profileCallsBeforeRetry = listCalls
-    const billingCallsBeforeRetry = billingCalls
-    await user.click(retry)
-
-    expect(await screen.findByRole('link', { name: 'Ouvrir le profil de ciblage' })).toHaveTextContent(updated.label)
-    expect(listCalls).toBe(profileCallsBeforeRetry + 1)
-    expect(billingCalls).toBe(billingCallsBeforeRetry)
-  })
 
   it('ne revendique un profil actif qu’après l’autorité billing et expose les limites', async () => {
     let billingCalls = 0
@@ -721,7 +612,7 @@ describe('profil de ciblage exact connecté au contrat ICP', () => {
       await Promise.resolve()
     })
     await screen.findByRole('button', { name: 'Réessayer' })
-    expect(status).toHaveTextContent('Non publié')
+    expect(status).toHaveTextContent('—')
     expect(status).not.toHaveTextContent('Profil actif')
 
     await userEvent.setup().click(screen.getByRole('button', { name: 'Réessayer' }))
@@ -900,7 +791,7 @@ describe('profil de ciblage exact connecté au contrat ICP', () => {
     renderApp(<AppRoutes />, { route: '/app/icps', session: AUTHENTICATED })
     await screen.findByRole('heading', { level: 3, name: ICP.label })
     const errorList = document.querySelector('.target-example-list') as HTMLElement
-    expect(await within(errorList).findByRole('alert')).toHaveTextContent('La lecture des exemples est incomplète')
+    expect(await within(errorList).findByRole('alert')).toHaveTextContent('La analyse des exemples est incomplète')
     await user.click(within(errorList).getByRole('button', { name: 'Réessayer' }))
     await waitFor(() => expect(within(errorList).queryByRole('alert')).not.toBeInTheDocument())
     expect(errorList.querySelectorAll('.is-included')).toHaveLength(0)

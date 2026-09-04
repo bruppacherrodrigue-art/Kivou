@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 
 import { expect, test, type Page } from '@playwright/test'
 
-import { publishedPresentation } from '../../src/reference/dashboard/adapters'
+import { publishedPresentation } from '../../src/presentation/dashboard/adapters'
 import {
   LOCAL_REFERENCE_ROUTES,
   VISUAL_SIGNAL_ITEMS,
@@ -83,17 +83,17 @@ test('dashboard-companies published fixture contract', () => {
 
 const HEADINGS: Record<(typeof LOCAL_REFERENCE_ROUTES)[number]['golden'], string> = {
   'public-home': 'Repérez les entreprises qui viennent de gagner un marché public.',
-  'public-product': 'Kivou suit ce qui se passe après l’attribution.',
+  'public-product': 'Kivou suit ce qui se passe une fois le marché attribué.',
   'public-pricing': 'Choisissez la couverture adaptée à votre prospection.',
   'public-signal': 'H. Hüther GmbH a remporté un marché de 5,22 M€ à Munich.',
   'public-contact': 'Contact',
   'public-legal': 'Informations légales et contractuelles',
   'dashboard-login': 'Retrouver vos signaux',
-  'dashboard-signup': 'Commencer avec un ciblage clair',
-  'dashboard-overview': 'Vue d’ensemble',
+  'dashboard-signup': 'Commencer avec un profil cible clair',
+  'dashboard-overview': '8 nouveaux marchés depuis mardi',
   'dashboard-signals': 'Signaux',
   'dashboard-companies': 'Entreprises',
-  'dashboard-targeting': 'Profil de ciblage',
+  'dashboard-targeting': 'Profil cible',
   'dashboard-account': 'Compte',
 }
 
@@ -165,11 +165,11 @@ async function assertNoForbiddenSignalsCopy(page: Page) {
     'resolution incomplete',
     'faits publies',
     'contact non confirme',
-    'occasion',
-    'ciblage',
+    'signal',
+    'profil cible',
     'attribution',
     'deblocage',
-    'lecture',
+    'analyse',
   ]) {
     expect(normalized).not.toContain(forbidden)
   }
@@ -196,8 +196,9 @@ async function waitForScenario(
     await expect(page.locator('.pricing-grid .price-card')).toHaveCount(4)
   }
   if (golden === 'dashboard-overview') {
-    await expect(page.locator('.priority-card[aria-busy="true"]')).toHaveCount(0)
-    await expect(page.locator('.recent-list .recent-signal')).toHaveCount(5)
+    await expect(page.locator('[data-page="today"] article')).toHaveCount(3)
+    await expect(page.getByRole('region', { name: 'À relancer' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Cette semaine' })).toBeVisible()
   }
   if (golden === 'dashboard-signals') {
     // Nouvelle page : un tableau dense + une ligne de filtres + un tiroir
@@ -322,15 +323,7 @@ async function preparePage(
 
 for (const route of LOCAL_REFERENCE_ROUTES) {
   for (const viewport of VIEWPORTS) {
-    const inheritedShellBaseline = [
-      'dashboard-login',
-      'dashboard-overview',
-      'dashboard-account',
-    ].includes(route.golden)
-    // TODO PR3: régénérer les deux goldens Entreprises avec la nouvelle liste CRM.
-    // TODO PR4: régénérer les goldens hérités du shell et du dashboard.
-    const visualTest = inheritedShellBaseline ? test.skip : test
-    visualTest(route.golden + ' ' + viewport.name, async ({ page }) => {
+    test(route.golden + ' ' + viewport.name, async ({ page }) => {
       const failures = observeBrowserFailures(page, route.scenario)
       const calls = await installReferenceApi(page, route.scenario)
       await page.setViewportSize(viewport)
@@ -420,8 +413,7 @@ test('public menu open mobile', async ({ page }) => {
   expect(failures).toEqual([])
 })
 
-// TODO PR4: régénérer ce golden avec le shell final du dashboard.
-test.skip('dashboard sidebar open mobile', async ({ page }) => {
+test('dashboard sidebar open mobile', async ({ page }) => {
   const failures = observeBrowserFailures(page, 'connected-pro')
   const calls = await installReferenceApi(page, 'connected-pro')
   await page.setViewportSize({ width: 390, height: 844 })
@@ -435,6 +427,16 @@ test.skip('dashboard sidebar open mobile', async ({ page }) => {
     maxDiffPixelRatio: 0.001,
   })
   expect(calls.some((call) => call.path === '/__unhandled__')).toBe(false)
+  expect(failures).toEqual([])
+})
+
+test('dashboard Aujourd’hui tient sans défilement à 1280 × 800', async ({ page }) => {
+  const failures = observeBrowserFailures(page, 'connected-pro')
+  await installReferenceApi(page, 'connected-pro')
+  await page.setViewportSize({ width: 1280, height: 800 })
+  await page.goto('/app/dashboard')
+  await preparePage(page, 'connected-pro', 'dashboard-overview')
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBeLessThanOrEqual(800)
   expect(failures).toEqual([])
 })
 

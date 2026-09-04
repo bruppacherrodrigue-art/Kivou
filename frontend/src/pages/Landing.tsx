@@ -13,8 +13,8 @@ import {
   signalCountLabel,
   territoryLabel,
   usePricingResource,
-} from '../reference/public/PricingResource'
-import { ReferenceLink } from '../reference/router/ReferenceLink'
+} from '../presentation/public/PricingResource'
+import { ReferenceLink } from '../presentation/router/ReferenceLink'
 
 export function Landing() {
   const pricing = usePricingResource()
@@ -29,15 +29,15 @@ export function Landing() {
   return (
     <>
       <PublicPageMeta
-        title="Kivou | Signaux commerciaux post-attribution"
-        description="Kivou transforme les marchés publics attribués en signaux commerciaux documentés."
+        title="Kivou | Signaux commerciaux après un marché attribué"
+        description="Kivou transforme les marchés publics attribués en signaux commerciaux étayés."
         canonicalPath="/"
       />
       <main id="main" tabIndex={-1}>
         <section className="home-hero">
           <div className="container hero-grid">
             <div className="hero-copy">
-              <p className="eyebrow">Veille commerciale post-attribution</p>
+              <p className="eyebrow">Veille des marchés attribués</p>
               <h1>Repérez les entreprises qui viennent de gagner un marché public.</h1>
               <p className="lead">Kivou rassemble le marché remporté, les volumes publiés, les dates utiles et les besoins d’exécution à vérifier avant de contacter le gagnant.</p>
               <div className="button-row">
@@ -80,9 +80,9 @@ export function Landing() {
               <ReferenceLink className="text-link" href="/exemple-de-signal">Voir l’exemple complet</ReferenceLink>
             </div>
 
-            <div className="glass dashboard-preview signal-path-preview" aria-label="Chemin de lecture d’un signal Kivou">
-              <div className="signal-path-step"><span>01</span><div><strong>Fait publié</strong><p>L’attribution, le titulaire, le périmètre et la source officielle.</p></div></div>
-              <div className="signal-path-step"><span>02</span><div><strong>Pertinence expliquée</strong><p>La correspondance avec votre offre, votre territoire et votre ciblage.</p></div></div>
+            <div className="glass dashboard-preview signal-path-preview" aria-label="Chemin de analyse d’un signal Kivou">
+              <div className="signal-path-step"><span>01</span><div><strong>Fait publié</strong><p>Le marché attribué, le titulaire, le périmètre et la source officielle.</p></div></div>
+              <div className="signal-path-step"><span>02</span><div><strong>Pertinence expliquée</strong><p>La correspondance avec votre offre, votre territoire et votre profil cible.</p></div></div>
               <div className="signal-path-step"><span>03</span><div><strong>Inconnues visibles</strong><p>Ce que l’avis ne permet pas d’affirmer et qu’il reste à vérifier.</p></div></div>
               <div className="signal-path-step"><span>04</span><div><strong>Votre apprentissage</strong><p>Une note personnelle, ajoutée après les faits, sans modifier la source.</p></div></div>
             </div>
@@ -106,11 +106,11 @@ export function Landing() {
 
         <section className="dark-section">
           <div className="container summary-grid">
-            <div><p className="eyebrow">Comment ça marche</p><h2>Vous définissez la cible. Kivou suit les attributions.</h2></div>
+            <div><p className="eyebrow">Comment ça marche</p><h2>Vous définissez la cible. Kivou suit les marchés attribués.</h2></div>
             <ol className="summary-steps">
               <li><span>01</span><div><b>Décrivez votre offre</b><p>Produits, entreprises cibles et territoires.</p></div></li>
               <li><span>02</span><div><b>Kivou relève les faits utiles</b><p>Gagnant, marché, volumes et calendrier.</p></div></li>
-              <li><span>03</span><div><b>Vous gardez votre lecture</b><p>Approfondir le compte, l’écarter ou consigner une note.</p></div></li>
+              <li><span>03</span><div><b>Vous gardez votre analyse</b><p>Approfondir le compte, l’écarter ou consigner une note.</p></div></li>
             </ol>
             <ReferenceLink className="btn mint-btn" href="/produit">Voir la méthode</ReferenceLink>
           </div>

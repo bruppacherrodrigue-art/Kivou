@@ -4,7 +4,7 @@ import { AppRoutes } from '../App'
 import { CATALOGUE, mockApi, renderApp } from '../test/harness'
 
 describe('contenu et agencement exacts de la référence publique', () => {
-  it('présente les quatre niveaux de lecture du signal', () => {
+  it('présente les quatre niveaux de analyse du signal', () => {
     mockApi({})
     const view = renderApp(<AppRoutes />, { route: '/' })
     const title = screen.getByRole('heading', { level: 2, name: 'Voici ce que vous voyez lorsqu’un signal remonte.' })
@@ -40,8 +40,8 @@ describe('contenu et agencement exacts de la référence publique', () => {
   it('rend la page produit complète dans les classes de la référence', async () => {
     mockApi({ 'GET /billing/plans': { body: CATALOGUE } })
     const { container } = renderApp(<AppRoutes />, { route: '/produit' })
-    expect(screen.getByRole('heading', { level: 1, name: 'Kivou suit ce qui se passe après l’attribution.' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { level: 2, name: 'Cinq étapes, du ciblage au signal.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 1, name: 'Kivou suit ce qui se passe une fois le marché attribué.' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { level: 2, name: 'Cinq étapes, du profil cible au signal.' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 2, name: 'Des faits publiés à l’angle commercial à vérifier.' })).toBeInTheDocument()
     expect(container.querySelector('.pipeline-card .pipeline')).not.toBeNull()
     expect(container.querySelector('.fact-module .analysis-bridge')).not.toBeNull()

@@ -48,7 +48,7 @@ export const fr = {
     overview: 'Vue d’ensemble',
     signals: 'Signaux',
     companies: 'Entreprises',
-    targeting: 'Profil de ciblage',
+    targeting: 'Profil cible',
     account: 'Compte',
     navigation: 'Navigation',
     navigationDescription: 'Menu principal de Kivou.',
@@ -58,19 +58,19 @@ export const fr = {
     monitoring: 'Veille des marchés attribués',
     openNavigation: 'Ouvrir la navigation',
     openAccountSettings: 'Ouvrir les paramètres du compte',
-    openTargetProfile: 'Ouvrir le profil de ciblage',
-    targetingShort: 'Ciblage',
+    openTargetProfile: 'Ouvrir le profil cible',
+    targetingShort: 'Profil cible',
     loading: 'Chargement…',
-    missingValue: 'Non publié',
+    missingValue: '—',
     retry: 'Réessayer',
     save: 'Enregistrer',
     saving: 'Enregistrement…',
     saved: 'Enregistré',
     headings: {
       monitoringSummary: 'Résumé de la veille',
-      documentedAwards: 'Attributions documentées',
+      documentedAwards: 'Marchés attribués',
       savedProfile: 'Profil enregistré',
-      otherDocumentedAwards: 'Autres attributions documentées',
+      otherDocumentedAwards: 'Autres marchés attribués',
       awardedContracts: 'Marchés attribués',
       selectedSignal: 'Signal sélectionné',
       commercialBrief: 'Le signal en quatre points',
@@ -83,7 +83,7 @@ export const fr = {
       publishedIdentity: 'Identité publiée',
       sourceAssertions: 'Ce que la source permet d’affirmer',
       usefulRoles: 'Fonctions utiles avant contact',
-      targetProfile: 'Profil de ciblage',
+      targetProfile: 'Profil cible',
       matchingLogic: 'Logique de correspondance',
       matchingExamples: 'Exemples de correspondance',
       tedTraceability: 'Chaque avis TED reste consultable',
@@ -117,7 +117,7 @@ export const fr = {
       editAccount: 'Modifier le compte',
       subscription: 'Abonnement',
       state: 'État',
-      currentPriceUnavailable: 'Tarif facturé non publié',
+      currentPriceUnavailable: 'Tarif facturé absent',
       connectedState: 'Données du compte connectées',
       manageSubscription: 'Gérer l’abonnement',
       supportKicker: 'Assistance',
@@ -163,7 +163,7 @@ export const fr = {
       retryCatalogue: 'Réessayer les offres',
       statusError: 'L’état de facturation n’a pas pu être chargé.',
       retryStatus: 'Réessayer l’état de facturation',
-      targetProfiles: 'Profils de ciblage',
+      targetProfiles: 'Profils cibles',
       territories: 'Territoires',
       alerts: 'Alertes',
       history: 'Historique',
@@ -242,7 +242,7 @@ export const fr = {
       state: 'État',
       recipient: 'Adresse de réception',
       frequency: 'Fréquence',
-      targetProfiles: 'Profils de ciblage',
+      targetProfiles: 'Profils cibles',
       territories: 'Territoires',
       alerts: 'Alertes',
       history: 'Historique',
@@ -258,15 +258,15 @@ export const fr = {
       accessibleWithEssential: 'Accessible avec Essential',
       noteAdded: 'Note ajoutée',
       reviewFirst: 'À examiner d’abord',
-      documentedSignal: 'Signal documenté',
+      documentedSignal: 'Signal',
     },
     messages: {
       loadError: 'Les informations n’ont pas pu être chargées.',
-      profileLoadError: 'Le profil de ciblage n’a pas pu être chargé.',
+      profileLoadError: 'Le profil cible n’a pas pu être chargé.',
       billingLoadError: 'L’offre n’a pas pu être chargée.',
       refreshing: 'Actualisation des données…',
       refreshFailed: 'L’actualisation a échoué. Les données affichées peuvent être anciennes.',
-      retryProfile: 'Réessayer le chargement du profil de ciblage',
+      retryProfile: 'Réessayer le chargement du profil cible',
       retryBilling: 'Réessayer le chargement de l’offre',
       saveError: 'Les modifications n’ont pas pu être enregistrées.',
       noteError: 'La note n’a pas pu être enregistrée.',
@@ -280,8 +280,8 @@ export const fr = {
       scale: 'Scale',
     },
     overviewPage: {
-      documentedAwardOne: '{count} attribution documentée',
-      documentedAwardOther: '{count} attributions documentées',
+      documentedAwardOne: '{count} attribution étayée',
+      documentedAwardOther: '{count} marchés attribués',
       lead:
         'Cette vue présente jusqu’à six attributions à partir des faits et artefacts réellement publiés.',
       reviewFirst: 'À examiner en premier',
@@ -290,13 +290,13 @@ export const fr = {
       whyFirst: 'Pourquoi il remonte en premier',
       recentRelevantAwards: 'Attributions récentes pertinentes',
       summaryUnavailable:
-        'Résumé de l’attribution non publié. Ouvrez le signal pour consulter les faits disponibles.',
-      analysisUnavailable: 'Présentation non publiée',
+        'Résumé de l’attribution absent. Ouvrez le signal pour consulter les faits disponibles.',
+      analysisUnavailable: 'Présentation absente',
       analysisUnavailableBody:
         'Aucune analyse n’est publiée pour cette attribution.',
       factualSummaryBody:
         'Un résumé factuel est publié, sans interprétation commerciale.',
-      buyerUnavailable: 'Acheteur non publié',
+      buyerUnavailable: 'Acheteur absent',
       match: 'Correspondance',
       viewAward: 'Voir l’attribution',
       honestyLimit:
@@ -324,7 +324,7 @@ export const fr = {
       lastVerified: 'Dernière vérification',
     },
     targetingPage: {
-      monitoredTargeting: 'Ciblage surveillé',
+      monitoredTargeting: 'Profil cible surveillé',
       lead: 'Ce profil décrit l’offre, les entreprises et le territoire recherchés.',
       editProfile: 'Modifier le profil',
       createProfile: 'Créer un profil',
@@ -345,7 +345,7 @@ export const fr = {
       examples: 'Exemples',
       noInventedExamples: 'Aucun exemple n’est inventé à partir du profil enregistré.',
       noExampleAvailable: 'Aucun signal accessible n’est publié dans cet emplacement.',
-      examplesIncomplete: 'La lecture des exemples est incomplète.',
+      examplesIncomplete: 'La analyse des exemples est incomplète.',
       exampleMatch: '{match}, pour un projet situé à {location}.',
       matches: 'Correspond',
       outOfProfile: 'Hors profil',
@@ -356,7 +356,7 @@ export const fr = {
       sourceBody: 'Lorsqu’ils sont publiés, les marchés conservent leur montant, leur calendrier et leur source.',
       separateTokens: 'Séparez les mots-clés par une virgule.',
       realSaveNote: 'Les modifications sont enregistrées sur votre compte et s’appliquent aux prochaines détections.',
-      loadingAccess: 'Actualisation des droits de ciblage…',
+      loadingAccess: 'Actualisation des droits de profil cible…',
       activeProfileLimit: 'Profils actifs : {active} / {limit}',
     },
   },
@@ -365,7 +365,7 @@ export const fr = {
     dashboard: 'Vue d’ensemble',
     signals: 'Signaux',
     companies: 'Entreprises',
-    icps: 'Profil de ciblage',
+    icps: 'Profil cible',
     billing: 'Facturation',
     notifications: 'Notifications',
     settings: 'Compte',
@@ -410,31 +410,31 @@ export const fr = {
     summaryTitle: 'Vos ressources utiles, au même endroit',
     summaryLabel: 'Résumé du compte',
     signalsRead: 'Signaux',
-    signalReadOne: '{count} signal dans cette lecture',
-    signalReadOther: '{count} signaux dans cette lecture',
+    signalReadOne: '{count} signal dans cette analyse',
+    signalReadOther: '{count} signaux dans cette analyse',
     activeTargeting: 'Profils actifs',
     activeIcpOne: '{count} profil actif',
     activeIcpOther: '{count} profils actifs',
     currentAccess: 'Accès actuel',
     alertState: 'Alertes',
-    lead: 'Ce qui mérite votre attention aujourd’hui, à partir des marchés qui correspondent à vos ciblages.',
+    lead: 'Ce qui mérite votre attention aujourd’hui, à partir des marchés qui correspondent à vos profils cibles.',
     opportunities: 'Signaux à examiner',
-    icps: 'Ciblages actifs',
+    icps: 'Profils cibles actifs',
     billing: 'Formule et accès',
     alerts: 'Alertes',
-    opportunitiesError: 'Les occasions sont momentanément indisponibles.',
-    retryOpportunities: 'Réessayer les occasions',
+    opportunitiesError: 'Les signaux sont momentanément indisponibles.',
+    retryOpportunities: 'Réessayer les signaux',
     viewAllFeed: 'Voir tous les signaux',
-    noOpportunities: 'Aucune occasion à examiner pour le moment.',
+    noOpportunities: 'Aucune signal à examiner pour le moment.',
     noOpportunitiesBody:
-      'Kivou continue de surveiller les publications. Vérifiez vos ciblages pendant ce temps.',
+      'Kivou continue de surveiller les publications. Vérifiez vos profils cibles pendant ce temps.',
     noAccessibleCompany:
-      'Aucune fiche entreprise n’est accessible depuis les occasions actuellement affichées.',
-    adjustTargeting: 'Ajuster le ciblage',
-    manageIcps: 'Gérer mes ciblages',
-    icpsError: 'Les ciblages n’ont pas pu être chargés.',
-    noActiveIcp: 'Aucun ciblage actif utilisable.',
-    noActiveIcpBody: 'Créez ou corrigez un ciblage pour recevoir des occasions pertinentes.',
+      'Aucune fiche entreprise n’est accessible depuis les signaux actuellement affichées.',
+    adjustTargeting: 'Ajuster le profil cible',
+    manageIcps: 'Gérer mes profils cibles',
+    icpsError: 'Les profils cibles n’ont pas pu être chargés.',
+    noActiveIcp: 'Aucun profil cible actif utilisable.',
+    noActiveIcpBody: 'Créez ou corrigez un profil cible pour recevoir des signaux pertinentes.',
     territoryLimit: '{count} territoires configurés · limite de la formule : {limit}',
     billingError: 'La facturation n’a pas pu être chargée.',
     retryBilling: 'Réessayer la facturation',
@@ -442,15 +442,15 @@ export const fr = {
     manageSubscription: 'Gérer mon abonnement',
     recoverPayment: 'Corriger le paiement',
     contactSupport: 'Contacter le support',
-    discoveryUsed: 'Déblocages Discovery utilisés',
-    discoveryUsedOne: '{count} déblocage utilisé',
-    discoveryUsedOther: '{count} déblocages utilisés',
-    discoveryRemaining: 'Déblocages Discovery restants',
-    discoveryRemainingOne: '{count} déblocage restant',
-    discoveryRemainingOther: '{count} déblocages restants',
+    discoveryUsed: 'Signaux ouverts Discovery utilisés',
+    discoveryUsedOne: '{count} signal ouvert utilisé',
+    discoveryUsedOther: '{count} signaux ouverts utilisés',
+    discoveryRemaining: 'Signaux ouverts Discovery restants',
+    discoveryRemainingOne: '{count} signal ouvert restant',
+    discoveryRemainingOther: '{count} signaux ouverts restants',
     discoveryLimit: 'Limite Discovery',
     discoveryLimitValue: 'Limite : {count}',
-    discoveryExhausted: 'Aucun déblocage Discovery ne reste disponible.',
+    discoveryExhausted: 'Aucun signal ouvert Discovery ne reste disponible.',
     scheduledCancellation: 'Résiliation programmée le {date}',
     alertsEnabled: 'Alertes activées',
     alertsDisabled: 'Alertes désactivées',
@@ -469,7 +469,7 @@ export const fr = {
     company: 'Fiche entreprise',
     contextPreview: 'Contexte adjacent',
     contextWithoutUnlocked:
-      'Aucun signal déverrouillé dans cette lecture ne permet de vérifier une fiche entreprise.',
+      'Aucun signal déverrouillé dans cette analyse ne permet de vérifier une fiche entreprise.',
     companyAvailable: 'Une fiche entreprise autorisée est disponible pour le premier signal accessible.',
     companyAction: 'Consulter la fiche entreprise',
     companyUnavailable: 'Fiche indisponible',
@@ -509,11 +509,11 @@ export const fr = {
   landing: {
     heroEyebrow: 'SIGNAUX COMMERCIAUX ISSUS DES MARCHÉS PUBLICS',
     heroTitle:
-      'Les entreprises qui remportent des contrats publics — et les occasions commerciales que votre équipe peut examiner.',
+      'Les entreprises qui remportent des contrats publics — et les signaux commerciaux que votre équipe peut examiner.',
     heroLead:
-      'Kivou identifie les entreprises gagnantes, comprend ce qu’elles devront exécuter et vous montre les occasions correspondant à ce que vous vendez.',
+      'Kivou identifie les entreprises gagnantes, comprend ce qu’elles devront exécuter et vous montre les signaux correspondant à ce que vous vendez.',
     heroSecondaryLead:
-      'Vous ne recevez pas une liste de marchés publics. Vous recevez des raisons documentées d’examiner les bonnes entreprises.',
+      'Vous ne recevez pas une liste de marchés publics. Vous recevez des raisons étayées d’examiner les bonnes entreprises.',
     heroPrimary: 'Voir mes 3 signaux',
     heroSecondary: 'Découvrir un signal complet',
     heroTrust: 'Suisse + Union européenne · Sources officielles · Preuves vérifiables',
@@ -550,12 +550,12 @@ export const fr = {
       introTitle:
         'Kivou transforme les attributions publiques en prospects à examiner selon leur calendrier.',
       introBodyOne:
-        'Des entreprises remportent des contrats publics en Suisse et dans l’Union européenne. Kivou identifie les gagnants, résume ce qu’ils devront exécuter et sélectionne les occasions qui correspondent à ce que vous vendez.',
+        'Des entreprises remportent des contrats publics en Suisse et dans l’Union européenne. Kivou identifie les gagnants, résume ce qu’ils devront exécuter et sélectionne les signaux qui correspondent à ce que vous vendez.',
       introBodyTwo:
-        'Kivou surveille ces événements, identifie les gagnants, comprend ce qu’ils devront exécuter et sélectionne uniquement les occasions correspondant à ce que vous vendez.',
+        'Kivou surveille ces événements, identifie les gagnants, comprend ce qu’ils devront exécuter et sélectionne uniquement les signaux correspondant à ce que vous vendez.',
       introHighlight:
         'Pas une liste de marchés publics : des faits, une analyse et une preuve pour décider par vous-même.',
-      profileEyebrow: 'Votre profil de ciblage',
+      profileEyebrow: 'Votre profil cible',
       profileTitle: 'Vous décrivez votre activité. Kivou surveille le marché pour vous.',
       profileBody:
         'Vous indiquez votre offre, vos cibles et vos régions. Kivou écarte le bruit et fait remonter les attributions utiles.',
@@ -590,7 +590,7 @@ export const fr = {
         },
         {
           title: 'Analyse Kivou',
-          body: 'La correspondance avec votre ciblage et les points à vérifier sont expliqués comme des hypothèses.',
+          body: 'La correspondance avec votre profil cible et les points à vérifier sont expliqués comme des hypothèses.',
         },
         {
           title: 'Votre apprentissage',
@@ -599,7 +599,7 @@ export const fr = {
       ],
       dashboardEyebrow: 'DANS VOTRE DASHBOARD',
       dashboardTitle:
-        'Un chemin de lecture clair, jusqu’à votre note.',
+        'Un chemin de analyse clair, jusqu’à votre note.',
       dashboardBody:
         'Les faits publiés, l’analyse Kivou, la preuve officielle puis votre avis tiennent dans une seule vue.',
       dashboardAlt:
@@ -615,7 +615,7 @@ export const fr = {
       ],
       dashboardPrimary: 'Voir un signal complet',
       dashboardSecondary: 'Recevoir mes 3 signaux',
-      comparisonTitle: 'Une attribution publique n’est pas encore une occasion commerciale',
+      comparisonTitle: 'Un marché attribué n’est pas encore un signal commercial',
       comparisonWithoutEyebrow: 'Sans Kivou',
       comparisonWithoutTitle: 'Une donnée parmi des milliers',
       comparisonWithoutItems: [
@@ -627,7 +627,7 @@ export const fr = {
       comparisonWithoutConclusion:
         'Le commercial doit encore transformer la donnée en approche concrète.',
       comparisonWithEyebrow: 'Avec Kivou',
-      comparisonWithTitle: 'Une raison documentée de contacter le bon prospect',
+      comparisonWithTitle: 'Une raison étayée de contacter le bon prospect',
       comparisonWithItems: [
         'prospect identifié',
         'volumes résumés',
@@ -691,7 +691,7 @@ export const fr = {
       factTitle: 'Fait public',
       factBody: 'Publication officielle d’un marché attribué et de son gagnant.',
       requirementTitle: 'Exigence documentaire',
-      requirementBody: 'Lecture des pièces du marché et extraction des exigences d’exécution.',
+      requirementBody: 'Analyse des pièces du marché et extraction des exigences d’exécution.',
       needTitle: 'Besoin plausible',
       needBody: 'Ce que cette exigence peut impliquer pour le gagnant. Une hypothèse, pas un achat.',
       timingTitle: 'Timing',
@@ -772,7 +772,7 @@ export const fr = {
 
   publicDemo: {
     navLabel: 'Exemple de signal',
-    heroEyebrow: 'Signal commercial documenté',
+    heroEyebrow: 'Signal commercial étayé',
     heroTitle: '{company} a remporté un marché de {amount} à {location}',
     heroSubtitle:
       'Le descriptif publié mentionne {woodDoors} huisseries et portes bois, {steelDoors} huisseries acier et portes bois, {skirting} de plinthes, {wallCladding} de revêtement bois, {glazing} vitrages et {kitchenettes} kitchenettes.',
@@ -796,11 +796,11 @@ export const fr = {
 
     overviewEyebrow: 'Pourquoi cette attribution mérite un examen commercial',
     overviewTitle:
-      'Un marché important fournit des faits concrets pour évaluer une occasion fournisseur.',
+      'Un marché important fournit des faits concrets pour évaluer un signal commercial.',
     overviewBody:
       '{company} a remporté un marché de {amount} à {location}. Kivou rassemble l’attribution, les volumes publiés et le calendrier pour permettre à un fournisseur d’évaluer la compatibilité avec son offre.',
     needLabel: 'Besoin commercial plausible',
-    overviewHighlight: 'Attribution publiée. Volumes documentés. Entreprise identifiée.',
+    overviewHighlight: 'Attribution publiée. Volumes étayés. Entreprise identifiée.',
 
     volumesTitle: 'Ce que l’entreprise devra exécuter',
     volumesLead: 'Volumes publiés dans l’avis d’attribution officiel.',
@@ -843,7 +843,7 @@ export const fr = {
     matchingConclusion:
       'Ce bloc explique le mécanisme de matching ; il ne présente pas une correspondance calculée pour le visiteur de cette page.',
     matchingNote:
-      'Dans un compte Kivou, le flux est personnalisé à partir du profil de ciblage réellement renseigné.',
+      'Dans un compte Kivou, le flux est personnalisé à partir du profil cible réellement renseigné.',
 
     timingTitle: 'Calendrier publié du marché',
     timingWhyTitle: 'Ce que ces dates permettent d’examiner',
@@ -878,7 +878,7 @@ export const fr = {
 
     actionEyebrow: 'À vérifier par vous',
     actionTitle: 'Ce que vous pouvez vérifier maintenant',
-    actionBody: 'Kivou documente le signal, mais ne prétend pas connaître les fournisseurs déjà choisis ni les achats encore ouverts.',
+    actionBody: 'Kivou présente le signal, mais ne prétend pas connaître les fournisseurs déjà choisis ni les achats encore ouverts.',
     actionListTitle: 'Questions utiles',
     actionReviewMarket: 'Quels approvisionnements restent éventuellement ouverts ?',
     actionCheckFit: 'Les produits publiés correspondent-ils réellement à votre offre ?',
@@ -921,7 +921,7 @@ export const fr = {
     statusLimited: 'Limitée',
     statusMetadata: 'Métadonnées de l’avis',
 
-    finalCtaTitle: 'Recevez les occasions qui correspondent à votre activité',
+    finalCtaTitle: 'Recevez les signaux qui correspondent à votre activité',
     finalCtaBody:
       'Décrivez ce que vous vendez et où vous intervenez. Kivou surveille les attributions publiques et vous montre les entreprises, les faits, le calendrier et les besoins plausibles correspondant à votre profil.',
     finalCtaNoCard: 'Aucune carte bancaire nécessaire.',
@@ -972,7 +972,7 @@ export const fr = {
   },
 
   onboarding: {
-    title: 'Configurer votre profil de ciblage',
+    title: 'Configurer votre profil cible',
     lead: 'Cinq questions. Elles déterminent quels signaux vous recevrez.',
     stepOf: 'Étape {current} sur {total}',
     labelStep: 'Comment appeler ce profil ?',
@@ -981,7 +981,7 @@ export const fr = {
     labelPlaceholder: 'Par exemple : Matériaux — Suisse romande',
     offersStep: 'Que vendez-vous ?',
     offersHelp: 'Sélectionnez au moins une catégorie. Elle détermine les besoins qui vous sont remontés.',
-    secondaryOffersLabel: 'Ce que vous vendez aussi, plus occasionnellement',
+    secondaryOffersLabel: 'Ce que vous vendez aussi, plus ponctuellement',
     tradesStep: 'À quels corps de métier vendez-vous ?',
     tradesHelp:
       'Facultatif. Sans réponse, Kivou ne restreint pas le type d’entreprise gagnante.',
@@ -1014,12 +1014,12 @@ export const fr = {
     stepOfferTitle: 'Ce que vous vendez',
     stepAudienceTitle: 'À qui et où vous vendez',
     stepThresholdTitle: 'À partir de quel montant',
-    reviewTitle: 'Vérifier votre ciblage',
+    reviewTitle: 'Vérifier votre profil cible',
     summaryLabel: 'Votre offre en une phrase',
     stepIncomplete: 'Complétez cette étape pour continuer',
-    savedNotFinalisedTitle: 'Votre ciblage a bien été enregistré',
+    savedNotFinalisedTitle: 'Votre profil cible a bien été enregistré',
     savedNotFinalisedBody:
-      'Kivou n’a pas pu finaliser l’ouverture de vos signaux. Réessayez : votre ciblage ne sera pas enregistré une seconde fois.',
+      'Kivou n’a pas pu finaliser l’ouverture de vos signaux. Réessayez : votre profil cible ne sera pas enregistré une seconde fois.',
     finaliseRetry: 'Finaliser et voir mes signaux',
     welcomeTitle: 'Bienvenue dans Kivou',
     welcomeLead:
@@ -1029,12 +1029,12 @@ export const fr = {
   activation: {
     progressLabel: 'Votre mise en route',
     stepAccount: 'Compte',
-    stepTargeting: 'Ciblage',
+    stepTargeting: 'Profil cible',
     stepSignals: 'Signaux',
     stateDone: 'terminé',
     stateCurrent: 'étape en cours',
     stateTodo: 'à venir',
-    readyTitle: 'Votre ciblage est prêt',
+    readyTitle: 'Votre profil cible est prêt',
     countOne: '{count} signal est accessible avec votre profil.',
     countOther: '{count} signaux sont accessibles avec votre profil.',
     paidReady: 'Vos signaux sont disponibles ci-dessous.',
@@ -1045,16 +1045,16 @@ export const fr = {
   },
 
   icp: {
-    title: 'Profils de ciblage',
+    title: 'Profils cibles',
     lead: 'Un profil décrit ce que vous vendez et où. Il détermine les signaux que vous recevez.',
     create: 'Créer un profil',
     edit: 'Modifier',
     editTitle: 'Modifier le profil',
-    workspaceLabel: 'Espace de ciblage',
+    workspaceLabel: 'Espace de profil cible',
     listLabel: 'Profils enregistrés',
     editorLabel: 'Éditeur du profil',
     editorHint: 'Choisissez un profil à modifier ou créez-en un nouveau.',
-    listEmpty: 'Aucun profil de ciblage pour le moment.',
+    listEmpty: 'Aucun profil cible pour le moment.',
     listEmptyBody: 'Créez-en un pour commencer à recevoir des signaux.',
     limitLabel: 'Profils actifs',
     limitReached:
@@ -1097,9 +1097,9 @@ export const fr = {
   },
 
   feed: {
-    title: 'Occasions commerciales',
+    title: 'Signaux commerciaux',
     lead:
-      'Les entreprises et marchés correspondant à votre ciblage actif, dans l’ordre établi par Kivou.',
+      'Les entreprises et marchés correspondant à votre profil cible actif, dans l’ordre établi par Kivou.',
     countOne: '{count} signal',
     countOther: '{count} signaux',
     activeProfile: 'Profil actif',
@@ -1113,19 +1113,19 @@ export const fr = {
     loadingMore: 'Chargement…',
     emptyTitle: 'Aucun signal pertinent pour le moment',
     emptyBody:
-      'Kivou continue de surveiller les publications. Élargissez la fraîcheur ou ajustez votre profil de ciblage.',
+      'Kivou continue de surveiller les publications. Élargissez la fraîcheur ou ajustez votre profil cible.',
     emptyWiden: 'Voir aussi les signaux plus anciens',
-    noIcpTitle: 'Aucun profil de ciblage actif',
+    noIcpTitle: 'Aucun profil cible actif',
     noIcpBody:
       'Kivou a besoin de savoir ce que vous vendez et où vous intervenez avant de pouvoir vous montrer des signaux.',
     noIcpAction: 'Configurer mon profil',
     errorTitle: 'Les signaux n’ont pas pu être chargés',
     errorBody: 'La liste n’a pas pu être récupérée. Vous pouvez réessayer.',
     moreErrorTitle: 'Les signaux suivants n’ont pas pu être chargés',
-    moreErrorBody: 'Les occasions déjà affichées restent disponibles. Vous pouvez réessayer.',
+    moreErrorBody: 'Les signaux déjà affichées restent disponibles. Vous pouvez réessayer.',
     retryMore: 'Réessayer la page suivante',
     truncatedNote:
-      'La lecture a été bornée : consultez l’Historique pour les signaux plus anciens.',
+      'La analyse a été bornée : consultez l’Historique pour les signaux plus anciens.',
     seeSignal: 'Examiner le signal',
     winningCompany: 'Entreprise gagnante',
     publishedAmount: 'Montant publié',
@@ -1170,10 +1170,10 @@ export const fr = {
     title: 'Votre découverte',
     grantedOne: '{count} signal réel débloqué',
     grantedOther: '{count} signaux réels débloqués',
-    remainingOne: 'il reste {count} déblocage',
-    remainingOther: 'il reste {count} déblocages',
+    remainingOne: 'il reste {count} signal ouvert',
+    remainingOther: 'il reste {count} signaux ouverts',
     permanent:
-      'Ces déblocages sont acquis définitivement. Ils ne se renouvellent pas et n’expirent pas.',
+      'Ces signaux ouverts sont acquis définitivement. Ils ne se renouvellent pas et n’expirent pas.',
     noneYet:
       'Aucun signal éligible n’a encore été débloqué. Dès qu’un signal correspond à votre profil, il vous sera ouvert.',
     lockedRest: 'Les autres opportunités de votre flux restent verrouillées.',
@@ -1207,7 +1207,7 @@ export const fr = {
     needTargeted: 'Correspond à votre profil',
     needTiming: 'Fenêtre',
     needReasoning: 'Pourquoi cette hypothèse',
-    contractReading: 'Lecture du contrat',
+    contractReading: 'Analyse du contrat',
     contractType: 'Type de contrat',
     sector: 'Secteur',
     fitTitle: 'Adéquation avec votre profil',
@@ -1316,8 +1316,8 @@ export const fr = {
       scale: 'Étendez votre couverture à davantage de marchés et de territoires.',
     },
     entitlements: {
-      icpsOne: '{count} profil de ciblage',
-      icpsOther: '{count} profils de ciblage',
+      icpsOne: '{count} profil cible',
+      icpsOther: '{count} profils cibles',
       territoriesPerProfileOne: 'Jusqu’à {count} territoire par profil',
       territoriesPerProfileOther: 'Jusqu’à {count} territoires par profil',
       territoryMultiple: 'Plusieurs territoires par profil',
@@ -1501,14 +1501,14 @@ export const fr = {
     invalidResetToken: 'Ce lien de réinitialisation n’est plus valide. Demandez-en un nouveau.',
     notFoundTitle: 'Page introuvable',
     notFoundBody: 'Cette adresse ne correspond à aucune page de Kivou.',
-    targetIcpNotFound: 'Ce profil de ciblage est introuvable.',
+    targetIcpNotFound: 'Ce profil cible est introuvable.',
     territoryLimitTitle: 'Limite territoriale atteinte',
     territoryLimitBodyOne:
-      'Votre offre autorise {limit} territoire par profil. Réduisez votre sélection pour enregistrer ce ciblage.',
+      'Votre offre autorise {limit} territoire par profil. Réduisez votre sélection pour enregistrer ce profil cible.',
     territoryLimitBodyOther:
-      'Votre offre autorise {limit} territoires par profil. Réduisez votre sélection pour enregistrer ce ciblage.',
+      'Votre offre autorise {limit} territoires par profil. Réduisez votre sélection pour enregistrer ce profil cible.',
     territoryLimitBodyFallback:
-      'Votre sélection dépasse la limite territoriale de votre offre. Réduisez-la pour enregistrer ce ciblage.',
+      'Votre sélection dépasse la limite territoriale de votre offre. Réduisez-la pour enregistrer ce profil cible.',
     filterNotEntitled:
       'Ce filtre demande une offre supérieure. Votre flux reste affiché sans ce filtre.',
     signalNotAccessible: 'Ce signal doit être déverrouillé avant de pouvoir être jugé.',

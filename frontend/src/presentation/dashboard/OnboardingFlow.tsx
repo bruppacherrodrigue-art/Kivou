@@ -283,7 +283,7 @@ export function OnboardingFlow() {
       if (createdRef.current?.accountId === accountId) {
         setError({
           field: 'general',
-          message: 'Votre ciblage a bien été enregistré, mais Kivou n’a pas pu finaliser l’ouverture de votre compte. Réessayez sans recréer le profil.',
+          message: 'Votre profil cible a bien été enregistré, mais Kivou n’a pas pu finaliser l’ouverture de votre compte. Réessayez sans recréer le profil.',
         })
       } else {
         const copy = describeError(caught, t)
@@ -335,7 +335,7 @@ export function OnboardingFlow() {
 
       <div className="prototype-notice" role="note">
         <Info aria-hidden="true" />
-        <p>Le ciblage sera enregistré dans votre compte Kivou. Les catégories inconnues sont refusées plutôt que devinées.</p>
+        <p>Le profil cible sera enregistré dans votre compte Kivou. Les catégories inconnues sont refusées plutôt que devinées.</p>
       </div>
 
       {step === 0 ? (
@@ -420,7 +420,7 @@ export function OnboardingFlow() {
         <section className="onboarding-step" aria-labelledby="onboarding-review-title">
           <div className="onboarding-step-heading">
             <span><Check aria-hidden="true" /></span>
-            <div><h2 id="onboarding-review-title" ref={headingRef} tabIndex={-1}>Relire le ciblage</h2><p>Kivou utilisera cette définition pour sélectionner des attributions à examiner, pas pour affirmer qu’un achat est ouvert.</p></div>
+            <div><h2 id="onboarding-review-title" ref={headingRef} tabIndex={-1}>Vérifier le profil cible</h2><p>Kivou utilisera cette définition pour sélectionner des marchés attribués à examiner, pas pour affirmer qu’un achat est ouvert.</p></div>
           </div>
           <dl className="onboarding-review">
             <div><dt>Profil</dt><dd>{draft.name}</dd></div>

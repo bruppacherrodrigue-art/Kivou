@@ -14,6 +14,7 @@ import type {
   CompanyListPage,
   CompanyContactResult,
   CompanyContactStatus,
+  DashboardResponse,
   CompanyNoteResult,
   Currency,
   FeedPage,
@@ -153,6 +154,10 @@ export const companies = {
       method: 'PUT',
       body: { body },
     }),
+}
+
+export const dashboard = {
+  get: () => request<DashboardResponse>('/dashboard'),
 }
 
 // ─── Retour client ───────────────────────────────────────────────────────────

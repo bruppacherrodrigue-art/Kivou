@@ -4,10 +4,10 @@ import { billing } from '../api/endpoints'
 import type { BillingStatus } from '../api/types'
 import { clearCheckoutIntent, readCheckoutIntent } from '../billing/checkoutIntent'
 import { useI18n, interpolate } from '../i18n'
-import { ReferenceLink } from '../reference/router/ReferenceLink'
-import { CheckoutHandoff } from '../reference/dashboard/CheckoutHandoff'
-import { SystemState } from '../reference/dashboard/SystemState'
-import { Button } from '../reference/dashboard/ui/button'
+import { ReferenceLink } from '../presentation/router/ReferenceLink'
+import { CheckoutHandoff } from '../presentation/dashboard/CheckoutHandoff'
+import { SystemState } from '../presentation/dashboard/SystemState'
+import { Button } from '../presentation/dashboard/ui/button'
 
 const POLL_INTERVAL_MS = 2500
 const POLL_TIMEOUT_MS = 45_000

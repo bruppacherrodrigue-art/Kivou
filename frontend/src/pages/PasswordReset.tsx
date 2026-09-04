@@ -1,4 +1,4 @@
-import { AuthFlow } from '../reference/dashboard/AuthFlow'
+import { AuthFlow } from '../presentation/dashboard/AuthFlow'
 
 export function ForgotPassword() {
   return <AuthFlow mode="forgot" />
