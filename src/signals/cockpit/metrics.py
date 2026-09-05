@@ -26,7 +26,10 @@ from signals.persistence.schema import (
     acquisition_opportunity,
     acquisition_provider_event,
     acquisition_response_evaluation,
+    for_you_sentence,
+    materialized_signal,
 )
+from signals.personalization.for_you import POLICY_VERSION
 
 UNRESOLVED_SECTOR = "UNRESOLVED"
 _UNKNOWN_SECTOR = "sector-unknown-v1"
@@ -105,6 +108,36 @@ class RepositoryCockpitMetrics:
                 sectors=sectors,
             )
             m2 = self._m2_efficiency(connection, cutoff=week.week_end)
+            disagreement_pairs = (
+                sa.select(
+                    for_you_sentence.c.signal_key,
+                    for_you_sentence.c.target_icp_id,
+                )
+                .select_from(
+                    for_you_sentence.join(
+                        materialized_signal,
+                        sa.and_(
+                            for_you_sentence.c.signal_key
+                            == materialized_signal.c.signal_key,
+                            for_you_sentence.c.target_icp_id
+                            == materialized_signal.c.target_icp_id,
+                        ),
+                    )
+                )
+                .where(
+                    for_you_sentence.c.model_fit == "none",
+                    for_you_sentence.c.policy_version == POLICY_VERSION,
+                    for_you_sentence.c.signal_fingerprint
+                    == materialized_signal.c.content_fingerprint,
+                    materialized_signal.c.icp_match_band == "strong",
+                    for_you_sentence.c.created_at < week.week_end,
+                )
+                .distinct()
+                .subquery()
+            )
+            matching_disagreement = connection.scalar(
+                sa.select(sa.func.count()).select_from(disagreement_pairs)
+            ) or 0
         unresolved = sum(
             1
             for member_ref in member_refs
@@ -120,6 +153,7 @@ class RepositoryCockpitMetrics:
             data_quality=CockpitDataQuality(
                 unresolved_sector_count=unresolved,
                 unknown_mrr_journey_count=unknown_mrr,
+                matching_disagreement=matching_disagreement,
                 m2_insufficient_wedges=insufficient,
                 captured_at=week.week_end,
             ),

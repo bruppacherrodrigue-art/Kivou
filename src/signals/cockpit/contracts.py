@@ -143,6 +143,7 @@ class CockpitDataQuality(CockpitContract):
     delivery_is_proxy: Literal[True] = True
     unresolved_sector_count: Count
     unknown_mrr_journey_count: Count
+    matching_disagreement: Count = 0
     m2_insufficient_wedges: tuple[StableRef, ...]
     captured_at: dt.datetime
 

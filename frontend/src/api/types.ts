@@ -193,6 +193,7 @@ export interface WeeklyCommercialCockpit {
     delivery_is_proxy: true
     unresolved_sector_count: number
     unknown_mrr_journey_count: number
+    matching_disagreement: number
     m2_insufficient_wedges: string[]
     captured_at: string
   }

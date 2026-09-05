@@ -81,7 +81,9 @@ def test_alert_selection_continues_after_the_first_feed_page(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     items = tuple(
-        types.SimpleNamespace(signal=types.SimpleNamespace(signal_key=f"sig-{index:02d}"))
+        types.SimpleNamespace(
+            signal=types.SimpleNamespace(signal_key=f"sig-{index:02d}"), model_fit=None
+        )
         for index in range(51)
     )
     offsets: list[int] = []
@@ -137,7 +139,9 @@ def test_alert_selection_stops_paginating_once_it_holds_enough_signals(
     reste correcte et seul le coût explose, donc rien d'autre ne le trahirait.
     """
     items = tuple(
-        types.SimpleNamespace(signal=types.SimpleNamespace(signal_key=f"sig-{index:03d}"))
+        types.SimpleNamespace(
+            signal=types.SimpleNamespace(signal_key=f"sig-{index:03d}"), model_fit=None
+        )
         for index in range(500)
     )
     offsets: list[int] = []
@@ -183,6 +187,7 @@ def test_retry_revalidation_looks_up_its_keys_beyond_the_feed_scan_cap(
         signal=types.SimpleNamespace(signal_key="sig-501"),
         display=object(),
         status="recent_award",
+        model_fit=None,
     )
     access = types.SimpleNamespace(
         entitlements=types.SimpleNamespace(feed_access=True, max_active_icps=1),
@@ -673,6 +678,16 @@ def test_the_digest_reads_the_exact_persisted_for_you_sentence(app, engine, mail
     cycle(engine, mailer)
 
     assert sentence in mailer.last.text_body
+
+
+def test_the_digest_excludes_a_signal_rejected_by_the_model(app, engine, mailer):
+    subscriber(app, engine, plan="scale", count=1)
+    with engine.begin() as connection:
+        connection.execute(sa.update(for_you_sentence).values(model_fit="none"))
+
+    cycle(engine, mailer)
+
+    assert mailer.sent == []
 
 
 def test_an_old_signal_never_gets_new_opportunity_wording_in_an_email(app, engine, mailer):

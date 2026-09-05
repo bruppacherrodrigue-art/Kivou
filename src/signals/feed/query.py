@@ -191,6 +191,7 @@ class FeedSignal:
     account_id: str
     target_icp_label: str
     for_you_sentence: str | None = None
+    model_fit: str | None = None
     #: `None` quand aucune représentation du contrat ne nomme l'attributaire.
     display: DisplayIdentity | None = None
 
@@ -366,8 +367,25 @@ def _ownership_scoped(account_id: str) -> sa.Select:
         .correlate(materialized_signal, target_icp)
         .scalar_subquery()
     )
+    persisted_model_fit = (
+        sa.select(for_you_sentence.c.model_fit)
+        .where(
+            for_you_sentence.c.signal_key == materialized_signal.c.signal_key,
+            for_you_sentence.c.target_icp_id == target_icp.c.target_icp_id,
+            for_you_sentence.c.signal_fingerprint
+            == materialized_signal.c.content_fingerprint,
+            for_you_sentence.c.policy_version == POLICY_VERSION,
+        )
+        .order_by(for_you_sentence.c.created_at.desc())
+        .limit(1)
+        .correlate(materialized_signal, target_icp)
+        .scalar_subquery()
+    )
     return (
-        SIGNAL_SELECT.add_columns(persisted_for_you.label("for_you_sentence")).join(
+        SIGNAL_SELECT.add_columns(
+            persisted_for_you.label("for_you_sentence"),
+            persisted_model_fit.label("model_fit"),
+        ).join(
             target_icp, materialized_signal.c.target_icp_id == target_icp.c.target_icp_id
         )
         .where(
@@ -455,6 +473,7 @@ def _reassess(row: sa.Row, owned: dict[str, OwnedTargetIcp], account_id: str, as
         account_id=account_id,
         target_icp_label=profile.label,
         for_you_sentence=row.for_you_sentence,
+        model_fit=row.model_fit,
     )
 
 
@@ -865,7 +884,7 @@ def history_page(
             break
         signals = [signal_from_row(row) for row in rows]
         identities = resolve_display_identity(connection, signals)
-        for signal in signals:
+        for row, signal in zip(rows, signals, strict=True):
             current_position = cursor_for_signal(signal)
             position = current_position
             scanned += 1
@@ -880,6 +899,8 @@ def history_page(
                 account_id=account_id,
                 target_icp_label=profile.label,
                 display=display,
+                for_you_sentence=row.for_you_sentence,
+                model_fit=row.model_fit,
             )
             place = signal.award.place_of_performance or {}
             if (

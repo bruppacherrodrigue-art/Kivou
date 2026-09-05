@@ -167,6 +167,7 @@ def _accessible_signals(
                 item is not None
                 and item.display is not None
                 and item.status in admitted
+                and item.model_fit != "none"
                 and access.is_unlocked(item)
             ):
                 exact.append(item)
@@ -194,7 +195,11 @@ def _accessible_signals(
             limit=feed_policy.MAXIMUM_PAGE_SIZE,
             offset=offset,
         )
-        unlocked.extend(item for item in page.items if access.is_unlocked(item))
+        unlocked.extend(
+            item
+            for item in page.items
+            if item.model_fit != "none" and access.is_unlocked(item)
+        )
         if not page.has_more:
             return unlocked
         if enough is not None and _sendable_count(unlocked, exclude=exclude) >= enough:

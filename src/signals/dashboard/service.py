@@ -305,9 +305,13 @@ def build_dashboard(
         ]
 
     new_since_last_visit = len(since_visit)
-    strong_matches = sum(1 for item in since_visit if item.signal.icp_match_band == "strong")
+    strong_matches = sum(
+        1
+        for item in since_visit
+        if item.signal.icp_match_band == "strong" and item.model_fit != "none"
+    )
 
-    top3_candidates = list(scope.matched)
+    top3_candidates = [item for item in scope.matched if item.model_fit != "none"]
     seen_top3 = {item.signal.signal_key for item in top3_candidates}
     for landing_key in accounts.landing_signal_keys(connection, account_id=account_id):
         if landing_key in seen_top3:
@@ -319,7 +323,12 @@ def build_dashboard(
             as_of=as_of,
             allowed_target_icp_ids=allowed_target_icp_ids,
         )
-        if landing_item is not None and landing_item.display is not None and access.is_unlocked(landing_item):
+        if (
+            landing_item is not None
+            and landing_item.display is not None
+            and landing_item.model_fit != "none"
+            and access.is_unlocked(landing_item)
+        ):
             top3_candidates.append(landing_item)
     top3_items = sorted(top3_candidates, key=_top3_sort_key, reverse=True)[:3]
     top3_company_keys = company_keys_for_signals(

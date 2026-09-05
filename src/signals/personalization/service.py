@@ -555,11 +555,18 @@ class PersonalizationService:
         public_event_sentence = claim_for(recency, company=awardee, lang=language)
         opportunity_key = opportunity.signal_ref.removeprefix("opportunity:")
         with self._engine.connect() as connection:
-            from signals.personalization.for_you_store import sentence_for_opportunity
+            from signals.personalization.for_you_store import (
+                model_fit_for_opportunity,
+                sentence_for_opportunity,
+            )
 
             persisted_for_you = sentence_for_opportunity(
                 connection, opportunity_key=opportunity_key
             )
+            if model_fit_for_opportunity(connection, opportunity_key=opportunity_key) == "none":
+                raise PersonalizationGroundingInsufficient(
+                    opportunity.acquisition_opportunity_id
+                )
         for_you_sentence = persisted_for_you or for_you_fallback(language, need.category)
         message = render_catalog_message(
             language=language,

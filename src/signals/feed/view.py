@@ -265,7 +265,7 @@ def _fit(item: FeedSignal, *, lang: str) -> dict[str, Any]:
         # PR2b — même table que `companies.listing` (§45) : `feed.policy.fit_band`
         # est l'UNIQUE source du vocabulaire, pour que les deux surfaces ne
         # divergent jamais.
-        "band": policy.fit_band(signal.icp_match_band),
+        "band": "weak" if item.model_fit == "none" else policy.fit_band(signal.icp_match_band),
         "target_icp_id": signal.target_icp_id,
         "target_icp_label": item.target_icp_label,
         "reasons": rendered_reasons,

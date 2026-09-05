@@ -32,7 +32,7 @@ from signals.domain.awards import Awardee, AwardeeParty
 from signals.domain.cpv_labels import cpv_label
 from signals.feed.policy import FIT_BANDS
 from signals.persistence.database import create_database_engine, migrate_to_latest
-from signals.persistence.schema import materialized_signal
+from signals.persistence.schema import for_you_sentence, materialized_signal
 
 
 class Clock:
@@ -187,6 +187,26 @@ def test_an_unrecognised_stored_band_still_renders_as_unknown(client, engine):
 
     body = detail(client, signal.signal_key)
     assert body["analysis"]["fit"]["band"] == "unknown"
+
+
+def test_model_fit_none_reduces_match_to_weak_in_detail_and_history(client, engine):
+    icp = icp_of(client)
+    with engine.begin() as connection:
+        signal = materialize_simap(connection, SIMAP_RICH, target_icp_id=icp)
+        connection.execute(
+            sa.update(materialized_signal)
+            .where(materialized_signal.c.signal_key == signal.signal_key)
+            .values(icp_match_band="strong")
+        )
+        connection.execute(
+            sa.update(for_you_sentence)
+            .where(for_you_sentence.c.signal_key == signal.signal_key)
+            .values(model_fit="none")
+        )
+
+    assert detail(client, signal.signal_key)["analysis"]["fit"]["band"] == "weak"
+    item = next(i for i in feed_items(client) if i["signal_id"] == signal.signal_key)
+    assert item["analysis"]["fit"]["band"] == "weak"
 
 
 # ─── contract.cpv_label ─────────────────────────────────────────────────────

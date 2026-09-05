@@ -300,8 +300,31 @@ def sentence_for_opportunity(connection: sa.Connection, *, opportunity_key: str)
     )
 
 
+def model_fit_for_opportunity(
+    connection: sa.Connection, *, opportunity_key: str
+) -> str | None:
+    """Verdict modèle courant du couple choisi comme appât, s'il existe."""
+    return connection.scalar(
+        sa.select(for_you_sentence.c.model_fit)
+        .select_from(
+            for_you_sentence.join(
+                materialized_signal,
+                for_you_sentence.c.signal_key == materialized_signal.c.signal_key,
+            )
+        )
+        .where(
+            materialized_signal.c.opportunity_key == opportunity_key,
+            for_you_sentence.c.signal_fingerprint == materialized_signal.c.content_fingerprint,
+            for_you_sentence.c.policy_version == POLICY_VERSION,
+        )
+        .order_by(for_you_sentence.c.created_at.desc())
+        .limit(1)
+    )
+
+
 __all__ = [
     "enqueue_for_you_sentence",
     "enqueue_stored_for_you_sentence",
+    "model_fit_for_opportunity",
     "sentence_for_opportunity",
 ]

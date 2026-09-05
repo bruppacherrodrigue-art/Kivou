@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import datetime as dt
 import pathlib
+from zoneinfo import ZoneInfo
 
 import pytest
 import sqlalchemy as sa
@@ -39,10 +40,12 @@ from feed_helpers import (
 
 from signals.accounts import service as accounts_service
 from signals.api import ApiConfig, create_app
+from signals.cockpit.contracts import CockpitWeek
+from signals.cockpit.service import WeeklyCommercialCockpitService
 from signals.companies.enrichment import run_winner_enrichment_batch
 from signals.dashboard.service import _FOLLOW_UP_LIMIT
 from signals.persistence.database import create_database_engine, migrate_to_latest
-from signals.persistence.schema import materialized_signal
+from signals.persistence.schema import for_you_sentence, materialized_signal
 
 NOW = dt.datetime(2026, 8, 20, 9, 0, tzinfo=dt.UTC)
 
@@ -149,6 +152,15 @@ def _set_band_and_score(engine, signal_key: str, *, band: str, score: int) -> No
         )
 
 
+def _set_model_fit(engine, signal_key: str, model_fit: str) -> None:
+    with engine.begin() as connection:
+        connection.execute(
+            sa.update(for_you_sentence)
+            .where(for_you_sentence.c.signal_key == signal_key)
+            .values(model_fit=model_fit)
+        )
+
+
 def _company_key_for(client: TestClient, signal_key: str) -> str:
     items = client.get("/signals?freshness=all").json()["items"]
     return next(item["company_key"] for item in items if item["signal_id"] == signal_key)
@@ -205,6 +217,30 @@ def test_top3_is_ordered_by_band_then_score_and_carries_a_company_key(client, en
     for item in top3:
         assert item["status"] == "new"
         assert item["company_key"]
+
+
+def test_model_fit_none_downgrades_a_strong_signal_and_counts_the_disagreement(client, engine):
+    keys = _seed_new_signals(client, engine)
+    _set_band_and_score(engine, keys[0], band="strong", score=99)
+    _set_model_fit(engine, keys[0], "none")
+
+    dashboard = _dashboard(client)
+    assert dashboard["strong_matches"] == 0
+    assert keys[0] not in {item["signal_id"] for item in dashboard["top3"]}
+
+    signal = next(
+        item for item in client.get("/signals?freshness=all").json()["items"]
+        if item["signal_id"] == keys[0]
+    )
+    assert signal["analysis"]["fit"]["band"] == "weak"
+
+    report = WeeklyCommercialCockpitService(engine).generate(
+        week=CockpitWeek(
+            week_start=dt.datetime(2026, 8, 17, tzinfo=ZoneInfo("Europe/Zurich")),
+            week_end=dt.datetime(2026, 8, 24, tzinfo=ZoneInfo("Europe/Zurich")),
+        )
+    )
+    assert report.data_quality.matching_disagreement == 1
 
 
 def test_to_follow_up_lists_companies_contacted_a_week_or_more_ago(client, icp, engine, clock):
