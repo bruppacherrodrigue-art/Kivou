@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 from typing import Annotated, Any, Literal
 
+import sqlalchemy as sa
 from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -19,9 +20,13 @@ from signals.companies.contracts import CompanyProfile
 from signals.companies.enrichment import winner_enrichments_for_signals
 from signals.companies.listing import InvalidCompanyCursor, list_companies
 from signals.companies.service import company_profile_with_items
+from signals.engagement import analytics, feedback
 from signals.engagement import company as company_engagement
-from signals.engagement import feedback
-from signals.engagement.schema import COMPANY_CONTACT_STATUSES, MAXIMUM_COMPANY_NOTE_LENGTH
+from signals.engagement.schema import (
+    COMPANY_CONTACT_STATUSES,
+    MAXIMUM_COMPANY_NOTE_LENGTH,
+    product_event,
+)
 from signals.engagement.status import status_resolver
 from signals.feed import query as feed_query
 from signals.feed.history import history_sort_key
@@ -126,6 +131,41 @@ def _company_signals(
         )
         for item in ordered
     )
+
+
+def _company_history(connection, *, account_id: str, company_key: str, items) -> tuple[dict[str, Any], ...]:
+    signal_keys = {item.signal.signal_key for item in items}
+    rows = connection.execute(
+        sa.select(product_event).where(product_event.c.account_id == account_id)
+    ).mappings()
+    events = []
+    labels = {
+        "company_contact_updated": "contact",
+        "company_note_updated": "note",
+        "signal_feedback_relevant": "signal_saved",
+        "signal_contacted": "signal_contacted",
+    }
+    for row in rows:
+        event_type = row["event_type"]
+        properties = row["properties"] or {}
+        belongs = (
+            properties.get("company_key") == company_key
+            if event_type.startswith("company_")
+            else row["signal_key"] in signal_keys
+        )
+        if belongs and event_type in labels:
+            events.append(
+                {
+                    "type": (
+                        properties.get("status", labels[event_type])
+                        if event_type == "company_contact_updated"
+                        else labels[event_type]
+                    ),
+                    "occurred_at": row["occurred_at"].isoformat(),
+                    "signal_key": row["signal_key"],
+                }
+            )
+    return tuple(sorted(events, key=lambda event: event["occurred_at"], reverse=True))
 
 
 @router.get("/companies")
@@ -235,6 +275,12 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
         )
         most_recent = min(items, key=lambda item: history_sort_key(item.signal))
         place = most_recent.signal.award.place_of_performance or {}
+        history = _company_history(
+            connection,
+            account_id=session.account_id,
+            company_key=company_key,
+            items=items,
+        )
     return profile.model_copy(
         update={
             "city": place.get("locality"),
@@ -242,6 +288,7 @@ def get_company(company_key: str, request: Request) -> CompanyProfile:
             "contacted_at": contact.contacted_at if contact is not None else None,
             "note": note.body if note is not None else None,
             "signals": signals,
+            "history": history,
         }
     )
 
@@ -266,6 +313,16 @@ def set_company_contact(
             status=payload.status,
             now=now,
         )
+        analytics.record(
+            connection,
+            account_id=session.account_id,
+            user_id=session.user_id,
+            signal_key=None,
+            target_icp_id=None,
+            event_type="company_contact_updated",
+            occurred_at=now,
+            properties={"company_key": company_key, "status": stored.status},
+        )
     return {
         "company_key": stored.company_key,
         "contact_status": stored.status,
@@ -289,6 +346,16 @@ def set_company_note(
             company_key=company_key,
             body=payload.body,
             now=now,
+        )
+        analytics.record(
+            connection,
+            account_id=session.account_id,
+            user_id=session.user_id,
+            signal_key=None,
+            target_icp_id=None,
+            event_type="company_note_updated",
+            occurred_at=now,
+            properties={"company_key": company_key, "deleted": stored is None},
         )
     return {
         "company_key": company_key,

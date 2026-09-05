@@ -122,6 +122,26 @@ def test_unlocked_signal_detail_links_to_the_official_company_profile(app, engin
     assert "contact_ref" not in response.text.lower()
 
 
+def test_company_profile_exposes_dated_contact_note_and_signal_history(app, engine) -> None:
+    client = _signup(app, email="company-history@example.com")
+    signal_key = _seed_unlocked(engine, client)
+    company_key = client.get(f"/signals/{signal_key}").json()["company_key"]
+    assert client.post(
+        f"/companies/{company_key}/contact", json={"status": "contacted"}
+    ).status_code == 200
+    assert client.put(
+        f"/companies/{company_key}/note", json={"body": "Relancer mardi"}
+    ).status_code == 200
+    assert client.put(
+        f"/signals/{signal_key}/feedback", json={"relevance": "relevant"}
+    ).status_code == 200
+
+    history = client.get(f"/companies/{company_key}").json()["history"]
+
+    assert {event["type"] for event in history} >= {"contacted", "note", "signal_saved"}
+    assert all(event["occurred_at"] for event in history)
+
+
 def test_unlocked_feed_links_to_company_without_opening_every_signal_detail(app, engine) -> None:
     client = _signup(app, email="company-feed-api@example.com")
     signal_key = _seed_unlocked(engine, client)

@@ -497,6 +497,7 @@ export const COMPANY_PROFILE: CompanyProfile = {
   contacted_at: null,
   note: null,
   signals: [],
+  history: [],
   official_identity: {
     name: 'Constructions Bertrand SA',
     country: 'FR',
