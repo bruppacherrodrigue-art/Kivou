@@ -26,17 +26,19 @@ function renderRow({
   signal = UNLOCKED_ITEM,
   selected = false,
   compact = false,
+  companyCompact = false,
   onOpen = noop,
 }: {
   signal?: UnlockedFeedItem
   selected?: boolean
   compact?: boolean
+  companyCompact?: boolean
   onOpen?: (signalKey: string) => void
 } = {}) {
   return renderApp(
     <table>
       <tbody>
-        <SignalRow item={signal} selected={selected} compact={compact} onOpen={onOpen} />
+        <SignalRow item={signal} selected={selected} compact={compact} companyCompact={companyCompact} onOpen={onOpen} />
       </tbody>
     </table>,
     { session: AUTHENTICATED },
@@ -211,5 +213,28 @@ describe('SignalRow', () => {
     const cells = within(screen.getByRole('row')).getAllByRole('cell')
     expect(cells).toHaveLength(5)
     expect(flat(screen.getByRole('row').textContent ?? '')).not.toContain('Villeneuve')
+  })
+
+  it('rend les marchés du panneau sans titulaire, avec objet, montant, lieu et match', () => {
+    renderRow({ companyCompact: true })
+
+    const row = screen.getByRole('row')
+    const cells = within(row).getAllByRole('cell')
+    expect(cells).toHaveLength(4)
+    expect(row).not.toHaveTextContent('Constructions Bertrand SA')
+    expect(flat(cells[0].textContent ?? '')).toBe('Voirie')
+    expect(flat(cells[1].textContent ?? '')).toBe('1 240 000 €')
+    expect(flat(cells[2].textContent ?? '')).toBe('Villeneuve')
+    expect(within(cells[3]).getByLabelText(/Correspondance/)).toBeInTheDocument()
+  })
+
+  it('ne coupe pas arbitrairement l’objet dans le panneau Entreprises', () => {
+    const long = 'Collège de Levens, lot 2 : gros œuvre, charpente bois, façades et génie civil'
+    renderRow({
+      companyCompact: true,
+      signal: item({ contract: { ...UNLOCKED_ITEM.contract, lot_title: long } }),
+    })
+
+    expect(screen.getByRole('row')).toHaveTextContent(long)
   })
 })

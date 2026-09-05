@@ -116,10 +116,10 @@ describe('SignalDrawer', () => {
     expect(fact('CPV')).toBe('45233120')
   })
 
-  it('rend le tiret pour un acheteur absent', () => {
+  it('omet un acheteur absent', () => {
     renderDrawer({ signal: item({ contract: { ...UNLOCKED_ITEM.contract, buyer: null } }) })
 
-    expect(fact('Acheteur')).toBe('—')
+    expect(screen.queryByText('Acheteur')).not.toBeInTheDocument()
   })
 
   it('lie le titulaire à sa fiche quand la clé entreprise est publiée', () => {
@@ -161,7 +161,7 @@ describe('SignalDrawer', () => {
     expect(fact('Publié le')).toContain('10 août 2026')
   })
 
-  it('rend le tiret quand aucune date n’est disponible', () => {
+  it('omet la date quand aucune date n’est disponible', () => {
     renderDrawer({
       signal: item({
         contract: {
@@ -171,7 +171,31 @@ describe('SignalDrawer', () => {
       }),
     })
 
-    expect(fact('Attribué le')).toBe('—')
+    expect(screen.queryByText('Attribué le')).not.toBeInTheDocument()
+  })
+
+  it('omet tous les faits absents sans afficher de tiret', () => {
+    renderDrawer({
+      signal: item({
+        company: { ...UNLOCKED_ITEM.company, name: null },
+        contract: {
+          ...UNLOCKED_ITEM.contract,
+          buyer: null,
+          amount: null,
+          location: null,
+          cpv: null,
+          dates: { award: null, contract_notification: null, publication: null },
+        },
+      }),
+    })
+
+    const drawer = screen.getByRole('complementary')
+    expect(within(drawer).queryByText('Titulaire')).not.toBeInTheDocument()
+    expect(within(drawer).queryByText('Acheteur')).not.toBeInTheDocument()
+    expect(within(drawer).queryByText('Montant')).not.toBeInTheDocument()
+    expect(within(drawer).queryByText('Lieu')).not.toBeInTheDocument()
+    expect(within(drawer).queryByText('CPV')).not.toBeInTheDocument()
+    for (const value of drawer.querySelectorAll('dd')) expect(value).not.toHaveTextContent('—')
   })
 
   it('rend au plus trois raisons sous « Pourquoi ça vous concerne »', () => {
